@@ -1,6 +1,6 @@
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore'
 import { db } from './firebase'
-import { UserPreferences, Location, Activity, SkinType } from './types'
+import { UserPreferences, Location, Activity } from './types'
 import { DEFAULT_ACTIVITIES } from './weather'
 
 const PREFS_KEY = 'solara_prefs'
@@ -21,6 +21,7 @@ export function saveLocalPrefs(prefs: Partial<UserPreferences>): void {
 }
 
 export async function loadFirestorePrefs(uid: string): Promise<UserPreferences | null> {
+  if (!db) return null
   try {
     const snap = await getDoc(doc(db, 'users', uid))
     return snap.exists() ? (snap.data() as UserPreferences) : null
@@ -30,6 +31,7 @@ export async function loadFirestorePrefs(uid: string): Promise<UserPreferences |
 }
 
 export async function saveFirestorePrefs(uid: string, prefs: Partial<UserPreferences>): Promise<void> {
+  if (!db) return
   const ref = doc(db, 'users', uid)
   const snap = await getDoc(ref)
   if (snap.exists()) {

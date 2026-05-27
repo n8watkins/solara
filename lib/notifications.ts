@@ -7,7 +7,7 @@ const VAPID_KEY = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY
 let messaging: Messaging | null = null
 
 function getMessagingInstance(): Messaging | null {
-  if (typeof window === 'undefined') return null
+  if (typeof window === 'undefined' || !app) return null
   if (!messaging) {
     try {
       messaging = getMessaging(app)
@@ -22,10 +22,8 @@ export async function requestNotificationPermission(): Promise<string | null> {
   try {
     const m = getMessagingInstance()
     if (!m) return null
-
     const permission = await Notification.requestPermission()
     if (permission !== 'granted') return null
-
     const token = await getToken(m, { vapidKey: VAPID_KEY })
     return token || null
   } catch (err) {
@@ -35,6 +33,7 @@ export async function requestNotificationPermission(): Promise<string | null> {
 }
 
 export async function saveFCMToken(uid: string, token: string): Promise<void> {
+  if (!db) return
   try {
     const ref = doc(db, 'users', uid)
     const snap = await getDoc(ref)
@@ -49,17 +48,11 @@ export async function saveFCMToken(uid: string, token: string): Promise<void> {
 }
 
 export function saveFCMTokenLocally(token: string): void {
-  try {
-    localStorage.setItem('solara_fcm_token', token)
-  } catch {}
+  try { localStorage.setItem('solara_fcm_token', token) } catch {}
 }
 
 export function getFCMTokenLocally(): string | null {
-  try {
-    return localStorage.getItem('solara_fcm_token')
-  } catch {
-    return null
-  }
+  try { return localStorage.getItem('solara_fcm_token') } catch { return null }
 }
 
 export function onForegroundMessage(callback: (payload: unknown) => void): void {

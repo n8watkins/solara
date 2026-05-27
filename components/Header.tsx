@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { User, signInWithPopup, signOut } from 'firebase/auth'
-import { auth, googleProvider } from '@/lib/firebase'
+import { auth, googleProvider, firebaseEnabled } from '@/lib/firebase'
 import { saveFirestorePrefs, saveLocalPrefs } from '@/lib/prefs'
 import { UserPreferences } from '@/lib/types'
 import PreferencesModal from './PreferencesModal'
@@ -17,6 +17,7 @@ export default function Header({ user, prefs, onPrefsUpdate }: Props) {
   const [showPrefs, setShowPrefs] = useState(false)
 
   async function handleSignIn() {
+    if (!auth || !googleProvider) return
     try {
       const result = await signInWithPopup(auth, googleProvider)
       if (result.user && prefs) {
@@ -28,6 +29,7 @@ export default function Header({ user, prefs, onPrefsUpdate }: Props) {
   }
 
   async function handleSignOut() {
+    if (!auth) return
     await signOut(auth)
   }
 
@@ -51,14 +53,10 @@ export default function Header({ user, prefs, onPrefsUpdate }: Props) {
             <button className="btn text-xs" onClick={() => setShowPrefs(true)}>
               ⚙️ Preferences
             </button>
-            {user ? (
-              <button className="btn text-xs" onClick={handleSignOut}>
-                Sign out
-              </button>
-            ) : (
-              <button className="btn text-xs" onClick={handleSignIn}>
-                Sign in with Google
-              </button>
+            {firebaseEnabled && (
+              user
+                ? <button className="btn text-xs" onClick={handleSignOut}>Sign out</button>
+                : <button className="btn text-xs" onClick={handleSignIn}>Sign in with Google</button>
             )}
           </div>
         </div>

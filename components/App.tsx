@@ -33,7 +33,7 @@ export default function App() {
   const [showNotifBanner, setShowNotifBanner] = useState(false)
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (u) => {
+    async function loadPrefs(u: User | null) {
       setUser(u)
       let loaded: UserPreferences | null = null
 
@@ -55,8 +55,14 @@ export default function App() {
       if (loaded && 'Notification' in window && Notification.permission === 'default' && !getFCMTokenLocally()) {
         setTimeout(() => setShowNotifBanner(true), 3000)
       }
-    })
-    return () => unsub()
+    }
+
+    if (auth) {
+      const unsub = onAuthStateChanged(auth, loadPrefs)
+      return () => unsub()
+    } else {
+      loadPrefs(null)
+    }
   }, [])
 
   useEffect(() => {
