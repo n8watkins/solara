@@ -35,10 +35,17 @@ export interface HourlyForecast {
   hour: number; uv: number; tempF: number; condition: string
 }
 
+export interface DayWeather {
+  dateStr:  string
+  label:    string
+  hourly:   HourlyForecast[]
+}
+
 export interface WeatherResponse {
-  current: { uv: number; tempF: number; condition: string }
+  current:  { uv: number; tempF: number; condition: string }
   today:    HourlyForecast[]
   tomorrow: HourlyForecast[]
+  forecast: DayWeather[]    // all available days starting from today
 }
 
 export interface ActivityWindow {

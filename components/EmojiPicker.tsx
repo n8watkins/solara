@@ -55,14 +55,14 @@ export default function EmojiPicker({ value, onChange, onClose }: Props) {
       <div style={{ overflowY: 'auto', flex: 1, padding: '8px 10px' }}>
         {filtered ? (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px' }}>
-            {filtered.map(e => <EmojiBtn key={e} e={e} selected={value === e} onClick={() => { onChange(e); onClose() }} />)}
+            {filtered.map((e, i) => <EmojiBtn key={`search-${i}`} e={e} selected={value === e} onClick={() => { onChange(e); onClose() }} />)}
           </div>
         ) : (
           EMOJI_GROUPS.map(g => (
             <div key={g.label} style={{ marginBottom: '10px' }}>
               <p style={{ margin: '0 0 4px', fontSize: '11px', color: 'var(--text-3)', fontWeight: 500 }}>{g.label}</p>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px' }}>
-                {g.emojis.map(e => <EmojiBtn key={e} e={e} selected={value === e} onClick={() => { onChange(e); onClose() }} />)}
+                {g.emojis.map((e, i) => <EmojiBtn key={`${g.label}-${i}`} e={e} selected={value === e} onClick={() => { onChange(e); onClose() }} />)}
               </div>
             </div>
           ))

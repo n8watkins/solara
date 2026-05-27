@@ -5,7 +5,7 @@ import { auth } from '@/lib/firebase'
 import { loadLocalPrefs, loadFirestorePrefs, defaultPrefs } from '@/lib/prefs'
 import { getCachedWeather, setCachedWeather } from '@/lib/cache'
 import { getFCMTokenLocally } from '@/lib/notifications'
-import { UserPreferences, WeatherResponse, Location, TierLevel } from '@/lib/types'
+import { UserPreferences, WeatherResponse, Location, TierLevel, DayWeather } from '@/lib/types'
 import Welcome from './Welcome'
 import Onboarding from './Onboarding'
 import Dashboard from './Dashboard'
@@ -33,6 +33,7 @@ export default function App() {
   const [weather,        setWeather]        = useState<WeatherResponse | null>(null)
   const [screen,         setScreen]         = useState<Screen>('loading')
   const [view,           setView]           = useState<'dashboard' | 'calendar'>('dashboard')
+  const [selectedDay,    setSelectedDay]    = useState<DayWeather | null>(null)
   const [tierOverride,   setTierOverride]   = useState<TierLevel | null>(null)
   const [prefsOpen,      setPrefsOpen]      = useState(false)
   const [prefsTab,       setPrefsTab]       = useState<'general' | 'activities' | 'location'>('general')
@@ -98,13 +99,14 @@ export default function App() {
         `?latitude=${location.lat}&longitude=${location.lon}` +
         `&hourly=uv_index,temperature_2m,weathercode` +
         `&current=uv_index,temperature_2m,weathercode` +
-        `&timezone=auto&forecast_days=2`
+        `&timezone=auto&forecast_days=10`
       const res = await fetch(url)
       if (!res.ok) throw new Error()
       const raw = await res.json()
-      const todayStr    = new Date().toISOString().split('T')[0]
+      const today = new Date()
+      const todayStr    = today.toISOString().split('T')[0]
       const tomorrowStr = new Date(Date.now() + 86400000).toISOString().split('T')[0]
-      const parse = (d: string) => raw.hourly.time
+      const parse = (d: string) => (raw.hourly.time as string[])
         .map((t: string, i: number) => ({
           date: t.split('T')[0], hour: parseInt(t.split('T')[1].split(':')[0]),
           uv: Math.round(raw.hourly.uv_index[i] * 10) / 10,
@@ -112,6 +114,19 @@ export default function App() {
           condition: weatherLabel(raw.hourly.weathercode[i]),
         }))
         .filter((h: any) => h.date === d && h.hour >= 6 && h.hour <= 20)
+
+      // Build 10-day forecast
+      const dateSet = new Set<string>()
+      ;(raw.hourly.time as string[]).forEach((t: string) => dateSet.add(t.split('T')[0]))
+      const allDates = Array.from(dateSet).sort()
+      const forecast = allDates.slice(0, 10).map((dateStr, idx) => {
+        const d = new Date(dateStr + 'T12:00:00')
+        const diff = idx
+        const label = diff === 0 ? 'Today' : diff === 1 ? 'Tomorrow'
+          : d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+        return { dateStr, label, hourly: parse(dateStr) }
+      })
+
       const data: WeatherResponse = {
         current: {
           uv: Math.round(raw.current.uv_index * 10) / 10,
@@ -119,6 +134,7 @@ export default function App() {
           condition: weatherLabel(raw.current.weathercode),
         },
         today: parse(todayStr), tomorrow: parse(tomorrowStr),
+        forecast,
       }
       setCachedWeather(location.lat, location.lon, data)
       setWeather(data)
@@ -155,7 +171,7 @@ export default function App() {
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
-      <Header user={user} prefs={tierOverride ? { ...prefs, tier: tierOverride } : prefs} onPrefsUpdate={p => { setPrefs(p); fetchWeather(p.location) }} forceOpenTab={prefsOpen ? prefsTab : undefined} onModalClose={() => setPrefsOpen(false)} />
+      <Header user={user} prefs={tierOverride ? { ...prefs, tier: tierOverride } : prefs} onPrefsUpdate={p => { setPrefs(p); fetchWeather(p.location) }} forceOpenTab={prefsOpen ? prefsTab : undefined} onModalClose={() => setPrefsOpen(false)} onGoHome={() => { setView('dashboard'); setSelectedDay(null) }} currentUV={weather?.current.uv} />
       <div style={{ borderBottom: '0.5px solid var(--border-md)', background: 'var(--bg-card)' }}>
         <div style={{ maxWidth: '900px', margin: '0 auto', padding: '0 1rem', display: 'flex', gap: '0' }}>
           {(['dashboard', 'calendar'] as const).map(v => (
@@ -183,7 +199,7 @@ export default function App() {
           <>
             {weatherLoading && <Skeleton />}
             {weather && !weatherLoading && (
-              <Dashboard weather={weather} prefs={tierOverride ? { ...prefs, tier: tierOverride } : prefs} onRefresh={() => fetchWeather(prefs.location, true)} onAddActivities={() => { setPrefsTab('activities'); setPrefsOpen(true) }} />
+              <Dashboard weather={weather} prefs={tierOverride ? { ...prefs, tier: tierOverride } : prefs} onRefresh={() => fetchWeather(prefs.location, true)} onAddActivities={() => { setPrefsTab('activities'); setPrefsOpen(true) }} selectedDay={selectedDay} onSelectDay={setSelectedDay} />
             )}
           </>
         )}

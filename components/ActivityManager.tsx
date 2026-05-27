@@ -17,7 +17,6 @@ export default function ActivityManager({ selected, tier, onChange }: Props) {
   const [customName,  setCustomName]  = useState('')
   const [customMins,  setCustomMins]  = useState(30)
   const [customIcon,  setCustomIcon]  = useState('🏃')
-  const [customSpf,   setCustomSpf]   = useState(false)
   const [showEmoji,   setShowEmoji]   = useState(false)
 
   const atLimit = !canAddActivity(tier, selected.length)
@@ -38,13 +37,9 @@ export default function ActivityManager({ selected, tier, onChange }: Props) {
     onChange([...selected, {
       id: `custom_${Date.now()}`, name: customName.trim(),
       icon: customIcon, durationMins: customMins, maxUV: 4,
-      sunscreen: customSpf, custom: true,
+      sunscreen: false, custom: true,
     }])
-    setCustomName(''); setCustomMins(30); setCustomSpf(false); setShowCreate(false)
-  }
-
-  function updateSunscreen(id: string, spf: boolean) {
-    onChange(selected.map(a => a.id === id ? { ...a, sunscreen: spf } : a))
+    setCustomName(''); setCustomMins(30); setShowCreate(false)
   }
 
   function updateDuration(id: string, mins: number) {
@@ -102,16 +97,6 @@ export default function ActivityManager({ selected, tier, onChange }: Props) {
               <span style={{ fontSize: '13px', color: 'var(--text-2)', flexShrink: 0 }}>Duration</span>
               <input type="number" min="5" step="5" value={customMins} onChange={e => setCustomMins(Math.max(5, parseInt(e.target.value) || 5))} style={{ width: '80px', fontSize: '13px' }} />
               <span style={{ fontSize: '13px', color: 'var(--text-3)' }}>min</span>
-            </div>
-            <div style={{ display: 'flex', gap: '6px' }}>
-              {[false, true].map(v => (
-                <button key={String(v)} onClick={() => setCustomSpf(v)} style={{
-                  flex: 1, padding: '8px', borderRadius: '8px', fontSize: '12px', cursor: 'pointer',
-                  border: customSpf === v ? '1.5px solid var(--accent)' : '0.5px solid var(--border-md)',
-                  background: customSpf === v ? 'rgba(249,115,22,0.08)' : 'var(--bg-card)',
-                  color: 'var(--text)',
-                }}>{v ? '🧴 Wear sunscreen' : '🌿 No sunscreen'}</button>
-              ))}
             </div>
             <button className="btn btn-primary" onClick={addCustom} disabled={!customName.trim()} style={{ justifyContent: 'center' }}>
               Add activity
@@ -176,16 +161,6 @@ export default function ActivityManager({ selected, tier, onChange }: Props) {
                     <button onClick={() => updateDuration(a.id, a.durationMins + 15)} style={{ width: '24px', height: '24px', borderRadius: '6px', border: '0.5px solid var(--border-md)', background: 'transparent', cursor: 'pointer', fontSize: '14px', color: 'var(--text-2)' }}>+</button>
                   </div>
                   <button onClick={() => remove(a.id)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-3)', fontSize: '16px', padding: '0 4px' }}>×</button>
-                </div>
-                <div style={{ display: 'flex', gap: '5px' }}>
-                  {[false, true].map(v => (
-                    <button key={String(v)} onClick={() => updateSunscreen(a.id, v)} style={{
-                      flex: 1, padding: '5px 8px', borderRadius: '7px', fontSize: '11px', cursor: 'pointer',
-                      border: a.sunscreen === v ? '1.5px solid var(--accent)' : '0.5px solid var(--border-md)',
-                      background: a.sunscreen === v ? 'rgba(249,115,22,0.08)' : 'transparent',
-                      color: a.sunscreen === v ? 'var(--accent)' : 'var(--text-3)',
-                    }}>{v ? '🧴 With sunscreen' : '🌿 No sunscreen'}</button>
-                  ))}
                 </div>
               </div>
             ))}

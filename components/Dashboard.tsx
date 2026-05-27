@@ -1,6 +1,6 @@
 'use client'
 import { useState } from 'react'
-import { WeatherResponse, UserPreferences } from '@/lib/types'
+import { WeatherResponse, UserPreferences, DayWeather } from '@/lib/types'
 import { burnMins, vitDMins, uvLabel, getActivityWindow, fmtHour } from '@/lib/weather'
 import { canUseCalendar } from '@/lib/tiers'
 import UVTimeline from './UVTimeline'
@@ -13,6 +13,8 @@ interface Props {
   prefs: UserPreferences
   onRefresh: () => void
   onAddActivities: () => void
+  selectedDay: DayWeather | null
+  onSelectDay: (day: DayWeather | null) => void
 }
 
 function uvNumberColor(uv: number): string {
@@ -24,17 +26,20 @@ function uvNumberColor(uv: number): string {
   return '#9333EA'
 }
 
-export default function Dashboard({ weather, prefs, onRefresh, onAddActivities }: Props) {
-  const [day, setDay] = useState<'today' | 'tomorrow'>('today')
-  const hourly      = day === 'today' ? weather.today : weather.tomorrow
+export default function Dashboard({ weather, prefs, onRefresh, onAddActivities, selectedDay, onSelectDay }: Props) {
   const currentHour = new Date().getHours()
 
-  // For today: use live current reading. For tomorrow: use peak UV hour for summary metrics
-  const todayHour   = weather.today.find(h => h.hour === currentHour) || weather.today[0]
-  const tomorrowPeak = weather.tomorrow.reduce((best, h) => h.uv > (best?.uv ?? 0) ? h : best, weather.tomorrow[0])
-  const currentUV   = day === 'today' ? weather.current.uv    : (tomorrowPeak?.uv    ?? 0)
-  const currentTemp = day === 'today' ? weather.current.tempF : (tomorrowPeak?.tempF ?? '--' as string | number)
-  const currentCond = day === 'today' ? weather.current.condition : (tomorrowPeak?.condition ?? '')
+  // Active day — null means today
+  const activeDayData = selectedDay ? selectedDay.hourly : weather.today
+  const isToday       = !selectedDay
+  const dayIndex      = selectedDay ? weather.forecast.findIndex(d => d.dateStr === selectedDay.dateStr) : 0
+
+  // Metrics: today uses live current; other days use peak UV hour
+  const hourly    = activeDayData
+  const peakEntry = activeDayData.reduce((best, h) => h.uv > (best?.uv ?? 0) ? h : best, activeDayData[0])
+  const currentUV   = isToday ? weather.current.uv    : (peakEntry?.uv    ?? 0)
+  const currentTemp = isToday ? weather.current.tempF : (peakEntry?.tempF ?? '--' as string | number)
+  const currentCond = isToday ? weather.current.condition : (peakEntry?.condition ?? '')
   const peakUV      = hourly.length ? Math.max(...hourly.map(h => h.uv)) : 0
   const peakHour    = hourly.find(h => h.uv === peakUV)?.hour ?? 12
 
@@ -44,11 +49,10 @@ export default function Dashboard({ weather, prefs, onRefresh, onAddActivities }
   const tier = prefs.tier || 'anonymous'
   const activityWindows = prefs.activities.map(a => getActivityWindow(hourly, a, currentHour))
 
-  const dateLabel = day === 'today'
-    ? new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })
-    : new Date(Date.now() + 86400000).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })
+
 
   const vitDPeak = vitDMins(peakUV, prefs.skinType)
+  const dateLabel = selectedDay?.label ?? 'Today'
 
   if (!hourly.length) {
     return (
@@ -63,29 +67,28 @@ export default function Dashboard({ weather, prefs, onRefresh, onAddActivities }
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-        <div>
-          <p style={{ margin: 0, fontSize: '14px', color: 'var(--text-2)' }}>
-            {prefs.location.city}{prefs.location.region ? `, ${prefs.location.region}` : ''}
-          </p>
-          <p style={{ margin: '2px 0 0', fontSize: '12px', color: 'var(--text-3)' }}>{dateLabel}</p>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <button className="btn btn-ghost" onClick={onRefresh} title="Refresh" style={{ padding: '6px 8px', fontSize: '16px' }}>↻</button>
-          <div style={{ display: 'flex', background: 'var(--bg-metric)', borderRadius: '10px', padding: '3px' }}>
-            {(['today', 'tomorrow'] as const).map(d => (
-              <button key={d} onClick={() => setDay(d)} style={{
-                padding: '5px 12px', borderRadius: '7px', fontSize: '12px', fontWeight: 500, cursor: 'pointer',
-                background: day === d ? 'var(--bg-card)' : 'transparent',
-                color: day === d ? 'var(--text)' : 'var(--text-3)',
-                border: day === d ? '0.5px solid var(--border-md)' : 'none',
-                transition: 'all 0.15s',
-              }}>
-                {d.charAt(0).toUpperCase() + d.slice(1)}
-              </button>
-            ))}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+        <div style={{ overflow: 'hidden', flex: 1 }}>
+          <div style={{ display: 'flex', gap: '4px', overflowX: 'auto', paddingBottom: '2px', WebkitOverflowScrolling: 'touch' as any }}>
+            {weather.forecast.map((day, i) => {
+              const isActive = selectedDay ? selectedDay.dateStr === day.dateStr : i === 0
+              const isPro    = i >= 2 && (prefs.tier !== 'paid')
+              return (
+                <button key={day.dateStr} onClick={() => !isPro && onSelectDay(i === 0 ? null : day)} style={{
+                  flexShrink: 0, padding: '6px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 500, cursor: isPro ? 'default' : 'pointer',
+                  background: isActive ? 'var(--accent)' : 'var(--bg-metric)',
+                  color: isActive ? '#fff' : isPro ? 'var(--text-3)' : 'var(--text)',
+                  border: 'none', transition: 'all 0.12s', opacity: isPro ? 0.5 : 1,
+                  display: 'flex', alignItems: 'center', gap: '4px',
+                }}>
+                  {day.label}
+                  {isPro && <span style={{ fontSize: '9px' }}>⭐</span>}
+                </button>
+              )
+            })}
           </div>
         </div>
+        <button className="btn btn-ghost" onClick={onRefresh} title="Refresh" style={{ padding: '6px 8px', fontSize: '16px', flexShrink: 0 }}>↻</button>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '10px' }}>
@@ -141,11 +144,11 @@ export default function Dashboard({ weather, prefs, onRefresh, onAddActivities }
           </p>
           <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-3)' }}>Peak {peakUV.toFixed(1)} at {fmtHour(peakHour)}</p>
         </div>
-        <UVTimeline hourly={hourly} currentHour={day === 'today' ? currentHour : -1} skinType={prefs.skinType} />
+        <UVTimeline hourly={hourly} currentHour={isToday ? currentHour : -1} skinType={prefs.skinType} />
       </div>
 
       {prefs.activities.length > 0 ? (
-        <ActivityCards windows={activityWindows} daysFromNow={day === 'today' ? 0 : 1} tier={tier} />
+        <ActivityCards windows={activityWindows} daysFromNow={dayIndex} tier={tier} />
       ) : (
         <div className="card" style={{ textAlign: 'center', padding: '2.5rem 1.5rem' }}>
           <p style={{ fontSize: '28px', marginBottom: '10px' }}>🏃</p>
