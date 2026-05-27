@@ -63,7 +63,7 @@ export default function UVTimeline({ hourly, currentHour, skinType = 'fair' }: P
           </p>
         ) : (
           <p className="text-xs text-gray-400">
-            {window.matchMedia('(hover: none)').matches ? 'Tap a bar for details' : 'Hover a bar for details'}
+            {typeof window !== 'undefined' && window.matchMedia('(hover: none)').matches ? 'Tap a bar for details' : 'Hover a bar for details'}
           </p>
         )}
       </div>
