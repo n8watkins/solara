@@ -5,7 +5,7 @@ import { auth } from '@/lib/firebase'
 import { loadLocalPrefs, loadFirestorePrefs, defaultPrefs } from '@/lib/prefs'
 import { getCachedWeather, setCachedWeather } from '@/lib/cache'
 import { getFCMTokenLocally } from '@/lib/notifications'
-import { UserPreferences, WeatherResponse, Location } from '@/lib/types'
+import { UserPreferences, WeatherResponse, Location, TierLevel } from '@/lib/types'
 import Welcome from './Welcome'
 import Onboarding from './Onboarding'
 import Dashboard from './Dashboard'
@@ -13,6 +13,7 @@ import Header from './Header'
 import Skeleton from './Skeleton'
 import NotificationBanner from './NotificationBanner'
 import CalendarView from './CalendarView'
+import DevPanel, { getDevTierOverride } from './DevPanel'
 
 function weatherLabel(code: number): string {
   if (code === 0) return 'Clear'
@@ -32,6 +33,7 @@ export default function App() {
   const [weather,        setWeather]        = useState<WeatherResponse | null>(null)
   const [screen,         setScreen]         = useState<Screen>('loading')
   const [view,           setView]           = useState<'dashboard' | 'calendar'>('dashboard')
+  const [tierOverride,   setTierOverride]   = useState<TierLevel | null>(null)
   const [weatherLoading, setWeatherLoading] = useState(false)
   const [error,          setError]          = useState<string | null>(null)
   const [showNotif,      setShowNotif]      = useState(false)
@@ -151,7 +153,7 @@ export default function App() {
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
-      <Header user={user} prefs={prefs} onPrefsUpdate={setPrefs} />
+      <Header user={user} prefs={tierOverride ? { ...prefs, tier: tierOverride } : prefs} onPrefsUpdate={setPrefs} />
       <div style={{ borderBottom: '0.5px solid var(--border-md)', background: 'var(--bg-card)' }}>
         <div style={{ maxWidth: '900px', margin: '0 auto', padding: '0 1rem', display: 'flex', gap: '0' }}>
           {(['dashboard', 'calendar'] as const).map(v => (
@@ -179,16 +181,20 @@ export default function App() {
           <>
             {weatherLoading && <Skeleton />}
             {weather && !weatherLoading && (
-              <Dashboard weather={weather} prefs={prefs} onRefresh={() => fetchWeather(prefs.location, true)} />
+              <Dashboard weather={weather} prefs={tierOverride ? { ...prefs, tier: tierOverride } : prefs} onRefresh={() => fetchWeather(prefs.location, true)} />
             )}
           </>
         )}
         {view === 'calendar' && (
           <div className="card">
-            <CalendarView prefs={prefs} />
+            <CalendarView prefs={tierOverride ? { ...prefs, tier: tierOverride } : prefs} />
           </div>
         )}
       </main>
+      <DevPanel
+        currentTier={tierOverride || prefs.tier || 'anonymous'}
+        onOverride={setTierOverride}
+      />
     </div>
   )
 }
