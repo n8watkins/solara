@@ -1,83 +1,85 @@
 'use client'
-
-import { ActivityWindow } from '@/lib/types'
+import { ActivityWindow, TierLevel } from '@/lib/types'
 import { fmtHour, gcalLink } from '@/lib/weather'
+import { canUseCalendar } from '@/lib/tiers'
 
 interface Props {
   windows: ActivityWindow[]
   daysFromNow: number
+  tier: TierLevel
 }
 
-export default function ActivityCards({ windows, daysFromNow }: Props) {
+function Row({ label, val, accent }: { label: string; val: string; accent?: string }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
+      <span style={{ color: 'var(--text-3)' }}>{label}</span>
+      <span style={{ color: accent || 'var(--text)', fontWeight: 500 }}>{val}</span>
+    </div>
+  )
+}
+
+export default function ActivityCards({ windows, daysFromNow, tier }: Props) {
+  const calendarAllowed = canUseCalendar(tier)
+
   return (
     <div>
-      <p className="text-sm font-medium text-gray-700 mb-3">Activities</p>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+      <p style={{ margin: '0 0 12px', fontSize: '14px', fontWeight: 500, color: 'var(--text)' }}>Activities</p>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: '10px' }}>
         {windows.map(({ activity, bestWindow, safeNow, pctDaySafe, burnMins }) => {
           const status = safeNow ? 'safe' : bestWindow ? 'caution' : 'avoid'
+          const durationLabel = activity.durationMins < 60
+            ? `${activity.durationMins}m`
+            : `${activity.durationMins / 60}h`
+          const windowLabel = bestWindow
+            ? `${fmtHour(bestWindow.from)}–${fmtHour(bestWindow.to)}`
+            : 'None today'
+
           return (
-            <div key={activity.id} className="card flex flex-col gap-3">
-              <div className="flex items-center gap-2">
-                <span className="text-lg">{activity.icon}</span>
-                <span className="text-sm font-medium text-gray-900 flex-1">{activity.name}</span>
-                <span className={`badge ${
-                  status === 'safe' ? 'badge-safe' : status === 'caution' ? 'badge-caution' : 'badge-avoid'
-                }`}>
-                  {status === 'safe' ? 'Safe now' : status === 'caution' ? 'Window later' : 'Avoid today'}
+            <div key={activity.id} className="card" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '18px' }}>{activity.icon}</span>
+                <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text)', flex: 1 }}>{activity.name}</span>
+                <span className={`badge badge-${status}`}>
+                  {status === 'safe' ? 'Safe now' : status === 'caution' ? 'Later' : 'Avoid'}
                 </span>
               </div>
 
-              <div className="space-y-1.5 text-xs text-gray-500">
-                <div className="flex justify-between">
-                  <span>Max safe UV</span>
-                  <span className="font-medium text-gray-900">{activity.maxUV}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Duration</span>
-                  <span className="font-medium text-gray-900">
-                    {activity.durationMins < 60
-                      ? `${activity.durationMins} min`
-                      : `${activity.durationMins / 60} hr`}
-                  </span>
-                </div>
-                {burnMins && (
-                  <div className="flex justify-between">
-                    <span>Burn limit at max UV</span>
-                    <span className="font-medium text-gray-900">~{burnMins} min</span>
-                  </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                <Row label="Max safe UV" val={String(activity.maxUV)} />
+                <Row label="Duration" val={durationLabel} />
+                {burnMins !== null && burnMins !== undefined && (
+                  <Row label="Burn limit" val={`~${burnMins}m`} />
                 )}
-                {bestWindow ? (
-                  <div className="flex justify-between">
-                    <span>Best window</span>
-                    <span className="font-medium text-green-700">
-                      {fmtHour(bestWindow.from)}–{fmtHour(bestWindow.to)}
-                    </span>
-                  </div>
-                ) : (
-                  <div className="text-red-500 font-medium">No safe window today</div>
-                )}
+                <Row
+                  label="Best window"
+                  val={windowLabel}
+                  accent={bestWindow ? '#16A34A' : '#DC2626'}
+                />
               </div>
 
-              <div className="space-y-1">
-                <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                  <div
-                    className="h-full rounded-full"
-                    style={{
-                      width: `${pctDaySafe}%`,
-                      background: pctDaySafe >= 60 ? '#86EFAC' : pctDaySafe >= 30 ? '#FCD34D' : '#F87171',
-                    }}
-                  />
-                </div>
-                <p className="text-xs text-gray-400">{pctDaySafe}% of the day is safe</p>
+              <div style={{ height: '4px', borderRadius: '2px', background: 'var(--border-md)', overflow: 'hidden' }}>
+                <div style={{
+                  height: '100%', borderRadius: '2px', width: `${pctDaySafe}%`,
+                  background: pctDaySafe >= 60 ? '#16A34A' : pctDaySafe >= 30 ? '#D97706' : '#DC2626',
+                }} />
               </div>
+              <p style={{ margin: 0, fontSize: '11px', color: 'var(--text-3)' }}>{pctDaySafe}% of day is safe</p>
 
               {bestWindow && (
-                <button
-                  className="btn w-full justify-center text-xs mt-auto"
-                  onClick={() => window.open(gcalLink(activity.name, bestWindow, activity.durationMins, daysFromNow), '_blank')}
-                >
-                  📅 Add to Google Calendar
-                </button>
+                calendarAllowed ? (
+                  <button
+                    className="btn"
+                    onClick={() => window.open(gcalLink(activity.name, bestWindow, activity.durationMins, daysFromNow), '_blank')}
+                    style={{ justifyContent: 'center', fontSize: '12px', marginTop: 'auto' }}
+                  >
+                    📅 Add to Calendar
+                  </button>
+                ) : (
+                  <button className="btn" style={{ justifyContent: 'center', fontSize: '12px', marginTop: 'auto', opacity: 0.45, cursor: 'not-allowed' }}
+                    title="Sign in for free to unlock calendar sync" disabled>
+                    🔒 Calendar (sign in)
+                  </button>
+                )
               )}
             </div>
           )

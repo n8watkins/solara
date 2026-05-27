@@ -1,4 +1,5 @@
 export type SkinType = 'very-fair' | 'fair' | 'medium' | 'olive' | 'dark'
+export type TierLevel = 'anonymous' | 'free' | 'paid'
 
 export interface Location {
   lat: number
@@ -13,6 +14,7 @@ export interface Activity {
   icon: string
   durationMins: number
   maxUV: number
+  custom?: boolean
 }
 
 export interface UserPreferences {
@@ -21,6 +23,8 @@ export interface UserPreferences {
   skinType: SkinType
   sunscreen: boolean
   activities: Activity[]
+  tier: TierLevel
+  onboardingComplete: boolean
 }
 
 export interface HourlyForecast {
@@ -31,11 +35,7 @@ export interface HourlyForecast {
 }
 
 export interface WeatherResponse {
-  current: {
-    uv: number
-    tempF: number
-    condition: string
-  }
+  current: { uv: number; tempF: number; condition: string }
   today: HourlyForecast[]
   tomorrow: HourlyForecast[]
 }

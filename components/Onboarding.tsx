@@ -1,72 +1,81 @@
 'use client'
-
 import { useState } from 'react'
 import { User } from 'firebase/auth'
 import { saveLocalPrefs, saveFirestorePrefs, defaultPrefs } from '@/lib/prefs'
-import { UserPreferences, Location, SkinType } from '@/lib/types'
+import { UserPreferences, Location, SkinType, Activity } from '@/lib/types'
+import { TIER_LIMITS } from '@/lib/tiers'
+import ActivityManager from './ActivityManager'
 
 interface Props {
   onComplete: (prefs: UserPreferences) => void
   user: User | null
 }
 
-const SKIN_OPTIONS: { value: SkinType; label: string; desc: string }[] = [
-  { value: 'very-fair', label: 'Very fair',  desc: 'Burns easily, rarely tans' },
-  { value: 'fair',      label: 'Fair',       desc: 'Burns often, tans lightly' },
-  { value: 'medium',    label: 'Medium',     desc: 'Burns sometimes, tans gradually' },
-  { value: 'olive',     label: 'Olive',      desc: 'Rarely burns, tans easily' },
-  { value: 'dark',      label: 'Dark',       desc: 'Very rarely burns' },
+type Step = 'location' | 'uvpreview' | 'skin' | 'activities' | 'sunscreen' | 'done'
+
+const SKIN_OPTIONS: { value: SkinType; label: string; desc: string; burnTime: string }[] = [
+  { value: 'very-fair', label: 'Very fair',  desc: 'Burns easily, rarely tans', burnTime: '~10 min at UV 10' },
+  { value: 'fair',      label: 'Fair',       desc: 'Burns often, tans lightly',  burnTime: '~15 min at UV 10' },
+  { value: 'medium',    label: 'Medium',     desc: 'Burns sometimes, tans well', burnTime: '~25 min at UV 10' },
+  { value: 'olive',     label: 'Olive',      desc: 'Rarely burns, tans easily',  burnTime: '~35 min at UV 10' },
+  { value: 'dark',      label: 'Dark',       desc: 'Very rarely burns',          burnTime: '~50 min at UV 10' },
 ]
 
 export default function Onboarding({ onComplete, user }: Props) {
-  const [step, setStep] = useState<'location' | 'skin' | 'sunscreen'>('location')
-  const [locLoading, setLocLoading] = useState(false)
+  const [step, setStep]           = useState<Step>('location')
+  const [locLoading, setLocLoad]  = useState(false)
   const [cityInput, setCityInput] = useState('')
-  const [geoError, setGeoError] = useState<string | null>(null)
-  const [location, setLocation] = useState<Location | null>(null)
-  const [skinType, setSkinType] = useState<SkinType>('fair')
+  const [geoError, setGeoError]   = useState<string | null>(null)
+  const [location, setLocation]   = useState<Location | null>(null)
+  const [uvNow, setUvNow]         = useState<number | null>(null)
+  const [uvCity, setUvCity]       = useState('')
+  const [skinType, setSkinType]   = useState<SkinType>('fair')
   const [sunscreen, setSunscreen] = useState(false)
+  const [activities, setActivities] = useState<Activity[]>([])
+  const tier = user ? 'free' : 'anonymous'
 
   async function handleGeolocate() {
-    setLocLoading(true)
-    setGeoError(null)
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const { latitude: lat, longitude: lon } = pos.coords
-        const city = await reverseGeocode(lat, lon)
-        setLocation({ lat, lon, ...city })
-        setLocLoading(false)
-        setStep('skin')
-      },
-      () => {
-        setGeoError('Location access denied. Enter your city below.')
-        setLocLoading(false)
-      }
-    )
+    setLocLoad(true); setGeoError(null)
+    navigator.geolocation.getCurrentPosition(async pos => {
+      const { latitude: lat, longitude: lon } = pos.coords
+      const city = await reverseGeocode(lat, lon)
+      const loc = { lat, lon, ...city }
+      setLocation(loc)
+      setLocLoad(false)
+      await fetchUVPreview(loc)
+    }, () => {
+      setGeoError('Location access denied. Type a city below.')
+      setLocLoad(false)
+    })
   }
 
   async function handleCitySearch() {
     if (!cityInput.trim()) return
-    setLocLoading(true)
-    setGeoError(null)
+    setLocLoad(true); setGeoError(null)
     try {
-      const res = await fetch(
-        `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(cityInput)}&count=1&language=en&format=json`
-      )
+      const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(cityInput)}&count=1&language=en&format=json`)
       const data = await res.json()
-      if (!data.results?.length) throw new Error('City not found')
+      if (!data.results?.length) throw new Error('Not found')
       const r = data.results[0]
-      setLocation({
-        lat: r.latitude,
-        lon: r.longitude,
-        city: r.name,
-        region: r.admin1 ?? r.country ?? '',
-      })
-      setStep('skin')
+      const loc: Location = { lat: r.latitude, lon: r.longitude, city: r.name, region: r.admin1 ?? r.country ?? '' }
+      setLocation(loc)
+      await fetchUVPreview(loc)
     } catch {
       setGeoError('City not found. Try a different spelling.')
     } finally {
-      setLocLoading(false)
+      setLocLoad(false)
+    }
+  }
+
+  async function fetchUVPreview(loc: Location) {
+    try {
+      const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.lon}&current=uv_index&timezone=auto`)
+      const data = await res.json()
+      setUvNow(Math.round(data.current.uv_index * 10) / 10)
+      setUvCity(loc.city)
+      setStep('uvpreview')
+    } catch {
+      setStep('skin')
     }
   }
 
@@ -76,122 +85,185 @@ export default function Onboarding({ onComplete, user }: Props) {
       ...defaultPrefs(location),
       skinType,
       sunscreen,
+      activities,
+      tier,
+      onboardingComplete: true,
     }
     saveLocalPrefs(prefs)
     if (user) await saveFirestorePrefs(user.uid, { ...prefs, uid: user.uid })
     onComplete(prefs)
   }
 
-  return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-4 bg-gray-50">
-      <div className="w-full max-w-md">
+  function uvLabel(uv: number) {
+    if (uv < 1) return { label: 'None', color: '#9CA3AF' }
+    if (uv <= 2) return { label: 'Low', color: '#16A34A' }
+    if (uv <= 5) return { label: 'Moderate', color: '#D97706' }
+    if (uv <= 7) return { label: 'High', color: '#EA580C' }
+    if (uv <= 10) return { label: 'Very high', color: '#DC2626' }
+    return { label: 'Extreme', color: '#9333EA' }
+  }
 
-        <div className="text-center mb-8">
-          <div className="text-5xl mb-3">☀️</div>
-          <h1 className="text-2xl font-semibold text-gray-900">Solara</h1>
-          <p className="text-gray-500 text-sm mt-1">Know your sun window</p>
+  const stepNum = { location: 1, uvpreview: 1, skin: 2, activities: 3, sunscreen: 4, done: 5 }
+  const totalSteps = 4
+
+  return (
+    <div style={{
+      minHeight: '100vh',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '2rem 1rem',
+      background: 'var(--bg)',
+    }}>
+      <div style={{ width: '100%', maxWidth: '480px' }}>
+
+        <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+          <span style={{ fontSize: '32px' }}>☀️</span>
+          <h1 style={{ margin: '8px 0 4px', fontSize: '22px', fontWeight: 600, color: 'var(--text)' }}>Solara</h1>
+          {step !== 'location' && step !== 'uvpreview' && (
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '6px', marginTop: '12px' }}>
+              {Array.from({ length: totalSteps }, (_, i) => (
+                <div key={i} style={{
+                  width: '28px', height: '4px', borderRadius: '2px',
+                  background: i < (stepNum[step] - 1) ? 'var(--accent)' : i === (stepNum[step] - 1) ? 'var(--accent)' : 'var(--border-md)',
+                  opacity: i < stepNum[step] ? 1 : 0.3,
+                }} />
+              ))}
+            </div>
+          )}
         </div>
 
         {step === 'location' && (
           <div className="card">
-            <h2 className="font-medium text-gray-900 mb-1">Where are you?</h2>
-            <p className="text-sm text-gray-500 mb-5">
-              Solara uses your location to pull live UV and weather data.
+            <h2 style={{ margin: '0 0 6px', fontSize: '18px', fontWeight: 600, color: 'var(--text)' }}>Where are you?</h2>
+            <p style={{ margin: '0 0 20px', fontSize: '14px', color: 'var(--text-2)', lineHeight: '1.5' }}>
+              We'll show you live UV data for your area — no sign-up needed.
             </p>
-            <button
-              className="btn btn-primary w-full justify-center mb-3"
-              onClick={handleGeolocate}
-              disabled={locLoading}
-            >
-              {locLoading ? 'Getting location...' : '📍 Use my current location'}
+            <button className="btn btn-primary" onClick={handleGeolocate} disabled={locLoading}
+              style={{ width: '100%', justifyContent: 'center', marginBottom: '12px', padding: '10px' }}>
+              {locLoading ? 'Detecting...' : '📍 Use my location'}
             </button>
-            <div className="relative flex items-center gap-2 my-3">
-              <div className="flex-1 border-t border-gray-200" />
-              <span className="text-xs text-gray-400">or type a city</span>
-              <div className="flex-1 border-t border-gray-200" />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '12px 0' }}>
+              <div style={{ flex: 1, height: '0.5px', background: 'var(--border-md)' }} />
+              <span style={{ fontSize: '12px', color: 'var(--text-3)' }}>or type a city</span>
+              <div style={{ flex: 1, height: '0.5px', background: 'var(--border-md)' }} />
             </div>
-            <div className="flex gap-2">
+            <div style={{ display: 'flex', gap: '8px' }}>
               <input
-                className="flex-1 border border-gray-300 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-orange-400"
                 placeholder="e.g. Los Angeles"
                 value={cityInput}
                 onChange={e => setCityInput(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleCitySearch()}
+                style={{ flex: 1 }}
               />
-              <button className="btn" onClick={handleCitySearch} disabled={locLoading}>
-                Go
+              <button className="btn" onClick={handleCitySearch} disabled={locLoading}>Go</button>
+            </div>
+            {geoError && <p style={{ margin: '8px 0 0', fontSize: '12px', color: '#DC2626' }}>{geoError}</p>}
+          </div>
+        )}
+
+        {step === 'uvpreview' && uvNow !== null && (
+          <div className="card" style={{ textAlign: 'center' }}>
+            <p style={{ margin: '0 0 4px', fontSize: '13px', color: 'var(--text-3)' }}>UV index right now in</p>
+            <p style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: 600, color: 'var(--text)' }}>{uvCity}</p>
+            <div style={{ fontSize: '72px', fontWeight: 700, color: uvLabel(uvNow).color, lineHeight: 1, marginBottom: '8px' }}>
+              {uvNow.toFixed(1)}
+            </div>
+            <div style={{ display: 'inline-block', padding: '4px 14px', borderRadius: '20px', background: 'var(--bg-metric)', fontSize: '14px', fontWeight: 500, color: uvLabel(uvNow).color, marginBottom: '24px' }}>
+              {uvLabel(uvNow).label}
+            </div>
+            <p style={{ margin: '0 0 24px', fontSize: '14px', color: 'var(--text-2)', lineHeight: '1.6' }}>
+              Set up your profile to see exactly when it's safe for your activities — based on your skin type.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <button className="btn btn-primary" onClick={() => setStep('skin')} style={{ justifyContent: 'center', padding: '10px' }}>
+                Set up my profile →
+              </button>
+              <button className="btn btn-ghost" onClick={handleFinish} style={{ justifyContent: 'center', fontSize: '13px', color: 'var(--text-3)' }}>
+                Skip for now — just show the dashboard
               </button>
             </div>
-            {geoError && <p className="text-red-500 text-xs mt-2">{geoError}</p>}
           </div>
         )}
 
         {step === 'skin' && (
           <div className="card">
-            <h2 className="font-medium text-gray-900 mb-1">What's your skin type?</h2>
-            <p className="text-sm text-gray-500 mb-4">
-              This determines your safe UV thresholds and burn times.
+            <h2 style={{ margin: '0 0 4px', fontSize: '18px', fontWeight: 600, color: 'var(--text)' }}>What's your skin type?</h2>
+            <p style={{ margin: '0 0 16px', fontSize: '14px', color: 'var(--text-2)' }}>
+              This determines your burn time and safe UV thresholds.
             </p>
-            <div className="flex flex-col gap-2 mb-5">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '20px' }}>
               {SKIN_OPTIONS.map(o => (
-                <button
-                  key={o.value}
-                  onClick={() => setSkinType(o.value)}
-                  className={`flex items-center justify-between px-4 py-3 rounded-xl border text-left transition-all ${
-                    skinType === o.value
-                      ? 'border-orange-400 bg-orange-50'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  <span className="text-sm font-medium text-gray-900">{o.label}</span>
-                  <span className="text-xs text-gray-500">{o.desc}</span>
+                <button key={o.value} onClick={() => setSkinType(o.value)} style={{
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  padding: '12px 14px', borderRadius: '10px', textAlign: 'left',
+                  border: skinType === o.value ? '1.5px solid var(--accent)' : '0.5px solid var(--border-md)',
+                  background: skinType === o.value ? 'rgba(249,115,22,0.08)' : 'var(--bg-card)',
+                  cursor: 'pointer', transition: 'all 0.15s',
+                }}>
+                  <div>
+                    <p style={{ margin: 0, fontSize: '14px', fontWeight: 500, color: 'var(--text)' }}>{o.label}</p>
+                    <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-3)' }}>{o.desc}</p>
+                  </div>
+                  <span style={{ fontSize: '12px', color: 'var(--text-3)', whiteSpace: 'nowrap', marginLeft: '12px' }}>{o.burnTime}</span>
                 </button>
               ))}
             </div>
-            <button className="btn btn-primary w-full justify-center" onClick={() => setStep('sunscreen')}>
+            <button className="btn btn-primary" onClick={() => setStep('activities')} style={{ width: '100%', justifyContent: 'center', padding: '10px' }}>
               Next →
             </button>
           </div>
         )}
 
-        {step === 'sunscreen' && (
+        {step === 'activities' && (
           <div className="card">
-            <h2 className="font-medium text-gray-900 mb-1">Do you wear sunscreen?</h2>
-            <p className="text-sm text-gray-500 mb-5">
-              This changes the safe UV windows for each activity.
+            <h2 style={{ margin: '0 0 4px', fontSize: '18px', fontWeight: 600, color: 'var(--text)' }}>What do you like to do outside?</h2>
+            <p style={{ margin: '0 0 16px', fontSize: '14px', color: 'var(--text-2)' }}>
+              We'll show safe windows for each activity based on your skin type.
             </p>
-            <div className="flex flex-col gap-3 mb-5">
-              <button
-                onClick={() => setSunscreen(false)}
-                className={`px-4 py-4 rounded-xl border text-left transition-all ${
-                  !sunscreen ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                <p className="text-sm font-medium text-gray-900">No sunscreen</p>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  I want to know exactly when the UV is low enough to go out safely on its own.
-                </p>
-              </button>
-              <button
-                onClick={() => setSunscreen(true)}
-                className={`px-4 py-4 rounded-xl border text-left transition-all ${
-                  sunscreen ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                <p className="text-sm font-medium text-gray-900">I wear SPF 30+</p>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  I'm willing to wear sunscreen — show me extended safe windows.
-                </p>
+            <ActivityManager selected={activities} tier={tier} onChange={setActivities} />
+            <div style={{ display: 'flex', gap: '8px', marginTop: '20px' }}>
+              <button className="btn" onClick={() => setStep('skin')} style={{ flex: '0 0 auto' }}>← Back</button>
+              <button className="btn btn-primary" onClick={() => setStep('sunscreen')} style={{ flex: 1, justifyContent: 'center', padding: '10px' }}>
+                Next →
               </button>
             </div>
-            <button className="btn btn-primary w-full justify-center" onClick={handleFinish}>
-              Open my dashboard →
-            </button>
           </div>
         )}
 
-        <p className="text-center text-xs text-gray-400 mt-4">
-          Your preferences are saved locally. Sign in to sync across devices.
+        {step === 'sunscreen' && (
+          <div className="card">
+            <h2 style={{ margin: '0 0 4px', fontSize: '18px', fontWeight: 600, color: 'var(--text)' }}>Do you wear sunscreen?</h2>
+            <p style={{ margin: '0 0 16px', fontSize: '14px', color: 'var(--text-2)' }}>
+              This affects which windows we show as safe for your activities.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
+              {[
+                { val: false, title: 'No sunscreen', desc: 'Show me when UV is naturally safe on its own.' },
+                { val: true,  title: 'I wear SPF 30+', desc: 'Include extended windows where sunscreen protects me.' },
+              ].map(o => (
+                <button key={String(o.val)} onClick={() => setSunscreen(o.val)} style={{
+                  padding: '14px', borderRadius: '10px', textAlign: 'left',
+                  border: sunscreen === o.val ? '1.5px solid var(--accent)' : '0.5px solid var(--border-md)',
+                  background: sunscreen === o.val ? 'rgba(249,115,22,0.08)' : 'var(--bg-card)',
+                  cursor: 'pointer', transition: 'all 0.15s',
+                }}>
+                  <p style={{ margin: '0 0 2px', fontSize: '14px', fontWeight: 500, color: 'var(--text)' }}>{o.title}</p>
+                  <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-3)' }}>{o.desc}</p>
+                </button>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button className="btn" onClick={() => setStep('activities')} style={{ flex: '0 0 auto' }}>← Back</button>
+              <button className="btn btn-primary" onClick={handleFinish} style={{ flex: 1, justifyContent: 'center', padding: '10px' }}>
+                Open my dashboard →
+              </button>
+            </div>
+          </div>
+        )}
+
+        <p style={{ textAlign: 'center', fontSize: '12px', color: 'var(--text-3)', marginTop: '16px' }}>
+          Preferences saved locally. {user ? 'Synced to your account.' : 'Sign in to sync across devices.'}
         </p>
       </div>
     </div>
@@ -200,16 +272,9 @@ export default function Onboarding({ onComplete, user }: Props) {
 
 async function reverseGeocode(lat: number, lon: number): Promise<{ city: string; region: string }> {
   try {
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`
-    )
+    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`)
     const data = await res.json()
-    const city =
-      data.address?.city ||
-      data.address?.town ||
-      data.address?.village ||
-      data.address?.county ||
-      'Your location'
+    const city = data.address?.city || data.address?.town || data.address?.village || 'Your location'
     const region = data.address?.state || data.address?.country || ''
     return { city, region }
   } catch {

@@ -1,11 +1,12 @@
 'use client'
-
 import { useState } from 'react'
 import { User, signInWithPopup, signOut } from 'firebase/auth'
 import { auth, googleProvider, firebaseEnabled } from '@/lib/firebase'
 import { saveFirestorePrefs, saveLocalPrefs } from '@/lib/prefs'
 import { UserPreferences } from '@/lib/types'
+import { TIER_LABELS } from '@/lib/tiers'
 import PreferencesModal from './PreferencesModal'
+import DarkModeToggle from './DarkModeToggle'
 
 interface Props {
   user: User | null
@@ -23,9 +24,7 @@ export default function Header({ user, prefs, onPrefsUpdate }: Props) {
       if (result.user && prefs) {
         await saveFirestorePrefs(result.user.uid, { ...prefs, uid: result.user.uid })
       }
-    } catch (e) {
-      console.error(e)
-    }
+    } catch (e) { console.error(e) }
   }
 
   async function handleSignOut() {
@@ -40,23 +39,41 @@ export default function Header({ user, prefs, onPrefsUpdate }: Props) {
     setShowPrefs(false)
   }
 
+  const tier = prefs.tier || 'anonymous'
+
   return (
     <>
-      <header className="bg-white border-b border-gray-200 px-4 py-3">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-xl">☀️</span>
-            <span className="font-semibold text-gray-900 text-lg">Solara</span>
-            <span className="text-gray-400 text-sm ml-1">· {prefs.location.city}</span>
+      <header style={{
+        background: 'var(--bg-card)',
+        borderBottom: '0.5px solid var(--border-md)',
+        padding: '10px 16px',
+        position: 'sticky',
+        top: 0,
+        zIndex: 40,
+      }}>
+        <div style={{ maxWidth: '900px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '20px' }}>☀️</span>
+            <span style={{ fontWeight: 600, fontSize: '17px', color: 'var(--text)' }}>Solara</span>
+            <span style={{ fontSize: '13px', color: 'var(--text-3)' }}>· {prefs.location.city}</span>
+            <span style={{
+              fontSize: '10px', fontWeight: 600, padding: '2px 7px', borderRadius: '6px',
+              background: tier === 'paid' ? 'rgba(249,115,22,0.15)' : 'var(--bg-metric)',
+              color: tier === 'paid' ? 'var(--accent)' : 'var(--text-3)',
+              textTransform: 'uppercase', letterSpacing: '0.05em',
+            }}>
+              {TIER_LABELS[tier]}
+            </span>
           </div>
-          <div className="flex items-center gap-2">
-            <button className="btn text-xs" onClick={() => setShowPrefs(true)}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <DarkModeToggle />
+            <button className="btn btn-ghost" onClick={() => setShowPrefs(true)} style={{ fontSize: '13px' }}>
               ⚙️ Preferences
             </button>
             {firebaseEnabled && (
               user
-                ? <button className="btn text-xs" onClick={handleSignOut}>Sign out</button>
-                : <button className="btn text-xs" onClick={handleSignIn}>Sign in with Google</button>
+                ? <button className="btn" onClick={handleSignOut} style={{ fontSize: '12px' }}>Sign out</button>
+                : <button className="btn btn-primary" onClick={handleSignIn} style={{ fontSize: '12px' }}>Sign in</button>
             )}
           </div>
         </div>

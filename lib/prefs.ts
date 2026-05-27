@@ -1,7 +1,7 @@
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore'
 import { db } from './firebase'
-import { UserPreferences, Location, Activity } from './types'
-import { DEFAULT_ACTIVITIES } from './weather'
+import { UserPreferences, Location } from './types'
+import { PRESET_ACTIVITIES } from './tiers'
 
 const PREFS_KEY = 'solara_prefs'
 
@@ -10,9 +10,7 @@ export function loadLocalPrefs(): Partial<UserPreferences> | null {
   try {
     const raw = localStorage.getItem(PREFS_KEY)
     return raw ? JSON.parse(raw) : null
-  } catch {
-    return null
-  }
+  } catch { return null }
 }
 
 export function saveLocalPrefs(prefs: Partial<UserPreferences>): void {
@@ -25,9 +23,7 @@ export async function loadFirestorePrefs(uid: string): Promise<UserPreferences |
   try {
     const snap = await getDoc(doc(db, 'users', uid))
     return snap.exists() ? (snap.data() as UserPreferences) : null
-  } catch {
-    return null
-  }
+  } catch { return null }
 }
 
 export async function saveFirestorePrefs(uid: string, prefs: Partial<UserPreferences>): Promise<void> {
@@ -47,6 +43,8 @@ export function defaultPrefs(location: Location): UserPreferences {
     location,
     skinType: 'fair',
     sunscreen: false,
-    activities: DEFAULT_ACTIVITIES,
+    activities: [],
+    tier: 'anonymous',
+    onboardingComplete: false,
   }
 }
