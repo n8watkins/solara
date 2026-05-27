@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { User, signInWithPopup, signOut } from 'firebase/auth'
 import { auth, googleProvider, firebaseEnabled } from '@/lib/firebase'
 import { saveFirestorePrefs, saveLocalPrefs } from '@/lib/prefs'
@@ -12,10 +12,14 @@ interface Props {
   user: User | null
   prefs: UserPreferences
   onPrefsUpdate: (p: UserPreferences) => void
+  forceOpenTab?: 'general' | 'activities' | 'location'
+  onModalClose?: () => void
 }
 
-export default function Header({ user, prefs, onPrefsUpdate }: Props) {
+export default function Header({ user, prefs, onPrefsUpdate, forceOpenTab, onModalClose }: Props) {
   const [showPrefs, setShowPrefs] = useState(false)
+  // Auto-open when parent requests it
+  useEffect(() => { if (forceOpenTab) setShowPrefs(true) }, [forceOpenTab])
 
   async function handleSignIn() {
     if (!auth || !googleProvider) return
@@ -55,7 +59,7 @@ export default function Header({ user, prefs, onPrefsUpdate }: Props) {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span style={{ fontSize: '20px' }}>☀️</span>
             <span style={{ fontWeight: 600, fontSize: '17px', color: 'var(--text)' }}>Solara</span>
-            <span style={{ fontSize: '13px', color: 'var(--text-3)' }}>· {prefs.location.city}</span>
+            <button onClick={() => setShowPrefs(true)} style={{ fontSize: '13px', color: 'var(--text-3)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 5px', borderRadius: '6px', transition: 'background 0.1s' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-metric)')} onMouseLeave={e => (e.currentTarget.style.background = 'none')}>📍 {prefs.location.city}</button>
             <span style={{
               fontSize: '10px', fontWeight: 600, padding: '2px 7px', borderRadius: '6px',
               background: tier === 'paid' ? 'rgba(249,115,22,0.15)' : 'var(--bg-metric)',
@@ -83,7 +87,8 @@ export default function Header({ user, prefs, onPrefsUpdate }: Props) {
         <PreferencesModal
           prefs={prefs}
           onSave={handlePrefsUpdate}
-          onClose={() => setShowPrefs(false)}
+          onClose={() => { setShowPrefs(false); onModalClose?.() }}
+          initialTab={forceOpenTab}
         />
       )}
     </>

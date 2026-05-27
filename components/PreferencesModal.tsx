@@ -8,6 +8,7 @@ interface Props {
   prefs: UserPreferences
   onSave: (updated: UserPreferences) => void
   onClose: () => void
+  initialTab?: Tab
 }
 
 const SKIN_OPTIONS: { value: SkinType; label: string; burn: string }[] = [
@@ -20,8 +21,8 @@ const SKIN_OPTIONS: { value: SkinType; label: string; burn: string }[] = [
 
 type Tab = 'general' | 'activities' | 'location'
 
-export default function PreferencesModal({ prefs, onSave, onClose }: Props) {
-  const [tab,        setTab]        = useState<Tab>('general')
+export default function PreferencesModal({ prefs, onSave, onClose, initialTab }: Props) {
+  const [tab,        setTab]        = useState<Tab>(initialTab || 'general')
   const [skinType,   setSkinType]   = useState<SkinType>(prefs.skinType)
   const [sunscreen,  setSunscreen]  = useState(prefs.sunscreen)
   const [activities, setActivities] = useState(prefs.activities)
@@ -87,7 +88,9 @@ export default function PreferencesModal({ prefs, onSave, onClose }: Props) {
       }}>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '18px 20px 14px', borderBottom: '0.5px solid var(--border-md)', flexShrink: 0 }}>
-          <p style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: 'var(--text)' }}>Preferences</p>
+          <div>
+          <p style={{ margin: '0 0 2px', fontSize: '16px', fontWeight: 600, color: 'var(--text)' }}>Preferences</p>
+        </div>
           <button onClick={onClose} style={{ background: 'var(--bg-metric)', border: 'none', width: '28px', height: '28px', borderRadius: '50%', fontSize: '16px', cursor: 'pointer', color: 'var(--text-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>×</button>
         </div>
 

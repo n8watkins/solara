@@ -2,13 +2,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { UserPreferences } from '@/lib/types'
 import { canUseCalendar } from '@/lib/tiers'
-import { DayForecast, SafeWindow, getSafeWindows, gcalWindowLink, fmtH } from '@/lib/calendar'
+import { DayForecast, SafeWindow, getSafeWindowsForActivity, gcalWindowLink, fmtH } from '@/lib/calendar'
 
 interface Props { prefs: UserPreferences }
 
 const ROW_H    = 52  // px per hour
 const GUTTER_W = 52  // px for time labels
-const HOURS    = Array.from({ length: 15 }, (_, i) => i + 6) // 6am–8pm
+// HOURS computed from state below
 
 const ACT_COLORS = ['#F97316','#3B82F6','#10B981','#8B5CF6','#F59E0B','#EC4899','#06B6D4','#84CC16']
 
@@ -27,6 +27,9 @@ export default function CalendarView({ prefs }: Props) {
   const [loading, setLoading] = useState(true)
   const [error,   setError]   = useState<string | null>(null)
   const [popup,   setPopup]   = useState<{ act: typeof prefs.activities[0]; win: SafeWindow; day: DayForecast } | null>(null)
+  const [hrFrom,  setHrFrom]  = useState(prefs.calendarHours?.from ?? 6)
+  const [hrTo,    setHrTo]    = useState(prefs.calendarHours?.to   ?? 20)
+  const [showHrs, setShowHrs] = useState(false)
   const [dark,    setDark]    = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -98,6 +101,7 @@ export default function CalendarView({ prefs }: Props) {
   if (loading) return <div style={{ padding: '3rem 0', textAlign: 'center', fontSize: '13px', color: 'var(--text-3)' }}>Loading 7-day forecast…</div>
   if (error)   return <div style={{ padding: '2rem 0', textAlign: 'center', fontSize: '13px', color: '#DC2626' }}>{error}</div>
 
+  const HOURS = Array.from({ length: hrTo - hrFrom + 1 }, (_, i) => i + hrFrom)
   const nowH = new Date().getHours()
   const nowM = new Date().getMinutes()
   const todayStr = new Date().toISOString().split('T')[0]
@@ -127,7 +131,7 @@ export default function CalendarView({ prefs }: Props) {
         })}
       </div>
 
-      <div ref={scrollRef} style={{ height: '520px', overflowY: 'auto', overflowX: 'hidden', background: grid.bg }}>
+      <div ref={scrollRef} style={{ height: '620px', overflowY: 'auto', overflowX: 'hidden', background: grid.bg }}>
         <div style={{ display: 'flex', position: 'relative', minHeight: `${ROW_H * HOURS.length}px` }}>
 
           <div style={{ width: GUTTER_W, flexShrink: 0, position: 'relative', zIndex: 5 }}>
@@ -156,7 +160,7 @@ export default function CalendarView({ prefs }: Props) {
 
               const wins = prefs.activities.map((act, ai) => ({
                 act, color: ACT_COLORS[ai % ACT_COLORS.length],
-                windows: getSafeWindows(day.hourly, act.maxUV),
+                windows: getSafeWindowsForActivity(day.hourly, act),
               }))
 
               return (

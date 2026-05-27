@@ -1,8 +1,9 @@
 'use client'
 import { useState } from 'react'
 import { Activity } from '@/lib/types'
-import { PRESET_ACTIVITIES, canAddActivity } from '@/lib/tiers'
+import { ACTIVITY_CATEGORIES, canAddActivity } from '@/lib/tiers'
 import { TierLevel } from '@/lib/types'
+import EmojiPicker from './EmojiPicker'
 
 interface Props {
   selected: Activity[]
@@ -11,160 +12,181 @@ interface Props {
 }
 
 export default function ActivityManager({ selected, tier, onChange }: Props) {
-  const [customName, setCustomName]   = useState('')
-  const [customMins, setCustomMins]   = useState(30)
-  const [showCustom, setShowCustom]   = useState(false)
-  const [customIcon, setCustomIcon]   = useState('🏋️')
+  const [search,      setSearch]      = useState('')
+  const [showCreate,  setShowCreate]  = useState(false)
+  const [customName,  setCustomName]  = useState('')
+  const [customMins,  setCustomMins]  = useState(30)
+  const [customIcon,  setCustomIcon]  = useState('🏃')
+  const [customSpf,   setCustomSpf]   = useState(false)
+  const [showEmoji,   setShowEmoji]   = useState(false)
 
-  const ICONS = ['🏋️','🤸','⛷️','🏄','🧗','🤾','🏇','🎿','🛶','🏕️','🌿','🐕']
+  const atLimit = !canAddActivity(tier, selected.length)
 
-  function isSelected(id: string) {
-    return selected.some(a => a.id === id)
-  }
+  function isSelected(id: string) { return selected.some(a => a.id === id) }
 
-  function togglePreset(preset: typeof PRESET_ACTIVITIES[0]) {
+  function toggle(preset: { id: string; name: string; icon: string; durationMins: number; maxUV: number }) {
     if (isSelected(preset.id)) {
       onChange(selected.filter(a => a.id !== preset.id))
     } else {
-      if (!canAddActivity(tier, selected.length)) return
-      onChange([...selected, { ...preset }])
+      if (atLimit) return
+      onChange([...selected, { ...preset, sunscreen: false }])
     }
   }
 
   function addCustom() {
-    if (!customName.trim()) return
-    if (!canAddActivity(tier, selected.length)) return
-    const id = `custom_${Date.now()}`
+    if (!customName.trim() || atLimit) return
     onChange([...selected, {
-      id, name: customName.trim(), icon: customIcon,
-      durationMins: customMins, maxUV: 4, custom: true,
+      id: `custom_${Date.now()}`, name: customName.trim(),
+      icon: customIcon, durationMins: customMins, maxUV: 4,
+      sunscreen: customSpf, custom: true,
     }])
-    setCustomName('')
-    setCustomMins(30)
-    setShowCustom(false)
+    setCustomName(''); setCustomMins(30); setCustomSpf(false); setShowCreate(false)
+  }
+
+  function updateSunscreen(id: string, spf: boolean) {
+    onChange(selected.map(a => a.id === id ? { ...a, sunscreen: spf } : a))
   }
 
   function updateDuration(id: string, mins: number) {
     onChange(selected.map(a => a.id === id ? { ...a, durationMins: Math.max(5, mins) } : a))
   }
 
-  function remove(id: string) {
-    onChange(selected.filter(a => a.id !== id))
-  }
+  function remove(id: string) { onChange(selected.filter(a => a.id !== id)) }
 
-  const atLimit = !canAddActivity(tier, selected.length)
+  const filteredCats = search
+    ? [{ name: 'Results', emoji: '🔍', activities: ACTIVITY_CATEGORIES.flatMap(c => c.activities).filter(a => a.name.toLowerCase().includes(search.toLowerCase())) }]
+    : ACTIVITY_CATEGORIES
 
   return (
-    <div>
-      <p style={{ fontSize: '12px', color: 'var(--text-3)', marginBottom: '12px', lineHeight: '1.5' }}>
-        {tier === 'anonymous'
-          ? 'Create an account to track activities and get safe window alerts.'
-          : tier === 'free'
-            ? `Free plan: 1 activity. ${atLimit ? 'Upgrade for more.' : 'Pick one to get started.'}`
-            : 'Pick as many as you like.'}
-      </p>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
-      <p style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '8px' }}>
-        Presets
-      </p>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '8px', marginBottom: '16px' }}>
-        {PRESET_ACTIVITIES.map(p => {
-          const sel = isSelected(p.id)
-          const locked = !sel && atLimit
-          return (
-            <button
-              key={p.id}
-              onClick={() => togglePreset(p)}
-              disabled={locked}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '8px',
-                padding: '10px 12px', borderRadius: '10px', textAlign: 'left',
-                border: sel ? '1.5px solid var(--accent)' : '0.5px solid var(--border-md)',
-                background: sel ? 'rgba(249,115,22,0.08)' : 'var(--bg-card)',
-                cursor: locked ? 'not-allowed' : 'pointer',
-                opacity: locked ? 0.4 : 1,
-                transition: 'all 0.15s',
-              }}
-            >
-              <span style={{ fontSize: '18px' }}>{p.icon}</span>
-              <div>
-                <p style={{ margin: 0, fontSize: '13px', fontWeight: 500, color: 'var(--text)' }}>{p.name}</p>
-                <p style={{ margin: 0, fontSize: '11px', color: 'var(--text-3)' }}>{p.durationMins < 60 ? p.durationMins + 'm' : p.durationMins / 60 + 'h'}</p>
-              </div>
-              {locked && <span style={{ marginLeft: 'auto', fontSize: '12px' }}>🔒</span>}
-            </button>
-          )
-        })}
-      </div>
+      {atLimit && tier !== 'paid' && (
+        <div style={{ padding: '10px 14px', borderRadius: '10px', background: 'rgba(249,115,22,0.08)', border: '0.5px solid rgba(249,115,22,0.2)', fontSize: '13px', color: 'var(--text-2)' }}>
+          {tier === 'anonymous' ? '👤 Create an account to add activities.' : '🆓 Free plan: 1 activity. Upgrade to Pro for unlimited.'}
+        </div>
+      )}
 
-      {!atLimit && (
-        <div style={{ marginBottom: '16px' }}>
-          {!showCustom ? (
-            <button className="btn" onClick={() => setShowCustom(true)} style={{ fontSize: '13px' }}>
-              + Add custom activity
-            </button>
-          ) : (
-            <div style={{ background: 'var(--bg-metric)', borderRadius: '12px', padding: '14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <p style={{ margin: 0, fontSize: '13px', fontWeight: 500, color: 'var(--text)' }}>Custom activity</p>
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                {ICONS.map(ic => (
-                  <button key={ic} onClick={() => setCustomIcon(ic)} style={{
-                    fontSize: '20px', padding: '4px 6px', borderRadius: '6px',
-                    border: customIcon === ic ? '1.5px solid var(--accent)' : '0.5px solid var(--border)',
-                    background: customIcon === ic ? 'rgba(249,115,22,0.08)' : 'transparent',
-                    cursor: 'pointer',
-                  }}>{ic}</button>
-                ))}
+      <div style={{ position: 'relative' }}>
+        <button
+          onClick={() => setShowCreate(s => !s)}
+          className="btn btn-primary"
+          style={{ width: '100%', justifyContent: 'center', fontSize: '14px', padding: '10px', borderRadius: '12px' }}
+          disabled={atLimit}
+        >
+          {showCreate ? '✕ Cancel' : '+ Create custom activity'}
+        </button>
+
+        {showCreate && (
+          <div style={{ marginTop: '10px', padding: '14px', borderRadius: '12px', background: 'var(--bg-metric)', border: '0.5px solid var(--border-md)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+              <div style={{ position: 'relative' }}>
+                <button
+                  onClick={() => setShowEmoji(s => !s)}
+                  style={{ width: '44px', height: '44px', fontSize: '22px', borderRadius: '10px', border: '0.5px solid var(--border-md)', background: 'var(--bg-card)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                >
+                  {customIcon}
+                </button>
+                {showEmoji && (
+                  <EmojiPicker value={customIcon} onChange={setCustomIcon} onClose={() => setShowEmoji(false)} />
+                )}
               </div>
               <input
                 placeholder="Activity name"
                 value={customName}
                 onChange={e => setCustomName(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && addCustom()}
-                style={{ width: '100%', boxSizing: 'border-box' }}
+                style={{ flex: 1, fontSize: '14px' }}
               />
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '13px', color: 'var(--text-2)', whiteSpace: 'nowrap' }}>Duration (min)</span>
-                <input
-                  type="number" min="5" step="5" value={customMins}
-                  onChange={e => setCustomMins(Math.max(5, parseInt(e.target.value) || 5))}
-                  style={{ width: '80px' }}
-                />
-              </div>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button className="btn btn-primary" onClick={addCustom} style={{ fontSize: '13px' }}>Add</button>
-                <button className="btn" onClick={() => setShowCustom(false)} style={{ fontSize: '13px' }}>Cancel</button>
-              </div>
             </div>
-          )}
-        </div>
-      )}
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+              <span style={{ fontSize: '13px', color: 'var(--text-2)', flexShrink: 0 }}>Duration</span>
+              <input type="number" min="5" step="5" value={customMins} onChange={e => setCustomMins(Math.max(5, parseInt(e.target.value) || 5))} style={{ width: '80px', fontSize: '13px' }} />
+              <span style={{ fontSize: '13px', color: 'var(--text-3)' }}>min</span>
+            </div>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              {[false, true].map(v => (
+                <button key={String(v)} onClick={() => setCustomSpf(v)} style={{
+                  flex: 1, padding: '8px', borderRadius: '8px', fontSize: '12px', cursor: 'pointer',
+                  border: customSpf === v ? '1.5px solid var(--accent)' : '0.5px solid var(--border-md)',
+                  background: customSpf === v ? 'rgba(249,115,22,0.08)' : 'var(--bg-card)',
+                  color: 'var(--text)',
+                }}>{v ? '🧴 Wear sunscreen' : '🌿 No sunscreen'}</button>
+              ))}
+            </div>
+            <button className="btn btn-primary" onClick={addCustom} disabled={!customName.trim()} style={{ justifyContent: 'center' }}>
+              Add activity
+            </button>
+          </div>
+        )}
+      </div>
+
+      <input
+        placeholder="Search activities..."
+        value={search}
+        onChange={e => setSearch(e.target.value)}
+        style={{ width: '100%', boxSizing: 'border-box', fontSize: '13px', padding: '8px 12px' }}
+      />
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        {filteredCats.map(cat => (
+          <div key={cat.name}>
+            <p style={{ margin: '0 0 6px', fontSize: '11px', fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              {cat.emoji} {cat.name}
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '6px' }}>
+              {cat.activities.map(p => {
+                const sel    = isSelected(p.id)
+                const locked = !sel && atLimit
+                return (
+                  <button key={p.id} onClick={() => toggle(p)} disabled={locked} style={{
+                    display: 'flex', alignItems: 'center', gap: '7px',
+                    padding: '8px 10px', borderRadius: '9px', textAlign: 'left', cursor: locked ? 'not-allowed' : 'pointer',
+                    border: sel ? '1.5px solid var(--accent)' : '0.5px solid var(--border-md)',
+                    background: sel ? 'rgba(249,115,22,0.07)' : 'var(--bg-card)',
+                    opacity: locked ? 0.4 : 1, transition: 'all 0.12s',
+                  }}>
+                    <span style={{ fontSize: '16px', flexShrink: 0 }}>{p.icon}</span>
+                    <div style={{ minWidth: 0 }}>
+                      <p style={{ margin: 0, fontSize: '12px', fontWeight: sel ? 500 : 400, color: sel ? 'var(--accent)' : 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</p>
+                      <p style={{ margin: 0, fontSize: '10px', color: 'var(--text-3)' }}>{p.durationMins < 60 ? p.durationMins + 'm' : p.durationMins / 60 + 'h'}</p>
+                    </div>
+                    {locked && <span style={{ marginLeft: 'auto', fontSize: '11px' }}>🔒</span>}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
 
       {selected.length > 0 && (
         <div>
-          <p style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '8px' }}>
-            Your activities
+          <p style={{ margin: '0 0 8px', fontSize: '11px', fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+            Your activities ({selected.length})
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
             {selected.map(a => (
-              <div key={a.id} style={{
-                display: 'flex', alignItems: 'center', gap: '10px',
-                padding: '10px 12px', borderRadius: '10px',
-                background: 'var(--bg-card)', border: '0.5px solid var(--border-md)',
-              }}>
-                <span style={{ fontSize: '18px' }}>{a.icon}</span>
-                <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text)', flex: 1 }}>{a.name}</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <button onClick={() => updateDuration(a.id, a.durationMins - 15)}
-                    style={{ width: '24px', height: '24px', borderRadius: '6px', border: '0.5px solid var(--border-md)', background: 'transparent', cursor: 'pointer', color: 'var(--text-2)', fontSize: '14px' }}>−</button>
-                  <span style={{ fontSize: '12px', color: 'var(--text-2)', minWidth: '40px', textAlign: 'center' }}>
-                    {a.durationMins < 60 ? a.durationMins + 'm' : a.durationMins / 60 + 'h'}
-                  </span>
-                  <button onClick={() => updateDuration(a.id, a.durationMins + 15)}
-                    style={{ width: '24px', height: '24px', borderRadius: '6px', border: '0.5px solid var(--border-md)', background: 'transparent', cursor: 'pointer', color: 'var(--text-2)', fontSize: '14px' }}>+</button>
+              <div key={a.id} style={{ background: 'var(--bg-card)', border: '0.5px solid var(--border-md)', borderRadius: '10px', padding: '10px 12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '18px' }}>{a.icon}</span>
+                  <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text)', flex: 1 }}>{a.name}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <button onClick={() => updateDuration(a.id, a.durationMins - 15)} style={{ width: '24px', height: '24px', borderRadius: '6px', border: '0.5px solid var(--border-md)', background: 'transparent', cursor: 'pointer', fontSize: '14px', color: 'var(--text-2)' }}>−</button>
+                    <span style={{ fontSize: '12px', color: 'var(--text-2)', minWidth: '36px', textAlign: 'center' }}>{a.durationMins < 60 ? a.durationMins + 'm' : a.durationMins / 60 + 'h'}</span>
+                    <button onClick={() => updateDuration(a.id, a.durationMins + 15)} style={{ width: '24px', height: '24px', borderRadius: '6px', border: '0.5px solid var(--border-md)', background: 'transparent', cursor: 'pointer', fontSize: '14px', color: 'var(--text-2)' }}>+</button>
+                  </div>
+                  <button onClick={() => remove(a.id)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-3)', fontSize: '16px', padding: '0 4px' }}>×</button>
                 </div>
-                <button onClick={() => remove(a.id)}
-                  style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-3)', fontSize: '16px', padding: '0 4px' }}>×</button>
+                <div style={{ display: 'flex', gap: '5px' }}>
+                  {[false, true].map(v => (
+                    <button key={String(v)} onClick={() => updateSunscreen(a.id, v)} style={{
+                      flex: 1, padding: '5px 8px', borderRadius: '7px', fontSize: '11px', cursor: 'pointer',
+                      border: a.sunscreen === v ? '1.5px solid var(--accent)' : '0.5px solid var(--border-md)',
+                      background: a.sunscreen === v ? 'rgba(249,115,22,0.08)' : 'transparent',
+                      color: a.sunscreen === v ? 'var(--accent)' : 'var(--text-3)',
+                    }}>{v ? '🧴 With sunscreen' : '🌿 No sunscreen'}</button>
+                  ))}
+                </div>
               </div>
             ))}
           </div>

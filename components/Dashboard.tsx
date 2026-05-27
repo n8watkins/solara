@@ -6,11 +6,13 @@ import { canUseCalendar } from '@/lib/tiers'
 import UVTimeline from './UVTimeline'
 import ActivityCards from './ActivityCards'
 import Tooltip from './Tooltip'
+import TipCarousel from './TipCarousel'
 
 interface Props {
   weather: WeatherResponse
   prefs: UserPreferences
   onRefresh: () => void
+  onAddActivities: () => void
 }
 
 function uvNumberColor(uv: number): string {
@@ -22,14 +24,17 @@ function uvNumberColor(uv: number): string {
   return '#9333EA'
 }
 
-export default function Dashboard({ weather, prefs, onRefresh }: Props) {
+export default function Dashboard({ weather, prefs, onRefresh, onAddActivities }: Props) {
   const [day, setDay] = useState<'today' | 'tomorrow'>('today')
   const hourly      = day === 'today' ? weather.today : weather.tomorrow
   const currentHour = new Date().getHours()
 
-  const currentUV   = day === 'today' ? weather.current.uv   : (hourly[0]?.uv    ?? 0)
-  const currentTemp = day === 'today' ? weather.current.tempF : (hourly[0]?.tempF ?? '--')
-  const currentCond = day === 'today' ? weather.current.condition : (hourly[0]?.condition ?? '')
+  // For today: use live current reading. For tomorrow: use peak UV hour for summary metrics
+  const todayHour   = weather.today.find(h => h.hour === currentHour) || weather.today[0]
+  const tomorrowPeak = weather.tomorrow.reduce((best, h) => h.uv > (best?.uv ?? 0) ? h : best, weather.tomorrow[0])
+  const currentUV   = day === 'today' ? weather.current.uv    : (tomorrowPeak?.uv    ?? 0)
+  const currentTemp = day === 'today' ? weather.current.tempF : (tomorrowPeak?.tempF ?? '--' as string | number)
+  const currentCond = day === 'today' ? weather.current.condition : (tomorrowPeak?.condition ?? '')
   const peakUV      = hourly.length ? Math.max(...hourly.map(h => h.uv)) : 0
   const peakHour    = hourly.find(h => h.uv === peakUV)?.hour ?? 12
 
@@ -142,24 +147,19 @@ export default function Dashboard({ weather, prefs, onRefresh }: Props) {
       {prefs.activities.length > 0 ? (
         <ActivityCards windows={activityWindows} daysFromNow={day === 'today' ? 0 : 1} tier={tier} />
       ) : (
-        <div className="card" style={{ textAlign: 'center', padding: '2rem' }}>
-          <p style={{ fontSize: '24px', marginBottom: '8px' }}>🏃</p>
-          <p style={{ fontWeight: 500, color: 'var(--text)', margin: '0 0 4px' }}>No activities set up yet</p>
-          <p style={{ fontSize: '13px', color: 'var(--text-3)', margin: '0 0 16px' }}>
-            Add activities in Preferences to see personalized safe windows.
+        <div className="card" style={{ textAlign: 'center', padding: '2.5rem 1.5rem' }}>
+          <p style={{ fontSize: '28px', marginBottom: '10px' }}>🏃</p>
+          <p style={{ fontWeight: 600, fontSize: '15px', color: 'var(--text)', margin: '0 0 6px' }}>No activities set up yet</p>
+          <p style={{ fontSize: '13px', color: 'var(--text-3)', margin: '0 0 20px', lineHeight: '1.5' }}>
+            Add the activities you do outside and we'll show you exactly when it's safe to go.
           </p>
+          <button className="btn btn-primary" onClick={onAddActivities} style={{ fontSize: '14px', padding: '10px 24px', borderRadius: '12px' }}>
+            + Add activities
+          </button>
         </div>
       )}
 
-      <div className="card" style={{ background: 'rgba(251,191,36,0.08)', borderColor: 'rgba(251,191,36,0.3)' }}>
-        <p style={{ margin: '0 0 6px', fontSize: '13px', fontWeight: 500, color: 'var(--text)' }}>☀️ Vitamin D tip</p>
-        <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-2)', lineHeight: '1.6' }}>
-          {vitDPeak && vitDPeak <= 30
-            ? `At peak UV ${peakUV.toFixed(1)}, ${prefs.skinType} skin needs about ${vitDPeak} min with arms and legs exposed for a daily dose. ${prefs.sunscreen ? 'Skip sunscreen for that short window.' : 'Do it during a lower-UV window.'}`
-            : 'UV is low today — vitamin D production is limited. Consider a supplement on overcast days.'
-          }
-        </p>
-      </div>
+      <TipCarousel />
 
     </div>
   )

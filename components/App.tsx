@@ -34,6 +34,8 @@ export default function App() {
   const [screen,         setScreen]         = useState<Screen>('loading')
   const [view,           setView]           = useState<'dashboard' | 'calendar'>('dashboard')
   const [tierOverride,   setTierOverride]   = useState<TierLevel | null>(null)
+  const [prefsOpen,      setPrefsOpen]      = useState(false)
+  const [prefsTab,       setPrefsTab]       = useState<'general' | 'activities' | 'location'>('general')
   const [weatherLoading, setWeatherLoading] = useState(false)
   const [error,          setError]          = useState<string | null>(null)
   const [showNotif,      setShowNotif]      = useState(false)
@@ -153,7 +155,7 @@ export default function App() {
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
-      <Header user={user} prefs={tierOverride ? { ...prefs, tier: tierOverride } : prefs} onPrefsUpdate={setPrefs} />
+      <Header user={user} prefs={tierOverride ? { ...prefs, tier: tierOverride } : prefs} onPrefsUpdate={p => { setPrefs(p); fetchWeather(p.location) }} forceOpenTab={prefsOpen ? prefsTab : undefined} onModalClose={() => setPrefsOpen(false)} />
       <div style={{ borderBottom: '0.5px solid var(--border-md)', background: 'var(--bg-card)' }}>
         <div style={{ maxWidth: '900px', margin: '0 auto', padding: '0 1rem', display: 'flex', gap: '0' }}>
           {(['dashboard', 'calendar'] as const).map(v => (
@@ -181,7 +183,7 @@ export default function App() {
           <>
             {weatherLoading && <Skeleton />}
             {weather && !weatherLoading && (
-              <Dashboard weather={weather} prefs={tierOverride ? { ...prefs, tier: tierOverride } : prefs} onRefresh={() => fetchWeather(prefs.location, true)} />
+              <Dashboard weather={weather} prefs={tierOverride ? { ...prefs, tier: tierOverride } : prefs} onRefresh={() => fetchWeather(prefs.location, true)} onAddActivities={() => { setPrefsTab('activities'); setPrefsOpen(true) }} />
             )}
           </>
         )}

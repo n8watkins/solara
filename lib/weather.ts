@@ -1,4 +1,5 @@
 import { HourlyForecast, Activity, ActivityWindow, SkinType } from './types'
+import { effectiveMaxUV } from './tiers'
 
 export const SKIN_BURN_BASE: Record<SkinType, number> = {
   'very-fair': 10,
@@ -9,12 +10,12 @@ export const SKIN_BURN_BASE: Record<SkinType, number> = {
 }
 
 export const DEFAULT_ACTIVITIES: Activity[] = [
-  { id: 'break', name: 'Quick sun break', icon: '☀️', durationMins: 5,   maxUV: 8 },
-  { id: 'walk',  name: 'Walking',         icon: '🚶', durationMins: 30,  maxUV: 5 },
-  { id: 'run',   name: 'Running',         icon: '🏃', durationMins: 45,  maxUV: 4 },
-  { id: 'swim',  name: 'Swimming',        icon: '🏊', durationMins: 60,  maxUV: 3 },
-  { id: 'hike',  name: 'Hiking',          icon: '🥾', durationMins: 120, maxUV: 3 },
-  { id: 'golf',  name: 'Golf',            icon: '⛳', durationMins: 240, maxUV: 2 },
+  { id: 'break', name: 'Quick sun break', icon: '☀️', durationMins: 5,   maxUV: 8, sunscreen: false },
+  { id: 'walk',  name: 'Walking',         icon: '🚶', durationMins: 30,  maxUV: 5, sunscreen: false },
+  { id: 'run',   name: 'Running',         icon: '🏃', durationMins: 45,  maxUV: 4, sunscreen: false },
+  { id: 'swim',  name: 'Swimming',        icon: '🏊', durationMins: 60,  maxUV: 3, sunscreen: false },
+  { id: 'hike',  name: 'Hiking',          icon: '🥾', durationMins: 120, maxUV: 3, sunscreen: false },
+  { id: 'golf',  name: 'Golf',            icon: '⛳', durationMins: 240, maxUV: 2, sunscreen: false },
 ]
 
 export function burnMins(uv: number, skinType: SkinType): number | null {
@@ -83,13 +84,14 @@ export function getActivityWindow(
   activity: Activity,
   currentHour: number
 ): ActivityWindow {
+  const maxUV = effectiveMaxUV(activity)
   let start: number | null = null
   let bestWindow: { from: number; to: number } | null = null
   let safeCount = 0
 
   for (let i = 0; i < hourly.length; i++) {
     const { hour, uv } = hourly[i]
-    if (uv <= activity.maxUV) {
+    if (uv <= maxUV) {
       safeCount++
       if (start === null) start = hour
     } else {
@@ -111,7 +113,7 @@ export function getActivityWindow(
   const currentUV = hourly.find(h => h.hour === currentHour)?.uv ?? 0
   const safeNow = currentUV <= activity.maxUV
   const pctDaySafe = Math.round((safeCount / hourly.length) * 100)
-  const burn = burnMins(activity.maxUV, 'fair')
+  const burn = burnMins(maxUV, 'fair')
 
   return { activity, bestWindow, safeNow, pctDaySafe, burnMins: burn }
 }

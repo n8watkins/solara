@@ -1,4 +1,6 @@
 import { Activity } from './types'
+import { effectiveMaxUV } from './tiers'
+
 
 export interface DayForecast {
   dateStr: string
@@ -11,6 +13,11 @@ export interface SafeWindow {
   from: number
   to: number
   peakUV: number
+}
+
+export function getSafeWindowsForActivity(hourly: DayForecast['hourly'], activity: Activity): SafeWindow[] {
+  const maxUV = effectiveMaxUV(activity)
+  return getSafeWindows(hourly, maxUV)
 }
 
 export function getSafeWindows(hourly: DayForecast['hourly'], maxUV: number): SafeWindow[] {
