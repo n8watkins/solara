@@ -1,6 +1,6 @@
 'use client'
 import { useState } from 'react'
-import { Activity, ActivityWindow, TierLevel } from '@/lib/types'
+import { Activity, ActivityWindow, SafeActivityWindow, TierLevel } from '@/lib/types'
 import { fmtHour, gcalLink } from '@/lib/weather'
 import { canUseCalendar, effectiveMaxUV } from '@/lib/tiers'
 
@@ -20,6 +20,31 @@ function Row({ label, val, accent }: { label: string; val: string; accent?: stri
   )
 }
 
+function WindowPill({ win, isBest }: { win: SafeActivityWindow; isBest: boolean }) {
+  return (
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '2px',
+      minWidth: '92px',
+      padding: '8px 9px',
+      borderRadius: '10px',
+      border: isBest ? '1.5px solid var(--accent)' : '0.5px solid var(--border-md)',
+      background: isBest ? 'rgba(249,115,22,0.08)' : 'var(--bg-metric)',
+    }}>
+      <span style={{ fontSize: '11px', fontWeight: 750, color: isBest ? 'var(--accent)' : 'var(--text-2)' }}>
+        {isBest ? 'Best' : win.label}
+      </span>
+      <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text)' }}>
+        {fmtHour(win.from)}–{fmtHour(win.to)}
+      </span>
+      <span style={{ fontSize: '10px', color: 'var(--text-3)' }}>
+        Peak UV {win.peakUV.toFixed(1)}
+      </span>
+    </div>
+  )
+}
+
 export default function ActivityCards({ windows, daysFromNow, tier, onEditActivity }: Props) {
   const [confirm, setConfirm] = useState<string | null>(null)
   const calendarAllowed = canUseCalendar(tier)
@@ -33,8 +58,8 @@ export default function ActivityCards({ windows, daysFromNow, tier, onEditActivi
   return (
     <div>
       {confirm && <p style={{ margin: '0 0 12px', fontSize: '12px', color: 'var(--accent)', textAlign: 'right' }}>{confirm}</p>}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: '10px' }}>
-        {windows.map(({ activity, bestWindow, safeNow, pctDaySafe, burnMins }) => {
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: '10px' }}>
+        {windows.map(({ activity, bestWindow, allWindows, safeNow, pctDaySafe, burnMins }) => {
           const status = safeNow ? 'safe' : bestWindow ? 'caution' : 'avoid'
           const durationLabel = activity.durationMins < 60
             ? `${activity.durationMins}m`
@@ -75,6 +100,24 @@ export default function ActivityCards({ windows, daysFromNow, tier, onEditActivi
               </div>
               <p style={{ margin: 0, fontSize: '11px', color: 'var(--text-3)' }}>{pctDaySafe}% of day is safe</p>
 
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
+                <p style={{ margin: 0, fontSize: '11px', color: 'var(--text-3)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.055em' }}>
+                  Safe windows
+                </p>
+                {allWindows.length > 0 ? (
+                  <div style={{ display: 'flex', gap: '7px', overflowX: 'auto', paddingBottom: '2px' }}>
+                    {allWindows.map(win => {
+                      const isBest = !!bestWindow && win.from === bestWindow.from && win.to === bestWindow.to
+                      return <WindowPill key={`${win.from}-${win.to}`} win={win} isBest={isBest} />
+                    })}
+                  </div>
+                ) : (
+                  <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-3)', lineHeight: 1.45 }}>
+                    No window is long enough for this activity today. Try shortening duration or raising the safe UV threshold.
+                  </p>
+                )}
+              </div>
+
               <div style={{ display: 'flex', gap: '8px', marginTop: 'auto', flexWrap: 'wrap' }}>
                 {onEditActivity && (
                   <button
@@ -92,7 +135,7 @@ export default function ActivityCards({ windows, daysFromNow, tier, onEditActivi
                       onClick={() => openCalendar(activity.name, bestWindow, activity.durationMins)}
                       style={{ justifyContent: 'center', fontSize: '12px', flex: 1 }}
                     >
-                      📅 Add to Calendar
+                      📅 Add best to Calendar
                     </button>
                   ) : (
                     <button className="btn" style={{ justifyContent: 'center', fontSize: '12px', flex: 1, opacity: 0.45, cursor: 'not-allowed' }}
