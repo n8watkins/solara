@@ -13,8 +13,11 @@ const TIPS = [
 export default function TipCarousel() {
   const [idx, setIdx]       = useState(0)
   const [fade, setFade]     = useState(true)
+  const [paused, setPaused] = useState(false)
 
   useEffect(() => {
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    if (paused || reduceMotion) return
     const t = setInterval(() => {
       setFade(false)
       setTimeout(() => {
@@ -23,16 +26,22 @@ export default function TipCarousel() {
       }, 300)
     }, 6000)
     return () => clearInterval(t)
-  }, [])
+  }, [paused])
 
   const tip = TIPS[idx]
 
   return (
-    <div style={{
-      background: 'rgba(251,191,36,0.08)',
-      border: '0.5px solid rgba(251,191,36,0.25)',
-      borderRadius: '14px', padding: '14px 16px',
-    }}>
+    <div
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      onFocus={() => setPaused(true)}
+      onBlur={() => setPaused(false)}
+      style={{
+        background: 'rgba(251,191,36,0.08)',
+        border: '0.5px solid rgba(251,191,36,0.25)',
+        borderRadius: '14px', padding: '14px 16px',
+      }}
+    >
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
         <span style={{ fontSize: '20px', flexShrink: 0, marginTop: '1px' }}>{tip.icon}</span>
         <div style={{
@@ -55,7 +64,7 @@ export default function TipCarousel() {
             borderRadius: '3px', border: 'none', cursor: 'pointer',
             background: i === idx ? 'var(--accent)' : 'rgba(251,191,36,0.3)',
             transition: 'all 0.3s ease', padding: 0,
-          }} />
+          }} aria-label={`Show tip ${i + 1}`} />
         ))}
       </div>
     </div>
