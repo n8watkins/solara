@@ -1,16 +1,20 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
-import { UserPreferences, WeatherResponse } from '@/lib/types'
+import { Activity, UserPreferences, WeatherResponse } from '@/lib/types'
 import { canUseCalendar, getFutureDays } from '@/lib/tiers'
 import { DayForecast, SafeWindow, getSafeWindowsForActivity, gcalWindowLink, fmtH } from '@/lib/calendar'
+import { buildActivityShareText, buildActivityShareUrl, shareOrCopy } from '@/lib/share'
+import EditActivityModal from './EditActivityModal'
 
 interface Props {
   prefs: UserPreferences
   weather?: WeatherResponse | null
+  displayTier?: UserPreferences['tier']
+  onPrefsUpdate?: (prefs: UserPreferences) => void
 }
 
-const ROW_H    = 52  // px per hour
-const GUTTER_W = 52  // px for time labels
+const ROW_H    = 60
+const GUTTER_W = 58
 
 const ACT_COLORS = ['#F97316','#3B82F6','#10B981','#8B5CF6','#F59E0B','#EC4899','#06B6D4','#84CC16']
 
@@ -37,24 +41,26 @@ function forecastFromWeather(weather: WeatherResponse, limit = 7): DayForecast[]
   })
 }
 
-export default function CalendarView({ prefs, weather }: Props) {
-  const tier  = prefs.tier || 'anonymous'
+export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdate }: Props) {
+  const tier  = displayTier || prefs.tier || 'anonymous'
   const dayLimit = getFutureDays(tier)
   const [days,    setDays]    = useState<DayForecast[]>(weather ? forecastFromWeather(weather, dayLimit) : [])
   const [loading, setLoading] = useState(!weather)
   const [error,   setError]   = useState<string | null>(null)
-  const [popup,   setPopup]   = useState<{ act: typeof prefs.activities[0]; win: SafeWindow; day: DayForecast } | null>(null)
+  const [popup,   setPopup]   = useState<{ act: Activity; win: SafeWindow; day: DayForecast } | null>(null)
   const [hrFrom,  setHrFrom]  = useState(prefs.calendarHours?.from ?? 6)
   const [hrTo,    setHrTo]    = useState(prefs.calendarHours?.to   ?? 20)
   const [dark,    setDark]    = useState(false)
   const [confirm, setConfirm] = useState<string | null>(null)
   const [focusedActivityId, setFocusedActivityId] = useState<string>('all')
+  const [editingActivityId, setEditingActivityId] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const calOk = canUseCalendar(tier)
   const visibleActivities = focusedActivityId === 'all'
     ? prefs.activities
     : prefs.activities.filter(a => a.id === focusedActivityId)
+  const editingActivity = editingActivityId ? prefs.activities.find(a => a.id === editingActivityId) ?? null : null
   const lockedCopy = tier === 'anonymous'
     ? 'Sign in to see tomorrow in Calendar.'
     : tier === 'free'
@@ -70,10 +76,10 @@ export default function CalendarView({ prefs, weather }: Props) {
 
   useEffect(() => {
     if (scrollRef.current) {
-      const nowOffset = (new Date().getHours() - 6) * ROW_H - 80
+      const nowOffset = (new Date().getHours() - hrFrom) * ROW_H - 120
       scrollRef.current.scrollTop = Math.max(0, nowOffset)
     }
-  }, [days])
+  }, [days, hrFrom])
 
   useEffect(() => {
     if (weather) {
@@ -123,10 +129,39 @@ export default function CalendarView({ prefs, weather }: Props) {
     load()
   }, [prefs.location.lat, prefs.location.lon, weather, dayLimit])
 
-  function openCalendar(act: typeof prefs.activities[0], win: SafeWindow, day: DayForecast) {
+  function openCalendar(act: Activity, win: SafeWindow, day: DayForecast) {
     const opened = window.open(gcalWindowLink(act, win, day.dateStr), '_blank')
     setConfirm(opened ? 'Opened Google Calendar.' : 'Pop-up blocked. Allow pop-ups or copy the calendar link.')
     window.setTimeout(() => setConfirm(null), 3500)
+  }
+
+  async function shareWindow(act: Activity, win: SafeWindow, day: DayForecast) {
+    const payload = { activity: act, window: win, location: prefs.location, dateLabel: day.label }
+    const text = buildActivityShareText(payload)
+    const url = buildActivityShareUrl(payload, typeof window !== 'undefined' ? window.location.origin : undefined)
+    try {
+      const result = await shareOrCopy(`${act.name} sun window`, text, url)
+      setConfirm(result === 'shared' ? 'Shared activity window.' : result === 'copied' ? 'Copied share text and link.' : `${text} ${url}`)
+    } catch { setConfirm(null) }
+    window.setTimeout(() => setConfirm(null), 4500)
+  }
+
+  function updateActivity(updated: Activity) {
+    if (!onPrefsUpdate) return
+    onPrefsUpdate({ ...prefs, activities: prefs.activities.map(a => a.id === updated.id ? updated : a) })
+    setEditingActivityId(null)
+  }
+
+  function deleteActivity(id: string) {
+    if (!onPrefsUpdate) return
+    onPrefsUpdate({ ...prefs, activities: prefs.activities.filter(a => a.id !== id) })
+    setEditingActivityId(null)
+    setPopup(null)
+  }
+
+  function applyView(from: number, to: number) {
+    setHrFrom(from)
+    setHrTo(to)
   }
 
   if (!prefs.activities.length) return (
@@ -140,7 +175,7 @@ export default function CalendarView({ prefs, weather }: Props) {
   if (loading) return <div style={{ padding: '3rem 0', textAlign: 'center', fontSize: '14px', color: 'var(--text-3)' }}>Loading forecast…</div>
   if (error)   return <div style={{ padding: '2rem 0', textAlign: 'center', fontSize: '14px', color: '#DC2626' }}>{error}</div>
 
-  const HOURS = Array.from({ length: hrTo - hrFrom + 1 }, (_, i) => i + hrFrom)
+  const HOURS = Array.from({ length: Math.max(1, hrTo - hrFrom + 1) }, (_, i) => i + hrFrom)
   const nowH = new Date().getHours()
   const nowM = new Date().getMinutes()
   const todayStr = new Date().toLocaleDateString('en-CA')
@@ -151,14 +186,20 @@ export default function CalendarView({ prefs, weather }: Props) {
 
   return (
     <div style={{ fontFamily: 'var(--font-sans)', borderRadius: '12px', overflow: 'hidden', border: `0.5px solid ${dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'}` }}>
-      <div style={{ padding: '10px 12px', background: grid.headerBg, borderBottom: `1px solid ${grid.line}`, display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-        <span style={{ fontSize: '12px', color: 'var(--text-3)', fontWeight: 500 }}>Show</span>
+      <div style={{ padding: '12px 14px', background: grid.headerBg, borderBottom: `1px solid ${grid.line}`, display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+        <span style={{ fontSize: '12px', color: 'var(--text-3)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.055em' }}>Show</span>
         <select value={focusedActivityId} onChange={e => setFocusedActivityId(e.target.value)} style={{ fontSize: '12px', padding: '6px 8px' }}>
           <option value="all">All activities</option>
           {prefs.activities.map(a => <option key={a.id} value={a.id}>{a.icon} {a.name}</option>)}
         </select>
+        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+          <button className="btn" onClick={() => applyView(6, 12)} style={{ fontSize: '12px', padding: '6px 9px' }}>Morning</button>
+          <button className="btn" onClick={() => applyView(12, 18)} style={{ fontSize: '12px', padding: '6px 9px' }}>Afternoon</button>
+          <button className="btn" onClick={() => applyView(16, 20)} style={{ fontSize: '12px', padding: '6px 9px' }}>Evening</button>
+          <button className="btn" onClick={() => applyView(6, 20)} style={{ fontSize: '12px', padding: '6px 9px' }}>Full day</button>
+        </div>
         <span style={{ fontSize: '12px', color: 'var(--text-3)', marginLeft: 'auto' }}>
-          Tip: filter to one activity when the grid gets crowded.
+          Click a window to share, edit, or add it to Calendar.
         </span>
       </div>
 
@@ -180,7 +221,7 @@ export default function CalendarView({ prefs, weather }: Props) {
           const isToday = day.dateStr === todayStr
           const d = new Date(day.dateStr + 'T12:00:00')
           return (
-            <div key={day.dateStr} style={{ flex: 1, padding: '10px 8px 8px', textAlign: 'center', borderLeft: `0.5px solid ${grid.line}`, background: isToday ? grid.todayBg : 'transparent', minWidth: '76px' }}>
+            <div key={day.dateStr} style={{ flex: 1, padding: '10px 8px 8px', textAlign: 'center', borderLeft: `0.5px solid ${grid.line}`, background: isToday ? grid.todayBg : 'transparent', minWidth: '96px' }}>
               <p style={{ margin: 0, fontSize: '11px', fontWeight: 500, color: isToday ? 'var(--accent)' : grid.text, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                 {day.shortLabel}
               </p>
@@ -192,8 +233,8 @@ export default function CalendarView({ prefs, weather }: Props) {
         })}
       </div>
 
-      <div ref={scrollRef} style={{ height: '620px', overflowY: 'auto', overflowX: 'auto', background: grid.bg }}>
-        <div style={{ display: 'flex', position: 'relative', minHeight: `${ROW_H * HOURS.length}px`, minWidth: `${GUTTER_W + days.length * 96}px` }}>
+      <div ref={scrollRef} style={{ height: '760px', overflowY: 'auto', overflowX: 'auto', background: grid.bg }}>
+        <div style={{ display: 'flex', position: 'relative', minHeight: `${ROW_H * HOURS.length}px`, minWidth: `${GUTTER_W + days.length * 118}px` }}>
 
           <div style={{ width: GUTTER_W, flexShrink: 0, position: 'relative', zIndex: 5 }}>
             {HOURS.map((h, i) => (
@@ -229,7 +270,7 @@ export default function CalendarView({ prefs, weather }: Props) {
                   flex: 1, position: 'relative',
                   borderLeft: `0.5px solid ${grid.line}`,
                   background: isToday ? grid.todayBg : 'transparent',
-                  minWidth: '96px',
+                  minWidth: '118px',
                 }}>
                   {HOURS.map((h, hi) => {
                     const uv = uvMap[h] ?? 0
@@ -246,8 +287,9 @@ export default function CalendarView({ prefs, weather }: Props) {
                     windows.map((win, wii) => {
                       const topH    = Math.max(win.from, hrFrom)
                       const botH    = Math.min(win.to, hrTo)
+                      if (botH <= topH) return null
                       const top     = (topH - hrFrom) * ROW_H
-                      const height  = Math.max((botH - topH) * ROW_H - 2, 16)
+                      const height  = Math.max((botH - topH) * ROW_H - 2, 18)
                       const totalActs = visibleActivities.length || 1
                       const colW    = 100 / totalActs
                       const left    = `${wi * colW + 1}%`
@@ -263,27 +305,27 @@ export default function CalendarView({ prefs, weather }: Props) {
                           style={{
                             position: 'absolute', top: `${top + 1}px`, left, width, height: `${height}px`,
                             background: isHov ? color : `${color}CC`,
-                            borderRadius: '5px',
+                            borderRadius: '6px',
                             cursor: 'pointer',
                             zIndex: isHov ? 15 : 5,
                             border: isHov ? `1.5px solid ${color}` : `1px solid ${color}99`,
-                            padding: '3px 5px',
+                            padding: '4px 6px',
                             overflow: 'hidden',
                             transition: 'all 0.1s',
                             display: 'flex', flexDirection: 'column', justifyContent: 'flex-start',
                             boxShadow: isHov ? `0 2px 8px ${color}44` : 'none',
                           }}
                         >
-                          <span style={{ fontSize: '11px', color: '#fff', fontWeight: 600, lineHeight: 1.2, display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          <span style={{ fontSize: '11px', color: '#fff', fontWeight: 700, lineHeight: 1.2, display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                             {act.icon} {showText ? act.name : ''}
                           </span>
                           {showText && height > 42 && (
-                            <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.8)', lineHeight: 1.2 }}>
+                            <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.88)', lineHeight: 1.2 }}>
                               {fmtH(win.from)}–{fmtH(win.to)}
                             </span>
                           )}
                           {showText && height > 58 && (
-                            <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.7)' }}>
+                            <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.76)' }}>
                               {durationLabel} session
                             </span>
                           )}
@@ -316,7 +358,7 @@ export default function CalendarView({ prefs, weather }: Props) {
           background: grid.headerBg,
           display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap',
         }}>
-          <div style={{ flex: 1, minWidth: '200px' }}>
+          <div style={{ flex: 1, minWidth: '220px' }}>
             <p style={{ margin: '0 0 3px', fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>
               {popup.act.icon} {popup.act.name}
               <span style={{ fontWeight: 400, color: 'var(--text-3)', marginLeft: '6px', fontSize: '13px' }}>
@@ -333,7 +375,15 @@ export default function CalendarView({ prefs, weather }: Props) {
               anywhere in this range
             </p>
           </div>
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0 }}>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0, flexWrap: 'wrap' }}>
+            <button className="btn" onClick={() => shareWindow(popup.act, popup.win, popup.day)} style={{ fontSize: '13px', whiteSpace: 'nowrap' }}>
+              ↗ Share
+            </button>
+            {onPrefsUpdate && (
+              <button className="btn" onClick={() => setEditingActivityId(popup.act.id)} style={{ fontSize: '13px', whiteSpace: 'nowrap' }}>
+                Edit activity
+              </button>
+            )}
             {calOk ? (
               <button
                 className="btn btn-primary"
@@ -368,6 +418,15 @@ export default function CalendarView({ prefs, weather }: Props) {
           ))}
         </div>
       </div>
+
+      {editingActivity && (
+        <EditActivityModal
+          activity={editingActivity}
+          onSave={updateActivity}
+          onDelete={deleteActivity}
+          onClose={() => setEditingActivityId(null)}
+        />
+      )}
     </div>
   )
 }
