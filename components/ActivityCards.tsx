@@ -1,13 +1,16 @@
 'use client'
 import { useState } from 'react'
-import { Activity, ActivityWindow, SafeActivityWindow, TierLevel } from '@/lib/types'
+import { Activity, ActivityWindow, SafeActivityWindow, TierLevel, Location } from '@/lib/types'
 import { fmtHour, gcalLink } from '@/lib/weather'
 import { canUseCalendar, effectiveMaxUV } from '@/lib/tiers'
+import { buildActivityShareText, buildActivityShareUrl, shareOrCopy } from '@/lib/share'
 
 interface Props {
   windows: ActivityWindow[]
   daysFromNow: number
   tier: TierLevel
+  location: Location
+  dateLabel: string
   onEditActivity?: (activity: Activity) => void
 }
 
@@ -20,39 +23,58 @@ function Row({ label, val, accent }: { label: string; val: string; accent?: stri
   )
 }
 
-function WindowPill({ win, isBest }: { win: SafeActivityWindow; isBest: boolean }) {
+function WindowPill({ win, isBest, onShare, onCalendar }: { win: SafeActivityWindow; isBest: boolean; onShare: () => void; onCalendar?: () => void }) {
   return (
     <div style={{
       display: 'flex',
       flexDirection: 'column',
-      gap: '2px',
-      minWidth: '92px',
+      gap: '6px',
+      minWidth: '124px',
       padding: '8px 9px',
       borderRadius: '10px',
       border: isBest ? '1.5px solid var(--accent)' : '0.5px solid var(--border-md)',
       background: isBest ? 'rgba(249,115,22,0.08)' : 'var(--bg-metric)',
     }}>
-      <span style={{ fontSize: '11px', fontWeight: 750, color: isBest ? 'var(--accent)' : 'var(--text-2)' }}>
-        {isBest ? 'Best' : win.label}
-      </span>
-      <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text)' }}>
-        {fmtHour(win.from)}–{fmtHour(win.to)}
-      </span>
-      <span style={{ fontSize: '10px', color: 'var(--text-3)' }}>
-        Peak UV {win.peakUV.toFixed(1)}
-      </span>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+        <span style={{ fontSize: '11px', fontWeight: 750, color: isBest ? 'var(--accent)' : 'var(--text-2)' }}>
+          {isBest ? 'Best' : win.label}
+        </span>
+        <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text)' }}>
+          {fmtHour(win.from)}–{fmtHour(win.to)}
+        </span>
+        <span style={{ fontSize: '10px', color: 'var(--text-3)' }}>
+          Peak UV {win.peakUV.toFixed(1)}
+        </span>
+      </div>
+      <div style={{ display: 'flex', gap: '5px' }}>
+        <button className="btn" onClick={onShare} style={{ flex: 1, padding: '5px 6px', fontSize: '11px' }}>Share</button>
+        {onCalendar && <button className="btn" onClick={onCalendar} style={{ flex: 1, padding: '5px 6px', fontSize: '11px' }}>Cal</button>}
+      </div>
     </div>
   )
 }
 
-export default function ActivityCards({ windows, daysFromNow, tier, onEditActivity }: Props) {
+export default function ActivityCards({ windows, daysFromNow, tier, location, dateLabel, onEditActivity }: Props) {
   const [confirm, setConfirm] = useState<string | null>(null)
   const calendarAllowed = canUseCalendar(tier)
 
-  function openCalendar(activityName: string, bestWindow: { from: number; to: number }, durationMins: number) {
-    const opened = window.open(gcalLink(activityName, bestWindow, durationMins, daysFromNow), '_blank')
+  function openCalendar(activityName: string, selectedWindow: { from: number; to: number }, durationMins: number) {
+    const opened = window.open(gcalLink(activityName, selectedWindow, durationMins, daysFromNow), '_blank')
     setConfirm(opened ? 'Opened Google Calendar.' : 'Pop-up blocked. Allow pop-ups or try again.')
     window.setTimeout(() => setConfirm(null), 3500)
+  }
+
+  async function shareWindow(activity: Activity, selectedWindow: SafeActivityWindow) {
+    const payload = { activity, window: selectedWindow, location, dateLabel, dayOffset: daysFromNow }
+    const text = buildActivityShareText(payload)
+    const url = buildActivityShareUrl(payload, typeof window !== 'undefined' ? window.location.origin : undefined)
+    try {
+      const result = await shareOrCopy(`${activity.name} sun window`, text, url)
+      setConfirm(result === 'shared' ? 'Shared activity window.' : result === 'copied' ? 'Copied share text and link.' : `${text} ${url}`)
+    } catch {
+      setConfirm(null)
+    }
+    window.setTimeout(() => setConfirm(null), 4500)
   }
 
   return (
@@ -82,6 +104,7 @@ export default function ActivityCards({ windows, daysFromNow, tier, onEditActivi
               <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                 <Row label={activity.sunscreen ? 'Safe UV w/ SPF' : 'Max safe UV'} val={String(safeUv)} />
                 <Row label="Duration" val={durationLabel} />
+                {activity.preferredHours && <Row label="Preferred" val={`${fmtHour(activity.preferredHours.from)}–${fmtHour(activity.preferredHours.to)}`} />}
                 {burnMins !== null && burnMins !== undefined && (
                   <Row label="Threshold burn est." val={`~${burnMins}m`} />
                 )}
@@ -98,7 +121,7 @@ export default function ActivityCards({ windows, daysFromNow, tier, onEditActivi
                   background: pctDaySafe >= 60 ? '#16A34A' : pctDaySafe >= 30 ? '#D97706' : '#DC2626',
                 }} />
               </div>
-              <p style={{ margin: 0, fontSize: '11px', color: 'var(--text-3)' }}>{pctDaySafe}% of day is safe</p>
+              <p style={{ margin: 0, fontSize: '11px', color: 'var(--text-3)' }}>{pctDaySafe}% of visible day matches</p>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
                 <p style={{ margin: 0, fontSize: '11px', color: 'var(--text-3)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.055em' }}>
@@ -108,12 +131,20 @@ export default function ActivityCards({ windows, daysFromNow, tier, onEditActivi
                   <div style={{ display: 'flex', gap: '7px', overflowX: 'auto', paddingBottom: '2px' }}>
                     {allWindows.map(win => {
                       const isBest = !!bestWindow && win.from === bestWindow.from && win.to === bestWindow.to
-                      return <WindowPill key={`${win.from}-${win.to}`} win={win} isBest={isBest} />
+                      return (
+                        <WindowPill
+                          key={`${win.from}-${win.to}`}
+                          win={win}
+                          isBest={isBest}
+                          onShare={() => shareWindow(activity, win)}
+                          onCalendar={calendarAllowed ? () => openCalendar(activity.name, win, activity.durationMins) : undefined}
+                        />
+                      )
                     })}
                   </div>
                 ) : (
                   <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-3)', lineHeight: 1.45 }}>
-                    No window is long enough for this activity today. Try shortening duration or raising the safe UV threshold.
+                    No window is long enough for this activity today. Try shortening duration, widening preferred hours, or raising the safe UV threshold.
                   </p>
                 )}
               </div>
@@ -127,22 +158,6 @@ export default function ActivityCards({ windows, daysFromNow, tier, onEditActivi
                   >
                     Edit
                   </button>
-                )}
-                {bestWindow && (
-                  calendarAllowed ? (
-                    <button
-                      className="btn"
-                      onClick={() => openCalendar(activity.name, bestWindow, activity.durationMins)}
-                      style={{ justifyContent: 'center', fontSize: '12px', flex: 1 }}
-                    >
-                      📅 Add best to Calendar
-                    </button>
-                  ) : (
-                    <button className="btn" style={{ justifyContent: 'center', fontSize: '12px', flex: 1, opacity: 0.45, cursor: 'not-allowed' }}
-                      title="Sign in for free to unlock calendar sync" disabled>
-                      🔒 Calendar (sign in)
-                    </button>
-                  )
                 )}
               </div>
             </div>
