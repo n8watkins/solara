@@ -131,3 +131,13 @@ input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(249,115,22
   cursor: help;
   flex-shrink: 0;
 }
+
+@media (max-width: 560px) {
+  .hide-mobile { display: none; }
+  .card { padding: 1rem; }
+  .btn { padding-left: 10px; padding-right: 10px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition-duration: 0.001ms !important; animation-duration: 0.001ms !important; }
+}
