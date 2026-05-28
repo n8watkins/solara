@@ -176,11 +176,12 @@ export default function App() {
     return <Onboarding onComplete={handleOnboardingComplete} user={user} />
   }
 
-  const effectivePrefs = tierOverride ? { ...prefs, tier: tierOverride } : prefs
+  const displayTier = tierOverride || prefs.tier || 'anonymous'
+  const displayPrefs = { ...prefs, tier: displayTier }
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
-      <Header user={user} prefs={effectivePrefs} onPrefsUpdate={p => { handlePrefsUpdate(p); fetchWeather(p.location) }} forceOpenTab={prefsOpen ? prefsTab : undefined} onModalClose={() => setPrefsOpen(false)} onGoHome={() => { setView('dashboard'); setSelectedDay(null) }} currentUV={weather?.current.uv} />
+      <Header user={user} prefs={prefs} displayTier={displayTier} onPrefsUpdate={p => { handlePrefsUpdate(p); fetchWeather(p.location) }} forceOpenTab={prefsOpen ? prefsTab : undefined} onModalClose={() => setPrefsOpen(false)} onGoHome={() => { setView('dashboard'); setSelectedDay(null) }} currentUV={weather?.current.uv} />
       <div style={{ borderBottom: '0.5px solid var(--border-md)', background: 'var(--bg-card)' }}>
         <div style={{ maxWidth: '900px', margin: '0 auto', padding: '0 1rem', display: 'flex', gap: '0' }}>
           {(['dashboard', 'calendar'] as const).map(v => (
@@ -208,19 +209,19 @@ export default function App() {
           <>
             {weatherLoading && <Skeleton />}
             {weather && !weatherLoading && (
-              <Dashboard weather={weather} prefs={effectivePrefs} onPrefsUpdate={handlePrefsUpdate} onRefresh={() => fetchWeather(prefs.location, true)} selectedDay={selectedDay} onSelectDay={setSelectedDay} />
+              <Dashboard weather={weather} prefs={prefs} displayTier={displayTier} onPrefsUpdate={handlePrefsUpdate} onRefresh={() => fetchWeather(prefs.location, true)} selectedDay={selectedDay} onSelectDay={setSelectedDay} />
             )}
           </>
         )}
         {view === 'calendar' && (
           <div className="card">
-            <CalendarView prefs={effectivePrefs} weather={weather} />
+            <CalendarView prefs={displayPrefs} weather={weather} />
           </div>
         )}
       </main>
       {isDev && (
         <DevPanel
-          currentTier={tierOverride || prefs.tier || 'anonymous'}
+          currentTier={displayTier}
           onOverride={setTierOverride}
         />
       )}
