@@ -1,17 +1,29 @@
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore'
 import { db } from './firebase'
 import { UserPreferences, Location, Activity, SkinType, TierLevel } from './types'
-import { PRESET_ACTIVITIES } from './tiers'
+import { PRESET_ACTIVITIES, ACTIVITY_CATEGORIES } from './tiers'
 
 const PREFS_KEY = 'solara_prefs'
 export const PREFS_SCHEMA_VERSION = 2
 
 const SKIN_TYPES: SkinType[] = ['very-fair', 'fair', 'medium', 'olive', 'dark']
 const TIERS: TierLevel[] = ['anonymous', 'free', 'paid']
+const PRESET_IDS = new Set(PRESET_ACTIVITIES.map(a => a.id))
+const CATEGORY_NAMES = new Set(ACTIVITY_CATEGORIES.map(c => c.name))
 
 function isLocation(value: unknown): value is Location {
   const loc = value as Partial<Location> | null
   return !!loc && typeof loc.lat === 'number' && typeof loc.lon === 'number' && typeof loc.city === 'string'
+}
+
+function normalizeStringList(raw: unknown, allowed?: Set<string>): string[] {
+  if (!Array.isArray(raw)) return []
+  return Array.from(new Set(
+    raw
+      .filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
+      .map(v => v.trim())
+      .filter(v => !allowed || allowed.has(v))
+  ))
 }
 
 function normalizeActivity(raw: unknown, index: number, globalSunscreen: boolean): Activity | null {
@@ -65,6 +77,8 @@ export function normalizePrefs(raw: Partial<UserPreferences> | null, fallbackLoc
     calendarHours: raw.calendarHours && typeof raw.calendarHours.from === 'number' && typeof raw.calendarHours.to === 'number'
       ? { from: Math.max(0, Math.min(23, raw.calendarHours.from)), to: Math.max(1, Math.min(24, raw.calendarHours.to)) }
       : undefined,
+    hiddenActivitySuggestionIds: normalizeStringList(raw.hiddenActivitySuggestionIds, PRESET_IDS),
+    collapsedActivityCategories: normalizeStringList(raw.collapsedActivityCategories, CATEGORY_NAMES),
     upgradeInterest: raw.upgradeInterest,
   }
 }
@@ -120,5 +134,7 @@ export function defaultPrefs(location: Location): UserPreferences {
     activities: [],
     tier: 'anonymous',
     onboardingComplete: false,
+    hiddenActivitySuggestionIds: [],
+    collapsedActivityCategories: [],
   }
 }
