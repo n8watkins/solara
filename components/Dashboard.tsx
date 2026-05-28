@@ -6,6 +6,7 @@ import { getFutureDays } from '@/lib/tiers'
 import UVTimeline from './UVTimeline'
 import ActivityCards from './ActivityCards'
 import ActivityManager from './ActivityManager'
+import SunArc from './SunArc'
 import Tooltip from './Tooltip'
 import TipCarousel from './TipCarousel'
 
@@ -205,7 +206,7 @@ export default function Dashboard({ weather, prefs, onPrefsUpdate, onRefresh, se
       <div className="card">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', gap: '8px', flexWrap: 'wrap' }}>
           <p style={{ margin: 0, fontSize: '16px', fontWeight: 650, color: 'var(--text)' }}>
-            <Tooltip text="Each bar shows the UV index for that hour. Hover or tap to see burn time and conditions. The 'now' marker shows the current hour.">
+            <Tooltip text="Each bar shows the UV index for that hour. Hover or tap to see burn time and conditions. The sun path shows the current sun position and peak UV point.">
               UV by hour
             </Tooltip>
           </p>
@@ -214,6 +215,7 @@ export default function Dashboard({ weather, prefs, onPrefsUpdate, onRefresh, se
             <button className="btn" onClick={shareSunWindow} style={{ fontSize: '13px', padding: '6px 11px' }}>↗ Share</button>
           </div>
         </div>
+        <SunArc hourly={hourly} currentHour={currentHour} isToday={isToday} />
         <UVTimeline hourly={hourly} currentHour={isToday ? currentHour : -1} skinType={prefs.skinType} />
       </div>
 
