@@ -29,7 +29,6 @@ type Tab = 'general' | 'appearance' | 'activities' | 'location' | 'account'
 export default function PreferencesModal({ prefs, onSave, onClose, initialTab, user }: Props) {
   const [tab,        setTab]        = useState<Tab>(initialTab || 'general')
   const [skinType,   setSkinType]   = useState<SkinType>(prefs.skinType)
-  const [sunscreen,  setSunscreen]  = useState(prefs.sunscreen)
   const [location,   setLocation]   = useState<Location>(prefs.location)
   const [citySearch, setCitySearch] = useState('')
   const [locLoading, setLocLoading] = useState(false)
@@ -41,9 +40,9 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
   const tier = prefs.tier || 'anonymous'
 
   const selectedSkin = SKIN_OPTIONS.find(o => o.value === skinType) ?? SKIN_OPTIONS[1]
-  const draft: UserPreferences = { ...prefs, skinType, sunscreen, location }
-  const dirty = JSON.stringify({ skinType: prefs.skinType, sunscreen: prefs.sunscreen, location: prefs.location }) !==
-    JSON.stringify({ skinType, sunscreen, location })
+  const draft: UserPreferences = { ...prefs, skinType, location }
+  const dirty = JSON.stringify({ skinType: prefs.skinType, location: prefs.location }) !==
+    JSON.stringify({ skinType, location })
 
   function requestClose() {
     if (dirty && !window.confirm('Discard unsaved settings changes?')) return
@@ -168,28 +167,11 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
                 )}
               </div>
 
-              <div className="metric-card" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <div>
-                  <p style={{ margin: '0 0 4px', fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>Legacy sunscreen default</p>
-                  <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-3)', lineHeight: 1.45 }}>
-                    This only supports older saved data. Active sunscreen choices now belong with activities on the Dashboard.
-                  </p>
-                </div>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  {[
-                    { val: false, label: 'No sunscreen' },
-                    { val: true,  label: 'SPF 30+' },
-                  ].map(o => (
-                    <button key={String(o.val)} onClick={() => setSunscreen(o.val)} style={{
-                      flex: 1, padding: '11px 12px', borderRadius: '10px', cursor: 'pointer', textAlign: 'center',
-                      border: sunscreen === o.val ? '1.5px solid var(--accent)' : '0.5px solid var(--border-md)',
-                      background: sunscreen === o.val ? 'rgba(249,115,22,0.07)' : 'var(--bg-card)', transition: 'all 0.12s',
-                      color: 'var(--text)', fontSize: '13px', fontWeight: 650,
-                    }}>
-                      {o.label}
-                    </button>
-                  ))}
-                </div>
+              <div className="metric-card" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <p style={{ margin: 0, fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>Sunscreen is activity-specific</p>
+                <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-3)', lineHeight: 1.45 }}>
+                  SPF assumptions are now set per activity from the Dashboard Activity section, so a swim, walk, and quick coffee break can each use different protection settings.
+                </p>
               </div>
             </div>
           )}
