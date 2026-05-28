@@ -14,28 +14,37 @@ export interface SafeWindow {
   peakUV: number
 }
 
-export function getSafeWindowsForActivity(hourly: DayForecast['hourly'], activity: Activity): SafeWindow[] {
-  const maxUV = effectiveMaxUV(activity)
-  return getSafeWindows(hourly, maxUV)
+function allowedHour(activity: Activity, hour: number): boolean {
+  if (!activity.preferredHours) return true
+  return hour >= activity.preferredHours.from && hour < activity.preferredHours.to
 }
 
-export function getSafeWindows(hourly: DayForecast['hourly'], maxUV: number): SafeWindow[] {
+export function getSafeWindowsForActivity(hourly: DayForecast['hourly'], activity: Activity): SafeWindow[] {
+  const maxUV = effectiveMaxUV(activity)
+  return getSafeWindows(hourly, maxUV, activity.durationMins, activity)
+}
+
+export function getSafeWindows(hourly: DayForecast['hourly'], maxUV: number, durationMins = 0, activity?: Activity): SafeWindow[] {
   const windows: SafeWindow[] = []
   let start: number | null = null
 
   for (let i = 0; i <= hourly.length; i++) {
     const h = hourly[i]
-    if (h && h.uv <= maxUV) {
+    const ok = h && h.uv <= maxUV && (!activity || allowedHour(activity, h.hour))
+    if (ok) {
       if (start === null) start = h.hour
     } else {
       if (start !== null) {
         const prevHour = hourly[i - 1]?.hour ?? start
-        const uvs = hourly.filter(x => x.hour >= start! && x.hour <= prevHour).map(x => x.uv)
-        windows.push({
-          from: start,
-          to: prevHour + 1,
-          peakUV: uvs.length ? Math.max(...uvs) : 0,
-        })
+        const to = prevHour + 1
+        if ((to - start) * 60 >= durationMins) {
+          const uvs = hourly.filter(x => x.hour >= start! && x.hour <= prevHour).map(x => x.uv)
+          windows.push({
+            from: start,
+            to,
+            peakUV: uvs.length ? Math.max(...uvs) : 0,
+          })
+        }
         start = null
       }
     }
