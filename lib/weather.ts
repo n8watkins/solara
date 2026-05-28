@@ -95,6 +95,11 @@ function summarizeSafeWindow(hourly: HourlyForecast[], from: number, to: number)
   }
 }
 
+function withinPreferredHours(hour: number, activity: Activity): boolean {
+  if (!activity.preferredHours) return true
+  return hour >= activity.preferredHours.from && hour < activity.preferredHours.to
+}
+
 export function getActivityWindow(
   hourly: HourlyForecast[],
   activity: Activity,
@@ -108,7 +113,8 @@ export function getActivityWindow(
 
   for (let i = 0; i < hourly.length; i++) {
     const { hour, uv } = hourly[i]
-    if (uv <= maxUV) {
+    const hourAllowed = withinPreferredHours(hour, activity)
+    if (uv <= maxUV && hourAllowed) {
       safeCount++
       if (start === null) start = hour
     } else {
@@ -121,10 +127,10 @@ export function getActivityWindow(
     }
   }
 
-  if (start !== null) {
-    const last = hourly[hourly.length - 1].hour + 1
-    if ((last - start) * 60 >= activity.durationMins) {
-      allWindows.push(summarizeSafeWindow(hourly, start, last))
+  if (start !== null && hourly.length) {
+    const lastAllowedHour = activity.preferredHours ? Math.min(activity.preferredHours.to, hourly[hourly.length - 1].hour + 1) : hourly[hourly.length - 1].hour + 1
+    if ((lastAllowedHour - start) * 60 >= activity.durationMins) {
+      allWindows.push(summarizeSafeWindow(hourly, start, lastAllowedHour))
     }
   }
 
@@ -137,7 +143,7 @@ export function getActivityWindow(
 
   const bestWindow = best ? { from: best.from, to: best.to } : null
   const current = hourly.find(h => h.hour === currentHour)
-  const safeNow = current ? current.uv <= maxUV : false
+  const safeNow = current ? current.uv <= maxUV && withinPreferredHours(current.hour, activity) : false
   const pctDaySafe = hourly.length ? Math.round((safeCount / hourly.length) * 100) : 0
   const burn = burnMins(maxUV, skinType)
 
