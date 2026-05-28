@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { Activity } from '@/lib/types'
-import { ACTIVITY_CATEGORIES, canAddActivity } from '@/lib/tiers'
+import { ACTIVITY_CATEGORIES, canAddActivity, TIER_LIMITS } from '@/lib/tiers'
 import { TierLevel } from '@/lib/types'
 import EmojiPicker from './EmojiPicker'
 
@@ -57,7 +57,7 @@ export default function ActivityManager({ selected, tier, onChange }: Props) {
 
       {atLimit && tier !== 'paid' && (
         <div style={{ padding: '10px 14px', borderRadius: '10px', background: 'rgba(249,115,22,0.08)', border: '0.5px solid rgba(249,115,22,0.2)', fontSize: '13px', color: 'var(--text-2)' }}>
-          {tier === 'anonymous' ? '👤 Create an account to add activities.' : '🆓 Free plan: 1 activity. Upgrade to Pro for unlimited.'}
+          {tier === 'anonymous' ? '👤 Create an account to add activities.' : `🆓 Free plan: ${TIER_LIMITS.free.activities} activities. Upgrade to Pro for unlimited.`}
         </div>
       )}
 

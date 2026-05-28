@@ -11,7 +11,7 @@ export interface Activity {
   icon: string
   durationMins: number
   maxUV: number        // base max UV assuming no sunscreen
-  sunscreen: boolean   // does the user wear sunscreen for this activity?
+  sunscreen: boolean   // whether this recommendation assumes SPF protection
   custom?: boolean
 }
 
@@ -22,16 +22,22 @@ export interface CalendarHours {
 
 export interface UserPreferences {
   uid: string
+  schemaVersion: number
   location: Location
   skinType: SkinType
-  sunscreen: boolean    // kept for backward compat but per-activity takes precedence
+  sunscreen: boolean    // global sunscreen preference applied to activities
   activities: Activity[]
   tier: TierLevel
   onboardingComplete: boolean
   calendarHours?: CalendarHours
+  upgradeInterest?: {
+    email?: string
+    createdAt: string
+  }
 }
 
 export interface HourlyForecast {
+  date?: string
   hour: number; uv: number; tempF: number; condition: string
 }
 

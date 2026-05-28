@@ -28,7 +28,7 @@ export default function Header({ user, prefs, onPrefsUpdate, onGoHome, forceOpen
     try {
       const result = await signInWithPopup(auth, googleProvider)
       if (result.user && prefs) {
-        await saveFirestorePrefs(result.user.uid, { ...prefs, uid: result.user.uid })
+        await saveFirestorePrefs(result.user.uid, { ...prefs, uid: result.user.uid, tier: 'free' })
       }
     } catch (e) { console.error(e) }
   }
@@ -48,33 +48,35 @@ export default function Header({ user, prefs, onPrefsUpdate, onGoHome, forceOpen
   const tier = prefs.tier || 'anonymous'
 
   const uvAlert = currentUV !== undefined && currentUV >= 8
-    ? { icon: '🔴', msg: `UV ${currentUV.toFixed(1)} — Very high right now` }
+    ? { icon: '🔴', msg: `UV ${currentUV.toFixed(1)} — Very high` }
     : currentUV !== undefined && currentUV >= 6
-    ? { icon: '🟠', msg: `UV ${currentUV.toFixed(1)} — High right now` }
+    ? { icon: '🟠', msg: `UV ${currentUV.toFixed(1)} — High` }
     : null
 
   return (
     <>
       <header style={{ background: 'var(--bg-card)', borderBottom: '0.5px solid var(--border-md)', padding: '0 16px', position: 'sticky', top: 0, zIndex: 40 }}>
         <div style={{ maxWidth: '900px', margin: '0 auto' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '52px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: '52px', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
               <button
                 onClick={onGoHome}
-                style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 6px', borderRadius: '8px', transition: 'background 0.1s' }}
+                style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 6px', borderRadius: '8px', transition: 'background 0.1s', flexShrink: 0 }}
                 onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-metric)')}
                 onMouseLeave={e => (e.currentTarget.style.background = 'none')}
               >
                 <span style={{ fontSize: '20px' }}>☀️</span>
                 <span style={{ fontWeight: 700, fontSize: '17px', color: 'var(--text)' }}>Solara</span>
               </button>
-              <span style={{ color: 'var(--border-md)', fontSize: '16px', userSelect: 'none' }}>·</span>
-              <LocationPopover
-                location={prefs.location}
-                onUpdate={loc => onPrefsUpdate({ ...prefs, location: loc })}
-              />
+              <span style={{ color: 'var(--border-md)', fontSize: '16px', userSelect: 'none', flexShrink: 0 }}>·</span>
+              <div style={{ minWidth: 0 }}>
+                <LocationPopover
+                  location={prefs.location}
+                  onUpdate={loc => onPrefsUpdate({ ...prefs, location: loc })}
+                />
+              </div>
               <span style={{
-                fontSize: '10px', fontWeight: 700, padding: '2px 7px', borderRadius: '6px',
+                fontSize: '10px', fontWeight: 700, padding: '2px 7px', borderRadius: '6px', flexShrink: 0,
                 background: tier === 'paid' ? 'rgba(249,115,22,0.15)' : 'var(--bg-metric)',
                 color: tier === 'paid' ? 'var(--accent)' : 'var(--text-3)',
                 textTransform: 'uppercase', letterSpacing: '0.05em',
@@ -83,10 +85,10 @@ export default function Header({ user, prefs, onPrefsUpdate, onGoHome, forceOpen
               </span>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
               {uvAlert && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '4px 10px', borderRadius: '8px', background: 'var(--bg-metric)', fontSize: '12px', color: 'var(--text-2)', marginRight: '4px' }}>
-                  {uvAlert.icon} {uvAlert.msg}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '4px 8px', borderRadius: '8px', background: 'var(--bg-metric)', fontSize: '12px', color: 'var(--text-2)', marginRight: '4px', whiteSpace: 'nowrap' }}>
+                  {uvAlert.icon} <span className="hide-mobile">{uvAlert.msg}</span>
                 </div>
               )}
               <button className="btn btn-ghost" onClick={() => setShowPrefs(true)} style={{ fontSize: '13px', padding: '6px 12px' }}>
@@ -107,6 +109,7 @@ export default function Header({ user, prefs, onPrefsUpdate, onGoHome, forceOpen
       {showPrefs && (
         <PreferencesModal
           prefs={prefs}
+          user={user}
           onSave={handlePrefsUpdate}
           onClose={() => { setShowPrefs(false); onModalClose?.() }}
           initialTab={forceOpenTab}

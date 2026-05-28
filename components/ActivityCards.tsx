@@ -1,7 +1,8 @@
 'use client'
+import { useState } from 'react'
 import { ActivityWindow, TierLevel } from '@/lib/types'
 import { fmtHour, gcalLink } from '@/lib/weather'
-import { canUseCalendar } from '@/lib/tiers'
+import { canUseCalendar, effectiveMaxUV } from '@/lib/tiers'
 
 interface Props {
   windows: ActivityWindow[]
@@ -19,11 +20,21 @@ function Row({ label, val, accent }: { label: string; val: string; accent?: stri
 }
 
 export default function ActivityCards({ windows, daysFromNow, tier }: Props) {
+  const [confirm, setConfirm] = useState<string | null>(null)
   const calendarAllowed = canUseCalendar(tier)
+
+  function openCalendar(activityName: string, bestWindow: { from: number; to: number }, durationMins: number) {
+    const opened = window.open(gcalLink(activityName, bestWindow, durationMins, daysFromNow), '_blank')
+    setConfirm(opened ? 'Opened Google Calendar.' : 'Pop-up blocked. Allow pop-ups or try again.')
+    window.setTimeout(() => setConfirm(null), 3500)
+  }
 
   return (
     <div>
-      <p style={{ margin: '0 0 12px', fontSize: '14px', fontWeight: 500, color: 'var(--text)' }}>Activities</p>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '12px' }}>
+        <p style={{ margin: 0, fontSize: '14px', fontWeight: 500, color: 'var(--text)' }}>Activities</p>
+        {confirm && <p style={{ margin: 0, fontSize: '12px', color: 'var(--accent)' }}>{confirm}</p>}
+      </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: '10px' }}>
         {windows.map(({ activity, bestWindow, safeNow, pctDaySafe, burnMins }) => {
           const status = safeNow ? 'safe' : bestWindow ? 'caution' : 'avoid'
@@ -33,6 +44,7 @@ export default function ActivityCards({ windows, daysFromNow, tier }: Props) {
           const windowLabel = bestWindow
             ? `${fmtHour(bestWindow.from)}–${fmtHour(bestWindow.to)}`
             : 'None today'
+          const safeUv = effectiveMaxUV(activity)
 
           return (
             <div key={activity.id} className="card" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -45,7 +57,7 @@ export default function ActivityCards({ windows, daysFromNow, tier }: Props) {
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                <Row label="Max safe UV" val={String(activity.maxUV)} />
+                <Row label={activity.sunscreen ? 'Safe UV w/ SPF' : 'Max safe UV'} val={String(safeUv)} />
                 <Row label="Duration" val={durationLabel} />
                 {burnMins !== null && burnMins !== undefined && (
                   <Row label="Burn limit" val={`~${burnMins}m`} />
@@ -69,7 +81,7 @@ export default function ActivityCards({ windows, daysFromNow, tier }: Props) {
                 calendarAllowed ? (
                   <button
                     className="btn"
-                    onClick={() => window.open(gcalLink(activity.name, bestWindow, activity.durationMins, daysFromNow), '_blank')}
+                    onClick={() => openCalendar(activity.name, bestWindow, activity.durationMins)}
                     style={{ justifyContent: 'center', fontSize: '12px', marginTop: 'auto' }}
                   >
                     📅 Add to Calendar

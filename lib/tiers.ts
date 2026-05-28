@@ -2,7 +2,7 @@ import { TierLevel, Activity } from './types'
 
 export const TIER_LIMITS: Record<TierLevel, { activities: number; calendar: boolean; notifications: boolean; futureDays: number }> = {
   anonymous: { activities: 0,   calendar: false, notifications: false, futureDays: 2  },
-  free:      { activities: 1,   calendar: true,  notifications: false, futureDays: 2  },
+  free:      { activities: 3,   calendar: true,  notifications: false, futureDays: 2  },
   paid:      { activities: 999, calendar: true,  notifications: true,  futureDays: 10 },
 }
 
@@ -28,7 +28,8 @@ export function getFutureDays(tier: TierLevel): number {
   return TIER_LIMITS[tier].futureDays
 }
 
-// With SPF 30+, effective safe UV is ~2.5x higher
+// With SPF 30+, effective safe UV is ~2.5x higher.
+// This is still an estimate; UI copy should not imply medical precision.
 export function effectiveMaxUV(activity: Activity): number {
   if (activity.sunscreen) return Math.min(Math.round(activity.maxUV * 2.5), 11)
   return activity.maxUV
@@ -93,7 +94,7 @@ export const ACTIVITY_CATEGORIES: PresetCategory[] = [
   },
 ]
 
-// Flat list for backward compat
+// Flat list for preference migrations and backwards compatibility.
 export const PRESET_ACTIVITIES = ACTIVITY_CATEGORIES.flatMap(c =>
   c.activities.map(a => ({ ...a, sunscreen: false as const }))
 )

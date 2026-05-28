@@ -2,7 +2,6 @@
 import { useState } from 'react'
 import { WeatherResponse, UserPreferences, DayWeather } from '@/lib/types'
 import { burnMins, vitDMins, uvLabel, getActivityWindow, fmtHour } from '@/lib/weather'
-import { canUseCalendar } from '@/lib/tiers'
 import UVTimeline from './UVTimeline'
 import ActivityCards from './ActivityCards'
 import Tooltip from './Tooltip'
@@ -27,14 +26,13 @@ function uvNumberColor(uv: number): string {
 }
 
 export default function Dashboard({ weather, prefs, onRefresh, onAddActivities, selectedDay, onSelectDay }: Props) {
+  const [shareMsg, setShareMsg] = useState<string | null>(null)
   const currentHour = new Date().getHours()
 
-  // Active day — null means today
   const activeDayData = selectedDay ? selectedDay.hourly : weather.today
   const isToday       = !selectedDay
   const dayIndex      = selectedDay ? weather.forecast.findIndex(d => d.dateStr === selectedDay.dateStr) : 0
 
-  // Metrics: today uses live current; other days use peak UV hour
   const hourly    = activeDayData
   const peakEntry = activeDayData.reduce((best, h) => h.uv > (best?.uv ?? 0) ? h : best, activeDayData[0])
   const currentUV   = isToday ? weather.current.uv    : (peakEntry?.uv    ?? 0)
@@ -47,12 +45,38 @@ export default function Dashboard({ weather, prefs, onRefresh, onAddActivities, 
   const vitD = vitDMins(currentUV, prefs.skinType)
 
   const tier = prefs.tier || 'anonymous'
-  const activityWindows = prefs.activities.map(a => getActivityWindow(hourly, a, currentHour))
+  const activityWindows = prefs.activities.map(a => getActivityWindow(hourly, a, currentHour, prefs.skinType))
+  const bestShareWindow = activityWindows.find(w => w.bestWindow)?.bestWindow
+  const bestShareActivity = activityWindows.find(w => w.bestWindow)?.activity
 
-
-
-  const vitDPeak = vitDMins(peakUV, prefs.skinType)
   const dateLabel = selectedDay?.label ?? 'Today'
+
+  async function shareSunWindow() {
+    const place = `${prefs.location.city}${prefs.location.region ? `, ${prefs.location.region}` : ''}`
+    const text = bestShareWindow && bestShareActivity
+      ? `${dateLabel} in ${place}: Solara says my best ${bestShareActivity.name.toLowerCase()} window is ${fmtHour(bestShareWindow.from)}–${fmtHour(bestShareWindow.to)}. Peak UV ${peakUV.toFixed(1)}.`
+      : `${dateLabel} in ${place}: Peak UV is ${peakUV.toFixed(1)} around ${fmtHour(peakHour)}. Checking my sun window with Solara.`
+    const shareData = {
+      title: 'My Solara sun window',
+      text,
+      url: typeof window !== 'undefined' ? window.location.origin : undefined,
+    }
+
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData)
+        setShareMsg('Shared.')
+      } else if (navigator.clipboard) {
+        await navigator.clipboard.writeText(`${text} ${shareData.url ?? ''}`.trim())
+        setShareMsg('Copied share text.')
+      } else {
+        setShareMsg(text)
+      }
+    } catch {
+      setShareMsg(null)
+    }
+    window.setTimeout(() => setShareMsg(null), 3500)
+  }
 
   if (!hourly.length) {
     return (
@@ -90,6 +114,12 @@ export default function Dashboard({ weather, prefs, onRefresh, onAddActivities, 
         </div>
         <button className="btn btn-ghost" onClick={onRefresh} title="Refresh" style={{ padding: '6px 8px', fontSize: '16px', flexShrink: 0 }}>↻</button>
       </div>
+
+      {shareMsg && (
+        <div style={{ padding: '10px 12px', borderRadius: '10px', background: 'rgba(249,115,22,0.08)', color: 'var(--text-2)', fontSize: '12px', border: '0.5px solid rgba(249,115,22,0.2)' }}>
+          {shareMsg}
+        </div>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '10px' }}>
         <div className="metric-card">
@@ -136,13 +166,16 @@ export default function Dashboard({ weather, prefs, onRefresh, onAddActivities, 
       </div>
 
       <div className="card">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', gap: '8px', flexWrap: 'wrap' }}>
           <p style={{ margin: 0, fontSize: '14px', fontWeight: 500, color: 'var(--text)' }}>
             <Tooltip text="Each bar shows the UV index for that hour. Hover or tap to see burn time and conditions. The 'now' marker shows the current hour.">
               UV by hour
             </Tooltip>
           </p>
-          <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-3)' }}>Peak {peakUV.toFixed(1)} at {fmtHour(peakHour)}</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-3)' }}>Peak {peakUV.toFixed(1)} at {fmtHour(peakHour)}</p>
+            <button className="btn" onClick={shareSunWindow} style={{ fontSize: '12px', padding: '5px 10px' }}>↗ Share</button>
+          </div>
         </div>
         <UVTimeline hourly={hourly} currentHour={isToday ? currentHour : -1} skinType={prefs.skinType} />
       </div>

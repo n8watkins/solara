@@ -9,15 +9,6 @@ export const SKIN_BURN_BASE: Record<SkinType, number> = {
   'dark':      50,
 }
 
-export const DEFAULT_ACTIVITIES: Activity[] = [
-  { id: 'break', name: 'Quick sun break', icon: '☀️', durationMins: 5,   maxUV: 8, sunscreen: false },
-  { id: 'walk',  name: 'Walking',         icon: '🚶', durationMins: 30,  maxUV: 5, sunscreen: false },
-  { id: 'run',   name: 'Running',         icon: '🏃', durationMins: 45,  maxUV: 4, sunscreen: false },
-  { id: 'swim',  name: 'Swimming',        icon: '🏊', durationMins: 60,  maxUV: 3, sunscreen: false },
-  { id: 'hike',  name: 'Hiking',          icon: '🥾', durationMins: 120, maxUV: 3, sunscreen: false },
-  { id: 'golf',  name: 'Golf',            icon: '⛳', durationMins: 240, maxUV: 2, sunscreen: false },
-]
-
 export function burnMins(uv: number, skinType: SkinType): number | null {
   if (uv < 0.5) return null
   const base = SKIN_BURN_BASE[skinType]
@@ -82,7 +73,8 @@ export function gcalLink(
 export function getActivityWindow(
   hourly: HourlyForecast[],
   activity: Activity,
-  currentHour: number
+  currentHour: number,
+  skinType: SkinType = 'fair'
 ): ActivityWindow {
   const maxUV = effectiveMaxUV(activity)
   let start: number | null = null
@@ -111,9 +103,9 @@ export function getActivityWindow(
   }
 
   const currentUV = hourly.find(h => h.hour === currentHour)?.uv ?? 0
-  const safeNow = currentUV <= activity.maxUV
-  const pctDaySafe = Math.round((safeCount / hourly.length) * 100)
-  const burn = burnMins(maxUV, 'fair')
+  const safeNow = currentUV <= maxUV
+  const pctDaySafe = hourly.length ? Math.round((safeCount / hourly.length) * 100) : 0
+  const burn = burnMins(maxUV, skinType)
 
   return { activity, bestWindow, safeNow, pctDaySafe, burnMins: burn }
 }

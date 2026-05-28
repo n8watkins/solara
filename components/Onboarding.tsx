@@ -81,11 +81,12 @@ export default function Onboarding({ onComplete, user }: Props) {
 
   async function handleFinish() {
     if (!location) return
+    const activitiesWithSunscreen = activities.map(a => ({ ...a, sunscreen }))
     const prefs: UserPreferences = {
       ...defaultPrefs(location),
       skinType,
       sunscreen,
-      activities,
+      activities: activitiesWithSunscreen,
       tier,
       onboardingComplete: true,
     }
@@ -239,31 +240,34 @@ export default function Onboarding({ onComplete, user }: Props) {
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
               {[
-                { val: false, title: 'No sunscreen', desc: 'Show me when UV is naturally safe on its own.' },
-                { val: true,  title: 'I wear SPF 30+', desc: 'Include extended windows where sunscreen protects me.' },
+                { val: false, icon: '🌿', title: 'No sunscreen', desc: 'Show me when UV is naturally low enough' },
+                { val: true,  icon: '🧴', title: 'I wear SPF 30+', desc: 'Extend safe windows with sunscreen protection' },
               ].map(o => (
                 <button key={String(o.val)} onClick={() => setSunscreen(o.val)} style={{
-                  padding: '14px', borderRadius: '10px', textAlign: 'left',
+                  display: 'flex', alignItems: 'center', gap: '12px', padding: '14px', borderRadius: '12px', textAlign: 'left',
                   border: sunscreen === o.val ? '1.5px solid var(--accent)' : '0.5px solid var(--border-md)',
                   background: sunscreen === o.val ? 'rgba(249,115,22,0.08)' : 'var(--bg-card)',
-                  cursor: 'pointer', transition: 'all 0.15s',
+                  cursor: 'pointer',
                 }}>
-                  <p style={{ margin: '0 0 2px', fontSize: '14px', fontWeight: 500, color: 'var(--text)' }}>{o.title}</p>
-                  <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-3)' }}>{o.desc}</p>
+                  <span style={{ fontSize: '24px' }}>{o.icon}</span>
+                  <div>
+                    <p style={{ margin: 0, fontSize: '14px', fontWeight: 500, color: 'var(--text)' }}>{o.title}</p>
+                    <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-3)' }}>{o.desc}</p>
+                  </div>
                 </button>
               ))}
             </div>
             <div style={{ display: 'flex', gap: '8px' }}>
               <button className="btn" onClick={() => setStep('activities')} style={{ flex: '0 0 auto' }}>← Back</button>
               <button className="btn btn-primary" onClick={handleFinish} style={{ flex: 1, justifyContent: 'center', padding: '10px' }}>
-                Open my dashboard →
+                Start using Solara
               </button>
             </div>
           </div>
         )}
 
-        <p style={{ textAlign: 'center', fontSize: '12px', color: 'var(--text-3)', marginTop: '16px' }}>
-          Preferences saved locally. {user ? 'Synced to your account.' : 'Sign in to sync across devices.'}
+        <p style={{ textAlign: 'center', marginTop: '20px', fontSize: '12px', color: 'var(--text-3)' }}>
+          Free: {TIER_LIMITS.free.activities} activities + calendar · Pro: notifications + 10-day forecast
         </p>
       </div>
     </div>
@@ -274,9 +278,10 @@ async function reverseGeocode(lat: number, lon: number): Promise<{ city: string;
   try {
     const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`)
     const data = await res.json()
-    const city = data.address?.city || data.address?.town || data.address?.village || 'Your location'
-    const region = data.address?.state || data.address?.country || ''
-    return { city, region }
+    return {
+      city: data.address?.city || data.address?.town || data.address?.village || 'Your location',
+      region: data.address?.state || data.address?.country || '',
+    }
   } catch {
     return { city: 'Your location', region: '' }
   }

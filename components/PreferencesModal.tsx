@@ -36,7 +36,19 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
   const [locLoading, setLocLoading] = useState(false)
   const [locError,   setLocError]   = useState<string | null>(null)
   const [dark,       setDark]       = useState(getStoredTheme() === 'dark')
+  const [upgradeEmail, setUpgradeEmail] = useState(user?.email ?? prefs.upgradeInterest?.email ?? '')
+  const [upgradeSaved, setUpgradeSaved] = useState(false)
   const tier = prefs.tier || 'anonymous'
+
+  const nextActivities = activities.map(a => ({ ...a, sunscreen }))
+  const draft: UserPreferences = { ...prefs, skinType, sunscreen, activities: nextActivities, location }
+  const dirty = JSON.stringify({ skinType: prefs.skinType, sunscreen: prefs.sunscreen, activities: prefs.activities, location: prefs.location }) !==
+    JSON.stringify({ skinType, sunscreen, activities: nextActivities, location })
+
+  function requestClose() {
+    if (dirty && !window.confirm('Discard unsaved preference changes?')) return
+    onClose()
+  }
 
   function handleToggleTheme() {
     const next = toggleTheme()
@@ -73,6 +85,18 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
     }, () => { setLocError('Location denied.'); setLocLoading(false) })
   }
 
+  function saveUpgradeInterest() {
+    const updated: UserPreferences = {
+      ...draft,
+      upgradeInterest: {
+        email: upgradeEmail.trim() || undefined,
+        createdAt: new Date().toISOString(),
+      },
+    }
+    onSave(updated)
+    setUpgradeSaved(true)
+  }
+
   const TABS: { id: Tab; label: string }[] = [
     { id: 'general',    label: 'General'    },
     { id: 'activities', label: 'Activities' },
@@ -82,14 +106,14 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
 
   return (
     <div
-      onClick={e => e.target === e.currentTarget && onClose()}
+      onClick={e => e.target === e.currentTarget && requestClose()}
       style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: '16px' }}
     >
       <div style={{ background: 'var(--bg-card)', borderRadius: '18px', width: '100%', maxWidth: '480px', maxHeight: 'min(88vh, 640px)', overflow: 'hidden', display: 'flex', flexDirection: 'column', border: '0.5px solid var(--border-md)' }}>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '18px 20px 14px', borderBottom: '0.5px solid var(--border-md)', flexShrink: 0 }}>
           <p style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: 'var(--text)' }}>Preferences</p>
-          <button onClick={onClose} style={{ background: 'var(--bg-metric)', border: 'none', width: '28px', height: '28px', borderRadius: '50%', fontSize: '16px', cursor: 'pointer', color: 'var(--text-2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+          <button onClick={requestClose} style={{ background: 'var(--bg-metric)', border: 'none', width: '28px', height: '28px', borderRadius: '50%', fontSize: '16px', cursor: 'pointer', color: 'var(--text-2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
         </div>
 
         <div style={{ display: 'flex', borderBottom: '0.5px solid var(--border-md)', padding: '0 20px', flexShrink: 0, overflowX: 'auto' }}>
@@ -126,11 +150,11 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
               </div>
 
               <div>
-                <p style={{ margin: '0 0 10px', fontSize: '13px', fontWeight: 500, color: 'var(--text)' }}>Sunscreen preference</p>
+                <p style={{ margin: '0 0 10px', fontSize: '13px', fontWeight: 500, color: 'var(--text)' }}>Sunscreen assumption</p>
                 <div style={{ display: 'flex', gap: '8px' }}>
                   {[
                     { val: false, label: 'No sunscreen',  sub: 'Show naturally safe windows' },
-                    { val: true,  label: 'Wear SPF 30+',  sub: 'Extended safe windows' },
+                    { val: true,  label: 'Wear SPF 30+',  sub: 'Extend activity windows' },
                   ].map(o => (
                     <button key={String(o.val)} onClick={() => setSunscreen(o.val)} style={{
                       flex: 1, padding: '12px', borderRadius: '10px', cursor: 'pointer', textAlign: 'left',
@@ -142,6 +166,9 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
                     </button>
                   ))}
                 </div>
+                <p style={{ margin: '8px 0 0', fontSize: '11px', color: 'var(--text-3)', lineHeight: 1.45 }}>
+                  This applies to all selected activities so dashboard, calendar, and notifications use the same assumption.
+                </p>
               </div>
 
               <div>
@@ -187,7 +214,7 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
 
           {tab === 'account' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div className="metric-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div className="metric-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
                 <div>
                   <p style={{ margin: '0 0 3px', fontSize: '11px', color: 'var(--text-3)' }}>Current plan</p>
                   <p style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: tier === 'paid' ? 'var(--accent)' : 'var(--text)' }}>
@@ -195,9 +222,27 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
                   </p>
                 </div>
                 {tier !== 'paid' && (
-                  <button className="btn btn-primary" style={{ fontSize: '12px' }}>Upgrade to Pro</button>
+                  <button className="btn btn-primary" onClick={saveUpgradeInterest} style={{ fontSize: '12px', whiteSpace: 'nowrap' }}>
+                    {upgradeSaved || prefs.upgradeInterest ? '✓ On waitlist' : 'Join Pro waitlist'}
+                  </button>
                 )}
               </div>
+
+              {tier !== 'paid' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: 'var(--bg-metric)', borderRadius: '10px', padding: '12px 14px' }}>
+                  <p style={{ margin: 0, fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>Pro is coming soon</p>
+                  <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-3)', lineHeight: 1.45 }}>
+                    Pro will focus on unlimited activities, smarter weekly planning, and daily sun-window notifications.
+                  </p>
+                  <input
+                    placeholder="Email for early access"
+                    value={upgradeEmail}
+                    onChange={e => setUpgradeEmail(e.target.value)}
+                    style={{ fontSize: '13px' }}
+                  />
+                  {upgradeSaved && <p style={{ margin: 0, fontSize: '12px', color: 'var(--accent)' }}>You’re on the list. Tiny growth loop, big dreams.</p>}
+                </div>
+              )}
 
               <div style={{ background: 'var(--bg-metric)', borderRadius: '10px', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <p style={{ margin: 0, fontSize: '12px', fontWeight: 500, color: 'var(--text-2)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Plan limits</p>
@@ -253,8 +298,8 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
         </div>
 
         <div style={{ padding: '14px 20px', borderTop: '0.5px solid var(--border-md)', display: 'flex', gap: '8px', flexShrink: 0 }}>
-          <button className="btn" onClick={onClose} style={{ flex: 1, justifyContent: 'center' }}>Cancel</button>
-          <button className="btn btn-primary" onClick={() => onSave({ ...prefs, skinType, sunscreen, activities, location })} style={{ flex: 1, justifyContent: 'center' }}>
+          <button className="btn" onClick={requestClose} style={{ flex: 1, justifyContent: 'center' }}>{dirty ? 'Discard' : 'Cancel'}</button>
+          <button className="btn btn-primary" onClick={() => onSave(draft)} style={{ flex: 1, justifyContent: 'center' }}>
             Save changes
           </button>
         </div>
