@@ -1,7 +1,7 @@
 import { TierLevel, Activity } from './types'
 
 export const TIER_LIMITS: Record<TierLevel, { activities: number; calendar: boolean; notifications: boolean; futureDays: number }> = {
-  anonymous: { activities: 0,   calendar: false, notifications: false, futureDays: 2  },
+  anonymous: { activities: 0,   calendar: false, notifications: false, futureDays: 1  },
   free:      { activities: 3,   calendar: true,  notifications: false, futureDays: 2  },
   paid:      { activities: 999, calendar: true,  notifications: true,  futureDays: 10 },
 }
