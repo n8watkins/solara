@@ -1,14 +1,16 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
-import { UserPreferences } from '@/lib/types'
+import { UserPreferences, WeatherResponse } from '@/lib/types'
 import { canUseCalendar } from '@/lib/tiers'
 import { DayForecast, SafeWindow, getSafeWindowsForActivity, gcalWindowLink, fmtH } from '@/lib/calendar'
 
-interface Props { prefs: UserPreferences }
+interface Props {
+  prefs: UserPreferences
+  weather?: WeatherResponse | null
+}
 
 const ROW_H    = 52  // px per hour
 const GUTTER_W = 52  // px for time labels
-// HOURS computed from state below
 
 const ACT_COLORS = ['#F97316','#3B82F6','#10B981','#8B5CF6','#F59E0B','#EC4899','#06B6D4','#84CC16']
 
@@ -22,19 +24,36 @@ function uvRowBg(uv: number, dark: boolean): string {
   return `rgba(192,132,252,${a})`
 }
 
-export default function CalendarView({ prefs }: Props) {
-  const [days,    setDays]    = useState<DayForecast[]>([])
-  const [loading, setLoading] = useState(true)
+function forecastFromWeather(weather: WeatherResponse): DayForecast[] {
+  const todayStr = new Date().toLocaleDateString('en-CA')
+  return weather.forecast.slice(0, 7).map(day => {
+    const d = new Date(day.dateStr + 'T12:00:00')
+    return {
+      dateStr: day.dateStr,
+      label: day.label,
+      shortLabel: day.dateStr === todayStr ? 'Today' : d.toLocaleDateString('en-US', { weekday: 'short' }),
+      hourly: day.hourly.map(h => ({ hour: h.hour, uv: h.uv, tempF: h.tempF })),
+    }
+  })
+}
+
+export default function CalendarView({ prefs, weather }: Props) {
+  const [days,    setDays]    = useState<DayForecast[]>(weather ? forecastFromWeather(weather) : [])
+  const [loading, setLoading] = useState(!weather)
   const [error,   setError]   = useState<string | null>(null)
   const [popup,   setPopup]   = useState<{ act: typeof prefs.activities[0]; win: SafeWindow; day: DayForecast } | null>(null)
   const [hrFrom,  setHrFrom]  = useState(prefs.calendarHours?.from ?? 6)
   const [hrTo,    setHrTo]    = useState(prefs.calendarHours?.to   ?? 20)
-  const [showHrs, setShowHrs] = useState(false)
   const [dark,    setDark]    = useState(false)
+  const [confirm, setConfirm] = useState<string | null>(null)
+  const [focusedActivityId, setFocusedActivityId] = useState<string>('all')
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const tier  = prefs.tier || 'anonymous'
   const calOk = canUseCalendar(tier)
+  const visibleActivities = focusedActivityId === 'all'
+    ? prefs.activities
+    : prefs.activities.filter(a => a.id === focusedActivityId)
 
   useEffect(() => {
     setDark(document.documentElement.classList.contains('dark'))
@@ -51,6 +70,13 @@ export default function CalendarView({ prefs }: Props) {
   }, [days])
 
   useEffect(() => {
+    if (weather) {
+      setDays(forecastFromWeather(weather))
+      setLoading(false)
+      setError(null)
+      return
+    }
+
     async function load() {
       setLoading(true); setError(null)
       try {
@@ -59,6 +85,7 @@ export default function CalendarView({ prefs }: Props) {
           `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
           `&hourly=uv_index,temperature_2m&timezone=auto&forecast_days=7`
         )
+        if (!res.ok) throw new Error()
         const raw = await res.json()
         const times: string[] = raw.hourly.time
         const uvs:   number[] = raw.hourly.uv_index
@@ -88,7 +115,13 @@ export default function CalendarView({ prefs }: Props) {
       finally   { setLoading(false) }
     }
     load()
-  }, [prefs.location.lat, prefs.location.lon])
+  }, [prefs.location.lat, prefs.location.lon, weather])
+
+  function openCalendar(act: typeof prefs.activities[0], win: SafeWindow, day: DayForecast) {
+    const opened = window.open(gcalWindowLink(act, win, day.dateStr), '_blank')
+    setConfirm(opened ? 'Opened Google Calendar.' : 'Pop-up blocked. Allow pop-ups or copy the calendar link.')
+    window.setTimeout(() => setConfirm(null), 3500)
+  }
 
   if (!prefs.activities.length) return (
     <div style={{ padding: '3rem 0', textAlign: 'center' }}>
@@ -98,13 +131,13 @@ export default function CalendarView({ prefs }: Props) {
     </div>
   )
 
-  if (loading) return <div style={{ padding: '3rem 0', textAlign: 'center', fontSize: '13px', color: 'var(--text-3)' }}>Loading 7-day forecast…</div>
+  if (loading) return <div style={{ padding: '3rem 0', textAlign: 'center', fontSize: '13px', color: 'var(--text-3)' }}>Loading forecast…</div>
   if (error)   return <div style={{ padding: '2rem 0', textAlign: 'center', fontSize: '13px', color: '#DC2626' }}>{error}</div>
 
   const HOURS = Array.from({ length: hrTo - hrFrom + 1 }, (_, i) => i + hrFrom)
   const nowH = new Date().getHours()
   const nowM = new Date().getMinutes()
-  const todayStr = new Date().toISOString().split('T')[0]
+  const todayStr = new Date().toLocaleDateString('en-CA')
 
   const grid = dark
     ? { bg: '#161616', line: 'rgba(255,255,255,0.05)', lineMid: 'rgba(255,255,255,0.03)', headerBg: '#1C1C1C', todayBg: 'rgba(249,115,22,0.06)', text: '#6B6050', col: '#E5DDD0' }
@@ -112,6 +145,22 @@ export default function CalendarView({ prefs }: Props) {
 
   return (
     <div style={{ fontFamily: 'var(--font-sans)', borderRadius: '12px', overflow: 'hidden', border: `0.5px solid ${dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'}` }}>
+      <div style={{ padding: '10px 12px', background: grid.headerBg, borderBottom: `1px solid ${grid.line}`, display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+        <span style={{ fontSize: '12px', color: 'var(--text-3)', fontWeight: 500 }}>Show</span>
+        <select value={focusedActivityId} onChange={e => setFocusedActivityId(e.target.value)} style={{ fontSize: '12px', padding: '6px 8px' }}>
+          <option value="all">All activities</option>
+          {prefs.activities.map(a => <option key={a.id} value={a.id}>{a.icon} {a.name}</option>)}
+        </select>
+        <span style={{ fontSize: '12px', color: 'var(--text-3)', marginLeft: 'auto' }}>
+          Tip: filter to one activity when the grid gets crowded.
+        </span>
+      </div>
+
+      {confirm && (
+        <div style={{ padding: '9px 14px', background: 'rgba(249,115,22,0.08)', color: 'var(--text-2)', fontSize: '12px', borderBottom: `1px solid ${grid.line}` }}>
+          {confirm}
+        </div>
+      )}
 
       <div style={{ display: 'flex', background: grid.headerBg, borderBottom: `1px solid ${grid.line}`, position: 'sticky', top: 0, zIndex: 20 }}>
         <div style={{ width: GUTTER_W, flexShrink: 0 }} />
@@ -119,7 +168,7 @@ export default function CalendarView({ prefs }: Props) {
           const isToday = day.dateStr === todayStr
           const d = new Date(day.dateStr + 'T12:00:00')
           return (
-            <div key={day.dateStr} style={{ flex: 1, padding: '10px 8px 8px', textAlign: 'center', borderLeft: `0.5px solid ${grid.line}`, background: isToday ? grid.todayBg : 'transparent' }}>
+            <div key={day.dateStr} style={{ flex: 1, padding: '10px 8px 8px', textAlign: 'center', borderLeft: `0.5px solid ${grid.line}`, background: isToday ? grid.todayBg : 'transparent', minWidth: '76px' }}>
               <p style={{ margin: 0, fontSize: '11px', fontWeight: 500, color: isToday ? 'var(--accent)' : grid.text, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                 {day.shortLabel}
               </p>
@@ -131,8 +180,8 @@ export default function CalendarView({ prefs }: Props) {
         })}
       </div>
 
-      <div ref={scrollRef} style={{ height: '620px', overflowY: 'auto', overflowX: 'hidden', background: grid.bg }}>
-        <div style={{ display: 'flex', position: 'relative', minHeight: `${ROW_H * HOURS.length}px` }}>
+      <div ref={scrollRef} style={{ height: '620px', overflowY: 'auto', overflowX: 'auto', background: grid.bg }}>
+        <div style={{ display: 'flex', position: 'relative', minHeight: `${ROW_H * HOURS.length}px`, minWidth: `${GUTTER_W + days.length * 96}px` }}>
 
           <div style={{ width: GUTTER_W, flexShrink: 0, position: 'relative', zIndex: 5 }}>
             {HOURS.map((h, i) => (
@@ -153,13 +202,13 @@ export default function CalendarView({ prefs }: Props) {
               </div>
             ))}
 
-            {days.map((day, di) => {
+            {days.map(day => {
               const isToday = day.dateStr === todayStr
               const uvMap: Record<number, number> = {}
               day.hourly.forEach(h => { uvMap[h.hour] = h.uv })
 
-              const wins = prefs.activities.map((act, ai) => ({
-                act, color: ACT_COLORS[ai % ACT_COLORS.length],
+              const wins = visibleActivities.map((act, ai) => ({
+                act, color: ACT_COLORS[prefs.activities.findIndex(a => a.id === act.id) % ACT_COLORS.length] || ACT_COLORS[ai % ACT_COLORS.length],
                 windows: getSafeWindowsForActivity(day.hourly, act),
               }))
 
@@ -168,7 +217,7 @@ export default function CalendarView({ prefs }: Props) {
                   flex: 1, position: 'relative',
                   borderLeft: `0.5px solid ${grid.line}`,
                   background: isToday ? grid.todayBg : 'transparent',
-                  minWidth: 0,
+                  minWidth: '96px',
                 }}>
                   {HOURS.map((h, hi) => {
                     const uv = uvMap[h] ?? 0
@@ -183,11 +232,11 @@ export default function CalendarView({ prefs }: Props) {
 
                   {wins.map(({ act, color, windows }, wi) =>
                     windows.map((win, wii) => {
-                      const topH    = Math.max(win.from, 6)
-                      const botH    = Math.min(win.to, 20)
-                      const top     = (topH - 6) * ROW_H
+                      const topH    = Math.max(win.from, hrFrom)
+                      const botH    = Math.min(win.to, hrTo)
+                      const top     = (topH - hrFrom) * ROW_H
                       const height  = Math.max((botH - topH) * ROW_H - 2, 16)
-                      const totalActs = prefs.activities.length
+                      const totalActs = visibleActivities.length || 1
                       const colW    = 100 / totalActs
                       const left    = `${wi * colW + 1}%`
                       const width   = `${colW - 2}%`
@@ -231,10 +280,10 @@ export default function CalendarView({ prefs }: Props) {
                     })
                   )}
 
-                  {isToday && nowH >= 6 && nowH <= 20 && (
+                  {isToday && nowH >= hrFrom && nowH <= hrTo && (
                     <div style={{
                       position: 'absolute',
-                      top: `${(nowH - 6) * ROW_H + (nowM / 60) * ROW_H}px`,
+                      top: `${(nowH - hrFrom) * ROW_H + (nowM / 60) * ROW_H}px`,
                       left: 0, right: 0, height: '2px',
                       background: 'var(--accent)',
                       zIndex: 20,
@@ -276,7 +325,7 @@ export default function CalendarView({ prefs }: Props) {
             {calOk ? (
               <button
                 className="btn btn-primary"
-                onClick={() => window.open(gcalWindowLink(popup.act, popup.win, popup.day.dateStr), '_blank')}
+                onClick={() => openCalendar(popup.act, popup.win, popup.day)}
                 style={{ fontSize: '13px', whiteSpace: 'nowrap' }}
               >
                 📅 Add to Calendar
