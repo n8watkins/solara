@@ -6,6 +6,7 @@ import { clearWeatherCache } from '@/lib/cache'
 import { TIER_LABELS, TIER_LIMITS } from '@/lib/tiers'
 import { toggleTheme, getStoredTheme } from '@/lib/theme'
 import { auth, googleProvider, firebaseEnabled } from '@/lib/firebase'
+import ActivitySuggestionSettings from './ActivitySuggestionSettings'
 
 interface Props {
   prefs: UserPreferences
@@ -37,12 +38,14 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
   const [upgradeEmail, setUpgradeEmail] = useState(user?.email ?? prefs.upgradeInterest?.email ?? '')
   const [upgradeSaved, setUpgradeSaved] = useState(false)
   const [showSkinHelp, setShowSkinHelp] = useState(false)
+  const [hiddenActivitySuggestionIds, setHiddenActivitySuggestionIds] = useState<string[]>(prefs.hiddenActivitySuggestionIds ?? [])
+  const [collapsedActivityCategories, setCollapsedActivityCategories] = useState<string[]>(prefs.collapsedActivityCategories ?? [])
   const tier = prefs.tier || 'anonymous'
 
   const selectedSkin = SKIN_OPTIONS.find(o => o.value === skinType) ?? SKIN_OPTIONS[1]
-  const draft: UserPreferences = { ...prefs, skinType, location }
-  const dirty = JSON.stringify({ skinType: prefs.skinType, location: prefs.location }) !==
-    JSON.stringify({ skinType, location })
+  const draft: UserPreferences = { ...prefs, skinType, location, hiddenActivitySuggestionIds, collapsedActivityCategories }
+  const dirty = JSON.stringify({ skinType: prefs.skinType, location: prefs.location, hiddenActivitySuggestionIds: prefs.hiddenActivitySuggestionIds ?? [], collapsedActivityCategories: prefs.collapsedActivityCategories ?? [] }) !==
+    JSON.stringify({ skinType, location, hiddenActivitySuggestionIds, collapsedActivityCategories })
 
   function requestClose() {
     if (dirty && !window.confirm('Discard unsaved settings changes?')) return
@@ -94,6 +97,11 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
     }
     onSave(updated)
     setUpgradeSaved(true)
+  }
+
+  function updateSuggestionPrefs(updated: UserPreferences) {
+    setHiddenActivitySuggestionIds(updated.hiddenActivitySuggestionIds ?? [])
+    setCollapsedActivityCategories(updated.collapsedActivityCategories ?? [])
   }
 
   const TABS: { id: Tab; label: string }[] = [
@@ -195,24 +203,7 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
           )}
 
           {tab === 'activities' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div className="metric-card" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <p style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: 'var(--text)' }}>Activity preferences</p>
-                <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-3)', lineHeight: 1.5 }}>
-                  Add, remove, and customize activities from the main Dashboard Activity section. Settings will only manage activity suggestion preferences here later.
-                </p>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '8px' }}>
-                <div className="metric-card">
-                  <p style={{ margin: '0 0 4px', fontSize: '12px', color: 'var(--text-3)' }}>Current activities</p>
-                  <p style={{ margin: 0, fontSize: '20px', fontWeight: 750, color: 'var(--text)' }}>{prefs.activities.length}</p>
-                </div>
-                <div className="metric-card">
-                  <p style={{ margin: '0 0 4px', fontSize: '12px', color: 'var(--text-3)' }}>Plan limit</p>
-                  <p style={{ margin: 0, fontSize: '20px', fontWeight: 750, color: 'var(--text)' }}>{tier === 'paid' ? 'Unlimited' : TIER_LIMITS[tier].activities}</p>
-                </div>
-              </div>
-            </div>
+            <ActivitySuggestionSettings prefs={draft} onChange={updateSuggestionPrefs} />
           )}
 
           {tab === 'location' && (

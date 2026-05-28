@@ -8,10 +8,14 @@ import EmojiPicker from './EmojiPicker'
 interface Props {
   selected: Activity[]
   tier: TierLevel
+  hiddenSuggestionIds?: string[]
+  collapsedCategories?: string[]
   onChange: (activities: Activity[]) => void
+  onHideSuggestion?: (id: string) => void
+  onToggleCategory?: (name: string) => void
 }
 
-export default function ActivityManager({ selected, tier, onChange }: Props) {
+export default function ActivityManager({ selected, tier, hiddenSuggestionIds = [], collapsedCategories = [], onChange, onHideSuggestion, onToggleCategory }: Props) {
   const [search,      setSearch]      = useState('')
   const [showCreate,  setShowCreate]  = useState(false)
   const [customName,  setCustomName]  = useState('')
@@ -20,6 +24,8 @@ export default function ActivityManager({ selected, tier, onChange }: Props) {
   const [customSunscreen, setCustomSunscreen] = useState(false)
   const [showEmoji,   setShowEmoji]   = useState(false)
 
+  const hiddenSet = new Set(hiddenSuggestionIds)
+  const collapsedSet = new Set(collapsedCategories)
   const atLimit = !canAddActivity(tier, selected.length)
 
   function isSelected(id: string) { return selected.some(a => a.id === id) }
@@ -54,8 +60,11 @@ export default function ActivityManager({ selected, tier, onChange }: Props) {
   function remove(id: string) { onChange(selected.filter(a => a.id !== id)) }
 
   const filteredCats = search
-    ? [{ name: 'Results', emoji: '🔍', activities: ACTIVITY_CATEGORIES.flatMap(c => c.activities).filter(a => a.name.toLowerCase().includes(search.toLowerCase())) }]
-    : ACTIVITY_CATEGORIES
+    ? [{ name: 'Results', emoji: '🔍', activities: ACTIVITY_CATEGORIES.flatMap(c => c.activities).filter(a => !hiddenSet.has(a.id) && a.name.toLowerCase().includes(search.toLowerCase())) }]
+    : ACTIVITY_CATEGORIES.map(cat => ({
+      ...cat,
+      activities: cat.activities.filter(a => !hiddenSet.has(a.id)),
+    })).filter(cat => cat.activities.length > 0)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -142,35 +151,63 @@ export default function ActivityManager({ selected, tier, onChange }: Props) {
       />
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        {filteredCats.map(cat => (
-          <div key={cat.name}>
-            <p style={{ margin: '0 0 6px', fontSize: '11px', fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-              {cat.emoji} {cat.name}
-            </p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '6px' }}>
-              {cat.activities.map(p => {
-                const sel    = isSelected(p.id)
-                const locked = !sel && atLimit
-                return (
-                  <button key={p.id} onClick={() => toggle(p)} disabled={locked} style={{
-                    display: 'flex', alignItems: 'center', gap: '7px',
-                    padding: '8px 10px', borderRadius: '9px', textAlign: 'left', cursor: locked ? 'not-allowed' : 'pointer',
-                    border: sel ? '1.5px solid var(--accent)' : '0.5px solid var(--border-md)',
-                    background: sel ? 'rgba(249,115,22,0.07)' : 'var(--bg-card)',
-                    opacity: locked ? 0.4 : 1, transition: 'all 0.12s',
-                  }}>
-                    <span style={{ fontSize: '16px', flexShrink: 0 }}>{p.icon}</span>
-                    <div style={{ minWidth: 0 }}>
-                      <p style={{ margin: 0, fontSize: '12px', fontWeight: sel ? 500 : 400, color: sel ? 'var(--accent)' : 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</p>
-                      <p style={{ margin: 0, fontSize: '10px', color: 'var(--text-3)' }}>{p.durationMins < 60 ? p.durationMins + 'm' : p.durationMins / 60 + 'h'}</p>
-                    </div>
-                    {locked && <span style={{ marginLeft: 'auto', fontSize: '11px' }}>🔒</span>}
-                  </button>
-                )
-              })}
-            </div>
+        {filteredCats.length === 0 && (
+          <div style={{ padding: '12px 14px', borderRadius: '10px', background: 'var(--bg-metric)', fontSize: '13px', color: 'var(--text-3)' }}>
+            No suggestions match. Restore hidden suggestions in Settings → Activity prefs.
           </div>
-        ))}
+        )}
+        {filteredCats.map(cat => {
+          const collapsed = !search && collapsedSet.has(cat.name)
+          return (
+            <div key={cat.name}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: collapsed ? 0 : '6px' }}>
+                <button
+                  onClick={() => !search && onToggleCategory?.(cat.name)}
+                  style={{ margin: 0, padding: 0, background: 'none', border: 'none', cursor: search ? 'default' : 'pointer', fontSize: '11px', fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.06em' }}
+                >
+                  {!search && (collapsed ? '▸' : '▾')} {cat.emoji} {cat.name}
+                </button>
+                {!search && <span style={{ fontSize: '11px', color: 'var(--text-3)' }}>{cat.activities.length}</span>}
+              </div>
+              {!collapsed && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '6px' }}>
+                  {cat.activities.map(p => {
+                    const sel    = isSelected(p.id)
+                    const locked = !sel && atLimit
+                    return (
+                      <div key={p.id} style={{ position: 'relative' }}>
+                        <button onClick={() => toggle(p)} disabled={locked} style={{
+                          width: '100%', minHeight: '48px', display: 'flex', alignItems: 'center', gap: '7px',
+                          padding: '8px 32px 8px 10px', borderRadius: '9px', textAlign: 'left', cursor: locked ? 'not-allowed' : 'pointer',
+                          border: sel ? '1.5px solid var(--accent)' : '0.5px solid var(--border-md)',
+                          background: sel ? 'rgba(249,115,22,0.07)' : 'var(--bg-card)',
+                          opacity: locked ? 0.4 : 1, transition: 'all 0.12s',
+                        }}>
+                          <span style={{ fontSize: '16px', flexShrink: 0 }}>{p.icon}</span>
+                          <div style={{ minWidth: 0 }}>
+                            <p style={{ margin: 0, fontSize: '12px', fontWeight: sel ? 500 : 400, color: sel ? 'var(--accent)' : 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</p>
+                            <p style={{ margin: 0, fontSize: '10px', color: 'var(--text-3)' }}>{p.durationMins < 60 ? p.durationMins + 'm' : p.durationMins / 60 + 'h'}</p>
+                          </div>
+                          {locked && <span style={{ marginLeft: 'auto', fontSize: '11px' }}>🔒</span>}
+                        </button>
+                        {!sel && onHideSuggestion && (
+                          <button
+                            onClick={() => onHideSuggestion(p.id)}
+                            aria-label={`Hide ${p.name} suggestion`}
+                            title="Hide suggestion"
+                            style={{ position: 'absolute', top: '7px', right: '7px', width: '22px', height: '22px', borderRadius: '50%', border: 'none', background: 'var(--bg-metric)', color: 'var(--text-3)', cursor: 'pointer', fontSize: '13px', lineHeight: 1 }}
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )
+        })}
       </div>
 
       {selected.length > 0 && (
