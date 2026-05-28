@@ -17,6 +17,7 @@ export default function ActivityManager({ selected, tier, onChange }: Props) {
   const [customName,  setCustomName]  = useState('')
   const [customMins,  setCustomMins]  = useState(30)
   const [customIcon,  setCustomIcon]  = useState('🏃')
+  const [customSunscreen, setCustomSunscreen] = useState(false)
   const [showEmoji,   setShowEmoji]   = useState(false)
 
   const atLimit = !canAddActivity(tier, selected.length)
@@ -37,13 +38,17 @@ export default function ActivityManager({ selected, tier, onChange }: Props) {
     onChange([...selected, {
       id: `custom_${Date.now()}`, name: customName.trim(),
       icon: customIcon, durationMins: customMins, maxUV: 4,
-      sunscreen: false, custom: true,
+      sunscreen: customSunscreen, custom: true,
     }])
-    setCustomName(''); setCustomMins(30); setShowCreate(false)
+    setCustomName(''); setCustomMins(30); setCustomSunscreen(false); setShowCreate(false)
   }
 
   function updateDuration(id: string, mins: number) {
     onChange(selected.map(a => a.id === id ? { ...a, durationMins: Math.max(5, mins) } : a))
+  }
+
+  function updateSunscreen(id: string, sunscreen: boolean) {
+    onChange(selected.map(a => a.id === id ? { ...a, sunscreen } : a))
   }
 
   function remove(id: string) { onChange(selected.filter(a => a.id !== id)) }
@@ -72,7 +77,7 @@ export default function ActivityManager({ selected, tier, onChange }: Props) {
         </button>
 
         {showCreate && (
-          <div style={{ marginTop: '10px', padding: '14px', borderRadius: '12px', background: 'var(--bg-metric)', border: '0.5px solid var(--border-md)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <div style={{ marginTop: '10px', padding: '14px', borderRadius: '12px', background: 'var(--bg-metric)', border: '0.5px solid var(--border-md)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
               <div style={{ position: 'relative' }}>
                 <button
@@ -93,10 +98,34 @@ export default function ActivityManager({ selected, tier, onChange }: Props) {
                 style={{ flex: 1, fontSize: '14px' }}
               />
             </div>
-            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
               <span style={{ fontSize: '13px', color: 'var(--text-2)', flexShrink: 0 }}>Duration</span>
               <input type="number" min="5" step="5" value={customMins} onChange={e => setCustomMins(Math.max(5, parseInt(e.target.value) || 5))} style={{ width: '80px', fontSize: '13px' }} />
               <span style={{ fontSize: '13px', color: 'var(--text-3)' }}>min</span>
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              {[
+                { val: false, label: 'No SPF' },
+                { val: true, label: 'SPF 30+' },
+              ].map(o => (
+                <button
+                  key={String(o.val)}
+                  onClick={() => setCustomSunscreen(o.val)}
+                  style={{
+                    flex: 1,
+                    padding: '9px 10px',
+                    borderRadius: '10px',
+                    border: customSunscreen === o.val ? '1.5px solid var(--accent)' : '0.5px solid var(--border-md)',
+                    background: customSunscreen === o.val ? 'rgba(249,115,22,0.08)' : 'var(--bg-card)',
+                    color: 'var(--text)',
+                    fontSize: '13px',
+                    fontWeight: 650,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {o.label}
+                </button>
+              ))}
             </div>
             <button className="btn btn-primary" onClick={addCustom} disabled={!customName.trim()} style={{ justifyContent: 'center' }}>
               Add activity
@@ -149,10 +178,10 @@ export default function ActivityManager({ selected, tier, onChange }: Props) {
           <p style={{ margin: '0 0 8px', fontSize: '11px', fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
             Your activities ({selected.length})
           </p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {selected.map(a => (
               <div key={a.id} style={{ background: 'var(--bg-card)', border: '0.5px solid var(--border-md)', borderRadius: '10px', padding: '10px 12px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
                   <span style={{ fontSize: '18px' }}>{a.icon}</span>
                   <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text)', flex: 1 }}>{a.name}</span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -161,6 +190,30 @@ export default function ActivityManager({ selected, tier, onChange }: Props) {
                     <button onClick={() => updateDuration(a.id, a.durationMins + 15)} style={{ width: '24px', height: '24px', borderRadius: '6px', border: '0.5px solid var(--border-md)', background: 'transparent', cursor: 'pointer', fontSize: '14px', color: 'var(--text-2)' }}>+</button>
                   </div>
                   <button onClick={() => remove(a.id)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-3)', fontSize: '16px', padding: '0 4px' }}>×</button>
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  {[
+                    { val: false, label: 'No SPF' },
+                    { val: true, label: 'SPF 30+' },
+                  ].map(o => (
+                    <button
+                      key={String(o.val)}
+                      onClick={() => updateSunscreen(a.id, o.val)}
+                      style={{
+                        flex: 1,
+                        padding: '8px 10px',
+                        borderRadius: '9px',
+                        border: a.sunscreen === o.val ? '1.5px solid var(--accent)' : '0.5px solid var(--border-md)',
+                        background: a.sunscreen === o.val ? 'rgba(249,115,22,0.08)' : 'transparent',
+                        color: 'var(--text)',
+                        cursor: 'pointer',
+                        fontSize: '12px',
+                        fontWeight: 650,
+                      }}
+                    >
+                      {o.label}
+                    </button>
+                  ))}
                 </div>
               </div>
             ))}
