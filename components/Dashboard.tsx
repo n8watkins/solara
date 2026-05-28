@@ -1,6 +1,6 @@
 'use client'
 import { useState } from 'react'
-import { WeatherResponse, UserPreferences, DayWeather } from '@/lib/types'
+import { WeatherResponse, UserPreferences, DayWeather, TierLevel } from '@/lib/types'
 import { burnMins, vitDMins, uvLabel, getActivityWindow, fmtHour } from '@/lib/weather'
 import { getFutureDays } from '@/lib/tiers'
 import UVTimeline from './UVTimeline'
@@ -13,6 +13,7 @@ import TipCarousel from './TipCarousel'
 interface Props {
   weather: WeatherResponse
   prefs: UserPreferences
+  displayTier?: TierLevel
   onPrefsUpdate: (prefs: UserPreferences) => void
   onRefresh: () => void
   selectedDay: DayWeather | null
@@ -28,12 +29,12 @@ function uvNumberColor(uv: number): string {
   return '#9333EA'
 }
 
-export default function Dashboard({ weather, prefs, onPrefsUpdate, onRefresh, selectedDay, onSelectDay }: Props) {
+export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, onRefresh, selectedDay, onSelectDay }: Props) {
   const [shareMsg, setShareMsg] = useState<string | null>(null)
   const [showActivityManager, setShowActivityManager] = useState(false)
   const currentHour = new Date().getHours()
 
-  const tier = prefs.tier || 'anonymous'
+  const tier = displayTier || prefs.tier || 'anonymous'
   const accessibleDays = getFutureDays(tier)
   const visibleForecast = weather.forecast.slice(0, accessibleDays)
   const selectedDayAllowed = selectedDay && visibleForecast.some(day => day.dateStr === selectedDay.dateStr)
