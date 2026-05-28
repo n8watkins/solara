@@ -5,14 +5,15 @@ import { burnMins, vitDMins, uvLabel, getActivityWindow, fmtHour } from '@/lib/w
 import { getFutureDays } from '@/lib/tiers'
 import UVTimeline from './UVTimeline'
 import ActivityCards from './ActivityCards'
+import ActivityManager from './ActivityManager'
 import Tooltip from './Tooltip'
 import TipCarousel from './TipCarousel'
 
 interface Props {
   weather: WeatherResponse
   prefs: UserPreferences
+  onPrefsUpdate: (prefs: UserPreferences) => void
   onRefresh: () => void
-  onAddActivities: () => void
   selectedDay: DayWeather | null
   onSelectDay: (day: DayWeather | null) => void
 }
@@ -26,8 +27,9 @@ function uvNumberColor(uv: number): string {
   return '#9333EA'
 }
 
-export default function Dashboard({ weather, prefs, onRefresh, onAddActivities, selectedDay, onSelectDay }: Props) {
+export default function Dashboard({ weather, prefs, onPrefsUpdate, onRefresh, selectedDay, onSelectDay }: Props) {
   const [shareMsg, setShareMsg] = useState<string | null>(null)
+  const [showActivityManager, setShowActivityManager] = useState(false)
   const currentHour = new Date().getHours()
 
   const tier = prefs.tier || 'anonymous'
@@ -62,6 +64,10 @@ export default function Dashboard({ weather, prefs, onRefresh, onAddActivities, 
     : tier === 'free'
     ? 'Go Pro for 10-day planning'
     : null
+
+  function updateActivities(activities: UserPreferences['activities']) {
+    onPrefsUpdate({ ...prefs, activities })
+  }
 
   async function shareSunWindow() {
     const place = `${prefs.location.city}${prefs.location.region ? `, ${prefs.location.region}` : ''}`
@@ -211,20 +217,44 @@ export default function Dashboard({ weather, prefs, onRefresh, onAddActivities, 
         <UVTimeline hourly={hourly} currentHour={isToday ? currentHour : -1} skinType={prefs.skinType} />
       </div>
 
-      {prefs.activities.length > 0 ? (
-        <ActivityCards windows={activityWindows} daysFromNow={dayIndex} tier={tier} />
-      ) : (
-        <div className="card" style={{ textAlign: 'center', padding: '2.75rem 1.5rem' }}>
-          <p style={{ fontSize: '30px', marginBottom: '10px' }}>🏃</p>
-          <p style={{ fontWeight: 650, fontSize: '16px', color: 'var(--text)', margin: '0 0 7px' }}>No activities set up yet</p>
-          <p style={{ fontSize: '14px', color: 'var(--text-3)', margin: '0 0 20px', lineHeight: '1.55' }}>
-            Add the activities you do outside and we'll show you exactly when it's safe to go.
-          </p>
-          <button className="btn btn-primary" onClick={onAddActivities} style={{ fontSize: '14px', padding: '10px 24px', borderRadius: '12px' }}>
-            + Add activities
+      <section>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginBottom: '12px', flexWrap: 'wrap' }}>
+          <div>
+            <p style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: 'var(--text)' }}>Activities</p>
+            <p style={{ margin: '3px 0 0', fontSize: '13px', color: 'var(--text-3)' }}>
+              Add what you do outside, then Solara finds the safest windows.
+            </p>
+          </div>
+          <button
+            className="btn btn-primary"
+            onClick={() => setShowActivityManager(s => !s)}
+            style={{ fontSize: '13px', padding: '8px 14px' }}
+          >
+            {showActivityManager ? 'Done editing' : prefs.activities.length ? 'Manage activities' : '+ Add activities'}
           </button>
         </div>
-      )}
+
+        {showActivityManager && (
+          <div className="card" style={{ marginBottom: '12px' }}>
+            <ActivityManager selected={prefs.activities} tier={tier} onChange={updateActivities} />
+          </div>
+        )}
+
+        {prefs.activities.length > 0 ? (
+          <ActivityCards windows={activityWindows} daysFromNow={dayIndex} tier={tier} />
+        ) : (
+          <div className="card" style={{ textAlign: 'center', padding: '2.75rem 1.5rem' }}>
+            <p style={{ fontSize: '30px', marginBottom: '10px' }}>🏃</p>
+            <p style={{ fontWeight: 650, fontSize: '16px', color: 'var(--text)', margin: '0 0 7px' }}>No activities set up yet</p>
+            <p style={{ fontSize: '14px', color: 'var(--text-3)', margin: '0 0 20px', lineHeight: '1.55' }}>
+              Add the activities you do outside and we'll show you exactly when it's safe to go.
+            </p>
+            <button className="btn btn-primary" onClick={() => setShowActivityManager(true)} style={{ fontSize: '14px', padding: '10px 24px', borderRadius: '12px' }}>
+              + Add activities
+            </button>
+          </div>
+        )}
+      </section>
 
     </div>
   )
