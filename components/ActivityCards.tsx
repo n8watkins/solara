@@ -10,15 +10,6 @@ interface Props {
   tier: TierLevel
 }
 
-function Row({ label, val, accent }: { label: string; val: string; accent?: string }) {
-  return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
-      <span style={{ color: 'var(--text-3)' }}>{label}</span>
-      <span style={{ color: accent || 'var(--text)', fontWeight: 500 }}>{val}</span>
-    </div>
-  )
-}
-
 export default function ActivityCards({ windows, daysFromNow, tier }: Props) {
   const [confirm, setConfirm] = useState<string | null>(null)
   const calendarAllowed = canUseCalendar(tier)
@@ -42,9 +33,11 @@ export default function ActivityCards({ windows, daysFromNow, tier }: Props) {
             ? `${fmtHour(bestWindow.from)}–${fmtHour(bestWindow.to)}`
             : 'None today'
           const safeUv = effectiveMaxUV(activity)
+          const windowColor = bestWindow ? '#16A34A' : '#DC2626'
 
           return (
             <div key={activity.id} className="card" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span style={{ fontSize: '18px' }}>{activity.icon}</span>
                 <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text)', flex: 1 }}>{activity.name}</span>
@@ -53,26 +46,26 @@ export default function ActivityCards({ windows, daysFromNow, tier }: Props) {
                 </span>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                <Row label={activity.sunscreen ? 'Safe UV w/ SPF' : 'Max safe UV'} val={String(safeUv)} />
-                <Row label="Duration" val={durationLabel} />
-                {burnMins !== null && burnMins !== undefined && (
-                  <Row label="Threshold burn est." val={`~${burnMins}m`} />
-                )}
-                <Row
-                  label="Best window"
-                  val={windowLabel}
-                  accent={bestWindow ? '#16A34A' : '#DC2626'}
-                />
+              <div>
+                <p style={{ margin: 0, fontSize: '22px', fontWeight: 700, color: windowColor, lineHeight: 1 }}>
+                  {windowLabel}
+                </p>
+                <p style={{ margin: '3px 0 0', fontSize: '11px', color: 'var(--text-3)' }}>Best window</p>
               </div>
 
-              <div style={{ height: '4px', borderRadius: '2px', background: 'var(--border-md)', overflow: 'hidden' }}>
-                <div style={{
-                  height: '100%', borderRadius: '2px', width: `${pctDaySafe}%`,
-                  background: pctDaySafe >= 60 ? '#16A34A' : pctDaySafe >= 30 ? '#D97706' : '#DC2626',
-                }} />
+              <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-3)' }}>
+                {activity.sunscreen ? 'Safe UV w/ SPF' : 'Max safe UV'} {safeUv} · {durationLabel}{burnMins != null ? ` · ~${burnMins}m burn` : ''}
+              </p>
+
+              <div>
+                <div style={{ height: '4px', borderRadius: '2px', background: 'var(--border-md)', overflow: 'hidden' }}>
+                  <div style={{
+                    height: '100%', borderRadius: '2px', width: `${pctDaySafe}%`,
+                    background: pctDaySafe >= 60 ? '#16A34A' : pctDaySafe >= 30 ? '#D97706' : '#DC2626',
+                  }} />
+                </div>
+                <p style={{ margin: '4px 0 0', fontSize: '11px', color: 'var(--text-3)' }}>{pctDaySafe}% of day is safe</p>
               </div>
-              <p style={{ margin: 0, fontSize: '11px', color: 'var(--text-3)' }}>{pctDaySafe}% of day is safe</p>
 
               {bestWindow && (
                 calendarAllowed ? (

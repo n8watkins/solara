@@ -80,7 +80,13 @@ export default function SunArc({ hourly, currentHour, isToday }: Props) {
           <path d="M 34 118 Q 160 12 286 118" fill="none" stroke="url(#sunArcLine)" strokeWidth="4" strokeLinecap="round" />
           <path d="M 34 118 Q 160 12 286 118" fill="none" stroke="rgba(255,255,255,0.34)" strokeWidth="1" strokeLinecap="round" strokeDasharray="4 7" />
           <line x1="34" y1="118" x2="286" y2="118" stroke="rgba(156,163,175,0.24)" strokeWidth="1" />
-          <circle cx={peakPoint.x} cy={peakPoint.y} r="7" fill="rgba(249,115,22,0.18)" stroke="rgba(249,115,22,0.85)" strokeWidth="2" />
+          <circle cx={peakPoint.x} cy={peakPoint.y} r={isToday ? 7 : 9} fill="rgba(249,115,22,0.18)" stroke="rgba(249,115,22,0.85)" strokeWidth="2" />
+          {!isToday && (
+            <>
+              <text x={peakPoint.x} y={peakPoint.y - 21} textAnchor="middle" fill="#F97316" fontSize="11" fontWeight="700">UV {peak.uv.toFixed(1)}</text>
+              <text x={peakPoint.x} y={peakPoint.y - 11} textAnchor="middle" fill="rgba(249,115,22,0.75)" fontSize="9">{fmtHour(peak.hour)}</text>
+            </>
+          )}
           {currentPoint && (
             <>
               <circle cx={currentPoint.x} cy={currentPoint.y} r="22" fill="url(#sunGlow)" />
@@ -98,10 +104,7 @@ export default function SunArc({ hourly, currentHour, isToday }: Props) {
 
       <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', borderTop: '0.5px solid rgba(249,115,22,0.14)', paddingTop: '10px' }}>
         <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-2)' }}>
-          {isToday ? `Now: ${currentLabel}` : 'Viewing a future day · current sun marker hidden'}
-        </p>
-        <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-3)' }}>
-          Peak at {fmtHour(peak.hour)}
+          {isToday ? `Now: ${currentLabel}` : `Peak UV ${peak.uv.toFixed(1)} at ${fmtHour(peak.hour)}`}
         </p>
       </div>
     </div>
