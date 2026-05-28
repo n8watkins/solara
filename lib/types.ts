@@ -5,6 +5,11 @@ export interface Location {
   lat: number; lon: number; city: string; region: string
 }
 
+export interface PreferredHours {
+  from: number
+  to: number
+}
+
 export interface Activity {
   id: string
   name: string
@@ -13,6 +18,7 @@ export interface Activity {
   maxUV: number        // base max UV assuming no sunscreen
   sunscreen: boolean   // whether this recommendation assumes SPF protection
   custom?: boolean
+  preferredHours?: PreferredHours
 }
 
 export interface CalendarHours {
@@ -56,9 +62,18 @@ export interface WeatherResponse {
   forecast: DayWeather[]    // all available days starting from today
 }
 
+export interface SafeActivityWindow {
+  from: number
+  to: number
+  label: 'Morning' | 'Midday' | 'Afternoon' | 'Evening' | 'All day'
+  peakUV: number
+  avgUV: number
+}
+
 export interface ActivityWindow {
   activity:    Activity
   bestWindow:  { from: number; to: number } | null
+  allWindows:  SafeActivityWindow[]
   safeNow:     boolean
   pctDaySafe:  number
   burnMins:    number | null

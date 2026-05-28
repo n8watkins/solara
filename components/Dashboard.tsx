@@ -1,11 +1,13 @@
 'use client'
 import { useState } from 'react'
-import { WeatherResponse, UserPreferences, DayWeather, TierLevel } from '@/lib/types'
+import { Activity, WeatherResponse, UserPreferences, DayWeather, TierLevel } from '@/lib/types'
 import { burnMins, vitDMins, uvLabel, getActivityWindow, fmtHour } from '@/lib/weather'
 import { getFutureDays } from '@/lib/tiers'
 import UVTimeline from './UVTimeline'
 import ActivityCards from './ActivityCards'
-import ActivityManager from './ActivityManager'
+import AddActivityModal from './AddActivityModal'
+import ManageActivitiesModal from './ManageActivitiesModal'
+import EditActivityModal from './EditActivityModal'
 import SunArc from './SunArc'
 import Tooltip from './Tooltip'
 import TipCarousel from './TipCarousel'
@@ -31,7 +33,8 @@ function uvNumberColor(uv: number): string {
 
 export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, onRefresh, selectedDay, onSelectDay }: Props) {
   const [shareMsg, setShareMsg] = useState<string | null>(null)
-  const [showActivityManager, setShowActivityManager] = useState(false)
+  const [activityModal, setActivityModal] = useState<'add' | 'manage' | null>(null)
+  const [editingActivityId, setEditingActivityId] = useState<string | null>(null)
   const currentHour = new Date().getHours()
 
   const accessTier = displayTier || prefs.tier || 'anonymous'
@@ -59,6 +62,7 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
   const activityWindows = prefs.activities.map(a => getActivityWindow(hourly, a, currentHour, prefs.skinType))
   const bestShareWindow = activityWindows.find(w => w.bestWindow)?.bestWindow
   const bestShareActivity = activityWindows.find(w => w.bestWindow)?.activity
+  const editingActivity = editingActivityId ? prefs.activities.find(a => a.id === editingActivityId) ?? null : null
 
   const dateLabel = effectiveSelectedDay?.label ?? 'Today'
   const lockedForecastCount = Math.max(0, weather.forecast.length - visibleForecast.length)
@@ -70,6 +74,20 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
 
   function updateActivities(activities: UserPreferences['activities']) {
     onPrefsUpdate({ ...prefs, activities })
+  }
+
+  function updateActivity(updated: Activity) {
+    updateActivities(prefs.activities.map(activity => activity.id === updated.id ? updated : activity))
+    setEditingActivityId(null)
+  }
+
+  function deleteActivity(id: string) {
+    updateActivities(prefs.activities.filter(activity => activity.id !== id))
+    setEditingActivityId(null)
+  }
+
+  function openEditActivity(activity: Activity) {
+    setEditingActivityId(activity.id)
   }
 
   function hideSuggestion(id: string) {
@@ -245,31 +263,33 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
               Add what you do outside, then Solara finds the safest windows.
             </p>
           </div>
-          <button
-            className="btn btn-primary"
-            onClick={() => setShowActivityManager(s => !s)}
-            style={{ fontSize: '13px', padding: '8px 14px' }}
-          >
-            {showActivityManager ? 'Done editing' : prefs.activities.length ? 'Manage activities' : '+ Add activities'}
-          </button>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <button
+              className="btn btn-primary"
+              onClick={() => setActivityModal('add')}
+              style={{ fontSize: '13px', padding: '8px 14px' }}
+            >
+              + Add Activity
+            </button>
+            <button
+              className="btn"
+              onClick={() => setActivityModal('manage')}
+              style={{ fontSize: '13px', padding: '8px 14px' }}
+            >
+              Manage
+            </button>
+          </div>
         </div>
 
-        {showActivityManager && (
-          <div className="card" style={{ marginBottom: '12px' }}>
-            <ActivityManager
-              selected={prefs.activities}
-              tier={activityTier}
-              hiddenSuggestionIds={prefs.hiddenActivitySuggestionIds}
-              collapsedCategories={prefs.collapsedActivityCategories}
-              onChange={updateActivities}
-              onHideSuggestion={hideSuggestion}
-              onToggleCategory={toggleCategory}
-            />
-          </div>
-        )}
-
         {prefs.activities.length > 0 ? (
-          <ActivityCards windows={activityWindows} daysFromNow={dayIndex} tier={accessTier} />
+          <ActivityCards
+            windows={activityWindows}
+            daysFromNow={dayIndex}
+            tier={accessTier}
+            location={prefs.location}
+            dateLabel={dateLabel}
+            onEditActivity={openEditActivity}
+          />
         ) : (
           <div className="card" style={{ textAlign: 'center', padding: '2.75rem 1.5rem' }}>
             <p style={{ fontSize: '30px', marginBottom: '10px' }}>🏃</p>
@@ -277,12 +297,45 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
             <p style={{ fontSize: '14px', color: 'var(--text-3)', margin: '0 0 20px', lineHeight: '1.55' }}>
               Add the activities you do outside and we'll show you exactly when it's safe to go.
             </p>
-            <button className="btn btn-primary" onClick={() => setShowActivityManager(true)} style={{ fontSize: '14px', padding: '10px 24px', borderRadius: '12px' }}>
-              + Add activities
+            <button className="btn btn-primary" onClick={() => setActivityModal('add')} style={{ fontSize: '14px', padding: '10px 24px', borderRadius: '12px' }}>
+              + Add Activity
             </button>
           </div>
         )}
       </section>
+
+      {activityModal === 'add' && (
+        <AddActivityModal
+          activities={prefs.activities}
+          tier={activityTier}
+          hiddenSuggestionIds={prefs.hiddenActivitySuggestionIds}
+          collapsedCategories={prefs.collapsedActivityCategories}
+          onActivitiesChange={updateActivities}
+          onHideSuggestion={hideSuggestion}
+          onToggleCategory={toggleCategory}
+          onClose={() => setActivityModal(null)}
+        />
+      )}
+
+      {activityModal === 'manage' && (
+        <ManageActivitiesModal
+          activities={prefs.activities}
+          tier={activityTier}
+          onActivitiesChange={updateActivities}
+          onAddActivity={() => setActivityModal('add')}
+          onEditActivity={openEditActivity}
+          onClose={() => setActivityModal(null)}
+        />
+      )}
+
+      {editingActivity && (
+        <EditActivityModal
+          activity={editingActivity}
+          onSave={updateActivity}
+          onDelete={deleteActivity}
+          onClose={() => setEditingActivityId(null)}
+        />
+      )}
 
     </div>
   )

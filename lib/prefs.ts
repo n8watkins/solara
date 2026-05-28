@@ -1,6 +1,6 @@
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore'
 import { db } from './firebase'
-import { UserPreferences, Location, Activity, SkinType, TierLevel } from './types'
+import { UserPreferences, Location, Activity, SkinType, TierLevel, PreferredHours } from './types'
 import { PRESET_ACTIVITIES, ACTIVITY_CATEGORIES } from './tiers'
 
 const PREFS_KEY = 'solara_prefs'
@@ -24,6 +24,14 @@ function normalizeStringList(raw: unknown, allowed?: Set<string>): string[] {
       .map(v => v.trim())
       .filter(v => !allowed || allowed.has(v))
   ))
+}
+
+function normalizePreferredHours(raw: unknown): PreferredHours | undefined {
+  const hours = raw as Partial<PreferredHours> | null
+  if (!hours || typeof hours.from !== 'number' || typeof hours.to !== 'number') return undefined
+  const from = Math.max(0, Math.min(23, Math.round(hours.from)))
+  const to = Math.max(from + 1, Math.min(24, Math.round(hours.to)))
+  return { from, to }
 }
 
 function normalizeActivity(raw: unknown, index: number, globalSunscreen: boolean): Activity | null {
@@ -50,6 +58,7 @@ function normalizeActivity(raw: unknown, index: number, globalSunscreen: boolean
     maxUV,
     sunscreen: typeof a.sunscreen === 'boolean' ? a.sunscreen : globalSunscreen,
     custom: a.custom === true || a.id?.startsWith('custom_') || undefined,
+    preferredHours: normalizePreferredHours(a.preferredHours),
   }
 }
 

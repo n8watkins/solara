@@ -32,24 +32,45 @@ function burnMins(uv, skinType) {
   return Math.round(((base[skinType] ?? 15) * 10) / uv)
 }
 
-function bestWindow(hourly, maxUV, durationMins) {
+function summarizeWindow(hourly, from, to) {
+  const samples = hourly.filter(h => h.hour >= from && h.hour < to)
+  const peakUV = samples.length ? Math.max(...samples.map(h => h.uv)) : 0
+  const avgUV = samples.length
+    ? Math.round((samples.reduce((sum, h) => sum + h.uv, 0) / samples.length) * 10) / 10
+    : 0
+  return { from, to, peakUV, avgUV }
+}
+
+function safeWindows(hourly, maxUV, durationMins) {
   let start = null
+  const windows = []
+
   for (let i = 0; i < hourly.length; i++) {
     const { hour, uv } = hourly[i]
     if (uv <= maxUV) {
       if (start === null) start = hour
     } else {
       if (start !== null && (hour - start) * 60 >= durationMins) {
-        return { from: start, to: hour }
+        windows.push(summarizeWindow(hourly, start, hour))
       }
       start = null
     }
   }
-  if (start !== null) {
+
+  if (start !== null && hourly.length) {
     const last = hourly[hourly.length - 1].hour + 1
-    if ((last - start) * 60 >= durationMins) return { from: start, to: last }
+    if ((last - start) * 60 >= durationMins) windows.push(summarizeWindow(hourly, start, last))
   }
-  return null
+
+  return windows
+}
+
+function bestWindow(hourly, maxUV, durationMins) {
+  return safeWindows(hourly, maxUV, durationMins)
+    .sort((a, b) => {
+      if (a.avgUV !== b.avgUV) return a.avgUV - b.avgUV
+      return (b.to - b.from) - (a.to - a.from)
+    })[0] ?? null
 }
 
 async function fetchHourly(lat, lon) {
@@ -77,7 +98,7 @@ function buildMessage(user, hourly) {
   const activities  = user.activities ?? []
   const skinType    = user.skinType ?? 'fair'
   const city        = user.location?.city ?? 'your area'
-  const peakUV      = Math.max(...hourly.map(h => h.uv))
+  const peakUV      = hourly.length ? Math.max(...hourly.map(h => h.uv)) : null
 
   let bestActivity  = null
   let bestWin       = null
@@ -92,14 +113,16 @@ function buildMessage(user, hourly) {
   if (!bestActivity) {
     return {
       title: `☀️ High UV today in ${city}`,
-      body:  `Peak UV ${peakUV} — no safe windows found for your saved activities today. Stay in the shade during peak hours.`,
+      body:  peakUV === null
+        ? `No UV forecast was available for your saved activities today.`
+        : `Peak UV ${peakUV} — no safe windows found for your saved activities today. Stay in the shade during peak hours.`,
     }
   }
 
   const burn = burnMins(bestSafeUV, skinType)
   return {
     title: `☀️ ${bestActivity.name} window: ${fmtHour(bestWin.from)}–${fmtHour(bestWin.to)}`,
-    body:  `UV stays ≤${bestSafeUV} in ${city}${bestActivity.sunscreen ? ' assuming SPF 30+' : ''}${burn ? `. Burn limit: ~${burn} min` : ''}.`,
+    body:  `UV stays ≤${bestSafeUV} in ${city}${bestActivity.sunscreen ? ' assuming SPF 30+' : ''}${burn ? `. Threshold burn est.: ~${burn} min` : ''}.`,
   }
 }
 
