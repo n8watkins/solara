@@ -38,12 +38,14 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
   const [upgradeEmail, setUpgradeEmail] = useState(user?.email ?? prefs.upgradeInterest?.email ?? '')
   const [upgradeSaved, setUpgradeSaved] = useState(false)
   const [showSkinHelp, setShowSkinHelp] = useState(false)
+  const [hiddenActivitySuggestionIds, setHiddenActivitySuggestionIds] = useState<string[]>(prefs.hiddenActivitySuggestionIds ?? [])
+  const [collapsedActivityCategories, setCollapsedActivityCategories] = useState<string[]>(prefs.collapsedActivityCategories ?? [])
   const tier = prefs.tier || 'anonymous'
 
   const selectedSkin = SKIN_OPTIONS.find(o => o.value === skinType) ?? SKIN_OPTIONS[1]
-  const draft: UserPreferences = { ...prefs, skinType, location }
+  const draft: UserPreferences = { ...prefs, skinType, location, hiddenActivitySuggestionIds, collapsedActivityCategories }
   const dirty = JSON.stringify({ skinType: prefs.skinType, location: prefs.location, hiddenActivitySuggestionIds: prefs.hiddenActivitySuggestionIds ?? [], collapsedActivityCategories: prefs.collapsedActivityCategories ?? [] }) !==
-    JSON.stringify({ skinType, location, hiddenActivitySuggestionIds: draft.hiddenActivitySuggestionIds ?? [], collapsedActivityCategories: draft.collapsedActivityCategories ?? [] })
+    JSON.stringify({ skinType, location, hiddenActivitySuggestionIds, collapsedActivityCategories })
 
   function requestClose() {
     if (dirty && !window.confirm('Discard unsaved settings changes?')) return
@@ -95,6 +97,11 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
     }
     onSave(updated)
     setUpgradeSaved(true)
+  }
+
+  function updateSuggestionPrefs(updated: UserPreferences) {
+    setHiddenActivitySuggestionIds(updated.hiddenActivitySuggestionIds ?? [])
+    setCollapsedActivityCategories(updated.collapsedActivityCategories ?? [])
   }
 
   const TABS: { id: Tab; label: string }[] = [
@@ -196,7 +203,7 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
           )}
 
           {tab === 'activities' && (
-            <ActivitySuggestionSettings prefs={draft} onChange={updated => Object.assign(draft, updated)} />
+            <ActivitySuggestionSettings prefs={draft} onChange={updateSuggestionPrefs} />
           )}
 
           {tab === 'location' && (
