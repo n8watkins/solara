@@ -1,6 +1,6 @@
 'use client'
 import { useState } from 'react'
-import { ActivityWindow, TierLevel } from '@/lib/types'
+import { Activity, ActivityWindow, TierLevel } from '@/lib/types'
 import { fmtHour, gcalLink } from '@/lib/weather'
 import { canUseCalendar, effectiveMaxUV } from '@/lib/tiers'
 
@@ -8,6 +8,7 @@ interface Props {
   windows: ActivityWindow[]
   daysFromNow: number
   tier: TierLevel
+  onEditActivity?: (activity: Activity) => void
 }
 
 function Row({ label, val, accent }: { label: string; val: string; accent?: string }) {
@@ -19,7 +20,7 @@ function Row({ label, val, accent }: { label: string; val: string; accent?: stri
   )
 }
 
-export default function ActivityCards({ windows, daysFromNow, tier }: Props) {
+export default function ActivityCards({ windows, daysFromNow, tier, onEditActivity }: Props) {
   const [confirm, setConfirm] = useState<string | null>(null)
   const calendarAllowed = canUseCalendar(tier)
 
@@ -74,22 +75,33 @@ export default function ActivityCards({ windows, daysFromNow, tier }: Props) {
               </div>
               <p style={{ margin: 0, fontSize: '11px', color: 'var(--text-3)' }}>{pctDaySafe}% of day is safe</p>
 
-              {bestWindow && (
-                calendarAllowed ? (
+              <div style={{ display: 'flex', gap: '8px', marginTop: 'auto', flexWrap: 'wrap' }}>
+                {onEditActivity && (
                   <button
                     className="btn"
-                    onClick={() => openCalendar(activity.name, bestWindow, activity.durationMins)}
-                    style={{ justifyContent: 'center', fontSize: '12px', marginTop: 'auto' }}
+                    onClick={() => onEditActivity(activity)}
+                    style={{ justifyContent: 'center', fontSize: '12px', flex: bestWindow ? '0 0 auto' : 1 }}
                   >
-                    📅 Add to Calendar
+                    Edit
                   </button>
-                ) : (
-                  <button className="btn" style={{ justifyContent: 'center', fontSize: '12px', marginTop: 'auto', opacity: 0.45, cursor: 'not-allowed' }}
-                    title="Sign in for free to unlock calendar sync" disabled>
-                    🔒 Calendar (sign in)
-                  </button>
-                )
-              )}
+                )}
+                {bestWindow && (
+                  calendarAllowed ? (
+                    <button
+                      className="btn"
+                      onClick={() => openCalendar(activity.name, bestWindow, activity.durationMins)}
+                      style={{ justifyContent: 'center', fontSize: '12px', flex: 1 }}
+                    >
+                      📅 Add to Calendar
+                    </button>
+                  ) : (
+                    <button className="btn" style={{ justifyContent: 'center', fontSize: '12px', flex: 1, opacity: 0.45, cursor: 'not-allowed' }}
+                      title="Sign in for free to unlock calendar sync" disabled>
+                      🔒 Calendar (sign in)
+                    </button>
+                  )
+                )}
+              </div>
             </div>
           )
         })}
