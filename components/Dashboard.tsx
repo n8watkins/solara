@@ -70,6 +70,22 @@ export default function Dashboard({ weather, prefs, onPrefsUpdate, onRefresh, se
     onPrefsUpdate({ ...prefs, activities })
   }
 
+  function hideSuggestion(id: string) {
+    const hidden = prefs.hiddenActivitySuggestionIds ?? []
+    if (hidden.includes(id)) return
+    onPrefsUpdate({ ...prefs, hiddenActivitySuggestionIds: [...hidden, id] })
+  }
+
+  function toggleCategory(name: string) {
+    const collapsed = prefs.collapsedActivityCategories ?? []
+    onPrefsUpdate({
+      ...prefs,
+      collapsedActivityCategories: collapsed.includes(name)
+        ? collapsed.filter(c => c !== name)
+        : [...collapsed, name],
+    })
+  }
+
   async function shareSunWindow() {
     const place = `${prefs.location.city}${prefs.location.region ? `, ${prefs.location.region}` : ''}`
     const text = bestShareWindow && bestShareActivity
@@ -238,7 +254,15 @@ export default function Dashboard({ weather, prefs, onPrefsUpdate, onRefresh, se
 
         {showActivityManager && (
           <div className="card" style={{ marginBottom: '12px' }}>
-            <ActivityManager selected={prefs.activities} tier={tier} onChange={updateActivities} />
+            <ActivityManager
+              selected={prefs.activities}
+              tier={tier}
+              hiddenSuggestionIds={prefs.hiddenActivitySuggestionIds}
+              collapsedCategories={prefs.collapsedActivityCategories}
+              onChange={updateActivities}
+              onHideSuggestion={hideSuggestion}
+              onToggleCategory={toggleCategory}
+            />
           </div>
         )}
 
