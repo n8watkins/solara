@@ -24,7 +24,7 @@ export default function TipCarousel() {
         setIdx(i => (i + 1) % TIPS.length)
         setFade(true)
       }, 300)
-    }, 6000)
+    }, 6500)
     return () => clearInterval(t)
   }, [paused])
 
@@ -37,32 +37,37 @@ export default function TipCarousel() {
       onFocus={() => setPaused(true)}
       onBlur={() => setPaused(false)}
       style={{
-        background: 'rgba(251,191,36,0.08)',
-        border: '0.5px solid rgba(251,191,36,0.25)',
-        borderRadius: '14px', padding: '14px 16px',
+        background: 'rgba(251,191,36,0.09)',
+        border: '0.5px solid rgba(251,191,36,0.28)',
+        borderRadius: '16px',
+        padding: '16px 18px',
+        maxWidth: '680px',
+        width: '100%',
+        margin: '0 auto',
+        boxShadow: '0 10px 28px rgba(120, 53, 15, 0.05)',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-        <span style={{ fontSize: '20px', flexShrink: 0, marginTop: '1px' }}>{tip.icon}</span>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+        <span style={{ fontSize: '24px', flexShrink: 0, marginTop: '1px' }}>{tip.icon}</span>
         <div style={{
           opacity: fade ? 1 : 0,
           transition: 'opacity 0.3s ease',
           flex: 1,
         }}>
-          <p style={{ margin: '0 0 3px', fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>
+          <p style={{ margin: '0 0 5px', fontSize: '15px', fontWeight: 700, color: 'var(--text)', lineHeight: 1.25 }}>
             {tip.title}
           </p>
-          <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-2)', lineHeight: '1.55' }}>
+          <p style={{ margin: 0, fontSize: '14.5px', color: 'var(--text-2)', lineHeight: '1.6' }}>
             {tip.body}
           </p>
         </div>
       </div>
-      <div style={{ display: 'flex', gap: '4px', marginTop: '10px', justifyContent: 'center' }}>
+      <div style={{ display: 'flex', gap: '5px', marginTop: '12px', justifyContent: 'center' }}>
         {TIPS.map((_, i) => (
           <button key={i} onClick={() => { setFade(false); setTimeout(() => { setIdx(i); setFade(true) }, 200) }} style={{
-            width: i === idx ? '16px' : '6px', height: '6px',
-            borderRadius: '3px', border: 'none', cursor: 'pointer',
-            background: i === idx ? 'var(--accent)' : 'rgba(251,191,36,0.3)',
+            width: i === idx ? '18px' : '7px', height: '7px',
+            borderRadius: '4px', border: 'none', cursor: 'pointer',
+            background: i === idx ? 'var(--accent)' : 'rgba(251,191,36,0.35)',
             transition: 'all 0.3s ease', padding: 0,
           }} aria-label={`Show tip ${i + 1}`} />
         ))}
