@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
 import { UserPreferences, WeatherResponse } from '@/lib/types'
-import { canUseCalendar } from '@/lib/tiers'
+import { canUseCalendar, getFutureDays } from '@/lib/tiers'
 import { DayForecast, SafeWindow, getSafeWindowsForActivity, gcalWindowLink, fmtH } from '@/lib/calendar'
 
 interface Props {
@@ -24,9 +24,9 @@ function uvRowBg(uv: number, dark: boolean): string {
   return `rgba(192,132,252,${a})`
 }
 
-function forecastFromWeather(weather: WeatherResponse): DayForecast[] {
+function forecastFromWeather(weather: WeatherResponse, limit = 7): DayForecast[] {
   const todayStr = new Date().toLocaleDateString('en-CA')
-  return weather.forecast.slice(0, 7).map(day => {
+  return weather.forecast.slice(0, limit).map(day => {
     const d = new Date(day.dateStr + 'T12:00:00')
     return {
       dateStr: day.dateStr,
@@ -38,7 +38,9 @@ function forecastFromWeather(weather: WeatherResponse): DayForecast[] {
 }
 
 export default function CalendarView({ prefs, weather }: Props) {
-  const [days,    setDays]    = useState<DayForecast[]>(weather ? forecastFromWeather(weather) : [])
+  const tier  = prefs.tier || 'anonymous'
+  const dayLimit = getFutureDays(tier)
+  const [days,    setDays]    = useState<DayForecast[]>(weather ? forecastFromWeather(weather, dayLimit) : [])
   const [loading, setLoading] = useState(!weather)
   const [error,   setError]   = useState<string | null>(null)
   const [popup,   setPopup]   = useState<{ act: typeof prefs.activities[0]; win: SafeWindow; day: DayForecast } | null>(null)
@@ -49,11 +51,15 @@ export default function CalendarView({ prefs, weather }: Props) {
   const [focusedActivityId, setFocusedActivityId] = useState<string>('all')
   const scrollRef = useRef<HTMLDivElement>(null)
 
-  const tier  = prefs.tier || 'anonymous'
   const calOk = canUseCalendar(tier)
   const visibleActivities = focusedActivityId === 'all'
     ? prefs.activities
     : prefs.activities.filter(a => a.id === focusedActivityId)
+  const lockedCopy = tier === 'anonymous'
+    ? 'Sign in to see tomorrow in Calendar.'
+    : tier === 'free'
+    ? 'Go Pro for the full 10-day Calendar view.'
+    : null
 
   useEffect(() => {
     setDark(document.documentElement.classList.contains('dark'))
@@ -71,7 +77,7 @@ export default function CalendarView({ prefs, weather }: Props) {
 
   useEffect(() => {
     if (weather) {
-      setDays(forecastFromWeather(weather))
+      setDays(forecastFromWeather(weather, dayLimit))
       setLoading(false)
       setError(null)
       return
@@ -101,7 +107,7 @@ export default function CalendarView({ prefs, weather }: Props) {
         })
 
         const now = new Date(); now.setHours(0,0,0,0)
-        const result = Object.entries(byDate).slice(0, 7).map(([dateStr, hourly]) => {
+        const result = Object.entries(byDate).slice(0, dayLimit).map(([dateStr, hourly]) => {
           const d = new Date(dateStr + 'T12:00:00')
           const diff = Math.round((d.getTime() - now.getTime()) / 86400000)
           return {
@@ -115,7 +121,7 @@ export default function CalendarView({ prefs, weather }: Props) {
       finally   { setLoading(false) }
     }
     load()
-  }, [prefs.location.lat, prefs.location.lon, weather])
+  }, [prefs.location.lat, prefs.location.lon, weather, dayLimit])
 
   function openCalendar(act: typeof prefs.activities[0], win: SafeWindow, day: DayForecast) {
     const opened = window.open(gcalWindowLink(act, win, day.dateStr), '_blank')
@@ -125,14 +131,14 @@ export default function CalendarView({ prefs, weather }: Props) {
 
   if (!prefs.activities.length) return (
     <div style={{ padding: '3rem 0', textAlign: 'center' }}>
-      <p style={{ fontSize: '32px', marginBottom: '10px' }}>🗓️</p>
-      <p style={{ fontWeight: 500, color: 'var(--text)', marginBottom: '6px' }}>No activities yet</p>
-      <p style={{ fontSize: '13px', color: 'var(--text-3)' }}>Add activities in Preferences to see your weekly safe windows.</p>
+      <p style={{ fontSize: '34px', marginBottom: '10px' }}>🗓️</p>
+      <p style={{ fontWeight: 600, color: 'var(--text)', marginBottom: '6px', fontSize: '16px' }}>No activities yet</p>
+      <p style={{ fontSize: '14px', color: 'var(--text-3)' }}>Add activities from the Dashboard to see your safe windows.</p>
     </div>
   )
 
-  if (loading) return <div style={{ padding: '3rem 0', textAlign: 'center', fontSize: '13px', color: 'var(--text-3)' }}>Loading forecast…</div>
-  if (error)   return <div style={{ padding: '2rem 0', textAlign: 'center', fontSize: '13px', color: '#DC2626' }}>{error}</div>
+  if (loading) return <div style={{ padding: '3rem 0', textAlign: 'center', fontSize: '14px', color: 'var(--text-3)' }}>Loading forecast…</div>
+  if (error)   return <div style={{ padding: '2rem 0', textAlign: 'center', fontSize: '14px', color: '#DC2626' }}>{error}</div>
 
   const HOURS = Array.from({ length: hrTo - hrFrom + 1 }, (_, i) => i + hrFrom)
   const nowH = new Date().getHours()
@@ -155,6 +161,12 @@ export default function CalendarView({ prefs, weather }: Props) {
           Tip: filter to one activity when the grid gets crowded.
         </span>
       </div>
+
+      {lockedCopy && weather && weather.forecast.length > days.length && (
+        <div style={{ padding: '10px 14px', background: 'rgba(249,115,22,0.08)', color: 'var(--text-2)', fontSize: '13px', borderBottom: `1px solid ${grid.line}` }}>
+          🔒 {lockedCopy}
+        </div>
+      )}
 
       {confirm && (
         <div style={{ padding: '9px 14px', background: 'rgba(249,115,22,0.08)', color: 'var(--text-2)', fontSize: '12px', borderBottom: `1px solid ${grid.line}` }}>
