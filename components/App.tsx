@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { onAuthStateChanged, User } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
-import { loadLocalPrefs, loadFirestorePrefs, defaultPrefs } from '@/lib/prefs'
+import { loadLocalPrefs, loadFirestorePrefs, defaultPrefs, saveLocalPrefs, saveFirestorePrefs } from '@/lib/prefs'
 import { getCachedWeather, setCachedWeather } from '@/lib/cache'
 import { getFCMTokenLocally } from '@/lib/notifications'
 import { UserPreferences, WeatherResponse, Location, TierLevel, DayWeather } from '@/lib/types'
@@ -146,6 +146,12 @@ export default function App() {
     }
   }
 
+  async function handlePrefsUpdate(updated: UserPreferences) {
+    setPrefs(updated)
+    saveLocalPrefs(updated)
+    if (user) await saveFirestorePrefs(user.uid, updated)
+  }
+
   function handleOnboardingComplete(p: UserPreferences) {
     setPrefs(p)
     setScreen('dashboard')
@@ -174,7 +180,7 @@ export default function App() {
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
-      <Header user={user} prefs={effectivePrefs} onPrefsUpdate={p => { setPrefs(p); fetchWeather(p.location) }} forceOpenTab={prefsOpen ? prefsTab : undefined} onModalClose={() => setPrefsOpen(false)} onGoHome={() => { setView('dashboard'); setSelectedDay(null) }} currentUV={weather?.current.uv} />
+      <Header user={user} prefs={effectivePrefs} onPrefsUpdate={p => { handlePrefsUpdate(p); fetchWeather(p.location) }} forceOpenTab={prefsOpen ? prefsTab : undefined} onModalClose={() => setPrefsOpen(false)} onGoHome={() => { setView('dashboard'); setSelectedDay(null) }} currentUV={weather?.current.uv} />
       <div style={{ borderBottom: '0.5px solid var(--border-md)', background: 'var(--bg-card)' }}>
         <div style={{ maxWidth: '900px', margin: '0 auto', padding: '0 1rem', display: 'flex', gap: '0' }}>
           {(['dashboard', 'calendar'] as const).map(v => (
@@ -202,7 +208,7 @@ export default function App() {
           <>
             {weatherLoading && <Skeleton />}
             {weather && !weatherLoading && (
-              <Dashboard weather={weather} prefs={effectivePrefs} onRefresh={() => fetchWeather(prefs.location, true)} onAddActivities={() => { setPrefsTab('activities'); setPrefsOpen(true) }} selectedDay={selectedDay} onSelectDay={setSelectedDay} />
+              <Dashboard weather={weather} prefs={effectivePrefs} onPrefsUpdate={handlePrefsUpdate} onRefresh={() => fetchWeather(prefs.location, true)} selectedDay={selectedDay} onSelectDay={setSelectedDay} />
             )}
           </>
         )}

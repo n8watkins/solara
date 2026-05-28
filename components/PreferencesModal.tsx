@@ -6,7 +6,6 @@ import { clearWeatherCache } from '@/lib/cache'
 import { TIER_LABELS, TIER_LIMITS } from '@/lib/tiers'
 import { toggleTheme, getStoredTheme } from '@/lib/theme'
 import { auth, googleProvider, firebaseEnabled } from '@/lib/firebase'
-import ActivityManager from './ActivityManager'
 
 interface Props {
   prefs: UserPreferences
@@ -31,7 +30,6 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
   const [tab,        setTab]        = useState<Tab>(initialTab || 'general')
   const [skinType,   setSkinType]   = useState<SkinType>(prefs.skinType)
   const [sunscreen,  setSunscreen]  = useState(prefs.sunscreen)
-  const [activities, setActivities] = useState(prefs.activities)
   const [location,   setLocation]   = useState<Location>(prefs.location)
   const [citySearch, setCitySearch] = useState('')
   const [locLoading, setLocLoading] = useState(false)
@@ -43,10 +41,9 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
   const tier = prefs.tier || 'anonymous'
 
   const selectedSkin = SKIN_OPTIONS.find(o => o.value === skinType) ?? SKIN_OPTIONS[1]
-  const nextActivities = activities.map(a => ({ ...a, sunscreen }))
-  const draft: UserPreferences = { ...prefs, skinType, sunscreen, activities: nextActivities, location }
-  const dirty = JSON.stringify({ skinType: prefs.skinType, sunscreen: prefs.sunscreen, activities: prefs.activities, location: prefs.location }) !==
-    JSON.stringify({ skinType, sunscreen, activities: nextActivities, location })
+  const draft: UserPreferences = { ...prefs, skinType, sunscreen, location }
+  const dirty = JSON.stringify({ skinType: prefs.skinType, sunscreen: prefs.sunscreen, location: prefs.location }) !==
+    JSON.stringify({ skinType, sunscreen, location })
 
   function requestClose() {
     if (dirty && !window.confirm('Discard unsaved settings changes?')) return
@@ -103,7 +100,7 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
   const TABS: { id: Tab; label: string }[] = [
     { id: 'general',    label: 'Sun profile' },
     { id: 'appearance', label: 'Appearance'  },
-    { id: 'activities', label: 'Activities'  },
+    { id: 'activities', label: 'Activity prefs' },
     { id: 'location',   label: 'Location'    },
     { id: 'account',    label: 'Account'     },
   ]
@@ -173,9 +170,9 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
 
               <div className="metric-card" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 <div>
-                  <p style={{ margin: '0 0 4px', fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>Global sunscreen assumption</p>
+                  <p style={{ margin: '0 0 4px', fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>Legacy sunscreen default</p>
                   <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-3)', lineHeight: 1.45 }}>
-                    Temporary legacy setting. Next activity refactor will move this to each activity.
+                    This only supports older saved data. Active sunscreen choices now belong with activities on the Dashboard.
                   </p>
                 </div>
                 <div style={{ display: 'flex', gap: '8px' }}>
@@ -217,10 +214,22 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
 
           {tab === 'activities' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div style={{ padding: '10px 12px', borderRadius: '10px', background: 'rgba(249,115,22,0.08)', color: 'var(--text-2)', fontSize: '13px', lineHeight: 1.45 }}>
-                Activity creation still lives here temporarily. The next refactor will move add/edit/remove into the main Activity section.
+              <div className="metric-card" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <p style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: 'var(--text)' }}>Activity preferences</p>
+                <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-3)', lineHeight: 1.5 }}>
+                  Add, remove, and customize activities from the main Dashboard Activity section. Settings will only manage activity suggestion preferences here later.
+                </p>
               </div>
-              <ActivityManager selected={activities} tier={tier} onChange={setActivities} />
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '8px' }}>
+                <div className="metric-card">
+                  <p style={{ margin: '0 0 4px', fontSize: '12px', color: 'var(--text-3)' }}>Current activities</p>
+                  <p style={{ margin: 0, fontSize: '20px', fontWeight: 750, color: 'var(--text)' }}>{prefs.activities.length}</p>
+                </div>
+                <div className="metric-card">
+                  <p style={{ margin: '0 0 4px', fontSize: '12px', color: 'var(--text-3)' }}>Plan limit</p>
+                  <p style={{ margin: 0, fontSize: '20px', fontWeight: 750, color: 'var(--text)' }}>{tier === 'paid' ? 'Unlimited' : TIER_LIMITS[tier].activities}</p>
+                </div>
+              </div>
             </div>
           )}
 
@@ -278,7 +287,7 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
               <div style={{ background: 'var(--bg-metric)', borderRadius: '10px', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <p style={{ margin: 0, fontSize: '12px', fontWeight: 650, color: 'var(--text-2)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Plan limits</p>
                 {[
-                  ['Activities', tier === 'paid' ? 'Unlimited' : `${activities.length} / ${TIER_LIMITS[tier].activities}`],
+                  ['Activities', tier === 'paid' ? 'Unlimited' : `${prefs.activities.length} / ${TIER_LIMITS[tier].activities}`],
                   ['Calendar sync', TIER_LIMITS[tier].calendar ? '✓' : '—'],
                   ['Push notifications', TIER_LIMITS[tier].notifications ? '✓' : '—'],
                   ['10-day forecast', tier === 'paid' ? '✓' : '—'],
