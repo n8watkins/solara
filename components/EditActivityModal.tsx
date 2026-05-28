@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { Activity } from '@/lib/types'
 import { effectiveMaxUV } from '@/lib/tiers'
+import { fmtHour } from '@/lib/weather'
 import ActivityModalShell from './ActivityModalShell'
 import EmojiPicker from './EmojiPicker'
 
@@ -22,8 +23,13 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
   const [durationMins, setDurationMins] = useState(activity.durationMins)
   const [sunscreen, setSunscreen] = useState(activity.sunscreen)
   const [maxUV, setMaxUV] = useState(activity.maxUV)
+  const [preferredEnabled, setPreferredEnabled] = useState(!!activity.preferredHours)
+  const [preferredFrom, setPreferredFrom] = useState(activity.preferredHours?.from ?? 6)
+  const [preferredTo, setPreferredTo] = useState(activity.preferredHours?.to ?? 20)
   const [showEmoji, setShowEmoji] = useState(false)
 
+  const normalizedFrom = Math.max(0, Math.min(23, Math.round(preferredFrom)))
+  const normalizedTo = Math.max(normalizedFrom + 1, Math.min(24, Math.round(preferredTo)))
   const draft: Activity = {
     ...activity,
     name: name.trim() || activity.name,
@@ -31,10 +37,11 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
     durationMins: Math.max(5, Math.round(durationMins || 5)),
     sunscreen,
     maxUV: clampUV(maxUV || 0),
+    preferredHours: preferredEnabled ? { from: normalizedFrom, to: normalizedTo } : undefined,
   }
 
-  const dirty = JSON.stringify({ name: activity.name, icon: activity.icon, durationMins: activity.durationMins, sunscreen: activity.sunscreen, maxUV: activity.maxUV }) !==
-    JSON.stringify({ name: draft.name, icon: draft.icon, durationMins: draft.durationMins, sunscreen: draft.sunscreen, maxUV: draft.maxUV })
+  const dirty = JSON.stringify({ name: activity.name, icon: activity.icon, durationMins: activity.durationMins, sunscreen: activity.sunscreen, maxUV: activity.maxUV, preferredHours: activity.preferredHours }) !==
+    JSON.stringify({ name: draft.name, icon: draft.icon, durationMins: draft.durationMins, sunscreen: draft.sunscreen, maxUV: draft.maxUV, preferredHours: draft.preferredHours })
 
   function requestClose() {
     if (dirty && !window.confirm('Discard unsaved activity changes?')) return
@@ -114,6 +121,36 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
             <span style={{ fontSize: '13px', color: 'var(--text-3)' }}>minutes</span>
             <button className="btn" onClick={() => setDurationMins(m => m + 15)}>+15m</button>
           </div>
+        </div>
+
+        <div className="metric-card" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'flex-start' }}>
+            <div>
+              <p style={{ margin: '0 0 4px', fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>Preferred hours</p>
+              <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-3)', lineHeight: 1.45 }}>
+                Limit recommendations to the part of the day you actually care about.
+              </p>
+            </div>
+            <button className={preferredEnabled ? 'btn btn-primary' : 'btn'} onClick={() => setPreferredEnabled(v => !v)} style={{ fontSize: '12px', whiteSpace: 'nowrap' }}>
+              {preferredEnabled ? 'Enabled' : 'Any time'}
+            </button>
+          </div>
+          {preferredEnabled && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: '5px', fontSize: '12px', color: 'var(--text-3)' }}>
+                Earliest
+                <select value={normalizedFrom} onChange={e => setPreferredFrom(Number(e.target.value))} style={{ fontSize: '13px' }}>
+                  {Array.from({ length: 24 }, (_, h) => <option key={h} value={h}>{fmtHour(h)}</option>)}
+                </select>
+              </label>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: '5px', fontSize: '12px', color: 'var(--text-3)' }}>
+                Latest
+                <select value={normalizedTo} onChange={e => setPreferredTo(Number(e.target.value))} style={{ fontSize: '13px' }}>
+                  {Array.from({ length: 24 }, (_, i) => i + 1).map(h => <option key={h} value={h}>{fmtHour(h)}</option>)}
+                </select>
+              </label>
+            </div>
+          )}
         </div>
 
         <div className="metric-card" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
