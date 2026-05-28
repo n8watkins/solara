@@ -25,11 +25,13 @@ export interface UserPreferences {
   schemaVersion: number
   location: Location
   skinType: SkinType
-  sunscreen: boolean    // global sunscreen preference applied to activities
+  sunscreen: boolean    // legacy global sunscreen fallback for old activities
   activities: Activity[]
   tier: TierLevel
   onboardingComplete: boolean
   calendarHours?: CalendarHours
+  hiddenActivitySuggestionIds?: string[]
+  collapsedActivityCategories?: string[]
   upgradeInterest?: {
     email?: string
     createdAt: string
