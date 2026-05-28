@@ -89,7 +89,7 @@ export default function CalendarView({ prefs, weather }: Props) {
         const { lat, lon } = prefs.location
         const res = await fetch(
           `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
-          `&hourly=uv_index,temperature_2m&timezone=auto&forecast_days=7`
+          `&hourly=uv_index,temperature_2m&timezone=auto&forecast_days=${dayLimit}`
         )
         if (!res.ok) throw new Error()
         const raw = await res.json()
@@ -360,7 +360,7 @@ export default function CalendarView({ prefs, weather }: Props) {
           ))}
         </div>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-          {[['rgba(74,222,128,0.4)','Low UV'],['rgba(250,204,21,0.4)','Moderate'],['rgba(251,146,60,0.4)','High'],['rgba(248,113,113,0.4)','Very high']].map(([bg, l]) => (
+          {[[ 'rgba(74,222,128,0.4)','Low UV'],['rgba(250,204,21,0.4)','Moderate'],['rgba(251,146,60,0.4)','High'],['rgba(248,113,113,0.4)','Very high']].map(([bg, l]) => (
             <span key={l} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: 'var(--text-3)' }}>
               <span style={{ width: '10px', height: '10px', borderRadius: '2px', background: bg, display: 'inline-block' }} />
               {l}

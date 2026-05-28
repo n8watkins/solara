@@ -1,6 +1,6 @@
 'use client'
 import { useState } from 'react'
-import { WeatherResponse, UserPreferences, DayWeather } from '@/lib/types'
+import { WeatherResponse, UserPreferences, DayWeather, TierLevel } from '@/lib/types'
 import { burnMins, vitDMins, uvLabel, getActivityWindow, fmtHour } from '@/lib/weather'
 import { getFutureDays } from '@/lib/tiers'
 import UVTimeline from './UVTimeline'
@@ -13,6 +13,7 @@ import TipCarousel from './TipCarousel'
 interface Props {
   weather: WeatherResponse
   prefs: UserPreferences
+  displayTier?: TierLevel
   onPrefsUpdate: (prefs: UserPreferences) => void
   onRefresh: () => void
   selectedDay: DayWeather | null
@@ -28,13 +29,14 @@ function uvNumberColor(uv: number): string {
   return '#9333EA'
 }
 
-export default function Dashboard({ weather, prefs, onPrefsUpdate, onRefresh, selectedDay, onSelectDay }: Props) {
+export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, onRefresh, selectedDay, onSelectDay }: Props) {
   const [shareMsg, setShareMsg] = useState<string | null>(null)
   const [showActivityManager, setShowActivityManager] = useState(false)
   const currentHour = new Date().getHours()
 
-  const tier = prefs.tier || 'anonymous'
-  const accessibleDays = getFutureDays(tier)
+  const accessTier = displayTier || prefs.tier || 'anonymous'
+  const activityTier = prefs.tier || 'anonymous'
+  const accessibleDays = getFutureDays(accessTier)
   const visibleForecast = weather.forecast.slice(0, accessibleDays)
   const selectedDayAllowed = selectedDay && visibleForecast.some(day => day.dateStr === selectedDay.dateStr)
   const effectiveSelectedDay = selectedDayAllowed ? selectedDay : null
@@ -60,9 +62,9 @@ export default function Dashboard({ weather, prefs, onPrefsUpdate, onRefresh, se
 
   const dateLabel = effectiveSelectedDay?.label ?? 'Today'
   const lockedForecastCount = Math.max(0, weather.forecast.length - visibleForecast.length)
-  const upgradeCopy = tier === 'anonymous'
+  const upgradeCopy = accessTier === 'anonymous'
     ? 'Sign in to see tomorrow'
-    : tier === 'free'
+    : accessTier === 'free'
     ? 'Go Pro for 10-day planning'
     : null
 
@@ -256,7 +258,7 @@ export default function Dashboard({ weather, prefs, onPrefsUpdate, onRefresh, se
           <div className="card" style={{ marginBottom: '12px' }}>
             <ActivityManager
               selected={prefs.activities}
-              tier={tier}
+              tier={activityTier}
               hiddenSuggestionIds={prefs.hiddenActivitySuggestionIds}
               collapsedCategories={prefs.collapsedActivityCategories}
               onChange={updateActivities}
@@ -267,7 +269,7 @@ export default function Dashboard({ weather, prefs, onPrefsUpdate, onRefresh, se
         )}
 
         {prefs.activities.length > 0 ? (
-          <ActivityCards windows={activityWindows} daysFromNow={dayIndex} tier={tier} />
+          <ActivityCards windows={activityWindows} daysFromNow={dayIndex} tier={accessTier} />
         ) : (
           <div className="card" style={{ textAlign: 'center', padding: '2.75rem 1.5rem' }}>
             <p style={{ fontSize: '30px', marginBottom: '10px' }}>🏃</p>

@@ -2,8 +2,8 @@
 import { useState, useEffect } from 'react'
 import { User, signInWithPopup, signOut } from 'firebase/auth'
 import { auth, googleProvider, firebaseEnabled } from '@/lib/firebase'
-import { saveFirestorePrefs, saveLocalPrefs } from '@/lib/prefs'
-import { UserPreferences } from '@/lib/types'
+import { saveFirestorePrefs } from '@/lib/prefs'
+import { UserPreferences, TierLevel } from '@/lib/types'
 import { TIER_LABELS } from '@/lib/tiers'
 import PreferencesModal from './PreferencesModal'
 import LocationPopover from './LocationPopover'
@@ -16,9 +16,10 @@ interface Props {
   forceOpenTab?: 'general' | 'activities' | 'location'
   onModalClose?: () => void
   currentUV?: number
+  displayTier?: TierLevel
 }
 
-export default function Header({ user, prefs, onPrefsUpdate, onGoHome, forceOpenTab, onModalClose, currentUV }: Props) {
+export default function Header({ user, prefs, onPrefsUpdate, onGoHome, forceOpenTab, onModalClose, currentUV, displayTier }: Props) {
   const [showPrefs, setShowPrefs] = useState(false)
 
   useEffect(() => { if (forceOpenTab) setShowPrefs(true) }, [forceOpenTab])
@@ -37,15 +38,13 @@ export default function Header({ user, prefs, onPrefsUpdate, onGoHome, forceOpen
     if (auth) await signOut(auth)
   }
 
-  async function handlePrefsUpdate(updated: UserPreferences) {
-    saveLocalPrefs(updated)
-    if (user) await saveFirestorePrefs(user.uid, updated)
+  function handlePrefsUpdate(updated: UserPreferences) {
     onPrefsUpdate(updated)
     setShowPrefs(false)
     onModalClose?.()
   }
 
-  const tier = prefs.tier || 'anonymous'
+  const tier = displayTier || prefs.tier || 'anonymous'
 
   const uvAlert = currentUV !== undefined && currentUV >= 8
     ? { icon: '🔴', msg: `UV ${currentUV.toFixed(1)} — Very high` }

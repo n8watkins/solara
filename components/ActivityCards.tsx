@@ -31,10 +31,7 @@ export default function ActivityCards({ windows, daysFromNow, tier }: Props) {
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '12px' }}>
-        <p style={{ margin: 0, fontSize: '14px', fontWeight: 500, color: 'var(--text)' }}>Activities</p>
-        {confirm && <p style={{ margin: 0, fontSize: '12px', color: 'var(--accent)' }}>{confirm}</p>}
-      </div>
+      {confirm && <p style={{ margin: '0 0 12px', fontSize: '12px', color: 'var(--accent)', textAlign: 'right' }}>{confirm}</p>}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: '10px' }}>
         {windows.map(({ activity, bestWindow, safeNow, pctDaySafe, burnMins }) => {
           const status = safeNow ? 'safe' : bestWindow ? 'caution' : 'avoid'
@@ -60,7 +57,7 @@ export default function ActivityCards({ windows, daysFromNow, tier }: Props) {
                 <Row label={activity.sunscreen ? 'Safe UV w/ SPF' : 'Max safe UV'} val={String(safeUv)} />
                 <Row label="Duration" val={durationLabel} />
                 {burnMins !== null && burnMins !== undefined && (
-                  <Row label="Burn limit" val={`~${burnMins}m`} />
+                  <Row label="Threshold burn est." val={`~${burnMins}m`} />
                 )}
                 <Row
                   label="Best window"

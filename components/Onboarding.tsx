@@ -11,7 +11,7 @@ interface Props {
   user: User | null
 }
 
-type Step = 'location' | 'uvpreview' | 'skin' | 'activities' | 'sunscreen' | 'done'
+type Step = 'location' | 'uvpreview' | 'skin' | 'activities'
 
 const SKIN_OPTIONS: { value: SkinType; label: string; desc: string; burnTime: string }[] = [
   { value: 'very-fair', label: 'Very fair',  desc: 'Burns easily, rarely tans', burnTime: '~10 min at UV 10' },
@@ -30,7 +30,6 @@ export default function Onboarding({ onComplete, user }: Props) {
   const [uvNow, setUvNow]         = useState<number | null>(null)
   const [uvCity, setUvCity]       = useState('')
   const [skinType, setSkinType]   = useState<SkinType>('fair')
-  const [sunscreen, setSunscreen] = useState(false)
   const [activities, setActivities] = useState<Activity[]>([])
   const tier = user ? 'free' : 'anonymous'
 
@@ -81,12 +80,10 @@ export default function Onboarding({ onComplete, user }: Props) {
 
   async function handleFinish() {
     if (!location) return
-    const activitiesWithSunscreen = activities.map(a => ({ ...a, sunscreen }))
     const prefs: UserPreferences = {
       ...defaultPrefs(location),
       skinType,
-      sunscreen,
-      activities: activitiesWithSunscreen,
+      activities,
       tier,
       onboardingComplete: true,
     }
@@ -104,8 +101,8 @@ export default function Onboarding({ onComplete, user }: Props) {
     return { label: 'Extreme', color: '#9333EA' }
   }
 
-  const stepNum = { location: 1, uvpreview: 1, skin: 2, activities: 3, sunscreen: 4, done: 5 }
-  const totalSteps = 4
+  const stepNum = { location: 1, uvpreview: 1, skin: 2, activities: 3 }
+  const totalSteps = 3
 
   return (
     <div style={{
@@ -220,45 +217,11 @@ export default function Onboarding({ onComplete, user }: Props) {
           <div className="card">
             <h2 style={{ margin: '0 0 4px', fontSize: '18px', fontWeight: 600, color: 'var(--text)' }}>What do you like to do outside?</h2>
             <p style={{ margin: '0 0 16px', fontSize: '14px', color: 'var(--text-2)' }}>
-              We'll show safe windows for each activity based on your skin type.
+              Choose up to {TIER_LIMITS[tier].activities} {TIER_LIMITS[tier].activities === 1 ? 'activity' : 'activities'}. SPF can be set directly on each activity.
             </p>
             <ActivityManager selected={activities} tier={tier} onChange={setActivities} />
             <div style={{ display: 'flex', gap: '8px', marginTop: '20px' }}>
               <button className="btn" onClick={() => setStep('skin')} style={{ flex: '0 0 auto' }}>← Back</button>
-              <button className="btn btn-primary" onClick={() => setStep('sunscreen')} style={{ flex: 1, justifyContent: 'center', padding: '10px' }}>
-                Next →
-              </button>
-            </div>
-          </div>
-        )}
-
-        {step === 'sunscreen' && (
-          <div className="card">
-            <h2 style={{ margin: '0 0 4px', fontSize: '18px', fontWeight: 600, color: 'var(--text)' }}>Do you wear sunscreen?</h2>
-            <p style={{ margin: '0 0 16px', fontSize: '14px', color: 'var(--text-2)' }}>
-              This affects which windows we show as safe for your activities.
-            </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
-              {[
-                { val: false, icon: '🌿', title: 'No sunscreen', desc: 'Show me when UV is naturally low enough' },
-                { val: true,  icon: '🧴', title: 'I wear SPF 30+', desc: 'Extend safe windows with sunscreen protection' },
-              ].map(o => (
-                <button key={String(o.val)} onClick={() => setSunscreen(o.val)} style={{
-                  display: 'flex', alignItems: 'center', gap: '12px', padding: '14px', borderRadius: '12px', textAlign: 'left',
-                  border: sunscreen === o.val ? '1.5px solid var(--accent)' : '0.5px solid var(--border-md)',
-                  background: sunscreen === o.val ? 'rgba(249,115,22,0.08)' : 'var(--bg-card)',
-                  cursor: 'pointer',
-                }}>
-                  <span style={{ fontSize: '24px' }}>{o.icon}</span>
-                  <div>
-                    <p style={{ margin: 0, fontSize: '14px', fontWeight: 500, color: 'var(--text)' }}>{o.title}</p>
-                    <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-3)' }}>{o.desc}</p>
-                  </div>
-                </button>
-              ))}
-            </div>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button className="btn" onClick={() => setStep('activities')} style={{ flex: '0 0 auto' }}>← Back</button>
               <button className="btn btn-primary" onClick={handleFinish} style={{ flex: 1, justifyContent: 'center', padding: '10px' }}>
                 Start using Solara
               </button>
@@ -267,7 +230,7 @@ export default function Onboarding({ onComplete, user }: Props) {
         )}
 
         <p style={{ textAlign: 'center', marginTop: '20px', fontSize: '12px', color: 'var(--text-3)' }}>
-          Free: {TIER_LIMITS.free.activities} activities + calendar · Pro: notifications + 10-day forecast
+          Guest: {TIER_LIMITS.anonymous.activities} activity · Free: {TIER_LIMITS.free.activities} activities + calendar · Pro: notifications + 10-day forecast
         </p>
       </div>
     </div>
