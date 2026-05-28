@@ -197,7 +197,7 @@ export default function App() {
           ))}
         </div>
       </div>
-      <main style={{ maxWidth: '900px', margin: '0 auto', padding: '1.5rem 1rem' }}>
+      <main style={{ maxWidth: view === 'calendar' ? '1120px' : '900px', margin: '0 auto', padding: '1.5rem 1rem' }}>
         {showNotif && <NotificationBanner user={user} onDismiss={() => setShowNotif(false)} />}
         {error && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', borderRadius: '12px', background: '#FEF2F2', border: '0.5px solid #FECACA', marginBottom: '16px', fontSize: '14px', color: '#991B1B' }}>
@@ -215,7 +215,7 @@ export default function App() {
         )}
         {view === 'calendar' && (
           <div className="card">
-            <CalendarView prefs={displayPrefs} weather={weather} />
+            <CalendarView prefs={prefs} displayTier={displayTier} weather={weather} onPrefsUpdate={handlePrefsUpdate} />
           </div>
         )}
       </main>
