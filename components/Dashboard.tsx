@@ -34,8 +34,9 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
   const [showActivityManager, setShowActivityManager] = useState(false)
   const currentHour = new Date().getHours()
 
-  const tier = displayTier || prefs.tier || 'anonymous'
-  const accessibleDays = getFutureDays(tier)
+  const accessTier = displayTier || prefs.tier || 'anonymous'
+  const activityTier = prefs.tier || 'anonymous'
+  const accessibleDays = getFutureDays(accessTier)
   const visibleForecast = weather.forecast.slice(0, accessibleDays)
   const selectedDayAllowed = selectedDay && visibleForecast.some(day => day.dateStr === selectedDay.dateStr)
   const effectiveSelectedDay = selectedDayAllowed ? selectedDay : null
@@ -61,9 +62,9 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
 
   const dateLabel = effectiveSelectedDay?.label ?? 'Today'
   const lockedForecastCount = Math.max(0, weather.forecast.length - visibleForecast.length)
-  const upgradeCopy = tier === 'anonymous'
+  const upgradeCopy = accessTier === 'anonymous'
     ? 'Sign in to see tomorrow'
-    : tier === 'free'
+    : accessTier === 'free'
     ? 'Go Pro for 10-day planning'
     : null
 
@@ -257,7 +258,7 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
           <div className="card" style={{ marginBottom: '12px' }}>
             <ActivityManager
               selected={prefs.activities}
-              tier={tier}
+              tier={activityTier}
               hiddenSuggestionIds={prefs.hiddenActivitySuggestionIds}
               collapsedCategories={prefs.collapsedActivityCategories}
               onChange={updateActivities}
@@ -268,7 +269,7 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
         )}
 
         {prefs.activities.length > 0 ? (
-          <ActivityCards windows={activityWindows} daysFromNow={dayIndex} tier={tier} />
+          <ActivityCards windows={activityWindows} daysFromNow={dayIndex} tier={accessTier} />
         ) : (
           <div className="card" style={{ textAlign: 'center', padding: '2.75rem 1.5rem' }}>
             <p style={{ fontSize: '30px', marginBottom: '10px' }}>🏃</p>
