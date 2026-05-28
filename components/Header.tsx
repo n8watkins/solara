@@ -57,7 +57,7 @@ export default function Header({ user, prefs, onPrefsUpdate, onGoHome, forceOpen
     <>
       <header style={{ background: 'var(--bg-card)', borderBottom: '0.5px solid var(--border-md)', padding: '0 16px', position: 'sticky', top: 0, zIndex: 40 }}>
         <div style={{ maxWidth: '900px', margin: '0 auto' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: '52px', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: '54px', gap: '10px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
               <button
                 onClick={onGoHome}
@@ -75,24 +75,24 @@ export default function Header({ user, prefs, onPrefsUpdate, onGoHome, forceOpen
                   onUpdate={loc => onPrefsUpdate({ ...prefs, location: loc })}
                 />
               </div>
-              <span style={{
-                fontSize: '10px', fontWeight: 700, padding: '2px 7px', borderRadius: '6px', flexShrink: 0,
-                background: tier === 'paid' ? 'rgba(249,115,22,0.15)' : 'var(--bg-metric)',
-                color: tier === 'paid' ? 'var(--accent)' : 'var(--text-3)',
-                textTransform: 'uppercase', letterSpacing: '0.05em',
-              }}>
-                {TIER_LABELS[tier]}
-              </span>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
               {uvAlert && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '4px 8px', borderRadius: '8px', background: 'var(--bg-metric)', fontSize: '12px', color: 'var(--text-2)', marginRight: '4px', whiteSpace: 'nowrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 8px', borderRadius: '9px', background: 'var(--bg-metric)', fontSize: '12px', color: 'var(--text-2)', whiteSpace: 'nowrap' }}>
                   {uvAlert.icon} <span className="hide-mobile">{uvAlert.msg}</span>
                 </div>
               )}
-              <button className="btn btn-ghost" onClick={() => setShowPrefs(true)} style={{ fontSize: '13px', padding: '6px 12px' }}>
-                ⚙️
+              <span style={{
+                fontSize: '10px', fontWeight: 800, padding: '4px 8px', borderRadius: '999px', flexShrink: 0,
+                background: tier === 'paid' ? 'rgba(249,115,22,0.16)' : 'var(--bg-metric)',
+                color: tier === 'paid' ? 'var(--accent)' : 'var(--text-3)',
+                textTransform: 'uppercase', letterSpacing: '0.055em',
+              }}>
+                {TIER_LABELS[tier]}
+              </span>
+              <button className="btn btn-ghost" onClick={() => setShowPrefs(true)} style={{ fontSize: '13px', padding: '6px 10px' }} aria-label="Open settings">
+                ⚙️ <span className="hide-mobile">Settings</span>
               </button>
               {(user || firebaseEnabled) ? (
                 user
