@@ -1,12 +1,13 @@
 'use client'
 import { useState } from 'react'
-import { WeatherResponse, UserPreferences, DayWeather, TierLevel } from '@/lib/types'
+import { Activity, WeatherResponse, UserPreferences, DayWeather, TierLevel } from '@/lib/types'
 import { burnMins, vitDMins, uvLabel, getActivityWindow, fmtHour } from '@/lib/weather'
 import { getFutureDays } from '@/lib/tiers'
 import UVTimeline from './UVTimeline'
 import ActivityCards from './ActivityCards'
 import AddActivityModal from './AddActivityModal'
 import ManageActivitiesModal from './ManageActivitiesModal'
+import EditActivityModal from './EditActivityModal'
 import SunArc from './SunArc'
 import Tooltip from './Tooltip'
 import TipCarousel from './TipCarousel'
@@ -33,6 +34,7 @@ function uvNumberColor(uv: number): string {
 export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, onRefresh, selectedDay, onSelectDay }: Props) {
   const [shareMsg, setShareMsg] = useState<string | null>(null)
   const [activityModal, setActivityModal] = useState<'add' | 'manage' | null>(null)
+  const [editingActivityId, setEditingActivityId] = useState<string | null>(null)
   const currentHour = new Date().getHours()
 
   const accessTier = displayTier || prefs.tier || 'anonymous'
@@ -60,6 +62,7 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
   const activityWindows = prefs.activities.map(a => getActivityWindow(hourly, a, currentHour, prefs.skinType))
   const bestShareWindow = activityWindows.find(w => w.bestWindow)?.bestWindow
   const bestShareActivity = activityWindows.find(w => w.bestWindow)?.activity
+  const editingActivity = editingActivityId ? prefs.activities.find(a => a.id === editingActivityId) ?? null : null
 
   const dateLabel = effectiveSelectedDay?.label ?? 'Today'
   const lockedForecastCount = Math.max(0, weather.forecast.length - visibleForecast.length)
@@ -71,6 +74,20 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
 
   function updateActivities(activities: UserPreferences['activities']) {
     onPrefsUpdate({ ...prefs, activities })
+  }
+
+  function updateActivity(updated: Activity) {
+    updateActivities(prefs.activities.map(activity => activity.id === updated.id ? updated : activity))
+    setEditingActivityId(null)
+  }
+
+  function deleteActivity(id: string) {
+    updateActivities(prefs.activities.filter(activity => activity.id !== id))
+    setEditingActivityId(null)
+  }
+
+  function openEditActivity(activity: Activity) {
+    setEditingActivityId(activity.id)
   }
 
   function hideSuggestion(id: string) {
@@ -265,7 +282,7 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
         </div>
 
         {prefs.activities.length > 0 ? (
-          <ActivityCards windows={activityWindows} daysFromNow={dayIndex} tier={accessTier} />
+          <ActivityCards windows={activityWindows} daysFromNow={dayIndex} tier={accessTier} onEditActivity={openEditActivity} />
         ) : (
           <div className="card" style={{ textAlign: 'center', padding: '2.75rem 1.5rem' }}>
             <p style={{ fontSize: '30px', marginBottom: '10px' }}>🏃</p>
@@ -299,7 +316,17 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
           tier={activityTier}
           onActivitiesChange={updateActivities}
           onAddActivity={() => setActivityModal('add')}
+          onEditActivity={openEditActivity}
           onClose={() => setActivityModal(null)}
+        />
+      )}
+
+      {editingActivity && (
+        <EditActivityModal
+          activity={editingActivity}
+          onSave={updateActivity}
+          onDelete={deleteActivity}
+          onClose={() => setEditingActivityId(null)}
         />
       )}
 
