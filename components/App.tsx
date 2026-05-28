@@ -13,7 +13,7 @@ import Header from './Header'
 import Skeleton from './Skeleton'
 import NotificationBanner from './NotificationBanner'
 import CalendarView from './CalendarView'
-import DevPanel, { getDevTierOverride } from './DevPanel'
+import DevPanel from './DevPanel'
 
 function weatherLabel(code: number): string {
   if (code === 0) return 'Clear'
@@ -23,6 +23,12 @@ function weatherLabel(code: number): string {
   if (code <= 77) return 'Snowy'
   if (code <= 82) return 'Showers'
   return 'Stormy'
+}
+
+function localDateString(daysFromNow = 0): string {
+  const d = new Date()
+  d.setDate(d.getDate() + daysFromNow)
+  return d.toLocaleDateString('en-CA')
 }
 
 type Screen = 'loading' | 'welcome' | 'onboarding' | 'dashboard'
@@ -40,6 +46,7 @@ export default function App() {
   const [weatherLoading, setWeatherLoading] = useState(false)
   const [error,          setError]          = useState<string | null>(null)
   const [showNotif,      setShowNotif]      = useState(false)
+  const isDev = process.env.NODE_ENV === 'development'
 
   useEffect(() => {
     async function loadPrefs(u: User | null) {
@@ -53,11 +60,8 @@ export default function App() {
         if (local?.location) {
           loaded = {
             ...defaultPrefs(local.location as Location),
-            skinType:           (local.skinType  as UserPreferences['skinType'])  ?? 'fair',
-            activities:         (local.activities as UserPreferences['activities']) ?? [],
-            sunscreen:          (local.sunscreen  as boolean)                      ?? false,
-            tier:               (local.tier       as UserPreferences['tier'])      ?? (u ? 'free' : 'anonymous'),
-            onboardingComplete: (local.onboardingComplete as boolean)              ?? false,
+            ...local,
+            tier: local.tier ?? (u ? 'free' : 'anonymous'),
           }
         }
       }
@@ -103,9 +107,8 @@ export default function App() {
       const res = await fetch(url)
       if (!res.ok) throw new Error()
       const raw = await res.json()
-      const today = new Date()
-      const todayStr    = today.toISOString().split('T')[0]
-      const tomorrowStr = new Date(Date.now() + 86400000).toISOString().split('T')[0]
+      const todayStr    = localDateString(0)
+      const tomorrowStr = localDateString(1)
       const parse = (d: string) => (raw.hourly.time as string[])
         .map((t: string, i: number) => ({
           date: t.split('T')[0], hour: parseInt(t.split('T')[1].split(':')[0]),
@@ -115,14 +118,12 @@ export default function App() {
         }))
         .filter((h: any) => h.date === d && h.hour >= 6 && h.hour <= 20)
 
-      // Build 10-day forecast
       const dateSet = new Set<string>()
       ;(raw.hourly.time as string[]).forEach((t: string) => dateSet.add(t.split('T')[0]))
       const allDates = Array.from(dateSet).sort()
       const forecast = allDates.slice(0, 10).map((dateStr, idx) => {
         const d = new Date(dateStr + 'T12:00:00')
-        const diff = idx
-        const label = diff === 0 ? 'Today' : diff === 1 ? 'Tomorrow'
+        const label = idx === 0 ? 'Today' : idx === 1 ? 'Tomorrow'
           : d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
         return { dateStr, label, hourly: parse(dateStr) }
       })
@@ -169,9 +170,11 @@ export default function App() {
     return <Onboarding onComplete={handleOnboardingComplete} user={user} />
   }
 
+  const effectivePrefs = tierOverride ? { ...prefs, tier: tierOverride } : prefs
+
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
-      <Header user={user} prefs={tierOverride ? { ...prefs, tier: tierOverride } : prefs} onPrefsUpdate={p => { setPrefs(p); fetchWeather(p.location) }} forceOpenTab={prefsOpen ? prefsTab : undefined} onModalClose={() => setPrefsOpen(false)} onGoHome={() => { setView('dashboard'); setSelectedDay(null) }} currentUV={weather?.current.uv} />
+      <Header user={user} prefs={effectivePrefs} onPrefsUpdate={p => { setPrefs(p); fetchWeather(p.location) }} forceOpenTab={prefsOpen ? prefsTab : undefined} onModalClose={() => setPrefsOpen(false)} onGoHome={() => { setView('dashboard'); setSelectedDay(null) }} currentUV={weather?.current.uv} />
       <div style={{ borderBottom: '0.5px solid var(--border-md)', background: 'var(--bg-card)' }}>
         <div style={{ maxWidth: '900px', margin: '0 auto', padding: '0 1rem', display: 'flex', gap: '0' }}>
           {(['dashboard', 'calendar'] as const).map(v => (
@@ -199,20 +202,22 @@ export default function App() {
           <>
             {weatherLoading && <Skeleton />}
             {weather && !weatherLoading && (
-              <Dashboard weather={weather} prefs={tierOverride ? { ...prefs, tier: tierOverride } : prefs} onRefresh={() => fetchWeather(prefs.location, true)} onAddActivities={() => { setPrefsTab('activities'); setPrefsOpen(true) }} selectedDay={selectedDay} onSelectDay={setSelectedDay} />
+              <Dashboard weather={weather} prefs={effectivePrefs} onRefresh={() => fetchWeather(prefs.location, true)} onAddActivities={() => { setPrefsTab('activities'); setPrefsOpen(true) }} selectedDay={selectedDay} onSelectDay={setSelectedDay} />
             )}
           </>
         )}
         {view === 'calendar' && (
           <div className="card">
-            <CalendarView prefs={tierOverride ? { ...prefs, tier: tierOverride } : prefs} />
+            <CalendarView prefs={effectivePrefs} weather={weather} />
           </div>
         )}
       </main>
-      <DevPanel
-        currentTier={tierOverride || prefs.tier || 'anonymous'}
-        onOverride={setTierOverride}
-      />
+      {isDev && (
+        <DevPanel
+          currentTier={tierOverride || prefs.tier || 'anonymous'}
+          onOverride={setTierOverride}
+        />
+      )}
     </div>
   )
 }
