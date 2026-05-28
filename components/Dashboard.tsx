@@ -282,7 +282,14 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
         </div>
 
         {prefs.activities.length > 0 ? (
-          <ActivityCards windows={activityWindows} daysFromNow={dayIndex} tier={accessTier} onEditActivity={openEditActivity} />
+          <ActivityCards
+            windows={activityWindows}
+            daysFromNow={dayIndex}
+            tier={accessTier}
+            location={prefs.location}
+            dateLabel={dateLabel}
+            onEditActivity={openEditActivity}
+          />
         ) : (
           <div className="card" style={{ textAlign: 'center', padding: '2.75rem 1.5rem' }}>
             <p style={{ fontSize: '30px', marginBottom: '10px' }}>🏃</p>
