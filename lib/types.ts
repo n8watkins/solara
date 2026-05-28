@@ -5,6 +5,11 @@ export interface Location {
   lat: number; lon: number; city: string; region: string
 }
 
+export interface PreferredHours {
+  from: number
+  to: number
+}
+
 export interface Activity {
   id: string
   name: string
@@ -13,6 +18,7 @@ export interface Activity {
   maxUV: number        // base max UV assuming no sunscreen
   sunscreen: boolean   // whether this recommendation assumes SPF protection
   custom?: boolean
+  preferredHours?: PreferredHours
 }
 
 export interface CalendarHours {
