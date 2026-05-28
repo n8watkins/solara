@@ -23,8 +23,8 @@ messaging.onBackgroundMessage((payload) => {
   const body  = payload.notification?.body  || 'Your sun window update is ready.'
   self.registration.showNotification(title, {
     body,
-    icon: '/icon-192.png',
-    badge: '/icon-72.png',
+    icon: '/icon-192.svg',
+    badge: '/icon-72.svg',
     tag: 'solara-notification',
   })
 })
