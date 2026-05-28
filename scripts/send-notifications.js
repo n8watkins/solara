@@ -22,6 +22,10 @@ function fmtHour(h) {
   return h < 12 ? `${h}am` : `${h - 12}pm`
 }
 
+function effectiveMaxUV(activity) {
+  return activity.sunscreen ? Math.min(Math.round((activity.maxUV ?? 4) * 2.5), 11) : (activity.maxUV ?? 4)
+}
+
 function burnMins(uv, skinType) {
   const base = { 'very-fair': 10, fair: 15, medium: 25, olive: 35, dark: 50 }
   if (uv < 0.5) return null
@@ -57,7 +61,7 @@ async function fetchHourly(lat, lon) {
   const res  = await fetch(url)
   const data = await res.json()
 
-  const todayStr = new Date().toISOString().split('T')[0]
+  const todayStr = new Date().toLocaleDateString('en-CA')
   return data.hourly.time
     .map((t, i) => ({
       date: t.split('T')[0],
@@ -77,23 +81,25 @@ function buildMessage(user, hourly) {
 
   let bestActivity  = null
   let bestWin       = null
+  let bestSafeUV    = null
 
   for (const act of activities) {
-    const win = bestWindow(hourly, act.maxUV, act.durationMins)
-    if (win) { bestActivity = act; bestWin = win; break }
+    const safeUV = effectiveMaxUV(act)
+    const win = bestWindow(hourly, safeUV, act.durationMins ?? 30)
+    if (win) { bestActivity = act; bestWin = win; bestSafeUV = safeUV; break }
   }
 
   if (!bestActivity) {
     return {
       title: `☀️ High UV today in ${city}`,
-      body:  `Peak UV ${peakUV} — no safe windows without sunscreen today. Stay in the shade during peak hours.`,
+      body:  `Peak UV ${peakUV} — no safe windows found for your saved activities today. Stay in the shade during peak hours.`,
     }
   }
 
-  const burn = burnMins(bestActivity.maxUV, skinType)
+  const burn = burnMins(bestSafeUV, skinType)
   return {
     title: `☀️ ${bestActivity.name} window: ${fmtHour(bestWin.from)}–${fmtHour(bestWin.to)}`,
-    body:  `UV stays ≤${bestActivity.maxUV} in ${city}${burn ? `. Burn limit: ~${burn} min` : ''}.`,
+    body:  `UV stays ≤${bestSafeUV} in ${city}${bestActivity.sunscreen ? ' assuming SPF 30+' : ''}${burn ? `. Burn limit: ~${burn} min` : ''}.`,
   }
 }
 
@@ -120,8 +126,8 @@ async function main() {
           notification: {
             title,
             body,
-            icon: '/icon-192.png',
-            badge: '/icon-72.png',
+            icon: '/icon-192.svg',
+            badge: '/icon-72.svg',
             tag: 'solara-daily',
             requireInteraction: false,
           },
