@@ -8,20 +8,13 @@ interface Props {
   tier: TierLevel
   onActivitiesChange: (activities: Activity[]) => void
   onAddActivity: () => void
+  onEditActivity: (activity: Activity) => void
   onClose: () => void
 }
 
-export default function ManageActivitiesModal({ activities, tier, onActivitiesChange, onAddActivity, onClose }: Props) {
+export default function ManageActivitiesModal({ activities, tier, onActivitiesChange, onAddActivity, onEditActivity, onClose }: Props) {
   function remove(id: string) {
     onActivitiesChange(activities.filter(a => a.id !== id))
-  }
-
-  function updateDuration(id: string, mins: number) {
-    onActivitiesChange(activities.map(a => a.id === id ? { ...a, durationMins: Math.max(5, mins) } : a))
-  }
-
-  function updateSunscreen(id: string, sunscreen: boolean) {
-    onActivitiesChange(activities.map(a => a.id === id ? { ...a, sunscreen } : a))
   }
 
   function duplicate(activity: Activity) {
@@ -36,10 +29,12 @@ export default function ManageActivitiesModal({ activities, tier, onActivitiesCh
     ])
   }
 
+  const atLimit = tier !== 'paid' && activities.length >= (tier === 'anonymous' ? 1 : 3)
+
   return (
     <ActivityModalShell
       title="Manage activities"
-      description="Edit the activities you already use. Preset browsing lives in Add Activity."
+      description="Review saved activities. Use Edit for deeper customization, or Add Activity to browse presets."
       onClose={onClose}
       footer={(
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap' }}>
@@ -63,55 +58,24 @@ export default function ManageActivitiesModal({ activities, tier, onActivitiesCh
             const durationLabel = activity.durationMins < 60 ? `${activity.durationMins}m` : `${activity.durationMins / 60}h`
             const safeUv = effectiveMaxUV(activity)
             return (
-              <div key={activity.id} style={{ border: '0.5px solid var(--border-md)', borderRadius: '14px', padding: '12px 14px', background: 'var(--bg-card)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <span style={{ fontSize: '22px' }}>{activity.icon}</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: 'var(--text)' }}>{activity.name}</p>
-                    <p style={{ margin: '3px 0 0', fontSize: '12px', color: 'var(--text-3)' }}>
-                      {durationLabel} · {activity.sunscreen ? 'SPF 30+' : 'No SPF'} · Safe UV {safeUv}
-                    </p>
-                  </div>
-                  <button className="btn" onClick={() => duplicate(activity)} disabled={tier !== 'paid' && activities.length >= (tier === 'anonymous' ? 1 : 3)} style={{ fontSize: '12px' }}>
+              <div key={activity.id} style={{ border: '0.5px solid var(--border-md)', borderRadius: '14px', padding: '12px 14px', background: 'var(--bg-card)', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '24px' }}>{activity.icon}</span>
+                <div style={{ flex: 1, minWidth: '170px' }}>
+                  <p style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: 'var(--text)' }}>{activity.name}</p>
+                  <p style={{ margin: '3px 0 0', fontSize: '12px', color: 'var(--text-3)' }}>
+                    {durationLabel} · {activity.sunscreen ? 'SPF 30+' : 'No SPF'} · Safe UV {safeUv}
+                  </p>
+                </div>
+                <div style={{ display: 'flex', gap: '8px', marginLeft: 'auto', flexWrap: 'wrap' }}>
+                  <button className="btn btn-primary" onClick={() => onEditActivity(activity)} style={{ fontSize: '12px' }}>
+                    Edit
+                  </button>
+                  <button className="btn" onClick={() => duplicate(activity)} disabled={atLimit} style={{ fontSize: '12px' }}>
                     Duplicate
                   </button>
                   <button className="btn" onClick={() => remove(activity.id)} style={{ fontSize: '12px', color: '#DC2626', borderColor: '#FECACA' }}>
                     Remove
                   </button>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(160px, 1fr) minmax(180px, 1fr)', gap: '10px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--bg-metric)', padding: '9px 10px', borderRadius: '10px' }}>
-                    <span style={{ fontSize: '12px', color: 'var(--text-3)' }}>Duration</span>
-                    <button onClick={() => updateDuration(activity.id, activity.durationMins - 15)} style={{ width: '26px', height: '26px', borderRadius: '7px', border: '0.5px solid var(--border-md)', background: 'var(--bg-card)', cursor: 'pointer' }}>−</button>
-                    <span style={{ fontSize: '13px', color: 'var(--text)', minWidth: '38px', textAlign: 'center', fontWeight: 650 }}>{durationLabel}</span>
-                    <button onClick={() => updateDuration(activity.id, activity.durationMins + 15)} style={{ width: '26px', height: '26px', borderRadius: '7px', border: '0.5px solid var(--border-md)', background: 'var(--bg-card)', cursor: 'pointer' }}>+</button>
-                  </div>
-
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    {[
-                      { val: false, label: 'No SPF' },
-                      { val: true, label: 'SPF 30+' },
-                    ].map(option => (
-                      <button
-                        key={String(option.val)}
-                        onClick={() => updateSunscreen(activity.id, option.val)}
-                        style={{
-                          flex: 1,
-                          padding: '9px 10px',
-                          borderRadius: '10px',
-                          border: activity.sunscreen === option.val ? '1.5px solid var(--accent)' : '0.5px solid var(--border-md)',
-                          background: activity.sunscreen === option.val ? 'rgba(249,115,22,0.08)' : 'var(--bg-card)',
-                          color: 'var(--text)',
-                          cursor: 'pointer',
-                          fontSize: '12px',
-                          fontWeight: 650,
-                        }}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
                 </div>
               </div>
             )
