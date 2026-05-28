@@ -56,9 +56,18 @@ export interface WeatherResponse {
   forecast: DayWeather[]    // all available days starting from today
 }
 
+export interface SafeActivityWindow {
+  from: number
+  to: number
+  label: 'Morning' | 'Midday' | 'Afternoon' | 'Evening' | 'All day'
+  peakUV: number
+  avgUV: number
+}
+
 export interface ActivityWindow {
   activity:    Activity
   bestWindow:  { from: number; to: number } | null
+  allWindows:  SafeActivityWindow[]
   safeNow:     boolean
   pctDaySafe:  number
   burnMins:    number | null

@@ -1,4 +1,4 @@
-import { HourlyForecast, Activity, ActivityWindow, SkinType } from './types'
+import { HourlyForecast, Activity, ActivityWindow, SkinType, SafeActivityWindow } from './types'
 import { effectiveMaxUV } from './tiers'
 
 export const SKIN_BURN_BASE: Record<SkinType, number> = {
@@ -70,6 +70,31 @@ export function gcalLink(
   return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${fmt(start)}/${fmt(end)}&details=${details}`
 }
 
+function labelWindow(from: number, to: number): SafeActivityWindow['label'] {
+  if (from <= 7 && to >= 19) return 'All day'
+  const midpoint = (from + to) / 2
+  if (midpoint < 11) return 'Morning'
+  if (midpoint < 14) return 'Midday'
+  if (midpoint < 17) return 'Afternoon'
+  return 'Evening'
+}
+
+function summarizeSafeWindow(hourly: HourlyForecast[], from: number, to: number): SafeActivityWindow {
+  const samples = hourly.filter(h => h.hour >= from && h.hour < to)
+  const peakUV = samples.length ? Math.max(...samples.map(h => h.uv)) : 0
+  const avgUV = samples.length
+    ? Math.round((samples.reduce((sum, h) => sum + h.uv, 0) / samples.length) * 10) / 10
+    : 0
+
+  return {
+    from,
+    to,
+    label: labelWindow(from, to),
+    peakUV: Math.round(peakUV * 10) / 10,
+    avgUV,
+  }
+}
+
 export function getActivityWindow(
   hourly: HourlyForecast[],
   activity: Activity,
@@ -78,7 +103,7 @@ export function getActivityWindow(
 ): ActivityWindow {
   const maxUV = effectiveMaxUV(activity)
   let start: number | null = null
-  let bestWindow: { from: number; to: number } | null = null
+  const allWindows: SafeActivityWindow[] = []
   let safeCount = 0
 
   for (let i = 0; i < hourly.length; i++) {
@@ -88,24 +113,33 @@ export function getActivityWindow(
       if (start === null) start = hour
     } else {
       if (start !== null) {
-        if ((hour - start) * 60 >= activity.durationMins && !bestWindow) {
-          bestWindow = { from: start, to: hour }
+        if ((hour - start) * 60 >= activity.durationMins) {
+          allWindows.push(summarizeSafeWindow(hourly, start, hour))
         }
         start = null
       }
     }
   }
-  if (start !== null && !bestWindow) {
+
+  if (start !== null) {
     const last = hourly[hourly.length - 1].hour + 1
     if ((last - start) * 60 >= activity.durationMins) {
-      bestWindow = { from: start, to: last }
+      allWindows.push(summarizeSafeWindow(hourly, start, last))
     }
   }
 
-  const currentUV = hourly.find(h => h.hour === currentHour)?.uv ?? 0
-  const safeNow = currentUV <= maxUV
+  const best = allWindows
+    .slice()
+    .sort((a, b) => {
+      if (a.avgUV !== b.avgUV) return a.avgUV - b.avgUV
+      return (b.to - b.from) - (a.to - a.from)
+    })[0] ?? null
+
+  const bestWindow = best ? { from: best.from, to: best.to } : null
+  const current = hourly.find(h => h.hour === currentHour)
+  const safeNow = current ? current.uv <= maxUV : false
   const pctDaySafe = hourly.length ? Math.round((safeCount / hourly.length) * 100) : 0
   const burn = burnMins(maxUV, skinType)
 
-  return { activity, bestWindow, safeNow, pctDaySafe, burnMins: burn }
+  return { activity, bestWindow, allWindows, safeNow, pctDaySafe, burnMins: burn }
 }
