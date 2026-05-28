@@ -12,19 +12,20 @@ interface Props {
   prefs: UserPreferences
   onSave: (updated: UserPreferences) => void
   onClose: () => void
-  initialTab?: Tab
+  initialTab?: LegacyTab
   user?: User | null
 }
 
-const SKIN_OPTIONS: { value: SkinType; label: string; burn: string }[] = [
-  { value: 'very-fair', label: 'Very fair',  burn: '~10m at UV 10' },
-  { value: 'fair',      label: 'Fair',       burn: '~15m at UV 10' },
-  { value: 'medium',    label: 'Medium',     burn: '~25m at UV 10' },
-  { value: 'olive',     label: 'Olive',      burn: '~35m at UV 10' },
-  { value: 'dark',      label: 'Dark',       burn: '~50m at UV 10' },
+const SKIN_OPTIONS: { value: SkinType; label: string; burn: string; desc: string }[] = [
+  { value: 'very-fair', label: 'Very fair',  burn: '~10m at UV 10', desc: 'Burns easily, rarely tans' },
+  { value: 'fair',      label: 'Fair',       burn: '~15m at UV 10', desc: 'Burns often, tans lightly' },
+  { value: 'medium',    label: 'Medium',     burn: '~25m at UV 10', desc: 'Burns sometimes, tans well' },
+  { value: 'olive',     label: 'Olive',      burn: '~35m at UV 10', desc: 'Rarely burns, tans easily' },
+  { value: 'dark',      label: 'Dark',       burn: '~50m at UV 10', desc: 'Very rarely burns' },
 ]
 
-type Tab = 'general' | 'activities' | 'location' | 'account'
+type LegacyTab = 'general' | 'activities' | 'location'
+type Tab = 'general' | 'appearance' | 'activities' | 'location' | 'account'
 
 export default function PreferencesModal({ prefs, onSave, onClose, initialTab, user }: Props) {
   const [tab,        setTab]        = useState<Tab>(initialTab || 'general')
@@ -38,15 +39,17 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
   const [dark,       setDark]       = useState(getStoredTheme() === 'dark')
   const [upgradeEmail, setUpgradeEmail] = useState(user?.email ?? prefs.upgradeInterest?.email ?? '')
   const [upgradeSaved, setUpgradeSaved] = useState(false)
+  const [showSkinHelp, setShowSkinHelp] = useState(false)
   const tier = prefs.tier || 'anonymous'
 
+  const selectedSkin = SKIN_OPTIONS.find(o => o.value === skinType) ?? SKIN_OPTIONS[1]
   const nextActivities = activities.map(a => ({ ...a, sunscreen }))
   const draft: UserPreferences = { ...prefs, skinType, sunscreen, activities: nextActivities, location }
   const dirty = JSON.stringify({ skinType: prefs.skinType, sunscreen: prefs.sunscreen, activities: prefs.activities, location: prefs.location }) !==
     JSON.stringify({ skinType, sunscreen, activities: nextActivities, location })
 
   function requestClose() {
-    if (dirty && !window.confirm('Discard unsaved preference changes?')) return
+    if (dirty && !window.confirm('Discard unsaved settings changes?')) return
     onClose()
   }
 
@@ -98,10 +101,11 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
   }
 
   const TABS: { id: Tab; label: string }[] = [
-    { id: 'general',    label: 'General'    },
-    { id: 'activities', label: 'Activities' },
-    { id: 'location',   label: 'Location'   },
-    { id: 'account',    label: 'Account'    },
+    { id: 'general',    label: 'Sun profile' },
+    { id: 'appearance', label: 'Appearance'  },
+    { id: 'activities', label: 'Activities'  },
+    { id: 'location',   label: 'Location'    },
+    { id: 'account',    label: 'Account'     },
   ]
 
   return (
@@ -109,17 +113,20 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
       onClick={e => e.target === e.currentTarget && requestClose()}
       style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: '16px' }}
     >
-      <div style={{ background: 'var(--bg-card)', borderRadius: '18px', width: '100%', maxWidth: '480px', maxHeight: 'min(88vh, 640px)', overflow: 'hidden', display: 'flex', flexDirection: 'column', border: '0.5px solid var(--border-md)' }}>
+      <div style={{ background: 'var(--bg-card)', borderRadius: '20px', width: '100%', maxWidth: '620px', height: 'min(86vh, 680px)', overflow: 'hidden', display: 'flex', flexDirection: 'column', border: '0.5px solid var(--border-md)', boxShadow: '0 24px 80px rgba(0,0,0,0.24)' }}>
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '18px 20px 14px', borderBottom: '0.5px solid var(--border-md)', flexShrink: 0 }}>
-          <p style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: 'var(--text)' }}>Preferences</p>
-          <button onClick={requestClose} style={{ background: 'var(--bg-metric)', border: 'none', width: '28px', height: '28px', borderRadius: '50%', fontSize: '16px', cursor: 'pointer', color: 'var(--text-2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 22px 16px', borderBottom: '0.5px solid var(--border-md)', flexShrink: 0 }}>
+          <div>
+            <p style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: 'var(--text)' }}>Settings</p>
+            <p style={{ margin: '4px 0 0', fontSize: '12px', color: 'var(--text-3)' }}>Profile, app, location, and account controls.</p>
+          </div>
+          <button onClick={requestClose} style={{ background: 'var(--bg-metric)', border: 'none', width: '32px', height: '32px', borderRadius: '50%', fontSize: '18px', cursor: 'pointer', color: 'var(--text-2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} aria-label="Close settings">×</button>
         </div>
 
-        <div style={{ display: 'flex', borderBottom: '0.5px solid var(--border-md)', padding: '0 20px', flexShrink: 0, overflowX: 'auto' }}>
+        <div style={{ display: 'flex', borderBottom: '0.5px solid var(--border-md)', padding: '0 22px', flexShrink: 0, overflowX: 'auto' }}>
           {TABS.map(t => (
             <button key={t.id} onClick={() => setTab(t.id)} style={{
-              padding: '11px 0', marginRight: '18px', fontSize: '13px', fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap',
+              padding: '13px 0', marginRight: '20px', fontSize: '13px', fontWeight: 650, cursor: 'pointer', whiteSpace: 'nowrap',
               background: 'none', border: 'none',
               borderBottom: tab === t.id ? '2px solid var(--accent)' : '2px solid transparent',
               color: tab === t.id ? 'var(--accent)' : 'var(--text-3)', transition: 'color 0.15s',
@@ -127,77 +134,101 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
           ))}
         </div>
 
-        <div style={{ overflowY: 'auto', flex: 1, padding: '18px 20px' }}>
+        <div style={{ overflowY: 'auto', flex: 1, padding: '20px 22px' }}>
 
           {tab === 'general' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>
-              <div>
-                <p style={{ margin: '0 0 10px', fontSize: '13px', fontWeight: 500, color: 'var(--text)' }}>Skin type</p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  {SKIN_OPTIONS.map(o => (
-                    <button key={o.value} onClick={() => setSkinType(o.value)} style={{
-                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                      padding: '10px 14px', borderRadius: '10px', cursor: 'pointer',
-                      border: skinType === o.value ? '1.5px solid var(--accent)' : '0.5px solid var(--border-md)',
-                      background: skinType === o.value ? 'rgba(249,115,22,0.07)' : 'transparent',
-                      color: 'var(--text)', transition: 'all 0.12s',
-                    }}>
-                      <span style={{ fontSize: '14px', fontWeight: skinType === o.value ? 500 : 400 }}>{o.label}</span>
-                      <span style={{ fontSize: '12px', color: 'var(--text-3)' }}>{o.burn}</span>
-                    </button>
-                  ))}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+              <div className="metric-card" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '14px' }}>
+                  <div>
+                    <p style={{ margin: '0 0 4px', fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>Skin type</p>
+                    <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-3)', lineHeight: 1.45 }}>
+                      Used for burn-time and vitamin D estimates.
+                    </p>
+                  </div>
+                  <select
+                    value={skinType}
+                    onChange={e => setSkinType(e.target.value as SkinType)}
+                    style={{ minWidth: '170px', fontSize: '14px' }}
+                  >
+                    {SKIN_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
                 </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'center', padding: '10px 12px', borderRadius: '10px', background: 'var(--bg-card)', border: '0.5px solid var(--border-md)' }}>
+                  <div>
+                    <p style={{ margin: 0, fontSize: '14px', fontWeight: 650, color: 'var(--text)' }}>{selectedSkin.label}</p>
+                    <p style={{ margin: '2px 0 0', fontSize: '12px', color: 'var(--text-3)' }}>{selectedSkin.desc}</p>
+                  </div>
+                  <span style={{ fontSize: '12px', color: 'var(--text-2)', fontWeight: 600, whiteSpace: 'nowrap' }}>{selectedSkin.burn}</span>
+                </div>
+                <button className="btn btn-ghost" onClick={() => setShowSkinHelp(s => !s)} style={{ justifyContent: 'flex-start', padding: '4px 0', fontSize: '12px', color: 'var(--accent)' }}>
+                  {showSkinHelp ? 'Hide explanation' : 'How skin type affects Solara'}
+                </button>
+                {showSkinHelp && (
+                  <p style={{ margin: 0, fontSize: '13px', lineHeight: 1.55, color: 'var(--text-2)' }}>
+                    Lighter skin typically burns faster at the same UV level. Solara uses this profile to estimate burn limits and useful sun exposure windows. These are planning estimates, not medical advice.
+                  </p>
+                )}
               </div>
 
-              <div>
-                <p style={{ margin: '0 0 10px', fontSize: '13px', fontWeight: 500, color: 'var(--text)' }}>Sunscreen assumption</p>
+              <div className="metric-card" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div>
+                  <p style={{ margin: '0 0 4px', fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>Global sunscreen assumption</p>
+                  <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-3)', lineHeight: 1.45 }}>
+                    Temporary legacy setting. Next activity refactor will move this to each activity.
+                  </p>
+                </div>
                 <div style={{ display: 'flex', gap: '8px' }}>
                   {[
-                    { val: false, label: 'No sunscreen',  sub: 'Show naturally safe windows' },
-                    { val: true,  label: 'Wear SPF 30+',  sub: 'Extend activity windows' },
+                    { val: false, label: 'No sunscreen' },
+                    { val: true,  label: 'SPF 30+' },
                   ].map(o => (
                     <button key={String(o.val)} onClick={() => setSunscreen(o.val)} style={{
-                      flex: 1, padding: '12px', borderRadius: '10px', cursor: 'pointer', textAlign: 'left',
+                      flex: 1, padding: '11px 12px', borderRadius: '10px', cursor: 'pointer', textAlign: 'center',
                       border: sunscreen === o.val ? '1.5px solid var(--accent)' : '0.5px solid var(--border-md)',
-                      background: sunscreen === o.val ? 'rgba(249,115,22,0.07)' : 'transparent', transition: 'all 0.12s',
+                      background: sunscreen === o.val ? 'rgba(249,115,22,0.07)' : 'var(--bg-card)', transition: 'all 0.12s',
+                      color: 'var(--text)', fontSize: '13px', fontWeight: 650,
                     }}>
-                      <p style={{ margin: '0 0 2px', fontSize: '13px', fontWeight: 500, color: 'var(--text)' }}>{o.label}</p>
-                      <p style={{ margin: 0, fontSize: '11px', color: 'var(--text-3)' }}>{o.sub}</p>
+                      {o.label}
                     </button>
                   ))}
                 </div>
-                <p style={{ margin: '8px 0 0', fontSize: '11px', color: 'var(--text-3)', lineHeight: 1.45 }}>
-                  This applies to all selected activities so dashboard, calendar, and notifications use the same assumption.
-                </p>
               </div>
+            </div>
+          )}
 
-              <div>
-                <p style={{ margin: '0 0 10px', fontSize: '13px', fontWeight: 500, color: 'var(--text)' }}>Appearance</p>
+          {tab === 'appearance' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div className="metric-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '14px' }}>
+                <div>
+                  <p style={{ margin: '0 0 4px', fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>Theme</p>
+                  <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-3)' }}>Switch between light and dark mode.</p>
+                </div>
                 <button
                   onClick={handleToggleTheme}
-                  style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    width: '100%', padding: '12px 14px', borderRadius: '10px', cursor: 'pointer',
-                    border: '0.5px solid var(--border-md)', background: 'transparent', color: 'var(--text)',
-                    transition: 'background 0.12s',
-                  }}
+                  className="btn"
+                  style={{ whiteSpace: 'nowrap' }}
                 >
-                  <span style={{ fontSize: '14px' }}>{dark ? '🌙 Dark mode' : '☀️ Light mode'}</span>
-                  <span style={{ fontSize: '12px', color: 'var(--text-3)' }}>Click to toggle</span>
+                  {dark ? '🌙 Dark' : '☀️ Light'}
                 </button>
               </div>
             </div>
           )}
 
           {tab === 'activities' && (
-            <ActivityManager selected={activities} tier={tier} onChange={setActivities} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ padding: '10px 12px', borderRadius: '10px', background: 'rgba(249,115,22,0.08)', color: 'var(--text-2)', fontSize: '13px', lineHeight: 1.45 }}>
+                Activity creation still lives here temporarily. The next refactor will move add/edit/remove into the main Activity section.
+              </div>
+              <ActivityManager selected={activities} tier={tier} onChange={setActivities} />
+            </div>
           )}
 
           {tab === 'location' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div className="metric-card">
-                <p style={{ margin: '0 0 3px', fontSize: '11px', color: 'var(--text-3)' }}>Current location</p>
-                <p style={{ margin: 0, fontSize: '15px', fontWeight: 500, color: 'var(--text)' }}>
+                <p style={{ margin: '0 0 3px', fontSize: '12px', color: 'var(--text-3)' }}>Current location</p>
+                <p style={{ margin: 0, fontSize: '16px', fontWeight: 650, color: 'var(--text)' }}>
                   {location.city}{location.region ? `, ${location.region}` : ''}
                 </p>
               </div>
@@ -216,8 +247,8 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div className="metric-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
                 <div>
-                  <p style={{ margin: '0 0 3px', fontSize: '11px', color: 'var(--text-3)' }}>Current plan</p>
-                  <p style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: tier === 'paid' ? 'var(--accent)' : 'var(--text)' }}>
+                  <p style={{ margin: '0 0 3px', fontSize: '12px', color: 'var(--text-3)' }}>Current plan</p>
+                  <p style={{ margin: 0, fontSize: '17px', fontWeight: 700, color: tier === 'paid' ? 'var(--accent)' : 'var(--text)' }}>
                     {TIER_LABELS[tier]}
                   </p>
                 </div>
@@ -230,8 +261,8 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
 
               {tier !== 'paid' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: 'var(--bg-metric)', borderRadius: '10px', padding: '12px 14px' }}>
-                  <p style={{ margin: 0, fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>Pro is coming soon</p>
-                  <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-3)', lineHeight: 1.45 }}>
+                  <p style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: 'var(--text)' }}>Pro is coming soon</p>
+                  <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-3)', lineHeight: 1.45 }}>
                     Pro will focus on unlimited activities, smarter weekly planning, and daily sun-window notifications.
                   </p>
                   <input
@@ -245,7 +276,7 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
               )}
 
               <div style={{ background: 'var(--bg-metric)', borderRadius: '10px', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <p style={{ margin: 0, fontSize: '12px', fontWeight: 500, color: 'var(--text-2)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Plan limits</p>
+                <p style={{ margin: 0, fontSize: '12px', fontWeight: 650, color: 'var(--text-2)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Plan limits</p>
                 {[
                   ['Activities', tier === 'paid' ? 'Unlimited' : `${activities.length} / ${TIER_LIMITS[tier].activities}`],
                   ['Calendar sync', TIER_LIMITS[tier].calendar ? '✓' : '—'],
@@ -254,7 +285,7 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
                 ].map(([label, val]) => (
                   <div key={label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
                     <span style={{ color: 'var(--text-2)' }}>{label}</span>
-                    <span style={{ color: val === '—' ? 'var(--text-3)' : 'var(--text)', fontWeight: 500 }}>{val}</span>
+                    <span style={{ color: val === '—' ? 'var(--text-3)' : 'var(--text)', fontWeight: 600 }}>{val}</span>
                   </div>
                 ))}
               </div>
@@ -262,8 +293,8 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
               {user ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   <div className="metric-card">
-                    <p style={{ margin: '0 0 2px', fontSize: '11px', color: 'var(--text-3)' }}>Signed in as</p>
-                    <p style={{ margin: 0, fontSize: '14px', fontWeight: 500, color: 'var(--text)' }}>{user.displayName || user.email}</p>
+                    <p style={{ margin: '0 0 2px', fontSize: '12px', color: 'var(--text-3)' }}>Signed in as</p>
+                    <p style={{ margin: 0, fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>{user.displayName || user.email}</p>
                   </div>
                   <button
                     className="btn"
@@ -297,10 +328,10 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
           )}
         </div>
 
-        <div style={{ padding: '14px 20px', borderTop: '0.5px solid var(--border-md)', display: 'flex', gap: '8px', flexShrink: 0 }}>
+        <div style={{ padding: '15px 22px', borderTop: '0.5px solid var(--border-md)', display: 'flex', gap: '10px', flexShrink: 0 }}>
           <button className="btn" onClick={requestClose} style={{ flex: 1, justifyContent: 'center' }}>{dirty ? 'Discard' : 'Cancel'}</button>
           <button className="btn btn-primary" onClick={() => onSave(draft)} style={{ flex: 1, justifyContent: 'center' }}>
-            Save changes
+            Save settings
           </button>
         </div>
       </div>
