@@ -11,21 +11,21 @@ export const metadata: Metadata = {
   applicationName: 'Solara',
   manifest: '/manifest.webmanifest',
   icons: {
-    icon: '/icon-192.svg',
-    apple: '/icon-192.svg',
+    icon: '/icon-192.png',
+    apple: '/apple-touch-icon.png',
   },
   openGraph: {
     title: 'Solara — Know when to go outside',
     description: 'Personalized UV and outdoor activity windows for your skin type and location.',
     type: 'website',
     siteName: 'Solara',
-    images: [{ url: '/icon-512.svg', width: 512, height: 512, alt: 'Solara sun icon' }],
+    images: [{ url: '/og-image.png', width: 1200, height: 630, alt: 'Solara — know your sun window' }],
   },
   twitter: {
-    card: 'summary',
+    card: 'summary_large_image',
     title: 'Solara — Know when to go outside',
     description: 'Personalized UV and outdoor activity windows for your skin type and location.',
-    images: ['/icon-512.svg'],
+    images: ['/og-image.png'],
   },
 }
 
