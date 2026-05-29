@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { Activity, WeatherResponse, UserPreferences, DayWeather, TierLevel } from '@/lib/types'
 import { burnMins, vitDMins, uvLabel, getActivityWindow, fmtHour } from '@/lib/weather'
 import { getFutureDays } from '@/lib/tiers'
+import { isCalendarConfigured, requestAccessToken, fetchFreeBusy, busyIntervalsForDay, BusyPeriod } from '@/lib/gcal'
 import UVTimeline from './UVTimeline'
 import ActivityCards from './ActivityCards'
 import PlanAhead from './PlanAhead'
@@ -36,6 +37,8 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
   const [shareMsg, setShareMsg] = useState<string | null>(null)
   const [activityModal, setActivityModal] = useState<'add' | 'manage' | null>(null)
   const [editingActivityId, setEditingActivityId] = useState<string | null>(null)
+  const [calBusy, setCalBusy] = useState<BusyPeriod[] | null>(null)
+  const [calStatus, setCalStatus] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle')
   const currentHour = new Date().getHours()
 
   const accessTier = displayTier || prefs.tier || 'anonymous'
@@ -66,6 +69,8 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
   const editingActivity = editingActivityId ? prefs.activities.find(a => a.id === editingActivityId) ?? null : null
 
   const dateLabel = effectiveSelectedDay?.label ?? 'Today'
+  const activeDateStr = effectiveSelectedDay?.dateStr ?? weather.forecast[0]?.dateStr ?? ''
+  const busyForActiveDay = calBusy ? busyIntervalsForDay(calBusy, activeDateStr) : []
   const lockedForecastCount = Math.max(0, weather.forecast.length - visibleForecast.length)
   const upgradeCopy = accessTier === 'anonymous'
     ? 'Sign in to see tomorrow'
@@ -89,6 +94,20 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
 
   function openEditActivity(activity: Activity) {
     setEditingActivityId(activity.id)
+  }
+
+  async function connectCalendar() {
+    setCalStatus('connecting')
+    try {
+      const token = await requestAccessToken()
+      const timeMin = new Date()
+      const timeMax = new Date(Date.now() + Math.max(1, accessibleDays) * 86_400_000)
+      const periods = await fetchFreeBusy(token, timeMin, timeMax)
+      setCalBusy(periods)
+      setCalStatus('connected')
+    } catch {
+      setCalStatus('error')
+    }
   }
 
   function hideSuggestion(id: string) {
@@ -298,6 +317,27 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
           </div>
         </div>
 
+        {prefs.activities.length > 0 && isCalendarConfigured() && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '10px', marginBottom: '12px', background: 'var(--bg-metric)', border: '0.5px solid var(--border-md)' }}>
+            <span style={{ fontSize: '16px', flexShrink: 0 }}>🗓️</span>
+            {calStatus === 'connected' ? (
+              <p style={{ margin: 0, flex: 1, fontSize: '13px', color: 'var(--text-2)' }}>
+                Recommendations now schedule around your calendar. <span style={{ color: 'var(--text-3)' }}>Solara sees only when you're busy, never event details.</span>
+              </p>
+            ) : (
+              <>
+                <p style={{ margin: 0, flex: 1, fontSize: '13px', color: 'var(--text-2)' }}>
+                  Connect Google Calendar to schedule activities around your real availability.
+                  {calStatus === 'error' && <span style={{ color: '#DC2626' }}> Couldn't connect — try again.</span>}
+                </p>
+                <button className="btn" onClick={connectCalendar} disabled={calStatus === 'connecting'} style={{ fontSize: '12px', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                  {calStatus === 'connecting' ? 'Connecting…' : 'Connect calendar'}
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
         {prefs.activities.length > 0 ? (
           <ActivityCards
             windows={activityWindows}
@@ -305,6 +345,7 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
             tier={accessTier}
             location={prefs.location}
             dateLabel={dateLabel}
+            busy={busyForActiveDay}
             onEditActivity={openEditActivity}
           />
         ) : (

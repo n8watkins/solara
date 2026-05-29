@@ -4,7 +4,7 @@ import { Activity, ActivityWindow, SafeActivityWindow, TierLevel, Location } fro
 import { fmtHour, fmtClock, gcalLink } from '@/lib/weather'
 import { canUseCalendar, effectiveMaxUV } from '@/lib/tiers'
 import { buildActivityShareText, buildActivityShareUrl, shareOrCopy } from '@/lib/share'
-import { recommendSlot } from '@/lib/scheduler'
+import { recommendSlot, BusyInterval } from '@/lib/scheduler'
 
 interface Props {
   windows: ActivityWindow[]
@@ -12,6 +12,7 @@ interface Props {
   tier: TierLevel
   location: Location
   dateLabel: string
+  busy?: BusyInterval[]
   onEditActivity?: (activity: Activity) => void
 }
 
@@ -55,7 +56,7 @@ function WindowPill({ win, isBest, onShare, onCalendar }: { win: SafeActivityWin
   )
 }
 
-export default function ActivityCards({ windows, daysFromNow, tier, location, dateLabel, onEditActivity }: Props) {
+export default function ActivityCards({ windows, daysFromNow, tier, location, dateLabel, busy = [], onEditActivity }: Props) {
   const [confirm, setConfirm] = useState<string | null>(null)
   const calendarAllowed = canUseCalendar(tier)
   // For today, don't recommend a start time that's already passed (fractional so
@@ -96,7 +97,7 @@ export default function ActivityCards({ windows, daysFromNow, tier, location, da
             ? `${fmtHour(bestWindow.from)}–${fmtHour(bestWindow.to)}`
             : 'None today'
           const safeUv = effectiveMaxUV(activity)
-          const rec = recommendSlot(allWindows, [], activity.durationMins, activity.timePreference ?? 'earliest', nowHour)
+          const rec = recommendSlot(allWindows, busy, activity.durationMins, activity.timePreference ?? 'earliest', nowHour)
 
           return (
             <div key={activity.id} className="card" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>

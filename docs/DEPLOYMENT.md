@@ -59,6 +59,9 @@ effectively **$0** — just attach a billing account and set a budget alert.
 - [ ] `FIREBASE_SERVICE_ACCOUNT` (JSON — hosting deploy + the notify cron)
 - [ ] `NEXT_PUBLIC_SITE_URL` (absolute URL for OG/Twitter share images)
 - [ ] _Monetization (optional):_ `NEXT_PUBLIC_STRIPE_PAYMENT_LINK`, `NEXT_PUBLIC_PRO_PRICE`
+- [ ] _Calendar scheduling (optional):_ `NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID` — OAuth
+      client ID from a Google Cloud project with the Calendar API enabled and the
+      deploy domain as an authorized JS origin. Stays on Spark (client-only reads).
 
 ## Phase 3 — First deploy
 
