@@ -95,6 +95,29 @@ describe('recommendSlot — today vs future', () => {
   })
 })
 
+describe('recommendSlot — occupancy UV (hourly provided)', () => {
+  // One safe window 6–12, but UV is cool early (1) and hot late (7).
+  const wide: SafeActivityWindow = { from: 6, to: 12, label: 'Morning', peakUV: 7, avgUV: 4 }
+  const hourly = [
+    { hour: 6, uv: 1 }, { hour: 7, uv: 1 }, { hour: 8, uv: 1 },
+    { hour: 9, uv: 7 }, { hour: 10, uv: 7 }, { hour: 11, uv: 7 },
+  ]
+
+  it('reports UV over the occupied slot, not the whole window', () => {
+    // Busy 9–12 → free [6,9]; a 60-min run at 6 occupies only the cool hour.
+    const r = recommendSlot([wide], [{ start: 9, end: 12 }], 60, 'earliest', -1, hourly)!
+    expect(r.start).toBe(6)
+    expect(r.avgUV).toBe(1)
+    expect(r.peakUV).toBe(1)
+  })
+
+  it('falls back to window aggregates when no hourly is supplied', () => {
+    const r = recommendSlot([wide], [{ start: 9, end: 12 }], 60, 'earliest', -1)!
+    expect(r.avgUV).toBe(4) // window-level
+    expect(r.peakUV).toBe(7)
+  })
+})
+
 describe('fmtClock', () => {
   it('formats whole and fractional hours', () => {
     expect(fmtClock(17)).toBe('5pm')

@@ -74,7 +74,8 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
   const busyByDate: Record<string, ReturnType<typeof busyIntervalsForDay>> = {}
   if (calBusy) for (const day of visibleForecast) busyByDate[day.dateStr] = busyIntervalsForDay(calBusy, day.dateStr)
   const busyForActiveDay = busyByDate[activeDateStr] ?? []
-  const nowFractional = new Date().getHours() + new Date().getMinutes() / 60
+  const nowDate = new Date()
+  const nowFractional = nowDate.getHours() + nowDate.getMinutes() / 60
   const lockedForecastCount = Math.max(0, weather.forecast.length - visibleForecast.length)
   const upgradeCopy = accessTier === 'anonymous'
     ? 'Sign in to see tomorrow'
@@ -369,6 +370,7 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
             tier={accessTier}
             location={prefs.location}
             dateLabel={dateLabel}
+            hourly={hourly}
             busy={busyForActiveDay}
             onBookRecommended={calStatus === 'connected' ? (a, r) => bookSlotOn(a, r, activeDateStr) : undefined}
             onEditActivity={openEditActivity}

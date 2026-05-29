@@ -56,6 +56,19 @@ function labelPhrase(label: SafeActivityWindow['label']): string {
   return label === 'All day' ? 'safe' : label.toLowerCase()
 }
 
+/** Peak/avg UV over the hours the activity actually occupies [from, to). */
+function summarizeUV(hourly: { hour: number; uv: number }[], from: number, to: number): { peak: number; avg: number } | null {
+  const lo = Math.floor(from)
+  const hi = Math.ceil(to)
+  const samples = hourly.filter(h => h.hour >= lo && h.hour < hi).map(h => h.uv)
+  if (!samples.length) return null
+  const round = (n: number) => Math.round(n * 10) / 10
+  return {
+    peak: round(Math.max(...samples)),
+    avg: round(samples.reduce((s, v) => s + v, 0) / samples.length),
+  }
+}
+
 /**
  * Recommend a concrete start time for an activity by intersecting its safe-UV
  * windows with real availability, honoring a time-of-day preference.
@@ -65,6 +78,9 @@ function labelPhrase(label: SafeActivityWindow['label']): string {
  * @param durationMins Activity length.
  * @param timePreference 'earliest' (default) | 'latest' | 'sunniest'.
  * @param nowHour      Current hour to forbid past slots on today; pass -1 for future days.
+ * @param hourly       Optional day's hourly UV. When given, the reported peak/avg
+ *                     UV are recomputed over the occupied slot rather than the whole
+ *                     window — accurate when a busy block splits a window.
  * @returns The chosen slot plus its flexible range, or null if nothing fits.
  */
 export function recommendSlot(
@@ -73,6 +89,7 @@ export function recommendSlot(
   durationMins: number,
   timePreference: TimePreference = 'earliest',
   nowHour = -1,
+  hourly?: { hour: number; uv: number }[],
 ): SlotRecommendation | null {
   if (durationMins <= 0) return null
   const durHours = durationMins / 60
@@ -110,14 +127,19 @@ export function recommendSlot(
         ? `Your sunniest safe window that's still free`
         : `Earliest free spot in your ${labelPhrase(chosen.label)} window`
 
+  const end = start + durHours
+  // Prefer UV measured over the slot the user actually occupies; fall back to the
+  // window aggregate when no hourly data is supplied.
+  const occ = hourly ? summarizeUV(hourly, start, end) : null
+
   return {
     start,
-    end: start + durHours,
+    end,
     earliestStart: chosen.from,
     latestStart: chosen.to - durHours,
     windowLabel: chosen.label,
-    peakUV: chosen.peakUV,
-    avgUV: chosen.avgUV,
+    peakUV: occ ? occ.peak : chosen.peakUV,
+    avgUV: occ ? occ.avg : chosen.avgUV,
     reason,
   }
 }

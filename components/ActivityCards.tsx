@@ -1,6 +1,6 @@
 'use client'
 import { useState } from 'react'
-import { Activity, ActivityWindow, SafeActivityWindow, TierLevel, Location } from '@/lib/types'
+import { Activity, ActivityWindow, SafeActivityWindow, TierLevel, Location, HourlyForecast } from '@/lib/types'
 import { fmtHour, fmtClock, gcalLink } from '@/lib/weather'
 import { canUseCalendar, effectiveMaxUV } from '@/lib/tiers'
 import { buildActivityShareText, buildActivityShareUrl, shareOrCopy } from '@/lib/share'
@@ -12,6 +12,7 @@ interface Props {
   tier: TierLevel
   location: Location
   dateLabel: string
+  hourly?: HourlyForecast[]
   busy?: BusyInterval[]
   /** When provided (calendar connected), books the recommended slot as a real event. */
   onBookRecommended?: (activity: Activity, rec: SlotRecommendation) => void
@@ -58,7 +59,7 @@ function WindowPill({ win, isBest, onShare, onCalendar }: { win: SafeActivityWin
   )
 }
 
-export default function ActivityCards({ windows, daysFromNow, tier, location, dateLabel, busy = [], onBookRecommended, onEditActivity }: Props) {
+export default function ActivityCards({ windows, daysFromNow, tier, location, dateLabel, hourly, busy = [], onBookRecommended, onEditActivity }: Props) {
   const [confirm, setConfirm] = useState<string | null>(null)
   const calendarAllowed = canUseCalendar(tier)
   // For today, don't recommend a start time that's already passed (fractional so
@@ -99,7 +100,7 @@ export default function ActivityCards({ windows, daysFromNow, tier, location, da
             ? `${fmtHour(bestWindow.from)}–${fmtHour(bestWindow.to)}`
             : 'None today'
           const safeUv = effectiveMaxUV(activity)
-          const rec = recommendSlot(allWindows, busy, activity.durationMins, activity.timePreference ?? 'earliest', nowHour)
+          const rec = recommendSlot(allWindows, busy, activity.durationMins, activity.timePreference ?? 'earliest', nowHour, hourly)
 
           return (
             <div key={activity.id} className="card" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>

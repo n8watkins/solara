@@ -97,7 +97,7 @@ export function bestUpcomingSlot(
     if (!day.hourly.length) continue
     const { allWindows } = getActivityWindow(day.hourly, activity, -1, skinType)
     const busy = busyByDate[day.dateStr] ?? []
-    const slot = recommendSlot(allWindows, busy, activity.durationMins, pref, i === 0 ? nowHourToday : -1)
+    const slot = recommendSlot(allWindows, busy, activity.durationMins, pref, i === 0 ? nowHourToday : -1, day.hourly)
     if (!slot) continue
 
     const candidate: UpcomingSlot = { activity, dateStr: day.dateStr, label: day.label, dayOffset: i, slot }
