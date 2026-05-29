@@ -1,4 +1,6 @@
-import { BusyInterval } from './scheduler'
+import { BusyInterval, SlotRecommendation } from './scheduler'
+import { Activity } from './types'
+import { fmtClock } from './weather'
 
 // Google Calendar read access for a static app: the browser gets a short-lived
 // OAuth access token via Google Identity Services (incremental authorization,
@@ -9,7 +11,10 @@ import { BusyInterval } from './scheduler'
 // the "connect calendar" affordance and recommendations run calendar-free.
 
 const CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID
-const SCOPE = 'https://www.googleapis.com/auth/calendar.readonly'
+// Read scope (freeBusy only) is requested at connect; the write scope is requested
+// incrementally at booking time so the default connection never grants event access.
+const SCOPE_READONLY = 'https://www.googleapis.com/auth/calendar.readonly'
+const SCOPE_EVENTS = 'https://www.googleapis.com/auth/calendar.events'
 const GSI_SRC = 'https://accounts.google.com/gsi/client'
 
 /** A busy block from the freeBusy API, as RFC3339 timestamps. */
@@ -40,10 +45,10 @@ function loadGis(): Promise<void> {
 }
 
 /**
- * Run the GIS token client to get a short-lived calendar.readonly access token.
+ * Run the GIS token client to get a short-lived access token for `scope`.
  * Prompts for consent the first time. Token lives in memory for the session.
  */
-export async function requestAccessToken(): Promise<string> {
+async function getToken(scope: string): Promise<string> {
   if (!CLIENT_ID) throw new Error('Calendar integration is not configured')
   await loadGis()
   // GIS has no bundled types; access through a narrow cast.
@@ -60,7 +65,7 @@ export async function requestAccessToken(): Promise<string> {
   return new Promise<string>((resolve, reject) => {
     const client = oauth2.initTokenClient({
       client_id: CLIENT_ID,
-      scope: SCOPE,
+      scope,
       callback: resp => {
         if (resp.error || !resp.access_token) reject(new Error(resp.error || 'No access token'))
         else resolve(resp.access_token)
@@ -68,6 +73,16 @@ export async function requestAccessToken(): Promise<string> {
     })
     client.requestAccessToken({ prompt: '' })
   })
+}
+
+/** Read-only token for freeBusy (the default connection — no event access). */
+export function requestAccessToken(): Promise<string> {
+  return getToken(SCOPE_READONLY)
+}
+
+/** Write token for creating events — requested incrementally when the user books. */
+export function requestWriteToken(): Promise<string> {
+  return getToken(SCOPE_EVENTS)
 }
 
 /** Query the primary calendar's busy periods over [timeMin, timeMax]. */
@@ -114,4 +129,67 @@ export function busyIntervalsForDay(periods: BusyPeriod[], dateStr: string): Bus
     })
   }
   return out
+}
+
+export interface CalendarEventBody {
+  summary: string
+  description: string
+  start: { dateTime: string; timeZone: string }
+  end: { dateTime: string; timeZone: string }
+}
+
+/** A local, offset-free RFC3339 timestamp ("2026-05-29T17:30:00") from a date + fractional hour. */
+function localDateTime(dateStr: string, h: number): string {
+  let hr = Math.floor(h)
+  let min = Math.round((h - hr) * 60)
+  if (min === 60) { hr += 1; min = 0 }
+  return `${dateStr}T${String(hr).padStart(2, '0')}:${String(min).padStart(2, '0')}:00`
+}
+
+/** PURE. The human-readable event body explaining the pick and its flexibility. */
+export function buildEventDescription(
+  rec: SlotRecommendation,
+  activity: Activity,
+  opts: { peakUV?: number; peakHour?: number } = {},
+): string {
+  const lines: string[] = [
+    `Recommended for ${fmtClock(rec.start)} — ${rec.reason.charAt(0).toLowerCase()}${rec.reason.slice(1)}.`,
+  ]
+  if (rec.latestStart > rec.earliestStart) {
+    lines.push(`Flexible: start anytime ${fmtClock(rec.earliestStart)}–${fmtClock(rec.latestStart)} and stay in the safe window.`)
+  }
+  if (typeof opts.peakUV === 'number' && typeof opts.peakHour === 'number') {
+    lines.push(`Peak UV ${opts.peakUV.toFixed(1)} around ${fmtClock(opts.peakHour)}.`)
+  }
+  lines.push(activity.sunscreen ? 'Assumes SPF 30+.' : 'Planned for no sunscreen.')
+  lines.push('Planned by Solara ☀️')
+  return lines.join('\n')
+}
+
+/** PURE. Build the Calendar event resource for a recommended slot. */
+export function buildEventBody(
+  activity: Activity,
+  dateStr: string,
+  start: number,
+  end: number,
+  description: string,
+  timeZone: string = typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : 'UTC',
+): CalendarEventBody {
+  return {
+    summary: `${activity.icon} ${activity.name} — sun window`,
+    description,
+    start: { dateTime: localDateTime(dateStr, start), timeZone },
+    end: { dateTime: localDateTime(dateStr, end), timeZone },
+  }
+}
+
+/** Create an event on the user's primary calendar. Returns the created event (incl. htmlLink). */
+export async function createCalendarEvent(token: string, body: CalendarEventBody): Promise<{ htmlLink?: string }> {
+  const res = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) throw new Error(`event create failed: ${res.status}`)
+  return res.json()
 }

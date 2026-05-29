@@ -3,7 +3,8 @@ import { useState } from 'react'
 import { Activity, WeatherResponse, UserPreferences, DayWeather, TierLevel } from '@/lib/types'
 import { burnMins, vitDMins, uvLabel, getActivityWindow, fmtHour } from '@/lib/weather'
 import { getFutureDays } from '@/lib/tiers'
-import { isCalendarConfigured, requestAccessToken, fetchFreeBusy, busyIntervalsForDay, BusyPeriod } from '@/lib/gcal'
+import { isCalendarConfigured, requestAccessToken, requestWriteToken, fetchFreeBusy, createCalendarEvent, buildEventBody, buildEventDescription, busyIntervalsForDay, BusyPeriod } from '@/lib/gcal'
+import { SlotRecommendation } from '@/lib/scheduler'
 import UVTimeline from './UVTimeline'
 import ActivityCards from './ActivityCards'
 import PlanAhead from './PlanAhead'
@@ -108,6 +109,21 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
     } catch {
       setCalStatus('error')
     }
+  }
+
+  async function bookSlot(activity: Activity, rec: SlotRecommendation) {
+    setShareMsg('Adding to your calendar…')
+    try {
+      const token = await requestWriteToken()
+      const description = buildEventDescription(rec, activity, { peakUV, peakHour })
+      const body = buildEventBody(activity, activeDateStr, rec.start, rec.end, description)
+      const event = await createCalendarEvent(token, body)
+      setShareMsg('✓ Added to your Google Calendar.')
+      if (event.htmlLink) window.open(event.htmlLink, '_blank', 'noopener')
+    } catch {
+      setShareMsg('Could not add to calendar — try again.')
+    }
+    window.setTimeout(() => setShareMsg(null), 4000)
   }
 
   function hideSuggestion(id: string) {
@@ -346,6 +362,7 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
             location={prefs.location}
             dateLabel={dateLabel}
             busy={busyForActiveDay}
+            onBookRecommended={calStatus === 'connected' ? bookSlot : undefined}
             onEditActivity={openEditActivity}
           />
         ) : (

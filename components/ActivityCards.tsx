@@ -4,7 +4,7 @@ import { Activity, ActivityWindow, SafeActivityWindow, TierLevel, Location } fro
 import { fmtHour, fmtClock, gcalLink } from '@/lib/weather'
 import { canUseCalendar, effectiveMaxUV } from '@/lib/tiers'
 import { buildActivityShareText, buildActivityShareUrl, shareOrCopy } from '@/lib/share'
-import { recommendSlot, BusyInterval } from '@/lib/scheduler'
+import { recommendSlot, BusyInterval, SlotRecommendation } from '@/lib/scheduler'
 
 interface Props {
   windows: ActivityWindow[]
@@ -13,6 +13,8 @@ interface Props {
   location: Location
   dateLabel: string
   busy?: BusyInterval[]
+  /** When provided (calendar connected), books the recommended slot as a real event. */
+  onBookRecommended?: (activity: Activity, rec: SlotRecommendation) => void
   onEditActivity?: (activity: Activity) => void
 }
 
@@ -56,7 +58,7 @@ function WindowPill({ win, isBest, onShare, onCalendar }: { win: SafeActivityWin
   )
 }
 
-export default function ActivityCards({ windows, daysFromNow, tier, location, dateLabel, busy = [], onEditActivity }: Props) {
+export default function ActivityCards({ windows, daysFromNow, tier, location, dateLabel, busy = [], onBookRecommended, onEditActivity }: Props) {
   const [confirm, setConfirm] = useState<string | null>(null)
   const calendarAllowed = canUseCalendar(tier)
   // For today, don't recommend a start time that's already passed (fractional so
@@ -122,6 +124,17 @@ export default function ActivityCards({ windows, daysFromNow, tier, location, da
                   <p style={{ margin: '2px 0 0', fontSize: '11px', color: 'var(--text-3)', lineHeight: 1.4 }}>
                     {rec.reason}{rec.latestStart > rec.earliestStart ? `. Could start anytime ${fmtClock(rec.earliestStart)}–${fmtClock(rec.latestStart)}` : ''}.
                   </p>
+                  {calendarAllowed && (
+                    <button
+                      className="btn"
+                      onClick={() => onBookRecommended
+                        ? onBookRecommended(activity, rec)
+                        : openCalendar(activity.name, { from: rec.start, to: rec.end }, activity.durationMins)}
+                      style={{ marginTop: '8px', width: '100%', justifyContent: 'center', fontSize: '12px' }}
+                    >
+                      📅 {onBookRecommended ? 'Book this time' : 'Add to Calendar'}
+                    </button>
+                  )}
                 </div>
               )}
 
