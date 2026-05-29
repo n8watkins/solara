@@ -7,6 +7,7 @@ import { TIER_LABELS, TIER_LIMITS } from '@/lib/tiers'
 import { toggleTheme, getStoredTheme } from '@/lib/theme'
 import { auth, googleProvider, firebaseEnabled } from '@/lib/firebase'
 import ActivitySuggestionSettings from './ActivitySuggestionSettings'
+import PricingModal from './PricingModal'
 
 interface Props {
   prefs: UserPreferences
@@ -35,8 +36,9 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
   const [locLoading, setLocLoading] = useState(false)
   const [locError,   setLocError]   = useState<string | null>(null)
   const [dark,       setDark]       = useState(getStoredTheme() === 'dark')
-  const [upgradeEmail, setUpgradeEmail] = useState(user?.email ?? prefs.upgradeInterest?.email ?? '')
+  const [upgradeEmail] = useState(user?.email ?? prefs.upgradeInterest?.email ?? '')
   const [upgradeSaved, setUpgradeSaved] = useState(false)
+  const [showPricing, setShowPricing] = useState(false)
   const [showSkinHelp, setShowSkinHelp] = useState(false)
   const [hiddenActivitySuggestionIds, setHiddenActivitySuggestionIds] = useState<string[]>(prefs.hiddenActivitySuggestionIds ?? [])
   const [collapsedActivityCategories, setCollapsedActivityCategories] = useState<string[]>(prefs.collapsedActivityCategories ?? [])
@@ -87,15 +89,11 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
     }, () => { setLocError('Location denied.'); setLocLoading(false) })
   }
 
-  function saveUpgradeInterest() {
-    const updated: UserPreferences = {
+  function joinWaitlistWithEmail(email: string) {
+    onSave({
       ...draft,
-      upgradeInterest: {
-        email: upgradeEmail.trim() || undefined,
-        createdAt: new Date().toISOString(),
-      },
-    }
-    onSave(updated)
+      upgradeInterest: { email: email || undefined, createdAt: new Date().toISOString() },
+    })
     setUpgradeSaved(true)
   }
 
@@ -235,27 +233,11 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
                   </p>
                 </div>
                 {tier !== 'paid' && (
-                  <button className="btn btn-primary" onClick={saveUpgradeInterest} style={{ fontSize: '12px', whiteSpace: 'nowrap' }}>
-                    {upgradeSaved || prefs.upgradeInterest ? '✓ On waitlist' : 'Join Pro waitlist'}
+                  <button className="btn btn-primary" onClick={() => setShowPricing(true)} style={{ fontSize: '12px', whiteSpace: 'nowrap' }}>
+                    {upgradeSaved || prefs.upgradeInterest ? '✓ On waitlist' : 'See Pro plans'}
                   </button>
                 )}
               </div>
-
-              {tier !== 'paid' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: 'var(--bg-metric)', borderRadius: '10px', padding: '12px 14px' }}>
-                  <p style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: 'var(--text)' }}>Pro is coming soon</p>
-                  <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-3)', lineHeight: 1.45 }}>
-                    Pro will focus on unlimited activities, smarter weekly planning, and daily sun-window notifications.
-                  </p>
-                  <input
-                    placeholder="Email for early access"
-                    value={upgradeEmail}
-                    onChange={e => setUpgradeEmail(e.target.value)}
-                    style={{ fontSize: '13px' }}
-                  />
-                  {upgradeSaved && <p style={{ margin: 0, fontSize: '12px', color: 'var(--accent)' }}>You’re on the list. Tiny growth loop, big dreams.</p>}
-                </div>
-              )}
 
               <div style={{ background: 'var(--bg-metric)', borderRadius: '10px', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <p style={{ margin: 0, fontSize: '12px', fontWeight: 650, color: 'var(--text-2)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Plan limits</p>
@@ -317,6 +299,16 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
           </button>
         </div>
       </div>
+
+      {showPricing && (
+        <PricingModal
+          uid={user?.uid}
+          email={upgradeEmail}
+          alreadyWaitlisted={upgradeSaved || !!prefs.upgradeInterest}
+          onJoinWaitlist={joinWaitlistWithEmail}
+          onClose={() => setShowPricing(false)}
+        />
+      )}
     </div>
   )
 }
