@@ -71,7 +71,10 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
 
   const dateLabel = effectiveSelectedDay?.label ?? 'Today'
   const activeDateStr = effectiveSelectedDay?.dateStr ?? weather.forecast[0]?.dateStr ?? ''
-  const busyForActiveDay = calBusy ? busyIntervalsForDay(calBusy, activeDateStr) : []
+  const busyByDate: Record<string, ReturnType<typeof busyIntervalsForDay>> = {}
+  if (calBusy) for (const day of visibleForecast) busyByDate[day.dateStr] = busyIntervalsForDay(calBusy, day.dateStr)
+  const busyForActiveDay = busyByDate[activeDateStr] ?? []
+  const nowFractional = new Date().getHours() + new Date().getMinutes() / 60
   const lockedForecastCount = Math.max(0, weather.forecast.length - visibleForecast.length)
   const upgradeCopy = accessTier === 'anonymous'
     ? 'Sign in to see tomorrow'
@@ -111,12 +114,14 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
     }
   }
 
-  async function bookSlot(activity: Activity, rec: SlotRecommendation) {
+  async function bookSlotOn(activity: Activity, rec: SlotRecommendation, dateStr: string) {
     setShareMsg('Adding to your calendar…')
     try {
       const token = await requestWriteToken()
-      const description = buildEventDescription(rec, activity, { peakUV, peakHour })
-      const body = buildEventBody(activity, activeDateStr, rec.start, rec.end, description)
+      // For a future day the "peak" context belongs to that day, not today's reading.
+      const peak = dateStr === activeDateStr ? { peakUV, peakHour } : { peakUV: rec.peakUV }
+      const description = buildEventDescription(rec, activity, peak)
+      const body = buildEventBody(activity, dateStr, rec.start, rec.end, description)
       const event = await createCalendarEvent(token, body)
       setShareMsg('✓ Added to your Google Calendar.')
       if (event.htmlLink) window.open(event.htmlLink, '_blank', 'noopener')
@@ -301,9 +306,12 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
           activities={prefs.activities}
           skinType={prefs.skinType}
           dayLimit={accessibleDays}
+          busyByDate={busyByDate}
+          nowHourToday={nowFractional}
           lockedDays={lockedForecastCount}
           upgradeCopy={upgradeCopy}
           onUpgrade={() => { setShareMsg(upgradeCopy); window.setTimeout(() => setShareMsg(null), 3500) }}
+          onBook={calStatus === 'connected' ? bookSlotOn : undefined}
         />
       )}
 
@@ -362,7 +370,7 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
             location={prefs.location}
             dateLabel={dateLabel}
             busy={busyForActiveDay}
-            onBookRecommended={calStatus === 'connected' ? bookSlot : undefined}
+            onBookRecommended={calStatus === 'connected' ? (a, r) => bookSlotOn(a, r, activeDateStr) : undefined}
             onEditActivity={openEditActivity}
           />
         ) : (

@@ -20,6 +20,7 @@ export interface SlotRecommendation {
   latestStart: number
   windowLabel: SafeActivityWindow['label']
   peakUV: number
+  avgUV: number
   reason: string
 }
 
@@ -116,6 +117,7 @@ export function recommendSlot(
     latestStart: chosen.to - durHours,
     windowLabel: chosen.label,
     peakUV: chosen.peakUV,
+    avgUV: chosen.avgUV,
     reason,
   }
 }

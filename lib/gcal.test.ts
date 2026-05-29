@@ -54,7 +54,7 @@ describe('busyIntervalsForDay', () => {
 const run: Activity = { id: 'run', name: 'Running', icon: '🏃', durationMins: 60, maxUV: 4, sunscreen: false }
 const rec: SlotRecommendation = {
   start: 17, end: 18, earliestStart: 17, latestStart: 20,
-  windowLabel: 'Afternoon', peakUV: 5, reason: 'Earliest free spot in your afternoon window',
+  windowLabel: 'Afternoon', peakUV: 5, avgUV: 4, reason: 'Earliest free spot in your afternoon window',
 }
 
 describe('buildEventDescription', () => {

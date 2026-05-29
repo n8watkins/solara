@@ -1,5 +1,6 @@
 import { DayWeather, Activity, SkinType, SafeActivityWindow } from './types'
 import { getActivityWindow } from './weather'
+import { recommendSlot, SlotRecommendation, BusyInterval } from './scheduler'
 
 export interface UpcomingWindow {
   activity: Activity
@@ -60,4 +61,66 @@ export function planUpcoming(
   return activities
     .map(a => bestUpcomingWindow(forecast, a, skinType, dayLimit))
     .filter((w): w is UpcomingWindow => w !== null)
+}
+
+export interface UpcomingSlot {
+  activity: Activity
+  dateStr: string
+  label: string
+  dayOffset: number
+  slot: SlotRecommendation
+}
+
+/**
+ * Best upcoming day AND concrete time for an activity: runs recommendSlot per day
+ * across the horizon (respecting each day's calendar busy + the activity's
+ * timePreference), then picks the best day.
+ *
+ * Day selection mirrors timePreference: 'sunniest' picks the day with the
+ * highest-avg-UV recommended slot; 'earliest'/'latest' pick the soonest feasible
+ * day (you want to do it soon). Ties break toward the earlier day.
+ */
+export function bestUpcomingSlot(
+  forecast: DayWeather[],
+  activity: Activity,
+  skinType: SkinType,
+  dayLimit: number,
+  busyByDate: Record<string, BusyInterval[]> = {},
+  nowHourToday = -1,
+): UpcomingSlot | null {
+  const pref = activity.timePreference ?? 'earliest'
+  const days = forecast.slice(0, Math.max(0, dayLimit))
+  let best: UpcomingSlot | null = null
+
+  for (let i = 0; i < days.length; i++) {
+    const day = days[i]
+    if (!day.hourly.length) continue
+    const { allWindows } = getActivityWindow(day.hourly, activity, -1, skinType)
+    const busy = busyByDate[day.dateStr] ?? []
+    const slot = recommendSlot(allWindows, busy, activity.durationMins, pref, i === 0 ? nowHourToday : -1)
+    if (!slot) continue
+
+    const candidate: UpcomingSlot = { activity, dateStr: day.dateStr, label: day.label, dayOffset: i, slot }
+    if (!best) {
+      best = candidate
+    } else if (pref === 'sunniest') {
+      if (slot.avgUV > best.slot.avgUV) best = candidate // strictly sunnier; ties keep earlier day
+    }
+    // earliest/latest: keep the first feasible (soonest) day
+  }
+  return best
+}
+
+/** Best upcoming day+slot per activity, omitting activities with no feasible slot in range. */
+export function planUpcomingSlots(
+  forecast: DayWeather[],
+  activities: Activity[],
+  skinType: SkinType,
+  dayLimit: number,
+  busyByDate: Record<string, BusyInterval[]> = {},
+  nowHourToday = -1,
+): UpcomingSlot[] {
+  return activities
+    .map(a => bestUpcomingSlot(forecast, a, skinType, dayLimit, busyByDate, nowHourToday))
+    .filter((s): s is UpcomingSlot => s !== null)
 }

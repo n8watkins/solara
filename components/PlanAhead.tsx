@@ -1,16 +1,21 @@
 'use client'
 import { DayWeather, Activity, SkinType } from '@/lib/types'
-import { planUpcoming } from '@/lib/planner'
-import { fmtHour } from '@/lib/weather'
+import { planUpcomingSlots, UpcomingSlot } from '@/lib/planner'
+import { BusyInterval, SlotRecommendation } from '@/lib/scheduler'
+import { fmtClock } from '@/lib/weather'
 
 interface Props {
   forecast: DayWeather[]
   activities: Activity[]
   skinType: SkinType
   dayLimit: number
+  busyByDate?: Record<string, BusyInterval[]>
+  nowHourToday?: number
   lockedDays: number
   upgradeCopy: string | null
   onUpgrade?: () => void
+  /** When provided (calendar connected), books the slot on its specific day. */
+  onBook?: (activity: Activity, rec: SlotRecommendation, dateStr: string) => void
 }
 
 function uvTone(uv: number): string {
@@ -21,29 +26,31 @@ function uvTone(uv: number): string {
 }
 
 /**
- * "Best day this week for X" — for each activity, the single best upcoming safe
- * window across the accessible forecast horizon. Hidden when there are no
- * activities or only today is visible (it would just echo the activity cards).
+ * "Best day AND time this week" — for each activity, the best upcoming day and a
+ * concrete recommended slot across the forecast horizon, scheduled around the
+ * calendar when connected. Hidden when there are no activities or only today is
+ * visible (it would just echo the activity cards).
  */
-export default function PlanAhead({ forecast, activities, skinType, dayLimit, lockedDays, upgradeCopy, onUpgrade }: Props) {
+export default function PlanAhead({
+  forecast, activities, skinType, dayLimit, busyByDate = {}, nowHourToday = -1,
+  lockedDays, upgradeCopy, onUpgrade, onBook,
+}: Props) {
   if (!activities.length || dayLimit <= 1) return null
 
-  const plan = planUpcoming(forecast, activities, skinType, dayLimit)
+  const plan = planUpcomingSlots(forecast, activities, skinType, dayLimit, busyByDate, nowHourToday)
   if (!plan.length) return null
 
   return (
     <div className="card">
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '12px', flexWrap: 'wrap' }}>
-        <div>
-          <p style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: 'var(--text)' }}>Plan ahead</p>
-          <p style={{ margin: '3px 0 0', fontSize: '13px', color: 'var(--text-3)' }}>
-            Your best upcoming window for each activity.
-          </p>
-        </div>
+      <div style={{ marginBottom: '12px' }}>
+        <p style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: 'var(--text)' }}>Plan ahead</p>
+        <p style={{ margin: '3px 0 0', fontSize: '13px', color: 'var(--text-3)' }}>
+          Your best upcoming day and time for each activity.
+        </p>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        {plan.map(({ activity, label, window: win }) => (
+        {plan.map(({ activity, label, dateStr, slot }: UpcomingSlot) => (
           <div
             key={activity.id}
             style={{
@@ -58,17 +65,26 @@ export default function PlanAhead({ forecast, activities, skinType, dayLimit, lo
                 {activity.name}
               </p>
               <p style={{ margin: '2px 0 0', fontSize: '12px', color: 'var(--text-3)' }}>
-                {label} · {fmtHour(win.from)}–{fmtHour(win.to)}
+                {label} · {fmtClock(slot.start)}–{fmtClock(slot.end)}
               </p>
             </div>
             <div style={{ textAlign: 'right', flexShrink: 0 }}>
-              <p style={{ margin: 0, fontSize: '15px', fontWeight: 750, color: uvTone(win.avgUV) }}>
-                {win.label}
+              <p style={{ margin: 0, fontSize: '14px', fontWeight: 750, color: uvTone(slot.avgUV) }}>
+                {slot.windowLabel}
               </p>
               <p style={{ margin: '2px 0 0', fontSize: '11px', color: 'var(--text-3)' }}>
-                avg UV {win.avgUV.toFixed(1)}
+                avg UV {slot.avgUV.toFixed(1)}
               </p>
             </div>
+            {onBook && (
+              <button
+                className="btn"
+                onClick={() => onBook(activity, slot, dateStr)}
+                style={{ flexShrink: 0, fontSize: '11px', padding: '6px 10px' }}
+              >
+                📅 Book
+              </button>
+            )}
           </div>
         ))}
       </div>
@@ -79,7 +95,7 @@ export default function PlanAhead({ forecast, activities, skinType, dayLimit, lo
           className="btn"
           style={{ marginTop: '12px', width: '100%', justifyContent: 'center', fontSize: '12px', color: 'var(--accent)', borderColor: 'rgba(249,115,22,0.4)' }}
         >
-          🔒 {upgradeCopy} — see {lockedDays} more day{lockedDays === 1 ? '' : 's'} of windows
+          🔒 {upgradeCopy} — see {lockedDays} more day{lockedDays === 1 ? '' : 's'} of plans
         </button>
       )}
     </div>

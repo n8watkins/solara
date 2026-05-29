@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { bestUpcomingWindow, planUpcoming } from '@/lib/planner'
+import { bestUpcomingWindow, planUpcoming, bestUpcomingSlot, planUpcomingSlots } from '@/lib/planner'
 import { DayWeather, Activity, HourlyForecast } from '@/lib/types'
 
 function day(dateStr: string, label: string, uvByHour: (h: number) => number): DayWeather {
@@ -64,5 +64,66 @@ describe('planUpcoming', () => {
     const plan = planUpcoming(forecast, [run, swim], 'fair', 10)
     expect(plan).toHaveLength(1)
     expect(plan[0].activity.id).toBe('run')
+  })
+})
+
+describe('bestUpcomingSlot', () => {
+  it('earliest: returns the soonest feasible day with a concrete slot', () => {
+    const forecast = [
+      day('2026-05-29', 'Today',    h => (h <= 9 ? 2 : 9)),
+      day('2026-05-30', 'Tomorrow', h => (h <= 9 ? 1 : 9)),
+    ]
+    const s = bestUpcomingSlot(forecast, run, 'fair', 10)!
+    expect(s.dateStr).toBe('2026-05-29')
+    expect(s.dayOffset).toBe(0)
+    expect(s.slot.start).toBe(6)
+  })
+
+  it('sunniest: returns the day with the sunniest recommended slot', () => {
+    const sunny: Activity = { ...run, timePreference: 'sunniest' }
+    const forecast = [
+      day('2026-05-29', 'Today',    () => 2),
+      day('2026-05-30', 'Tomorrow', () => 4),
+    ]
+    const s = bestUpcomingSlot(forecast, sunny, 'fair', 10)!
+    expect(s.dateStr).toBe('2026-05-30')
+    expect(s.slot.avgUV).toBe(4)
+  })
+
+  it('skips a day that is fully booked', () => {
+    const forecast = [
+      day('2026-05-29', 'Today',    h => (h <= 9 ? 1 : 9)),
+      day('2026-05-30', 'Tomorrow', h => (h <= 9 ? 1 : 9)),
+    ]
+    const busyByDate = { '2026-05-29': [{ start: 0, end: 24 }] }
+    const s = bestUpcomingSlot(forecast, run, 'fair', 10, busyByDate)!
+    expect(s.dateStr).toBe('2026-05-30')
+  })
+
+  it('applies nowHourToday only to the first day', () => {
+    const forecast = [
+      day('2026-05-29', 'Today',    h => (h <= 9 ? 1 : 9)), // morning window 6-10
+      day('2026-05-30', 'Tomorrow', h => (h <= 9 ? 1 : 9)),
+    ]
+    // it's already 11am — today's only window has passed → fall through to tomorrow
+    const s = bestUpcomingSlot(forecast, run, 'fair', 10, {}, 11)!
+    expect(s.dateStr).toBe('2026-05-30')
+    expect(s.slot.start).toBe(6) // tomorrow is unaffected by today's clock
+  })
+
+  it('returns null when no day has a feasible slot', () => {
+    const forecast = [day('2026-05-29', 'Today', () => 9)]
+    expect(bestUpcomingSlot(forecast, run, 'fair', 10)).toBeNull()
+  })
+})
+
+describe('planUpcomingSlots', () => {
+  it('returns one slot per feasible activity, omitting the rest', () => {
+    const forecast = [day('2026-05-29', 'Today', h => (h <= 12 ? 2 : 9))]
+    const swim: Activity = { id: 'swim', name: 'Swimming', icon: '🏊', durationMins: 60, maxUV: 1, sunscreen: false }
+    const plan = planUpcomingSlots(forecast, [run, swim], 'fair', 10)
+    expect(plan).toHaveLength(1)
+    expect(plan[0].activity.id).toBe('run')
+    expect(plan[0].slot.start).toBe(6)
   })
 })
