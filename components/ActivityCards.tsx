@@ -1,9 +1,10 @@
 'use client'
 import { useState } from 'react'
 import { Activity, ActivityWindow, SafeActivityWindow, TierLevel, Location } from '@/lib/types'
-import { fmtHour, gcalLink } from '@/lib/weather'
+import { fmtHour, fmtClock, gcalLink } from '@/lib/weather'
 import { canUseCalendar, effectiveMaxUV } from '@/lib/tiers'
 import { buildActivityShareText, buildActivityShareUrl, shareOrCopy } from '@/lib/share'
+import { recommendSlot } from '@/lib/scheduler'
 
 interface Props {
   windows: ActivityWindow[]
@@ -57,6 +58,8 @@ function WindowPill({ win, isBest, onShare, onCalendar }: { win: SafeActivityWin
 export default function ActivityCards({ windows, daysFromNow, tier, location, dateLabel, onEditActivity }: Props) {
   const [confirm, setConfirm] = useState<string | null>(null)
   const calendarAllowed = canUseCalendar(tier)
+  // For today, don't recommend a start time that's already passed.
+  const nowHour = daysFromNow === 0 ? new Date().getHours() : -1
 
   function openCalendar(activityName: string, selectedWindow: { from: number; to: number }, durationMins: number) {
     const opened = window.open(gcalLink(activityName, selectedWindow, durationMins, daysFromNow), '_blank')
@@ -91,6 +94,7 @@ export default function ActivityCards({ windows, daysFromNow, tier, location, da
             ? `${fmtHour(bestWindow.from)}–${fmtHour(bestWindow.to)}`
             : 'None today'
           const safeUv = effectiveMaxUV(activity)
+          const rec = recommendSlot(allWindows, [], activity.durationMins, activity.timePreference ?? 'earliest', nowHour)
 
           return (
             <div key={activity.id} className="card" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -102,6 +106,21 @@ export default function ActivityCards({ windows, daysFromNow, tier, location, da
                   {status === 'safe' ? 'Safe now' : status === 'caution' ? 'Later' : 'Avoid'}
                 </span>
               </div>
+
+              {rec && (
+                <div style={{ borderRadius: '9px', background: 'rgba(249,115,22,0.07)', border: '0.5px solid rgba(249,115,22,0.25)', padding: '8px 10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '8px' }}>
+                    <span style={{ fontSize: '10px', fontWeight: 750, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Recommended</span>
+                    <span style={{ fontSize: '10px', color: 'var(--text-3)' }}>{rec.windowLabel}</span>
+                  </div>
+                  <p style={{ margin: '3px 0 0', fontSize: '15px', fontWeight: 750, color: 'var(--text)' }}>
+                    {fmtClock(rec.start)}–{fmtClock(rec.end)}
+                  </p>
+                  <p style={{ margin: '2px 0 0', fontSize: '11px', color: 'var(--text-3)', lineHeight: 1.4 }}>
+                    {rec.reason}. Flexible {fmtHour(rec.flexFrom)}–{fmtHour(rec.flexTo)}.
+                  </p>
+                </div>
+              )}
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                 <Row label={activity.sunscreen ? 'Safe UV w/ SPF' : 'Max safe UV'} val={String(safeUv)} />

@@ -10,6 +10,9 @@ export interface PreferredHours {
   to: number
 }
 
+// How to choose a start time among the feasible safe+free slots.
+export type TimePreference = 'earliest' | 'latest' | 'sunniest'
+
 export interface Activity {
   id: string
   name: string
@@ -19,6 +22,7 @@ export interface Activity {
   sunscreen: boolean   // whether this recommendation assumes SPF protection
   custom?: boolean
   preferredHours?: PreferredHours
+  timePreference?: TimePreference  // default 'earliest'
 }
 
 export interface CalendarHours {

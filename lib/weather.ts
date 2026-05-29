@@ -54,6 +54,17 @@ export function fmtHour(h: number): string {
   return h < 12 ? `${h}am` : `${h - 12}pm`
 }
 
+// Like fmtHour but supports fractional hours: 6.75 → "6:45am", 17 → "5pm".
+export function fmtClock(h: number): string {
+  let hr = Math.floor(h)
+  let min = Math.round((h - hr) * 60)
+  if (min === 60) { hr += 1; min = 0 }
+  const base = fmtHour(hr)
+  if (min === 0) return base
+  const m = base.match(/^(\d+)(am|pm)$/)
+  return m ? `${m[1]}:${String(min).padStart(2, '0')}${m[2]}` : base
+}
+
 export function gcalLink(
   activityName: string,
   window: { from: number; to: number },

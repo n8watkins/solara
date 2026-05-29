@@ -59,6 +59,7 @@ function normalizeActivity(raw: unknown, index: number, globalSunscreen: boolean
     sunscreen: typeof a.sunscreen === 'boolean' ? a.sunscreen : globalSunscreen,
     custom: a.custom === true || a.id?.startsWith('custom_') || undefined,
     preferredHours: normalizePreferredHours(a.preferredHours),
+    timePreference: a.timePreference === 'latest' || a.timePreference === 'sunniest' ? a.timePreference : undefined,
   }
 }
 

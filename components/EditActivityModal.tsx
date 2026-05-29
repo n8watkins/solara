@@ -1,6 +1,6 @@
 'use client'
 import { useState } from 'react'
-import { Activity } from '@/lib/types'
+import { Activity, TimePreference } from '@/lib/types'
 import { effectiveMaxUV } from '@/lib/tiers'
 import { fmtHour } from '@/lib/weather'
 import ActivityModalShell from './ActivityModalShell'
@@ -26,6 +26,7 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
   const [preferredEnabled, setPreferredEnabled] = useState(!!activity.preferredHours)
   const [preferredFrom, setPreferredFrom] = useState(activity.preferredHours?.from ?? 6)
   const [preferredTo, setPreferredTo] = useState(activity.preferredHours?.to ?? 20)
+  const [timePreference, setTimePreference] = useState<TimePreference>(activity.timePreference ?? 'earliest')
   const [showEmoji, setShowEmoji] = useState(false)
 
   const normalizedFrom = Math.max(0, Math.min(23, Math.round(preferredFrom)))
@@ -38,10 +39,11 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
     sunscreen,
     maxUV: clampUV(maxUV || 0),
     preferredHours: preferredEnabled ? { from: normalizedFrom, to: normalizedTo } : undefined,
+    timePreference: timePreference === 'earliest' ? undefined : timePreference,
   }
 
-  const dirty = JSON.stringify({ name: activity.name, icon: activity.icon, durationMins: activity.durationMins, sunscreen: activity.sunscreen, maxUV: activity.maxUV, preferredHours: activity.preferredHours }) !==
-    JSON.stringify({ name: draft.name, icon: draft.icon, durationMins: draft.durationMins, sunscreen: draft.sunscreen, maxUV: draft.maxUV, preferredHours: draft.preferredHours })
+  const dirty = JSON.stringify({ name: activity.name, icon: activity.icon, durationMins: activity.durationMins, sunscreen: activity.sunscreen, maxUV: activity.maxUV, preferredHours: activity.preferredHours, timePreference: activity.timePreference }) !==
+    JSON.stringify({ name: draft.name, icon: draft.icon, durationMins: draft.durationMins, sunscreen: draft.sunscreen, maxUV: draft.maxUV, preferredHours: draft.preferredHours, timePreference: draft.timePreference })
 
   function requestClose() {
     if (dirty && !window.confirm('Discard unsaved activity changes?')) return
@@ -151,6 +153,36 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
               </label>
             </div>
           )}
+        </div>
+
+        <div className="metric-card" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div>
+            <p style={{ margin: '0 0 4px', fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>Preferred time</p>
+            <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-3)', lineHeight: 1.45 }}>
+              When several safe times work, which should Solara recommend?
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            {([
+              { val: 'earliest', label: 'Earliest', hint: 'Soonest free slot' },
+              { val: 'latest',   label: 'Latest',   hint: 'Latest safe slot' },
+              { val: 'sunniest', label: 'Sunniest', hint: 'Most sun, still safe' },
+            ] as const).map(o => (
+              <button
+                key={o.val}
+                onClick={() => setTimePreference(o.val)}
+                title={o.hint}
+                style={{
+                  flex: 1, padding: '9px 8px', borderRadius: '10px', cursor: 'pointer',
+                  border: timePreference === o.val ? '1.5px solid var(--accent)' : '0.5px solid var(--border-md)',
+                  background: timePreference === o.val ? 'rgba(249,115,22,0.08)' : 'var(--bg-card)',
+                  color: 'var(--text)', fontSize: '13px', fontWeight: 650,
+                }}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="metric-card" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
