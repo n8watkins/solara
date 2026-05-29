@@ -5,6 +5,7 @@ import { burnMins, vitDMins, uvLabel, getActivityWindow, fmtHour } from '@/lib/w
 import { getFutureDays } from '@/lib/tiers'
 import UVTimeline from './UVTimeline'
 import ActivityCards from './ActivityCards'
+import PlanAhead from './PlanAhead'
 import AddActivityModal from './AddActivityModal'
 import ManageActivitiesModal from './ManageActivitiesModal'
 import EditActivityModal from './EditActivityModal'
@@ -239,6 +240,10 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
         </div>
       </div>
 
+      <p style={{ margin: '-6px 2px 0', fontSize: '11px', color: 'var(--text-3)', lineHeight: 1.5 }}>
+        Burn and vitamin D times are estimates, not medical advice. Actual exposure varies with cloud cover, altitude, shade, and reflected light.
+      </p>
+
       <div className="card">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', gap: '8px', flexWrap: 'wrap' }}>
           <p style={{ margin: 0, fontSize: '16px', fontWeight: 650, color: 'var(--text)' }}>
@@ -254,6 +259,18 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
         <SunArc hourly={hourly} currentHour={currentHour} isToday={isToday} />
         <UVTimeline hourly={hourly} currentHour={isToday ? currentHour : -1} skinType={prefs.skinType} />
       </div>
+
+      {prefs.activities.length > 0 && (
+        <PlanAhead
+          forecast={weather.forecast}
+          activities={prefs.activities}
+          skinType={prefs.skinType}
+          dayLimit={accessibleDays}
+          lockedDays={lockedForecastCount}
+          upgradeCopy={upgradeCopy}
+          onUpgrade={() => { setShareMsg(upgradeCopy); window.setTimeout(() => setShareMsg(null), 3500) }}
+        />
+      )}
 
       <section>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginBottom: '12px', flexWrap: 'wrap' }}>
