@@ -10,9 +10,14 @@ export interface SlotRecommendation {
   /** Recommended start/end of the activity itself (fractional hours). */
   start: number
   end: number
-  /** The full free+safe interval this slot sits in — the flexibility range to surface. */
-  flexFrom: number
-  flexTo: number
+  /**
+   * The range of *start* times that still fit the activity inside the free+safe
+   * interval: [earliestStart, latestStart]. latestStart = intervalEnd - duration,
+   * so starting at latestStart still ends within the safe window. When the two
+   * are equal there is no wiggle room. `start` always lies within this range.
+   */
+  earliestStart: number
+  latestStart: number
   windowLabel: SafeActivityWindow['label']
   peakUV: number
   reason: string
@@ -68,6 +73,7 @@ export function recommendSlot(
   timePreference: TimePreference = 'earliest',
   nowHour = -1,
 ): SlotRecommendation | null {
+  if (durationMins <= 0) return null
   const durHours = durationMins / 60
   const feasible: FreeSlot[] = []
 
@@ -106,8 +112,8 @@ export function recommendSlot(
   return {
     start,
     end: start + durHours,
-    flexFrom: chosen.from,
-    flexTo: chosen.to,
+    earliestStart: chosen.from,
+    latestStart: chosen.to - durHours,
     windowLabel: chosen.label,
     peakUV: chosen.peakUV,
     reason,

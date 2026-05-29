@@ -11,14 +11,16 @@ describe('recommendSlot — time preference', () => {
     const r = recommendSlot([morning, evening], [], 60)!
     expect(r.start).toBe(6)
     expect(r.end).toBe(7)
-    expect([r.flexFrom, r.flexTo]).toEqual([6, 10])
+    // start range: 6am up to 9am (a 1h run starting at 9 ends at 10, the window end)
+    expect([r.earliestStart, r.latestStart]).toEqual([6, 9])
   })
 
   it('latest: starts so the activity ends at the latest safe time', () => {
     const r = recommendSlot([morning, evening], [], 60, 'latest')!
     expect(r.start).toBe(20)
     expect(r.end).toBe(21)
-    expect([r.flexFrom, r.flexTo]).toEqual([17, 21])
+    expect([r.earliestStart, r.latestStart]).toEqual([17, 20])
+    expect(r.start).toBe(r.latestStart) // latest puts you at the end of the start range
   })
 
   it('sunniest: picks the window with the highest average UV', () => {
@@ -54,17 +56,18 @@ describe('recommendSlot — calendar busy', () => {
     const wide: SafeActivityWindow = { from: 6, to: 12, label: 'Morning', peakUV: 2, avgUV: 2 }
     const busy: BusyInterval[] = [{ start: 9, end: 11 }, { start: 8, end: 10 }]
     const r = recommendSlot([wide], busy, 60, 'earliest')!
-    // free = [6,8] and [11,12]; earliest 60-min slot starts at 6
+    // free = [6,8] and [11,12]; earliest 60-min slot starts at 6, latest start 7
     expect(r.start).toBe(6)
-    expect([r.flexFrom, r.flexTo]).toEqual([6, 8])
+    expect([r.earliestStart, r.latestStart]).toEqual([6, 7])
   })
 
   it('reproduces the "5pm, flexible 5–9" scenario', () => {
     const afternoon: SafeActivityWindow = { from: 13, to: 21, label: 'Afternoon', peakUV: 5, avgUV: 4 }
     const busy: BusyInterval[] = [{ start: 13, end: 17 }] // busy until 5pm
     const r = recommendSlot([afternoon], busy, 60, 'earliest')!
-    expect(r.start).toBe(17)
-    expect([r.flexFrom, r.flexTo]).toEqual([17, 21])
+    expect(r.start).toBe(17)            // 5pm — earliest free time
+    expect(r.earliestStart).toBe(17)    // could start anytime 5pm…
+    expect(r.latestStart).toBe(20)      // …up to 8pm (1h run ends by the 9pm window edge)
     expect(r.reason).toContain('afternoon')
   })
 })
@@ -84,6 +87,11 @@ describe('recommendSlot — today vs future', () => {
     const tiny: SafeActivityWindow = { from: 6, to: 7, label: 'Morning', peakUV: 1, avgUV: 1 }
     expect(recommendSlot([tiny], [], 90, 'earliest')).toBeNull()
     expect(recommendSlot([], [], 30)).toBeNull()
+  })
+
+  it('returns null for a non-positive duration', () => {
+    expect(recommendSlot([morning], [], 0)).toBeNull()
+    expect(recommendSlot([morning], [], -30)).toBeNull()
   })
 })
 

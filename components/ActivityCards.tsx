@@ -58,8 +58,10 @@ function WindowPill({ win, isBest, onShare, onCalendar }: { win: SafeActivityWin
 export default function ActivityCards({ windows, daysFromNow, tier, location, dateLabel, onEditActivity }: Props) {
   const [confirm, setConfirm] = useState<string | null>(null)
   const calendarAllowed = canUseCalendar(tier)
-  // For today, don't recommend a start time that's already passed.
-  const nowHour = daysFromNow === 0 ? new Date().getHours() : -1
+  // For today, don't recommend a start time that's already passed (fractional so
+  // 9:45 doesn't surface a 9:00 start).
+  const now = new Date()
+  const nowHour = daysFromNow === 0 ? now.getHours() + now.getMinutes() / 60 : -1
 
   function openCalendar(activityName: string, selectedWindow: { from: number; to: number }, durationMins: number) {
     const opened = window.open(gcalLink(activityName, selectedWindow, durationMins, daysFromNow), '_blank')
@@ -117,7 +119,7 @@ export default function ActivityCards({ windows, daysFromNow, tier, location, da
                     {fmtClock(rec.start)}–{fmtClock(rec.end)}
                   </p>
                   <p style={{ margin: '2px 0 0', fontSize: '11px', color: 'var(--text-3)', lineHeight: 1.4 }}>
-                    {rec.reason}. Flexible {fmtHour(rec.flexFrom)}–{fmtHour(rec.flexTo)}.
+                    {rec.reason}{rec.latestStart > rec.earliestStart ? `. Could start anytime ${fmtClock(rec.earliestStart)}–${fmtClock(rec.latestStart)}` : ''}.
                   </p>
                 </div>
               )}
