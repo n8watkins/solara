@@ -70,11 +70,12 @@ export default function ActivityCards({ windows, daysFromNow, tier, location, da
     const url = buildActivityShareUrl(payload, typeof window !== 'undefined' ? window.location.origin : undefined)
     try {
       const result = await shareOrCopy(`${activity.name} sun window`, text, url)
-      setConfirm(result === 'shared' ? 'Shared activity window.' : result === 'copied' ? 'Copied share text and link.' : `${text} ${url}`)
+      const msg = result === 'shared' ? 'Shared activity window.' : result === 'copied' ? 'Copied share text and link.' : 'Sharing not supported — copy the link manually.'
+      setConfirm(msg)
+      setTimeout(() => setConfirm(null), 4500)
     } catch {
-      setConfirm(null)
+      // AbortError: user dismissed the share sheet — no feedback needed
     }
-    window.setTimeout(() => setConfirm(null), 4500)
   }
 
   return (

@@ -1,13 +1,9 @@
 'use client'
+import { Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
+import { fmtHour } from '@/lib/weather'
 
-function fmtHour(h: number): string {
-  if (h === 0 || h === 24) return '12am'
-  if (h === 12) return '12pm'
-  return h < 12 ? `${h}am` : `${h - 12}pm`
-}
-
-export default function SharePage() {
+function ShareContent() {
   const params = useSearchParams()
   const activity = params.get('a') || 'Outdoor activity'
   const icon = params.get('icon') || '☀️'
@@ -48,5 +44,13 @@ export default function SharePage() {
         </a>
       </div>
     </main>
+  )
+}
+
+export default function SharePage() {
+  return (
+    <Suspense fallback={<main style={{ minHeight: '100vh', background: 'var(--bg)' }} />}>
+      <ShareContent />
+    </Suspense>
   )
 }

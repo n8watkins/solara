@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
 import { Activity, UserPreferences, WeatherResponse } from '@/lib/types'
-import { canUseCalendar, getFutureDays } from '@/lib/tiers'
+import { canUseCalendar, getFutureDays, TIER_LIMITS } from '@/lib/tiers'
 import { DayForecast, SafeWindow, getSafeWindowsForActivity, gcalWindowLink, fmtH } from '@/lib/calendar'
 import { buildActivityShareText, buildActivityShareUrl, shareOrCopy } from '@/lib/share'
 import EditActivityModal from './EditActivityModal'
@@ -203,7 +203,7 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
         </span>
       </div>
 
-      {lockedCopy && weather && weather.forecast.length > days.length && (
+      {lockedCopy && days.length > 0 && days.length < TIER_LIMITS.paid.futureDays && (
         <div style={{ padding: '10px 14px', background: 'rgba(249,115,22,0.08)', color: 'var(--text-2)', fontSize: '13px', borderBottom: `1px solid ${grid.line}` }}>
           🔒 {lockedCopy}
         </div>
