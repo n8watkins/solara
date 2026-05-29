@@ -2,7 +2,10 @@ import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import ThemeInit from '@/components/ThemeInit'
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://solara.web.app'
+
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: 'Solara — Know when to go outside',
   description: 'Personalized UV and sun exposure dashboard. Know exactly when it is safer to go outside for your activity, skin type, and location.',
   applicationName: 'Solara',

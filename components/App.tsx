@@ -14,6 +14,7 @@ import Skeleton from './Skeleton'
 import NotificationBanner from './NotificationBanner'
 import CalendarView from './CalendarView'
 import DevPanel from './DevPanel'
+import ErrorBoundary from './ErrorBoundary'
 
 function weatherLabel(code: number): string {
   if (code === 0) return 'Clear'
@@ -209,13 +210,17 @@ export default function App() {
           <>
             {weatherLoading && <Skeleton />}
             {weather && !weatherLoading && (
-              <Dashboard weather={weather} prefs={prefs} displayTier={displayTier} onPrefsUpdate={handlePrefsUpdate} onRefresh={() => fetchWeather(prefs.location, true)} selectedDay={selectedDay} onSelectDay={setSelectedDay} />
+              <ErrorBoundary label="the dashboard" onReset={() => fetchWeather(prefs.location, true)}>
+                <Dashboard weather={weather} prefs={prefs} displayTier={displayTier} onPrefsUpdate={handlePrefsUpdate} onRefresh={() => fetchWeather(prefs.location, true)} selectedDay={selectedDay} onSelectDay={setSelectedDay} />
+              </ErrorBoundary>
             )}
           </>
         )}
         {view === 'calendar' && (
           <div className="card">
-            <CalendarView prefs={prefs} displayTier={displayTier} weather={weather} onPrefsUpdate={handlePrefsUpdate} />
+            <ErrorBoundary label="the calendar" onReset={() => fetchWeather(prefs.location, true)}>
+              <CalendarView prefs={prefs} displayTier={displayTier} weather={weather} onPrefsUpdate={handlePrefsUpdate} />
+            </ErrorBoundary>
           </div>
         )}
       </main>
