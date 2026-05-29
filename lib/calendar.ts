@@ -1,5 +1,6 @@
 import { Activity } from './types'
 import { effectiveMaxUV } from './tiers'
+export { fmtHour as fmtH } from './weather'
 
 export interface DayForecast {
   dateStr: string
@@ -70,11 +71,6 @@ export function gcalWindowLink(
   return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${fmt(start)}/${fmt(end)}&details=${details}`
 }
 
-export function fmtH(h: number): string {
-  if (h === 0 || h === 24) return '12am'
-  if (h === 12) return '12pm'
-  return h < 12 ? `${h}am` : `${h - 12}pm`
-}
 
 export function uvBg(uv: number): string {
   if (uv < 0.5) return 'rgba(209,213,219,0.3)'
