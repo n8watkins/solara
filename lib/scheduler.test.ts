@@ -116,6 +116,21 @@ describe('recommendSlot — occupancy UV (hourly provided)', () => {
     expect(r.avgUV).toBe(4) // window-level
     expect(r.peakUV).toBe(7)
   })
+
+  it('sunniest slides within the window to the sunniest placement', () => {
+    // Whole window free; sunniest should start at 9 (first hot hour), not 6.
+    const r = recommendSlot([wide], [], 60, 'sunniest', -1, hourly)!
+    expect(r.start).toBe(9)
+    expect(r.avgUV).toBe(7)
+  })
+
+  it('sunniest picks the sunnier fragment when a busy block splits the window', () => {
+    // Busy 9–10 carves [6,9] (cool) and [10,12] (hot). Sunniest must choose the
+    // hot fragment even though both share the same window-level avg.
+    const r = recommendSlot([wide], [{ start: 9, end: 10 }], 60, 'sunniest', -1, hourly)!
+    expect(r.start).toBe(10)
+    expect(r.avgUV).toBe(7)
+  })
 })
 
 describe('fmtClock', () => {

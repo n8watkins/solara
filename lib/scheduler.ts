@@ -70,6 +70,34 @@ function summarizeUV(hourly: { hour: number; uv: number }[], from: number, to: n
 }
 
 /**
+ * For 'sunniest', slide a duration-long window across a free fragment and return
+ * the start time whose occupied slot has the highest average UV. Candidate starts
+ * are the fragment's own start plus each whole hour up to the latest feasible start
+ * — enough granularity given UV is sampled hourly. Falls back to the fragment start
+ * when no hourly data overlaps. This makes 'sunniest' pick the sunniest *placement*,
+ * not just the sunniest window — correct even when a busy block splits a window.
+ */
+function sunniestPlacement(
+  f: FreeSlot,
+  durHours: number,
+  hourly: { hour: number; uv: number }[],
+): { start: number; avg: number } {
+  const latest = f.to - durHours
+  const candidates = [f.from]
+  for (let h = Math.ceil(f.from); h <= latest + 1e-9; h++) candidates.push(h)
+
+  let bestStart = f.from
+  let bestAvg = -Infinity
+  for (const c of candidates) {
+    if (c > latest + 1e-9) continue
+    const s = summarizeUV(hourly, c, c + durHours)
+    const avg = s ? s.avg : f.avgUV
+    if (avg > bestAvg) { bestAvg = avg; bestStart = c }
+  }
+  return { start: bestStart, avg: bestAvg }
+}
+
+/**
  * Recommend a concrete start time for an activity by intersecting its safe-UV
  * windows with real availability, honoring a time-of-day preference.
  *
@@ -112,9 +140,24 @@ export function recommendSlot(
     chosen = feasible.reduce((best, f) => (f.to > best.to ? f : best))
     start = chosen.to - durHours
   } else if (timePreference === 'sunniest') {
-    chosen = feasible.reduce((best, f) =>
-      f.avgUV > best.avgUV || (f.avgUV === best.avgUV && f.from < best.from) ? f : best)
-    start = chosen.from
+    if (hourly) {
+      // Evaluate the sunniest placement *within* each fragment, then pick the best
+      // across fragments — so a busy block splitting a window can't mislead us with
+      // a stale window-level average. Ties break toward the earlier start.
+      let best: { f: FreeSlot; start: number; avg: number } | null = null
+      for (const f of feasible) {
+        const p = sunniestPlacement(f, durHours, hourly)
+        if (!best || p.avg > best.avg || (p.avg === best.avg && p.start < best.start)) {
+          best = { f, start: p.start, avg: p.avg }
+        }
+      }
+      chosen = best!.f
+      start = best!.start
+    } else {
+      chosen = feasible.reduce((best, f) =>
+        f.avgUV > best.avgUV || (f.avgUV === best.avgUV && f.from < best.from) ? f : best)
+      start = chosen.from
+    }
   } else {
     chosen = feasible.reduce((best, f) => (f.from < best.from ? f : best))
     start = chosen.from
