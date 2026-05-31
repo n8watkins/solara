@@ -10,6 +10,14 @@ export interface PreferredHours {
   to: number
 }
 
+/** A person/pet whose skin type drives safety math when selected. */
+export interface Profile {
+  id: string
+  name: string
+  skinType: SkinType
+  icon?: string
+}
+
 // How to choose a start time among the feasible safe+free slots.
 export type TimePreference = 'earliest' | 'latest' | 'sunniest'
 
@@ -37,7 +45,9 @@ export interface UserPreferences {
   schemaVersion: number
   location: Location           // the active location
   savedLocations?: Location[]  // quick-switch list; always includes the active one
-  skinType: SkinType
+  skinType: SkinType           // the live skin type used for all safety math (= active profile's)
+  profiles?: Profile[]         // saved people/pets; selecting one sets skinType
+  activeProfileId?: string
   sunscreen: boolean    // legacy global sunscreen fallback for old activities
   activities: Activity[]
   tier: TierLevel

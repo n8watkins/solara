@@ -7,6 +7,7 @@ import { UserPreferences, TierLevel } from '@/lib/types'
 import { TIER_LABELS, getSavedLocationLimit } from '@/lib/tiers'
 import PreferencesModal from './PreferencesModal'
 import LocationPopover from './LocationPopover'
+import ProfileSwitcher from './ProfileSwitcher'
 
 interface Props {
   user: User | null
@@ -79,6 +80,11 @@ export default function Header({ user, prefs, onPrefsUpdate, onGoHome, forceOpen
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+              <ProfileSwitcher
+                prefs={prefs}
+                tier={tier}
+                onApply={patch => onPrefsUpdate({ ...prefs, ...patch })}
+              />
               {uvAlert && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 8px', borderRadius: '9px', background: 'var(--bg-metric)', fontSize: '12px', color: 'var(--text-2)', whiteSpace: 'nowrap' }}>
                   {uvAlert.icon} <span className="hide-mobile">{uvAlert.msg}</span>

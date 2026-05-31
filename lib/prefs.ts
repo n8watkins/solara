@@ -1,6 +1,6 @@
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore'
 import { db } from './firebase'
-import { UserPreferences, Location, Activity, SkinType, TierLevel, PreferredHours } from './types'
+import { UserPreferences, Location, Activity, SkinType, TierLevel, PreferredHours, Profile } from './types'
 import { PRESET_ACTIVITIES, ACTIVITY_CATEGORIES } from './tiers'
 
 const PREFS_KEY = 'solara_prefs'
@@ -33,6 +33,26 @@ function normalizeSavedLocations(raw: unknown): Location[] {
     if (!out.some(l => sameLocation(l, loc))) out.push(loc)
   }
   return out.slice(0, 12)
+}
+
+/** Validated profiles: each needs a name + valid skin type; deduped by id, capped. */
+function normalizeProfiles(raw: unknown): Profile[] | undefined {
+  if (!Array.isArray(raw)) return undefined
+  const out: Profile[] = []
+  for (let i = 0; i < raw.length; i++) {
+    const p = raw[i] as Partial<Profile> | null
+    if (!p || typeof p.name !== 'string' || !p.name.trim()) continue
+    if (!SKIN_TYPES.includes(p.skinType as SkinType)) continue
+    const id = typeof p.id === 'string' && p.id.trim() ? p.id : `profile_${i}`
+    if (out.some(e => e.id === id)) continue
+    out.push({
+      id,
+      name: p.name.trim().slice(0, 40),
+      skinType: p.skinType as SkinType,
+      icon: typeof p.icon === 'string' && p.icon.trim() ? p.icon : undefined,
+    })
+  }
+  return out.length ? out.slice(0, 12) : undefined
 }
 
 function normalizeStringList(raw: unknown, allowed?: Set<string>): string[] {
@@ -100,6 +120,7 @@ export function normalizePrefs(raw: Partial<UserPreferences> | null, fallbackLoc
   if (!location) return null
 
   const sunscreen = typeof raw.sunscreen === 'boolean' ? raw.sunscreen : false
+  const profiles = normalizeProfiles(raw.profiles)
   const activities = Array.isArray(raw.activities)
     ? raw.activities.map((a, i) => normalizeActivity(a, i, sunscreen)).filter(Boolean) as Activity[]
     : []
@@ -111,6 +132,8 @@ export function normalizePrefs(raw: Partial<UserPreferences> | null, fallbackLoc
     schemaVersion: PREFS_SCHEMA_VERSION,
     location,
     savedLocations: normalizeSavedLocations(raw.savedLocations),
+    profiles,
+    activeProfileId: profiles?.some(p => p.id === raw.activeProfileId) ? raw.activeProfileId : undefined,
     skinType: SKIN_TYPES.includes(raw.skinType as SkinType) ? raw.skinType as SkinType : 'fair',
     sunscreen,
     activities,
