@@ -71,6 +71,7 @@ function normalizeActivity(raw: unknown, index: number, globalSunscreen: boolean
     preferredHours: normalizePreferredHours(a.preferredHours),
     timePreference: a.timePreference === 'latest' || a.timePreference === 'sunniest' ? a.timePreference : undefined,
     daysOfWeek: normalizeDaysOfWeek(a.daysOfWeek),
+    cloudSensitive: a.cloudSensitive === true ? true : undefined,
   }
 }
 

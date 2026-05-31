@@ -1,5 +1,6 @@
 import { HourlyForecast, Activity, ActivityWindow, SkinType, SafeActivityWindow } from './types'
 import { effectiveMaxUV } from './tiers'
+import { cloudAdjustedUV } from './exposure'
 
 export const SKIN_BURN_BASE: Record<SkinType, number> = {
   'very-fair': 10,
@@ -129,14 +130,18 @@ export function getActivityWindow(
   skinType: SkinType = 'fair'
 ): ActivityWindow {
   const maxUV = effectiveMaxUV(activity)
+  // Cloud-sensitive activities judge safety against UV discounted by cloud cover; the
+  // reported window UV (summarizeSafeWindow) stays the true forecast value.
+  const exposureUV = (h: HourlyForecast) =>
+    activity.cloudSensitive ? cloudAdjustedUV(h.uv, h.cloudCover) : h.uv
   let start: number | null = null
   const allWindows: SafeActivityWindow[] = []
   let safeCount = 0
 
   for (let i = 0; i < hourly.length; i++) {
-    const { hour, uv } = hourly[i]
+    const { hour } = hourly[i]
     const hourAllowed = withinPreferredHours(hour, activity)
-    if (uv <= maxUV && hourAllowed) {
+    if (exposureUV(hourly[i]) <= maxUV && hourAllowed) {
       safeCount++
       if (start === null) start = hour
     } else {
@@ -165,7 +170,7 @@ export function getActivityWindow(
 
   const bestWindow = best ? { from: best.from, to: best.to } : null
   const current = hourly.find(h => h.hour === currentHour)
-  const safeNow = current ? current.uv <= maxUV && withinPreferredHours(current.hour, activity) : false
+  const safeNow = current ? exposureUV(current) <= maxUV && withinPreferredHours(current.hour, activity) : false
   const pctDaySafe = hourly.length ? Math.round((safeCount / hourly.length) * 100) : 0
   const burn = burnMins(maxUV, skinType)
 

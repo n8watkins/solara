@@ -28,6 +28,7 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
   const [preferredTo, setPreferredTo] = useState(activity.preferredHours?.to ?? 20)
   const [timePreference, setTimePreference] = useState<TimePreference>(activity.timePreference ?? 'earliest')
   const [days, setDays] = useState<number[]>(activity.daysOfWeek ?? [])
+  const [cloudSensitive, setCloudSensitive] = useState(activity.cloudSensitive ?? false)
   const [showEmoji, setShowEmoji] = useState(false)
 
   // All-seven or none both mean "every day" — store nothing (matches prefs normalizer).
@@ -48,10 +49,11 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
     preferredHours: preferredEnabled ? { from: normalizedFrom, to: normalizedTo } : undefined,
     timePreference: timePreference === 'earliest' ? undefined : timePreference,
     daysOfWeek: draftDays,
+    cloudSensitive: cloudSensitive || undefined,
   }
 
-  const dirty = JSON.stringify({ name: activity.name, icon: activity.icon, durationMins: activity.durationMins, sunscreen: activity.sunscreen, maxUV: activity.maxUV, preferredHours: activity.preferredHours, timePreference: activity.timePreference, daysOfWeek: activity.daysOfWeek }) !==
-    JSON.stringify({ name: draft.name, icon: draft.icon, durationMins: draft.durationMins, sunscreen: draft.sunscreen, maxUV: draft.maxUV, preferredHours: draft.preferredHours, timePreference: draft.timePreference, daysOfWeek: draft.daysOfWeek })
+  const dirty = JSON.stringify({ name: activity.name, icon: activity.icon, durationMins: activity.durationMins, sunscreen: activity.sunscreen, maxUV: activity.maxUV, preferredHours: activity.preferredHours, timePreference: activity.timePreference, daysOfWeek: activity.daysOfWeek, cloudSensitive: activity.cloudSensitive }) !==
+    JSON.stringify({ name: draft.name, icon: draft.icon, durationMins: draft.durationMins, sunscreen: draft.sunscreen, maxUV: draft.maxUV, preferredHours: draft.preferredHours, timePreference: draft.timePreference, daysOfWeek: draft.daysOfWeek, cloudSensitive: draft.cloudSensitive })
 
   function requestClose() {
     if (dirty && !window.confirm('Discard unsaved activity changes?')) return
@@ -267,6 +269,21 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
                 {option.label}
               </button>
             ))}
+          </div>
+        </div>
+
+        <div className="metric-card" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'flex-start' }}>
+            <div>
+              <p style={{ margin: '0 0 4px', fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>Account for cloud cover</p>
+              <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-3)', lineHeight: 1.45 }}>
+                Heavy cloud lowers UV, so a borderline hour can become workable. Conservative — thin
+                cloud still counts as full sun.
+              </p>
+            </div>
+            <button className={cloudSensitive ? 'btn btn-primary' : 'btn'} onClick={() => setCloudSensitive(v => !v)} style={{ fontSize: '12px', whiteSpace: 'nowrap' }}>
+              {cloudSensitive ? 'On' : 'Off'}
+            </button>
           </div>
         </div>
 

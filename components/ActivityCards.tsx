@@ -28,7 +28,7 @@ function Row({ label, val, accent }: { label: string; val: string; accent?: stri
   )
 }
 
-function WindowPill({ win, isBest, onShare, onCalendar }: { win: SafeActivityWindow; isBest: boolean; onShare: () => void; onCalendar?: () => void }) {
+function WindowPill({ win, isBest, cloudNote, onShare, onCalendar }: { win: SafeActivityWindow; isBest: boolean; cloudNote?: boolean; onShare: () => void; onCalendar?: () => void }) {
   return (
     <div style={{
       display: 'flex',
@@ -50,6 +50,11 @@ function WindowPill({ win, isBest, onShare, onCalendar }: { win: SafeActivityWin
         <span style={{ fontSize: '10px', color: 'var(--text-3)' }}>
           Peak UV {win.peakUV.toFixed(1)}
         </span>
+        {cloudNote && (
+          <span style={{ fontSize: '10px', color: 'var(--text-3)' }} title="Qualifies only because heavy cloud lowers effective UV">
+            ☁ Safe under cloud
+          </span>
+        )}
       </div>
       <div style={{ display: 'flex', gap: '5px' }}>
         <button className="btn" onClick={onShare} style={{ flex: 1, padding: '5px 6px', fontSize: '11px' }}>Share</button>
@@ -177,6 +182,7 @@ export default function ActivityCards({ windows, daysFromNow, tier, location, da
                           key={`${win.from}-${win.to}`}
                           win={win}
                           isBest={isBest}
+                          cloudNote={!!activity.cloudSensitive && win.peakUV > safeUv}
                           onShare={() => shareWindow(activity, win)}
                           onCalendar={calendarAllowed ? () => openCalendar(activity.name, win, activity.durationMins) : undefined}
                         />

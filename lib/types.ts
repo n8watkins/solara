@@ -24,6 +24,7 @@ export interface Activity {
   preferredHours?: PreferredHours
   timePreference?: TimePreference  // default 'earliest'
   daysOfWeek?: number[]            // 0=Sun … 6=Sat; undefined/empty = every day
+  cloudSensitive?: boolean         // discount effective UV by cloud cover when planning
 }
 
 export interface CalendarHours {
