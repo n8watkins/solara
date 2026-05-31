@@ -3,6 +3,7 @@ import { DayWeather, Activity, SkinType } from '@/lib/types'
 import { planUpcomingSlots, UpcomingSlot } from '@/lib/planner'
 import { BusyInterval, SlotRecommendation } from '@/lib/scheduler'
 import { fmtClock } from '@/lib/weather'
+import { buildICS, recToIcsEvent, downloadICS } from '@/lib/ics'
 
 interface Props {
   forecast: DayWeather[]
@@ -40,13 +41,28 @@ export default function PlanAhead({
   const plan = planUpcomingSlots(forecast, activities, skinType, dayLimit, busyByDate, nowHourToday)
   if (!plan.length) return null
 
+  function exportIcs() {
+    const events = plan.map(({ activity, dateStr, slot }) => recToIcsEvent(activity, dateStr, slot))
+    downloadICS('solara-sun-plan.ics', buildICS(events))
+  }
+
   return (
     <div className="card">
-      <div style={{ marginBottom: '12px' }}>
-        <p style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: 'var(--text)' }}>Plan ahead</p>
-        <p style={{ margin: '3px 0 0', fontSize: '13px', color: 'var(--text-3)' }}>
-          Your best upcoming day and time for each activity.
-        </p>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px', marginBottom: '12px' }}>
+        <div>
+          <p style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: 'var(--text)' }}>Plan ahead</p>
+          <p style={{ margin: '3px 0 0', fontSize: '13px', color: 'var(--text-3)' }}>
+            Your best upcoming day and time for each activity.
+          </p>
+        </div>
+        <button
+          className="btn"
+          onClick={exportIcs}
+          title="Download all recommended slots as a calendar file (.ics) for any calendar app"
+          style={{ flexShrink: 0, fontSize: '12px', whiteSpace: 'nowrap' }}
+        >
+          ⬇ Export .ics
+        </button>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
