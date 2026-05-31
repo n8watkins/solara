@@ -5,7 +5,11 @@ _Last updated: 2026-05-30_
 > **Status:** V1.2 code complete. **P0** (forecast consolidation), **P2** (weekday/weekend
 > routines), **P3** (cloud sensitivity), **P4** (multi-location) are shipped with tests
 > (97 passing). **P1** (calendar live) is built + unit-tested but **blocked on provisioning
-> the Google OAuth client ID** — an ops step, not code. V2 (P5–P8) not started.
+> the Google OAuth client ID** — an ops step, not code.
+>
+> **V2:** **P6** (family & pet profiles) shipped + verified in-browser (103 tests). **P5**
+> (Stripe webhook) is ops-gated on Blaze + Stripe keys. **P7/P8** not started (P7a ICS export
+> is Spark-buildable; P7b feed + P8 server defense need Blaze; P8 client move needs live OAuth).
 
 A step-by-step plan to take Solara from "live daily UV planner" to "calendar-native
 sun assistant you pay for." Each phase is shippable on its own, ordered so dependencies
