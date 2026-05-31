@@ -4,6 +4,7 @@ import { onAuthStateChanged, User } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
 import { loadLocalPrefs, loadFirestorePrefs, defaultPrefs, saveLocalPrefs, saveFirestorePrefs } from '@/lib/prefs'
 import { getCachedWeather, setCachedWeather } from '@/lib/cache'
+import { fetchForecast } from '@/lib/forecast'
 import { getFCMTokenLocally } from '@/lib/notifications'
 import { UserPreferences, WeatherResponse, Location, TierLevel, DayWeather } from '@/lib/types'
 import Welcome from './Welcome'
@@ -16,22 +17,6 @@ import InstallPrompt from './InstallPrompt'
 import CalendarView from './CalendarView'
 import DevPanel from './DevPanel'
 import ErrorBoundary from './ErrorBoundary'
-
-function weatherLabel(code: number): string {
-  if (code === 0) return 'Clear'
-  if (code <= 3)  return 'Partly cloudy'
-  if (code <= 49) return 'Foggy'
-  if (code <= 67) return 'Rainy'
-  if (code <= 77) return 'Snowy'
-  if (code <= 82) return 'Showers'
-  return 'Stormy'
-}
-
-function localDateString(daysFromNow = 0): string {
-  const d = new Date()
-  d.setDate(d.getDate() + daysFromNow)
-  return d.toLocaleDateString('en-CA')
-}
 
 type Screen = 'loading' | 'welcome' | 'onboarding' | 'dashboard'
 
@@ -100,45 +85,7 @@ export default function App() {
     }
     setWeatherLoading(true); setError(null)
     try {
-      const url =
-        `https://api.open-meteo.com/v1/forecast` +
-        `?latitude=${location.lat}&longitude=${location.lon}` +
-        `&hourly=uv_index,temperature_2m,weathercode` +
-        `&current=uv_index,temperature_2m,weathercode` +
-        `&timezone=auto&forecast_days=10`
-      const res = await fetch(url)
-      if (!res.ok) throw new Error()
-      const raw = await res.json()
-      const todayStr    = localDateString(0)
-      const tomorrowStr = localDateString(1)
-      const parse = (d: string) => (raw.hourly.time as string[])
-        .map((t: string, i: number) => ({
-          date: t.split('T')[0], hour: parseInt(t.split('T')[1].split(':')[0]),
-          uv: Math.round(raw.hourly.uv_index[i] * 10) / 10,
-          tempF: Math.round(raw.hourly.temperature_2m[i] * 9 / 5 + 32),
-          condition: weatherLabel(raw.hourly.weathercode[i]),
-        }))
-        .filter((h: any) => h.date === d && h.hour >= 6 && h.hour <= 20)
-
-      const dateSet = new Set<string>()
-      ;(raw.hourly.time as string[]).forEach((t: string) => dateSet.add(t.split('T')[0]))
-      const allDates = Array.from(dateSet).sort()
-      const forecast = allDates.slice(0, 10).map((dateStr, idx) => {
-        const d = new Date(dateStr + 'T12:00:00')
-        const label = idx === 0 ? 'Today' : idx === 1 ? 'Tomorrow'
-          : d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
-        return { dateStr, label, hourly: parse(dateStr) }
-      })
-
-      const data: WeatherResponse = {
-        current: {
-          uv: Math.round(raw.current.uv_index * 10) / 10,
-          tempF: Math.round(raw.current.temperature_2m * 9 / 5 + 32),
-          condition: weatherLabel(raw.current.weathercode),
-        },
-        today: parse(todayStr), tomorrow: parse(tomorrowStr),
-        forecast,
-      }
+      const data = await fetchForecast(location)
       setCachedWeather(location.lat, location.lon, data)
       setWeather(data)
     } catch {

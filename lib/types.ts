@@ -51,6 +51,7 @@ export interface UserPreferences {
 export interface HourlyForecast {
   date?: string
   hour: number; uv: number; tempF: number; condition: string
+  cloudCover?: number   // % cloud cover (0–100); used by cloud-sensitive exposure
 }
 
 export interface DayWeather {

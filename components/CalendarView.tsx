@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Activity, UserPreferences, WeatherResponse } from '@/lib/types'
 import { canUseCalendar, getFutureDays, TIER_LIMITS } from '@/lib/tiers'
 import { DayForecast, SafeWindow, getSafeWindowsForActivity, gcalWindowLink, fmtH } from '@/lib/calendar'
+import { fetchForecast } from '@/lib/forecast'
 import { buildActivityShareText, buildActivityShareUrl, shareOrCopy } from '@/lib/share'
 import EditActivityModal from './EditActivityModal'
 
@@ -89,44 +90,20 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
       return
     }
 
+    const controller = new AbortController()
     async function load() {
       setLoading(true); setError(null)
       try {
-        const { lat, lon } = prefs.location
-        const res = await fetch(
-          `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
-          `&hourly=uv_index,temperature_2m&timezone=auto&forecast_days=${dayLimit}`
-        )
-        if (!res.ok) throw new Error()
-        const raw = await res.json()
-        const times: string[] = raw.hourly.time
-        const uvs:   number[] = raw.hourly.uv_index
-        const temps: number[] = raw.hourly.temperature_2m
-
-        const byDate: Record<string, { hour: number; uv: number; tempF: number }[]> = {}
-        times.forEach((t, i) => {
-          const [d, tm] = t.split('T')
-          const hour    = parseInt(tm)
-          if (hour < 6 || hour > 20) return
-          if (!byDate[d]) byDate[d] = []
-          byDate[d].push({ hour, uv: Math.round(uvs[i] * 10) / 10, tempF: Math.round(temps[i] * 9 / 5 + 32) })
-        })
-
-        const now = new Date(); now.setHours(0,0,0,0)
-        const result = Object.entries(byDate).slice(0, dayLimit).map(([dateStr, hourly]) => {
-          const d = new Date(dateStr + 'T12:00:00')
-          const diff = Math.round((d.getTime() - now.getTime()) / 86400000)
-          return {
-            dateStr, hourly,
-            label:      diff === 0 ? 'Today' : diff === 1 ? 'Tomorrow' : d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }),
-            shortLabel: diff === 0 ? 'Today' : d.toLocaleDateString('en-US', { weekday: 'short' }),
-          }
-        })
-        setDays(result)
-      } catch { setError('Could not load forecast.') }
-      finally   { setLoading(false) }
+        const data = await fetchForecast(prefs.location, { days: dayLimit, signal: controller.signal })
+        setDays(forecastFromWeather(data, dayLimit))
+      } catch (e) {
+        if ((e as Error)?.name !== 'AbortError') setError('Could not load forecast.')
+      } finally {
+        setLoading(false)
+      }
     }
     load()
+    return () => controller.abort()
   }, [prefs.location.lat, prefs.location.lon, weather, dayLimit])
 
   function openCalendar(act: Activity, win: SafeWindow, day: DayForecast) {
