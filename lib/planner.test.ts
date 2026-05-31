@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { bestUpcomingWindow, planUpcoming, bestUpcomingSlot, planUpcomingSlots } from '@/lib/planner'
+import { bestUpcomingWindow, planUpcoming, bestUpcomingSlot, planUpcomingSlots, activityRunsOn } from '@/lib/planner'
 import { DayWeather, Activity, HourlyForecast } from '@/lib/types'
 
 function day(dateStr: string, label: string, uvByHour: (h: number) => number): DayWeather {
@@ -9,6 +9,39 @@ function day(dateStr: string, label: string, uvByHour: (h: number) => number): D
 }
 
 const run: Activity = { id: 'run', name: 'Running', icon: '🏃', durationMins: 60, maxUV: 4, sunscreen: false }
+
+describe('activityRunsOn (weekday routines)', () => {
+  // 2026-05-29 Fri, 05-30 Sat, 05-31 Sun, 06-01 Mon
+  it('runs every day when unrestricted', () => {
+    expect(activityRunsOn(run, '2026-05-30')).toBe(true)
+    expect(activityRunsOn({ ...run, daysOfWeek: [] }, '2026-05-30')).toBe(true)
+  })
+  it('honors a weekday restriction', () => {
+    const weekdayRun: Activity = { ...run, daysOfWeek: [1, 2, 3, 4, 5] }
+    expect(activityRunsOn(weekdayRun, '2026-05-29')).toBe(true)  // Fri
+    expect(activityRunsOn(weekdayRun, '2026-05-30')).toBe(false) // Sat
+    expect(activityRunsOn(weekdayRun, '2026-06-01')).toBe(true)  // Mon
+  })
+  it('honors a weekend restriction', () => {
+    const weekendHike: Activity = { ...run, daysOfWeek: [0, 6] }
+    expect(activityRunsOn(weekendHike, '2026-05-30')).toBe(true)  // Sat
+    expect(activityRunsOn(weekendHike, '2026-05-31')).toBe(true)  // Sun
+    expect(activityRunsOn(weekendHike, '2026-06-01')).toBe(false) // Mon
+  })
+})
+
+describe('weekday-restricted planning', () => {
+  it('skips non-matching days and picks the activity\'s day', () => {
+    const weekendHike: Activity = { ...run, daysOfWeek: [0, 6], name: 'Hike' }
+    const forecast = [
+      day('2026-05-29', 'Fri', () => 1), // best UV, but a weekday → skipped
+      day('2026-05-30', 'Sat', () => 3), // first eligible weekend day
+      day('2026-05-31', 'Sun', () => 2),
+    ]
+    expect(bestUpcomingWindow(forecast, weekendHike, 'fair', 10)!.dateStr).toBe('2026-05-31') // lowest UV among Sat/Sun
+    expect(bestUpcomingSlot(forecast, weekendHike, 'fair', 10)!.dateStr).toBe('2026-05-30')   // soonest eligible
+  })
+})
 
 describe('bestUpcomingWindow', () => {
   it('picks the day with the lowest-average-UV window', () => {

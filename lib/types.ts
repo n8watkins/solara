@@ -23,6 +23,7 @@ export interface Activity {
   custom?: boolean
   preferredHours?: PreferredHours
   timePreference?: TimePreference  // default 'earliest'
+  daysOfWeek?: number[]            // 0=Sun … 6=Sat; undefined/empty = every day
 }
 
 export interface CalendarHours {

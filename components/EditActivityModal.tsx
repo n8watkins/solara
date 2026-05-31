@@ -27,7 +27,14 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
   const [preferredFrom, setPreferredFrom] = useState(activity.preferredHours?.from ?? 6)
   const [preferredTo, setPreferredTo] = useState(activity.preferredHours?.to ?? 20)
   const [timePreference, setTimePreference] = useState<TimePreference>(activity.timePreference ?? 'earliest')
+  const [days, setDays] = useState<number[]>(activity.daysOfWeek ?? [])
   const [showEmoji, setShowEmoji] = useState(false)
+
+  // All-seven or none both mean "every day" — store nothing (matches prefs normalizer).
+  const draftDays = days.length === 0 || days.length === 7 ? undefined : [...days].sort((a, b) => a - b)
+  function toggleDay(d: number) {
+    setDays(cur => cur.includes(d) ? cur.filter(x => x !== d) : [...cur, d])
+  }
 
   const normalizedFrom = Math.max(0, Math.min(23, Math.round(preferredFrom)))
   const normalizedTo = Math.max(normalizedFrom + 1, Math.min(24, Math.round(preferredTo)))
@@ -40,10 +47,11 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
     maxUV: clampUV(maxUV || 0),
     preferredHours: preferredEnabled ? { from: normalizedFrom, to: normalizedTo } : undefined,
     timePreference: timePreference === 'earliest' ? undefined : timePreference,
+    daysOfWeek: draftDays,
   }
 
-  const dirty = JSON.stringify({ name: activity.name, icon: activity.icon, durationMins: activity.durationMins, sunscreen: activity.sunscreen, maxUV: activity.maxUV, preferredHours: activity.preferredHours, timePreference: activity.timePreference }) !==
-    JSON.stringify({ name: draft.name, icon: draft.icon, durationMins: draft.durationMins, sunscreen: draft.sunscreen, maxUV: draft.maxUV, preferredHours: draft.preferredHours, timePreference: draft.timePreference })
+  const dirty = JSON.stringify({ name: activity.name, icon: activity.icon, durationMins: activity.durationMins, sunscreen: activity.sunscreen, maxUV: activity.maxUV, preferredHours: activity.preferredHours, timePreference: activity.timePreference, daysOfWeek: activity.daysOfWeek }) !==
+    JSON.stringify({ name: draft.name, icon: draft.icon, durationMins: draft.durationMins, sunscreen: draft.sunscreen, maxUV: draft.maxUV, preferredHours: draft.preferredHours, timePreference: draft.timePreference, daysOfWeek: draft.daysOfWeek })
 
   function requestClose() {
     if (dirty && !window.confirm('Discard unsaved activity changes?')) return
@@ -182,6 +190,50 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
                 {o.label}
               </button>
             ))}
+          </div>
+        </div>
+
+        <div className="metric-card" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div>
+            <p style={{ margin: '0 0 4px', fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>Days</p>
+            <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-3)', lineHeight: 1.45 }}>
+              Which days this activity should be planned for — e.g. a weekday run or a weekend hike.
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: '6px' }}>
+            {(['S', 'M', 'T', 'W', 'T', 'F', 'S'] as const).map((label, d) => {
+              const on = days.includes(d)
+              return (
+                <button
+                  key={d}
+                  onClick={() => toggleDay(d)}
+                  aria-pressed={on}
+                  title={['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][d]}
+                  style={{
+                    flex: 1, padding: '9px 0', borderRadius: '9px', cursor: 'pointer',
+                    border: on ? '1.5px solid var(--accent)' : '0.5px solid var(--border-md)',
+                    background: on ? 'rgba(249,115,22,0.08)' : 'var(--bg-card)',
+                    color: on ? 'var(--accent)' : 'var(--text-3)', fontSize: '13px', fontWeight: 700,
+                  }}
+                >
+                  {label}
+                </button>
+              )
+            })}
+          </div>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            {([
+              { label: 'Every day', set: [] as number[] },
+              { label: 'Weekdays', set: [1, 2, 3, 4, 5] },
+              { label: 'Weekends', set: [0, 6] },
+            ]).map(p => (
+              <button key={p.label} className="btn" onClick={() => setDays(p.set)} style={{ fontSize: '12px', padding: '5px 9px' }}>
+                {p.label}
+              </button>
+            ))}
+            <span style={{ marginLeft: 'auto', fontSize: '12px', color: 'var(--text-3)', alignSelf: 'center' }}>
+              {draftDays ? `${days.length} day${days.length === 1 ? '' : 's'}` : 'Every day'}
+            </span>
           </div>
         </div>
 

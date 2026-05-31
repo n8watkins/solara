@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { Activity, ActivityWindow, SafeActivityWindow, TierLevel, Location, HourlyForecast } from '@/lib/types'
-import { fmtHour, fmtClock, gcalLink } from '@/lib/weather'
+import { fmtHour, fmtClock, fmtDays, gcalLink } from '@/lib/weather'
 import { canUseCalendar, effectiveMaxUV } from '@/lib/tiers'
 import { buildActivityShareText, buildActivityShareUrl, shareOrCopy } from '@/lib/share'
 import { recommendSlot, BusyInterval, SlotRecommendation } from '@/lib/scheduler'
@@ -143,6 +143,7 @@ export default function ActivityCards({ windows, daysFromNow, tier, location, da
                 <Row label={activity.sunscreen ? 'Safe UV w/ SPF' : 'Max safe UV'} val={String(safeUv)} />
                 <Row label="Duration" val={durationLabel} />
                 {activity.preferredHours && <Row label="Preferred" val={`${fmtHour(activity.preferredHours.from)}–${fmtHour(activity.preferredHours.to)}`} />}
+                {fmtDays(activity.daysOfWeek) && <Row label="Days" val={fmtDays(activity.daysOfWeek)!} />}
                 {burnMins !== null && burnMins !== undefined && (
                   <Row label="Threshold burn est." val={`~${burnMins}m`} />
                 )}

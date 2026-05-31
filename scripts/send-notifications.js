@@ -94,8 +94,14 @@ async function fetchHourly(lat, lon) {
     .filter(h => h.date === todayStr && h.hour >= 6 && h.hour <= 20)
 }
 
+// Respect an activity's weekday restriction (0=Sun … 6=Sat). Empty/absent = every day.
+function runsToday(act) {
+  if (!Array.isArray(act.daysOfWeek) || act.daysOfWeek.length === 0) return true
+  return act.daysOfWeek.includes(new Date().getDay())
+}
+
 function buildMessage(user, hourly) {
-  const activities  = user.activities ?? []
+  const activities  = (user.activities ?? []).filter(runsToday)
   const skinType    = user.skinType ?? 'fair'
   const city        = user.location?.city ?? 'your area'
   const peakUV      = hourly.length ? Math.max(...hourly.map(h => h.uv)) : null

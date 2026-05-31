@@ -10,6 +10,17 @@ export interface UpcomingWindow {
   window: SafeActivityWindow
 }
 
+/**
+ * Whether an activity's weekday restriction includes the given calendar date.
+ * `dateStr` is 'YYYY-MM-DD'; weekday is read at local noon to dodge DST edges.
+ * No restriction (undefined/empty) means it runs every day.
+ */
+export function activityRunsOn(activity: Activity, dateStr: string): boolean {
+  if (!activity.daysOfWeek || activity.daysOfWeek.length === 0) return true
+  const weekday = new Date(dateStr + 'T12:00:00').getDay()
+  return activity.daysOfWeek.includes(weekday)
+}
+
 /** The lowest-average-UV window on a single day (ties broken by longer window). */
 function bestWindowOfDay(windows: SafeActivityWindow[]): SafeActivityWindow | null {
   if (!windows.length) return null
@@ -39,6 +50,7 @@ export function bestUpcomingWindow(
   for (let i = 0; i < days.length; i++) {
     const day = days[i]
     if (!day.hourly.length) continue
+    if (!activityRunsOn(activity, day.dateStr)) continue
     const { allWindows } = getActivityWindow(day.hourly, activity, -1, skinType)
     const dayBest = bestWindowOfDay(allWindows)
     if (!dayBest) continue
@@ -95,6 +107,7 @@ export function bestUpcomingSlot(
   for (let i = 0; i < days.length; i++) {
     const day = days[i]
     if (!day.hourly.length) continue
+    if (!activityRunsOn(activity, day.dateStr)) continue
     const { allWindows } = getActivityWindow(day.hourly, activity, -1, skinType)
     const busy = busyByDate[day.dateStr] ?? []
     const slot = recommendSlot(allWindows, busy, activity.durationMins, pref, i === 0 ? nowHourToday : -1, day.hourly)

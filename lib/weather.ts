@@ -65,6 +65,17 @@ export function fmtClock(h: number): string {
   return m ? `${m[1]}:${String(min).padStart(2, '0')}${m[2]}` : base
 }
 
+const DAY_ABBR = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+/** Short label for an activity's weekday restriction; null when it runs every day. */
+export function fmtDays(days?: number[]): string | null {
+  if (!days || days.length === 0 || days.length === 7) return null
+  const set = new Set(days)
+  if (set.size === 5 && [1, 2, 3, 4, 5].every(d => set.has(d))) return 'Weekdays'
+  if (set.size === 2 && set.has(0) && set.has(6)) return 'Weekends'
+  return [...days].sort((a, b) => a - b).map(d => DAY_ABBR[d]).join(', ')
+}
+
 export function gcalLink(
   activityName: string,
   window: { from: number; to: number },

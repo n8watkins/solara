@@ -34,6 +34,16 @@ function normalizePreferredHours(raw: unknown): PreferredHours | undefined {
   return { from, to }
 }
 
+/** Whole-day restriction: a sorted, deduped subset of 0–6. Undefined = every day. */
+function normalizeDaysOfWeek(raw: unknown): number[] | undefined {
+  if (!Array.isArray(raw)) return undefined
+  const days = Array.from(new Set(
+    raw.filter((d): d is number => typeof d === 'number' && Number.isInteger(d) && d >= 0 && d <= 6)
+  )).sort((a, b) => a - b)
+  // Empty or all-seven means "every day" — store nothing so the field stays clean.
+  return days.length === 0 || days.length === 7 ? undefined : days
+}
+
 function normalizeActivity(raw: unknown, index: number, globalSunscreen: boolean): Activity | null {
   const a = raw as Partial<Activity> | null
   if (!a || typeof a.name !== 'string') return null
@@ -60,6 +70,7 @@ function normalizeActivity(raw: unknown, index: number, globalSunscreen: boolean
     custom: a.custom === true || a.id?.startsWith('custom_') || undefined,
     preferredHours: normalizePreferredHours(a.preferredHours),
     timePreference: a.timePreference === 'latest' || a.timePreference === 'sunniest' ? a.timePreference : undefined,
+    daysOfWeek: normalizeDaysOfWeek(a.daysOfWeek),
   }
 }
 
