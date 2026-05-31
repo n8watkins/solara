@@ -2,6 +2,11 @@
 
 _Last updated: 2026-05-30_
 
+> **Status:** V1.2 code complete. **P0** (forecast consolidation), **P2** (weekday/weekend
+> routines), **P3** (cloud sensitivity), **P4** (multi-location) are shipped with tests
+> (97 passing). **P1** (calendar live) is built + unit-tested but **blocked on provisioning
+> the Google OAuth client ID** — an ops step, not code. V2 (P5–P8) not started.
+
 A step-by-step plan to take Solara from "live daily UV planner" to "calendar-native
 sun assistant you pay for." Each phase is shippable on its own, ordered so dependencies
 resolve before the features that need them.
