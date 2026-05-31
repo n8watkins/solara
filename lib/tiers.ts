@@ -1,9 +1,9 @@
 import { TierLevel, Activity } from './types'
 
-export const TIER_LIMITS: Record<TierLevel, { activities: number; calendar: boolean; notifications: boolean; futureDays: number }> = {
-  anonymous: { activities: 1,   calendar: false, notifications: false, futureDays: 1  },
-  free:      { activities: 3,   calendar: true,  notifications: false, futureDays: 2  },
-  paid:      { activities: 999, calendar: true,  notifications: true,  futureDays: 10 },
+export const TIER_LIMITS: Record<TierLevel, { activities: number; calendar: boolean; notifications: boolean; futureDays: number; savedLocations: number }> = {
+  anonymous: { activities: 1,   calendar: false, notifications: false, futureDays: 1,  savedLocations: 1  },
+  free:      { activities: 3,   calendar: true,  notifications: false, futureDays: 2,  savedLocations: 3  },
+  paid:      { activities: 999, calendar: true,  notifications: true,  futureDays: 10, savedLocations: 12 },
 }
 
 export const TIER_LABELS: Record<TierLevel, string> = {
@@ -26,6 +26,10 @@ export function canUseNotifications(tier: TierLevel): boolean {
 
 export function getFutureDays(tier: TierLevel): number {
   return TIER_LIMITS[tier].futureDays
+}
+
+export function getSavedLocationLimit(tier: TierLevel): number {
+  return TIER_LIMITS[tier].savedLocations
 }
 
 // With SPF 30+, effective safe UV is ~2.5x higher.

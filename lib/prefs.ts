@@ -16,6 +16,25 @@ function isLocation(value: unknown): value is Location {
   return !!loc && typeof loc.lat === 'number' && typeof loc.lon === 'number' && typeof loc.city === 'string'
 }
 
+function sameLocation(a: Location, b: Location): boolean {
+  return Math.abs(a.lat - b.lat) < 0.01 && Math.abs(a.lon - b.lon) < 0.01
+}
+
+/**
+ * Validated saved-location shortcuts: deduped by rounded lat/lon and hard-capped at
+ * the top tier's limit so the list can't grow unbounded. The active location is NOT
+ * forced in here — it's pinned separately in the UI, so changing your one location
+ * is never gated; only saving extra shortcuts is.
+ */
+function normalizeSavedLocations(raw: unknown): Location[] {
+  const list = Array.isArray(raw) ? raw.filter(isLocation) : []
+  const out: Location[] = []
+  for (const loc of list) {
+    if (!out.some(l => sameLocation(l, loc))) out.push(loc)
+  }
+  return out.slice(0, 12)
+}
+
 function normalizeStringList(raw: unknown, allowed?: Set<string>): string[] {
   if (!Array.isArray(raw)) return []
   return Array.from(new Set(
@@ -91,6 +110,7 @@ export function normalizePrefs(raw: Partial<UserPreferences> | null, fallbackLoc
     uid: typeof raw.uid === 'string' ? raw.uid : '',
     schemaVersion: PREFS_SCHEMA_VERSION,
     location,
+    savedLocations: normalizeSavedLocations(raw.savedLocations),
     skinType: SKIN_TYPES.includes(raw.skinType as SkinType) ? raw.skinType as SkinType : 'fair',
     sunscreen,
     activities,

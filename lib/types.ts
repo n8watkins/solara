@@ -35,7 +35,8 @@ export interface CalendarHours {
 export interface UserPreferences {
   uid: string
   schemaVersion: number
-  location: Location
+  location: Location           // the active location
+  savedLocations?: Location[]  // quick-switch list; always includes the active one
   skinType: SkinType
   sunscreen: boolean    // legacy global sunscreen fallback for old activities
   activities: Activity[]

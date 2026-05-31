@@ -4,7 +4,7 @@ import { User, signInWithPopup, signOut } from 'firebase/auth'
 import { auth, googleProvider, firebaseEnabled } from '@/lib/firebase'
 import { saveFirestorePrefs } from '@/lib/prefs'
 import { UserPreferences, TierLevel } from '@/lib/types'
-import { TIER_LABELS } from '@/lib/tiers'
+import { TIER_LABELS, getSavedLocationLimit } from '@/lib/tiers'
 import PreferencesModal from './PreferencesModal'
 import LocationPopover from './LocationPopover'
 
@@ -71,7 +71,9 @@ export default function Header({ user, prefs, onPrefsUpdate, onGoHome, forceOpen
               <div style={{ minWidth: 0 }}>
                 <LocationPopover
                   location={prefs.location}
-                  onUpdate={loc => onPrefsUpdate({ ...prefs, location: loc })}
+                  savedLocations={prefs.savedLocations ?? []}
+                  limit={getSavedLocationLimit(displayTier ?? prefs.tier)}
+                  onApply={({ location, savedLocations }) => onPrefsUpdate({ ...prefs, location, savedLocations })}
                 />
               </div>
             </div>
