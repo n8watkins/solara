@@ -1,0 +1,16 @@
+{
+  "name": "solara-functions",
+  "description": "Solara Cloud Functions — Stripe fulfilment webhook (P5) + live calendar feed (P7b). Requires the Blaze plan.",
+  "engines": { "node": "20" },
+  "main": "index.js",
+  "private": true,
+  "scripts": {
+    "serve": "firebase emulators:start --only functions",
+    "deploy": "firebase deploy --only functions"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.6.0",
+    "firebase-functions": "^5.1.0",
+    "stripe": "^16.12.0"
+  }
+}

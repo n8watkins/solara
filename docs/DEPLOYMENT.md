@@ -82,19 +82,41 @@ effectively **$0** — just attach a billing account and set a budget alert.
 
 ## Phase 5 — Monetization (Blaze only)
 
+The webhook is **scaffolded** in `functions/` (`stripeWebhook`); these steps deploy and wire it.
+
 - [ ] Create the Stripe **Payment Link**; set `NEXT_PUBLIC_STRIPE_PAYMENT_LINK`.
-- [ ] Write the **Stripe webhook Cloud Function**: on `checkout.session.completed`, read
-      `client_reference_id` (the uid `lib/billing.ts` already attaches) → set
-      `users/{uid}.tier = 'paid'`.
-- [ ] Deploy functions; register the webhook URL in Stripe; test in Stripe test mode.
+- [ ] `cd functions && npm install` (separate runtime; not part of the app's deps).
+- [ ] Set secrets: `firebase functions:secrets:set STRIPE_SECRET_KEY` and
+      `STRIPE_WEBHOOK_SECRET`.
+- [ ] `firebase deploy --only functions` (needs the `functions` block now in
+      `firebase.json`). Register the deployed `stripeWebhook` URL in Stripe; copy the
+      signing secret into `STRIPE_WEBHOOK_SECRET`. Test in Stripe **test mode**.
+- [x] **Tier self-grant is locked** in `firestore.rules`: clients may set any non-paid
+      tier, but only the webhook's Admin SDK may write `tier == 'paid'`. Without this the
+      webhook is pointless (any user could self-upgrade from the console).
+
+## Phase 7b — Live calendar feed (Blaze only)
+
+Both halves exist: the `calendarFeed` function in `functions/`, and the client wiring
+(`lib/feed.ts`, `components/CalendarFeed.tsx`, the `calendarFeedToken` pref).
+
+- [ ] `firebase deploy --only functions` deploys `calendarFeed` alongside the webhook.
+- [ ] Set `NEXT_PUBLIC_FUNCTIONS_URL` to the functions base URL (e.g.
+      `https://<region>-<project>.cloudfunctions.net`) so the Subscribe UI un-gates.
+- [ ] Verify: subscribe a calendar app to the generated URL; confirm it refreshes as the
+      forecast changes. Note the feed only works for **signed-in** users (the token must be
+      persisted to Firestore for the function to resolve it).
 
 ---
 
 ## Known gaps to address before/at launch
 
-1. **CI does not deploy Firestore rules** (Phase 3) — security risk.
+1. **CI does not deploy Firestore rules** (Phase 3) — _fixed_: `deploy.yml` now deploys
+   `firestore:rules`.
 2. **Notifications never tested end-to-end** (Phase 4).
-3. **Pro fulfilment is manual** until the Stripe webhook exists (Phase 5).
+3. **Pro fulfilment**: webhook scaffolded (Phase 5) but not yet deployed/tested in Stripe.
+4. **Subscription cancellations don't downgrade**: the webhook persists `stripeCustomerId`
+   but no `customer.subscription.deleted` handler exists yet to revoke Pro.
 
 ## Quick commands
 

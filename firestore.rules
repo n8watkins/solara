@@ -3,7 +3,16 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     match /users/{userId} {
-      allow read, create, update, delete: if request.auth != null && request.auth.uid == userId;
+      // A user owns their doc, but may NOT grant themselves Pro: only the Stripe
+      // webhook (Admin SDK, which bypasses these rules) may write tier == 'paid'.
+      // Clients can still set any non-paid tier, and a paid user may re-save their
+      // doc as long as the tier value is left unchanged.
+      allow read, delete: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null && request.auth.uid == userId
+                    && request.resource.data.tier != 'paid';
+      allow update: if request.auth != null && request.auth.uid == userId
+                    && (request.resource.data.tier == resource.data.tier
+                        || request.resource.data.tier != 'paid');
     }
 
     match /{document=**} {
