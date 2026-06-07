@@ -115,8 +115,9 @@ Both halves exist: the `calendarFeed` function in `functions/`, and the client w
    `firestore:rules`.
 2. **Notifications never tested end-to-end** (Phase 4).
 3. **Pro fulfilment**: webhook scaffolded (Phase 5) but not yet deployed/tested in Stripe.
-4. **Subscription cancellations don't downgrade**: the webhook persists `stripeCustomerId`
-   but no `customer.subscription.deleted` handler exists yet to revoke Pro.
+4. **Subscription lifecycle**: the webhook grants Pro on `checkout.session.completed` and
+   revokes it on `customer.subscription.deleted` (via the persisted `stripeCustomerId`).
+   Both paths are still untested against live Stripe events.
 
 ## Quick commands
 
