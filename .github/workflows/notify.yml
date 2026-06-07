@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: '0 13 * * *'  # 6am PDT (UTC-7), adjust for daylight saving
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Build & log messages without sending any push'
+        type: boolean
+        default: false
 
 jobs:
   notify:
@@ -24,3 +29,5 @@ jobs:
         run: node scripts/send-notifications.js
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          NEXT_PUBLIC_SITE_URL:     ${{ secrets.NEXT_PUBLIC_SITE_URL }}
+          DRY_RUN:                  ${{ inputs.dry_run && '1' || '0' }}

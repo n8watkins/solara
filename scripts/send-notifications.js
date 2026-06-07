@@ -2,11 +2,16 @@ const { initializeApp, cert } = require('firebase-admin/app')
 const { getFirestore }        = require('firebase-admin/firestore')
 const { getMessaging }        = require('firebase-admin/messaging')
 
-const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)
-initializeApp({ credential: cert(serviceAccount) })
+// DRY_RUN=1 exercises the whole pipeline (Firestore query, forecast fetch, message
+// build) and logs what WOULD be sent, without delivering any push or mutating tokens.
+// Use it to test the workflow end-to-end safely. See docs/GO_LIVE.md.
+const DRY_RUN  = process.env.DRY_RUN === '1' || process.env.DRY_RUN === 'true'
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://solara.web.app'
 
-const db        = getFirestore()
-const messaging = getMessaging()
+// Initialized lazily in main() so this module can be imported for tests without
+// requiring FIREBASE_SERVICE_ACCOUNT or opening a connection.
+let db
+let messaging
 
 function weatherLabel(code) {
   if (code === 0) return 'Clear'
@@ -132,14 +137,28 @@ function buildMessage(user, hourly) {
   }
 }
 
+// FCM error codes that mean the token is permanently dead — clear it so we stop
+// retrying it (and the user's count stays honest) on every run.
+const DEAD_TOKEN_CODES = new Set([
+  'messaging/registration-token-not-registered',
+  'messaging/invalid-registration-token',
+  'messaging/invalid-argument',
+])
+
 async function main() {
-  console.log('Fetching users with FCM tokens...')
+  const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)
+  initializeApp({ credential: cert(serviceAccount) })
+  db        = getFirestore()
+  messaging = getMessaging()
+
+  console.log(DRY_RUN ? 'DRY RUN — no pushes will be sent.' : 'Fetching users with FCM tokens...')
   const snap = await db.collection('users')
     .where('notificationsEnabled', '==', true)
     .get()
 
   console.log(`Found ${snap.size} users with notifications enabled`)
 
+  let cleaned = 0
   const results = await Promise.allSettled(
     snap.docs.map(async (userDoc) => {
       const user = userDoc.data()
@@ -148,28 +167,49 @@ async function main() {
       const hourly  = await fetchHourly(user.location.lat, user.location.lon)
       const { title, body } = buildMessage(user, hourly)
 
-      await messaging.send({
-        token: user.fcmToken,
-        notification: { title, body },
-        webpush: {
-          notification: {
-            title,
-            body,
-            icon: '/icon-192.svg',
-            badge: '/icon-72.svg',
-            tag: 'solara-daily',
-            requireInteraction: false,
-          },
-          fcmOptions: { link: 'https://solara.web.app' },
-        },
-      })
+      if (DRY_RUN) {
+        console.log(`• ${userDoc.id}: "${title}" — ${body}`)
+        return
+      }
 
-      console.log(`✓ Notified ${userDoc.id}: "${title}"`)
+      try {
+        await messaging.send({
+          token: user.fcmToken,
+          notification: { title, body },
+          webpush: {
+            notification: {
+              title,
+              body,
+              icon: '/icon-192.svg',
+              badge: '/icon-72.svg',
+              tag: 'solara-daily',
+              requireInteraction: false,
+            },
+            fcmOptions: { link: SITE_URL },
+          },
+        })
+        console.log(`✓ Notified ${userDoc.id}: "${title}"`)
+      } catch (err) {
+        if (DEAD_TOKEN_CODES.has(err.code)) {
+          await userDoc.ref.set({ fcmToken: null, notificationsEnabled: false }, { merge: true })
+          cleaned++
+          console.warn(`⌫ Cleared dead token for ${userDoc.id} (${err.code})`)
+          return
+        }
+        throw err
+      }
     })
   )
 
   const failed = results.filter(r => r.status === 'rejected').length
-  console.log(`Done. ${results.length - failed} sent, ${failed} failed.`)
+  const sent   = results.length - failed - cleaned
+  console.log(DRY_RUN
+    ? `Dry run complete. ${results.length} message(s) built.`
+    : `Done. ${sent} sent, ${cleaned} dead token(s) cleared, ${failed} failed.`)
 }
 
-main().catch(err => { console.error(err); process.exit(1) })
+module.exports = { buildMessage, bestWindow, safeWindows, effectiveMaxUV, burnMins, runsToday }
+
+if (require.main === module) {
+  main().catch(err => { console.error(err); process.exit(1) })
+}
