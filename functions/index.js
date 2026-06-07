@@ -65,9 +65,26 @@ exports.stripeWebhook = onRequest(
         } else {
           console.warn(`checkout.session.completed without client_reference_id (session ${session.id})`)
         }
+      } else if (event.type === 'customer.subscription.deleted') {
+        // Subscription ended (cancelled or final payment failed) → revoke Pro. We map
+        // back to the user via the stripeCustomerId persisted at checkout. Downgrade to
+        // 'free' rather than 'anonymous' — they had an account.
+        const customerId = event.data.object.customer
+        if (customerId) {
+          const snap = await db.collection('users')
+            .where('stripeCustomerId', '==', customerId).limit(1).get()
+          if (!snap.empty) {
+            const ref = snap.docs[0].ref
+            await ref.set(
+              { tier: 'free', proSince: admin.firestore.FieldValue.delete() },
+              { merge: true },
+            )
+            console.log(`Revoked Pro for ${ref.id} (customer ${customerId})`)
+          } else {
+            console.warn(`subscription.deleted for unknown customer ${customerId}`)
+          }
+        }
       }
-      // TODO: handle customer.subscription.deleted to downgrade once a uid↔customer
-      // mapping is persisted at checkout.
       res.status(200).json({ received: true })
     } catch (err) {
       console.error('stripeWebhook handler error:', err)
