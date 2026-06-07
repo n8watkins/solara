@@ -17,6 +17,7 @@ Legend: `[ ]` you do it · `(auto)` CI does it · `(ops)` external console, runs
 - [x] `npx vitest run` — 114 passing
 - [x] `npm run build` — static export succeeds
 - [ ] `git log origin/main..HEAD --oneline` — confirm the commits you expect are present
+
 ### 🔴 BLOCKER — configure GitHub Actions secrets first
 
 As of 2026-06-06 the repo has **no Actions secrets set**, so `deploy.yml` builds fine but
@@ -24,29 +25,35 @@ fails at the Hosting-deploy step, and `notify.yml` fails on an empty service acc
 build also silently bakes empty `NEXT_PUBLIC_*` values (the app would be a static shell
 with auth/Firestore off). Set these before the first real deploy.
 
-**Required** (deploy + the app actually working):
-```bash
-# Service-account JSON: Firebase console → Project settings → Service accounts →
-# Generate new private key. This one secret powers Hosting deploy, rules deploy, and notifications.
-gh secret set FIREBASE_SERVICE_ACCOUNT < ~/Downloads/<project>-firebase-adminsdk.json
+**Recipe** — fill a local env file (gitignored) from the Firebase console
+(Project settings → General → Your apps → SDK setup), then push every value as a secret:
 
-# Web SDK config: Firebase console → Project settings → General → Your apps → SDK setup.
-gh secret set NEXT_PUBLIC_FIREBASE_API_KEY
-gh secret set NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
-gh secret set NEXT_PUBLIC_FIREBASE_PROJECT_ID
-gh secret set NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
-gh secret set NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
-gh secret set NEXT_PUBLIC_FIREBASE_APP_ID
+```bash
+cd ~/projects/solara
+cp .env.local.example .env.local      # then edit in the six NEXT_PUBLIC_FIREBASE_* values
+
+# Push each non-empty NEXT_PUBLIC_* line as a repo secret.
+grep -E '^NEXT_PUBLIC_[A-Z_]+=..' .env.local | while IFS='=' read -r k v; do
+  gh secret set "$k" --body "$v" && echo "set $k"
+done
+
+# Service-account JSON: Firebase console → Project settings → Service accounts →
+# Generate new private key. Powers Hosting deploy, rules deploy, and notifications.
+gh secret set FIREBASE_SERVICE_ACCOUNT < ~/Downloads/<project>-firebase-adminsdk.json
 ```
 
-**For push notifications** (P4): `NEXT_PUBLIC_FIREBASE_VAPID_KEY` (Cloud Messaging → Web
-Push certificates) and optionally `NEXT_PUBLIC_SITE_URL`.
+**For push notifications** (P4): also set `NEXT_PUBLIC_FIREBASE_VAPID_KEY` (Cloud Messaging
+→ Web Push certificates) and optionally `NEXT_PUBLIC_SITE_URL`.
 
 **Optional flip-ons** (each gates a feature; absent = UI hidden, deploy still succeeds):
 `NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID`, `NEXT_PUBLIC_STRIPE_PAYMENT_LINK`,
 `NEXT_PUBLIC_PRO_PRICE`, `NEXT_PUBLIC_FUNCTIONS_URL`.
 
-- [ ] `gh secret list` shows the six required + `FIREBASE_SERVICE_ACCOUNT` before pushing.
+- [ ] `gh secret list` shows the six `NEXT_PUBLIC_FIREBASE_*` + `FIREBASE_SERVICE_ACCOUNT`
+      before pushing.
+- [ ] **Local deploys only:** `.firebaserc` ships a `YOUR_FIREBASE_PROJECT_ID` placeholder.
+      CI doesn't use it (the rules step passes `--project` from the secret), but for a local
+      `firebase deploy` either run `firebase use <project-id>` once or pass `--project <id>`.
 
 ## Stage 1 — Ship the Spark baseline (V1.2 + P6/P7a)
 
