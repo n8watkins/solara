@@ -38,6 +38,7 @@ jobs:
           NEXT_PUBLIC_STRIPE_PAYMENT_LINK:         ${{ secrets.NEXT_PUBLIC_STRIPE_PAYMENT_LINK }}
           NEXT_PUBLIC_PRO_PRICE:                   ${{ secrets.NEXT_PUBLIC_PRO_PRICE }}
           NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID:      ${{ secrets.NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID }}
+          NEXT_PUBLIC_FUNCTIONS_URL:               ${{ secrets.NEXT_PUBLIC_FUNCTIONS_URL }}
 
       - name: Deploy to Firebase Hosting
         uses: FirebaseExtended/action-hosting-deploy@v0

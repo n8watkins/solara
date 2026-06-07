@@ -55,6 +55,11 @@ function normalizeProfiles(raw: unknown): Profile[] | undefined {
   return out.length ? out.slice(0, 12) : undefined
 }
 
+/** The live-feed token must be a long, URL-safe secret. Reject anything weaker. */
+function normalizeFeedToken(raw: unknown): string | undefined {
+  return typeof raw === 'string' && /^[A-Za-z0-9_-]{16,}$/.test(raw) ? raw : undefined
+}
+
 function normalizeStringList(raw: unknown, allowed?: Set<string>): string[] {
   if (!Array.isArray(raw)) return []
   return Array.from(new Set(
@@ -138,6 +143,7 @@ export function normalizePrefs(raw: Partial<UserPreferences> | null, fallbackLoc
     sunscreen,
     activities,
     tier: TIERS.includes(raw.tier as TierLevel) ? raw.tier as TierLevel : 'anonymous',
+    calendarFeedToken: normalizeFeedToken(raw.calendarFeedToken),
     onboardingComplete: raw.onboardingComplete === true,
     calendarHours: raw.calendarHours && typeof raw.calendarHours.from === 'number' && typeof raw.calendarHours.to === 'number'
       ? { from: Math.max(0, Math.min(23, raw.calendarHours.from)), to: Math.max(1, Math.min(24, raw.calendarHours.to)) }

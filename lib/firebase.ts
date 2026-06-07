@@ -1,6 +1,6 @@
 import { initializeApp, getApps, FirebaseApp } from 'firebase/app'
 import { getAuth, Auth, GoogleAuthProvider } from 'firebase/auth'
-import { getFirestore, Firestore } from 'firebase/firestore'
+import { initializeFirestore, Firestore } from 'firebase/firestore'
 
 const hasConfig = !!(
   process.env.NEXT_PUBLIC_FIREBASE_API_KEY &&
@@ -24,7 +24,10 @@ if (hasConfig) {
 
   app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig)
   auth = getAuth(app)
-  db = getFirestore(app)
+  // ignoreUndefinedProperties: normalizePrefs emits undefined for absent optional fields
+  // (activeProfileId, calendarHours, calendarFeedToken, …); without this, updateDoc/setDoc
+  // throw on those instead of simply omitting them.
+  db = initializeFirestore(app, { ignoreUndefinedProperties: true })
   googleProvider = new GoogleAuthProvider()
 }
 

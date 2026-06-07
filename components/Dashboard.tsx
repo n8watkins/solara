@@ -8,6 +8,7 @@ import { SlotRecommendation } from '@/lib/scheduler'
 import UVTimeline from './UVTimeline'
 import ActivityCards from './ActivityCards'
 import PlanAhead from './PlanAhead'
+import CalendarFeed from './CalendarFeed'
 import AddActivityModal from './AddActivityModal'
 import ManageActivitiesModal from './ManageActivitiesModal'
 import EditActivityModal from './EditActivityModal'
@@ -361,6 +362,10 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
               </>
             )}
           </div>
+        )}
+
+        {prefs.activities.length > 0 && (
+          <CalendarFeed prefs={prefs} onPrefsUpdate={onPrefsUpdate} />
         )}
 
         {prefs.activities.length > 0 ? (
