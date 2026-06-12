@@ -6,12 +6,6 @@ export const TIER_LIMITS: Record<TierLevel, { activities: number; calendar: bool
   paid:      { activities: 999, calendar: true,  notifications: true,  futureDays: 10, savedLocations: 12, profiles: 6 },
 }
 
-export const TIER_LABELS: Record<TierLevel, string> = {
-  anonymous: 'Guest',
-  free:      'Free',
-  paid:      'Pro',
-}
-
 export function canAddActivity(tier: TierLevel, currentCount: number): boolean {
   return currentCount < TIER_LIMITS[tier].activities
 }

@@ -1,13 +1,14 @@
 'use client'
 import { useState } from 'react'
-import { User, signInWithPopup, signOut } from 'firebase/auth'
+import { User, signOut } from 'firebase/auth'
 import { UserPreferences, SkinType, Location } from '@/lib/types'
 import { clearWeatherCache } from '@/lib/cache'
-import { TIER_LABELS, TIER_LIMITS } from '@/lib/tiers'
+import { TIER_LIMITS } from '@/lib/tiers'
 import { toggleTheme, getStoredTheme } from '@/lib/theme'
-import { auth, googleProvider, firebaseEnabled } from '@/lib/firebase'
+import { auth, firebaseEnabled } from '@/lib/firebase'
 import ActivitySuggestionSettings from './ActivitySuggestionSettings'
 import PricingModal from './PricingModal'
+import GoogleSignInButton from './GoogleSignInButton'
 
 interface Props {
   prefs: UserPreferences
@@ -36,6 +37,7 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
   const [locLoading, setLocLoading] = useState(false)
   const [locError,   setLocError]   = useState<string | null>(null)
   const [dark,       setDark]       = useState(getStoredTheme() === 'dark')
+  const [showSunPath, setShowSunPath] = useState(prefs.showSunPath !== false)
   const [upgradeEmail] = useState(user?.email ?? prefs.upgradeInterest?.email ?? '')
   const [upgradeSaved, setUpgradeSaved] = useState(false)
   const [showPricing, setShowPricing] = useState(false)
@@ -45,9 +47,9 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
   const tier = prefs.tier || 'anonymous'
 
   const selectedSkin = SKIN_OPTIONS.find(o => o.value === skinType) ?? SKIN_OPTIONS[1]
-  const draft: UserPreferences = { ...prefs, skinType, location, hiddenActivitySuggestionIds, collapsedActivityCategories }
-  const dirty = JSON.stringify({ skinType: prefs.skinType, location: prefs.location, hiddenActivitySuggestionIds: prefs.hiddenActivitySuggestionIds ?? [], collapsedActivityCategories: prefs.collapsedActivityCategories ?? [] }) !==
-    JSON.stringify({ skinType, location, hiddenActivitySuggestionIds, collapsedActivityCategories })
+  const draft: UserPreferences = { ...prefs, skinType, location, showSunPath, hiddenActivitySuggestionIds, collapsedActivityCategories }
+  const dirty = JSON.stringify({ skinType: prefs.skinType, location: prefs.location, showSunPath: prefs.showSunPath !== false, hiddenActivitySuggestionIds: prefs.hiddenActivitySuggestionIds ?? [], collapsedActivityCategories: prefs.collapsedActivityCategories ?? [] }) !==
+    JSON.stringify({ skinType, location, showSunPath, hiddenActivitySuggestionIds, collapsedActivityCategories })
 
   function requestClose() {
     if (dirty && !window.confirm('Discard unsaved settings changes?')) return
@@ -102,41 +104,45 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
     setCollapsedActivityCategories(updated.collapsedActivityCategories ?? [])
   }
 
-  const TABS: { id: Tab; label: string }[] = [
-    { id: 'general',    label: 'Sun profile' },
-    { id: 'appearance', label: 'Appearance'  },
-    { id: 'activities', label: 'Activity prefs' },
-    { id: 'location',   label: 'Location'    },
-    { id: 'account',    label: 'Account'     },
+  const SECTIONS: { id: Tab; label: string; emoji: string; desc: string }[] = [
+    { id: 'general',    label: 'Sun profile', emoji: '☀️', desc: 'Skin type and the exposure assumptions behind your safety math.' },
+    { id: 'appearance', label: 'Appearance',  emoji: '🎨', desc: 'Theme and what the dashboard shows.' },
+    { id: 'activities', label: 'Activities',  emoji: '🏃', desc: 'Suggestion and category preferences.' },
+    { id: 'location',   label: 'Location',    emoji: '📍', desc: 'Where Solara checks the UV forecast.' },
+    { id: 'account',    label: 'Account',     emoji: '👤', desc: 'Plan, sign-in, and cross-device sync.' },
   ]
+  const activeSection = SECTIONS.find(s => s.id === tab) ?? SECTIONS[0]
 
   return (
     <div
       onClick={e => e.target === e.currentTarget && requestClose()}
       style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: '16px' }}
     >
-      <div style={{ background: 'var(--bg-card)', borderRadius: '20px', width: '100%', maxWidth: '620px', height: 'min(86vh, 680px)', overflow: 'hidden', display: 'flex', flexDirection: 'column', border: '0.5px solid var(--border-md)', boxShadow: '0 24px 80px rgba(0,0,0,0.24)' }}>
+      <div style={{ background: 'var(--bg-card)', borderRadius: '20px', width: '100%', maxWidth: '860px', height: 'min(88vh, 720px)', overflow: 'hidden', display: 'flex', flexDirection: 'column', border: '0.5px solid var(--border-md)', boxShadow: '0 24px 80px rgba(0,0,0,0.24)' }}>
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 22px 16px', borderBottom: '0.5px solid var(--border-md)', flexShrink: 0 }}>
-          <div>
-            <p style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: 'var(--text)' }}>Settings</p>
-            <p style={{ margin: '4px 0 0', fontSize: '12px', color: 'var(--text-3)' }}>Profile, app, location, and account controls.</p>
-          </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '18px 22px 14px', borderBottom: '0.5px solid var(--border-md)', flexShrink: 0 }}>
+          <p style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: 'var(--text)' }}>Settings</p>
           <button onClick={requestClose} style={{ background: 'var(--bg-metric)', border: 'none', width: '32px', height: '32px', borderRadius: '50%', fontSize: '18px', cursor: 'pointer', color: 'var(--text-2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} aria-label="Close settings">×</button>
         </div>
 
-        <div style={{ display: 'flex', borderBottom: '0.5px solid var(--border-md)', padding: '0 22px', flexShrink: 0, overflowX: 'auto' }}>
-          {TABS.map(t => (
-            <button key={t.id} onClick={() => setTab(t.id)} style={{
-              padding: '13px 0', marginRight: '20px', fontSize: '13px', fontWeight: 650, cursor: 'pointer', whiteSpace: 'nowrap',
-              background: 'none', border: 'none',
-              borderBottom: tab === t.id ? '2px solid var(--accent)' : '2px solid transparent',
-              color: tab === t.id ? 'var(--accent)' : 'var(--text-3)', transition: 'color 0.15s',
-            }}>{t.label}</button>
-          ))}
-        </div>
+        <div className="settings-body">
+          <nav className="settings-nav">
+            {SECTIONS.map(s => (
+              <button
+                key={s.id}
+                onClick={() => setTab(s.id)}
+                className={`settings-nav-btn${tab === s.id ? ' active' : ''}`}
+              >
+                <span style={{ fontSize: '15px' }}>{s.emoji}</span> {s.label}
+              </button>
+            ))}
+          </nav>
 
-        <div style={{ overflowY: 'auto', flex: 1, padding: '20px 22px' }}>
+          <div className="settings-content">
+          <div style={{ marginBottom: '18px' }}>
+            <p style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: 'var(--text)' }}>{activeSection.emoji} {activeSection.label}</p>
+            <p style={{ margin: '4px 0 0', fontSize: '13px', color: 'var(--text-3)' }}>{activeSection.desc}</p>
+          </div>
 
           {tab === 'general' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
@@ -197,6 +203,19 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
                   {dark ? '🌙 Dark' : '☀️ Light'}
                 </button>
               </div>
+              <div className="metric-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '14px' }}>
+                <div>
+                  <p style={{ margin: '0 0 4px', fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>Sun path animation</p>
+                  <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-3)' }}>The arc above the hourly UV chart showing the sun's position.</p>
+                </div>
+                <button
+                  onClick={() => setShowSunPath(s => !s)}
+                  className="btn"
+                  style={{ whiteSpace: 'nowrap' }}
+                >
+                  {showSunPath ? '✓ On' : 'Off'}
+                </button>
+              </div>
             </div>
           )}
 
@@ -229,7 +248,7 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
                 <div>
                   <p style={{ margin: '0 0 3px', fontSize: '12px', color: 'var(--text-3)' }}>Current plan</p>
                   <p style={{ margin: 0, fontSize: '17px', fontWeight: 700, color: tier === 'paid' ? 'var(--accent)' : 'var(--text)' }}>
-                    {TIER_LABELS[tier]}
+                    {tier === 'paid' ? 'Pro' : user ? 'Free' : 'Not signed in'}
                   </p>
                 </div>
                 {tier !== 'paid' && (
@@ -271,16 +290,10 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-3)' }}>
-                    Sign in to sync preferences across devices.
+                    Sign in to track {TIER_LIMITS.free.activities} activities free and sync preferences across devices.
                   </p>
                   {firebaseEnabled ? (
-                    <button
-                      className="btn btn-primary"
-                      onClick={async () => { if (auth && googleProvider) { try { await signInWithPopup(auth, googleProvider) } catch {} } }}
-                      style={{ justifyContent: 'center' }}
-                    >
-                      Sign in with Google
-                    </button>
+                    <GoogleSignInButton seedPrefs={draft} style={{ justifyContent: 'center' }} />
                   ) : (
                     <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-3)', fontStyle: 'italic' }}>
                       Firebase not configured — running in local mode.
@@ -290,6 +303,7 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
               )}
             </div>
           )}
+          </div>
         </div>
 
         <div style={{ padding: '15px 22px', borderTop: '0.5px solid var(--border-md)', display: 'flex', gap: '10px', flexShrink: 0 }}>

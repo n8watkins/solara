@@ -132,6 +132,35 @@ input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(249,115,22
   flex-shrink: 0;
 }
 
+/* Settings modal: left nav rail on desktop, horizontal strip on small screens */
+.settings-body { display: flex; flex: 1; min-height: 0; }
+.settings-nav {
+  display: flex; flex-direction: column; gap: 2px;
+  width: 188px; flex-shrink: 0; padding: 14px 10px;
+  border-right: 0.5px solid var(--border-md);
+  overflow-y: auto;
+}
+.settings-nav-btn {
+  display: flex; align-items: center; gap: 9px;
+  padding: 9px 12px; border-radius: 9px;
+  border: none; background: none; cursor: pointer; text-align: left;
+  font-size: 13px; font-weight: 600; color: var(--text-2);
+  transition: background 0.12s, color 0.12s;
+}
+.settings-nav-btn:hover { background: var(--bg-metric); }
+.settings-nav-btn.active { background: var(--bg-metric); color: var(--accent); }
+.settings-content { flex: 1; overflow-y: auto; padding: 20px 24px; min-width: 0; }
+
+@media (max-width: 640px) {
+  .settings-body { flex-direction: column; }
+  .settings-nav {
+    flex-direction: row; width: auto; padding: 8px 12px;
+    border-right: none; border-bottom: 0.5px solid var(--border-md);
+    overflow-x: auto; overflow-y: visible;
+  }
+  .settings-nav-btn { white-space: nowrap; flex-shrink: 0; }
+}
+
 @media (max-width: 560px) {
   .hide-mobile { display: none; }
   .card { padding: 1rem; }
