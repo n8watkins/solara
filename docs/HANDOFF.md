@@ -99,12 +99,11 @@ Verification baseline: `npm run typecheck` clean · `npx vitest run` 114/114 ·
    already; `FirebaseExtended/action-hosting-deploy@v0` is third-party and still
    flagged. Glance at the first deploy after the 16th.
 5. **Work the 🟡 rows in [`V1.2_TEST_PLAN.md`](./V1.2_TEST_PLAN.md)** against the live site.
-6. **Monetization (when user says go):** decision leaning from this session — instead
-   of upgrading Firebase to Blaze for Cloud Functions (P5 Stripe webhook, P7b live
-   calendar feed in `functions/`), consider porting both to Next.js API routes on
-   Vercel (free tier, no Blaze). That requires dropping `output: 'export'` and moving
-   hosting to Vercel; Firebase stays for Auth/Firestore/FCM. Don't start this without
-   the user.
+6. **Monetization (when user says go): DECIDED 2026-06-12 — stay on Firebase.**
+   User explicitly chose to stick with Firebase rather than port to Vercel ("let's
+   just stick with Firebase for this project"). Path: upgrade to Blaze, deploy the
+   existing `functions/` scaffold (P5 Stripe webhook, P7b live calendar feed).
+   Do not revisit the Vercel option. Don't start this without the user.
 
 ## Conventions & gotchas
 

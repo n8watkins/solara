@@ -49,7 +49,7 @@ bounces to the welcome screen.
 | V1.2 + P6 + P7a + UI rework | ✅ live |
 | Google sign-in on live site | 🟡 provider enabled in console 2026-06-12 (google.com `enabled: true`, both domains authorized); live sign-in flow + prefs sync not yet exercised |
 | Notification cron | 🟡 dry-run green 2026-06-12 (auth + Firestore query OK, 0 users); FCM send unproven until a user opts in |
-| P5 Stripe / P7b live feed | ⏸ scaffolded, needs Blaze — or port to Vercel API routes (decision pending) |
+| P5 Stripe / P7b live feed | ⏸ scaffolded; DECIDED: stay on Firebase → Blaze upgrade + functions deploy when monetizing |
 | P1 Google Calendar OAuth | ⏸ needs OAuth client ID |
 
 ## What we do next
@@ -61,8 +61,8 @@ bounces to the welcome screen.
    → then a real push. (0-user dry-run already green.)
 4. Glance at the first deploy after **June 16** (Node 24 forcing on `action-hosting-deploy@v0`).
 5. Work the 🟡 rows in `V1.2_TEST_PLAN.md`.
-6. When monetizing: Blaze + functions deploy, **or** port webhook/feed to Vercel (leaning
-   Vercel — no Blaze cost; requires dropping static export).
+6. When monetizing: Blaze + functions deploy. (DECIDED 2026-06-12: staying on
+   Firebase; Vercel port is off the table.)
 
 ## Known gaps / watch-items
 
