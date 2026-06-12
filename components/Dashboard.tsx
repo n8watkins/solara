@@ -15,7 +15,7 @@ import EditActivityModal from './EditActivityModal'
 import SunArc from './SunArc'
 import Tooltip from './Tooltip'
 import TipCarousel from './TipCarousel'
-import GoogleSignInButton from './GoogleSignInButton'
+import GoogleSignInButton, { ACTIVITY_SIGNIN_BLURB } from './GoogleSignInButton'
 
 interface Props {
   weather: WeatherResponse
@@ -191,9 +191,11 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
 
-      {showDayTabs && (
+      {/* Row always renders so the manual refresh stays reachable even when there
+          are no day tabs to show (e.g. guests with a single visible day). */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
         <div style={{ overflow: 'hidden', flex: 1 }}>
+          {showDayTabs && (
           <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '2px', WebkitOverflowScrolling: 'touch' as any }}>
             {visibleForecast.map((day, i) => {
               const isActive = effectiveSelectedDay ? effectiveSelectedDay.dateStr === day.dateStr : i === 0
@@ -229,10 +231,10 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
               </button>
             )}
           </div>
+          )}
         </div>
         <button className="btn btn-ghost" onClick={onRefresh} title="Refresh" style={{ padding: '7px 9px', fontSize: '17px', flexShrink: 0 }}>↻</button>
       </div>
-      )}
 
       {shareMsg && (
         <div style={{ padding: '11px 13px', borderRadius: '10px', background: 'rgba(249,115,22,0.08)', color: 'var(--text-2)', fontSize: '13px', border: '0.5px solid rgba(249,115,22,0.2)' }}>
@@ -301,7 +303,7 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
 
       <TipCarousel />
 
-      {prefs.activities.length > 0 && (
+      {!activitiesLocked && prefs.activities.length > 0 && (
         <PlanAhead
           forecast={weather.forecast}
           activities={prefs.activities}
@@ -344,7 +346,7 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
           )}
         </div>
 
-        {prefs.activities.length > 0 && isCalendarConfigured() && (
+        {!activitiesLocked && prefs.activities.length > 0 && isCalendarConfigured() && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '10px', marginBottom: '12px', background: 'var(--bg-metric)', border: '0.5px solid var(--border-md)' }}>
             <span style={{ fontSize: '16px', flexShrink: 0 }}>🗓️</span>
             {calStatus === 'connected' ? (
@@ -365,11 +367,22 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
           </div>
         )}
 
-        {prefs.activities.length > 0 && (
+        {!activitiesLocked && prefs.activities.length > 0 && (
           <CalendarFeed prefs={prefs} onPrefsUpdate={onPrefsUpdate} />
         )}
 
-        {prefs.activities.length > 0 ? (
+        {/* The sign-in gate must win even over legacy guest activities saved before
+            the activities-require-sign-in policy; they still seed the account on sign-in. */}
+        {activitiesLocked ? (
+          <div className="card" style={{ textAlign: 'center', padding: '2.75rem 1.5rem' }}>
+            <p style={{ fontSize: '30px', marginBottom: '10px' }}>🏃</p>
+            <p style={{ fontWeight: 650, fontSize: '16px', color: 'var(--text)', margin: '0 0 7px' }}>Sign in to track your activities</p>
+            <p style={{ fontSize: '14px', color: 'var(--text-3)', margin: '0 0 20px', lineHeight: '1.55' }}>
+              {ACTIVITY_SIGNIN_BLURB} Signing in with Google is free.
+            </p>
+            <GoogleSignInButton seedPrefs={prefs} style={{ margin: '0 auto', minWidth: '220px' }} />
+          </div>
+        ) : prefs.activities.length > 0 ? (
           <ActivityCards
             windows={activityWindows}
             daysFromNow={dayIndex}
@@ -381,16 +394,6 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
             onBookRecommended={calStatus === 'connected' ? (a, r) => bookSlotOn(a, r, activeDateStr) : undefined}
             onEditActivity={openEditActivity}
           />
-        ) : activitiesLocked ? (
-          <div className="card" style={{ textAlign: 'center', padding: '2.75rem 1.5rem' }}>
-            <p style={{ fontSize: '30px', marginBottom: '10px' }}>🏃</p>
-            <p style={{ fontWeight: 650, fontSize: '16px', color: 'var(--text)', margin: '0 0 7px' }}>Sign in to track your activities</p>
-            <p style={{ fontSize: '14px', color: 'var(--text-3)', margin: '0 0 20px', lineHeight: '1.55' }}>
-              Tell Solara what you do outside and it finds your safest sun windows each day.
-              Signing in with Google is free.
-            </p>
-            <GoogleSignInButton seedPrefs={prefs} style={{ margin: '0 auto', minWidth: '220px' }} />
-          </div>
         ) : (
           <div className="card" style={{ textAlign: 'center', padding: '2.75rem 1.5rem' }}>
             <p style={{ fontSize: '30px', marginBottom: '10px' }}>🏃</p>

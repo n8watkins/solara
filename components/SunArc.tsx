@@ -95,7 +95,9 @@ export default function SunArc({ hourly, currentHour, isToday }: Props) {
           )}
         </svg>
 
-        <div style={{ position: 'absolute', left: 0, right: 0, bottom: '2px', display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-3)' }}>
+        {/* hide-mobile: the UV timeline directly below shows the same axis on small
+            screens — two stacked time axes read as clutter. */}
+        <div className="hide-mobile flex" style={{ position: 'absolute', left: 0, right: 0, bottom: '2px', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-3)' }}>
           <span>{fmtHour(firstHour)}</span>
           <span>Midday</span>
           <span>{fmtHour(lastHour)}</span>

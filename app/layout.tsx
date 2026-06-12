@@ -4,7 +4,10 @@ import './globals.css'
 import ThemeInit from '@/components/ThemeInit'
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://solara.web.app'
-const GA_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID
+// Interpolated into an inline script below — refuse anything that isn't a plain
+// GA4 measurement id so a malformed env value can't break out of the string.
+const RAW_GA_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID
+const GA_ID = RAW_GA_ID && /^G-[A-Z0-9]+$/.test(RAW_GA_ID) ? RAW_GA_ID : undefined
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),

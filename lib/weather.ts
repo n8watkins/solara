@@ -55,6 +55,13 @@ export function fmtHour(h: number): string {
   return h < 12 ? `${h}am` : `${h - 12}pm`
 }
 
+// UV values display with one decimal everywhere; `compact` drops the decimal at
+// double digits so the value fits the ~22px mobile timeline bars.
+export function formatUV(uv: number, opts?: { compact?: boolean }): string {
+  if (opts?.compact && uv >= 10) return String(Math.round(uv))
+  return uv.toFixed(1)
+}
+
 // Like fmtHour but supports fractional hours: 6.75 → "6:45am", 17 → "5pm".
 export function fmtClock(h: number): string {
   let hr = Math.floor(h)

@@ -4,7 +4,7 @@ import { User } from 'firebase/auth'
 import { saveLocalPrefs, saveFirestorePrefs, defaultPrefs } from '@/lib/prefs'
 import { UserPreferences, Location, SkinType, Activity } from '@/lib/types'
 import { TIER_LIMITS, PRESET_ACTIVITIES } from '@/lib/tiers'
-import GoogleSignInButton from './GoogleSignInButton'
+import GoogleSignInButton, { ACTIVITY_SIGNIN_BLURB } from './GoogleSignInButton'
 
 interface Props {
   onComplete: (prefs: UserPreferences) => void
@@ -247,8 +247,7 @@ export default function Onboarding({ onComplete, user }: Props) {
           <div className="card">
             <h2 style={{ margin: '0 0 4px', fontSize: '18px', fontWeight: 600, color: 'var(--text)' }}>Want activity recommendations?</h2>
             <p style={{ margin: '0 0 16px', fontSize: '14px', color: 'var(--text-2)', lineHeight: 1.55 }}>
-              Tell Solara what you do outside and it finds your safest sun windows each day.
-              Activities need an account — signing in with Google is free.
+              {ACTIVITY_SIGNIN_BLURB} Activities need an account — signing in with Google is free.
             </p>
             <div style={{ padding: '14px', borderRadius: '12px', background: 'var(--bg-metric)', border: '0.5px solid var(--border-md)', marginBottom: '16px' }}>
               <p style={{ margin: '0 0 10px', fontSize: '13px', color: 'var(--text-2)', lineHeight: 1.5 }}>

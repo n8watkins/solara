@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { HourlyForecast } from '@/lib/types'
-import { uvColorHex, uvTextHex, uvLabel, fmtHour, burnMins } from '@/lib/weather'
+import { uvColorHex, uvTextHex, uvLabel, fmtHour, formatUV, burnMins } from '@/lib/weather'
 
 interface Props {
   hourly: HourlyForecast[]
@@ -36,7 +36,7 @@ export default function UVTimeline({ hourly, currentHour, skinType = 'fair' }: P
               onTouchStart={() => setHovered(h)}
             >
               <span className="text-[11px] font-semibold leading-none" style={{ color: tx }}>
-                {h.uv >= 10 ? Math.round(h.uv) : h.uv.toFixed(1)}
+                {formatUV(h.uv, { compact: true })}
               </span>
               <span className="hide-mobile text-[9px] mt-0.5 opacity-70" style={{ color: tx }}>
                 {fmtHour(h.hour)}

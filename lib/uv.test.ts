@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { burnMins, vitDMins, uvLabel, fmtHour, getActivityWindow } from '@/lib/weather'
+import { burnMins, vitDMins, uvLabel, fmtHour, formatUV, getActivityWindow } from '@/lib/weather'
 import { effectiveMaxUV, canAddActivity, getFutureDays } from '@/lib/tiers'
 import { HourlyForecast, Activity } from '@/lib/types'
 
@@ -111,6 +111,17 @@ describe('tier limits', () => {
     expect(getFutureDays('anonymous')).toBe(1)
     expect(getFutureDays('free')).toBe(2)
     expect(getFutureDays('paid')).toBe(10)
+  })
+})
+
+describe('formatUV', () => {
+  it('keeps one decimal by default', () => {
+    expect(formatUV(8.62)).toBe('8.6')
+    expect(formatUV(10.2)).toBe('10.2')
+  })
+  it('drops the decimal at double digits only in compact mode', () => {
+    expect(formatUV(10.2, { compact: true })).toBe('10')
+    expect(formatUV(9.55, { compact: true })).toBe('9.6')
   })
 })
 

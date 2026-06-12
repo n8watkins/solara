@@ -130,7 +130,9 @@ export default function App() {
   const displayTier = tierOverride || prefs.tier || 'anonymous'
   const displayPrefs = { ...prefs, tier: displayTier }
   // Guests only get the dashboard — no calendar tab bar, and never a stale
-  // 'calendar' view (e.g. right after signing out).
+  // 'calendar' view (e.g. right after signing out). Derived rather than reset in
+  // the auth listener because DevPanel's tierOverride flips displayTier without an
+  // auth event. EVERY render decision below must key off effectiveView, never `view`.
   const effectiveView = displayTier === 'anonymous' ? 'dashboard' : view
 
   return (
