@@ -28,37 +28,43 @@ function Row({ label, val, accent }: { label: string; val: string; accent?: stri
   )
 }
 
-function WindowPill({ win, isBest, cloudNote, onShare, onCalendar }: { win: SafeActivityWindow; isBest: boolean; cloudNote?: boolean; onShare: () => void; onCalendar?: () => void }) {
+/** Time-of-day cue so a 6–10am window reads differently from a 5–9pm one at a glance. */
+function dayPhase(win: SafeActivityWindow): { icon: string; label: string } {
+  const mid = (win.from + win.to) / 2
+  if (mid < 12) return { icon: '🌅', label: 'Morning' }
+  if (mid < 16) return { icon: '☀️', label: 'Midday' }
+  return { icon: '🌇', label: 'Evening' }
+}
+
+function WindowRow({ win, isBest, cloudNote, onShare, onCalendar }: { win: SafeActivityWindow; isBest: boolean; cloudNote?: boolean; onShare: () => void; onCalendar?: () => void }) {
+  const phase = dayPhase(win)
   return (
     <div style={{
       display: 'flex',
-      flexDirection: 'column',
-      gap: '6px',
-      minWidth: '124px',
-      padding: '8px 9px',
+      alignItems: 'center',
+      gap: '10px',
+      padding: '8px 10px',
       borderRadius: '10px',
       border: isBest ? '1.5px solid var(--accent)' : '0.5px solid var(--border-md)',
       background: isBest ? 'rgba(249,115,22,0.08)' : 'var(--bg-metric)',
     }}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-        <span style={{ fontSize: '11px', fontWeight: 750, color: isBest ? 'var(--accent)' : 'var(--text-2)' }}>
-          {isBest ? 'Best' : win.label}
-        </span>
-        <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text)' }}>
-          {fmtHour(win.from)}–{fmtHour(win.to)}
-        </span>
-        <span style={{ fontSize: '10px', color: 'var(--text-3)' }}>
-          Peak UV {win.peakUV.toFixed(1)}
-        </span>
-        {cloudNote && (
-          <span style={{ fontSize: '10px', color: 'var(--text-3)' }} title="Qualifies only because heavy cloud lowers effective UV">
-            ☁ Safe under cloud
+      <span title={phase.label} style={{ fontSize: '17px', flexShrink: 0 }}>{phase.icon}</span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: '7px' }}>
+          <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>
+            {fmtHour(win.from)}–{fmtHour(win.to)}
           </span>
-        )}
+          {isBest && (
+            <span style={{ fontSize: '10px', fontWeight: 750, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Best</span>
+          )}
+        </div>
+        <span style={{ fontSize: '11px', color: 'var(--text-3)' }}>
+          {phase.label} · Peak UV {win.peakUV.toFixed(1)}{cloudNote ? ' · ☁ safe under cloud' : ''}
+        </span>
       </div>
-      <div style={{ display: 'flex', gap: '5px' }}>
-        <button className="btn" onClick={onShare} style={{ flex: 1, padding: '5px 6px', fontSize: '11px' }}>Share</button>
-        {onCalendar && <button className="btn" onClick={onCalendar} style={{ flex: 1, padding: '5px 6px', fontSize: '11px' }}>Cal</button>}
+      <div style={{ display: 'flex', gap: '5px', flexShrink: 0 }}>
+        <button className="btn" onClick={onShare} style={{ padding: '5px 9px', fontSize: '11px' }}>Share</button>
+        {onCalendar && <button className="btn" onClick={onCalendar} style={{ padding: '5px 9px', fontSize: '11px' }}>Cal</button>}
       </div>
     </div>
   )
@@ -95,7 +101,7 @@ export default function ActivityCards({ windows, daysFromNow, tier, location, da
   return (
     <div>
       {confirm && <p style={{ margin: '0 0 12px', fontSize: '12px', color: 'var(--accent)', textAlign: 'right' }}>{confirm}</p>}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: '10px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '10px' }}>
         {windows.map(({ activity, bestWindow, allWindows, safeNow, pctDaySafe, burnMins }) => {
           const status = safeNow ? 'safe' : bestWindow ? 'caution' : 'avoid'
           const durationLabel = activity.durationMins < 60
@@ -112,10 +118,21 @@ export default function ActivityCards({ windows, daysFromNow, tier, location, da
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span style={{ fontSize: '18px' }}>{activity.icon}</span>
-                <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text)', flex: 1 }}>{activity.name}</span>
-                <span className={`badge badge-${status}`}>
+                <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{activity.name}</span>
+                <span className={`badge badge-${status}`} style={{ flexShrink: 0 }}>
                   {status === 'safe' ? 'Safe now' : status === 'caution' ? 'Later' : 'Avoid'}
                 </span>
+                {onEditActivity && (
+                  <button
+                    className="btn btn-ghost"
+                    onClick={() => onEditActivity(activity)}
+                    aria-label={`Edit ${activity.name}`}
+                    title="Edit activity"
+                    style={{ marginLeft: 'auto', padding: '4px 8px', fontSize: '13px', flexShrink: 0 }}
+                  >
+                    ✎
+                  </button>
+                )}
               </div>
 
               {rec && (
@@ -174,11 +191,11 @@ export default function ActivityCards({ windows, daysFromNow, tier, location, da
                   Safe windows
                 </p>
                 {allWindows.length > 0 ? (
-                  <div style={{ display: 'flex', gap: '7px', overflowX: 'auto', paddingBottom: '2px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     {allWindows.map(win => {
                       const isBest = !!bestWindow && win.from === bestWindow.from && win.to === bestWindow.to
                       return (
-                        <WindowPill
+                        <WindowRow
                           key={`${win.from}-${win.to}`}
                           win={win}
                           isBest={isBest}
@@ -196,17 +213,6 @@ export default function ActivityCards({ windows, daysFromNow, tier, location, da
                 )}
               </div>
 
-              <div style={{ display: 'flex', gap: '8px', marginTop: 'auto', flexWrap: 'wrap' }}>
-                {onEditActivity && (
-                  <button
-                    className="btn"
-                    onClick={() => onEditActivity(activity)}
-                    style={{ justifyContent: 'center', fontSize: '12px', flex: bestWindow ? '0 0 auto' : 1 }}
-                  >
-                    Edit
-                  </button>
-                )}
-              </div>
             </div>
           )
         })}
