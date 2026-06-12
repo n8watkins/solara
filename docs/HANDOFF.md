@@ -84,10 +84,10 @@ Verification baseline: `npm run typecheck` clean · `npx vitest run` 114/114 ·
 
 ## Next steps (ordered)
 
-1. **USER: enable Authentication in the Firebase console** (Authentication →
-   Get started → Sign-in method → Google). Confirmed not provisioned as of
-   2026-06-12; nothing else can proceed until this is done.
-2. **Verify live sign-in + prefs sync** (once 1 is done). Open the site, complete
+1. ~~USER: enable Authentication in the Firebase console~~ ✅ Done 2026-06-12:
+   `google.com` provider `enabled: true` (auto-provisioned OAuth client), both
+   live domains in `authorizedDomains` — verified via admin API.
+2. **Verify live sign-in + prefs sync** (now unblocked). Open the site, complete
    onboarding, sign in with Google, confirm a `users/{uid}` doc appears in Firestore
    and prefs survive a reload on another device/profile. No redeploy needed — the
    live bundle config is verified correct.

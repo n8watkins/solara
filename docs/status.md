@@ -47,15 +47,14 @@ bounces to the welcome screen.
 | CI deploy (push → hosting + rules) | ✅ green |
 | Firestore + security rules | ✅ deployed (tier-lock active) |
 | V1.2 + P6 + P7a + UI rework | ✅ live |
-| Google sign-in on live site | 🔴 blocked — Firebase Auth confirmed NOT provisioned (`CONFIGURATION_NOT_FOUND`); user must enable in console |
+| Google sign-in on live site | 🟡 provider enabled in console 2026-06-12 (google.com `enabled: true`, both domains authorized); live sign-in flow + prefs sync not yet exercised |
 | Notification cron | 🟡 dry-run green 2026-06-12 (auth + Firestore query OK, 0 users); FCM send unproven until a user opts in |
 | P5 Stripe / P7b live feed | ⏸ scaffolded, needs Blaze — or port to Vercel API routes (decision pending) |
 | P1 Google Calendar OAuth | ⏸ needs OAuth client ID |
 
 ## What we do next
 
-1. **USER:** enable Authentication in Firebase console (Authentication → Get started →
-   Sign-in method → Google). Confirmed unprovisioned — sign-in cannot work until then.
+1. ~~USER: enable Authentication in Firebase console~~ ✅ done 2026-06-12.
 2. Verify Google sign-in + prefs sync on the live site (no redeploy needed; live
    bundle config verified correct).
 3. Prove notifications: opt in as a real user → `gh workflow run notify.yml -f dry_run=true`
