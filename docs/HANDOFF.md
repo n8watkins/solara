@@ -118,8 +118,10 @@ Verification baseline: `npm run typecheck` clean · `npx vitest run` 114/114 ·
 - `NEXT_PUBLIC_*` values are **baked at build time** — changing one requires a redeploy.
 - Firestore rules: clients may never write `tier: 'paid'` (only the Stripe webhook /
   Admin SDK). Don't "fix" that while debugging.
-- Tier limits (`lib/tiers.ts`): anonymous 1 activity (deliberate funnel), free 3,
-  paid unlimited. User decided: no "Guest" labels anywhere; funnel to Google accounts.
+- Tier limits (`lib/tiers.ts`): anonymous **0 activities** (decided 2026-06-12:
+  activities require sign-in; guests get the UV dashboard only and can skip the
+  onboarding activities step), free 3, paid unlimited. No "Guest" labels anywhere;
+  funnel to Google accounts — sign-in is free.
 - Profiles (P6 family/pet) are deprioritized — user explicitly not interested in
   expanding them.
 - OAuth consent-screen support email = user's personal Gmail for now (their decision,

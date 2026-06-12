@@ -43,6 +43,10 @@ bounces to the welcome screen.
 `NEXT_PUBLIC_GA_MEASUREMENT_ID` (= `G-XN0QQXMG36`, set as Actions secret + in
 `.env.local`); verified live on the deployed site.
 
+**Activities now require sign-in** (`18116f1`, user decision 2026-06-12): anonymous
+tier limit 0; onboarding step 3 shows a Google sign-in gate (skippable straight to
+the UV dashboard); dashboard shows a sign-in card instead of Add/Manage for guests.
+
 ## Where we are now
 
 | Area | State |
