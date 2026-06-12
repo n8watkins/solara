@@ -87,14 +87,18 @@ Verification baseline: `npm run typecheck` clean · `npx vitest run` 114/114 ·
 1. ~~USER: enable Authentication in the Firebase console~~ ✅ Done 2026-06-12:
    `google.com` provider `enabled: true` (auto-provisioned OAuth client), both
    live domains in `authorizedDomains` — verified via admin API.
-2. **Verify live sign-in + prefs sync** (now unblocked). Open the site, complete
-   onboarding, sign in with Google, confirm a `users/{uid}` doc appears in Firestore
-   and prefs survive a reload on another device/profile. No redeploy needed — the
-   live bundle config is verified correct.
-3. **Prove notifications end-to-end.** Enable notifications as a real user → run
-   `gh workflow run notify.yml -f dry_run=true` → check logs show the built message →
-   then let the real 6am PT cron fire (or dispatch without dry_run). (Dry-run with
-   0 users already verified green on 2026-06-12.)
+2. **Verify live sign-in + prefs sync** (now unblocked). The user was about to sign
+   in at session end — **first check whether they already did**: query the `users`
+   collection with the Admin SDK (service-account JSON path under Conventions; e.g.
+   a short `node -e` script with `firebase-admin`, which is in `node_modules`). If a
+   `users/{uid}` doc exists with sensible prefs, sign-in + sync is verified — update
+   status.md. If not, ask the user to sign in with Google on the live site and
+   enable notifications. No redeploy needed — live bundle config verified correct.
+3. **Prove notifications end-to-end.** Once the user's doc shows
+   `notificationsEnabled: true` → run `gh workflow run notify.yml -f dry_run=true` →
+   check logs show a built message for them → then let the real 6am PT cron fire (or
+   dispatch without dry_run). (Dry-run with 0 users already verified green on
+   2026-06-12, run `27432692013`.)
 4. **June 16, 2026:** GitHub forces Node 24 on JS actions. Our steps are v5/Node24
    already; `FirebaseExtended/action-hosting-deploy@v0` is third-party and still
    flagged. Glance at the first deploy after the 16th.
@@ -121,6 +125,9 @@ Verification baseline: `npm run typecheck` clean · `npx vitest run` 114/114 ·
   paid unlimited. User decided: no "Guest" labels anywhere; funnel to Google accounts.
 - Profiles (P6 family/pet) are deprioritized — user explicitly not interested in
   expanding them.
+- OAuth consent-screen support email = user's personal Gmail for now (their decision,
+  2026-06-12). Later: Google Workspace on their `n8builds.dev` domain → switch to a
+  `support@n8builds.dev` group. Don't re-raise until monetization.
 - Known minor bug (punt): `scripts/send-notifications.js` computes "today" in runner
   UTC while Open-Meteo returns location-local hours — users in UTC+11/+12 can get a
   "no forecast" push. Only matters with international users.
