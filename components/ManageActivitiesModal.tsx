@@ -1,6 +1,6 @@
 'use client'
 import { Activity, TierLevel } from '@/lib/types'
-import { effectiveMaxUV } from '@/lib/tiers'
+import { canAddActivity, effectiveMaxUV } from '@/lib/tiers'
 import ActivityModalShell from './ActivityModalShell'
 
 interface Props {
@@ -29,7 +29,7 @@ export default function ManageActivitiesModal({ activities, tier, onActivitiesCh
     ])
   }
 
-  const atLimit = tier !== 'paid' && activities.length >= (tier === 'anonymous' ? 1 : 3)
+  const atLimit = !canAddActivity(tier, activities.length)
 
   return (
     <ActivityModalShell

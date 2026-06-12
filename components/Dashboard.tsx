@@ -15,6 +15,7 @@ import EditActivityModal from './EditActivityModal'
 import SunArc from './SunArc'
 import Tooltip from './Tooltip'
 import TipCarousel from './TipCarousel'
+import GoogleSignInButton from './GoogleSignInButton'
 
 interface Props {
   weather: WeatherResponse
@@ -45,6 +46,8 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
 
   const accessTier = displayTier || prefs.tier || 'anonymous'
   const activityTier = prefs.tier || 'anonymous'
+  // Activities require an account; guests get a sign-in prompt instead of add/manage.
+  const activitiesLocked = activityTier === 'anonymous'
   const accessibleDays = getFutureDays(accessTier)
   const visibleForecast = weather.forecast.slice(0, accessibleDays)
   const selectedDayAllowed = selectedDay && visibleForecast.some(day => day.dateStr === selectedDay.dateStr)
@@ -320,22 +323,24 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
               Add what you do outside, then Solara finds the safest windows.
             </p>
           </div>
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-            <button
-              className="btn btn-primary"
-              onClick={() => setActivityModal('add')}
-              style={{ fontSize: '13px', padding: '8px 14px' }}
-            >
-              + Add Activity
-            </button>
-            <button
-              className="btn"
-              onClick={() => setActivityModal('manage')}
-              style={{ fontSize: '13px', padding: '8px 14px' }}
-            >
-              Manage
-            </button>
-          </div>
+          {!activitiesLocked && (
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <button
+                className="btn btn-primary"
+                onClick={() => setActivityModal('add')}
+                style={{ fontSize: '13px', padding: '8px 14px' }}
+              >
+                + Add Activity
+              </button>
+              <button
+                className="btn"
+                onClick={() => setActivityModal('manage')}
+                style={{ fontSize: '13px', padding: '8px 14px' }}
+              >
+                Manage
+              </button>
+            </div>
+          )}
         </div>
 
         {prefs.activities.length > 0 && isCalendarConfigured() && (
@@ -375,6 +380,16 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
             onBookRecommended={calStatus === 'connected' ? (a, r) => bookSlotOn(a, r, activeDateStr) : undefined}
             onEditActivity={openEditActivity}
           />
+        ) : activitiesLocked ? (
+          <div className="card" style={{ textAlign: 'center', padding: '2.75rem 1.5rem' }}>
+            <p style={{ fontSize: '30px', marginBottom: '10px' }}>🏃</p>
+            <p style={{ fontWeight: 650, fontSize: '16px', color: 'var(--text)', margin: '0 0 7px' }}>Sign in to track your activities</p>
+            <p style={{ fontSize: '14px', color: 'var(--text-3)', margin: '0 0 20px', lineHeight: '1.55' }}>
+              Tell Solara what you do outside and it finds your safest sun windows each day.
+              Signing in with Google is free.
+            </p>
+            <GoogleSignInButton seedPrefs={prefs} style={{ margin: '0 auto', minWidth: '220px' }} />
+          </div>
         ) : (
           <div className="card" style={{ textAlign: 'center', padding: '2.75rem 1.5rem' }}>
             <p style={{ fontSize: '30px', marginBottom: '10px' }}>🏃</p>

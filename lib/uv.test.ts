@@ -102,7 +102,7 @@ describe('effectiveMaxUV', () => {
 // ---------------------------------------------------------------------------
 describe('tier limits', () => {
   it('caps activities per tier', () => {
-    expect(canAddActivity('anonymous', 1)).toBe(false)
+    expect(canAddActivity('anonymous', 0)).toBe(false) // activities require an account
     expect(canAddActivity('free', 2)).toBe(true)
     expect(canAddActivity('free', 3)).toBe(false)
     expect(canAddActivity('paid', 50)).toBe(true)

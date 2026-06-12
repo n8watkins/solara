@@ -1,7 +1,8 @@
 import { TierLevel, Activity } from './types'
 
 export const TIER_LIMITS: Record<TierLevel, { activities: number; calendar: boolean; notifications: boolean; futureDays: number; savedLocations: number; profiles: number }> = {
-  anonymous: { activities: 1,   calendar: false, notifications: false, futureDays: 1,  savedLocations: 1,  profiles: 1 },
+  // Activities require an account — guests see the UV dashboard only (deliberate funnel).
+  anonymous: { activities: 0,   calendar: false, notifications: false, futureDays: 1,  savedLocations: 1,  profiles: 1 },
   free:      { activities: 3,   calendar: true,  notifications: false, futureDays: 2,  savedLocations: 3,  profiles: 1 },
   paid:      { activities: 999, calendar: true,  notifications: true,  futureDays: 10, savedLocations: 12, profiles: 6 },
 }

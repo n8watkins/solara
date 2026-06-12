@@ -261,7 +261,7 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
               <div style={{ background: 'var(--bg-metric)', borderRadius: '10px', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <p style={{ margin: 0, fontSize: '12px', fontWeight: 650, color: 'var(--text-2)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Plan limits</p>
                 {[
-                  ['Activities', tier === 'paid' ? 'Unlimited' : `${prefs.activities.length} / ${TIER_LIMITS[tier].activities}`],
+                  ['Activities', tier === 'paid' ? 'Unlimited' : tier === 'anonymous' ? 'Sign in required' : `${prefs.activities.length} / ${TIER_LIMITS[tier].activities}`],
                   ['Calendar sync', TIER_LIMITS[tier].calendar ? '✓' : '—'],
                   ['Push notifications', TIER_LIMITS[tier].notifications ? '✓' : '—'],
                   ['10-day forecast', tier === 'paid' ? '✓' : '—'],

@@ -243,22 +243,35 @@ export default function Onboarding({ onComplete, user }: Props) {
           </div>
         )}
 
-        {step === 'activities' && (
+        {step === 'activities' && !user && (
+          <div className="card">
+            <h2 style={{ margin: '0 0 4px', fontSize: '18px', fontWeight: 600, color: 'var(--text)' }}>Want activity recommendations?</h2>
+            <p style={{ margin: '0 0 16px', fontSize: '14px', color: 'var(--text-2)', lineHeight: 1.55 }}>
+              Tell Solara what you do outside and it finds your safest sun windows each day.
+              Activities need an account — signing in with Google is free.
+            </p>
+            <div style={{ padding: '14px', borderRadius: '12px', background: 'var(--bg-metric)', border: '0.5px solid var(--border-md)', marginBottom: '16px' }}>
+              <p style={{ margin: '0 0 10px', fontSize: '13px', color: 'var(--text-2)', lineHeight: 1.5 }}>
+                Free with Google: <strong>{TIER_LIMITS.free.activities} activities</strong>, safe-window
+                recommendations, and your UV windows on Google Calendar.
+              </p>
+              <GoogleSignInButton style={{ width: '100%' }} />
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button className="btn" onClick={() => setStep('skin')} style={{ flex: '0 0 auto' }}>← Back</button>
+              <button className="btn btn-ghost" onClick={handleFinish} style={{ flex: 1, justifyContent: 'center', fontSize: '13px', color: 'var(--text-3)' }}>
+                Skip for now — just show the UV dashboard
+              </button>
+            </div>
+          </div>
+        )}
+
+        {step === 'activities' && user && (
           <div className="card">
             <h2 style={{ margin: '0 0 4px', fontSize: '18px', fontWeight: 600, color: 'var(--text)' }}>What do you like to do outside?</h2>
             <p style={{ margin: '0 0 16px', fontSize: '14px', color: 'var(--text-2)' }}>
               Pick up to {limit} {limit === 1 ? 'activity' : 'activities'} to start — fine-tune SPF, timing, and more later.
             </p>
-
-            {!user && (
-              <div style={{ padding: '14px', borderRadius: '12px', background: 'var(--bg-metric)', border: '0.5px solid var(--border-md)', marginBottom: '16px' }}>
-                <p style={{ margin: '0 0 10px', fontSize: '13px', color: 'var(--text-2)', lineHeight: 1.5 }}>
-                  Sign in to track <strong>{TIER_LIMITS.free.activities} activities free</strong> and see your safe
-                  UV windows on your Google Calendar.
-                </p>
-                <GoogleSignInButton style={{ width: '100%' }} />
-              </div>
-            )}
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '8px', marginBottom: '12px' }}>
               {STARTER_ACTIVITIES.map(p => {
