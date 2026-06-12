@@ -1,77 +1,71 @@
 # Solara — Project Status
 
-_Last updated: 2026-06-07_
+_Last updated: 2026-06-12_
 
 A one-page snapshot: what just shipped, where we stand, and the next action. For the
-full ordered launch checklist see [`GO_LIVE.md`](./GO_LIVE.md); for phase definitions see
-[`ROADMAP_V1.2_V2.md`](./ROADMAP_V1.2_V2.md).
+launch checklist history see [`GO_LIVE.md`](./GO_LIVE.md); for phase definitions see
+[`ROADMAP_V1.2_V2.md`](./ROADMAP_V1.2_V2.md); for the full zero-context briefing see
+[`HANDOFF.md`](./HANDOFF.md).
 
 ---
 
 ## TL;DR
 
-All V1.2 + V2 code is **built, reviewed, committed, and pushed** to `origin/main`.
-The app is **not live yet** — blocked on one thing: **no GitHub Actions secrets are set**,
-so CI deploy and the notification cron both fail. Setting the secrets is the only remaining
-gate to shipping the Spark baseline. Everything past that is optional Blaze features.
+**Solara is LIVE: https://uv-activity-planner.web.app** (first deploy 2026-06-12).
+All GitHub Actions secrets are set, the Firestore database exists with security rules
+deployed, and CI deploys on every push to `main`. A major UI/funnel rework shipped the
+same day. Remaining: verify Google sign-in + notifications end-to-end on the live site,
+then the optional Blaze/monetization stage (or its Vercel alternative).
 
 ---
 
-## What we just did (this session)
+## What we just did (2026-06-12 session)
 
-**Code review of the P5/P7b scaffold + monetization surface, then addressed every finding:**
+**Unblocked and executed the launch:**
+- Set all Actions secrets (Firebase config ×6, site URL, VAPID key, service account).
+- Created the Firestore DB (`nam5`, production) and granted the admin-SDK service
+  account the IAM roles CI needs to deploy rules (Service Usage Consumer + Firebase
+  Rules Admin).
+- Workflows bumped to actions v5 / Node 24 ahead of GitHub's June 16 forcing.
+- Deploy workflow fully green: hosting + Firestore rules. Site smoke-tested.
 
-- **Security — tier self-grant closed.** `firestore.rules` now lets clients set any
-  non-paid tier but only the Stripe webhook's Admin SDK may write `tier == 'paid'`.
-  (Previously any signed-in user could self-grant Pro from the console.)
-- **Ops — functions deployable.** Added the `functions` source to `firebase.json`;
-  committed the `functions/` package (`stripeWebhook` + `calendarFeed`).
-- **P7b feed wired end-to-end.** It was dead (no user could ever hold a feed token).
-  Added `lib/feed.ts`, the `calendarFeedToken` pref + validator, and a `CalendarFeed`
-  Subscribe UI (signed-in + feed-configured only).
-- **Stripe lifecycle complete.** Webhook grants Pro on `checkout.session.completed` and
-  **revokes** it on `customer.subscription.deleted` (via persisted `stripeCustomerId`).
-- **Firestore write hardening.** `ignoreUndefinedProperties` so prefs writes with absent
-  optional fields don't throw — a latent bug that likely affected existing signed-in users.
-- **Notifications hardened + testable.** Added a `DRY_RUN` mode (+ a `dry_run` toggle on
-  `notify.yml`) to exercise the full pipeline without sending pushes; auto-clears dead FCM
-  tokens; made the module importable and sanity-checked its message output.
-- **Docs.** Wrote [`GO_LIVE.md`](./GO_LIVE.md) (staged launch runbook) and updated
-  `DEPLOYMENT.md`.
+**Shipped a user-directed UI/funnel rework** (see `HANDOFF.md` for commit hashes):
+onboarding with curated starter activities + Google sign-in CTA, de-Guested header
+with Google button/avatar, UV-by-hour hero dashboard with sun-path toggle, left-nav
+settings modal, vertical safe-window rows with time-of-day cues, wider activity
+editor, CSS polish. Plus two real bug fixes: sign-in no longer clobbers existing
+cloud prefs (could downgrade a Pro user), and mid-onboarding sign-in no longer
+bounces to the welcome screen.
 
-**Verification:** `tsc` clean · 114/114 tests · production build succeeds · functions
-`node --check` clean.
+**Verification:** `tsc` clean · 114/114 tests · production build succeeds · live site 200.
 
 ## Where we are now
 
 | Area | State |
 |---|---|
-| V1.2 (P0–P4) + P6 + P7a | ✅ code complete, committed, pushed |
-| P5 Stripe webhook | ✅ scaffolded (deploy + secrets pending — Blaze) |
-| P7b live feed | ✅ both halves wired (deploy + `NEXT_PUBLIC_FUNCTIONS_URL` pending — Blaze) |
-| P1 calendar | ✅ code complete (OAuth client ID pending) |
-| CI deploy | ❌ **failing** — `FIREBASE_SERVICE_ACCOUNT` secret missing |
-| Notification cron | ❌ **failing daily** — same missing secret |
-| Live site | ⛔ not deployed |
+| Live site | ✅ https://uv-activity-planner.web.app |
+| CI deploy (push → hosting + rules) | ✅ green |
+| Firestore + security rules | ✅ deployed (tier-lock active) |
+| V1.2 + P6 + P7a + UI rework | ✅ live |
+| Google sign-in on live site | 🟡 unverified — Auth provider enablement never confirmed |
+| Notification cron | 🟡 authenticates now; end-to-end unproven (needs a real opted-in user + dry-run) |
+| P5 Stripe / P7b live feed | ⏸ scaffolded, needs Blaze — or port to Vercel API routes (decision pending) |
+| P1 Google Calendar OAuth | ⏸ needs OAuth client ID |
 
 ## What we do next
 
-1. **🔴 Set the GitHub Actions secrets** (the blocker). Recipe is in `GO_LIVE.md` Stage 0:
-   six `NEXT_PUBLIC_FIREBASE_*` values + `FIREBASE_SERVICE_ACCOUNT` JSON. _Owner: Nathan
-   (Firebase console credentials)._
-2. **Re-run the deploy** → ships the Spark baseline (V1.2 + P6/P7a) and the tier-lock rules.
-   Smoke-test the live URL; work the 🟡 rows in `V1.2_TEST_PLAN.md`.
-3. **Verify the two watch-items:** signed-in prefs sync persists; run `notify.yml` with
-   `dry_run = true`, then a real push (needs `NEXT_PUBLIC_FIREBASE_VAPID_KEY`).
-4. **When ready to monetize → Blaze:** provision Google OAuth (P1), deploy functions +
-   set Stripe secrets (P5), set `NEXT_PUBLIC_FUNCTIONS_URL` for the live feed (P7b).
-   Set a budget alert.
+1. Verify Google sign-in + prefs sync on the live site (enable the Google provider in
+   Firebase console → Authentication if it errors).
+2. Prove notifications: opt in as a real user → `gh workflow run notify.yml -f dry_run=true`
+   → then a real push.
+3. Glance at the first deploy after **June 16** (Node 24 forcing on `action-hosting-deploy@v0`).
+4. Work the 🟡 rows in `V1.2_TEST_PLAN.md`.
+5. When monetizing: Blaze + functions deploy, **or** port webhook/feed to Vercel (leaning
+   Vercel — no Blaze cost; requires dropping static export).
 
 ## Known gaps / watch-items
 
-- No `customer.subscription.updated` / refund / dispute handling — only outright
-  cancellation downgrades.
-- Notifications never confirmed delivered end-to-end (blocked by the secret; now testable
-  via dry-run once unblocked).
+- No `customer.subscription.updated` / refund / dispute handling in the Stripe webhook.
+- `scripts/send-notifications.js` "today" is runner-UTC vs location-local — wrong-day
+  edge for UTC+11/+12 users.
 - `notify.yml` cron is `0 13 * * *` (6am PDT) — revisit at the next DST change.
-- GitHub Actions still on Node 20 (deprecation warnings; forced to Node 24 after 2026-06-16).
