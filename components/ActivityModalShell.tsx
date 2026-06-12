@@ -26,8 +26,8 @@ export default function ActivityModalShell({ title, description, children, foote
     >
       <div style={{
         width: '100%',
-        maxWidth: '680px',
-        maxHeight: 'min(86vh, 760px)',
+        maxWidth: '820px',
+        maxHeight: 'min(88vh, 760px)',
         background: 'var(--bg-card)',
         border: '0.5px solid var(--border-md)',
         borderRadius: '20px',

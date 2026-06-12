@@ -86,8 +86,8 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
         </div>
       )}
     >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-        <div className="metric-card" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '14px', alignItems: 'start' }}>
+        <div className="metric-card" style={{ display: 'flex', flexDirection: 'column', gap: '12px', gridColumn: '1 / -1' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div style={{ position: 'relative' }}>
               <button
@@ -287,7 +287,7 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
           </div>
         </div>
 
-        <div className="metric-card" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <div className="metric-card" style={{ display: 'flex', flexDirection: 'column', gap: '12px', gridColumn: '1 / -1' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'flex-start' }}>
             <div>
               <p style={{ margin: '0 0 4px', fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>Base safe UV</p>
