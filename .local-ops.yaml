@@ -1,0 +1,35 @@
+local_ops_id: locops_solara_2026_06
+name: Solara
+slug: solara
+type: web-app
+status: active
+priority: medium
+project_kind: single
+
+local:
+  dev_command: npm run dev
+  build_command: npm run build
+  test_command: npm run typecheck
+  package_manager: npm
+
+deployments:
+  - provider: firebase
+    production_url:
+
+docs:
+  readme: README.md
+  status: docs/status.md
+  roadmap: docs/roadmap.md
+  decisions: docs/decisions.md
+  links: docs/links.md
+  onboarding: docs/onboarding.md
+
+agent:
+  agents_md: AGENTS.md
+  claude_md: CLAUDE.md
+  update_protocol: false
+
+tags:
+  - web-app
+  - next
+  - firebase

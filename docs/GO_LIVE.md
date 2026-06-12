@@ -29,7 +29,7 @@ with auth/Firestore off). Set these before the first real deploy.
 (Project settings → General → Your apps → SDK setup), then push every value as a secret:
 
 ```bash
-cd ~/projects/solara
+cd ~/n8builds/projects/solara
 cp .env.local.example .env.local      # then edit in the six NEXT_PUBLIC_FIREBASE_* values
 
 # Push each non-empty NEXT_PUBLIC_* line as a repo secret.
