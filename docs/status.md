@@ -39,6 +39,10 @@ bounces to the welcome screen.
 
 **Verification:** `tsc` clean · 114/114 tests · production build succeeds · live site 200.
 
+**Added Google Analytics 4** (`194f1c3`): gtag snippet in `app/layout.tsx` gated on
+`NEXT_PUBLIC_GA_MEASUREMENT_ID` (= `G-XN0QQXMG36`, set as Actions secret + in
+`.env.local`); verified live on the deployed site.
+
 ## Where we are now
 
 | Area | State |
