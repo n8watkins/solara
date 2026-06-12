@@ -54,6 +54,7 @@ export interface UserPreferences {
   calendarFeedToken?: string   // per-user secret for the live .ics feed (P7b); see lib/feed.ts
   onboardingComplete: boolean
   calendarHours?: CalendarHours
+  showSunPath?: boolean        // sun-path arc on the dashboard; default on (Appearance setting)
   hiddenActivitySuggestionIds?: string[]
   collapsedActivityCategories?: string[]
   upgradeInterest?: {

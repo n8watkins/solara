@@ -230,32 +230,41 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
         <button className="btn btn-ghost" onClick={onRefresh} title="Refresh" style={{ padding: '7px 9px', fontSize: '17px', flexShrink: 0 }}>↻</button>
       </div>
 
-      <TipCarousel />
-
       {shareMsg && (
         <div style={{ padding: '11px 13px', borderRadius: '10px', background: 'rgba(249,115,22,0.08)', color: 'var(--text-2)', fontSize: '13px', border: '0.5px solid rgba(249,115,22,0.2)' }}>
           {shareMsg}
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '12px' }}>
-        <div className="metric-card">
-          <p style={{ margin: '0 0 5px', fontSize: '12px', color: 'var(--text-3)', fontWeight: 500 }}>
-            <span className="tooltip-anchor">
-              UV index
-              <Tooltip text="The UV Index measures solar radiation intensity. 0–2 is low risk, 3–5 moderate, 6–7 high, 8–10 very high, 11+ extreme.">
-                <></>
+      <div className="card">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px', gap: '12px', flexWrap: 'wrap' }}>
+          <div>
+            <p style={{ margin: '0 0 10px', fontSize: '16px', fontWeight: 650, color: 'var(--text)' }}>
+              <Tooltip text="Each bar shows the UV index for that hour. Hover or tap to see burn time and conditions.">
+                UV by hour
               </Tooltip>
-            </span>
-          </p>
-          <p style={{ margin: 0, fontSize: '32px', fontWeight: 700, color: uvNumberColor(currentUV), lineHeight: 1 }}>{currentUV.toFixed(1)}</p>
-          <p style={{ margin: '5px 0 0', fontSize: '12px', color: 'var(--text-3)' }}>{uvLabel(currentUV)}</p>
+            </p>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '16px', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '7px' }}>
+                <span style={{ fontSize: '38px', fontWeight: 700, color: uvNumberColor(currentUV), lineHeight: 1 }}>{currentUV.toFixed(1)}</span>
+                <span style={{ fontSize: '13px', color: 'var(--text-3)' }}>{uvLabel(currentUV)}{isToday ? ' now' : ' peak'}</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '7px' }}>
+                <span style={{ fontSize: '24px', fontWeight: 650, color: 'var(--text)', lineHeight: 1 }}>{currentTemp}°F</span>
+                <span style={{ fontSize: '13px', color: 'var(--text-3)' }}>{currentCond}</span>
+              </div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-3)' }}>Peak {peakUV.toFixed(1)} at {fmtHour(peakHour)}</p>
+            <button className="btn" onClick={shareSunWindow} style={{ fontSize: '13px', padding: '6px 11px' }}>↗ Share</button>
+          </div>
         </div>
-        <div className="metric-card">
-          <p style={{ margin: '0 0 5px', fontSize: '12px', color: 'var(--text-3)', fontWeight: 500 }}>Temperature</p>
-          <p style={{ margin: 0, fontSize: '32px', fontWeight: 700, color: 'var(--text)', lineHeight: 1 }}>{currentTemp}°F</p>
-          <p style={{ margin: '5px 0 0', fontSize: '12px', color: 'var(--text-3)' }}>{currentCond}</p>
-        </div>
+        {prefs.showSunPath !== false && <SunArc hourly={hourly} currentHour={currentHour} isToday={isToday} />}
+        <UVTimeline hourly={hourly} currentHour={isToday ? currentHour : -1} skinType={prefs.skinType} />
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '12px' }}>
         <div className="metric-card">
           <p style={{ margin: '0 0 5px', fontSize: '12px', color: 'var(--text-3)', fontWeight: 500 }}>
             <span className="tooltip-anchor">
@@ -286,21 +295,7 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
         Burn and vitamin D times are estimates, not medical advice. Actual exposure varies with cloud cover, altitude, shade, and reflected light.
       </p>
 
-      <div className="card">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', gap: '8px', flexWrap: 'wrap' }}>
-          <p style={{ margin: 0, fontSize: '16px', fontWeight: 650, color: 'var(--text)' }}>
-            <Tooltip text="Each bar shows the UV index for that hour. Hover or tap to see burn time and conditions. The sun path shows the current sun position and peak UV point.">
-              UV by hour
-            </Tooltip>
-          </p>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-            <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-3)' }}>Peak {peakUV.toFixed(1)} at {fmtHour(peakHour)}</p>
-            <button className="btn" onClick={shareSunWindow} style={{ fontSize: '13px', padding: '6px 11px' }}>↗ Share</button>
-          </div>
-        </div>
-        <SunArc hourly={hourly} currentHour={currentHour} isToday={isToday} />
-        <UVTimeline hourly={hourly} currentHour={isToday ? currentHour : -1} skinType={prefs.skinType} />
-      </div>
+      <TipCarousel />
 
       {prefs.activities.length > 0 && (
         <PlanAhead
