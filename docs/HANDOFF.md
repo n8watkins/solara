@@ -87,21 +87,18 @@ Verification baseline: `npm run typecheck` clean · `npx vitest run` 114/114 ·
 1. ~~USER: enable Authentication in the Firebase console~~ ✅ Done 2026-06-12:
    `google.com` provider `enabled: true` (auto-provisioned OAuth client), both
    live domains in `authorizedDomains` — verified via admin API.
-2. **Verify live sign-in + prefs sync** (now unblocked). The user was about to sign
-   in at session end — **first check whether they already did**: query the `users`
-   collection with the Admin SDK (service-account JSON path under Conventions; e.g.
-   a short `node -e` script with `firebase-admin`, which is in `node_modules`). If a
-   `users/{uid}` doc exists with sensible prefs, sign-in + sync is verified — update
-   status.md. If not, ask the user to sign in with Google on the live site and
-   enable notifications. No redeploy needed — live bundle config verified correct.
-3. **Prove notifications end-to-end.** Once the user's doc shows
-   `notificationsEnabled: true` → run `gh workflow run notify.yml -f dry_run=true` →
-   check logs show a built message for them → then let the real 6am PT cron fire (or
-   dispatch without dry_run). (Dry-run with 0 users already verified green on
-   2026-06-12, run `27432692013`.)
-4. **June 16, 2026:** GitHub forces Node 24 on JS actions. Our steps are v5/Node24
-   already; `FirebaseExtended/action-hosting-deploy@v0` is third-party and still
-   flagged. Glance at the first deploy after the 16th.
+2. ~~Verify live sign-in + prefs sync~~ ✅ Done 2026-06-12: user signed in on the
+   live site; Auth user + `users/{uid}` doc verified via Admin SDK (schema v2,
+   sensible prefs, onboarding complete).
+3. **Prove notifications end-to-end.** User is signed in but their doc has no
+   `notificationsEnabled` yet — they must enable notifications on the live site
+   first. Then run `gh workflow run notify.yml -f dry_run=true` → check logs show a
+   built message for them → then let the real 6am PT cron fire (or dispatch without
+   dry_run). (Dry-run with 0 users already verified green on 2026-06-12, run
+   `27432692013`.)
+4. ~~June 16, 2026 Node 24 forcing~~ ✅ Done 2026-06-12: deploy.yml sets
+   `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true` at workflow level (opt-in ahead of the
+   forcing; covers third-party `action-hosting-deploy@v0`); deploy verified green.
 5. **Work the 🟡 rows in [`V1.2_TEST_PLAN.md`](./V1.2_TEST_PLAN.md)** against the live site.
 6. **Monetization (when user says go): DECIDED 2026-06-12 — stay on Firebase.**
    User explicitly chose to stick with Firebase rather than port to Vercel ("let's

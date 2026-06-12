@@ -51,19 +51,20 @@ bounces to the welcome screen.
 | CI deploy (push → hosting + rules) | ✅ green |
 | Firestore + security rules | ✅ deployed (tier-lock active) |
 | V1.2 + P6 + P7a + UI rework | ✅ live |
-| Google sign-in on live site | 🟡 provider enabled in console 2026-06-12 (google.com `enabled: true`, both domains authorized); live sign-in flow + prefs sync not yet exercised |
-| Notification cron | 🟡 dry-run green 2026-06-12 (auth + Firestore query OK, 0 users); FCM send unproven until a user opts in |
+| Google sign-in on live site | ✅ verified 2026-06-12: user signed in on live site; `users/{uid}` doc in Firestore with correct prefs (schema v2, onboarding complete, tier free) |
+| Notification cron | 🟡 dry-run green 2026-06-12 (auth + Firestore query OK, 0 users); FCM send unproven — user signed in but has NOT enabled notifications yet (no `notificationsEnabled` in their doc) |
 | P5 Stripe / P7b live feed | ⏸ scaffolded; DECIDED: stay on Firebase → Blaze upgrade + functions deploy when monetizing |
 | P1 Google Calendar OAuth | ⏸ needs OAuth client ID |
 
 ## What we do next
 
 1. ~~USER: enable Authentication in Firebase console~~ ✅ done 2026-06-12.
-2. Verify Google sign-in + prefs sync on the live site (no redeploy needed; live
-   bundle config verified correct).
-3. Prove notifications: opt in as a real user → `gh workflow run notify.yml -f dry_run=true`
-   → then a real push. (0-user dry-run already green.)
-4. Glance at the first deploy after **June 16** (Node 24 forcing on `action-hosting-deploy@v0`).
+2. ~~Verify Google sign-in + prefs sync on the live site~~ ✅ done 2026-06-12.
+3. Prove notifications: USER must enable notifications on the live site →
+   `gh workflow run notify.yml -f dry_run=true` → then a real push. (0-user dry-run
+   already green; user is signed in but hasn't opted in yet.)
+4. ~~Node 24 forcing~~ ✅ `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true` set in deploy.yml
+   2026-06-12; deploy verified green under Node 24 ahead of the June 16 forcing.
 5. Work the 🟡 rows in `V1.2_TEST_PLAN.md`.
 6. When monetizing: Blaze + functions deploy. (DECIDED 2026-06-12: staying on
    Firebase; Vercel port is off the table.)

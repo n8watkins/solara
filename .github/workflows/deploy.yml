@@ -5,6 +5,11 @@ on:
     branches: [main]
   workflow_dispatch:
 
+env:
+  # action-hosting-deploy@v0 still declares Node 20; GitHub forces Node 24 on
+  # June 16, 2026 — opt in early so any breakage surfaces while we're watching.
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
