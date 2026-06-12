@@ -53,30 +53,53 @@ Product (user-directed UI/funnel rework, all committed + deployed):
 Verification baseline: `npm run typecheck` clean · `npx vitest run` 114/114 ·
 `npm run build` succeeds. All commits pushed to `origin/main`.
 
-### NOT yet verified (first thing to check)
+### Verified 2026-06-12 (second pass)
 
-1. **Google sign-in on the live site.** The Auth provider (Authentication → Sign-in
-   method → Google) was never confirmed enabled in the Firebase console. If sign-in
-   popups error with `auth/operation-not-allowed` or `auth/configuration-not-found`,
-   that's why — the user must enable it in the console.
-2. **Notifications end-to-end.** The cron (`notify.yml`, daily 13:00 UTC) will now
-   authenticate, but no user has `notificationsEnabled: true` yet. Pipeline can be
-   proven with `gh workflow run notify.yml -f dry_run=true` once a signed-in user
-   has enabled notifications on the live site.
+- **Firebase Auth is NOT provisioned — confirmed, blocking.** Both the public
+  `getProjectConfig` endpoint and the admin `admin/v2/projects/.../config` endpoint
+  (service-account credentials) return `CONFIGURATION_NOT_FOUND`. Authentication has
+  never been initialized for the project, so any sign-in attempt on the live site
+  fails with `auth/configuration-not-found`. **User action required:** Firebase
+  console → Authentication → Get started → Sign-in method → enable **Google**.
+  (Deliberately did NOT call the Identity Platform `initializeAuth` API — that
+  upgrades the project to GCIP, a product-tier change the user hasn't approved.)
+- **Notification pipeline proven as far as possible without users.** Dispatched
+  `gh workflow run notify.yml -f dry_run=true` (run `27432692013`): workflow green,
+  service account authenticated, Firestore queried — "Found 0 users with
+  notifications enabled. Dry run complete. 0 message(s) built." Remaining unproven:
+  message build + FCM send, which needs a signed-in user with notifications on
+  (blocked on Auth above).
+- **Live bundle config is correct.** `firebase-messaging-sw.js` on the live site has
+  the full correct Firebase config baked (generated at build time by
+  `scripts/generate-sw.js` from the same env as the app bundles), so sign-in will
+  work as soon as the provider is enabled — no redeploy needed.
+
+### NOT yet verified
+
+1. **Google sign-in flow + prefs sync on the live site** — blocked on the user
+   enabling Authentication/Google provider in the console (see above).
+2. **Notifications end-to-end (FCM send).** Once a signed-in user has enabled
+   notifications on the live site, re-run `gh workflow run notify.yml -f dry_run=true`
+   to see the built message, then let the real cron fire.
 
 ## Next steps (ordered)
 
-1. **Verify live sign-in + prefs sync.** Open the site, complete onboarding, sign in
-   with Google, confirm a `users/{uid}` doc appears in Firestore and prefs survive a
-   reload on another device/profile. Fix Auth provider in console if needed (user action).
-2. **Prove notifications.** Enable notifications as a real user → run
+1. **USER: enable Authentication in the Firebase console** (Authentication →
+   Get started → Sign-in method → Google). Confirmed not provisioned as of
+   2026-06-12; nothing else can proceed until this is done.
+2. **Verify live sign-in + prefs sync** (once 1 is done). Open the site, complete
+   onboarding, sign in with Google, confirm a `users/{uid}` doc appears in Firestore
+   and prefs survive a reload on another device/profile. No redeploy needed — the
+   live bundle config is verified correct.
+3. **Prove notifications end-to-end.** Enable notifications as a real user → run
    `gh workflow run notify.yml -f dry_run=true` → check logs show the built message →
-   then let the real 6am PT cron fire (or dispatch without dry_run).
-3. **June 16, 2026:** GitHub forces Node 24 on JS actions. Our steps are v5/Node24
+   then let the real 6am PT cron fire (or dispatch without dry_run). (Dry-run with
+   0 users already verified green on 2026-06-12.)
+4. **June 16, 2026:** GitHub forces Node 24 on JS actions. Our steps are v5/Node24
    already; `FirebaseExtended/action-hosting-deploy@v0` is third-party and still
    flagged. Glance at the first deploy after the 16th.
-4. **Work the 🟡 rows in [`V1.2_TEST_PLAN.md`](./V1.2_TEST_PLAN.md)** against the live site.
-5. **Monetization (when user says go):** decision leaning from this session — instead
+5. **Work the 🟡 rows in [`V1.2_TEST_PLAN.md`](./V1.2_TEST_PLAN.md)** against the live site.
+6. **Monetization (when user says go):** decision leaning from this session — instead
    of upgrading Firebase to Blaze for Cloud Functions (P5 Stripe webhook, P7b live
    calendar feed in `functions/`), consider porting both to Next.js API routes on
    Vercel (free tier, no Blaze). That requires dropping `output: 'export'` and moving
