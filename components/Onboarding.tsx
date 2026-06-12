@@ -3,8 +3,8 @@ import { useState } from 'react'
 import { User } from 'firebase/auth'
 import { saveLocalPrefs, saveFirestorePrefs, defaultPrefs } from '@/lib/prefs'
 import { UserPreferences, Location, SkinType, Activity } from '@/lib/types'
-import { TIER_LIMITS } from '@/lib/tiers'
-import ActivityManager from './ActivityManager'
+import { TIER_LIMITS, PRESET_ACTIVITIES } from '@/lib/tiers'
+import GoogleSignInButton from './GoogleSignInButton'
 
 interface Props {
   onComplete: (prefs: UserPreferences) => void
@@ -12,6 +12,13 @@ interface Props {
 }
 
 type Step = 'location' | 'uvpreview' | 'skin' | 'activities'
+
+// A short, friendly starter set — the full catalog (and custom everything) lives in
+// the dashboard once they're in. Onboarding should feel like picking, not shopping.
+const STARTER_IDS = ['run', 'walk', 'cycle', 'swim', 'hike', 'dog', 'garden', 'lunch']
+const STARTER_ACTIVITIES = STARTER_IDS
+  .map(id => PRESET_ACTIVITIES.find(p => p.id === id))
+  .filter((p): p is typeof PRESET_ACTIVITIES[number] => !!p)
 
 const SKIN_OPTIONS: { value: SkinType; label: string; desc: string; burnTime: string }[] = [
   { value: 'very-fair', label: 'Very fair',  desc: 'Burns easily, rarely tans', burnTime: '~10 min at UV 10' },
@@ -31,7 +38,30 @@ export default function Onboarding({ onComplete, user }: Props) {
   const [uvCity, setUvCity]       = useState('')
   const [skinType, setSkinType]   = useState<SkinType>('fair')
   const [activities, setActivities] = useState<Activity[]>([])
+  const [showCustom, setShowCustom] = useState(false)
+  const [customName, setCustomName] = useState('')
+  const [customMins, setCustomMins] = useState(30)
   const tier = user ? 'free' : 'anonymous'
+  const limit = TIER_LIMITS[tier].activities
+  const atLimit = activities.length >= limit
+
+  function toggleActivity(preset: typeof PRESET_ACTIVITIES[number]) {
+    if (activities.some(a => a.id === preset.id)) {
+      setActivities(activities.filter(a => a.id !== preset.id))
+    } else if (!atLimit) {
+      setActivities([...activities, { ...preset }])
+    }
+  }
+
+  function addCustomActivity() {
+    if (!customName.trim() || atLimit) return
+    setActivities([...activities, {
+      id: `custom_${Date.now()}`, name: customName.trim(),
+      icon: '✨', durationMins: customMins, maxUV: 4,
+      sunscreen: false, custom: true,
+    }])
+    setCustomName(''); setCustomMins(30); setShowCustom(false)
+  }
 
   async function handleGeolocate() {
     setLocLoad(true); setGeoError(null)
@@ -217,10 +247,64 @@ export default function Onboarding({ onComplete, user }: Props) {
           <div className="card">
             <h2 style={{ margin: '0 0 4px', fontSize: '18px', fontWeight: 600, color: 'var(--text)' }}>What do you like to do outside?</h2>
             <p style={{ margin: '0 0 16px', fontSize: '14px', color: 'var(--text-2)' }}>
-              Choose up to {TIER_LIMITS[tier].activities} {TIER_LIMITS[tier].activities === 1 ? 'activity' : 'activities'}. SPF can be set directly on each activity.
+              Pick up to {limit} {limit === 1 ? 'activity' : 'activities'} to start — fine-tune SPF, timing, and more later.
             </p>
-            <ActivityManager selected={activities} tier={tier} onChange={setActivities} />
-            <div style={{ display: 'flex', gap: '8px', marginTop: '20px' }}>
+
+            {!user && (
+              <div style={{ padding: '14px', borderRadius: '12px', background: 'var(--bg-metric)', border: '0.5px solid var(--border-md)', marginBottom: '16px' }}>
+                <p style={{ margin: '0 0 10px', fontSize: '13px', color: 'var(--text-2)', lineHeight: 1.5 }}>
+                  Sign in to track <strong>{TIER_LIMITS.free.activities} activities free</strong> and see your safe
+                  UV windows on your Google Calendar.
+                </p>
+                <GoogleSignInButton style={{ width: '100%' }} />
+              </div>
+            )}
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '8px', marginBottom: '12px' }}>
+              {STARTER_ACTIVITIES.map(p => {
+                const sel    = activities.some(a => a.id === p.id)
+                const locked = !sel && atLimit
+                return (
+                  <button key={p.id} onClick={() => toggleActivity(p)} disabled={locked} style={{
+                    display: 'flex', alignItems: 'center', gap: '8px', minHeight: '48px',
+                    padding: '8px 12px', borderRadius: '10px', textAlign: 'left',
+                    cursor: locked ? 'not-allowed' : 'pointer',
+                    border: sel ? '1.5px solid var(--accent)' : '0.5px solid var(--border-md)',
+                    background: sel ? 'rgba(249,115,22,0.07)' : 'var(--bg-card)',
+                    opacity: locked ? 0.4 : 1, transition: 'all 0.12s',
+                  }}>
+                    <span style={{ fontSize: '18px' }}>{p.icon}</span>
+                    <span style={{ fontSize: '13px', fontWeight: sel ? 600 : 400, color: sel ? 'var(--accent)' : 'var(--text)' }}>{p.name}</span>
+                  </button>
+                )
+              })}
+            </div>
+
+            {!showCustom ? (
+              <button
+                onClick={() => setShowCustom(true)}
+                disabled={atLimit}
+                style={{ background: 'none', border: 'none', cursor: atLimit ? 'not-allowed' : 'pointer', fontSize: '13px', fontWeight: 600, color: atLimit ? 'var(--text-3)' : 'var(--accent)', padding: '4px 0', marginBottom: '8px' }}
+              >
+                + Make your own
+              </button>
+            ) : (
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap' }}>
+                <input
+                  placeholder="e.g. Beach volleyball"
+                  value={customName}
+                  onChange={e => setCustomName(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && addCustomActivity()}
+                  autoFocus
+                  style={{ flex: '1 1 160px', fontSize: '13px' }}
+                />
+                <input type="number" min="5" step="5" value={customMins} onChange={e => setCustomMins(Math.max(5, parseInt(e.target.value) || 5))} style={{ width: '64px', fontSize: '13px' }} />
+                <span style={{ fontSize: '12px', color: 'var(--text-3)' }}>min</span>
+                <button className="btn btn-primary" onClick={addCustomActivity} disabled={!customName.trim()} style={{ fontSize: '13px' }}>Add</button>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
               <button className="btn" onClick={() => setStep('skin')} style={{ flex: '0 0 auto' }}>← Back</button>
               <button className="btn btn-primary" onClick={handleFinish} style={{ flex: 1, justifyContent: 'center', padding: '10px' }}>
                 Start using Solara
@@ -230,7 +314,7 @@ export default function Onboarding({ onComplete, user }: Props) {
         )}
 
         <p style={{ textAlign: 'center', marginTop: '20px', fontSize: '12px', color: 'var(--text-3)' }}>
-          Guest: {TIER_LIMITS.anonymous.activities} activity · Free: {TIER_LIMITS.free.activities} activities + calendar · Pro: notifications + 10-day forecast
+          Free with Google: {TIER_LIMITS.free.activities} activities + calendar sync · Pro: unlimited activities, notifications + 10-day forecast
         </p>
       </div>
     </div>

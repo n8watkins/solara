@@ -60,7 +60,9 @@ export default function App() {
           setTimeout(() => setShowNotif(true), 4000)
         }
       } else {
-        setScreen('welcome')
+        // A sign-in popup mid-onboarding re-fires this listener with no stored prefs
+        // yet — don't yank a brand-new user back to the welcome screen.
+        setScreen(prev => (prev === 'onboarding' ? prev : 'welcome'))
       }
     }
 

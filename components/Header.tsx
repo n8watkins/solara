@@ -1,13 +1,13 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { User, signInWithPopup, signOut } from 'firebase/auth'
-import { auth, googleProvider, firebaseEnabled } from '@/lib/firebase'
-import { saveFirestorePrefs } from '@/lib/prefs'
+import { User, signOut } from 'firebase/auth'
+import { auth } from '@/lib/firebase'
 import { UserPreferences, TierLevel } from '@/lib/types'
-import { TIER_LABELS, getSavedLocationLimit } from '@/lib/tiers'
+import { getSavedLocationLimit } from '@/lib/tiers'
 import PreferencesModal from './PreferencesModal'
 import LocationPopover from './LocationPopover'
 import ProfileSwitcher from './ProfileSwitcher'
+import GoogleSignInButton from './GoogleSignInButton'
 
 interface Props {
   user: User | null
@@ -24,16 +24,6 @@ export default function Header({ user, prefs, onPrefsUpdate, onGoHome, forceOpen
   const [showPrefs, setShowPrefs] = useState(false)
 
   useEffect(() => { if (forceOpenTab) setShowPrefs(true) }, [forceOpenTab])
-
-  async function handleSignIn() {
-    if (!auth || !googleProvider) return
-    try {
-      const result = await signInWithPopup(auth, googleProvider)
-      if (result.user && prefs) {
-        await saveFirestorePrefs(result.user.uid, { ...prefs, uid: result.user.uid, tier: 'free' })
-      }
-    } catch (e) { console.error(e) }
-  }
 
   async function handleSignOut() {
     if (auth) await signOut(auth)
@@ -90,23 +80,35 @@ export default function Header({ user, prefs, onPrefsUpdate, onGoHome, forceOpen
                   {uvAlert.icon} <span className="hide-mobile">{uvAlert.msg}</span>
                 </div>
               )}
-              <span style={{
-                fontSize: '10px', fontWeight: 800, padding: '4px 8px', borderRadius: '999px', flexShrink: 0,
-                background: tier === 'paid' ? 'rgba(249,115,22,0.16)' : 'var(--bg-metric)',
-                color: tier === 'paid' ? 'var(--accent)' : 'var(--text-3)',
-                textTransform: 'uppercase', letterSpacing: '0.055em',
-              }}>
-                {TIER_LABELS[tier]}
-              </span>
+              {tier === 'paid' && (
+                <span style={{
+                  fontSize: '10px', fontWeight: 800, padding: '4px 8px', borderRadius: '999px', flexShrink: 0,
+                  background: 'rgba(249,115,22,0.16)', color: 'var(--accent)',
+                  textTransform: 'uppercase', letterSpacing: '0.055em',
+                }}>
+                  Pro
+                </span>
+              )}
               <button className="btn btn-ghost" onClick={() => setShowPrefs(true)} style={{ fontSize: '13px', padding: '6px 10px' }} aria-label="Open settings">
                 ⚙️ <span className="hide-mobile">Settings</span>
               </button>
-              {(user || firebaseEnabled) ? (
-                user
-                  ? <button className="btn" onClick={handleSignOut} style={{ fontSize: '12px' }}>Sign out</button>
-                  : <button className="btn btn-primary" onClick={handleSignIn} style={{ fontSize: '12px' }}>Sign in</button>
+              {user ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  {user.photoURL && (
+                    <img
+                      src={user.photoURL}
+                      alt={user.displayName ?? 'Account'}
+                      title={user.displayName ?? user.email ?? undefined}
+                      referrerPolicy="no-referrer"
+                      style={{ width: '26px', height: '26px', borderRadius: '50%', flexShrink: 0 }}
+                    />
+                  )}
+                  <button className="btn btn-ghost" onClick={handleSignOut} style={{ fontSize: '12px' }}>
+                    Sign out
+                  </button>
+                </div>
               ) : (
-                <button className="btn btn-primary" onClick={handleSignIn} style={{ fontSize: '12px' }}>Sign in</button>
+                <GoogleSignInButton label="Sign in" seedPrefs={prefs} style={{ fontSize: '12px', padding: '6px 12px' }} />
               )}
             </div>
           </div>
