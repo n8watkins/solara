@@ -81,11 +81,10 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
   const nowDate = new Date()
   const nowFractional = nowDate.getHours() + nowDate.getMinutes() / 60
   const lockedForecastCount = Math.max(0, weather.forecast.length - visibleForecast.length)
-  const upgradeCopy = accessTier === 'anonymous'
-    ? 'Sign in to see tomorrow'
-    : accessTier === 'free'
-    ? 'Go Pro for 10-day planning'
-    : null
+  // No upsell pill for guests — keep their dashboard unintrusive; sign-in CTAs live
+  // in the activities section and header only.
+  const upgradeCopy = accessTier === 'free' ? 'Go Pro for 10-day planning' : null
+  const showDayTabs = visibleForecast.length > 1 || (upgradeCopy !== null && lockedForecastCount > 0)
 
   function updateActivities(activities: UserPreferences['activities']) {
     onPrefsUpdate({ ...prefs, activities })
@@ -192,6 +191,7 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
 
+      {showDayTabs && (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
         <div style={{ overflow: 'hidden', flex: 1 }}>
           <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '2px', WebkitOverflowScrolling: 'touch' as any }}>
@@ -232,6 +232,7 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
         </div>
         <button className="btn btn-ghost" onClick={onRefresh} title="Refresh" style={{ padding: '7px 9px', fontSize: '17px', flexShrink: 0 }}>↻</button>
       </div>
+      )}
 
       {shareMsg && (
         <div style={{ padding: '11px 13px', borderRadius: '10px', background: 'rgba(249,115,22,0.08)', color: 'var(--text-2)', fontSize: '13px', border: '0.5px solid rgba(249,115,22,0.2)' }}>

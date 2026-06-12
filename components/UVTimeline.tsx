@@ -13,12 +13,13 @@ interface Props {
 export default function UVTimeline({ hourly, currentHour, skinType = 'fair' }: Props) {
   const [hovered, setHovered] = useState<HourlyForecast | null>(null)
 
+  const first = hourly[0]
+  const last  = hourly[hourly.length - 1]
+
   return (
     <div>
-      <div
-        className="flex gap-1 mb-1.5 overflow-x-auto pb-1"
-        style={{ WebkitOverflowScrolling: 'touch' }}
-      >
+      {/* Bars share the row evenly — must never overflow into a horizontal scroll. */}
+      <div className="flex gap-0.5 sm:gap-1 mb-1.5">
         {hourly.map(h => {
           const bg   = uvColorHex(h.uv)
           const tx   = uvTextHex(h.uv)
@@ -26,26 +27,33 @@ export default function UVTimeline({ hourly, currentHour, skinType = 'fair' }: P
           return (
             <div
               key={h.hour}
-              className={`rounded-md flex flex-col items-center justify-center py-2 cursor-default transition-opacity shrink-0 ${
+              className={`rounded-md flex flex-col items-center justify-center py-2 cursor-default transition-opacity ${
                 isNow ? 'ring-2 ring-gray-800 ring-offset-1' : ''
               }`}
-              style={{ background: bg, minWidth: '2.75rem', flex: '1 0 2.75rem' }}
+              style={{ background: bg, minWidth: 0, flex: '1 1 0' }}
               onMouseEnter={() => setHovered(h)}
               onMouseLeave={() => setHovered(null)}
               onTouchStart={() => setHovered(h)}
             >
-              <span className="text-xs font-semibold leading-none" style={{ color: tx }}>
-                {h.uv.toFixed(1)}
+              <span className="text-[11px] font-semibold leading-none" style={{ color: tx }}>
+                {h.uv >= 10 ? Math.round(h.uv) : h.uv.toFixed(1)}
               </span>
-              <span className="text-[9px] mt-0.5 opacity-70" style={{ color: tx }}>
+              <span className="hide-mobile text-[9px] mt-0.5 opacity-70" style={{ color: tx }}>
                 {fmtHour(h.hour)}
               </span>
               {isNow && (
-                <span className="text-[8px] mt-0.5 font-medium" style={{ color: tx }}>now</span>
+                <span className="text-[8px] mt-0.5 font-medium" style={{ color: tx }}>•</span>
               )}
             </div>
           )
         })}
+      </div>
+
+      {/* On mobile the per-bar hour labels are hidden; this axis stands in. */}
+      <div className="show-mobile justify-between text-[10px] text-gray-400 px-0.5">
+        <span>{fmtHour(first.hour)}</span>
+        <span>{fmtHour(Math.round((first.hour + last.hour) / 2))}</span>
+        <span>{fmtHour(last.hour)}</span>
       </div>
 
       <div className="h-8 flex items-center px-1 min-h-[2rem]">

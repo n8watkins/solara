@@ -129,26 +129,31 @@ export default function App() {
 
   const displayTier = tierOverride || prefs.tier || 'anonymous'
   const displayPrefs = { ...prefs, tier: displayTier }
+  // Guests only get the dashboard — no calendar tab bar, and never a stale
+  // 'calendar' view (e.g. right after signing out).
+  const effectiveView = displayTier === 'anonymous' ? 'dashboard' : view
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
       <Header user={user} prefs={prefs} displayTier={displayTier} onPrefsUpdate={p => { handlePrefsUpdate(p); fetchWeather(p.location) }} forceOpenTab={prefsOpen ? prefsTab : undefined} onModalClose={() => setPrefsOpen(false)} onGoHome={() => { setView('dashboard'); setSelectedDay(null) }} currentUV={weather?.current.uv} />
-      <div style={{ borderBottom: '0.5px solid var(--border-md)', background: 'var(--bg-card)' }}>
-        <div style={{ maxWidth: '900px', margin: '0 auto', padding: '0 1rem', display: 'flex', gap: '0' }}>
-          {(['dashboard', 'calendar'] as const).map(v => (
-            <button key={v} onClick={() => setView(v)} style={{
-              padding: '12px 18px', fontSize: '13px', fontWeight: 500, cursor: 'pointer',
-              background: 'none', border: 'none',
-              borderBottom: view === v ? '2px solid var(--accent)' : '2px solid transparent',
-              color: view === v ? 'var(--accent)' : 'var(--text-3)',
-              textTransform: 'capitalize', transition: 'color 0.15s',
-            }}>
-              {v === 'dashboard' ? '☀️ Dashboard' : '🗓️ Calendar'}
-            </button>
-          ))}
+      {displayTier !== 'anonymous' && (
+        <div style={{ borderBottom: '0.5px solid var(--border-md)', background: 'var(--bg-card)' }}>
+          <div style={{ maxWidth: '900px', margin: '0 auto', padding: '0 1rem', display: 'flex', gap: '0' }}>
+            {(['dashboard', 'calendar'] as const).map(v => (
+              <button key={v} onClick={() => setView(v)} style={{
+                padding: '12px 18px', fontSize: '13px', fontWeight: 500, cursor: 'pointer',
+                background: 'none', border: 'none',
+                borderBottom: effectiveView === v ? '2px solid var(--accent)' : '2px solid transparent',
+                color: effectiveView === v ? 'var(--accent)' : 'var(--text-3)',
+                textTransform: 'capitalize', transition: 'color 0.15s',
+              }}>
+                {v === 'dashboard' ? '☀️ Dashboard' : '🗓️ Calendar'}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
-      <main style={{ maxWidth: view === 'calendar' ? '1120px' : '900px', margin: '0 auto', padding: '1.5rem 1rem' }}>
+      )}
+      <main style={{ maxWidth: effectiveView === 'calendar' ? '1120px' : '900px', margin: '0 auto', padding: '1.5rem 1rem' }}>
         <InstallPrompt />
         {showNotif && <NotificationBanner user={user} onDismiss={() => setShowNotif(false)} />}
         {error && (
@@ -157,7 +162,7 @@ export default function App() {
             <button className="btn" onClick={() => fetchWeather(prefs.location, true)} style={{ fontSize: '12px' }}>Retry</button>
           </div>
         )}
-        {view === 'dashboard' && (
+        {effectiveView === 'dashboard' && (
           <>
             {weatherLoading && <Skeleton />}
             {weather && !weatherLoading && (
@@ -167,7 +172,7 @@ export default function App() {
             )}
           </>
         )}
-        {view === 'calendar' && (
+        {effectiveView === 'calendar' && (
           <div className="card">
             <ErrorBoundary label="the calendar" onReset={() => fetchWeather(prefs.location, true)}>
               <CalendarView prefs={prefs} displayTier={displayTier} weather={weather} onPrefsUpdate={handlePrefsUpdate} />

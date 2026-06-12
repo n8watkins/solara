@@ -95,12 +95,12 @@ export default function LocationPopover({ location, savedLocations, limit, onApp
         style={{
           fontSize: '13px', color: 'var(--text-3)', background: 'none', border: 'none',
           cursor: 'pointer', padding: '3px 7px', borderRadius: '6px', transition: 'background 0.1s',
-          display: 'flex', alignItems: 'center', gap: '4px',
+          display: 'flex', alignItems: 'center', gap: '4px', maxWidth: '100%',
         }}
         onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-metric)')}
         onMouseLeave={e => (e.currentTarget.style.background = 'none')}
       >
-        📍 {location.city}
+        📍 <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{location.city}</span>
       </button>
 
       {open && (

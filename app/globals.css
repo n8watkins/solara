@@ -171,8 +171,11 @@ input[type='range'] { padding: 0; border: none; box-shadow: none; background: tr
   .settings-nav-btn { white-space: nowrap; flex-shrink: 0; }
 }
 
+.show-mobile { display: none; }
+
 @media (max-width: 560px) {
   .hide-mobile { display: none; }
+  .show-mobile { display: flex; }
   .card { padding: 1rem; }
   .btn { padding-left: 10px; padding-right: 10px; }
 }
