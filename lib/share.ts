@@ -17,7 +17,7 @@ export function buildActivityShareText({ activity, window: win, location, dateLa
 }
 
 export function buildActivityShareUrl({ activity, window: win, location, dateLabel, dayOffset = 0 }: ActivitySharePayload, origin?: string): string {
-  const base = origin || 'https://solara.web.app'
+  const base = origin || 'https://uv-activity-planner.web.app'
   const params = new URLSearchParams({
     a: activity.name,
     icon: activity.icon,

@@ -6,7 +6,7 @@ const { getMessaging }        = require('firebase-admin/messaging')
 // build) and logs what WOULD be sent, without delivering any push or mutating tokens.
 // Use it to test the workflow end-to-end safely. See docs/GO_LIVE.md.
 const DRY_RUN  = process.env.DRY_RUN === '1' || process.env.DRY_RUN === 'true'
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://solara.web.app'
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://uv-activity-planner.web.app'
 
 // Initialized lazily in main() so this module can be imported for tests without
 // requiring FIREBASE_SERVICE_ACCOUNT or opening a connection.
@@ -87,7 +87,11 @@ async function fetchHourly(lat, lon) {
   const res  = await fetch(url)
   const data = await res.json()
 
-  const todayStr = new Date().toLocaleDateString('en-CA')
+  // "Today" in the LOCATION's local timezone (Open-Meteo returns its offset when
+  // timezone=auto), not the runner's. The cron runs in UTC on CI, so a runner-local
+  // date would pick the wrong day for users near the date line (UTC+11/+12).
+  const offsetSec = typeof data.utc_offset_seconds === 'number' ? data.utc_offset_seconds : 0
+  const todayStr = new Date(Date.now() + offsetSec * 1000).toISOString().slice(0, 10)
   return data.hourly.time
     .map((t, i) => ({
       date: t.split('T')[0],
