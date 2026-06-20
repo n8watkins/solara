@@ -45,42 +45,47 @@ export default function Header({ user, prefs, onPrefsUpdate, onGoHome, forceOpen
 
   return (
     <>
-      <header style={{ background: 'var(--bg-card)', borderBottom: '0.5px solid var(--border-md)', padding: '0 16px', position: 'sticky', top: 0, zIndex: 40 }}>
+      <header style={{ background: 'var(--bg-card)', borderBottom: '0.5px solid var(--border-md)', padding: '0 14px', position: 'sticky', top: 0, zIndex: 40 }}>
+        {/* Single row on desktop; on mobile the location drops to its own full-width
+            row below (see .hdr-* rules in globals.css) so nothing ever collides. */}
         <div style={{ maxWidth: '900px', margin: '0 auto' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: '54px', gap: '10px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
-              <button
-                onClick={onGoHome}
-                style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 6px', borderRadius: '8px', transition: 'background 0.1s', flexShrink: 0 }}
-                onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-metric)')}
-                onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-              >
-                <span style={{ fontSize: '20px' }}>☀️</span>
-                <span style={{ fontWeight: 700, fontSize: '17px', color: 'var(--text)' }}>Solara</span>
-              </button>
-              <span style={{ color: 'var(--border-md)', fontSize: '16px', userSelect: 'none', flexShrink: 0 }}>·</span>
-              <div style={{ minWidth: 0 }}>
-                <LocationPopover
-                  location={prefs.location}
-                  savedLocations={prefs.savedLocations ?? []}
-                  limit={getSavedLocationLimit(displayTier ?? prefs.tier)}
-                  onApply={({ location, savedLocations }) => onPrefsUpdate({ ...prefs, location, savedLocations })}
-                />
-              </div>
+          <div className="hdr-row">
+            <button
+              onClick={onGoHome}
+              className="hdr-logo"
+              style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 6px', borderRadius: '8px', transition: 'background 0.1s' }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-metric)')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+            >
+              <span style={{ fontSize: '20px' }}>☀️</span>
+              <span style={{ fontWeight: 700, fontSize: '17px', color: 'var(--text)' }}>Solara</span>
+            </button>
+
+            <div className="hdr-loc">
+              <LocationPopover
+                location={prefs.location}
+                savedLocations={prefs.savedLocations ?? []}
+                limit={getSavedLocationLimit(displayTier ?? prefs.tier)}
+                onApply={({ location, savedLocations }) => onPrefsUpdate({ ...prefs, location, savedLocations })}
+              />
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+            <div className="hdr-right">
               {tier !== 'anonymous' && (
-                <ProfileSwitcher
-                  prefs={prefs}
-                  tier={tier}
-                  onApply={patch => onPrefsUpdate({ ...prefs, ...patch })}
-                />
+                <span className="hide-mobile">
+                  <ProfileSwitcher
+                    prefs={prefs}
+                    tier={tier}
+                    onApply={patch => onPrefsUpdate({ ...prefs, ...patch })}
+                  />
+                </span>
               )}
               {uvAlert && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 8px', borderRadius: '9px', background: 'var(--bg-metric)', fontSize: '12px', color: 'var(--text-2)', whiteSpace: 'nowrap' }}>
-                  {uvAlert.icon} <span className="hide-mobile">{uvAlert.msg}</span>
-                </div>
+                <span className="hide-mobile">
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '5px 8px', borderRadius: '9px', background: 'var(--bg-metric)', fontSize: '12px', color: 'var(--text-2)', whiteSpace: 'nowrap' }}>
+                    {uvAlert.icon} {uvAlert.msg}
+                  </span>
+                </span>
               )}
               {tier === 'paid' && (
                 <span style={{

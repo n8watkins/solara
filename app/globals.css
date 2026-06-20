@@ -171,6 +171,19 @@ input[type='range'] { padding: 0; border: none; box-shadow: none; background: tr
   .settings-nav-btn { white-space: nowrap; flex-shrink: 0; }
 }
 
+/* App header: a single row on desktop; on mobile the location pill wraps to its
+   own full-width row beneath the logo/controls so the two never collide. */
+.hdr-row { display: flex; align-items: center; min-height: 52px; gap: 8px; }
+.hdr-logo { flex-shrink: 0; }
+.hdr-loc { flex: 1 1 auto; min-width: 0; }
+.hdr-right { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+
+@media (max-width: 560px) {
+  .hdr-row { flex-wrap: wrap; min-height: auto; padding: 7px 0; gap: 6px 8px; }
+  .hdr-right { margin-left: auto; }
+  .hdr-loc { order: 3; flex-basis: 100%; min-width: 100%; }
+}
+
 .show-mobile { display: none; }
 
 @media (max-width: 560px) {
