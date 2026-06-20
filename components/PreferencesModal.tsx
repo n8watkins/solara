@@ -1,9 +1,10 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { User, signOut } from 'firebase/auth'
 import { UserPreferences, SkinType, Location } from '@/lib/types'
 import { clearWeatherCache } from '@/lib/cache'
 import { TIER_LIMITS } from '@/lib/tiers'
+import { requestNotificationPermission, saveFCMToken, saveFCMTokenLocally, getFCMTokenLocally } from '@/lib/notifications'
 import { toggleTheme, getStoredTheme } from '@/lib/theme'
 import { auth, firebaseEnabled } from '@/lib/firebase'
 import ActivitySuggestionSettings from './ActivitySuggestionSettings'
@@ -45,6 +46,36 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
   const [hiddenActivitySuggestionIds, setHiddenActivitySuggestionIds] = useState<string[]>(prefs.hiddenActivitySuggestionIds ?? [])
   const [collapsedActivityCategories, setCollapsedActivityCategories] = useState<string[]>(prefs.collapsedActivityCategories ?? [])
   const tier = prefs.tier || 'anonymous'
+
+  // SSR-safe notification state: 'unknown' until read in the browser via useEffect,
+  // so the server/build render never touches `Notification` or `localStorage`.
+  type NotifState = 'unknown' | 'enabled' | 'blocked' | 'default'
+  const [notifState, setNotifState] = useState<NotifState>('unknown')
+  const [notifLoading, setNotifLoading] = useState(false)
+
+  function readNotifState(): NotifState {
+    if (typeof window === 'undefined' || !('Notification' in window)) return 'blocked'
+    if (Notification.permission === 'granted') return getFCMTokenLocally() ? 'enabled' : 'default'
+    if (Notification.permission === 'denied') return 'blocked'
+    return 'default'
+  }
+
+  useEffect(() => {
+    setNotifState(readNotifState())
+  }, [])
+
+  async function handleEnableNotifications() {
+    setNotifLoading(true)
+    const token = await requestNotificationPermission()
+    if (token) {
+      saveFCMTokenLocally(token)
+      if (user) await saveFCMToken(user.uid, token)
+      setNotifState('enabled')
+    } else {
+      setNotifState('blocked')
+    }
+    setNotifLoading(false)
+  }
 
   const selectedSkin = SKIN_OPTIONS.find(o => o.value === skinType) ?? SKIN_OPTIONS[1]
   const draft: UserPreferences = { ...prefs, skinType, location, showSunPath, hiddenActivitySuggestionIds, collapsedActivityCategories }
@@ -184,6 +215,42 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
                 <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-3)', lineHeight: 1.45 }}>
                   SPF assumptions are now set per activity from the Dashboard Activity section, so a swim, walk, and quick coffee break can each use different protection settings.
                 </p>
+              </div>
+
+              <div className="metric-card" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '14px' }}>
+                  <div>
+                    <p style={{ margin: '0 0 4px', fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>🔔 Morning sun alerts</p>
+                    <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-3)', lineHeight: 1.45 }}>
+                      A push notification each morning when your activity window opens.
+                    </p>
+                  </div>
+                  {!TIER_LIMITS[tier].notifications && (
+                    <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--accent)', whiteSpace: 'nowrap', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pro</span>
+                  )}
+                </div>
+                {TIER_LIMITS[tier].notifications ? (
+                  notifState === 'enabled' ? (
+                    <p style={{ margin: 0, fontSize: '13px', fontWeight: 600, color: 'var(--accent)' }}>✓ Morning sun alerts are on</p>
+                  ) : notifState === 'blocked' ? (
+                    <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-3)', lineHeight: 1.45 }}>
+                      Notifications are blocked — enable them in your browser settings.
+                    </p>
+                  ) : notifState === 'default' ? (
+                    <button
+                      className="btn btn-primary"
+                      onClick={handleEnableNotifications}
+                      disabled={notifLoading}
+                      style={{ alignSelf: 'flex-start', whiteSpace: 'nowrap' }}
+                    >
+                      {notifLoading ? 'Enabling…' : 'Enable notifications'}
+                    </button>
+                  ) : null
+                ) : (
+                  <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-3)', lineHeight: 1.45 }}>
+                    Available on the Pro plan.
+                  </p>
+                )}
               </div>
             </div>
           )}
