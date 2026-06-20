@@ -1,6 +1,6 @@
 # Solara — Session Handoff
 
-_Last updated: 2026-06-20 (refreshed to record post-handoff notification fixes)_
+_Last updated: 2026-06-20 (mobile-first redesign + iOS install hint + notifications in Preferences)_
 
 Zero-context briefing for the next agent. Read this fully, plus
 [`status.md`](./status.md) for the one-page state and [`GO_LIVE.md`](./GO_LIVE.md)
@@ -21,7 +21,37 @@ Calendar integration.
 
 ## State
 
-### Done & verified this session (2026-06-12, third session)
+### Done & verified this session (2026-06-20, mobile-first redesign)
+
+- **iOS Safari install hint** (`b8cd343`, `components/InstallPrompt.tsx`): Chromium's
+  `beforeinstallprompt` never fires on iOS and iOS only allows web push for
+  home-screen-installed PWAs, so iOS Safari users now see manual "Share → Add to Home
+  Screen" instructions instead of a dead install button. This is the iOS entry point
+  for enabling push.
+- **Header rebuilt so it never collides on phones** (`164f545`,
+  `components/Header.tsx` + new `.hdr-*` classes in `app/globals.css`): the signed-in
+  header used to clip the "Solara" logo and overlap the Pro badge with the city name on
+  phones. The location pill now wraps to its own full-width row at ≤560px; desktop
+  stays a single flex row (logo | location flex:1 truncates | controls), unchanged.
+- **Sticky compact top-tabs nav** (`e650799`, `components/App.tsx`): header and the
+  Dashboard/Calendar tabs are wrapped in one sticky container so the nav stays pinned
+  while content scrolls.
+- **Dashboard mobile-first pass** (`8422928`, `components/Dashboard.tsx`): a "best
+  window today" hero card at the top (icon · time · peak UV · "Safe now" badge); the
+  standalone "Plan ahead" section is merged INTO the Activities section as a "Best day
+  this week" sub-section (`components/PlanAhead.tsx` retitled); tighter phone density
+  via a new `.dash-stack` class (gap 18px→13px at ≤560px). Desktop layout preserved.
+- **Enable-notifications control in Preferences** (`components/PreferencesModal.tsx`):
+  the settings modal now has an "Enable notifications" button (General tab,
+  `handleEnableNotifications` → `requestNotificationPermission` + `saveFCMToken`),
+  so users can turn on push outside the one-time 🔔 banner. SSR-safe `notifState`
+  machine ('unknown'|'enabled'|'blocked'|'default') reads `Notification.permission`
+  only in a `useEffect`.
+
+Verification baseline (this session): `npm run typecheck` clean · `npx vitest run`
+116/116 · `npm run build` succeeds · all four commits pushed and deployed green.
+
+### Done & verified (2026-06-12, third session)
 
 - **Google sign-in + prefs sync VERIFIED on the live site.** The user signed in;
   Auth user + `users/3pvlccfWyCXy9mflDrtKpXH5dll2` doc (nathancwatkins23@gmail.com)
@@ -68,9 +98,10 @@ Playwright (zero horizontal overflow; legacy-guest gate asserted).
 ### NOT yet done
 
 - **Notifications end-to-end.** User is signed in and Pro-tier but has NOT enabled
-  notifications (`users/{uid}` has no `fcmToken` / `notificationsEnabled`). The
-  enable banner appears ~4s after dashboard load when browser permission is
-  'default' (components/NotificationBanner.tsx via App.tsx).
+  notifications (`users/{uid}` has no `fcmToken` / `notificationsEnabled`). Two enable
+  paths now: the 🔔 banner ~4s after dashboard load when browser permission is
+  'default' (components/NotificationBanner.tsx via App.tsx), and the new "Enable
+  notifications" button in the Preferences modal (components/PreferencesModal.tsx).
 
 ## Next steps (ordered)
 
@@ -118,6 +149,17 @@ Playwright (zero horizontal overflow; legacy-guest gate asserted).
   without an auth event). Adding a `view ===` check is a regression.
 - **`.show-mobile` / `.hide-mobile`** utilities in globals.css (≤560px breakpoint);
   inline `display` styles defeat them — use the Tailwind `flex` class alongside.
+- **Mobile layout conventions (≤560px breakpoint, globals.css):** `.hdr-*` classes
+  drive the header — desktop is one flex row (logo | location flex:1 truncates |
+  controls); at ≤560px the location pill wraps to its own full-width row so nothing
+  collides. `.dash-stack` sets the Dashboard's vertical gap (18px desktop → 13px at
+  ≤560px). The Dashboard leads with a "best window today" hero card (icon · time ·
+  peak UV · "Safe now" badge) above the metrics. Header + Dashboard/Calendar tabs live
+  in one sticky container (App.tsx) so the nav stays pinned on scroll. Desktop layout
+  must stay unchanged when touching these.
+- **PlanAhead is nested inside Activities** as the "Best day this week" sub-section —
+  it is no longer a standalone Dashboard section (the guest activity gate still covers
+  it).
 - Firestore rules: clients may never write `tier: 'paid'`. Don't "fix" while
   debugging.
 - Profiles (P6) deprioritized. OAuth consent-screen support email = personal Gmail
@@ -135,10 +177,15 @@ Playwright (zero horizontal overflow; legacy-guest gate asserted).
 | `scripts/send-notifications.js` | The notification job (DRY_RUN env) |
 | `components/App.tsx` | Screen routing, auth listener, `effectiveView` guest gating |
 | `components/Onboarding.tsx` | 3-step funnel; step 3 is a sign-in gate for guests |
-| `components/Dashboard.tsx` | Hero card, metrics, activities section + guest sign-in card |
+| `components/Dashboard.tsx` | "Best window today" hero card, metrics, Activities section (PlanAhead nested as "Best day this week") + guest sign-in card; `.dash-stack` spacing |
+| `components/Header.tsx` | Header layout; `.hdr-*` classes wrap location pill to its own row ≤560px |
+| `components/PlanAhead.tsx` | "Best day this week" — nested inside Activities, not standalone |
+| `components/InstallPrompt.tsx` | PWA install prompt + iOS Safari "Add to Home Screen" hint (push entry point) |
 | `components/NotificationBanner.tsx` | The Enable-notifications banner (next step 1) |
+| `components/PreferencesModal.tsx` | Settings modal; account/notifications tab has the "Enable notifications" button |
 | `components/GoogleSignInButton.tsx` | Shared sign-in + `ACTIVITY_SIGNIN_BLURB` |
 | `components/UVTimeline.tsx` | Flex-fit hour bars + mobile axis (no h-scroll) |
+| `app/globals.css` | CSS vars + mobile utilities: `.hdr-*`, `.dash-stack`, `.show-mobile`/`.hide-mobile` (≤560px) |
 | `lib/tiers.ts` | Tier limits (anonymous=0 activities) + preset catalog |
 | `lib/weather.ts` | Display helpers incl. `formatUV` |
 | `lib/prefs.ts` | Prefs schema, `solara_prefs` localStorage key, Firestore persistence |

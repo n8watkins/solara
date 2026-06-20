@@ -1,6 +1,6 @@
 # Solara — Project Status
 
-_Last updated: 2026-06-20 (docs refresh — recorded post-handoff notification fixes)_
+_Last updated: 2026-06-20 (mobile-first redesign + iOS install hint + notifications in Preferences)_
 
 A one-page snapshot: what just shipped, where we stand, and the next action. For the
 launch checklist history see [`GO_LIVE.md`](./GO_LIVE.md); for phase definitions see
@@ -18,6 +18,31 @@ feature is the FCM push pipeline — blocked on the user clicking Enable on the
 notification banner.
 
 ---
+
+## What we just did (2026-06-20, mobile-first session)
+
+- **Mobile-first dashboard redesign + iOS install hint** (`b8cd343`, `164f545`,
+  `e650799`, `8422928`; pushed, deployed green):
+  - **iOS "Add to Home Screen" hint** (`b8cd343`, `components/InstallPrompt.tsx`):
+    Chromium's `beforeinstallprompt` never fires on iOS, and iOS only allows web push
+    for home-screen-installed PWAs — so iOS Safari users now get manual "Share → Add to
+    Home Screen" instructions, the entry point for enabling push on iOS.
+  - **Header rebuilt so it never collides on phones** (`164f545`,
+    `components/Header.tsx` + new `.hdr-*` classes in `app/globals.css`): the location
+    pill wraps to its own full-width row at ≤560px (was clipping the logo and
+    overlapping the Pro badge with the city name); desktop stays a single row,
+    unchanged.
+  - **Sticky compact top-tabs nav** (`e650799`, `components/App.tsx`): header +
+    Dashboard/Calendar tabs share one sticky container, so the nav stays pinned while
+    content scrolls.
+  - **Dashboard mobile-first pass** (`8422928`, `components/Dashboard.tsx`): a "best
+    window today" hero card up top (icon · time · peak UV · "Safe now" badge); the
+    standalone Plan-ahead section merged INTO Activities as a "Best day this week"
+    sub-section (`components/PlanAhead.tsx` retitled); tighter phone density via a new
+    `.dash-stack` class (gap 18px→13px at ≤560px). Desktop layout preserved.
+- **Enable-notifications control in Preferences** (`components/PreferencesModal.tsx`):
+  users can now turn on push from the settings modal (General tab → "Morning sun alerts"),
+  outside the one-time 🔔 banner.
 
 ## What we just did (2026-06-12, third session)
 
@@ -56,15 +81,16 @@ live site 200.
 | Google sign-in + prefs sync | ✅ verified live 2026-06-12 |
 | Google Analytics 4 | ✅ live (`G-XN0QQXMG36`) |
 | Guest funnel (UV-only dashboard, sign-in for activities) | ✅ live, mobile-verified |
-| Notification cron | 🟡 dry-run green (0 users); user signed in + Pro but has NOT enabled notifications — FCM send unproven |
+| Notification cron | 🟡 dry-run green (0 users); user signed in + Pro but has NOT enabled notifications — FCM send unproven. Two enable paths now: 🔔 banner + Preferences modal |
 | P5 Stripe / P7b live feed | ⏸ scaffolded; DECIDED: Blaze + functions when monetizing (no Vercel) |
 | P1 Google Calendar OAuth | ⏸ needs OAuth client ID; bundle with monetization |
 
 ## What we do next
 
-1. **USER: enable notifications on the live site** (🔔 banner, ~4s after load) →
-   verify `fcmToken` in their doc → `gh workflow run notify.yml -f dry_run=true` →
-   real send. Then ask user about flipping tier back to `free`.
+1. **USER: enable notifications on the live site** (🔔 banner ~4s after load, or
+   Preferences → notifications) → verify `fcmToken` in their doc →
+   `gh workflow run notify.yml -f dry_run=true` → real send. Then ask user about
+   flipping tier back to `free`.
 2. Work the 🟡 rows in `V1.2_TEST_PLAN.md` against live.
 3. Monetization when user says go (Blaze + functions deploy).
 
