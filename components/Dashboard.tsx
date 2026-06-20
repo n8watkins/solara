@@ -69,8 +69,15 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
   const vitD = vitDMins(currentUV, prefs.skinType)
 
   const activityWindows = prefs.activities.map(a => getActivityWindow(hourly, a, currentHour, prefs.skinType))
-  const bestShareWindow = activityWindows.find(w => w.bestWindow)?.bestWindow
-  const bestShareActivity = activityWindows.find(w => w.bestWindow)?.activity
+  const bestPlan = activityWindows.find(w => w.bestWindow)
+  const bestShareWindow = bestPlan?.bestWindow
+  const bestShareActivity = bestPlan?.activity
+  const bestSafeNow = bestPlan?.safeNow ?? false
+  // The peak UV lives on the matching SafeActivityWindow in allWindows, not on the
+  // bare {from,to} bestWindow — look it up for the hero's "Peak UV" line.
+  const bestWindowPeakUV = bestShareWindow
+    ? bestPlan?.allWindows.find(w => w.from === bestShareWindow.from && w.to === bestShareWindow.to)?.peakUV
+    : undefined
   const editingActivity = editingActivityId ? prefs.activities.find(a => a.id === editingActivityId) ?? null : null
 
   const dateLabel = effectiveSelectedDay?.label ?? 'Today'
@@ -189,7 +196,7 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+    <div className="dash-stack">
 
       {/* Row always renders so the manual refresh stays reachable even when there
           are no day tabs to show (e.g. guests with a single visible day). */}
@@ -239,6 +246,28 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
       {shareMsg && (
         <div style={{ padding: '11px 13px', borderRadius: '10px', background: 'rgba(249,115,22,0.08)', color: 'var(--text-2)', fontSize: '13px', border: '0.5px solid rgba(249,115,22,0.2)' }}>
           {shareMsg}
+        </div>
+      )}
+
+      {/* Hero: lead with the answer — the best window for the selected day — so a
+          phone user gets the actionable takeaway before any of the detail cards. */}
+      {!activitiesLocked && bestShareActivity && bestShareWindow && (
+        <div className="card" style={{ background: 'linear-gradient(180deg, rgba(249,115,22,0.10), rgba(249,115,22,0.04))', border: '0.5px solid rgba(249,115,22,0.30)' }}>
+          <p className="section-label" style={{ color: 'var(--accent)' }}>Best {dateLabel.toLowerCase()} window</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginTop: '9px' }}>
+            <span style={{ fontSize: '32px', flexShrink: 0 }}>{bestShareActivity.icon}</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ margin: 0, fontSize: '24px', fontWeight: 750, color: 'var(--text)', lineHeight: 1.1 }}>
+                {fmtHour(bestShareWindow.from)}–{fmtHour(bestShareWindow.to)}
+              </p>
+              <p style={{ margin: '3px 0 0', fontSize: '13px', color: 'var(--text-2)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {bestShareActivity.name}{bestWindowPeakUV !== undefined ? ` · Peak UV ${bestWindowPeakUV.toFixed(1)}` : ''}
+              </p>
+            </div>
+            {isToday && bestSafeNow && (
+              <span className="badge badge-safe" style={{ flexShrink: 0 }}>Safe now</span>
+            )}
+          </div>
         </div>
       )}
 
@@ -303,21 +332,6 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
 
       <TipCarousel />
 
-      {!activitiesLocked && prefs.activities.length > 0 && (
-        <PlanAhead
-          forecast={weather.forecast}
-          activities={prefs.activities}
-          skinType={prefs.skinType}
-          dayLimit={accessibleDays}
-          busyByDate={busyByDate}
-          nowHourToday={nowFractional}
-          lockedDays={lockedForecastCount}
-          upgradeCopy={upgradeCopy}
-          onUpgrade={() => { setShareMsg(upgradeCopy); window.setTimeout(() => setShareMsg(null), 3500) }}
-          onBook={calStatus === 'connected' ? bookSlotOn : undefined}
-        />
-      )}
-
       <section>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginBottom: '12px', flexWrap: 'wrap' }}>
           <div>
@@ -345,6 +359,23 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
             </div>
           )}
         </div>
+
+        {!activitiesLocked && prefs.activities.length > 0 && (
+          <div style={{ marginBottom: '14px' }}>
+            <PlanAhead
+              forecast={weather.forecast}
+              activities={prefs.activities}
+              skinType={prefs.skinType}
+              dayLimit={accessibleDays}
+              busyByDate={busyByDate}
+              nowHourToday={nowFractional}
+              lockedDays={lockedForecastCount}
+              upgradeCopy={upgradeCopy}
+              onUpgrade={() => { setShareMsg(upgradeCopy); window.setTimeout(() => setShareMsg(null), 3500) }}
+              onBook={calStatus === 'connected' ? bookSlotOn : undefined}
+            />
+          </div>
+        )}
 
         {!activitiesLocked && prefs.activities.length > 0 && isCalendarConfigured() && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '10px', marginBottom: '12px', background: 'var(--bg-metric)', border: '0.5px solid var(--border-md)' }}>

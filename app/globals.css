@@ -186,11 +186,15 @@ input[type='range'] { padding: 0; border: none; box-shadow: none; background: tr
 
 .show-mobile { display: none; }
 
+/* Dashboard vertical rhythm — tighter on phones so more fits above the fold. */
+.dash-stack { display: flex; flex-direction: column; gap: 18px; }
+
 @media (max-width: 560px) {
   .hide-mobile { display: none; }
   .show-mobile { display: flex; }
   .card { padding: 1rem; }
   .btn { padding-left: 10px; padding-right: 10px; }
+  .dash-stack { gap: 13px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

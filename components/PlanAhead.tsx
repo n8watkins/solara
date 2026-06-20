@@ -50,9 +50,9 @@ export default function PlanAhead({
     <div className="card">
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px', marginBottom: '12px' }}>
         <div>
-          <p style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: 'var(--text)' }}>Plan ahead</p>
+          <p style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: 'var(--text)' }}>Best day this week</p>
           <p style={{ margin: '3px 0 0', fontSize: '13px', color: 'var(--text-3)' }}>
-            Your best upcoming day and time for each activity.
+            The best upcoming day and time for each activity.
           </p>
         </div>
         <button
