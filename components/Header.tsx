@@ -45,7 +45,7 @@ export default function Header({ user, prefs, onPrefsUpdate, onGoHome, forceOpen
 
   return (
     <>
-      <header style={{ background: 'var(--bg-card)', borderBottom: '0.5px solid var(--border-md)', padding: '0 14px', position: 'sticky', top: 0, zIndex: 40 }}>
+      <header style={{ background: 'var(--bg-card)', borderBottom: '0.5px solid var(--border-md)', padding: '0 14px' }}>
         {/* Single row on desktop; on mobile the location drops to its own full-width
             row below (see .hdr-* rules in globals.css) so nothing ever collides. */}
         <div style={{ maxWidth: '900px', margin: '0 auto' }}>
