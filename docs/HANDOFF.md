@@ -1,6 +1,6 @@
 # Solara — Session Handoff
 
-_Last updated: 2026-06-12 (third session, post-launch day 1)_
+_Last updated: 2026-06-20 (refreshed to record post-handoff notification fixes)_
 
 Zero-context briefing for the next agent. Read this fully, plus
 [`status.md`](./status.md) for the one-page state and [`GO_LIVE.md`](./GO_LIVE.md)
@@ -54,6 +54,12 @@ Calendar integration.
 - **Housekeeping:** deleted stray `~/projects/` (contained only a junk `.next` dev
   cache; the real repo is `~/n8builds/projects/solara` and `~/n8builds/projects/`
   is legitimate — never touch it).
+- **Notification production-correctness fixes** (`3962457`, `0b2bf1e`, committed right
+  after this handoff was first written; deployed green `27454979134`): notification
+  icons now point at real SVG assets; all `NEXT_PUBLIC_SITE_URL` fallbacks point at
+  the real domain (`uv-activity-planner.web.app`, not the non-existent
+  `solara.web.app`); and the cron computes "today" from the location's UTC offset
+  (Open-Meteo `timezone=auto`), fixing the wrong-day forecast for UTC+11/+12 users.
 
 Verification baseline: `npm run typecheck` clean · `npx vitest run` 116/116 ·
 `npm run build` succeeds · deploys green · guest mobile verified at 375px with
@@ -116,8 +122,6 @@ Playwright (zero horizontal overflow; legacy-guest gate asserted).
   debugging.
 - Profiles (P6) deprioritized. OAuth consent-screen support email = personal Gmail
   for now; revisit at monetization (Workspace on n8builds.dev later).
-- Known minor bug (punt): `scripts/send-notifications.js` computes "today" in runner
-  UTC vs location-local — wrong-day edge for UTC+11/+12 users.
 - `notify.yml` cron `0 13 * * *` = 6am PDT; revisit at DST change.
 
 ## File map

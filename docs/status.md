@@ -1,6 +1,6 @@
 # Solara — Project Status
 
-_Last updated: 2026-06-12 (end of third session)_
+_Last updated: 2026-06-20 (docs refresh — recorded post-handoff notification fixes)_
 
 A one-page snapshot: what just shipped, where we stand, and the next action. For the
 launch checklist history see [`GO_LIVE.md`](./GO_LIVE.md); for phase definitions see
@@ -35,6 +35,14 @@ notification banner.
 - **Full code review run, all 7 findings fixed** (`51efa61`) — incl. closing the
   legacy-guest activity loophole and restoring the guest refresh button.
 - Deleted stray `~/projects/` junk folder (only a dev `.next` cache).
+- **Notification production-correctness fixes** (`3962457`, `0b2bf1e`, committed just
+  after this section was first written): notification icons now point at real SVG
+  assets; all `NEXT_PUBLIC_SITE_URL` fallbacks point at the real domain
+  (`uv-activity-planner.web.app`, not the non-existent `solara.web.app`) so share
+  links / OG / push click-through never go dead; and the cron computes "today" from
+  the **location's** UTC offset (Open-Meteo `timezone=auto`) instead of the runner's
+  UTC clock — fixing the wrong-day forecast for UTC+11/+12 users. Deployed green
+  (`27454979134`).
 
 **Verification:** `tsc` clean · 116/116 tests · build green · all deploys green ·
 live site 200.
@@ -63,6 +71,4 @@ live site 200.
 ## Known gaps / watch-items
 
 - No `customer.subscription.updated` / refund / dispute handling in the Stripe webhook.
-- `scripts/send-notifications.js` "today" is runner-UTC vs location-local — wrong-day
-  edge for UTC+11/+12 users.
 - `notify.yml` cron is `0 13 * * *` (6am PDT) — revisit at the next DST change.
