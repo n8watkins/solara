@@ -58,12 +58,15 @@ export default function UVTimeline({ hourly, currentHour, onFocusHour, focused, 
   // Center a bar in the scroller, flagging the motion as programmatic so the scroll
   // handler ignores it (avoids a scroll→select→scroll feedback loop).
   function centerHour(el: HTMLElement | null) {
-    if (!el) return
+    const strip = stripRef.current
+    if (!el || !strip) return
     programmaticScroll.current = true
-    el.scrollIntoView({ inline: 'center', block: 'nearest' })
+    // Scroll the strip's OWN overflow — not el.scrollIntoView(), which can also
+    // scroll the whole page vertically when the UV card is below the fold on load.
+    strip.scrollLeft = el.offsetLeft - (strip.clientWidth - el.offsetWidth) / 2
     if (programmaticTimer.current) window.clearTimeout(programmaticTimer.current)
-    // Smooth/native scrollIntoView keeps firing scroll events briefly; hold the
-    // flag long enough for them to settle, then resume scroll-driven selection.
+    // The scrollLeft write fires a scroll event; hold the flag long enough for it
+    // to settle, then resume scroll-driven selection.
     programmaticTimer.current = window.setTimeout(() => { programmaticScroll.current = false }, 250)
   }
 

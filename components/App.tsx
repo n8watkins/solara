@@ -42,6 +42,10 @@ export default function App() {
       // Sign-in with Google is required to use Solara — a guest never reaches the
       // dashboard. No local-prefs fallback into the app for signed-out visitors.
       if (!u) {
+        // Clear the previous account's state so a later sign-in can never momentarily
+        // show stale prefs/weather (e.g. if a Firestore read transiently fails).
+        setPrefs(null)
+        setWeather(null)
         setScreen(prev => (prev === 'onboarding' ? prev : 'welcome'))
         return
       }
@@ -131,7 +135,7 @@ export default function App() {
   }
 
   if (screen === 'onboarding' || !prefs?.location) {
-    return <Onboarding onComplete={handleOnboardingComplete} user={user} />
+    return <Onboarding onComplete={handleOnboardingComplete} />
   }
 
   const displayTier = tierOverride || prefs.tier || 'anonymous'

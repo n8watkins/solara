@@ -310,7 +310,7 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
             </span>
           </div>
           <p style={{ margin: '6px 0 0', fontSize: '13.5px', color: 'var(--text-3)', lineHeight: 1.3, minHeight: '18px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {headTemp}°F · {headCond}{headBurn ? ` · burn ~${headBurn}m` : ''}
+            {typeof headTemp === 'number' ? `${headTemp}°F` : headTemp} · {headCond}{headBurn ? ` · burn ~${headBurn}m` : ''}
           </p>
         </div>
 
@@ -508,7 +508,7 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
       {showDayModal && (
         <ActivityModalShell
           title="Choose a day"
-          description="Pick any day in your forecast. Scroll for more."
+          description="Pick any day in your forecast."
           onClose={() => setShowDayModal(false)}
         >
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>

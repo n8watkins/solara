@@ -1,13 +1,14 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { User } from 'firebase/auth'
 import { saveLocalPrefs, defaultPrefs } from '@/lib/prefs'
 import { UserPreferences, Location, SkinType } from '@/lib/types'
+import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
 import GoogleSignInButton from './GoogleSignInButton'
 
 interface Props {
   onComplete: (prefs: UserPreferences) => void
-  user: User | null
+  user?: User | null
 }
 
 type Step = 'location' | 'uvpreview' | 'skin' | 'signin'
@@ -39,12 +40,9 @@ export default function Onboarding({ onComplete }: Props) {
   const [uvCity, setUvCity]       = useState('')
   const [skinType, setSkinType]   = useState<SkinType>('fair')
 
-  // Setup never scrolls — lock the page while onboarding is mounted.
-  useEffect(() => {
-    const prev = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => { document.body.style.overflow = prev }
-  }, [])
+  // Setup never scrolls — lock the page while onboarding is mounted (shared,
+  // ref-counted hook so it composes with any other overlay's lock).
+  useBodyScrollLock()
 
   const collected: UserPreferences | null = location
     ? { ...defaultPrefs(location), skinType, tier: 'free', onboardingComplete: true }
