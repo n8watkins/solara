@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { HourlyForecast } from '@/lib/types'
-import { uvColorHex, uvTextHex, uvLabel, fmtHour, formatUV, burnMins } from '@/lib/weather'
+import { uvColorHex, uvTextHex, fmtHour, formatUV } from '@/lib/weather'
 
 interface Props {
   hourly: HourlyForecast[]
@@ -11,9 +11,9 @@ interface Props {
   /** Notifies parent of the focused hour (current or tapped) — e.g. for a synced sun path. */
   onFocusHour?: (h: HourlyForecast | null) => void
   /**
-   * Controlled focus. When provided, the highlighted/read-out hour is driven by
-   * the parent (shared with the sun path) instead of local tap state; `onSelectHour`
-   * reports taps back up. Omit both to keep the standalone uncontrolled behavior.
+   * Controlled focus. When provided, the highlighted hour is driven by the parent
+   * (shared with the sun path + the card's big readout) instead of local tap state;
+   * `onSelectHour` reports taps/scrolls back up. Omit both to keep standalone behavior.
    */
   focused?: HourlyForecast | null
   onSelectHour?: (h: HourlyForecast) => void
@@ -22,20 +22,29 @@ interface Props {
 /**
  * Interactive hourly UV strip. Bars are a fixed width and the strip scrolls
  * horizontally on phones (zoomed in, more room per hour) with the current hour
- * auto-centered; tapping any hour pins its detail in the always-visible readout
- * below. Numbers are non-selectable so a tap never triggers the OS text/“search”
- * menu. The legend is collapsed behind a toggle to keep the focus on the readout.
+ * auto-centered. Tapping a bar — or scrolling so a bar lands nearest the strip's
+ * horizontal center — pins that hour as the shared focus, which drives the card's
+ * big readout and the sun-path marker (no separate readout lives here anymore, so
+ * the selected hour's stats appear in exactly one place). Numbers are
+ * non-selectable so a tap never triggers the OS text/“search” menu.
  */
-export default function UVTimeline({ hourly, currentHour, skinType = 'fair', onFocusHour, focused, onSelectHour }: Props) {
-  // Controlled when the parent passes a `focused` hour (shared with the sun path);
-  // otherwise this local `selected` state drives the readout on its own.
+export default function UVTimeline({ hourly, currentHour, onFocusHour, focused, onSelectHour }: Props) {
+  // Controlled when the parent passes ownership of the focus (shared with the sun
+  // path); otherwise this local `selected` state drives the highlight on its own.
   const controlled = onSelectHour !== undefined
   const [selected, setSelected] = useState<HourlyForecast | null>(null)
   const [showLegend, setShowLegend] = useState(false)
   const nowRef = useRef<HTMLButtonElement>(null)
+  const stripRef = useRef<HTMLDivElement>(null)
+  const rafRef = useRef<number | null>(null)
+  // True while WE are programmatically scrolling the strip (centering a tapped /
+  // externally-focused hour) so the scroll handler doesn't echo that motion back
+  // up as a fresh selection — which would fight taps and the arc.
+  const programmaticScroll = useRef(false)
+  const programmaticTimer = useRef<number | null>(null)
 
-  // The hour whose detail is shown: a controlled focus / explicit tap wins, else
-  // the current hour, else the first hour of the day.
+  // The highlighted hour: a controlled focus / explicit tap wins, else the current
+  // hour, else the first hour of the day.
   const localActive = selected ?? hourly.find(h => h.hour === currentHour) ?? hourly[0] ?? null
   const active = controlled
     ? (focused ?? hourly.find(h => h.hour === currentHour) ?? hourly[0] ?? null)
@@ -46,10 +55,73 @@ export default function UVTimeline({ hourly, currentHour, skinType = 'fair', onF
     else setSelected(h)
   }
 
+  // Center a bar in the scroller, flagging the motion as programmatic so the scroll
+  // handler ignores it (avoids a scroll→select→scroll feedback loop).
+  function centerHour(el: HTMLElement | null) {
+    if (!el) return
+    programmaticScroll.current = true
+    el.scrollIntoView({ inline: 'center', block: 'nearest' })
+    if (programmaticTimer.current) window.clearTimeout(programmaticTimer.current)
+    // Smooth/native scrollIntoView keeps firing scroll events briefly; hold the
+    // flag long enough for them to settle, then resume scroll-driven selection.
+    programmaticTimer.current = window.setTimeout(() => { programmaticScroll.current = false }, 250)
+  }
+
   // Center the current hour in the scroller on mount / when the day changes.
   useEffect(() => {
-    nowRef.current?.scrollIntoView({ inline: 'center', block: 'nearest' })
+    centerHour(nowRef.current)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentHour, hourly.length])
+
+  // When the parent moves the focus (a tap on the arc, or the big readout updating),
+  // bring that hour into view so the strip tracks the shared focus — "move the bar
+  // along with displaying the new stats." Skipped when the focus is already the
+  // bar nearest center (e.g. when WE drove the change via scroll).
+  useEffect(() => {
+    if (!controlled || !focused) return
+    const strip = stripRef.current
+    if (!strip) return
+    const bar = strip.querySelector<HTMLElement>(`[data-hour="${focused.hour}"]`)
+    if (!bar) return
+    if (nearestHourToCenter() === focused.hour) return
+    centerHour(bar)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [controlled, focused?.hour])
+
+  // The hour of the bar whose center is closest to the strip's horizontal center.
+  function nearestHourToCenter(): number | null {
+    const strip = stripRef.current
+    if (!strip) return null
+    const stripMid = strip.scrollLeft + strip.clientWidth / 2
+    let bestHour: number | null = null
+    let bestDist = Infinity
+    for (const el of Array.from(strip.querySelectorAll<HTMLElement>('[data-hour]'))) {
+      const mid = el.offsetLeft + el.offsetWidth / 2
+      const dist = Math.abs(mid - stripMid)
+      if (dist < bestDist) { bestDist = dist; bestHour = Number(el.dataset.hour) }
+    }
+    return bestHour
+  }
+
+  // Scroll-sync: on horizontal scroll, focus the bar nearest the strip's center,
+  // debounced to one update per animation frame. No-ops when the motion was
+  // programmatic or when the nearest bar is already focused (prevents loops).
+  function onScroll() {
+    if (!controlled || programmaticScroll.current) return
+    if (rafRef.current !== null) return
+    rafRef.current = window.requestAnimationFrame(() => {
+      rafRef.current = null
+      const hour = nearestHourToCenter()
+      if (hour === null || hour === active?.hour) return
+      const h = hourly.find(x => x.hour === hour)
+      if (h) onSelectHour!(h)
+    })
+  }
+
+  useEffect(() => () => {
+    if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
+    if (programmaticTimer.current) window.clearTimeout(programmaticTimer.current)
+  }, [])
 
   // Only fire the legacy onFocusHour callback in uncontrolled mode — in controlled
   // mode the parent already owns the focus, so echoing it back would loop.
@@ -57,13 +129,14 @@ export default function UVTimeline({ hourly, currentHour, skinType = 'fair', onF
 
   return (
     <div style={{ userSelect: 'none', WebkitUserSelect: 'none' }}>
-      <div className="uv-strip">
+      <div className="uv-strip" ref={stripRef} onScroll={onScroll}>
         {hourly.map(h => {
           const isNow = h.hour === currentHour
           const isSel = active?.hour === h.hour
           return (
             <button
               key={h.hour}
+              data-hour={h.hour}
               ref={isNow ? nowRef : undefined}
               onClick={() => selectHour(h)}
               className="uv-bar"
@@ -72,7 +145,7 @@ export default function UVTimeline({ hourly, currentHour, skinType = 'fair', onF
               style={{
                 flex: '0 0 auto', width: '42px',
                 display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '3px',
-                padding: '9px 0', borderRadius: '10px', cursor: 'pointer',
+                padding: '12px 0', borderRadius: '10px', cursor: 'pointer',
                 background: uvColorHex(h.uv), color: uvTextHex(h.uv),
                 border: isSel ? '2px solid var(--text)' : '2px solid transparent',
                 boxShadow: isNow && !isSel ? '0 0 0 2px var(--bg-card), 0 0 0 3.5px var(--text)' : 'none',
@@ -87,24 +160,9 @@ export default function UVTimeline({ hourly, currentHour, skinType = 'fair', onF
         })}
       </div>
 
-      {/* Always-visible readout for the focused hour. */}
-      <div style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'center', padding: '8px 2px 0', fontSize: '13px', color: 'var(--text-2)' }}>
-        {active ? (
-          <p style={{ margin: 0 }}>
-            <span style={{ fontWeight: 700, color: 'var(--text)' }}>{fmtHour(active.hour)}</span>
-            {' · UV '}
-            <span style={{ fontWeight: 700, color: uvColorHex(active.uv) }}>{active.uv.toFixed(1)} {uvLabel(active.uv)}</span>
-            {` · ${active.tempF}°F · ${active.condition}`}
-            {burnMins(active.uv, skinType as never) ? ` · burn ~${burnMins(active.uv, skinType as never)}m` : ' · no burn risk'}
-          </p>
-        ) : (
-          <p style={{ margin: 0, color: 'var(--text-3)' }}>Tap an hour for details</p>
-        )}
-      </div>
-
       <button
         onClick={() => setShowLegend(s => !s)}
-        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px 2px', fontSize: '11px', fontWeight: 600, color: 'var(--text-3)', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px 2px 4px', fontSize: '11px', fontWeight: 600, color: 'var(--text-3)', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
         aria-expanded={showLegend}
       >
         UV scale {showLegend ? '▲' : '▼'}

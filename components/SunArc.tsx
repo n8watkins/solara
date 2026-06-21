@@ -1,7 +1,7 @@
 'use client'
 import { useRef } from 'react'
 import { HourlyForecast } from '@/lib/types'
-import { fmtHour, uvLabel } from '@/lib/weather'
+import { fmtHour, uvLabel, uvColorHex } from '@/lib/weather'
 
 interface Props {
   hourly: HourlyForecast[]
@@ -50,6 +50,13 @@ export default function SunArc({ hourly, currentHour, isToday, focused, onSelect
     const denominator = Math.max(1, lastHour - firstHour)
     return clamp((hour - firstHour) / denominator, 0, 1)
   }
+
+  // Gradient stops mapping each hour's UV color along the (horizontal-in-x, so
+  // linear-in-hour) arc — the line visually reflects UV intensity hour by hour.
+  const uvStops = hourly.map(h => ({
+    offset: hourToProgress(h.hour) * 100,
+    color: uvColorHex(h.uv),
+  }))
 
   const peakPoint = pointOnArc(hourToProgress(peak.hour))
   const currentPoint = isToday && current ? pointOnArc(hourToProgress(current.hour)) : null
@@ -114,10 +121,13 @@ export default function SunArc({ hourly, currentHour, isToday, focused, onSelect
           onPointerCancel={() => { dragging.current = false }}
         >
           <defs>
-            <linearGradient id="sunArcLine" x1="0" x2="1" y1="0" y2="0">
-              <stop offset="0%" stopColor="rgba(249,115,22,0.15)" />
-              <stop offset="50%" stopColor="rgba(249,115,22,0.7)" />
-              <stop offset="100%" stopColor="rgba(249,115,22,0.15)" />
+            {/* gradientUnits=userSpaceOnUse so offsets map to x=34..286 — the arc's
+                horizontal span, which is linear in hour — keeping each color aligned
+                with the hour beneath it on the UV strip. */}
+            <linearGradient id="sunArcLine" gradientUnits="userSpaceOnUse" x1={P0.x} x2={P2.x} y1="0" y2="0">
+              {uvStops.map((s, i) => (
+                <stop key={i} offset={`${s.offset}%`} stopColor={s.color} />
+              ))}
             </linearGradient>
             <radialGradient id="sunGlow" cx="50%" cy="50%" r="50%">
               <stop offset="0%" stopColor="rgba(251,191,36,0.48)" />

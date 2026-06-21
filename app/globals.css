@@ -191,7 +191,9 @@ input[type='range'] { padding: 0; border: none; box-shadow: none; background: tr
   gap: 4px;
   overflow-x: auto;
   overflow-y: hidden;
-  padding: 2px 0 6px;
+  /* Generous top padding so the current-hour bar's highlight ring (boxShadow) and
+     the "now" label below the number are never clipped by overflow-y: hidden. */
+  padding: 8px 0 8px;
   scroll-snap-type: x proximity;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-x;
@@ -209,6 +211,9 @@ input[type='range'] { padding: 0; border: none; box-shadow: none; background: tr
   .uv-strip { -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%);
               mask-image: linear-gradient(90deg, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%); }
 }
+
+/* Compact, swipeable tips track — hide the scrollbar; swipe horizontally on touch. */
+.tip-track::-webkit-scrollbar { display: none; height: 0; }
 
 /* Sun-path arc plot — compact, shorter on phones so it doesn't crowd the strip. */
 .sun-arc-plot { height: 96px; }
