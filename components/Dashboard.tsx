@@ -75,6 +75,18 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
   const peakUV      = hourly.length ? Math.max(...hourly.map(h => h.uv)) : 0
   const peakHour    = hourly.find(h => h.uv === peakUV)?.hour ?? 12
 
+  // The hour whose stats fill the card's big header. A tap/scrub on the strip or
+  // arc moves `sharedFocus`; with nothing focused we fall back to the current hour
+  // (today) or the day's peak. This is the single, prominent readout — the small
+  // line that used to live inside UVTimeline has been removed to avoid duplication.
+  const focusHour = sharedFocus ?? (isToday ? activeDayData.find(h => h.hour === currentHour) ?? null : null)
+  const headUV   = focusHour ? focusHour.uv    : currentUV
+  const headTemp = focusHour ? focusHour.tempF : currentTemp
+  const headCond = focusHour ? focusHour.condition : currentCond
+  // Label under the big number: "now" only when the focus is the live current hour.
+  const headIsNow = isToday && (focusHour ? focusHour.hour === currentHour : true)
+  const headSuffix = headIsNow ? ' now' : (focusHour ? ` at ${fmtHour(focusHour.hour)}` : ' peak')
+
   const burn = burnMins(currentUV, prefs.skinType)
   const vitD = vitDMins(currentUV, prefs.skinType)
 
@@ -309,12 +321,12 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
             </p>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: '16px', flexWrap: 'wrap' }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: '7px' }}>
-                <span style={{ fontSize: '38px', fontWeight: 700, color: uvNumberColor(currentUV), lineHeight: 1 }}>{currentUV.toFixed(1)}</span>
-                <span style={{ fontSize: '13px', color: 'var(--text-3)' }}>{uvLabel(currentUV)}{isToday ? ' now' : ' peak'}</span>
+                <span style={{ fontSize: '38px', fontWeight: 700, color: uvNumberColor(headUV), lineHeight: 1 }}>{headUV.toFixed(1)}</span>
+                <span style={{ fontSize: '13px', color: 'var(--text-3)' }}>{uvLabel(headUV)}{headSuffix}</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: '7px' }}>
-                <span style={{ fontSize: '24px', fontWeight: 650, color: 'var(--text)', lineHeight: 1 }}>{currentTemp}°F</span>
-                <span style={{ fontSize: '13px', color: 'var(--text-3)' }}>{currentCond}</span>
+                <span style={{ fontSize: '24px', fontWeight: 650, color: 'var(--text)', lineHeight: 1 }}>{headTemp}°F</span>
+                <span style={{ fontSize: '13px', color: 'var(--text-3)' }}>{headCond}</span>
               </div>
             </div>
           </div>
@@ -323,7 +335,7 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
             <button className="btn" onClick={shareSunWindow} style={{ fontSize: '13px', padding: '6px 11px' }}>↗ Share</button>
           </div>
         </div>
-        {(prefs.showSunPath ?? true) && (
+        {prefs.showSunPath !== false && (
           <SunArc
             hourly={hourly}
             currentHour={isToday ? currentHour : -1}
@@ -341,9 +353,9 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
         />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '12px' }}>
-        <div className="metric-card">
-          <p style={{ margin: '0 0 5px', fontSize: '12px', color: 'var(--text-3)', fontWeight: 500 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px' }}>
+        <div className="metric-card" style={{ padding: '10px 12px' }}>
+          <p style={{ margin: '0 0 3px', fontSize: '12px', color: 'var(--text-3)', fontWeight: 500 }}>
             <span className="tooltip-anchor">
               Burn time
               <Tooltip text={`How long until ${prefs.skinType} skin burns without sunscreen at the current UV level. Move to shade before this time is up.`}>
@@ -351,11 +363,11 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
               </Tooltip>
             </span>
           </p>
-          <p style={{ margin: 0, fontSize: '32px', fontWeight: 700, color: 'var(--text)', lineHeight: 1 }}>{burn ? `${burn}m` : '—'}</p>
-          <p style={{ margin: '5px 0 0', fontSize: '12px', color: 'var(--text-3)' }}>{prefs.skinType} skin, no SPF</p>
+          <p style={{ margin: 0, fontSize: '23px', fontWeight: 700, color: 'var(--text)', lineHeight: 1.05 }}>{burn ? `${burn}m` : '—'}</p>
+          <p style={{ margin: '3px 0 0', fontSize: '11px', color: 'var(--text-3)' }}>{prefs.skinType} skin, no SPF</p>
         </div>
-        <div className="metric-card">
-          <p style={{ margin: '0 0 5px', fontSize: '12px', color: 'var(--text-3)', fontWeight: 500 }}>
+        <div className="metric-card" style={{ padding: '10px 12px' }}>
+          <p style={{ margin: '0 0 3px', fontSize: '12px', color: 'var(--text-3)', fontWeight: 500 }}>
             <span className="tooltip-anchor">
               Vitamin D dose
               <Tooltip text="Estimated time to produce a meaningful vitamin D dose at the current UV level, with arms and legs exposed. Varies by skin type.">
@@ -363,8 +375,8 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
               </Tooltip>
             </span>
           </p>
-          <p style={{ margin: 0, fontSize: '32px', fontWeight: 700, color: 'var(--text)', lineHeight: 1 }}>{vitD ? `${vitD}m` : '—'}</p>
-          <p style={{ margin: '5px 0 0', fontSize: '12px', color: 'var(--text-3)' }}>Arms + legs</p>
+          <p style={{ margin: 0, fontSize: '23px', fontWeight: 700, color: 'var(--text)', lineHeight: 1.05 }}>{vitD ? `${vitD}m` : '—'}</p>
+          <p style={{ margin: '3px 0 0', fontSize: '11px', color: 'var(--text-3)' }}>Arms + legs</p>
         </div>
       </div>
 
