@@ -1,10 +1,25 @@
 # Solara — Session Handoff
 
-_Last updated: 2026-06-20 (mobile-first redesign + iOS install hint + notifications in Preferences)_
+_Last updated: 2026-06-20 (interactive UV redesign + sun-path A/B + mandatory sign-in — branch `mobile-uv-ab-arc`, PREVIEW-ONLY, NOT in production)_
 
 Zero-context briefing for the next agent. Read this fully, plus
 [`status.md`](./status.md) for the one-page state and [`GO_LIVE.md`](./GO_LIVE.md)
 for the launch runbook history.
+
+> ## ⚠️ READ FIRST — branch status (preview only, not in production)
+>
+> The latest wave of work is on branch **`mobile-uv-ab-arc`** (9 commits ahead of
+> `main`) and is **NOT merged and NOT deployed.** Production
+> (https://uv-activity-planner.web.app) still serves the EARLIER mobile-first wave.
+>
+> - **Preview channel (the chosen sun-path design):**
+>   https://uv-activity-planner--uv-arc-apa3pw9t.web.app
+> - **What changed:** the UV card is now an interactive scrollable/tappable hour strip
+>   synced to an interactive sun path; sign-in is **mandatory** (the guest funnel is
+>   REVERSED); Settings is full-screen on mobile; A/B decided in favour of the sun-path.
+> - **Before merge:** bug review + **real-device verification** are PENDING. The
+>   signed-in dashboard could NOT be auto-screenshotted this session (mandatory sign-in
+>   has no headless guest path), so it must be checked by hand on a device.
 
 ## Project summary
 
@@ -16,12 +31,84 @@ Calendar integration.
   inline styles + `app/globals.css` vars, Firebase (Auth/Firestore/FCM), Vitest.
 - **Firebase project:** `uv-activity-planner` (Spark/free plan, Firestore Standard
   edition in `nam5`, production mode).
-- **LIVE:** https://uv-activity-planner.web.app (first deploy 2026-06-12). Pushes to
-  `main` auto-deploy (`.github/workflows/deploy.yml`: build → hosting → rules).
+- **LIVE (production):** https://uv-activity-planner.web.app (first deploy 2026-06-12).
+  Pushes to `main` auto-deploy (`.github/workflows/deploy.yml`: build → hosting → rules).
+  Production currently = the mobile-first wave; the `mobile-uv-ab-arc` redesign is NOT
+  on it yet.
+- **PREVIEW (branch `mobile-uv-ab-arc`):**
+  https://uv-activity-planner--uv-arc-apa3pw9t.web.app — the new sun-path design,
+  preview-only, awaiting bug review + device verification before merge.
 
 ## State
 
-### Done & verified this session (2026-06-20, mobile-first redesign)
+### Done this session (2026-06-20, interactive-UV + sun-path A/B) — branch `mobile-uv-ab-arc`, PREVIEW-ONLY, not merged/deployed
+
+9 commits ahead of `main` (`git log main..HEAD`). All preview-only on channel
+`uv-arc-apa3pw9t`. **Not in production.** Bug review + device verification pending.
+
+- **Interactive UV redesign** (`89bfab4` uv-A, then `45ff545` uv-B): the old
+  fit-to-width UV bars + static sun arc are gone. The UV card is now a
+  horizontally-scrollable, zoomed, tappable **UV strip** (`.uv-strip` in globals.css):
+  fixed-width bars, current hour auto-centered + ring-highlighted, tap any hour to pin
+  its detail. UV **numbers are non-selectable** — this fixes a tap-to-Google bug where
+  long-press selected the number and the OS offered "search Google". uv-B then
+  reintroduced a compact **interactive SunArc** above the strip, synced via a shared
+  `focusedHour` lifted into Dashboard (`components/Dashboard.tsx`): both SunArc and
+  UVTimeline take controlled `focused`/`onSelectHour` props; arc markers evaluate the
+  same quadratic bezier the curve is drawn from (`M 34 118 Q 160 12 286 118`) so x maps
+  1:1 to the hour and the arc reads in lockstep with the strip. UVTimeline stays
+  uncontrolled (local tap state) if the props are omitted.
+- **UV-card polish** (`1c89d5d`): consolidated to ONE focused-hour readout (the card
+  header reflects the shared focus — UV · temp · condition · label); horizontal
+  **strip ↔ arc scroll-sync** (rAF-debounced; the bar nearest the strip center focuses;
+  programmatic-scroll + same-hour guards avoid feedback loops); arc stroke is a per-hour
+  **`uvColorHex` gradient**; smaller burn-time / vitamin-D cards; tighter swipeable
+  `TipCarousel` (scroll-snap track + synced dots); arc gated on `prefs.showSunPath !==
+  false`.
+- **Settings + chrome** (`75aa29b`): `PreferencesModal` is **full-screen on phones**
+  (≤640px, 100dvh + safe-area insets) and a centered **modal on desktop** — overlay /
+  card / topbar / footer moved to `.settings-*` CSS classes so one media query fills the
+  viewport; fixed asymmetric `.settings-content` / `.settings-nav` padding (even L/R).
+  Added **`lib/useBodyScrollLock.ts`** — SSR-safe, effect-only, **ref-counted** for
+  nested overlays, restores on unmount — wired into `PreferencesModal` and
+  `ActivityModalShell`. Header's standalone "⚙️ Settings" + "Sign out" replaced by a
+  single **avatar control** (photoURL, or accent circle with the initial) opening a
+  dropdown (account name/email, Settings → reuses `showPrefs`, Sign out); closes on
+  outside-click / Escape; Pro badge kept.
+- **MANDATORY Google sign-in** (`2f451eb`) — **REVERSES the prior guest-funnel work
+  (`18116f1`/`03f8bf1`).** In `components/App.tsx` a signed-out visitor never reaches the
+  dashboard and there is no local-prefs fallback into the app; signed-in-with-no-prefs
+  seeds from onboarding data. `components/Onboarding.tsx` rebuilt to end at a
+  **required** Google sign-in (no "Skip for now"), dropped the activity-selection step
+  and all the "free with Google / 3 activities / calendar sync" marketing, locks page
+  scroll during setup, pins each step's primary CTA to the bottom thumb zone.
+- **Marketing strip + arc-off build flag** (`9f1d9d0`): `components/Welcome.tsx` drops
+  the "No sign-up required" line + feature pills (CTA → "Get started"); new
+  **`NEXT_PUBLIC_HIDE_SUNPATH`** env flag gates the sun path in Dashboard so one codebase
+  ships both arc-on and arc-off preview builds. (Effective gate in Dashboard:
+  `process.env.NEXT_PUBLIC_HIDE_SUNPATH !== '1' && prefs.showSunPath !== false`.)
+- **Consolidated readout + bigger arc + modal day picker** (`17b3e76`): UV card
+  restructured top→bottom — one **fixed-height readout pinned at the TOP** (two-row:
+  big UV number + label, then temp/condition/burn on its own fixed line) so a long label
+  ("Very high") no longer hides the temp or jumps the card height (fixes a temp-hidden /
+  card-jump bug). Removed the **Share** button, the "Peak X at Ypm" line, and the dead
+  `shareSunWindow` handler. Bigger **`.sun-arc-plot`** (desktop + mobile) with ~3h hour
+  ticks and the day's peak marked **on the arc** (it left the header). Day picker no
+  longer scrolls horizontally: **Today + Tomorrow + a "More days" button** opening a
+  vertical modal (`ActivityModalShell` → `useBodyScrollLock`) listing accessible days
+  (locked days show the upgrade hint inside); Refresh kept. Activities header = single
+  **"+ Add Activity" (left)** + **"Manage" (right)** via space-between.
+
+**A/B DECISION:** the **sun-path design WON** the arc-vs-no-arc A/B and is the chosen
+direction — kept, with a settings toggle to hide the arc (`prefs.showSunPath`; plus the
+`NEXT_PUBLIC_HIDE_SUNPATH` build flag used to produce the no-arc preview).
+
+Verification baseline (this session): `npm run typecheck` clean · `npx vitest run`
+116/116 · `npm run build` succeeds · deployed to the **preview channel** only (not
+`main`). The signed-in dashboard was NOT auto-screenshotted — mandatory sign-in removes
+the headless guest path, so device verification is owed.
+
+### Done & verified prior session (2026-06-20, mobile-first redesign) — IN PRODUCTION
 
 - **iOS Safari install hint** (`b8cd343`, `components/InstallPrompt.tsx`): Chromium's
   `beforeinstallprompt` never fires on iOS and iOS only allows web push for
@@ -97,6 +184,16 @@ Playwright (zero horizontal overflow; legacy-guest gate asserted).
 
 ### NOT yet done
 
+- **Merge / deploy the `mobile-uv-ab-arc` wave.** It is preview-only; bug review +
+  real-device verification are owed before it merges to `main` (which deploys to prod).
+- **Device-verify the redesign.** Mandatory sign-in blocked the headless screenshot, so
+  the signed-in dashboard (UV strip ↔ sun-path scroll-sync, full-screen mobile Settings,
+  profile-avatar dropdown, Today/Tomorrow/"More days" picker, mandatory onboarding
+  sign-in) is unverified on a real device.
+- **Pending UI follow-ups on the branch:**
+  - **Activity cards** still want a compact / collapsible / category treatment.
+  - A per-hour **"share this time"** feature is wanted (the old global Share button was
+    removed in `17b3e76` — replace it with a per-hour share, not the global one).
 - **Notifications end-to-end.** User is signed in and Pro-tier but has NOT enabled
   notifications (`users/{uid}` has no `fcmToken` / `notificationsEnabled`). Two enable
   paths now: the 🔔 banner ~4s after dashboard load when browser permission is
@@ -105,18 +202,25 @@ Playwright (zero horizontal overflow; legacy-guest gate asserted).
 
 ## Next steps (ordered)
 
-1. **Prove notifications end-to-end** (the last unproven launched feature).
+1. **Verify `mobile-uv-ab-arc` on a real device, then bug-review + merge.** Sign in on
+   the preview (https://uv-activity-planner--uv-arc-apa3pw9t.web.app) and exercise the
+   UV strip ↔ sun-path scroll-sync, full-screen mobile Settings + avatar dropdown,
+   Today/Tomorrow/"More days" picker, and the mandatory onboarding sign-in. Confirm with
+   the user that **mandatory sign-in is intended** (it reverses the prior guest funnel).
+   Then run the bug review and merge `mobile-uv-ab-arc` → `main` (push deploys to prod).
+   Address the pending follow-ups (compact activity cards; per-hour "share this time").
+2. **Prove notifications end-to-end** (the last unproven launched feature).
    USER ACTION first: open the live site, click Enable on the 🔔 banner, accept the
    browser prompt. Then: verify the user doc has `fcmToken` + `notificationsEnabled:
    true` (Admin SDK query, see Conventions) → `gh workflow run notify.yml -f
    dry_run=true` → logs must show a built message for them → real send via the 6am PT
    cron (or dispatch without dry_run). 0-user dry-run was green (run `27432692013`).
    Afterwards ask the user whether to flip their tier back to `free`.
-2. **Work the 🟡 rows in [`V1.2_TEST_PLAN.md`](./V1.2_TEST_PLAN.md)** against live.
-3. **Monetization (when user says go): DECIDED — stay on Firebase.** Upgrade to
+3. **Work the 🟡 rows in [`V1.2_TEST_PLAN.md`](./V1.2_TEST_PLAN.md)** against live.
+4. **Monetization (when user says go): DECIDED — stay on Firebase.** Upgrade to
    Blaze, deploy `functions/` scaffold (P5 Stripe webhook, P7b live calendar feed).
    Do not revisit Vercel. Don't start without the user.
-4. **P1 Google Calendar OAuth** needs an OAuth client ID — bundle with monetization
+5. **P1 Google Calendar OAuth** needs an OAuth client ID — bundle with monetization
    (consent-screen work overlaps).
 
 ## Conventions & gotchas
@@ -160,6 +264,39 @@ Playwright (zero horizontal overflow; legacy-guest gate asserted).
 - **PlanAhead is nested inside Activities** as the "Best day this week" sub-section —
   it is no longer a standalone Dashboard section (the guest activity gate still covers
   it).
+- **[branch `mobile-uv-ab-arc`] Mandatory sign-in — NO guest mode.** On this branch
+  `components/App.tsx` admits only signed-in users (no local-prefs fallback into the
+  app); the guest UV-only dashboard / `effectiveView` guest gating from the prior wave
+  is REVERSED. Onboarding ends at a required Google sign-in (no skip). Several
+  guest-only conventions above (guest UX rules, `effectiveView` guest gating, anonymous
+  tier as the in-app path) are therefore moot on this branch — but they still describe
+  production, so don't delete them until this merges. Verifying screenshots now requires
+  a real sign-in (the headless `localStorage` seed no longer reaches the dashboard).
+- **[branch `mobile-uv-ab-arc`] UV card conventions (globals.css):** `.uv-strip` is the
+  horizontally-scrollable, zoomed hour strip (fixed-width bars, current hour
+  auto-centered + ring-highlighted, **non-selectable numbers** — keep them
+  non-selectable or the tap-to-Google bug returns). `.sun-arc-plot` sizes the
+  interactive `SunArc` (bigger desktop + mobile, ~3h ticks, peak marked on the arc). The
+  strip and arc share a single **`focusedHour`** lifted into `components/Dashboard.tsx`
+  and passed as controlled `focused`/`onSelectHour` to both UVTimeline and SunArc; the
+  fixed-height readout pinned at the TOP of the UV card tracks the same focus. Keep the
+  arc markers on the same bezier (`M 34 118 Q 160 12 286 118`) as the drawn curve so x
+  maps 1:1 to the hour.
+- **[branch `mobile-uv-ab-arc`] Sun-path is gated twice:**
+  `process.env.NEXT_PUBLIC_HIDE_SUNPATH !== '1' && prefs.showSunPath !== false`. The env
+  flag is the **build-time** arc-off switch (must be in deploy.yml's Build env block to
+  take effect in a deployed build); `prefs.showSunPath` is the user-facing settings
+  toggle. **A/B DECIDED: the sun-path design wins** — the arc-off build was the losing
+  variant; keep the design with the toggle.
+- **[branch `mobile-uv-ab-arc`] Settings = full-screen on mobile, modal on desktop.**
+  Driven by `.settings-*` classes (one ≤640px media query fills the viewport with
+  100dvh + safe-area insets; even L/R padding). Background scroll is locked by
+  **`lib/useBodyScrollLock.ts`** (SSR-safe, effect-only, **ref-counted** for nested
+  overlays) — used by `PreferencesModal` and `ActivityModalShell`; reuse this hook for
+  any new full-screen overlay rather than touching `body.style` directly. The header's
+  Settings + Sign out live in a profile-avatar dropdown.
+- **[this wave] commit trailer was `Co-Authored-By: Claude Opus 4.8 (1M context)
+  <noreply@anthropic.com>`** (the older Fable 5 trailer above is historical).
 - Firestore rules: clients may never write `tier: 'paid'`. Don't "fix" while
   debugging.
 - Profiles (P6) deprioritized. OAuth consent-screen support email = personal Gmail
@@ -175,17 +312,22 @@ Playwright (zero horizontal overflow; legacy-guest gate asserted).
 | `.github/workflows/deploy.yml` | Push-to-main deploy; Node-24 forced; env block bakes NEXT_PUBLIC_* |
 | `.github/workflows/notify.yml` | Daily notification cron; `dry_run` input for testing |
 | `scripts/send-notifications.js` | The notification job (DRY_RUN env) |
-| `components/App.tsx` | Screen routing, auth listener, `effectiveView` guest gating |
-| `components/Onboarding.tsx` | 3-step funnel; step 3 is a sign-in gate for guests |
-| `components/Dashboard.tsx` | "Best window today" hero card, metrics, Activities section (PlanAhead nested as "Best day this week") + guest sign-in card; `.dash-stack` spacing |
-| `components/Header.tsx` | Header layout; `.hdr-*` classes wrap location pill to its own row ≤560px |
+| `components/App.tsx` | Screen routing, auth listener, `effectiveView` guest gating. **[branch] mandatory sign-in — no guest path into the dashboard** |
+| `components/Onboarding.tsx` | **[branch] rebuilt: ends at a required Google sign-in (no skip), no activity step, no marketing, scroll-locked, thumb-zone CTAs** |
+| `components/Dashboard.tsx` | "Best window today" hero, metrics, Activities (PlanAhead nested). **[branch] owns the shared `focusedHour`; UV card = top readout → SunArc → `.uv-strip`; sun-path gated on `NEXT_PUBLIC_HIDE_SUNPATH`+`prefs.showSunPath`; Today/Tomorrow/"More days" picker; "+ Add Activity"/"Manage"** |
+| `components/SunArc.tsx` | **[branch] interactive sun path: shared `focusedHour`, tap/drag scrubbing, per-hour UV-color gradient, ~3h ticks + peak on the arc (`.sun-arc-plot`)** |
+| `components/UVTimeline.tsx` | **[branch] the scrollable/tappable `.uv-strip` (current hour centered, non-selectable numbers, scroll-sync to the arc); controlled via `focused`/`onSelectHour`** (prior wave: flex-fit hour bars) |
+| `components/TipCarousel.tsx` | **[branch] tighter, horizontally-swipeable tips (scroll-snap track + synced dots)** |
+| `components/Header.tsx` | Header layout; `.hdr-*` classes wrap location pill to its own row ≤560px. **[branch] Settings + Sign out collapsed into a profile-avatar dropdown** |
 | `components/PlanAhead.tsx` | "Best day this week" — nested inside Activities, not standalone |
+| `components/Welcome.tsx` | **[branch] marketing stripped (no "No sign-up required" / feature pills; CTA "Get started")** |
+| `components/ActivityModalShell.tsx` | Shared full-screen-on-mobile modal shell; **[branch] uses `useBodyScrollLock`; backs the "More days" picker** |
 | `components/InstallPrompt.tsx` | PWA install prompt + iOS Safari "Add to Home Screen" hint (push entry point) |
-| `components/NotificationBanner.tsx` | The Enable-notifications banner (next step 1) |
-| `components/PreferencesModal.tsx` | Settings modal; account/notifications tab has the "Enable notifications" button |
+| `components/NotificationBanner.tsx` | The Enable-notifications banner (next step 2) |
+| `components/PreferencesModal.tsx` | Settings modal; has the "Enable notifications" button. **[branch] full-screen on mobile / modal on desktop; uses `useBodyScrollLock`** |
 | `components/GoogleSignInButton.tsx` | Shared sign-in + `ACTIVITY_SIGNIN_BLURB` |
-| `components/UVTimeline.tsx` | Flex-fit hour bars + mobile axis (no h-scroll) |
-| `app/globals.css` | CSS vars + mobile utilities: `.hdr-*`, `.dash-stack`, `.show-mobile`/`.hide-mobile` (≤560px) |
+| `lib/useBodyScrollLock.ts` | **[branch] SSR-safe, ref-counted body-scroll-lock hook (PreferencesModal + ActivityModalShell)** |
+| `app/globals.css` | CSS vars + mobile utilities: `.hdr-*`, `.dash-stack`, `.show-mobile`/`.hide-mobile` (≤560px). **[branch] adds `.uv-strip`, `.sun-arc-plot`, `.settings-*`** |
 | `lib/tiers.ts` | Tier limits (anonymous=0 activities) + preset catalog |
 | `lib/weather.ts` | Display helpers incl. `formatUV` |
 | `lib/prefs.ts` | Prefs schema, `solara_prefs` localStorage key, Firestore persistence |
