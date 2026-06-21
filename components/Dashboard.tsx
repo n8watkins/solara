@@ -1,10 +1,11 @@
 'use client'
-import { useState } from 'react'
-import { Activity, WeatherResponse, UserPreferences, DayWeather, TierLevel } from '@/lib/types'
+import { useState, useEffect } from 'react'
+import { Activity, WeatherResponse, UserPreferences, DayWeather, TierLevel, HourlyForecast } from '@/lib/types'
 import { burnMins, vitDMins, uvLabel, getActivityWindow, fmtHour } from '@/lib/weather'
 import { getFutureDays } from '@/lib/tiers'
 import { isCalendarConfigured, requestAccessToken, requestWriteToken, fetchFreeBusy, createCalendarEvent, buildEventBody, buildEventDescription, busyIntervalsForDay, BusyPeriod } from '@/lib/gcal'
 import { SlotRecommendation } from '@/lib/scheduler'
+import SunArc from './SunArc'
 import UVTimeline from './UVTimeline'
 import ActivityCards from './ActivityCards'
 import PlanAhead from './PlanAhead'
@@ -41,6 +42,9 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
   const [editingActivityId, setEditingActivityId] = useState<string | null>(null)
   const [calBusy, setCalBusy] = useState<BusyPeriod[] | null>(null)
   const [calStatus, setCalStatus] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle')
+  // The hour being inspected, shared by the sun path + the UV strip so a tap on
+  // either keeps both in sync. null = fall back to "now" (today) / first hour.
+  const [focusedHour, setFocusedHour] = useState<HourlyForecast | null>(null)
   const currentHour = new Date().getHours()
 
   const accessTier = displayTier || prefs.tier || 'anonymous'
@@ -55,6 +59,13 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
   const activeDayData = effectiveSelectedDay ? effectiveSelectedDay.hourly : weather.today
   const isToday       = !effectiveSelectedDay
   const dayIndex      = effectiveSelectedDay ? weather.forecast.findIndex(d => d.dateStr === effectiveSelectedDay.dateStr) : 0
+
+  // Switching days clears the scrubbed hour so the arc/strip snap back to "now"
+  // (or the new day's first hour) rather than pointing at a stale hour.
+  const activeDayKey = effectiveSelectedDay?.dateStr ?? 'today'
+  useEffect(() => { setFocusedHour(null) }, [activeDayKey])
+  // Guard against a focus left over from another day's array identity.
+  const sharedFocus = focusedHour && activeDayData.includes(focusedHour) ? focusedHour : null
 
   const hourly    = activeDayData
   const peakEntry = activeDayData.reduce((best, h) => h.uv > (best?.uv ?? 0) ? h : best, activeDayData[0])
@@ -312,7 +323,22 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
             <button className="btn" onClick={shareSunWindow} style={{ fontSize: '13px', padding: '6px 11px' }}>↗ Share</button>
           </div>
         </div>
-        <UVTimeline hourly={hourly} currentHour={isToday ? currentHour : -1} skinType={prefs.skinType} />
+        {(prefs.showSunPath ?? true) && (
+          <SunArc
+            hourly={hourly}
+            currentHour={isToday ? currentHour : -1}
+            isToday={isToday}
+            focused={sharedFocus}
+            onSelectHour={setFocusedHour}
+          />
+        )}
+        <UVTimeline
+          hourly={hourly}
+          currentHour={isToday ? currentHour : -1}
+          skinType={prefs.skinType}
+          focused={sharedFocus}
+          onSelectHour={setFocusedHour}
+        />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '12px' }}>

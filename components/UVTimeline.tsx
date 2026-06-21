@@ -10,6 +10,13 @@ interface Props {
   skinType?: string
   /** Notifies parent of the focused hour (current or tapped) — e.g. for a synced sun path. */
   onFocusHour?: (h: HourlyForecast | null) => void
+  /**
+   * Controlled focus. When provided, the highlighted/read-out hour is driven by
+   * the parent (shared with the sun path) instead of local tap state; `onSelectHour`
+   * reports taps back up. Omit both to keep the standalone uncontrolled behavior.
+   */
+  focused?: HourlyForecast | null
+  onSelectHour?: (h: HourlyForecast) => void
 }
 
 /**
@@ -19,21 +26,34 @@ interface Props {
  * below. Numbers are non-selectable so a tap never triggers the OS text/“search”
  * menu. The legend is collapsed behind a toggle to keep the focus on the readout.
  */
-export default function UVTimeline({ hourly, currentHour, skinType = 'fair', onFocusHour }: Props) {
+export default function UVTimeline({ hourly, currentHour, skinType = 'fair', onFocusHour, focused, onSelectHour }: Props) {
+  // Controlled when the parent passes a `focused` hour (shared with the sun path);
+  // otherwise this local `selected` state drives the readout on its own.
+  const controlled = onSelectHour !== undefined
   const [selected, setSelected] = useState<HourlyForecast | null>(null)
   const [showLegend, setShowLegend] = useState(false)
   const nowRef = useRef<HTMLButtonElement>(null)
 
-  // The hour whose detail is shown: an explicit tap wins, else the current hour,
-  // else the first hour of the day.
-  const active = selected ?? hourly.find(h => h.hour === currentHour) ?? hourly[0] ?? null
+  // The hour whose detail is shown: a controlled focus / explicit tap wins, else
+  // the current hour, else the first hour of the day.
+  const localActive = selected ?? hourly.find(h => h.hour === currentHour) ?? hourly[0] ?? null
+  const active = controlled
+    ? (focused ?? hourly.find(h => h.hour === currentHour) ?? hourly[0] ?? null)
+    : localActive
+
+  function selectHour(h: HourlyForecast) {
+    if (controlled) onSelectHour!(h)
+    else setSelected(h)
+  }
 
   // Center the current hour in the scroller on mount / when the day changes.
   useEffect(() => {
     nowRef.current?.scrollIntoView({ inline: 'center', block: 'nearest' })
   }, [currentHour, hourly.length])
 
-  useEffect(() => { onFocusHour?.(active) }, [active, onFocusHour])
+  // Only fire the legacy onFocusHour callback in uncontrolled mode — in controlled
+  // mode the parent already owns the focus, so echoing it back would loop.
+  useEffect(() => { if (!controlled) onFocusHour?.(active) }, [active, onFocusHour, controlled])
 
   return (
     <div style={{ userSelect: 'none', WebkitUserSelect: 'none' }}>
@@ -45,7 +65,7 @@ export default function UVTimeline({ hourly, currentHour, skinType = 'fair', onF
             <button
               key={h.hour}
               ref={isNow ? nowRef : undefined}
-              onClick={() => setSelected(h)}
+              onClick={() => selectHour(h)}
               className="uv-bar"
               aria-pressed={isSel}
               aria-label={`${fmtHour(h.hour)}, UV ${h.uv.toFixed(1)}`}

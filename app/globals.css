@@ -210,6 +210,12 @@ input[type='range'] { padding: 0; border: none; box-shadow: none; background: tr
               mask-image: linear-gradient(90deg, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%); }
 }
 
+/* Sun-path arc plot — compact, shorter on phones so it doesn't crowd the strip. */
+.sun-arc-plot { height: 96px; }
+@media (max-width: 560px) {
+  .sun-arc-plot { height: 74px; }
+}
+
 .show-mobile { display: none; }
 
 /* Dashboard vertical rhythm — tighter on phones so more fits above the fold. */
