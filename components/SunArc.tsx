@@ -25,6 +25,11 @@ const P0 = { x: 34, y: 118 }
 const P1 = { x: 160, y: 12 }
 const P2 = { x: 286, y: 118 }
 const VIEW_W = 320
+// Extra room below the baseline (y=118) for the hour-tick labels and above the
+// peak for its callout — the viewBox is taller than the curve so nothing clips.
+const VIEW_H = 150
+const BASELINE_Y = 118
+const TICK_LABEL_Y = 138
 
 /** Point on the *drawn* quadratic bezier at parameter t∈[0,1]. */
 function pointOnArc(t: number) {
@@ -50,6 +55,7 @@ export default function SunArc({ hourly, currentHour, isToday, focused, onSelect
     const denominator = Math.max(1, lastHour - firstHour)
     return clamp((hour - firstHour) / denominator, 0, 1)
   }
+  const xForHour = (hour: number) => P0.x + (P2.x - P0.x) * hourToProgress(hour)
 
   // Gradient stops mapping each hour's UV color along the (horizontal-in-x, so
   // linear-in-hour) arc — the line visually reflects UV intensity hour by hour.
@@ -58,10 +64,22 @@ export default function SunArc({ hourly, currentHour, isToday, focused, onSelect
     color: uvColorHex(h.uv),
   }))
 
+  // Hour ticks roughly every 3 hours across the span, anchored to the actual
+  // hours present so labels line up with the bars on the strip beneath.
+  const tickHours: number[] = []
+  for (const h of hourly) {
+    if (h.hour % 3 === 0) tickHours.push(h.hour)
+  }
+  // Always include the final hour so the right edge of the day is labelled.
+  if (tickHours[tickHours.length - 1] !== lastHour) tickHours.push(lastHour)
+
   const peakPoint = pointOnArc(hourToProgress(peak.hour))
   const currentPoint = isToday && current ? pointOnArc(hourToProgress(current.hour)) : null
   const focusedPoint = focused ? pointOnArc(hourToProgress(focused.hour)) : null
   const focusLabel = focused ? `UV ${focused.uv.toFixed(1)} · ${uvLabel(focused.uv)}` : null
+  // The peak callout is hidden when the focus marker sits on (or right next to)
+  // the peak, so the two labels never overlap.
+  const showPeakLabel = !focused || Math.abs(focused.hour - peak.hour) > 0
 
   // Map a pointer x (client px) to the nearest hour, then report it upward.
   function selectFromClientX(clientX: number) {
@@ -84,29 +102,16 @@ export default function SunArc({ hourly, currentHour, isToday, focused, onSelect
       position: 'relative',
       overflow: 'hidden',
       borderRadius: '14px',
-      padding: '12px 14px 8px',
-      marginBottom: '12px',
+      padding: '10px 14px 6px',
+      marginBottom: '10px',
       userSelect: 'none', WebkitUserSelect: 'none',
       background: 'linear-gradient(180deg, rgba(251,191,36,0.13), rgba(249,115,22,0.05))',
       border: '0.5px solid rgba(251,191,36,0.24)',
     }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '14px', alignItems: 'flex-start', marginBottom: '2px', position: 'relative', zIndex: 2 }}>
-        <div>
-          <p style={{ margin: 0, fontSize: '14px', fontWeight: 750, color: 'var(--text)' }}>Sun path</p>
-          <p style={{ margin: '2px 0 0', fontSize: '12px', color: 'var(--text-3)', lineHeight: 1.4 }}>
-            {focused ? `${fmtHour(focused.hour)} · ${focusLabel}` : 'Tap the arc to scrub the day.'}
-          </p>
-        </div>
-        <div style={{ textAlign: 'right', flexShrink: 0 }}>
-          <p style={{ margin: 0, fontSize: '11px', color: 'var(--text-3)' }}>Peak UV</p>
-          <p style={{ margin: '1px 0 0', fontSize: '16px', fontWeight: 800, color: 'var(--accent)' }}>{peak.uv.toFixed(1)}</p>
-        </div>
-      </div>
-
       <div className="sun-arc-plot" style={{ position: 'relative' }}>
         <svg
           ref={svgRef}
-          viewBox="0 0 320 132"
+          viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
           preserveAspectRatio="none"
           style={{ width: '100%', height: '100%', display: 'block', cursor: 'pointer', touchAction: 'pan-y' }}
           role="slider"
@@ -134,15 +139,28 @@ export default function SunArc({ hourly, currentHour, isToday, focused, onSelect
               <stop offset="100%" stopColor="rgba(251,191,36,0)" />
             </radialGradient>
           </defs>
+
+          {/* Hour-tick guides + labels along the bottom, aligned to hour x-positions. */}
+          {tickHours.map(h => {
+            const x = xForHour(h)
+            return (
+              <g key={`tick-${h}`}>
+                <line x1={x} y1={BASELINE_Y} x2={x} y2={BASELINE_Y + 4} stroke="rgba(156,163,175,0.45)" strokeWidth="1" />
+                <text x={x} y={TICK_LABEL_Y} textAnchor="middle" fill="var(--text-3)" fontSize="9.5" fontWeight="600">{fmtHour(h)}</text>
+              </g>
+            )
+          })}
+
           <path d="M 34 118 Q 160 12 286 118" fill="none" stroke="url(#sunArcLine)" strokeWidth="4" strokeLinecap="round" />
           <path d="M 34 118 Q 160 12 286 118" fill="none" stroke="rgba(255,255,255,0.34)" strokeWidth="1" strokeLinecap="round" strokeDasharray="4 7" />
           <line x1="34" y1="118" x2="286" y2="118" stroke="rgba(156,163,175,0.24)" strokeWidth="1" />
 
-          {/* Peak marker (only emphasised on non-today views where there's no "now"). */}
-          <circle cx={peakPoint.x} cy={peakPoint.y} r={isToday ? 6 : 8} fill="rgba(249,115,22,0.18)" stroke="rgba(249,115,22,0.85)" strokeWidth="2" />
-          {!isToday && !focused && (
+          {/* Peak marker + on-arc callout (the header "Peak X at Ypm" line was
+              removed, so the peak is surfaced here instead). */}
+          <circle cx={peakPoint.x} cy={peakPoint.y} r={isToday ? 6 : 7} fill="rgba(249,115,22,0.18)" stroke="rgba(249,115,22,0.85)" strokeWidth="2" />
+          {showPeakLabel && (
             <>
-              <text x={peakPoint.x} y={peakPoint.y - 20} textAnchor="middle" fill="#F97316" fontSize="11" fontWeight="700">UV {peak.uv.toFixed(1)}</text>
+              <text x={peakPoint.x} y={peakPoint.y - 20} textAnchor="middle" fill="#F97316" fontSize="11" fontWeight="700">Peak {peak.uv.toFixed(1)}</text>
               <text x={peakPoint.x} y={peakPoint.y - 10} textAnchor="middle" fill="rgba(249,115,22,0.75)" fontSize="9">{fmtHour(peak.hour)}</text>
             </>
           )}

@@ -13,6 +13,7 @@ import CalendarFeed from './CalendarFeed'
 import AddActivityModal from './AddActivityModal'
 import ManageActivitiesModal from './ManageActivitiesModal'
 import EditActivityModal from './EditActivityModal'
+import ActivityModalShell from './ActivityModalShell'
 import Tooltip from './Tooltip'
 import TipCarousel from './TipCarousel'
 import GoogleSignInButton, { ACTIVITY_SIGNIN_BLURB } from './GoogleSignInButton'
@@ -39,6 +40,7 @@ function uvNumberColor(uv: number): string {
 export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, onRefresh, selectedDay, onSelectDay }: Props) {
   const [shareMsg, setShareMsg] = useState<string | null>(null)
   const [activityModal, setActivityModal] = useState<'add' | 'manage' | null>(null)
+  const [showDayModal, setShowDayModal] = useState(false)
   const [editingActivityId, setEditingActivityId] = useState<string | null>(null)
   const [calBusy, setCalBusy] = useState<BusyPeriod[] | null>(null)
   const [calStatus, setCalStatus] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle')
@@ -89,6 +91,8 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
 
   const burn = burnMins(currentUV, prefs.skinType)
   const vitD = vitDMins(currentUV, prefs.skinType)
+  // Burn time for the focused hour drives the consolidated readout's detail line.
+  const headBurn = burnMins(headUV, prefs.skinType)
 
   const activityWindows = prefs.activities.map(a => getActivityWindow(hourly, a, currentHour, prefs.skinType))
   const bestPlan = activityWindows.find(w => w.bestWindow)
@@ -180,33 +184,6 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
     })
   }
 
-  async function shareSunWindow() {
-    const place = `${prefs.location.city}${prefs.location.region ? `, ${prefs.location.region}` : ''}`
-    const text = bestShareWindow && bestShareActivity
-      ? `${dateLabel} in ${place}: Solara says my best ${bestShareActivity.name.toLowerCase()} window is ${fmtHour(bestShareWindow.from)}–${fmtHour(bestShareWindow.to)}. Peak UV ${peakUV.toFixed(1)}.`
-      : `${dateLabel} in ${place}: Peak UV is ${peakUV.toFixed(1)} around ${fmtHour(peakHour)}. Checking my sun window with Solara.`
-    const shareData = {
-      title: 'My Solara sun window',
-      text,
-      url: typeof window !== 'undefined' ? window.location.origin : undefined,
-    }
-
-    try {
-      if (navigator.share) {
-        await navigator.share(shareData)
-        setShareMsg('Shared.')
-      } else if (navigator.clipboard) {
-        await navigator.clipboard.writeText(`${text} ${shareData.url ?? ''}`.trim())
-        setShareMsg('Copied share text.')
-      } else {
-        setShareMsg(text)
-      }
-    } catch {
-      setShareMsg(null)
-    }
-    window.setTimeout(() => setShareMsg(null), 3500)
-  }
-
   if (!hourly.length) {
     return (
       <div className="card" style={{ textAlign: 'center', padding: '3rem' }}>
@@ -220,47 +197,48 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
   return (
     <div className="dash-stack">
 
-      {/* Row always renders so the manual refresh stays reachable even when there
-          are no day tabs to show (e.g. guests with a single visible day). */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-        <div style={{ overflow: 'hidden', flex: 1 }}>
-          {showDayTabs && (
-          <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '2px', WebkitOverflowScrolling: 'touch' as any }}>
-            {visibleForecast.map((day, i) => {
-              const isActive = effectiveSelectedDay ? effectiveSelectedDay.dateStr === day.dateStr : i === 0
-              return (
-                <button key={day.dateStr} onClick={() => onSelectDay(i === 0 ? null : day)} style={{
-                  flexShrink: 0, padding: '8px 14px', borderRadius: '10px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
-                  background: isActive ? 'var(--accent)' : 'var(--bg-metric)',
-                  color: isActive ? '#fff' : 'var(--text)',
-                  border: 'none', transition: 'all 0.12s',
-                  display: 'flex', alignItems: 'center', gap: '5px',
-                }}>
-                  {day.label}
-                </button>
-              )
-            })}
-            {upgradeCopy && lockedForecastCount > 0 && (
-              <button
-                onClick={() => setShareMsg(upgradeCopy)}
-                style={{
-                  flexShrink: 0,
-                  padding: '8px 14px',
-                  borderRadius: '10px',
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  background: 'transparent',
-                  color: 'var(--accent)',
-                  border: '0.5px dashed rgba(249,115,22,0.55)',
-                  display: 'flex', alignItems: 'center', gap: '5px',
-                }}
-              >
-                🔒 {upgradeCopy}
+      {/* Day picker — no horizontal scroll. Today + Tomorrow are direct buttons;
+          everything else (plus any locked-day upgrade hint) lives in a vertical
+          modal list. The refresh button always renders so it stays reachable even
+          when there's only a single visible day. */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '6px', flex: 1, minWidth: 0, flexWrap: 'wrap' }}>
+          {showDayTabs && (() => {
+            const isTodayActive = !effectiveSelectedDay
+            const tomorrowDay = visibleForecast[1]
+            const isTomorrowActive = !!(effectiveSelectedDay && tomorrowDay && effectiveSelectedDay.dateStr === tomorrowDay.dateStr)
+            // A day picked from the modal that isn't Today/Tomorrow — label the
+            // "More days" button with it so the active selection stays visible.
+            const beyondActive = effectiveSelectedDay && !isTomorrowActive
+              ? effectiveSelectedDay
+              : null
+            // Show "More days" when there are accessible days past tomorrow, or
+            // when there are locked days to surface the upgrade hint.
+            const showMore = visibleForecast.length > 2 || (lockedForecastCount > 0 && !!upgradeCopy)
+            const chip = (label: string, active: boolean, onClick: () => void, key: string) => (
+              <button key={key} onClick={onClick} style={{
+                flexShrink: 0, padding: '8px 14px', borderRadius: '10px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
+                background: active ? 'var(--accent)' : 'var(--bg-metric)',
+                color: active ? '#fff' : 'var(--text)',
+                border: 'none', transition: 'all 0.12s',
+                display: 'flex', alignItems: 'center', gap: '5px',
+              }}>
+                {label}
               </button>
-            )}
-          </div>
-          )}
+            )
+            return (
+              <>
+                {chip('Today', isTodayActive, () => onSelectDay(null), 'today')}
+                {tomorrowDay && chip('Tomorrow', isTomorrowActive, () => onSelectDay(tomorrowDay), 'tomorrow')}
+                {showMore && chip(
+                  beyondActive ? beyondActive.label : 'More days',
+                  !!beyondActive,
+                  () => setShowDayModal(true),
+                  'more',
+                )}
+              </>
+            )
+          })()}
         </div>
         <button className="btn btn-ghost" onClick={onRefresh} title="Refresh" style={{ padding: '7px 9px', fontSize: '17px', flexShrink: 0 }}>↻</button>
       </div>
@@ -312,29 +290,30 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
       )}
 
       <div className="card">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px', gap: '12px', flexWrap: 'wrap' }}>
-          <div>
-            <p style={{ margin: '0 0 10px', fontSize: '16px', fontWeight: 650, color: 'var(--text)' }}>
-              <Tooltip text="Each bar shows the UV index for that hour. Hover or tap to see burn time and conditions.">
-                UV by hour
-              </Tooltip>
-            </p>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: '16px', flexWrap: 'wrap' }}>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: '7px' }}>
-                <span style={{ fontSize: '38px', fontWeight: 700, color: uvNumberColor(headUV), lineHeight: 1 }}>{headUV.toFixed(1)}</span>
-                <span style={{ fontSize: '13px', color: 'var(--text-3)' }}>{uvLabel(headUV)}{headSuffix}</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: '7px' }}>
-                <span style={{ fontSize: '24px', fontWeight: 650, color: 'var(--text)', lineHeight: 1 }}>{headTemp}°F</span>
-                <span style={{ fontSize: '13px', color: 'var(--text-3)' }}>{headCond}</span>
-              </div>
-            </div>
+        <p style={{ margin: '0 0 12px', fontSize: '16px', fontWeight: 650, color: 'var(--text)' }}>
+          <Tooltip text="Each bar shows the UV index for that hour. Hover or tap to see burn time and conditions.">
+            UV by hour
+          </Tooltip>
+        </p>
+
+        {/* CONSOLIDATED READOUT — the single, prominent detail for the focused hour.
+            It sits ABOVE the arc + strip so a finger scrubbing below never covers it.
+            FIXED two-row layout: a long UV label ("Very high") can never shove the
+            temperature or change the card height as the focused hour changes — row 1
+            is the big number + label, row 2 is the temp · condition · burn line, each
+            on its own line with reserved height. */}
+        <div style={{ marginBottom: '14px' }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', minHeight: '40px' }}>
+            <span style={{ fontSize: '40px', fontWeight: 700, color: uvNumberColor(headUV), lineHeight: 1, flexShrink: 0 }}>{headUV.toFixed(1)}</span>
+            <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-2)', lineHeight: 1.2, minWidth: 0 }}>
+              {uvLabel(headUV)}<span style={{ color: 'var(--text-3)', fontWeight: 500 }}>{headSuffix}</span>
+            </span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-            <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-3)' }}>Peak {peakUV.toFixed(1)} at {fmtHour(peakHour)}</p>
-            <button className="btn" onClick={shareSunWindow} style={{ fontSize: '13px', padding: '6px 11px' }}>↗ Share</button>
-          </div>
+          <p style={{ margin: '6px 0 0', fontSize: '13.5px', color: 'var(--text-3)', lineHeight: 1.3, minHeight: '18px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {headTemp}°F · {headCond}{headBurn ? ` · burn ~${headBurn}m` : ''}
+          </p>
         </div>
+
         {process.env.NEXT_PUBLIC_HIDE_SUNPATH !== '1' && prefs.showSunPath !== false && (
           <SunArc
             hourly={hourly}
@@ -387,15 +366,15 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
       <TipCarousel />
 
       <section>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginBottom: '12px', flexWrap: 'wrap' }}>
-          <div>
-            <p style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: 'var(--text)' }}>Activities</p>
-            <p style={{ margin: '3px 0 0', fontSize: '13px', color: 'var(--text-3)' }}>
-              Add what you do outside, then Solara finds the safest windows.
-            </p>
-          </div>
+        <div style={{ marginBottom: '12px' }}>
+          <p style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: 'var(--text)' }}>Activities</p>
+          <p style={{ margin: '3px 0 0', fontSize: '13px', color: 'var(--text-3)' }}>
+            Add what you do outside, then Solara finds the safest windows.
+          </p>
+          {/* One Add control on the LEFT, Manage pushed to the far RIGHT via
+              space-between so the two actions are never clustered together. */}
           {!activitiesLocked && (
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginTop: '12px' }}>
               <button
                 className="btn btn-primary"
                 onClick={() => setActivityModal('add')}
@@ -524,6 +503,45 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
           onDelete={deleteActivity}
           onClose={() => setEditingActivityId(null)}
         />
+      )}
+
+      {showDayModal && (
+        <ActivityModalShell
+          title="Choose a day"
+          description="Pick any day in your forecast. Scroll for more."
+          onClose={() => setShowDayModal(false)}
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {visibleForecast.map((day, i) => {
+              const isActive = i === 0 ? !effectiveSelectedDay : effectiveSelectedDay?.dateStr === day.dateStr
+              return (
+                <button
+                  key={day.dateStr}
+                  onClick={() => { onSelectDay(i === 0 ? null : day); setShowDayModal(false) }}
+                  style={{
+                    width: '100%', textAlign: 'left', padding: '13px 15px', borderRadius: '12px', cursor: 'pointer',
+                    background: isActive ? 'var(--accent)' : 'var(--bg-metric)',
+                    color: isActive ? '#fff' : 'var(--text)',
+                    border: isActive ? 'none' : '0.5px solid var(--border-md)',
+                    fontSize: '14px', fontWeight: 600,
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px',
+                  }}
+                >
+                  <span>{day.label}</span>
+                  {isActive && <span style={{ fontSize: '13px' }}>✓</span>}
+                </button>
+              )
+            })}
+            {lockedForecastCount > 0 && upgradeCopy && (
+              <div style={{ marginTop: '6px', padding: '13px 15px', borderRadius: '12px', background: 'rgba(249,115,22,0.06)', border: '0.5px dashed rgba(249,115,22,0.55)' }}>
+                <p style={{ margin: '0 0 4px', fontSize: '13px', fontWeight: 700, color: 'var(--accent)' }}>🔒 {upgradeCopy}</p>
+                <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-3)', lineHeight: 1.45 }}>
+                  {lockedForecastCount} more {lockedForecastCount === 1 ? 'day is' : 'days are'} available on a higher plan.
+                </p>
+              </div>
+            )}
+          </div>
+        </ActivityModalShell>
       )}
 
     </div>

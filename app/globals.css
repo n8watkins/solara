@@ -269,10 +269,11 @@ input[type='range'] { padding: 0; border: none; box-shadow: none; background: tr
 /* Compact, swipeable tips track — hide the scrollbar; swipe horizontally on touch. */
 .tip-track::-webkit-scrollbar { display: none; height: 0; }
 
-/* Sun-path arc plot — compact, shorter on phones so it doesn't crowd the strip. */
-.sun-arc-plot { height: 96px; }
+/* Sun-path arc plot — give the curve real presence; still a touch shorter on
+   phones so the strip below stays visible without scrolling. */
+.sun-arc-plot { height: 150px; }
 @media (max-width: 560px) {
-  .sun-arc-plot { height: 74px; }
+  .sun-arc-plot { height: 120px; }
 }
 
 .show-mobile { display: none; }
