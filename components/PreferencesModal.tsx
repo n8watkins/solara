@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { User, signOut } from 'firebase/auth'
 import { UserPreferences, SkinType, Location } from '@/lib/types'
+import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
 import { clearWeatherCache } from '@/lib/cache'
 import { TIER_LIMITS } from '@/lib/tiers'
 import { requestNotificationPermission, saveFCMToken, saveFCMTokenLocally, getFCMTokenLocally } from '@/lib/notifications'
@@ -31,6 +32,7 @@ type LegacyTab = 'general' | 'activities' | 'location'
 type Tab = 'general' | 'appearance' | 'activities' | 'location' | 'account'
 
 export default function PreferencesModal({ prefs, onSave, onClose, initialTab, user }: Props) {
+  useBodyScrollLock()
   const [tab,        setTab]        = useState<Tab>(initialTab || 'general')
   const [skinType,   setSkinType]   = useState<SkinType>(prefs.skinType)
   const [location,   setLocation]   = useState<Location>(prefs.location)
@@ -146,14 +148,14 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
 
   return (
     <div
+      className="settings-overlay"
       onClick={e => e.target === e.currentTarget && requestClose()}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: '16px' }}
     >
-      <div style={{ background: 'var(--bg-card)', borderRadius: '20px', width: '100%', maxWidth: '860px', height: 'min(88vh, 720px)', overflow: 'hidden', display: 'flex', flexDirection: 'column', border: '0.5px solid var(--border-md)', boxShadow: '0 24px 80px rgba(0,0,0,0.24)' }}>
+      <div className="settings-card">
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '18px 22px 14px', borderBottom: '0.5px solid var(--border-md)', flexShrink: 0 }}>
+        <div className="settings-topbar">
           <p style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: 'var(--text)' }}>Settings</p>
-          <button onClick={requestClose} style={{ background: 'var(--bg-metric)', border: 'none', width: '32px', height: '32px', borderRadius: '50%', fontSize: '18px', cursor: 'pointer', color: 'var(--text-2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} aria-label="Close settings">×</button>
+          <button onClick={requestClose} style={{ background: 'var(--bg-metric)', border: 'none', width: '32px', height: '32px', borderRadius: '50%', fontSize: '18px', cursor: 'pointer', color: 'var(--text-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }} aria-label="Close settings">×</button>
         </div>
 
         <div className="settings-body">
@@ -373,7 +375,7 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
           </div>
         </div>
 
-        <div style={{ padding: '15px 22px', borderTop: '0.5px solid var(--border-md)', display: 'flex', gap: '10px', flexShrink: 0 }}>
+        <div className="settings-footer">
           <button className="btn" onClick={requestClose} style={{ flex: 1, justifyContent: 'center' }}>{dirty ? 'Discard' : 'Cancel'}</button>
           <button className="btn btn-primary" onClick={() => onSave(draft)} style={{ flex: 1, justifyContent: 'center' }}>
             Save settings
