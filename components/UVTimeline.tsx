@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { HourlyForecast } from '@/lib/types'
 import { uvColorHex, uvTextHex, uvLabel, fmtHour, formatUV, burnMins } from '@/lib/weather'
 
@@ -8,88 +8,103 @@ interface Props {
   hourly: HourlyForecast[]
   currentHour: number
   skinType?: string
+  /** Notifies parent of the focused hour (current or tapped) — e.g. for a synced sun path. */
+  onFocusHour?: (h: HourlyForecast | null) => void
 }
 
-export default function UVTimeline({ hourly, currentHour, skinType = 'fair' }: Props) {
-  const [hovered, setHovered] = useState<HourlyForecast | null>(null)
+/**
+ * Interactive hourly UV strip. Bars are a fixed width and the strip scrolls
+ * horizontally on phones (zoomed in, more room per hour) with the current hour
+ * auto-centered; tapping any hour pins its detail in the always-visible readout
+ * below. Numbers are non-selectable so a tap never triggers the OS text/“search”
+ * menu. The legend is collapsed behind a toggle to keep the focus on the readout.
+ */
+export default function UVTimeline({ hourly, currentHour, skinType = 'fair', onFocusHour }: Props) {
+  const [selected, setSelected] = useState<HourlyForecast | null>(null)
+  const [showLegend, setShowLegend] = useState(false)
+  const nowRef = useRef<HTMLButtonElement>(null)
 
-  const first = hourly[0]
-  const last  = hourly[hourly.length - 1]
+  // The hour whose detail is shown: an explicit tap wins, else the current hour,
+  // else the first hour of the day.
+  const active = selected ?? hourly.find(h => h.hour === currentHour) ?? hourly[0] ?? null
+
+  // Center the current hour in the scroller on mount / when the day changes.
+  useEffect(() => {
+    nowRef.current?.scrollIntoView({ inline: 'center', block: 'nearest' })
+  }, [currentHour, hourly.length])
+
+  useEffect(() => { onFocusHour?.(active) }, [active, onFocusHour])
 
   return (
-    <div>
-      {/* Bars share the row evenly — must never overflow into a horizontal scroll. */}
-      <div className="flex gap-0.5 sm:gap-1 mb-1.5">
+    <div style={{ userSelect: 'none', WebkitUserSelect: 'none' }}>
+      <div className="uv-strip">
         {hourly.map(h => {
-          const bg   = uvColorHex(h.uv)
-          const tx   = uvTextHex(h.uv)
           const isNow = h.hour === currentHour
+          const isSel = active?.hour === h.hour
           return (
-            <div
+            <button
               key={h.hour}
-              className={`rounded-md flex flex-col items-center justify-center py-2 cursor-default transition-opacity ${
-                isNow ? 'ring-2 ring-gray-800 ring-offset-1' : ''
-              }`}
-              style={{ background: bg, minWidth: 0, flex: '1 1 0' }}
-              onMouseEnter={() => setHovered(h)}
-              onMouseLeave={() => setHovered(null)}
-              onTouchStart={() => setHovered(h)}
+              ref={isNow ? nowRef : undefined}
+              onClick={() => setSelected(h)}
+              className="uv-bar"
+              aria-pressed={isSel}
+              aria-label={`${fmtHour(h.hour)}, UV ${h.uv.toFixed(1)}`}
+              style={{
+                flex: '0 0 auto', width: '42px',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '3px',
+                padding: '9px 0', borderRadius: '10px', cursor: 'pointer',
+                background: uvColorHex(h.uv), color: uvTextHex(h.uv),
+                border: isSel ? '2px solid var(--text)' : '2px solid transparent',
+                boxShadow: isNow && !isSel ? '0 0 0 2px var(--bg-card), 0 0 0 3.5px var(--text)' : 'none',
+                scrollSnapAlign: 'center', transition: 'border-color 0.12s',
+              }}
             >
-              <span className="text-[11px] font-semibold leading-none" style={{ color: tx }}>
-                {formatUV(h.uv, { compact: true })}
-              </span>
-              <span className="hide-mobile text-[9px] mt-0.5 opacity-70" style={{ color: tx }}>
-                {fmtHour(h.hour)}
-              </span>
-              {isNow && (
-                <span className="text-[8px] mt-0.5 font-medium" style={{ color: tx }}>•</span>
-              )}
-            </div>
+              <span style={{ fontSize: '13px', fontWeight: 700, lineHeight: 1 }}>{formatUV(h.uv, { compact: true })}</span>
+              <span style={{ fontSize: '10px', opacity: 0.75, lineHeight: 1 }}>{fmtHour(h.hour)}</span>
+              {isNow && <span style={{ fontSize: '8px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', lineHeight: 1 }}>now</span>}
+            </button>
           )
         })}
       </div>
 
-      {/* On mobile the per-bar hour labels are hidden; this axis stands in. */}
-      <div className="show-mobile justify-between text-[10px] text-gray-400 px-0.5">
-        <span>{fmtHour(first.hour)}</span>
-        <span>{fmtHour(Math.round((first.hour + last.hour) / 2))}</span>
-        <span>{fmtHour(last.hour)}</span>
-      </div>
-
-      <div className="h-8 flex items-center px-1 min-h-[2rem]">
-        {hovered ? (
-          <p className="text-xs text-gray-600">
-            <span className="font-medium text-gray-900">{fmtHour(hovered.hour)}</span>
-            {' · '}UV <span style={{ color: uvColorHex(hovered.uv) }} className="font-medium">
-              {hovered.uv.toFixed(1)} — {uvLabel(hovered.uv)}
-            </span>
-            {' · '}{hovered.tempF}°F · {hovered.condition}
-            {burnMins(hovered.uv, skinType as any)
-              ? ` · Burn in ~${burnMins(hovered.uv, skinType as any)}m`
-              : ' · No burn risk'
-            }
+      {/* Always-visible readout for the focused hour. */}
+      <div style={{ minHeight: '2.1rem', display: 'flex', alignItems: 'center', padding: '8px 2px 0', fontSize: '13px', color: 'var(--text-2)' }}>
+        {active ? (
+          <p style={{ margin: 0 }}>
+            <span style={{ fontWeight: 700, color: 'var(--text)' }}>{fmtHour(active.hour)}</span>
+            {' · UV '}
+            <span style={{ fontWeight: 700, color: uvColorHex(active.uv) }}>{active.uv.toFixed(1)} {uvLabel(active.uv)}</span>
+            {` · ${active.tempF}°F · ${active.condition}`}
+            {burnMins(active.uv, skinType as never) ? ` · burn ~${burnMins(active.uv, skinType as never)}m` : ' · no burn risk'}
           </p>
         ) : (
-          <p className="text-xs text-gray-400">
-            {typeof window !== 'undefined' && window.matchMedia('(hover: none)').matches ? 'Tap a bar for details' : 'Hover a bar for details'}
-          </p>
+          <p style={{ margin: 0, color: 'var(--text-3)' }}>Tap an hour for details</p>
         )}
       </div>
 
-      <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1">
-        {[
-          ['#86EFAC', 'Low (0–2)'],
-          ['#FCD34D', 'Moderate (3–5)'],
-          ['#FB923C', 'High (6–7)'],
-          ['#F87171', 'Very high (8–10)'],
-          ['#C084FC', 'Extreme (11+)'],
-        ].map(([color, label]) => (
-          <span key={label} className="flex items-center gap-1 text-xs text-gray-500">
-            <span className="w-2.5 h-2.5 rounded-sm inline-block shrink-0" style={{ background: color }} />
-            {label}
-          </span>
-        ))}
-      </div>
+      <button
+        onClick={() => setShowLegend(s => !s)}
+        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px 2px', fontSize: '11px', fontWeight: 600, color: 'var(--text-3)', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+        aria-expanded={showLegend}
+      >
+        UV scale {showLegend ? '▲' : '▼'}
+      </button>
+      {showLegend && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 14px', marginTop: '4px' }}>
+          {[
+            ['#86EFAC', 'Low (0–2)'],
+            ['#FCD34D', 'Moderate (3–5)'],
+            ['#FB923C', 'High (6–7)'],
+            ['#F87171', 'Very high (8–10)'],
+            ['#C084FC', 'Extreme (11+)'],
+          ].map(([color, label]) => (
+            <span key={label} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '12px', color: 'var(--text-3)' }}>
+              <span style={{ width: '10px', height: '10px', borderRadius: '3px', background: color, flexShrink: 0 }} />
+              {label}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

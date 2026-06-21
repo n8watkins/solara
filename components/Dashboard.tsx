@@ -12,7 +12,6 @@ import CalendarFeed from './CalendarFeed'
 import AddActivityModal from './AddActivityModal'
 import ManageActivitiesModal from './ManageActivitiesModal'
 import EditActivityModal from './EditActivityModal'
-import SunArc from './SunArc'
 import Tooltip from './Tooltip'
 import TipCarousel from './TipCarousel'
 import GoogleSignInButton, { ACTIVITY_SIGNIN_BLURB } from './GoogleSignInButton'
@@ -313,7 +312,6 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
             <button className="btn" onClick={shareSunWindow} style={{ fontSize: '13px', padding: '6px 11px' }}>↗ Share</button>
           </div>
         </div>
-        {prefs.showSunPath !== false && <SunArc hourly={hourly} currentHour={currentHour} isToday={isToday} />}
         <UVTimeline hourly={hourly} currentHour={isToday ? currentHour : -1} skinType={prefs.skinType} />
       </div>
 

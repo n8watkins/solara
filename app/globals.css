@@ -184,6 +184,32 @@ input[type='range'] { padding: 0; border: none; box-shadow: none; background: tr
   .hdr-loc { order: 3; flex-basis: 100%; min-width: 100%; }
 }
 
+/* Interactive UV strip: fixed-width bars that scroll horizontally (zoomed in on
+   phones) with a subtle edge fade signalling there's more to scroll. */
+.uv-strip {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 0 6px;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
+  scrollbar-width: thin;
+}
+.uv-strip::-webkit-scrollbar { height: 5px; }
+.uv-strip::-webkit-scrollbar-thumb { background: var(--border-md); border-radius: 3px; }
+.uv-bar {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+@media (max-width: 560px) {
+  .uv-strip { -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%);
+              mask-image: linear-gradient(90deg, transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%); }
+}
+
 .show-mobile { display: none; }
 
 /* Dashboard vertical rhythm — tighter on phones so more fits above the fold. */
