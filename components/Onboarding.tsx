@@ -1,34 +1,35 @@
 'use client'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { User } from 'firebase/auth'
-import { saveLocalPrefs, saveFirestorePrefs, defaultPrefs } from '@/lib/prefs'
-import { UserPreferences, Location, SkinType, Activity } from '@/lib/types'
-import { TIER_LIMITS, PRESET_ACTIVITIES } from '@/lib/tiers'
-import GoogleSignInButton, { ACTIVITY_SIGNIN_BLURB } from './GoogleSignInButton'
+import { saveLocalPrefs, defaultPrefs } from '@/lib/prefs'
+import { UserPreferences, Location, SkinType } from '@/lib/types'
+import GoogleSignInButton from './GoogleSignInButton'
 
 interface Props {
   onComplete: (prefs: UserPreferences) => void
   user: User | null
 }
 
-type Step = 'location' | 'uvpreview' | 'skin' | 'activities'
-
-// A short, friendly starter set — the full catalog (and custom everything) lives in
-// the dashboard once they're in. Onboarding should feel like picking, not shopping.
-const STARTER_IDS = ['run', 'walk', 'cycle', 'swim', 'hike', 'dog', 'garden', 'lunch']
-const STARTER_ACTIVITIES = STARTER_IDS
-  .map(id => PRESET_ACTIVITIES.find(p => p.id === id))
-  .filter((p): p is typeof PRESET_ACTIVITIES[number] => !!p)
+type Step = 'location' | 'uvpreview' | 'skin' | 'signin'
 
 const SKIN_OPTIONS: { value: SkinType; label: string; desc: string; burnTime: string }[] = [
-  { value: 'very-fair', label: 'Very fair',  desc: 'Burns easily, rarely tans', burnTime: '~10 min at UV 10' },
-  { value: 'fair',      label: 'Fair',       desc: 'Burns often, tans lightly',  burnTime: '~15 min at UV 10' },
-  { value: 'medium',    label: 'Medium',     desc: 'Burns sometimes, tans well', burnTime: '~25 min at UV 10' },
-  { value: 'olive',     label: 'Olive',      desc: 'Rarely burns, tans easily',  burnTime: '~35 min at UV 10' },
-  { value: 'dark',      label: 'Dark',       desc: 'Very rarely burns',          burnTime: '~50 min at UV 10' },
+  { value: 'very-fair', label: 'Very fair', desc: 'Burns easily, rarely tans',  burnTime: '~10m' },
+  { value: 'fair',      label: 'Fair',      desc: 'Burns often, tans lightly',  burnTime: '~15m' },
+  { value: 'medium',    label: 'Medium',    desc: 'Burns sometimes, tans well', burnTime: '~25m' },
+  { value: 'olive',     label: 'Olive',     desc: 'Rarely burns, tans easily',  burnTime: '~35m' },
+  { value: 'dark',      label: 'Dark',      desc: 'Very rarely burns',          burnTime: '~50m' },
 ]
 
-export default function Onboarding({ onComplete, user }: Props) {
+function uvLabel(uv: number) {
+  if (uv < 1) return { label: 'None', color: '#9CA3AF' }
+  if (uv <= 2) return { label: 'Low', color: '#16A34A' }
+  if (uv <= 5) return { label: 'Moderate', color: '#D97706' }
+  if (uv <= 7) return { label: 'High', color: '#EA580C' }
+  if (uv <= 10) return { label: 'Very high', color: '#DC2626' }
+  return { label: 'Extreme', color: '#9333EA' }
+}
+
+export default function Onboarding({ onComplete }: Props) {
   const [step, setStep]           = useState<Step>('location')
   const [locLoading, setLocLoad]  = useState(false)
   const [cityInput, setCityInput] = useState('')
@@ -37,31 +38,17 @@ export default function Onboarding({ onComplete, user }: Props) {
   const [uvNow, setUvNow]         = useState<number | null>(null)
   const [uvCity, setUvCity]       = useState('')
   const [skinType, setSkinType]   = useState<SkinType>('fair')
-  const [activities, setActivities] = useState<Activity[]>([])
-  const [showCustom, setShowCustom] = useState(false)
-  const [customName, setCustomName] = useState('')
-  const [customMins, setCustomMins] = useState(30)
-  const tier = user ? 'free' : 'anonymous'
-  const limit = TIER_LIMITS[tier].activities
-  const atLimit = activities.length >= limit
 
-  function toggleActivity(preset: typeof PRESET_ACTIVITIES[number]) {
-    if (activities.some(a => a.id === preset.id)) {
-      setActivities(activities.filter(a => a.id !== preset.id))
-    } else if (!atLimit) {
-      setActivities([...activities, { ...preset }])
-    }
-  }
+  // Setup never scrolls — lock the page while onboarding is mounted.
+  useEffect(() => {
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = prev }
+  }, [])
 
-  function addCustomActivity() {
-    if (!customName.trim() || atLimit) return
-    setActivities([...activities, {
-      id: `custom_${Date.now()}`, name: customName.trim(),
-      icon: '✨', durationMins: customMins, maxUV: 4,
-      sunscreen: false, custom: true,
-    }])
-    setCustomName(''); setCustomMins(30); setShowCustom(false)
-  }
+  const collected: UserPreferences | null = location
+    ? { ...defaultPrefs(location), skinType, tier: 'free', onboardingComplete: true }
+    : null
 
   async function handleGeolocate() {
     setLocLoad(true); setGeoError(null)
@@ -69,12 +56,10 @@ export default function Onboarding({ onComplete, user }: Props) {
       const { latitude: lat, longitude: lon } = pos.coords
       const city = await reverseGeocode(lat, lon)
       const loc = { lat, lon, ...city }
-      setLocation(loc)
-      setLocLoad(false)
+      setLocation(loc); setLocLoad(false)
       await fetchUVPreview(loc)
     }, () => {
-      setGeoError('Location access denied. Type a city below.')
-      setLocLoad(false)
+      setGeoError('Location access denied. Type a city below.'); setLocLoad(false)
     })
   }
 
@@ -91,9 +76,7 @@ export default function Onboarding({ onComplete, user }: Props) {
       await fetchUVPreview(loc)
     } catch {
       setGeoError('City not found. Try a different spelling.')
-    } finally {
-      setLocLoad(false)
-    }
+    } finally { setLocLoad(false) }
   }
 
   async function fetchUVPreview(loc: Location) {
@@ -108,226 +91,128 @@ export default function Onboarding({ onComplete, user }: Props) {
     }
   }
 
-  async function handleFinish() {
-    if (!location) return
-    const prefs: UserPreferences = {
-      ...defaultPrefs(location),
-      skinType,
-      activities,
-      tier,
-      onboardingComplete: true,
-    }
-    saveLocalPrefs(prefs)
-    if (user) await saveFirestorePrefs(user.uid, { ...prefs, uid: user.uid })
-    onComplete(prefs)
+  function finish() {
+    if (!collected) return
+    saveLocalPrefs(collected)
+    onComplete(collected)
   }
 
-  function uvLabel(uv: number) {
-    if (uv < 1) return { label: 'None', color: '#9CA3AF' }
-    if (uv <= 2) return { label: 'Low', color: '#16A34A' }
-    if (uv <= 5) return { label: 'Moderate', color: '#D97706' }
-    if (uv <= 7) return { label: 'High', color: '#EA580C' }
-    if (uv <= 10) return { label: 'Very high', color: '#DC2626' }
-    return { label: 'Extreme', color: '#9333EA' }
-  }
-
-  const stepNum = { location: 1, uvpreview: 1, skin: 2, activities: 3 }
-  const totalSteps = 3
+  const progress = { location: 1, uvpreview: 1, skin: 2, signin: 3 }[step]
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '2rem 1rem',
-      background: 'var(--bg)',
-    }}>
-      <div style={{ width: '100%', maxWidth: '480px' }}>
+    <div style={{ height: '100dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: '16px', background: 'var(--bg)' }}>
+      <div style={{ width: '100%', maxWidth: '460px', margin: '0 auto', flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
 
-        <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-          <span style={{ fontSize: '32px' }}>☀️</span>
-          <h1 style={{ margin: '8px 0 4px', fontSize: '22px', fontWeight: 600, color: 'var(--text)' }}>Solara</h1>
-          {step !== 'location' && step !== 'uvpreview' && (
-            <div style={{ display: 'flex', justifyContent: 'center', gap: '6px', marginTop: '12px' }}>
-              {Array.from({ length: totalSteps }, (_, i) => (
-                <div key={i} style={{
-                  width: '28px', height: '4px', borderRadius: '2px',
-                  background: i < (stepNum[step] - 1) ? 'var(--accent)' : i === (stepNum[step] - 1) ? 'var(--accent)' : 'var(--border-md)',
-                  opacity: i < stepNum[step] ? 1 : 0.3,
-                }} />
-              ))}
-            </div>
-          )}
+        <div style={{ textAlign: 'center', padding: '6px 0 14px', flexShrink: 0 }}>
+          <span style={{ fontSize: '26px' }}>☀️</span>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '6px', marginTop: '10px' }}>
+            {[1, 2, 3].map(i => (
+              <div key={i} style={{ width: '26px', height: '4px', borderRadius: '2px', background: i <= progress ? 'var(--accent)' : 'var(--border-md)', opacity: i <= progress ? 1 : 0.4 }} />
+            ))}
+          </div>
         </div>
 
-        {step === 'location' && (
-          <div className="card">
-            <h2 style={{ margin: '0 0 6px', fontSize: '18px', fontWeight: 600, color: 'var(--text)' }}>Where are you?</h2>
-            <p style={{ margin: '0 0 20px', fontSize: '14px', color: 'var(--text-2)', lineHeight: '1.5' }}>
-              We'll show you live UV data for your area — no sign-up needed.
-            </p>
-            <button className="btn btn-primary" onClick={handleGeolocate} disabled={locLoading}
-              style={{ width: '100%', justifyContent: 'center', marginBottom: '12px', padding: '10px' }}>
-              {locLoading ? 'Detecting...' : '📍 Use my location'}
-            </button>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '12px 0' }}>
-              <div style={{ flex: 1, height: '0.5px', background: 'var(--border-md)' }} />
-              <span style={{ fontSize: '12px', color: 'var(--text-3)' }}>or type a city</span>
-              <div style={{ flex: 1, height: '0.5px', background: 'var(--border-md)' }} />
-            </div>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <input
-                placeholder="e.g. Los Angeles"
-                value={cityInput}
-                onChange={e => setCityInput(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleCitySearch()}
-                style={{ flex: 1 }}
-              />
-              <button className="btn" onClick={handleCitySearch} disabled={locLoading}>Go</button>
-            </div>
-            {geoError && <p style={{ margin: '8px 0 0', fontSize: '12px', color: '#DC2626' }}>{geoError}</p>}
-          </div>
-        )}
+        {/* Step body fills the screen; the primary action sits pinned at the bottom (thumb zone). */}
+        <div className="card" style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
 
-        {step === 'uvpreview' && uvNow !== null && (
-          <div className="card" style={{ textAlign: 'center' }}>
-            <p style={{ margin: '0 0 4px', fontSize: '13px', color: 'var(--text-3)' }}>UV index right now in</p>
-            <p style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: 600, color: 'var(--text)' }}>{uvCity}</p>
-            <div style={{ fontSize: '72px', fontWeight: 700, color: uvLabel(uvNow).color, lineHeight: 1, marginBottom: '8px' }}>
-              {uvNow.toFixed(1)}
-            </div>
-            <div style={{ display: 'inline-block', padding: '4px 14px', borderRadius: '20px', background: 'var(--bg-metric)', fontSize: '14px', fontWeight: 500, color: uvLabel(uvNow).color, marginBottom: '24px' }}>
-              {uvLabel(uvNow).label}
-            </div>
-            <p style={{ margin: '0 0 24px', fontSize: '14px', color: 'var(--text-2)', lineHeight: '1.6' }}>
-              Set up your profile to see exactly when it's safe for your activities — based on your skin type.
-            </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <button className="btn btn-primary" onClick={() => setStep('skin')} style={{ justifyContent: 'center', padding: '10px' }}>
-                Set up my profile →
-              </button>
-              <button className="btn btn-ghost" onClick={handleFinish} style={{ justifyContent: 'center', fontSize: '13px', color: 'var(--text-3)' }}>
-                Skip for now — just show the dashboard
-              </button>
-            </div>
-          </div>
-        )}
-
-        {step === 'skin' && (
-          <div className="card">
-            <h2 style={{ margin: '0 0 4px', fontSize: '18px', fontWeight: 600, color: 'var(--text)' }}>What's your skin type?</h2>
-            <p style={{ margin: '0 0 16px', fontSize: '14px', color: 'var(--text-2)' }}>
-              This determines your burn time and safe UV thresholds.
-            </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '20px' }}>
-              {SKIN_OPTIONS.map(o => (
-                <button key={o.value} onClick={() => setSkinType(o.value)} style={{
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                  padding: '12px 14px', borderRadius: '10px', textAlign: 'left',
-                  border: skinType === o.value ? '1.5px solid var(--accent)' : '0.5px solid var(--border-md)',
-                  background: skinType === o.value ? 'rgba(249,115,22,0.08)' : 'var(--bg-card)',
-                  cursor: 'pointer', transition: 'all 0.15s',
-                }}>
-                  <div>
-                    <p style={{ margin: 0, fontSize: '14px', fontWeight: 500, color: 'var(--text)' }}>{o.label}</p>
-                    <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-3)' }}>{o.desc}</p>
-                  </div>
-                  <span style={{ fontSize: '12px', color: 'var(--text-3)', whiteSpace: 'nowrap', marginLeft: '12px' }}>{o.burnTime}</span>
-                </button>
-              ))}
-            </div>
-            <button className="btn btn-primary" onClick={() => setStep('activities')} style={{ width: '100%', justifyContent: 'center', padding: '10px' }}>
-              Next →
-            </button>
-          </div>
-        )}
-
-        {step === 'activities' && !user && (
-          <div className="card">
-            <h2 style={{ margin: '0 0 4px', fontSize: '18px', fontWeight: 600, color: 'var(--text)' }}>Want activity recommendations?</h2>
-            <p style={{ margin: '0 0 16px', fontSize: '14px', color: 'var(--text-2)', lineHeight: 1.55 }}>
-              {ACTIVITY_SIGNIN_BLURB} Activities need an account — signing in with Google is free.
-            </p>
-            <div style={{ padding: '14px', borderRadius: '12px', background: 'var(--bg-metric)', border: '0.5px solid var(--border-md)', marginBottom: '16px' }}>
-              <p style={{ margin: '0 0 10px', fontSize: '13px', color: 'var(--text-2)', lineHeight: 1.5 }}>
-                Free with Google: <strong>{TIER_LIMITS.free.activities} activities</strong>, safe-window
-                recommendations, and your UV windows on Google Calendar.
+          {step === 'location' && (
+            <>
+              <h2 style={{ margin: '0 0 6px', fontSize: '19px', fontWeight: 650, color: 'var(--text)' }}>Where are you?</h2>
+              <p style={{ margin: '0 0 18px', fontSize: '14px', color: 'var(--text-2)', lineHeight: 1.5 }}>
+                We'll show the live UV index for your area.
               </p>
-              <GoogleSignInButton style={{ width: '100%' }} />
-            </div>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button className="btn" onClick={() => setStep('skin')} style={{ flex: '0 0 auto' }}>← Back</button>
-              <button className="btn btn-ghost" onClick={handleFinish} style={{ flex: 1, justifyContent: 'center', fontSize: '13px', color: 'var(--text-3)' }}>
-                Skip for now — just show the UV dashboard
-              </button>
-            </div>
-          </div>
-        )}
-
-        {step === 'activities' && user && (
-          <div className="card">
-            <h2 style={{ margin: '0 0 4px', fontSize: '18px', fontWeight: 600, color: 'var(--text)' }}>What do you like to do outside?</h2>
-            <p style={{ margin: '0 0 16px', fontSize: '14px', color: 'var(--text-2)' }}>
-              Pick up to {limit} {limit === 1 ? 'activity' : 'activities'} to start — fine-tune SPF, timing, and more later.
-            </p>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '8px', marginBottom: '12px' }}>
-              {STARTER_ACTIVITIES.map(p => {
-                const sel    = activities.some(a => a.id === p.id)
-                const locked = !sel && atLimit
-                return (
-                  <button key={p.id} onClick={() => toggleActivity(p)} disabled={locked} style={{
-                    display: 'flex', alignItems: 'center', gap: '8px', minHeight: '48px',
-                    padding: '8px 12px', borderRadius: '10px', textAlign: 'left',
-                    cursor: locked ? 'not-allowed' : 'pointer',
-                    border: sel ? '1.5px solid var(--accent)' : '0.5px solid var(--border-md)',
-                    background: sel ? 'rgba(249,115,22,0.07)' : 'var(--bg-card)',
-                    opacity: locked ? 0.4 : 1, transition: 'all 0.12s',
-                  }}>
-                    <span style={{ fontSize: '18px' }}>{p.icon}</span>
-                    <span style={{ fontSize: '13px', fontWeight: sel ? 600 : 400, color: sel ? 'var(--accent)' : 'var(--text)' }}>{p.name}</span>
-                  </button>
-                )
-              })}
-            </div>
-
-            {!showCustom ? (
-              <button
-                onClick={() => setShowCustom(true)}
-                disabled={atLimit}
-                style={{ background: 'none', border: 'none', cursor: atLimit ? 'not-allowed' : 'pointer', fontSize: '13px', fontWeight: 600, color: atLimit ? 'var(--text-3)' : 'var(--accent)', padding: '4px 0', marginBottom: '8px' }}
-              >
-                + Make your own
-              </button>
-            ) : (
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '4px 0 14px' }}>
                 <input
-                  placeholder="e.g. Beach volleyball"
-                  value={customName}
-                  onChange={e => setCustomName(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && addCustomActivity()}
-                  autoFocus
-                  style={{ flex: '1 1 160px', fontSize: '13px' }}
+                  placeholder="Type a city, e.g. Los Angeles"
+                  value={cityInput}
+                  onChange={e => setCityInput(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleCitySearch()}
+                  style={{ flex: 1 }}
                 />
-                <input type="number" min="5" step="5" value={customMins} onChange={e => setCustomMins(Math.max(5, parseInt(e.target.value) || 5))} style={{ width: '64px', fontSize: '13px' }} />
-                <span style={{ fontSize: '12px', color: 'var(--text-3)' }}>min</span>
-                <button className="btn btn-primary" onClick={addCustomActivity} disabled={!customName.trim()} style={{ fontSize: '13px' }}>Add</button>
+                <button className="btn" onClick={handleCitySearch} disabled={locLoading}>Go</button>
               </div>
-            )}
+              {geoError && <p style={{ margin: '0 0 8px', fontSize: '12px', color: '#DC2626' }}>{geoError}</p>}
+              <div style={{ marginTop: 'auto' }}>
+                <button className="btn btn-primary" onClick={handleGeolocate} disabled={locLoading}
+                  style={{ width: '100%', justifyContent: 'center', padding: '13px' }}>
+                  {locLoading ? 'Detecting…' : '📍 Use my location'}
+                </button>
+              </div>
+            </>
+          )}
 
-            <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
-              <button className="btn" onClick={() => setStep('skin')} style={{ flex: '0 0 auto' }}>← Back</button>
-              <button className="btn btn-primary" onClick={handleFinish} style={{ flex: 1, justifyContent: 'center', padding: '10px' }}>
-                Start using Solara
+          {step === 'uvpreview' && uvNow !== null && (
+            <>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', minHeight: 0 }}>
+                <p style={{ margin: '0 0 2px', fontSize: '13px', color: 'var(--text-3)' }}>UV index right now in</p>
+                <p style={{ margin: '0 0 14px', fontSize: '16px', fontWeight: 650, color: 'var(--text)' }}>{uvCity}</p>
+                <div style={{ fontSize: '68px', fontWeight: 750, color: uvLabel(uvNow).color, lineHeight: 1, marginBottom: '10px' }}>{uvNow.toFixed(1)}</div>
+                <div style={{ display: 'inline-block', padding: '4px 14px', borderRadius: '20px', background: 'var(--bg-metric)', fontSize: '14px', fontWeight: 500, color: uvLabel(uvNow).color, marginBottom: '18px' }}>
+                  {uvLabel(uvNow).label}
+                </div>
+                <p style={{ margin: 0, fontSize: '14px', color: 'var(--text-2)', lineHeight: 1.55 }}>
+                  Next, set your skin type so Solara knows your safe windows.
+                </p>
+              </div>
+              <button className="btn btn-primary" onClick={() => setStep('skin')} style={{ width: '100%', justifyContent: 'center', padding: '13px', marginTop: '14px' }}>
+                Continue →
               </button>
-            </div>
-          </div>
-        )}
+            </>
+          )}
 
-        <p style={{ textAlign: 'center', marginTop: '20px', fontSize: '12px', color: 'var(--text-3)' }}>
-          Free with Google: {TIER_LIMITS.free.activities} activities + calendar sync · Pro: unlimited activities, notifications + 10-day forecast
-        </p>
+          {step === 'skin' && (
+            <>
+              <h2 style={{ margin: '0 0 4px', fontSize: '19px', fontWeight: 650, color: 'var(--text)' }}>Your skin type</h2>
+              <p style={{ margin: '0 0 14px', fontSize: '13px', color: 'var(--text-2)' }}>
+                Sets your burn time and safe UV thresholds.
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
+                {SKIN_OPTIONS.map(o => (
+                  <button key={o.value} onClick={() => setSkinType(o.value)} style={{
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    padding: '10px 13px', borderRadius: '10px', textAlign: 'left',
+                    border: skinType === o.value ? '1.5px solid var(--accent)' : '0.5px solid var(--border-md)',
+                    background: skinType === o.value ? 'rgba(249,115,22,0.08)' : 'var(--bg-card)',
+                    cursor: 'pointer',
+                  }}>
+                    <div>
+                      <p style={{ margin: 0, fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>{o.label}</p>
+                      <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-3)' }}>{o.desc}</p>
+                    </div>
+                    <span style={{ fontSize: '12px', color: 'var(--text-3)', whiteSpace: 'nowrap', marginLeft: '12px' }}>{o.burnTime}</span>
+                  </button>
+                ))}
+              </div>
+              <button className="btn btn-primary" onClick={() => setStep('signin')} style={{ width: '100%', justifyContent: 'center', padding: '13px', marginTop: 'auto' }}>
+                Continue →
+              </button>
+            </>
+          )}
+
+          {step === 'signin' && (
+            <>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', minHeight: 0 }}>
+                <span style={{ fontSize: '34px', marginBottom: '12px' }}>🔒</span>
+                <h2 style={{ margin: '0 0 8px', fontSize: '20px', fontWeight: 650, color: 'var(--text)' }}>Sign in to finish</h2>
+                <p style={{ margin: 0, fontSize: '14px', color: 'var(--text-2)', lineHeight: 1.55, maxWidth: '300px' }}>
+                  Solara saves your setup to your account so your sun windows are ready on every device.
+                </p>
+              </div>
+              <div style={{ marginTop: '14px' }}>
+                <GoogleSignInButton
+                  label="Continue with Google"
+                  seedPrefs={collected}
+                  onSignedIn={finish}
+                  style={{ width: '100%', justifyContent: 'center', padding: '13px' }}
+                />
+                <button className="btn btn-ghost" onClick={() => setStep('skin')} style={{ width: '100%', justifyContent: 'center', marginTop: '8px', fontSize: '13px', color: 'var(--text-3)' }}>
+                  ← Back
+                </button>
+              </div>
+            </>
+          )}
+
+        </div>
       </div>
     </div>
   )

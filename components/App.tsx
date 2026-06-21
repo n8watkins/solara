@@ -38,18 +38,26 @@ export default function App() {
   useEffect(() => {
     async function loadPrefs(u: User | null) {
       setUser(u)
-      let loaded: UserPreferences | null = null
 
-      if (u) loaded = await loadFirestorePrefs(u.uid)
+      // Sign-in with Google is required to use Solara — a guest never reaches the
+      // dashboard. No local-prefs fallback into the app for signed-out visitors.
+      if (!u) {
+        setScreen(prev => (prev === 'onboarding' ? prev : 'welcome'))
+        return
+      }
 
+      let loaded = await loadFirestorePrefs(u.uid)
       if (!loaded) {
+        // Brand-new account: seed from the prefs gathered during onboarding, if any.
         const local = loadLocalPrefs()
         if (local?.location) {
           loaded = {
             ...defaultPrefs(local.location as Location),
             ...local,
-            tier: local.tier ?? (u ? 'free' : 'anonymous'),
+            uid: u.uid,
+            tier: local.tier && local.tier !== 'anonymous' ? local.tier : 'free',
           }
+          await saveFirestorePrefs(u.uid, loaded)
         }
       }
 
@@ -60,8 +68,7 @@ export default function App() {
           setTimeout(() => setShowNotif(true), 4000)
         }
       } else {
-        // A sign-in popup mid-onboarding re-fires this listener with no stored prefs
-        // yet — don't yank a brand-new user back to the welcome screen.
+        // Signed in but no prefs yet (mid-onboarding) — keep onboarding visible.
         setScreen(prev => (prev === 'onboarding' ? prev : 'welcome'))
       }
     }
