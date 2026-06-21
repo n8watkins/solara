@@ -249,26 +249,44 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
         </div>
       )}
 
-      {/* Hero: lead with the answer — the best window for the selected day — so a
-          phone user gets the actionable takeaway before any of the detail cards. */}
-      {!activitiesLocked && bestShareActivity && bestShareWindow && (
-        <div className="card" style={{ background: 'linear-gradient(180deg, rgba(249,115,22,0.10), rgba(249,115,22,0.04))', border: '0.5px solid rgba(249,115,22,0.30)' }}>
-          <p className="section-label" style={{ color: 'var(--accent)' }}>Best {dateLabel.toLowerCase()} window</p>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginTop: '9px' }}>
-            <span style={{ fontSize: '32px', flexShrink: 0 }}>{bestShareActivity.icon}</span>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{ margin: 0, fontSize: '24px', fontWeight: 750, color: 'var(--text)', lineHeight: 1.1 }}>
-                {fmtHour(bestShareWindow.from)}–{fmtHour(bestShareWindow.to)}
-              </p>
-              <p style={{ margin: '3px 0 0', fontSize: '13px', color: 'var(--text-2)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {bestShareActivity.name}{bestWindowPeakUV !== undefined ? ` · Peak UV ${bestWindowPeakUV.toFixed(1)}` : ''}
-              </p>
+      {/* Hero: lead with the answer for the selected day — the best window, or a
+          clear "no safe window" headline when UV stays too high — so a phone user
+          gets the actionable takeaway before any of the detail cards. */}
+      {!activitiesLocked && prefs.activities.length > 0 && (
+        bestShareActivity && bestShareWindow ? (
+          <div className="card" style={{ background: 'linear-gradient(180deg, rgba(249,115,22,0.10), rgba(249,115,22,0.04))', border: '0.5px solid rgba(249,115,22,0.30)' }}>
+            <p className="section-label" style={{ color: 'var(--accent)' }}>Best {dateLabel.toLowerCase()} window</p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginTop: '9px' }}>
+              <span style={{ fontSize: '32px', flexShrink: 0 }}>{bestShareActivity.icon}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ margin: 0, fontSize: '24px', fontWeight: 750, color: 'var(--text)', lineHeight: 1.1 }}>
+                  {fmtHour(bestShareWindow.from)}–{fmtHour(bestShareWindow.to)}
+                </p>
+                <p style={{ margin: '3px 0 0', fontSize: '13px', color: 'var(--text-2)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {bestShareActivity.name}{bestWindowPeakUV !== undefined ? ` · Peak UV ${bestWindowPeakUV.toFixed(1)}` : ''}
+                </p>
+              </div>
+              {isToday && bestSafeNow && (
+                <span className="badge badge-safe" style={{ flexShrink: 0 }}>Safe now</span>
+              )}
             </div>
-            {isToday && bestSafeNow && (
-              <span className="badge badge-safe" style={{ flexShrink: 0 }}>Safe now</span>
-            )}
           </div>
-        </div>
+        ) : (
+          <div className="card" style={{ background: 'var(--bg-metric)', border: '0.5px solid var(--border-md)' }}>
+            <p className="section-label">No safe window {dateLabel.toLowerCase()}</p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginTop: '9px' }}>
+              <span style={{ fontSize: '30px', flexShrink: 0 }}>🌥️</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: 'var(--text)', lineHeight: 1.15 }}>
+                  Peak UV {peakUV.toFixed(1)} at {fmtHour(peakHour)}
+                </p>
+                <p style={{ margin: '3px 0 0', fontSize: '13px', color: 'var(--text-3)', lineHeight: 1.4 }}>
+                  UV stays above your activity limits — aim for early morning or evening.
+                </p>
+              </div>
+            </div>
+          </div>
+        )
       )}
 
       <div className="card">
