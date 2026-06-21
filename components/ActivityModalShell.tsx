@@ -1,5 +1,6 @@
 'use client'
 import { ReactNode } from 'react'
+import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
 
 interface Props {
   title: string
@@ -10,6 +11,7 @@ interface Props {
 }
 
 export default function ActivityModalShell({ title, description, children, footer, onClose }: Props) {
+  useBodyScrollLock()
   return (
     <div
       onClick={e => e.target === e.currentTarget && onClose()}

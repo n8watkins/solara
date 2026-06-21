@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { User, signOut } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
 import { UserPreferences, TierLevel } from '@/lib/types'
@@ -22,8 +22,27 @@ interface Props {
 
 export default function Header({ user, prefs, onPrefsUpdate, onGoHome, forceOpenTab, onModalClose, currentUV, displayTier }: Props) {
   const [showPrefs, setShowPrefs] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => { if (forceOpenTab) setShowPrefs(true) }, [forceOpenTab])
+
+  // Close the profile menu on outside-click / Escape.
+  useEffect(() => {
+    if (!menuOpen) return
+    function onDown(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false)
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setMenuOpen(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [menuOpen])
 
   async function handleSignOut() {
     if (auth) await signOut(auth)
@@ -96,23 +115,74 @@ export default function Header({ user, prefs, onPrefsUpdate, onGoHome, forceOpen
                   Pro
                 </span>
               )}
-              <button className="btn btn-ghost" onClick={() => setShowPrefs(true)} style={{ fontSize: '13px', padding: '6px 10px' }} aria-label="Open settings">
-                ⚙️ <span className="hide-mobile">Settings</span>
-              </button>
               {user ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  {user.photoURL && (
-                    <img
-                      src={user.photoURL}
-                      alt={user.displayName ?? 'Account'}
-                      title={user.displayName ?? user.email ?? undefined}
-                      referrerPolicy="no-referrer"
-                      style={{ width: '26px', height: '26px', borderRadius: '50%', flexShrink: 0 }}
-                    />
-                  )}
-                  <button className="btn btn-ghost" onClick={handleSignOut} style={{ fontSize: '12px' }}>
-                    Sign out
+                <div ref={menuRef} style={{ position: 'relative', flexShrink: 0 }}>
+                  <button
+                    onClick={() => setMenuOpen(o => !o)}
+                    aria-haspopup="menu"
+                    aria-expanded={menuOpen}
+                    aria-label="Account menu"
+                    title={user.displayName ?? user.email ?? 'Account'}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      width: '30px', height: '30px', borderRadius: '50%',
+                      padding: 0, cursor: 'pointer', flexShrink: 0, overflow: 'hidden',
+                      border: '0.5px solid var(--border-md)',
+                      background: user.photoURL ? 'var(--bg-metric)' : 'var(--accent)',
+                    }}
+                  >
+                    {user.photoURL ? (
+                      <img
+                        src={user.photoURL}
+                        alt={user.displayName ?? 'Account'}
+                        referrerPolicy="no-referrer"
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
+                    ) : (
+                      <span style={{ color: '#fff', fontWeight: 700, fontSize: '14px', lineHeight: 1 }}>
+                        {(user.displayName ?? user.email ?? '?').trim().charAt(0).toUpperCase()}
+                      </span>
+                    )}
                   </button>
+
+                  {menuOpen && (
+                    <div
+                      role="menu"
+                      style={{
+                        position: 'absolute', top: 'calc(100% + 8px)', right: 0, zIndex: 40,
+                        minWidth: '200px', maxWidth: 'calc(100vw - 24px)',
+                        background: 'var(--bg-card)', border: '0.5px solid var(--border-md)',
+                        borderRadius: '12px', boxShadow: '0 16px 48px rgba(0,0,0,0.22)',
+                        padding: '6px', overflow: 'hidden',
+                      }}
+                    >
+                      {(user.email || user.displayName) && (
+                        <div style={{ padding: '8px 10px 10px', borderBottom: '0.5px solid var(--border-md)', marginBottom: '4px' }}>
+                          {user.displayName && (
+                            <p style={{ margin: 0, fontSize: '13px', fontWeight: 650, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user.displayName}</p>
+                          )}
+                          {user.email && (
+                            <p style={{ margin: user.displayName ? '2px 0 0' : 0, fontSize: '12px', color: 'var(--text-3)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user.email}</p>
+                          )}
+                        </div>
+                      )}
+                      <button
+                        role="menuitem"
+                        onClick={() => { setMenuOpen(false); setShowPrefs(true) }}
+                        className="hdr-menu-item"
+                      >
+                        ⚙️ Settings
+                      </button>
+                      <button
+                        role="menuitem"
+                        onClick={() => { setMenuOpen(false); handleSignOut() }}
+                        className="hdr-menu-item"
+                        style={{ color: '#DC2626' }}
+                      >
+                        ↪ Sign out
+                      </button>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <GoogleSignInButton label="Sign in" seedPrefs={prefs} style={{ fontSize: '12px', padding: '6px 12px' }} />
