@@ -77,24 +77,8 @@ export default function Welcome({ onGetStarted }: Props) {
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'center' }}>
           <button className="btn btn-primary" onClick={onGetStarted} style={{ fontSize: '15px', padding: '12px 32px', borderRadius: '12px' }}>
-            See your UV forecast →
+            Get started →
           </button>
-          <p style={{ fontSize: '12px', color: 'var(--text-3)', margin: 0 }}>
-            No sign-up required to get started
-          </p>
-        </div>
-
-        <div style={{ display: 'flex', justifyContent: 'center', gap: '2rem', marginTop: '2.5rem' }}>
-          {[
-            ['🌤️', 'Live UV data'],
-            ['🧴', 'Skin-safe windows'],
-            ['📅', 'Calendar sync'],
-          ].map(([icon, label]) => (
-            <div key={label} style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '20px', marginBottom: '4px' }}>{icon}</div>
-              <div style={{ fontSize: '11px', color: 'var(--text-3)', fontWeight: 500 }}>{label}</div>
-            </div>
-          ))}
         </div>
       </div>
     </div>

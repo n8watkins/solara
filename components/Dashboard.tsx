@@ -335,7 +335,7 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
             <button className="btn" onClick={shareSunWindow} style={{ fontSize: '13px', padding: '6px 11px' }}>↗ Share</button>
           </div>
         </div>
-        {prefs.showSunPath !== false && (
+        {process.env.NEXT_PUBLIC_HIDE_SUNPATH !== '1' && prefs.showSunPath !== false && (
           <SunArc
             hourly={hourly}
             currentHour={isToday ? currentHour : -1}
