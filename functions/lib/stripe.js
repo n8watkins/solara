@@ -126,9 +126,6 @@ async function processStripeEvent({ db, event, expectedPriceId, serverTimestamp,
 
   if (event.type === 'customer.subscription.updated' || event.type === 'customer.subscription.deleted') {
     const subscription = event.data.object
-    if (!subscriptionHasPrice(subscription, expectedPriceId)) {
-      throw new Error('Subscription does not contain the configured price')
-    }
     const user = await findUserBySubscription(db, subscription)
     if (!user) {
       if (event.type === 'customer.subscription.deleted') {

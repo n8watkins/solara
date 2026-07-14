@@ -1,4 +1,5 @@
 const { authenticate } = require('./account')
+const { createHash } = require('node:crypto')
 
 const MAX_NOTIFICATION_DEVICES = 5
 const DEVICE_ID_PATTERN = /^[a-f0-9]{36}$/
@@ -27,31 +28,80 @@ function parseDevice(input, { requireToken }) {
   return { deviceId, platform, token }
 }
 
+function tokenOwnerId(token) {
+  return createHash('sha256').update(token).digest('hex')
+}
+
 async function registerNotificationDevice({ auth, db, req, serverTimestamp }) {
   const identity = await authenticate(auth, req.headers.authorization)
   const device = parseDevice(req.body, { requireToken: true })
   const userRef = db.collection('users').doc(identity.uid)
   const deviceRef = userRef.collection('notificationDevices').doc(device.deviceId)
+  const ownerRef = db.collection('notificationTokenOwners').doc(tokenOwnerId(device.token))
 
   await db.runTransaction(async transaction => {
-    const [userSnapshot, deviceSnapshot, devicesSnapshot] = await Promise.all([
+    const [userSnapshot, deviceSnapshot, devicesSnapshot, ownerSnapshot] = await Promise.all([
       transaction.get(userRef),
       transaction.get(deviceRef),
-      transaction.get(userRef.collection('notificationDevices').limit(MAX_NOTIFICATION_DEVICES + 1)),
+      transaction.get(userRef.collection('notificationDevices')
+        .where('enabled', '==', true).limit(MAX_NOTIFICATION_DEVICES + 1)),
+      transaction.get(ownerRef),
     ])
     if (!userSnapshot.exists || userSnapshot.data().tier !== 'paid') {
       throw httpError('A paid subscription is required', 403)
     }
-    if (!deviceSnapshot.exists && devicesSnapshot.size >= MAX_NOTIFICATION_DEVICES) {
+
+    const current = deviceSnapshot.exists ? deviceSnapshot.data() : null
+    const priorOwner = ownerSnapshot.exists ? ownerSnapshot.data() : null
+    const priorDeviceRef = priorOwner
+      && (priorOwner.uid !== identity.uid || priorOwner.deviceId !== device.deviceId)
+      ? db.collection('users').doc(priorOwner.uid)
+        .collection('notificationDevices').doc(priorOwner.deviceId)
+      : null
+    const oldOwnerRef = current?.token && current.token !== device.token
+      ? db.collection('notificationTokenOwners').doc(tokenOwnerId(current.token))
+      : null
+    const [priorDeviceSnapshot, oldOwnerSnapshot] = await Promise.all([
+      priorDeviceRef ? transaction.get(priorDeviceRef) : null,
+      oldOwnerRef ? transaction.get(oldOwnerRef) : null,
+    ])
+    const reclaimsActiveSlot = priorOwner?.uid === identity.uid
+      && priorDeviceSnapshot?.exists
+      && priorDeviceSnapshot.data().enabled === true
+      && priorDeviceSnapshot.data().token === device.token
+    const projectedActiveDevices = devicesSnapshot.size
+      + (current?.enabled === true ? 0 : 1)
+      - (reclaimsActiveSlot ? 1 : 0)
+    if (projectedActiveDevices > MAX_NOTIFICATION_DEVICES) {
       throw httpError('Notification device limit reached', 409)
     }
 
+    if (priorDeviceRef && priorDeviceSnapshot?.exists
+      && priorDeviceSnapshot.data().token === device.token) {
+      transaction.delete(priorDeviceRef)
+    }
+    if (oldOwnerRef && oldOwnerSnapshot?.exists) {
+      const oldOwner = oldOwnerSnapshot.data()
+      if (oldOwner.uid === identity.uid && oldOwner.deviceId === device.deviceId) {
+        transaction.delete(oldOwnerRef)
+      }
+    }
     transaction.set(deviceRef, {
       token: device.token,
       enabled: true,
       platform: device.platform,
       ...(deviceSnapshot.exists ? {} : { createdAt: serverTimestamp() }),
       updatedAt: serverTimestamp(),
+    }, { merge: true })
+    transaction.set(ownerRef, {
+      uid: identity.uid,
+      deviceId: device.deviceId,
+      token: device.token,
+      updatedAt: serverTimestamp(),
+    })
+    transaction.set(userRef, {
+      fcmToken: null,
+      notificationsEnabled: false,
     }, { merge: true })
   })
 
@@ -61,8 +111,22 @@ async function registerNotificationDevice({ auth, db, req, serverTimestamp }) {
 async function removeNotificationDevice({ auth, db, req }) {
   const identity = await authenticate(auth, req.headers.authorization)
   const { deviceId } = parseDevice(req.body, { requireToken: false })
-  await db.collection('users').doc(identity.uid)
-    .collection('notificationDevices').doc(deviceId).delete()
+  const deviceRef = db.collection('users').doc(identity.uid)
+    .collection('notificationDevices').doc(deviceId)
+  await db.runTransaction(async transaction => {
+    const deviceSnapshot = await transaction.get(deviceRef)
+    if (!deviceSnapshot.exists) return
+    const token = deviceSnapshot.data().token
+    const ownerRef = typeof token === 'string'
+      ? db.collection('notificationTokenOwners').doc(tokenOwnerId(token))
+      : null
+    const ownerSnapshot = ownerRef ? await transaction.get(ownerRef) : null
+    transaction.delete(deviceRef)
+    if (ownerRef && ownerSnapshot?.exists) {
+      const owner = ownerSnapshot.data()
+      if (owner.uid === identity.uid && owner.deviceId === deviceId) transaction.delete(ownerRef)
+    }
+  })
   return { deviceId, removed: true }
 }
 
@@ -71,4 +135,5 @@ module.exports = {
   parseDevice,
   registerNotificationDevice,
   removeNotificationDevice,
+  tokenOwnerId,
 }

@@ -351,6 +351,46 @@ describe('Stripe fulfillment security', () => {
     assert.equal(db.userData.proSince, null)
   })
 
+  test('revokes access when an owned subscription removes the configured price', async () => {
+    const db = fakeDb({
+      tier: 'paid',
+      stripeCustomerId: 'cus_123',
+      stripeSubscriptionId: 'sub_123',
+      subscriptionStatus: 'active',
+    })
+    const wrongPriceStripe = {
+      subscriptions: {
+        retrieve: async () => ({
+          id: 'sub_123',
+          customer: 'cus_123',
+          status: 'active',
+          items: { data: [{ price: { id: 'price_other' } }] },
+        }),
+      },
+    }
+    await processStripeEvent({
+      db,
+      event: {
+        id: 'evt_wrong_price',
+        created: 201,
+        type: 'customer.subscription.updated',
+        data: { object: {
+          id: 'sub_123',
+          customer: 'cus_123',
+          status: 'active',
+          items: { data: [{ price: { id: 'price_other' } }] },
+        } },
+      },
+      expectedPriceId: 'price_pro',
+      serverTimestamp: () => 'SERVER_TIME',
+      stripe: wrongPriceStripe,
+    })
+
+    assert.equal(db.userData.tier, 'free')
+    assert.equal(db.userData.subscriptionStatus, 'active')
+    assert.equal(db.userData.proSince, null)
+  })
+
   test('does not restore access from an older or lower-priority event', async () => {
     const db = fakeDb({
       tier: 'free',

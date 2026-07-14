@@ -5,36 +5,55 @@ const {
   MAX_NOTIFICATION_DEVICES,
   registerNotificationDevice,
   removeNotificationDevice,
+  tokenOwnerId,
 } = require('../lib/notification-devices')
 
 const DEVICE_ID = 'a'.repeat(36)
 const TOKEN = 'token-'.padEnd(24, 'x')
 
-function fakeDb({ deviceCount = 0, existingDevice = false, tier = 'paid' } = {}) {
+function fakeDb({
+  activeDeviceCount = 0,
+  existingDeviceData = null,
+  owner = null,
+  priorDeviceData = null,
+  tier = 'paid',
+} = {}) {
   const writes = []
   const deletes = []
-  const deviceRef = { kind: 'device', id: DEVICE_ID, async delete() { deletes.push(DEVICE_ID) } }
-  const devicesCollection = {
-    doc: () => deviceRef,
-    limit: () => ({ kind: 'device-query' }),
-  }
-  const userRef = {
-    kind: 'user',
-    collection: () => devicesCollection,
-  }
+  const ref = (kind, id, uid) => ({ kind, id, uid })
+  const userRef = uid => ({
+    ...ref('user', uid, uid),
+    collection: () => ({
+      doc: id => ref('device', id, uid),
+      where: () => ({ limit: () => ref('device-query', 'enabled', uid) }),
+    }),
+  })
   const db = {
     writes,
     deletes,
-    collection: () => ({ doc: () => userRef }),
+    collection(name) {
+      if (name === 'users') return { doc: userRef }
+      if (name === 'notificationTokenOwners') {
+        return { doc: id => ref('owner', id) }
+      }
+      throw new Error(`Unexpected collection ${name}`)
+    },
     async runTransaction(callback) {
       await callback({
         async get(ref) {
           if (ref.kind === 'user') return { exists: true, data: () => ({ tier }) }
-          if (ref.kind === 'device') return { exists: existingDevice }
-          if (ref.kind === 'device-query') return { size: deviceCount }
+          if (ref.kind === 'device') {
+            const data = ref.uid === 'alice' && ref.id === DEVICE_ID
+              ? existingDeviceData
+              : priorDeviceData
+            return { exists: !!data, data: () => data }
+          }
+          if (ref.kind === 'device-query') return { size: activeDeviceCount }
+          if (ref.kind === 'owner') return { exists: !!owner, data: () => owner }
           throw new Error('Unexpected transaction read')
         },
         set(ref, data, options) { writes.push({ ref, data, options }) },
+        delete(ref) { deletes.push(ref) },
       })
     },
   }
@@ -58,14 +77,22 @@ describe('notification device mutations', () => {
     })
 
     assert.deepEqual(result, { deviceId: DEVICE_ID, registered: true })
-    assert.equal(db.writes.length, 1)
-    assert.deepEqual(db.writes[0].data, {
+    const deviceWrite = db.writes.find(write => write.ref.kind === 'device')
+    assert.deepEqual(deviceWrite.data, {
       token: TOKEN,
       enabled: true,
       platform: 'web',
       createdAt: 'server-time',
       updatedAt: 'server-time',
     })
+    assert.deepEqual(
+      db.writes.find(write => write.ref.kind === 'owner').data,
+      { uid: 'alice', deviceId: DEVICE_ID, token: TOKEN, updatedAt: 'server-time' },
+    )
+    assert.deepEqual(
+      db.writes.find(write => write.ref.kind === 'user').data,
+      { fcmToken: null, notificationsEnabled: false },
+    )
   })
 
   test('rejects free accounts and invalid device input', async () => {
@@ -93,32 +120,66 @@ describe('notification device mutations', () => {
     await assert.rejects(
       registerNotificationDevice({
         auth,
-        db: fakeDb({ deviceCount: MAX_NOTIFICATION_DEVICES }),
+        db: fakeDb({ activeDeviceCount: MAX_NOTIFICATION_DEVICES }),
         req: request({ deviceId: DEVICE_ID, platform: 'web', token: TOKEN }),
         serverTimestamp: () => 'server-time',
       }),
       error => error.status === 409,
     )
 
-    const db = fakeDb({ deviceCount: MAX_NOTIFICATION_DEVICES, existingDevice: true })
+    const db = fakeDb({
+      activeDeviceCount: MAX_NOTIFICATION_DEVICES,
+      existingDeviceData: { enabled: true, token: TOKEN },
+    })
     await registerNotificationDevice({
       auth,
       db,
       req: request({ deviceId: DEVICE_ID, platform: 'web', token: TOKEN }),
       serverTimestamp: () => 'server-time',
     })
-    assert.equal(db.writes.length, 1)
-    assert.equal(Object.hasOwn(db.writes[0].data, 'createdAt'), false)
+    const deviceWrite = db.writes.find(write => write.ref.kind === 'device')
+    assert.equal(Object.hasOwn(deviceWrite.data, 'createdAt'), false)
+  })
+
+  test('ignores disabled records when enforcing the active device cap', async () => {
+    const db = fakeDb({ activeDeviceCount: MAX_NOTIFICATION_DEVICES - 1 })
+    await assert.doesNotReject(registerNotificationDevice({
+      auth,
+      db,
+      req: request({ deviceId: DEVICE_ID, platform: 'web', token: TOKEN }),
+      serverTimestamp: () => 'server-time',
+    }))
+  })
+
+  test('transfers a token away from its previous account device', async () => {
+    const db = fakeDb({
+      owner: { uid: 'bob', deviceId: 'b'.repeat(36), token: TOKEN },
+      priorDeviceData: { enabled: true, token: TOKEN },
+    })
+    await registerNotificationDevice({
+      auth,
+      db,
+      req: request({ deviceId: DEVICE_ID, platform: 'web', token: TOKEN }),
+      serverTimestamp: () => 'server-time',
+    })
+
+    assert.equal(db.deletes.some(ref => ref.kind === 'device' && ref.uid === 'bob'), true)
+    assert.equal(db.writes.find(write => write.ref.kind === 'owner').ref.id, tokenOwnerId(TOKEN))
   })
 
   test('removes only the authenticated account device', async () => {
-    const db = fakeDb({ tier: 'free' })
+    const db = fakeDb({
+      tier: 'free',
+      existingDeviceData: { enabled: true, token: TOKEN },
+      owner: { uid: 'alice', deviceId: DEVICE_ID, token: TOKEN },
+    })
     const result = await removeNotificationDevice({
       auth,
       db,
       req: request({ deviceId: DEVICE_ID }),
     })
     assert.deepEqual(result, { deviceId: DEVICE_ID, removed: true })
-    assert.deepEqual(db.deletes, [DEVICE_ID])
+    assert.equal(db.deletes.some(ref => ref.kind === 'device' && ref.uid === 'alice'), true)
+    assert.equal(db.deletes.some(ref => ref.kind === 'owner'), true)
   })
 })
