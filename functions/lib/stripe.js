@@ -4,8 +4,9 @@ const ACTIVE_SUBSCRIPTION_STATUSES = new Set(['active', 'trialing'])
 const TERMINAL_SUBSCRIPTION_STATUSES = new Set(['canceled', 'incomplete_expired'])
 const EVENT_PRIORITY = {
   'checkout.session.completed': 0,
-  'customer.subscription.updated': 1,
-  'customer.subscription.deleted': 2,
+  'checkout.session.async_payment_succeeded': 1,
+  'customer.subscription.updated': 2,
+  'customer.subscription.deleted': 3,
 }
 
 function validUid(value) {
@@ -23,13 +24,14 @@ function subscriptionHasPrice(subscription, expectedPriceId) {
   return Array.isArray(items) && items.some(item => stringId(item?.price) === expectedPriceId)
 }
 
-async function validateCheckoutSession(stripe, session, expectedPriceId) {
+async function validateCheckoutSession(stripe, session, expectedPriceId, { requirePaid = true } = {}) {
   const uid = session?.client_reference_id
   if (!validUid(uid) || session?.metadata?.firebaseUid !== uid) {
     throw new Error('Checkout session is not bound to an authenticated account')
   }
   if (session.mode !== 'subscription') throw new Error('Checkout session has an unexpected mode')
-  if (!['paid', 'no_payment_required'].includes(session.payment_status)) {
+  const paid = ['paid', 'no_payment_required'].includes(session.payment_status)
+  if (requirePaid && !paid) {
     throw new Error('Checkout session is not paid')
   }
   if (!expectedPriceId) throw new Error('STRIPE_PRICE_ID is not configured')
@@ -42,7 +44,7 @@ async function validateCheckoutSession(stripe, session, expectedPriceId) {
   const customerId = stringId(session.customer)
   const subscriptionId = stringId(session.subscription)
   if (!customerId || !subscriptionId) throw new Error('Checkout session is missing subscription data')
-  return { uid, customerId, subscriptionId }
+  return { uid, customerId, subscriptionId, paid }
 }
 
 async function findUserBySubscription(db, subscription) {
@@ -99,13 +101,20 @@ async function commitEvent(db, event, userRef, buildUserData, serverTimestamp) {
 }
 
 async function processStripeEvent({ db, event, expectedPriceId, serverTimestamp, stripe }) {
-  if (event.type === 'checkout.session.completed') {
+  if (event.type === 'checkout.session.completed'
+    || event.type === 'checkout.session.async_payment_succeeded'
+    || event.type === 'checkout.session.async_payment_failed') {
     const session = event.data.object
-    const { uid, customerId, subscriptionId } = await validateCheckoutSession(
+    const requirePaid = event.type === 'checkout.session.async_payment_succeeded'
+    const { uid, customerId, subscriptionId, paid } = await validateCheckoutSession(
       stripe,
       session,
       expectedPriceId,
+      { requirePaid },
     )
+    if (!paid || event.type === 'checkout.session.async_payment_failed') {
+      return commitEvent(db, event, null, null, serverTimestamp)
+    }
     const userRef = db.collection('users').doc(uid)
     const subscription = await stripe.subscriptions.retrieve(subscriptionId)
     const active = ACTIVE_SUBSCRIPTION_STATUSES.has(subscription.status)

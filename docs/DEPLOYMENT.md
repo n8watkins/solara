@@ -138,6 +138,7 @@ npx firebase-tools deploy --only functions --project <project-id>
 ```
 
 Register the deployed Stripe webhook URL in Stripe test mode first.
+Subscribe the endpoint to `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `customer.subscription.updated`, and `customer.subscription.deleted`.
 Verify a successful checkout, duplicate webhook delivery, cancellation, payment failure, and entitlement revocation before using live mode.
 Also verify repeated checkout is rejected, out-of-order events cannot restore canceled access, and changing away from the configured Pro price revokes the entitlement.
 Open the account page and verify the Stripe customer portal can update payment details, display invoices, and cancel the subscription.

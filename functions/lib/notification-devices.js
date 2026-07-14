@@ -50,15 +50,24 @@ async function registerNotificationDevice({ appCheck, auth, db, req, serverTimes
   const deviceRef = userRef.collection('notificationDevices').doc(device.deviceId)
   const ownerRef = db.collection('notificationTokenOwners').doc(tokenOwnerId(device.token))
   const limitRef = db.collection('notificationRegistrationLimits').doc(identity.uid)
+  const legacyOwnersQuery = db.collection('users').where('fcmToken', '==', device.token)
 
   await db.runTransaction(async transaction => {
-    const [userSnapshot, deviceSnapshot, devicesSnapshot, ownerSnapshot, limitSnapshot] = await Promise.all([
+    const [
+      userSnapshot,
+      deviceSnapshot,
+      devicesSnapshot,
+      ownerSnapshot,
+      limitSnapshot,
+      legacyOwnersSnapshot,
+    ] = await Promise.all([
       transaction.get(userRef),
       transaction.get(deviceRef),
       transaction.get(userRef.collection('notificationDevices')
         .where('enabled', '==', true).limit(MAX_NOTIFICATION_DEVICES + 1)),
       transaction.get(ownerRef),
       transaction.get(limitRef),
+      transaction.get(legacyOwnersQuery),
     ])
     if (!userSnapshot.exists || userSnapshot.data().tier !== 'paid') {
       throw httpError('A paid subscription is required', 403)
@@ -124,6 +133,13 @@ async function registerNotificationDevice({ appCheck, auth, db, req, serverTimes
       windowStartedAt: withinWindow ? windowStartedAt : nowMs,
       updatedAt: serverTimestamp(),
     })
+    for (const legacyOwner of legacyOwnersSnapshot.docs) {
+      if (legacyOwner.id === identity.uid) continue
+      transaction.set(legacyOwner.ref, {
+        fcmToken: null,
+        notificationsEnabled: false,
+      }, { merge: true })
+    }
     transaction.set(userRef, {
       fcmToken: null,
       notificationsEnabled: false,

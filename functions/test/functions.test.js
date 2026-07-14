@@ -387,6 +387,61 @@ describe('Stripe fulfillment security', () => {
     assert.equal(db.userData.subscriptionStatus, 'active')
   })
 
+  test('waits for asynchronous checkout payment before granting paid access', async () => {
+    const db = fakeDb({ tier: 'free' })
+    const unpaidSession = { ...session, payment_status: 'unpaid' }
+    const completed = await processStripeEvent({
+      db,
+      event: {
+        id: 'evt_async_completed',
+        created: 100,
+        type: 'checkout.session.completed',
+        data: { object: unpaidSession },
+      },
+      expectedPriceId: 'price_pro',
+      serverTimestamp: () => 'SERVER_TIME',
+      stripe,
+    })
+    assert.equal(completed.applied, false)
+    assert.equal(db.userData.tier, 'free')
+
+    await processStripeEvent({
+      db,
+      event: {
+        id: 'evt_async_succeeded',
+        created: 101,
+        type: 'checkout.session.async_payment_succeeded',
+        data: { object: session },
+      },
+      expectedPriceId: 'price_pro',
+      serverTimestamp: () => 'SERVER_TIME',
+      stripe,
+    })
+    assert.equal(db.userData.tier, 'paid')
+    assert.equal(db.userData.stripeSubscriptionId, 'sub_123')
+  })
+
+  test('records asynchronous checkout payment failure without granting access', async () => {
+    const db = fakeDb({ tier: 'free' })
+    const options = {
+      db,
+      event: {
+        id: 'evt_async_failed',
+        created: 100,
+        type: 'checkout.session.async_payment_failed',
+        data: { object: { ...session, payment_status: 'unpaid' } },
+      },
+      expectedPriceId: 'price_pro',
+      serverTimestamp: () => 'SERVER_TIME',
+      stripe,
+    }
+    const first = await processStripeEvent(options)
+    const second = await processStripeEvent(options)
+    assert.equal(first.applied, false)
+    assert.equal(second.duplicate, true)
+    assert.equal(db.userData.tier, 'free')
+  })
+
   test('revokes access when the configured subscription ends', async () => {
     const db = fakeDb({
       tier: 'paid',

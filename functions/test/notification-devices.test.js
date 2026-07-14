@@ -15,6 +15,7 @@ const TOKEN = 'token-'.padEnd(24, 'x')
 function fakeDb({
   activeDeviceCount = 0,
   existingDeviceData = null,
+  legacyTokenOwners = [],
   owner = null,
   registrationLimit = null,
   priorDeviceData = null,
@@ -34,7 +35,17 @@ function fakeDb({
     writes,
     deletes,
     collection(name) {
-      if (name === 'users') return { doc: userRef }
+      if (name === 'users') {
+        return {
+          doc: userRef,
+          where: (field, operator, value) => ({
+            kind: 'legacy-query',
+            field,
+            operator,
+            value,
+          }),
+        }
+      }
       if (name === 'notificationTokenOwners') {
         return { doc: id => ref('owner', id) }
       }
@@ -52,6 +63,14 @@ function fakeDb({
             return { exists: !!data, data: () => data }
           }
           if (ref.kind === 'device-query') return { size: activeDeviceCount }
+          if (ref.kind === 'legacy-query') {
+            assert.equal(ref.field, 'fcmToken')
+            assert.equal(ref.operator, '==')
+            assert.equal(ref.value, TOKEN)
+            return {
+              docs: legacyTokenOwners.map(uid => ({ id: uid, ref: userRef(uid) })),
+            }
+          }
           if (ref.kind === 'owner') return { exists: !!owner, data: () => owner }
           if (ref.kind === 'limit') {
             return { exists: !!registrationLimit, data: () => registrationLimit }
@@ -222,6 +241,26 @@ describe('notification device mutations', () => {
 
     assert.equal(db.deletes.some(ref => ref.kind === 'device' && ref.uid === 'bob'), true)
     assert.equal(db.writes.find(write => write.ref.kind === 'owner').ref.id, tokenOwnerId(TOKEN))
+  })
+
+  test('clears every legacy account that still holds a transferred token', async () => {
+    const db = fakeDb({ legacyTokenOwners: ['alice', 'bob', 'carol'] })
+    await registerNotificationDevice({
+      appCheck,
+      auth,
+      db,
+      req: request({ deviceId: DEVICE_ID, platform: 'web', token: TOKEN }),
+      serverTimestamp: () => 'server-time',
+    })
+
+    const clearedUsers = db.writes
+      .filter(write => write.ref.kind === 'user')
+      .map(write => write.ref.uid)
+      .sort()
+    assert.deepEqual(clearedUsers, ['alice', 'bob', 'carol'])
+    for (const write of db.writes.filter(write => write.ref.kind === 'user')) {
+      assert.deepEqual(write.data, { fcmToken: null, notificationsEnabled: false })
+    }
   })
 
   test('removes only the authenticated account device', async () => {
