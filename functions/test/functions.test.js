@@ -124,7 +124,11 @@ describe('account data security', () => {
 
   test('deletes notification ownership and throttle records with the account', async () => {
     const deleted = []
-    const userRef = { kind: 'user', async get() { return { exists: true, data: () => ({}) } } }
+    const userData = {}
+    const userRef = {
+      kind: 'user',
+      async get() { return { exists: true, data: () => ({ ...userData }) } },
+    }
     const db = {
       collection(name) {
         if (name === 'users') return { doc: () => userRef }
@@ -142,10 +146,23 @@ describe('account data security', () => {
         }
         throw new Error(`Unexpected collection ${name}`)
       },
+      async runTransaction(callback) {
+        const writes = []
+        const result = await callback({
+          get: ref => ref.get(),
+          set: (ref, data) => writes.push(() => {
+            assert.equal(ref, userRef)
+            Object.assign(userData, data)
+          }),
+        })
+        writes.forEach(write => write())
+        return result
+      },
       async recursiveDelete(ref) { assert.equal(ref, userRef); deleted.push('user') },
     }
     const auth = {
       verifyIdToken: async () => ({ uid: 'alice', auth_time: Math.floor(Date.now() / 1000) }),
+      revokeRefreshTokens: async uid => deleted.push(`revoke:${uid}`),
       deleteUser: async uid => deleted.push(`auth:${uid}`),
     }
     await deleteAccount({
@@ -154,7 +171,8 @@ describe('account data security', () => {
       req: { headers: { authorization: 'Bearer valid' }, body: { confirmation: 'DELETE' } },
       stripe: { subscriptions: { cancel: async () => {} } },
     })
-    assert.deepEqual(deleted, ['owner', 'limit', 'user', 'auth:alice'])
+    assert.equal(userData.accountDeletionStartedAt instanceof Date, true)
+    assert.deepEqual(deleted, ['revoke:alice', 'owner', 'limit', 'user', 'auth:alice'])
   })
 })
 

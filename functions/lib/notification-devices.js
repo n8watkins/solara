@@ -69,6 +69,9 @@ async function registerNotificationDevice({ appCheck, auth, db, req, serverTimes
       transaction.get(limitRef),
       transaction.get(legacyOwnersQuery),
     ])
+    if (userSnapshot.exists && userSnapshot.data().accountDeletionStartedAt) {
+      throw httpError('Account deletion is in progress', 409)
+    }
     if (!userSnapshot.exists || userSnapshot.data().tier !== 'paid') {
       throw httpError('A paid subscription is required', 403)
     }

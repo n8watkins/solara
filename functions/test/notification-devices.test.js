@@ -20,6 +20,7 @@ function fakeDb({
   registrationLimit = null,
   priorDeviceData = null,
   tier = 'paid',
+  accountDeletionStartedAt = null,
 } = {}) {
   const writes = []
   const deletes = []
@@ -55,7 +56,9 @@ function fakeDb({
     async runTransaction(callback) {
       await callback({
         async get(ref) {
-          if (ref.kind === 'user') return { exists: true, data: () => ({ tier }) }
+          if (ref.kind === 'user') {
+            return { exists: true, data: () => ({ tier, accountDeletionStartedAt }) }
+          }
           if (ref.kind === 'device') {
             const data = ref.uid === 'alice' && ref.id === DEVICE_ID
               ? existingDeviceData
@@ -155,6 +158,19 @@ describe('notification device mutations', () => {
         serverTimestamp: () => 'server-time',
       }),
       error => error.status === 400,
+    )
+  })
+
+  test('rejects registration after account deletion starts', async () => {
+    await assert.rejects(
+      registerNotificationDevice({
+        appCheck,
+        auth,
+        db: fakeDb({ accountDeletionStartedAt: 'server-time' }),
+        req: request({ deviceId: DEVICE_ID, platform: 'web', token: TOKEN }),
+        serverTimestamp: () => 'server-time',
+      }),
+      error => error.status === 409,
     )
   })
 

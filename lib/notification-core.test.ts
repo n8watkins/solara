@@ -10,6 +10,7 @@ const {
   isEligibleUser,
   localParts,
   mapLimit,
+  NOTIFICATION_CLAIM_LEASE_MS,
   notificationKey,
   runsOnDate,
 } = require('../scripts/notification-core')
@@ -88,7 +89,7 @@ describe('notification delivery claims', () => {
     }, key)).toEqual({ claim: true, retry: true })
   })
 
-  it('suppresses delivered, active, and uncertain attempts for the same day', () => {
+  it('suppresses delivered, leased, and uncertain attempts for the same day', () => {
     expect(claimDecision({ lastNotificationKey: key }, key)).toEqual({
       claim: false,
       reason: 'already-sent',
@@ -96,11 +97,30 @@ describe('notification delivery claims', () => {
     expect(claimDecision({
       notificationDeliveryKey: key,
       notificationDeliveryStatus: 'claimed',
-    }, key)).toEqual({ claim: false, reason: 'already-claimed' })
+      notificationDeliveryClaimedAt: new Date(1_000),
+    }, key, { nowMs: 1_000 + NOTIFICATION_CLAIM_LEASE_MS - 1 })).toEqual({
+      claim: false,
+      reason: 'already-claimed',
+    })
     expect(claimDecision({
       notificationDeliveryKey: key,
       notificationDeliveryStatus: 'unknown',
     }, key)).toEqual({ claim: false, reason: 'delivery-unknown' })
+  })
+
+  it('recovers a claim after its dispatcher lease expires', () => {
+    expect(claimDecision({
+      notificationDeliveryKey: key,
+      notificationDeliveryStatus: 'claimed',
+      notificationDeliveryClaimedAt: { toMillis: () => 1_000 },
+    }, key, { nowMs: 1_000 + NOTIFICATION_CLAIM_LEASE_MS })).toEqual({
+      claim: true,
+      retry: true,
+    })
+    expect(claimDecision({
+      notificationDeliveryKey: key,
+      notificationDeliveryStatus: 'claimed',
+    }, key)).toEqual({ claim: true, retry: true })
   })
 
   it('allows the next local day even when the previous attempt needs reconciliation', () => {
@@ -120,11 +140,12 @@ describe('notification delivery claims', () => {
     const { database, state } = makeDeliveryDatabase({ enabled: true })
     const subscription = { deviceRef: { path: 'users/user-1/notificationDevices/device-1' } }
 
-    await expect(claimDelivery(subscription, key, 'attempt-1', database)).resolves.toEqual({
+    await expect(claimDelivery(subscription, key, 'attempt-1', database, 1_000)).resolves.toEqual({
       claimed: true,
       retry: false,
     })
-    await expect(claimDelivery(subscription, key, 'attempt-2', database)).resolves.toEqual({
+    state.data.notificationDeliveryClaimedAt = new Date(1_000)
+    await expect(claimDelivery(subscription, key, 'attempt-2', database, 1_001)).resolves.toEqual({
       claimed: false,
       reason: 'already-claimed',
     })

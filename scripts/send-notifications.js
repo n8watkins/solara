@@ -86,12 +86,12 @@ async function loadSubscriptions() {
   return subscriptions
 }
 
-async function claimDelivery(subscription, key, attemptId, database = db) {
+async function claimDelivery(subscription, key, attemptId, database = db, nowMs = Date.now()) {
   return database.runTransaction(async transaction => {
     const snapshot = await transaction.get(subscription.deviceRef)
     if (!snapshot.exists) return { claimed: false, reason: 'missing-subscription' }
 
-    const delivery = claimDecision(snapshot.data(), key)
+    const delivery = claimDecision(snapshot.data(), key, { nowMs })
     if (!delivery.claim) return { claimed: false, reason: delivery.reason }
 
     const priorAttempts = snapshot.data().notificationDeliveryKey === key
@@ -191,6 +191,13 @@ async function sendSubscription(subscription, now) {
           requireInteraction: false,
         },
         fcmOptions: { link: SITE_URL },
+      },
+      android: {
+        collapseKey: key,
+        notification: { tag: key },
+      },
+      apns: {
+        headers: { 'apns-collapse-id': key },
       },
     })
     const finalized = await finishDelivery(subscription, key, attemptId, {

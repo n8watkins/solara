@@ -109,8 +109,9 @@ Application idempotency should still prevent the same delivery from being sent t
 
 The dispatcher creates a transactional claim on the device before it calls FCM.
 `notificationDeliveryStatus` is `claimed` while the provider outcome is pending, `delivered` after a confirmed send, `failed` after a definite provider rejection, and `unknown` when delivery may have occurred.
-Only `failed` claims are retried for the same local date.
-Do not manually clear a `claimed` or `unknown` claim unless delivery has been reconciled with the user or provider evidence.
+Definite failures and `claimed` attempts whose 12-minute dispatcher lease expires are retried for the same local date.
+Retries use the same platform notification tag or collapse identifier so the phone replaces an earlier delivery instead of displaying a duplicate.
+Do not manually clear an `unknown` claim unless delivery has been reconciled with the user or provider evidence.
 Use `notificationDeliveryKey`, `notificationDeliveryAttemptId`, `notificationDeliveryAttemptCount`, `notificationDeliveryClaimedAt`, and `notificationDeliveryRunId` to correlate the device record with workflow logs.
 The dispatcher emits a structured `notification-delivery-unknown` log when it catches an ambiguous provider or transport result.
 

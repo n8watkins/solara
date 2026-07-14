@@ -78,8 +78,12 @@ async function deleteAccount({ auth, db, req, stripe }) {
   }
 
   const userRef = db.collection('users').doc(identity.uid)
-  const snapshot = await userRef.get()
-  const subscriptionId = snapshot.exists ? snapshot.data().stripeSubscriptionId : null
+  const subscriptionId = await db.runTransaction(async transaction => {
+    const snapshot = await transaction.get(userRef)
+    if (!snapshot.exists) return null
+    transaction.set(userRef, { accountDeletionStartedAt: new Date() }, { merge: true })
+    return snapshot.data().stripeSubscriptionId
+  })
   if (typeof subscriptionId === 'string' && subscriptionId) {
     try {
       await stripe.subscriptions.cancel(subscriptionId)
@@ -88,6 +92,7 @@ async function deleteAccount({ auth, db, req, stripe }) {
     }
   }
 
+  await auth.revokeRefreshTokens(identity.uid)
   const tokenOwners = await db.collection('notificationTokenOwners')
     .where('uid', '==', identity.uid).get()
   await Promise.all(tokenOwners.docs.map(owner => owner.ref.delete()))
