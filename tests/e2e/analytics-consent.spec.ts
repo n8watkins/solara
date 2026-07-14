@@ -10,6 +10,7 @@ test('loads analytics only after consent and lets the user revoke it', async ({ 
   await page.goto('/')
 
   await expect(page.getByRole('heading', { name: 'Help improve Solara' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Allow analytics' })).toBeFocused()
   await expect(page.locator('script[src*="googletagmanager.com"]')).toHaveCount(0)
   expect(analyticsRequests).toHaveLength(0)
 

@@ -112,18 +112,25 @@ input[type='range'] { padding: 0; border: none; box-shadow: none; background: tr
 .legal-copy p { margin: 0 0 12px; }
 .legal-copy a { color: var(--accent); }
 
-.analytics-consent-banner {
+.analytics-consent-backdrop {
   position: fixed;
   z-index: 100;
-  right: 20px;
-  bottom: max(20px, env(safe-area-inset-bottom));
-  left: 20px;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(17, 24, 39, 0.48);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+}
+.analytics-consent-banner {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 24px;
+  width: 100%;
   max-width: 760px;
-  margin: 0 auto;
   padding: 18px 20px;
   color: var(--text);
   background: var(--bg-card);
@@ -147,6 +154,10 @@ input[type='range'] { padding: 0; border: none; box-shadow: none; background: tr
 .analytics-preference-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 
 @media (max-width: 640px) {
+  .analytics-consent-backdrop {
+    align-items: flex-end;
+    padding: 12px 12px max(12px, env(safe-area-inset-bottom));
+  }
   .analytics-consent-banner { align-items: stretch; flex-direction: column; gap: 14px; }
   .analytics-consent-actions { align-items: stretch; flex-direction: column; }
   .analytics-consent-actions .btn { justify-content: center; min-height: 42px; }

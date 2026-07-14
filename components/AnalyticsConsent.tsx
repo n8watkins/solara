@@ -2,7 +2,7 @@
 
 import Script from 'next/script'
 import { usePathname } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   ANALYTICS_CONSENT_EVENT,
   ANALYTICS_CONSENT_STORAGE_KEY,
@@ -47,6 +47,35 @@ export default function AnalyticsConsent({ measurementId }: { measurementId?: st
   const consent = useAnalyticsConsent()
   const pathname = usePathname()
   const hasPageLevelControls = pathname === '/privacy' || pathname === '/privacy/'
+  const dialogRef = useRef<HTMLElement>(null)
+
+  useEffect(() => {
+    if (consent !== 'unset' || hasPageLevelControls || !dialogRef.current) return
+    const dialog = dialogRef.current
+    const focusable = Array.from(dialog.querySelectorAll<HTMLElement>('button, a[href]'))
+    focusable[0]?.focus()
+
+    const keepFocusInDialog = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        announceConsent('declined')
+        return
+      }
+      if (event.key !== 'Tab' || focusable.length === 0) return
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+
+    document.addEventListener('keydown', keepFocusInDialog)
+    return () => document.removeEventListener('keydown', keepFocusInDialog)
+  }, [consent, hasPageLevelControls])
 
   if (!measurementId) return null
 
@@ -69,24 +98,32 @@ export default function AnalyticsConsent({ measurementId }: { measurementId?: st
       )}
 
       {consent === 'unset' && !hasPageLevelControls && (
-        <section className="analytics-consent-banner" aria-labelledby="analytics-consent-title">
-          <div>
-            <h2 id="analytics-consent-title">Help improve Solara</h2>
-            <p>
-              Allow optional analytics to help us understand which features are useful.
-              No analytics loads unless you choose Allow.
-            </p>
-          </div>
-          <div className="analytics-consent-actions">
-            <button className="btn btn-primary" type="button" onClick={() => announceConsent('accepted')}>
-              Allow analytics
-            </button>
-            <button className="btn" type="button" onClick={() => announceConsent('declined')}>
-              Not now
-            </button>
-            <a href="/privacy/">Privacy details</a>
-          </div>
-        </section>
+        <div className="analytics-consent-backdrop">
+          <section
+            ref={dialogRef}
+            className="analytics-consent-banner"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="analytics-consent-title"
+          >
+            <div>
+              <h2 id="analytics-consent-title">Help improve Solara</h2>
+              <p>
+                Allow optional analytics to help us understand which features are useful.
+                No analytics loads unless you choose Allow.
+              </p>
+            </div>
+            <div className="analytics-consent-actions">
+              <button className="btn btn-primary" type="button" onClick={() => announceConsent('accepted')}>
+                Allow analytics
+              </button>
+              <button className="btn" type="button" onClick={() => announceConsent('declined')}>
+                Not now
+              </button>
+              <a href="/privacy/">Privacy details</a>
+            </div>
+          </section>
+        </div>
       )}
     </>
   )
