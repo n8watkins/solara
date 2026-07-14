@@ -115,11 +115,14 @@ The dispatcher emits a structured `notification-delivery-unknown` log when it ca
 Before enabling scheduled sends, verify all of the following on a real phone:
 
 1. The account is eligible for notifications.
-2. The device registration is stored for the correct signed-in account.
-3. A dry run selects the expected user, activity, and local date.
-4. One manual real send creates exactly one system notification.
-5. Tapping the notification opens the intended Solara route.
-6. Disabling notifications or signing out stops delivery to that device.
+2. The deployed Functions URL is configured so the authenticated registration endpoint can store the device.
+3. The device registration is stored for the correct signed-in paid account.
+4. Registering the same phone under another account transfers ownership instead of retaining two deliveries.
+5. Legacy notification fields are cleared after the first successful device migration.
+6. A dry run selects the expected user, activity, and local date.
+7. One manual real send creates exactly one system notification.
+8. Tapping the notification opens the intended Solara route.
+9. Disabling notifications or signing out stops delivery to that device.
 
 ## Firebase Functions and Stripe
 
@@ -136,6 +139,7 @@ npx firebase-tools deploy --only functions --project <project-id>
 
 Register the deployed Stripe webhook URL in Stripe test mode first.
 Verify a successful checkout, duplicate webhook delivery, cancellation, payment failure, and entitlement revocation before using live mode.
+Also verify repeated checkout is rejected, out-of-order events cannot restore canceled access, and changing away from the configured Pro price revokes the entitlement.
 No local test can replace these Stripe-signed integration checks when keys and a test account are unavailable.
 
 ## Google Calendar activation
