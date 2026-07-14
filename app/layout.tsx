@@ -55,6 +55,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         )}
         <ThemeInit />
         {children}
+        <footer style={{ padding: '20px 16px', textAlign: 'center', fontSize: '12px', color: 'var(--text-3)', background: 'var(--bg)' }}>
+          <a href="/privacy/" style={{ color: 'inherit' }}>Privacy</a>
+          <span aria-hidden="true"> · </span>
+          <a href="/terms/" style={{ color: 'inherit' }}>Terms</a>
+          <span aria-hidden="true"> · </span>
+          <a href="/account/" style={{ color: 'inherit' }}>Account data</a>
+        </footer>
       </body>
     </html>
   )

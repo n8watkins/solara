@@ -3,7 +3,9 @@ const { defineSecret, defineString } = require('firebase-functions/params')
 const admin = require('firebase-admin')
 const Stripe = require('stripe')
 
+const { deleteAccount, exportAccountData } = require('./lib/account')
 const { createCalendarFeedHandler } = require('./lib/calendar-feed')
+const { handleCors } = require('./lib/http')
 const { buildICS } = require('./lib/ics')
 const { buildSunEvents, fetchForecast } = require('./lib/sun')
 const { createCheckout, processStripeEvent } = require('./lib/stripe')
@@ -31,6 +33,7 @@ exports.createCheckoutSession = onRequest(
   { secrets: [STRIPE_SECRET_KEY], timeoutSeconds: 30, maxInstances: 10 },
   async (req, res) => {
     setApiHeaders(res)
+    if (handleCors(req, res, APP_URL.value().replace(/\/$/, ''), ['POST'])) return
     if (req.method !== 'POST') {
       res.set('Allow', 'POST')
       res.status(405).json({ error: 'Method Not Allowed' })
@@ -49,6 +52,51 @@ exports.createCheckoutSession = onRequest(
       const status = error.status || 500
       console.error('createCheckoutSession failed', { name: error?.name, message: error?.message })
       res.status(status).json({ error: status === 401 ? 'Authentication required' : 'Checkout unavailable' })
+    }
+  },
+)
+
+exports.exportAccountData = onRequest(
+  { timeoutSeconds: 30, maxInstances: 10 },
+  async (req, res) => {
+    setApiHeaders(res)
+    if (handleCors(req, res, APP_URL.value().replace(/\/$/, ''), ['GET'])) return
+    if (req.method !== 'GET') {
+      res.set('Allow', 'GET')
+      res.status(405).json({ error: 'Method Not Allowed' })
+      return
+    }
+    try {
+      const data = await exportAccountData({ auth: admin.auth(), db, req })
+      res.status(200).json(data)
+    } catch (error) {
+      const status = error.status || 500
+      console.error('exportAccountData failed', { name: error?.name, message: error?.message })
+      res.status(status).json({ error: status === 401 ? 'Authentication required' : 'Export unavailable' })
+    }
+  },
+)
+
+exports.deleteAccount = onRequest(
+  { secrets: [STRIPE_SECRET_KEY], timeoutSeconds: 60, maxInstances: 5 },
+  async (req, res) => {
+    setApiHeaders(res)
+    if (handleCors(req, res, APP_URL.value().replace(/\/$/, ''), ['DELETE'])) return
+    if (req.method !== 'DELETE') {
+      res.set('Allow', 'DELETE')
+      res.status(405).json({ error: 'Method Not Allowed' })
+      return
+    }
+    try {
+      await deleteAccount({ auth: admin.auth(), db, req, stripe: stripeClient() })
+      res.status(200).json({ deleted: true })
+    } catch (error) {
+      const status = error.status || 500
+      console.error('deleteAccount failed', { name: error?.name, message: error?.message })
+      const message = status === 401
+        ? 'Authentication required'
+        : status === 400 ? 'Type DELETE to confirm' : 'Deletion unavailable'
+      res.status(status).json({ error: message })
     }
   },
 )

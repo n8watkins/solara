@@ -130,7 +130,14 @@ async function createCheckout({ appUrl, auth, expectedPriceId, req, stripe }) {
     error.status = 401
     throw error
   }
-  const identity = await auth.verifyIdToken(match[1], true)
+  let identity
+  try {
+    identity = await auth.verifyIdToken(match[1], true)
+  } catch {
+    const error = new Error('Authentication required')
+    error.status = 401
+    throw error
+  }
   if (!validUid(identity.uid)) {
     const error = new Error('Invalid account')
     error.status = 401

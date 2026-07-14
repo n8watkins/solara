@@ -1,6 +1,8 @@
 const { afterEach, describe, test } = require('node:test')
 const assert = require('node:assert/strict')
 
+const { authenticate, safeAccountData } = require('../lib/account')
+const { handleCors } = require('../lib/http')
 const {
   cachedForecast,
   clearForecastCache,
@@ -71,6 +73,67 @@ function fakeDb(initialUser) {
 }
 
 afterEach(clearForecastCache)
+
+describe('account data security', () => {
+  test('requires a valid Firebase bearer token', async () => {
+    await assert.rejects(authenticate({ verifyIdToken: async () => ({ uid: 'alice' }) }, ''), /required/)
+    await assert.rejects(
+      authenticate({ verifyIdToken: async () => { throw new Error('expired') } }, 'Bearer expired'),
+      error => error.status === 401,
+    )
+    assert.equal(
+      (await authenticate({ verifyIdToken: async () => ({ uid: 'alice' }) }, 'Bearer valid')).uid,
+      'alice',
+    )
+  })
+
+  test('redacts capability and provider identifiers from exports', () => {
+    assert.deepEqual(safeAccountData({
+      location: { city: 'Seattle' },
+      calendarFeedToken: 'secret',
+      fcmToken: 'secret',
+      stripeCustomerId: 'cus_secret',
+      stripeSubscriptionId: 'sub_secret',
+    }), { location: { city: 'Seattle' } })
+  })
+})
+
+describe('browser API CORS', () => {
+  test('allows preflight only from the configured app origin', () => {
+    const allowed = responseRecorder()
+    assert.equal(handleCors(
+      { method: 'OPTIONS', headers: { origin: 'https://app.example.com' } },
+      allowed,
+      'https://app.example.com',
+      ['POST'],
+    ), true)
+    assert.equal(allowed.statusCode, 204)
+    assert.equal(allowed.headers['Access-Control-Allow-Origin'], 'https://app.example.com')
+    assert.equal(allowed.headers['Access-Control-Allow-Headers'], 'Authorization, Content-Type')
+    assert.equal(allowed.headers['Access-Control-Allow-Methods'], 'POST')
+
+    const denied = responseRecorder()
+    assert.equal(handleCors(
+      { method: 'OPTIONS', headers: { origin: 'https://attacker.example' } },
+      denied,
+      'https://app.example.com',
+      ['POST'],
+    ), true)
+    assert.equal(denied.statusCode, 403)
+    assert.equal(denied.headers['Access-Control-Allow-Origin'], undefined)
+  })
+
+  test('permits a normal request from the configured app origin', () => {
+    const res = responseRecorder()
+    assert.equal(handleCors(
+      { method: 'POST', headers: { origin: 'https://app.example.com' } },
+      res,
+      'https://app.example.com',
+      ['POST'],
+    ), false)
+    assert.equal(res.headers.Vary, 'Origin')
+  })
+})
 
 describe('calendar feed security', () => {
   test('accepts only fixed-format URL-safe secrets and valid coordinates', () => {

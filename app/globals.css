@@ -107,6 +107,11 @@ input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px r
 input[type='range'], input[type='checkbox'], input[type='radio'] { accent-color: var(--accent); }
 input[type='range'] { padding: 0; border: none; box-shadow: none; background: transparent; }
 
+.legal-copy { color: var(--text-2); font-size: 15px; line-height: 1.7; }
+.legal-copy h2 { color: var(--text); font-size: 20px; margin: 30px 0 8px; }
+.legal-copy p { margin: 0 0 12px; }
+.legal-copy a { color: var(--accent); }
+
 /* Keyboard focus ring on buttons (mouse clicks stay clean) */
 .btn:focus-visible, button:focus-visible {
   outline: 2px solid var(--accent);

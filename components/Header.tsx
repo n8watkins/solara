@@ -175,6 +175,14 @@ export default function Header({ user, prefs, onPrefsUpdate, onGoHome, forceOpen
                       >
                         ⚙️ Settings
                       </button>
+                      <a
+                        role="menuitem"
+                        href="/account/"
+                        className="hdr-menu-item"
+                        style={{ textDecoration: 'none' }}
+                      >
+                        👤 Account data
+                      </a>
                       <button
                         role="menuitem"
                         onClick={() => { setMenuOpen(false); handleSignOut() }}
