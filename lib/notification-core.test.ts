@@ -3,7 +3,9 @@ import { describe, expect, it } from 'vitest'
 /* eslint-disable @typescript-eslint/no-require-imports */
 const {
   buildMessage,
+  claimDecision,
   deliveryDecision,
+  failureCertainty,
   isDue,
   isEligibleUser,
   localParts,
@@ -11,6 +13,7 @@ const {
   notificationKey,
   runsOnDate,
 } = require('../scripts/notification-core')
+const { claimDelivery, recordDeliveryFailure } = require('../scripts/send-notifications')
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const hourly = [
@@ -18,6 +21,20 @@ const hourly = [
   { hour: 7, uv: 2 },
   { hour: 8, uv: 5 },
 ]
+
+function makeDeliveryDatabase(initial: Record<string, unknown>) {
+  const state = { data: initial }
+  const database = {
+    runTransaction: async (worker: (transaction: {
+      get: () => Promise<{ exists: boolean; data: () => Record<string, unknown> }>
+      set: (_ref: unknown, patch: Record<string, unknown>) => void
+    }) => Promise<unknown>) => worker({
+      get: async () => ({ exists: true, data: () => ({ ...state.data }) }),
+      set: (_ref, patch) => { state.data = { ...state.data, ...patch } },
+    }),
+  }
+  return { database, state }
+}
 
 describe('notification scheduling', () => {
   it('evaluates the configured morning hour in the user timezone', () => {
@@ -57,6 +74,90 @@ describe('notification scheduling', () => {
       reason: 'already-sent',
       key: first.key,
     })
+  })
+})
+
+describe('notification delivery claims', () => {
+  const key = 'daily-v2:2026-07-14'
+
+  it('claims a new day and retries only a recorded definite failure', () => {
+    expect(claimDecision({}, key)).toEqual({ claim: true, retry: false })
+    expect(claimDecision({
+      notificationDeliveryKey: key,
+      notificationDeliveryStatus: 'failed',
+    }, key)).toEqual({ claim: true, retry: true })
+  })
+
+  it('suppresses delivered, active, and uncertain attempts for the same day', () => {
+    expect(claimDecision({ lastNotificationKey: key }, key)).toEqual({
+      claim: false,
+      reason: 'already-sent',
+    })
+    expect(claimDecision({
+      notificationDeliveryKey: key,
+      notificationDeliveryStatus: 'claimed',
+    }, key)).toEqual({ claim: false, reason: 'already-claimed' })
+    expect(claimDecision({
+      notificationDeliveryKey: key,
+      notificationDeliveryStatus: 'unknown',
+    }, key)).toEqual({ claim: false, reason: 'delivery-unknown' })
+  })
+
+  it('allows the next local day even when the previous attempt needs reconciliation', () => {
+    expect(claimDecision({
+      notificationDeliveryKey: 'daily-v2:2026-07-13',
+      notificationDeliveryStatus: 'unknown',
+    }, key)).toEqual({ claim: true, retry: false })
+  })
+
+  it('classifies provider rejections separately from ambiguous transport failures', () => {
+    expect(failureCertainty({ code: 'messaging/message-rate-exceeded' })).toBe('definite')
+    expect(failureCertainty({ code: 'messaging/server-unavailable' })).toBe('unknown')
+    expect(failureCertainty(new Error('socket closed'))).toBe('unknown')
+  })
+
+  it('atomically blocks a second sender after the first sender claims the day', async () => {
+    const { database, state } = makeDeliveryDatabase({ enabled: true })
+    const subscription = { deviceRef: { path: 'users/user-1/notificationDevices/device-1' } }
+
+    await expect(claimDelivery(subscription, key, 'attempt-1', database)).resolves.toEqual({
+      claimed: true,
+      retry: false,
+    })
+    await expect(claimDelivery(subscription, key, 'attempt-2', database)).resolves.toEqual({
+      claimed: false,
+      reason: 'already-claimed',
+    })
+    expect(state.data.notificationDeliveryAttemptId).toBe('attempt-1')
+  })
+
+  it('makes only a definite provider rejection retryable', async () => {
+    const subscription = { deviceRef: { path: 'users/user-1/notificationDevices/device-1' } }
+    const claimed = {
+      notificationDeliveryKey: key,
+      notificationDeliveryStatus: 'claimed',
+      notificationDeliveryAttemptId: 'attempt-1',
+    }
+    const definite = makeDeliveryDatabase(claimed)
+    const ambiguous = makeDeliveryDatabase(claimed)
+
+    await recordDeliveryFailure(
+      subscription,
+      key,
+      'attempt-1',
+      { code: 'messaging/message-rate-exceeded' },
+      definite.database,
+    )
+    await recordDeliveryFailure(
+      subscription,
+      key,
+      'attempt-1',
+      new Error('socket closed'),
+      ambiguous.database,
+    )
+
+    expect(definite.state.data.notificationDeliveryStatus).toBe('failed')
+    expect(ambiguous.state.data.notificationDeliveryStatus).toBe('unknown')
   })
 })
 

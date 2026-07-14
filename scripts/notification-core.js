@@ -72,6 +72,37 @@ function deliveryDecision(user, timezone, lastNotificationKey, options = {}) {
   return { deliver: true, key }
 }
 
+function claimDecision(delivery, key) {
+  if (delivery.lastNotificationKey === key) {
+    return { claim: false, reason: 'already-sent' }
+  }
+  if (delivery.notificationDeliveryKey !== key) {
+    return { claim: true, retry: false }
+  }
+  if (delivery.notificationDeliveryStatus === 'failed') {
+    return { claim: true, retry: true }
+  }
+  if (delivery.notificationDeliveryStatus === 'delivered') {
+    return { claim: false, reason: 'already-sent' }
+  }
+  if (delivery.notificationDeliveryStatus === 'claimed') {
+    return { claim: false, reason: 'already-claimed' }
+  }
+  return { claim: false, reason: 'delivery-unknown' }
+}
+
+const AMBIGUOUS_MESSAGING_CODES = new Set([
+  'messaging/internal-error',
+  'messaging/server-unavailable',
+  'messaging/unknown-error',
+])
+
+function failureCertainty(error) {
+  const code = error?.code
+  if (typeof code !== 'string' || !code.startsWith('messaging/')) return 'unknown'
+  return AMBIGUOUS_MESSAGING_CODES.has(code) ? 'unknown' : 'definite'
+}
+
 function buildMessage(user, hourly, dateStr) {
   const activities = (user.activities ?? []).filter(activity => !dateStr || runsOn(activity, dateStr))
   const skinType = ['very-fair', 'fair', 'medium', 'olive', 'dark'].includes(user.skinType) ? user.skinType : 'fair'
@@ -118,8 +149,10 @@ module.exports = {
   bestWindow,
   buildMessage,
   burnMins,
+  claimDecision,
   deliveryDecision,
   effectiveMaxUV,
+  failureCertainty,
   fmtHour,
   isDue,
   isEligibleUser,

@@ -1,9 +1,12 @@
 const { initializeApp, cert } = require('firebase-admin/app')
 const { getFirestore, FieldValue } = require('firebase-admin/firestore')
 const { getMessaging } = require('firebase-admin/messaging')
+const { randomUUID } = require('node:crypto')
 const {
   buildMessage,
+  claimDecision,
   deliveryDecision,
+  failureCertainty,
   isEligibleUser,
   localParts,
   mapLimit,
@@ -14,6 +17,9 @@ const DRY_RUN = process.env.DRY_RUN === '1' || process.env.DRY_RUN === 'true'
 const FORCE_SEND = process.env.FORCE_SEND === '1' || process.env.FORCE_SEND === 'true'
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://uv-activity-planner.web.app'
 const CONCURRENCY = Math.max(1, Number(process.env.NOTIFICATION_CONCURRENCY || 10))
+const RUN_ID = process.env.GITHUB_RUN_ID
+  ? `github:${process.env.GITHUB_RUN_ID}:${process.env.GITHUB_RUN_ATTEMPT || '1'}`
+  : `local:${process.pid}:${Date.now()}`
 
 const DEAD_TOKEN_CODES = new Set([
   'messaging/registration-token-not-registered',
@@ -80,6 +86,72 @@ async function loadSubscriptions() {
   return subscriptions
 }
 
+async function claimDelivery(subscription, key, attemptId, database = db) {
+  return database.runTransaction(async transaction => {
+    const snapshot = await transaction.get(subscription.deviceRef)
+    if (!snapshot.exists) return { claimed: false, reason: 'missing-subscription' }
+
+    const delivery = claimDecision(snapshot.data(), key)
+    if (!delivery.claim) return { claimed: false, reason: delivery.reason }
+
+    const priorAttempts = snapshot.data().notificationDeliveryKey === key
+      ? Number(snapshot.data().notificationDeliveryAttemptCount || 0)
+      : 0
+    transaction.set(subscription.deviceRef, {
+      notificationDeliveryKey: key,
+      notificationDeliveryStatus: 'claimed',
+      notificationDeliveryAttemptId: attemptId,
+      notificationDeliveryAttemptCount: priorAttempts + 1,
+      notificationDeliveryClaimedAt: FieldValue.serverTimestamp(),
+      notificationDeliveryUpdatedAt: FieldValue.serverTimestamp(),
+      notificationDeliveryRunId: RUN_ID,
+      notificationDeliveryCompletedAt: FieldValue.delete(),
+      notificationDeliveryError: FieldValue.delete(),
+      notificationDeliveryErrorAt: FieldValue.delete(),
+      lastError: FieldValue.delete(),
+    }, { merge: true })
+    return { claimed: true, retry: delivery.retry }
+  })
+}
+
+async function finishDelivery(subscription, key, attemptId, patch, database = db) {
+  return database.runTransaction(async transaction => {
+    const snapshot = await transaction.get(subscription.deviceRef)
+    if (!snapshot.exists) return false
+    const current = snapshot.data()
+    if (current.notificationDeliveryKey !== key || current.notificationDeliveryAttemptId !== attemptId) {
+      return false
+    }
+    transaction.set(subscription.deviceRef, {
+      ...patch,
+      notificationDeliveryUpdatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true })
+    return true
+  })
+}
+
+function errorText(error) {
+  return String(error?.code || error?.message || error).slice(0, 500)
+}
+
+async function recordDeliveryFailure(subscription, key, attemptId, error, database = db) {
+  const certainty = failureCertainty(error)
+  const deadToken = DEAD_TOKEN_CODES.has(error?.code)
+  const cleanup = deadToken
+    ? subscription.legacy
+      ? { fcmToken: null, notificationsEnabled: false }
+      : { enabled: false, updatedAt: FieldValue.serverTimestamp() }
+    : {}
+  await finishDelivery(subscription, key, attemptId, {
+    ...cleanup,
+    notificationDeliveryStatus: certainty === 'definite' ? 'failed' : 'unknown',
+    notificationDeliveryError: errorText(error),
+    notificationDeliveryErrorAt: FieldValue.serverTimestamp(),
+    lastError: errorText(error),
+  }, database)
+  return { certainty, deadToken }
+}
+
 async function sendSubscription(subscription, now) {
   const userSnap = await subscription.userRef.get()
   if (!userSnap.exists) return { outcome: 'skipped', reason: 'missing-user' }
@@ -100,6 +172,10 @@ async function sendSubscription(subscription, now) {
   const { title, body } = buildMessage(user, forecast.hourly, local?.date)
   if (DRY_RUN) return { outcome: 'dry-run', title, userId: userSnap.id }
 
+  const attemptId = randomUUID()
+  const claim = await claimDelivery(subscription, key, attemptId)
+  if (!claim.claimed) return { outcome: 'skipped', reason: claim.reason }
+
   try {
     await messaging.send({
       token: subscription.token,
@@ -117,21 +193,30 @@ async function sendSubscription(subscription, now) {
         fcmOptions: { link: SITE_URL },
       },
     })
-    await subscription.deviceRef.set({
+    const finalized = await finishDelivery(subscription, key, attemptId, {
       lastNotificationKey: key,
       lastDeliveredAt: FieldValue.serverTimestamp(),
+      notificationDeliveryStatus: 'delivered',
+      notificationDeliveryCompletedAt: FieldValue.serverTimestamp(),
       lastError: FieldValue.delete(),
-    }, { merge: true })
-    return { outcome: 'sent', title, userId: userSnap.id }
+    })
+    if (!finalized) throw new Error('Notification delivery claim was lost before completion')
+    return { outcome: 'sent', title, userId: userSnap.id, key, attemptId, retry: claim.retry }
   } catch (error) {
-    if (DEAD_TOKEN_CODES.has(error.code)) {
-      const patch = subscription.legacy
-        ? { fcmToken: null, notificationsEnabled: false, lastError: error.code }
-        : { enabled: false, lastError: error.code, updatedAt: FieldValue.serverTimestamp() }
-      await subscription.deviceRef.set(patch, { merge: true })
-      return { outcome: 'cleaned', reason: error.code }
+    const failure = await recordDeliveryFailure(subscription, key, attemptId, error)
+    if (failure.deadToken) {
+      return { outcome: 'cleaned', reason: error.code, key, attemptId }
     }
-    await subscription.deviceRef.set({ lastError: String(error.code || error.message || error).slice(0, 500) }, { merge: true })
+    if (failure.certainty === 'unknown') {
+      console.error(JSON.stringify({
+        event: 'notification-delivery-unknown',
+        key,
+        attemptId,
+        runId: RUN_ID,
+        subscriptionPath: subscription.deviceRef.path,
+        error: errorText(error),
+      }))
+    }
     throw error
   }
 }
@@ -155,7 +240,14 @@ async function main() {
   if (counts.failed) process.exitCode = 1
 }
 
-module.exports = { fetchHourly, loadSubscriptions, sendSubscription }
+module.exports = {
+  claimDelivery,
+  fetchHourly,
+  finishDelivery,
+  loadSubscriptions,
+  recordDeliveryFailure,
+  sendSubscription,
+}
 
 if (require.main === module) {
   main().catch(error => { console.error(error); process.exit(1) })
