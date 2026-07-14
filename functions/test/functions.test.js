@@ -1,0 +1,222 @@
+const { afterEach, describe, test } = require('node:test')
+const assert = require('node:assert/strict')
+
+const {
+  cachedForecast,
+  clearForecastCache,
+  createCalendarFeedHandler,
+  validCoordinates,
+  validFeedToken,
+} = require('../lib/calendar-feed')
+const {
+  createCheckout,
+  processStripeEvent,
+  subscriptionHasPrice,
+  validUid,
+  validateCheckoutSession,
+} = require('../lib/stripe')
+
+function responseRecorder() {
+  return {
+    headers: {},
+    statusCode: 200,
+    body: undefined,
+    set(name, value) { this.headers[name] = value; return this },
+    status(code) { this.statusCode = code; return this },
+    send(body) { this.body = body; return this },
+  }
+}
+
+function queryWith(doc) {
+  return {
+    where() { return this },
+    limit() { return this },
+    async get() { return { empty: !doc, docs: doc ? [doc] : [] } },
+  }
+}
+
+function fakeDb(initialUser) {
+  const events = new Set()
+  const userData = { ...initialUser }
+  const userRef = {
+    id: 'alice',
+    async get() { return { exists: true, data: () => ({ ...userData }) } },
+  }
+  return {
+    userData,
+    collection(name) {
+      if (name === 'users') {
+        const query = queryWith({ ref: userRef, data: () => ({ ...userData }) })
+        query.doc = () => userRef
+        return query
+      }
+      if (name === 'stripeWebhookEvents') {
+        return {
+          doc(id) {
+            return { id, async get() { return { exists: events.has(id) } } }
+          },
+        }
+      }
+      throw new Error(`Unexpected collection ${name}`)
+    },
+    batch() {
+      const operations = []
+      return {
+        set(ref, data) { operations.push(() => Object.assign(userData, data)); return this },
+        create(ref) { operations.push(() => events.add(ref.id)); return this },
+        async commit() { operations.forEach(operation => operation()) },
+      }
+    },
+  }
+}
+
+afterEach(clearForecastCache)
+
+describe('calendar feed security', () => {
+  test('accepts only fixed-format URL-safe secrets and valid coordinates', () => {
+    assert.equal(validFeedToken('A'.repeat(32)), true)
+    assert.equal(validFeedToken('A'.repeat(31)), false)
+    assert.equal(validFeedToken(`${'A'.repeat(31)}!`), false)
+    assert.equal(validCoordinates({ lat: 90, lon: -180 }), true)
+    assert.equal(validCoordinates({ lat: 91, lon: 0 }), false)
+  })
+
+  test('caches identical rounded-location forecast requests', async () => {
+    let calls = 0
+    const fetcher = async () => { calls += 1; return [{ dateStr: '2026-07-14' }] }
+    await cachedForecast(fetcher, { lat: 47.611, lon: -122.331 }, 7, 1000)
+    await cachedForecast(fetcher, { lat: 47.612, lon: -122.332 }, 7, 1001)
+    assert.equal(calls, 1)
+  })
+
+  test('returns a private feed with defensive headers', async () => {
+    const handler = createCalendarFeedHandler({
+      buildICS: events => `calendar:${events.length}`,
+      buildSunEvents: () => [{ id: 1 }],
+      db: { collection: () => queryWith({ data: () => ({ location: { lat: 1, lon: 2 } }) }) },
+      days: 7,
+      fetchForecast: async () => [],
+    })
+    const res = responseRecorder()
+    await handler({ method: 'GET', query: { token: 'A'.repeat(32) } }, res)
+    assert.equal(res.statusCode, 200)
+    assert.equal(res.body, 'calendar:1')
+    assert.equal(res.headers['Cache-Control'], 'private, no-store, max-age=0')
+    assert.equal(res.headers['X-Content-Type-Options'], 'nosniff')
+    assert.equal(res.headers['X-Robots-Tag'], 'noindex, nofollow, noarchive')
+  })
+
+  test('rejects unsupported methods before querying Firestore', async () => {
+    const handler = createCalendarFeedHandler({
+      buildICS: () => '',
+      buildSunEvents: () => [],
+      db: { collection: () => { throw new Error('must not query') } },
+      days: 7,
+      fetchForecast: async () => [],
+    })
+    const res = responseRecorder()
+    await handler({ method: 'POST', query: {} }, res)
+    assert.equal(res.statusCode, 405)
+    assert.equal(res.headers.Allow, 'GET, HEAD')
+  })
+})
+
+describe('Stripe fulfillment security', () => {
+  const session = {
+    id: 'cs_123',
+    mode: 'subscription',
+    payment_status: 'paid',
+    client_reference_id: 'alice',
+    metadata: { firebaseUid: 'alice' },
+    customer: 'cus_123',
+    subscription: 'sub_123',
+  }
+  const stripe = {
+    checkout: {
+      sessions: {
+        listLineItems: async () => ({ data: [{ price: { id: 'price_pro' } }] }),
+      },
+    },
+  }
+
+  test('validates Firebase identifiers and configured Stripe products', async () => {
+    assert.equal(validUid('firebase_User-1'), true)
+    assert.equal(validUid('../users/admin'), false)
+    await assert.doesNotReject(validateCheckoutSession(stripe, session, 'price_pro'))
+    await assert.rejects(
+      validateCheckoutSession(stripe, { ...session, metadata: { firebaseUid: 'mallory' } }, 'price_pro'),
+      /not bound/,
+    )
+    await assert.rejects(validateCheckoutSession(stripe, session, 'price_other'), /configured price/)
+  })
+
+  test('recognizes only the configured subscription price', () => {
+    const subscription = { items: { data: [{ price: { id: 'price_pro' } }] } }
+    assert.equal(subscriptionHasPrice(subscription, 'price_pro'), true)
+    assert.equal(subscriptionHasPrice(subscription, 'price_other'), false)
+    assert.equal(subscriptionHasPrice(subscription, ''), false)
+  })
+
+  test('creates checkout from verified identity rather than request body identity', async () => {
+    let params
+    const checkout = await createCheckout({
+      appUrl: 'https://example.com',
+      auth: { verifyIdToken: async () => ({ uid: 'alice', email: 'alice@example.com' }) },
+      expectedPriceId: 'price_pro',
+      req: { headers: { authorization: 'Bearer valid-token' }, body: { uid: 'mallory' } },
+      stripe: { checkout: { sessions: { create: async value => { params = value; return { url: 'https://checkout.stripe.com/session' } } } } },
+    })
+    assert.equal(checkout.url, 'https://checkout.stripe.com/session')
+    assert.equal(params.client_reference_id, 'alice')
+    assert.deepEqual(params.metadata, { firebaseUid: 'alice' })
+    assert.equal(params.line_items[0].price, 'price_pro')
+  })
+
+  test('grants paid tier once for a valid completed checkout event', async () => {
+    const db = fakeDb({ tier: 'free' })
+    const event = { id: 'evt_1', type: 'checkout.session.completed', data: { object: session } }
+    const options = {
+      db,
+      event,
+      expectedPriceId: 'price_pro',
+      serverTimestamp: () => 'SERVER_TIME',
+      stripe,
+    }
+
+    const first = await processStripeEvent(options)
+    const second = await processStripeEvent(options)
+    assert.equal(first.duplicate, false)
+    assert.equal(second.duplicate, true)
+    assert.equal(db.userData.tier, 'paid')
+    assert.equal(db.userData.stripeSubscriptionId, 'sub_123')
+    assert.equal(db.userData.subscriptionStatus, 'active')
+  })
+
+  test('revokes access when the configured subscription ends', async () => {
+    const db = fakeDb({
+      tier: 'paid',
+      stripeCustomerId: 'cus_123',
+      stripeSubscriptionId: 'sub_123',
+    })
+    const event = {
+      id: 'evt_2',
+      type: 'customer.subscription.deleted',
+      data: { object: {
+        id: 'sub_123',
+        customer: 'cus_123',
+        status: 'canceled',
+        items: { data: [{ price: { id: 'price_pro' } }] },
+      } },
+    }
+    await processStripeEvent({
+      db,
+      event,
+      expectedPriceId: 'price_pro',
+      serverTimestamp: () => 'SERVER_TIME',
+      stripe,
+    })
+    assert.equal(db.userData.tier, 'free')
+    assert.equal(db.userData.subscriptionStatus, 'canceled')
+    assert.equal(db.userData.proSince, null)
+  })
+})
