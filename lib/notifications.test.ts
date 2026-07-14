@@ -59,7 +59,7 @@ describe('device notification subscriptions', () => {
 
     expect(mocks.setDoc).toHaveBeenCalledWith(
       expect.objectContaining({ path: expect.stringMatching(/^users\/user-1\/notificationDevices\//) }),
-      expect.objectContaining({ token: 'new-fcm-token', enabled: true, platform: 'test-browser' }),
+      expect.objectContaining({ token: 'new-fcm-token', enabled: true, platform: 'web' }),
       { merge: true },
     )
     expect(notificationsEnabledLocally('user-1')).toBe(true)

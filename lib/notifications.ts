@@ -80,7 +80,7 @@ export async function enableNotifications(uid: string): Promise<void> {
   await setDoc(doc(db, 'users', uid, 'notificationDevices', deviceId), {
     token,
     enabled: true,
-    platform: navigator.userAgent.slice(0, 500),
+    platform: 'web',
     ...(existing ? {} : { createdAt: serverTimestamp() }),
     updatedAt: serverTimestamp(),
   }, { merge: true })
@@ -98,7 +98,7 @@ export async function migrateLegacyNotificationToken(uid: string): Promise<boole
   await setDoc(doc(db, 'users', uid, 'notificationDevices', deviceId), {
     token,
     enabled: true,
-    platform: navigator.userAgent.slice(0, 500),
+    platform: 'web',
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   })
