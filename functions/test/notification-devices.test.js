@@ -3,6 +3,7 @@ const assert = require('node:assert/strict')
 
 const {
   MAX_NOTIFICATION_DEVICES,
+  MAX_REGISTRATIONS_PER_MINUTE,
   registerNotificationDevice,
   removeNotificationDevice,
   tokenOwnerId,
@@ -15,6 +16,7 @@ function fakeDb({
   activeDeviceCount = 0,
   existingDeviceData = null,
   owner = null,
+  registrationLimit = null,
   priorDeviceData = null,
   tier = 'paid',
 } = {}) {
@@ -36,6 +38,7 @@ function fakeDb({
       if (name === 'notificationTokenOwners') {
         return { doc: id => ref('owner', id) }
       }
+      if (name === 'notificationRegistrationLimits') return { doc: id => ref('limit', id, id) }
       throw new Error(`Unexpected collection ${name}`)
     },
     async runTransaction(callback) {
@@ -50,6 +53,9 @@ function fakeDb({
           }
           if (ref.kind === 'device-query') return { size: activeDeviceCount }
           if (ref.kind === 'owner') return { exists: !!owner, data: () => owner }
+          if (ref.kind === 'limit') {
+            return { exists: !!registrationLimit, data: () => registrationLimit }
+          }
           throw new Error('Unexpected transaction read')
         },
         set(ref, data, options) { writes.push({ ref, data, options }) },
@@ -61,15 +67,30 @@ function fakeDb({
 }
 
 function request(body, authorization = 'Bearer valid') {
-  return { body, headers: { authorization } }
+  return {
+    body,
+    headers: { authorization, 'x-firebase-appcheck': 'valid-app-check-token' },
+  }
 }
 
 const auth = { verifyIdToken: async () => ({ uid: 'alice' }) }
+const appCheck = { verifyToken: async () => ({ appId: 'test-app' }) }
 
 describe('notification device mutations', () => {
+  test('requires a valid App Check token', async () => {
+    await assert.rejects(registerNotificationDevice({
+      appCheck,
+      auth,
+      db: fakeDb(),
+      req: { body: { deviceId: DEVICE_ID, platform: 'web', token: TOKEN }, headers: {} },
+      serverTimestamp: () => 'server-time',
+    }), error => error.status === 401)
+  })
+
   test('registers a valid device for a paid account', async () => {
     const db = fakeDb()
     const result = await registerNotificationDevice({
+      appCheck,
       auth,
       db,
       req: request({ deviceId: DEVICE_ID, platform: 'web', token: TOKEN }),
@@ -87,7 +108,7 @@ describe('notification device mutations', () => {
     })
     assert.deepEqual(
       db.writes.find(write => write.ref.kind === 'owner').data,
-      { uid: 'alice', deviceId: DEVICE_ID, token: TOKEN, updatedAt: 'server-time' },
+      { uid: 'alice', deviceId: DEVICE_ID, updatedAt: 'server-time' },
     )
     assert.deepEqual(
       db.writes.find(write => write.ref.kind === 'user').data,
@@ -98,6 +119,7 @@ describe('notification device mutations', () => {
   test('rejects free accounts and invalid device input', async () => {
     await assert.rejects(
       registerNotificationDevice({
+        appCheck,
         auth,
         db: fakeDb({ tier: 'free' }),
         req: request({ deviceId: DEVICE_ID, platform: 'web', token: TOKEN }),
@@ -107,6 +129,7 @@ describe('notification device mutations', () => {
     )
     await assert.rejects(
       registerNotificationDevice({
+        appCheck,
         auth,
         db: fakeDb(),
         req: request({ deviceId: '../other-user', platform: 'web', token: TOKEN }),
@@ -116,9 +139,40 @@ describe('notification device mutations', () => {
     )
   })
 
+  test('throttles repeated registration attempts per account', async () => {
+    await assert.rejects(registerNotificationDevice({
+      appCheck,
+      auth,
+      db: fakeDb({
+        registrationLimit: { count: MAX_REGISTRATIONS_PER_MINUTE, windowStartedAt: 1_000 },
+      }),
+      nowMs: 30_000,
+      req: request({ deviceId: DEVICE_ID, platform: 'web', token: TOKEN }),
+      serverTimestamp: () => 'server-time',
+    }), error => error.status === 429)
+
+    const db = fakeDb({
+      registrationLimit: { count: MAX_REGISTRATIONS_PER_MINUTE, windowStartedAt: 1_000 },
+    })
+    await assert.doesNotReject(registerNotificationDevice({
+      appCheck,
+      auth,
+      db,
+      nowMs: 61_000,
+      req: request({ deviceId: DEVICE_ID, platform: 'web', token: TOKEN }),
+      serverTimestamp: () => 'server-time',
+    }))
+    assert.deepEqual(db.writes.find(write => write.ref.kind === 'limit').data, {
+      count: 1,
+      windowStartedAt: 61_000,
+      updatedAt: 'server-time',
+    })
+  })
+
   test('enforces the cap while allowing an existing device to refresh', async () => {
     await assert.rejects(
       registerNotificationDevice({
+        appCheck,
         auth,
         db: fakeDb({ activeDeviceCount: MAX_NOTIFICATION_DEVICES }),
         req: request({ deviceId: DEVICE_ID, platform: 'web', token: TOKEN }),
@@ -132,6 +186,7 @@ describe('notification device mutations', () => {
       existingDeviceData: { enabled: true, token: TOKEN },
     })
     await registerNotificationDevice({
+      appCheck,
       auth,
       db,
       req: request({ deviceId: DEVICE_ID, platform: 'web', token: TOKEN }),
@@ -144,6 +199,7 @@ describe('notification device mutations', () => {
   test('ignores disabled records when enforcing the active device cap', async () => {
     const db = fakeDb({ activeDeviceCount: MAX_NOTIFICATION_DEVICES - 1 })
     await assert.doesNotReject(registerNotificationDevice({
+      appCheck,
       auth,
       db,
       req: request({ deviceId: DEVICE_ID, platform: 'web', token: TOKEN }),
@@ -157,6 +213,7 @@ describe('notification device mutations', () => {
       priorDeviceData: { enabled: true, token: TOKEN },
     })
     await registerNotificationDevice({
+      appCheck,
       auth,
       db,
       req: request({ deviceId: DEVICE_ID, platform: 'web', token: TOKEN }),
@@ -174,6 +231,7 @@ describe('notification device mutations', () => {
       owner: { uid: 'alice', deviceId: DEVICE_ID, token: TOKEN },
     })
     const result = await removeNotificationDevice({
+      appCheck,
       auth,
       db,
       req: request({ deviceId: DEVICE_ID }),

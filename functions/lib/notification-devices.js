@@ -2,6 +2,7 @@ const { authenticate } = require('./account')
 const { createHash } = require('node:crypto')
 
 const MAX_NOTIFICATION_DEVICES = 5
+const MAX_REGISTRATIONS_PER_MINUTE = 10
 const DEVICE_ID_PATTERN = /^[a-f0-9]{36}$/
 const PLATFORMS = new Set(['web', 'ios', 'android'])
 
@@ -32,23 +33,43 @@ function tokenOwnerId(token) {
   return createHash('sha256').update(token).digest('hex')
 }
 
-async function registerNotificationDevice({ auth, db, req, serverTimestamp }) {
+async function authenticateApp(appCheck, token) {
+  if (typeof token !== 'string' || !token) throw httpError('App verification required', 401)
+  try {
+    await appCheck.verifyToken(token)
+  } catch {
+    throw httpError('App verification required', 401)
+  }
+}
+
+async function registerNotificationDevice({ appCheck, auth, db, req, serverTimestamp, nowMs = Date.now() }) {
+  await authenticateApp(appCheck, req.headers['x-firebase-appcheck'])
   const identity = await authenticate(auth, req.headers.authorization)
   const device = parseDevice(req.body, { requireToken: true })
   const userRef = db.collection('users').doc(identity.uid)
   const deviceRef = userRef.collection('notificationDevices').doc(device.deviceId)
   const ownerRef = db.collection('notificationTokenOwners').doc(tokenOwnerId(device.token))
+  const limitRef = db.collection('notificationRegistrationLimits').doc(identity.uid)
 
   await db.runTransaction(async transaction => {
-    const [userSnapshot, deviceSnapshot, devicesSnapshot, ownerSnapshot] = await Promise.all([
+    const [userSnapshot, deviceSnapshot, devicesSnapshot, ownerSnapshot, limitSnapshot] = await Promise.all([
       transaction.get(userRef),
       transaction.get(deviceRef),
       transaction.get(userRef.collection('notificationDevices')
         .where('enabled', '==', true).limit(MAX_NOTIFICATION_DEVICES + 1)),
       transaction.get(ownerRef),
+      transaction.get(limitRef),
     ])
     if (!userSnapshot.exists || userSnapshot.data().tier !== 'paid') {
       throw httpError('A paid subscription is required', 403)
+    }
+
+    const limit = limitSnapshot.exists ? limitSnapshot.data() : null
+    const windowStartedAt = Number.isFinite(limit?.windowStartedAt) ? limit.windowStartedAt : nowMs
+    const withinWindow = nowMs - windowStartedAt < 60_000
+    const registrationCount = withinWindow && Number.isFinite(limit?.count) ? limit.count : 0
+    if (registrationCount >= MAX_REGISTRATIONS_PER_MINUTE) {
+      throw httpError('Too many notification registration attempts', 429)
     }
 
     const current = deviceSnapshot.exists ? deviceSnapshot.data() : null
@@ -96,7 +117,11 @@ async function registerNotificationDevice({ auth, db, req, serverTimestamp }) {
     transaction.set(ownerRef, {
       uid: identity.uid,
       deviceId: device.deviceId,
-      token: device.token,
+      updatedAt: serverTimestamp(),
+    })
+    transaction.set(limitRef, {
+      count: registrationCount + 1,
+      windowStartedAt: withinWindow ? windowStartedAt : nowMs,
       updatedAt: serverTimestamp(),
     })
     transaction.set(userRef, {
@@ -108,7 +133,8 @@ async function registerNotificationDevice({ auth, db, req, serverTimestamp }) {
   return { deviceId: device.deviceId, registered: true }
 }
 
-async function removeNotificationDevice({ auth, db, req }) {
+async function removeNotificationDevice({ appCheck, auth, db, req }) {
+  await authenticateApp(appCheck, req.headers['x-firebase-appcheck'])
   const identity = await authenticate(auth, req.headers.authorization)
   const { deviceId } = parseDevice(req.body, { requireToken: false })
   const deviceRef = db.collection('users').doc(identity.uid)
@@ -132,6 +158,8 @@ async function removeNotificationDevice({ auth, db, req }) {
 
 module.exports = {
   MAX_NOTIFICATION_DEVICES,
+  MAX_REGISTRATIONS_PER_MINUTE,
+  authenticateApp,
   parseDevice,
   registerNotificationDevice,
   removeNotificationDevice,

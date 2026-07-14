@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { onAuthStateChanged, reauthenticateWithPopup, User } from 'firebase/auth'
 import { useEffect, useState } from 'react'
 import { auth, googleProvider } from '@/lib/firebase'
+import { createBillingPortalUrl } from '@/lib/billing'
 
 const FUNCTIONS_URL = process.env.NEXT_PUBLIC_FUNCTIONS_URL?.replace(/\/$/, '')
 
@@ -11,7 +12,7 @@ export default function AccountPage() {
   const [user, setUser] = useState<User | null>(null)
   const [authReady, setAuthReady] = useState(false)
   const [confirmation, setConfirmation] = useState('')
-  const [busy, setBusy] = useState<'export' | 'delete' | null>(null)
+  const [busy, setBusy] = useState<'billing' | 'export' | 'delete' | null>(null)
   const [message, setMessage] = useState('')
 
   useEffect(() => {
@@ -54,6 +55,18 @@ export default function AccountPage() {
     }
   }
 
+  async function manageBilling() {
+    if (!user) return
+    setBusy('billing')
+    setMessage('')
+    try {
+      window.location.assign(await createBillingPortalUrl(user))
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Billing management failed.')
+      setBusy(null)
+    }
+  }
+
   async function removeAccount() {
     if (!user || confirmation !== 'DELETE') return
     setBusy('delete')
@@ -76,9 +89,9 @@ export default function AccountPage() {
     <div style={{ minHeight: '100vh', background: 'var(--bg)', padding: '32px 16px 64px' }}>
       <div style={{ maxWidth: '680px', margin: '0 auto' }}>
         <Link href="/" style={{ color: 'var(--accent)', fontSize: '14px', textDecoration: 'none' }}>← Back to Solara</Link>
-        <h1 style={{ margin: '24px 0 8px', fontSize: 'clamp(28px, 6vw, 42px)' }}>Account data controls</h1>
+        <h1 style={{ margin: '24px 0 8px', fontSize: 'clamp(28px, 6vw, 42px)' }}>Account controls</h1>
         <p style={{ margin: '0 0 28px', color: 'var(--text-2)', lineHeight: 1.6 }}>
-          Download a portable copy of your Solara preferences or permanently delete your account.
+          Manage billing, download a portable copy of your Solara preferences, or permanently delete your account.
         </p>
 
         {!authReady ? (
@@ -91,6 +104,16 @@ export default function AccountPage() {
           </div>
         ) : (
           <div style={{ display: 'grid', gap: '18px' }}>
+            <section className="card">
+              <h2 style={{ margin: '0 0 8px', fontSize: '18px' }}>Billing and subscription</h2>
+              <p style={{ margin: '0 0 18px', color: 'var(--text-2)', lineHeight: 1.55 }}>
+                Update your payment method, review invoices, or cancel your subscription securely through Stripe.
+              </p>
+              <button className="btn btn-primary" disabled={busy !== null || !FUNCTIONS_URL} onClick={manageBilling}>
+                {busy === 'billing' ? 'Opening...' : 'Manage subscription'}
+              </button>
+            </section>
+
             <section className="card">
               <h2 style={{ margin: '0 0 8px', fontSize: '18px' }}>Download your data</h2>
               <p style={{ margin: '0 0 18px', color: 'var(--text-2)', lineHeight: 1.55 }}>

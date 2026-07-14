@@ -1,7 +1,7 @@
 const { afterEach, describe, test } = require('node:test')
 const assert = require('node:assert/strict')
 
-const { authenticate, safeAccountData } = require('../lib/account')
+const { authenticate, deleteAccount, safeAccountData } = require('../lib/account')
 const { handleCors } = require('../lib/http')
 const {
   cachedForecast,
@@ -11,6 +11,7 @@ const {
   validFeedToken,
 } = require('../lib/calendar-feed')
 const {
+  createBillingPortal,
   createCheckout,
   processStripeEvent,
   subscriptionHasPrice,
@@ -119,6 +120,41 @@ describe('account data security', () => {
       stripeCustomerId: 'cus_secret',
       stripeSubscriptionId: 'sub_secret',
     }), { location: { city: 'Seattle' } })
+  })
+
+  test('deletes notification ownership and throttle records with the account', async () => {
+    const deleted = []
+    const userRef = { kind: 'user', async get() { return { exists: true, data: () => ({}) } } }
+    const db = {
+      collection(name) {
+        if (name === 'users') return { doc: () => userRef }
+        if (name === 'notificationTokenOwners') {
+          return {
+            where: () => ({
+              async get() {
+                return { docs: [{ ref: { delete: async () => deleted.push('owner') } }] }
+              },
+            }),
+          }
+        }
+        if (name === 'notificationRegistrationLimits') {
+          return { doc: () => ({ delete: async () => deleted.push('limit') }) }
+        }
+        throw new Error(`Unexpected collection ${name}`)
+      },
+      async recursiveDelete(ref) { assert.equal(ref, userRef); deleted.push('user') },
+    }
+    const auth = {
+      verifyIdToken: async () => ({ uid: 'alice', auth_time: Math.floor(Date.now() / 1000) }),
+      deleteUser: async uid => deleted.push(`auth:${uid}`),
+    }
+    await deleteAccount({
+      auth,
+      db,
+      req: { headers: { authorization: 'Bearer valid' }, body: { confirmation: 'DELETE' } },
+      stripe: { subscriptions: { cancel: async () => {} } },
+    })
+    assert.deepEqual(deleted, ['owner', 'limit', 'user', 'auth:alice'])
   })
 })
 
@@ -272,6 +308,26 @@ describe('Stripe fulfillment security', () => {
     assert.deepEqual(params.metadata, { firebaseUid: 'alice' })
     assert.equal(params.line_items[0].price, 'price_pro')
     assert.equal(requestOptions.idempotencyKey, 'checkout:alice:new:none')
+  })
+
+  test('creates a billing portal only for the authenticated customer', async () => {
+    let params
+    const session = await createBillingPortal({
+      appUrl: 'https://example.com',
+      auth: { verifyIdToken: async () => ({ uid: 'alice' }) },
+      db: fakeDb({ stripeCustomerId: 'cus_123' }),
+      req: { headers: { authorization: 'Bearer valid-token' } },
+      stripe: { billingPortal: { sessions: { create: async value => { params = value; return { url: 'https://billing.stripe.com/session/test' } } } } },
+    })
+    assert.equal(session.url, 'https://billing.stripe.com/session/test')
+    assert.deepEqual(params, { customer: 'cus_123', return_url: 'https://example.com/account/' })
+    await assert.rejects(createBillingPortal({
+      appUrl: 'https://example.com',
+      auth: { verifyIdToken: async () => ({ uid: 'alice' }) },
+      db: fakeDb({ tier: 'free' }),
+      req: { headers: { authorization: 'Bearer valid-token' } },
+      stripe: { billingPortal: { sessions: { create: async () => ({}) } } },
+    }), error => error.status === 404)
   })
 
   test('prevents duplicate subscriptions and reuses known Stripe customers', async () => {

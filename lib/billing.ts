@@ -23,6 +23,23 @@ export async function createCheckoutUrl(user: User): Promise<string> {
   return body.url
 }
 
+export async function createBillingPortalUrl(user: User): Promise<string> {
+  if (!FUNCTIONS_URL) throw new Error('Billing management is not configured')
+  const token = await user.getIdToken(true)
+  const response = await fetch(`${FUNCTIONS_URL}/createBillingPortalSession`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: '{}',
+  })
+  const body = await response.json().catch(() => ({}))
+  let url: URL | null = null
+  try { url = new URL(body.url) } catch {}
+  if (!response.ok || url?.protocol !== 'https:' || url.hostname !== 'billing.stripe.com') {
+    throw new Error(body.error || 'Billing management is temporarily unavailable')
+  }
+  return url.toString()
+}
+
 export interface ProFeature {
   label: string
   free: string | boolean

@@ -1,3 +1,5 @@
+const { authenticate } = require('./account')
+
 const ACTIVE_SUBSCRIPTION_STATUSES = new Set(['active', 'trialing'])
 const TERMINAL_SUBSCRIPTION_STATUSES = new Set(['canceled', 'incomplete_expired'])
 const EVENT_PRIORITY = {
@@ -218,7 +220,28 @@ async function createCheckout({ appUrl, auth, db, expectedPriceId, req, stripe }
   })
 }
 
+async function createBillingPortal({ appUrl, auth, db, req, stripe }) {
+  const identity = await authenticate(auth, req.headers.authorization)
+  if (!validUid(identity.uid)) {
+    const error = new Error('Invalid account')
+    error.status = 401
+    throw error
+  }
+  const userSnapshot = await db.collection('users').doc(identity.uid).get()
+  const customerId = userSnapshot.exists ? userSnapshot.data().stripeCustomerId : null
+  if (typeof customerId !== 'string' || !customerId) {
+    const error = new Error('No billing account exists')
+    error.status = 404
+    throw error
+  }
+  return stripe.billingPortal.sessions.create({
+    customer: customerId,
+    return_url: `${appUrl}/account/`,
+  })
+}
+
 module.exports = {
+  createBillingPortal,
   createCheckout,
   processStripeEvent,
   subscriptionHasPrice,

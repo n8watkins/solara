@@ -181,7 +181,7 @@ export default function Header({ user, prefs, onPrefsUpdate, onGoHome, forceOpen
                         className="hdr-menu-item"
                         style={{ textDecoration: 'none' }}
                       >
-                        👤 Account data
+                        👤 Account & billing
                       </a>
                       <button
                         role="menuitem"

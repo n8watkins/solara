@@ -9,7 +9,7 @@ const { handleCors } = require('./lib/http')
 const { buildICS } = require('./lib/ics')
 const { buildSunEvents, fetchForecast } = require('./lib/sun')
 const { registerNotificationDevice, removeNotificationDevice } = require('./lib/notification-devices')
-const { createCheckout, processStripeEvent } = require('./lib/stripe')
+const { createBillingPortal, createCheckout, processStripeEvent } = require('./lib/stripe')
 
 if (!admin.apps.length) admin.initializeApp()
 const db = admin.firestore()
@@ -54,6 +54,33 @@ exports.createCheckoutSession = onRequest(
       const status = error.status || 500
       console.error('createCheckoutSession failed', { name: error?.name, message: error?.message })
       res.status(status).json({ error: status === 401 ? 'Authentication required' : 'Checkout unavailable' })
+    }
+  },
+)
+
+exports.createBillingPortalSession = onRequest(
+  { secrets: [STRIPE_SECRET_KEY], timeoutSeconds: 30, maxInstances: 10 },
+  async (req, res) => {
+    setApiHeaders(res)
+    if (handleCors(req, res, APP_URL.value().replace(/\/$/, ''), ['POST'])) return
+    if (req.method !== 'POST') {
+      res.set('Allow', 'POST')
+      res.status(405).json({ error: 'Method Not Allowed' })
+      return
+    }
+    try {
+      const session = await createBillingPortal({
+        appUrl: APP_URL.value().replace(/\/$/, ''),
+        auth: admin.auth(),
+        db,
+        req,
+        stripe: stripeClient(),
+      })
+      res.status(200).json({ url: session.url })
+    } catch (error) {
+      const status = error.status || 500
+      console.error('createBillingPortalSession failed', { name: error?.name, message: error?.message })
+      res.status(status).json({ error: status === 401 ? 'Authentication required' : 'Billing management unavailable' })
     }
   },
 )
@@ -116,6 +143,7 @@ exports.registerNotificationDevice = onRequest(
     }
     try {
       const result = await registerNotificationDevice({
+        appCheck: admin.appCheck(),
         auth: admin.auth(),
         db,
         req,
@@ -141,7 +169,12 @@ exports.removeNotificationDevice = onRequest(
       return
     }
     try {
-      const result = await removeNotificationDevice({ auth: admin.auth(), db, req })
+      const result = await removeNotificationDevice({
+        appCheck: admin.appCheck(),
+        auth: admin.auth(),
+        db,
+        req,
+      })
       res.status(200).json(result)
     } catch (error) {
       const status = error.status || 500

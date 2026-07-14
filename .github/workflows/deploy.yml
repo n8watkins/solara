@@ -126,14 +126,6 @@ jobs:
           NEXT_PUBLIC_FUNCTIONS_URL: ${{ secrets.NEXT_PUBLIC_FUNCTIONS_URL }}
           NEXT_PUBLIC_GA_MEASUREMENT_ID: ${{ secrets.NEXT_PUBLIC_GA_MEASUREMENT_ID }}
 
-      - name: Deploy to Firebase Hosting
-        uses: FirebaseExtended/action-hosting-deploy@v0
-        with:
-          repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          channelId: live
-          projectId: ${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
-
       # action-hosting-deploy ships Hosting only. Deploy Firestore security rules here
       # too, or the DB can sit on default-open rules, which is a data-leak risk.
       - name: Deploy Firestore rules
@@ -158,3 +150,11 @@ jobs:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           FIREBASE_PROJECT_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
           STRIPE_PRICE_ID: ${{ secrets.STRIPE_PRICE_ID }}
+
+      - name: Deploy to Firebase Hosting
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          channelId: live
+          projectId: ${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}

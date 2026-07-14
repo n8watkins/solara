@@ -1,9 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+  getAppCheckToken: vi.fn(),
   getToken: vi.fn(),
   deleteToken: vi.fn(),
   getIdToken: vi.fn(),
+}))
+
+vi.mock('firebase/app-check', () => ({
+  getToken: mocks.getAppCheckToken,
 }))
 
 vi.mock('firebase/messaging', () => ({
@@ -15,6 +20,7 @@ vi.mock('firebase/messaging', () => ({
 
 vi.mock('@/lib/firebase', () => ({
   app: { kind: 'app' },
+  appCheck: { kind: 'app-check' },
   auth: { currentUser: { uid: 'user-1', getIdToken: mocks.getIdToken } },
 }))
 
@@ -38,6 +44,7 @@ describe('device notification subscriptions', () => {
     vi.clearAllMocks()
     vi.stubEnv('NEXT_PUBLIC_FUNCTIONS_URL', 'https://functions.example.test')
     mocks.getToken.mockResolvedValue('new-fcm-token-that-is-long-enough')
+    mocks.getAppCheckToken.mockResolvedValue({ token: 'firebase-app-check-token' })
     mocks.deleteToken.mockResolvedValue(true)
     mocks.getIdToken.mockResolvedValue('firebase-id-token')
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: vi.fn() }))
@@ -57,7 +64,10 @@ describe('device notification subscriptions', () => {
       'https://functions.example.test/registerNotificationDevice',
       expect.objectContaining({
         method: 'POST',
-        headers: expect.objectContaining({ Authorization: 'Bearer firebase-id-token' }),
+        headers: expect.objectContaining({
+          Authorization: 'Bearer firebase-id-token',
+          'X-Firebase-AppCheck': 'firebase-app-check-token',
+        }),
       }),
     )
     expect(JSON.parse(vi.mocked(fetch).mock.calls[0][1]?.body as string)).toEqual(expect.objectContaining({
@@ -82,14 +92,19 @@ describe('device notification subscriptions', () => {
     expect(notificationsEnabledLocally('user-1')).toBe(false)
   })
 
-  it('removes the local token even when remote deactivation fails', async () => {
+  it('preserves a pending removal and retries it after remote deactivation fails', async () => {
     await enableNotifications('user-1')
     vi.mocked(fetch).mockRejectedValueOnce(new Error('offline'))
 
     await expect(disableNotifications('user-1')).rejects.toThrow('offline')
 
-    expect(mocks.deleteToken).toHaveBeenCalledOnce()
+    expect(mocks.deleteToken).not.toHaveBeenCalled()
     expect(notificationsEnabledLocally('user-1')).toBe(false)
+
+    await expect(migrateLegacyNotificationToken('user-1')).resolves.toBe(false)
+    expect(fetch).toHaveBeenCalledTimes(3)
+    expect(mocks.deleteToken).toHaveBeenCalledOnce()
+    expect(values.has('solara_notification_device_user-1')).toBe(false)
   })
 
   it('migrates the legacy token once without requesting another permission', async () => {

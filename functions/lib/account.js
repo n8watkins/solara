@@ -88,6 +88,10 @@ async function deleteAccount({ auth, db, req, stripe }) {
     }
   }
 
+  const tokenOwners = await db.collection('notificationTokenOwners')
+    .where('uid', '==', identity.uid).get()
+  await Promise.all(tokenOwners.docs.map(owner => owner.ref.delete()))
+  await db.collection('notificationRegistrationLimits').doc(identity.uid).delete()
   await db.recursiveDelete(userRef)
   await auth.deleteUser(identity.uid)
 }

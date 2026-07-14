@@ -1,11 +1,13 @@
+import { getToken as getAppCheckToken } from 'firebase/app-check'
 import { deleteToken, getMessaging, getToken, onMessage, Messaging } from 'firebase/messaging'
-import { app, auth } from './firebase'
+import { app, appCheck, auth } from './firebase'
 
 const VAPID_KEY = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY
 
 interface LocalDeviceSubscription {
   deviceId: string
   token: string
+  pendingRemoval?: boolean
 }
 
 let messaging: Messaging | null = null
@@ -38,7 +40,7 @@ function readLocalSubscription(uid: string): LocalDeviceSubscription | null {
     if (!raw) return null
     const parsed = JSON.parse(raw) as Partial<LocalDeviceSubscription>
     return typeof parsed.deviceId === 'string' && typeof parsed.token === 'string'
-      ? { deviceId: parsed.deviceId, token: parsed.token }
+      ? { deviceId: parsed.deviceId, token: parsed.token, pendingRemoval: parsed.pendingRemoval === true }
       : null
   } catch {
     return null
@@ -69,9 +71,14 @@ async function mutateRemoteDevice(
   if (!user || user.uid !== uid) throw new Error('Sign in again to manage notifications')
 
   const token = await user.getIdToken()
+  const appCheckToken = appCheck ? await getAppCheckToken(appCheck) : null
   const response = await fetch(`${baseUrl}/${path}`, {
     method,
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      ...(appCheckToken ? { 'X-Firebase-AppCheck': appCheckToken.token } : {}),
+    },
     body: JSON.stringify(body),
   })
   if (!response.ok) {
@@ -95,9 +102,11 @@ export async function requestNotificationPermission(): Promise<string | null> {
 }
 
 export function notificationsEnabledLocally(uid: string): boolean {
+  const subscription = readLocalSubscription(uid)
   return typeof Notification !== 'undefined'
     && Notification.permission === 'granted'
-    && !!readLocalSubscription(uid)
+    && !!subscription
+    && subscription.pendingRemoval !== true
 }
 
 export async function enableNotifications(uid: string): Promise<void> {
@@ -125,7 +134,13 @@ export async function enableNotifications(uid: string): Promise<void> {
 }
 
 export async function migrateLegacyNotificationToken(uid: string): Promise<boolean> {
-  if (!notificationRegistrationConfigured() || readLocalSubscription(uid)) return false
+  if (!notificationRegistrationConfigured()) return false
+  const existing = readLocalSubscription(uid)
+  if (existing?.pendingRemoval) {
+    await disableNotifications(uid)
+    return false
+  }
+  if (existing) return false
   let token: string | null = null
   try { token = localStorage.getItem('solara_fcm_token') } catch {}
   if (!token || Notification.permission !== 'granted') return false
@@ -143,21 +158,21 @@ export async function migrateLegacyNotificationToken(uid: string): Promise<boole
 
 export async function disableNotifications(uid: string): Promise<void> {
   const local = readLocalSubscription(uid)
-  try {
-    if (local) await mutateRemoteDevice(
+  if (local) {
+    writeLocalSubscription(uid, { ...local, pendingRemoval: true })
+    await mutateRemoteDevice(
       uid,
       'removeNotificationDevice',
       'DELETE',
       { deviceId: local.deviceId },
     )
-  } finally {
-    const m = getMessagingInstance()
-    if (m) await deleteToken(m).catch(() => false)
-    try {
-      localStorage.removeItem(storageKey(uid))
-      localStorage.removeItem('solara_fcm_token')
-    } catch {}
   }
+  const m = getMessagingInstance()
+  if (m) await deleteToken(m).catch(() => false)
+  try {
+    localStorage.removeItem(storageKey(uid))
+    localStorage.removeItem('solara_fcm_token')
+  } catch {}
 }
 
 export function onForegroundMessage(callback: (payload: unknown) => void): () => void {
