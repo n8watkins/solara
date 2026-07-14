@@ -419,7 +419,7 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
 
       {showPricing && (
         <PricingModal
-          uid={user?.uid}
+          user={user}
           email={upgradeEmail}
           alreadyWaitlisted={upgradeSaved || !!prefs.upgradeInterest}
           onJoinWaitlist={joinWaitlistWithEmail}

@@ -1,33 +1,26 @@
-// Monetization for a static-export app: we can't run Stripe Checkout Sessions
-// server-side, so Pro upgrades go through a Stripe Payment Link (a hosted URL).
-// The link is configured via env so the repo ships no secrets.
-//
-// client_reference_id carries the Firebase uid into Stripe; a future webhook /
-// Cloud Function reads it to flip the user's tier to "paid". Until that backend
-// exists, checkout still works — fulfilment is just manual/pending.
+import type { User } from 'firebase/auth'
 
-const PAYMENT_LINK = process.env.NEXT_PUBLIC_STRIPE_PAYMENT_LINK
+const FUNCTIONS_URL = process.env.NEXT_PUBLIC_FUNCTIONS_URL?.replace(/\/$/, '')
 export const PRO_PRICE = process.env.NEXT_PUBLIC_PRO_PRICE || '$3.99/mo'
 
-/** Whether a real checkout link is configured. When false, callers fall back to the waitlist. */
+/** Whether authenticated server-side checkout is deployed and configured. */
 export function isCheckoutConfigured(): boolean {
-  return !!PAYMENT_LINK
+  return !!FUNCTIONS_URL
 }
 
-/**
- * Build the Stripe Payment Link with the user's email prefilled and uid attached
- * as client_reference_id. Returns null when no link is configured.
- */
-export function buildCheckoutUrl(opts: { email?: string; uid?: string } = {}): string | null {
-  if (!PAYMENT_LINK) return null
-  try {
-    const url = new URL(PAYMENT_LINK)
-    if (opts.email) url.searchParams.set('prefilled_email', opts.email)
-    if (opts.uid) url.searchParams.set('client_reference_id', opts.uid)
-    return url.toString()
-  } catch {
-    return null
+export async function createCheckoutUrl(user: User): Promise<string> {
+  if (!FUNCTIONS_URL) throw new Error('Checkout is not configured')
+  const token = await user.getIdToken(true)
+  const response = await fetch(`${FUNCTIONS_URL}/createCheckoutSession`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: '{}',
+  })
+  const body = await response.json().catch(() => ({}))
+  if (!response.ok || typeof body.url !== 'string' || !body.url.startsWith('https://checkout.stripe.com/')) {
+    throw new Error(body.error || 'Checkout is temporarily unavailable')
   }
+  return body.url
 }
 
 export interface ProFeature {

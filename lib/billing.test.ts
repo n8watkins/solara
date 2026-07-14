@@ -1,47 +1,54 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
-// These helpers read process.env at module-eval time, so re-import per scenario.
 async function freshBilling() {
   vi.resetModules()
   return import('@/lib/billing')
 }
 
-describe('billing — checkout link', () => {
-  const original = process.env.NEXT_PUBLIC_STRIPE_PAYMENT_LINK
+describe('authenticated checkout', () => {
+  const original = process.env.NEXT_PUBLIC_FUNCTIONS_URL
 
   afterEach(() => {
-    process.env.NEXT_PUBLIC_STRIPE_PAYMENT_LINK = original
+    process.env.NEXT_PUBLIC_FUNCTIONS_URL = original
+    vi.unstubAllGlobals()
   })
 
-  it('reports unconfigured when no payment link env is set', async () => {
-    delete process.env.NEXT_PUBLIC_STRIPE_PAYMENT_LINK
-    const { isCheckoutConfigured, buildCheckoutUrl } = await freshBilling()
+  it('reports unconfigured when the Functions URL is absent', async () => {
+    delete process.env.NEXT_PUBLIC_FUNCTIONS_URL
+    const { createCheckoutUrl, isCheckoutConfigured } = await freshBilling()
     expect(isCheckoutConfigured()).toBe(false)
-    expect(buildCheckoutUrl({ email: 'a@b.com', uid: 'u1' })).toBeNull()
+    await expect(createCheckoutUrl({ getIdToken: vi.fn() } as never)).rejects.toThrow('not configured')
   })
 
-  it('builds a prefilled link with uid as client_reference_id', async () => {
-    process.env.NEXT_PUBLIC_STRIPE_PAYMENT_LINK = 'https://buy.stripe.com/test_123'
-    const { isCheckoutConfigured, buildCheckoutUrl } = await freshBilling()
+  it('creates checkout with a freshly issued Firebase ID token', async () => {
+    process.env.NEXT_PUBLIC_FUNCTIONS_URL = 'https://functions.example.test/'
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ url: 'https://checkout.stripe.com/c/pay_test' }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const getIdToken = vi.fn().mockResolvedValue('firebase-id-token')
+    const { createCheckoutUrl, isCheckoutConfigured } = await freshBilling()
+
     expect(isCheckoutConfigured()).toBe(true)
-    const url = buildCheckoutUrl({ email: 'runner@example.com', uid: 'uid_42' })!
-    const parsed = new URL(url)
-    expect(parsed.origin + parsed.pathname).toBe('https://buy.stripe.com/test_123')
-    expect(parsed.searchParams.get('prefilled_email')).toBe('runner@example.com')
-    expect(parsed.searchParams.get('client_reference_id')).toBe('uid_42')
+    await expect(createCheckoutUrl({ getIdToken } as never)).resolves.toBe('https://checkout.stripe.com/c/pay_test')
+    expect(getIdToken).toHaveBeenCalledWith(true)
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://functions.example.test/createCheckoutSession',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({ Authorization: 'Bearer firebase-id-token' }),
+      }),
+    )
   })
 
-  it('omits params that are not provided', async () => {
-    process.env.NEXT_PUBLIC_STRIPE_PAYMENT_LINK = 'https://buy.stripe.com/test_123'
-    const { buildCheckoutUrl } = await freshBilling()
-    const url = new URL(buildCheckoutUrl()!)
-    expect(url.searchParams.has('prefilled_email')).toBe(false)
-    expect(url.searchParams.has('client_reference_id')).toBe(false)
-  })
-
-  it('returns null for a malformed payment link', async () => {
-    process.env.NEXT_PUBLIC_STRIPE_PAYMENT_LINK = 'not a url'
-    const { buildCheckoutUrl } = await freshBilling()
-    expect(buildCheckoutUrl({ uid: 'u' })).toBeNull()
+  it('rejects untrusted checkout URLs returned by the backend', async () => {
+    process.env.NEXT_PUBLIC_FUNCTIONS_URL = 'https://functions.example.test'
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ url: 'https://attacker.example/checkout' }),
+    }))
+    const { createCheckoutUrl } = await freshBilling()
+    await expect(createCheckoutUrl({ getIdToken: vi.fn().mockResolvedValue('token') } as never)).rejects.toThrow('unavailable')
   })
 })

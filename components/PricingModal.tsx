@@ -1,10 +1,11 @@
 'use client'
 import { useState } from 'react'
+import { User } from 'firebase/auth'
 import ActivityModalShell from './ActivityModalShell'
-import { PRO_FEATURES, PRO_PRICE, isCheckoutConfigured, buildCheckoutUrl } from '@/lib/billing'
+import { PRO_FEATURES, PRO_PRICE, isCheckoutConfigured, createCheckoutUrl } from '@/lib/billing'
 
 interface Props {
-  uid?: string
+  user?: User | null
   email?: string
   /** Called with the entered email when checkout isn't configured (waitlist fallback). */
   onJoinWaitlist?: (email: string) => void
@@ -18,14 +19,24 @@ function Cell({ value }: { value: string | boolean }) {
   return <span style={{ color: 'var(--text)', fontWeight: 600 }}>{value}</span>
 }
 
-export default function PricingModal({ uid, email, onJoinWaitlist, alreadyWaitlisted, onClose }: Props) {
+export default function PricingModal({ user, email, onJoinWaitlist, alreadyWaitlisted, onClose }: Props) {
   const checkoutReady = isCheckoutConfigured()
   const [waitEmail, setWaitEmail] = useState(email ?? '')
   const [joined, setJoined] = useState(false)
+  const [checkoutLoading, setCheckoutLoading] = useState(false)
+  const [checkoutError, setCheckoutError] = useState<string | null>(null)
 
-  function upgrade() {
-    const url = buildCheckoutUrl({ uid, email })
-    if (url && typeof window !== 'undefined') window.open(url, '_blank', 'noopener')
+  async function upgrade() {
+    if (!user) return
+    setCheckoutLoading(true)
+    setCheckoutError(null)
+    try {
+      const url = await createCheckoutUrl(user)
+      window.location.assign(url)
+    } catch (error) {
+      setCheckoutError(error instanceof Error ? error.message : 'Checkout is temporarily unavailable')
+      setCheckoutLoading(false)
+    }
   }
 
   function join() {
@@ -45,8 +56,8 @@ export default function PricingModal({ uid, email, onJoinWaitlist, alreadyWaitli
               <p style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: 'var(--text)' }}>{PRO_PRICE}</p>
               <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-3)' }}>Cancel anytime</p>
             </div>
-            <button className="btn btn-primary" onClick={upgrade} style={{ fontSize: '14px', padding: '10px 22px' }}>
-              Upgrade to Pro
+            <button className="btn btn-primary" onClick={upgrade} disabled={!user || checkoutLoading} style={{ fontSize: '14px', padding: '10px 22px' }}>
+              {checkoutLoading ? 'Opening checkout...' : 'Upgrade to Pro'}
             </button>
           </div>
         ) : (
@@ -70,6 +81,12 @@ export default function PricingModal({ uid, email, onJoinWaitlist, alreadyWaitli
             Pro is launching soon. Join the waitlist and you'll be first to upgrade.
           </div>
         )}
+        {checkoutReady && !user && (
+          <div role="alert" style={{ padding: '10px 12px', borderRadius: '10px', background: '#FEF3C7', color: '#92400E', fontSize: '13px' }}>
+            Sign in before starting checkout.
+          </div>
+        )}
+        {checkoutError && <p role="alert" style={{ margin: 0, fontSize: '13px', color: '#DC2626' }}>{checkoutError}</p>}
 
         <div className="metric-card" style={{ padding: 0, overflow: 'hidden' }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr 1fr', gap: 0 }}>
