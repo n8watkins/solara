@@ -8,6 +8,7 @@ const { createCalendarFeedHandler } = require('./lib/calendar-feed')
 const { handleCors } = require('./lib/http')
 const { buildICS } = require('./lib/ics')
 const { buildSunEvents, fetchForecast } = require('./lib/sun')
+const { registerNotificationDevice, removeNotificationDevice } = require('./lib/notification-devices')
 const { createCheckout, processStripeEvent } = require('./lib/stripe')
 
 if (!admin.apps.length) admin.initializeApp()
@@ -99,6 +100,53 @@ exports.deleteAccount = onRequest(
         : status === 401 ? 'Authentication required'
         : status === 400 ? 'Type DELETE to confirm' : 'Deletion unavailable'
       res.status(status).json({ error: message, code: error.code || undefined })
+    }
+  },
+)
+
+exports.registerNotificationDevice = onRequest(
+  { timeoutSeconds: 30, maxInstances: 20 },
+  async (req, res) => {
+    setApiHeaders(res)
+    if (handleCors(req, res, APP_URL.value().replace(/\/$/, ''), ['POST'])) return
+    if (req.method !== 'POST') {
+      res.set('Allow', 'POST')
+      res.status(405).json({ error: 'Method Not Allowed' })
+      return
+    }
+    try {
+      const result = await registerNotificationDevice({
+        auth: admin.auth(),
+        db,
+        req,
+        serverTimestamp: () => admin.firestore.FieldValue.serverTimestamp(),
+      })
+      res.status(200).json(result)
+    } catch (error) {
+      const status = error.status || 500
+      console.error('registerNotificationDevice failed', { name: error?.name, message: error?.message })
+      res.status(status).json({ error: status < 500 ? error.message : 'Registration unavailable' })
+    }
+  },
+)
+
+exports.removeNotificationDevice = onRequest(
+  { timeoutSeconds: 30, maxInstances: 20 },
+  async (req, res) => {
+    setApiHeaders(res)
+    if (handleCors(req, res, APP_URL.value().replace(/\/$/, ''), ['DELETE'])) return
+    if (req.method !== 'DELETE') {
+      res.set('Allow', 'DELETE')
+      res.status(405).json({ error: 'Method Not Allowed' })
+      return
+    }
+    try {
+      const result = await removeNotificationDevice({ auth: admin.auth(), db, req })
+      res.status(200).json(result)
+    } catch (error) {
+      const status = error.status || 500
+      console.error('removeNotificationDevice failed', { name: error?.name, message: error?.message })
+      res.status(status).json({ error: status < 500 ? error.message : 'Removal unavailable' })
     }
   },
 )

@@ -78,28 +78,8 @@ service cloud.firestore {
       allow update: if isOwner(userId) && validUserUpdate(userId);
 
       match /notificationDevices/{deviceId} {
-        function clientDeviceKeys() {
-          return ['token', 'enabled', 'platform', 'createdAt', 'updatedAt'];
-        }
-
-        function validDeviceFields() {
-          return request.resource.data.token is string
-            && request.resource.data.token.size() >= 20
-            && request.resource.data.token.size() <= 4096
-            && request.resource.data.enabled is bool
-            && request.resource.data.platform in ['web', 'ios', 'android'];
-        }
-
-        function validNewDevice() {
-          return request.resource.data.keys().hasOnly(clientDeviceKeys())
-            && validDeviceFields();
-        }
-
-        allow read, delete: if isOwner(userId);
-        allow create: if isOwner(userId) && validNewDevice();
-        allow update: if isOwner(userId)
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(clientDeviceKeys())
-          && validDeviceFields();
+        allow read: if isOwner(userId);
+        allow write: if false;
       }
     }
 
