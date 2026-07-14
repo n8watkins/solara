@@ -2,17 +2,95 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    function userCreateKeys() {
+      return [
+        'uid',
+        'schemaVersion',
+        'location',
+        'savedLocations',
+        'skinType',
+        'profiles',
+        'activeProfileId',
+        'sunscreen',
+        'activities',
+        'tier',
+        'calendarFeedToken',
+        'onboardingComplete',
+        'calendarHours',
+        'showSunPath',
+        'hiddenActivitySuggestionIds',
+        'collapsedActivityCategories',
+        'upgradeInterest',
+        'timezone'
+      ];
+    }
+
+    function userUpdateKeys() {
+      return [
+        'schemaVersion',
+        'location',
+        'savedLocations',
+        'skinType',
+        'profiles',
+        'activeProfileId',
+        'sunscreen',
+        'activities',
+        'calendarFeedToken',
+        'onboardingComplete',
+        'calendarHours',
+        'showSunPath',
+        'hiddenActivitySuggestionIds',
+        'collapsedActivityCategories',
+        'upgradeInterest',
+        'timezone'
+      ];
+    }
+
+    function validNewUser(userId) {
+      return request.resource.data.keys().hasOnly(userCreateKeys())
+        && request.resource.data.uid == userId
+        && request.resource.data.tier in ['anonymous', 'free'];
+    }
+
+    function validUserUpdate(userId) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(userUpdateKeys())
+        && request.resource.data.uid == userId
+        && request.resource.data.tier == resource.data.tier;
+    }
+
     match /users/{userId} {
-      // A user owns their doc, but may NOT grant themselves Pro: only the Stripe
-      // webhook (Admin SDK, which bypasses these rules) may write tier == 'paid'.
-      // Clients can still set any non-paid tier, and a paid user may re-save their
-      // doc as long as the tier value is left unchanged.
-      allow read, delete: if request.auth != null && request.auth.uid == userId;
-      allow create: if request.auth != null && request.auth.uid == userId
-                    && request.resource.data.tier != 'paid';
-      allow update: if request.auth != null && request.auth.uid == userId
-                    && (request.resource.data.tier == resource.data.tier
-                        || request.resource.data.tier != 'paid');
+      allow read, delete: if isOwner(userId);
+      allow create: if isOwner(userId) && validNewUser(userId);
+      allow update: if isOwner(userId) && validUserUpdate(userId);
+
+      match /notificationDevices/{deviceId} {
+        function clientDeviceKeys() {
+          return ['token', 'enabled', 'platform', 'createdAt', 'updatedAt'];
+        }
+
+        function validDeviceFields() {
+          return request.resource.data.token is string
+            && request.resource.data.token.size() >= 20
+            && request.resource.data.token.size() <= 4096
+            && request.resource.data.enabled is bool
+            && request.resource.data.platform in ['web', 'ios', 'android'];
+        }
+
+        function validNewDevice() {
+          return request.resource.data.keys().hasOnly(clientDeviceKeys())
+            && validDeviceFields();
+        }
+
+        allow read, delete: if isOwner(userId);
+        allow create: if isOwner(userId) && validNewDevice();
+        allow update: if isOwner(userId)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(clientDeviceKeys())
+          && validDeviceFields();
+      }
     }
 
     match /{document=**} {
