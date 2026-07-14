@@ -109,18 +109,21 @@ export async function migrateLegacyNotificationToken(uid: string): Promise<boole
 
 export async function disableNotifications(uid: string): Promise<void> {
   const local = readLocalSubscription(uid)
-  if (db && local) {
-    await setDoc(doc(db, 'users', uid, 'notificationDevices', local.deviceId), {
-      enabled: false,
-      updatedAt: serverTimestamp(),
-    }, { merge: true })
-  }
-  const m = getMessagingInstance()
-  if (m) await deleteToken(m).catch(() => false)
   try {
-    localStorage.removeItem(storageKey(uid))
-    localStorage.removeItem('solara_fcm_token')
-  } catch {}
+    if (db && local) {
+      await setDoc(doc(db, 'users', uid, 'notificationDevices', local.deviceId), {
+        enabled: false,
+        updatedAt: serverTimestamp(),
+      }, { merge: true })
+    }
+  } finally {
+    const m = getMessagingInstance()
+    if (m) await deleteToken(m).catch(() => false)
+    try {
+      localStorage.removeItem(storageKey(uid))
+      localStorage.removeItem('solara_fcm_token')
+    } catch {}
+  }
 }
 
 export function onForegroundMessage(callback: (payload: unknown) => void): () => void {

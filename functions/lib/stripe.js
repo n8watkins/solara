@@ -1,4 +1,10 @@
 const ACTIVE_SUBSCRIPTION_STATUSES = new Set(['active', 'trialing'])
+const TERMINAL_SUBSCRIPTION_STATUSES = new Set(['canceled', 'incomplete_expired'])
+const EVENT_PRIORITY = {
+  'checkout.session.completed': 0,
+  'customer.subscription.updated': 1,
+  'customer.subscription.deleted': 2,
+}
 
 function validUid(value) {
   return typeof value === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(value)
@@ -53,26 +59,41 @@ async function findUserBySubscription(db, subscription) {
   return null
 }
 
-async function commitEvent(db, event, userRef, userData, serverTimestamp) {
+function eventIsNewer(event, userData) {
+  const previousCreated = userData?.stripeEventCreated
+  if (!Number.isFinite(previousCreated)) return true
+  if (event.created !== previousCreated) return event.created > previousCreated
+  return (EVENT_PRIORITY[event.type] ?? -1) >= (userData.stripeEventPriority ?? -1)
+}
+
+async function commitEvent(db, event, userRef, buildUserData, serverTimestamp) {
   const eventRef = db.collection('stripeWebhookEvents').doc(event.id)
-  if ((await eventRef.get()).exists) return { duplicate: true }
+  return db.runTransaction(async transaction => {
+    const eventSnapshot = await transaction.get(eventRef)
+    if (eventSnapshot.exists) return { duplicate: true }
 
-  const batch = db.batch()
-  if (userRef && userData) batch.set(userRef, userData, { merge: true })
-  batch.create(eventRef, {
-    type: event.type,
-    processedAt: serverTimestamp(),
+    let applied = false
+    if (userRef && buildUserData) {
+      const userSnapshot = await transaction.get(userRef)
+      if (userSnapshot.exists && eventIsNewer(event, userSnapshot.data())) {
+        const userData = buildUserData(userSnapshot.data())
+        if (userData) {
+          transaction.set(userRef, {
+            ...userData,
+            stripeEventCreated: event.created,
+            stripeEventPriority: EVENT_PRIORITY[event.type],
+          }, { merge: true })
+          applied = true
+        }
+      }
+    }
+    transaction.create(eventRef, {
+      type: event.type,
+      created: event.created,
+      processedAt: serverTimestamp(),
+    })
+    return { duplicate: false, applied }
   })
-
-  try {
-    await batch.commit()
-    return { duplicate: false }
-  } catch (error) {
-    // Two webhook deliveries can race. A precondition failure means the other
-    // delivery created the idempotency marker and completed the same write.
-    if (error?.code === 6 || error?.code === 'already-exists') return { duplicate: true }
-    throw error
-  }
 }
 
 async function processStripeEvent({ db, event, expectedPriceId, serverTimestamp, stripe }) {
@@ -84,16 +105,22 @@ async function processStripeEvent({ db, event, expectedPriceId, serverTimestamp,
       expectedPriceId,
     )
     const userRef = db.collection('users').doc(uid)
-    const userSnapshot = await userRef.get()
-    if (!userSnapshot.exists) throw new Error('Checkout account does not exist')
+    const subscription = await stripe.subscriptions.retrieve(subscriptionId)
+    const active = ACTIVE_SUBSCRIPTION_STATUSES.has(subscription.status)
+      && subscriptionHasPrice(subscription, expectedPriceId)
 
-    return commitEvent(db, event, userRef, {
-      tier: 'paid',
-      proSince: userSnapshot.data().proSince || serverTimestamp(),
-      stripeCustomerId: customerId,
-      stripeSubscriptionId: subscriptionId,
-      subscriptionStatus: 'active',
-      subscriptionUpdatedAt: serverTimestamp(),
+    return commitEvent(db, event, userRef, userData => {
+      if (userData.stripeSubscriptionId
+        && userData.stripeSubscriptionId !== subscriptionId
+        && !TERMINAL_SUBSCRIPTION_STATUSES.has(userData.subscriptionStatus)) return null
+      return {
+        tier: active ? 'paid' : 'free',
+        proSince: active ? userData.proSince || serverTimestamp() : null,
+        stripeCustomerId: customerId,
+        stripeSubscriptionId: subscriptionId,
+        subscriptionStatus: subscription.status,
+        subscriptionUpdatedAt: serverTimestamp(),
+      }
     }, serverTimestamp)
   }
 
@@ -103,25 +130,38 @@ async function processStripeEvent({ db, event, expectedPriceId, serverTimestamp,
       throw new Error('Subscription does not contain the configured price')
     }
     const user = await findUserBySubscription(db, subscription)
-    if (!user) throw new Error('Subscription account does not exist')
+    if (!user) {
+      if (event.type === 'customer.subscription.deleted') {
+        return commitEvent(db, event, null, null, serverTimestamp)
+      }
+      throw new Error('Subscription account does not exist')
+    }
 
+    const currentSubscription = event.type === 'customer.subscription.updated'
+      ? await stripe.subscriptions.retrieve(subscription.id)
+      : subscription
     const active = event.type !== 'customer.subscription.deleted'
-      && ACTIVE_SUBSCRIPTION_STATUSES.has(subscription.status)
+      && ACTIVE_SUBSCRIPTION_STATUSES.has(currentSubscription.status)
+      && subscriptionHasPrice(currentSubscription, expectedPriceId)
     const update = {
       tier: active ? 'paid' : 'free',
-      stripeCustomerId: stringId(subscription.customer),
-      stripeSubscriptionId: stringId(subscription.id),
-      subscriptionStatus: event.type === 'customer.subscription.deleted' ? 'canceled' : subscription.status,
+      stripeCustomerId: stringId(currentSubscription.customer),
+      stripeSubscriptionId: stringId(currentSubscription.id),
+      subscriptionStatus: event.type === 'customer.subscription.deleted' ? 'canceled' : currentSubscription.status,
       subscriptionUpdatedAt: serverTimestamp(),
     }
     if (!active) update.proSince = null
-    return commitEvent(db, event, user.ref, update, serverTimestamp)
+    return commitEvent(db, event, user.ref, userData => {
+      const currentSubscriptionId = userData.stripeSubscriptionId
+      if (currentSubscriptionId && currentSubscriptionId !== stringId(subscription.id)) return null
+      return update
+    }, serverTimestamp)
   }
 
   return { ignored: true }
 }
 
-async function createCheckout({ appUrl, auth, expectedPriceId, req, stripe }) {
+async function createCheckout({ appUrl, auth, db, expectedPriceId, req, stripe }) {
   if (!expectedPriceId) throw new Error('STRIPE_PRICE_ID is not configured')
   const authorization = req.headers.authorization || ''
   const match = authorization.match(/^Bearer (.+)$/)
@@ -144,16 +184,40 @@ async function createCheckout({ appUrl, auth, expectedPriceId, req, stripe }) {
     throw error
   }
 
+  const userSnapshot = await db.collection('users').doc(identity.uid).get()
+  if (!userSnapshot.exists) {
+    const error = new Error('Account does not exist')
+    error.status = 404
+    throw error
+  }
+  const userData = userSnapshot.data()
+  if (userData.stripeSubscriptionId
+    && !TERMINAL_SUBSCRIPTION_STATUSES.has(userData.subscriptionStatus)) {
+    const error = new Error('Account already has a subscription')
+    error.status = 409
+    throw error
+  }
+
+  const customer = typeof userData.stripeCustomerId === 'string' && userData.stripeCustomerId
+    ? { customer: userData.stripeCustomerId }
+    : { customer_email: identity.email }
   return stripe.checkout.sessions.create({
     mode: 'subscription',
     line_items: [{ price: expectedPriceId, quantity: 1 }],
     client_reference_id: identity.uid,
-    customer_email: identity.email,
+    ...customer,
     metadata: { firebaseUid: identity.uid },
     subscription_data: { metadata: { firebaseUid: identity.uid } },
     success_url: `${appUrl}/?checkout=success`,
     cancel_url: `${appUrl}/?checkout=canceled`,
     allow_promotion_codes: true,
+  }, {
+    idempotencyKey: [
+      'checkout',
+      identity.uid,
+      userData.stripeSubscriptionId || 'new',
+      userData.subscriptionStatus || 'none',
+    ].join(':'),
   })
 }
 

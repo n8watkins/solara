@@ -42,34 +42,39 @@ function fakeDb(initialUser) {
   const userData = { ...initialUser }
   const userRef = {
     id: 'alice',
-    async get() { return { exists: true, data: () => ({ ...userData }) } },
+    kind: 'user',
+    async get() { return { exists: initialUser !== null, data: () => ({ ...userData }) } },
   }
-  return {
+  const database = {
     userData,
     collection(name) {
       if (name === 'users') {
-        const query = queryWith({ ref: userRef, data: () => ({ ...userData }) })
+        const doc = initialUser === null ? null : { ref: userRef, data: () => ({ ...userData }) }
+        const query = queryWith(doc)
         query.doc = () => userRef
         return query
       }
       if (name === 'stripeWebhookEvents') {
         return {
           doc(id) {
-            return { id, async get() { return { exists: events.has(id) } } }
+            return { id, kind: 'event', async get() { return { exists: events.has(id) } } }
           },
         }
       }
       throw new Error(`Unexpected collection ${name}`)
     },
-    batch() {
+    async runTransaction(callback) {
       const operations = []
-      return {
+      const result = await callback({
+        async get(ref) { return ref.get() },
         set(ref, data) { operations.push(() => Object.assign(userData, data)); return this },
         create(ref) { operations.push(() => events.add(ref.id)); return this },
-        async commit() { operations.forEach(operation => operation()) },
-      }
+      })
+      operations.forEach(operation => operation())
+      return result
     },
   }
+  return database
 }
 
 afterEach(clearForecastCache)
@@ -219,6 +224,14 @@ describe('Stripe fulfillment security', () => {
         listLineItems: async () => ({ data: [{ price: { id: 'price_pro' } }] }),
       },
     },
+    subscriptions: {
+      retrieve: async id => ({
+        id,
+        customer: 'cus_123',
+        status: 'active',
+        items: { data: [{ price: { id: 'price_pro' } }] },
+      }),
+    },
   }
 
   test('validates Firebase identifiers and configured Stripe products', async () => {
@@ -241,22 +254,57 @@ describe('Stripe fulfillment security', () => {
 
   test('creates checkout from verified identity rather than request body identity', async () => {
     let params
+    let requestOptions
     const checkout = await createCheckout({
       appUrl: 'https://example.com',
       auth: { verifyIdToken: async () => ({ uid: 'alice', email: 'alice@example.com' }) },
+      db: fakeDb({ tier: 'free' }),
       expectedPriceId: 'price_pro',
       req: { headers: { authorization: 'Bearer valid-token' }, body: { uid: 'mallory' } },
-      stripe: { checkout: { sessions: { create: async value => { params = value; return { url: 'https://checkout.stripe.com/session' } } } } },
+      stripe: { checkout: { sessions: { create: async (value, options) => {
+        params = value
+        requestOptions = options
+        return { url: 'https://checkout.stripe.com/session' }
+      } } } },
     })
     assert.equal(checkout.url, 'https://checkout.stripe.com/session')
     assert.equal(params.client_reference_id, 'alice')
     assert.deepEqual(params.metadata, { firebaseUid: 'alice' })
     assert.equal(params.line_items[0].price, 'price_pro')
+    assert.equal(requestOptions.idempotencyKey, 'checkout:alice:new:none')
+  })
+
+  test('prevents duplicate subscriptions and reuses known Stripe customers', async () => {
+    const options = {
+      appUrl: 'https://example.com',
+      auth: { verifyIdToken: async () => ({ uid: 'alice', email: 'alice@example.com' }) },
+      expectedPriceId: 'price_pro',
+      req: { headers: { authorization: 'Bearer valid-token' } },
+      stripe: { checkout: { sessions: { create: async params => params } } },
+    }
+    await assert.rejects(
+      createCheckout({
+        ...options,
+        db: fakeDb({ stripeSubscriptionId: 'sub_active', subscriptionStatus: 'active' }),
+      }),
+      error => error.status === 409,
+    )
+
+    const checkout = await createCheckout({
+      ...options,
+      db: fakeDb({
+        stripeCustomerId: 'cus_123',
+        stripeSubscriptionId: 'sub_canceled',
+        subscriptionStatus: 'canceled',
+      }),
+    })
+    assert.equal(checkout.customer, 'cus_123')
+    assert.equal(checkout.customer_email, undefined)
   })
 
   test('grants paid tier once for a valid completed checkout event', async () => {
     const db = fakeDb({ tier: 'free' })
-    const event = { id: 'evt_1', type: 'checkout.session.completed', data: { object: session } }
+    const event = { id: 'evt_1', created: 100, type: 'checkout.session.completed', data: { object: session } }
     const options = {
       db,
       event,
@@ -282,6 +330,7 @@ describe('Stripe fulfillment security', () => {
     })
     const event = {
       id: 'evt_2',
+      created: 200,
       type: 'customer.subscription.deleted',
       data: { object: {
         id: 'sub_123',
@@ -300,5 +349,59 @@ describe('Stripe fulfillment security', () => {
     assert.equal(db.userData.tier, 'free')
     assert.equal(db.userData.subscriptionStatus, 'canceled')
     assert.equal(db.userData.proSince, null)
+  })
+
+  test('does not restore access from an older or lower-priority event', async () => {
+    const db = fakeDb({
+      tier: 'free',
+      stripeCustomerId: 'cus_123',
+      stripeSubscriptionId: 'sub_123',
+      subscriptionStatus: 'canceled',
+      stripeEventCreated: 200,
+      stripeEventPriority: 2,
+    })
+    const event = {
+      id: 'evt_old',
+      created: 199,
+      type: 'customer.subscription.updated',
+      data: { object: {
+        id: 'sub_123',
+        customer: 'cus_123',
+        status: 'active',
+        items: { data: [{ price: { id: 'price_pro' } }] },
+      } },
+    }
+    const result = await processStripeEvent({
+      db,
+      event,
+      expectedPriceId: 'price_pro',
+      serverTimestamp: () => 'SERVER_TIME',
+      stripe,
+    })
+    assert.equal(result.applied, false)
+    assert.equal(db.userData.tier, 'free')
+    assert.equal(db.userData.subscriptionStatus, 'canceled')
+  })
+
+  test('acknowledges deletion events after their account is gone', async () => {
+    const db = fakeDb(null)
+    const result = await processStripeEvent({
+      db,
+      event: {
+        id: 'evt_deleted_account',
+        created: 300,
+        type: 'customer.subscription.deleted',
+        data: { object: {
+          id: 'sub_123',
+          customer: 'cus_123',
+          status: 'canceled',
+          items: { data: [{ price: { id: 'price_pro' } }] },
+        } },
+      },
+      expectedPriceId: 'price_pro',
+      serverTimestamp: () => 'SERVER_TIME',
+      stripe,
+    })
+    assert.equal(result.duplicate, false)
   })
 })

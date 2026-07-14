@@ -81,6 +81,16 @@ describe('device notification subscriptions', () => {
     expect(notificationsEnabledLocally('user-1')).toBe(false)
   })
 
+  it('removes the local token even when remote deactivation fails', async () => {
+    await enableNotifications('user-1')
+    mocks.setDoc.mockRejectedValueOnce(new Error('offline'))
+
+    await expect(disableNotifications('user-1')).rejects.toThrow('offline')
+
+    expect(mocks.deleteToken).toHaveBeenCalledOnce()
+    expect(notificationsEnabledLocally('user-1')).toBe(false)
+  })
+
   it('migrates the legacy token once without requesting another permission', async () => {
     values.set('solara_fcm_token', 'legacy-token')
 

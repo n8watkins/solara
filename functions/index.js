@@ -43,6 +43,7 @@ exports.createCheckoutSession = onRequest(
       const session = await createCheckout({
         appUrl: APP_URL.value().replace(/\/$/, ''),
         auth: admin.auth(),
+        db,
         expectedPriceId: STRIPE_PRICE_ID.value(),
         req,
         stripe: stripeClient(),
