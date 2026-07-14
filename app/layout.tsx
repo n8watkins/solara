@@ -1,13 +1,14 @@
 import type { Metadata, Viewport } from 'next'
-import Script from 'next/script'
 import './globals.css'
+import AnalyticsConsent from '@/components/AnalyticsConsent'
 import ThemeInit from '@/components/ThemeInit'
+import { isAnalyticsMeasurementId } from '@/lib/analytics-consent'
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://uv-activity-planner.web.app'
-// Interpolated into an inline script below — refuse anything that isn't a plain
+// Interpolated into an inline script below. Refuse anything that is not a plain
 // GA4 measurement id so a malformed env value can't break out of the string.
 const RAW_GA_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID
-const GA_ID = RAW_GA_ID && /^G-[A-Z0-9]+$/.test(RAW_GA_ID) ? RAW_GA_ID : undefined
+const GA_ID = isAnalyticsMeasurementId(RAW_GA_ID) ? RAW_GA_ID : undefined
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -42,17 +43,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body>
-        {GA_ID && (
-          <>
-            <Script src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`} strategy="afterInteractive" />
-            <Script id="ga-init" strategy="afterInteractive">
-              {`window.dataLayer = window.dataLayer || [];
-                function gtag(){dataLayer.push(arguments);}
-                gtag('js', new Date());
-                gtag('config', '${GA_ID}');`}
-            </Script>
-          </>
-        )}
+        <AnalyticsConsent measurementId={GA_ID} />
         <ThemeInit />
         {children}
         <footer style={{ padding: '20px 16px', textAlign: 'center', fontSize: '12px', color: 'var(--text-3)', background: 'var(--bg)' }}>

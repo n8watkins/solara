@@ -1,6 +1,10 @@
 import LegalPage from '@/components/LegalPage'
+import { AnalyticsPreferenceControl } from '@/components/AnalyticsConsent'
+import { isAnalyticsMeasurementId } from '@/lib/analytics-consent'
 
 export default function PrivacyPage() {
+  const analyticsEnabled = isAnalyticsMeasurementId(process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID)
+
   return (
     <LegalPage title="Privacy Policy" updated="July 14, 2026">
       <h2>What Solara collects</h2>
@@ -17,7 +21,7 @@ export default function PrivacyPage() {
       <p>Open-Meteo provides forecast data and receives the coordinates needed for a forecast request.</p>
       <p>Stripe processes payments when subscriptions are enabled.</p>
       <p>Google Calendar access is requested separately and browser-held access tokens are used only to read busy times or create an event when you ask.</p>
-      <p>Google Analytics may collect usage and device information when analytics is configured.</p>
+      <p>Google Analytics collects usage and device information only when analytics is configured and you explicitly allow it.</p>
 
       <h2>Retention and security</h2>
       <p>Account preferences are retained while your account is active.</p>
@@ -26,6 +30,7 @@ export default function PrivacyPage() {
 
       <h2>Your choices</h2>
       <p>You can disable notifications, rotate or revoke a calendar feed, disconnect calendar access through your Google account, download an account-data copy, and delete your account.</p>
+      <AnalyticsPreferenceControl enabled={analyticsEnabled} />
       <p>Use the <a href="/account/">Account data controls</a> page while signed in to download or delete your information.</p>
       <p>Deleting an account removes Solara preferences and notification registrations and cancels an active Solara subscription when the subscription integration is configured.</p>
 

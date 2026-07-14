@@ -37,6 +37,7 @@ export default defineConfig({
       NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: '',
       NEXT_PUBLIC_FIREBASE_APP_ID: '',
       NEXT_PUBLIC_FIREBASE_VAPID_KEY: '',
+      NEXT_PUBLIC_GA_MEASUREMENT_ID: 'G-TEST123',
     },
   },
 })
