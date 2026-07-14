@@ -5,7 +5,7 @@ import { auth } from '@/lib/firebase'
 import { loadLocalPrefs, loadFirestorePrefs, defaultPrefs, saveLocalPrefs, saveFirestorePrefs } from '@/lib/prefs'
 import { getCachedWeather, setCachedWeather } from '@/lib/cache'
 import { fetchForecast } from '@/lib/forecast'
-import { migrateLegacyNotificationToken, notificationsEnabledLocally } from '@/lib/notifications'
+import { enableNotifications, migrateLegacyNotificationToken, notificationsEnabledLocally, onForegroundMessage } from '@/lib/notifications'
 import { UserPreferences, WeatherResponse, Location, TierLevel, DayWeather } from '@/lib/types'
 import Welcome from './Welcome'
 import Onboarding from './Onboarding'
@@ -36,6 +36,7 @@ export default function App() {
   const [syncError,      setSyncError]      = useState<string | null>(null)
   const [authReloadKey,  setAuthReloadKey]  = useState(0)
   const [showNotif,      setShowNotif]      = useState(false)
+  const [foregroundNotice, setForegroundNotice] = useState(false)
   const isDev = process.env.NODE_ENV === 'development'
 
   useEffect(() => {
@@ -80,7 +81,11 @@ export default function App() {
         setPrefs(loaded)
         setScreen('dashboard')
         if (loaded.tier === 'paid') {
-          migrateLegacyNotificationToken(u.uid).catch(err => console.error('Notification migration failed:', err))
+          migrateLegacyNotificationToken(u.uid)
+            .then(() => {
+              if (notificationsEnabledLocally(u.uid)) return enableNotifications(u.uid)
+            })
+            .catch(err => console.error('Notification refresh failed:', err))
         }
         if (loaded.tier === 'paid' && 'Notification' in window && Notification.permission === 'default' && !notificationsEnabledLocally(u.uid)) {
           setTimeout(() => setShowNotif(true), 4000)
@@ -98,6 +103,11 @@ export default function App() {
       loadPrefs(null)
     }
   }, [authReloadKey])
+
+  useEffect(() => {
+    if (!user) return
+    return onForegroundMessage(() => setForegroundNotice(true))
+  }, [user])
 
   useEffect(() => {
     if (prefs?.location && screen === 'dashboard') {
@@ -203,6 +213,12 @@ export default function App() {
       </div>
       <main style={{ maxWidth: effectiveView === 'calendar' ? '1120px' : '900px', margin: '0 auto', padding: '1.5rem 1rem' }}>
         <InstallPrompt />
+        {foregroundNotice && (
+          <div role="status" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', borderRadius: '12px', background: '#FFF7ED', border: '0.5px solid #FED7AA', marginBottom: '16px', fontSize: '14px', color: '#9A3412' }}>
+            <span>🔔</span><span style={{ flex: 1 }}>Your latest local-morning planning summary is ready.</span>
+            <button className="btn" onClick={() => setForegroundNotice(false)} style={{ fontSize: '12px' }}>Dismiss</button>
+          </div>
+        )}
         {showNotif && <NotificationBanner user={user} onDismiss={() => setShowNotif(false)} />}
         {error && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', borderRadius: '12px', background: '#FEF2F2', border: '0.5px solid #FECACA', marginBottom: '16px', fontSize: '14px', color: '#991B1B' }}>

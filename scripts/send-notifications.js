@@ -3,6 +3,7 @@ const { getFirestore, FieldValue } = require('firebase-admin/firestore')
 const { getMessaging } = require('firebase-admin/messaging')
 const {
   buildMessage,
+  isEligibleUser,
   isDue,
   localParts,
   mapLimit,
@@ -84,10 +85,7 @@ async function sendSubscription(subscription, now) {
   const userSnap = await subscription.userRef.get()
   if (!userSnap.exists) return { outcome: 'skipped', reason: 'missing-user' }
   const user = userSnap.data()
-  if (user.tier !== 'paid') return { outcome: 'skipped', reason: 'ineligible-tier' }
-  if (!user.location || typeof user.location.lat !== 'number' || typeof user.location.lon !== 'number') {
-    return { outcome: 'skipped', reason: 'missing-location' }
-  }
+  if (!isEligibleUser(user)) return { outcome: 'skipped', reason: 'ineligible-user' }
 
   const forecast = await fetchHourly(user.location.lat, user.location.lon)
   const timezone = user.location.timezone || forecast.timezone

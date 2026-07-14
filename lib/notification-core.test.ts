@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 const {
   buildMessage,
   isDue,
+  isEligibleUser,
   localParts,
   mapLimit,
   notificationKey,
@@ -36,6 +37,12 @@ describe('notification scheduling', () => {
     expect(runsOnDate({ daysOfWeek: [1, 3] }, '2026-07-13')).toBe(true)
     expect(runsOnDate({ daysOfWeek: [1, 3] }, '2026-07-14')).toBe(false)
     expect(runsOnDate({}, '2026-07-14')).toBe(true)
+  })
+
+  it('requires a paid user with a complete location', () => {
+    expect(isEligibleUser({ tier: 'free', location: { lat: 1, lon: 2 } })).toBe(false)
+    expect(isEligibleUser({ tier: 'paid', location: { lat: 1 } })).toBe(false)
+    expect(isEligibleUser({ tier: 'paid', location: { lat: 1, lon: 2 } })).toBe(true)
   })
 })
 

@@ -55,6 +55,12 @@ function notificationKey(timezone, now = new Date()) {
   return local ? `daily-v2:${local.date}` : null
 }
 
+function isEligibleUser(user) {
+  return user?.tier === 'paid'
+    && typeof user.location?.lat === 'number'
+    && typeof user.location?.lon === 'number'
+}
+
 function buildMessage(user, hourly, dateStr) {
   const activities = (user.activities ?? []).filter(activity => !dateStr || runsOn(activity, dateStr))
   const skinType = ['very-fair', 'fair', 'medium', 'olive', 'dark'].includes(user.skinType) ? user.skinType : 'fair'
@@ -104,6 +110,7 @@ module.exports = {
   effectiveMaxUV,
   fmtHour,
   isDue,
+  isEligibleUser,
   localParts,
   mapLimit,
   notificationKey,
