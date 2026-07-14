@@ -29,6 +29,10 @@ Required for push registration:
 
 - `NEXT_PUBLIC_FIREBASE_VAPID_KEY`
 
+Recommended after registering the production web app with Firebase App Check:
+
+- `NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY`
+
 Optional feature activation:
 
 - `NEXT_PUBLIC_SITE_URL` sets the canonical deployed origin.
@@ -55,9 +59,10 @@ Pull requests and non-main pushes run the same quality checks without deploying.
 2. Add the production and preview domains to Authentication Authorized domains.
 3. Create Firestore and deploy the repository rules.
 4. Enable Cloud Messaging and generate a Web Push VAPID key.
-5. Enable Hosting.
-6. Upgrade to Blaze only when Functions are ready to deploy.
-7. Set a billing budget alert before the first Functions deployment.
+5. Register the web app for App Check with reCAPTCHA v3, set the site key, monitor enforcement metrics, and then enforce supported Firebase products.
+6. Enable Hosting.
+7. Upgrade to Blaze only when Functions are ready to deploy.
+8. Set a billing budget alert before the first Functions deployment.
 
 For local Firebase CLI use, select the intended project explicitly.
 
