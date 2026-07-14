@@ -93,10 +93,11 @@ exports.deleteAccount = onRequest(
     } catch (error) {
       const status = error.status || 500
       console.error('deleteAccount failed', { name: error?.name, message: error?.message })
-      const message = status === 401
-        ? 'Authentication required'
+      const message = error.code === 'reauth-required'
+        ? 'Recent authentication required'
+        : status === 401 ? 'Authentication required'
         : status === 400 ? 'Type DELETE to confirm' : 'Deletion unavailable'
-      res.status(status).json({ error: message })
+      res.status(status).json({ error: message, code: error.code || undefined })
     }
   },
 )

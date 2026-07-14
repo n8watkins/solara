@@ -1,9 +1,9 @@
 'use client'
 
 import Link from 'next/link'
-import { onAuthStateChanged, User } from 'firebase/auth'
+import { onAuthStateChanged, reauthenticateWithPopup, User } from 'firebase/auth'
 import { useEffect, useState } from 'react'
-import { auth } from '@/lib/firebase'
+import { auth, googleProvider } from '@/lib/firebase'
 
 const FUNCTIONS_URL = process.env.NEXT_PUBLIC_FUNCTIONS_URL?.replace(/\/$/, '')
 
@@ -55,10 +55,12 @@ export default function AccountPage() {
   }
 
   async function removeAccount() {
-    if (confirmation !== 'DELETE') return
+    if (!user || confirmation !== 'DELETE') return
     setBusy('delete')
     setMessage('')
     try {
+      if (!googleProvider) throw new Error('Google reauthentication is not configured.')
+      await reauthenticateWithPopup(user, googleProvider)
       await authorizedRequest('deleteAccount', {
         method: 'DELETE',
         body: JSON.stringify({ confirmation }),

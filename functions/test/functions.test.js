@@ -87,6 +87,25 @@ describe('account data security', () => {
     )
   })
 
+  test('requires authentication within five minutes for destructive actions', async () => {
+    const auth = { verifyIdToken: async () => ({ uid: 'alice', auth_time: 1000 }) }
+    await assert.doesNotReject(authenticate(auth, 'Bearer valid', {
+      maxAgeSeconds: 300,
+      nowSeconds: 1300,
+    }))
+    await assert.rejects(
+      authenticate(auth, 'Bearer valid', { maxAgeSeconds: 300, nowSeconds: 1301 }),
+      error => error.status === 401 && error.code === 'reauth-required',
+    )
+    await assert.rejects(
+      authenticate({ verifyIdToken: async () => ({ uid: 'alice' }) }, 'Bearer valid', {
+        maxAgeSeconds: 300,
+        nowSeconds: 1300,
+      }),
+      error => error.code === 'reauth-required',
+    )
+  })
+
   test('redacts capability and provider identifiers from exports', () => {
     assert.deepEqual(safeAccountData({
       location: { city: 'Seattle' },
