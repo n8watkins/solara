@@ -73,6 +73,7 @@ Complete only the sections activated for this release.
 - [ ] Confirm a paid event grants the expected entitlement once.
 - [ ] Replay the event and confirm idempotency.
 - [ ] Confirm cancellation and payment failure revoke or restrict entitlement as designed.
+- [ ] Open the authenticated customer portal and verify payment updates, invoices, and cancellation.
 - [ ] Confirm webhook signature failures do not mutate Firestore.
 
 ### Google Calendar

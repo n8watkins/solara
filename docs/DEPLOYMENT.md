@@ -28,10 +28,10 @@ Required for account access:
 Required for push registration:
 
 - `NEXT_PUBLIC_FIREBASE_VAPID_KEY`
-
-Recommended after registering the production web app with Firebase App Check:
-
 - `NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY`
+- `NEXT_PUBLIC_FUNCTIONS_URL`
+
+The notification registration endpoints require a valid App Check token and paid entitlement.
 
 Optional feature activation:
 
@@ -140,6 +140,7 @@ npx firebase-tools deploy --only functions --project <project-id>
 Register the deployed Stripe webhook URL in Stripe test mode first.
 Verify a successful checkout, duplicate webhook delivery, cancellation, payment failure, and entitlement revocation before using live mode.
 Also verify repeated checkout is rejected, out-of-order events cannot restore canceled access, and changing away from the configured Pro price revokes the entitlement.
+Open the account page and verify the Stripe customer portal can update payment details, display invoices, and cancel the subscription.
 No local test can replace these Stripe-signed integration checks when keys and a test account are unavailable.
 
 ## Google Calendar activation
