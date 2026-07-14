@@ -1,5 +1,5 @@
 'use client'
-import { CSSProperties } from 'react'
+import { CSSProperties, useState } from 'react'
 import { User, signInWithPopup } from 'firebase/auth'
 import { auth, googleProvider, firebaseEnabled } from '@/lib/firebase'
 import { loadFirestorePrefs, saveFirestorePrefs } from '@/lib/prefs'
@@ -34,34 +34,48 @@ export function GoogleIcon({ size = 16 }: { size?: number }) {
 }
 
 export default function GoogleSignInButton({ label = 'Continue with Google', seedPrefs, onSignedIn, style }: Props) {
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+
   if (!firebaseEnabled) return null
 
   async function handleClick() {
     if (!auth || !googleProvider) return
+    setLoading(true)
+    setError(null)
     try {
       const result = await signInWithPopup(auth, googleProvider)
       const u = result.user
       if (!u) return
       if (seedPrefs) {
         const existing = await loadFirestorePrefs(u.uid)
-        if (!existing) await saveFirestorePrefs(u.uid, { ...seedPrefs, uid: u.uid, tier: 'free' })
+        if (existing.status === 'error') throw existing.error
+        if (existing.status === 'missing') {
+          await saveFirestorePrefs(u.uid, { ...seedPrefs, uid: u.uid, tier: 'free' })
+        }
       }
       onSignedIn?.(u)
     } catch (e) {
       console.error('Google sign-in failed:', e)
+      setError('Could not finish signing in. Check your connection and try again.')
+    } finally {
+      setLoading(false)
     }
   }
 
   return (
-    <button onClick={handleClick} style={{
-      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-      padding: '9px 14px', borderRadius: '10px', cursor: 'pointer',
-      border: '0.5px solid var(--border-md)', background: 'var(--bg-card)',
-      color: 'var(--text)', fontSize: '13px', fontWeight: 600,
-      transition: 'background 0.12s',
-      ...style,
-    }}>
-      <GoogleIcon /> {label}
-    </button>
+    <div>
+      <button onClick={handleClick} disabled={loading} style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+        padding: '9px 14px', borderRadius: '10px', cursor: loading ? 'wait' : 'pointer',
+        border: '0.5px solid var(--border-md)', background: 'var(--bg-card)',
+        color: 'var(--text)', fontSize: '13px', fontWeight: 600,
+        transition: 'background 0.12s', opacity: loading ? 0.7 : 1,
+        ...style,
+      }}>
+        <GoogleIcon /> {loading ? 'Signing in...' : label}
+      </button>
+      {error && <p role="alert" style={{ margin: '8px 0 0', fontSize: '12px', color: '#DC2626', textAlign: 'center' }}>{error}</p>}
+    </div>
   )
 }

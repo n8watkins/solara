@@ -175,12 +175,26 @@ export function saveLocalPrefs(prefs: Partial<UserPreferences>): void {
   localStorage.setItem(PREFS_KEY, JSON.stringify({ ...prefs, schemaVersion: PREFS_SCHEMA_VERSION }))
 }
 
-export async function loadFirestorePrefs(uid: string): Promise<UserPreferences | null> {
-  if (!db) return null
+export type FirestorePrefsResult =
+  | { status: 'found'; prefs: UserPreferences }
+  | { status: 'missing' }
+  | { status: 'error'; error: Error }
+
+export async function loadFirestorePrefs(uid: string): Promise<FirestorePrefsResult> {
+  if (!db) return { status: 'error', error: new Error('Firebase is not configured') }
   try {
     const snap = await getDoc(doc(db, 'users', uid))
-    return snap.exists() ? normalizePrefs(snap.data() as Partial<UserPreferences>) : null
-  } catch { return null }
+    if (!snap.exists()) return { status: 'missing' }
+    const prefs = normalizePrefs(snap.data() as Partial<UserPreferences>)
+    return prefs
+      ? { status: 'found', prefs }
+      : { status: 'error', error: new Error('Saved preferences are invalid') }
+  } catch (error) {
+    return {
+      status: 'error',
+      error: error instanceof Error ? error : new Error('Could not load saved preferences'),
+    }
+  }
 }
 
 export async function saveFirestorePrefs(uid: string, prefs: Partial<UserPreferences>): Promise<void> {

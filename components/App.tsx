@@ -32,12 +32,16 @@ export default function App() {
   const [prefsTab,       setPrefsTab]       = useState<'general' | 'activities' | 'location'>('general')
   const [weatherLoading, setWeatherLoading] = useState(false)
   const [error,          setError]          = useState<string | null>(null)
+  const [accountError,   setAccountError]   = useState<string | null>(null)
+  const [syncError,      setSyncError]      = useState<string | null>(null)
+  const [authReloadKey,  setAuthReloadKey]  = useState(0)
   const [showNotif,      setShowNotif]      = useState(false)
   const isDev = process.env.NODE_ENV === 'development'
 
   useEffect(() => {
     async function loadPrefs(u: User | null) {
       setUser(u)
+      setAccountError(null)
 
       // Sign-in with Google is required to use Solara — a guest never reaches the
       // dashboard. No local-prefs fallback into the app for signed-out visitors.
@@ -50,8 +54,15 @@ export default function App() {
         return
       }
 
-      let loaded = await loadFirestorePrefs(u.uid)
-      if (!loaded) {
+      const result = await loadFirestorePrefs(u.uid)
+      if (result.status === 'error') {
+        setAccountError('Could not load your saved account. Nothing was changed. Check your connection and try again.')
+        setScreen('loading')
+        return
+      }
+
+      let loaded = result.status === 'found' ? result.prefs : null
+      if (result.status === 'missing') {
         // Brand-new account: seed from the prefs gathered during onboarding, if any.
         const local = loadLocalPrefs()
         if (local?.location) {
@@ -83,7 +94,7 @@ export default function App() {
     } else {
       loadPrefs(null)
     }
-  }, [])
+  }, [authReloadKey])
 
   useEffect(() => {
     if (prefs?.location && screen === 'dashboard') {
@@ -111,7 +122,14 @@ export default function App() {
   async function handlePrefsUpdate(updated: UserPreferences) {
     setPrefs(updated)
     saveLocalPrefs(updated)
-    if (user) await saveFirestorePrefs(user.uid, updated)
+    setSyncError(null)
+    if (user) {
+      try {
+        await saveFirestorePrefs(user.uid, updated)
+      } catch {
+        setSyncError('Saved on this device, but cloud sync failed. Retry when your connection returns.')
+      }
+    }
   }
 
   function handleOnboardingComplete(p: UserPreferences) {
@@ -120,6 +138,18 @@ export default function App() {
   }
 
   if (screen === 'loading') {
+    if (accountError) {
+      return (
+        <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
+          <div className="card" style={{ width: '100%', maxWidth: '440px', textAlign: 'center' }}>
+            <div style={{ fontSize: '36px', marginBottom: '12px' }}>☁️</div>
+            <h1 style={{ margin: '0 0 8px', fontSize: '20px', color: 'var(--text)' }}>Your account could not load</h1>
+            <p role="alert" style={{ margin: '0 0 18px', color: 'var(--text-2)', fontSize: '14px', lineHeight: 1.5 }}>{accountError}</p>
+            <button className="btn btn-primary" onClick={() => setAuthReloadKey(key => key + 1)}>Try again</button>
+          </div>
+        </div>
+      )
+    }
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ textAlign: 'center' }}>
@@ -175,6 +205,12 @@ export default function App() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', borderRadius: '12px', background: '#FEF2F2', border: '0.5px solid #FECACA', marginBottom: '16px', fontSize: '14px', color: '#991B1B' }}>
             <span>⚠️</span><span style={{ flex: 1 }}>{error}</span>
             <button className="btn" onClick={() => fetchWeather(prefs.location, true)} style={{ fontSize: '12px' }}>Retry</button>
+          </div>
+        )}
+        {syncError && (
+          <div role="alert" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', borderRadius: '12px', background: '#FFF7ED', border: '0.5px solid #FED7AA', marginBottom: '16px', fontSize: '14px', color: '#9A3412' }}>
+            <span>☁️</span><span style={{ flex: 1 }}>{syncError}</span>
+            <button className="btn" onClick={() => handlePrefsUpdate(prefs)} style={{ fontSize: '12px' }}>Retry sync</button>
           </div>
         )}
         {effectiveView === 'dashboard' && (
