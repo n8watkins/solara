@@ -34,10 +34,10 @@ export function gcalWindowLink(
   const start = new Date(year, month - 1, day, window.from, 0, 0)
   const end   = new Date(year, month - 1, day, window.to,   0, 0)
   const fmt   = (d: Date) => d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
-  const safeUV = effectiveMaxUV(activity)
-  const title = encodeURIComponent(`${activity.name} — safe window`)
+  const planningUVLimit = effectiveMaxUV(activity)
+  const title = encodeURIComponent(`${activity.name}: lower-UV window`)
   const details = encodeURIComponent(
-    `Safe UV window for ${activity.name}. UV stays ≤${safeUV} from ${window.from}:00–${window.to}:00${activity.sunscreen ? ' assuming SPF 30+.' : '.'} Schedule your ${activity.durationMins < 60 ? activity.durationMins + 'min' : activity.durationMins / 60 + 'hr'} session anywhere in this range.`
+    `Estimated lower-UV window for ${activity.name}. Forecast UV stays at or below the planning limit of ${planningUVLimit} from ${window.from}:00–${window.to}:00${activity.sunscreen ? ' assuming SPF 30+.' : '.'} Schedule your ${activity.durationMins < 60 ? activity.durationMins + 'min' : activity.durationMins / 60 + 'hr'} session in this range. Recheck conditions and use sun protection; this is not medical advice.`
   )
   return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${fmt(start)}/${fmt(end)}&details=${details}`
 }

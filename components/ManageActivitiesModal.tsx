@@ -63,7 +63,7 @@ export default function ManageActivitiesModal({ activities, tier, onActivitiesCh
                 <div style={{ flex: 1, minWidth: '170px' }}>
                   <p style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: 'var(--text)' }}>{activity.name}</p>
                   <p style={{ margin: '3px 0 0', fontSize: '12px', color: 'var(--text-3)' }}>
-                    {durationLabel} · {activity.sunscreen ? 'SPF 30+' : 'No SPF'} · Safe UV {safeUv}
+                    {durationLabel} · {activity.sunscreen ? 'SPF 30+' : 'No SPF'} · UV limit {safeUv}
                   </p>
                 </div>
                 <div style={{ display: 'flex', gap: '8px', marginLeft: 'auto', flexWrap: 'wrap' }}>

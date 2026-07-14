@@ -156,7 +156,7 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
   }
 
   const SECTIONS: { id: Tab; label: string; emoji: string; desc: string }[] = [
-    { id: 'general',    label: 'Sun profile', emoji: '☀️', desc: 'Skin type and the exposure assumptions behind your safety math.' },
+    { id: 'general',    label: 'Sun profile', emoji: '☀️', desc: 'Skin type and the assumptions behind your exposure estimates.' },
     { id: 'appearance', label: 'Appearance',  emoji: '🎨', desc: 'Theme and what the dashboard shows.' },
     { id: 'activities', label: 'Activities',  emoji: '🏃', desc: 'Suggestion and category preferences.' },
     { id: 'location',   label: 'Location',    emoji: '📍', desc: 'Where Solara checks the UV forecast.' },

@@ -59,7 +59,7 @@ function WindowRow({ win, isBest, cloudNote, onShare, onCalendar }: { win: SafeA
           )}
         </div>
         <span style={{ fontSize: '11px', color: 'var(--text-3)' }}>
-          {phase.label} · Peak UV {win.peakUV.toFixed(1)}{cloudNote ? ' · ☁ safe under cloud' : ''}
+          {phase.label} · Peak UV {win.peakUV.toFixed(1)}{cloudNote ? ' · ☁ qualifies with cloud estimate' : ''}
         </span>
       </div>
       <div style={{ display: 'flex', gap: '5px', flexShrink: 0 }}>
@@ -120,7 +120,7 @@ export default function ActivityCards({ windows, daysFromNow, tier, location, da
                 <span style={{ fontSize: '18px' }}>{activity.icon}</span>
                 <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{activity.name}</span>
                 <span className={`badge badge-${status}`} style={{ flexShrink: 0 }}>
-                  {status === 'safe' ? 'Safe now' : status === 'caution' ? 'Later' : 'Avoid'}
+                  {status === 'safe' ? 'Within limit' : status === 'caution' ? 'Later' : 'No match'}
                 </span>
                 {onEditActivity && (
                   <button
@@ -162,7 +162,7 @@ export default function ActivityCards({ windows, daysFromNow, tier, location, da
               )}
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                <Row label={activity.sunscreen ? 'Safe UV w/ SPF' : 'Max safe UV'} val={String(safeUv)} />
+                <Row label={activity.sunscreen ? 'UV limit w/ SPF' : 'Planning UV limit'} val={String(safeUv)} />
                 <Row label="Duration" val={durationLabel} />
                 {activity.preferredHours && <Row label="Preferred" val={`${fmtHour(activity.preferredHours.from)}–${fmtHour(activity.preferredHours.to)}`} />}
                 {fmtDays(activity.daysOfWeek) && <Row label="Days" val={fmtDays(activity.daysOfWeek)!} />}
@@ -188,7 +188,7 @@ export default function ActivityCards({ windows, daysFromNow, tier, location, da
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
                 <p style={{ margin: 0, fontSize: '11px', color: 'var(--text-3)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.055em' }}>
-                  Safe windows
+                  Estimated lower-UV windows
                 </p>
                 {allWindows.length > 0 ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -208,7 +208,7 @@ export default function ActivityCards({ windows, daysFromNow, tier, location, da
                   </div>
                 ) : (
                   <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-3)', lineHeight: 1.45 }}>
-                    No window is long enough for this activity today. Try shortening duration, widening preferred hours, or raising the safe UV threshold.
+                    No forecast window matches this activity today. Try shortening the duration, widening preferred hours, or adjusting the planning UV limit.
                   </p>
                 )}
               </div>
@@ -217,6 +217,9 @@ export default function ActivityCards({ windows, daysFromNow, tier, location, da
           )
         })}
       </div>
+      <p style={{ margin: '10px 2px 0', fontSize: '11px', color: 'var(--text-3)', lineHeight: 1.5 }}>
+        Forecast-based planning estimate only. Conditions can change; use appropriate sun protection.
+      </p>
     </div>
   )
 }

@@ -13,7 +13,7 @@ export function buildActivityShareText({ activity, window: win, location, dateLa
   const place = `${location.city}${location.region ? `, ${location.region}` : ''}`
   const uvCopy = typeof win.peakUV === 'number' ? ` Peak UV ${win.peakUV.toFixed(1)}.` : ''
   const duration = activity.durationMins < 60 ? `${activity.durationMins} min` : `${activity.durationMins / 60} hr`
-  return `Let's do ${activity.name.toLowerCase()} ${dateLabel.toLowerCase()} from ${fmtHour(win.from)}–${fmtHour(win.to)} in ${place}. Solara says this is a safer ${duration} sun window.${uvCopy}`
+  return `Let's do ${activity.name.toLowerCase()} ${dateLabel.toLowerCase()} from ${fmtHour(win.from)}–${fmtHour(win.to)} in ${place}. Solara estimates this as a lower-UV ${duration} planning window.${uvCopy} Recheck current conditions and use sun protection.`
 }
 
 export function buildActivityShareUrl({ activity, window: win, location, dateLabel, dayOffset = 0 }: ActivitySharePayload, origin?: string): string {

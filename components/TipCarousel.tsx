@@ -2,12 +2,12 @@
 import { useEffect, useRef, useState } from 'react'
 
 const TIPS = [
-  { icon: '🌤️', title: 'UV & vitamin D', body: 'Skin needs UVB to make vitamin D — a few minutes with arms and legs bare (no glass, no SPF) on a sunny day.' },
-  { icon: '🧴', title: 'SPF blocks vitamin D', body: 'SPF 30+ blocks ~97% of UVB. Skip it for the first few minutes, then apply before you burn.' },
-  { icon: '⏰', title: 'Timing matters', body: 'Vitamin D peaks midday (10am–2pm) — but so does burn risk. A low-UV morning gives D without the damage.' },
-  { icon: '💡', title: 'Glass blocks UVB', body: 'A sunny window won\'t make vitamin D — UVB doesn\'t pass through standard glass. Get outside.' },
-  { icon: '🔄', title: 'Not needed daily', body: 'Your body stores vitamin D for weeks. A few good outdoor sessions a week is plenty.' },
-  { icon: '🌍', title: 'Skin tone matters', body: 'More melanin means less UVB absorbed — darker skin needs more sun time for the same vitamin D.' },
+  { icon: '📈', title: 'Higher UV means more risk', body: 'As the UV index rises, skin and eye damage can happen faster.' },
+  { icon: '🧴', title: 'Protect at UV 3+', body: 'Public-health guidance recommends sun protection when the UV index is 3 or higher.' },
+  { icon: '👒', title: 'Use layers of protection', body: 'Combine shade, clothing, a hat, sunglasses, and broad-spectrum sunscreen when protection is needed.' },
+  { icon: '☁️', title: 'Clouds are not a shield', body: 'UV can remain high under cloud cover, so check the UV index instead of judging by brightness.' },
+  { icon: '🏖️', title: 'Reflections matter', body: 'Water, sand, snow, and other bright surfaces can increase UV exposure.' },
+  { icon: '🌤️', title: 'Vitamin D varies', body: 'Sun exposure is not a precise vitamin D dose. Ask a clinician about diet or supplements if you are concerned.' },
 ]
 
 export default function TipCarousel() {

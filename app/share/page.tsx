@@ -37,7 +37,7 @@ function ShareContent() {
           )}
         </div>
         <p style={{ margin: '0 0 22px', fontSize: '14px', color: 'var(--text-3)', lineHeight: 1.55 }}>
-          This is a shared Solara planning window. Check current conditions before heading out — UV and weather can change.
+          This is a forecast-based planning estimate, not medical advice. Recheck current UV and use appropriate sun protection.
         </p>
         <a href="/" className="btn btn-primary" style={{ display: 'inline-flex', textDecoration: 'none', justifyContent: 'center', padding: '11px 18px' }}>
           Open Solara

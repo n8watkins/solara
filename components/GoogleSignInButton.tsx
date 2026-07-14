@@ -8,7 +8,7 @@ import { UserPreferences } from '@/lib/types'
 // Shared between the dashboard activities gate and the onboarding sign-in step
 // so the pitch can't drift between the two.
 export const ACTIVITY_SIGNIN_BLURB =
-  'Tell Solara what you do outside and it finds your safest sun windows each day.'
+  'Tell Solara what you do outside and it estimates lower-UV windows each day.'
 
 interface Props {
   label?: string

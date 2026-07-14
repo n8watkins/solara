@@ -37,8 +37,8 @@ function buildSunEvents(user, forecast) {
       const end = Math.min(win.from + durH, win.to)
       events.push({
         uid: `${day.dateStr}-${act.id}-${Math.round(start * 60)}@solara`,
-        summary: `${act.icon || '☀️'} ${act.name} — sun window`,
-        description: `Safe window ${win.from}:00–${win.to}:00 (avg UV ${win.avgUV})${act.sunscreen ? ', assumes SPF 30+' : ', no sunscreen'}. Planned by Solara.`,
+        summary: `${act.icon || '☀️'} ${act.name}: lower-UV window`,
+        description: `Estimated lower-UV window ${win.from}:00–${win.to}:00 (avg UV ${win.avgUV})${act.sunscreen ? ', assumes SPF 30+' : ', no sunscreen'}. Forecast-based estimate only. Recheck current UV and use sun protection. Planned by Solara.`,
         dateStr: day.dateStr, start, end,
       })
     }

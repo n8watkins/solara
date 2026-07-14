@@ -53,7 +53,7 @@ function subtractBusy(winFrom: number, winTo: number, busy: BusyInterval[]): Arr
 }
 
 function labelPhrase(label: SafeActivityWindow['label']): string {
-  return label === 'All day' ? 'safe' : label.toLowerCase()
+  return label === 'All day' ? 'lower-UV' : label.toLowerCase()
 }
 
 /** Peak/avg UV over the hours the activity actually occupies [from, to). */
@@ -165,9 +165,9 @@ export function recommendSlot(
 
   const reason =
     timePreference === 'latest'
-      ? `Latest safe spot in your ${labelPhrase(chosen.label)} window`
+      ? `Latest matching spot in your ${labelPhrase(chosen.label)} window`
       : timePreference === 'sunniest'
-        ? `Your sunniest safe window that's still free`
+        ? `Your sunniest available window within the planning limit`
         : `Earliest free spot in your ${labelPhrase(chosen.label)} window`
 
   const end = start + durHours

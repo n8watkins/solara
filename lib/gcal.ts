@@ -153,15 +153,16 @@ export function buildEventDescription(
   opts: { peakUV?: number; peakHour?: number } = {},
 ): string {
   const lines: string[] = [
-    `Recommended for ${fmtClock(rec.start)} — ${rec.reason.charAt(0).toLowerCase()}${rec.reason.slice(1)}.`,
+    `Recommended for ${fmtClock(rec.start)}: ${rec.reason.charAt(0).toLowerCase()}${rec.reason.slice(1)}.`,
   ]
   if (rec.latestStart > rec.earliestStart) {
-    lines.push(`Flexible: start anytime ${fmtClock(rec.earliestStart)}–${fmtClock(rec.latestStart)} and stay in the safe window.`)
+    lines.push(`Flexible: start anytime ${fmtClock(rec.earliestStart)}–${fmtClock(rec.latestStart)} within the estimated lower-UV window.`)
   }
   if (typeof opts.peakUV === 'number' && typeof opts.peakHour === 'number') {
     lines.push(`Peak UV ${opts.peakUV.toFixed(1)} around ${fmtClock(opts.peakHour)}.`)
   }
   lines.push(activity.sunscreen ? 'Assumes SPF 30+.' : 'Planned for no sunscreen.')
+  lines.push('Forecast-based estimate only. Recheck current UV and use sun protection.')
   lines.push('Planned by Solara ☀️')
   return lines.join('\n')
 }
@@ -176,7 +177,7 @@ export function buildEventBody(
   timeZone: string = typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : 'UTC',
 ): CalendarEventBody {
   return {
-    summary: `${activity.icon} ${activity.name} — sun window`,
+    summary: `${activity.icon} ${activity.name}: lower-UV window`,
     description,
     start: { dateTime: localDateTime(dateStr, start), timeZone },
     end: { dateTime: localDateTime(dateStr, end), timeZone },

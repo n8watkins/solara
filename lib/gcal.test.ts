@@ -60,10 +60,11 @@ const rec: SlotRecommendation = {
 describe('buildEventDescription', () => {
   it('explains the pick, flexibility, peak, and protection', () => {
     const d = buildEventDescription(rec, run, { peakUV: 7.8, peakHour: 15 })
-    expect(d).toContain('Recommended for 5pm — earliest free spot in your afternoon window.')
-    expect(d).toContain('Flexible: start anytime 5pm–8pm and stay in the safe window.')
+    expect(d).toContain('Recommended for 5pm: earliest free spot in your afternoon window.')
+    expect(d).toContain('Flexible: start anytime 5pm–8pm within the estimated lower-UV window.')
     expect(d).toContain('Peak UV 7.8 around 3pm.')
     expect(d).toContain('Planned for no sunscreen.')
+    expect(d).toContain('Forecast-based estimate only.')
     expect(d).toContain('Planned by Solara')
   })
 
@@ -82,7 +83,7 @@ describe('buildEventDescription', () => {
 describe('buildEventBody', () => {
   it('builds summary and offset-free local timestamps', () => {
     const body = buildEventBody(run, '2026-05-29', 17, 18, 'desc', 'America/Los_Angeles')
-    expect(body.summary).toBe('🏃 Running — sun window')
+    expect(body.summary).toBe('🏃 Running: lower-UV window')
     expect(body.start).toEqual({ dateTime: '2026-05-29T17:00:00', timeZone: 'America/Los_Angeles' })
     expect(body.end).toEqual({ dateTime: '2026-05-29T18:00:00', timeZone: 'America/Los_Angeles' })
   })

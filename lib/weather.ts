@@ -84,8 +84,8 @@ export function gcalLink(
   const start = new Date(base.getFullYear(), base.getMonth(), base.getDate(), window.from, 0, 0)
   const end = new Date(start.getTime() + durationMins * 60000)
   const fmt = (d: Date) => d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
-  const title = encodeURIComponent(`${activityName} — sun window`)
-  const details = encodeURIComponent('Scheduled by Solara — safe UV window for your skin type.')
+  const title = encodeURIComponent(`${activityName}: lower-UV window`)
+  const details = encodeURIComponent('Forecast-based lower-UV planning estimate from Solara. Recheck current UV and use sun protection.')
   return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${fmt(start)}/${fmt(end)}&details=${details}`
 }
 

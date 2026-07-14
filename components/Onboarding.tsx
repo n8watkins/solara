@@ -149,7 +149,7 @@ export default function Onboarding({ onComplete }: Props) {
                   {uvLabel(uvNow).label}
                 </div>
                 <p style={{ margin: 0, fontSize: '14px', color: 'var(--text-2)', lineHeight: 1.55 }}>
-                  Next, set your skin type so Solara knows your safe windows.
+                  Next, set your skin type so Solara can personalize its planning estimates.
                 </p>
               </div>
               <button className="btn btn-primary" onClick={() => setStep('skin')} style={{ width: '100%', justifyContent: 'center', padding: '13px', marginTop: '14px' }}>
@@ -162,7 +162,7 @@ export default function Onboarding({ onComplete }: Props) {
             <>
               <h2 style={{ margin: '0 0 4px', fontSize: '19px', fontWeight: 650, color: 'var(--text)' }}>Your skin type</h2>
               <p style={{ margin: '0 0 14px', fontSize: '13px', color: 'var(--text-2)' }}>
-                Sets your burn time and safe UV thresholds.
+                Personalizes estimated burn time and planning UV limits.
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
                 {SKIN_OPTIONS.map(o => (

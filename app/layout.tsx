@@ -11,8 +11,8 @@ const GA_ID = RAW_GA_ID && /^G-[A-Z0-9]+$/.test(RAW_GA_ID) ? RAW_GA_ID : undefin
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
-  title: 'Solara — Know when to go outside',
-  description: 'Personalized UV and sun exposure dashboard. Know exactly when it is safer to go outside for your activity, skin type, and location.',
+  title: 'Solara: Plan around UV',
+  description: 'Forecast-based, lower-UV activity planning personalized for your skin profile and location.',
   applicationName: 'Solara',
   manifest: '/manifest.webmanifest',
   icons: {
@@ -20,16 +20,16 @@ export const metadata: Metadata = {
     apple: '/apple-touch-icon.png',
   },
   openGraph: {
-    title: 'Solara — Know when to go outside',
-    description: 'Personalized UV and outdoor activity windows for your skin type and location.',
+    title: 'Solara: Plan around UV',
+    description: 'Forecast-based, lower-UV activity planning for your skin profile and location.',
     type: 'website',
     siteName: 'Solara',
-    images: [{ url: '/og-image.png', width: 1200, height: 630, alt: 'Solara — know your sun window' }],
+    images: [{ url: '/og-image.png', width: 1200, height: 630, alt: 'Solara lower-UV activity planner' }],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Solara — Know when to go outside',
-    description: 'Personalized UV and outdoor activity windows for your skin type and location.',
+    title: 'Solara: Plan around UV',
+    description: 'Forecast-based, lower-UV activity planning for your skin profile and location.',
     images: ['/og-image.png'],
   },
 }
