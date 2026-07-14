@@ -1,4 +1,5 @@
 import { TierLevel, Activity } from './types'
+import { effectiveMaxUV as sharedEffectiveMaxUV } from './recommendation'
 
 export const TIER_LIMITS: Record<TierLevel, { activities: number; calendar: boolean; notifications: boolean; futureDays: number; savedLocations: number; profiles: number }> = {
   // Activities require an account — guests see the UV dashboard only (deliberate funnel).
@@ -34,8 +35,7 @@ export function getProfileLimit(tier: TierLevel): number {
 // With SPF 30+, effective safe UV is ~2.5x higher.
 // This is still an estimate; UI copy should not imply medical precision.
 export function effectiveMaxUV(activity: Activity): number {
-  if (activity.sunscreen) return Math.min(Math.round(activity.maxUV * 2.5), 11)
-  return activity.maxUV
+  return sharedEffectiveMaxUV(activity)
 }
 
 export interface PresetCategory {

@@ -1,5 +1,5 @@
 import { Activity } from './types'
-import { effectiveMaxUV } from './tiers'
+import { effectiveMaxUV, findRecommendationWindows } from './recommendation'
 export { fmtHour as fmtH } from './weather'
 
 export interface DayForecast {
@@ -15,43 +15,14 @@ export interface SafeWindow {
   peakUV: number
 }
 
-function allowedHour(activity: Activity, hour: number): boolean {
-  if (!activity.preferredHours) return true
-  return hour >= activity.preferredHours.from && hour < activity.preferredHours.to
-}
-
 export function getSafeWindowsForActivity(hourly: DayForecast['hourly'], activity: Activity): SafeWindow[] {
   const maxUV = effectiveMaxUV(activity)
   return getSafeWindows(hourly, maxUV, activity.durationMins, activity)
 }
 
 export function getSafeWindows(hourly: DayForecast['hourly'], maxUV: number, durationMins = 0, activity?: Activity): SafeWindow[] {
-  const windows: SafeWindow[] = []
-  let start: number | null = null
-
-  for (let i = 0; i <= hourly.length; i++) {
-    const h = hourly[i]
-    const ok = h && h.uv <= maxUV && (!activity || allowedHour(activity, h.hour))
-    if (ok) {
-      if (start === null) start = h.hour
-    } else {
-      if (start !== null) {
-        const prevHour = hourly[i - 1]?.hour ?? start
-        const to = prevHour + 1
-        if ((to - start) * 60 >= durationMins) {
-          const uvs = hourly.filter(x => x.hour >= start! && x.hour <= prevHour).map(x => x.uv)
-          windows.push({
-            from: start,
-            to,
-            peakUV: uvs.length ? Math.max(...uvs) : 0,
-          })
-        }
-        start = null
-      }
-    }
-  }
-
-  return windows
+  return findRecommendationWindows(hourly, maxUV, durationMins, activity?.preferredHours)
+    .map(({ from, to, peakUV }) => ({ from, to, peakUV }))
 }
 
 export function gcalWindowLink(
