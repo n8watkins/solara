@@ -6,6 +6,13 @@ service cloud.firestore {
       return request.auth != null && request.auth.uid == userId;
     }
 
+    function isActiveAccount(userId) {
+      let deletion = get(/databases/$(database)/documents/accountDeletionTombstones/$(userId));
+      return !deletion.exists()
+        || (request.auth.token.auth_time is int
+          && request.auth.token.auth_time > deletion.data.revokedBefore);
+    }
+
     function userCreateKeys() {
       return [
         'uid',
@@ -73,12 +80,12 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow read: if isOwner(userId);
-      allow create: if isOwner(userId) && validNewUser(userId);
-      allow update: if isOwner(userId) && validUserUpdate(userId);
+      allow read: if isOwner(userId) && isActiveAccount(userId);
+      allow create: if isOwner(userId) && isActiveAccount(userId) && validNewUser(userId);
+      allow update: if isOwner(userId) && isActiveAccount(userId) && validUserUpdate(userId);
 
       match /notificationDevices/{deviceId} {
-        allow read: if isOwner(userId);
+        allow read: if isOwner(userId) && isActiveAccount(userId);
         allow write: if false;
       }
     }

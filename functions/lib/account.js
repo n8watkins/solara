@@ -78,8 +78,14 @@ async function deleteAccount({ auth, db, req, stripe }) {
   }
 
   const userRef = db.collection('users').doc(identity.uid)
+  const tombstoneRef = db.collection('accountDeletionTombstones').doc(identity.uid)
+  const revokedBefore = Math.floor(Date.now() / 1000)
   const subscriptionId = await db.runTransaction(async transaction => {
     const snapshot = await transaction.get(userRef)
+    transaction.set(tombstoneRef, {
+      revokedBefore,
+      createdAt: new Date(),
+    })
     if (!snapshot.exists) return null
     transaction.set(userRef, { accountDeletionStartedAt: new Date() }, { merge: true })
     return snapshot.data().stripeSubscriptionId

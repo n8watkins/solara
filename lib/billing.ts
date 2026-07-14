@@ -15,10 +15,11 @@ export function isCheckoutConfigured(): boolean {
 export async function createCheckoutUrl(user: User): Promise<string> {
   if (!FUNCTIONS_URL) throw new Error('Checkout is not configured')
   const token = await user.getIdToken(true)
+  const attemptId = crypto.randomUUID()
   const response = await fetch(`${FUNCTIONS_URL}/createCheckoutSession`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: '{}',
+    body: JSON.stringify({ attemptId }),
   })
   const body = await response.json().catch(() => ({}))
   if (!response.ok || typeof body.url !== 'string' || !body.url.startsWith('https://checkout.stripe.com/')) {

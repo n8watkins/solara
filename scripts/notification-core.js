@@ -104,16 +104,8 @@ function claimDecision(delivery, key, options = {}) {
   return { claim: false, reason: 'delivery-unknown' }
 }
 
-const AMBIGUOUS_MESSAGING_CODES = new Set([
-  'messaging/internal-error',
-  'messaging/server-unavailable',
-  'messaging/unknown-error',
-])
-
-function failureCertainty(error) {
-  const code = error?.code
-  if (typeof code !== 'string' || !code.startsWith('messaging/')) return 'unknown'
-  return AMBIGUOUS_MESSAGING_CODES.has(code) ? 'unknown' : 'definite'
+function failureCertainty() {
+  return 'definite'
 }
 
 function buildMessage(user, hourly, dateStr) {

@@ -186,5 +186,29 @@ export async function clearLocalNotificationState(uid: string): Promise<void> {
 
 export function onForegroundMessage(callback: (payload: unknown) => void): () => void {
   const m = getMessagingInstance()
-  return m ? onMessage(m, callback) : () => {}
+  return m ? onMessage(m, payload => {
+    const data = payload.data
+    if (data?.title && data.body && data.deliveryKey && 'serviceWorker' in navigator) {
+      void (async () => {
+        const cache = await caches.open('solara-notification-deliveries-v1')
+        const marker = new Request(`/notification-delivery/${encodeURIComponent(data.deliveryKey)}`)
+        if (await cache.match(marker)) return
+        await cache.put(marker, new Response('shown'))
+        try {
+          const registration = await navigator.serviceWorker.ready
+          await registration.showNotification(data.title, {
+            body: data.body,
+            icon: '/icon-192.png',
+            badge: '/icon-192.png',
+            tag: data.deliveryKey,
+            data: { link: data.link || '/' },
+          })
+        } catch (error) {
+          await cache.delete(marker)
+          throw error
+        }
+      })().catch(error => console.error('Foreground notification error:', error))
+    }
+    callback(payload)
+  }) : () => {}
 }

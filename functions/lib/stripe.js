@@ -1,4 +1,5 @@
 const { authenticate } = require('./account')
+const { createHash } = require('node:crypto')
 
 const ACTIVE_SUBSCRIPTION_STATUSES = new Set(['active', 'trialing'])
 const TERMINAL_SUBSCRIPTION_STATUSES = new Set(['canceled', 'incomplete_expired'])
@@ -12,6 +13,10 @@ const EVENT_PRIORITY = {
 
 function validUid(value) {
   return typeof value === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(value)
+}
+
+function validAttemptId(value) {
+  return typeof value === 'string' && /^[A-Za-z0-9_-]{16,64}$/.test(value)
 }
 
 function stringId(value) {
@@ -200,6 +205,12 @@ async function createCheckout({ appUrl, auth, db, expectedPriceId, req, stripe }
     error.status = 401
     throw error
   }
+  const attemptId = req.body?.attemptId
+  if (!validAttemptId(attemptId)) {
+    const error = new Error('Invalid checkout attempt')
+    error.status = 400
+    throw error
+  }
 
   const userSnapshot = await db.collection('users').doc(identity.uid).get()
   if (!userSnapshot.exists) {
@@ -229,12 +240,9 @@ async function createCheckout({ appUrl, auth, db, expectedPriceId, req, stripe }
     cancel_url: `${appUrl}/?checkout=canceled`,
     allow_promotion_codes: true,
   }, {
-    idempotencyKey: [
-      'checkout',
-      identity.uid,
-      userData.stripeSubscriptionId || 'new',
-      userData.subscriptionStatus || 'none',
-    ].join(':'),
+    idempotencyKey: `checkout:${createHash('sha256')
+      .update(`${identity.uid}\0${expectedPriceId}\0${attemptId}`)
+      .digest('hex')}`,
   })
 }
 
@@ -263,6 +271,7 @@ module.exports = {
   createCheckout,
   processStripeEvent,
   subscriptionHasPrice,
+  validAttemptId,
   validUid,
   validateCheckoutSession,
 }

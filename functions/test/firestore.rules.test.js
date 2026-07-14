@@ -69,6 +69,18 @@ describe('user preferences', () => {
     await assertFails(ref.delete())
   })
 
+  test('a deletion tombstone blocks tokens issued before deletion', async () => {
+    await testEnv.withSecurityRulesDisabled(async context => {
+      await context.firestore().doc('accountDeletionTombstones/alice').set({ revokedBefore: 200 })
+    })
+
+    const stale = testEnv.authenticatedContext('alice', { auth_time: 200 }).firestore()
+    const fresh = testEnv.authenticatedContext('alice', { auth_time: 201 }).firestore()
+    await assertFails(stale.doc('users/alice').set(prefs('alice')))
+    await assertSucceeds(fresh.doc('users/alice').set(prefs('alice')))
+    await assertFails(stale.doc('accountDeletionTombstones/alice').get())
+  })
+
   test('server-owned and unknown fields cannot be created by a client', async () => {
     const db = testEnv.authenticatedContext('alice').firestore()
 

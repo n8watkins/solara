@@ -179,22 +179,12 @@ async function sendSubscription(subscription, now) {
   try {
     await messaging.send({
       token: subscription.token,
-      notification: { title, body },
+      data: { title, body, deliveryKey: key, link: SITE_URL },
       webpush: {
-        notification: {
-          title,
-          body,
-          icon: `${SITE_URL.replace(/\/$/, '')}/icon-192.png`,
-          badge: `${SITE_URL.replace(/\/$/, '')}/icon-192.png`,
-          tag: key,
-          renotify: false,
-          requireInteraction: false,
-        },
-        fcmOptions: { link: SITE_URL },
+        headers: { Urgency: 'high' },
       },
       android: {
         collapseKey: key,
-        notification: { tag: key },
       },
       apns: {
         headers: { 'apns-collapse-id': key },

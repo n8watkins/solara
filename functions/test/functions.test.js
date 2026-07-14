@@ -15,6 +15,7 @@ const {
   createCheckout,
   processStripeEvent,
   subscriptionHasPrice,
+  validAttemptId,
   validUid,
   validateCheckoutSession,
 } = require('../lib/stripe')
@@ -129,6 +130,7 @@ describe('account data security', () => {
       kind: 'user',
       async get() { return { exists: true, data: () => ({ ...userData }) } },
     }
+    const tombstoneRef = { kind: 'tombstone' }
     const db = {
       collection(name) {
         if (name === 'users') return { doc: () => userRef }
@@ -144,6 +146,7 @@ describe('account data security', () => {
         if (name === 'notificationRegistrationLimits') {
           return { doc: () => ({ delete: async () => deleted.push('limit') }) }
         }
+        if (name === 'accountDeletionTombstones') return { doc: () => tombstoneRef }
         throw new Error(`Unexpected collection ${name}`)
       },
       async runTransaction(callback) {
@@ -151,8 +154,12 @@ describe('account data security', () => {
         const result = await callback({
           get: ref => ref.get(),
           set: (ref, data) => writes.push(() => {
-            assert.equal(ref, userRef)
-            Object.assign(userData, data)
+            if (ref === userRef) Object.assign(userData, data)
+            if (ref === tombstoneRef) {
+              assert.equal(Number.isInteger(data.revokedBefore), true)
+              assert.equal(data.createdAt instanceof Date, true)
+              deleted.push('tombstone')
+            }
           }),
         })
         writes.forEach(write => write())
@@ -172,7 +179,7 @@ describe('account data security', () => {
       stripe: { subscriptions: { cancel: async () => {} } },
     })
     assert.equal(userData.accountDeletionStartedAt instanceof Date, true)
-    assert.deepEqual(deleted, ['revoke:alice', 'owner', 'limit', 'user', 'auth:alice'])
+    assert.deepEqual(deleted, ['tombstone', 'revoke:alice', 'owner', 'limit', 'user', 'auth:alice'])
   })
 })
 
@@ -300,6 +307,8 @@ describe('Stripe fulfillment security', () => {
   test('validates Firebase identifiers and configured Stripe products', async () => {
     assert.equal(validUid('firebase_User-1'), true)
     assert.equal(validUid('../users/admin'), false)
+    assert.equal(validAttemptId('12345678-1234-1234-1234-123456789abc'), true)
+    assert.equal(validAttemptId('short'), false)
     await assert.doesNotReject(validateCheckoutSession(stripe, session, 'price_pro'))
     await assert.rejects(
       validateCheckoutSession(stripe, { ...session, metadata: { firebaseUid: 'mallory' } }, 'price_pro'),
@@ -323,7 +332,7 @@ describe('Stripe fulfillment security', () => {
       auth: { verifyIdToken: async () => ({ uid: 'alice', email: 'alice@example.com' }) },
       db: fakeDb({ tier: 'free' }),
       expectedPriceId: 'price_pro',
-      req: { headers: { authorization: 'Bearer valid-token' }, body: { uid: 'mallory' } },
+      req: { headers: { authorization: 'Bearer valid-token' }, body: { uid: 'mallory', attemptId: '12345678-1234-1234-1234-123456789abc' } },
       stripe: { checkout: { sessions: { create: async (value, options) => {
         params = value
         requestOptions = options
@@ -334,7 +343,7 @@ describe('Stripe fulfillment security', () => {
     assert.equal(params.client_reference_id, 'alice')
     assert.deepEqual(params.metadata, { firebaseUid: 'alice' })
     assert.equal(params.line_items[0].price, 'price_pro')
-    assert.equal(requestOptions.idempotencyKey, 'checkout:alice:new:none')
+    assert.match(requestOptions.idempotencyKey, /^checkout:[a-f0-9]{64}$/)
   })
 
   test('creates a billing portal only for the authenticated customer', async () => {
@@ -343,7 +352,7 @@ describe('Stripe fulfillment security', () => {
       appUrl: 'https://example.com',
       auth: { verifyIdToken: async () => ({ uid: 'alice' }) },
       db: fakeDb({ stripeCustomerId: 'cus_123' }),
-      req: { headers: { authorization: 'Bearer valid-token' } },
+      req: { headers: { authorization: 'Bearer valid-token' }, body: { attemptId: '12345678-1234-1234-1234-123456789abc' } },
       stripe: { billingPortal: { sessions: { create: async value => { params = value; return { url: 'https://billing.stripe.com/session/test' } } } } },
     })
     assert.equal(session.url, 'https://billing.stripe.com/session/test')
@@ -362,7 +371,7 @@ describe('Stripe fulfillment security', () => {
       appUrl: 'https://example.com',
       auth: { verifyIdToken: async () => ({ uid: 'alice', email: 'alice@example.com' }) },
       expectedPriceId: 'price_pro',
-      req: { headers: { authorization: 'Bearer valid-token' } },
+      req: { headers: { authorization: 'Bearer valid-token' }, body: { attemptId: '12345678-1234-1234-1234-123456789abc' } },
       stripe: { checkout: { sessions: { create: async params => params } } },
     }
     await assert.rejects(
@@ -431,7 +440,7 @@ describe('Stripe fulfillment security', () => {
       auth: { verifyIdToken: async () => ({ uid: 'alice', email: 'alice@example.com' }) },
       db,
       expectedPriceId: 'price_pro',
-      req: { headers: { authorization: 'Bearer valid-token' } },
+      req: { headers: { authorization: 'Bearer valid-token' }, body: { attemptId: '12345678-1234-1234-1234-123456789abc' } },
       stripe: { checkout: { sessions: { create: async params => params } } },
     }), error => error.status === 409)
 

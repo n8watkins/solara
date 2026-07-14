@@ -43,6 +43,7 @@ describe('authenticated checkout', () => {
       json: async () => ({ url: 'https://checkout.stripe.com/c/pay_test' }),
     })
     vi.stubGlobal('fetch', fetchMock)
+    vi.stubGlobal('crypto', { randomUUID: vi.fn(() => '12345678-1234-1234-1234-123456789abc') })
     const getIdToken = vi.fn().mockResolvedValue('firebase-id-token')
     const { createCheckoutUrl, isCheckoutConfigured } = await freshBilling()
 
@@ -54,6 +55,7 @@ describe('authenticated checkout', () => {
       expect.objectContaining({
         method: 'POST',
         headers: expect.objectContaining({ Authorization: 'Bearer firebase-id-token' }),
+        body: JSON.stringify({ attemptId: '12345678-1234-1234-1234-123456789abc' }),
       }),
     )
   })

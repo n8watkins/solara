@@ -130,10 +130,10 @@ describe('notification delivery claims', () => {
     }, key)).toEqual({ claim: true, retry: false })
   })
 
-  it('classifies provider rejections separately from ambiguous transport failures', () => {
+  it('makes every failed submission retryable because the device deduplicates it', () => {
     expect(failureCertainty({ code: 'messaging/message-rate-exceeded' })).toBe('definite')
-    expect(failureCertainty({ code: 'messaging/server-unavailable' })).toBe('unknown')
-    expect(failureCertainty(new Error('socket closed'))).toBe('unknown')
+    expect(failureCertainty({ code: 'messaging/server-unavailable' })).toBe('definite')
+    expect(failureCertainty(new Error('socket closed'))).toBe('definite')
   })
 
   it('atomically blocks a second sender after the first sender claims the day', async () => {
@@ -178,7 +178,7 @@ describe('notification delivery claims', () => {
     )
 
     expect(definite.state.data.notificationDeliveryStatus).toBe('failed')
-    expect(ambiguous.state.data.notificationDeliveryStatus).toBe('unknown')
+    expect(ambiguous.state.data.notificationDeliveryStatus).toBe('failed')
   })
 })
 
