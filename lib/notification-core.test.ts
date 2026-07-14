@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+/* eslint-disable @typescript-eslint/no-require-imports */
 const {
   buildMessage,
   deliveryDecision,
@@ -10,6 +11,7 @@ const {
   notificationKey,
   runsOnDate,
 } = require('../scripts/notification-core')
+/* eslint-enable @typescript-eslint/no-require-imports */
 
 const hourly = [
   { hour: 6, uv: 1 },
