@@ -80,20 +80,22 @@ effectively **$0** — just attach a billing account and set a budget alert.
 - [ ] FCM: register a token in a real browser, `workflow_dispatch` `notify.yml`, confirm
       delivery. _(Never tested end-to-end — see ROADMAP.)_
 
-## Phase 5 — Monetization (Blaze only)
+## Phase 5 - Monetization and account services (Blaze only)
 
-The webhook is **scaffolded** in `functions/` (`stripeWebhook`); these steps deploy and wire it.
+The `functions/` runtime provides authenticated checkout creation, signed webhook fulfillment, account export and deletion, and the live calendar feed.
 
-- [ ] Create the Stripe **Payment Link**; set `NEXT_PUBLIC_STRIPE_PAYMENT_LINK`.
-- [ ] `cd functions && npm install` (separate runtime; not part of the app's deps).
-- [ ] Set secrets: `firebase functions:secrets:set STRIPE_SECRET_KEY` and
-      `STRIPE_WEBHOOK_SECRET`.
-- [ ] `firebase deploy --only functions` (needs the `functions` block now in
-      `firebase.json`). Register the deployed `stripeWebhook` URL in Stripe; copy the
-      signing secret into `STRIPE_WEBHOOK_SECRET`. Test in Stripe **test mode**.
-- [x] **Tier self-grant is locked** in `firestore.rules`: clients may set any non-paid
-      tier, but only the webhook's Admin SDK may write `tier == 'paid'`. Without this the
-      webhook is pointless (any user could self-upgrade from the console).
+- [ ] Run `npm ci` in `functions/` so deployment uses the committed lockfile.
+- [ ] Create the recurring Stripe Price that represents Solara Pro and record its `price_...` identifier.
+- [ ] Set `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` with `firebase functions:secrets:set`.
+- [ ] Configure `STRIPE_PRICE_ID` with the recurring Price identifier.
+- [ ] Configure `APP_URL` with the exact public browser origin, without a trailing slash.
+- [ ] Deploy Functions and register the `stripeWebhook` URL for `checkout.session.completed`, `customer.subscription.updated`, and `customer.subscription.deleted` events.
+- [ ] Set `NEXT_PUBLIC_FUNCTIONS_URL` to the Functions base URL and rebuild the static site.
+- [ ] Send checkout through `createCheckoutSession` with a fresh Firebase ID token instead of trusting a browser-provided user identifier.
+- [ ] Test checkout, renewal, failed or canceled subscription status, cancellation, account export, and recently reauthenticated account deletion in Stripe test mode.
+- [x] Firestore rules prevent clients from editing entitlement, subscription, and notification delivery state.
+- [x] Webhook processing validates the signature, authenticated account binding, payment state, subscription mode, and configured Stripe Price before granting access.
+- [x] Webhook event markers and entitlement writes commit atomically so duplicate deliveries are idempotent.
 
 ## Phase 7b — Live calendar feed (Blaze only)
 
