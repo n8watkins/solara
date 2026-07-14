@@ -1,3 +1,11 @@
+const {
+  bestWindow,
+  burnMins,
+  effectiveMaxUV,
+  findWindows,
+  runsOn,
+} = require('../functions/lib/recommendation-engine')
+
 function weatherLabel(code) {
   if (code === 0) return 'Clear'
   if (code <= 3) return 'Partly cloudy'
@@ -10,54 +18,6 @@ function fmtHour(hour) {
   if (hour === 12) return '12pm'
   if (hour === 0) return '12am'
   return hour < 12 ? `${hour}am` : `${hour - 12}pm`
-}
-
-function effectiveMaxUV(activity) {
-  const base = activity.maxUV ?? 4
-  return activity.sunscreen ? Math.min(Math.round(base * 2.5), 11) : base
-}
-
-function burnMins(uv, skinType) {
-  const base = { 'very-fair': 10, fair: 15, medium: 25, olive: 35, dark: 50 }
-  if (uv < 0.5) return null
-  return Math.round(((base[skinType] ?? 15) * 10) / uv)
-}
-
-function summarizeWindow(hourly, from, to) {
-  const samples = hourly.filter(sample => sample.hour >= from && sample.hour < to)
-  const peakUV = samples.length ? Math.max(...samples.map(sample => sample.uv)) : 0
-  const avgUV = samples.length
-    ? Math.round((samples.reduce((sum, sample) => sum + sample.uv, 0) / samples.length) * 10) / 10
-    : 0
-  return { from, to, peakUV, avgUV }
-}
-
-function safeWindows(hourly, maxUV, durationMins) {
-  let start = null
-  const windows = []
-
-  for (const { hour, uv } of hourly) {
-    if (uv <= maxUV) {
-      if (start === null) start = hour
-    } else {
-      if (start !== null && (hour - start) * 60 >= durationMins) {
-        windows.push(summarizeWindow(hourly, start, hour))
-      }
-      start = null
-    }
-  }
-
-  if (start !== null && hourly.length) {
-    const last = hourly[hourly.length - 1].hour + 1
-    if ((last - start) * 60 >= durationMins) windows.push(summarizeWindow(hourly, start, last))
-  }
-
-  return windows
-}
-
-function bestWindow(hourly, maxUV, durationMins) {
-  return safeWindows(hourly, maxUV, durationMins)
-    .sort((a, b) => (a.avgUV - b.avgUV) || ((b.to - b.from) - (a.to - a.from)))[0] ?? null
 }
 
 function localParts(now, timezone) {
@@ -95,21 +55,15 @@ function notificationKey(timezone, now = new Date()) {
   return local ? `daily-v2:${local.date}` : null
 }
 
-function runsOnDate(activity, weekday) {
-  return !Array.isArray(activity.daysOfWeek)
-    || activity.daysOfWeek.length === 0
-    || activity.daysOfWeek.includes(weekday)
-}
-
-function buildMessage(user, hourly, weekday = new Date().getDay()) {
-  const activities = (user.activities ?? []).filter(activity => runsOnDate(activity, weekday))
-  const skinType = user.skinType ?? 'fair'
+function buildMessage(user, hourly, dateStr) {
+  const activities = (user.activities ?? []).filter(activity => !dateStr || runsOn(activity, dateStr))
+  const skinType = ['very-fair', 'fair', 'medium', 'olive', 'dark'].includes(user.skinType) ? user.skinType : 'fair'
   const city = user.location?.city ?? 'your area'
   const peakUV = hourly.length ? Math.max(...hourly.map(sample => sample.uv)) : null
 
   for (const activity of activities) {
     const threshold = effectiveMaxUV(activity)
-    const window = bestWindow(hourly, threshold, activity.durationMins ?? 30)
+    const window = bestWindow(hourly, threshold, activity.durationMins ?? 30, activity.preferredHours)
     if (!window) continue
     const burn = burnMins(threshold, skinType)
     return {
@@ -153,7 +107,7 @@ module.exports = {
   localParts,
   mapLimit,
   notificationKey,
-  runsOnDate,
-  safeWindows,
+  runsOnDate: runsOn,
+  safeWindows: findWindows,
   weatherLabel,
 }

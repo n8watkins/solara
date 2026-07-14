@@ -33,9 +33,9 @@ describe('notification scheduling', () => {
   })
 
   it('respects activity weekday restrictions', () => {
-    expect(runsOnDate({ daysOfWeek: [1, 3] }, 1)).toBe(true)
-    expect(runsOnDate({ daysOfWeek: [1, 3] }, 2)).toBe(false)
-    expect(runsOnDate({}, 2)).toBe(true)
+    expect(runsOnDate({ daysOfWeek: [1, 3] }, '2026-07-13')).toBe(true)
+    expect(runsOnDate({ daysOfWeek: [1, 3] }, '2026-07-14')).toBe(false)
+    expect(runsOnDate({}, '2026-07-14')).toBe(true)
   })
 })
 
@@ -45,7 +45,7 @@ describe('notification content', () => {
       location: { city: 'Los Angeles' },
       skinType: 'fair',
       activities: [{ id: 'walk', name: 'Walk', icon: '🚶', maxUV: 2, durationMins: 30, sunscreen: false }],
-    }, hourly, 2)
+    }, hourly, '2026-07-14')
     expect(message.title).toContain('Walk')
     expect(message.body).toContain('Estimated lower-UV window')
     expect(message.body).toContain('Check current conditions')
@@ -55,7 +55,7 @@ describe('notification content', () => {
     const message = buildMessage({
       location: { city: 'Los Angeles' },
       activities: [{ id: 'walk', name: 'Walk', icon: '🚶', maxUV: 2, durationMins: 30, sunscreen: false, daysOfWeek: [1] }],
-    }, hourly, 2)
+    }, hourly, '2026-07-14')
     expect(message.title).toContain('UV planning update')
   })
 })

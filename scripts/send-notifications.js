@@ -96,8 +96,8 @@ async function sendSubscription(subscription, now) {
   if (!DRY_RUN && !FORCE_SEND && !isDue(user, timezone, now)) return { outcome: 'skipped', reason: 'not-due' }
   if (!FORCE_SEND && subscription.lastNotificationKey === key) return { outcome: 'skipped', reason: 'already-sent' }
 
-  const weekday = localParts(now, timezone)?.weekday
-  const { title, body } = buildMessage(user, forecast.hourly, weekday)
+  const local = localParts(now, timezone)
+  const { title, body } = buildMessage(user, forecast.hourly, local?.date)
   if (DRY_RUN) return { outcome: 'dry-run', title, userId: userSnap.id }
 
   try {
