@@ -3,11 +3,10 @@ const { getFirestore, FieldValue } = require('firebase-admin/firestore')
 const { getMessaging } = require('firebase-admin/messaging')
 const {
   buildMessage,
+  deliveryDecision,
   isEligibleUser,
-  isDue,
   localParts,
   mapLimit,
-  notificationKey,
   weatherLabel,
 } = require('./notification-core')
 
@@ -89,10 +88,13 @@ async function sendSubscription(subscription, now) {
 
   const forecast = await fetchHourly(user.location.lat, user.location.lon)
   const timezone = user.location.timezone || forecast.timezone
-  const key = notificationKey(timezone, now)
-  if (!key) return { outcome: 'skipped', reason: 'invalid-timezone' }
-  if (!DRY_RUN && !FORCE_SEND && !isDue(user, timezone, now)) return { outcome: 'skipped', reason: 'not-due' }
-  if (!FORCE_SEND && subscription.lastNotificationKey === key) return { outcome: 'skipped', reason: 'already-sent' }
+  const decision = deliveryDecision(user, timezone, subscription.lastNotificationKey, {
+    dryRun: DRY_RUN,
+    forceSend: FORCE_SEND,
+    now,
+  })
+  if (!decision.deliver) return { outcome: 'skipped', reason: decision.reason }
+  const key = decision.key
 
   const local = localParts(now, timezone)
   const { title, body } = buildMessage(user, forecast.hourly, local?.date)

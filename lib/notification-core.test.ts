@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 const {
   buildMessage,
+  deliveryDecision,
   isDue,
   isEligibleUser,
   localParts,
@@ -43,6 +44,17 @@ describe('notification scheduling', () => {
     expect(isEligibleUser({ tier: 'free', location: { lat: 1, lon: 2 } })).toBe(false)
     expect(isEligibleUser({ tier: 'paid', location: { lat: 1 } })).toBe(false)
     expect(isEligibleUser({ tier: 'paid', location: { lat: 1, lon: 2 } })).toBe(true)
+  })
+
+  it('preserves same-day idempotency during a forced manual run', () => {
+    const now = new Date('2026-07-14T03:00:00Z')
+    const first = deliveryDecision({ notificationHour: 7 }, 'America/Los_Angeles', null, { forceSend: true, now })
+    expect(first.deliver).toBe(true)
+    expect(deliveryDecision({ notificationHour: 7 }, 'America/Los_Angeles', first.key, { forceSend: true, now })).toEqual({
+      deliver: false,
+      reason: 'already-sent',
+      key: first.key,
+    })
   })
 })
 

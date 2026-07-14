@@ -61,6 +61,17 @@ function isEligibleUser(user) {
     && typeof user.location?.lon === 'number'
 }
 
+function deliveryDecision(user, timezone, lastNotificationKey, options = {}) {
+  const now = options.now || new Date()
+  const key = notificationKey(timezone, now)
+  if (!key) return { deliver: false, reason: 'invalid-timezone', key: null }
+  if (lastNotificationKey === key) return { deliver: false, reason: 'already-sent', key }
+  if (!options.dryRun && !options.forceSend && !isDue(user, timezone, now)) {
+    return { deliver: false, reason: 'not-due', key }
+  }
+  return { deliver: true, key }
+}
+
 function buildMessage(user, hourly, dateStr) {
   const activities = (user.activities ?? []).filter(activity => !dateStr || runsOn(activity, dateStr))
   const skinType = ['very-fair', 'fair', 'medium', 'olive', 'dark'].includes(user.skinType) ? user.skinType : 'fair'
@@ -107,6 +118,7 @@ module.exports = {
   bestWindow,
   buildMessage,
   burnMins,
+  deliveryDecision,
   effectiveMaxUV,
   fmtHour,
   isDue,
