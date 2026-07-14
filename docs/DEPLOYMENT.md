@@ -49,8 +49,8 @@ Never put a Stripe secret, Firebase service-account JSON, webhook secret, or OAu
 Add the required client variables above as repository secrets.
 Also add `FIREBASE_SERVICE_ACCOUNT` as the complete JSON for a narrowly scoped deployment and notification service account.
 The workflows currently use that credential to deploy Hosting and Firestore rules and to access notification data.
-Set the repository variable `FIREBASE_FUNCTIONS_ENABLED=true` only after the project is on Blaze, both Stripe secrets exist in Firebase Secret Manager, and `STRIPE_PRICE_ID` is configured as a GitHub secret.
-With the variable enabled, the main deployment also deploys Functions using `NEXT_PUBLIC_SITE_URL` as `APP_URL`.
+Before enabling the main deployment, put the project on Blaze, configure both Stripe secrets in Firebase Secret Manager, and configure `STRIPE_PRICE_ID` as a GitHub secret.
+The main deployment always deploys Functions using `NEXT_PUBLIC_SITE_URL` as `APP_URL` before it deploys Hosting.
 
 The `main` deployment is blocked until lint, typecheck, app and Functions unit tests, Firestore emulator rules tests, production build, and browser smoke tests pass.
 Pull requests and non-main pushes run the same quality checks without deploying.

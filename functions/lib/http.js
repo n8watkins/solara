@@ -5,7 +5,7 @@ function handleCors(req, res, allowedOrigin, methods) {
     res.set('Vary', 'Origin')
   }
   if (req.method === 'OPTIONS') {
-    res.set('Access-Control-Allow-Headers', 'Authorization, Content-Type')
+    res.set('Access-Control-Allow-Headers', 'Authorization, Content-Type, X-Firebase-AppCheck')
     res.set('Access-Control-Allow-Methods', methods.join(', '))
     res.set('Access-Control-Max-Age', '3600')
     res.status(origin && origin !== allowedOrigin ? 403 : 204).send('')

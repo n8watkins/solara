@@ -162,14 +162,23 @@ describe('browser API CORS', () => {
   test('allows preflight only from the configured app origin', () => {
     const allowed = responseRecorder()
     assert.equal(handleCors(
-      { method: 'OPTIONS', headers: { origin: 'https://app.example.com' } },
+      {
+        method: 'OPTIONS',
+        headers: {
+          origin: 'https://app.example.com',
+          'access-control-request-headers': 'authorization,content-type,x-firebase-appcheck',
+        },
+      },
       allowed,
       'https://app.example.com',
       ['POST'],
     ), true)
     assert.equal(allowed.statusCode, 204)
     assert.equal(allowed.headers['Access-Control-Allow-Origin'], 'https://app.example.com')
-    assert.equal(allowed.headers['Access-Control-Allow-Headers'], 'Authorization, Content-Type')
+    assert.equal(
+      allowed.headers['Access-Control-Allow-Headers'],
+      'Authorization, Content-Type, X-Firebase-AppCheck',
+    )
     assert.equal(allowed.headers['Access-Control-Allow-Methods'], 'POST')
 
     const denied = responseRecorder()

@@ -102,7 +102,6 @@ jobs:
         run: npm ci
 
       - name: Install Functions dependencies
-        if: vars.FIREBASE_FUNCTIONS_ENABLED == 'true'
         run: npm ci --prefix functions
 
       - name: Build
@@ -139,7 +138,6 @@ jobs:
           FIREBASE_PROJECT_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
 
       - name: Deploy Firebase Functions
-        if: vars.FIREBASE_FUNCTIONS_ENABLED == 'true'
         run: |
           printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
           export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"

@@ -34,7 +34,7 @@ The release is not complete until the automated gates and relevant real-service 
 - [ ] Confirm the frontend and backend jobs pass every automated quality gate.
 - [ ] Confirm the Hosting deployment succeeds.
 - [ ] Confirm the Firestore rules deployment succeeds.
-- [ ] Confirm Functions deploy when `FIREBASE_FUNCTIONS_ENABLED=true`, or record why the backend remains gated off.
+- [ ] Confirm the Functions deployment succeeds before the Hosting deployment starts.
 - [ ] Record the deployed commit and Firebase release.
 
 ## 4. Production smoke test
