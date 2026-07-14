@@ -61,6 +61,14 @@ describe('user preferences', () => {
     await assertFails(ref.delete())
   })
 
+  test('account deletion must use the recursive server endpoint', async () => {
+    await testEnv.withSecurityRulesDisabled(async context => {
+      await context.firestore().doc('users/alice').set(prefs('alice'))
+    })
+    const ref = testEnv.authenticatedContext('alice').firestore().doc('users/alice')
+    await assertFails(ref.delete())
+  })
+
   test('server-owned and unknown fields cannot be created by a client', async () => {
     const db = testEnv.authenticatedContext('alice').firestore()
 
