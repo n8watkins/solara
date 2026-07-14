@@ -20,26 +20,12 @@ jobs:
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: |
-            package-lock.json
-            functions/package-lock.json
-
-      - uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: 21
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Install Functions dependencies
-        run: npm ci --prefix functions
-
       - name: Audit dependencies
         run: npm audit --audit-level=high
-
-      - name: Audit Functions dependencies
-        run: npm audit --prefix functions --audit-level=high
 
       - name: Lint
         run: npm run lint
@@ -49,12 +35,6 @@ jobs:
 
       - name: Unit tests
         run: npm test
-
-      - name: Functions tests
-        run: npm test --prefix functions
-
-      - name: Firestore rules tests
-        run: npm run test:rules --prefix functions
 
       - name: Production build
         run: npm run build
@@ -73,3 +53,33 @@ jobs:
           path: playwright-report/
           if-no-files-found: ignore
           retention-days: 7
+
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install Functions dependencies
+        run: npm ci --prefix functions
+
+      - name: Audit Functions dependencies
+        run: npm audit --prefix functions --audit-level=high
+
+      - name: Functions tests
+        run: npm test --prefix functions
+
+      - name: Firestore rules tests
+        run: npm run test:rules --prefix functions
