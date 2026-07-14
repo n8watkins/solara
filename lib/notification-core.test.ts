@@ -14,7 +14,7 @@ const {
   notificationKey,
   runsOnDate,
 } = require('../scripts/notification-core')
-const { claimDelivery, recordDeliveryFailure } = require('../scripts/send-notifications')
+const { claimDelivery, notificationScope, recordDeliveryFailure } = require('../scripts/send-notifications')
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const hourly = [
@@ -38,6 +38,13 @@ function makeDeliveryDatabase(initial: Record<string, unknown>) {
 }
 
 describe('notification scheduling', () => {
+  it('uses opaque account-specific delivery scopes', () => {
+    expect(notificationScope('user-1')).toMatch(/^[A-Za-z0-9_-]{22}$/)
+    expect(notificationScope('user-1')).toBe(notificationScope('user-1'))
+    expect(notificationScope('user-1')).not.toBe(notificationScope('user-2'))
+    expect(notificationScope('user-1')).not.toContain('user-1')
+  })
+
   it('evaluates the configured morning hour in the user timezone', () => {
     const now = new Date('2026-07-14T14:15:00Z')
     expect(isDue({ notificationHour: 7 }, 'America/Los_Angeles', now)).toBe(true)

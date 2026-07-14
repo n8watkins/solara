@@ -21,11 +21,12 @@ const messaging = firebase.messaging()
 const DELIVERY_CACHE = 'solara-notification-deliveries-v1'
 
 messaging.onBackgroundMessage(async payload => {
-  const { title, body, deliveryKey, link } = payload.data || {}
-  if (!title || !body || !deliveryKey) return
+  const { title, body, deliveryKey, deliveryScope, link } = payload.data || {}
+  if (!title || !body || !deliveryKey || !deliveryScope) return
 
   const cache = await caches.open(DELIVERY_CACHE)
-  const marker = new Request('/notification-delivery/' + encodeURIComponent(deliveryKey))
+  const scopedKey = deliveryScope + ':' + deliveryKey
+  const marker = new Request('/notification-delivery/' + encodeURIComponent(scopedKey))
   if (await cache.match(marker)) return
   await cache.put(marker, new Response('shown'))
   try {
@@ -33,7 +34,7 @@ messaging.onBackgroundMessage(async payload => {
       body,
       icon: '/icon-192.png',
       badge: '/icon-192.png',
-      tag: deliveryKey,
+      tag: scopedKey,
       renotify: false,
       requireInteraction: false,
       data: { link: link || '/' },

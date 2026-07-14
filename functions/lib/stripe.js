@@ -3,6 +3,7 @@ const { createHash } = require('node:crypto')
 
 const ACTIVE_SUBSCRIPTION_STATUSES = new Set(['active', 'trialing'])
 const TERMINAL_SUBSCRIPTION_STATUSES = new Set(['canceled', 'incomplete_expired'])
+const CHECKOUT_RESERVATION_MS = 24 * 60 * 60 * 1000
 const EVENT_PRIORITY = {
   'checkout.session.completed': 0,
   'checkout.session.async_payment_succeeded': 1,
@@ -22,6 +23,29 @@ function validAttemptId(value) {
 function stringId(value) {
   if (typeof value === 'string') return value
   return value && typeof value.id === 'string' ? value.id : null
+}
+
+function dateMillis(value) {
+  if (value instanceof Date) return value.getTime()
+  if (value && typeof value.toMillis === 'function') return value.toMillis()
+  return NaN
+}
+
+async function listCustomerSubscriptions(stripe, customerId) {
+  const subscriptions = []
+  let startingAfter
+  do {
+    const page = await stripe.subscriptions.list({
+      customer: customerId,
+      status: 'all',
+      limit: 100,
+      ...(startingAfter ? { starting_after: startingAfter } : {}),
+    })
+    subscriptions.push(...page.data)
+    startingAfter = page.has_more ? stringId(page.data.at(-1)) : null
+    if (page.has_more && !startingAfter) throw new Error('Stripe subscription pagination was incomplete')
+  } while (startingAfter)
+  return subscriptions
 }
 
 function subscriptionHasPrice(subscription, expectedPriceId) {
@@ -212,38 +236,90 @@ async function createCheckout({ appUrl, auth, db, expectedPriceId, req, stripe }
     throw error
   }
 
-  const userSnapshot = await db.collection('users').doc(identity.uid).get()
-  if (!userSnapshot.exists) {
-    const error = new Error('Account does not exist')
-    error.status = 404
-    throw error
-  }
-  const userData = userSnapshot.data()
-  if (userData.stripeSubscriptionId
-    && !TERMINAL_SUBSCRIPTION_STATUSES.has(userData.subscriptionStatus)) {
-    const error = new Error('Account already has a subscription')
-    error.status = 409
-    throw error
-  }
+  const userRef = db.collection('users').doc(identity.uid)
+  const now = Date.now()
+  const userData = await db.runTransaction(async transaction => {
+    const snapshot = await transaction.get(userRef)
+    if (!snapshot.exists) {
+      const error = new Error('Account does not exist')
+      error.status = 404
+      throw error
+    }
+    const current = snapshot.data()
+    if (current.stripeSubscriptionId
+      && !TERMINAL_SUBSCRIPTION_STATUSES.has(current.subscriptionStatus)) {
+      const error = new Error('Account already has a subscription')
+      error.status = 409
+      throw error
+    }
+    const reservedBy = current.stripeCheckoutAttemptId
+    const reservedUntil = dateMillis(current.stripeCheckoutReservedUntil)
+    if (reservedBy && reservedBy !== attemptId && reservedUntil > now) {
+      const error = new Error('Checkout is already in progress')
+      error.status = 409
+      throw error
+    }
+    transaction.set(userRef, {
+      stripeCheckoutAttemptId: attemptId,
+      stripeCheckoutReservedUntil: new Date(now + CHECKOUT_RESERVATION_MS),
+      stripeCheckoutStatus: 'creating',
+    }, { merge: true })
+    return current
+  })
+
+  const releaseReservation = async () => db.runTransaction(async transaction => {
+    const snapshot = await transaction.get(userRef)
+    if (!snapshot.exists || snapshot.data().stripeCheckoutAttemptId !== attemptId) return
+    transaction.set(userRef, {
+      stripeCheckoutAttemptId: null,
+      stripeCheckoutReservedUntil: null,
+      stripeCheckoutStatus: 'failed',
+    }, { merge: true })
+  })
 
   const customer = typeof userData.stripeCustomerId === 'string' && userData.stripeCustomerId
     ? { customer: userData.stripeCustomerId }
     : { customer_email: identity.email }
-  return stripe.checkout.sessions.create({
-    mode: 'subscription',
-    line_items: [{ price: expectedPriceId, quantity: 1 }],
-    client_reference_id: identity.uid,
-    ...customer,
-    metadata: { firebaseUid: identity.uid },
-    subscription_data: { metadata: { firebaseUid: identity.uid } },
-    success_url: `${appUrl}/?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${appUrl}/?checkout=canceled`,
-    allow_promotion_codes: true,
-  }, {
-    idempotencyKey: `checkout:${createHash('sha256')
-      .update(`${identity.uid}\0${expectedPriceId}\0${attemptId}`)
-      .digest('hex')}`,
-  })
+  try {
+    if (customer.customer) {
+      const subscriptions = await listCustomerSubscriptions(stripe, customer.customer)
+      if (subscriptions.some(subscription => !TERMINAL_SUBSCRIPTION_STATUSES.has(subscription.status))) {
+        const error = new Error('Account already has a subscription')
+        error.status = 409
+        throw error
+      }
+    }
+    const session = await stripe.checkout.sessions.create({
+      mode: 'subscription',
+      line_items: [{ price: expectedPriceId, quantity: 1 }],
+      client_reference_id: identity.uid,
+      ...customer,
+      metadata: { firebaseUid: identity.uid },
+      subscription_data: { metadata: { firebaseUid: identity.uid } },
+      success_url: `${appUrl}/?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${appUrl}/?checkout=canceled`,
+      allow_promotion_codes: true,
+    }, {
+      idempotencyKey: `checkout:${createHash('sha256')
+        .update(`${identity.uid}\0${expectedPriceId}\0${attemptId}`)
+        .digest('hex')}`,
+    })
+    await db.runTransaction(async transaction => {
+      const snapshot = await transaction.get(userRef)
+      if (!snapshot.exists || snapshot.data().stripeCheckoutAttemptId !== attemptId) return
+      transaction.set(userRef, {
+        stripeCheckoutSessionId: session.id,
+        stripeCheckoutStatus: 'pending',
+        stripeCheckoutReservedUntil: Number.isFinite(session.expires_at)
+          ? new Date(session.expires_at * 1000)
+          : new Date(now + CHECKOUT_RESERVATION_MS),
+      }, { merge: true })
+    })
+    return session
+  } catch (error) {
+    await releaseReservation()
+    throw error
+  }
 }
 
 async function createBillingPortal({ appUrl, auth, db, req, stripe }) {
@@ -269,6 +345,7 @@ async function createBillingPortal({ appUrl, auth, db, req, stripe }) {
 module.exports = {
   createBillingPortal,
   createCheckout,
+  listCustomerSubscriptions,
   processStripeEvent,
   subscriptionHasPrice,
   validAttemptId,

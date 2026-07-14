@@ -1,7 +1,7 @@
 const { initializeApp, cert } = require('firebase-admin/app')
 const { getFirestore, FieldValue } = require('firebase-admin/firestore')
 const { getMessaging } = require('firebase-admin/messaging')
-const { randomUUID } = require('node:crypto')
+const { createHash, randomUUID } = require('node:crypto')
 const {
   buildMessage,
   claimDecision,
@@ -30,6 +30,10 @@ const DEAD_TOKEN_CODES = new Set([
 let db
 let messaging
 const forecastCache = new Map()
+
+function notificationScope(uid) {
+  return createHash('sha256').update(`solara-notification:${uid}`).digest('base64url').slice(0, 22)
+}
 
 function forecastCacheKey(lat, lon) {
   return `${Number(lat).toFixed(2)},${Number(lon).toFixed(2)}`
@@ -179,7 +183,7 @@ async function sendSubscription(subscription, now) {
   try {
     await messaging.send({
       token: subscription.token,
-      data: { title, body, deliveryKey: key, link: SITE_URL },
+      data: { title, body, deliveryKey: key, deliveryScope: notificationScope(userSnap.id), link: SITE_URL },
       webpush: {
         headers: { Urgency: 'high' },
       },
@@ -242,6 +246,7 @@ module.exports = {
   fetchHourly,
   finishDelivery,
   loadSubscriptions,
+  notificationScope,
   recordDeliveryFailure,
   sendSubscription,
 }

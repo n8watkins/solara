@@ -181,6 +181,56 @@ describe('account data security', () => {
     assert.equal(userData.accountDeletionStartedAt instanceof Date, true)
     assert.deepEqual(deleted, ['tombstone', 'revoke:alice', 'owner', 'limit', 'user', 'auth:alice'])
   })
+
+  test('cancels every live legacy customer subscription before deleting the account', async () => {
+    const canceled = []
+    const userData = { stripeCustomerId: 'cus_legacy' }
+    const userRef = {
+      async get() { return { exists: true, data: () => ({ ...userData }) } },
+    }
+    const db = {
+      collection(name) {
+        if (name === 'users') return { doc: () => userRef }
+        if (name === 'accountDeletionTombstones') return { doc: () => ({}) }
+        if (name === 'notificationTokenOwners') {
+          return { where: () => ({ get: async () => ({ docs: [] }) }) }
+        }
+        if (name === 'notificationRegistrationLimits') {
+          return { doc: () => ({ delete: async () => {} }) }
+        }
+        throw new Error(`Unexpected collection ${name}`)
+      },
+      async runTransaction(callback) {
+        return callback({
+          get: ref => ref.get(),
+          set: () => {},
+        })
+      },
+      async recursiveDelete() {},
+    }
+    const auth = {
+      verifyIdToken: async () => ({ uid: 'alice', auth_time: Math.floor(Date.now() / 1000) }),
+      revokeRefreshTokens: async () => {},
+      deleteUser: async () => {},
+    }
+    await deleteAccount({
+      auth,
+      db,
+      req: { headers: { authorization: 'Bearer valid' }, body: { confirmation: 'DELETE' } },
+      stripe: { subscriptions: {
+        list: async params => {
+          assert.equal(params.customer, 'cus_legacy')
+          return { data: [
+            { id: 'sub_active', status: 'active' },
+            { id: 'sub_past_due', status: 'past_due' },
+            { id: 'sub_canceled', status: 'canceled' },
+          ], has_more: false }
+        },
+        cancel: async id => canceled.push(id),
+      } },
+    })
+    assert.deepEqual(canceled, ['sub_active', 'sub_past_due'])
+  })
 })
 
 describe('browser API CORS', () => {
@@ -372,7 +422,10 @@ describe('Stripe fulfillment security', () => {
       auth: { verifyIdToken: async () => ({ uid: 'alice', email: 'alice@example.com' }) },
       expectedPriceId: 'price_pro',
       req: { headers: { authorization: 'Bearer valid-token' }, body: { attemptId: '12345678-1234-1234-1234-123456789abc' } },
-      stripe: { checkout: { sessions: { create: async params => params } } },
+      stripe: {
+        checkout: { sessions: { create: async params => params } },
+        subscriptions: { list: async () => ({ data: [], has_more: false }) },
+      },
     }
     await assert.rejects(
       createCheckout({
@@ -392,6 +445,55 @@ describe('Stripe fulfillment security', () => {
     })
     assert.equal(checkout.customer, 'cus_123')
     assert.equal(checkout.customer_email, undefined)
+  })
+
+  test('blocks concurrent checkout attempts before either webhook arrives', async () => {
+    const db = fakeDb({ tier: 'free' })
+    let finishFirst
+    const firstCreated = new Promise(resolve => { finishFirst = resolve })
+    let creationStarted
+    const started = new Promise(resolve => { creationStarted = resolve })
+    const options = {
+      appUrl: 'https://example.com',
+      auth: { verifyIdToken: async () => ({ uid: 'alice', email: 'alice@example.com' }) },
+      db,
+      expectedPriceId: 'price_pro',
+      stripe: { checkout: { sessions: { create: async () => {
+        creationStarted()
+        await firstCreated
+        return { id: 'cs_first', url: 'https://checkout.stripe.com/first' }
+      } } } },
+    }
+    const first = createCheckout({
+      ...options,
+      req: { headers: { authorization: 'Bearer valid-token' }, body: { attemptId: '12345678-1234-1234-1234-123456789abc' } },
+    })
+    await started
+    await assert.rejects(createCheckout({
+      ...options,
+      req: { headers: { authorization: 'Bearer valid-token' }, body: { attemptId: 'abcdefab-1234-1234-1234-123456789abc' } },
+    }), error => error.status === 409)
+    finishFirst()
+    await first
+  })
+
+  test('rejects a legacy customer with a live Stripe subscription', async () => {
+    let created = false
+    await assert.rejects(createCheckout({
+      appUrl: 'https://example.com',
+      auth: { verifyIdToken: async () => ({ uid: 'alice', email: 'alice@example.com' }) },
+      db: fakeDb({ stripeCustomerId: 'cus_legacy', tier: 'free' }),
+      expectedPriceId: 'price_pro',
+      req: { headers: { authorization: 'Bearer valid-token' }, body: { attemptId: '12345678-1234-1234-1234-123456789abc' } },
+      stripe: {
+        checkout: { sessions: { create: async () => { created = true } } },
+        subscriptions: { list: async () => ({
+          data: [{ id: 'sub_legacy', status: 'past_due' }],
+          has_more: false,
+        }) },
+      },
+    }), error => error.status === 409)
+    assert.equal(created, false)
   })
 
   test('grants paid tier once for a valid completed checkout event', async () => {
@@ -441,7 +543,10 @@ describe('Stripe fulfillment security', () => {
       db,
       expectedPriceId: 'price_pro',
       req: { headers: { authorization: 'Bearer valid-token' }, body: { attemptId: '12345678-1234-1234-1234-123456789abc' } },
-      stripe: { checkout: { sessions: { create: async params => params } } },
+      stripe: {
+        checkout: { sessions: { create: async params => params } },
+        subscriptions: { list: async () => ({ data: [], has_more: false }) },
+      },
     }), error => error.status === 409)
 
     await processStripeEvent({

@@ -11,6 +11,7 @@ describe('Firebase messaging service worker', () => {
       expect(source).toContain('caches.open(')
       expect(source).toContain('cache.match(marker)')
       expect(source).toContain('cache.put(marker')
+      expect(source).toContain("deliveryScope + ':' + deliveryKey")
       expect(source).toContain('showNotification(')
       expect(source).toContain('onBackgroundMessage(')
     }

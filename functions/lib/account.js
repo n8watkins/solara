@@ -4,6 +4,24 @@ const SENSITIVE_EXPORT_FIELDS = new Set([
   'stripeCustomerId',
   'stripeSubscriptionId',
 ])
+const TERMINAL_SUBSCRIPTION_STATUSES = new Set(['canceled', 'incomplete_expired'])
+
+async function listCustomerSubscriptions(stripe, customerId) {
+  const subscriptions = []
+  let startingAfter
+  do {
+    const page = await stripe.subscriptions.list({
+      customer: customerId,
+      status: 'all',
+      limit: 100,
+      ...(startingAfter ? { starting_after: startingAfter } : {}),
+    })
+    subscriptions.push(...page.data)
+    startingAfter = page.has_more ? page.data.at(-1)?.id : null
+    if (page.has_more && !startingAfter) throw new Error('Stripe subscription pagination was incomplete')
+  } while (startingAfter)
+  return subscriptions
+}
 
 async function authenticate(auth, authorization, options = {}) {
   const match = (authorization || '').match(/^Bearer (.+)$/)
@@ -80,17 +98,33 @@ async function deleteAccount({ auth, db, req, stripe }) {
   const userRef = db.collection('users').doc(identity.uid)
   const tombstoneRef = db.collection('accountDeletionTombstones').doc(identity.uid)
   const revokedBefore = Math.floor(Date.now() / 1000)
-  const subscriptionId = await db.runTransaction(async transaction => {
+  const billing = await db.runTransaction(async transaction => {
     const snapshot = await transaction.get(userRef)
     transaction.set(tombstoneRef, {
       revokedBefore,
       createdAt: new Date(),
     })
-    if (!snapshot.exists) return null
+    if (!snapshot.exists) return {}
     transaction.set(userRef, { accountDeletionStartedAt: new Date() }, { merge: true })
-    return snapshot.data().stripeSubscriptionId
+    return {
+      customerId: snapshot.data().stripeCustomerId,
+      subscriptionId: snapshot.data().stripeSubscriptionId,
+    }
   })
-  if (typeof subscriptionId === 'string' && subscriptionId) {
+  const subscriptionIds = new Set()
+  if (typeof billing.subscriptionId === 'string' && billing.subscriptionId) {
+    subscriptionIds.add(billing.subscriptionId)
+  }
+  if (typeof billing.customerId === 'string' && billing.customerId) {
+    const subscriptions = await listCustomerSubscriptions(stripe, billing.customerId)
+    for (const subscription of subscriptions) {
+      if (typeof subscription.id === 'string'
+        && !TERMINAL_SUBSCRIPTION_STATUSES.has(subscription.status)) {
+        subscriptionIds.add(subscription.id)
+      }
+    }
+  }
+  for (const subscriptionId of subscriptionIds) {
     try {
       await stripe.subscriptions.cancel(subscriptionId)
     } catch (error) {

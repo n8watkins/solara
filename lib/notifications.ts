@@ -188,10 +188,11 @@ export function onForegroundMessage(callback: (payload: unknown) => void): () =>
   const m = getMessagingInstance()
   return m ? onMessage(m, payload => {
     const data = payload.data
-    if (data?.title && data.body && data.deliveryKey && 'serviceWorker' in navigator) {
+    if (data?.title && data.body && data.deliveryKey && data.deliveryScope && 'serviceWorker' in navigator) {
       void (async () => {
         const cache = await caches.open('solara-notification-deliveries-v1')
-        const marker = new Request(`/notification-delivery/${encodeURIComponent(data.deliveryKey)}`)
+        const scopedKey = `${data.deliveryScope}:${data.deliveryKey}`
+        const marker = new Request(`/notification-delivery/${encodeURIComponent(scopedKey)}`)
         if (await cache.match(marker)) return
         await cache.put(marker, new Response('shown'))
         try {
@@ -200,7 +201,7 @@ export function onForegroundMessage(callback: (payload: unknown) => void): () =>
             body: data.body,
             icon: '/icon-192.png',
             badge: '/icon-192.png',
-            tag: data.deliveryKey,
+            tag: scopedKey,
             data: { link: data.link || '/' },
           })
         } catch (error) {
