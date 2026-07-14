@@ -22,12 +22,26 @@ jobs:
         with:
           node-version: 24
           cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            functions/package-lock.json
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
 
       - name: Install dependencies
         run: npm ci
 
+      - name: Install Functions dependencies
+        run: npm ci --prefix functions
+
       - name: Audit dependencies
         run: npm audit --audit-level=high
+
+      - name: Audit Functions dependencies
+        run: npm audit --prefix functions --audit-level=high
 
       - name: Lint
         run: npm run lint
@@ -37,6 +51,12 @@ jobs:
 
       - name: Unit tests
         run: npm test
+
+      - name: Functions tests
+        run: npm test --prefix functions
+
+      - name: Firestore rules tests
+        run: npm run test:rules --prefix functions
 
       - name: Production build
         run: npm run build
@@ -67,9 +87,16 @@ jobs:
         with:
           node-version: 24
           cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            functions/package-lock.json
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Install Functions dependencies
+        if: vars.FIREBASE_FUNCTIONS_ENABLED == 'true'
+        run: npm ci --prefix functions
 
       - name: Build
         run: npm run build
@@ -81,12 +108,12 @@ jobs:
           NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
           NEXT_PUBLIC_FIREBASE_APP_ID:             ${{ secrets.NEXT_PUBLIC_FIREBASE_APP_ID }}
           NEXT_PUBLIC_FIREBASE_VAPID_KEY:          ${{ secrets.NEXT_PUBLIC_FIREBASE_VAPID_KEY }}
-          # Static export bakes NEXT_PUBLIC_* at build time — anything missing here is
+          NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY: ${{ secrets.NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY }}
+          # Static export bakes NEXT_PUBLIC_* at build time. Anything missing here is
           # dead in the deployed bundle, even if the secret exists. These are optional
           # flip-ons (OG images, monetization, calendar); empty is fine and keeps the
           # corresponding UI gated off.
           NEXT_PUBLIC_SITE_URL:                    ${{ secrets.NEXT_PUBLIC_SITE_URL }}
-          NEXT_PUBLIC_STRIPE_PAYMENT_LINK:         ${{ secrets.NEXT_PUBLIC_STRIPE_PAYMENT_LINK }}
           NEXT_PUBLIC_PRO_PRICE:                   ${{ secrets.NEXT_PUBLIC_PRO_PRICE }}
           NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID:      ${{ secrets.NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID }}
           NEXT_PUBLIC_FUNCTIONS_URL:               ${{ secrets.NEXT_PUBLIC_FUNCTIONS_URL }}
@@ -111,3 +138,16 @@ jobs:
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           FIREBASE_PROJECT_ID:      ${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
+
+      - name: Deploy Firebase Functions
+        if: vars.FIREBASE_FUNCTIONS_ENABLED == 'true'
+        run: |
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          npx --yes firebase-tools@15 deploy --only functions \
+            --project "$FIREBASE_PROJECT_ID" --non-interactive
+        env:
+          APP_URL:                  ${{ secrets.NEXT_PUBLIC_SITE_URL }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FIREBASE_PROJECT_ID:      ${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
+          STRIPE_PRICE_ID:          ${{ secrets.STRIPE_PRICE_ID }}
