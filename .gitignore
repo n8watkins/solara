@@ -3,6 +3,8 @@
 node_modules/
 .next/
 out/
+playwright-report/
+test-results/
 .DS_Store
 *.log
 *.tsbuildinfo
