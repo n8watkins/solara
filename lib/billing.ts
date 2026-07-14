@@ -45,7 +45,8 @@ export async function createBillingPortalUrl(user: User): Promise<string> {
 }
 
 export type CheckoutResult =
-  | { status: 'waiting' | 'pending' }
+  | { status: 'waiting' }
+  | { status: 'pending' }
   | { status: 'succeeded'; prefs: UserPreferences }
   | { status: 'failed' }
 
