@@ -39,7 +39,7 @@ Optional feature activation:
 - `NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID` enables Google Calendar access.
 - `NEXT_PUBLIC_PRO_PRICE` controls the displayed Pro price.
 - `NEXT_PUBLIC_FUNCTIONS_URL` enables Function-backed product surfaces.
-- `NEXT_PUBLIC_GA_MEASUREMENT_ID` enables GA4 when it matches a valid `G-*` measurement ID.
+- `NEXT_PUBLIC_GA_MEASUREMENT_ID` offers an explicit analytics choice and loads GA4 only after the visitor opts in.
 
 All `NEXT_PUBLIC_*` variables are public and compiled into the browser bundle.
 Never put a Stripe secret, Firebase service-account JSON, webhook secret, or OAuth client secret in a `NEXT_PUBLIC_*` variable.

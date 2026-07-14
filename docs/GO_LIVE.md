@@ -23,6 +23,7 @@ The release is not complete until the automated gates and relevant real-service 
 - [ ] Confirm `FIREBASE_SERVICE_ACCOUNT` is valid and narrowly scoped.
 - [ ] Confirm the production domain is an authorized Firebase Authentication domain.
 - [ ] Confirm the VAPID key is present when notifications are enabled.
+- [ ] Confirm App Check registration is monitored before enabling enforcement.
 - [ ] Confirm optional Calendar, Stripe, Functions, and analytics variables match the features being released.
 - [ ] Confirm Firestore indexes and rules are ready for the new code.
 - [ ] Confirm a Firebase billing budget alert exists before deploying Functions.
@@ -30,10 +31,10 @@ The release is not complete until the automated gates and relevant real-service 
 ## 3. Deploy
 
 - [ ] Push the reviewed commits to `main`.
-- [ ] Confirm the `quality` job passes lint, typecheck, unit tests, build, and browser smoke tests.
+- [ ] Confirm the frontend and backend jobs pass every automated quality gate.
 - [ ] Confirm the Hosting deployment succeeds.
 - [ ] Confirm the Firestore rules deployment succeeds.
-- [ ] Deploy Functions separately when backend code or configuration changed.
+- [ ] Confirm Functions deploy when `FIREBASE_FUNCTIONS_ENABLED=true`, or record why the backend remains gated off.
 - [ ] Record the deployed commit and Firebase release.
 
 ## 4. Production smoke test

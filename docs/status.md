@@ -9,7 +9,7 @@ Google sign-in is required before users can reach the personalized dashboard.
 Firestore stores account preferences, and trusted backend paths are responsible for billing entitlements and notification delivery state.
 
 The repository includes unit coverage for the core planning modules and credential-free Playwright coverage for the welcome and onboarding flow on desktop and mobile Chromium.
-CI runs dependency audit, lint, typecheck, unit tests, production build, and browser smoke tests before a production deploy can begin.
+CI runs frontend and backend dependency audits, lint, typecheck, app and Functions tests, Firestore emulator rules tests, production build, and browser smoke tests before a production deploy can begin.
 
 ## Feature activation state
 
@@ -19,22 +19,25 @@ CI runs dependency audit, lint, typecheck, unit tests, production build, and bro
 | Google sign-in and Firestore sync | Built | Requires Firebase configuration and authorized domains |
 | Push notifications | Built with scheduled dispatcher | Requires VAPID, service account, eligible test account, and real-device verification |
 | Google Calendar | Built behind configuration | Requires OAuth client provisioning and live consent testing |
-| Stripe Pro fulfillment | Backend integration required at deploy time | Requires Blaze, Stripe test keys, webhook registration, and signed event tests |
+| Stripe Pro fulfillment | Built behind authenticated Functions | Requires Blaze, Stripe test keys, webhook registration, and signed event tests |
 | Live calendar feed | Function-backed | Requires Blaze, Functions deployment, and a real calendar client |
-| Hosting and Firestore rules | Automated on `main` | Requires GitHub Actions secrets and a valid Firebase service account |
+| Analytics | Built with explicit opt-in consent | Requires a GA4 measurement ID and production consent verification |
+| App Check | Client activation built | Requires reCAPTCHA registration, monitoring, and gradual enforcement in Firebase |
+| Hosting, Firestore rules, and Functions | Automated on `main` | Functions deploy only when the Blaze-ready repository variable is enabled |
 
 ## Quality baseline
 
 - `npm run lint` passes with the Next.js 16 flat ESLint configuration.
 - `npm run typecheck` passes with React 19 types.
 - The unit suite passes.
+- The Functions and Firestore security-rule suites pass.
 - The static production build passes.
 - The Playwright desktop and mobile smoke suite passes without credentials.
 - CI blocks deployment when any required gate fails.
 
 ## Required follow-up outside the repository
 
-1. Configure or verify the Firebase, VAPID, OAuth, Stripe, and Functions secrets described in `DEPLOYMENT.md`.
+1. Configure or verify the Firebase, App Check, VAPID, OAuth, Stripe, Functions, and analytics values described in `DEPLOYMENT.md`.
 2. Deploy a controlled staging or preview build before production.
 3. Verify Google sign-in and preference persistence with a real account.
 4. Verify exactly one push notification on a real phone, then verify disable and sign-out cleanup.
