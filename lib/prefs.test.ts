@@ -28,6 +28,14 @@ describe('normalizePrefs — savedLocations', () => {
   })
 })
 
+describe('normalizePrefs - location timezone', () => {
+  it('keeps valid IANA timezones and drops malformed values', () => {
+    expect(base({ location: { ...LA, timezone: 'America/Los_Angeles' } }).location.timezone).toBe('America/Los_Angeles')
+    expect(base({ location: { ...LA, timezone: 'UTC' } }).location.timezone).toBe('UTC')
+    expect(base({ location: { ...LA, timezone: '<script>' } }).location.timezone).toBeUndefined()
+  })
+})
+
 describe('normalizePrefs — activity routine + cloud fields', () => {
   it('normalizes daysOfWeek (none/all-seven → undefined, else sorted unique subset)', () => {
     const act = (daysOfWeek: unknown) => base({ activities: [{ id: 'run', name: 'Run', daysOfWeek }] }).activities[0]

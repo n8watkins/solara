@@ -5,7 +5,7 @@ import { UserPreferences, SkinType, Location } from '@/lib/types'
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
 import { clearWeatherCache } from '@/lib/cache'
 import { TIER_LIMITS } from '@/lib/tiers'
-import { requestNotificationPermission, saveFCMToken, saveFCMTokenLocally, getFCMTokenLocally } from '@/lib/notifications'
+import { disableNotifications, enableNotifications, notificationsEnabledLocally } from '@/lib/notifications'
 import { toggleTheme, getStoredTheme } from '@/lib/theme'
 import { auth, firebaseEnabled } from '@/lib/firebase'
 import ActivitySuggestionSettings from './ActivitySuggestionSettings'
@@ -47,6 +47,7 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
   const [showSkinHelp, setShowSkinHelp] = useState(false)
   const [hiddenActivitySuggestionIds, setHiddenActivitySuggestionIds] = useState<string[]>(prefs.hiddenActivitySuggestionIds ?? [])
   const [collapsedActivityCategories, setCollapsedActivityCategories] = useState<string[]>(prefs.collapsedActivityCategories ?? [])
+  const [notificationHour, setNotificationHour] = useState(prefs.notificationHour ?? 7)
   const tier = prefs.tier || 'anonymous'
 
   // SSR-safe notification state: 'unknown' until read in the browser via useEffect,
@@ -54,10 +55,11 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
   type NotifState = 'unknown' | 'enabled' | 'blocked' | 'default'
   const [notifState, setNotifState] = useState<NotifState>('unknown')
   const [notifLoading, setNotifLoading] = useState(false)
+  const [notifError, setNotifError] = useState<string | null>(null)
 
   function readNotifState(): NotifState {
     if (typeof window === 'undefined' || !('Notification' in window)) return 'blocked'
-    if (Notification.permission === 'granted') return getFCMTokenLocally() ? 'enabled' : 'default'
+    if (Notification.permission === 'granted') return user && notificationsEnabledLocally(user.uid) ? 'enabled' : 'default'
     if (Notification.permission === 'denied') return 'blocked'
     return 'default'
   }
@@ -67,22 +69,38 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
   }, [])
 
   async function handleEnableNotifications() {
+    if (!user) return
     setNotifLoading(true)
-    const token = await requestNotificationPermission()
-    if (token) {
-      saveFCMTokenLocally(token)
-      if (user) await saveFCMToken(user.uid, token)
+    setNotifError(null)
+    try {
+      await enableNotifications(user.uid)
       setNotifState('enabled')
-    } else {
-      setNotifState('blocked')
+    } catch (error) {
+      setNotifState(Notification.permission === 'denied' ? 'blocked' : 'default')
+      setNotifError(error instanceof Error ? error.message : 'Could not enable notifications')
+    } finally {
+      setNotifLoading(false)
     }
-    setNotifLoading(false)
+  }
+
+  async function handleDisableNotifications() {
+    if (!user) return
+    setNotifLoading(true)
+    setNotifError(null)
+    try {
+      await disableNotifications(user.uid)
+      setNotifState(Notification.permission === 'denied' ? 'blocked' : 'default')
+    } catch (error) {
+      setNotifError(error instanceof Error ? error.message : 'Could not disable notifications')
+    } finally {
+      setNotifLoading(false)
+    }
   }
 
   const selectedSkin = SKIN_OPTIONS.find(o => o.value === skinType) ?? SKIN_OPTIONS[1]
-  const draft: UserPreferences = { ...prefs, skinType, location, showSunPath, hiddenActivitySuggestionIds, collapsedActivityCategories }
-  const dirty = JSON.stringify({ skinType: prefs.skinType, location: prefs.location, showSunPath: prefs.showSunPath !== false, hiddenActivitySuggestionIds: prefs.hiddenActivitySuggestionIds ?? [], collapsedActivityCategories: prefs.collapsedActivityCategories ?? [] }) !==
-    JSON.stringify({ skinType, location, showSunPath, hiddenActivitySuggestionIds, collapsedActivityCategories })
+  const draft: UserPreferences = { ...prefs, skinType, location, showSunPath, hiddenActivitySuggestionIds, collapsedActivityCategories, notificationHour }
+  const dirty = JSON.stringify({ skinType: prefs.skinType, location: prefs.location, showSunPath: prefs.showSunPath !== false, hiddenActivitySuggestionIds: prefs.hiddenActivitySuggestionIds ?? [], collapsedActivityCategories: prefs.collapsedActivityCategories ?? [], notificationHour: prefs.notificationHour ?? 7 }) !==
+    JSON.stringify({ skinType, location, showSunPath, hiddenActivitySuggestionIds, collapsedActivityCategories, notificationHour })
 
   function requestClose() {
     if (dirty && !window.confirm('Discard unsaved settings changes?')) return
@@ -102,7 +120,7 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
       const data = await res.json()
       if (!data.results?.length) throw new Error()
       const r = data.results[0]
-      setLocation({ lat: r.latitude, lon: r.longitude, city: r.name, region: r.admin1 ?? r.country ?? '' })
+      setLocation({ lat: r.latitude, lon: r.longitude, city: r.name, region: r.admin1 ?? r.country ?? '', timezone: r.timezone })
       clearWeatherCache()
     } catch {
       setLocError('City not found.')
@@ -117,7 +135,7 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
         const res  = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`)
         const data = await res.json()
         const city = data.address?.city || data.address?.town || data.address?.village || 'Your location'
-        setLocation({ lat, lon, city, region: data.address?.state || '' })
+        setLocation({ lat, lon, city, region: data.address?.state || '', timezone: Intl.DateTimeFormat().resolvedOptions().timeZone })
         clearWeatherCache()
       } catch { setLocError('Could not resolve.') }
       finally   { setLocLoading(false) }
@@ -224,7 +242,7 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
                   <div>
                     <p style={{ margin: '0 0 4px', fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>🔔 Morning sun alerts</p>
                     <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-3)', lineHeight: 1.45 }}>
-                      A push notification each morning when your activity window opens.
+                      A daily lower-UV planning summary in your local morning.
                     </p>
                   </div>
                   {!TIER_LIMITS[tier].notifications && (
@@ -233,10 +251,21 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
                 </div>
                 {TIER_LIMITS[tier].notifications ? (
                   notifState === 'enabled' ? (
-                    <p style={{ margin: 0, fontSize: '13px', fontWeight: 600, color: 'var(--accent)' }}>✓ Morning sun alerts are on</p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      <p style={{ margin: 0, fontSize: '13px', fontWeight: 600, color: 'var(--accent)' }}>✓ Morning planning summaries are on for this device</p>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text-2)' }}>
+                        Local delivery time
+                        <select value={notificationHour} onChange={event => setNotificationHour(Number(event.target.value))}>
+                          {[5, 6, 7, 8, 9, 10].map(hour => <option key={hour} value={hour}>{hour}:00 AM</option>)}
+                        </select>
+                      </label>
+                      <button className="btn" onClick={handleDisableNotifications} disabled={notifLoading} style={{ alignSelf: 'flex-start' }}>
+                        {notifLoading ? 'Turning off...' : 'Turn off on this device'}
+                      </button>
+                    </div>
                   ) : notifState === 'blocked' ? (
                     <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-3)', lineHeight: 1.45 }}>
-                      Notifications are blocked — enable them in your browser settings.
+                      Notifications are blocked. Enable them in your browser settings.
                     </p>
                   ) : notifState === 'default' ? (
                     <button
@@ -245,7 +274,7 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
                       disabled={notifLoading}
                       style={{ alignSelf: 'flex-start', whiteSpace: 'nowrap' }}
                     >
-                      {notifLoading ? 'Enabling…' : 'Enable notifications'}
+                      {notifLoading ? 'Enabling...' : 'Enable notifications'}
                     </button>
                   ) : null
                 ) : (
@@ -253,6 +282,7 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
                     Available on the Pro plan.
                   </p>
                 )}
+                {notifError && <p role="alert" style={{ margin: 0, fontSize: '12px', color: '#DC2626' }}>{notifError}</p>}
               </div>
             </div>
           )}
@@ -350,7 +380,11 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
                   </div>
                   <button
                     className="btn"
-                    onClick={async () => { if (auth) await signOut(auth); onClose() }}
+                    onClick={async () => {
+                      if (user) await disableNotifications(user.uid).catch(error => console.error('Notification cleanup failed:', error))
+                      if (auth) await signOut(auth)
+                      onClose()
+                    }}
                     style={{ justifyContent: 'center', color: '#DC2626', borderColor: '#FECACA' }}
                   >
                     Sign out

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { User } from 'firebase/auth'
-import { requestNotificationPermission, saveFCMToken, saveFCMTokenLocally } from '@/lib/notifications'
+import { enableNotifications } from '@/lib/notifications'
 
 interface Props {
   user: User | null
@@ -11,18 +11,17 @@ interface Props {
 
 export default function NotificationBanner({ user, onDismiss }: Props) {
   const [loading, setLoading] = useState(false)
-  const [status, setStatus] = useState<'idle' | 'success' | 'denied'>('idle')
+  const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle')
 
   async function handleEnable() {
+    if (!user) return
     setLoading(true)
-    const token = await requestNotificationPermission()
-    if (token) {
-      saveFCMTokenLocally(token)
-      if (user) await saveFCMToken(user.uid, token)
+    try {
+      await enableNotifications(user.uid)
       setStatus('success')
       setTimeout(onDismiss, 2000)
-    } else {
-      setStatus('denied')
+    } catch {
+      setStatus('error')
     }
     setLoading(false)
   }
@@ -31,16 +30,16 @@ export default function NotificationBanner({ user, onDismiss }: Props) {
     return (
       <div className="mb-4 flex items-center gap-3 bg-green-50 border border-green-200 rounded-2xl px-4 py-3 text-sm text-green-800">
         <span>✓</span>
-        <span>Notifications enabled — we'll alert you when your sun window opens each morning.</span>
+        <span>Notifications enabled. We will send a local-morning planning summary to this device.</span>
       </div>
     )
   }
 
-  if (status === 'denied') {
+  if (status === 'error') {
     return (
       <div className="mb-4 flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 text-sm text-amber-800">
         <span>⚠️</span>
-        <span>Notification permission denied. You can enable it in your browser settings.</span>
+        <span>Notifications could not be enabled. Check browser permission and your connection, then try again.</span>
         <button className="ml-auto text-amber-600 hover:text-amber-800" onClick={onDismiss}>✕</button>
       </div>
     )
@@ -51,7 +50,7 @@ export default function NotificationBanner({ user, onDismiss }: Props) {
       <span className="text-lg">🔔</span>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-orange-900">Get morning sun alerts</p>
-        <p className="text-xs text-orange-700 mt-0.5">We'll notify you when your activity window opens each day.</p>
+        <p className="text-xs text-orange-700 mt-0.5">Get a lower-UV planning summary each local morning.</p>
       </div>
       <div className="flex items-center gap-2 shrink-0">
         <button

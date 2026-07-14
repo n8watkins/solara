@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { User, signOut } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
+import { disableNotifications } from '@/lib/notifications'
 import { UserPreferences, TierLevel } from '@/lib/types'
 import { getSavedLocationLimit } from '@/lib/tiers'
 import PreferencesModal from './PreferencesModal'
@@ -45,6 +46,7 @@ export default function Header({ user, prefs, onPrefsUpdate, onGoHome, forceOpen
   }, [menuOpen])
 
   async function handleSignOut() {
+    if (user) await disableNotifications(user.uid).catch(error => console.error('Notification cleanup failed:', error))
     if (auth) await signOut(auth)
   }
 

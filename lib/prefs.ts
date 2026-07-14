@@ -16,6 +16,18 @@ function isLocation(value: unknown): value is Location {
   return !!loc && typeof loc.lat === 'number' && typeof loc.lon === 'number' && typeof loc.city === 'string'
 }
 
+function normalizeLocation(value: Location): Location {
+  return {
+    lat: value.lat,
+    lon: value.lon,
+    city: value.city.trim().slice(0, 120),
+    region: typeof value.region === 'string' ? value.region.trim().slice(0, 120) : '',
+    timezone: typeof value.timezone === 'string' && /^(?:UTC|[A-Za-z_]+(?:\/[A-Za-z0-9_+.-]+)+)$/.test(value.timezone)
+      ? value.timezone
+      : undefined,
+  }
+}
+
 function sameLocation(a: Location, b: Location): boolean {
   return Math.abs(a.lat - b.lat) < 0.01 && Math.abs(a.lon - b.lon) < 0.01
 }
@@ -121,7 +133,8 @@ function normalizeActivity(raw: unknown, index: number, globalSunscreen: boolean
 
 export function normalizePrefs(raw: Partial<UserPreferences> | null, fallbackLocation?: Location): UserPreferences | null {
   if (!raw) return null
-  const location = isLocation(raw.location) ? raw.location : fallbackLocation
+  const rawLocation = isLocation(raw.location) ? raw.location : fallbackLocation
+  const location = rawLocation ? normalizeLocation(rawLocation) : undefined
   if (!location) return null
 
   const sunscreen = typeof raw.sunscreen === 'boolean' ? raw.sunscreen : false
@@ -151,6 +164,9 @@ export function normalizePrefs(raw: Partial<UserPreferences> | null, fallbackLoc
     hiddenActivitySuggestionIds: normalizeStringList(raw.hiddenActivitySuggestionIds, PRESET_IDS),
     collapsedActivityCategories: normalizeStringList(raw.collapsedActivityCategories, CATEGORY_NAMES),
     upgradeInterest: raw.upgradeInterest,
+    notificationHour: typeof raw.notificationHour === 'number'
+      ? Math.max(5, Math.min(10, Math.round(raw.notificationHour)))
+      : 7,
   }
 }
 

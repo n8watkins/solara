@@ -69,7 +69,7 @@ export default function Onboarding({ onComplete }: Props) {
       const data = await res.json()
       if (!data.results?.length) throw new Error('Not found')
       const r = data.results[0]
-      const loc: Location = { lat: r.latitude, lon: r.longitude, city: r.name, region: r.admin1 ?? r.country ?? '' }
+      const loc: Location = { lat: r.latitude, lon: r.longitude, city: r.name, region: r.admin1 ?? r.country ?? '', timezone: r.timezone }
       setLocation(loc)
       await fetchUVPreview(loc)
     } catch {
@@ -216,13 +216,14 @@ export default function Onboarding({ onComplete }: Props) {
   )
 }
 
-async function reverseGeocode(lat: number, lon: number): Promise<{ city: string; region: string }> {
+async function reverseGeocode(lat: number, lon: number): Promise<{ city: string; region: string; timezone?: string }> {
   try {
     const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`)
     const data = await res.json()
     return {
       city: data.address?.city || data.address?.town || data.address?.village || 'Your location',
       region: data.address?.state || data.address?.country || '',
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     }
   } catch {
     return { city: 'Your location', region: '' }

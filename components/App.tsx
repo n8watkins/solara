@@ -5,7 +5,7 @@ import { auth } from '@/lib/firebase'
 import { loadLocalPrefs, loadFirestorePrefs, defaultPrefs, saveLocalPrefs, saveFirestorePrefs } from '@/lib/prefs'
 import { getCachedWeather, setCachedWeather } from '@/lib/cache'
 import { fetchForecast } from '@/lib/forecast'
-import { getFCMTokenLocally } from '@/lib/notifications'
+import { migrateLegacyNotificationToken, notificationsEnabledLocally } from '@/lib/notifications'
 import { UserPreferences, WeatherResponse, Location, TierLevel, DayWeather } from '@/lib/types'
 import Welcome from './Welcome'
 import Onboarding from './Onboarding'
@@ -79,7 +79,10 @@ export default function App() {
       if (loaded) {
         setPrefs(loaded)
         setScreen('dashboard')
-        if ('Notification' in window && Notification.permission === 'default' && !getFCMTokenLocally()) {
+        if (loaded.tier === 'paid') {
+          migrateLegacyNotificationToken(u.uid).catch(err => console.error('Notification migration failed:', err))
+        }
+        if (loaded.tier === 'paid' && 'Notification' in window && Notification.permission === 'default' && !notificationsEnabledLocally(u.uid)) {
           setTimeout(() => setShowNotif(true), 4000)
         }
       } else {

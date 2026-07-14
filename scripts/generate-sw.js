@@ -17,17 +17,6 @@ importScripts('https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-com
 firebase.initializeApp(${JSON.stringify(config, null, 2)})
 
 const messaging = firebase.messaging()
-
-messaging.onBackgroundMessage((payload) => {
-  const title = payload.notification?.title || 'Solara'
-  const body  = payload.notification?.body  || 'Your sun window update is ready.'
-  self.registration.showNotification(title, {
-    body,
-    icon: '/icon-192.png',
-    badge: '/icon-192.png',
-    tag: 'solara-notification',
-  })
-})
 `
 
 const outPath = path.join(__dirname, '..', 'public', 'firebase-messaging-sw.js')
