@@ -25,6 +25,7 @@ service cloud.firestore {
         'hiddenActivitySuggestionIds',
         'collapsedActivityCategories',
         'upgradeInterest',
+        'notificationHour',
         'timezone'
       ];
     }
@@ -46,6 +47,7 @@ service cloud.firestore {
         'hiddenActivitySuggestionIds',
         'collapsedActivityCategories',
         'upgradeInterest',
+        'notificationHour',
         'timezone'
       ];
     }
@@ -53,13 +55,21 @@ service cloud.firestore {
     function validNewUser(userId) {
       return request.resource.data.keys().hasOnly(userCreateKeys())
         && request.resource.data.uid == userId
-        && request.resource.data.tier in ['anonymous', 'free'];
+        && request.resource.data.tier in ['anonymous', 'free']
+        && (!request.resource.data.keys().hasAny(['notificationHour'])
+          || (request.resource.data.notificationHour is int
+            && request.resource.data.notificationHour >= 0
+            && request.resource.data.notificationHour <= 23));
     }
 
     function validUserUpdate(userId) {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(userUpdateKeys())
         && request.resource.data.uid == userId
-        && request.resource.data.tier == resource.data.tier;
+        && request.resource.data.tier == resource.data.tier
+        && (!request.resource.data.keys().hasAny(['notificationHour'])
+          || (request.resource.data.notificationHour is int
+            && request.resource.data.notificationHour >= 0
+            && request.resource.data.notificationHour <= 23));
     }
 
     match /users/{userId} {

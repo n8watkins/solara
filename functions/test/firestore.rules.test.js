@@ -43,7 +43,11 @@ describe('user preferences', () => {
     const ref = db.doc('users/alice')
 
     await assertSucceeds(ref.set(prefs('alice')))
-    await assertSucceeds(ref.update({ skinType: 'olive', showSunPath: false }))
+    await assertSucceeds(ref.update({
+      skinType: 'olive',
+      showSunPath: false,
+      notificationHour: 8,
+    }))
   })
 
   test('a user cannot access another account', async () => {
@@ -63,6 +67,14 @@ describe('user preferences', () => {
     await assertFails(db.doc('users/alice').set(prefs('alice', { tier: 'paid' })))
     await assertFails(db.doc('users/alice').set(prefs('alice', { stripeCustomerId: 'cus_123' })))
     await assertFails(db.doc('users/alice').set(prefs('alice', { notificationsEnabled: true })))
+  })
+
+  test('notification delivery hour must be a local hour', async () => {
+    const db = testEnv.authenticatedContext('alice').firestore()
+    const ref = db.doc('users/alice')
+    await assertSucceeds(ref.set(prefs('alice', { notificationHour: 8 })))
+    await assertFails(ref.update({ notificationHour: 24 }))
+    await assertFails(ref.update({ notificationHour: 'morning' }))
   })
 
   test('server-owned fields remain unchanged during preference updates', async () => {
