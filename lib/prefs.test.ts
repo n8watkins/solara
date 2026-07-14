@@ -36,6 +36,24 @@ describe('normalizePrefs - location timezone', () => {
   })
 })
 
+describe('normalizePrefs - client-owned fields', () => {
+  it('drops server-owned and unknown fields while preserving supported preferences', () => {
+    const normalized = base({
+      showSunPath: false,
+      stripeCustomerId: 'cus_secret',
+      stripeSubscriptionId: 'sub_secret',
+      stripeEventCreated: 123,
+      unknownField: 'unexpected',
+    } as never)
+
+    expect(normalized.showSunPath).toBe(false)
+    expect(normalized).not.toHaveProperty('stripeCustomerId')
+    expect(normalized).not.toHaveProperty('stripeSubscriptionId')
+    expect(normalized).not.toHaveProperty('stripeEventCreated')
+    expect(normalized).not.toHaveProperty('unknownField')
+  })
+})
+
 describe('normalizePrefs — activity routine + cloud fields', () => {
   it('normalizes daysOfWeek (none/all-seven → undefined, else sorted unique subset)', () => {
     const act = (daysOfWeek: unknown) => base({ activities: [{ id: 'run', name: 'Run', daysOfWeek }] }).activities[0]

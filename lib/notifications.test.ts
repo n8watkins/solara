@@ -25,6 +25,7 @@ vi.mock('@/lib/firebase', () => ({
 }))
 
 import {
+  clearLocalNotificationState,
   disableNotifications,
   enableNotifications,
   migrateLegacyNotificationToken,
@@ -90,6 +91,17 @@ describe('device notification subscriptions', () => {
     )
     expect(mocks.deleteToken).toHaveBeenCalledOnce()
     expect(notificationsEnabledLocally('user-1')).toBe(false)
+  })
+
+  it('clears account-scoped and legacy local state after server-side account deletion', async () => {
+    await enableNotifications('user-1')
+    values.set('solara_fcm_token', 'legacy-token')
+
+    await clearLocalNotificationState('user-1')
+
+    expect(mocks.deleteToken).toHaveBeenCalledOnce()
+    expect(values.has('solara_notification_device_user-1')).toBe(false)
+    expect(values.has('solara_fcm_token')).toBe(false)
   })
 
   it('preserves a pending removal and retries it after remote deactivation fails', async () => {

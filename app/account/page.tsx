@@ -5,6 +5,8 @@ import { onAuthStateChanged, reauthenticateWithPopup, User } from 'firebase/auth
 import { useEffect, useState } from 'react'
 import { auth, googleProvider } from '@/lib/firebase'
 import { createBillingPortalUrl } from '@/lib/billing'
+import { clearLocalPrefs } from '@/lib/prefs'
+import { clearLocalNotificationState } from '@/lib/notifications'
 
 const FUNCTIONS_URL = process.env.NEXT_PUBLIC_FUNCTIONS_URL?.replace(/\/$/, '')
 
@@ -78,6 +80,8 @@ export default function AccountPage() {
         method: 'DELETE',
         body: JSON.stringify({ confirmation }),
       })
+      clearLocalPrefs()
+      await clearLocalNotificationState(user.uid)
       window.location.assign('/?account=deleted')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Deletion failed.')

@@ -87,12 +87,14 @@ npm run test:e2e
 ```
 
 Push to `main` after the required GitHub secrets exist.
-The deployment workflow builds with those values, deploys Hosting, and then deploys Firestore rules.
+The deployment workflow builds with those values, deploys Firestore rules, deploys Functions, and deploys Hosting last.
 
 For a controlled manual deployment, use an explicit project ID.
 
 ```bash
-npx firebase-tools deploy --only hosting,firestore:rules --project <project-id>
+npx firebase-tools deploy --only firestore:rules --project <project-id>
+npx firebase-tools deploy --only functions --project <project-id>
+npx firebase-tools deploy --only hosting --project <project-id>
 ```
 
 ## Notification activation

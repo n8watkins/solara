@@ -402,8 +402,20 @@ describe('Stripe fulfillment security', () => {
       serverTimestamp: () => 'SERVER_TIME',
       stripe,
     })
-    assert.equal(completed.applied, false)
+    assert.equal(completed.applied, true)
     assert.equal(db.userData.tier, 'free')
+    assert.equal(db.userData.stripeCustomerId, 'cus_123')
+    assert.equal(db.userData.stripeSubscriptionId, 'sub_123')
+    assert.equal(db.userData.stripeCheckoutStatus, 'pending')
+
+    await assert.rejects(createCheckout({
+      appUrl: 'https://example.com',
+      auth: { verifyIdToken: async () => ({ uid: 'alice', email: 'alice@example.com' }) },
+      db,
+      expectedPriceId: 'price_pro',
+      req: { headers: { authorization: 'Bearer valid-token' } },
+      stripe: { checkout: { sessions: { create: async params => params } } },
+    }), error => error.status === 409)
 
     await processStripeEvent({
       db,
@@ -419,6 +431,7 @@ describe('Stripe fulfillment security', () => {
     })
     assert.equal(db.userData.tier, 'paid')
     assert.equal(db.userData.stripeSubscriptionId, 'sub_123')
+    assert.equal(db.userData.stripeCheckoutStatus, 'succeeded')
   })
 
   test('records asynchronous checkout payment failure without granting access', async () => {
@@ -437,9 +450,11 @@ describe('Stripe fulfillment security', () => {
     }
     const first = await processStripeEvent(options)
     const second = await processStripeEvent(options)
-    assert.equal(first.applied, false)
+    assert.equal(first.applied, true)
     assert.equal(second.duplicate, true)
     assert.equal(db.userData.tier, 'free')
+    assert.equal(db.userData.stripeSubscriptionId, 'sub_123')
+    assert.equal(db.userData.stripeCheckoutStatus, 'failed')
   })
 
   test('revokes access when the configured subscription ends', async () => {

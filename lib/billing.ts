@@ -1,4 +1,8 @@
 import type { User } from 'firebase/auth'
+import { doc, onSnapshot } from 'firebase/firestore'
+import { db } from './firebase'
+import { normalizePrefs } from './prefs'
+import type { UserPreferences } from './types'
 
 const FUNCTIONS_URL = process.env.NEXT_PUBLIC_FUNCTIONS_URL?.replace(/\/$/, '')
 export const PRO_PRICE = process.env.NEXT_PUBLIC_PRO_PRICE || '$3.99/mo'
@@ -38,6 +42,44 @@ export async function createBillingPortalUrl(user: User): Promise<string> {
     throw new Error(body.error || 'Billing management is temporarily unavailable')
   }
   return url.toString()
+}
+
+export type CheckoutResult =
+  | { status: 'waiting' | 'pending' }
+  | { status: 'succeeded'; prefs: UserPreferences }
+  | { status: 'failed' }
+
+export function observeCheckoutResult(
+  uid: string,
+  sessionId: string,
+  onResult: (result: CheckoutResult) => void,
+  onError: () => void,
+): () => void {
+  if (!db) {
+    onError()
+    return () => {}
+  }
+  return onSnapshot(doc(db, 'users', uid), snapshot => {
+    if (!snapshot.exists()) {
+      onResult({ status: 'waiting' })
+      return
+    }
+    const raw = snapshot.data()
+    if (raw.stripeCheckoutSessionId !== sessionId) {
+      onResult({ status: 'waiting' })
+      return
+    }
+    if (raw.stripeCheckoutStatus === 'failed') {
+      onResult({ status: 'failed' })
+      return
+    }
+    const prefs = normalizePrefs(raw)
+    if (raw.stripeCheckoutStatus === 'succeeded' && prefs?.tier === 'paid') {
+      onResult({ status: 'succeeded', prefs })
+      return
+    }
+    onResult({ status: 'pending' })
+  }, onError)
 }
 
 export interface ProFeature {

@@ -175,6 +175,15 @@ export async function disableNotifications(uid: string): Promise<void> {
   } catch {}
 }
 
+export async function clearLocalNotificationState(uid: string): Promise<void> {
+  const m = getMessagingInstance()
+  if (m) await deleteToken(m).catch(() => false)
+  try {
+    localStorage.removeItem(storageKey(uid))
+    localStorage.removeItem('solara_fcm_token')
+  } catch {}
+}
+
 export function onForegroundMessage(callback: (payload: unknown) => void): () => void {
   const m = getMessagingInstance()
   return m ? onMessage(m, callback) : () => {}

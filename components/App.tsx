@@ -6,6 +6,7 @@ import { loadLocalPrefs, loadFirestorePrefs, defaultPrefs, saveLocalPrefs, saveF
 import { getCachedWeather, setCachedWeather } from '@/lib/cache'
 import { fetchForecast } from '@/lib/forecast'
 import { enableNotifications, migrateLegacyNotificationToken, notificationsEnabledLocally, onForegroundMessage } from '@/lib/notifications'
+import { observeCheckoutResult } from '@/lib/billing'
 import { UserPreferences, WeatherResponse, Location, TierLevel, DayWeather } from '@/lib/types'
 import Welcome from './Welcome'
 import Onboarding from './Onboarding'
@@ -37,6 +38,7 @@ export default function App() {
   const [authReloadKey,  setAuthReloadKey]  = useState(0)
   const [showNotif,      setShowNotif]      = useState(false)
   const [foregroundNotice, setForegroundNotice] = useState(false)
+  const [billingNotice, setBillingNotice] = useState<string | null>(null)
   const isDev = process.env.NODE_ENV === 'development'
 
   useEffect(() => {
@@ -107,6 +109,44 @@ export default function App() {
   useEffect(() => {
     if (!user) return
     return onForegroundMessage(() => setForegroundNotice(true))
+  }, [user])
+
+  useEffect(() => {
+    if (!user) return
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('checkout') === 'canceled') {
+      setBillingNotice('Checkout was canceled. You were not charged.')
+      return
+    }
+    if (params.get('checkout') !== 'success') return
+    const sessionId = params.get('session_id')
+    if (!sessionId) {
+      setBillingNotice('Checkout returned successfully. Refresh to confirm your subscription.')
+      return
+    }
+
+    setBillingNotice('Confirming your subscription...')
+    const clearCheckoutQuery = () => {
+      const url = new URL(window.location.href)
+      url.searchParams.delete('checkout')
+      url.searchParams.delete('session_id')
+      window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`)
+    }
+    return observeCheckoutResult(user.uid, sessionId, result => {
+      if (result.status === 'waiting') return
+      if (result.status === 'pending') {
+        setBillingNotice('Your payment is still processing. Pro will activate automatically when it completes.')
+        return
+      }
+      clearCheckoutQuery()
+      if (result.status === 'failed') {
+        setBillingNotice('Your payment did not complete. You can try again from the Pro plans.')
+        return
+      }
+      setPrefs(result.prefs)
+      saveLocalPrefs(result.prefs)
+      setBillingNotice('Pro is active on your account.')
+    }, () => setBillingNotice('Could not confirm your subscription. Check your connection and refresh.'))
   }, [user])
 
   useEffect(() => {
@@ -220,6 +260,11 @@ export default function App() {
           </div>
         )}
         {showNotif && <NotificationBanner user={user} onDismiss={() => setShowNotif(false)} />}
+        {billingNotice && (
+          <div role="status" style={{ padding: '12px 16px', borderRadius: '12px', background: '#EFF6FF', border: '0.5px solid #BFDBFE', marginBottom: '16px', fontSize: '14px', color: '#1E40AF' }}>
+            {billingNotice}
+          </div>
+        )}
         {error && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', borderRadius: '12px', background: '#FEF2F2', border: '0.5px solid #FECACA', marginBottom: '16px', fontSize: '14px', color: '#991B1B' }}>
             <span>⚠️</span><span style={{ flex: 1 }}>{error}</span>

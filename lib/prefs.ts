@@ -42,7 +42,8 @@ function normalizeSavedLocations(raw: unknown): Location[] {
   const list = Array.isArray(raw) ? raw.filter(isLocation) : []
   const out: Location[] = []
   for (const loc of list) {
-    if (!out.some(l => sameLocation(l, loc))) out.push(loc)
+    const normalized = normalizeLocation(loc)
+    if (!out.some(l => sameLocation(l, normalized))) out.push(normalized)
   }
   return out.slice(0, 12)
 }
@@ -80,6 +81,19 @@ function normalizeStringList(raw: unknown, allowed?: Set<string>): string[] {
       .map(v => v.trim())
       .filter(v => !allowed || allowed.has(v))
   ))
+}
+
+function normalizeUpgradeInterest(raw: unknown): UserPreferences['upgradeInterest'] {
+  const interest = raw as Partial<NonNullable<UserPreferences['upgradeInterest']>> | null
+  if (!interest || typeof interest.createdAt !== 'string' || !Number.isFinite(Date.parse(interest.createdAt))) {
+    return undefined
+  }
+  return {
+    email: typeof interest.email === 'string' && interest.email.trim()
+      ? interest.email.trim().slice(0, 254)
+      : undefined,
+    createdAt: interest.createdAt,
+  }
 }
 
 function normalizePreferredHours(raw: unknown): PreferredHours | undefined {
@@ -144,8 +158,6 @@ export function normalizePrefs(raw: Partial<UserPreferences> | null, fallbackLoc
     : []
 
   return {
-    ...defaultPrefs(location),
-    ...raw,
     uid: typeof raw.uid === 'string' ? raw.uid : '',
     schemaVersion: PREFS_SCHEMA_VERSION,
     location,
@@ -161,9 +173,10 @@ export function normalizePrefs(raw: Partial<UserPreferences> | null, fallbackLoc
     calendarHours: raw.calendarHours && typeof raw.calendarHours.from === 'number' && typeof raw.calendarHours.to === 'number'
       ? { from: Math.max(0, Math.min(23, raw.calendarHours.from)), to: Math.max(1, Math.min(24, raw.calendarHours.to)) }
       : undefined,
+    showSunPath: typeof raw.showSunPath === 'boolean' ? raw.showSunPath : undefined,
     hiddenActivitySuggestionIds: normalizeStringList(raw.hiddenActivitySuggestionIds, PRESET_IDS),
     collapsedActivityCategories: normalizeStringList(raw.collapsedActivityCategories, CATEGORY_NAMES),
-    upgradeInterest: raw.upgradeInterest,
+    upgradeInterest: normalizeUpgradeInterest(raw.upgradeInterest),
     notificationHour: typeof raw.notificationHour === 'number'
       ? Math.max(5, Math.min(10, Math.round(raw.notificationHour)))
       : 7,
@@ -189,6 +202,11 @@ export function loadLocalPrefs(): UserPreferences | null {
 export function saveLocalPrefs(prefs: Partial<UserPreferences>): void {
   if (typeof window === 'undefined') return
   localStorage.setItem(PREFS_KEY, JSON.stringify({ ...prefs, schemaVersion: PREFS_SCHEMA_VERSION }))
+}
+
+export function clearLocalPrefs(): void {
+  if (typeof window === 'undefined') return
+  try { localStorage.removeItem(PREFS_KEY) } catch {}
 }
 
 export type FirestorePrefsResult =

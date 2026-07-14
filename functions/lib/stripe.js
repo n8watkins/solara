@@ -5,6 +5,7 @@ const TERMINAL_SUBSCRIPTION_STATUSES = new Set(['canceled', 'incomplete_expired'
 const EVENT_PRIORITY = {
   'checkout.session.completed': 0,
   'checkout.session.async_payment_succeeded': 1,
+  'checkout.session.async_payment_failed': 1,
   'customer.subscription.updated': 2,
   'customer.subscription.deleted': 3,
 }
@@ -112,23 +113,26 @@ async function processStripeEvent({ db, event, expectedPriceId, serverTimestamp,
       expectedPriceId,
       { requirePaid },
     )
-    if (!paid || event.type === 'checkout.session.async_payment_failed') {
-      return commitEvent(db, event, null, null, serverTimestamp)
-    }
     const userRef = db.collection('users').doc(uid)
     const subscription = await stripe.subscriptions.retrieve(subscriptionId)
     const active = ACTIVE_SUBSCRIPTION_STATUSES.has(subscription.status)
       && subscriptionHasPrice(subscription, expectedPriceId)
+    const checkoutStatus = event.type === 'checkout.session.async_payment_failed'
+      ? 'failed'
+      : paid && active ? 'succeeded' : 'pending'
 
     return commitEvent(db, event, userRef, userData => {
       if (userData.stripeSubscriptionId
         && userData.stripeSubscriptionId !== subscriptionId
         && !TERMINAL_SUBSCRIPTION_STATUSES.has(userData.subscriptionStatus)) return null
       return {
-        tier: active ? 'paid' : 'free',
-        proSince: active ? userData.proSince || serverTimestamp() : null,
+        tier: checkoutStatus === 'succeeded' ? 'paid' : 'free',
+        proSince: checkoutStatus === 'succeeded' ? userData.proSince || serverTimestamp() : null,
         stripeCustomerId: customerId,
         stripeSubscriptionId: subscriptionId,
+        stripeCheckoutSessionId: session.id,
+        stripeCheckoutStatus: checkoutStatus,
+        stripeCheckoutUpdatedAt: serverTimestamp(),
         subscriptionStatus: subscription.status,
         subscriptionUpdatedAt: serverTimestamp(),
       }
@@ -151,6 +155,11 @@ async function processStripeEvent({ db, event, expectedPriceId, serverTimestamp,
     const active = event.type !== 'customer.subscription.deleted'
       && ACTIVE_SUBSCRIPTION_STATUSES.has(currentSubscription.status)
       && subscriptionHasPrice(currentSubscription, expectedPriceId)
+    const checkoutStatus = active
+      ? 'succeeded'
+      : TERMINAL_SUBSCRIPTION_STATUSES.has(currentSubscription.status) || currentSubscription.status === 'unpaid'
+        ? 'failed'
+        : null
     const update = {
       tier: active ? 'paid' : 'free',
       stripeCustomerId: stringId(currentSubscription.customer),
@@ -162,7 +171,7 @@ async function processStripeEvent({ db, event, expectedPriceId, serverTimestamp,
     return commitEvent(db, event, user.ref, userData => {
       const currentSubscriptionId = userData.stripeSubscriptionId
       if (currentSubscriptionId && currentSubscriptionId !== stringId(subscription.id)) return null
-      return update
+      return checkoutStatus ? { ...update, stripeCheckoutStatus: checkoutStatus } : update
     }, serverTimestamp)
   }
 
@@ -216,7 +225,7 @@ async function createCheckout({ appUrl, auth, db, expectedPriceId, req, stripe }
     ...customer,
     metadata: { firebaseUid: identity.uid },
     subscription_data: { metadata: { firebaseUid: identity.uid } },
-    success_url: `${appUrl}/?checkout=success`,
+    success_url: `${appUrl}/?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${appUrl}/?checkout=canceled`,
     allow_promotion_codes: true,
   }, {

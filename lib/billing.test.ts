@@ -1,5 +1,19 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+const firestore = vi.hoisted(() => ({
+  onSnapshot: vi.fn(),
+}))
+
+vi.mock('firebase/firestore', () => ({
+  doc: vi.fn(() => ({ path: 'users/user-1' })),
+  getDoc: vi.fn(),
+  onSnapshot: firestore.onSnapshot,
+  setDoc: vi.fn(),
+  updateDoc: vi.fn(),
+}))
+
+vi.mock('@/lib/firebase', () => ({ db: { kind: 'test-db' } }))
+
 async function freshBilling() {
   vi.resetModules()
   return import('@/lib/billing')
@@ -11,6 +25,7 @@ describe('authenticated checkout', () => {
   afterEach(() => {
     process.env.NEXT_PUBLIC_FUNCTIONS_URL = original
     vi.unstubAllGlobals()
+    firestore.onSnapshot.mockReset()
   })
 
   it('reports unconfigured when the Functions URL is absent', async () => {
@@ -71,5 +86,43 @@ describe('authenticated checkout', () => {
 
     fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ url: 'https://attacker.example/' }) })
     await expect(createBillingPortalUrl({ getIdToken } as never)).rejects.toThrow('unavailable')
+  })
+
+  it('observes the returned checkout until its entitlement settles', async () => {
+    const snapshots: Array<(snapshot: { exists: () => boolean; data: () => Record<string, unknown> }) => void> = []
+    const unsubscribe = vi.fn()
+    firestore.onSnapshot.mockImplementation((_ref, onNext) => {
+      snapshots.push(onNext)
+      return unsubscribe
+    })
+    const { observeCheckoutResult } = await freshBilling()
+    const onResult = vi.fn()
+    const stop = observeCheckoutResult('user-1', 'cs_returned', onResult, vi.fn())
+    const basePrefs = {
+      uid: 'user-1',
+      location: { lat: 34.05, lon: -118.24, city: 'Los Angeles', region: 'CA' },
+      skinType: 'fair',
+      sunscreen: false,
+      activities: [],
+      onboardingComplete: true,
+    }
+
+    snapshots[0]({
+      exists: () => true,
+      data: () => ({ ...basePrefs, tier: 'free', stripeCheckoutSessionId: 'cs_returned', stripeCheckoutStatus: 'pending' }),
+    })
+    expect(onResult).toHaveBeenLastCalledWith({ status: 'pending' })
+
+    snapshots[0]({
+      exists: () => true,
+      data: () => ({ ...basePrefs, tier: 'paid', stripeCheckoutSessionId: 'cs_returned', stripeCheckoutStatus: 'succeeded' }),
+    })
+    expect(onResult).toHaveBeenLastCalledWith(expect.objectContaining({
+      status: 'succeeded',
+      prefs: expect.not.objectContaining({ stripeCheckoutSessionId: expect.anything() }),
+    }))
+
+    stop()
+    expect(unsubscribe).toHaveBeenCalledOnce()
   })
 })
