@@ -1,6 +1,5 @@
 import { deleteToken, getMessaging, getToken, onMessage, Messaging } from 'firebase/messaging'
-import { doc, serverTimestamp, setDoc } from 'firebase/firestore'
-import { app, db } from './firebase'
+import { app, auth } from './firebase'
 
 const VAPID_KEY = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY
 
@@ -50,6 +49,37 @@ function writeLocalSubscription(uid: string, subscription: LocalDeviceSubscripti
   localStorage.setItem(storageKey(uid), JSON.stringify(subscription))
 }
 
+function functionsUrl(): string | null {
+  return process.env.NEXT_PUBLIC_FUNCTIONS_URL?.replace(/\/$/, '') || null
+}
+
+export function notificationRegistrationConfigured(): boolean {
+  return !!functionsUrl()
+}
+
+async function mutateRemoteDevice(
+  uid: string,
+  path: 'registerNotificationDevice' | 'removeNotificationDevice',
+  method: 'POST' | 'DELETE',
+  body: Record<string, string>,
+): Promise<void> {
+  const baseUrl = functionsUrl()
+  const user = auth?.currentUser
+  if (!baseUrl) throw new Error('Notification registration is not configured')
+  if (!user || user.uid !== uid) throw new Error('Sign in again to manage notifications')
+
+  const token = await user.getIdToken()
+  const response = await fetch(`${baseUrl}/${path}`, {
+    method,
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!response.ok) {
+    const result = await response.json().catch(() => null) as { error?: string } | null
+    throw new Error(result?.error || 'Could not update notification registration')
+  }
+}
+
 export async function requestNotificationPermission(): Promise<string | null> {
   try {
     const m = getMessagingInstance()
@@ -71,36 +101,40 @@ export function notificationsEnabledLocally(uid: string): boolean {
 }
 
 export async function enableNotifications(uid: string): Promise<void> {
-  if (!db) throw new Error('Firebase is not configured')
+  if (!notificationRegistrationConfigured()) throw new Error('Notification registration is not configured')
   const token = await requestNotificationPermission()
   if (!token) throw new Error('Notification permission was not granted')
 
   const existing = readLocalSubscription(uid)
   const deviceId = existing?.deviceId || randomDeviceId()
-  await setDoc(doc(db, 'users', uid, 'notificationDevices', deviceId), {
-    token,
-    enabled: true,
-    platform: 'web',
-    ...(existing ? {} : { createdAt: serverTimestamp() }),
-    updatedAt: serverTimestamp(),
-  }, { merge: true })
+  try {
+    await mutateRemoteDevice(uid, 'registerNotificationDevice', 'POST', {
+      deviceId,
+      token,
+      platform: 'web',
+    })
+  } catch (error) {
+    if (!existing) {
+      const m = getMessagingInstance()
+      if (m) await deleteToken(m).catch(() => false)
+    }
+    throw error
+  }
   writeLocalSubscription(uid, { deviceId, token })
   try { localStorage.removeItem('solara_fcm_token') } catch {}
 }
 
 export async function migrateLegacyNotificationToken(uid: string): Promise<boolean> {
-  if (!db || readLocalSubscription(uid)) return false
+  if (!notificationRegistrationConfigured() || readLocalSubscription(uid)) return false
   let token: string | null = null
   try { token = localStorage.getItem('solara_fcm_token') } catch {}
   if (!token || Notification.permission !== 'granted') return false
 
   const deviceId = randomDeviceId()
-  await setDoc(doc(db, 'users', uid, 'notificationDevices', deviceId), {
+  await mutateRemoteDevice(uid, 'registerNotificationDevice', 'POST', {
+    deviceId,
     token,
-    enabled: true,
     platform: 'web',
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
   })
   writeLocalSubscription(uid, { deviceId, token })
   try { localStorage.removeItem('solara_fcm_token') } catch {}
@@ -110,12 +144,12 @@ export async function migrateLegacyNotificationToken(uid: string): Promise<boole
 export async function disableNotifications(uid: string): Promise<void> {
   const local = readLocalSubscription(uid)
   try {
-    if (db && local) {
-      await setDoc(doc(db, 'users', uid, 'notificationDevices', local.deviceId), {
-        enabled: false,
-        updatedAt: serverTimestamp(),
-      }, { merge: true })
-    }
+    if (local) await mutateRemoteDevice(
+      uid,
+      'removeNotificationDevice',
+      'DELETE',
+      { deviceId: local.deviceId },
+    )
   } finally {
     const m = getMessagingInstance()
     if (m) await deleteToken(m).catch(() => false)

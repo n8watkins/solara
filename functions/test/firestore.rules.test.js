@@ -111,14 +111,18 @@ describe('notification devices', () => {
     updatedAt: new Date('2026-01-01T00:00:00Z'),
   }
 
-  test('an owner can manage client registration fields', async () => {
+  test('an owner can read but cannot mutate a device registration directly', async () => {
     const ref = testEnv.authenticatedContext('alice').firestore()
       .doc('users/alice/notificationDevices/device-1')
 
-    await assertSucceeds(ref.set(registration))
-    await assertSucceeds(ref.update({ enabled: false, updatedAt: new Date() }))
+    await testEnv.withSecurityRulesDisabled(async context => {
+      await context.firestore().doc('users/alice/notificationDevices/device-1').set(registration)
+    })
+
     await assertSucceeds(ref.get())
-    await assertSucceeds(ref.delete())
+    await assertFails(ref.set(registration))
+    await assertFails(ref.update({ enabled: false, updatedAt: new Date() }))
+    await assertFails(ref.delete())
   })
 
   test('clients cannot write delivery state', async () => {
@@ -135,7 +139,7 @@ describe('notification devices', () => {
       })
     })
 
-    await assertSucceeds(ref.update({ enabled: false }))
+    await assertFails(ref.update({ enabled: false }))
     await assertFails(ref.update({ lastNotificationKey: 'attacker-controlled' }))
     await assertFails(ref.update({ lastError: null }))
   })

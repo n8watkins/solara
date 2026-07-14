@@ -1,10 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  setDoc: vi.fn(),
   getToken: vi.fn(),
   deleteToken: vi.fn(),
-  doc: vi.fn((...parts: unknown[]) => ({ path: parts.slice(1).join('/') })),
+  getIdToken: vi.fn(),
 }))
 
 vi.mock('firebase/messaging', () => ({
@@ -14,15 +13,9 @@ vi.mock('firebase/messaging', () => ({
   onMessage: vi.fn(() => () => {}),
 }))
 
-vi.mock('firebase/firestore', () => ({
-  doc: mocks.doc,
-  setDoc: mocks.setDoc,
-  serverTimestamp: vi.fn(() => 'server-time'),
-}))
-
 vi.mock('@/lib/firebase', () => ({
   app: { kind: 'app' },
-  db: { kind: 'db' },
+  auth: { currentUser: { uid: 'user-1', getIdToken: mocks.getIdToken } },
 }))
 
 import {
@@ -43,8 +36,11 @@ describe('device notification subscriptions', () => {
   beforeEach(() => {
     values.clear()
     vi.clearAllMocks()
-    mocks.getToken.mockResolvedValue('new-fcm-token')
+    vi.stubEnv('NEXT_PUBLIC_FUNCTIONS_URL', 'https://functions.example.test')
+    mocks.getToken.mockResolvedValue('new-fcm-token-that-is-long-enough')
     mocks.deleteToken.mockResolvedValue(true)
+    mocks.getIdToken.mockResolvedValue('firebase-id-token')
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: vi.fn() }))
     Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: localStorageMock })
     Object.defineProperty(globalThis, 'window', { configurable: true, value: {} })
     Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { userAgent: 'test-browser' } })
@@ -57,25 +53,30 @@ describe('device notification subscriptions', () => {
   it('registers an account-scoped device and reports it enabled locally', async () => {
     await enableNotifications('user-1')
 
-    expect(mocks.setDoc).toHaveBeenCalledWith(
-      expect.objectContaining({ path: expect.stringMatching(/^users\/user-1\/notificationDevices\//) }),
-      expect.objectContaining({ token: 'new-fcm-token', enabled: true, platform: 'web' }),
-      { merge: true },
+    expect(fetch).toHaveBeenCalledWith(
+      'https://functions.example.test/registerNotificationDevice',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({ Authorization: 'Bearer firebase-id-token' }),
+      }),
     )
+    expect(JSON.parse(vi.mocked(fetch).mock.calls[0][1]?.body as string)).toEqual(expect.objectContaining({
+      token: 'new-fcm-token-that-is-long-enough',
+      platform: 'web',
+    }))
     expect(notificationsEnabledLocally('user-1')).toBe(true)
     expect(notificationsEnabledLocally('user-2')).toBe(false)
   })
 
   it('deactivates the current device and removes its token during sign-out', async () => {
     await enableNotifications('user-1')
-    mocks.setDoc.mockClear()
+    vi.mocked(fetch).mockClear()
 
     await disableNotifications('user-1')
 
-    expect(mocks.setDoc).toHaveBeenCalledWith(
-      expect.objectContaining({ path: expect.stringMatching(/^users\/user-1\/notificationDevices\//) }),
-      expect.objectContaining({ enabled: false }),
-      { merge: true },
+    expect(fetch).toHaveBeenCalledWith(
+      'https://functions.example.test/removeNotificationDevice',
+      expect.objectContaining({ method: 'DELETE' }),
     )
     expect(mocks.deleteToken).toHaveBeenCalledOnce()
     expect(notificationsEnabledLocally('user-1')).toBe(false)
@@ -83,7 +84,7 @@ describe('device notification subscriptions', () => {
 
   it('removes the local token even when remote deactivation fails', async () => {
     await enableNotifications('user-1')
-    mocks.setDoc.mockRejectedValueOnce(new Error('offline'))
+    vi.mocked(fetch).mockRejectedValueOnce(new Error('offline'))
 
     await expect(disableNotifications('user-1')).rejects.toThrow('offline')
 
@@ -96,8 +97,17 @@ describe('device notification subscriptions', () => {
 
     await expect(migrateLegacyNotificationToken('user-1')).resolves.toBe(true)
     await expect(migrateLegacyNotificationToken('user-1')).resolves.toBe(false)
-    expect(mocks.setDoc).toHaveBeenCalledTimes(1)
-    expect(mocks.setDoc.mock.calls[0][1]).toEqual(expect.objectContaining({ token: 'legacy-token', enabled: true }))
+    expect(fetch).toHaveBeenCalledTimes(1)
+    expect(JSON.parse(vi.mocked(fetch).mock.calls[0][1]?.body as string)).toEqual(expect.objectContaining({ token: 'legacy-token' }))
     expect(values.has('solara_fcm_token')).toBe(false)
+  })
+
+  it('does not request browser permission when the server endpoint is unavailable', async () => {
+    vi.stubEnv('NEXT_PUBLIC_FUNCTIONS_URL', '')
+
+    await expect(enableNotifications('user-1')).rejects.toThrow('not configured')
+
+    expect(Notification.requestPermission).not.toHaveBeenCalled()
+    expect(fetch).not.toHaveBeenCalled()
   })
 })

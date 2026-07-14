@@ -5,7 +5,12 @@ import { UserPreferences, SkinType, Location } from '@/lib/types'
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
 import { clearWeatherCache } from '@/lib/cache'
 import { TIER_LIMITS } from '@/lib/tiers'
-import { disableNotifications, enableNotifications, notificationsEnabledLocally } from '@/lib/notifications'
+import {
+  disableNotifications,
+  enableNotifications,
+  notificationRegistrationConfigured,
+  notificationsEnabledLocally,
+} from '@/lib/notifications'
 import { toggleTheme, getStoredTheme } from '@/lib/theme'
 import { auth, firebaseEnabled } from '@/lib/firebase'
 import ActivitySuggestionSettings from './ActivitySuggestionSettings'
@@ -271,10 +276,10 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
                     <button
                       className="btn btn-primary"
                       onClick={handleEnableNotifications}
-                      disabled={notifLoading}
+                      disabled={notifLoading || !notificationRegistrationConfigured()}
                       style={{ alignSelf: 'flex-start', whiteSpace: 'nowrap' }}
                     >
-                      {notifLoading ? 'Enabling...' : 'Enable notifications'}
+                      {notifLoading ? 'Enabling...' : notificationRegistrationConfigured() ? 'Enable notifications' : 'Notifications unavailable'}
                     </button>
                   ) : null
                 ) : (
