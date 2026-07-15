@@ -7,10 +7,10 @@ service cloud.firestore {
     }
 
     function isActiveAccount(userId) {
-      let deletion = get(/databases/$(database)/documents/accountDeletionTombstones/$(userId));
-      return !deletion.exists()
+      let deletionPath = /databases/$(database)/documents/accountDeletionTombstones/$(userId);
+      return !exists(deletionPath)
         || (request.auth.token.auth_time is int
-          && request.auth.token.auth_time > deletion.data.revokedBefore);
+          && request.auth.token.auth_time > get(deletionPath).data.revokedBefore);
     }
 
     function userCreateKeys() {
