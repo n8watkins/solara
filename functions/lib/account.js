@@ -108,16 +108,21 @@ function safeDeviceData(snapshot) {
 async function exportAccountData({ auth, db, req }) {
   const identity = await authenticate(auth, req.headers.authorization)
   const userRef = db.collection('users').doc(identity.uid)
-  const tombstone = await db.collection('accountDeletionTombstones').doc(identity.uid).get()
-  if (tombstone.exists) {
-    const error = new Error('Account deletion is in progress')
-    error.status = 409
-    throw error
-  }
-  const [userSnapshot, devicesSnapshot] = await Promise.all([
-    userRef.get(),
-    userRef.collection('notificationDevices').get(),
-  ])
+  const tombstoneRef = db.collection('accountDeletionTombstones').doc(identity.uid)
+  const devicesQuery = userRef.collection('notificationDevices')
+  const { userSnapshot, devicesSnapshot } = await db.runTransaction(async transaction => {
+    const tombstone = await transaction.get(tombstoneRef)
+    if (tombstone.exists) {
+      const error = new Error('Account deletion is in progress')
+      error.status = 409
+      throw error
+    }
+    const [account, devices] = await Promise.all([
+      transaction.get(userRef),
+      transaction.get(devicesQuery),
+    ])
+    return { userSnapshot: account, devicesSnapshot: devices }
+  })
   return {
     formatVersion: 1,
     exportedAt: new Date().toISOString(),

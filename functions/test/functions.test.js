@@ -492,15 +492,28 @@ describe('account data security', () => {
 
   test('rejects exports after account deletion starts', async () => {
     let userRead = false
+    const userRef = {
+      kind: 'user',
+      collection: () => ({ kind: 'devices' }),
+    }
     const db = {
       collection(name) {
         if (name === 'accountDeletionTombstones') {
-          return { doc: () => ({ get: async () => ({ exists: true }) }) }
+          return { doc: () => ({ kind: 'tombstone' }) }
         }
         if (name === 'users') {
-          return { doc: () => ({ get: async () => { userRead = true } }) }
+          return { doc: () => userRef }
         }
         throw new Error(`Unexpected collection ${name}`)
+      },
+      async runTransaction(callback) {
+        return callback({
+          async get(ref) {
+            if (ref.kind === 'tombstone') return { exists: true }
+            userRead = true
+            return ref.kind === 'devices' ? { docs: [] } : { exists: true, data: () => ({}) }
+          },
+        })
       },
     }
 
@@ -510,6 +523,49 @@ describe('account data security', () => {
       req: { headers: { authorization: 'Bearer valid' } },
     }), error => error.status === 409)
     assert.equal(userRead, false)
+  })
+
+  test('reads all exported data from one transaction snapshot', async () => {
+    const reads = []
+    const devicesQuery = { kind: 'devices' }
+    const userRef = {
+      kind: 'user',
+      collection(name) {
+        assert.equal(name, 'notificationDevices')
+        return devicesQuery
+      },
+    }
+    const tombstoneRef = { kind: 'tombstone' }
+    const db = {
+      collection(name) {
+        if (name === 'accountDeletionTombstones') return { doc: () => tombstoneRef }
+        if (name === 'users') return { doc: () => userRef }
+        throw new Error(`Unexpected collection ${name}`)
+      },
+      async runTransaction(callback) {
+        return callback({
+          async get(ref) {
+            reads.push(ref.kind)
+            if (ref === tombstoneRef) return { exists: false }
+            if (ref === userRef) {
+              return { exists: true, data: () => ({ location: { city: 'Seattle' } }) }
+            }
+            if (ref === devicesQuery) return { docs: [] }
+            throw new Error('Unexpected transaction read')
+          },
+        })
+      },
+    }
+
+    const result = await exportAccountData({
+      auth: { verifyIdToken: async () => ({ uid: 'alice' }) },
+      db,
+      req: { headers: { authorization: 'Bearer valid' } },
+    })
+
+    assert.deepEqual(reads, ['tombstone', 'user', 'devices'])
+    assert.deepEqual(result.account, { location: { city: 'Seattle' } })
+    assert.deepEqual(result.notificationDevices, [])
   })
 
   test('quarantines deletion and copies the billing index in bounded pages', async () => {
