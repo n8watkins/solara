@@ -668,9 +668,13 @@ describe('account data security', () => {
 
   test('continues processing deletion tombstones after one account fails', async () => {
     let laterAccountProcessed = false
+    const failureUpdates = []
     const tombstones = [{
       id: 'broken',
-      ref: { get: async () => { throw new Error('Auth unavailable') } },
+      ref: {
+        get: async () => { throw new Error('Auth unavailable') },
+        set: async (data, options) => { failureUpdates.push({ data, options }) },
+      },
     }, {
       id: 'later',
       ref: {
@@ -701,6 +705,10 @@ describe('account data security', () => {
         && error.errors[0].cause.message === 'Auth unavailable',
     )
     assert.equal(laterAccountProcessed, true)
+    assert.equal(failureUpdates.length, 1)
+    assert.equal(failureUpdates[0].data.cleanupLastError, 'Auth unavailable')
+    assert.equal(failureUpdates[0].data.cleanupUpdatedAt instanceof Date, true)
+    assert.deepEqual(failureUpdates[0].options, { merge: true })
   })
 })
 

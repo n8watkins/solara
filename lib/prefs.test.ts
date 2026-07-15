@@ -26,6 +26,21 @@ describe('normalizePrefs — savedLocations', () => {
     const many = Array.from({ length: 20 }, (_, i) => ({ lat: i, lon: i, city: `C${i}`, region: '' }))
     expect(base({ savedLocations: many }).savedLocations).toHaveLength(12)
   })
+
+  it('rejects non-finite and out-of-range coordinates', () => {
+    const invalid = [
+      { lat: Number.NaN, lon: 0, city: 'NaN' },
+      { lat: Number.POSITIVE_INFINITY, lon: 0, city: 'Infinity' },
+      { lat: 90.01, lon: 0, city: 'North' },
+      { lat: -90.01, lon: 0, city: 'South' },
+      { lat: 0, lon: 180.01, city: 'East' },
+      { lat: 0, lon: -180.01, city: 'West' },
+    ]
+
+    expect(base({ savedLocations: invalid }).savedLocations).toEqual([])
+    expect(normalizePrefs({ location: invalid[0] as Location })).toBeNull()
+    expect(normalizePrefs({ location: invalid[1] as Location }, invalid[2] as Location)).toBeNull()
+  })
 })
 
 describe('normalizePrefs - location timezone', () => {

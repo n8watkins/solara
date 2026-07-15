@@ -6,6 +6,19 @@ const MAX_REGISTRATIONS_PER_MINUTE = 10
 const NOTIFICATION_CLAIM_LEASE_MS = 12 * 60 * 1000
 const DEVICE_ID_PATTERN = /^[a-f0-9]{36}$/
 const PLATFORMS = new Set(['web', 'ios', 'android'])
+const DELIVERY_STATE_FIELDS = [
+  'lastDeliveredAt',
+  'lastNotificationKey',
+  'notificationDeliveryKey',
+  'notificationDeliveryStatus',
+  'notificationDeliveryAttemptId',
+  'notificationDeliveryAttemptCount',
+  'notificationDeliveryClaimedAt',
+  'notificationDeliveryCompletedAt',
+  'notificationDeliveryError',
+  'notificationDeliveryErrorAt',
+  'notificationDeliveryRunId',
+]
 
 function httpError(message, status) {
   const error = new Error(message)
@@ -43,6 +56,12 @@ function activeDeliveryClaim(data, nowMs) {
       ? claimedAt.toMillis()
       : NaN
   return Number.isFinite(claimedAtMs) && nowMs - claimedAtMs < NOTIFICATION_CLAIM_LEASE_MS
+}
+
+function deliveryState(data) {
+  return Object.fromEntries(DELIVERY_STATE_FIELDS
+    .filter(field => Object.hasOwn(data || {}, field))
+    .map(field => [field, data[field]]))
 }
 
 async function authenticateApp(appCheck, token) {
@@ -143,6 +162,10 @@ async function registerNotificationDevice({ appCheck, auth, db, req, serverTimes
       }
     }
     const tokenChanged = deviceSnapshot.exists && current?.token !== device.token
+    const transferredDeliveryState = priorDeviceSnapshot?.exists
+      && priorDeviceSnapshot.data().token === device.token
+      ? deliveryState(priorDeviceSnapshot.data())
+      : {}
     transaction.set(deviceRef, {
       token: device.token,
       enabled: true,
@@ -159,6 +182,7 @@ async function registerNotificationDevice({ appCheck, auth, db, req, serverTimes
         notificationDeliveryErrorAt: null,
         notificationDeliveryRunId: null,
       } : {}),
+      ...transferredDeliveryState,
       ...(deviceSnapshot.exists ? {} : { createdAt: serverTimestamp() }),
       updatedAt: serverTimestamp(),
     }, { merge: true })

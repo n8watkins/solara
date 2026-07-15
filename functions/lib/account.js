@@ -412,6 +412,19 @@ async function processPendingAccountDeletions({ auth, db, stripe }) {
         uid: tombstone.id,
       }))
     } catch (error) {
+      const timestamp = new Date()
+      try {
+        await tombstone.ref.set({
+          cleanupLastError: error?.message || 'Account deletion cleanup failed',
+          cleanupLastFailedAt: timestamp,
+          cleanupUpdatedAt: timestamp,
+        }, { merge: true })
+      } catch (persistenceError) {
+        failures.push(new Error(`Could not persist cleanup failure for ${tombstone.id}`, {
+          cause: persistenceError,
+        }))
+        continue
+      }
       failures.push(new Error(`Account deletion cleanup failed for ${tombstone.id}`, {
         cause: error,
       }))

@@ -13,7 +13,14 @@ const CATEGORY_NAMES = new Set(ACTIVITY_CATEGORIES.map(c => c.name))
 
 function isLocation(value: unknown): value is Location {
   const loc = value as Partial<Location> | null
-  return !!loc && typeof loc.lat === 'number' && typeof loc.lon === 'number' && typeof loc.city === 'string'
+  return !!loc
+    && Number.isFinite(loc.lat)
+    && loc.lat! >= -90
+    && loc.lat! <= 90
+    && Number.isFinite(loc.lon)
+    && loc.lon! >= -180
+    && loc.lon! <= 180
+    && typeof loc.city === 'string'
 }
 
 function normalizeLocation(value: Location): Location {
@@ -147,7 +154,11 @@ function normalizeActivity(raw: unknown, index: number, globalSunscreen: boolean
 
 export function normalizePrefs(raw: Partial<UserPreferences> | null, fallbackLocation?: Location): UserPreferences | null {
   if (!raw) return null
-  const rawLocation = isLocation(raw.location) ? raw.location : fallbackLocation
+  const rawLocation = isLocation(raw.location)
+    ? raw.location
+    : isLocation(fallbackLocation)
+      ? fallbackLocation
+      : undefined
   const location = rawLocation ? normalizeLocation(rawLocation) : undefined
   if (!location) return null
 

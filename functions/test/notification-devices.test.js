@@ -307,6 +307,36 @@ describe('notification device mutations', () => {
     assert.equal(db.writes.length, 0)
   })
 
+  test('preserves ambiguous delivery state when transferring a token', async () => {
+    const claimedAt = new Date(1_000)
+    const db = fakeDb({
+      owner: { uid: 'bob', deviceId: 'b'.repeat(36), token: TOKEN },
+      priorDeviceData: {
+        enabled: true,
+        token: TOKEN,
+        notificationDeliveryKey: 'daily-v2:2026-07-14',
+        notificationDeliveryStatus: 'unknown',
+        notificationDeliveryAttemptId: 'attempt-1',
+        notificationDeliveryClaimedAt: claimedAt,
+      },
+    })
+
+    await registerNotificationDevice({
+      appCheck,
+      auth,
+      db,
+      nowMs: 2_000,
+      req: request({ deviceId: DEVICE_ID, platform: 'web', token: TOKEN }),
+      serverTimestamp: () => 'server-time',
+    })
+
+    const deviceWrite = db.writes.find(write => write.ref.kind === 'device')
+    assert.equal(deviceWrite.data.notificationDeliveryKey, 'daily-v2:2026-07-14')
+    assert.equal(deviceWrite.data.notificationDeliveryStatus, 'unknown')
+    assert.equal(deviceWrite.data.notificationDeliveryAttemptId, 'attempt-1')
+    assert.equal(deviceWrite.data.notificationDeliveryClaimedAt, claimedAt)
+  })
+
   test('does not transfer a legacy token during an active delivery claim', async () => {
     const db = fakeDb({
       legacyTokenOwners: ['bob'],
