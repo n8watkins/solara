@@ -27,6 +27,8 @@ const SUBSCRIPTION_PAGE_SIZE = positiveInteger(process.env.NOTIFICATION_PAGE_SIZ
 const FORECAST_CACHE_SIZE = positiveInteger(process.env.NOTIFICATION_FORECAST_CACHE_SIZE, 500)
 const MAX_DISPATCH_PAGES = positiveInteger(process.env.NOTIFICATION_MAX_PAGES, 4)
 const RUN_BUDGET_MS = positiveInteger(process.env.NOTIFICATION_RUN_BUDGET_MS, 8 * 60 * 1000)
+const CHECKPOINT_RESERVE_MS = positiveInteger(process.env.NOTIFICATION_CHECKPOINT_RESERVE_MS, 30_000)
+const DISPATCH_BATCH_SIZE = Math.min(SUBSCRIPTION_PAGE_SIZE, CONCURRENCY)
 const RUN_ID = process.env.GITHUB_RUN_ID
   ? `github:${process.env.GITHUB_RUN_ID}:${process.env.GITHUB_RUN_ATTEMPT || '1'}`
   : `local:${process.pid}:${Date.now()}`
@@ -240,7 +242,9 @@ async function scanSubscriptions(
   options = {},
 ) {
   const maxPages = positiveInteger(options.maxPages, MAX_DISPATCH_PAGES)
-  const deadline = options.deadline || Date.now() + RUN_BUDGET_MS
+  const now = options.now || Date.now
+  const deadline = options.deadline || now() + RUN_BUDGET_MS
+  const checkpointReserveMs = positiveInteger(options.checkpointReserveMs, CHECKPOINT_RESERVE_MS)
   const stored = options.stateStore ? await options.stateStore.load() : {}
   const state = {
     nextPhase: stored?.nextPhase === 'legacy' ? 'legacy' : 'devices',
@@ -252,7 +256,7 @@ async function scanSubscriptions(
   const completed = new Set()
   let pages = 0
 
-  while (pages < maxPages && Date.now() < deadline && completed.size < 2) {
+  while (pages < maxPages && now() + checkpointReserveMs < deadline && completed.size < 2) {
     const phase = state.nextPhase
     state.nextPhase = phase === 'devices' ? 'legacy' : 'devices'
     if (completed.has(phase)) continue
@@ -268,7 +272,10 @@ async function scanSubscriptions(
       if (snapshot.docs.length) {
         const candidates = snapshot.docs.map(deviceCandidate).filter(Boolean)
         const subscriptions = await resolveDevicePage(candidates, database)
-        if (subscriptions.length) await onBatch(subscriptions)
+        if (subscriptions.length) {
+          const processed = await onBatch(subscriptions, { deadline, checkpointReserveMs })
+          if (processed === false) return { pages, state }
+        }
       }
       state.deviceCursor = finished ? null : snapshot.docs.at(-1).ref.path
       if (finished) completed.add(phase)
@@ -286,7 +293,10 @@ async function scanSubscriptions(
       const legacyState = restoreLegacyState(state, database)
       const candidates = snapshot.docs.map(legacyCandidate).filter(Boolean)
       const subscriptions = await resolveLegacyPage(candidates, legacyState, database, finished)
-      if (subscriptions.length) await onBatch(subscriptions)
+      if (subscriptions.length) {
+        const processed = await onBatch(subscriptions, { deadline, checkpointReserveMs })
+        if (processed === false) return { pages, state }
+      }
       const last = snapshot.docs.at(-1)
       state.legacyCursorToken = finished ? null : last.data().fcmToken
       state.legacyCursorId = finished ? null : last.id
@@ -495,15 +505,25 @@ async function main() {
     save: state => dispatchStateRef.set({ ...state, updatedAt: FieldValue.serverTimestamp() }),
   }
   console.log(`${DRY_RUN ? 'Dry-running' : 'Processing'} notification subscriptions in pages`)
-  await scanSubscriptions(db, async subscriptions => {
+  const deadline = Date.now() + RUN_BUDGET_MS
+  await scanSubscriptions(db, async (subscriptions, batch) => {
+    if (Date.now() + batch.checkpointReserveMs >= batch.deadline) return false
     processed += subscriptions.length
-    const results = await mapLimit(subscriptions, CONCURRENCY, subscription => sendSubscription(subscription, new Date()))
+    const results = await mapLimit(
+      subscriptions,
+      CONCURRENCY,
+      subscription => sendSubscription(subscription, new Date()),
+    )
     for (const result of results) {
       const outcome = result.status === 'fulfilled' ? result.value.outcome : 'failed'
       counts[outcome] = (counts[outcome] || 0) + 1
       if (result.status === 'rejected') console.error(result.reason)
     }
-  }, SUBSCRIPTION_PAGE_SIZE, { stateStore })
+  }, DISPATCH_BATCH_SIZE, {
+    deadline,
+    maxPages: Math.ceil(MAX_DISPATCH_PAGES * SUBSCRIPTION_PAGE_SIZE / DISPATCH_BATCH_SIZE),
+    stateStore,
+  })
   console.log(`Processed ${processed} notification subscription(s)`)
   console.log('Notification run complete:', counts)
   if (counts.failed) process.exitCode = 1

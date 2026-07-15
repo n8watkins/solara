@@ -50,7 +50,10 @@ describe('device notification subscriptions', () => {
     mocks.getAppCheckToken.mockResolvedValue({ token: 'firebase-app-check-token' })
     mocks.deleteToken.mockResolvedValue(true)
     mocks.getIdToken.mockResolvedValue('firebase-id-token')
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: vi.fn() }))
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({}),
+    }))
     Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: localStorageMock })
     Object.defineProperty(globalThis, 'window', { configurable: true, value: {} })
     Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { userAgent: 'test-browser' } })
@@ -79,6 +82,37 @@ describe('device notification subscriptions', () => {
     }))
     expect(notificationsEnabledLocally('user-1')).toBe(true)
     expect(notificationsEnabledLocally('user-2')).toBe(false)
+  })
+
+  it('continues bounded migration pages before reporting notifications enabled', async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce({ ok: true, json: vi.fn().mockResolvedValue({ migrationPending: true }) } as unknown as Response)
+      .mockResolvedValueOnce({ ok: true, json: vi.fn().mockResolvedValue({ migrationPending: true }) } as unknown as Response)
+      .mockResolvedValueOnce({ ok: true, json: vi.fn().mockResolvedValue({ migrationPending: false }) } as unknown as Response)
+
+    await enableNotifications('user-1')
+
+    expect(fetch).toHaveBeenCalledTimes(3)
+    expect(notificationsEnabledLocally('user-1')).toBe(true)
+  })
+
+  it('persists and resumes a migration that exceeds one bounded attempt window', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({ migrationPending: true }),
+    } as unknown as Response)
+
+    await expect(enableNotifications('user-1')).rejects.toThrow('still being finalized')
+
+    expect(fetch).toHaveBeenCalledTimes(3)
+    expect(notificationsEnabledLocally('user-1')).toBe(false)
+
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: vi.fn().mockResolvedValue({ migrationPending: false }),
+    } as unknown as Response)
+    await expect(migrateLegacyNotificationToken('user-1')).resolves.toBe(true)
+    expect(notificationsEnabledLocally('user-1')).toBe(true)
   })
 
   it('deactivates the current device and removes its token during sign-out', async () => {

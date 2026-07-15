@@ -431,6 +431,77 @@ describe('notification ownership', () => {
     ]))
     expect(dispatched.indexOf('legacy-user-0')).toBeLessThan(dispatched.indexOf('device-user-2'))
   })
+
+  it('checkpoints a small completed batch when dispatch reaches its deadline', async () => {
+    const deviceTokens = Array.from({ length: 4 }, (_, index) => `device-token-${index}`.padEnd(24, 'x'))
+    const owners = Object.fromEntries(deviceTokens.map((token, index) => [
+      createHash('sha256').update(token).digest('hex'),
+      { uid: `device-user-${index}`, deviceId: `device-${index}` },
+    ]))
+    const { database } = notificationDatabase({
+      devices: deviceTokens.map((token, index) => ({
+        deviceId: `device-${index}`,
+        token,
+        uid: `device-user-${index}`,
+      })),
+      owners,
+    })
+    let now = 0
+    const savedStates: Array<Record<string, unknown>> = []
+
+    const result = await scanSubscriptions(
+      database,
+      async (_subscriptions: unknown[], batch: { deadline: number; checkpointReserveMs: number }) => {
+        expect(batch).toEqual({ deadline: 100, checkpointReserveMs: 30 })
+        now = 80
+      },
+      2,
+      {
+        checkpointReserveMs: 30,
+        deadline: 100,
+        maxPages: 20,
+        now: () => now,
+        stateStore: {
+          load: async () => ({}),
+          save: async (state: Record<string, unknown>) => { savedStates.push({ ...state }) },
+        },
+      },
+    )
+
+    expect(result.pages).toBe(1)
+    expect(savedStates).toHaveLength(1)
+    expect(savedStates[0].deviceCursor).toBe('users/device-user-1/notificationDevices/device-1')
+  })
+
+  it('leaves the cursor untouched when a resolved batch cannot start safely', async () => {
+    const token = 'device-token'.padEnd(24, 'x')
+    const ownerId = createHash('sha256').update(token).digest('hex')
+    const { database } = notificationDatabase({
+      devices: [{ deviceId: 'device-1', token, uid: 'device-user' }],
+      owners: { [ownerId]: { uid: 'device-user', deviceId: 'device-1' } },
+    })
+    const savedStates: Array<Record<string, unknown>> = []
+
+    const result = await scanSubscriptions(
+      database,
+      async () => false,
+      1,
+      {
+        checkpointReserveMs: 30,
+        deadline: 100,
+        maxPages: 20,
+        now: () => 0,
+        stateStore: {
+          load: async () => ({}),
+          save: async (state: Record<string, unknown>) => { savedStates.push({ ...state }) },
+        },
+      },
+    )
+
+    expect(result.pages).toBe(1)
+    expect(result.state.deviceCursor).toBeNull()
+    expect(savedStates).toEqual([])
+  })
 })
 
 describe('notification forecast eligibility', () => {
