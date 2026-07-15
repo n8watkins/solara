@@ -23,6 +23,7 @@ const {
   createBillingPortal,
   createCheckout,
   findUserBySubscription,
+  processPendingCheckoutCleanups,
   processStripeEvent,
   subscriptionHasPrice,
   validAttemptId,
@@ -81,6 +82,7 @@ function withBillingResources(ref, initialResources = []) {
 function fakeDb(initialUser) {
   const subscriptionOwners = new Map()
   const cleanupResources = new Map()
+  const checkoutCleanupTasks = new Map()
   const events = new Map()
   const tombstoneData = {}
   const userData = { ...initialUser }
@@ -94,6 +96,7 @@ function fakeDb(initialUser) {
   const database = {
     subscriptionOwners,
     cleanupResources,
+    checkoutCleanupTasks,
     tombstoneData,
     userData,
     collection(name) {
@@ -166,6 +169,35 @@ function fakeDb(initialUser) {
           },
         }
       }
+      if (name === 'stripeCheckoutCleanupTasks') {
+        const collection = {
+          doc(id) {
+            return {
+              id,
+              kind: 'checkoutCleanupTask',
+              async get() {
+                return {
+                  exists: checkoutCleanupTasks.has(id),
+                  data: () => ({ ...checkoutCleanupTasks.get(id) }),
+                }
+              },
+            }
+          },
+          where() { return this },
+          orderBy() { return this },
+          limit() { return this },
+          async get() {
+            return {
+              docs: [...checkoutCleanupTasks.entries()].map(([id, data]) => ({
+                id,
+                data: () => ({ ...data }),
+                ref: this.doc(id),
+              })),
+            }
+          },
+        }
+        return collection
+      }
       throw new Error(`Unexpected collection ${name}`)
     },
     collectionGroup(name) {
@@ -199,6 +231,9 @@ function fakeDb(initialUser) {
             else if (ref.kind === 'tombstone') Object.assign(tombstoneData, data)
             else if (ref.kind === 'cleanupResource') {
               cleanupResources.set(ref.id, { ...cleanupResources.get(ref.id), ...data })
+            }
+            else if (ref.kind === 'checkoutCleanupTask') {
+              checkoutCleanupTasks.set(ref.id, { ...checkoutCleanupTasks.get(ref.id), ...data })
             }
             else if (ref.kind === 'billingResource') {
               userRef.billingResources.set(ref.id, {
@@ -1650,6 +1685,49 @@ describe('Stripe fulfillment security', () => {
 
     assert.deepEqual(expired, ['cs_uncommitted'])
     assert.equal(db.userData.stripeCheckoutStatus, 'failed')
+  })
+
+  test('queues failed uncommitted checkout cleanup and releases its reservation', async () => {
+    const db = fakeDb({ tier: 'free' })
+    const runTransaction = db.runTransaction.bind(db)
+    let transactionCount = 0
+    db.runTransaction = async callback => {
+      transactionCount++
+      if (transactionCount === 2) throw new Error('Firestore persistence failed')
+      return runTransaction(callback)
+    }
+
+    await assert.rejects(createCheckout({
+      appUrl: 'https://example.com',
+      auth: { verifyIdToken: async () => ({ uid: 'alice', email: 'alice@example.com' }) },
+      db,
+      expectedPriceId: 'price_pro',
+      req: { headers: { authorization: 'Bearer valid-token' }, body: { attemptId: '12345678-1234-1234-1234-123456789abc' } },
+      stripe: { checkout: { sessions: {
+        create: async () => ({ id: 'cs_cleanup_retry', status: 'open' }),
+        retrieve: async () => ({ id: 'cs_cleanup_retry', status: 'open' }),
+        expire: async () => { throw new Error('temporary Stripe failure') },
+      } } },
+    }), /temporary Stripe failure/)
+
+    assert.equal(db.checkoutCleanupTasks.size, 1)
+    assert.equal([...db.checkoutCleanupTasks.values()][0].sessionId, 'cs_cleanup_retry')
+    assert.equal([...db.checkoutCleanupTasks.values()][0].status, 'pending')
+    assert.equal(db.userData.stripeCheckoutStatus, 'failed')
+    assert.equal(db.userData.stripeCheckoutAttemptId, null)
+
+    const expired = []
+    const results = await processPendingCheckoutCleanups({
+      db,
+      now: new Date(Date.now() + 1_000),
+      stripe: { checkout: { sessions: {
+        retrieve: async () => ({ id: 'cs_cleanup_retry', status: 'open' }),
+        expire: async id => expired.push(id),
+      } } },
+    })
+    assert.deepEqual(results.map(result => result.completed), [true])
+    assert.deepEqual(expired, ['cs_cleanup_retry'])
+    assert.equal([...db.checkoutCleanupTasks.values()][0].status, 'completed')
   })
 
   test('cancels an uncommitted checkout that completed during persistence', async () => {

@@ -8,11 +8,14 @@ const {
   stripeSessionBelongsToUser,
   subscriptionOwnerRef,
 } = require('./billing-resources')
-const { createHash } = require('node:crypto')
+const { createHash, randomUUID } = require('node:crypto')
 
 const ACTIVE_SUBSCRIPTION_STATUSES = new Set(['active', 'trialing'])
 const TERMINAL_SUBSCRIPTION_STATUSES = new Set(['canceled', 'incomplete_expired'])
 const CHECKOUT_RESERVATION_MS = 24 * 60 * 60 * 1000
+const CHECKOUT_CLEANUP_LEASE_MS = 5 * 60 * 1000
+const CHECKOUT_CLEANUP_LIMIT = 10
+const CHECKOUT_CLEANUP_MAX_RETRY_MS = 24 * 60 * 60 * 1000
 const EVENT_PRIORITY = {
   'checkout.session.completed': 0,
   'checkout.session.async_payment_failed': 1,
@@ -73,10 +76,101 @@ async function neutralizeCheckoutSession(stripe, sessionId) {
   if (session.status === 'complete') {
     const subscriptionId = stringId(session.subscription)
     if (!subscriptionId) throw new Error('Completed checkout session is missing its subscription')
-    await stripe.subscriptions.cancel(subscriptionId)
+    try {
+      await stripe.subscriptions.cancel(subscriptionId)
+    } catch (error) {
+      if (error?.code !== 'resource_missing') throw error
+    }
     return
   }
   throw new Error('Checkout session has an unexpected status')
+}
+
+function checkoutCleanupTaskRef(db, sessionId) {
+  const digest = createHash('sha256').update(sessionId).digest('base64url')
+  return db.collection('stripeCheckoutCleanupTasks').doc(digest)
+}
+
+async function queueCheckoutCleanup(db, sessionId, uid) {
+  const taskRef = checkoutCleanupTaskRef(db, sessionId)
+  await db.runTransaction(async transaction => {
+    const snapshot = await transaction.get(taskRef)
+    if (snapshot.exists && ['completed', 'pending'].includes(snapshot.data().status)) return
+    const timestamp = new Date()
+    transaction.set(taskRef, {
+      attemptCount: 0,
+      lastError: null,
+      nextAttemptAt: timestamp,
+      processingToken: null,
+      sessionId,
+      status: 'pending',
+      uid,
+      updatedAt: timestamp,
+    }, { merge: true })
+  })
+}
+
+function checkoutCleanupRetryDelay(attemptCount) {
+  return Math.min(60_000 * (2 ** Math.min(Math.max(attemptCount - 1, 0), 10)), CHECKOUT_CLEANUP_MAX_RETRY_MS)
+}
+
+async function processPendingCheckoutCleanups({ db, stripe, now = new Date() }) {
+  const tasks = await db.collection('stripeCheckoutCleanupTasks')
+    .where('status', '==', 'pending')
+    .where('nextAttemptAt', '<=', now)
+    .orderBy('nextAttemptAt')
+    .limit(CHECKOUT_CLEANUP_LIMIT)
+    .get()
+  const results = []
+  for (const task of tasks.docs) {
+    const processingToken = randomUUID()
+    const claimed = await db.runTransaction(async transaction => {
+      const current = await transaction.get(task.ref)
+      if (!current.exists || current.data().status !== 'pending') return null
+      const nextAttemptAt = dateMillis(current.data().nextAttemptAt)
+      if (Number.isFinite(nextAttemptAt) && nextAttemptAt > now.getTime()) return null
+      transaction.set(task.ref, {
+        nextAttemptAt: new Date(now.getTime() + CHECKOUT_CLEANUP_LEASE_MS),
+        processingToken,
+        updatedAt: now,
+      }, { merge: true })
+      return current.data()
+    })
+    if (!claimed) continue
+    try {
+      await neutralizeCheckoutSession(stripe, claimed.sessionId)
+      await db.runTransaction(async transaction => {
+        const current = await transaction.get(task.ref)
+        if (!current.exists || current.data().processingToken !== processingToken) return
+        transaction.set(task.ref, {
+          completedAt: new Date(),
+          nextAttemptAt: null,
+          processingToken: null,
+          status: 'completed',
+          updatedAt: new Date(),
+        }, { merge: true })
+      })
+      results.push({ id: task.id, completed: true })
+    } catch (error) {
+      await db.runTransaction(async transaction => {
+        const current = await transaction.get(task.ref)
+        if (!current.exists || current.data().processingToken !== processingToken) return
+        const attemptCount = Number.isSafeInteger(current.data().attemptCount)
+          ? current.data().attemptCount + 1
+          : 1
+        const timestamp = new Date()
+        transaction.set(task.ref, {
+          attemptCount,
+          lastError: error?.message || 'Checkout cleanup failed',
+          nextAttemptAt: new Date(timestamp.getTime() + checkoutCleanupRetryDelay(attemptCount)),
+          processingToken: null,
+          updatedAt: timestamp,
+        }, { merge: true })
+      })
+      results.push({ id: task.id, completed: false })
+    }
+  }
+  return results
 }
 
 function subscriptionHasPrice(subscription, expectedPriceId) {
@@ -568,15 +662,27 @@ async function createCheckout({ appUrl, auth, db, expectedPriceId, req, stripe }
     return session
   } catch (error) {
     let failure = error
-    if (createdSessionId) {
-      try {
-        await neutralizeCheckoutSession(stripe, createdSessionId)
-      } catch (cleanupError) {
-        if (!cleanupQueued) throw cleanupError
-        failure = cleanupError
+    try {
+      if (createdSessionId) {
+        try {
+          await neutralizeCheckoutSession(stripe, createdSessionId)
+        } catch (cleanupError) {
+          failure = cleanupError
+          if (!cleanupQueued) {
+            try {
+              await queueCheckoutCleanup(db, createdSessionId, identity.uid)
+            } catch (queueError) {
+              failure = new AggregateError(
+                [cleanupError, queueError],
+                'Checkout cleanup failed and could not be queued',
+              )
+            }
+          }
+        }
       }
+    } finally {
+      await releaseReservation()
     }
-    await releaseReservation()
     throw failure
   }
 }
@@ -710,6 +816,7 @@ module.exports = {
   findUserBySubscription,
   listCustomerSubscriptions,
   processStripeEvent,
+  processPendingCheckoutCleanups,
   subscriptionHasPrice,
   validAttemptId,
   validUid,

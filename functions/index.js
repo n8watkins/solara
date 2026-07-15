@@ -18,6 +18,7 @@ const {
   backfillBillingResourcePage,
   createBillingPortal,
   createCheckout,
+  processPendingCheckoutCleanups,
   processStripeEvent,
 } = require('./lib/stripe')
 
@@ -268,6 +269,17 @@ exports.cleanupDeletedAccountBilling = onSchedule(
       stripe: stripeClient(),
     })
     console.log('Deleted account billing cleanup pages processed', { results })
+  },
+)
+
+exports.cleanupFailedCheckouts = onSchedule(
+  { schedule: 'every 5 minutes', secrets: [STRIPE_SECRET_KEY], timeoutSeconds: 300 },
+  async () => {
+    const results = await processPendingCheckoutCleanups({
+      db,
+      stripe: stripeClient(),
+    })
+    console.log('Failed checkout cleanup tasks processed', { results })
   },
 )
 
