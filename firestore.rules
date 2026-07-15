@@ -75,18 +75,30 @@ service cloud.firestore {
     function validSavedLocations(locations) {
       return locations is list
         && locations.size() <= 12
-        && (locations.size() < 1 || validLocation(locations[0]))
-        && (locations.size() < 2 || validLocation(locations[1]))
-        && (locations.size() < 3 || validLocation(locations[2]))
-        && (locations.size() < 4 || validLocation(locations[3]))
-        && (locations.size() < 5 || validLocation(locations[4]))
-        && (locations.size() < 6 || validLocation(locations[5]))
-        && (locations.size() < 7 || validLocation(locations[6]))
-        && (locations.size() < 8 || validLocation(locations[7]))
-        && (locations.size() < 9 || validLocation(locations[8]))
-        && (locations.size() < 10 || validLocation(locations[9]))
-        && (locations.size() < 11 || validLocation(locations[10]))
-        && (locations.size() < 12 || validLocation(locations[11]));
+        && (locations.size() < 1 || validSavedLocation(locations[0]))
+        && (locations.size() < 2 || validSavedLocation(locations[1]))
+        && (locations.size() < 3 || validSavedLocation(locations[2]))
+        && (locations.size() < 4 || validSavedLocation(locations[3]))
+        && (locations.size() < 5 || validSavedLocation(locations[4]))
+        && (locations.size() < 6 || validSavedLocation(locations[5]))
+        && (locations.size() < 7 || validSavedLocation(locations[6]))
+        && (locations.size() < 8 || validSavedLocation(locations[7]))
+        && (locations.size() < 9 || validSavedLocation(locations[8]))
+        && (locations.size() < 10 || validSavedLocation(locations[9]))
+        && (locations.size() < 11 || validSavedLocation(locations[10]))
+        && (locations.size() < 12 || validSavedLocation(locations[11]));
+    }
+
+    function validSavedLocation(location) {
+      return location is map
+        && location.lat is number
+        && location.lat >= -90
+        && location.lat <= 90
+        && location.lon is number
+        && location.lon >= -180
+        && location.lon <= 180
+        && location.city is string
+        && location.region is string;
     }
 
     function validNewUser(userId) {
