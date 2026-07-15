@@ -1,4 +1,10 @@
+import type { Metadata } from 'next'
 import LegalPage from '@/components/LegalPage'
+
+export const metadata: Metadata = {
+  title: 'Terms of Use | Solara',
+  description: 'Terms, safety limitations, subscriptions, and acceptable use for Solara.',
+}
 
 export default function TermsPage() {
   return (
@@ -30,7 +36,9 @@ export default function TermsPage() {
       <p>Some jurisdictions do not allow certain warranty exclusions or liability limitations, so those provisions may not apply to you.</p>
 
       <h2>Account termination</h2>
-      <p>You may delete your account from the <a href="/account/">Account data controls</a> page.</p>
+      <p>
+        You may delete your account from the <a href="/account/">Account data controls</a> page.
+      </p>
       <p>Access may be suspended or terminated for material misuse, legal requirements, security risk, or violation of these terms.</p>
     </LegalPage>
   )

@@ -3,7 +3,7 @@
 _Last reviewed: 2026-07-15_
 
 Solara exports a static Next.js site to `out/` and hosts it on Firebase Hosting.
-Firebase Functions provide trusted server behavior for Stripe fulfillment and the live calendar feed.
+Firebase Functions provide trusted server behavior for billing, account data, notification registration, scheduled cleanup, and calendar feeds.
 The notification dispatcher is available as a manual GitHub Actions workflow until live scheduled delivery is approved.
 
 ## Plan requirements
@@ -35,7 +35,7 @@ The notification registration endpoints require a valid App Check token and paid
 
 Optional feature activation:
 
-- `NEXT_PUBLIC_SITE_URL` sets the canonical deployed origin.
+- `NEXT_PUBLIC_SITE_URL` sets the canonical deployed origin used by route metadata, `robots.txt`, and `sitemap.xml`.
 - `NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID` enables Google Calendar access.
 - `NEXT_PUBLIC_PRO_PRICE` controls the displayed Pro price.
 - `NEXT_PUBLIC_FUNCTIONS_URL` enables Function-backed product surfaces.
@@ -48,14 +48,15 @@ Never put a Stripe secret, Firebase service-account JSON, webhook secret, or OAu
 
 Add the required client variables above as repository secrets.
 Also add `FIREBASE_SERVICE_ACCOUNT` as the complete JSON for a narrowly scoped deployment and notification service account.
-The deployment workflow uses that credential to publish Hosting and Firestore rules, plus indexes and Functions when `ENABLE_BLAZE_FUNCTIONS` is `true`.
+The deployment workflow uses that credential to publish Hosting, Firestore rules, and Firestore indexes.
+It also publishes Functions when `ENABLE_BLAZE_FUNCTIONS` is `true`.
 The notification workflow uses it to access notification data and send through Firebase Cloud Messaging.
 
 Server configuration is split across these locations:
 
 - Firebase Secret Manager stores `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET`.
 - GitHub Actions provides `NEXT_PUBLIC_SITE_URL` to Functions as `APP_URL` and provides `STRIPE_PRICE_ID` as a deploy-time Functions parameter.
-- The `ENABLE_BLAZE_FUNCTIONS` GitHub repository variable controls whether the deployment publishes Firestore indexes and Functions and exposes `NEXT_PUBLIC_FUNCTIONS_URL` in the client build.
+- The `ENABLE_BLAZE_FUNCTIONS` GitHub repository variable controls whether the deployment publishes Functions and exposes `NEXT_PUBLIC_FUNCTIONS_URL` in the client build.
 - GitHub repository secrets store `NEXT_PUBLIC_FUNCTIONS_URL`, `FIREBASE_SERVICE_ACCOUNT`, and the public client configuration used during the static build.
 
 Before enabling the backend deployment, put the project on Blaze, configure both Stripe secrets in Firebase Secret Manager, and configure `STRIPE_PRICE_ID`, `NEXT_PUBLIC_FUNCTIONS_URL`, and `NEXT_PUBLIC_SITE_URL` in GitHub.
@@ -87,17 +88,23 @@ Verify the same gates used by CI.
 
 ```bash
 npm ci
+npm audit --audit-level=high
 npm run lint
 npm run typecheck
 npm test
 npm run build
+npm ci --prefix functions
+npm audit --prefix functions --audit-level=high
+npm test --prefix functions
+npm run test:rules --prefix functions
 npx playwright install chromium
 npm run test:e2e
 ```
 
 Merge a reviewed pull request into `main` after the required GitHub secrets exist.
-When `ENABLE_BLAZE_FUNCTIONS` is `true`, the deployment workflow builds with those values, deploys transitional Firestore rules and indexes, deploys Functions, deploys Hosting, and then restores the final rules.
-When the variable is not `true`, the workflow keeps Function-backed client surfaces disabled, deploys Hosting, and restores the final Firestore rules.
+The deployment workflow deploys Firestore indexes on every release so manual notification dry-runs have the required collection-group index even while Functions remain disabled.
+When `ENABLE_BLAZE_FUNCTIONS` is `true`, the workflow builds with those values, deploys transitional Firestore rules, deploys Functions, deploys Hosting, and then restores the final rules.
+When the variable is not `true`, the workflow keeps Function-backed client surfaces disabled, deploys indexes and Hosting, and restores the final Firestore rules.
 
 ## Service worker generation
 

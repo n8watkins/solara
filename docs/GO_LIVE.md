@@ -15,7 +15,8 @@ The release is not complete until the automated gates and relevant real-service 
 - [ ] Run `npm run build` with the intended public environment configuration.
 - [ ] Run `npx playwright install chromium` if Chromium is not installed.
 - [ ] Run `npm run test:e2e`.
-- [ ] Review `npm audit` and document any accepted transitive advisories.
+- [ ] Review `npm audit` and the accepted transitive advisories in [DEPENDENCY_RISK.md](./DEPENDENCY_RISK.md).
+- [ ] Run `npm ci --prefix functions`, `npm audit --prefix functions --audit-level=high`, `npm test --prefix functions`, and `npm run test:rules --prefix functions`.
 
 ## 2. Configuration preflight
 
@@ -35,8 +36,8 @@ The release is not complete until the automated gates and relevant real-service 
 - [ ] Confirm the frontend and backend jobs pass every automated quality gate.
 - [ ] Confirm the Hosting deployment succeeds.
 - [ ] Confirm the Firestore rules deployment succeeds.
-- [ ] Confirm the Functions deployment succeeds before the Hosting deployment starts.
-- [ ] Confirm `backfillStripeBillingResources`, `cleanupDeletedAccountBilling`, and `cleanupFailedCheckouts` are deployed and healthy.
+- [ ] When `ENABLE_BLAZE_FUNCTIONS` is `true`, confirm the Functions deployment succeeds before the Hosting deployment starts.
+- [ ] When `ENABLE_BLAZE_FUNCTIONS` is `true`, confirm `backfillStripeBillingResources`, `cleanupDeletedAccountBilling`, and `cleanupFailedCheckouts` are deployed and healthy.
 - [ ] Confirm the final Firestore rules are restored after the deployment attempt, including when Functions or Hosting fails.
 - [ ] Record the deployed commit and Firebase release.
 

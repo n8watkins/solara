@@ -4,6 +4,7 @@ import { User, signOut } from 'firebase/auth'
 import { UserPreferences, SkinType, Location } from '@/lib/types'
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
 import { clearWeatherCache } from '@/lib/cache'
+import { searchLocation } from '@/lib/geocoding'
 import { TIER_LIMITS } from '@/lib/tiers'
 import {
   disableNotifications,
@@ -121,11 +122,9 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
     if (!citySearch.trim()) return
     setLocLoading(true); setLocError(null)
     try {
-      const res  = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(citySearch)}&count=1&language=en&format=json`)
-      const data = await res.json()
-      if (!data.results?.length) throw new Error()
-      const r = data.results[0]
-      setLocation({ lat: r.latitude, lon: r.longitude, city: r.name, region: r.admin1 ?? r.country ?? '', timezone: r.timezone })
+      const nextLocation = await searchLocation(citySearch)
+      if (!nextLocation) throw new Error()
+      setLocation(nextLocation)
       clearWeatherCache()
     } catch {
       setLocError('City not found.')

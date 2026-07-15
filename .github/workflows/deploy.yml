@@ -129,12 +129,22 @@ jobs:
           NEXT_PUBLIC_FUNCTIONS_URL: ${{ vars.ENABLE_BLAZE_FUNCTIONS == 'true' && secrets.NEXT_PUBLIC_FUNCTIONS_URL || '' }}
           NEXT_PUBLIC_GA_MEASUREMENT_ID: ${{ secrets.NEXT_PUBLIC_GA_MEASUREMENT_ID }}
 
-      - name: Protect server-owned billing fields and deploy indexes
+      - name: Deploy Firestore indexes
+        run: |
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          npx --yes firebase-tools@15 deploy --only firestore:indexes \
+            --project "$FIREBASE_PROJECT_ID" --non-interactive
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FIREBASE_PROJECT_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
+
+      - name: Protect server-owned billing fields
         if: vars.ENABLE_BLAZE_FUNCTIONS == 'true'
         run: |
           printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
           export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
-          npx --yes firebase-tools@15 deploy --only firestore \
+          npx --yes firebase-tools@15 deploy --only firestore:rules \
             --config firebase.pre-functions.json \
             --project "$FIREBASE_PROJECT_ID" --non-interactive
         env:

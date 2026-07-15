@@ -1,6 +1,12 @@
+import type { Metadata } from 'next'
 import LegalPage from '@/components/LegalPage'
 import { AnalyticsPreferenceControl } from '@/components/AnalyticsConsent'
 import { isAnalyticsMeasurementId } from '@/lib/analytics-consent'
+
+export const metadata: Metadata = {
+  title: 'Privacy Policy | Solara',
+  description: 'How Solara collects, uses, protects, and deletes account and planning information.',
+}
 
 export default function PrivacyPage() {
   const analyticsEnabled = isAnalyticsMeasurementId(process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID)
@@ -31,7 +37,9 @@ export default function PrivacyPage() {
       <h2>Your choices</h2>
       <p>You can disable notifications, rotate or revoke a calendar feed, disconnect calendar access through your Google account, download an account-data copy, and delete your account.</p>
       <AnalyticsPreferenceControl enabled={analyticsEnabled} />
-      <p>Use the <a href="/account/">Account data controls</a> page while signed in to download or delete your information.</p>
+      <p>
+        Use the <a href="/account/">Account data controls</a> page while signed in to download or delete your information.
+      </p>
       <p>Deleting an account removes Solara preferences and notification registrations and cancels an active Solara subscription when the subscription integration is configured.</p>
 
       <h2>Children</h2>
