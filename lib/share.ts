@@ -1,5 +1,5 @@
 import { Activity, Location, SafeActivityWindow } from './types'
-import { fmtHour } from './weather'
+import { fmtClock } from './weather'
 
 export interface ActivitySharePayload {
   activity: Activity
@@ -9,11 +9,43 @@ export interface ActivitySharePayload {
   dayOffset?: number
 }
 
+export interface ParsedActivityShare {
+  activity: string
+  icon: string
+  city: string
+  region: string
+  date: string
+  from: number
+  to: number
+  uv?: string
+}
+
+export function parseActivityShareParams(params: URLSearchParams): ParsedActivityShare | null {
+  const activity = params.get('a')?.trim()
+  const city = params.get('city')?.trim()
+  const date = params.get('date')?.trim()
+  const from = Number(params.get('from'))
+  const to = Number(params.get('to'))
+
+  if (!activity || !city || !date || !Number.isFinite(from) || !Number.isFinite(to) || to <= from) return null
+
+  return {
+    activity,
+    icon: params.get('icon')?.trim() || '☀️',
+    city,
+    region: params.get('region')?.trim() || '',
+    date,
+    from,
+    to,
+    uv: params.get('uv')?.trim() || undefined,
+  }
+}
+
 export function buildActivityShareText({ activity, window: win, location, dateLabel }: ActivitySharePayload): string {
   const place = `${location.city}${location.region ? `, ${location.region}` : ''}`
   const uvCopy = typeof win.peakUV === 'number' ? ` Peak UV ${win.peakUV.toFixed(1)}.` : ''
   const duration = activity.durationMins < 60 ? `${activity.durationMins} min` : `${activity.durationMins / 60} hr`
-  return `Let's do ${activity.name.toLowerCase()} ${dateLabel.toLowerCase()} from ${fmtHour(win.from)}–${fmtHour(win.to)} in ${place}. Solara estimates this as a lower-UV ${duration} planning window.${uvCopy} Recheck current conditions and use sun protection.`
+  return `Let's do ${activity.name.toLowerCase()} ${dateLabel.toLowerCase()} from ${fmtClock(win.from)}–${fmtClock(win.to)} in ${place}. Solara estimates this as a lower-UV ${duration} planning window.${uvCopy} Recheck current conditions and use sun protection.`
 }
 
 export function buildActivityShareUrl({ activity, window: win, location, dateLabel, dayOffset = 0 }: ActivitySharePayload, origin?: string): string {
