@@ -21,7 +21,7 @@ The release is not complete until the automated gates and relevant real-service 
 ## 2. Configuration preflight
 
 - [ ] Confirm all required Firebase client variables exist in GitHub Actions secrets.
-- [ ] Confirm `FIREBASE_SERVICE_ACCOUNT` is valid and narrowly scoped.
+- [ ] Confirm `FIREBASE_SERVICE_ACCOUNT` is valid, narrowly scoped, and includes `roles/datastore.indexAdmin`.
 - [ ] Confirm the production domain is an authorized Firebase Authentication domain.
 - [ ] Confirm the VAPID key is present when notifications are enabled.
 - [ ] Confirm App Check registration is monitored before enabling enforcement.
