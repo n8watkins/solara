@@ -15,6 +15,73 @@ interface GeocodingResponse {
   results?: GeocodingResult[]
 }
 
+const REGION_ABBREVIATIONS: Readonly<Record<string, string>> = {
+  ab: 'alberta',
+  ak: 'alaska',
+  al: 'alabama',
+  ar: 'arkansas',
+  az: 'arizona',
+  bc: 'british columbia',
+  ca: 'california',
+  co: 'colorado',
+  ct: 'connecticut',
+  dc: 'district of columbia',
+  de: 'delaware',
+  fl: 'florida',
+  ga: 'georgia',
+  hi: 'hawaii',
+  ia: 'iowa',
+  id: 'idaho',
+  il: 'illinois',
+  in: 'indiana',
+  ks: 'kansas',
+  ky: 'kentucky',
+  la: 'louisiana',
+  ma: 'massachusetts',
+  mb: 'manitoba',
+  md: 'maryland',
+  me: 'maine',
+  mi: 'michigan',
+  mn: 'minnesota',
+  mo: 'missouri',
+  ms: 'mississippi',
+  mt: 'montana',
+  nb: 'new brunswick',
+  nc: 'north carolina',
+  nd: 'north dakota',
+  ne: 'nebraska',
+  nh: 'new hampshire',
+  nj: 'new jersey',
+  nl: 'newfoundland and labrador',
+  nm: 'new mexico',
+  ns: 'nova scotia',
+  nt: 'northwest territories',
+  nu: 'nunavut',
+  nv: 'nevada',
+  ny: 'new york',
+  oh: 'ohio',
+  ok: 'oklahoma',
+  on: 'ontario',
+  or: 'oregon',
+  pa: 'pennsylvania',
+  pe: 'prince edward island',
+  qc: 'quebec',
+  ri: 'rhode island',
+  sc: 'south carolina',
+  sd: 'south dakota',
+  sk: 'saskatchewan',
+  tn: 'tennessee',
+  tx: 'texas',
+  ut: 'utah',
+  va: 'virginia',
+  vt: 'vermont',
+  wa: 'washington',
+  wi: 'wisconsin',
+  wv: 'west virginia',
+  wy: 'wyoming',
+  yt: 'yukon',
+}
+
 function toLocation(result: GeocodingResult): Location {
   return {
     lat: result.latitude,
@@ -26,10 +93,11 @@ function toLocation(result: GeocodingResult): Location {
 }
 
 function matchesQualifier(result: GeocodingResult, qualifier: string): boolean {
-  const normalizedQualifier = qualifier.toLocaleLowerCase()
+  const normalizedQualifier = qualifier.trim().toLocaleLowerCase()
+  const acceptedValues = new Set([normalizedQualifier, REGION_ABBREVIATIONS[normalizedQualifier]])
   return [result.admin1, result.admin2, result.country, result.country_code]
     .filter((value): value is string => Boolean(value))
-    .some(value => value.toLocaleLowerCase().includes(normalizedQualifier))
+    .some(value => acceptedValues.has(value.trim().toLocaleLowerCase()))
 }
 
 async function fetchResults(query: string, count: number): Promise<GeocodingResult[]> {

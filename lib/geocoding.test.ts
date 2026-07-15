@@ -65,6 +65,26 @@ describe('searchLocation', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
+  it('matches region abbreviations without accepting substrings', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        results: [
+          { latitude: 38.5816, longitude: -121.4944, name: 'Portland', admin1: 'California' },
+          { latitude: 45.5152, longitude: -122.6784, name: 'Portland', admin1: 'Oregon' },
+        ],
+      }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(searchLocation('Portland, OR')).resolves.toMatchObject({
+      city: 'Portland',
+      region: 'Oregon',
+      lat: 45.5152,
+    })
+    expect(fetchMock).toHaveBeenCalledOnce()
+  })
+
   it('rejects failed geocoding responses', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 503 }))
     await expect(searchLocation('Pasadena')).rejects.toThrow('status 503')
