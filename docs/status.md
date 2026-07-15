@@ -17,7 +17,7 @@ CI runs frontend and backend dependency audits, lint, typecheck, app and Functio
 |---|---|---|
 | Forecast and activity planning | Built | Verify live Open-Meteo behavior and recommendation consistency |
 | Google sign-in and Firestore sync | Built | Requires Firebase configuration and authorized domains |
-| Push notifications | Built with scheduled dispatcher | Requires VAPID, service account, eligible test account, and real-device verification |
+| Push notifications | Built with manual dry-run dispatcher | Requires VAPID, service account, eligible test account, real-device verification, and approval before scheduling |
 | Google Calendar | Built behind configuration | Requires OAuth client provisioning and live consent testing |
 | Stripe Pro fulfillment | Built behind authenticated Functions | Requires Blaze, Stripe test keys, webhook registration, and signed event tests |
 | Live calendar feed | Function-backed | Requires Blaze, Functions deployment, and a real calendar client |

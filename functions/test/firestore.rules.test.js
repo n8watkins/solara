@@ -60,6 +60,19 @@ describe('pre-Functions deployment compatibility', () => {
     const ref = preDeployEnv.authenticatedContext('alice').firestore().doc('users/alice')
     await assertFails(ref.delete())
   })
+
+  test('keeps tombstoned accounts isolated during Functions deploy', async () => {
+    await preDeployEnv.withSecurityRulesDisabled(async context => {
+      const db = context.firestore()
+      await db.doc('users/alice').set(prefs('alice'))
+      await db.doc('accountDeletionTombstones/alice').set({ cleanupStatus: 'pending' })
+    })
+
+    const ref = preDeployEnv.authenticatedContext('alice').firestore().doc('users/alice')
+    await assertFails(ref.get())
+    await assertFails(ref.update({ skinType: 'dark' }))
+    await assertFails(ref.set(prefs('alice')))
+  })
 })
 
 describe('user preferences', () => {

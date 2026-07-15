@@ -4,7 +4,7 @@ _Last reviewed: 2026-07-14_
 
 Solara exports a static Next.js site to `out/` and hosts it on Firebase Hosting.
 Firebase Functions provide trusted server behavior for Stripe fulfillment and the live calendar feed.
-The notification dispatcher runs in GitHub Actions every 15 minutes and decides which users are due based on application logic.
+The notification dispatcher is available as a manual GitHub Actions workflow until live scheduled delivery is approved.
 
 ## Plan requirements
 
@@ -100,10 +100,10 @@ npx firebase-tools deploy --only hosting --project <project-id>
 ## Notification activation
 
 The notification workflow installs the committed dependency graph with `npm ci` and prevents overlapping dispatch runs.
-The scheduled run occurs every 15 minutes so the sender can honor per-user local-time eligibility.
+Scheduled delivery remains disabled until the real-device verification below is complete and live activation is approved.
 
 Use `workflow_dispatch` for controlled verification.
-Start with `dry_run = true`.
+The workflow defaults to `dry_run = true`.
 Use `force_send = true` only when you intentionally need to bypass local-time eligibility during a manual test.
 Application idempotency should still prevent the same delivery from being sent twice.
 
@@ -116,7 +116,7 @@ Do not manually clear an `unknown` claim unless delivery has been reconciled wit
 Use `notificationDeliveryKey`, `notificationDeliveryAttemptId`, `notificationDeliveryAttemptCount`, `notificationDeliveryClaimedAt`, and `notificationDeliveryRunId` to correlate the device record with workflow logs.
 The dispatcher emits a structured `notification-delivery-unknown` log when it catches an ambiguous provider or transport result.
 
-Before enabling scheduled sends, verify all of the following on a real phone:
+Before adding a schedule, verify all of the following on a real phone:
 
 1. The account is eligible for notifications.
 2. The deployed Functions URL is configured so the authenticated registration endpoint can store the device.

@@ -1,14 +1,12 @@
 name: Send morning notifications
 
 on:
-  schedule:
-    - cron: "*/15 * * * *"
   workflow_dispatch:
     inputs:
       dry_run:
         description: "Build & log messages without sending any push"
         type: boolean
-        default: false
+        default: true
       force_send:
         description: "Ignore local-time eligibility while preserving idempotency"
         type: boolean
