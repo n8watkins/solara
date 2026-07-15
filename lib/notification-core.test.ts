@@ -20,6 +20,7 @@ const {
   notificationScope,
   recordDeliveryFailure,
   scanSubscriptions,
+  sendSubscription,
 } = require('../scripts/send-notifications')
 /* eslint-enable @typescript-eslint/no-require-imports */
 
@@ -182,7 +183,12 @@ describe('notification ownership', () => {
     const query = (docs: QueryDoc[], start = 0, pageSize = docs.length) => ({
       where: () => query(docs, start, pageSize),
       orderBy: () => query(docs, start, pageSize),
-      startAfter: (cursor: QueryDoc) => query(docs, docs.indexOf(cursor) + 1, pageSize),
+      startAfter: (...cursor: Array<QueryDoc | string>) => {
+        const index = cursor.length === 1
+          ? docs.findIndex(doc => doc.ref.path === cursor[0])
+          : docs.findIndex(doc => doc.data().fcmToken === cursor[0] && doc.id === cursor[1])
+        return query(docs, index + 1, pageSize)
+      },
       limit: (limit: number) => query(docs, start, limit),
       get: async () => ({ docs: docs.slice(start, start + pageSize) }),
     })
@@ -190,7 +196,7 @@ describe('notification ownership', () => {
       database: {
         collectionGroup: () => query(deviceDocs),
         collection: (name: string) => {
-          if (name === 'users') return query(legacyDocs)
+          if (name === 'users') return { ...query(legacyDocs), doc: (uid: string) => userRef(uid) }
           if (name === 'notificationTokenOwners') {
             return { doc: (id: string) => ({ id, kind: 'owner', owner: owners[id] }) }
           }
@@ -359,7 +365,7 @@ describe('notification ownership', () => {
 
     await scanSubscriptions(database, async (subscriptions: Array<{ userRef: { id: string } }>) => {
       batches.push(subscriptions.map(subscription => subscription.userRef.id))
-    }, 2)
+    }, 2, { maxPages: 20 })
 
     expect(Math.max(...batches.map(batch => batch.length))).toBeLessThanOrEqual(2)
     expect(batches.flat()).toEqual(expect.arrayContaining([
@@ -373,6 +379,88 @@ describe('notification ownership', () => {
       'users/legacy-shared-a',
       'users/legacy-shared-b',
     ])
+  })
+
+  it('resumes a bounded fair scan from durable cursors', async () => {
+    const deviceTokens = Array.from({ length: 3 }, (_, index) => `device-token-${index}`.padEnd(24, 'x'))
+    const owners = Object.fromEntries(deviceTokens.map((token, index) => [
+      createHash('sha256').update(token).digest('hex'),
+      { uid: `device-user-${index}`, deviceId: `device-${index}` },
+    ]))
+    const { database } = notificationDatabase({
+      devices: deviceTokens.map((token, index) => ({
+        deviceId: `device-${index}`,
+        token,
+        uid: `device-user-${index}`,
+      })),
+      legacyUsers: Array.from({ length: 3 }, (_, index) => ({
+        token: `legacy-token-${index}`.padEnd(24, 'x'),
+        uid: `legacy-user-${index}`,
+      })),
+      owners,
+    })
+    let durableState: Record<string, unknown> = {}
+    const stateStore = {
+      load: async () => durableState,
+      save: async (state: Record<string, unknown>) => { durableState = { ...state } },
+    }
+    const dispatched: string[] = []
+
+    for (let run = 0; run < 4; run++) {
+      const result = await scanSubscriptions(
+        database,
+        async (batch: Array<{ userRef: { id: string } }>) => {
+          dispatched.push(...batch.map(subscription => subscription.userRef.id))
+        },
+        1,
+        { maxPages: 2, stateStore },
+      )
+      expect(result.pages).toBeLessThanOrEqual(2)
+    }
+
+    expect(dispatched).toEqual(expect.arrayContaining([
+      'device-user-0',
+      'device-user-1',
+      'device-user-2',
+      'legacy-user-0',
+      'legacy-user-1',
+      'legacy-user-2',
+    ]))
+    expect(dispatched.indexOf('legacy-user-0')).toBeLessThan(dispatched.indexOf('device-user-2'))
+  })
+})
+
+describe('notification forecast eligibility', () => {
+  it('skips an out-of-window stored timezone without requesting a forecast', async () => {
+    const originalFetch = global.fetch
+    let requests = 0
+    global.fetch = async () => {
+      requests++
+      throw new Error('forecast should not be requested')
+    }
+    const subscription = {
+      lastNotificationKey: null,
+      userRef: {
+        get: async () => ({
+          exists: true,
+          data: () => ({
+            tier: 'paid',
+            notificationHour: 7,
+            location: { lat: 34.05, lon: -118.24, timezone: 'America/Los_Angeles' },
+          }),
+        }),
+      },
+    }
+
+    try {
+      await expect(sendSubscription(subscription, new Date('2026-07-14T03:00:00Z'))).resolves.toEqual({
+        outcome: 'skipped',
+        reason: 'not-due',
+      })
+      expect(requests).toBe(0)
+    } finally {
+      global.fetch = originalFetch
+    }
   })
 })
 

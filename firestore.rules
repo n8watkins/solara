@@ -72,11 +72,30 @@ service cloud.firestore {
         && (!location.keys().hasAny(['timezone']) || location.timezone is string);
     }
 
+    function validSavedLocations(locations) {
+      return locations is list
+        && locations.size() <= 12
+        && (locations.size() < 1 || validLocation(locations[0]))
+        && (locations.size() < 2 || validLocation(locations[1]))
+        && (locations.size() < 3 || validLocation(locations[2]))
+        && (locations.size() < 4 || validLocation(locations[3]))
+        && (locations.size() < 5 || validLocation(locations[4]))
+        && (locations.size() < 6 || validLocation(locations[5]))
+        && (locations.size() < 7 || validLocation(locations[6]))
+        && (locations.size() < 8 || validLocation(locations[7]))
+        && (locations.size() < 9 || validLocation(locations[8]))
+        && (locations.size() < 10 || validLocation(locations[9]))
+        && (locations.size() < 11 || validLocation(locations[10]))
+        && (locations.size() < 12 || validLocation(locations[11]));
+    }
+
     function validNewUser(userId) {
       return request.resource.data.keys().hasOnly(userCreateKeys())
         && request.resource.data.uid == userId
         && request.resource.data.tier in ['anonymous', 'free']
         && validLocation(request.resource.data.location)
+        && (!request.resource.data.keys().hasAny(['savedLocations'])
+          || validSavedLocations(request.resource.data.savedLocations))
         && (!request.resource.data.keys().hasAny(['notificationHour'])
           || (request.resource.data.notificationHour is int
             && request.resource.data.notificationHour >= 0
@@ -88,6 +107,8 @@ service cloud.firestore {
         && request.resource.data.uid == userId
         && request.resource.data.tier == resource.data.tier
         && validLocation(request.resource.data.location)
+        && (!request.resource.data.keys().hasAny(['savedLocations'])
+          || validSavedLocations(request.resource.data.savedLocations))
         && (!request.resource.data.keys().hasAny(['notificationHour'])
           || (request.resource.data.notificationHour is int
             && request.resource.data.notificationHour >= 0

@@ -25,6 +25,8 @@ function positiveInteger(value, fallback) {
 const CONCURRENCY = positiveInteger(process.env.NOTIFICATION_CONCURRENCY, 10)
 const SUBSCRIPTION_PAGE_SIZE = positiveInteger(process.env.NOTIFICATION_PAGE_SIZE, 200)
 const FORECAST_CACHE_SIZE = positiveInteger(process.env.NOTIFICATION_FORECAST_CACHE_SIZE, 500)
+const MAX_DISPATCH_PAGES = positiveInteger(process.env.NOTIFICATION_MAX_PAGES, 4)
+const RUN_BUDGET_MS = positiveInteger(process.env.NOTIFICATION_RUN_BUDGET_MS, 8 * 60 * 1000)
 const RUN_ID = process.env.GITHUB_RUN_ID
   ? `github:${process.env.GITHUB_RUN_ID}:${process.env.GITHUB_RUN_ATTEMPT || '1'}`
   : `local:${process.pid}:${Date.now()}`
@@ -206,40 +208,96 @@ async function resolveLegacyPage(candidates, state, database, final = false) {
   return subscriptions
 }
 
-async function scanSubscriptions(database = db, onBatch = async () => {}, pageSize = SUBSCRIPTION_PAGE_SIZE) {
-  let deviceCursor = null
-  while (true) {
-    let query = database.collectionGroup('notificationDevices')
-      .where('enabled', '==', true)
-      .orderBy(FieldPath.documentId())
-    if (deviceCursor) query = query.startAfter(deviceCursor)
-    const snapshot = await query.limit(pageSize).get()
-    if (!snapshot.docs.length) break
-    const candidates = snapshot.docs.map(deviceCandidate).filter(Boolean)
-    const subscriptions = await resolveDevicePage(candidates, database)
-    if (subscriptions.length) await onBatch(subscriptions)
-    deviceCursor = snapshot.docs.at(-1)
-    if (snapshot.docs.length < pageSize) break
+function restoreLegacyState(state, database) {
+  const uid = state.legacyCandidateUid
+  return {
+    token: state.legacyGroupToken || null,
+    blocked: state.legacyGroupBlocked === true,
+    candidate: uid ? {
+      token: state.legacyCandidateToken,
+      deviceRef: database.collection('users').doc(uid),
+      userRef: database.collection('users').doc(uid),
+      lastNotificationKey: state.legacyCandidateLastNotificationKey,
+      legacy: true,
+    } : null,
+  }
+}
+
+function persistedLegacyState(state) {
+  return {
+    legacyGroupToken: state.token,
+    legacyGroupBlocked: state.blocked,
+    legacyCandidateUid: state.candidate?.userRef.id || null,
+    legacyCandidateToken: state.candidate?.token || null,
+    legacyCandidateLastNotificationKey: state.candidate?.lastNotificationKey || null,
+  }
+}
+
+async function scanSubscriptions(
+  database = db,
+  onBatch = async () => {},
+  pageSize = SUBSCRIPTION_PAGE_SIZE,
+  options = {},
+) {
+  const maxPages = positiveInteger(options.maxPages, MAX_DISPATCH_PAGES)
+  const deadline = options.deadline || Date.now() + RUN_BUDGET_MS
+  const stored = options.stateStore ? await options.stateStore.load() : {}
+  const state = {
+    nextPhase: stored?.nextPhase === 'legacy' ? 'legacy' : 'devices',
+    deviceCursor: stored?.deviceCursor || null,
+    legacyCursorToken: stored?.legacyCursorToken || null,
+    legacyCursorId: stored?.legacyCursorId || null,
+    ...persistedLegacyState(restoreLegacyState(stored || {}, database)),
+  }
+  const completed = new Set()
+  let pages = 0
+
+  while (pages < maxPages && Date.now() < deadline && completed.size < 2) {
+    const phase = state.nextPhase
+    state.nextPhase = phase === 'devices' ? 'legacy' : 'devices'
+    if (completed.has(phase)) continue
+
+    if (phase === 'devices') {
+      let query = database.collectionGroup('notificationDevices')
+        .where('enabled', '==', true)
+        .orderBy(FieldPath.documentId())
+      if (state.deviceCursor) query = query.startAfter(state.deviceCursor)
+      const snapshot = await query.limit(pageSize).get()
+      pages++
+      const finished = snapshot.docs.length < pageSize
+      if (snapshot.docs.length) {
+        const candidates = snapshot.docs.map(deviceCandidate).filter(Boolean)
+        const subscriptions = await resolveDevicePage(candidates, database)
+        if (subscriptions.length) await onBatch(subscriptions)
+      }
+      state.deviceCursor = finished ? null : snapshot.docs.at(-1).ref.path
+      if (finished) completed.add(phase)
+    } else {
+      let query = database.collection('users')
+        .where('notificationsEnabled', '==', true)
+        .orderBy('fcmToken')
+        .orderBy(FieldPath.documentId())
+      if (state.legacyCursorToken) {
+        query = query.startAfter(state.legacyCursorToken, state.legacyCursorId)
+      }
+      const snapshot = await query.limit(pageSize).get()
+      pages++
+      const finished = snapshot.docs.length < pageSize
+      const legacyState = restoreLegacyState(state, database)
+      const candidates = snapshot.docs.map(legacyCandidate).filter(Boolean)
+      const subscriptions = await resolveLegacyPage(candidates, legacyState, database, finished)
+      if (subscriptions.length) await onBatch(subscriptions)
+      const last = snapshot.docs.at(-1)
+      state.legacyCursorToken = finished ? null : last.data().fcmToken
+      state.legacyCursorId = finished ? null : last.id
+      Object.assign(state, persistedLegacyState(legacyState))
+      if (finished) completed.add(phase)
+    }
+
+    if (options.stateStore) await options.stateStore.save(state)
   }
 
-  let legacyCursor = null
-  const legacyState = { token: null, candidate: null, blocked: false }
-  while (true) {
-    let query = database.collection('users')
-      .where('notificationsEnabled', '==', true)
-      .orderBy('fcmToken')
-      .orderBy(FieldPath.documentId())
-    if (legacyCursor) query = query.startAfter(legacyCursor)
-    const snapshot = await query.limit(pageSize).get()
-    if (!snapshot.docs.length) break
-    const candidates = snapshot.docs.map(legacyCandidate).filter(Boolean)
-    const subscriptions = await resolveLegacyPage(candidates, legacyState, database)
-    if (subscriptions.length) await onBatch(subscriptions)
-    legacyCursor = snapshot.docs.at(-1)
-    if (snapshot.docs.length < pageSize) break
-  }
-  const subscriptions = await resolveLegacyPage([], legacyState, database, true)
-  if (subscriptions.length) await onBatch(subscriptions)
+  return { pages, state }
 }
 
 async function claimDelivery(subscription, key, attemptId, database = db) {
@@ -350,9 +408,19 @@ async function sendSubscription(subscription, now) {
   const user = userSnap.data()
   if (!isEligibleUser(user)) return { outcome: 'skipped', reason: 'ineligible-user' }
 
+  let decision = null
+  if (user.location.timezone) {
+    decision = deliveryDecision(user, user.location.timezone, subscription.lastNotificationKey, {
+      dryRun: DRY_RUN,
+      forceSend: FORCE_SEND,
+      now,
+    })
+    if (!decision.deliver) return { outcome: 'skipped', reason: decision.reason }
+  }
+
   const forecast = await fetchHourly(user.location.lat, user.location.lon)
   const timezone = user.location.timezone || forecast.timezone
-  const decision = deliveryDecision(user, timezone, subscription.lastNotificationKey, {
+  decision ||= deliveryDecision(user, timezone, subscription.lastNotificationKey, {
     dryRun: DRY_RUN,
     forceSend: FORCE_SEND,
     now,
@@ -418,6 +486,14 @@ async function main() {
 
   const counts = {}
   let processed = 0
+  const dispatchStateRef = db.collection('notificationDispatchState').doc('morning')
+  const stateStore = {
+    load: async () => {
+      const snapshot = await dispatchStateRef.get()
+      return snapshot.exists ? snapshot.data() : {}
+    },
+    save: state => dispatchStateRef.set({ ...state, updatedAt: FieldValue.serverTimestamp() }),
+  }
   console.log(`${DRY_RUN ? 'Dry-running' : 'Processing'} notification subscriptions in pages`)
   await scanSubscriptions(db, async subscriptions => {
     processed += subscriptions.length
@@ -427,7 +503,7 @@ async function main() {
       counts[outcome] = (counts[outcome] || 0) + 1
       if (result.status === 'rejected') console.error(result.reason)
     }
-  })
+  }, SUBSCRIPTION_PAGE_SIZE, { stateStore })
   console.log(`Processed ${processed} notification subscription(s)`)
   console.log('Notification run complete:', counts)
   if (counts.failed) process.exitCode = 1

@@ -143,6 +143,27 @@ describe('user preferences', () => {
     }))
   })
 
+  test('saved locations are bounded and each location is valid', async () => {
+    const db = testEnv.authenticatedContext('alice').firestore()
+    const ref = db.doc('users/alice')
+    const savedLocations = Array.from({ length: 12 }, (_, index) => ({
+      lat: index,
+      lon: -index,
+      city: `City ${index}`,
+      region: 'WA',
+    }))
+
+    await assertSucceeds(ref.set(prefs('alice', { savedLocations })))
+    await assertFails(ref.update({
+      savedLocations: [...savedLocations, { lat: 20, lon: 20, city: 'Extra', region: 'WA' }],
+    }))
+    await assertFails(ref.update({
+      savedLocations: [{ lat: 91, lon: 0, city: 'Invalid', region: 'WA' }],
+    }))
+    await assertFails(ref.update({ savedLocations: [{ lat: 0, lon: 0, city: 'Missing region' }] }))
+    await assertFails(ref.update({ savedLocations: 'Seattle' }))
+  })
+
   test('server-owned fields remain unchanged during preference updates', async () => {
     await testEnv.withSecurityRulesDisabled(async context => {
       await context.firestore().doc('users/alice').set(prefs('alice', {
