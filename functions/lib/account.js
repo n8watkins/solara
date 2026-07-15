@@ -23,6 +23,24 @@ async function listCustomerSubscriptions(stripe, customerId) {
   return subscriptions
 }
 
+async function closeCheckoutSession(stripe, sessionId) {
+  let session
+  try {
+    session = await stripe.checkout.sessions.retrieve(sessionId)
+    if (session.status === 'open') {
+      try {
+        session = await stripe.checkout.sessions.expire(sessionId)
+      } catch (error) {
+        session = await stripe.checkout.sessions.retrieve(sessionId)
+        if (session.status === 'open') throw error
+      }
+    }
+  } catch (error) {
+    if (error?.code !== 'resource_missing') throw error
+  }
+  return session
+}
+
 async function authenticate(auth, authorization, options = {}) {
   const match = (authorization || '').match(/^Bearer (.+)$/)
   if (!match) {
@@ -107,11 +125,22 @@ async function deleteAccount({ auth, db, req, stripe }) {
     if (!snapshot.exists) return {}
     transaction.set(userRef, { accountDeletionStartedAt: new Date() }, { merge: true })
     return {
+      checkoutSessionId: snapshot.data().stripeCheckoutSessionId,
       customerId: snapshot.data().stripeCustomerId,
       subscriptionId: snapshot.data().stripeSubscriptionId,
     }
   })
   const subscriptionIds = new Set()
+  if (typeof billing.checkoutSessionId === 'string' && billing.checkoutSessionId) {
+    const session = await closeCheckoutSession(stripe, billing.checkoutSessionId)
+    const sessionSubscriptionId = typeof session?.subscription === 'string'
+      ? session.subscription
+      : session?.subscription?.id
+    if (sessionSubscriptionId) subscriptionIds.add(sessionSubscriptionId)
+    if (!billing.customerId) {
+      billing.customerId = typeof session?.customer === 'string' ? session.customer : session?.customer?.id
+    }
+  }
   if (typeof billing.subscriptionId === 'string' && billing.subscriptionId) {
     subscriptionIds.add(billing.subscriptionId)
   }
@@ -132,7 +161,6 @@ async function deleteAccount({ auth, db, req, stripe }) {
     }
   }
 
-  await auth.revokeRefreshTokens(identity.uid)
   const tokenOwners = await db.collection('notificationTokenOwners')
     .where('uid', '==', identity.uid).get()
   await Promise.all(tokenOwners.docs.map(owner => owner.ref.delete()))

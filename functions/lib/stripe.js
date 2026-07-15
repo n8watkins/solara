@@ -6,10 +6,10 @@ const TERMINAL_SUBSCRIPTION_STATUSES = new Set(['canceled', 'incomplete_expired'
 const CHECKOUT_RESERVATION_MS = 24 * 60 * 60 * 1000
 const EVENT_PRIORITY = {
   'checkout.session.completed': 0,
-  'checkout.session.async_payment_succeeded': 1,
   'checkout.session.async_payment_failed': 1,
-  'customer.subscription.updated': 2,
-  'customer.subscription.deleted': 3,
+  'checkout.session.async_payment_succeeded': 2,
+  'customer.subscription.updated': 3,
+  'customer.subscription.deleted': 4,
 }
 
 function validUid(value) {
@@ -238,7 +238,7 @@ async function createCheckout({ appUrl, auth, db, expectedPriceId, req, stripe }
 
   const userRef = db.collection('users').doc(identity.uid)
   const now = Date.now()
-  const userData = await db.runTransaction(async transaction => {
+  const reserveCheckout = expiredSessionId => db.runTransaction(async transaction => {
     const snapshot = await transaction.get(userRef)
     if (!snapshot.exists) {
       const error = new Error('Account does not exist')
@@ -246,6 +246,11 @@ async function createCheckout({ appUrl, auth, db, expectedPriceId, req, stripe }
       throw error
     }
     const current = snapshot.data()
+    if (current.accountDeletionStartedAt) {
+      const error = new Error('Account deletion is in progress')
+      error.status = 409
+      throw error
+    }
     if (current.stripeSubscriptionId
       && !TERMINAL_SUBSCRIPTION_STATUSES.has(current.subscriptionStatus)) {
       const error = new Error('Account already has a subscription')
@@ -254,18 +259,45 @@ async function createCheckout({ appUrl, auth, db, expectedPriceId, req, stripe }
     }
     const reservedBy = current.stripeCheckoutAttemptId
     const reservedUntil = dateMillis(current.stripeCheckoutReservedUntil)
-    if (reservedBy && reservedBy !== attemptId && reservedUntil > now) {
+    const sessionId = current.stripeCheckoutSessionId
+    if (current.stripeCheckoutStatus === 'pending'
+      && typeof sessionId === 'string'
+      && sessionId
+      && sessionId !== expiredSessionId) {
+      return { reuseSessionId: sessionId }
+    }
+    if (reservedBy && reservedBy !== attemptId && reservedUntil > now
+      && sessionId !== expiredSessionId) {
       const error = new Error('Checkout is already in progress')
       error.status = 409
       throw error
     }
     transaction.set(userRef, {
       stripeCheckoutAttemptId: attemptId,
+      stripeCheckoutSessionId: null,
       stripeCheckoutReservedUntil: new Date(now + CHECKOUT_RESERVATION_MS),
       stripeCheckoutStatus: 'creating',
     }, { merge: true })
-    return current
+    return { userData: current }
   })
+
+  let reservation = await reserveCheckout()
+  while (reservation.reuseSessionId) {
+    let existing
+    try {
+      existing = await stripe.checkout.sessions.retrieve(reservation.reuseSessionId)
+    } catch (error) {
+      if (error?.code !== 'resource_missing') throw error
+    }
+    if (existing?.status === 'open' && existing.url) return existing
+    if (existing?.status === 'complete') {
+      const error = new Error('Checkout payment is being processed')
+      error.status = 409
+      throw error
+    }
+    reservation = await reserveCheckout(reservation.reuseSessionId)
+  }
+  const userData = reservation.userData
 
   const releaseReservation = async () => db.runTransaction(async transaction => {
     const snapshot = await transaction.get(userRef)
@@ -304,9 +336,11 @@ async function createCheckout({ appUrl, auth, db, expectedPriceId, req, stripe }
         .update(`${identity.uid}\0${expectedPriceId}\0${attemptId}`)
         .digest('hex')}`,
     })
-    await db.runTransaction(async transaction => {
+    const persisted = await db.runTransaction(async transaction => {
       const snapshot = await transaction.get(userRef)
-      if (!snapshot.exists || snapshot.data().stripeCheckoutAttemptId !== attemptId) return
+      if (!snapshot.exists
+        || snapshot.data().accountDeletionStartedAt
+        || snapshot.data().stripeCheckoutAttemptId !== attemptId) return false
       transaction.set(userRef, {
         stripeCheckoutSessionId: session.id,
         stripeCheckoutStatus: 'pending',
@@ -314,7 +348,20 @@ async function createCheckout({ appUrl, auth, db, expectedPriceId, req, stripe }
           ? new Date(session.expires_at * 1000)
           : new Date(now + CHECKOUT_RESERVATION_MS),
       }, { merge: true })
+      return true
     })
+    if (!persisted) {
+      const currentSession = await stripe.checkout.sessions.retrieve(session.id)
+      if (currentSession.status === 'open') {
+        await stripe.checkout.sessions.expire(session.id)
+      } else {
+        const subscriptionId = stringId(currentSession.subscription)
+        if (subscriptionId) await stripe.subscriptions.cancel(subscriptionId)
+      }
+      const error = new Error('Account deletion is in progress')
+      error.status = 409
+      throw error
+    }
     return session
   } catch (error) {
     await releaseReservation()

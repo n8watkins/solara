@@ -169,7 +169,6 @@ describe('account data security', () => {
     }
     const auth = {
       verifyIdToken: async () => ({ uid: 'alice', auth_time: Math.floor(Date.now() / 1000) }),
-      revokeRefreshTokens: async uid => deleted.push(`revoke:${uid}`),
       deleteUser: async uid => deleted.push(`auth:${uid}`),
     }
     await deleteAccount({
@@ -179,7 +178,48 @@ describe('account data security', () => {
       stripe: { subscriptions: { cancel: async () => {} } },
     })
     assert.equal(userData.accountDeletionStartedAt instanceof Date, true)
-    assert.deepEqual(deleted, ['tombstone', 'revoke:alice', 'owner', 'limit', 'user', 'auth:alice'])
+    assert.deepEqual(deleted, ['tombstone', 'owner', 'limit', 'user', 'auth:alice'])
+  })
+
+  test('expires an open checkout before deleting its account', async () => {
+    const closed = []
+    const userData = { stripeCheckoutSessionId: 'cs_open' }
+    const userRef = {
+      async get() { return { exists: true, data: () => ({ ...userData }) } },
+    }
+    const db = {
+      collection(name) {
+        if (name === 'users') return { doc: () => userRef }
+        if (name === 'accountDeletionTombstones') return { doc: () => ({}) }
+        if (name === 'notificationTokenOwners') {
+          return { where: () => ({ get: async () => ({ docs: [] }) }) }
+        }
+        if (name === 'notificationRegistrationLimits') {
+          return { doc: () => ({ delete: async () => {} }) }
+        }
+        throw new Error(`Unexpected collection ${name}`)
+      },
+      async runTransaction(callback) {
+        return callback({ get: ref => ref.get(), set: () => {} })
+      },
+      async recursiveDelete() {},
+    }
+    await deleteAccount({
+      auth: {
+        verifyIdToken: async () => ({ uid: 'alice', auth_time: Math.floor(Date.now() / 1000) }),
+        deleteUser: async () => {},
+      },
+      db,
+      req: { headers: { authorization: 'Bearer valid' }, body: { confirmation: 'DELETE' } },
+      stripe: {
+        checkout: { sessions: {
+          retrieve: async () => ({ id: 'cs_open', status: 'open' }),
+          expire: async id => { closed.push(id); return { id, status: 'expired' } },
+        } },
+        subscriptions: { cancel: async () => {} },
+      },
+    })
+    assert.deepEqual(closed, ['cs_open'])
   })
 
   test('cancels every live legacy customer subscription before deleting the account', async () => {
@@ -477,6 +517,64 @@ describe('Stripe fulfillment security', () => {
     await first
   })
 
+  test('reuses an open pending checkout after a canceled browser return', async () => {
+    let created = false
+    const existing = { id: 'cs_existing', status: 'open', url: 'https://checkout.stripe.com/existing' }
+    const checkout = await createCheckout({
+      appUrl: 'https://example.com',
+      auth: { verifyIdToken: async () => ({ uid: 'alice', email: 'alice@example.com' }) },
+      db: fakeDb({
+        tier: 'free',
+        stripeCheckoutAttemptId: '12345678-1234-1234-1234-123456789abc',
+        stripeCheckoutSessionId: existing.id,
+        stripeCheckoutStatus: 'pending',
+        stripeCheckoutReservedUntil: new Date(Date.now() + 60_000),
+      }),
+      expectedPriceId: 'price_pro',
+      req: { headers: { authorization: 'Bearer valid-token' }, body: { attemptId: 'abcdefab-1234-1234-1234-123456789abc' } },
+      stripe: { checkout: { sessions: {
+        retrieve: async id => { assert.equal(id, existing.id); return existing },
+        create: async () => { created = true },
+      } } },
+    })
+    assert.equal(checkout, existing)
+    assert.equal(created, false)
+  })
+
+  test('rejects checkout when account deletion has started', async () => {
+    let created = false
+    await assert.rejects(createCheckout({
+      appUrl: 'https://example.com',
+      auth: { verifyIdToken: async () => ({ uid: 'alice', email: 'alice@example.com' }) },
+      db: fakeDb({ tier: 'free', accountDeletionStartedAt: new Date() }),
+      expectedPriceId: 'price_pro',
+      req: { headers: { authorization: 'Bearer valid-token' }, body: { attemptId: '12345678-1234-1234-1234-123456789abc' } },
+      stripe: { checkout: { sessions: { create: async () => { created = true } } } },
+    }), error => error.status === 409)
+    assert.equal(created, false)
+  })
+
+  test('expires a checkout created concurrently with account deletion', async () => {
+    const db = fakeDb({ tier: 'free' })
+    let expired
+    await assert.rejects(createCheckout({
+      appUrl: 'https://example.com',
+      auth: { verifyIdToken: async () => ({ uid: 'alice', email: 'alice@example.com' }) },
+      db,
+      expectedPriceId: 'price_pro',
+      req: { headers: { authorization: 'Bearer valid-token' }, body: { attemptId: '12345678-1234-1234-1234-123456789abc' } },
+      stripe: { checkout: { sessions: {
+        create: async () => {
+          db.userData.accountDeletionStartedAt = new Date()
+          return { id: 'cs_raced', status: 'open', url: 'https://checkout.stripe.com/raced' }
+        },
+        retrieve: async () => ({ id: 'cs_raced', status: 'open' }),
+        expire: async id => { expired = id },
+      } } },
+    }), error => error.status === 409)
+    assert.equal(expired, 'cs_raced')
+  })
+
   test('rejects a legacy customer with a live Stripe subscription', async () => {
     let created = false
     await assert.rejects(createCheckout({
@@ -587,6 +685,32 @@ describe('Stripe fulfillment security', () => {
     assert.equal(db.userData.tier, 'free')
     assert.equal(db.userData.stripeSubscriptionId, 'sub_123')
     assert.equal(db.userData.stripeCheckoutStatus, 'failed')
+  })
+
+  test('keeps asynchronous success when failure shares its event timestamp', async () => {
+    const db = fakeDb({ tier: 'free' })
+    await processStripeEvent({
+      db,
+      event: { id: 'evt_success_tie', created: 100, type: 'checkout.session.async_payment_succeeded', data: { object: session } },
+      expectedPriceId: 'price_pro',
+      serverTimestamp: () => 'SERVER_TIME',
+      stripe,
+    })
+    const failure = await processStripeEvent({
+      db,
+      event: {
+        id: 'evt_failure_tie',
+        created: 100,
+        type: 'checkout.session.async_payment_failed',
+        data: { object: { ...session, payment_status: 'unpaid' } },
+      },
+      expectedPriceId: 'price_pro',
+      serverTimestamp: () => 'SERVER_TIME',
+      stripe,
+    })
+    assert.equal(failure.applied, false)
+    assert.equal(db.userData.tier, 'paid')
+    assert.equal(db.userData.stripeCheckoutStatus, 'succeeded')
   })
 
   test('revokes access when the configured subscription ends', async () => {

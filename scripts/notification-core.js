@@ -7,6 +7,20 @@ const {
 } = require('../functions/lib/recommendation-engine')
 
 const NOTIFICATION_CLAIM_LEASE_MS = 12 * 60 * 1000
+const DEFINITE_MESSAGING_FAILURE_CODES = new Set([
+  'messaging/invalid-argument',
+  'messaging/invalid-data-payload-key',
+  'messaging/invalid-options',
+  'messaging/invalid-package-name',
+  'messaging/invalid-payload',
+  'messaging/invalid-recipient',
+  'messaging/invalid-registration-token',
+  'messaging/message-rate-exceeded',
+  'messaging/mismatched-credential',
+  'messaging/payload-size-limit-exceeded',
+  'messaging/registration-token-not-registered',
+  'messaging/too-many-topics',
+])
 
 function weatherLabel(code) {
   if (code === 0) return 'Clear'
@@ -104,8 +118,8 @@ function claimDecision(delivery, key, options = {}) {
   return { claim: false, reason: 'delivery-unknown' }
 }
 
-function failureCertainty() {
-  return 'definite'
+function failureCertainty(error) {
+  return DEFINITE_MESSAGING_FAILURE_CODES.has(error?.code) ? 'definite' : 'unknown'
 }
 
 function buildMessage(user, hourly, dateStr) {
