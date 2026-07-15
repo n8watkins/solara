@@ -87,14 +87,15 @@ npm run test:e2e
 ```
 
 Push to `main` after the required GitHub secrets exist.
-The deployment workflow builds with those values, deploys Firestore rules, deploys Functions, and deploys Hosting last.
+The deployment workflow builds with those values, deploys transitional Firestore rules and Functions, deploys Hosting, and then restores the final rules.
 
 For a controlled manual deployment, use an explicit project ID.
 
 ```bash
-npx firebase-tools deploy --only firestore:rules --project <project-id>
+npx firebase-tools deploy --only firestore --config firebase.pre-functions.json --project <project-id>
 npx firebase-tools deploy --only functions --project <project-id>
 npx firebase-tools deploy --only hosting --project <project-id>
+npx firebase-tools deploy --only firestore:rules --project <project-id>
 ```
 
 ## Notification activation
@@ -134,7 +135,7 @@ Functions require a reproducible install in `functions/` and a Blaze-enabled Fir
 Configure Stripe secrets with the Firebase CLI instead of local files or GitHub build variables.
 Keep the `ENABLE_BLAZE_FUNCTIONS` GitHub repository variable unset until the project is Blaze-enabled and the required Functions and Stripe configuration is ready.
 Set it to `true` only when the transitional rules, Functions, and final rules deployment sequence should run on `main`.
-The deployment restores the final rules even when the Functions deployment fails or is canceled.
+The deployment restores the final rules only after both the Functions and Hosting deployments succeed, so failed releases remain compatible with the live client.
 
 ```bash
 cd functions

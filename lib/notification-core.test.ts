@@ -16,6 +16,7 @@ const {
 } = require('../scripts/notification-core')
 const {
   claimDelivery,
+  dispatchStateDocumentId,
   finishDelivery,
   notificationScope,
   recordDeliveryFailure,
@@ -61,6 +62,11 @@ function makeDeliveryDatabase(initial: Record<string, unknown>) {
 }
 
 describe('notification scheduling', () => {
+  it('isolates dry-run progress from the live dispatch cursor', () => {
+    expect(dispatchStateDocumentId(false)).toBe('morning')
+    expect(dispatchStateDocumentId(true)).toBe('morning-dry-run')
+  })
+
   it('uses opaque account-specific delivery scopes', () => {
     expect(notificationScope('user-1')).toMatch(/^[A-Za-z0-9_-]{22}$/)
     expect(notificationScope('user-1')).toBe(notificationScope('user-1'))

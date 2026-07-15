@@ -46,6 +46,10 @@ function notificationScope(uid) {
   return createHash('sha256').update(`solara-notification:${uid}`).digest('base64url').slice(0, 22)
 }
 
+function dispatchStateDocumentId(dryRun) {
+  return dryRun ? 'morning-dry-run' : 'morning'
+}
+
 function forecastCacheKey(lat, lon) {
   return `${Number(lat).toFixed(2)},${Number(lon).toFixed(2)}`
 }
@@ -496,7 +500,8 @@ async function main() {
 
   const counts = {}
   let processed = 0
-  const dispatchStateRef = db.collection('notificationDispatchState').doc('morning')
+  const dispatchStateRef = db.collection('notificationDispatchState')
+    .doc(dispatchStateDocumentId(DRY_RUN))
   const stateStore = {
     load: async () => {
       const snapshot = await dispatchStateRef.get()
@@ -531,6 +536,7 @@ async function main() {
 
 module.exports = {
   claimDelivery,
+  dispatchStateDocumentId,
   fetchHourly,
   finishDelivery,
   notificationScope,

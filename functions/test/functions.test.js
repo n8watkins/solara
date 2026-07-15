@@ -1624,6 +1624,64 @@ describe('Stripe fulfillment security', () => {
     )
   })
 
+  test('expires an uncommitted checkout before releasing its reservation', async () => {
+    const db = fakeDb({ tier: 'free' })
+    const runTransaction = db.runTransaction.bind(db)
+    let transactionCount = 0
+    db.runTransaction = async callback => {
+      transactionCount++
+      if (transactionCount === 2) throw new Error('Firestore persistence failed')
+      return runTransaction(callback)
+    }
+    const expired = []
+
+    await assert.rejects(createCheckout({
+      appUrl: 'https://example.com',
+      auth: { verifyIdToken: async () => ({ uid: 'alice', email: 'alice@example.com' }) },
+      db,
+      expectedPriceId: 'price_pro',
+      req: { headers: { authorization: 'Bearer valid-token' }, body: { attemptId: '12345678-1234-1234-1234-123456789abc' } },
+      stripe: { checkout: { sessions: {
+        create: async () => ({ id: 'cs_uncommitted', status: 'open' }),
+        retrieve: async () => ({ id: 'cs_uncommitted', status: 'open' }),
+        expire: async id => expired.push(id),
+      } } },
+    }), /Firestore persistence failed/)
+
+    assert.deepEqual(expired, ['cs_uncommitted'])
+    assert.equal(db.userData.stripeCheckoutStatus, 'failed')
+  })
+
+  test('cancels an uncommitted checkout that completed during persistence', async () => {
+    const db = fakeDb({ tier: 'free' })
+    const runTransaction = db.runTransaction.bind(db)
+    let transactionCount = 0
+    db.runTransaction = async callback => {
+      transactionCount++
+      if (transactionCount === 2) throw new Error('Firestore persistence failed')
+      return runTransaction(callback)
+    }
+    const canceled = []
+
+    await assert.rejects(createCheckout({
+      appUrl: 'https://example.com',
+      auth: { verifyIdToken: async () => ({ uid: 'alice', email: 'alice@example.com' }) },
+      db,
+      expectedPriceId: 'price_pro',
+      req: { headers: { authorization: 'Bearer valid-token' }, body: { attemptId: '12345678-1234-1234-1234-123456789abc' } },
+      stripe: {
+        checkout: { sessions: {
+          create: async () => ({ id: 'cs_completed' }),
+          retrieve: async () => ({ id: 'cs_completed', status: 'complete', subscription: 'sub_completed' }),
+        } },
+        subscriptions: { cancel: async id => canceled.push(id) },
+      },
+    }), /Firestore persistence failed/)
+
+    assert.deepEqual(canceled, ['sub_completed'])
+    assert.equal(db.userData.stripeCheckoutStatus, 'failed')
+  })
+
   test('rejects a legacy customer with a live Stripe subscription', async () => {
     let created = false
     await assert.rejects(createCheckout({

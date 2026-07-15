@@ -57,6 +57,28 @@ async function listCustomerSubscriptions(stripe, customerId) {
   return subscriptions
 }
 
+async function neutralizeCheckoutSession(stripe, sessionId) {
+  let session
+  try {
+    session = await stripe.checkout.sessions.retrieve(sessionId)
+  } catch (error) {
+    if (error?.code === 'resource_missing') return
+    throw error
+  }
+  if (session.status === 'expired') return
+  if (session.status === 'open') {
+    await stripe.checkout.sessions.expire(sessionId)
+    return
+  }
+  if (session.status === 'complete') {
+    const subscriptionId = stringId(session.subscription)
+    if (!subscriptionId) throw new Error('Completed checkout session is missing its subscription')
+    await stripe.subscriptions.cancel(subscriptionId)
+    return
+  }
+  throw new Error('Checkout session has an unexpected status')
+}
+
 function subscriptionHasPrice(subscription, expectedPriceId) {
   if (!expectedPriceId) return false
   const items = subscription?.items?.data
@@ -464,6 +486,8 @@ async function createCheckout({ appUrl, auth, db, expectedPriceId, req, stripe }
   const customer = typeof userData.stripeCustomerId === 'string' && userData.stripeCustomerId
     ? { customer: userData.stripeCustomerId }
     : { customer_email: identity.email }
+  let createdSessionId = null
+  let cleanupQueued = false
   try {
     if (customer.customer) {
       const customerRef = billingResourceRef(userRef, 'customer', customer.customer)
@@ -496,6 +520,7 @@ async function createCheckout({ appUrl, auth, db, expectedPriceId, req, stripe }
         .update(`${identity.uid}\0${expectedPriceId}\0${attemptId}`)
         .digest('hex')}`,
     })
+    createdSessionId = session.id
     const tombstoneRef = db.collection('accountDeletionTombstones').doc(identity.uid)
     const persistence = await db.runTransaction(async transaction => {
       const [snapshot, tombstone] = await Promise.all([
@@ -532,14 +557,8 @@ async function createCheckout({ appUrl, auth, db, expectedPriceId, req, stripe }
       ], new Date())
       return { deletionStarted: false, persisted: true }
     })
+    cleanupQueued = persistence.deletionStarted
     if (!persistence.persisted) {
-      const currentSession = await stripe.checkout.sessions.retrieve(session.id)
-      if (currentSession.status === 'open') {
-        await stripe.checkout.sessions.expire(session.id)
-      } else {
-        const subscriptionId = stringId(currentSession.subscription)
-        if (subscriptionId) await stripe.subscriptions.cancel(subscriptionId)
-      }
       const error = new Error(persistence.deletionStarted
         ? 'Account deletion is in progress'
         : 'Checkout reservation changed')
@@ -548,8 +567,17 @@ async function createCheckout({ appUrl, auth, db, expectedPriceId, req, stripe }
     }
     return session
   } catch (error) {
+    let failure = error
+    if (createdSessionId) {
+      try {
+        await neutralizeCheckoutSession(stripe, createdSessionId)
+      } catch (cleanupError) {
+        if (!cleanupQueued) throw cleanupError
+        failure = cleanupError
+      }
+    }
     await releaseReservation()
-    throw error
+    throw failure
   }
 }
 

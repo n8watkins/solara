@@ -35,6 +35,7 @@ The release is not complete until the automated gates and relevant real-service 
 - [ ] Confirm the Hosting deployment succeeds.
 - [ ] Confirm the Firestore rules deployment succeeds.
 - [ ] Confirm the Functions deployment succeeds before the Hosting deployment starts.
+- [ ] Confirm the final Firestore rules deploy only after Hosting succeeds.
 - [ ] Record the deployed commit and Firebase release.
 
 ## 4. Production smoke test
