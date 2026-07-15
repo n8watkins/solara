@@ -94,7 +94,7 @@ async function markCleanupResource(ref, data) {
 
 async function queueDiscoveredResources(db, tombstoneRef, resources) {
   await db.runTransaction(async transaction => {
-    queueBillingCleanup(transaction, tombstoneRef, resources, new Date())
+    await queueBillingCleanup(transaction, tombstoneRef, resources, new Date())
   })
 }
 
@@ -157,42 +157,64 @@ async function processSubscriptionCleanup({ resource, stripe, uid }) {
 
 async function processCustomerCleanup({ db, resource, stripe, tombstoneRef, uid }) {
   const data = resource.data()
-  const sessionPage = await stripe.checkout.sessions.list({
-    customer: data.stripeId,
-    limit: 100,
-    ...(data.checkoutCursor ? { starting_after: data.checkoutCursor } : {}),
-  })
-  if (data.verified !== true
-    && !sessionPage.data.some(session => stripeSessionBelongsToUser(session, uid))) {
-    const checkoutCursor = stripePageCursor(sessionPage)
-    if (checkoutCursor) {
-      await markCleanupResource(resource.ref, { checkoutCursor })
+  if (data.verified !== true) {
+    const ownershipPage = await stripe.checkout.sessions.list({
+      customer: data.stripeId,
+      limit: 100,
+      ...(data.ownershipCursor ? { starting_after: data.ownershipCursor } : {}),
+    })
+    if (!ownershipPage.data.some(session => stripeSessionBelongsToUser(session, uid))) {
+      const ownershipCursor = stripePageCursor(ownershipPage)
+      if (ownershipCursor) {
+        await markCleanupResource(resource.ref, { ownershipCursor })
+        return
+      }
+      await markCleanupResource(resource.ref, { status: 'completed', ownershipRejected: true })
       return
     }
-    await markCleanupResource(resource.ref, { status: 'completed', ownershipRejected: true })
+    await markCleanupResource(resource.ref, {
+      checkoutComplete: false,
+      checkoutCursor: null,
+      ownershipCursor: null,
+      subscriptionComplete: false,
+      subscriptionCursor: null,
+      verified: true,
+    })
     return
   }
-  const subscriptionPage = await stripe.subscriptions.list({
-    customer: data.stripeId,
-    status: 'all',
-    limit: 100,
-    ...(data.subscriptionCursor ? { starting_after: data.subscriptionCursor } : {}),
-  })
+
+  const [sessionPage, subscriptionPage] = await Promise.all([
+    data.checkoutComplete === true ? null : stripe.checkout.sessions.list({
+      customer: data.stripeId,
+      limit: 100,
+      ...(data.checkoutCursor ? { starting_after: data.checkoutCursor } : {}),
+    }),
+    data.subscriptionComplete === true ? null : stripe.subscriptions.list({
+      customer: data.stripeId,
+      status: 'all',
+      limit: 100,
+      ...(data.subscriptionCursor ? { starting_after: data.subscriptionCursor } : {}),
+    }),
+  ])
   await queueDiscoveredResources(db, tombstoneRef, [
-    ...sessionPage.data.map(session => ({
+    ...(sessionPage?.data || []).map(session => ({
       type: 'checkoutSession',
       stripeId: stringId(session.id),
     })),
-    ...subscriptionPage.data.map(subscription => ({
+    ...(subscriptionPage?.data || []).map(subscription => ({
       type: 'subscription',
       stripeId: stringId(subscription.id),
     })),
   ])
-  const checkoutCursor = stripePageCursor(sessionPage)
-  const subscriptionCursor = stripePageCursor(subscriptionPage)
+  const checkoutCursor = sessionPage ? stripePageCursor(sessionPage) : null
+  const subscriptionCursor = subscriptionPage ? stripePageCursor(subscriptionPage) : null
+  const checkoutComplete = data.checkoutComplete === true || checkoutCursor === null
+  const subscriptionComplete = data.subscriptionComplete === true || subscriptionCursor === null
   await markCleanupResource(resource.ref, {
+    checkoutComplete,
     checkoutCursor,
-    status: checkoutCursor || subscriptionCursor ? 'pending' : 'completed',
+    status: checkoutComplete && subscriptionComplete ? 'completed' : 'pending',
+    subscriptionComplete,
     subscriptionCursor,
     verified: true,
   })
@@ -233,7 +255,7 @@ async function processAccountDeletionPage({ auth, db, stripe, tombstoneRef, uid 
     if (tombstone.resourceIndexCursor) query = query.startAfter(tombstone.resourceIndexCursor)
     const page = await query.get()
     await db.runTransaction(async transaction => {
-      queueBillingCleanup(transaction, tombstoneRef, page.docs.map(doc => ({
+      await queueBillingCleanup(transaction, tombstoneRef, page.docs.map(doc => ({
         ...doc.data(),
         verified: true,
       })), new Date())
@@ -262,6 +284,7 @@ async function processAccountDeletionPage({ auth, db, stripe, tombstoneRef, uid 
       })
     }
   }
+  await tombstoneRef.set({ cleanupUpdatedAt: new Date() }, { merge: true })
   if (!pending.empty) return { completed: false, processed }
   const completed = await finalizeAccountDeletion({ auth, db, tombstoneRef, uid, userRef })
   return { completed, processed }
@@ -269,7 +292,10 @@ async function processAccountDeletionPage({ auth, db, stripe, tombstoneRef, uid 
 
 async function processPendingAccountDeletions({ auth, db, stripe }) {
   const tombstones = await db.collection('accountDeletionTombstones')
-    .where('cleanupStatus', '==', 'pending').limit(10).get()
+    .where('cleanupStatus', '==', 'pending')
+    .orderBy('cleanupUpdatedAt')
+    .limit(10)
+    .get()
   const results = []
   for (const tombstone of tombstones.docs) {
     results.push(await processAccountDeletionPage({
@@ -299,19 +325,20 @@ async function deleteAccount({ auth, db, req, stripe }) {
     ])
     const timestamp = new Date()
     const userData = userSnapshot.exists ? userSnapshot.data() : {}
+    await queueBillingCleanup(transaction, tombstoneRef, [
+      { type: 'checkoutSession', stripeId: userData.stripeCheckoutSessionId, verified: false },
+      { type: 'customer', stripeId: userData.stripeCustomerId, verified: false },
+      { type: 'subscription', stripeId: userData.stripeSubscriptionId, verified: false },
+    ], timestamp)
     transaction.set(tombstoneRef, {
       cleanupStatus: 'pending',
+      cleanupUpdatedAt: timestamp,
       createdAt: tombstoneSnapshot.exists ? tombstoneSnapshot.data().createdAt : timestamp,
       resourceIndexComplete: tombstoneSnapshot.exists
         ? tombstoneSnapshot.data().resourceIndexComplete === true
         : false,
       revokedBefore: Math.floor(Date.now() / 1000),
     }, { merge: true })
-    queueBillingCleanup(transaction, tombstoneRef, [
-      { type: 'checkoutSession', stripeId: userData.stripeCheckoutSessionId, verified: false },
-      { type: 'customer', stripeId: userData.stripeCustomerId, verified: false },
-      { type: 'subscription', stripeId: userData.stripeSubscriptionId, verified: false },
-    ], timestamp)
     if (userSnapshot.exists) {
       transaction.set(userRef, { accountDeletionStartedAt: timestamp }, { merge: true })
     }

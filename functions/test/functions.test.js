@@ -5,8 +5,10 @@ const {
   authenticate,
   deleteAccount,
   processAccountDeletionPage,
+  processPendingAccountDeletions,
   safeAccountData,
 } = require('../lib/account')
+const { queueBillingCleanup } = require('../lib/billing-resources')
 const { handleCors } = require('../lib/http')
 const {
   cachedForecast,
@@ -196,10 +198,10 @@ function fakeDb(initialUser) {
   return database
 }
 
-function fakeDeletionDb({ resources = [], tombstone = {}, user = {} } = {}) {
+function fakeDeletionDb({ cleanup = [], resources = [], tombstone = {}, user = {} } = {}) {
   const deleted = []
   const userResources = new Map(resources.map(resource => [resource.id, { ...resource }]))
-  const cleanupResources = new Map()
+  const cleanupResources = new Map(cleanup.map(resource => [resource.id, { ...resource }]))
   const tombstoneData = { ...tombstone }
   const userData = { ...user }
 
@@ -291,6 +293,30 @@ function fakeDeletionDb({ resources = [], tombstone = {}, user = {} } = {}) {
 afterEach(clearForecastCache)
 
 describe('account data security', () => {
+  test('preserves completed cleanup and verified ownership on rediscovery', async () => {
+    const stored = {
+      status: 'completed',
+      verified: true,
+    }
+    const ref = {
+      collection: () => ({
+        doc: () => ({
+          get: async () => ({ exists: true, data: () => ({ ...stored }) }),
+          set: async data => Object.assign(stored, data),
+        }),
+      }),
+    }
+    const writes = []
+    await queueBillingCleanup({
+      get: resourceRef => resourceRef.get(),
+      set: (resourceRef, data) => writes.push(() => resourceRef.set(data)),
+    }, ref, [{ type: 'customer', stripeId: 'cus_complete', verified: false }], new Date())
+    for (const write of writes) await write()
+
+    assert.equal(stored.status, 'completed')
+    assert.equal(stored.verified, true)
+  })
+
   test('requires a valid Firebase bearer token', async () => {
     await assert.rejects(authenticate({ verifyIdToken: async () => ({ uid: 'alice' }) }, ''), /required/)
     await assert.rejects(
@@ -383,6 +409,96 @@ describe('account data security', () => {
     assert.equal(job.status, 'completed')
     assert.deepEqual(db.deleted, ['stripe:sub_retry', 'limit', 'user', 'auth:alice'])
     assert.equal(db.tombstoneData.cleanupStatus, 'completed')
+  })
+
+  test('advances customer checkout and subscription pagination independently', async () => {
+    const { db, tombstoneRef } = fakeDeletionDb({
+      cleanup: [{
+        id: 'customer',
+        type: 'customer',
+        stripeId: 'cus_pages',
+        status: 'pending',
+        verified: true,
+      }],
+      tombstone: { cleanupStatus: 'pending', resourceIndexComplete: true },
+    })
+    const checkoutRequests = []
+    const subscriptionRequests = []
+    const stripe = {
+      checkout: { sessions: { list: async request => {
+        checkoutRequests.push(request)
+        return { data: [{ id: `cs_${checkoutRequests.length}` }], has_more: false }
+      } } },
+      subscriptions: { list: async request => {
+        subscriptionRequests.push(request)
+        if (subscriptionRequests.length === 1) {
+          return { data: [{ id: 'sub_1' }], has_more: true }
+        }
+        return { data: [{ id: 'sub_2' }], has_more: false }
+      } },
+    }
+
+    await processAccountDeletionPage({ auth: {}, db, stripe, tombstoneRef, uid: 'alice' })
+    await processAccountDeletionPage({ auth: {}, db, stripe, tombstoneRef, uid: 'alice' })
+
+    assert.equal(checkoutRequests.length, 1)
+    assert.equal(subscriptionRequests.length, 2)
+    assert.equal(subscriptionRequests[1].starting_after, 'sub_1')
+  })
+
+  test('rescans earlier customer sessions after legacy ownership verification', async () => {
+    const { db, tombstoneRef } = fakeDeletionDb({
+      cleanup: [{
+        id: 'customer',
+        type: 'customer',
+        stripeId: 'cus_legacy',
+        status: 'pending',
+        verified: false,
+      }],
+      tombstone: { cleanupStatus: 'pending', resourceIndexComplete: true },
+    })
+    const requests = []
+    const stripe = {
+      checkout: { sessions: { list: async request => {
+        requests.push(request)
+        if (requests.length === 1) return { data: [{ id: 'cs_early' }], has_more: true }
+        if (requests.length === 2) {
+          return {
+            data: [{ id: 'cs_owned', client_reference_id: 'alice' }],
+            has_more: false,
+          }
+        }
+        return { data: [{ id: 'cs_early' }], has_more: false }
+      } } },
+      subscriptions: { list: async () => ({ data: [], has_more: false }) },
+    }
+
+    await processAccountDeletionPage({ auth: {}, db, stripe, tombstoneRef, uid: 'alice' })
+    await processAccountDeletionPage({ auth: {}, db, stripe, tombstoneRef, uid: 'alice' })
+    await processAccountDeletionPage({ auth: {}, db, stripe, tombstoneRef, uid: 'alice' })
+
+    assert.equal(requests[1].starting_after, 'cs_early')
+    assert.equal(requests[2].starting_after, undefined)
+    assert.equal(
+      [...db.cleanupResources.values()].some(resource => resource.stripeId === 'cs_early'),
+      true,
+    )
+  })
+
+  test('schedules the least recently processed deletion tombstones first', async () => {
+    const calls = []
+    const query = {
+      where() { return this },
+      orderBy(field) { calls.push(field); return this },
+      limit() { return this },
+      get: async () => ({ docs: [] }),
+    }
+    await processPendingAccountDeletions({
+      auth: {},
+      db: { collection: () => query },
+      stripe: {},
+    })
+    assert.deepEqual(calls, ['cleanupUpdatedAt'])
   })
 })
 

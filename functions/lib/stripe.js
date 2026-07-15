@@ -451,7 +451,7 @@ async function createCheckout({ appUrl, auth, db, expectedPriceId, req, stripe }
         || tombstone.exists
         || snapshot.data().accountDeletionStartedAt
       if (deletionStarted) {
-        queueBillingCleanup(transaction, tombstoneRef, [
+        await queueBillingCleanup(transaction, tombstoneRef, [
           { type: 'checkoutSession', stripeId: session.id },
           { type: 'customer', stripeId: stringId(session.customer) || customer.customer },
           { type: 'subscription', stripeId: stringId(session.subscription) },
@@ -575,18 +575,19 @@ async function backfillBillingResourcePage({ db, serverTimestamp, stripe }) {
       if (!userSnapshot.exists
         || tombstoneSnapshot.exists
         || userSnapshot.data().accountDeletionStartedAt) {
+        await queueBillingCleanup(transaction, tombstoneRef, [
+          { type: 'checkoutSession', stripeId: stringId(session.id) },
+          { type: 'customer', stripeId: stringId(session.customer) },
+          { type: 'subscription', stripeId: stringId(session.subscription) },
+        ], serverTimestamp())
         transaction.set(tombstoneRef, {
           cleanupStatus: 'pending',
+          cleanupUpdatedAt: serverTimestamp(),
           createdAt: tombstoneSnapshot.exists
             ? tombstoneSnapshot.data().createdAt
             : serverTimestamp(),
           resourceIndexComplete: !userSnapshot.exists,
         }, { merge: true })
-        queueBillingCleanup(transaction, tombstoneRef, [
-          { type: 'checkoutSession', stripeId: stringId(session.id) },
-          { type: 'customer', stripeId: stringId(session.customer) },
-          { type: 'subscription', stripeId: stringId(session.subscription) },
-        ], serverTimestamp())
         return false
       }
       indexBillingResources(transaction, userRef, [

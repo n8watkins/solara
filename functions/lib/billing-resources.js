@@ -26,19 +26,26 @@ function indexBillingResources(transaction, userRef, resources, timestamp) {
   }
 }
 
-function queueBillingCleanup(transaction, tombstoneRef, resources, timestamp) {
+async function queueBillingCleanup(transaction, tombstoneRef, resources, timestamp) {
+  const entries = resources.map(({ type, stripeId, verified = true }) => ({
+    ref: billingCleanupResourceRef(tombstoneRef, type, stripeId),
+    stripeId,
+    type,
+    verified,
+  })).filter(({ ref }) => ref)
+  const snapshots = await Promise.all(entries.map(({ ref }) => transaction.get(ref)))
   let queued = false
-  for (const { type, stripeId, verified = true } of resources) {
-    const ref = billingCleanupResourceRef(tombstoneRef, type, stripeId)
-    if (!ref) continue
+  for (const [index, { ref, type, stripeId, verified }] of entries.entries()) {
+    const existing = snapshots[index].exists ? snapshots[index].data() : {}
+    const status = existing.status === 'completed' ? 'completed' : 'pending'
     transaction.set(ref, {
       type,
       stripeId,
-      status: 'pending',
+      status,
       updatedAt: timestamp,
-      verified: verified === true,
+      verified: existing.verified === true || verified === true,
     }, { merge: true })
-    queued = true
+    queued ||= status === 'pending'
   }
   if (queued) {
     transaction.set(tombstoneRef, {
