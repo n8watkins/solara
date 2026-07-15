@@ -10,8 +10,10 @@ Conditions and individual sensitivity can change quickly.
 
 - Live UV and weather forecasts from Open-Meteo.
 - Personalized activity windows for today and upcoming days.
+- Location search with optional region or country qualifiers for ambiguous city names.
 - Required Google sign-in with Firestore preference sync.
 - Multiple activities, locations, and profiles with Free and Pro limits.
+- Shareable activity-window links with clear recovery guidance when a link is incomplete.
 - Google Calendar scheduling and calendar-feed support when configured.
 - Web push notifications for eligible accounts when Firebase Cloud Messaging is configured.
 - Stripe-backed Pro fulfillment through Firebase Functions when Stripe is configured.

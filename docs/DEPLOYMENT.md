@@ -35,7 +35,7 @@ The notification registration endpoints require a valid App Check token and paid
 
 Optional feature activation:
 
-- `NEXT_PUBLIC_SITE_URL` sets the canonical deployed origin.
+- `NEXT_PUBLIC_SITE_URL` sets the canonical deployed origin used by route metadata, `robots.txt`, and `sitemap.xml`.
 - `NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID` enables Google Calendar access.
 - `NEXT_PUBLIC_PRO_PRICE` controls the displayed Pro price.
 - `NEXT_PUBLIC_FUNCTIONS_URL` enables Function-backed product surfaces.

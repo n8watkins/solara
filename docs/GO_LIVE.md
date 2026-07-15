@@ -36,8 +36,8 @@ The release is not complete until the automated gates and relevant real-service 
 - [ ] Confirm the frontend and backend jobs pass every automated quality gate.
 - [ ] Confirm the Hosting deployment succeeds.
 - [ ] Confirm the Firestore rules deployment succeeds.
-- [ ] Confirm the Functions deployment succeeds before the Hosting deployment starts.
-- [ ] Confirm `backfillStripeBillingResources`, `cleanupDeletedAccountBilling`, and `cleanupFailedCheckouts` are deployed and healthy.
+- [ ] When `ENABLE_BLAZE_FUNCTIONS` is `true`, confirm the Functions deployment succeeds before the Hosting deployment starts.
+- [ ] When `ENABLE_BLAZE_FUNCTIONS` is `true`, confirm `backfillStripeBillingResources`, `cleanupDeletedAccountBilling`, and `cleanupFailedCheckouts` are deployed and healthy.
 - [ ] Confirm the final Firestore rules are restored after the deployment attempt, including when Functions or Hosting fails.
 - [ ] Record the deployed commit and Firebase release.
 
