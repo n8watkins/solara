@@ -11,16 +11,15 @@ const {
   isEligibleUser,
   localParts,
   mapLimit,
-  NOTIFICATION_CLAIM_LEASE_MS,
   notificationKey,
   runsOnDate,
 } = require('../scripts/notification-core')
 const {
   claimDelivery,
   finishDelivery,
-  loadSubscriptions,
   notificationScope,
   recordDeliveryFailure,
+  scanSubscriptions,
 } = require('../scripts/send-notifications')
 /* eslint-enable @typescript-eslint/no-require-imports */
 
@@ -29,6 +28,12 @@ const hourly = [
   { hour: 7, uv: 2 },
   { hour: 8, uv: 5 },
 ]
+
+async function loadSubscriptions(database: unknown) {
+  const subscriptions: Array<{ userRef: { id: string } }> = []
+  await scanSubscriptions(database, async (batch: Array<{ userRef: { id: string } }>) => subscriptions.push(...batch))
+  return subscriptions
+}
 
 function makeDeliveryDatabase(initial: Record<string, unknown>) {
   const state: { data: Record<string, unknown> } = {
@@ -148,12 +153,22 @@ describe('notification ownership', () => {
       const data = { fcmToken: user.token, notificationsEnabled: true }
       dataByPath.set(legacyRef.path, data)
       return { id: user.uid, ref: legacyRef, data: () => data }
+    }).sort((left, right) => {
+      const tokenOrder = String(left.data().fcmToken).localeCompare(String(right.data().fcmToken))
+      return tokenOrder || left.id.localeCompare(right.id)
+    })
+    const query = (docs: typeof deviceDocs | typeof legacyDocs, start = 0, pageSize = docs.length) => ({
+      where: () => query(docs, start, pageSize),
+      orderBy: () => query(docs, start, pageSize),
+      startAfter: (cursor: (typeof docs)[number]) => query(docs, docs.indexOf(cursor) + 1, pageSize),
+      limit: (limit: number) => query(docs, start, limit),
+      get: async () => ({ docs: docs.slice(start, start + pageSize) }),
     })
     return {
       database: {
-        collectionGroup: () => ({ where: () => ({ get: async () => ({ docs: deviceDocs }) }) }),
+        collectionGroup: () => query(deviceDocs),
         collection: (name: string) => {
-          if (name === 'users') return { where: () => ({ get: async () => ({ docs: legacyDocs }) }) }
+          if (name === 'users') return query(legacyDocs)
           if (name === 'notificationTokenOwners') {
             return { doc: (id: string) => ({ id, kind: 'owner', owner: owners[id] }) }
           }
@@ -240,6 +255,47 @@ describe('notification ownership', () => {
 
     expect(writes).toEqual([])
   })
+
+  it('pages subscriptions and preserves duplicate detection across page boundaries', async () => {
+    const shared = 'shared-token'.padEnd(24, 'x')
+    const deviceTokens = Array.from({ length: 5 }, (_, index) => `device-token-${index}`.padEnd(24, 'x'))
+    const owners = Object.fromEntries(deviceTokens.map((token, index) => [
+      createHash('sha256').update(token).digest('hex'),
+      { uid: `device-user-${index}`, deviceId: `device-${index}` },
+    ]))
+    const { database, writes } = notificationDatabase({
+      devices: deviceTokens.map((token, index) => ({
+        deviceId: `device-${index}`,
+        token,
+        uid: `device-user-${index}`,
+      })),
+      legacyUsers: [
+        { token: 'first-token'.padEnd(24, 'x'), uid: 'legacy-first' },
+        { token: shared, uid: 'legacy-shared-a' },
+        { token: shared, uid: 'legacy-shared-b' },
+        { token: 'z-token'.padEnd(24, 'x'), uid: 'legacy-last' },
+      ],
+      owners,
+    })
+    const batches: string[][] = []
+
+    await scanSubscriptions(database, async (subscriptions: Array<{ userRef: { id: string } }>) => {
+      batches.push(subscriptions.map(subscription => subscription.userRef.id))
+    }, 2)
+
+    expect(Math.max(...batches.map(batch => batch.length))).toBeLessThanOrEqual(2)
+    expect(batches.flat()).toEqual(expect.arrayContaining([
+      ...deviceTokens.map((_, index) => `device-user-${index}`),
+      'legacy-first',
+      'legacy-last',
+    ]))
+    expect(batches.flat()).not.toContain('legacy-shared-a')
+    expect(batches.flat()).not.toContain('legacy-shared-b')
+    expect(writes.map(write => write.path).sort()).toEqual([
+      'users/legacy-shared-a',
+      'users/legacy-shared-b',
+    ])
+  })
 })
 
 describe('notification delivery claims', () => {
@@ -253,7 +309,7 @@ describe('notification delivery claims', () => {
     }, key)).toEqual({ claim: true, retry: true })
   })
 
-  it('suppresses delivered, leased, and uncertain attempts for the same day', () => {
+  it('suppresses delivered, claimed, and uncertain attempts for the same day', () => {
     expect(claimDecision({ lastNotificationKey: key }, key)).toEqual({
       claim: false,
       reason: 'already-sent',
@@ -262,7 +318,7 @@ describe('notification delivery claims', () => {
       notificationDeliveryKey: key,
       notificationDeliveryStatus: 'claimed',
       notificationDeliveryClaimedAt: new Date(1_000),
-    }, key, { nowMs: 1_000 + NOTIFICATION_CLAIM_LEASE_MS - 1 })).toEqual({
+    }, key)).toEqual({
       claim: false,
       reason: 'already-claimed',
     })
@@ -272,19 +328,19 @@ describe('notification delivery claims', () => {
     }, key)).toEqual({ claim: false, reason: 'delivery-unknown' })
   })
 
-  it('recovers a claim after its dispatcher lease expires', () => {
+  it('preserves an ambiguous claim regardless of its age', () => {
     expect(claimDecision({
       notificationDeliveryKey: key,
       notificationDeliveryStatus: 'claimed',
       notificationDeliveryClaimedAt: { toMillis: () => 1_000 },
-    }, key, { nowMs: 1_000 + NOTIFICATION_CLAIM_LEASE_MS })).toEqual({
-      claim: true,
-      retry: true,
+    }, key)).toEqual({
+      claim: false,
+      reason: 'already-claimed',
     })
     expect(claimDecision({
       notificationDeliveryKey: key,
       notificationDeliveryStatus: 'claimed',
-    }, key)).toEqual({ claim: true, retry: true })
+    }, key)).toEqual({ claim: false, reason: 'already-claimed' })
   })
 
   it('allows the next local day even when the previous attempt needs reconciliation', () => {

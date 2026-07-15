@@ -6,7 +6,6 @@ const {
   runsOn,
 } = require('../functions/lib/recommendation-engine')
 
-const NOTIFICATION_CLAIM_LEASE_MS = 12 * 60 * 1000
 const DEFINITE_MESSAGING_FAILURE_CODES = new Set([
   'messaging/invalid-argument',
   'messaging/invalid-data-payload-key',
@@ -89,13 +88,7 @@ function deliveryDecision(user, timezone, lastNotificationKey, options = {}) {
   return { deliver: true, key }
 }
 
-function timestampMillis(value) {
-  if (typeof value?.toMillis === 'function') return value.toMillis()
-  if (value instanceof Date) return value.getTime()
-  return Number.isFinite(value) ? value : null
-}
-
-function claimDecision(delivery, key, options = {}) {
+function claimDecision(delivery, key) {
   if (delivery.lastNotificationKey === key) {
     return { claim: false, reason: 'already-sent' }
   }
@@ -109,11 +102,6 @@ function claimDecision(delivery, key, options = {}) {
     return { claim: false, reason: 'already-sent' }
   }
   if (delivery.notificationDeliveryStatus === 'claimed') {
-    const nowMs = options.nowMs ?? Date.now()
-    const claimedAt = timestampMillis(delivery.notificationDeliveryClaimedAt)
-    if (claimedAt === null || nowMs - claimedAt >= NOTIFICATION_CLAIM_LEASE_MS) {
-      return { claim: true, retry: true }
-    }
     return { claim: false, reason: 'already-claimed' }
   }
   return { claim: false, reason: 'delivery-unknown' }
@@ -178,7 +166,6 @@ module.exports = {
   isEligibleUser,
   localParts,
   mapLimit,
-  NOTIFICATION_CLAIM_LEASE_MS,
   notificationKey,
   runsOnDate: runsOn,
   safeWindows: findWindows,

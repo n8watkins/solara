@@ -2,8 +2,6 @@ import { getToken as getAppCheckToken } from 'firebase/app-check'
 import { deleteToken, getMessaging, getToken, onMessage, Messaging } from 'firebase/messaging'
 import { app, appCheck, auth } from './firebase'
 
-const VAPID_KEY = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY
-
 interface LocalDeviceSubscription {
   deviceId: string
   token: string
@@ -56,7 +54,11 @@ function functionsUrl(): string | null {
 }
 
 export function notificationRegistrationConfigured(): boolean {
-  return !!functionsUrl()
+  return !!(
+    functionsUrl()
+    && process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY
+    && process.env.NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY
+  )
 }
 
 async function mutateRemoteDevice(
@@ -89,11 +91,13 @@ async function mutateRemoteDevice(
 
 export async function requestNotificationPermission(): Promise<string | null> {
   try {
+    const vapidKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY
+    if (!vapidKey || !appCheck) return null
     const m = getMessagingInstance()
     if (!m) return null
     const permission = await Notification.requestPermission()
     if (permission !== 'granted') return null
-    const token = await getToken(m, { vapidKey: VAPID_KEY })
+    const token = await getToken(m, { vapidKey })
     return token || null
   } catch (err) {
     console.error('FCM token error:', err)

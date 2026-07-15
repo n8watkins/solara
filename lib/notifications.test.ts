@@ -44,6 +44,8 @@ describe('device notification subscriptions', () => {
     values.clear()
     vi.clearAllMocks()
     vi.stubEnv('NEXT_PUBLIC_FUNCTIONS_URL', 'https://functions.example.test')
+    vi.stubEnv('NEXT_PUBLIC_FIREBASE_VAPID_KEY', 'test-vapid-key')
+    vi.stubEnv('NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY', 'test-app-check-key')
     mocks.getToken.mockResolvedValue('new-fcm-token-that-is-long-enough')
     mocks.getAppCheckToken.mockResolvedValue({ token: 'firebase-app-check-token' })
     mocks.deleteToken.mockResolvedValue(true)
@@ -142,6 +144,18 @@ describe('device notification subscriptions', () => {
 
   it('does not request browser permission when the server endpoint is unavailable', async () => {
     vi.stubEnv('NEXT_PUBLIC_FUNCTIONS_URL', '')
+
+    await expect(enableNotifications('user-1')).rejects.toThrow('not configured')
+
+    expect(Notification.requestPermission).not.toHaveBeenCalled()
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['NEXT_PUBLIC_FIREBASE_VAPID_KEY'],
+    ['NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY'],
+  ])('does not request browser permission when %s is unavailable', async variable => {
+    vi.stubEnv(variable, '')
 
     await expect(enableNotifications('user-1')).rejects.toThrow('not configured')
 

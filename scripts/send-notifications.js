@@ -1,5 +1,5 @@
 const { initializeApp, cert } = require('firebase-admin/app')
-const { getFirestore, FieldValue } = require('firebase-admin/firestore')
+const { getFirestore, FieldPath, FieldValue } = require('firebase-admin/firestore')
 const { getMessaging } = require('firebase-admin/messaging')
 const { createHash, randomUUID } = require('node:crypto')
 const { tokenOwnerId } = require('../functions/lib/notification-devices')
@@ -17,7 +17,14 @@ const {
 const DRY_RUN = process.env.DRY_RUN === '1' || process.env.DRY_RUN === 'true'
 const FORCE_SEND = process.env.FORCE_SEND === '1' || process.env.FORCE_SEND === 'true'
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://uv-activity-planner.web.app'
-const CONCURRENCY = Math.max(1, Number(process.env.NOTIFICATION_CONCURRENCY || 10))
+function positiveInteger(value, fallback) {
+  const parsed = Number(value)
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback
+}
+
+const CONCURRENCY = positiveInteger(process.env.NOTIFICATION_CONCURRENCY, 10)
+const SUBSCRIPTION_PAGE_SIZE = positiveInteger(process.env.NOTIFICATION_PAGE_SIZE, 200)
+const FORECAST_CACHE_SIZE = positiveInteger(process.env.NOTIFICATION_FORECAST_CACHE_SIZE, 500)
 const RUN_ID = process.env.GITHUB_RUN_ID
   ? `github:${process.env.GITHUB_RUN_ID}:${process.env.GITHUB_RUN_ATTEMPT || '1'}`
   : `local:${process.pid}:${Date.now()}`
@@ -42,7 +49,12 @@ function forecastCacheKey(lat, lon) {
 
 async function fetchHourly(lat, lon) {
   const key = forecastCacheKey(lat, lon)
-  if (forecastCache.has(key)) return forecastCache.get(key)
+  if (forecastCache.has(key)) {
+    const cached = forecastCache.get(key)
+    forecastCache.delete(key)
+    forecastCache.set(key, cached)
+    return cached
+  }
 
   const request = (async () => {
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=uv_index,temperature_2m,weathercode&timezone=auto&forecast_days=1`
@@ -63,99 +75,163 @@ async function fetchHourly(lat, lon) {
     return { hourly, timezone: data.timezone }
   })()
   forecastCache.set(key, request)
+  if (forecastCache.size > FORECAST_CACHE_SIZE) {
+    forecastCache.delete(forecastCache.keys().next().value)
+  }
   return request
 }
 
-async function loadSubscriptions(database = db) {
-  const [devices, legacyUsers] = await Promise.all([
-    database.collectionGroup('notificationDevices').where('enabled', '==', true).get(),
-    database.collection('users').where('notificationsEnabled', '==', true).get(),
-  ])
-  const candidatesByToken = new Map()
-  const addCandidate = candidate => {
-    const candidates = candidatesByToken.get(candidate.token) || []
-    candidates.push(candidate)
-    candidatesByToken.set(candidate.token, candidates)
+function deviceCandidate(deviceDoc) {
+  const token = deviceDoc.data().token
+  const userRef = deviceDoc.ref.parent.parent
+  if (!token || !userRef) return null
+  return {
+    token,
+    deviceId: deviceDoc.id,
+    deviceRef: deviceDoc.ref,
+    userRef,
+    lastNotificationKey: deviceDoc.data().lastNotificationKey,
   }
+}
 
-  for (const deviceDoc of devices.docs) {
-    const token = deviceDoc.data().token
-    const userRef = deviceDoc.ref.parent.parent
-    if (!token || !userRef) continue
-    addCandidate({
-      token,
-      deviceId: deviceDoc.id,
-      deviceRef: deviceDoc.ref,
-      userRef,
-      lastNotificationKey: deviceDoc.data().lastNotificationKey,
-    })
+function legacyCandidate(userDoc) {
+  const token = userDoc.data().fcmToken
+  if (!token) return null
+  return {
+    token,
+    deviceRef: userDoc.ref,
+    userRef: userDoc.ref,
+    lastNotificationKey: userDoc.data().lastNotificationKey,
+    legacy: true,
   }
+}
 
-  for (const userDoc of legacyUsers.docs) {
-    const token = userDoc.data().fcmToken
-    if (!token) continue
-    addCandidate({
-      token,
-      deviceRef: userDoc.ref,
-      userRef: userDoc.ref,
-      lastNotificationKey: userDoc.data().lastNotificationKey,
-      legacy: true,
-    })
-  }
+async function runBounded(items, worker) {
+  const results = await mapLimit(items, CONCURRENCY, worker)
+  const rejected = results.find(result => result.status === 'rejected')
+  if (rejected) throw rejected.reason
+}
 
-  const tokens = [...candidatesByToken.keys()]
-  const ownerRefs = tokens.map(token => database.collection('notificationTokenOwners').doc(tokenOwnerId(token)))
-  const ownerSnapshots = ownerRefs.length ? await database.getAll(...ownerRefs) : []
+async function quarantineCandidate(candidate, database = db) {
+  const ownerRef = database.collection('notificationTokenOwners').doc(tokenOwnerId(candidate.token))
+  return database.runTransaction(async transaction => {
+    const [candidateSnapshot, ownerSnapshot] = await Promise.all([
+      transaction.get(candidate.deviceRef),
+      transaction.get(ownerRef),
+    ])
+    if (!candidateSnapshot.exists) return false
+    const current = candidateSnapshot.data()
+    const stillCandidate = candidate.legacy
+      ? current.notificationsEnabled === true && current.fcmToken === candidate.token
+      : current.enabled === true && current.token === candidate.token
+    if (!stillCandidate) return false
+    const owner = ownerSnapshot.exists ? ownerSnapshot.data() : null
+    if (!candidate.legacy && owner?.uid === candidate.userRef.id
+      && owner.deviceId === candidate.deviceId) return false
+    const patch = candidate.legacy
+      ? { fcmToken: null, notificationsEnabled: false }
+      : { enabled: false, updatedAt: FieldValue.serverTimestamp() }
+    transaction.set(candidate.deviceRef, patch, { merge: true })
+    return true
+  })
+}
+
+async function ownerSnapshots(candidates, database) {
+  const refs = candidates.map(candidate => database.collection('notificationTokenOwners')
+    .doc(tokenOwnerId(candidate.token)))
+  return refs.length ? database.getAll(...refs) : []
+}
+
+async function resolveDevicePage(candidates, database) {
+  const owners = await ownerSnapshots(candidates, database)
   const subscriptions = []
-  const quarantineWrites = []
-  const quarantine = (candidate, quarantineWithoutOwner = false) => {
-    const ownerRef = database.collection('notificationTokenOwners').doc(tokenOwnerId(candidate.token))
-    quarantineWrites.push(database.runTransaction(async transaction => {
-      const [candidateSnapshot, ownerSnapshot] = await Promise.all([
-        transaction.get(candidate.deviceRef),
-        transaction.get(ownerRef),
-      ])
-      if (!candidateSnapshot.exists) return false
-      const current = candidateSnapshot.data()
-      const stillCandidate = candidate.legacy
-        ? current.notificationsEnabled === true && current.fcmToken === candidate.token
-        : current.enabled === true && current.token === candidate.token
-      if (!stillCandidate) return false
-      const owner = ownerSnapshot.exists ? ownerSnapshot.data() : null
-      if (!candidate.legacy && owner?.uid === candidate.userRef.id
-        && owner.deviceId === candidate.deviceId) return false
-      if (candidate.legacy && !owner && !quarantineWithoutOwner) return false
-      const patch = candidate.legacy
-        ? { fcmToken: null, notificationsEnabled: false }
-        : { enabled: false, updatedAt: FieldValue.serverTimestamp() }
-      transaction.set(candidate.deviceRef, patch, { merge: true })
-      return true
-    }))
-  }
-  for (const [index, token] of tokens.entries()) {
-    const candidates = candidatesByToken.get(token)
-    const owner = ownerSnapshots[index]?.exists ? ownerSnapshots[index].data() : null
-    if (owner) {
-      const ownedDevice = candidates.find(candidate => !candidate.legacy
-        && candidate.userRef.id === owner.uid
-        && candidate.deviceId === owner.deviceId)
-      if (ownedDevice) subscriptions.push(ownedDevice)
-      for (const candidate of candidates) {
-        if (candidate !== ownedDevice) quarantine(candidate)
-      }
-      continue
-    }
-    if (candidates.length === 1 && candidates[0].legacy) {
-      subscriptions.push(candidates[0])
+  const quarantine = []
+  for (const [index, candidate] of candidates.entries()) {
+    const owner = owners[index]?.exists ? owners[index].data() : null
+    if (owner?.uid === candidate.userRef.id && owner.deviceId === candidate.deviceId) {
+      subscriptions.push(candidate)
     } else {
-      for (const candidate of candidates) quarantine(candidate, true)
+      quarantine.push(candidate)
     }
   }
-  await Promise.all(quarantineWrites)
+  await runBounded(quarantine, candidate => quarantineCandidate(candidate, database))
   return subscriptions
 }
 
-async function claimDelivery(subscription, key, attemptId, database = db, nowMs = Date.now()) {
+function finishLegacyGroup(state, subscriptions) {
+  if (state.candidate && !state.blocked) subscriptions.push(state.candidate)
+  state.token = null
+  state.candidate = null
+  state.blocked = false
+}
+
+async function resolveLegacyPage(candidates, state, database, final = false) {
+  const owners = await ownerSnapshots(candidates, database)
+  const subscriptions = []
+  const quarantine = []
+  for (const [index, candidate] of candidates.entries()) {
+    if (state.token !== null && state.token !== candidate.token) {
+      finishLegacyGroup(state, subscriptions)
+    }
+    if (state.token === null) state.token = candidate.token
+
+    if (owners[index]?.exists) {
+      if (state.candidate) quarantine.push(state.candidate)
+      state.candidate = null
+      state.blocked = true
+      quarantine.push(candidate)
+    } else if (state.blocked) {
+      quarantine.push(candidate)
+    } else if (state.candidate) {
+      quarantine.push(state.candidate, candidate)
+      state.candidate = null
+      state.blocked = true
+    } else {
+      state.candidate = candidate
+    }
+  }
+  if (final) finishLegacyGroup(state, subscriptions)
+  await runBounded(quarantine, candidate => quarantineCandidate(candidate, database))
+  return subscriptions
+}
+
+async function scanSubscriptions(database = db, onBatch = async () => {}, pageSize = SUBSCRIPTION_PAGE_SIZE) {
+  let deviceCursor = null
+  while (true) {
+    let query = database.collectionGroup('notificationDevices')
+      .where('enabled', '==', true)
+      .orderBy(FieldPath.documentId())
+    if (deviceCursor) query = query.startAfter(deviceCursor)
+    const snapshot = await query.limit(pageSize).get()
+    if (!snapshot.docs.length) break
+    const candidates = snapshot.docs.map(deviceCandidate).filter(Boolean)
+    const subscriptions = await resolveDevicePage(candidates, database)
+    if (subscriptions.length) await onBatch(subscriptions)
+    deviceCursor = snapshot.docs.at(-1)
+    if (snapshot.docs.length < pageSize) break
+  }
+
+  let legacyCursor = null
+  const legacyState = { token: null, candidate: null, blocked: false }
+  while (true) {
+    let query = database.collection('users')
+      .where('notificationsEnabled', '==', true)
+      .orderBy('fcmToken')
+      .orderBy(FieldPath.documentId())
+    if (legacyCursor) query = query.startAfter(legacyCursor)
+    const snapshot = await query.limit(pageSize).get()
+    if (!snapshot.docs.length) break
+    const candidates = snapshot.docs.map(legacyCandidate).filter(Boolean)
+    const subscriptions = await resolveLegacyPage(candidates, legacyState, database)
+    if (subscriptions.length) await onBatch(subscriptions)
+    legacyCursor = snapshot.docs.at(-1)
+    if (snapshot.docs.length < pageSize) break
+  }
+  const subscriptions = await resolveLegacyPage([], legacyState, database, true)
+  if (subscriptions.length) await onBatch(subscriptions)
+}
+
+async function claimDelivery(subscription, key, attemptId, database = db) {
   return database.runTransaction(async transaction => {
     const ownerRef = database.collection('notificationTokenOwners')
       .doc(tokenOwnerId(subscription.token))
@@ -181,7 +257,7 @@ async function claimDelivery(subscription, key, attemptId, database = db, nowMs 
         && ownerSnapshot.data().deviceId === subscription.deviceId
     if (!validSubscription) return { claimed: false, reason: 'ownership-changed' }
 
-    const delivery = claimDecision(current, key, { nowMs })
+    const delivery = claimDecision(current, key)
     if (!delivery.claim) return { claimed: false, reason: delivery.reason }
 
     const priorAttempts = current.notificationDeliveryKey === key
@@ -329,15 +405,19 @@ async function main() {
   db = getFirestore()
   messaging = getMessaging()
 
-  const subscriptions = await loadSubscriptions()
-  console.log(`${DRY_RUN ? 'Dry run for' : 'Processing'} ${subscriptions.length} notification subscription(s)`)
-  const results = await mapLimit(subscriptions, CONCURRENCY, subscription => sendSubscription(subscription, new Date()))
   const counts = {}
-  for (const result of results) {
-    const outcome = result.status === 'fulfilled' ? result.value.outcome : 'failed'
-    counts[outcome] = (counts[outcome] || 0) + 1
-    if (result.status === 'rejected') console.error(result.reason)
-  }
+  let processed = 0
+  console.log(`${DRY_RUN ? 'Dry-running' : 'Processing'} notification subscriptions in pages`)
+  await scanSubscriptions(db, async subscriptions => {
+    processed += subscriptions.length
+    const results = await mapLimit(subscriptions, CONCURRENCY, subscription => sendSubscription(subscription, new Date()))
+    for (const result of results) {
+      const outcome = result.status === 'fulfilled' ? result.value.outcome : 'failed'
+      counts[outcome] = (counts[outcome] || 0) + 1
+      if (result.status === 'rejected') console.error(result.reason)
+    }
+  })
+  console.log(`Processed ${processed} notification subscription(s)`)
   console.log('Notification run complete:', counts)
   if (counts.failed) process.exitCode = 1
 }
@@ -346,9 +426,9 @@ module.exports = {
   claimDelivery,
   fetchHourly,
   finishDelivery,
-  loadSubscriptions,
   notificationScope,
   recordDeliveryFailure,
+  scanSubscriptions,
   sendSubscription,
 }
 

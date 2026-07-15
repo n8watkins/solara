@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { User } from 'firebase/auth'
-import { enableNotifications } from '@/lib/notifications'
+import { enableNotifications, notificationRegistrationConfigured } from '@/lib/notifications'
 
 interface Props {
   user: User | null
@@ -12,6 +12,8 @@ interface Props {
 export default function NotificationBanner({ user, onDismiss }: Props) {
   const [loading, setLoading] = useState(false)
   const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle')
+
+  if (!notificationRegistrationConfigured()) return null
 
   async function handleEnable() {
     if (!user) return
