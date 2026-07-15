@@ -217,11 +217,31 @@ function fakeDeletionDb({ cleanup = [], resources = [], tombstone = {}, user = {
         },
       }
     },
-    where() { return this },
+    where(field, _operator, value) {
+      if (field === 'status') {
+        this.dueBefore = null
+        this.orderField = null
+      } else if (field === 'nextAttemptAt') {
+        this.dueBefore = value
+      }
+      return this
+    },
+    orderBy(field) { this.orderField = field; return this },
     limit(value) { this.pageSize = value; return this },
     async get() {
-      const docs = [...cleanupResources.entries()]
+      const entries = [...cleanupResources.entries()]
         .filter(([, data]) => data.status === 'pending')
+        .filter(([, data]) => !this.dueBefore
+          || !data.nextAttemptAt
+          || data.nextAttemptAt <= this.dueBefore)
+      if (this.orderField) {
+        entries.sort(([, left], [, right]) => {
+          const leftTime = left[this.orderField]?.getTime?.() || 0
+          const rightTime = right[this.orderField]?.getTime?.() || 0
+          return leftTime - rightTime
+        })
+      }
+      const docs = entries
         .slice(0, this.pageSize)
         .map(([id, data]) => ({ id, ref: this.doc(id), data: () => ({ ...data }) }))
       return { docs, empty: docs.length === 0 }
@@ -409,6 +429,72 @@ describe('account data security', () => {
     assert.equal(job.status, 'completed')
     assert.deepEqual(db.deleted, ['stripe:sub_retry', 'limit', 'user', 'auth:alice'])
     assert.equal(db.tombstoneData.cleanupStatus, 'completed')
+  })
+
+  test('moves failed cleanup behind resources that have not been attempted', async () => {
+    const attempted = []
+    const cleanup = Array.from({ length: 11 }, (_, index) => ({
+      id: `subscription-${index}`,
+      nextAttemptAt: new Date(0),
+      status: 'pending',
+      stripeId: `sub_${index}`,
+      type: 'subscription',
+      verified: true,
+    }))
+    const { db, tombstoneRef } = fakeDeletionDb({
+      cleanup,
+      tombstone: { cleanupStatus: 'pending', resourceIndexComplete: true },
+    })
+    const stripe = {
+      subscriptions: {
+        retrieve: async id => {
+          attempted.push(id)
+          throw new Error('temporary Stripe failure')
+        },
+      },
+    }
+
+    await processAccountDeletionPage({ auth: {}, db, stripe, tombstoneRef, uid: 'alice' })
+    await processAccountDeletionPage({ auth: {}, db, stripe, tombstoneRef, uid: 'alice' })
+
+    assert.deepEqual(attempted.slice(0, 10), cleanup.slice(0, 10).map(resource => resource.stripeId))
+    assert.equal(attempted[10], 'sub_10')
+  })
+
+  test('does not finalize while another worker holds a resource lease', async () => {
+    let releaseRetrieve
+    const retrieveStarted = new Promise(resolve => { releaseRetrieve = resolve })
+    let continueRetrieve
+    const retrieveBlocked = new Promise(resolve => { continueRetrieve = resolve })
+    const { db, tombstoneRef } = fakeDeletionDb({
+      cleanup: [{
+        id: 'subscription',
+        nextAttemptAt: new Date(0),
+        status: 'pending',
+        stripeId: 'sub_leased',
+        type: 'subscription',
+        verified: true,
+      }],
+      tombstone: { cleanupStatus: 'pending', resourceIndexComplete: true },
+    })
+    const stripe = {
+      subscriptions: {
+        retrieve: async () => {
+          releaseRetrieve()
+          await retrieveBlocked
+          return { id: 'sub_leased', status: 'canceled' }
+        },
+      },
+    }
+
+    const firstWorker = processAccountDeletionPage({ auth: {}, db, stripe, tombstoneRef, uid: 'alice' })
+    await retrieveStarted
+    const secondResult = await processAccountDeletionPage({ auth: {}, db, stripe, tombstoneRef, uid: 'alice' })
+
+    assert.deepEqual(secondResult, { completed: false, processed: 0 })
+    assert.deepEqual(db.deleted, [])
+    continueRetrieve()
+    await firstWorker
   })
 
   test('advances customer checkout and subscription pagination independently', async () => {

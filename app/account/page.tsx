@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { onAuthStateChanged, reauthenticateWithPopup, User } from 'firebase/auth'
+import { onAuthStateChanged, reauthenticateWithPopup, signOut, User } from 'firebase/auth'
 import { useEffect, useState } from 'react'
 import { auth, googleProvider } from '@/lib/firebase'
 import { createBillingPortalUrl } from '@/lib/billing'
@@ -16,10 +16,15 @@ export default function AccountPage() {
   const [confirmation, setConfirmation] = useState('')
   const [busy, setBusy] = useState<'billing' | 'export' | 'delete' | null>(null)
   const [message, setMessage] = useState('')
+  const [deletionPending, setDeletionPending] = useState(false)
 
   useEffect(() => {
     if (!auth) { setAuthReady(true); return }
     return onAuthStateChanged(auth, value => { setUser(value); setAuthReady(true) })
+  }, [])
+
+  useEffect(() => {
+    setDeletionPending(new URLSearchParams(window.location.search).get('deletion') === 'pending')
   }, [])
 
   async function authorizedRequest(path: string, init?: RequestInit) {
@@ -76,13 +81,16 @@ export default function AccountPage() {
     try {
       if (!googleProvider) throw new Error('Google reauthentication is not configured.')
       await reauthenticateWithPopup(user, googleProvider)
-      await authorizedRequest('deleteAccount', {
+      const result = await authorizedRequest('deleteAccount', {
         method: 'DELETE',
         body: JSON.stringify({ confirmation }),
-      })
+      }) as { deletionPending?: boolean }
       clearLocalPrefs()
       await clearLocalNotificationState(user.uid)
-      window.location.assign('/?account=deleted')
+      if (auth) await signOut(auth)
+      window.location.assign(result.deletionPending
+        ? '/account/?deletion=pending'
+        : '/?account=deleted')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Deletion failed.')
       setBusy(null)
@@ -102,8 +110,14 @@ export default function AccountPage() {
           <div className="card">Loading your account...</div>
         ) : !user ? (
           <div className="card">
-            <h2 style={{ marginTop: 0, fontSize: '18px' }}>Sign in required</h2>
-            <p style={{ color: 'var(--text-2)', lineHeight: 1.55 }}>Return to Solara and sign in before using these controls.</p>
+            <h2 style={{ marginTop: 0, fontSize: '18px' }}>
+              {deletionPending ? 'Account deletion is in progress' : 'Sign in required'}
+            </h2>
+            <p role="status" style={{ color: 'var(--text-2)', lineHeight: 1.55 }}>
+              {deletionPending
+                ? 'You have been signed out while Solara finishes canceling billing and removing your account data.'
+                : 'Return to Solara and sign in before using these controls.'}
+            </p>
             <Link href="/" className="btn btn-primary" style={{ textDecoration: 'none' }}>Go to sign in</Link>
           </div>
         ) : (

@@ -122,15 +122,15 @@ jobs:
           NEXT_PUBLIC_SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL }}
           NEXT_PUBLIC_PRO_PRICE: ${{ secrets.NEXT_PUBLIC_PRO_PRICE }}
           NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID }}
-          NEXT_PUBLIC_FUNCTIONS_URL: ${{ secrets.NEXT_PUBLIC_FUNCTIONS_URL }}
+          NEXT_PUBLIC_FUNCTIONS_URL: ${{ vars.ENABLE_BLAZE_FUNCTIONS == 'true' && secrets.NEXT_PUBLIC_FUNCTIONS_URL || '' }}
           NEXT_PUBLIC_GA_MEASUREMENT_ID: ${{ secrets.NEXT_PUBLIC_GA_MEASUREMENT_ID }}
 
-      - name: Protect server-owned billing fields
+      - name: Protect server-owned billing fields and deploy indexes
         if: vars.ENABLE_BLAZE_FUNCTIONS == 'true'
         run: |
           printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
           export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
-          npx --yes firebase-tools@15 deploy --only firestore:rules \
+          npx --yes firebase-tools@15 deploy --only firestore \
             --config firebase.pre-functions.json \
             --project "$FIREBASE_PROJECT_ID" --non-interactive
         env:

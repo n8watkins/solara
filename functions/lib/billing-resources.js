@@ -39,6 +39,7 @@ async function queueBillingCleanup(transaction, tombstoneRef, resources, timesta
     const existing = snapshots[index].exists ? snapshots[index].data() : {}
     const status = existing.status === 'completed' ? 'completed' : 'pending'
     transaction.set(ref, {
+      nextAttemptAt: status === 'pending' ? existing.nextAttemptAt || timestamp : null,
       type,
       stripeId,
       status,

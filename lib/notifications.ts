@@ -158,21 +158,27 @@ export async function migrateLegacyNotificationToken(uid: string): Promise<boole
 
 export async function disableNotifications(uid: string): Promise<void> {
   const local = readLocalSubscription(uid)
+  let removalError: unknown
   if (local) {
     writeLocalSubscription(uid, { ...local, pendingRemoval: true })
-    await mutateRemoteDevice(
-      uid,
-      'removeNotificationDevice',
-      'DELETE',
-      { deviceId: local.deviceId },
-    )
+    try {
+      await mutateRemoteDevice(
+        uid,
+        'removeNotificationDevice',
+        'DELETE',
+        { deviceId: local.deviceId },
+      )
+    } catch (error) {
+      removalError = error
+    }
   }
   const m = getMessagingInstance()
-  if (m) await deleteToken(m).catch(() => false)
+  const tokenRemoved = m ? await deleteToken(m).catch(() => false) : !local
   try {
-    localStorage.removeItem(storageKey(uid))
+    if (!removalError) localStorage.removeItem(storageKey(uid))
     localStorage.removeItem('solara_fcm_token')
   } catch {}
+  if (removalError && !tokenRemoved) throw removalError
 }
 
 export async function clearLocalNotificationState(uid: string): Promise<void> {

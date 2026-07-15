@@ -108,15 +108,26 @@ describe('device notification subscriptions', () => {
     await enableNotifications('user-1')
     vi.mocked(fetch).mockRejectedValueOnce(new Error('offline'))
 
-    await expect(disableNotifications('user-1')).rejects.toThrow('offline')
+    await expect(disableNotifications('user-1')).resolves.toBeUndefined()
 
-    expect(mocks.deleteToken).not.toHaveBeenCalled()
+    expect(mocks.deleteToken).toHaveBeenCalledOnce()
     expect(notificationsEnabledLocally('user-1')).toBe(false)
 
     await expect(migrateLegacyNotificationToken('user-1')).resolves.toBe(false)
     expect(fetch).toHaveBeenCalledTimes(3)
-    expect(mocks.deleteToken).toHaveBeenCalledOnce()
+    expect(mocks.deleteToken).toHaveBeenCalledTimes(2)
     expect(values.has('solara_notification_device_user-1')).toBe(false)
+  })
+
+  it('blocks cleanup when neither remote nor local token removal succeeds', async () => {
+    await enableNotifications('user-1')
+    vi.mocked(fetch).mockRejectedValueOnce(new Error('offline'))
+    mocks.deleteToken.mockResolvedValueOnce(false)
+
+    await expect(disableNotifications('user-1')).rejects.toThrow('offline')
+
+    expect(notificationsEnabledLocally('user-1')).toBe(false)
+    expect(values.has('solara_notification_device_user-1')).toBe(true)
   })
 
   it('migrates the legacy token once without requesting another permission', async () => {
