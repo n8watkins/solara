@@ -3,8 +3,8 @@ import './globals.css'
 import AnalyticsConsent from '@/components/AnalyticsConsent'
 import ThemeInit from '@/components/ThemeInit'
 import { isAnalyticsMeasurementId } from '@/lib/analytics-consent'
+import { SITE_URL } from '@/lib/site'
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://uv-activity-planner.web.app'
 // Interpolated into an inline script below. Refuse anything that is not a plain
 // GA4 measurement id so a malformed env value can't break out of the string.
 const RAW_GA_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID

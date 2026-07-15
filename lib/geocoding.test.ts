@@ -53,6 +53,18 @@ describe('searchLocation', () => {
     await expect(searchLocation('Not a real city')).resolves.toBeNull()
   })
 
+  it('rejects qualified results from a different region', async () => {
+    const texasResult = { latitude: 29.6911, longitude: -95.2091, name: 'Pasadena', admin1: 'Texas', country: 'United States' }
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ results: [texasResult] }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ results: [texasResult] }) })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(searchLocation('Pasadena, California')).resolves.toBeNull()
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
   it('rejects failed geocoding responses', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 503 }))
     await expect(searchLocation('Pasadena')).rejects.toThrow('status 503')

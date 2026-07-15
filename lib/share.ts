@@ -24,10 +24,23 @@ export function parseActivityShareParams(params: URLSearchParams): ParsedActivit
   const activity = params.get('a')?.trim()
   const city = params.get('city')?.trim()
   const date = params.get('date')?.trim()
-  const from = Number(params.get('from'))
-  const to = Number(params.get('to'))
+  const rawFrom = params.get('from')?.trim()
+  const rawTo = params.get('to')?.trim()
+  const from = Number(rawFrom)
+  const to = Number(rawTo)
 
-  if (!activity || !city || !date || !Number.isFinite(from) || !Number.isFinite(to) || to <= from) return null
+  if (
+    !activity ||
+    !city ||
+    !date ||
+    !rawFrom ||
+    !rawTo ||
+    !Number.isFinite(from) ||
+    !Number.isFinite(to) ||
+    from < 0 ||
+    to > 24 ||
+    to <= from
+  ) return null
 
   return {
     activity,

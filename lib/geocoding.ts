@@ -49,16 +49,22 @@ export async function searchLocation(query: string): Promise<Location | null> {
   const normalized = query.trim()
   if (!normalized) return null
 
-  const directResults = await fetchResults(normalized, 1)
-  if (directResults[0]) return toLocation(directResults[0])
-
   const [city, ...qualifierParts] = normalized.split(',').map(part => part.trim()).filter(Boolean)
-  if (!city || qualifierParts.length === 0) return null
+  if (!city) return null
 
-  const fallbackResults = await fetchResults(city, 10)
-  if (fallbackResults.length === 0) return null
+  if (qualifierParts.length === 0) {
+    const directResults = await fetchResults(normalized, 1)
+    return directResults[0] ? toLocation(directResults[0]) : null
+  }
 
   const qualifiers = qualifierParts.map(part => part.toLocaleLowerCase())
-  const qualifiedResult = fallbackResults.find(result => qualifiers.every(qualifier => matchesQualifier(result, qualifier)))
-  return toLocation(qualifiedResult ?? fallbackResults[0])
+  const findQualifiedResult = (results: GeocodingResult[]) =>
+    results.find(result => qualifiers.every(qualifier => matchesQualifier(result, qualifier)))
+
+  const directResult = findQualifiedResult(await fetchResults(normalized, 10))
+  if (directResult) return toLocation(directResult)
+
+  const fallbackResults = await fetchResults(city, 10)
+  const qualifiedResult = findQualifiedResult(fallbackResults)
+  return qualifiedResult ? toLocation(qualifiedResult) : null
 }

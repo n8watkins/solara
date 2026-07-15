@@ -4,7 +4,11 @@ import { buildActivityShareText, parseActivityShareParams } from './share'
 describe('shared activity parameters', () => {
   it('rejects incomplete and invalid shared plans', () => {
     expect(parseActivityShareParams(new URLSearchParams())).toBeNull()
+    expect(parseActivityShareParams(new URLSearchParams('a=Run&city=Pasadena&date=Today&to=1'))).toBeNull()
+    expect(parseActivityShareParams(new URLSearchParams('a=Run&city=Pasadena&date=Today&from=&to=1'))).toBeNull()
     expect(parseActivityShareParams(new URLSearchParams('a=Run&city=Pasadena&date=Today&from=8&to=8'))).toBeNull()
+    expect(parseActivityShareParams(new URLSearchParams('a=Run&city=Pasadena&date=Today&from=-1&to=1'))).toBeNull()
+    expect(parseActivityShareParams(new URLSearchParams('a=Run&city=Pasadena&date=Today&from=23&to=25'))).toBeNull()
   })
 
   it('parses a complete shared plan', () => {
