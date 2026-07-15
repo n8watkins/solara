@@ -53,9 +53,15 @@ async function queueBillingCleanup(transaction, tombstoneRef, resources, timesta
   let queued = false
   for (const [index, { ref, type, stripeId, verified }] of entries.entries()) {
     const existing = snapshots[index].exists ? snapshots[index].data() : {}
-    const status = existing.status === 'completed' ? 'completed' : 'pending'
+    const reopenRejectedOwnership = existing.status === 'completed'
+      && existing.ownershipRejected === true
+      && verified === true
+    const status = existing.status === 'completed' && !reopenRejectedOwnership
+      ? 'completed'
+      : 'pending'
     transaction.set(ref, {
       nextAttemptAt: status === 'pending' ? existing.nextAttemptAt || timestamp : null,
+      ...(reopenRejectedOwnership ? { ownershipRejected: false, processingToken: null } : {}),
       type,
       stripeId,
       status,

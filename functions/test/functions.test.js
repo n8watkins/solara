@@ -371,6 +371,37 @@ describe('account data security', () => {
     assert.equal(stored.verified, true)
   })
 
+  test('reopens ownership-rejected cleanup after verified rediscovery', async () => {
+    const stored = {
+      nextAttemptAt: null,
+      ownershipRejected: true,
+      status: 'completed',
+      verified: false,
+    }
+    const tombstone = {}
+    const resourceRef = {
+      get: async () => ({ exists: true, data: () => ({ ...stored }) }),
+      set: async data => Object.assign(stored, data),
+    }
+    const tombstoneRef = {
+      collection: () => ({ doc: () => resourceRef }),
+      set: async data => Object.assign(tombstone, data),
+    }
+    const writes = []
+    const timestamp = new Date()
+    await queueBillingCleanup({
+      get: ref => ref.get(),
+      set: (ref, data) => writes.push(() => ref.set(data)),
+    }, tombstoneRef, [{ type: 'subscription', stripeId: 'sub_rejected' }], timestamp)
+    for (const write of writes) await write()
+
+    assert.equal(stored.status, 'pending')
+    assert.equal(stored.nextAttemptAt, timestamp)
+    assert.equal(stored.ownershipRejected, false)
+    assert.equal(stored.verified, true)
+    assert.equal(tombstone.cleanupStatus, 'pending')
+  })
+
   test('requires a valid Firebase bearer token', async () => {
     await assert.rejects(authenticate({ verifyIdToken: async () => ({ uid: 'alice' }) }, ''), /required/)
     await assert.rejects(
