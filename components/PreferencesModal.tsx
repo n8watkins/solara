@@ -386,7 +386,16 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
                   <button
                     className="btn"
                     onClick={async () => {
-                      if (user) await disableNotifications(user.uid).catch(error => console.error('Notification cleanup failed:', error))
+                      setNotifError(null)
+                      if (user) {
+                        try {
+                          await disableNotifications(user.uid)
+                        } catch (error) {
+                          console.error('Notification cleanup failed:', error)
+                          setNotifError('Could not safely sign out. Check your connection and try again.')
+                          return
+                        }
+                      }
                       if (auth) await signOut(auth)
                       onClose()
                     }}
