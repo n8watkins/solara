@@ -90,6 +90,7 @@ function fakeDb(initialUser) {
   })
   const database = {
     cleanupResources,
+    tombstoneData,
     userData,
     collection(name) {
       if (name === 'users') {
@@ -373,8 +374,10 @@ describe('account data security', () => {
       location: { city: 'Seattle' },
       calendarFeedToken: 'secret',
       fcmToken: 'secret',
+      stripeCheckoutSessionId: 'cs_secret',
       stripeCustomerId: 'cus_secret',
       stripeSubscriptionId: 'sub_secret',
+      futureServerSecret: 'secret',
     }), { location: { city: 'Seattle' } })
   })
 
@@ -1541,5 +1544,39 @@ describe('Stripe fulfillment security', () => {
       stripe,
     })
     assert.equal(result.duplicate, false)
+  })
+
+  test('cancels delayed active subscription updates for tombstoned accounts', async () => {
+    const db = fakeDb(null)
+    db.tombstoneData.cleanupStatus = 'completed'
+    const canceled = []
+    const deletedSubscription = {
+      id: 'sub_deleted',
+      customer: 'cus_deleted',
+      status: 'active',
+      metadata: { firebaseUid: 'alice' },
+      items: { data: [{ price: { id: 'price_pro' } }] },
+    }
+    const result = await processStripeEvent({
+      db,
+      event: {
+        id: 'evt_delayed_update',
+        created: 301,
+        type: 'customer.subscription.updated',
+        data: { object: deletedSubscription },
+      },
+      expectedPriceId: 'price_pro',
+      serverTimestamp: () => 'SERVER_TIME',
+      stripe: {
+        checkout: stripe.checkout,
+        subscriptions: {
+          retrieve: async () => deletedSubscription,
+          cancel: async id => { canceled.push(id) },
+        },
+      },
+    })
+
+    assert.equal(result.accountDeleted, true)
+    assert.deepEqual(canceled, ['sub_deleted'])
   })
 })

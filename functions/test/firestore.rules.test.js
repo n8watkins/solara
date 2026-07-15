@@ -52,6 +52,14 @@ describe('pre-Functions deployment compatibility', () => {
     await assertFails(ref.update({ stripeCustomerId: 'cus_attacker' }))
     await assertFails(ref.update({ stripeCheckoutSessionId: 'cs_attacker' }))
   })
+
+  test('requires the server deletion endpoint before Functions deploy', async () => {
+    await preDeployEnv.withSecurityRulesDisabled(async context => {
+      await context.firestore().doc('users/alice').set(prefs('alice'))
+    })
+    const ref = preDeployEnv.authenticatedContext('alice').firestore().doc('users/alice')
+    await assertFails(ref.delete())
+  })
 })
 
 describe('user preferences', () => {

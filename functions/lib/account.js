@@ -4,11 +4,25 @@ const {
 } = require('./billing-resources')
 const { randomUUID } = require('node:crypto')
 
-const SENSITIVE_EXPORT_FIELDS = new Set([
-  'calendarFeedToken',
-  'fcmToken',
-  'stripeCustomerId',
-  'stripeSubscriptionId',
+const PORTABLE_ACCOUNT_FIELDS = new Set([
+  'activeProfileId',
+  'activities',
+  'calendarHours',
+  'collapsedActivityCategories',
+  'hiddenActivitySuggestionIds',
+  'location',
+  'notificationHour',
+  'onboardingComplete',
+  'profiles',
+  'savedLocations',
+  'schemaVersion',
+  'showSunPath',
+  'skinType',
+  'sunscreen',
+  'tier',
+  'timezone',
+  'uid',
+  'upgradeInterest',
 ])
 const TERMINAL_SUBSCRIPTION_STATUSES = new Set(['canceled', 'incomplete_expired'])
 const BILLING_INDEX_PAGE_SIZE = 25
@@ -56,7 +70,7 @@ async function authenticate(auth, authorization, options = {}) {
 
 function safeAccountData(data) {
   return Object.fromEntries(
-    Object.entries(data || {}).filter(([key]) => !SENSITIVE_EXPORT_FIELDS.has(key)),
+    Object.entries(data || {}).filter(([key]) => PORTABLE_ACCOUNT_FIELDS.has(key)),
   )
 }
 

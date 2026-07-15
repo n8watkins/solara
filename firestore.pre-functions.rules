@@ -25,7 +25,7 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow read, delete: if isOwner(userId);
+      allow read: if isOwner(userId);
       allow create: if isOwner(userId)
         && request.resource.data.tier != 'paid'
         && !request.resource.data.keys().hasAny(serverBillingKeys());

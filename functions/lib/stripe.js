@@ -113,6 +113,13 @@ async function findUserBySubscription(db, stripe, subscription) {
   return null
 }
 
+async function findTombstonedUserRef(db, subscription) {
+  const uid = subscription?.metadata?.firebaseUid
+  if (!validUid(uid)) return null
+  const tombstone = await db.collection('accountDeletionTombstones').doc(uid).get()
+  return tombstone.exists ? db.collection('users').doc(uid) : null
+}
+
 function eventIsNewer(event, userData) {
   const previousCreated = userData?.stripeEventCreated
   if (!Number.isFinite(previousCreated)) return true
@@ -264,7 +271,8 @@ async function processStripeEvent({ db, event, expectedPriceId, serverTimestamp,
   if (event.type === 'customer.subscription.updated' || event.type === 'customer.subscription.deleted') {
     const subscription = event.data.object
     const user = await findUserBySubscription(db, stripe, subscription)
-    if (!user) {
+    const userRef = user?.ref || await findTombstonedUserRef(db, subscription)
+    if (!userRef) {
       if (event.type === 'customer.subscription.deleted') {
         return commitEvent(db, event, null, null, serverTimestamp)
       }
@@ -290,14 +298,17 @@ async function processStripeEvent({ db, event, expectedPriceId, serverTimestamp,
       subscriptionUpdatedAt: serverTimestamp(),
     }
     if (!active) update.proSince = null
-    return commitEvent(db, event, user.ref, userData => {
+    const cancellationSubscriptionId = active ? stringId(currentSubscription.id) : null
+    const result = await commitEvent(db, event, userRef, userData => {
       const currentSubscriptionId = userData.stripeSubscriptionId
       if (currentSubscriptionId && currentSubscriptionId !== stringId(subscription.id)) return null
       return checkoutStatus ? { ...update, stripeCheckoutStatus: checkoutStatus } : update
-    }, serverTimestamp, null, [
+    }, serverTimestamp, cancellationSubscriptionId, [
       { type: 'customer', stripeId: stringId(currentSubscription.customer) },
       { type: 'subscription', stripeId: stringId(currentSubscription.id) },
     ])
+    await completePendingCancellation({ db, event, result, serverTimestamp, stripe })
+    return result
   }
 
   return { ignored: true }
