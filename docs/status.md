@@ -17,7 +17,7 @@ CI runs frontend and backend dependency audits, lint, typecheck, app and Functio
 | Area                                  | Source state                                                  | External activation or verification                                                                              |
 | ------------------------------------- | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | Forecast and activity planning        | Built                                                         | Verify live Open-Meteo behavior and recommendation consistency                                                   |
-| Google sign-in and Firestore sync     | Built                                                         | Requires Firebase configuration and authorized domains                                                           |
+| Google sign-in and Firestore sync     | Built and production popup verified                           | Preference persistence still requires a controlled signed-in account check                                       |
 | Push notifications                    | Built with manual dry-run dispatcher                          | Requires VAPID, service account, eligible test account, real-device verification, and approval before scheduling |
 | Google Calendar                       | Built behind configuration                                    | Requires OAuth client provisioning and live consent testing                                                      |
 | Stripe Pro fulfillment                | Built behind authenticated Functions                          | Requires Blaze, Stripe test keys, webhook registration, and signed event tests                                   |
@@ -26,7 +26,8 @@ CI runs frontend and backend dependency audits, lint, typecheck, app and Functio
 | Live calendar feed                    | Function-backed                                               | Requires Blaze, Functions deployment, and a real calendar client                                                 |
 | Analytics                             | Built with explicit opt-in consent                            | Requires a GA4 measurement ID and production consent verification                                                |
 | App Check                             | Client activation built                                       | Requires reCAPTCHA registration, monitoring, and gradual enforcement in Firebase                                 |
-| Hosting, Firestore rules, and indexes | Automated on `main`                                           | Indexes deploy independently of the Functions gate                                                               |
+| Hosting and Firestore rules           | Automated and production verified on `main`                   | Hosting can deploy while optional Functions remain disabled                                                       |
+| Firestore indexes                     | Automated independently of the Functions gate                 | Current deployment service account requires `roles/datastore.indexAdmin`                                         |
 | Firebase Functions                    | Built and deployment-gated                                    | Deploy only when `ENABLE_BLAZE_FUNCTIONS` is `true`                                                              |
 
 ## Quality baseline
@@ -41,14 +42,21 @@ CI runs frontend and backend dependency audits, lint, typecheck, app and Functio
 
 ## Required follow-up outside the repository
 
-1. Configure or verify the Firebase, App Check, VAPID, OAuth, Stripe, Functions, and analytics values described in `DEPLOYMENT.md`.
-2. Use a controlled staging or preview deployment before enabling credential-backed features or promoting the next release.
+1. Complete the owner-only decisions and provider configuration in `OWNER_ACTIONS.md`.
+2. Use controlled test accounts and, where practical, a preview deployment before enabling credential-backed features.
 3. Verify Google sign-in and preference persistence with a real account.
 4. Verify exactly one push notification on a real phone, then verify disable and sign-out cleanup.
 5. Exercise Stripe checkout, signed webhook lifecycle behavior, billing backfill, and durable cleanup in test mode when keys are available.
 6. Verify account export redaction and the complete asynchronous deletion lifecycle with an active Stripe test subscription.
 7. Exercise Google Calendar OAuth, event creation, access revocation, and calendar-feed rotation with real services.
 8. Run the full `GO_LIVE.md` checklist before promoting the release.
+
+## Current production blocker
+
+Hosting and final Firestore rules are deployed from commit `71b8c553`.
+The latest deployment remains red because the Firebase deployment service account cannot create Firestore indexes without `roles/datastore.indexAdmin`.
+The latest notification dry run remains blocked by the missing `notificationDevices.enabled` collection-group index.
+The project owner must grant the role, after which the repository agent can rerun deployment, wait for every index to report `READY`, and rerun the notification dry run.
 
 ## Known test boundary
 

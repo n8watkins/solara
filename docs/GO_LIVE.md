@@ -4,6 +4,7 @@ _Last reviewed: 2026-07-15_
 
 Use this checklist for each production release.
 The release is not complete until the automated gates and relevant real-service checks pass.
+Use [OWNER_ACTIONS.md](./OWNER_ACTIONS.md) for the subset that requires owner decisions, credentials, provider-console changes, legal facts, or physical-device evidence.
 
 ## 1. Local preflight
 
@@ -36,6 +37,7 @@ The release is not complete until the automated gates and relevant real-service 
 - [ ] Confirm the frontend and backend jobs pass every automated quality gate.
 - [ ] Confirm the Hosting deployment succeeds.
 - [ ] Confirm the Firestore rules deployment succeeds.
+- [ ] Confirm the Firestore index deployment succeeds and every required index reports `READY`.
 - [ ] When `ENABLE_BLAZE_FUNCTIONS` is `true`, confirm the Functions deployment succeeds before the Hosting deployment starts.
 - [ ] When `ENABLE_BLAZE_FUNCTIONS` is `true`, confirm `backfillStripeBillingResources`, `cleanupDeletedAccountBilling`, and `cleanupFailedCheckouts` are deployed and healthy.
 - [ ] Confirm the final Firestore rules are restored after the deployment attempt, including when Functions or Hosting fails.
@@ -53,6 +55,17 @@ The release is not complete until the automated gates and relevant real-service 
 - [ ] Verify Free and Pro gates with accounts controlled for testing.
 - [ ] Check browser developer tools for errors and failed requests.
 - [ ] Verify the PWA manifest and install behavior on supported platforms.
+- [ ] Confirm Dashboard and Calendar show the same planning window for the same activity and forecast.
+- [ ] Change the active location and confirm both Dashboard and Calendar refresh without stale data.
+- [ ] Simulate an offline or failed forecast request and confirm a recoverable error appears instead of a blank screen.
+- [ ] Configure weekday-only and weekend-only activities and confirm Plan Ahead respects their selected days.
+- [ ] Edit individual routine days and the weekday/weekend presets, save, reopen, and confirm they round-trip correctly.
+- [ ] Confirm selecting all seven routine days behaves as every day without an unnecessary restriction label.
+- [ ] Confirm cloud sensitivity is off for a new activity, never marks clear high-UV conditions safe, and labels a genuinely cloud-qualified window without lowering its displayed peak UV.
+- [ ] Save, switch, and remove locations and confirm the active forecast and saved-location count update correctly.
+- [ ] Confirm Free and Pro saved-location limits block saving without blocking a change to the active location.
+- [ ] Confirm browser geolocation changes the active location without silently saving a shortcut.
+- [ ] Reload and confirm saved locations persist locally and synchronize through Firestore when signed in.
 
 ## 5. Notification verification
 

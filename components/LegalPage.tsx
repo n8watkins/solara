@@ -7,7 +7,7 @@ export default function LegalPage({ title, updated, children }: {
   children: ReactNode
 }) {
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg)', padding: '32px 16px 64px' }}>
+    <main style={{ minHeight: '100vh', background: 'var(--bg)', padding: '32px 16px 64px' }}>
       <article className="card" style={{ maxWidth: '760px', margin: '0 auto', padding: 'clamp(20px, 5vw, 48px)' }}>
         <Link href="/" style={{ color: 'var(--accent)', fontSize: '14px', textDecoration: 'none' }}>
           ← Back to Solara
@@ -16,6 +16,6 @@ export default function LegalPage({ title, updated, children }: {
         <p style={{ margin: '0 0 32px', color: 'var(--text-3)', fontSize: '13px' }}>Last updated {updated}</p>
         <div className="legal-copy">{children}</div>
       </article>
-    </div>
+    </main>
   )
 }

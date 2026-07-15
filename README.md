@@ -79,11 +79,11 @@ OAuth, Stripe, Cloud Messaging, and cross-device persistence still require contr
 
 Pull requests and non-main branches run the quality workflow.
 Merging a reviewed pull request into `main` runs the same gates before Firebase Hosting and Firestore rules deploy.
-Firestore indexes deploy on every release.
+The deployment workflow attempts to deploy Firestore indexes on every release and reports missing index IAM separately from Hosting.
 Firebase Functions deploy when the `ENABLE_BLAZE_FUNCTIONS` repository variable is `true`.
 Public `NEXT_PUBLIC_*` values are compiled into the static bundle, so changing one requires a new build and deploy.
 
-See [docs/GO_LIVE.md](docs/GO_LIVE.md) for the release checklist and [docs/status.md](docs/status.md) for current activation state.
+See [docs/GO_LIVE.md](docs/GO_LIVE.md) for the release checklist, [docs/status.md](docs/status.md) for current activation state, and [docs/OWNER_ACTIONS.md](docs/OWNER_ACTIONS.md) for the remaining owner-only decisions and provider setup.
 
 ## Firestore layout
 

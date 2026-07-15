@@ -103,7 +103,9 @@ npm run test:e2e
 ```
 
 Merge a reviewed pull request into `main` after the required GitHub secrets exist.
-The deployment workflow deploys Firestore indexes on every release so manual notification dry-runs have the required collection-group index even while Functions remain disabled.
+The deployment workflow attempts to deploy Firestore indexes on every release so manual notification dry-runs can receive the required collection-group index even while Functions remain disabled.
+When index IAM is missing and Functions are disabled, Hosting and final Firestore rules still deploy, but the workflow remains failed with an actionable index-permission error.
+When Functions are enabled, an index failure also blocks the Functions and Hosting steps.
 When `ENABLE_BLAZE_FUNCTIONS` is `true`, the workflow builds with those values, deploys transitional Firestore rules, deploys Functions, deploys Hosting, and then restores the final rules.
 When the variable is not `true`, the workflow keeps Function-backed client surfaces disabled, deploys indexes and Hosting, and restores the final Firestore rules.
 
@@ -114,13 +116,26 @@ Both `npm run dev` and `npm run build` run `scripts/generate-sw.js` first and cr
 Do not commit or hand-edit the generated worker.
 Re-run the generator through either command after changing Firebase client configuration.
 
-For a controlled manual deployment, use an explicit project ID.
+For a controlled manual deployment, use an explicit project ID and guarantee that final rules are restored even if an intermediate command fails.
 
 ```bash
-npx firebase-tools deploy --only firestore --config firebase.pre-functions.json --project <project-id>
-npx firebase-tools deploy --only functions --project <project-id>
-npx firebase-tools deploy --only hosting --project <project-id>
-npx firebase-tools deploy --only firestore:rules --project <project-id>
+set -euo pipefail
+
+PROJECT_ID=<project-id>
+
+restore_final_rules() {
+  npx firebase-tools deploy --only firestore:rules --project "$PROJECT_ID"
+}
+
+trap restore_final_rules EXIT
+
+npx firebase-tools deploy --only firestore:indexes --project "$PROJECT_ID"
+# Wait for every required index to report READY before continuing.
+npx firebase-tools deploy --only firestore:rules --config firebase.pre-functions.json --project "$PROJECT_ID"
+npx firebase-tools deploy --only functions --project "$PROJECT_ID"
+npx firebase-tools deploy --only hosting --project "$PROJECT_ID"
+restore_final_rules
+trap - EXIT
 ```
 
 Supply `APP_URL` and `STRIPE_PRICE_ID` when manually deploying Functions.

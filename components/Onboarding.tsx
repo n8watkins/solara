@@ -96,12 +96,20 @@ export default function Onboarding({ onComplete }: Props) {
   const progress = { location: 1, uvpreview: 1, skin: 2, signin: 3 }[step]
 
   return (
-    <div style={{ height: '100dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: '16px', background: 'var(--bg)' }}>
+    <main style={{ height: '100dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: '16px', background: 'var(--bg)' }}>
       <div style={{ width: '100%', maxWidth: '460px', margin: '0 auto', flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
 
         <div style={{ textAlign: 'center', padding: '6px 0 14px', flexShrink: 0 }}>
           <span style={{ fontSize: '26px' }}>☀️</span>
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '6px', marginTop: '10px' }}>
+          <div
+            role="progressbar"
+            aria-label="Setup progress"
+            aria-valuemin={1}
+            aria-valuemax={3}
+            aria-valuenow={progress}
+            aria-valuetext={`Step ${progress} of 3`}
+            style={{ display: 'flex', justifyContent: 'center', gap: '6px', marginTop: '10px' }}
+          >
             {[1, 2, 3].map(i => (
               <div key={i} style={{ width: '26px', height: '4px', borderRadius: '2px', background: i <= progress ? 'var(--accent)' : 'var(--border-md)', opacity: i <= progress ? 1 : 0.4 }} />
             ))}
@@ -117,8 +125,12 @@ export default function Onboarding({ onComplete }: Props) {
               <p style={{ margin: '0 0 18px', fontSize: '14px', color: 'var(--text-2)', lineHeight: 1.5 }}>
                 We'll show the live UV index for your area.
               </p>
+              <label htmlFor="onboarding-city" style={{ marginBottom: '6px', fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>
+                City or location
+              </label>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '4px 0 14px' }}>
                 <input
+                  id="onboarding-city"
                   placeholder="Type a city, e.g. Los Angeles"
                   value={cityInput}
                   onChange={e => setCityInput(e.target.value)}
@@ -127,7 +139,7 @@ export default function Onboarding({ onComplete }: Props) {
                 />
                 <button className="btn" onClick={handleCitySearch} disabled={locLoading}>Go</button>
               </div>
-              {geoError && <p style={{ margin: '0 0 8px', fontSize: '12px', color: '#DC2626' }}>{geoError}</p>}
+              {geoError && <p role="alert" style={{ margin: '0 0 8px', fontSize: '12px', color: '#DC2626' }}>{geoError}</p>}
               <div style={{ marginTop: 'auto' }}>
                 <button className="btn btn-primary" onClick={handleGeolocate} disabled={locLoading}
                   style={{ width: '100%', justifyContent: 'center', padding: '13px' }}>
@@ -164,7 +176,7 @@ export default function Onboarding({ onComplete }: Props) {
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
                 {SKIN_OPTIONS.map(o => (
-                  <button key={o.value} onClick={() => setSkinType(o.value)} style={{
+                  <button key={o.value} aria-pressed={skinType === o.value} onClick={() => setSkinType(o.value)} style={{
                     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                     padding: '10px 13px', borderRadius: '10px', textAlign: 'left',
                     border: skinType === o.value ? '1.5px solid var(--accent)' : '0.5px solid var(--border-md)',
@@ -210,7 +222,7 @@ export default function Onboarding({ onComplete }: Props) {
 
         </div>
       </div>
-    </div>
+    </main>
   )
 }
 

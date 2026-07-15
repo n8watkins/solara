@@ -6,7 +6,7 @@ interface Props {
 
 export default function Welcome({ onGetStarted }: Props) {
   return (
-    <div style={{
+    <main style={{
       minHeight: '100vh',
       display: 'flex',
       flexDirection: 'column',
@@ -81,6 +81,6 @@ export default function Welcome({ onGetStarted }: Props) {
           </button>
         </div>
       </div>
-    </div>
+    </main>
   )
 }
