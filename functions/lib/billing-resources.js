@@ -12,6 +12,12 @@ function billingResourceRef(userRef, type, stripeId) {
   return userRef.collection('billingResources').doc(`${type}_${digest}`)
 }
 
+function billingCleanupResourceRef(tombstoneRef, type, stripeId) {
+  if (!validBillingResource(type, stripeId)) return null
+  const digest = createHash('sha256').update(`${type}\0${stripeId}`).digest('base64url')
+  return tombstoneRef.collection('billingCleanupResources').doc(`${type}_${digest}`)
+}
+
 function indexBillingResources(transaction, userRef, resources, timestamp) {
   for (const { type, stripeId } of resources) {
     const ref = billingResourceRef(userRef, type, stripeId)
@@ -20,8 +26,34 @@ function indexBillingResources(transaction, userRef, resources, timestamp) {
   }
 }
 
+function queueBillingCleanup(transaction, tombstoneRef, resources, timestamp) {
+  let queued = false
+  for (const { type, stripeId, verified = true } of resources) {
+    const ref = billingCleanupResourceRef(tombstoneRef, type, stripeId)
+    if (!ref) continue
+    transaction.set(ref, {
+      type,
+      stripeId,
+      status: 'pending',
+      updatedAt: timestamp,
+      verified: verified === true,
+    }, { merge: true })
+    queued = true
+  }
+  if (queued) {
+    transaction.set(tombstoneRef, {
+      cleanupStatus: 'pending',
+      cleanupUpdatedAt: timestamp,
+    }, { merge: true })
+  }
+}
+
 function stripeSessionBelongsToUser(session, uid) {
-  return session?.client_reference_id === uid || session?.metadata?.firebaseUid === uid
+  const clientUid = session?.client_reference_id
+  const metadataUid = session?.metadata?.firebaseUid
+  if (clientUid !== undefined && clientUid !== null && clientUid !== uid) return false
+  if (metadataUid !== undefined && metadataUid !== null && metadataUid !== uid) return false
+  return clientUid === uid || metadataUid === uid
 }
 
 async function listCustomerCheckoutSessions(stripe, customerId) {
@@ -47,9 +79,11 @@ async function customerBelongsToUser(stripe, customerId, uid) {
 
 module.exports = {
   billingResourceRef,
+  billingCleanupResourceRef,
   customerBelongsToUser,
   indexBillingResources,
   listCustomerCheckoutSessions,
+  queueBillingCleanup,
   stripeSessionBelongsToUser,
   validBillingResource,
 }

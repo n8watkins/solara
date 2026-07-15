@@ -1,7 +1,12 @@
 const { afterEach, describe, test } = require('node:test')
 const assert = require('node:assert/strict')
 
-const { authenticate, deleteAccount, safeAccountData } = require('../lib/account')
+const {
+  authenticate,
+  deleteAccount,
+  processAccountDeletionPage,
+  safeAccountData,
+} = require('../lib/account')
 const { handleCors } = require('../lib/http')
 const {
   cachedForecast,
@@ -70,7 +75,9 @@ function withBillingResources(ref, initialResources = []) {
 }
 
 function fakeDb(initialUser) {
+  const cleanupResources = new Map()
   const events = new Map()
+  const tombstoneData = {}
   const userData = { ...initialUser }
   const userRef = withBillingResources({
     id: 'alice',
@@ -80,6 +87,7 @@ function fakeDb(initialUser) {
     },
   })
   const database = {
+    cleanupResources,
     userData,
     collection(name) {
       if (name === 'users') {
@@ -105,7 +113,33 @@ function fakeDb(initialUser) {
       if (name === 'accountDeletionTombstones') {
         return {
           doc() {
-            return { async get() { return { exists: false } } }
+            const tombstoneRef = {
+              kind: 'tombstone',
+              async get() {
+                return {
+                  exists: Object.keys(tombstoneData).length > 0,
+                  data: () => ({ ...tombstoneData }),
+                }
+              },
+              collection(collectionName) {
+                assert.equal(collectionName, 'billingCleanupResources')
+                return {
+                  doc(id) {
+                    return {
+                      id,
+                      kind: 'cleanupResource',
+                      async get() {
+                        return {
+                          exists: cleanupResources.has(id),
+                          data: () => ({ ...cleanupResources.get(id) }),
+                        }
+                      },
+                    }
+                  },
+                }
+              },
+            }
+            return tombstoneRef
           },
         }
       }
@@ -139,6 +173,10 @@ function fakeDb(initialUser) {
         set(ref, data) {
           operations.push(() => {
             if (ref.kind === 'event') events.set(ref.id, { ...events.get(ref.id), ...data })
+            else if (ref.kind === 'tombstone') Object.assign(tombstoneData, data)
+            else if (ref.kind === 'cleanupResource') {
+              cleanupResources.set(ref.id, { ...cleanupResources.get(ref.id), ...data })
+            }
             else if (ref.kind === 'billingResource') {
               userRef.billingResources.set(ref.id, {
                 ...userRef.billingResources.get(ref.id),
@@ -156,6 +194,98 @@ function fakeDb(initialUser) {
     },
   }
   return database
+}
+
+function fakeDeletionDb({ resources = [], tombstone = {}, user = {} } = {}) {
+  const deleted = []
+  const userResources = new Map(resources.map(resource => [resource.id, { ...resource }]))
+  const cleanupResources = new Map()
+  const tombstoneData = { ...tombstone }
+  const userData = { ...user }
+
+  const cleanupCollection = {
+    doc(id) {
+      return {
+        id,
+        async get() {
+          return { exists: cleanupResources.has(id), data: () => ({ ...cleanupResources.get(id) }) }
+        },
+        async set(data) {
+          cleanupResources.set(id, { ...cleanupResources.get(id), ...data })
+        },
+      }
+    },
+    where() { return this },
+    limit(value) { this.pageSize = value; return this },
+    async get() {
+      const docs = [...cleanupResources.entries()]
+        .filter(([, data]) => data.status === 'pending')
+        .slice(0, this.pageSize)
+        .map(([id, data]) => ({ id, ref: this.doc(id), data: () => ({ ...data }) }))
+      return { docs, empty: docs.length === 0 }
+    },
+  }
+  const tombstoneRef = {
+    id: 'alice',
+    async get() {
+      return {
+        exists: Object.keys(tombstoneData).length > 0,
+        data: () => ({ ...tombstoneData }),
+      }
+    },
+    async set(data) { Object.assign(tombstoneData, data) },
+    collection(name) { assert.equal(name, 'billingCleanupResources'); return cleanupCollection },
+  }
+  const userCollection = {
+    cursor: null,
+    pageSize: 25,
+    orderBy() { return this },
+    limit(value) { this.pageSize = value; return this },
+    startAfter(value) { this.cursor = value; return this },
+    async get() {
+      const entries = [...userResources.entries()]
+      const start = this.cursor ? entries.findIndex(([id]) => id === this.cursor) + 1 : 0
+      return {
+        docs: entries.slice(start, start + this.pageSize).map(([id, data]) => ({
+          id,
+          data: () => ({ ...data }),
+        })),
+      }
+    },
+  }
+  const userRef = {
+    async get() { return { exists: true, data: () => ({ ...userData }) } },
+    async set(data) { Object.assign(userData, data) },
+    collection(name) { assert.equal(name, 'billingResources'); return userCollection },
+  }
+  const db = {
+    cleanupResources,
+    deleted,
+    tombstoneData,
+    userData,
+    collection(name) {
+      if (name === 'users') return { doc: () => userRef }
+      if (name === 'accountDeletionTombstones') return { doc: () => tombstoneRef }
+      if (name === 'notificationTokenOwners') {
+        return { where: () => ({ get: async () => ({ docs: [] }) }) }
+      }
+      if (name === 'notificationRegistrationLimits') {
+        return { doc: () => ({ delete: async () => deleted.push('limit') }) }
+      }
+      throw new Error(`Unexpected collection ${name}`)
+    },
+    async recursiveDelete(ref) { assert.equal(ref, userRef); deleted.push('user') },
+    async runTransaction(callback) {
+      const writes = []
+      const result = await callback({
+        get: ref => ref.get(),
+        set: (ref, data) => writes.push(() => ref.set(data)),
+      })
+      for (const write of writes) await write()
+      return result
+    },
+  }
+  return { db, tombstoneRef }
 }
 
 afterEach(clearForecastCache)
@@ -202,371 +332,57 @@ describe('account data security', () => {
     }), { location: { city: 'Seattle' } })
   })
 
-  test('deletes notification ownership and throttle records with the account', async () => {
-    const deleted = []
-    const userData = {}
-    const userRef = withBillingResources({
-      kind: 'user',
-      async get() { return { exists: true, data: () => ({ ...userData }) } },
+  test('quarantines deletion and copies the billing index in bounded pages', async () => {
+    const resources = Array.from({ length: 30 }, (_, index) => ({
+      id: `resource-${String(index).padStart(2, '0')}`,
+      type: 'subscription',
+      stripeId: `sub_${index}`,
+    }))
+    const { db } = fakeDeletionDb({
+      resources,
+      user: { stripeCheckoutSessionId: 'cs_legacy' },
     })
-    const tombstoneRef = { kind: 'tombstone' }
-    const db = {
-      collection(name) {
-        if (name === 'users') return { doc: () => userRef }
-        if (name === 'notificationTokenOwners') {
-          return {
-            where: () => ({
-              async get() {
-                return { docs: [{ ref: { delete: async () => deleted.push('owner') } }] }
-              },
-            }),
-          }
-        }
-        if (name === 'notificationRegistrationLimits') {
-          return { doc: () => ({ delete: async () => deleted.push('limit') }) }
-        }
-        if (name === 'accountDeletionTombstones') return { doc: () => tombstoneRef }
-        throw new Error(`Unexpected collection ${name}`)
-      },
-      async runTransaction(callback) {
-        const writes = []
-        const result = await callback({
-          get: ref => ref.get(),
-          set: (ref, data) => writes.push(() => {
-            if (ref === userRef) Object.assign(userData, data)
-            if (ref === tombstoneRef) {
-              assert.equal(Number.isInteger(data.revokedBefore), true)
-              assert.equal(data.createdAt instanceof Date, true)
-              deleted.push('tombstone')
-            }
-          }),
-        })
-        writes.forEach(write => write())
-        return result
-      },
-      async recursiveDelete(ref) { assert.equal(ref, userRef); deleted.push('user') },
-    }
-    const auth = {
-      verifyIdToken: async () => ({ uid: 'alice', auth_time: Math.floor(Date.now() / 1000) }),
-      deleteUser: async uid => deleted.push(`auth:${uid}`),
-    }
-    await deleteAccount({
-      auth,
-      db,
-      req: { headers: { authorization: 'Bearer valid' }, body: { confirmation: 'DELETE' } },
-      stripe: {
-        checkout: { sessions: { list: async () => ({ data: [], has_more: false }) } },
-        subscriptions: { cancel: async () => {} },
-      },
-    })
-    assert.equal(userData.accountDeletionStartedAt instanceof Date, true)
-    assert.deepEqual(deleted, ['tombstone', 'owner', 'limit', 'user', 'auth:alice'])
-  })
-
-  test('expires an open checkout before deleting its account', async () => {
-    const closed = []
-    const userData = { stripeCheckoutSessionId: 'cs_open' }
-    const userRef = withBillingResources({
-      async get() { return { exists: true, data: () => ({ ...userData }) } },
-    })
-    const db = {
-      collection(name) {
-        if (name === 'users') return { doc: () => userRef }
-        if (name === 'accountDeletionTombstones') return { doc: () => ({}) }
-        if (name === 'notificationTokenOwners') {
-          return { where: () => ({ get: async () => ({ docs: [] }) }) }
-        }
-        if (name === 'notificationRegistrationLimits') {
-          return { doc: () => ({ delete: async () => {} }) }
-        }
-        throw new Error(`Unexpected collection ${name}`)
-      },
-      async runTransaction(callback) {
-        return callback({ get: ref => ref.get(), set: () => {} })
-      },
-      async recursiveDelete() {},
-    }
-    await deleteAccount({
+    const result = await deleteAccount({
       auth: {
         verifyIdToken: async () => ({ uid: 'alice', auth_time: Math.floor(Date.now() / 1000) }),
-        deleteUser: async () => {},
       },
       db,
       req: { headers: { authorization: 'Bearer valid' }, body: { confirmation: 'DELETE' } },
-      stripe: {
-        checkout: { sessions: {
-          list: async () => ({
-            data: [{ id: 'cs_open', status: 'open', client_reference_id: 'alice' }],
-            has_more: false,
-          }),
-          retrieve: async () => ({
-            id: 'cs_open',
-            status: 'open',
-            client_reference_id: 'alice',
-          }),
-          expire: async id => { closed.push(id); return { id, status: 'expired' } },
-        } },
-        subscriptions: { cancel: async () => {} },
-      },
+      stripe: {},
     })
-    assert.deepEqual(closed, ['cs_open'])
+    assert.deepEqual(result, { completed: false, processed: 25 })
+    assert.equal(db.userData.accountDeletionStartedAt instanceof Date, true)
+    assert.equal(db.tombstoneData.cleanupStatus, 'pending')
+    assert.equal(db.tombstoneData.resourceIndexComplete, false)
+    assert.equal(db.cleanupResources.size, 26)
+    assert.equal([...db.cleanupResources.values()].every(resource => resource.status === 'pending'), true)
   })
 
-  test('cancels every live legacy customer subscription before deleting the account', async () => {
-    const canceled = []
-    const userData = { stripeCustomerId: 'cus_legacy' }
-    const userRef = withBillingResources({
-      async get() { return { exists: true, data: () => ({ ...userData }) } },
+  test('retains failed Stripe cleanup for retry before final deletion', async () => {
+    const { db, tombstoneRef } = fakeDeletionDb({
+      resources: [{ id: 'subscription', type: 'subscription', stripeId: 'sub_retry' }],
+      tombstone: { cleanupStatus: 'pending', resourceIndexComplete: false },
     })
-    const db = {
-      collection(name) {
-        if (name === 'users') return { doc: () => userRef }
-        if (name === 'accountDeletionTombstones') return { doc: () => ({}) }
-        if (name === 'notificationTokenOwners') {
-          return { where: () => ({ get: async () => ({ docs: [] }) }) }
-        }
-        if (name === 'notificationRegistrationLimits') {
-          return { doc: () => ({ delete: async () => {} }) }
-        }
-        throw new Error(`Unexpected collection ${name}`)
+    const auth = { deleteUser: async uid => db.deleted.push(`auth:${uid}`) }
+    const stripe = {
+      subscriptions: {
+        retrieve: async () => ({ id: 'sub_retry', status: 'active' }),
+        cancel: async () => { throw new Error('temporary Stripe failure') },
       },
-      async runTransaction(callback) {
-        return callback({
-          get: ref => ref.get(),
-          set: () => {},
-        })
-      },
-      async recursiveDelete() {},
     }
-    const auth = {
-      verifyIdToken: async () => ({ uid: 'alice', auth_time: Math.floor(Date.now() / 1000) }),
-      revokeRefreshTokens: async () => {},
-      deleteUser: async () => {},
-    }
-    await deleteAccount({
-      auth,
-      db,
-      req: { headers: { authorization: 'Bearer valid' }, body: { confirmation: 'DELETE' } },
-      stripe: {
-        checkout: { sessions: { list: async () => ({
-          data: [{
-            id: 'cs_legacy',
-            status: 'complete',
-            client_reference_id: 'alice',
-            customer: 'cus_legacy',
-          }],
-          has_more: false,
-        }) } },
-        subscriptions: {
-          list: async params => {
-            assert.equal(params.customer, 'cus_legacy')
-            return { data: [
-              { id: 'sub_active', status: 'active' },
-              { id: 'sub_past_due', status: 'past_due' },
-              { id: 'sub_canceled', status: 'canceled' },
-            ], has_more: false }
-          },
-          cancel: async id => canceled.push(id),
-        },
-      },
-    })
-    assert.deepEqual(canceled, ['sub_active', 'sub_past_due'])
-  })
+    await processAccountDeletionPage({ auth, db, stripe, tombstoneRef, uid: 'alice' })
+    await processAccountDeletionPage({ auth, db, stripe, tombstoneRef, uid: 'alice' })
+    let job = [...db.cleanupResources.values()][0]
+    assert.equal(job.status, 'pending')
+    assert.equal(job.lastError, 'temporary Stripe failure')
 
-  test('expires every open checkout for the deleted Stripe customer', async () => {
-    const expired = []
-    const userData = { stripeCustomerId: 'cus_alice' }
-    const userRef = withBillingResources({
-      async get() { return { exists: true, data: () => ({ ...userData }) } },
-    })
-    const db = {
-      collection(name) {
-        if (name === 'users') return { doc: () => userRef }
-        if (name === 'accountDeletionTombstones') return { doc: () => ({}) }
-        if (name === 'notificationTokenOwners') {
-          return { where: () => ({ get: async () => ({ docs: [] }) }) }
-        }
-        if (name === 'notificationRegistrationLimits') {
-          return { doc: () => ({ delete: async () => {} }) }
-        }
-        throw new Error(`Unexpected collection ${name}`)
-      },
-      async runTransaction(callback) {
-        return callback({ get: ref => ref.get(), set: () => {} })
-      },
-      async recursiveDelete() {},
-    }
-    const sessions = [
-      { id: 'cs_legacy', status: 'open', client_reference_id: 'alice' },
-      { id: 'cs_concurrent', status: 'open', client_reference_id: 'alice' },
-    ]
-    await deleteAccount({
-      auth: {
-        verifyIdToken: async () => ({ uid: 'alice', auth_time: Math.floor(Date.now() / 1000) }),
-        deleteUser: async () => {},
-      },
-      db,
-      req: { headers: { authorization: 'Bearer valid' }, body: { confirmation: 'DELETE' } },
-      stripe: {
-        checkout: { sessions: {
-          list: async params => {
-            assert.equal(params.customer, 'cus_alice')
-            return { data: sessions, has_more: false }
-          },
-          retrieve: async id => sessions.find(session => session.id === id),
-          expire: async id => { expired.push(id); return { id, status: 'expired' } },
-        } },
-        subscriptions: {
-          list: async params => {
-            assert.equal(params.customer, 'cus_alice')
-            return { data: [], has_more: false }
-          },
-          cancel: async () => {},
-        },
-      },
-    })
-    assert.deepEqual(expired, ['cs_legacy', 'cs_concurrent'])
-  })
-
-  test('cancels subscriptions from completed legacy checkouts', async () => {
-    const canceled = []
-    const userRef = withBillingResources({
-      async get() {
-        return { exists: true, data: () => ({ stripeCustomerId: 'cus_legacy' }) }
-      },
-    })
-    const db = {
-      collection(name) {
-        if (name === 'users') return { doc: () => userRef }
-        if (name === 'accountDeletionTombstones') return { doc: () => ({}) }
-        if (name === 'notificationTokenOwners') return { where: () => ({ get: async () => ({ docs: [] }) }) }
-        if (name === 'notificationRegistrationLimits') return { doc: () => ({ delete: async () => {} }) }
-        throw new Error(`Unexpected collection ${name}`)
-      },
-      runTransaction: callback => callback({ get: ref => ref.get(), set: () => {} }),
-      async recursiveDelete() {},
-    }
-    await deleteAccount({
-      auth: {
-        verifyIdToken: async () => ({ uid: 'alice', auth_time: Math.floor(Date.now() / 1000) }),
-        deleteUser: async () => {},
-      },
-      db,
-      req: { headers: { authorization: 'Bearer valid' }, body: { confirmation: 'DELETE' } },
-      stripe: {
-        checkout: { sessions: { list: async params => {
-          assert.equal(Object.hasOwn(params, 'status'), false)
-          assert.equal(params.customer, 'cus_legacy')
-          return {
-            data: [{
-              id: 'cs_complete',
-              status: 'complete',
-              client_reference_id: 'alice',
-              customer: 'cus_legacy',
-              subscription: 'sub_legacy',
-            }],
-            has_more: false,
-          }
-        } } },
-        subscriptions: {
-          list: async () => ({ data: [], has_more: false }),
-          cancel: async id => canceled.push(id),
-        },
-      },
-    })
-    assert.deepEqual(canceled, ['sub_legacy'])
-  })
-
-  test('cleans every customer and subscription in the durable account index', async () => {
-    const canceled = []
-    const userRef = withBillingResources({
-      async get() { return { exists: true, data: () => ({}) } },
-    }, [
-      { id: 'customer-a', type: 'customer', stripeId: 'cus_a' },
-      { id: 'customer-b', type: 'customer', stripeId: 'cus_b' },
-      { id: 'subscription-orphan', type: 'subscription', stripeId: 'sub_orphan' },
-    ])
-    const db = {
-      collection(name) {
-        if (name === 'users') return { doc: () => userRef }
-        if (name === 'accountDeletionTombstones') return { doc: () => ({}) }
-        if (name === 'notificationTokenOwners') return { where: () => ({ get: async () => ({ docs: [] }) }) }
-        if (name === 'notificationRegistrationLimits') return { doc: () => ({ delete: async () => {} }) }
-        throw new Error(`Unexpected collection ${name}`)
-      },
-      runTransaction: callback => callback({ get: ref => ref.get(), set: () => {} }),
-      async recursiveDelete() {},
-    }
-    await deleteAccount({
-      auth: {
-        verifyIdToken: async () => ({ uid: 'alice', auth_time: Math.floor(Date.now() / 1000) }),
-        deleteUser: async () => {},
-      },
-      db,
-      req: { headers: { authorization: 'Bearer valid' }, body: { confirmation: 'DELETE' } },
-      stripe: {
-        checkout: { sessions: { list: async ({ customer }) => ({
-          data: [{
-            id: `cs_${customer}`,
-            status: 'complete',
-            customer,
-            subscription: `sub_${customer}`,
-          }],
-          has_more: false,
-        }) } },
-        subscriptions: {
-          list: async ({ customer }) => ({
-            data: [{ id: `sub_live_${customer}`, status: 'active' }],
-            has_more: false,
-          }),
-          cancel: async id => canceled.push(id),
-        },
-      },
-    })
-    assert.deepEqual(canceled.sort(), [
-      'sub_cus_a',
-      'sub_cus_b',
-      'sub_live_cus_a',
-      'sub_live_cus_b',
-      'sub_orphan',
-    ])
-  })
-
-  test('does not clean a customer from an unverified legacy field', async () => {
-    const userRef = withBillingResources({
-      async get() {
-        return { exists: true, data: () => ({ stripeCustomerId: 'cus_victim' }) }
-      },
-    })
-    const db = {
-      collection(name) {
-        if (name === 'users') return { doc: () => userRef }
-        if (name === 'accountDeletionTombstones') return { doc: () => ({}) }
-        if (name === 'notificationTokenOwners') return { where: () => ({ get: async () => ({ docs: [] }) }) }
-        if (name === 'notificationRegistrationLimits') return { doc: () => ({ delete: async () => {} }) }
-        throw new Error(`Unexpected collection ${name}`)
-      },
-      runTransaction: callback => callback({ get: ref => ref.get(), set: () => {} }),
-      async recursiveDelete() {},
-    }
-    await deleteAccount({
-      auth: {
-        verifyIdToken: async () => ({ uid: 'alice', auth_time: Math.floor(Date.now() / 1000) }),
-        deleteUser: async () => {},
-      },
-      db,
-      req: { headers: { authorization: 'Bearer valid' }, body: { confirmation: 'DELETE' } },
-      stripe: {
-        checkout: { sessions: { list: async () => ({
-          data: [{ id: 'cs_victim', client_reference_id: 'victim' }],
-          has_more: false,
-        }) } },
-        subscriptions: {
-          list: async () => { throw new Error('must not list victim subscriptions') },
-          cancel: async () => { throw new Error('must not cancel victim subscriptions') },
-        },
-      },
-    })
+    stripe.subscriptions.cancel = async id => db.deleted.push(`stripe:${id}`)
+    await processAccountDeletionPage({ auth, db, stripe, tombstoneRef, uid: 'alice' })
+    await processAccountDeletionPage({ auth, db, stripe, tombstoneRef, uid: 'alice' })
+    job = [...db.cleanupResources.values()][0]
+    assert.equal(job.status, 'completed')
+    assert.deepEqual(db.deleted, ['stripe:sub_retry', 'limit', 'user', 'auth:alice'])
+    assert.equal(db.tombstoneData.cleanupStatus, 'completed')
   })
 })
 
@@ -812,6 +628,68 @@ describe('Stripe fulfillment security', () => {
     )
   })
 
+  test('routes tombstoned legacy checkout resources into durable cleanup', async () => {
+    const cleanup = new Map()
+    const state = {}
+    const tombstone = { cleanupStatus: 'pending', resourceIndexComplete: true }
+    const tombstoneRef = {
+      async get() { return { exists: true, data: () => ({ ...tombstone }) } },
+      async set(data) { Object.assign(tombstone, data) },
+      collection(name) {
+        assert.equal(name, 'billingCleanupResources')
+        return { doc: id => ({
+          id,
+          async set(data) { cleanup.set(id, { ...cleanup.get(id), ...data }) },
+        }) }
+      },
+    }
+    const stateRef = {
+      async get() { return { exists: Object.keys(state).length > 0, data: () => ({ ...state }) } },
+      async set(data) { Object.assign(state, data) },
+    }
+    const db = {
+      collection(name) {
+        if (name === 'users') return { doc: () => ({ get: async () => ({ exists: false }) }) }
+        if (name === 'accountDeletionTombstones') return { doc: () => tombstoneRef }
+        if (name === 'systemMigrations') return { doc: () => stateRef }
+        throw new Error(`Unexpected collection ${name}`)
+      },
+      async runTransaction(callback) {
+        const writes = []
+        const result = await callback({
+          get: ref => ref.get(),
+          set: (ref, data) => writes.push(() => ref.set(data)),
+        })
+        for (const write of writes) await write()
+        return result
+      },
+    }
+    const stripeClient = { checkout: { sessions: { list: async () => ({
+      data: [{
+        id: 'cs_deleted',
+        client_reference_id: 'alice',
+        customer: 'cus_deleted',
+        subscription: 'sub_deleted',
+      }],
+      has_more: false,
+    }) } } }
+
+    assert.deepEqual(await backfillBillingResourcePage({
+      db,
+      serverTimestamp: () => 'SERVER_TIME',
+      stripe: stripeClient,
+    }), { completed: false, processed: 0 })
+    assert.deepEqual(
+      [...cleanup.values()].map(resource => `${resource.type}:${resource.stripeId}`).sort(),
+      [
+        'checkoutSession:cs_deleted',
+        'customer:cus_deleted',
+        'subscription:sub_deleted',
+      ],
+    )
+    assert.equal(tombstone.cleanupStatus, 'pending')
+  })
+
   test('validates Firebase identifiers and configured Stripe products', async () => {
     assert.equal(validUid('firebase_User-1'), true)
     assert.equal(validUid('../users/admin'), false)
@@ -993,7 +871,12 @@ describe('Stripe fulfillment security', () => {
 
   test('reuses an open pending checkout after a canceled browser return', async () => {
     let created = false
-    const existing = { id: 'cs_existing', status: 'open', url: 'https://checkout.stripe.com/existing' }
+    const existing = {
+      id: 'cs_existing',
+      status: 'open',
+      url: 'https://checkout.stripe.com/existing',
+      client_reference_id: 'alice',
+    }
     const checkout = await createCheckout({
       appUrl: 'https://example.com',
       auth: { verifyIdToken: async () => ({ uid: 'alice', email: 'alice@example.com' }) },
@@ -1015,6 +898,34 @@ describe('Stripe fulfillment security', () => {
     assert.equal(created, false)
   })
 
+  test('does not reuse a pending checkout owned by another account', async () => {
+    const checkout = await createCheckout({
+      appUrl: 'https://example.com',
+      auth: { verifyIdToken: async () => ({ uid: 'alice', email: 'alice@example.com' }) },
+      db: fakeDb({
+        tier: 'free',
+        stripeCheckoutSessionId: 'cs_foreign',
+        stripeCheckoutStatus: 'pending',
+      }),
+      expectedPriceId: 'price_pro',
+      req: { headers: { authorization: 'Bearer valid-token' }, body: { attemptId: 'abcdefab-1234-1234-1234-123456789abc' } },
+      stripe: { checkout: { sessions: {
+        retrieve: async () => ({
+          id: 'cs_foreign',
+          status: 'open',
+          url: 'https://checkout.stripe.com/foreign',
+          client_reference_id: 'mallory',
+        }),
+        create: async () => ({
+          id: 'cs_alice',
+          status: 'open',
+          url: 'https://checkout.stripe.com/alice',
+        }),
+      } } },
+    })
+    assert.equal(checkout.id, 'cs_alice')
+  })
+
   test('rejects checkout when account deletion has started', async () => {
     let created = false
     await assert.rejects(createCheckout({
@@ -1028,9 +939,8 @@ describe('Stripe fulfillment security', () => {
     assert.equal(created, false)
   })
 
-  test('expires a checkout created concurrently with account deletion', async () => {
+  test('durably queues a checkout racing account deletion before Stripe cleanup', async () => {
     const db = fakeDb({ tier: 'free' })
-    let expired
     await assert.rejects(createCheckout({
       appUrl: 'https://example.com',
       auth: { verifyIdToken: async () => ({ uid: 'alice', email: 'alice@example.com' }) },
@@ -1043,10 +953,13 @@ describe('Stripe fulfillment security', () => {
           return { id: 'cs_raced', status: 'open', url: 'https://checkout.stripe.com/raced' }
         },
         retrieve: async () => ({ id: 'cs_raced', status: 'open' }),
-        expire: async id => { expired = id },
+        expire: async () => { throw new Error('temporary Stripe failure') },
       } } },
-    }), error => error.status === 409)
-    assert.equal(expired, 'cs_raced')
+    }), /temporary Stripe failure/)
+    assert.deepEqual(
+      [...db.cleanupResources.values()].map(resource => `${resource.type}:${resource.stripeId}`),
+      ['checkoutSession:cs_raced'],
+    )
   })
 
   test('rejects a legacy customer with a live Stripe subscription', async () => {

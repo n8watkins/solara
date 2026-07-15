@@ -4,7 +4,11 @@ const { defineSecret, defineString } = require('firebase-functions/params')
 const admin = require('firebase-admin')
 const Stripe = require('stripe')
 
-const { deleteAccount, exportAccountData } = require('./lib/account')
+const {
+  deleteAccount,
+  exportAccountData,
+  processPendingAccountDeletions,
+} = require('./lib/account')
 const { createCalendarFeedHandler } = require('./lib/calendar-feed')
 const { handleCors } = require('./lib/http')
 const { buildICS } = require('./lib/ics')
@@ -123,8 +127,11 @@ exports.deleteAccount = onRequest(
       return
     }
     try {
-      await deleteAccount({ auth: admin.auth(), db, req, stripe: stripeClient() })
-      res.status(200).json({ deleted: true })
+      const result = await deleteAccount({ auth: admin.auth(), db, req, stripe: stripeClient() })
+      res.status(result.completed ? 200 : 202).json({
+        deleted: result.completed,
+        deletionPending: !result.completed,
+      })
     } catch (error) {
       const status = error.status || 500
       console.error('deleteAccount failed', { name: error?.name, message: error?.message })
@@ -249,6 +256,18 @@ exports.backfillStripeBillingResources = onSchedule(
       if (result.completed) break
     }
     console.log('Stripe billing resource backfill run completed', result)
+  },
+)
+
+exports.cleanupDeletedAccountBilling = onSchedule(
+  { schedule: 'every 5 minutes', secrets: [STRIPE_SECRET_KEY], timeoutSeconds: 300 },
+  async () => {
+    const results = await processPendingAccountDeletions({
+      auth: admin.auth(),
+      db,
+      stripe: stripeClient(),
+    })
+    console.log('Deleted account billing cleanup pages processed', { results })
   },
 )
 

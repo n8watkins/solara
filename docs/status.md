@@ -23,7 +23,7 @@ CI runs frontend and backend dependency audits, lint, typecheck, app and Functio
 | Live calendar feed | Function-backed | Requires Blaze, Functions deployment, and a real calendar client |
 | Analytics | Built with explicit opt-in consent | Requires a GA4 measurement ID and production consent verification |
 | App Check | Client activation built | Requires reCAPTCHA registration, monitoring, and gradual enforcement in Firebase |
-| Hosting, Firestore rules, and Functions | Automated on `main` | Functions deploy only when the Blaze-ready repository variable is enabled |
+| Hosting, Firestore rules, and Functions | Automated on `main` | Functions deploy only when `ENABLE_BLAZE_FUNCTIONS` is `true` |
 
 ## Quality baseline
 

@@ -3,6 +3,8 @@ const {
   billingResourceRef,
   customerBelongsToUser,
   indexBillingResources,
+  queueBillingCleanup,
+  stripeSessionBelongsToUser,
 } = require('./billing-resources')
 const { createHash } = require('node:crypto')
 
@@ -383,8 +385,9 @@ async function createCheckout({ appUrl, auth, db, expectedPriceId, req, stripe }
     } catch (error) {
       if (error?.code !== 'resource_missing') throw error
     }
-    if (existing?.status === 'open' && existing.url) return existing
-    if (existing?.status === 'complete') {
+    const owned = existing && stripeSessionBelongsToUser(existing, identity.uid)
+    if (owned && existing.status === 'open' && existing.url) return existing
+    if (owned && existing.status === 'complete') {
       const error = new Error('Checkout payment is being processed')
       error.status = 409
       throw error
@@ -438,11 +441,26 @@ async function createCheckout({ appUrl, auth, db, expectedPriceId, req, stripe }
         .update(`${identity.uid}\0${expectedPriceId}\0${attemptId}`)
         .digest('hex')}`,
     })
-    const persisted = await db.runTransaction(async transaction => {
-      const snapshot = await transaction.get(userRef)
-      if (!snapshot.exists
+    const tombstoneRef = db.collection('accountDeletionTombstones').doc(identity.uid)
+    const persistence = await db.runTransaction(async transaction => {
+      const [snapshot, tombstone] = await Promise.all([
+        transaction.get(userRef),
+        transaction.get(tombstoneRef),
+      ])
+      const deletionStarted = !snapshot.exists
+        || tombstone.exists
         || snapshot.data().accountDeletionStartedAt
-        || snapshot.data().stripeCheckoutAttemptId !== attemptId) return false
+      if (deletionStarted) {
+        queueBillingCleanup(transaction, tombstoneRef, [
+          { type: 'checkoutSession', stripeId: session.id },
+          { type: 'customer', stripeId: stringId(session.customer) || customer.customer },
+          { type: 'subscription', stripeId: stringId(session.subscription) },
+        ], new Date())
+        return { deletionStarted: true, persisted: false }
+      }
+      if (snapshot.data().stripeCheckoutAttemptId !== attemptId) {
+        return { deletionStarted: false, persisted: false }
+      }
       transaction.set(userRef, {
         stripeCheckoutSessionId: session.id,
         stripeCheckoutStatus: 'pending',
@@ -454,9 +472,9 @@ async function createCheckout({ appUrl, auth, db, expectedPriceId, req, stripe }
         { type: 'checkoutSession', stripeId: session.id },
         { type: 'customer', stripeId: stringId(session.customer) || customer.customer },
       ], new Date())
-      return true
+      return { deletionStarted: false, persisted: true }
     })
-    if (!persisted) {
+    if (!persistence.persisted) {
       const currentSession = await stripe.checkout.sessions.retrieve(session.id)
       if (currentSession.status === 'open') {
         await stripe.checkout.sessions.expire(session.id)
@@ -464,7 +482,9 @@ async function createCheckout({ appUrl, auth, db, expectedPriceId, req, stripe }
         const subscriptionId = stringId(currentSession.subscription)
         if (subscriptionId) await stripe.subscriptions.cancel(subscriptionId)
       }
-      const error = new Error('Account deletion is in progress')
+      const error = new Error(persistence.deletionStarted
+        ? 'Account deletion is in progress'
+        : 'Checkout reservation changed')
       error.status = 409
       throw error
     }
@@ -544,16 +564,31 @@ async function backfillBillingResourcePage({ db, serverTimestamp, stripe }) {
   let processed = 0
   for (const session of page.data) {
     const uid = session.client_reference_id || session.metadata?.firebaseUid
-    if (!validUid(uid)) continue
+    if (!validUid(uid) || !stripeSessionBelongsToUser(session, uid)) continue
     const userRef = db.collection('users').doc(uid)
     const indexed = await db.runTransaction(async transaction => {
+      const tombstoneRef = db.collection('accountDeletionTombstones').doc(uid)
       const [userSnapshot, tombstoneSnapshot] = await Promise.all([
         transaction.get(userRef),
-        transaction.get(db.collection('accountDeletionTombstones').doc(uid)),
+        transaction.get(tombstoneRef),
       ])
       if (!userSnapshot.exists
         || tombstoneSnapshot.exists
-        || userSnapshot.data().accountDeletionStartedAt) return false
+        || userSnapshot.data().accountDeletionStartedAt) {
+        transaction.set(tombstoneRef, {
+          cleanupStatus: 'pending',
+          createdAt: tombstoneSnapshot.exists
+            ? tombstoneSnapshot.data().createdAt
+            : serverTimestamp(),
+          resourceIndexComplete: !userSnapshot.exists,
+        }, { merge: true })
+        queueBillingCleanup(transaction, tombstoneRef, [
+          { type: 'checkoutSession', stripeId: stringId(session.id) },
+          { type: 'customer', stripeId: stringId(session.customer) },
+          { type: 'subscription', stripeId: stringId(session.subscription) },
+        ], serverTimestamp())
+        return false
+      }
       indexBillingResources(transaction, userRef, [
         { type: 'checkoutSession', stripeId: stringId(session.id) },
         { type: 'customer', stripeId: stringId(session.customer) },

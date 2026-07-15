@@ -1,6 +1,5 @@
 const {
-  customerBelongsToUser,
-  listCustomerCheckoutSessions,
+  queueBillingCleanup,
   stripeSessionBelongsToUser,
 } = require('./billing-resources')
 
@@ -11,49 +10,18 @@ const SENSITIVE_EXPORT_FIELDS = new Set([
   'stripeSubscriptionId',
 ])
 const TERMINAL_SUBSCRIPTION_STATUSES = new Set(['canceled', 'incomplete_expired'])
+const BILLING_INDEX_PAGE_SIZE = 25
+const BILLING_CLEANUP_PAGE_SIZE = 10
 
-async function listCustomerSubscriptions(stripe, customerId) {
-  const subscriptions = []
-  let startingAfter
-  do {
-    const page = await stripe.subscriptions.list({
-      customer: customerId,
-      status: 'all',
-      limit: 100,
-      ...(startingAfter ? { starting_after: startingAfter } : {}),
-    })
-    subscriptions.push(...page.data)
-    startingAfter = page.has_more ? page.data.at(-1)?.id : null
-    if (page.has_more && !startingAfter) throw new Error('Stripe subscription pagination was incomplete')
-  } while (startingAfter)
-  return subscriptions
+function stringId(value) {
+  if (typeof value === 'string') return value
+  return value && typeof value.id === 'string' ? value.id : null
 }
 
-async function closeCheckoutSession(stripe, sessionId) {
-  let session
-  try {
-    session = await stripe.checkout.sessions.retrieve(sessionId)
-    if (session.status === 'open') {
-      try {
-        session = await stripe.checkout.sessions.expire(sessionId)
-      } catch (error) {
-        session = await stripe.checkout.sessions.retrieve(sessionId)
-        if (session.status === 'open') throw error
-      }
-    }
-  } catch (error) {
-    if (error?.code !== 'resource_missing') throw error
-  }
-  return session
-}
-
-async function findAccountCheckoutSessions(stripe, customerId) {
-  if (typeof customerId !== 'string' || !customerId) return []
-  const sessions = await listCustomerCheckoutSessions(stripe, customerId)
-
-  return Promise.all(sessions.map(session => (
-    session.status === 'open' ? closeCheckoutSession(stripe, session.id) : session
-  )))
+function stripePageCursor(page) {
+  const cursor = page.has_more ? stringId(page.data.at(-1)) : null
+  if (page.has_more && !cursor) throw new Error('Stripe pagination was incomplete')
+  return cursor
 }
 
 async function authenticate(auth, authorization, options = {}) {
@@ -120,6 +88,201 @@ async function exportAccountData({ auth, db, req }) {
   }
 }
 
+async function markCleanupResource(ref, data) {
+  await ref.set({ ...data, updatedAt: new Date() }, { merge: true })
+}
+
+async function queueDiscoveredResources(db, tombstoneRef, resources) {
+  await db.runTransaction(async transaction => {
+    queueBillingCleanup(transaction, tombstoneRef, resources, new Date())
+  })
+}
+
+async function processCheckoutCleanup({ db, resource, stripe, tombstoneRef, uid }) {
+  const data = resource.data()
+  let session
+  try {
+    session = await stripe.checkout.sessions.retrieve(data.stripeId)
+  } catch (error) {
+    if (error?.code === 'resource_missing') {
+      await markCleanupResource(resource.ref, { status: 'completed' })
+      return
+    }
+    throw error
+  }
+  if (data.verified !== true && !stripeSessionBelongsToUser(session, uid)) {
+    await markCleanupResource(resource.ref, { status: 'completed', ownershipRejected: true })
+    return
+  }
+  await queueDiscoveredResources(db, tombstoneRef, [
+    { type: 'customer', stripeId: stringId(session.customer) },
+    { type: 'subscription', stripeId: stringId(session.subscription) },
+  ])
+  if (session.status === 'open') {
+    try {
+      await stripe.checkout.sessions.expire(data.stripeId)
+    } catch (error) {
+      const current = await stripe.checkout.sessions.retrieve(data.stripeId)
+      if (current.status === 'open') throw error
+    }
+  }
+  await markCleanupResource(resource.ref, { status: 'completed', verified: true })
+}
+
+async function processSubscriptionCleanup({ resource, stripe, uid }) {
+  const data = resource.data()
+  let subscription
+  try {
+    subscription = await stripe.subscriptions.retrieve(data.stripeId)
+  } catch (error) {
+    if (error?.code === 'resource_missing') {
+      await markCleanupResource(resource.ref, { status: 'completed' })
+      return
+    }
+    throw error
+  }
+  if (data.verified !== true && subscription?.metadata?.firebaseUid !== uid) {
+    await markCleanupResource(resource.ref, { status: 'completed', ownershipRejected: true })
+    return
+  }
+  if (!TERMINAL_SUBSCRIPTION_STATUSES.has(subscription.status)) {
+    try {
+      await stripe.subscriptions.cancel(data.stripeId)
+    } catch (error) {
+      if (error?.code !== 'resource_missing') throw error
+    }
+  }
+  await markCleanupResource(resource.ref, { status: 'completed', verified: true })
+}
+
+async function processCustomerCleanup({ db, resource, stripe, tombstoneRef, uid }) {
+  const data = resource.data()
+  const sessionPage = await stripe.checkout.sessions.list({
+    customer: data.stripeId,
+    limit: 100,
+    ...(data.checkoutCursor ? { starting_after: data.checkoutCursor } : {}),
+  })
+  if (data.verified !== true
+    && !sessionPage.data.some(session => stripeSessionBelongsToUser(session, uid))) {
+    const checkoutCursor = stripePageCursor(sessionPage)
+    if (checkoutCursor) {
+      await markCleanupResource(resource.ref, { checkoutCursor })
+      return
+    }
+    await markCleanupResource(resource.ref, { status: 'completed', ownershipRejected: true })
+    return
+  }
+  const subscriptionPage = await stripe.subscriptions.list({
+    customer: data.stripeId,
+    status: 'all',
+    limit: 100,
+    ...(data.subscriptionCursor ? { starting_after: data.subscriptionCursor } : {}),
+  })
+  await queueDiscoveredResources(db, tombstoneRef, [
+    ...sessionPage.data.map(session => ({
+      type: 'checkoutSession',
+      stripeId: stringId(session.id),
+    })),
+    ...subscriptionPage.data.map(subscription => ({
+      type: 'subscription',
+      stripeId: stringId(subscription.id),
+    })),
+  ])
+  const checkoutCursor = stripePageCursor(sessionPage)
+  const subscriptionCursor = stripePageCursor(subscriptionPage)
+  await markCleanupResource(resource.ref, {
+    checkoutCursor,
+    status: checkoutCursor || subscriptionCursor ? 'pending' : 'completed',
+    subscriptionCursor,
+    verified: true,
+  })
+}
+
+async function finalizeAccountDeletion({ auth, db, tombstoneRef, uid, userRef }) {
+  const tokenOwners = await db.collection('notificationTokenOwners').where('uid', '==', uid).get()
+  await Promise.all(tokenOwners.docs.map(owner => owner.ref.delete()))
+  await db.collection('notificationRegistrationLimits').doc(uid).delete()
+  await db.recursiveDelete(userRef)
+  try {
+    await auth.deleteUser(uid)
+  } catch (error) {
+    if (error?.code !== 'auth/user-not-found') throw error
+  }
+  return db.runTransaction(async transaction => {
+    const pendingQuery = tombstoneRef.collection('billingCleanupResources')
+      .where('status', '==', 'pending').limit(1)
+    const pending = await transaction.get(pendingQuery)
+    if (!pending.empty) return false
+    transaction.set(tombstoneRef, {
+      cleanupCompletedAt: new Date(),
+      cleanupStatus: 'completed',
+    }, { merge: true })
+    return true
+  })
+}
+
+async function processAccountDeletionPage({ auth, db, stripe, tombstoneRef, uid }) {
+  const userRef = db.collection('users').doc(uid)
+  const tombstoneSnapshot = await tombstoneRef.get()
+  if (!tombstoneSnapshot.exists || tombstoneSnapshot.data().cleanupStatus !== 'pending') {
+    return { completed: tombstoneSnapshot.data()?.cleanupStatus === 'completed', processed: 0 }
+  }
+  const tombstone = tombstoneSnapshot.data()
+  if (tombstone.resourceIndexComplete !== true) {
+    let query = userRef.collection('billingResources').orderBy('__name__').limit(BILLING_INDEX_PAGE_SIZE)
+    if (tombstone.resourceIndexCursor) query = query.startAfter(tombstone.resourceIndexCursor)
+    const page = await query.get()
+    await db.runTransaction(async transaction => {
+      queueBillingCleanup(transaction, tombstoneRef, page.docs.map(doc => ({
+        ...doc.data(),
+        verified: true,
+      })), new Date())
+      transaction.set(tombstoneRef, {
+        resourceIndexComplete: page.docs.length < BILLING_INDEX_PAGE_SIZE,
+        resourceIndexCursor: page.docs.at(-1)?.id || null,
+      }, { merge: true })
+    })
+    return { completed: false, processed: page.docs.length }
+  }
+
+  const pending = await tombstoneRef.collection('billingCleanupResources')
+    .where('status', '==', 'pending').limit(BILLING_CLEANUP_PAGE_SIZE).get()
+  let processed = 0
+  for (const resource of pending.docs) {
+    try {
+      const options = { db, resource, stripe, tombstoneRef, uid }
+      if (resource.data().type === 'checkoutSession') await processCheckoutCleanup(options)
+      if (resource.data().type === 'customer') await processCustomerCleanup(options)
+      if (resource.data().type === 'subscription') await processSubscriptionCleanup(options)
+      processed += 1
+    } catch (error) {
+      await markCleanupResource(resource.ref, {
+        lastError: error?.message || 'Billing cleanup failed',
+        lastFailedAt: new Date(),
+      })
+    }
+  }
+  if (!pending.empty) return { completed: false, processed }
+  const completed = await finalizeAccountDeletion({ auth, db, tombstoneRef, uid, userRef })
+  return { completed, processed }
+}
+
+async function processPendingAccountDeletions({ auth, db, stripe }) {
+  const tombstones = await db.collection('accountDeletionTombstones')
+    .where('cleanupStatus', '==', 'pending').limit(10).get()
+  const results = []
+  for (const tombstone of tombstones.docs) {
+    results.push(await processAccountDeletionPage({
+      auth,
+      db,
+      stripe,
+      tombstoneRef: tombstone.ref,
+      uid: tombstone.id,
+    }))
+  }
+  return results
+}
+
 async function deleteAccount({ auth, db, req, stripe }) {
   const identity = await authenticate(auth, req.headers.authorization, { maxAgeSeconds: 300 })
   if (req.body?.confirmation !== 'DELETE') {
@@ -127,106 +290,40 @@ async function deleteAccount({ auth, db, req, stripe }) {
     error.status = 400
     throw error
   }
-
   const userRef = db.collection('users').doc(identity.uid)
   const tombstoneRef = db.collection('accountDeletionTombstones').doc(identity.uid)
-  const revokedBefore = Math.floor(Date.now() / 1000)
-  const billing = await db.runTransaction(async transaction => {
-    const snapshot = await transaction.get(userRef)
+  await db.runTransaction(async transaction => {
+    const [userSnapshot, tombstoneSnapshot] = await Promise.all([
+      transaction.get(userRef),
+      transaction.get(tombstoneRef),
+    ])
+    const timestamp = new Date()
+    const userData = userSnapshot.exists ? userSnapshot.data() : {}
     transaction.set(tombstoneRef, {
-      revokedBefore,
-      createdAt: new Date(),
-    })
-    if (!snapshot.exists) return {}
-    const userData = snapshot.data()
-    transaction.set(userRef, { accountDeletionStartedAt: new Date() }, { merge: true })
-    return {
-      checkoutSessionId: userData.stripeCheckoutSessionId,
-      customerId: userData.stripeCustomerId,
-      subscriptionId: userData.stripeSubscriptionId,
+      cleanupStatus: 'pending',
+      createdAt: tombstoneSnapshot.exists ? tombstoneSnapshot.data().createdAt : timestamp,
+      resourceIndexComplete: tombstoneSnapshot.exists
+        ? tombstoneSnapshot.data().resourceIndexComplete === true
+        : false,
+      revokedBefore: Math.floor(Date.now() / 1000),
+    }, { merge: true })
+    queueBillingCleanup(transaction, tombstoneRef, [
+      { type: 'checkoutSession', stripeId: userData.stripeCheckoutSessionId, verified: false },
+      { type: 'customer', stripeId: userData.stripeCustomerId, verified: false },
+      { type: 'subscription', stripeId: userData.stripeSubscriptionId, verified: false },
+    ], timestamp)
+    if (userSnapshot.exists) {
+      transaction.set(userRef, { accountDeletionStartedAt: timestamp }, { merge: true })
     }
   })
-  const billingResources = await userRef.collection('billingResources').get()
-  const customerIds = new Set()
-  const checkoutSessionIds = new Set()
-  const subscriptionIds = new Set()
-  for (const resource of billingResources.docs) {
-    const { stripeId, type } = resource.data()
-    if (typeof stripeId !== 'string' || !stripeId) continue
-    if (type === 'customer') customerIds.add(stripeId)
-    if (type === 'checkoutSession') checkoutSessionIds.add(stripeId)
-    if (type === 'subscription') subscriptionIds.add(stripeId)
-  }
-  if (typeof billing.customerId === 'string'
-    && billing.customerId
-    && !customerIds.has(billing.customerId)
-    && await customerBelongsToUser(stripe, billing.customerId, identity.uid)) {
-    customerIds.add(billing.customerId)
-  }
-  if (typeof billing.checkoutSessionId === 'string'
-    && billing.checkoutSessionId
-    && !checkoutSessionIds.has(billing.checkoutSessionId)) {
-    try {
-      const session = await stripe.checkout.sessions.retrieve(billing.checkoutSessionId)
-      if (stripeSessionBelongsToUser(session, identity.uid)) {
-        checkoutSessionIds.add(billing.checkoutSessionId)
-      }
-    } catch (error) {
-      if (error?.code !== 'resource_missing') throw error
-    }
-  }
-  if (typeof billing.subscriptionId === 'string'
-    && billing.subscriptionId
-    && !subscriptionIds.has(billing.subscriptionId)) {
-    try {
-      const subscription = await stripe.subscriptions.retrieve(billing.subscriptionId)
-      if (subscription?.metadata?.firebaseUid === identity.uid) {
-        subscriptionIds.add(billing.subscriptionId)
-      }
-    } catch (error) {
-      if (error?.code !== 'resource_missing') throw error
-    }
-  }
-
-  const collectSessionResources = session => {
-    const sessionSubscriptionId = typeof session?.subscription === 'string'
-      ? session.subscription
-      : session?.subscription?.id
-    if (sessionSubscriptionId) subscriptionIds.add(sessionSubscriptionId)
-    const sessionCustomerId = typeof session?.customer === 'string'
-      ? session.customer
-      : session?.customer?.id
-    if (sessionCustomerId) customerIds.add(sessionCustomerId)
-  }
-
-  for (const sessionId of checkoutSessionIds) {
-    collectSessionResources(await closeCheckoutSession(stripe, sessionId))
-  }
-  for (const customerId of customerIds) {
-    const sessions = await findAccountCheckoutSessions(stripe, customerId)
-    for (const session of sessions) collectSessionResources(session)
-    const subscriptions = await listCustomerSubscriptions(stripe, customerId)
-    for (const subscription of subscriptions) {
-      if (typeof subscription.id === 'string'
-        && !TERMINAL_SUBSCRIPTION_STATUSES.has(subscription.status)) {
-        subscriptionIds.add(subscription.id)
-      }
-    }
-  }
-  for (const subscriptionId of subscriptionIds) {
-    try {
-      await stripe.subscriptions.cancel(subscriptionId)
-    } catch (error) {
-      if (error?.code !== 'resource_missing') throw error
-    }
-  }
-
-  const tokenOwners = await db.collection('notificationTokenOwners')
-    .where('uid', '==', identity.uid).get()
-  await Promise.all(tokenOwners.docs.map(owner => owner.ref.delete()))
-  await db.collection('notificationRegistrationLimits').doc(identity.uid).delete()
-  await db.recursiveDelete(userRef)
-  await auth.deleteUser(identity.uid)
+  return processAccountDeletionPage({ auth, db, stripe, tombstoneRef, uid: identity.uid })
 }
 
-module.exports = { authenticate, deleteAccount, exportAccountData, safeAccountData }
+module.exports = {
+  authenticate,
+  deleteAccount,
+  exportAccountData,
+  processAccountDeletionPage,
+  processPendingAccountDeletions,
+  safeAccountData,
+}

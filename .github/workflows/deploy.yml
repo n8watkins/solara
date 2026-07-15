@@ -126,6 +126,7 @@ jobs:
           NEXT_PUBLIC_GA_MEASUREMENT_ID: ${{ secrets.NEXT_PUBLIC_GA_MEASUREMENT_ID }}
 
       - name: Protect server-owned billing fields
+        if: vars.ENABLE_BLAZE_FUNCTIONS == 'true'
         run: |
           printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
           export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
@@ -137,6 +138,7 @@ jobs:
           FIREBASE_PROJECT_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
 
       - name: Deploy Firebase Functions
+        if: vars.ENABLE_BLAZE_FUNCTIONS == 'true'
         run: |
           printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
           export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
@@ -149,6 +151,7 @@ jobs:
           STRIPE_PRICE_ID: ${{ secrets.STRIPE_PRICE_ID }}
 
       - name: Deploy Firestore rules
+        if: vars.ENABLE_BLAZE_FUNCTIONS == 'true'
         run: |
           printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
           export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
