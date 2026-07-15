@@ -41,12 +41,11 @@ async function closeCheckoutSession(stripe, sessionId) {
   return session
 }
 
-async function closeAccountCheckoutSessions(stripe, uid) {
+async function findAccountCheckoutSessions(stripe, uid) {
   const sessions = []
   let startingAfter
   do {
     const page = await stripe.checkout.sessions.list({
-      status: 'open',
       limit: 100,
       ...(startingAfter ? { starting_after: startingAfter } : {}),
     })
@@ -55,7 +54,9 @@ async function closeAccountCheckoutSessions(stripe, uid) {
     if (page.has_more && !startingAfter) throw new Error('Stripe checkout pagination was incomplete')
   } while (startingAfter)
 
-  return Promise.all(sessions.map(session => closeCheckoutSession(stripe, session.id)))
+  return Promise.all(sessions.map(session => (
+    session.status === 'open' ? closeCheckoutSession(stripe, session.id) : session
+  )))
 }
 
 async function authenticate(auth, authorization, options = {}) {
@@ -148,7 +149,7 @@ async function deleteAccount({ auth, db, req, stripe }) {
     }
   })
   const subscriptionIds = new Set()
-  const accountSessions = await closeAccountCheckoutSessions(stripe, identity.uid)
+  const accountSessions = await findAccountCheckoutSessions(stripe, identity.uid)
   if (typeof billing.checkoutSessionId === 'string'
     && billing.checkoutSessionId
     && !accountSessions.some(session => session?.id === billing.checkoutSessionId)) {

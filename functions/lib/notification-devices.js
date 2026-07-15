@@ -3,6 +3,7 @@ const { createHash } = require('node:crypto')
 
 const MAX_NOTIFICATION_DEVICES = 5
 const MAX_REGISTRATIONS_PER_MINUTE = 10
+const NOTIFICATION_CLAIM_LEASE_MS = 12 * 60 * 1000
 const DEVICE_ID_PATTERN = /^[a-f0-9]{36}$/
 const PLATFORMS = new Set(['web', 'ios', 'android'])
 
@@ -31,6 +32,17 @@ function parseDevice(input, { requireToken }) {
 
 function tokenOwnerId(token) {
   return createHash('sha256').update(token).digest('hex')
+}
+
+function activeDeliveryClaim(data, nowMs) {
+  if (data?.notificationDeliveryStatus !== 'claimed') return false
+  const claimedAt = data.notificationDeliveryClaimedAt
+  const claimedAtMs = claimedAt instanceof Date
+    ? claimedAt.getTime()
+    : claimedAt && typeof claimedAt.toMillis === 'function'
+      ? claimedAt.toMillis()
+      : NaN
+  return Number.isFinite(claimedAtMs) && nowMs - claimedAtMs < NOTIFICATION_CLAIM_LEASE_MS
 }
 
 async function authenticateApp(appCheck, token) {
@@ -98,6 +110,17 @@ async function registerNotificationDevice({ appCheck, auth, db, req, serverTimes
       priorDeviceRef ? transaction.get(priorDeviceRef) : null,
       oldOwnerRef ? transaction.get(oldOwnerRef) : null,
     ])
+    if (priorDeviceRef && activeDeliveryClaim(priorDeviceSnapshot?.data(), nowMs)) {
+      throw httpError('Notification delivery is in progress', 409)
+    }
+    if (current?.token !== device.token && activeDeliveryClaim(current, nowMs)) {
+      throw httpError('Notification delivery is in progress', 409)
+    }
+    if (legacyOwnersSnapshot.docs.some(legacyOwner => (
+      legacyOwner.id !== identity.uid && activeDeliveryClaim(legacyOwner.data(), nowMs)
+    ))) {
+      throw httpError('Notification delivery is in progress', 409)
+    }
     const reclaimsActiveSlot = priorOwner?.uid === identity.uid
       && priorDeviceSnapshot?.exists
       && priorDeviceSnapshot.data().enabled === true
@@ -152,7 +175,7 @@ async function registerNotificationDevice({ appCheck, auth, db, req, serverTimes
   return { deviceId: device.deviceId, registered: true }
 }
 
-async function removeNotificationDevice({ appCheck, auth, db, req }) {
+async function removeNotificationDevice({ appCheck, auth, db, req, nowMs = Date.now() }) {
   await authenticateApp(appCheck, req.headers['x-firebase-appcheck'])
   const identity = await authenticate(auth, req.headers.authorization)
   const { deviceId } = parseDevice(req.body, { requireToken: false })
@@ -161,6 +184,9 @@ async function removeNotificationDevice({ appCheck, auth, db, req }) {
   await db.runTransaction(async transaction => {
     const deviceSnapshot = await transaction.get(deviceRef)
     if (!deviceSnapshot.exists) return
+    if (activeDeliveryClaim(deviceSnapshot.data(), nowMs)) {
+      throw httpError('Notification delivery is in progress', 409)
+    }
     const token = deviceSnapshot.data().token
     const ownerRef = typeof token === 'string'
       ? db.collection('notificationTokenOwners').doc(tokenOwnerId(token))

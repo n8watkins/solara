@@ -16,6 +16,7 @@ function fakeDb({
   activeDeviceCount = 0,
   existingDeviceData = null,
   legacyTokenOwners = [],
+  legacyTokenOwnerData = {},
   owner = null,
   registrationLimit = null,
   priorDeviceData = null,
@@ -71,7 +72,11 @@ function fakeDb({
             assert.equal(ref.operator, '==')
             assert.equal(ref.value, TOKEN)
             return {
-              docs: legacyTokenOwners.map(uid => ({ id: uid, ref: userRef(uid) })),
+              docs: legacyTokenOwners.map(uid => ({
+                id: uid,
+                ref: userRef(uid),
+                data: () => legacyTokenOwnerData[uid] || {},
+              })),
             }
           }
           if (ref.kind === 'owner') return { exists: !!owner, data: () => owner }
@@ -259,6 +264,48 @@ describe('notification device mutations', () => {
     assert.equal(db.writes.find(write => write.ref.kind === 'owner').ref.id, tokenOwnerId(TOKEN))
   })
 
+  test('does not transfer a token during an active delivery claim', async () => {
+    const db = fakeDb({
+      owner: { uid: 'bob', deviceId: 'b'.repeat(36), token: TOKEN },
+      priorDeviceData: {
+        enabled: true,
+        token: TOKEN,
+        notificationDeliveryStatus: 'claimed',
+        notificationDeliveryClaimedAt: new Date(1_000),
+      },
+    })
+    await assert.rejects(registerNotificationDevice({
+      appCheck,
+      auth,
+      db,
+      nowMs: 2_000,
+      req: request({ deviceId: DEVICE_ID, platform: 'web', token: TOKEN }),
+      serverTimestamp: () => 'server-time',
+    }), error => error.status === 409)
+    assert.equal(db.writes.length, 0)
+  })
+
+  test('does not transfer a legacy token during an active delivery claim', async () => {
+    const db = fakeDb({
+      legacyTokenOwners: ['bob'],
+      legacyTokenOwnerData: {
+        bob: {
+          notificationDeliveryStatus: 'claimed',
+          notificationDeliveryClaimedAt: new Date(1_000),
+        },
+      },
+    })
+    await assert.rejects(registerNotificationDevice({
+      appCheck,
+      auth,
+      db,
+      nowMs: 2_000,
+      req: request({ deviceId: DEVICE_ID, platform: 'web', token: TOKEN }),
+      serverTimestamp: () => 'server-time',
+    }), error => error.status === 409)
+    assert.equal(db.writes.length, 0)
+  })
+
   test('clears every legacy account that still holds a transferred token', async () => {
     const db = fakeDb({ legacyTokenOwners: ['alice', 'bob', 'carol'] })
     await registerNotificationDevice({
@@ -294,5 +341,25 @@ describe('notification device mutations', () => {
     assert.deepEqual(result, { deviceId: DEVICE_ID, removed: true })
     assert.equal(db.deletes.some(ref => ref.kind === 'device' && ref.uid === 'alice'), true)
     assert.equal(db.deletes.some(ref => ref.kind === 'owner'), true)
+  })
+
+  test('does not remove a device during an active delivery claim', async () => {
+    const db = fakeDb({
+      existingDeviceData: {
+        enabled: true,
+        token: TOKEN,
+        notificationDeliveryStatus: 'claimed',
+        notificationDeliveryClaimedAt: new Date(1_000),
+      },
+      owner: { uid: 'alice', deviceId: DEVICE_ID },
+    })
+    await assert.rejects(removeNotificationDevice({
+      appCheck,
+      auth,
+      db,
+      nowMs: 2_000,
+      req: request({ deviceId: DEVICE_ID }),
+    }), error => error.status === 409)
+    assert.equal(db.deletes.length, 0)
   })
 })

@@ -108,11 +108,29 @@ async function loadSubscriptions(database = db) {
   const ownerSnapshots = ownerRefs.length ? await database.getAll(...ownerRefs) : []
   const subscriptions = []
   const quarantineWrites = []
-  const quarantine = candidate => {
-    const patch = candidate.legacy
-      ? { fcmToken: null, notificationsEnabled: false }
-      : { enabled: false, updatedAt: FieldValue.serverTimestamp() }
-    quarantineWrites.push(candidate.deviceRef.set(patch, { merge: true }))
+  const quarantine = (candidate, quarantineWithoutOwner = false) => {
+    const ownerRef = database.collection('notificationTokenOwners').doc(tokenOwnerId(candidate.token))
+    quarantineWrites.push(database.runTransaction(async transaction => {
+      const [candidateSnapshot, ownerSnapshot] = await Promise.all([
+        transaction.get(candidate.deviceRef),
+        transaction.get(ownerRef),
+      ])
+      if (!candidateSnapshot.exists) return false
+      const current = candidateSnapshot.data()
+      const stillCandidate = candidate.legacy
+        ? current.notificationsEnabled === true && current.fcmToken === candidate.token
+        : current.enabled === true && current.token === candidate.token
+      if (!stillCandidate) return false
+      const owner = ownerSnapshot.exists ? ownerSnapshot.data() : null
+      if (!candidate.legacy && owner?.uid === candidate.userRef.id
+        && owner.deviceId === candidate.deviceId) return false
+      if (candidate.legacy && !owner && !quarantineWithoutOwner) return false
+      const patch = candidate.legacy
+        ? { fcmToken: null, notificationsEnabled: false }
+        : { enabled: false, updatedAt: FieldValue.serverTimestamp() }
+      transaction.set(candidate.deviceRef, patch, { merge: true })
+      return true
+    }))
   }
   for (const [index, token] of tokens.entries()) {
     const candidates = candidatesByToken.get(token)
@@ -130,7 +148,7 @@ async function loadSubscriptions(database = db) {
     if (candidates.length === 1 && candidates[0].legacy) {
       subscriptions.push(candidates[0])
     } else {
-      for (const candidate of candidates) quarantine(candidate)
+      for (const candidate of candidates) quarantine(candidate, true)
     }
   }
   await Promise.all(quarantineWrites)
@@ -139,14 +157,31 @@ async function loadSubscriptions(database = db) {
 
 async function claimDelivery(subscription, key, attemptId, database = db, nowMs = Date.now()) {
   return database.runTransaction(async transaction => {
-    const snapshot = await transaction.get(subscription.deviceRef)
+    const ownerRef = database.collection('notificationTokenOwners')
+      .doc(tokenOwnerId(subscription.token))
+    const [snapshot, ownerSnapshot] = await Promise.all([
+      transaction.get(subscription.deviceRef),
+      transaction.get(ownerRef),
+    ])
     if (!snapshot.exists) return { claimed: false, reason: 'missing-subscription' }
 
-    const delivery = claimDecision(snapshot.data(), key, { nowMs })
+    const current = snapshot.data()
+    const validSubscription = subscription.legacy
+      ? current.notificationsEnabled === true
+        && current.fcmToken === subscription.token
+        && !ownerSnapshot.exists
+      : current.enabled === true
+        && current.token === subscription.token
+        && ownerSnapshot.exists
+        && ownerSnapshot.data().uid === subscription.userRef.id
+        && ownerSnapshot.data().deviceId === subscription.deviceId
+    if (!validSubscription) return { claimed: false, reason: 'ownership-changed' }
+
+    const delivery = claimDecision(current, key, { nowMs })
     if (!delivery.claim) return { claimed: false, reason: delivery.reason }
 
-    const priorAttempts = snapshot.data().notificationDeliveryKey === key
-      ? Number(snapshot.data().notificationDeliveryAttemptCount || 0)
+    const priorAttempts = current.notificationDeliveryKey === key
+      ? Number(current.notificationDeliveryAttemptCount || 0)
       : 0
     transaction.set(subscription.deviceRef, {
       notificationDeliveryKey: key,

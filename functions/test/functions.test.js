@@ -334,6 +334,50 @@ describe('account data security', () => {
     })
     assert.deepEqual(expired, ['cs_legacy', 'cs_concurrent'])
   })
+
+  test('cancels subscriptions from completed legacy checkouts', async () => {
+    const canceled = []
+    const userRef = { async get() { return { exists: true, data: () => ({}) } } }
+    const db = {
+      collection(name) {
+        if (name === 'users') return { doc: () => userRef }
+        if (name === 'accountDeletionTombstones') return { doc: () => ({}) }
+        if (name === 'notificationTokenOwners') return { where: () => ({ get: async () => ({ docs: [] }) }) }
+        if (name === 'notificationRegistrationLimits') return { doc: () => ({ delete: async () => {} }) }
+        throw new Error(`Unexpected collection ${name}`)
+      },
+      runTransaction: callback => callback({ get: ref => ref.get(), set: () => {} }),
+      async recursiveDelete() {},
+    }
+    await deleteAccount({
+      auth: {
+        verifyIdToken: async () => ({ uid: 'alice', auth_time: Math.floor(Date.now() / 1000) }),
+        deleteUser: async () => {},
+      },
+      db,
+      req: { headers: { authorization: 'Bearer valid' }, body: { confirmation: 'DELETE' } },
+      stripe: {
+        checkout: { sessions: { list: async params => {
+          assert.equal(Object.hasOwn(params, 'status'), false)
+          return {
+            data: [{
+              id: 'cs_complete',
+              status: 'complete',
+              client_reference_id: 'alice',
+              customer: 'cus_legacy',
+              subscription: 'sub_legacy',
+            }],
+            has_more: false,
+          }
+        } } },
+        subscriptions: {
+          list: async () => ({ data: [], has_more: false }),
+          cancel: async id => canceled.push(id),
+        },
+      },
+    })
+    assert.deepEqual(canceled, ['sub_legacy'])
+  })
 })
 
 describe('browser API CORS', () => {
@@ -709,6 +753,28 @@ describe('Stripe fulfillment security', () => {
       stripe: deletedAccountStripe,
     })
     assert.deepEqual(canceled, ['sub_123', 'sub_123'])
+  })
+
+  test('cancels a losing concurrent checkout subscription', async () => {
+    const canceled = []
+    const db = fakeDb({
+      tier: 'paid',
+      stripeSubscriptionId: 'sub_winner',
+      subscriptionStatus: 'active',
+    })
+    const result = await processStripeEvent({
+      db,
+      event: { id: 'evt_loser', created: 100, type: 'checkout.session.completed', data: { object: session } },
+      expectedPriceId: 'price_pro',
+      serverTimestamp: () => 'SERVER_TIME',
+      stripe: {
+        ...stripe,
+        subscriptions: { ...stripe.subscriptions, cancel: async id => canceled.push(id) },
+      },
+    })
+    assert.equal(result.rejected, true)
+    assert.equal(db.userData.stripeSubscriptionId, 'sub_winner')
+    assert.deepEqual(canceled, ['sub_123'])
   })
 
   test('waits for asynchronous checkout payment before granting paid access', async () => {

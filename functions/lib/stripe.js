@@ -122,6 +122,7 @@ async function commitEvent(db, event, userRef, buildUserData, serverTimestamp) {
 
     let applied = false
     let accountDeleted = false
+    let rejected = false
     if (userRef && buildUserData) {
       const tombstoneRef = db.collection('accountDeletionTombstones').doc(userRef.id)
       const [userSnapshot, tombstoneSnapshot] = await Promise.all([
@@ -140,6 +141,8 @@ async function commitEvent(db, event, userRef, buildUserData, serverTimestamp) {
             stripeEventPriority: EVENT_PRIORITY[event.type],
           }, { merge: true })
           applied = true
+        } else {
+          rejected = true
         }
       }
     }
@@ -148,7 +151,7 @@ async function commitEvent(db, event, userRef, buildUserData, serverTimestamp) {
       created: event.created,
       processedAt: serverTimestamp(),
     })
-    return { duplicate: false, applied, accountDeleted }
+    return { duplicate: false, applied, accountDeleted, rejected }
   })
 }
 
@@ -188,7 +191,7 @@ async function processStripeEvent({ db, event, expectedPriceId, serverTimestamp,
         subscriptionUpdatedAt: serverTimestamp(),
       }
     }, serverTimestamp)
-    if (result.accountDeleted) {
+    if (result.accountDeleted || result.rejected) {
       try {
         await stripe.subscriptions.cancel(subscriptionId)
       } catch (error) {

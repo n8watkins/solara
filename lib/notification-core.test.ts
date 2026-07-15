@@ -24,13 +24,17 @@ const hourly = [
 ]
 
 function makeDeliveryDatabase(initial: Record<string, unknown>) {
-  const state = { data: initial }
+  const state = { data: { token: 'token'.padEnd(24, 'x'), ...initial } }
+  const owner = { data: { uid: 'user-1', deviceId: 'device-1' } }
   const database = {
+    collection: () => ({ doc: () => ({ kind: 'owner' }) }),
     runTransaction: async (worker: (transaction: {
-      get: () => Promise<{ exists: boolean; data: () => Record<string, unknown> }>
+      get: (ref: { kind?: string }) => Promise<{ exists: boolean; data: () => Record<string, unknown> }>
       set: (_ref: unknown, patch: Record<string, unknown>) => void
     }) => Promise<unknown>) => worker({
-      get: async () => ({ exists: true, data: () => ({ ...state.data }) }),
+      get: async ref => ref.kind === 'owner'
+        ? { exists: true, data: () => ({ ...owner.data }) }
+        : { exists: true, data: () => ({ ...state.data }) },
       set: (_ref, patch) => { state.data = { ...state.data, ...patch } },
     }),
   }
@@ -90,17 +94,19 @@ describe('notification ownership', () => {
     devices = [],
     legacyUsers = [],
     owners = {},
+    transactionOwners = owners,
   }: {
     devices?: Array<{ deviceId: string; token: string; uid: string }>
     legacyUsers?: Array<{ token: string; uid: string }>
     owners?: Record<string, { deviceId: string; uid: string }>
+    transactionOwners?: Record<string, { deviceId: string; uid: string }>
   }) {
     const writes: Array<{ data: Record<string, unknown>; path: string }> = []
+    const dataByPath = new Map<string, Record<string, unknown>>()
     const ref = (path: string, id: string, parent: unknown = null) => ({
       id,
       parent,
       path,
-      set: async (data: Record<string, unknown>) => { writes.push({ data, path }) },
     })
     const userRefs = new Map<string, ReturnType<typeof ref>>()
     const userRef = (uid: string) => {
@@ -110,24 +116,28 @@ describe('notification ownership', () => {
     const deviceDocs = devices.map(device => {
       const user = userRef(device.uid)
       const parent = { parent: user }
+      const deviceRef = ref(`users/${device.uid}/notificationDevices/${device.deviceId}`, device.deviceId, parent)
+      const data = { enabled: true, token: device.token }
+      dataByPath.set(deviceRef.path, data)
       return {
         id: device.deviceId,
-        ref: ref(`users/${device.uid}/notificationDevices/${device.deviceId}`, device.deviceId, parent),
-        data: () => ({ enabled: true, token: device.token }),
+        ref: deviceRef,
+        data: () => data,
       }
     })
-    const legacyDocs = legacyUsers.map(user => ({
-      id: user.uid,
-      ref: userRef(user.uid),
-      data: () => ({ fcmToken: user.token, notificationsEnabled: true }),
-    }))
+    const legacyDocs = legacyUsers.map(user => {
+      const legacyRef = userRef(user.uid)
+      const data = { fcmToken: user.token, notificationsEnabled: true }
+      dataByPath.set(legacyRef.path, data)
+      return { id: user.uid, ref: legacyRef, data: () => data }
+    })
     return {
       database: {
         collectionGroup: () => ({ where: () => ({ get: async () => ({ docs: deviceDocs }) }) }),
         collection: (name: string) => {
           if (name === 'users') return { where: () => ({ get: async () => ({ docs: legacyDocs }) }) }
           if (name === 'notificationTokenOwners') {
-            return { doc: (id: string) => ({ id, owner: owners[id] }) }
+            return { doc: (id: string) => ({ id, kind: 'owner', owner: owners[id] }) }
           }
           throw new Error(`Unexpected collection ${name}`)
         },
@@ -135,6 +145,23 @@ describe('notification ownership', () => {
           exists: !!ownerRef.owner,
           data: () => ownerRef.owner,
         })),
+        runTransaction: async (worker: (transaction: {
+          get: (target: { id: string; kind?: string; path?: string }) => Promise<{
+            exists: boolean
+            data: () => Record<string, unknown>
+          }>
+          set: (target: { path: string }, data: Record<string, unknown>) => void
+        }) => Promise<unknown>) => worker({
+          get: async target => {
+            if (target.kind === 'owner') {
+              const owner = transactionOwners[target.id]
+              return { exists: !!owner, data: () => owner }
+            }
+            const data = dataByPath.get(target.path || '')
+            return { exists: !!data, data: () => data || {} }
+          },
+          set: (target, data) => { writes.push({ data, path: target.path }) },
+        }),
       },
       writes,
     }
@@ -177,6 +204,23 @@ describe('notification ownership', () => {
 
     expect(subscriptions.map((subscription: { userRef: { id: string } }) => subscription.userRef.id)).toEqual(['alice'])
     expect(writes.map(write => write.path).sort()).toEqual(['users/bob', 'users/carol'])
+  })
+
+  it('does not quarantine a device that became the canonical owner', async () => {
+    const token = 'shared-token'.padEnd(24, 'x')
+    const ownerId = require('node:crypto').createHash('sha256').update(token).digest('hex')
+    const { database, writes } = notificationDatabase({
+      devices: [
+        { deviceId: 'device-alice', token, uid: 'alice' },
+        { deviceId: 'device-bob', token, uid: 'bob' },
+      ],
+      owners: { [ownerId]: { uid: 'bob', deviceId: 'device-bob' } },
+      transactionOwners: { [ownerId]: { uid: 'alice', deviceId: 'device-alice' } },
+    })
+
+    await loadSubscriptions(database)
+
+    expect(writes).toEqual([])
   })
 })
 
@@ -241,7 +285,12 @@ describe('notification delivery claims', () => {
 
   it('atomically blocks a second sender after the first sender claims the day', async () => {
     const { database, state } = makeDeliveryDatabase({ enabled: true })
-    const subscription = { deviceRef: { path: 'users/user-1/notificationDevices/device-1' } }
+    const subscription = {
+      token: 'token'.padEnd(24, 'x'),
+      deviceId: 'device-1',
+      deviceRef: { path: 'users/user-1/notificationDevices/device-1' },
+      userRef: { id: 'user-1' },
+    }
 
     await expect(claimDelivery(subscription, key, 'attempt-1', database, 1_000)).resolves.toEqual({
       claimed: true,
@@ -253,6 +302,29 @@ describe('notification delivery claims', () => {
       reason: 'already-claimed',
     })
     expect(state.data.notificationDeliveryAttemptId).toBe('attempt-1')
+  })
+
+  it('rejects a claim after canonical ownership transfers', async () => {
+    const state = { enabled: true, token: 'token'.padEnd(24, 'x') }
+    const database = {
+      collection: () => ({ doc: () => ({ kind: 'owner' }) }),
+      runTransaction: (worker: (transaction: {
+        get: (ref: { kind?: string }) => Promise<{ exists: boolean; data: () => Record<string, unknown> }>
+      }) => Promise<unknown>) => worker({
+        get: async ref => ref.kind === 'owner'
+          ? { exists: true, data: () => ({ uid: 'user-2', deviceId: 'device-2' }) }
+          : { exists: true, data: () => state },
+      }),
+    }
+    await expect(claimDelivery({
+      token: state.token,
+      deviceId: 'device-1',
+      deviceRef: { path: 'users/user-1/notificationDevices/device-1' },
+      userRef: { id: 'user-1' },
+    }, key, 'attempt-1', database)).resolves.toEqual({
+      claimed: false,
+      reason: 'ownership-changed',
+    })
   })
 
   it('makes only a definite provider rejection retryable', async () => {
