@@ -143,7 +143,7 @@ describe('notification device mutations', () => {
     )
   })
 
-  test('clears delivery state when a device token rotates', async () => {
+  test('preserves delivery state when a device token rotates', async () => {
     const db = fakeDb({
       existingDeviceData: {
         enabled: true,
@@ -160,9 +160,9 @@ describe('notification device mutations', () => {
       serverTimestamp: () => 'server-time',
     })
     const deviceWrite = db.writes.find(write => write.ref.kind === 'device')
-    assert.equal(deviceWrite.data.lastNotificationKey, null)
-    assert.equal(deviceWrite.data.notificationDeliveryStatus, null)
-    assert.equal(deviceWrite.data.notificationDeliveryAttemptId, null)
+    assert.equal(deviceWrite.data.lastNotificationKey, 'daily-v2:2026-07-14')
+    assert.equal(deviceWrite.data.notificationDeliveryStatus, 'delivered')
+    assert.equal(Object.hasOwn(deviceWrite.data, 'notificationDeliveryAttemptId'), false)
   })
 
   test('rejects free accounts and invalid device input', async () => {
@@ -356,6 +356,53 @@ describe('notification device mutations', () => {
       serverTimestamp: () => 'server-time',
     }), error => error.status === 409)
     assert.equal(db.writes.length, 0)
+  })
+
+  test('does not migrate the authenticated legacy token during an active delivery claim', async () => {
+    const db = fakeDb({
+      legacyTokenOwners: ['alice'],
+      legacyTokenOwnerData: {
+        alice: {
+          notificationDeliveryStatus: 'claimed',
+          notificationDeliveryClaimedAt: new Date(1_000),
+        },
+      },
+    })
+    await assert.rejects(registerNotificationDevice({
+      appCheck,
+      auth,
+      db,
+      nowMs: 2_000,
+      req: request({ deviceId: DEVICE_ID, platform: 'web', token: TOKEN }),
+      serverTimestamp: () => 'server-time',
+    }), error => error.status === 409)
+    assert.equal(db.writes.length, 0)
+  })
+
+  test('preserves legacy delivery state when migrating a token', async () => {
+    const db = fakeDb({
+      legacyTokenOwners: ['alice'],
+      legacyTokenOwnerData: {
+        alice: {
+          lastNotificationKey: 'daily-v2:2026-07-14',
+          notificationDeliveryKey: 'daily-v2:2026-07-14',
+          notificationDeliveryStatus: 'unknown',
+          notificationDeliveryAttemptId: 'attempt-1',
+        },
+      },
+    })
+    await registerNotificationDevice({
+      appCheck,
+      auth,
+      db,
+      req: request({ deviceId: DEVICE_ID, platform: 'web', token: TOKEN }),
+      serverTimestamp: () => 'server-time',
+    })
+
+    const deviceWrite = db.writes.find(write => write.ref.kind === 'device')
+    assert.equal(deviceWrite.data.lastNotificationKey, 'daily-v2:2026-07-14')
+    assert.equal(deviceWrite.data.notificationDeliveryStatus, 'unknown')
+    assert.equal(deviceWrite.data.notificationDeliveryAttemptId, 'attempt-1')
   })
 
   test('clears every legacy account that still holds a transferred token', async () => {

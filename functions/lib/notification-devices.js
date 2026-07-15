@@ -18,6 +18,8 @@ const DELIVERY_STATE_FIELDS = [
   'notificationDeliveryError',
   'notificationDeliveryErrorAt',
   'notificationDeliveryRunId',
+  'notificationDeliveryUpdatedAt',
+  'lastError',
 ]
 
 function httpError(message, status) {
@@ -136,7 +138,7 @@ async function registerNotificationDevice({ appCheck, auth, db, req, serverTimes
       throw httpError('Notification delivery is in progress', 409)
     }
     if (legacyOwnersSnapshot.docs.some(legacyOwner => (
-      legacyOwner.id !== identity.uid && activeDeliveryClaim(legacyOwner.data(), nowMs)
+      activeDeliveryClaim(legacyOwner.data(), nowMs)
     ))) {
       throw httpError('Notification delivery is in progress', 409)
     }
@@ -161,27 +163,20 @@ async function registerNotificationDevice({ appCheck, auth, db, req, serverTimes
         transaction.delete(oldOwnerRef)
       }
     }
-    const tokenChanged = deviceSnapshot.exists && current?.token !== device.token
-    const transferredDeliveryState = priorDeviceSnapshot?.exists
-      && priorDeviceSnapshot.data().token === device.token
-      ? deliveryState(priorDeviceSnapshot.data())
-      : {}
+    const transferredDeliveryState = {
+      ...deliveryState(current),
+      ...(priorDeviceSnapshot?.exists && priorDeviceSnapshot.data().token === device.token
+        ? deliveryState(priorDeviceSnapshot.data())
+        : {}),
+      ...legacyOwnersSnapshot.docs.reduce((state, legacyOwner) => ({
+        ...state,
+        ...deliveryState(legacyOwner.data()),
+      }), {}),
+    }
     transaction.set(deviceRef, {
       token: device.token,
       enabled: true,
       platform: device.platform,
-      ...(tokenChanged ? {
-        lastNotificationKey: null,
-        notificationDeliveryKey: null,
-        notificationDeliveryStatus: null,
-        notificationDeliveryAttemptId: null,
-        notificationDeliveryAttemptCount: 0,
-        notificationDeliveryClaimedAt: null,
-        notificationDeliveryCompletedAt: null,
-        notificationDeliveryError: null,
-        notificationDeliveryErrorAt: null,
-        notificationDeliveryRunId: null,
-      } : {}),
       ...transferredDeliveryState,
       ...(deviceSnapshot.exists ? {} : { createdAt: serverTimestamp() }),
       updatedAt: serverTimestamp(),

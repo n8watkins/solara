@@ -493,8 +493,17 @@ describe('account data security', () => {
     let job = [...db.cleanupResources.values()][0]
     assert.equal(job.status, 'pending')
     assert.equal(job.lastError, 'temporary Stripe failure')
+    assert.equal(job.attemptCount, 1)
+    assert.equal(job.nextAttemptAt.getTime() - job.lastFailedAt.getTime(), 5 * 60 * 1000)
+
+    job.nextAttemptAt = new Date(0)
+    await processAccountDeletionPage({ auth, db, stripe, tombstoneRef, uid: 'alice' })
+    job = [...db.cleanupResources.values()][0]
+    assert.equal(job.attemptCount, 2)
+    assert.equal(job.nextAttemptAt.getTime() - job.lastFailedAt.getTime(), 10 * 60 * 1000)
 
     stripe.subscriptions.cancel = async id => db.deleted.push(`stripe:${id}`)
+    job.nextAttemptAt = new Date(0)
     await processAccountDeletionPage({ auth, db, stripe, tombstoneRef, uid: 'alice' })
     await processAccountDeletionPage({ auth, db, stripe, tombstoneRef, uid: 'alice' })
     job = [...db.cleanupResources.values()][0]

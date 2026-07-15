@@ -29,6 +29,8 @@ const TERMINAL_SUBSCRIPTION_STATUSES = new Set(['canceled', 'incomplete_expired'
 const BILLING_INDEX_PAGE_SIZE = 25
 const BILLING_CLEANUP_PAGE_SIZE = 10
 const BILLING_CLEANUP_LEASE_MS = 5 * 60 * 1000
+const BILLING_CLEANUP_RETRY_BASE_MS = 5 * 60 * 1000
+const BILLING_CLEANUP_RETRY_MAX_MS = 24 * 60 * 60 * 1000
 
 function stringId(value) {
   if (typeof value === 'string') return value
@@ -117,6 +119,34 @@ async function markCleanupResource(db, resource, data) {
     transaction.set(resource.ref, {
       ...data,
       nextAttemptAt: data.status === 'completed' ? null : timestamp,
+      processingToken: null,
+      updatedAt: timestamp,
+    }, { merge: true })
+    return true
+  })
+}
+
+async function markCleanupFailure(db, resource, error) {
+  return db.runTransaction(async transaction => {
+    const current = await transaction.get(resource.ref)
+    if (!current.exists
+      || current.data().status !== 'pending'
+      || current.data().processingToken !== resource.data().processingToken) {
+      return false
+    }
+    const timestamp = new Date()
+    const attemptCount = Number.isSafeInteger(current.data().attemptCount)
+      ? current.data().attemptCount + 1
+      : 1
+    const delay = Math.min(
+      BILLING_CLEANUP_RETRY_BASE_MS * (2 ** Math.min(attemptCount - 1, 30)),
+      BILLING_CLEANUP_RETRY_MAX_MS,
+    )
+    transaction.set(resource.ref, {
+      attemptCount,
+      lastError: error?.message || 'Billing cleanup failed',
+      lastFailedAt: timestamp,
+      nextAttemptAt: new Date(timestamp.getTime() + delay),
       processingToken: null,
       updatedAt: timestamp,
     }, { merge: true })
@@ -382,10 +412,7 @@ async function processAccountDeletionPage({ auth, db, stripe, tombstoneRef, uid 
       if (resource.data().type === 'subscription') await processSubscriptionCleanup(options)
       processed += 1
     } catch (error) {
-      await markCleanupResource(db, resource, {
-        lastError: error?.message || 'Billing cleanup failed',
-        lastFailedAt: new Date(),
-      })
+      await markCleanupFailure(db, resource, error)
     }
   }
   await tombstoneRef.set({ cleanupUpdatedAt: new Date() }, { merge: true })
