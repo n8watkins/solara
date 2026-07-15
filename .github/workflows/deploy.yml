@@ -150,7 +150,8 @@ jobs:
           FIREBASE_PROJECT_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
           STRIPE_PRICE_ID: ${{ secrets.STRIPE_PRICE_ID }}
 
-      - name: Deploy Firestore rules
+      - name: Restore final Firestore rules
+        if: ${{ always() }}
         run: |
           printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
           export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"

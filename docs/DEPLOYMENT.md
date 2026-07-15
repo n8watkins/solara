@@ -134,6 +134,7 @@ Functions require a reproducible install in `functions/` and a Blaze-enabled Fir
 Configure Stripe secrets with the Firebase CLI instead of local files or GitHub build variables.
 Keep the `ENABLE_BLAZE_FUNCTIONS` GitHub repository variable unset until the project is Blaze-enabled and the required Functions and Stripe configuration is ready.
 Set it to `true` only when the transitional rules, Functions, and final rules deployment sequence should run on `main`.
+The deployment restores the final rules even when the Functions deployment fails or is canceled.
 
 ```bash
 cd functions
