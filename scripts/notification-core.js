@@ -73,8 +73,12 @@ function notificationKey(timezone, now = new Date()) {
 function isEligibleUser(user) {
   return user?.tier === 'paid'
     && !user.accountDeletionStartedAt
-    && typeof user.location?.lat === 'number'
-    && typeof user.location?.lon === 'number'
+    && Number.isFinite(user.location?.lat)
+    && user.location.lat >= -90
+    && user.location.lat <= 90
+    && Number.isFinite(user.location?.lon)
+    && user.location.lon >= -180
+    && user.location.lon <= 180
 }
 
 function deliveryDecision(user, timezone, lastNotificationKey, options = {}) {

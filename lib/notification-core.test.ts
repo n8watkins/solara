@@ -98,6 +98,10 @@ describe('notification scheduling', () => {
       accountDeletionStartedAt: new Date(),
     })).toBe(false)
     expect(isEligibleUser({ tier: 'paid', location: { lat: 1, lon: 2 } })).toBe(true)
+    expect(isEligibleUser({ tier: 'paid', location: { lat: Number.NaN, lon: 2 } })).toBe(false)
+    expect(isEligibleUser({ tier: 'paid', location: { lat: 91, lon: 2 } })).toBe(false)
+    expect(isEligibleUser({ tier: 'paid', location: { lat: 1, lon: Number.POSITIVE_INFINITY } })).toBe(false)
+    expect(isEligibleUser({ tier: 'paid', location: { lat: 1, lon: -181 } })).toBe(false)
   })
 
   it('preserves same-day idempotency during a forced manual run', () => {

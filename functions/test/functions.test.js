@@ -665,6 +665,43 @@ describe('account data security', () => {
     })
     assert.deepEqual(calls, ['cleanupUpdatedAt'])
   })
+
+  test('continues processing deletion tombstones after one account fails', async () => {
+    let laterAccountProcessed = false
+    const tombstones = [{
+      id: 'broken',
+      ref: { get: async () => { throw new Error('Auth unavailable') } },
+    }, {
+      id: 'later',
+      ref: {
+        get: async () => {
+          laterAccountProcessed = true
+          return { exists: true, data: () => ({ cleanupStatus: 'completed' }) }
+        },
+      },
+    }]
+    const query = {
+      where() { return this },
+      orderBy() { return this },
+      limit() { return this },
+      get: async () => ({ docs: tombstones }),
+    }
+    const db = {
+      collection(name) {
+        if (name === 'accountDeletionTombstones') return query
+        if (name === 'users') return { doc: () => ({}) }
+        throw new Error(`Unexpected collection: ${name}`)
+      },
+    }
+
+    await assert.rejects(
+      processPendingAccountDeletions({ auth: {}, db, stripe: {} }),
+      error => error instanceof AggregateError
+        && error.errors.length === 1
+        && error.errors[0].cause.message === 'Auth unavailable',
+    )
+    assert.equal(laterAccountProcessed, true)
+  })
 })
 
 describe('browser API CORS', () => {

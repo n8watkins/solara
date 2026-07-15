@@ -122,6 +122,27 @@ describe('user preferences', () => {
     await assertFails(ref.update({ notificationHour: 'morning' }))
   })
 
+  test('location requires bounded coordinates and typed display fields', async () => {
+    const db = testEnv.authenticatedContext('alice').firestore()
+    const ref = db.doc('users/alice')
+    await assertSucceeds(ref.set(prefs('alice')))
+    await assertSucceeds(ref.update({
+      location: { lat: -90, lon: 180, city: 'Boundary', region: '', timezone: 'UTC' },
+    }))
+    await assertFails(ref.update({
+      location: { lat: 91, lon: 0, city: 'Invalid', region: '' },
+    }))
+    await assertFails(ref.update({
+      location: { lat: 0, lon: -181, city: 'Invalid', region: '' },
+    }))
+    await assertFails(ref.update({
+      location: { lat: 0, lon: 0, city: 123, region: '' },
+    }))
+    await assertFails(ref.update({
+      location: { lat: 0, lon: 0, city: 'Missing region' },
+    }))
+  })
+
   test('server-owned fields remain unchanged during preference updates', async () => {
     await testEnv.withSecurityRulesDisabled(async context => {
       await context.firestore().doc('users/alice').set(prefs('alice', {

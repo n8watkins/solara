@@ -401,14 +401,24 @@ async function processPendingAccountDeletions({ auth, db, stripe }) {
     .limit(10)
     .get()
   const results = []
+  const failures = []
   for (const tombstone of tombstones.docs) {
-    results.push(await processAccountDeletionPage({
-      auth,
-      db,
-      stripe,
-      tombstoneRef: tombstone.ref,
-      uid: tombstone.id,
-    }))
+    try {
+      results.push(await processAccountDeletionPage({
+        auth,
+        db,
+        stripe,
+        tombstoneRef: tombstone.ref,
+        uid: tombstone.id,
+      }))
+    } catch (error) {
+      failures.push(new Error(`Account deletion cleanup failed for ${tombstone.id}`, {
+        cause: error,
+      }))
+    }
+  }
+  if (failures.length > 0) {
+    throw new AggregateError(failures, `${failures.length} account deletion cleanup task(s) failed`)
   }
   return results
 }
