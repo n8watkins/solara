@@ -31,7 +31,7 @@ Conditions and individual sensitivity can change quickly.
 Use Node.js 24 to match CI.
 
 ```bash
-git clone https://github.com/yourusername/solara.git
+git clone https://github.com/n8watkins/solara.git
 cd solara
 npm ci
 cp .env.local.example .env.local
@@ -78,9 +78,9 @@ See [docs/GO_LIVE.md](docs/GO_LIVE.md) for the release checklist and [docs/statu
 
 ## Firestore layout
 
-The exact schema evolves through preference normalization, but the primary account document is `users/{uid}`.
-Notification device registrations may be stored in account-scoped subcollections.
-Server-owned billing, entitlement, and delivery fields must only be written by trusted backend code.
+The primary account document is `users/{uid}`, with notification registrations in `users/{uid}/notificationDevices/{deviceId}` and Stripe resource history in `users/{uid}/billingResources/{resourceId}`.
+Trusted backend code owns the global notification-token ownership index, Stripe subscription ownership index, account-deletion tombstones, billing cleanup resources, checkout cleanup tasks, entitlements, and delivery state.
+Firestore rules deny client access to those server-owned collections and prevent clients from writing notification-device or billing state.
 
 ## License
 

@@ -26,6 +26,7 @@ The release is not complete until the automated gates and relevant real-service 
 - [ ] Confirm App Check registration is monitored before enabling enforcement.
 - [ ] Confirm optional Calendar, Stripe, Functions, and analytics variables match the features being released.
 - [ ] Confirm Firestore indexes and rules are ready for the new code.
+- [ ] Confirm the billing cleanup and account-deletion indexes report `READY` before enabling Function-backed account controls.
 - [ ] Confirm a Firebase billing budget alert exists before deploying Functions.
 
 ## 3. Deploy
@@ -35,6 +36,7 @@ The release is not complete until the automated gates and relevant real-service 
 - [ ] Confirm the Hosting deployment succeeds.
 - [ ] Confirm the Firestore rules deployment succeeds.
 - [ ] Confirm the Functions deployment succeeds before the Hosting deployment starts.
+- [ ] Confirm `backfillStripeBillingResources`, `cleanupDeletedAccountBilling`, and `cleanupFailedCheckouts` are deployed and healthy.
 - [ ] Confirm the final Firestore rules deploy only after Hosting succeeds.
 - [ ] Record the deployed commit and Firebase release.
 
@@ -60,6 +62,10 @@ The release is not complete until the automated gates and relevant real-service 
 - [ ] Confirm exactly one notification appears while the app is backgrounded.
 - [ ] Confirm tapping it opens the intended route.
 - [ ] Confirm a repeated dispatch does not duplicate the delivery.
+- [ ] Register the same phone to a second controlled account and confirm ownership transfers instead of creating two deliveries.
+- [ ] Confirm legacy notification fields are removed after successful device migration.
+- [ ] Confirm foreground and background deliveries use the same collapse identity and do not display twice.
+- [ ] Confirm an ambiguous `unknown` delivery is not manually retried without reconciliation evidence.
 - [ ] Disable notifications and confirm the device is no longer selected.
 - [ ] Sign out and confirm the previous account is no longer associated with that device.
 
@@ -71,8 +77,15 @@ Complete only the sections activated for this release.
 
 - [ ] Use Stripe test mode first.
 - [ ] Confirm checkout is bound to the authenticated account.
+- [ ] Confirm a repeated checkout attempt is rejected while an active or reserved subscription exists.
 - [ ] Confirm a paid event grants the expected entitlement once.
 - [ ] Replay the event and confirm idempotency.
+- [ ] Confirm asynchronous payment success grants access and asynchronous payment failure does not.
+- [ ] Deliver webhook events out of order and confirm stale events cannot restore canceled access.
+- [ ] Change the subscription away from the configured Pro price and confirm entitlement is revoked.
+- [ ] Verify legacy Payment Link fulfillment only applies when the Stripe resource can be tied to the authenticated account.
+- [ ] Verify a delayed metadata-free subscription event resolves through the durable subscription-owner index.
+- [ ] Force post-creation Checkout cleanup to fail and confirm `cleanupFailedCheckouts` eventually neutralizes the session.
 - [ ] Confirm cancellation and payment failure revoke or restrict entitlement as designed.
 - [ ] Open the authenticated customer portal and verify payment updates, invoices, and cancellation.
 - [ ] Confirm webhook signature failures do not mutate Firestore.
@@ -90,9 +103,20 @@ Complete only the sections activated for this release.
 - [ ] Confirm the feed refreshes after forecast or preference changes.
 - [ ] Rotate the feed token and confirm the old URL stops working.
 
+### Account export and deletion
+
+- [ ] Download an account export and confirm it contains portable preferences and safe device metadata only.
+- [ ] Confirm capability tokens, notification tokens, and Stripe identifiers are excluded from the export.
+- [ ] Confirm deletion requires recent Google reauthentication and the exact `DELETE` confirmation.
+- [ ] Delete an account with an active test subscription and confirm the UI signs out when cleanup is pending.
+- [ ] Confirm the subscription is canceled, notification ownership is removed, the user subtree is deleted, and the Firebase Authentication user is removed.
+- [ ] Confirm the tombstone eventually reaches `cleanupStatus = completed` and no cleanup resource remains pending.
+
 ## 7. Post-release
 
 - [ ] Review Firebase, GitHub Actions, Stripe, and browser error telemetry.
+- [ ] Review all three scheduled billing and deletion jobs for failures or repeated retries.
+- [ ] Check for stuck `accountDeletionTombstones`, `billingCleanupResources`, and `stripeCheckoutCleanupTasks` records.
 - [ ] Confirm notification dispatch metrics do not show duplicate or repeated sends.
 - [ ] Confirm no secrets or full device tokens appear in logs.
 - [ ] Keep the previous Hosting release available for rollback.

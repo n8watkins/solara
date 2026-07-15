@@ -1,5 +1,11 @@
 # Solara — Session Handoff
 
+> **Archived historical snapshot**
+>
+> This document records the state of the `mobile-uv-ab-arc` branch on 2026-06-20 and no longer describes the current implementation, deployment process, notification model, test baseline, or release plan.
+> Use [status.md](./status.md) for the current implementation state, [DEPLOYMENT.md](./DEPLOYMENT.md) for configuration and activation, and [GO_LIVE.md](./GO_LIVE.md) for release verification.
+> Do not use commands, credentials, branch directions, or operational instructions below without revalidating them against the current repository and `AGENTS.md`.
+
 _Last updated: 2026-06-20 (interactive UV redesign + sun-path A/B + mandatory sign-in — branch `mobile-uv-ab-arc`, PREVIEW-ONLY, NOT in production)_
 
 Zero-context briefing for the next agent. Read this fully, plus
@@ -207,7 +213,7 @@ Playwright (zero horizontal overflow; legacy-guest gate asserted).
    UV strip ↔ sun-path scroll-sync, full-screen mobile Settings + avatar dropdown,
    Today/Tomorrow/"More days" picker, and the mandatory onboarding sign-in. Confirm with
    the user that **mandatory sign-in is intended** (it reverses the prior guest funnel).
-   Then run the bug review and merge `mobile-uv-ab-arc` → `main` (push deploys to prod).
+   The merge and deployment direction recorded here is historical and must not be followed.
    Address the pending follow-ups (compact activity cards; per-hour "share this time").
 2. **Prove notifications end-to-end** (the last unproven launched feature).
    USER ACTION first: open the live site, click Enable on the 🔔 banner, accept the
@@ -225,9 +231,8 @@ Playwright (zero horizontal overflow; legacy-guest gate asserted).
 
 ## Conventions & gotchas
 
-- **Commit after every logical change**; trailer
-  `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>`. Push freely — push
-  deploys to production.
+- **Historical note:** The commit and push instructions that were recorded in this snapshot are retired.
+  Follow the current repository `AGENTS.md` and obtain the user's authorization before pushing.
 - **Verify with:** `npm run typecheck` && `npx vitest run` && `npm run build`.
 - **Visual verification recipe (works):** `npx --yes serve@latest out -l 4173`, then
   Playwright via global install:
@@ -295,8 +300,8 @@ Playwright (zero horizontal overflow; legacy-guest gate asserted).
   overlays) — used by `PreferencesModal` and `ActivityModalShell`; reuse this hook for
   any new full-screen overlay rather than touching `body.style` directly. The header's
   Settings + Sign out live in a profile-avatar dropdown.
-- **[this wave] commit trailer was `Co-Authored-By: Claude Opus 4.8 (1M context)
-  <noreply@anthropic.com>`** (the older Fable 5 trailer above is historical).
+- **Historical note:** The commit-trailer direction recorded for this wave is retired.
+  Follow the current repository `AGENTS.md` for commit requirements.
 - Firestore rules: clients may never write `tier: 'paid'`. Don't "fix" while
   debugging.
 - Profiles (P6) deprioritized. OAuth consent-screen support email = personal Gmail

@@ -1,5 +1,11 @@
 # Solara Follow-Up Roadmap
 
+> **Archived historical review snapshot**
+>
+> This document preserves findings from 2026-05-27 and is not the current implementation plan.
+> Most P0 and P1 items below have since been implemented, including Firestore rules, production gates, install assets, analytics consent, account controls, and notification hardening.
+> Use [status.md](./status.md) for current implementation state, [DEPLOYMENT.md](./DEPLOYMENT.md) for activation requirements, and [GO_LIVE.md](./GO_LIVE.md) for remaining release verification.
+
 _Last updated: 2026-05-27_
 
 ## Purpose

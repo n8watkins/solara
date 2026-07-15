@@ -48,9 +48,18 @@ Never put a Stripe secret, Firebase service-account JSON, webhook secret, or OAu
 
 Add the required client variables above as repository secrets.
 Also add `FIREBASE_SERVICE_ACCOUNT` as the complete JSON for a narrowly scoped deployment and notification service account.
-The workflows currently use that credential to deploy Hosting and Firestore rules and to access notification data.
-Before enabling the main deployment, put the project on Blaze, configure both Stripe secrets in Firebase Secret Manager, and configure `STRIPE_PRICE_ID` as a GitHub secret.
-The main deployment always deploys Functions using `NEXT_PUBLIC_SITE_URL` as `APP_URL` before it deploys Hosting.
+The deployment workflow uses that credential to publish Hosting, Firestore rules and indexes, and Functions.
+The notification workflow uses it to access notification data and send through Firebase Cloud Messaging.
+
+Server configuration is split across these locations:
+
+- Firebase Secret Manager stores `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET`.
+- GitHub Actions provides `NEXT_PUBLIC_SITE_URL` to Functions as `APP_URL` and provides `STRIPE_PRICE_ID` as a deploy-time Functions parameter.
+- The `ENABLE_BLAZE_FUNCTIONS` GitHub repository variable controls whether the deployment publishes Firestore indexes and Functions and exposes `NEXT_PUBLIC_FUNCTIONS_URL` in the client build.
+- GitHub repository secrets store `NEXT_PUBLIC_FUNCTIONS_URL`, `FIREBASE_SERVICE_ACCOUNT`, and the public client configuration used during the static build.
+
+Before enabling the backend deployment, put the project on Blaze, configure both Stripe secrets in Firebase Secret Manager, and configure `STRIPE_PRICE_ID`, `NEXT_PUBLIC_FUNCTIONS_URL`, and `NEXT_PUBLIC_SITE_URL` in GitHub.
+When `ENABLE_BLAZE_FUNCTIONS` is `true`, the main deployment passes `NEXT_PUBLIC_SITE_URL` as `APP_URL` and `STRIPE_PRICE_ID` to the Functions deployment before it deploys Hosting.
 
 The `main` deployment is blocked until lint, typecheck, app and Functions unit tests, Firestore emulator rules tests, production build, and browser smoke tests pass.
 Pull requests and non-main pushes run the same quality checks without deploying.
@@ -87,7 +96,8 @@ npm run test:e2e
 ```
 
 Push to `main` after the required GitHub secrets exist.
-The deployment workflow builds with those values, deploys transitional Firestore rules and Functions, deploys Hosting, and then restores the final rules.
+When `ENABLE_BLAZE_FUNCTIONS` is `true`, the deployment workflow builds with those values, deploys transitional Firestore rules and indexes, deploys Functions, deploys Hosting, and then restores the final rules.
+When the variable is not `true`, the workflow keeps Function-backed client surfaces disabled, deploys Hosting, and restores the final Firestore rules.
 
 For a controlled manual deployment, use an explicit project ID.
 
@@ -97,6 +107,9 @@ npx firebase-tools deploy --only functions --project <project-id>
 npx firebase-tools deploy --only hosting --project <project-id>
 npx firebase-tools deploy --only firestore:rules --project <project-id>
 ```
+
+Supply `APP_URL` and `STRIPE_PRICE_ID` when manually deploying Functions.
+Wait for every index in `firestore.indexes.json` to report `READY` before enabling Function-backed account or billing surfaces.
 
 ## Notification activation
 
@@ -145,12 +158,35 @@ npx firebase-tools functions:secrets:set STRIPE_WEBHOOK_SECRET
 npx firebase-tools deploy --only functions --project <project-id>
 ```
 
+The Functions deployment includes three scheduled maintenance jobs:
+
+- `backfillStripeBillingResources` runs hourly and builds durable ownership records for existing Stripe resources.
+- `cleanupDeletedAccountBilling` runs every five minutes and resumes account deletion, Stripe cancellation, and data cleanup with bounded retries.
+- `cleanupFailedCheckouts` runs every five minutes and neutralizes Stripe Checkout Sessions that could not be cleaned up during the original request.
+
+The scheduled jobs depend on the `accountDeletionTombstones`, `billingCleanupResources`, and `stripeCheckoutCleanupTasks` indexes in `firestore.indexes.json`.
+Confirm those indexes are ready and all three jobs run successfully before enabling checkout or account deletion.
+Allow the billing-resource backfill to complete before relying on deletion cleanup for legacy Stripe customers and subscriptions.
+
 Register the deployed Stripe webhook URL in Stripe test mode first.
 Subscribe the endpoint to `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `customer.subscription.updated`, and `customer.subscription.deleted`.
 Verify a successful checkout, duplicate webhook delivery, cancellation, payment failure, and entitlement revocation before using live mode.
 Also verify repeated checkout is rejected, out-of-order events cannot restore canceled access, and changing away from the configured Pro price revokes the entitlement.
 Open the account page and verify the Stripe customer portal can update payment details, display invoices, and cancel the subscription.
 No local test can replace these Stripe-signed integration checks when keys and a test account are unavailable.
+
+## Account export and deletion
+
+Account export and deletion require `NEXT_PUBLIC_FUNCTIONS_URL` and an authenticated account.
+Deletion additionally requires a recent Google reauthentication and the exact `DELETE` confirmation.
+
+Deletion may return HTTP 202 and sign the user out while cleanup continues.
+The backend creates `accountDeletionTombstones/{uid}`, blocks further account access, revokes Firebase sessions, cancels owned Stripe resources, removes notification ownership records, recursively deletes the user document, and deletes the Firebase Authentication user.
+The scheduled cleanup job resumes incomplete work with leases and retry backoff until `cleanupStatus` becomes `completed`.
+
+Monitor `cleanupStatus`, `cleanupLastError`, `cleanupNextAttemptAt`, and the `cleanupDeletedAccountBilling` logs for pending deletions.
+Do not manually remove a tombstone or mark it complete while billing cleanup resources remain pending.
+Before production activation, verify that export excludes capability tokens and payment-provider identifiers and that deletion eventually removes the user data, notification registration, owned subscription, and Authentication account.
 
 ## Google Calendar activation
 
