@@ -165,7 +165,7 @@ async function claimDelivery(subscription, key, attemptId, database = db, nowMs 
       transaction.get(subscription.userRef),
     ])
     if (!snapshot.exists) return { claimed: false, reason: 'missing-subscription' }
-    if (!userSnapshot.exists || userSnapshot.data().accountDeletionStartedAt) {
+    if (!userSnapshot.exists || !isEligibleUser(userSnapshot.data())) {
       return { claimed: false, reason: 'ineligible-user' }
     }
 

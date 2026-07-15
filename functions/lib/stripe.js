@@ -1,4 +1,9 @@
 const { authenticate } = require('./account')
+const {
+  billingResourceRef,
+  customerBelongsToUser,
+  indexBillingResources,
+} = require('./billing-resources')
 const { createHash } = require('node:crypto')
 
 const ACTIVE_SUBSCRIPTION_STATUSES = new Set(['active', 'trialing'])
@@ -78,18 +83,30 @@ async function validateCheckoutSession(stripe, session, expectedPriceId, { requi
   return { uid, customerId, subscriptionId, paid }
 }
 
-async function findUserBySubscription(db, subscription) {
+async function findUserBySubscription(db, stripe, subscription) {
   const subscriptionId = stringId(subscription?.id)
   const customerId = stringId(subscription?.customer)
+  for (const stripeId of [subscriptionId, customerId]) {
+    if (!stripeId) continue
+    const indexed = await db.collectionGroup('billingResources')
+      .where('stripeId', '==', stripeId).limit(1).get()
+    if (!indexed.empty) return indexed.docs[0].ref.parent.parent.get()
+  }
   if (subscriptionId) {
     const bySubscription = await db.collection('users')
       .where('stripeSubscriptionId', '==', subscriptionId).limit(1).get()
-    if (!bySubscription.empty) return bySubscription.docs[0]
+    if (!bySubscription.empty) {
+      const candidate = bySubscription.docs[0]
+      if (subscription?.metadata?.firebaseUid === candidate.ref.id) return candidate
+    }
   }
   if (customerId) {
     const byCustomer = await db.collection('users')
       .where('stripeCustomerId', '==', customerId).limit(1).get()
-    if (!byCustomer.empty) return byCustomer.docs[0]
+    if (!byCustomer.empty) {
+      const candidate = byCustomer.docs[0]
+      if (await customerBelongsToUser(stripe, customerId, candidate.ref.id)) return candidate
+    }
   }
   return null
 }
@@ -108,15 +125,18 @@ async function commitEvent(
   buildUserData,
   serverTimestamp,
   cancellationSubscriptionId = null,
+  billingResources = [],
 ) {
   const eventRef = db.collection('stripeWebhookEvents').doc(event.id)
   return db.runTransaction(async transaction => {
     const eventSnapshot = await transaction.get(eventRef)
     const duplicate = eventSnapshot.exists
+    const eventData = duplicate ? eventSnapshot.data() : null
     let applied = false
     let accountDeleted = false
     let rejected = false
     let cancellationPending = false
+    let pendingCancellationSubscriptionId = null
     if (userRef && buildUserData) {
       const tombstoneRef = db.collection('accountDeletionTombstones').doc(userRef.id)
       const [userSnapshot, tombstoneSnapshot] = await Promise.all([
@@ -129,6 +149,7 @@ async function commitEvent(
       if (!accountDeleted) {
         const userData = buildUserData(userSnapshot.data())
         rejected = !userData
+        indexBillingResources(transaction, userRef, billingResources, serverTimestamp())
         if (userData && !duplicate && eventIsNewer(event, userSnapshot.data())) {
           transaction.set(userRef, {
             ...userData,
@@ -140,16 +161,21 @@ async function commitEvent(
       }
     }
 
-    if (cancellationSubscriptionId && (accountDeleted || rejected)) {
-      const eventData = duplicate ? eventSnapshot.data() : null
-      if (eventData?.cancellationStatus !== 'completed') {
-        cancellationPending = true
-        if (duplicate) {
-          transaction.set(eventRef, {
-            cancellationSubscriptionId,
-            cancellationStatus: 'pending',
-          }, { merge: true })
-        }
+    if (eventData?.cancellationStatus === 'pending'
+      && typeof eventData.cancellationSubscriptionId === 'string'
+      && eventData.cancellationSubscriptionId) {
+      cancellationPending = true
+      pendingCancellationSubscriptionId = eventData.cancellationSubscriptionId
+    } else if (cancellationSubscriptionId
+      && (accountDeleted || rejected)
+      && eventData?.cancellationStatus !== 'completed') {
+      cancellationPending = true
+      pendingCancellationSubscriptionId = cancellationSubscriptionId
+      if (duplicate) {
+        transaction.set(eventRef, {
+          cancellationSubscriptionId: pendingCancellationSubscriptionId,
+          cancellationStatus: 'pending',
+        }, { merge: true })
       }
     }
     if (!duplicate) {
@@ -163,14 +189,21 @@ async function commitEvent(
         } : {}),
       })
     }
-    return { duplicate, applied, accountDeleted, rejected, cancellationPending }
+    return {
+      duplicate,
+      applied,
+      accountDeleted,
+      rejected,
+      cancellationPending,
+      cancellationSubscriptionId: pendingCancellationSubscriptionId,
+    }
   })
 }
 
 async function completePendingCancellation({ db, event, result, serverTimestamp, stripe }) {
   if (!result.cancellationPending) return
   const eventRef = db.collection('stripeWebhookEvents').doc(event.id)
-  const subscriptionId = stringId(event.data.object.subscription)
+  const subscriptionId = result.cancellationSubscriptionId
   try {
     await stripe.subscriptions.cancel(subscriptionId)
   } catch (error) {
@@ -217,14 +250,18 @@ async function processStripeEvent({ db, event, expectedPriceId, serverTimestamp,
         subscriptionStatus: subscription.status,
         subscriptionUpdatedAt: serverTimestamp(),
       }
-    }, serverTimestamp, subscriptionId)
+    }, serverTimestamp, subscriptionId, [
+      { type: 'checkoutSession', stripeId: session.id },
+      { type: 'customer', stripeId: customerId },
+      { type: 'subscription', stripeId: subscriptionId },
+    ])
     await completePendingCancellation({ db, event, result, serverTimestamp, stripe })
     return result
   }
 
   if (event.type === 'customer.subscription.updated' || event.type === 'customer.subscription.deleted') {
     const subscription = event.data.object
-    const user = await findUserBySubscription(db, subscription)
+    const user = await findUserBySubscription(db, stripe, subscription)
     if (!user) {
       if (event.type === 'customer.subscription.deleted') {
         return commitEvent(db, event, null, null, serverTimestamp)
@@ -255,7 +292,10 @@ async function processStripeEvent({ db, event, expectedPriceId, serverTimestamp,
       const currentSubscriptionId = userData.stripeSubscriptionId
       if (currentSubscriptionId && currentSubscriptionId !== stringId(subscription.id)) return null
       return checkoutStatus ? { ...update, stripeCheckoutStatus: checkoutStatus } : update
-    }, serverTimestamp)
+    }, serverTimestamp, null, [
+      { type: 'customer', stripeId: stringId(currentSubscription.customer) },
+      { type: 'subscription', stripeId: stringId(currentSubscription.id) },
+    ])
   }
 
   return { ignored: true }
@@ -368,6 +408,14 @@ async function createCheckout({ appUrl, auth, db, expectedPriceId, req, stripe }
     : { customer_email: identity.email }
   try {
     if (customer.customer) {
+      const customerRef = billingResourceRef(userRef, 'customer', customer.customer)
+      const indexedCustomer = await customerRef.get()
+      if (!indexedCustomer.exists
+        && !await customerBelongsToUser(stripe, customer.customer, identity.uid)) {
+        const error = new Error('Billing account ownership could not be verified')
+        error.status = 409
+        throw error
+      }
       const subscriptions = await listCustomerSubscriptions(stripe, customer.customer)
       if (subscriptions.some(subscription => !TERMINAL_SUBSCRIPTION_STATUSES.has(subscription.status))) {
         const error = new Error('Account already has a subscription')
@@ -402,6 +450,10 @@ async function createCheckout({ appUrl, auth, db, expectedPriceId, req, stripe }
           ? new Date(session.expires_at * 1000)
           : new Date(now + CHECKOUT_RESERVATION_MS),
       }, { merge: true })
+      indexBillingResources(transaction, userRef, [
+        { type: 'checkoutSession', stripeId: session.id },
+        { type: 'customer', stripeId: stringId(session.customer) || customer.customer },
+      ], new Date())
       return true
     })
     if (!persisted) {
@@ -430,12 +482,48 @@ async function createBillingPortal({ appUrl, auth, db, req, stripe }) {
     error.status = 401
     throw error
   }
-  const userSnapshot = await db.collection('users').doc(identity.uid).get()
+  const userRef = db.collection('users').doc(identity.uid)
+  const userSnapshot = await userRef.get()
   const customerId = userSnapshot.exists ? userSnapshot.data().stripeCustomerId : null
   if (typeof customerId !== 'string' || !customerId) {
     const error = new Error('No billing account exists')
     error.status = 404
     throw error
+  }
+  if (userSnapshot.data().accountDeletionStartedAt) {
+    const error = new Error('Account deletion is in progress')
+    error.status = 409
+    throw error
+  }
+  const customerRef = billingResourceRef(userRef, 'customer', customerId)
+  const indexedCustomer = await customerRef.get()
+  if (!indexedCustomer.exists) {
+    const owned = await customerBelongsToUser(stripe, customerId, identity.uid)
+    if (!owned) {
+      const error = new Error('No verified billing account exists')
+      error.status = 404
+      throw error
+    }
+    await db.runTransaction(async transaction => {
+      const [currentUser, tombstone, currentIndex] = await Promise.all([
+        transaction.get(userRef),
+        transaction.get(db.collection('accountDeletionTombstones').doc(identity.uid)),
+        transaction.get(customerRef),
+      ])
+      if (!currentUser.exists
+        || tombstone.exists
+        || currentUser.data().accountDeletionStartedAt
+        || currentUser.data().stripeCustomerId !== customerId) {
+        const error = new Error('Account deletion is in progress')
+        error.status = 409
+        throw error
+      }
+      if (!currentIndex.exists) {
+        indexBillingResources(transaction, userRef, [
+          { type: 'customer', stripeId: customerId },
+        ], new Date())
+      }
+    })
   }
   return stripe.billingPortal.sessions.create({
     customer: customerId,
@@ -443,7 +531,54 @@ async function createBillingPortal({ appUrl, auth, db, req, stripe }) {
   })
 }
 
+async function backfillBillingResourcePage({ db, serverTimestamp, stripe }) {
+  const stateRef = db.collection('systemMigrations').doc('stripeBillingResourcesV1')
+  const stateSnapshot = await stateRef.get()
+  const state = stateSnapshot.exists ? stateSnapshot.data() : {}
+  if (state.completed === true) return { completed: true, processed: 0 }
+
+  const page = await stripe.checkout.sessions.list({
+    limit: 100,
+    ...(state.startingAfter ? { starting_after: state.startingAfter } : {}),
+  })
+  let processed = 0
+  for (const session of page.data) {
+    const uid = session.client_reference_id || session.metadata?.firebaseUid
+    if (!validUid(uid)) continue
+    const userRef = db.collection('users').doc(uid)
+    const indexed = await db.runTransaction(async transaction => {
+      const [userSnapshot, tombstoneSnapshot] = await Promise.all([
+        transaction.get(userRef),
+        transaction.get(db.collection('accountDeletionTombstones').doc(uid)),
+      ])
+      if (!userSnapshot.exists
+        || tombstoneSnapshot.exists
+        || userSnapshot.data().accountDeletionStartedAt) return false
+      indexBillingResources(transaction, userRef, [
+        { type: 'checkoutSession', stripeId: stringId(session.id) },
+        { type: 'customer', stripeId: stringId(session.customer) },
+        { type: 'subscription', stripeId: stringId(session.subscription) },
+      ], serverTimestamp())
+      return true
+    })
+    if (indexed) processed += 1
+  }
+
+  const startingAfter = page.has_more ? stringId(page.data.at(-1)) : null
+  if (page.has_more && !startingAfter) throw new Error('Stripe checkout pagination was incomplete')
+  const pass = Number.isInteger(state.pass) ? state.pass : 1
+  const completed = !page.has_more && pass >= 2
+  await stateRef.set({
+    completed,
+    pass: page.has_more ? pass : pass + 1,
+    processedAt: serverTimestamp(),
+    startingAfter,
+  }, { merge: true })
+  return { completed, processed }
+}
+
 module.exports = {
+  backfillBillingResourcePage,
   createBillingPortal,
   createCheckout,
   listCustomerSubscriptions,

@@ -10,6 +10,7 @@ const {
 
 const projectId = 'demo-solara'
 let testEnv
+let preDeployEnv
 
 function prefs(uid, overrides = {}) {
   return {
@@ -32,10 +33,26 @@ before(async () => {
       rules: fs.readFileSync(path.resolve(__dirname, '../../firestore.rules'), 'utf8'),
     },
   })
+  preDeployEnv = await initializeTestEnvironment({
+    projectId: `${projectId}-pre-functions`,
+    firestore: {
+      rules: fs.readFileSync(path.resolve(__dirname, '../../firestore.pre-functions.rules'), 'utf8'),
+    },
+  })
 })
 
-afterEach(async () => testEnv.clearFirestore())
-after(async () => testEnv.cleanup())
+afterEach(async () => Promise.all([testEnv.clearFirestore(), preDeployEnv.clearFirestore()]))
+after(async () => Promise.all([testEnv.cleanup(), preDeployEnv.cleanup()]))
+
+describe('pre-Functions deployment compatibility', () => {
+  test('allows legacy preferences while protecting billing ownership', async () => {
+    const ref = preDeployEnv.authenticatedContext('alice').firestore().doc('users/alice')
+    await assertSucceeds(ref.set(prefs('alice', { legacyPreference: true })))
+    await assertSucceeds(ref.update({ anotherLegacyPreference: 'kept-compatible' }))
+    await assertFails(ref.update({ stripeCustomerId: 'cus_attacker' }))
+    await assertFails(ref.update({ stripeCheckoutSessionId: 'cs_attacker' }))
+  })
+})
 
 describe('user preferences', () => {
   test('an owner can create and update allowlisted preference fields', async () => {
@@ -69,7 +86,7 @@ describe('user preferences', () => {
     await assertFails(ref.delete())
   })
 
-  test('a deletion tombstone blocks tokens issued before deletion', async () => {
+  test('a deletion tombstone blocks every token until deletion completes', async () => {
     await testEnv.withSecurityRulesDisabled(async context => {
       await context.firestore().doc('accountDeletionTombstones/alice').set({ revokedBefore: 200 })
     })
@@ -77,7 +94,7 @@ describe('user preferences', () => {
     const stale = testEnv.authenticatedContext('alice', { auth_time: 200 }).firestore()
     const fresh = testEnv.authenticatedContext('alice', { auth_time: 201 }).firestore()
     await assertFails(stale.doc('users/alice').set(prefs('alice')))
-    await assertSucceeds(fresh.doc('users/alice').set(prefs('alice')))
+    await assertFails(fresh.doc('users/alice').set(prefs('alice')))
     await assertFails(stale.doc('accountDeletionTombstones/alice').get())
   })
 

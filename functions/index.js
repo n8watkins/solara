@@ -1,4 +1,5 @@
 const { onRequest } = require('firebase-functions/v2/https')
+const { onSchedule } = require('firebase-functions/v2/scheduler')
 const { defineSecret, defineString } = require('firebase-functions/params')
 const admin = require('firebase-admin')
 const Stripe = require('stripe')
@@ -9,7 +10,12 @@ const { handleCors } = require('./lib/http')
 const { buildICS } = require('./lib/ics')
 const { buildSunEvents, fetchForecast } = require('./lib/sun')
 const { registerNotificationDevice, removeNotificationDevice } = require('./lib/notification-devices')
-const { createBillingPortal, createCheckout, processStripeEvent } = require('./lib/stripe')
+const {
+  backfillBillingResourcePage,
+  createBillingPortal,
+  createCheckout,
+  processStripeEvent,
+} = require('./lib/stripe')
 
 if (!admin.apps.length) admin.initializeApp()
 const db = admin.firestore()
@@ -226,6 +232,23 @@ exports.stripeWebhook = onRequest(
       })
       res.status(500).json({ error: 'Webhook processing failed' })
     }
+  },
+)
+
+exports.backfillStripeBillingResources = onSchedule(
+  { schedule: 'every 60 minutes', secrets: [STRIPE_SECRET_KEY], timeoutSeconds: 300 },
+  async () => {
+    const stripe = stripeClient()
+    let result
+    for (let page = 0; page < 20; page += 1) {
+      result = await backfillBillingResourcePage({
+        db,
+        serverTimestamp: () => admin.firestore.FieldValue.serverTimestamp(),
+        stripe,
+      })
+      if (result.completed) break
+    }
+    console.log('Stripe billing resource backfill run completed', result)
   },
 )
 

@@ -40,7 +40,9 @@ function makeDeliveryDatabase(initial: Record<string, unknown>) {
     }) => Promise<unknown>) => worker({
       get: async ref => {
         if (ref.kind === 'owner') return { exists: true, data: () => ({ ...owner.data }) }
-        if (ref.kind === 'user') return { exists: true, data: () => ({ tier: 'paid' }) }
+        if (ref.kind === 'user') {
+          return { exists: true, data: () => ({ tier: 'paid', location: { lat: 1, lon: 2 } }) }
+        }
         return { exists: true, data: () => ({ ...state.data }) }
       },
       set: (_ref, patch) => { state.data = { ...state.data, ...patch } },
@@ -324,9 +326,15 @@ describe('notification delivery claims', () => {
       runTransaction: (worker: (transaction: {
         get: (ref: { kind?: string }) => Promise<{ exists: boolean; data: () => Record<string, unknown> }>
       }) => Promise<unknown>) => worker({
-        get: async ref => ref.kind === 'owner'
-          ? { exists: true, data: () => ({ uid: 'user-2', deviceId: 'device-2' }) }
-          : { exists: true, data: () => state },
+        get: async ref => {
+          if (ref.kind === 'owner') {
+            return { exists: true, data: () => ({ uid: 'user-2', deviceId: 'device-2' }) }
+          }
+          if (ref.kind === 'user') {
+            return { exists: true, data: () => ({ tier: 'paid', location: { lat: 1, lon: 2 } }) }
+          }
+          return { exists: true, data: () => state }
+        },
       }),
     }
     await expect(claimDelivery({
@@ -359,6 +367,36 @@ describe('notification delivery claims', () => {
           }
           if (ref.kind === 'user') {
             return { exists: true, data: () => ({ accountDeletionStartedAt: new Date() }) }
+          }
+          return { exists: true, data: () => ({ enabled: true, token }) }
+        },
+      }),
+    }
+    await expect(claimDelivery(subscription, key, 'attempt-1', database)).resolves.toEqual({
+      claimed: false,
+      reason: 'ineligible-user',
+    })
+  })
+
+  it('rejects a claim after the user loses paid eligibility', async () => {
+    const token = 'token'.padEnd(24, 'x')
+    const subscription = {
+      token,
+      deviceId: 'device-1',
+      deviceRef: { kind: 'device' },
+      userRef: { id: 'user-1', kind: 'user' },
+    }
+    const database = {
+      collection: () => ({ doc: () => ({ kind: 'owner' }) }),
+      runTransaction: (worker: (transaction: {
+        get: (ref: { kind?: string }) => Promise<{ exists: boolean; data: () => Record<string, unknown> }>
+      }) => Promise<unknown>) => worker({
+        get: async ref => {
+          if (ref.kind === 'owner') {
+            return { exists: true, data: () => ({ uid: 'user-1', deviceId: 'device-1' }) }
+          }
+          if (ref.kind === 'user') {
+            return { exists: true, data: () => ({ tier: 'free', location: { lat: 1, lon: 2 } }) }
           }
           return { exists: true, data: () => ({ enabled: true, token }) }
         },

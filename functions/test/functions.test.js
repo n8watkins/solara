@@ -11,6 +11,7 @@ const {
   validFeedToken,
 } = require('../lib/calendar-feed')
 const {
+  backfillBillingResourcePage,
   createBillingPortal,
   createCheckout,
   processStripeEvent,
@@ -39,14 +40,45 @@ function queryWith(doc) {
   }
 }
 
+function withBillingResources(ref, initialResources = []) {
+  const resources = new Map(initialResources.map(resource => [resource.id, { ...resource }]))
+  ref.collection = name => {
+    assert.equal(name, 'billingResources')
+    return {
+      doc(id) {
+        return {
+          id,
+          kind: 'billingResource',
+          parent: { parent: ref },
+          async get() {
+            return { exists: resources.has(id), data: () => ({ ...resources.get(id) }) }
+          },
+        }
+      },
+      async get() {
+        return {
+          docs: [...resources.entries()].map(([id, data]) => ({
+            id,
+            data: () => ({ ...data }),
+          })),
+        }
+      },
+    }
+  }
+  ref.billingResources = resources
+  return ref
+}
+
 function fakeDb(initialUser) {
   const events = new Map()
   const userData = { ...initialUser }
-  const userRef = {
+  const userRef = withBillingResources({
     id: 'alice',
     kind: 'user',
-    async get() { return { exists: initialUser !== null, data: () => ({ ...userData }) } },
-  }
+    async get() {
+      return { exists: initialUser !== null, data: () => ({ ...userData }), ref: userRef }
+    },
+  })
   const database = {
     userData,
     collection(name) {
@@ -79,6 +111,27 @@ function fakeDb(initialUser) {
       }
       throw new Error(`Unexpected collection ${name}`)
     },
+    collectionGroup(name) {
+      assert.equal(name, 'billingResources')
+      let stripeId
+      return {
+        where(_field, _operator, value) { stripeId = value; return this },
+        limit() { return this },
+        async get() {
+          const entry = [...userRef.billingResources.entries()]
+            .find(([, resource]) => resource.stripeId === stripeId)
+          if (!entry) return { empty: true, docs: [] }
+          const [id, data] = entry
+          return {
+            empty: false,
+            docs: [{
+              data: () => ({ ...data }),
+              ref: userRef.collection('billingResources').doc(id),
+            }],
+          }
+        },
+      }
+    },
     async runTransaction(callback) {
       const operations = []
       const result = await callback({
@@ -86,6 +139,12 @@ function fakeDb(initialUser) {
         set(ref, data) {
           operations.push(() => {
             if (ref.kind === 'event') events.set(ref.id, { ...events.get(ref.id), ...data })
+            else if (ref.kind === 'billingResource') {
+              userRef.billingResources.set(ref.id, {
+                ...userRef.billingResources.get(ref.id),
+                ...data,
+              })
+            }
             else Object.assign(userData, data)
           })
           return this
@@ -146,10 +205,10 @@ describe('account data security', () => {
   test('deletes notification ownership and throttle records with the account', async () => {
     const deleted = []
     const userData = {}
-    const userRef = {
+    const userRef = withBillingResources({
       kind: 'user',
       async get() { return { exists: true, data: () => ({ ...userData }) } },
-    }
+    })
     const tombstoneRef = { kind: 'tombstone' }
     const db = {
       collection(name) {
@@ -207,9 +266,9 @@ describe('account data security', () => {
   test('expires an open checkout before deleting its account', async () => {
     const closed = []
     const userData = { stripeCheckoutSessionId: 'cs_open' }
-    const userRef = {
+    const userRef = withBillingResources({
       async get() { return { exists: true, data: () => ({ ...userData }) } },
-    }
+    })
     const db = {
       collection(name) {
         if (name === 'users') return { doc: () => userRef }
@@ -240,7 +299,11 @@ describe('account data security', () => {
             data: [{ id: 'cs_open', status: 'open', client_reference_id: 'alice' }],
             has_more: false,
           }),
-          retrieve: async () => ({ id: 'cs_open', status: 'open' }),
+          retrieve: async () => ({
+            id: 'cs_open',
+            status: 'open',
+            client_reference_id: 'alice',
+          }),
           expire: async id => { closed.push(id); return { id, status: 'expired' } },
         } },
         subscriptions: { cancel: async () => {} },
@@ -252,9 +315,9 @@ describe('account data security', () => {
   test('cancels every live legacy customer subscription before deleting the account', async () => {
     const canceled = []
     const userData = { stripeCustomerId: 'cus_legacy' }
-    const userRef = {
+    const userRef = withBillingResources({
       async get() { return { exists: true, data: () => ({ ...userData }) } },
-    }
+    })
     const db = {
       collection(name) {
         if (name === 'users') return { doc: () => userRef }
@@ -285,7 +348,15 @@ describe('account data security', () => {
       db,
       req: { headers: { authorization: 'Bearer valid' }, body: { confirmation: 'DELETE' } },
       stripe: {
-        checkout: { sessions: { list: async () => ({ data: [], has_more: false }) } },
+        checkout: { sessions: { list: async () => ({
+          data: [{
+            id: 'cs_legacy',
+            status: 'complete',
+            client_reference_id: 'alice',
+            customer: 'cus_legacy',
+          }],
+          has_more: false,
+        }) } },
         subscriptions: {
           list: async params => {
             assert.equal(params.customer, 'cus_legacy')
@@ -305,9 +376,9 @@ describe('account data security', () => {
   test('expires every open checkout for the deleted Stripe customer', async () => {
     const expired = []
     const userData = { stripeCustomerId: 'cus_alice' }
-    const userRef = {
+    const userRef = withBillingResources({
       async get() { return { exists: true, data: () => ({ ...userData }) } },
-    }
+    })
     const db = {
       collection(name) {
         if (name === 'users') return { doc: () => userRef }
@@ -359,11 +430,11 @@ describe('account data security', () => {
 
   test('cancels subscriptions from completed legacy checkouts', async () => {
     const canceled = []
-    const userRef = {
+    const userRef = withBillingResources({
       async get() {
         return { exists: true, data: () => ({ stripeCustomerId: 'cus_legacy' }) }
       },
-    }
+    })
     const db = {
       collection(name) {
         if (name === 'users') return { doc: () => userRef }
@@ -404,6 +475,98 @@ describe('account data security', () => {
       },
     })
     assert.deepEqual(canceled, ['sub_legacy'])
+  })
+
+  test('cleans every customer and subscription in the durable account index', async () => {
+    const canceled = []
+    const userRef = withBillingResources({
+      async get() { return { exists: true, data: () => ({}) } },
+    }, [
+      { id: 'customer-a', type: 'customer', stripeId: 'cus_a' },
+      { id: 'customer-b', type: 'customer', stripeId: 'cus_b' },
+      { id: 'subscription-orphan', type: 'subscription', stripeId: 'sub_orphan' },
+    ])
+    const db = {
+      collection(name) {
+        if (name === 'users') return { doc: () => userRef }
+        if (name === 'accountDeletionTombstones') return { doc: () => ({}) }
+        if (name === 'notificationTokenOwners') return { where: () => ({ get: async () => ({ docs: [] }) }) }
+        if (name === 'notificationRegistrationLimits') return { doc: () => ({ delete: async () => {} }) }
+        throw new Error(`Unexpected collection ${name}`)
+      },
+      runTransaction: callback => callback({ get: ref => ref.get(), set: () => {} }),
+      async recursiveDelete() {},
+    }
+    await deleteAccount({
+      auth: {
+        verifyIdToken: async () => ({ uid: 'alice', auth_time: Math.floor(Date.now() / 1000) }),
+        deleteUser: async () => {},
+      },
+      db,
+      req: { headers: { authorization: 'Bearer valid' }, body: { confirmation: 'DELETE' } },
+      stripe: {
+        checkout: { sessions: { list: async ({ customer }) => ({
+          data: [{
+            id: `cs_${customer}`,
+            status: 'complete',
+            customer,
+            subscription: `sub_${customer}`,
+          }],
+          has_more: false,
+        }) } },
+        subscriptions: {
+          list: async ({ customer }) => ({
+            data: [{ id: `sub_live_${customer}`, status: 'active' }],
+            has_more: false,
+          }),
+          cancel: async id => canceled.push(id),
+        },
+      },
+    })
+    assert.deepEqual(canceled.sort(), [
+      'sub_cus_a',
+      'sub_cus_b',
+      'sub_live_cus_a',
+      'sub_live_cus_b',
+      'sub_orphan',
+    ])
+  })
+
+  test('does not clean a customer from an unverified legacy field', async () => {
+    const userRef = withBillingResources({
+      async get() {
+        return { exists: true, data: () => ({ stripeCustomerId: 'cus_victim' }) }
+      },
+    })
+    const db = {
+      collection(name) {
+        if (name === 'users') return { doc: () => userRef }
+        if (name === 'accountDeletionTombstones') return { doc: () => ({}) }
+        if (name === 'notificationTokenOwners') return { where: () => ({ get: async () => ({ docs: [] }) }) }
+        if (name === 'notificationRegistrationLimits') return { doc: () => ({ delete: async () => {} }) }
+        throw new Error(`Unexpected collection ${name}`)
+      },
+      runTransaction: callback => callback({ get: ref => ref.get(), set: () => {} }),
+      async recursiveDelete() {},
+    }
+    await deleteAccount({
+      auth: {
+        verifyIdToken: async () => ({ uid: 'alice', auth_time: Math.floor(Date.now() / 1000) }),
+        deleteUser: async () => {},
+      },
+      db,
+      req: { headers: { authorization: 'Bearer valid' }, body: { confirmation: 'DELETE' } },
+      stripe: {
+        checkout: { sessions: { list: async () => ({
+          data: [{ id: 'cs_victim', client_reference_id: 'victim' }],
+          has_more: false,
+        }) } },
+        subscriptions: {
+          list: async () => { throw new Error('must not list victim subscriptions') },
+          cancel: async () => { throw new Error('must not cancel victim subscriptions') },
+        },
+      },
+    })
   })
 })
 
@@ -529,6 +692,7 @@ describe('Stripe fulfillment security', () => {
   const stripe = {
     checkout: {
       sessions: {
+        list: async () => ({ data: [session], has_more: false }),
         listLineItems: async () => ({ data: [{ price: { id: 'price_pro' } }] }),
       },
     },
@@ -541,6 +705,112 @@ describe('Stripe fulfillment security', () => {
       }),
     },
   }
+
+  test('backfills legacy checkout ownership across durable pages', async () => {
+    const state = {}
+    const userRef = withBillingResources({
+      id: 'alice',
+      async get() { return { exists: true, data: () => ({ tier: 'paid' }) } },
+    })
+    const stateRef = {
+      async get() { return { exists: Object.keys(state).length > 0, data: () => ({ ...state }) } },
+      async set(data) { Object.assign(state, data) },
+    }
+    const db = {
+      collection(name) {
+        if (name === 'users') return { doc: () => userRef }
+        if (name === 'accountDeletionTombstones') {
+          return { doc: () => ({ get: async () => ({ exists: false }) }) }
+        }
+        if (name === 'systemMigrations') return { doc: () => stateRef }
+        throw new Error(`Unexpected collection ${name}`)
+      },
+      async runTransaction(callback) {
+        const writes = []
+        const result = await callback({
+          get: ref => ref.get(),
+          set: (ref, data) => writes.push(() => userRef.billingResources.set(ref.id, data)),
+        })
+        writes.forEach(write => write())
+        return result
+      },
+    }
+    const pages = [
+      {
+        data: [{
+          id: 'cs_legacy_a',
+          client_reference_id: 'alice',
+          customer: 'cus_legacy_a',
+          subscription: 'sub_legacy_a',
+        }],
+        has_more: true,
+      },
+      {
+        data: [{
+          id: 'cs_legacy_b',
+          client_reference_id: 'alice',
+          customer: 'cus_legacy_b',
+          subscription: 'sub_legacy_b',
+        }],
+        has_more: false,
+      },
+      {
+        data: [{
+          id: 'cs_legacy_a',
+          client_reference_id: 'alice',
+          customer: 'cus_legacy_a',
+          subscription: 'sub_legacy_a',
+        }],
+        has_more: true,
+      },
+      {
+        data: [{
+          id: 'cs_legacy_b',
+          client_reference_id: 'alice',
+          customer: 'cus_legacy_b',
+          subscription: 'sub_legacy_b',
+        }],
+        has_more: false,
+      },
+    ]
+    const stripeClient = { checkout: { sessions: { list: async params => {
+      if (params.starting_after) assert.equal(params.starting_after, 'cs_legacy_a')
+      return pages.shift()
+    } } } }
+
+    assert.deepEqual(await backfillBillingResourcePage({
+      db,
+      serverTimestamp: () => 'SERVER_TIME',
+      stripe: stripeClient,
+    }), { completed: false, processed: 1 })
+    assert.deepEqual(await backfillBillingResourcePage({
+      db,
+      serverTimestamp: () => 'SERVER_TIME',
+      stripe: stripeClient,
+    }), { completed: false, processed: 1 })
+    assert.deepEqual(await backfillBillingResourcePage({
+      db,
+      serverTimestamp: () => 'SERVER_TIME',
+      stripe: stripeClient,
+    }), { completed: false, processed: 1 })
+    assert.deepEqual(await backfillBillingResourcePage({
+      db,
+      serverTimestamp: () => 'SERVER_TIME',
+      stripe: stripeClient,
+    }), { completed: true, processed: 1 })
+    assert.deepEqual(
+      [...userRef.billingResources.values()]
+        .map(resource => `${resource.type}:${resource.stripeId}`).sort(),
+      [
+        'checkoutSession:cs_legacy_a',
+        'checkoutSession:cs_legacy_b',
+        'customer:cus_legacy_a',
+        'customer:cus_legacy_b',
+        'subscription:sub_legacy_a',
+        'subscription:sub_legacy_b',
+      ],
+    )
+  })
 
   test('validates Firebase identifiers and configured Stripe products', async () => {
     assert.equal(validUid('firebase_User-1'), true)
@@ -596,7 +866,13 @@ describe('Stripe fulfillment security', () => {
       auth: { verifyIdToken: async () => ({ uid: 'alice' }) },
       db: fakeDb({ stripeCustomerId: 'cus_123' }),
       req: { headers: { authorization: 'Bearer valid-token' }, body: { attemptId: '12345678-1234-1234-1234-123456789abc' } },
-      stripe: { billingPortal: { sessions: { create: async value => { params = value; return { url: 'https://billing.stripe.com/session/test' } } } } },
+      stripe: {
+        billingPortal: { sessions: { create: async value => { params = value; return { url: 'https://billing.stripe.com/session/test' } } } },
+        checkout: { sessions: { list: async () => ({
+          data: [{ id: 'cs_legacy', client_reference_id: 'alice' }],
+          has_more: false,
+        }) } },
+      },
     })
     assert.equal(session.url, 'https://billing.stripe.com/session/test')
     assert.deepEqual(params, { customer: 'cus_123', return_url: 'https://example.com/account/' })
@@ -609,6 +885,48 @@ describe('Stripe fulfillment security', () => {
     }), error => error.status === 404)
   })
 
+  test('rejects a billing customer that is not verified for the authenticated account', async () => {
+    await assert.rejects(createBillingPortal({
+      appUrl: 'https://example.com',
+      auth: { verifyIdToken: async () => ({ uid: 'alice' }) },
+      db: fakeDb({ stripeCustomerId: 'cus_victim' }),
+      req: { headers: { authorization: 'Bearer valid-token' } },
+      stripe: {
+        billingPortal: { sessions: { create: async () => ({}) } },
+        checkout: { sessions: { list: async () => ({
+          data: [{ id: 'cs_victim', client_reference_id: 'victim' }],
+          has_more: false,
+        }) } },
+      },
+    }), error => error.status === 404)
+  })
+
+  test('rejects checkout reuse of an unverified legacy customer', async () => {
+    let created = false
+    await assert.rejects(createCheckout({
+      appUrl: 'https://example.com',
+      auth: { verifyIdToken: async () => ({ uid: 'alice', email: 'alice@example.com' }) },
+      db: fakeDb({
+        stripeCustomerId: 'cus_victim',
+        stripeSubscriptionId: 'sub_old',
+        subscriptionStatus: 'canceled',
+      }),
+      expectedPriceId: 'price_pro',
+      req: { headers: { authorization: 'Bearer valid-token' }, body: { attemptId: '12345678-1234-1234-1234-123456789abc' } },
+      stripe: {
+        checkout: { sessions: {
+          create: async () => { created = true },
+          list: async () => ({
+            data: [{ id: 'cs_victim', client_reference_id: 'victim' }],
+            has_more: false,
+          }),
+        } },
+        subscriptions: { list: async () => { throw new Error('must not list victim subscriptions') } },
+      },
+    }), error => error.status === 409)
+    assert.equal(created, false)
+  })
+
   test('prevents duplicate subscriptions and reuses known Stripe customers', async () => {
     const options = {
       appUrl: 'https://example.com',
@@ -616,7 +934,10 @@ describe('Stripe fulfillment security', () => {
       expectedPriceId: 'price_pro',
       req: { headers: { authorization: 'Bearer valid-token' }, body: { attemptId: '12345678-1234-1234-1234-123456789abc' } },
       stripe: {
-        checkout: { sessions: { create: async params => params } },
+        checkout: { sessions: {
+          create: async params => params,
+          list: async () => ({ data: [session], has_more: false }),
+        } },
         subscriptions: { list: async () => ({ data: [], has_more: false }) },
       },
     }
@@ -737,7 +1058,10 @@ describe('Stripe fulfillment security', () => {
       expectedPriceId: 'price_pro',
       req: { headers: { authorization: 'Bearer valid-token' }, body: { attemptId: '12345678-1234-1234-1234-123456789abc' } },
       stripe: {
-        checkout: { sessions: { create: async () => { created = true } } },
+        checkout: { sessions: {
+          create: async () => { created = true },
+          list: async () => ({ data: [session], has_more: false }),
+        } },
         subscriptions: { list: async () => ({
           data: [{ id: 'sub_legacy', status: 'past_due' }],
           has_more: false,
@@ -765,6 +1089,11 @@ describe('Stripe fulfillment security', () => {
     assert.equal(db.userData.tier, 'paid')
     assert.equal(db.userData.stripeSubscriptionId, 'sub_123')
     assert.equal(db.userData.subscriptionStatus, 'active')
+    assert.deepEqual(
+      [...db.collection('users').doc('alice').billingResources.values()]
+        .map(resource => `${resource.type}:${resource.stripeId}`).sort(),
+      ['checkoutSession:cs_123', 'customer:cus_123', 'subscription:sub_123'],
+    )
   })
 
   test('cancels a checkout subscription when its account was deleted', async () => {
@@ -842,7 +1171,7 @@ describe('Stripe fulfillment security', () => {
   })
 
   test('retries a durable losing-subscription cancellation after failure', async () => {
-    let attempts = 0
+    const attemptedIds = []
     const db = fakeDb({
       tier: 'paid',
       stripeSubscriptionId: 'sub_winner',
@@ -857,17 +1186,19 @@ describe('Stripe fulfillment security', () => {
         ...stripe,
         subscriptions: {
           ...stripe.subscriptions,
-          cancel: async () => {
-            attempts += 1
-            if (attempts === 1) throw new Error('temporary Stripe outage')
+          cancel: async id => {
+            attemptedIds.push(id)
+            if (attemptedIds.length === 1) throw new Error('temporary Stripe outage')
           },
         },
       },
     }
     await assert.rejects(processStripeEvent(options), /temporary Stripe outage/)
+    db.userData.subscriptionStatus = 'canceled'
+    options.event.data.object = { ...options.event.data.object, subscription: 'sub_changed' }
     const retry = await processStripeEvent(options)
     assert.equal(retry.duplicate, true)
-    assert.equal(attempts, 2)
+    assert.deepEqual(attemptedIds, ['sub_123', 'sub_123'])
   })
 
   test('waits for asynchronous checkout payment before granting paid access', async () => {
@@ -1006,6 +1337,7 @@ describe('Stripe fulfillment security', () => {
       subscriptionStatus: 'active',
     })
     const wrongPriceStripe = {
+      checkout: stripe.checkout,
       subscriptions: {
         retrieve: async () => ({
           id: 'sub_123',

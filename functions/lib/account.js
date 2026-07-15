@@ -1,3 +1,9 @@
+const {
+  customerBelongsToUser,
+  listCustomerCheckoutSessions,
+  stripeSessionBelongsToUser,
+} = require('./billing-resources')
+
 const SENSITIVE_EXPORT_FIELDS = new Set([
   'calendarFeedToken',
   'fcmToken',
@@ -43,18 +49,7 @@ async function closeCheckoutSession(stripe, sessionId) {
 
 async function findAccountCheckoutSessions(stripe, customerId) {
   if (typeof customerId !== 'string' || !customerId) return []
-  const sessions = []
-  let startingAfter
-  do {
-    const page = await stripe.checkout.sessions.list({
-      customer: customerId,
-      limit: 100,
-      ...(startingAfter ? { starting_after: startingAfter } : {}),
-    })
-    sessions.push(...page.data)
-    startingAfter = page.has_more ? page.data.at(-1)?.id : null
-    if (page.has_more && !startingAfter) throw new Error('Stripe checkout pagination was incomplete')
-  } while (startingAfter)
+  const sessions = await listCustomerCheckoutSessions(stripe, customerId)
 
   return Promise.all(sessions.map(session => (
     session.status === 'open' ? closeCheckoutSession(stripe, session.id) : session
@@ -143,42 +138,74 @@ async function deleteAccount({ auth, db, req, stripe }) {
       createdAt: new Date(),
     })
     if (!snapshot.exists) return {}
+    const userData = snapshot.data()
     transaction.set(userRef, { accountDeletionStartedAt: new Date() }, { merge: true })
     return {
-      checkoutSessionId: snapshot.data().stripeCheckoutSessionId,
-      customerId: snapshot.data().stripeCustomerId,
-      subscriptionId: snapshot.data().stripeSubscriptionId,
+      checkoutSessionId: userData.stripeCheckoutSessionId,
+      customerId: userData.stripeCustomerId,
+      subscriptionId: userData.stripeSubscriptionId,
     }
   })
+  const billingResources = await userRef.collection('billingResources').get()
+  const customerIds = new Set()
+  const checkoutSessionIds = new Set()
   const subscriptionIds = new Set()
-  const accountSessions = []
-  if (typeof billing.checkoutSessionId === 'string' && billing.checkoutSessionId) {
-    const session = await closeCheckoutSession(stripe, billing.checkoutSessionId)
-    if (session) accountSessions.push(session)
-    if (!billing.customerId) {
-      billing.customerId = typeof session?.customer === 'string'
-        ? session.customer
-        : session?.customer?.id
+  for (const resource of billingResources.docs) {
+    const { stripeId, type } = resource.data()
+    if (typeof stripeId !== 'string' || !stripeId) continue
+    if (type === 'customer') customerIds.add(stripeId)
+    if (type === 'checkoutSession') checkoutSessionIds.add(stripeId)
+    if (type === 'subscription') subscriptionIds.add(stripeId)
+  }
+  if (typeof billing.customerId === 'string'
+    && billing.customerId
+    && !customerIds.has(billing.customerId)
+    && await customerBelongsToUser(stripe, billing.customerId, identity.uid)) {
+    customerIds.add(billing.customerId)
+  }
+  if (typeof billing.checkoutSessionId === 'string'
+    && billing.checkoutSessionId
+    && !checkoutSessionIds.has(billing.checkoutSessionId)) {
+    try {
+      const session = await stripe.checkout.sessions.retrieve(billing.checkoutSessionId)
+      if (stripeSessionBelongsToUser(session, identity.uid)) {
+        checkoutSessionIds.add(billing.checkoutSessionId)
+      }
+    } catch (error) {
+      if (error?.code !== 'resource_missing') throw error
     }
   }
-  const customerSessions = await findAccountCheckoutSessions(stripe, billing.customerId)
-  for (const session of customerSessions) {
-    if (!accountSessions.some(existing => existing?.id === session?.id)) accountSessions.push(session)
+  if (typeof billing.subscriptionId === 'string'
+    && billing.subscriptionId
+    && !subscriptionIds.has(billing.subscriptionId)) {
+    try {
+      const subscription = await stripe.subscriptions.retrieve(billing.subscriptionId)
+      if (subscription?.metadata?.firebaseUid === identity.uid) {
+        subscriptionIds.add(billing.subscriptionId)
+      }
+    } catch (error) {
+      if (error?.code !== 'resource_missing') throw error
+    }
   }
-  for (const session of accountSessions) {
+
+  const collectSessionResources = session => {
     const sessionSubscriptionId = typeof session?.subscription === 'string'
       ? session.subscription
       : session?.subscription?.id
     if (sessionSubscriptionId) subscriptionIds.add(sessionSubscriptionId)
-    if (!billing.customerId) {
-      billing.customerId = typeof session?.customer === 'string' ? session.customer : session?.customer?.id
-    }
+    const sessionCustomerId = typeof session?.customer === 'string'
+      ? session.customer
+      : session?.customer?.id
+    if (sessionCustomerId) customerIds.add(sessionCustomerId)
   }
-  if (typeof billing.subscriptionId === 'string' && billing.subscriptionId) {
-    subscriptionIds.add(billing.subscriptionId)
+
+  for (const sessionId of checkoutSessionIds) {
+    collectSessionResources(await closeCheckoutSession(stripe, sessionId))
   }
-  if (typeof billing.customerId === 'string' && billing.customerId) {
-    const subscriptions = await listCustomerSubscriptions(stripe, billing.customerId)
+  for (const customerId of customerIds) {
+    const sessions = await findAccountCheckoutSessions(stripe, customerId)
+    for (const session of sessions) collectSessionResources(session)
+    const subscriptions = await listCustomerSubscriptions(stripe, customerId)
     for (const subscription of subscriptions) {
       if (typeof subscription.id === 'string'
         && !TERMINAL_SUBSCRIPTION_STATUSES.has(subscription.status)) {

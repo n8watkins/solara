@@ -1,0 +1,42 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    function serverBillingKeys() {
+      return [
+        'accountDeletionStartedAt',
+        'proSince',
+        'stripeCheckoutAttemptId',
+        'stripeCheckoutReservedUntil',
+        'stripeCheckoutSessionId',
+        'stripeCheckoutStatus',
+        'stripeCheckoutUpdatedAt',
+        'stripeCustomerId',
+        'stripeEventCreated',
+        'stripeEventPriority',
+        'stripeSubscriptionId',
+        'subscriptionStatus',
+        'subscriptionUpdatedAt'
+      ];
+    }
+
+    match /users/{userId} {
+      allow read, delete: if isOwner(userId);
+      allow create: if isOwner(userId)
+        && request.resource.data.tier != 'paid'
+        && !request.resource.data.keys().hasAny(serverBillingKeys());
+      allow update: if isOwner(userId)
+        && (request.resource.data.tier == resource.data.tier
+          || request.resource.data.tier != 'paid')
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(serverBillingKeys());
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

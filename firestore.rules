@@ -8,9 +8,7 @@ service cloud.firestore {
 
     function isActiveAccount(userId) {
       let deletionPath = /databases/$(database)/documents/accountDeletionTombstones/$(userId);
-      return !exists(deletionPath)
-        || (request.auth.token.auth_time is int
-          && request.auth.token.auth_time > get(deletionPath).data.revokedBefore);
+      return !exists(deletionPath);
     }
 
     function userCreateKeys() {
