@@ -143,6 +143,28 @@ describe('notification device mutations', () => {
     )
   })
 
+  test('clears delivery state when a device token rotates', async () => {
+    const db = fakeDb({
+      existingDeviceData: {
+        enabled: true,
+        token: 'old-token'.padEnd(24, 'x'),
+        lastNotificationKey: 'daily-v2:2026-07-14',
+        notificationDeliveryStatus: 'delivered',
+      },
+    })
+    await registerNotificationDevice({
+      appCheck,
+      auth,
+      db,
+      req: request({ deviceId: DEVICE_ID, platform: 'web', token: TOKEN }),
+      serverTimestamp: () => 'server-time',
+    })
+    const deviceWrite = db.writes.find(write => write.ref.kind === 'device')
+    assert.equal(deviceWrite.data.lastNotificationKey, null)
+    assert.equal(deviceWrite.data.notificationDeliveryStatus, null)
+    assert.equal(deviceWrite.data.notificationDeliveryAttemptId, null)
+  })
+
   test('rejects free accounts and invalid device input', async () => {
     await assert.rejects(
       registerNotificationDevice({

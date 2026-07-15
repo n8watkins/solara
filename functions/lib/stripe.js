@@ -101,28 +101,22 @@ function eventIsNewer(event, userData) {
   return (EVENT_PRIORITY[event.type] ?? -1) >= (userData.stripeEventPriority ?? -1)
 }
 
-async function commitEvent(db, event, userRef, buildUserData, serverTimestamp) {
+async function commitEvent(
+  db,
+  event,
+  userRef,
+  buildUserData,
+  serverTimestamp,
+  cancellationSubscriptionId = null,
+) {
   const eventRef = db.collection('stripeWebhookEvents').doc(event.id)
   return db.runTransaction(async transaction => {
     const eventSnapshot = await transaction.get(eventRef)
-    if (eventSnapshot.exists) {
-      if (!userRef || !buildUserData) return { duplicate: true }
-      const tombstoneRef = db.collection('accountDeletionTombstones').doc(userRef.id)
-      const [userSnapshot, tombstoneSnapshot] = await Promise.all([
-        transaction.get(userRef),
-        transaction.get(tombstoneRef),
-      ])
-      return {
-        duplicate: true,
-        accountDeleted: tombstoneSnapshot.exists
-          || !userSnapshot.exists
-          || !!userSnapshot.data().accountDeletionStartedAt,
-      }
-    }
-
+    const duplicate = eventSnapshot.exists
     let applied = false
     let accountDeleted = false
     let rejected = false
+    let cancellationPending = false
     if (userRef && buildUserData) {
       const tombstoneRef = db.collection('accountDeletionTombstones').doc(userRef.id)
       const [userSnapshot, tombstoneSnapshot] = await Promise.all([
@@ -132,27 +126,60 @@ async function commitEvent(db, event, userRef, buildUserData, serverTimestamp) {
       accountDeleted = tombstoneSnapshot.exists
         || !userSnapshot.exists
         || !!userSnapshot.data().accountDeletionStartedAt
-      if (!accountDeleted && eventIsNewer(event, userSnapshot.data())) {
+      if (!accountDeleted) {
         const userData = buildUserData(userSnapshot.data())
-        if (userData) {
+        rejected = !userData
+        if (userData && !duplicate && eventIsNewer(event, userSnapshot.data())) {
           transaction.set(userRef, {
             ...userData,
             stripeEventCreated: event.created,
             stripeEventPriority: EVENT_PRIORITY[event.type],
           }, { merge: true })
           applied = true
-        } else {
-          rejected = true
         }
       }
     }
-    transaction.create(eventRef, {
-      type: event.type,
-      created: event.created,
-      processedAt: serverTimestamp(),
-    })
-    return { duplicate: false, applied, accountDeleted, rejected }
+
+    if (cancellationSubscriptionId && (accountDeleted || rejected)) {
+      const eventData = duplicate ? eventSnapshot.data() : null
+      if (eventData?.cancellationStatus !== 'completed') {
+        cancellationPending = true
+        if (duplicate) {
+          transaction.set(eventRef, {
+            cancellationSubscriptionId,
+            cancellationStatus: 'pending',
+          }, { merge: true })
+        }
+      }
+    }
+    if (!duplicate) {
+      transaction.create(eventRef, {
+        type: event.type,
+        created: event.created,
+        processedAt: serverTimestamp(),
+        ...(cancellationPending ? {
+          cancellationSubscriptionId,
+          cancellationStatus: 'pending',
+        } : {}),
+      })
+    }
+    return { duplicate, applied, accountDeleted, rejected, cancellationPending }
   })
+}
+
+async function completePendingCancellation({ db, event, result, serverTimestamp, stripe }) {
+  if (!result.cancellationPending) return
+  const eventRef = db.collection('stripeWebhookEvents').doc(event.id)
+  const subscriptionId = stringId(event.data.object.subscription)
+  try {
+    await stripe.subscriptions.cancel(subscriptionId)
+  } catch (error) {
+    if (error?.code !== 'resource_missing') throw error
+  }
+  await eventRef.set({
+    cancellationStatus: 'completed',
+    cancellationCompletedAt: serverTimestamp(),
+  }, { merge: true })
 }
 
 async function processStripeEvent({ db, event, expectedPriceId, serverTimestamp, stripe }) {
@@ -190,14 +217,8 @@ async function processStripeEvent({ db, event, expectedPriceId, serverTimestamp,
         subscriptionStatus: subscription.status,
         subscriptionUpdatedAt: serverTimestamp(),
       }
-    }, serverTimestamp)
-    if (result.accountDeleted || result.rejected) {
-      try {
-        await stripe.subscriptions.cancel(subscriptionId)
-      } catch (error) {
-        if (error?.code !== 'resource_missing') throw error
-      }
-    }
+    }, serverTimestamp, subscriptionId)
+    await completePendingCancellation({ db, event, result, serverTimestamp, stripe })
     return result
   }
 

@@ -41,15 +41,17 @@ async function closeCheckoutSession(stripe, sessionId) {
   return session
 }
 
-async function findAccountCheckoutSessions(stripe, uid) {
+async function findAccountCheckoutSessions(stripe, customerId) {
+  if (typeof customerId !== 'string' || !customerId) return []
   const sessions = []
   let startingAfter
   do {
     const page = await stripe.checkout.sessions.list({
+      customer: customerId,
       limit: 100,
       ...(startingAfter ? { starting_after: startingAfter } : {}),
     })
-    sessions.push(...page.data.filter(session => session.client_reference_id === uid))
+    sessions.push(...page.data)
     startingAfter = page.has_more ? page.data.at(-1)?.id : null
     if (page.has_more && !startingAfter) throw new Error('Stripe checkout pagination was incomplete')
   } while (startingAfter)
@@ -149,11 +151,19 @@ async function deleteAccount({ auth, db, req, stripe }) {
     }
   })
   const subscriptionIds = new Set()
-  const accountSessions = await findAccountCheckoutSessions(stripe, identity.uid)
-  if (typeof billing.checkoutSessionId === 'string'
-    && billing.checkoutSessionId
-    && !accountSessions.some(session => session?.id === billing.checkoutSessionId)) {
-    accountSessions.push(await closeCheckoutSession(stripe, billing.checkoutSessionId))
+  const accountSessions = []
+  if (typeof billing.checkoutSessionId === 'string' && billing.checkoutSessionId) {
+    const session = await closeCheckoutSession(stripe, billing.checkoutSessionId)
+    if (session) accountSessions.push(session)
+    if (!billing.customerId) {
+      billing.customerId = typeof session?.customer === 'string'
+        ? session.customer
+        : session?.customer?.id
+    }
+  }
+  const customerSessions = await findAccountCheckoutSessions(stripe, billing.customerId)
+  for (const session of customerSessions) {
+    if (!accountSessions.some(existing => existing?.id === session?.id)) accountSessions.push(session)
   }
   for (const session of accountSessions) {
     const sessionSubscriptionId = typeof session?.subscription === 'string'

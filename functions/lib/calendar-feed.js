@@ -67,6 +67,10 @@ function createCalendarFeedHandler({ buildICS, buildSunEvents, db, days, fetchFo
       }
 
       const user = snapshot.docs[0].data()
+      if (user.accountDeletionStartedAt) {
+        res.status(404).send('Unknown feed')
+        return
+      }
       const calendar = validCoordinates(user.location)
         ? buildICS(buildSunEvents(user, await cachedForecast(fetchForecast, user.location, days)))
         : buildICS([])

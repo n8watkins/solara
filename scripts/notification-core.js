@@ -73,6 +73,7 @@ function notificationKey(timezone, now = new Date()) {
 
 function isEligibleUser(user) {
   return user?.tier === 'paid'
+    && !user.accountDeletionStartedAt
     && typeof user.location?.lat === 'number'
     && typeof user.location?.lon === 'number'
 }

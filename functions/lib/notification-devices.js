@@ -142,10 +142,23 @@ async function registerNotificationDevice({ appCheck, auth, db, req, serverTimes
         transaction.delete(oldOwnerRef)
       }
     }
+    const tokenChanged = deviceSnapshot.exists && current?.token !== device.token
     transaction.set(deviceRef, {
       token: device.token,
       enabled: true,
       platform: device.platform,
+      ...(tokenChanged ? {
+        lastNotificationKey: null,
+        notificationDeliveryKey: null,
+        notificationDeliveryStatus: null,
+        notificationDeliveryAttemptId: null,
+        notificationDeliveryAttemptCount: 0,
+        notificationDeliveryClaimedAt: null,
+        notificationDeliveryCompletedAt: null,
+        notificationDeliveryError: null,
+        notificationDeliveryErrorAt: null,
+        notificationDeliveryRunId: null,
+      } : {}),
       ...(deviceSnapshot.exists ? {} : { createdAt: serverTimestamp() }),
       updatedAt: serverTimestamp(),
     }, { merge: true })

@@ -14,7 +14,13 @@ const {
   notificationKey,
   runsOnDate,
 } = require('../scripts/notification-core')
-const { claimDelivery, loadSubscriptions, notificationScope, recordDeliveryFailure } = require('../scripts/send-notifications')
+const {
+  claimDelivery,
+  finishDelivery,
+  loadSubscriptions,
+  notificationScope,
+  recordDeliveryFailure,
+} = require('../scripts/send-notifications')
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const hourly = [
@@ -32,9 +38,11 @@ function makeDeliveryDatabase(initial: Record<string, unknown>) {
       get: (ref: { kind?: string }) => Promise<{ exists: boolean; data: () => Record<string, unknown> }>
       set: (_ref: unknown, patch: Record<string, unknown>) => void
     }) => Promise<unknown>) => worker({
-      get: async ref => ref.kind === 'owner'
-        ? { exists: true, data: () => ({ ...owner.data }) }
-        : { exists: true, data: () => ({ ...state.data }) },
+      get: async ref => {
+        if (ref.kind === 'owner') return { exists: true, data: () => ({ ...owner.data }) }
+        if (ref.kind === 'user') return { exists: true, data: () => ({ tier: 'paid' }) }
+        return { exists: true, data: () => ({ ...state.data }) }
+      },
       set: (_ref, patch) => { state.data = { ...state.data, ...patch } },
     }),
   }
@@ -74,6 +82,11 @@ describe('notification scheduling', () => {
   it('requires a paid user with a complete location', () => {
     expect(isEligibleUser({ tier: 'free', location: { lat: 1, lon: 2 } })).toBe(false)
     expect(isEligibleUser({ tier: 'paid', location: { lat: 1 } })).toBe(false)
+    expect(isEligibleUser({
+      tier: 'paid',
+      location: { lat: 1, lon: 2 },
+      accountDeletionStartedAt: new Date(),
+    })).toBe(false)
     expect(isEligibleUser({ tier: 'paid', location: { lat: 1, lon: 2 } })).toBe(true)
   })
 
@@ -289,7 +302,7 @@ describe('notification delivery claims', () => {
       token: 'token'.padEnd(24, 'x'),
       deviceId: 'device-1',
       deviceRef: { path: 'users/user-1/notificationDevices/device-1' },
-      userRef: { id: 'user-1' },
+      userRef: { id: 'user-1', kind: 'user' },
     }
 
     await expect(claimDelivery(subscription, key, 'attempt-1', database, 1_000)).resolves.toEqual({
@@ -320,16 +333,74 @@ describe('notification delivery claims', () => {
       token: state.token,
       deviceId: 'device-1',
       deviceRef: { path: 'users/user-1/notificationDevices/device-1' },
-      userRef: { id: 'user-1' },
+      userRef: { id: 'user-1', kind: 'user' },
     }, key, 'attempt-1', database)).resolves.toEqual({
       claimed: false,
       reason: 'ownership-changed',
     })
   })
 
+  it('rejects a claim after account deletion starts', async () => {
+    const token = 'token'.padEnd(24, 'x')
+    const subscription = {
+      token,
+      deviceId: 'device-1',
+      deviceRef: { kind: 'device' },
+      userRef: { id: 'user-1', kind: 'user' },
+    }
+    const database = {
+      collection: () => ({ doc: () => ({ kind: 'owner' }) }),
+      runTransaction: (worker: (transaction: {
+        get: (ref: { kind?: string }) => Promise<{ exists: boolean; data: () => Record<string, unknown> }>
+      }) => Promise<unknown>) => worker({
+        get: async ref => {
+          if (ref.kind === 'owner') {
+            return { exists: true, data: () => ({ uid: 'user-1', deviceId: 'device-1' }) }
+          }
+          if (ref.kind === 'user') {
+            return { exists: true, data: () => ({ accountDeletionStartedAt: new Date() }) }
+          }
+          return { exists: true, data: () => ({ enabled: true, token }) }
+        },
+      }),
+    }
+    await expect(claimDelivery(subscription, key, 'attempt-1', database)).resolves.toEqual({
+      claimed: false,
+      reason: 'ineligible-user',
+    })
+  })
+
+  it('does not finalize an old claim after its token changes', async () => {
+    const { database, state } = makeDeliveryDatabase({
+      enabled: true,
+      notificationDeliveryKey: key,
+      notificationDeliveryAttemptId: 'attempt-1',
+    })
+    const subscription = {
+      token: 'old-token'.padEnd(24, 'x'),
+      deviceId: 'device-1',
+      deviceRef: { path: 'users/user-1/notificationDevices/device-1' },
+      userRef: { id: 'user-1', kind: 'user' },
+    }
+    await expect(finishDelivery(
+      subscription,
+      key,
+      'attempt-1',
+      { lastNotificationKey: key },
+      database,
+    )).resolves.toBe(false)
+    expect(state.data.lastNotificationKey).toBeUndefined()
+  })
+
   it('makes only a definite provider rejection retryable', async () => {
-    const subscription = { deviceRef: { path: 'users/user-1/notificationDevices/device-1' } }
+    const subscription = {
+      token: 'token'.padEnd(24, 'x'),
+      deviceId: 'device-1',
+      deviceRef: { path: 'users/user-1/notificationDevices/device-1' },
+      userRef: { id: 'user-1', kind: 'user' },
+    }
     const claimed = {
+      enabled: true,
       notificationDeliveryKey: key,
       notificationDeliveryStatus: 'claimed',
       notificationDeliveryAttemptId: 'attempt-1',

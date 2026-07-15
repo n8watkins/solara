@@ -40,7 +40,7 @@ function queryWith(doc) {
 }
 
 function fakeDb(initialUser) {
-  const events = new Set()
+  const events = new Map()
   const userData = { ...initialUser }
   const userRef = {
     id: 'alice',
@@ -59,7 +59,14 @@ function fakeDb(initialUser) {
       if (name === 'stripeWebhookEvents') {
         return {
           doc(id) {
-            return { id, kind: 'event', async get() { return { exists: events.has(id) } } }
+            return {
+              id,
+              kind: 'event',
+              async get() {
+                return { exists: events.has(id), data: () => ({ ...events.get(id) }) }
+              },
+              async set(data) { events.set(id, { ...events.get(id), ...data }) },
+            }
           },
         }
       }
@@ -76,8 +83,14 @@ function fakeDb(initialUser) {
       const operations = []
       const result = await callback({
         async get(ref) { return ref.get() },
-        set(ref, data) { operations.push(() => Object.assign(userData, data)); return this },
-        create(ref) { operations.push(() => events.add(ref.id)); return this },
+        set(ref, data) {
+          operations.push(() => {
+            if (ref.kind === 'event') events.set(ref.id, { ...events.get(ref.id), ...data })
+            else Object.assign(userData, data)
+          })
+          return this
+        },
+        create(ref, data) { operations.push(() => events.set(ref.id, { ...data })); return this },
       })
       operations.forEach(operation => operation())
       return result
@@ -289,10 +302,11 @@ describe('account data security', () => {
     assert.deepEqual(canceled, ['sub_active', 'sub_past_due'])
   })
 
-  test('expires every open checkout bound to the deleted account', async () => {
+  test('expires every open checkout for the deleted Stripe customer', async () => {
     const expired = []
+    const userData = { stripeCustomerId: 'cus_alice' }
     const userRef = {
-      async get() { return { exists: true, data: () => ({}) } },
+      async get() { return { exists: true, data: () => ({ ...userData }) } },
     }
     const db = {
       collection(name) {
@@ -314,7 +328,6 @@ describe('account data security', () => {
     const sessions = [
       { id: 'cs_legacy', status: 'open', client_reference_id: 'alice' },
       { id: 'cs_concurrent', status: 'open', client_reference_id: 'alice' },
-      { id: 'cs_other', status: 'open', client_reference_id: 'bob' },
     ]
     await deleteAccount({
       auth: {
@@ -325,11 +338,20 @@ describe('account data security', () => {
       req: { headers: { authorization: 'Bearer valid' }, body: { confirmation: 'DELETE' } },
       stripe: {
         checkout: { sessions: {
-          list: async () => ({ data: sessions, has_more: false }),
+          list: async params => {
+            assert.equal(params.customer, 'cus_alice')
+            return { data: sessions, has_more: false }
+          },
           retrieve: async id => sessions.find(session => session.id === id),
           expire: async id => { expired.push(id); return { id, status: 'expired' } },
         } },
-        subscriptions: { cancel: async () => {} },
+        subscriptions: {
+          list: async params => {
+            assert.equal(params.customer, 'cus_alice')
+            return { data: [], has_more: false }
+          },
+          cancel: async () => {},
+        },
       },
     })
     assert.deepEqual(expired, ['cs_legacy', 'cs_concurrent'])
@@ -337,7 +359,11 @@ describe('account data security', () => {
 
   test('cancels subscriptions from completed legacy checkouts', async () => {
     const canceled = []
-    const userRef = { async get() { return { exists: true, data: () => ({}) } } }
+    const userRef = {
+      async get() {
+        return { exists: true, data: () => ({ stripeCustomerId: 'cus_legacy' }) }
+      },
+    }
     const db = {
       collection(name) {
         if (name === 'users') return { doc: () => userRef }
@@ -359,6 +385,7 @@ describe('account data security', () => {
       stripe: {
         checkout: { sessions: { list: async params => {
           assert.equal(Object.hasOwn(params, 'status'), false)
+          assert.equal(params.customer, 'cus_legacy')
           return {
             data: [{
               id: 'cs_complete',
@@ -458,6 +485,20 @@ describe('calendar feed security', () => {
     assert.equal(res.headers['Cache-Control'], 'private, no-store, max-age=0')
     assert.equal(res.headers['X-Content-Type-Options'], 'nosniff')
     assert.equal(res.headers['X-Robots-Tag'], 'noindex, nofollow, noarchive')
+  })
+
+  test('rejects a feed after account deletion starts', async () => {
+    const handler = createCalendarFeedHandler({
+      buildICS: () => { throw new Error('must not build') },
+      buildSunEvents: () => { throw new Error('must not build') },
+      db: { collection: () => queryWith({ data: () => ({ accountDeletionStartedAt: new Date() }) }) },
+      days: 7,
+      fetchForecast: async () => { throw new Error('must not fetch') },
+    })
+    const res = responseRecorder()
+    await handler({ method: 'GET', query: { token: 'A'.repeat(32) } }, res)
+    assert.equal(res.statusCode, 404)
+    assert.equal(res.body, 'Unknown feed')
   })
 
   test('rejects unsupported methods before querying Firestore', async () => {
@@ -752,7 +793,7 @@ describe('Stripe fulfillment security', () => {
       serverTimestamp: () => 'SERVER_TIME',
       stripe: deletedAccountStripe,
     })
-    assert.deepEqual(canceled, ['sub_123', 'sub_123'])
+    assert.deepEqual(canceled, ['sub_123'])
   })
 
   test('cancels a losing concurrent checkout subscription', async () => {
@@ -775,6 +816,58 @@ describe('Stripe fulfillment security', () => {
     assert.equal(result.rejected, true)
     assert.equal(db.userData.stripeSubscriptionId, 'sub_winner')
     assert.deepEqual(canceled, ['sub_123'])
+  })
+
+  test('cancels a stale losing checkout independently of event freshness', async () => {
+    const canceled = []
+    const db = fakeDb({
+      tier: 'paid',
+      stripeSubscriptionId: 'sub_winner',
+      subscriptionStatus: 'active',
+      stripeEventCreated: 200,
+      stripeEventPriority: 4,
+    })
+    const result = await processStripeEvent({
+      db,
+      event: { id: 'evt_stale_loser', created: 100, type: 'checkout.session.completed', data: { object: session } },
+      expectedPriceId: 'price_pro',
+      serverTimestamp: () => 'SERVER_TIME',
+      stripe: {
+        ...stripe,
+        subscriptions: { ...stripe.subscriptions, cancel: async id => canceled.push(id) },
+      },
+    })
+    assert.equal(result.rejected, true)
+    assert.deepEqual(canceled, ['sub_123'])
+  })
+
+  test('retries a durable losing-subscription cancellation after failure', async () => {
+    let attempts = 0
+    const db = fakeDb({
+      tier: 'paid',
+      stripeSubscriptionId: 'sub_winner',
+      subscriptionStatus: 'active',
+    })
+    const options = {
+      db,
+      event: { id: 'evt_retry_loser', created: 100, type: 'checkout.session.completed', data: { object: session } },
+      expectedPriceId: 'price_pro',
+      serverTimestamp: () => 'SERVER_TIME',
+      stripe: {
+        ...stripe,
+        subscriptions: {
+          ...stripe.subscriptions,
+          cancel: async () => {
+            attempts += 1
+            if (attempts === 1) throw new Error('temporary Stripe outage')
+          },
+        },
+      },
+    }
+    await assert.rejects(processStripeEvent(options), /temporary Stripe outage/)
+    const retry = await processStripeEvent(options)
+    assert.equal(retry.duplicate, true)
+    assert.equal(attempts, 2)
   })
 
   test('waits for asynchronous checkout payment before granting paid access', async () => {

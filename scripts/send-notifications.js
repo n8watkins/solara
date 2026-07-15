@@ -159,11 +159,15 @@ async function claimDelivery(subscription, key, attemptId, database = db, nowMs 
   return database.runTransaction(async transaction => {
     const ownerRef = database.collection('notificationTokenOwners')
       .doc(tokenOwnerId(subscription.token))
-    const [snapshot, ownerSnapshot] = await Promise.all([
+    const [snapshot, ownerSnapshot, userSnapshot] = await Promise.all([
       transaction.get(subscription.deviceRef),
       transaction.get(ownerRef),
+      transaction.get(subscription.userRef),
     ])
     if (!snapshot.exists) return { claimed: false, reason: 'missing-subscription' }
+    if (!userSnapshot.exists || userSnapshot.data().accountDeletionStartedAt) {
+      return { claimed: false, reason: 'ineligible-user' }
+    }
 
     const current = snapshot.data()
     const validSubscription = subscription.legacy
@@ -202,9 +206,24 @@ async function claimDelivery(subscription, key, attemptId, database = db, nowMs 
 
 async function finishDelivery(subscription, key, attemptId, patch, database = db) {
   return database.runTransaction(async transaction => {
-    const snapshot = await transaction.get(subscription.deviceRef)
+    const ownerRef = database.collection('notificationTokenOwners')
+      .doc(tokenOwnerId(subscription.token))
+    const [snapshot, ownerSnapshot] = await Promise.all([
+      transaction.get(subscription.deviceRef),
+      transaction.get(ownerRef),
+    ])
     if (!snapshot.exists) return false
     const current = snapshot.data()
+    const validSubscription = subscription.legacy
+      ? current.notificationsEnabled === true
+        && current.fcmToken === subscription.token
+        && !ownerSnapshot.exists
+      : current.enabled === true
+        && current.token === subscription.token
+        && ownerSnapshot.exists
+        && ownerSnapshot.data().uid === subscription.userRef.id
+        && ownerSnapshot.data().deviceId === subscription.deviceId
+    if (!validSubscription) return false
     if (current.notificationDeliveryKey !== key || current.notificationDeliveryAttemptId !== attemptId) {
       return false
     }
