@@ -121,6 +121,7 @@ describe('notification ownership', () => {
     devices = [],
     legacyUsers = [],
     owners = {},
+    quarantineFailurePaths = [],
     transactionOwners = owners,
   }: {
     devices?: Array<{
@@ -131,6 +132,7 @@ describe('notification ownership', () => {
     }>
     legacyUsers?: Array<{ token: string; uid: string }>
     owners?: Record<string, { deviceId: string; registrationMigrationId?: string; uid: string }>
+    quarantineFailurePaths?: string[]
     transactionOwners?: Record<string, {
       deviceId: string
       registrationMigrationId?: string
@@ -209,6 +211,9 @@ describe('notification ownership', () => {
             if (target.kind === 'owner') {
               const owner = transactionOwners[target.id]
               return { exists: !!owner, data: () => owner }
+            }
+            if (quarantineFailurePaths.includes(target.path || '')) {
+              throw new Error('quarantine unavailable')
             }
             const data = dataByPath.get(target.path || '')
             return { exists: !!data, data: () => data || {} }
@@ -298,6 +303,31 @@ describe('notification ownership', () => {
     await loadSubscriptions(database)
 
     expect(writes).toEqual([])
+  })
+
+  it('continues dispatch when quarantining a stale device fails', async () => {
+    const staleToken = 'stale-token'.padEnd(24, 'x')
+    const validToken = 'valid-token'.padEnd(24, 'x')
+    const validOwnerId = createHash('sha256').update(validToken).digest('hex')
+    const { database, writes } = notificationDatabase({
+      devices: [
+        { deviceId: 'device-stale', token: staleToken, uid: 'stale' },
+        { deviceId: 'device-valid', token: validToken, uid: 'valid' },
+      ],
+      owners: { [validOwnerId]: { uid: 'valid', deviceId: 'device-valid' } },
+      quarantineFailurePaths: ['users/stale/notificationDevices/device-stale'],
+    })
+    const consoleError = console.error
+    console.error = () => {}
+
+    try {
+      const subscriptions: Array<{ userRef: { id: string } }> = []
+      await scanSubscriptions(database, async batch => subscriptions.push(...batch), 1)
+      expect(subscriptions.map(subscription => subscription.userRef.id)).toEqual(['valid'])
+      expect(writes).toEqual([])
+    } finally {
+      console.error = consoleError
+    }
   })
 
   it('pages subscriptions and preserves duplicate detection across page boundaries', async () => {

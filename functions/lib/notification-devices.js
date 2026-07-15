@@ -266,8 +266,9 @@ async function registerNotificationDevice({ appCheck, auth, db, req, serverTimes
   const legacyOwnersQuery = db.collection('users')
     .where('fcmToken', '==', device.token)
     .limit(LEGACY_MIGRATION_PAGE_SIZE)
-  while (true) {
-    const completed = await db.runTransaction(async transaction => {
+  let migrationPending = true
+  try {
+    migrationPending = await db.runTransaction(async transaction => {
       const [deviceSnapshot, ownerSnapshot, legacyOwnersSnapshot] = await Promise.all([
         transaction.get(deviceRef),
         transaction.get(ownerRef),
@@ -286,35 +287,41 @@ async function registerNotificationDevice({ appCheck, auth, db, req, serverTimes
         current,
         ...legacyOwnersSnapshot.docs.map(legacyOwner => legacyOwner.data()),
       ])
-      if (legacyOwnersSnapshot.docs.length === 0) {
-        transaction.set(deviceRef, {
-          ...transferredDeliveryState,
-          registrationMigrationId: null,
-          updatedAt: serverTimestamp(),
-        }, { merge: true })
+      const pending = legacyOwnersSnapshot.docs.length === LEGACY_MIGRATION_PAGE_SIZE
+      transaction.set(deviceRef, {
+        ...transferredDeliveryState,
+        ...(pending ? {} : { registrationMigrationId: null }),
+        updatedAt: serverTimestamp(),
+      }, { merge: true })
+      if (!pending) {
         transaction.set(ownerRef, {
           uid: identity.uid,
           deviceId: device.deviceId,
           updatedAt: serverTimestamp(),
         })
-        return true
       }
-      transaction.set(deviceRef, {
-        ...transferredDeliveryState,
-        updatedAt: serverTimestamp(),
-      }, { merge: true })
       for (const legacyOwner of legacyOwnersSnapshot.docs) {
         transaction.set(legacyOwner.ref, {
           fcmToken: null,
           notificationsEnabled: false,
         }, { merge: true })
       }
-      return false
+      return pending
     })
-    if (completed) break
+  } catch (error) {
+    if (error?.status) throw error
+    console.error(JSON.stringify({
+      event: 'notification-registration-migration-deferred',
+      deviceId: device.deviceId,
+      error: error?.message || String(error),
+    }))
   }
 
-  return { deviceId: device.deviceId, registered: true }
+  return {
+    deviceId: device.deviceId,
+    registered: true,
+    migrationPending,
+  }
 }
 
 async function removeNotificationDevice({ appCheck, auth, db, req, nowMs = Date.now() }) {

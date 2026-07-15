@@ -108,8 +108,15 @@ function legacyCandidate(userDoc) {
 
 async function runBounded(items, worker) {
   const results = await mapLimit(items, CONCURRENCY, worker)
-  const rejected = results.find(result => result.status === 'rejected')
-  if (rejected) throw rejected.reason
+  for (const [index, result] of results.entries()) {
+    if (result.status === 'rejected') {
+      console.error(JSON.stringify({
+        event: 'notification-quarantine-failed',
+        subscriptionPath: items[index].deviceRef.path,
+        error: errorText(result.reason),
+      }))
+    }
+  }
 }
 
 async function quarantineCandidate(candidate, database = db) {

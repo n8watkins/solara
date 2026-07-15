@@ -17,6 +17,7 @@ function fakeDb({
   existingDeviceData = null,
   legacyTokenOwners = [],
   legacyTokenOwnerData = {},
+  legacyQueryFailures = 0,
   owner = null,
   registrationLimit = null,
   priorDeviceData = null,
@@ -88,6 +89,10 @@ function fakeDb({
           }
           if (ref.kind === 'device-query') return { size: activeDeviceCount }
           if (ref.kind === 'legacy-query') {
+            if (legacyQueryFailures > 0) {
+              legacyQueryFailures--
+              throw new Error('legacy query unavailable')
+            }
             assert.equal(ref.field, 'fcmToken')
             assert.equal(ref.operator, '==')
             assert.equal(ref.value, TOKEN)
@@ -170,7 +175,11 @@ describe('notification device mutations', () => {
       serverTimestamp: () => 'server-time',
     })
 
-    assert.deepEqual(result, { deviceId: DEVICE_ID, registered: true })
+    assert.deepEqual(result, {
+      deviceId: DEVICE_ID,
+      registered: true,
+      migrationPending: false,
+    })
     const deviceWrite = latestWrite(db, 'device')
     assert.deepEqual(deviceWrite.data, {
       token: TOKEN,
@@ -544,16 +553,44 @@ describe('notification device mutations', () => {
     const owners = Array.from({ length: 205 }, (_, index) => `legacy-${index}`)
     const db = fakeDb({ legacyTokenOwners: owners })
 
-    await registerNotificationDevice({
+    const migratePage = () => registerNotificationDevice({
       appCheck,
       auth,
       db,
       req: request({ deviceId: DEVICE_ID, platform: 'web', token: TOKEN }),
       serverTimestamp: () => 'server-time',
     })
+    const first = await migratePage()
+    const second = await migratePage()
+    const third = await migratePage()
 
-    assert.deepEqual(db.legacyPageReads, [100, 100, 5, 0])
+    assert.equal(first.migrationPending, true)
+    assert.equal(second.migrationPending, true)
+    assert.equal(third.migrationPending, false)
+    assert.deepEqual(db.legacyPageReads, [100, 100, 5])
     assert.equal(db.writes.filter(write => write.ref.kind === 'user').length, 205)
+    assert.equal(db.deviceData().registrationMigrationId, null)
+  })
+
+  test('resumes a migration after a bounded page fails', async () => {
+    const db = fakeDb({ legacyQueryFailures: 1, legacyTokenOwners: ['legacy-user'] })
+    const registration = {
+      appCheck,
+      auth,
+      db,
+      req: request({ deviceId: DEVICE_ID, platform: 'web', token: TOKEN }),
+      serverTimestamp: () => 'server-time',
+    }
+
+    const consoleError = console.error
+    console.error = () => {}
+    const deferred = await registerNotificationDevice(registration)
+      .finally(() => { console.error = consoleError })
+    assert.equal(deferred.migrationPending, true)
+    assert.equal(typeof db.deviceData().registrationMigrationId, 'string')
+
+    const result = await registerNotificationDevice(registration)
+    assert.equal(result.migrationPending, false)
     assert.equal(db.deviceData().registrationMigrationId, null)
   })
 
