@@ -353,6 +353,7 @@ describe('account data security', () => {
       verified: true,
     }
     const ref = {
+      get: async () => ({ exists: false, data: () => ({}) }),
       collection: () => ({
         doc: () => ({
           get: async () => ({ exists: true, data: () => ({ ...stored }) }),
@@ -385,6 +386,7 @@ describe('account data security', () => {
     }
     const tombstoneRef = {
       collection: () => ({ doc: () => resourceRef }),
+      get: async () => ({ exists: false, data: () => ({}) }),
       set: async data => Object.assign(tombstone, data),
     }
     const writes = []
@@ -400,6 +402,41 @@ describe('account data security', () => {
     assert.equal(stored.ownershipRejected, false)
     assert.equal(stored.verified, true)
     assert.equal(tombstone.cleanupStatus, 'pending')
+  })
+
+  test('preserves account backoff when more cleanup work is queued', async () => {
+    const nextAttemptAt = new Date(20_000)
+    const tombstone = {
+      cleanupAttemptCount: 2,
+      cleanupLastError: 'temporary outage',
+      cleanupNextAttemptAt: nextAttemptAt,
+      cleanupStatus: 'pending',
+      cleanupUpdatedAt: nextAttemptAt,
+    }
+    const resource = {}
+    const resourceRef = {
+      get: async () => ({ exists: false, data: () => ({}) }),
+      set: async data => Object.assign(resource, data),
+    }
+    const tombstoneRef = {
+      collection: () => ({ doc: () => resourceRef }),
+      get: async () => ({ exists: true, data: () => ({ ...tombstone }) }),
+      set: async data => Object.assign(tombstone, data),
+    }
+    const writes = []
+    const timestamp = new Date(10_000)
+
+    await queueBillingCleanup({
+      get: ref => ref.get(),
+      set: (ref, data) => writes.push(() => ref.set(data)),
+    }, tombstoneRef, [{ type: 'customer', stripeId: 'cus_new' }], timestamp)
+    for (const write of writes) await write()
+
+    assert.equal(tombstone.cleanupAttemptCount, 2)
+    assert.equal(tombstone.cleanupLastError, 'temporary outage')
+    assert.equal(tombstone.cleanupNextAttemptAt, nextAttemptAt)
+    assert.equal(tombstone.cleanupUpdatedAt, nextAttemptAt)
+    assert.equal(resource.status, 'pending')
   })
 
   test('requires a valid Firebase bearer token', async () => {
@@ -678,14 +715,17 @@ describe('account data security', () => {
   test('continues processing deletion tombstones after one account fails', async () => {
     let laterAccountProcessed = false
     const failureUpdates = []
+    const brokenState = { cleanupStatus: 'pending' }
     const tombstones = [{
       id: 'broken',
+      data: () => ({ ...brokenState }),
       ref: {
         get: async () => { throw new Error('Auth unavailable') },
-        set: async (data, options) => { failureUpdates.push({ data, options }) },
+        state: brokenState,
       },
     }, {
       id: 'later',
+      data: () => ({ cleanupStatus: 'pending' }),
       ref: {
         get: async () => {
           laterAccountProcessed = true
@@ -705,6 +745,15 @@ describe('account data security', () => {
         if (name === 'users') return { doc: () => ({}) }
         throw new Error(`Unexpected collection: ${name}`)
       },
+      async runTransaction(callback) {
+        return callback({
+          get: async ref => ({ exists: true, data: () => ({ ...ref.state }) }),
+          set: (ref, data, options) => {
+            Object.assign(ref.state, data)
+            failureUpdates.push({ data, options })
+          },
+        })
+      },
     }
 
     await assert.rejects(
@@ -716,8 +765,108 @@ describe('account data security', () => {
     assert.equal(laterAccountProcessed, true)
     assert.equal(failureUpdates.length, 1)
     assert.equal(failureUpdates[0].data.cleanupLastError, 'Auth unavailable')
-    assert.equal(failureUpdates[0].data.cleanupUpdatedAt instanceof Date, true)
+    assert.equal(failureUpdates[0].data.cleanupAttemptCount, 1)
+    assert.equal(
+      failureUpdates[0].data.cleanupNextAttemptAt.getTime()
+        - failureUpdates[0].data.cleanupLastFailedAt.getTime(),
+      5 * 60 * 1000,
+    )
+    assert.equal(
+      failureUpdates[0].data.cleanupUpdatedAt,
+      failureUpdates[0].data.cleanupNextAttemptAt,
+    )
     assert.deepEqual(failureUpdates[0].options, { merge: true })
+  })
+
+  test('skips account cleanup until its retry is due', async () => {
+    let deferredReads = 0
+    let dueReads = 0
+    const tombstones = [{
+      id: 'deferred',
+      data: () => ({
+        cleanupNextAttemptAt: new Date(20_000),
+        cleanupStatus: 'pending',
+      }),
+      ref: { get: async () => { deferredReads += 1 } },
+    }, {
+      id: 'due',
+      data: () => ({
+        cleanupNextAttemptAt: new Date(9_000),
+        cleanupStatus: 'pending',
+      }),
+      ref: {
+        get: async () => {
+          dueReads += 1
+          return { exists: true, data: () => ({ cleanupStatus: 'completed' }) }
+        },
+      },
+    }]
+    const query = {
+      where() { return this },
+      orderBy() { return this },
+      limit() { return this },
+      get: async () => ({ docs: tombstones }),
+    }
+    const db = {
+      collection(name) {
+        if (name === 'accountDeletionTombstones') return query
+        if (name === 'users') return { doc: () => ({}) }
+        throw new Error(`Unexpected collection: ${name}`)
+      },
+    }
+
+    const results = await processPendingAccountDeletions({
+      auth: {},
+      db,
+      now: new Date(10_000),
+      stripe: {},
+    })
+
+    assert.equal(deferredReads, 0)
+    assert.equal(dueReads, 1)
+    assert.deepEqual(results, [{ completed: true, processed: 0 }])
+  })
+
+  test('caps account cleanup retry delays', async () => {
+    const state = { cleanupAttemptCount: 40, cleanupStatus: 'pending' }
+    const tombstone = {
+      id: 'broken',
+      data: () => ({ ...state }),
+      ref: {
+        get: async () => { throw new Error('persistent failure') },
+        state,
+      },
+    }
+    const query = {
+      where() { return this },
+      orderBy() { return this },
+      limit() { return this },
+      get: async () => ({ docs: [tombstone] }),
+    }
+    const db = {
+      collection(name) {
+        if (name === 'accountDeletionTombstones') return query
+        if (name === 'users') return { doc: () => ({}) }
+        throw new Error(`Unexpected collection: ${name}`)
+      },
+      async runTransaction(callback) {
+        return callback({
+          get: async ref => ({ exists: true, data: () => ({ ...ref.state }) }),
+          set: (ref, data) => Object.assign(ref.state, data),
+        })
+      },
+    }
+
+    await assert.rejects(
+      processPendingAccountDeletions({ auth: {}, db, stripe: {} }),
+      error => error instanceof AggregateError,
+    )
+
+    assert.equal(state.cleanupAttemptCount, 41)
+    assert.equal(
+      state.cleanupNextAttemptAt.getTime() - state.cleanupLastFailedAt.getTime(),
+      24 * 60 * 60 * 1000,
+    )
   })
 })
 

@@ -610,7 +610,12 @@ async function backfillBillingResourcePage({ db, serverTimestamp, stripe }) {
         indexSubscriptionOwners(transaction, db, uid, resources, timestamp)
         transaction.set(tombstoneRef, {
           cleanupStatus: 'pending',
-          cleanupUpdatedAt: serverTimestamp(),
+          ...(tombstoneSnapshot.exists ? {} : {
+            cleanupAttemptCount: 0,
+            cleanupLastError: null,
+            cleanupNextAttemptAt: serverTimestamp(),
+            cleanupUpdatedAt: serverTimestamp(),
+          }),
           createdAt: tombstoneSnapshot.exists
             ? tombstoneSnapshot.data().createdAt
             : serverTimestamp(),

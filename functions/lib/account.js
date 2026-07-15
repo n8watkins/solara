@@ -32,6 +32,19 @@ const BILLING_CLEANUP_LEASE_MS = 5 * 60 * 1000
 const BILLING_CLEANUP_RETRY_BASE_MS = 5 * 60 * 1000
 const BILLING_CLEANUP_RETRY_MAX_MS = 24 * 60 * 60 * 1000
 
+function cleanupRetryDelay(attemptCount) {
+  return Math.min(
+    BILLING_CLEANUP_RETRY_BASE_MS * (2 ** Math.min(attemptCount - 1, 30)),
+    BILLING_CLEANUP_RETRY_MAX_MS,
+  )
+}
+
+function timestampMillis(value) {
+  if (value instanceof Date) return value.getTime()
+  if (value && typeof value.toMillis === 'function') return value.toMillis()
+  return Number.NaN
+}
+
 function stringId(value) {
   if (typeof value === 'string') return value
   return value && typeof value.id === 'string' ? value.id : null
@@ -138,10 +151,7 @@ async function markCleanupFailure(db, resource, error) {
     const attemptCount = Number.isSafeInteger(current.data().attemptCount)
       ? current.data().attemptCount + 1
       : 1
-    const delay = Math.min(
-      BILLING_CLEANUP_RETRY_BASE_MS * (2 ** Math.min(attemptCount - 1, 30)),
-      BILLING_CLEANUP_RETRY_MAX_MS,
-    )
+    const delay = cleanupRetryDelay(attemptCount)
     transaction.set(resource.ref, {
       attemptCount,
       lastError: error?.message || 'Billing cleanup failed',
@@ -149,6 +159,26 @@ async function markCleanupFailure(db, resource, error) {
       nextAttemptAt: new Date(timestamp.getTime() + delay),
       processingToken: null,
       updatedAt: timestamp,
+    }, { merge: true })
+    return true
+  })
+}
+
+async function markAccountCleanupFailure(db, tombstoneRef, error) {
+  return db.runTransaction(async transaction => {
+    const current = await transaction.get(tombstoneRef)
+    if (!current.exists || current.data().cleanupStatus !== 'pending') return false
+    const timestamp = new Date()
+    const attemptCount = Number.isSafeInteger(current.data().cleanupAttemptCount)
+      ? current.data().cleanupAttemptCount + 1
+      : 1
+    const nextAttemptAt = new Date(timestamp.getTime() + cleanupRetryDelay(attemptCount))
+    transaction.set(tombstoneRef, {
+      cleanupAttemptCount: attemptCount,
+      cleanupLastError: error?.message || 'Account deletion cleanup failed',
+      cleanupLastFailedAt: timestamp,
+      cleanupNextAttemptAt: nextAttemptAt,
+      cleanupUpdatedAt: nextAttemptAt,
     }, { merge: true })
     return true
   })
@@ -394,6 +424,10 @@ async function processAccountDeletionPage({ auth, db, stripe, tombstoneRef, uid 
       await queueBillingCleanup(transaction, tombstoneRef, resources, timestamp)
       indexSubscriptionOwners(transaction, db, uid, resources, timestamp)
       transaction.set(tombstoneRef, {
+        cleanupAttemptCount: 0,
+        cleanupLastError: null,
+        cleanupNextAttemptAt: timestamp,
+        cleanupUpdatedAt: timestamp,
         resourceIndexComplete: page.docs.length < BILLING_INDEX_PAGE_SIZE,
         resourceIndexCursor: page.docs.at(-1)?.id || null,
       }, { merge: true })
@@ -415,13 +449,19 @@ async function processAccountDeletionPage({ auth, db, stripe, tombstoneRef, uid 
       await markCleanupFailure(db, resource, error)
     }
   }
-  await tombstoneRef.set({ cleanupUpdatedAt: new Date() }, { merge: true })
+  const timestamp = new Date()
+  await tombstoneRef.set({
+    cleanupAttemptCount: 0,
+    cleanupLastError: null,
+    cleanupNextAttemptAt: timestamp,
+    cleanupUpdatedAt: timestamp,
+  }, { merge: true })
   if (pending.length > 0) return { completed: false, processed }
   const completed = await finalizeAccountDeletion({ auth, db, tombstoneRef, uid, userRef })
   return { completed, processed }
 }
 
-async function processPendingAccountDeletions({ auth, db, stripe }) {
+async function processPendingAccountDeletions({ auth, db, stripe, now = new Date() }) {
   const tombstones = await db.collection('accountDeletionTombstones')
     .where('cleanupStatus', '==', 'pending')
     .orderBy('cleanupUpdatedAt')
@@ -430,6 +470,9 @@ async function processPendingAccountDeletions({ auth, db, stripe }) {
   const results = []
   const failures = []
   for (const tombstone of tombstones.docs) {
+    const nextAttemptAt = tombstone.data?.().cleanupNextAttemptAt
+    const nextAttemptAtMs = timestampMillis(nextAttemptAt)
+    if (Number.isFinite(nextAttemptAtMs) && nextAttemptAtMs > now.getTime()) continue
     try {
       results.push(await processAccountDeletionPage({
         auth,
@@ -439,13 +482,8 @@ async function processPendingAccountDeletions({ auth, db, stripe }) {
         uid: tombstone.id,
       }))
     } catch (error) {
-      const timestamp = new Date()
       try {
-        await tombstone.ref.set({
-          cleanupLastError: error?.message || 'Account deletion cleanup failed',
-          cleanupLastFailedAt: timestamp,
-          cleanupUpdatedAt: timestamp,
-        }, { merge: true })
+        await markAccountCleanupFailure(db, tombstone.ref, error)
       } catch (persistenceError) {
         failures.push(new Error(`Could not persist cleanup failure for ${tombstone.id}`, {
           cause: persistenceError,
@@ -486,6 +524,9 @@ async function deleteAccount({ auth, db, req, stripe }) {
       { type: 'subscription', stripeId: userData.stripeSubscriptionId, verified: false },
     ], timestamp)
     transaction.set(tombstoneRef, {
+      cleanupAttemptCount: 0,
+      cleanupLastError: null,
+      cleanupNextAttemptAt: timestamp,
       cleanupStatus: 'pending',
       cleanupUpdatedAt: timestamp,
       createdAt: tombstoneSnapshot.exists ? tombstoneSnapshot.data().createdAt : timestamp,

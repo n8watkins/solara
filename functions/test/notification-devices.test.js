@@ -162,7 +162,7 @@ describe('notification device mutations', () => {
     const deviceWrite = db.writes.find(write => write.ref.kind === 'device')
     assert.equal(deviceWrite.data.lastNotificationKey, 'daily-v2:2026-07-14')
     assert.equal(deviceWrite.data.notificationDeliveryStatus, 'delivered')
-    assert.equal(Object.hasOwn(deviceWrite.data, 'notificationDeliveryAttemptId'), false)
+    assert.equal(deviceWrite.data.notificationDeliveryAttemptId, null)
   })
 
   test('rejects free accounts and invalid device input', async () => {
@@ -403,6 +403,75 @@ describe('notification device mutations', () => {
     assert.equal(deviceWrite.data.lastNotificationKey, 'daily-v2:2026-07-14')
     assert.equal(deviceWrite.data.notificationDeliveryStatus, 'unknown')
     assert.equal(deviceWrite.data.notificationDeliveryAttemptId, 'attempt-1')
+  })
+
+  test('preserves a same-day ambiguous delivery across duplicate legacy records', async () => {
+    const db = fakeDb({
+      legacyTokenOwners: ['bob', 'carol'],
+      legacyTokenOwnerData: {
+        bob: {
+          notificationDeliveryKey: 'daily-v2:2026-07-14',
+          notificationDeliveryStatus: 'unknown',
+          notificationDeliveryAttemptId: 'ambiguous-attempt',
+          notificationDeliveryUpdatedAt: new Date(1_000),
+        },
+        carol: {
+          notificationDeliveryKey: 'daily-v2:2026-07-14',
+          notificationDeliveryStatus: 'failed',
+          notificationDeliveryAttemptId: 'definite-failure',
+          notificationDeliveryError: 'old failure',
+          notificationDeliveryUpdatedAt: new Date(2_000),
+        },
+      },
+    })
+
+    await registerNotificationDevice({
+      appCheck,
+      auth,
+      db,
+      req: request({ deviceId: DEVICE_ID, platform: 'web', token: TOKEN }),
+      serverTimestamp: () => 'server-time',
+    })
+
+    const deviceWrite = db.writes.find(write => write.ref.kind === 'device')
+    assert.equal(deviceWrite.data.notificationDeliveryStatus, 'unknown')
+    assert.equal(deviceWrite.data.notificationDeliveryAttemptId, 'ambiguous-attempt')
+    assert.equal(deviceWrite.data.notificationDeliveryError, null)
+  })
+
+  test('selects the newest delivery record without mixing older fields', async () => {
+    const db = fakeDb({
+      existingDeviceData: {
+        token: 'old-token'.padEnd(24, 'x'),
+        notificationDeliveryKey: 'daily-v2:2026-07-13',
+        notificationDeliveryStatus: 'unknown',
+        notificationDeliveryAttemptId: 'older-attempt',
+        notificationDeliveryUpdatedAt: new Date(3_000),
+      },
+      legacyTokenOwners: ['alice'],
+      legacyTokenOwnerData: {
+        alice: {
+          notificationDeliveryKey: 'daily-v2:2026-07-14',
+          notificationDeliveryStatus: 'failed',
+          notificationDeliveryError: 'definite failure',
+          notificationDeliveryUpdatedAt: new Date(1_000),
+        },
+      },
+    })
+
+    await registerNotificationDevice({
+      appCheck,
+      auth,
+      db,
+      req: request({ deviceId: DEVICE_ID, platform: 'web', token: TOKEN }),
+      serverTimestamp: () => 'server-time',
+    })
+
+    const deviceWrite = db.writes.find(write => write.ref.kind === 'device')
+    assert.equal(deviceWrite.data.notificationDeliveryKey, 'daily-v2:2026-07-14')
+    assert.equal(deviceWrite.data.notificationDeliveryStatus, 'failed')
+    assert.equal(deviceWrite.data.notificationDeliveryError, 'definite failure')
+    assert.equal(deviceWrite.data.notificationDeliveryAttemptId, null)
   })
 
   test('clears every legacy account that still holds a transferred token', async () => {

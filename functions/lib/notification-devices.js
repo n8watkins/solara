@@ -6,9 +6,12 @@ const MAX_REGISTRATIONS_PER_MINUTE = 10
 const NOTIFICATION_CLAIM_LEASE_MS = 12 * 60 * 1000
 const DEVICE_ID_PATTERN = /^[a-f0-9]{36}$/
 const PLATFORMS = new Set(['web', 'ios', 'android'])
-const DELIVERY_STATE_FIELDS = [
+const PROTECTIVE_DELIVERY_STATUSES = new Set(['claimed', 'delivered', 'unknown'])
+const DELIVERED_HISTORY_FIELDS = [
   'lastDeliveredAt',
   'lastNotificationKey',
+]
+const DELIVERY_ATTEMPT_FIELDS = [
   'notificationDeliveryKey',
   'notificationDeliveryStatus',
   'notificationDeliveryAttemptId',
@@ -21,6 +24,7 @@ const DELIVERY_STATE_FIELDS = [
   'notificationDeliveryUpdatedAt',
   'lastError',
 ]
+const DELIVERY_STATE_FIELDS = [...DELIVERED_HISTORY_FIELDS, ...DELIVERY_ATTEMPT_FIELDS]
 
 function httpError(message, status) {
   const error = new Error(message)
@@ -64,6 +68,80 @@ function deliveryState(data) {
   return Object.fromEntries(DELIVERY_STATE_FIELDS
     .filter(field => Object.hasOwn(data || {}, field))
     .map(field => [field, data[field]]))
+}
+
+function timestampMillis(value) {
+  if (value instanceof Date) return value.getTime()
+  if (value && typeof value.toMillis === 'function') return value.toMillis()
+  return Number.NEGATIVE_INFINITY
+}
+
+function notificationDay(key) {
+  const match = typeof key === 'string' && key.match(/^daily-v\d+:(\d{4})-(\d{2})-(\d{2})$/)
+  if (!match) return Number.NEGATIVE_INFINITY
+  const year = Number(match[1])
+  const month = Number(match[2]) - 1
+  const date = Number(match[3])
+  const day = new Date(Date.UTC(year, month, date))
+  return day.getUTCFullYear() === year && day.getUTCMonth() === month && day.getUTCDate() === date
+    ? day.getTime()
+    : Number.NEGATIVE_INFINITY
+}
+
+function selectNewestState(states, metadata) {
+  return states.reduce((selected, candidate) => {
+    if (!selected) return candidate
+    const current = metadata(selected)
+    const next = metadata(candidate)
+    if (next.day !== current.day) return next.day > current.day ? candidate : selected
+    if (next.protective !== current.protective) return next.protective ? candidate : selected
+    if (next.updatedAt !== current.updatedAt) {
+      return next.updatedAt > current.updatedAt ? candidate : selected
+    }
+    return Object.keys(candidate).length > Object.keys(selected).length ? candidate : selected
+  }, null)
+}
+
+function attemptMetadata(state) {
+  const updatedAt = Math.max(
+    timestampMillis(state.notificationDeliveryUpdatedAt),
+    timestampMillis(state.notificationDeliveryCompletedAt),
+    timestampMillis(state.notificationDeliveryErrorAt),
+    timestampMillis(state.notificationDeliveryClaimedAt),
+  )
+  return {
+    day: notificationDay(state.notificationDeliveryKey),
+    protective: PROTECTIVE_DELIVERY_STATUSES.has(state.notificationDeliveryStatus),
+    updatedAt,
+  }
+}
+
+function mergeDeliveryStates(sources) {
+  const states = sources.map(deliveryState)
+  const histories = states.map(state => Object.fromEntries(DELIVERED_HISTORY_FIELDS
+    .filter(field => Object.hasOwn(state, field))
+    .map(field => [field, state[field]])))
+    .filter(state => Object.keys(state).length > 0)
+  const attempts = states.map(state => Object.fromEntries(DELIVERY_ATTEMPT_FIELDS
+    .filter(field => Object.hasOwn(state, field))
+    .map(field => [field, state[field]])))
+    .filter(state => Object.keys(state).length > 0)
+  const history = selectNewestState(histories, state => ({
+    day: notificationDay(state.lastNotificationKey),
+    protective: Number.isFinite(notificationDay(state.lastNotificationKey)),
+    updatedAt: timestampMillis(state.lastDeliveredAt),
+  }))
+  const attempt = selectNewestState(attempts, attemptMetadata)
+  return {
+    ...(history ? {
+      ...Object.fromEntries(DELIVERED_HISTORY_FIELDS.map(field => [field, null])),
+      ...history,
+    } : {}),
+    ...(attempt ? {
+      ...Object.fromEntries(DELIVERY_ATTEMPT_FIELDS.map(field => [field, null])),
+      ...attempt,
+    } : {}),
+  }
 }
 
 async function authenticateApp(appCheck, token) {
@@ -163,16 +241,13 @@ async function registerNotificationDevice({ appCheck, auth, db, req, serverTimes
         transaction.delete(oldOwnerRef)
       }
     }
-    const transferredDeliveryState = {
-      ...deliveryState(current),
-      ...(priorDeviceSnapshot?.exists && priorDeviceSnapshot.data().token === device.token
-        ? deliveryState(priorDeviceSnapshot.data())
-        : {}),
-      ...legacyOwnersSnapshot.docs.reduce((state, legacyOwner) => ({
-        ...state,
-        ...deliveryState(legacyOwner.data()),
-      }), {}),
-    }
+    const transferredDeliveryState = mergeDeliveryStates([
+      current,
+      priorDeviceSnapshot?.exists && priorDeviceSnapshot.data().token === device.token
+        ? priorDeviceSnapshot.data()
+        : null,
+      ...legacyOwnersSnapshot.docs.map(legacyOwner => legacyOwner.data()),
+    ])
     transaction.set(deviceRef, {
       token: device.token,
       enabled: true,

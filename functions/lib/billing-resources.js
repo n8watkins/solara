@@ -49,7 +49,10 @@ async function queueBillingCleanup(transaction, tombstoneRef, resources, timesta
     type,
     verified,
   })).filter(({ ref }) => ref)
-  const snapshots = await Promise.all(entries.map(({ ref }) => transaction.get(ref)))
+  const [tombstoneSnapshot, ...snapshots] = await Promise.all([
+    transaction.get(tombstoneRef),
+    ...entries.map(({ ref }) => transaction.get(ref)),
+  ])
   let queued = false
   for (const [index, { ref, type, stripeId, verified }] of entries.entries()) {
     const existing = snapshots[index].exists ? snapshots[index].data() : {}
@@ -71,9 +74,17 @@ async function queueBillingCleanup(transaction, tombstoneRef, resources, timesta
     queued ||= status === 'pending'
   }
   if (queued) {
+    const tombstone = tombstoneSnapshot.exists ? tombstoneSnapshot.data() : {}
+    const preserveFailureSchedule = Number.isSafeInteger(tombstone.cleanupAttemptCount)
+      && tombstone.cleanupAttemptCount > 0
     transaction.set(tombstoneRef, {
+      ...(preserveFailureSchedule ? {} : {
+        cleanupAttemptCount: 0,
+        cleanupLastError: null,
+        cleanupNextAttemptAt: timestamp,
+        cleanupUpdatedAt: timestamp,
+      }),
       cleanupStatus: 'pending',
-      cleanupUpdatedAt: timestamp,
     }, { merge: true })
   }
 }
