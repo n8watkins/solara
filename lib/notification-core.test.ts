@@ -157,10 +157,11 @@ describe('notification ownership', () => {
       const tokenOrder = String(left.data().fcmToken).localeCompare(String(right.data().fcmToken))
       return tokenOrder || left.id.localeCompare(right.id)
     })
-    const query = (docs: typeof deviceDocs | typeof legacyDocs, start = 0, pageSize = docs.length) => ({
+    type QueryDoc = (typeof deviceDocs)[number] | (typeof legacyDocs)[number]
+    const query = (docs: QueryDoc[], start = 0, pageSize = docs.length) => ({
       where: () => query(docs, start, pageSize),
       orderBy: () => query(docs, start, pageSize),
-      startAfter: (cursor: (typeof docs)[number]) => query(docs, docs.indexOf(cursor) + 1, pageSize),
+      startAfter: (cursor: QueryDoc) => query(docs, docs.indexOf(cursor) + 1, pageSize),
       limit: (limit: number) => query(docs, start, limit),
       get: async () => ({ docs: docs.slice(start, start + pageSize) }),
     })
