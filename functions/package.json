@@ -1,6 +1,6 @@
 {
   "name": "solara-functions",
-  "description": "Solara Cloud Functions — Stripe fulfilment webhook (P5) + live calendar feed (P7b). Requires the Blaze plan.",
+  "description": "Solara Cloud Functions for billing, account data, notification registration, scheduled cleanup, and calendar feeds. Requires the Blaze plan.",
   "engines": {
     "node": "20"
   },

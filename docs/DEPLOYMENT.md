@@ -48,7 +48,8 @@ Never put a Stripe secret, Firebase service-account JSON, webhook secret, or OAu
 
 Add the required client variables above as repository secrets.
 Also add `FIREBASE_SERVICE_ACCOUNT` as the complete JSON for a narrowly scoped deployment and notification service account.
-The deployment workflow uses that credential to publish Hosting and Firestore rules, plus indexes and Functions when `ENABLE_BLAZE_FUNCTIONS` is `true`.
+The deployment workflow uses that credential to publish Hosting, Firestore rules, and Firestore indexes.
+It also publishes Functions when `ENABLE_BLAZE_FUNCTIONS` is `true`.
 The notification workflow uses it to access notification data and send through Firebase Cloud Messaging.
 
 Server configuration is split across these locations:
@@ -87,17 +88,23 @@ Verify the same gates used by CI.
 
 ```bash
 npm ci
+npm audit --audit-level=high
 npm run lint
 npm run typecheck
 npm test
 npm run build
+npm ci --prefix functions
+npm audit --prefix functions --audit-level=high
+npm test --prefix functions
+npm run test:rules --prefix functions
 npx playwright install chromium
 npm run test:e2e
 ```
 
 Merge a reviewed pull request into `main` after the required GitHub secrets exist.
-When `ENABLE_BLAZE_FUNCTIONS` is `true`, the deployment workflow builds with those values, deploys transitional Firestore rules and indexes, deploys Functions, deploys Hosting, and then restores the final rules.
-When the variable is not `true`, the workflow keeps Function-backed client surfaces disabled, deploys Hosting, and restores the final Firestore rules.
+The deployment workflow deploys Firestore indexes on every release so manual notification dry-runs have the required collection-group index even while Functions remain disabled.
+When `ENABLE_BLAZE_FUNCTIONS` is `true`, the workflow builds with those values, deploys transitional Firestore rules, deploys Functions, deploys Hosting, and then restores the final rules.
+When the variable is not `true`, the workflow keeps Function-backed client surfaces disabled, deploys indexes and Hosting, and restores the final Firestore rules.
 
 ## Service worker generation
 

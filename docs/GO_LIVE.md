@@ -15,7 +15,8 @@ The release is not complete until the automated gates and relevant real-service 
 - [ ] Run `npm run build` with the intended public environment configuration.
 - [ ] Run `npx playwright install chromium` if Chromium is not installed.
 - [ ] Run `npm run test:e2e`.
-- [ ] Review `npm audit` and document any accepted transitive advisories.
+- [ ] Review `npm audit` and the accepted transitive advisories in [DEPENDENCY_RISK.md](./DEPENDENCY_RISK.md).
+- [ ] Run `npm ci --prefix functions`, `npm audit --prefix functions --audit-level=high`, `npm test --prefix functions`, and `npm run test:rules --prefix functions`.
 
 ## 2. Configuration preflight
 

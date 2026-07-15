@@ -14,19 +14,20 @@ CI runs frontend and backend dependency audits, lint, typecheck, app and Functio
 
 ## Feature activation state
 
-| Area                                    | Source state                                                  | External activation or verification                                                                              |
-| --------------------------------------- | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| Forecast and activity planning          | Built                                                         | Verify live Open-Meteo behavior and recommendation consistency                                                   |
-| Google sign-in and Firestore sync       | Built                                                         | Requires Firebase configuration and authorized domains                                                           |
-| Push notifications                      | Built with manual dry-run dispatcher                          | Requires VAPID, service account, eligible test account, real-device verification, and approval before scheduling |
-| Google Calendar                         | Built behind configuration                                    | Requires OAuth client provisioning and live consent testing                                                      |
-| Stripe Pro fulfillment                  | Built behind authenticated Functions                          | Requires Blaze, Stripe test keys, webhook registration, and signed event tests                                   |
-| Account export and deletion             | Built behind authenticated Functions                          | Requires Blaze, live reauthentication testing, Stripe cancellation verification, and cleanup-job monitoring      |
-| Billing backfill and cleanup            | Built as scheduled Functions with durable indexes and retries | Requires Blaze, ready Firestore indexes, Stripe credentials, and production monitoring                           |
-| Live calendar feed                      | Function-backed                                               | Requires Blaze, Functions deployment, and a real calendar client                                                 |
-| Analytics                               | Built with explicit opt-in consent                            | Requires a GA4 measurement ID and production consent verification                                                |
-| App Check                               | Client activation built                                       | Requires reCAPTCHA registration, monitoring, and gradual enforcement in Firebase                                 |
-| Hosting, Firestore rules, and Functions | Automated on `main`                                           | Functions deploy only when `ENABLE_BLAZE_FUNCTIONS` is `true`                                                    |
+| Area                                  | Source state                                                  | External activation or verification                                                                              |
+| ------------------------------------- | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Forecast and activity planning        | Built                                                         | Verify live Open-Meteo behavior and recommendation consistency                                                   |
+| Google sign-in and Firestore sync     | Built                                                         | Requires Firebase configuration and authorized domains                                                           |
+| Push notifications                    | Built with manual dry-run dispatcher                          | Requires VAPID, service account, eligible test account, real-device verification, and approval before scheduling |
+| Google Calendar                       | Built behind configuration                                    | Requires OAuth client provisioning and live consent testing                                                      |
+| Stripe Pro fulfillment                | Built behind authenticated Functions                          | Requires Blaze, Stripe test keys, webhook registration, and signed event tests                                   |
+| Account export and deletion           | Built behind authenticated Functions                          | Requires Blaze, live reauthentication testing, Stripe cancellation verification, and cleanup-job monitoring      |
+| Billing backfill and cleanup          | Built as scheduled Functions with durable indexes and retries | Requires Blaze, ready Firestore indexes, Stripe credentials, and production monitoring                           |
+| Live calendar feed                    | Function-backed                                               | Requires Blaze, Functions deployment, and a real calendar client                                                 |
+| Analytics                             | Built with explicit opt-in consent                            | Requires a GA4 measurement ID and production consent verification                                                |
+| App Check                             | Client activation built                                       | Requires reCAPTCHA registration, monitoring, and gradual enforcement in Firebase                                 |
+| Hosting, Firestore rules, and indexes | Automated on `main`                                           | Indexes deploy independently of the Functions gate                                                               |
+| Firebase Functions                    | Built and deployment-gated                                    | Deploy only when `ENABLE_BLAZE_FUNCTIONS` is `true`                                                              |
 
 ## Quality baseline
 
@@ -41,7 +42,7 @@ CI runs frontend and backend dependency audits, lint, typecheck, app and Functio
 ## Required follow-up outside the repository
 
 1. Configure or verify the Firebase, App Check, VAPID, OAuth, Stripe, Functions, and analytics values described in `DEPLOYMENT.md`.
-2. Deploy a controlled staging or preview build before production.
+2. Use a controlled staging or preview deployment before enabling credential-backed features or promoting the next release.
 3. Verify Google sign-in and preference persistence with a real account.
 4. Verify exactly one push notification on a real phone, then verify disable and sign-out cleanup.
 5. Exercise Stripe checkout, signed webhook lifecycle behavior, billing backfill, and durable cleanup in test mode when keys are available.

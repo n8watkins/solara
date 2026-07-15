@@ -56,10 +56,15 @@ The complete environment and activation checklist is in [docs/DEPLOYMENT.md](doc
 ## Quality checks
 
 ```bash
+npm audit --audit-level=high
 npm run lint
 npm run typecheck
 npm test
 npm run build
+npm ci --prefix functions
+npm audit --prefix functions --audit-level=high
+npm test --prefix functions
+npm run test:rules --prefix functions
 npx playwright install chromium
 npm run test:e2e
 ```
@@ -85,4 +90,5 @@ Firestore rules deny client access to those server-owned collections and prevent
 
 ## License
 
-MIT
+No license file is currently included.
+Confirm the intended license and copyright holder before public distribution.
