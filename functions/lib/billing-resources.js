@@ -18,12 +18,28 @@ function billingCleanupResourceRef(tombstoneRef, type, stripeId) {
   return tombstoneRef.collection('billingCleanupResources').doc(`${type}_${digest}`)
 }
 
-function indexBillingResources(transaction, userRef, resources, timestamp) {
+function subscriptionOwnerRef(db, stripeId) {
+  if (!validBillingResource('subscription', stripeId)) return null
+  const digest = createHash('sha256').update(stripeId).digest('base64url')
+  return db.collection('stripeSubscriptionOwners').doc(digest)
+}
+
+function indexSubscriptionOwners(transaction, db, uid, resources, timestamp) {
+  for (const { type, stripeId, verified = true } of resources) {
+    if (type !== 'subscription' || verified === false) continue
+    const ref = subscriptionOwnerRef(db, stripeId)
+    if (!ref) continue
+    transaction.set(ref, { stripeId, uid, updatedAt: timestamp }, { merge: true })
+  }
+}
+
+function indexBillingResources(transaction, db, userRef, resources, timestamp) {
   for (const { type, stripeId } of resources) {
     const ref = billingResourceRef(userRef, type, stripeId)
     if (!ref) continue
     transaction.set(ref, { type, stripeId, updatedAt: timestamp }, { merge: true })
   }
+  indexSubscriptionOwners(transaction, db, userRef.id, resources, timestamp)
 }
 
 async function queueBillingCleanup(transaction, tombstoneRef, resources, timestamp) {
@@ -90,8 +106,10 @@ module.exports = {
   billingCleanupResourceRef,
   customerBelongsToUser,
   indexBillingResources,
+  indexSubscriptionOwners,
   listCustomerCheckoutSessions,
   queueBillingCleanup,
   stripeSessionBelongsToUser,
+  subscriptionOwnerRef,
   validBillingResource,
 }

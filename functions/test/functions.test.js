@@ -8,7 +8,7 @@ const {
   processPendingAccountDeletions,
   safeAccountData,
 } = require('../lib/account')
-const { queueBillingCleanup } = require('../lib/billing-resources')
+const { queueBillingCleanup, subscriptionOwnerRef } = require('../lib/billing-resources')
 const { handleCors } = require('../lib/http')
 const {
   cachedForecast,
@@ -77,6 +77,7 @@ function withBillingResources(ref, initialResources = []) {
 }
 
 function fakeDb(initialUser) {
+  const subscriptionOwners = new Map()
   const cleanupResources = new Map()
   const events = new Map()
   const tombstoneData = {}
@@ -89,6 +90,7 @@ function fakeDb(initialUser) {
     },
   })
   const database = {
+    subscriptionOwners,
     cleanupResources,
     tombstoneData,
     userData,
@@ -109,6 +111,22 @@ function fakeDb(initialUser) {
                 return { exists: events.has(id), data: () => ({ ...events.get(id) }) }
               },
               async set(data) { events.set(id, { ...events.get(id), ...data }) },
+            }
+          },
+        }
+      }
+      if (name === 'stripeSubscriptionOwners') {
+        return {
+          doc(id) {
+            return {
+              id,
+              kind: 'subscriptionOwner',
+              async get() {
+                return {
+                  exists: subscriptionOwners.has(id),
+                  data: () => ({ ...subscriptionOwners.get(id) }),
+                }
+              },
             }
           },
         }
@@ -186,6 +204,12 @@ function fakeDb(initialUser) {
                 ...data,
               })
             }
+            else if (ref.kind === 'subscriptionOwner') {
+              subscriptionOwners.set(ref.id, {
+                ...subscriptionOwners.get(ref.id),
+                ...data,
+              })
+            }
             else Object.assign(userData, data)
           })
           return this
@@ -200,6 +224,7 @@ function fakeDb(initialUser) {
 }
 
 function fakeDeletionDb({ cleanup = [], resources = [], tombstone = {}, user = {} } = {}) {
+  const subscriptionOwners = new Map()
   const deleted = []
   const userResources = new Map(resources.map(resource => [resource.id, { ...resource }]))
   const cleanupResources = new Map(cleanup.map(resource => [resource.id, { ...resource }]))
@@ -282,6 +307,7 @@ function fakeDeletionDb({ cleanup = [], resources = [], tombstone = {}, user = {
     collection(name) { assert.equal(name, 'billingResources'); return userCollection },
   }
   const db = {
+    subscriptionOwners,
     cleanupResources,
     deleted,
     tombstoneData,
@@ -294,6 +320,13 @@ function fakeDeletionDb({ cleanup = [], resources = [], tombstone = {}, user = {
       }
       if (name === 'notificationRegistrationLimits') {
         return { doc: () => ({ delete: async () => deleted.push('limit') }) }
+      }
+      if (name === 'stripeSubscriptionOwners') {
+        return { doc: id => ({
+          async set(data) {
+            subscriptionOwners.set(id, { ...subscriptionOwners.get(id), ...data })
+          },
+        }) }
       }
       throw new Error(`Unexpected collection ${name}`)
     },
@@ -404,6 +437,11 @@ describe('account data security', () => {
     assert.equal(db.tombstoneData.cleanupStatus, 'pending')
     assert.equal(db.tombstoneData.resourceIndexComplete, false)
     assert.equal(db.cleanupResources.size, 26)
+    assert.equal(db.subscriptionOwners.size, 25)
+    assert.equal(
+      [...db.subscriptionOwners.values()].every(resource => resource.uid === 'alice'),
+      true,
+    )
     assert.equal([...db.cleanupResources.values()].every(resource => resource.status === 'pending'), true)
   })
 
@@ -432,6 +470,13 @@ describe('account data security', () => {
     assert.equal(job.status, 'completed')
     assert.deepEqual(db.deleted, ['stripe:sub_retry', 'limit', 'user', 'auth:alice'])
     assert.equal(db.tombstoneData.cleanupStatus, 'completed')
+    assert.deepEqual(
+      [...db.subscriptionOwners.values()].map(resource => ({
+        stripeId: resource.stripeId,
+        uid: resource.uid,
+      })),
+      [{ stripeId: 'sub_retry', uid: 'alice' }],
+    )
   })
 
   test('moves failed cleanup behind resources that have not been attempted', async () => {
@@ -728,6 +773,7 @@ describe('Stripe fulfillment security', () => {
   }
 
   test('backfills legacy checkout ownership across durable pages', async () => {
+    const subscriptionOwners = new Map()
     const state = {}
     const userRef = withBillingResources({
       id: 'alice',
@@ -740,6 +786,9 @@ describe('Stripe fulfillment security', () => {
     const db = {
       collection(name) {
         if (name === 'users') return { doc: () => userRef }
+        if (name === 'stripeSubscriptionOwners') {
+          return { doc: id => ({ id, kind: 'subscriptionOwner' }) }
+        }
         if (name === 'accountDeletionTombstones') {
           return { doc: () => ({ get: async () => ({ exists: false }) }) }
         }
@@ -750,7 +799,13 @@ describe('Stripe fulfillment security', () => {
         const writes = []
         const result = await callback({
           get: ref => ref.get(),
-          set: (ref, data) => writes.push(() => userRef.billingResources.set(ref.id, data)),
+          set: (ref, data) => writes.push(() => {
+            if (ref.kind === 'subscriptionOwner') {
+              subscriptionOwners.set(ref.id, data)
+            } else {
+              userRef.billingResources.set(ref.id, data)
+            }
+          }),
         })
         writes.forEach(write => write())
         return result
@@ -831,9 +886,15 @@ describe('Stripe fulfillment security', () => {
         'subscription:sub_legacy_b',
       ],
     )
+    assert.deepEqual(
+      [...subscriptionOwners.values()]
+        .map(resource => `${resource.stripeId}:${resource.uid}`).sort(),
+      ['sub_legacy_a:alice', 'sub_legacy_b:alice'],
+    )
   })
 
   test('routes tombstoned legacy checkout resources into durable cleanup', async () => {
+    const subscriptionOwners = new Map()
     const cleanup = new Map()
     const state = {}
     const tombstone = { cleanupStatus: 'pending', resourceIndexComplete: true }
@@ -859,6 +920,13 @@ describe('Stripe fulfillment security', () => {
     const db = {
       collection(name) {
         if (name === 'users') return { doc: () => ({ get: async () => ({ exists: false }) }) }
+        if (name === 'stripeSubscriptionOwners') {
+          return { doc: id => ({
+            async set(data) {
+              subscriptionOwners.set(id, { ...subscriptionOwners.get(id), ...data })
+            },
+          }) }
+        }
         if (name === 'accountDeletionTombstones') return { doc: () => tombstoneRef }
         if (name === 'systemMigrations') return { doc: () => stateRef }
         throw new Error(`Unexpected collection ${name}`)
@@ -897,6 +965,11 @@ describe('Stripe fulfillment security', () => {
       ],
     )
     assert.equal(tombstone.cleanupStatus, 'pending')
+    assert.deepEqual(
+      [...subscriptionOwners.values()]
+        .map(resource => `${resource.stripeId}:${resource.uid}`).sort(),
+      ['sub_deleted:alice'],
+    )
   })
 
   test('validates Firebase identifiers and configured Stripe products', async () => {
@@ -1215,6 +1288,11 @@ describe('Stripe fulfillment security', () => {
       [...db.collection('users').doc('alice').billingResources.values()]
         .map(resource => `${resource.type}:${resource.stripeId}`).sort(),
       ['checkoutSession:cs_123', 'customer:cus_123', 'subscription:sub_123'],
+    )
+    assert.deepEqual(
+      [...db.subscriptionOwners.values()]
+        .map(resource => `${resource.stripeId}:${resource.uid}`).sort(),
+      ['sub_123:alice'],
     )
   })
 
@@ -1546,15 +1624,22 @@ describe('Stripe fulfillment security', () => {
     assert.equal(result.duplicate, false)
   })
 
-  test('cancels delayed active subscription updates for tombstoned accounts', async () => {
+  test('cancels metadata-free delayed subscription updates for tombstoned accounts', async () => {
     const db = fakeDb(null)
     db.tombstoneData.cleanupStatus = 'completed'
+    db.subscriptionOwners.set(
+      subscriptionOwnerRef(
+        { collection: () => ({ doc: id => ({ id }) }) },
+        'sub_deleted',
+      ).id,
+      { stripeId: 'sub_deleted', uid: 'alice' },
+    )
     const canceled = []
     const deletedSubscription = {
       id: 'sub_deleted',
       customer: 'cus_deleted',
       status: 'active',
-      metadata: { firebaseUid: 'alice' },
+      metadata: {},
       items: { data: [{ price: { id: 'price_pro' } }] },
     }
     const result = await processStripeEvent({

@@ -3,8 +3,10 @@ const {
   billingResourceRef,
   customerBelongsToUser,
   indexBillingResources,
+  indexSubscriptionOwners,
   queueBillingCleanup,
   stripeSessionBelongsToUser,
+  subscriptionOwnerRef,
 } = require('./billing-resources')
 const { createHash } = require('node:crypto')
 
@@ -114,7 +116,14 @@ async function findUserBySubscription(db, stripe, subscription) {
 }
 
 async function findTombstonedUserRef(db, subscription) {
-  const uid = subscription?.metadata?.firebaseUid
+  const subscriptionId = stringId(subscription?.id)
+  const ownerRef = subscriptionOwnerRef(db, subscriptionId)
+  const ownerSnapshot = ownerRef ? await ownerRef.get() : null
+  const owner = ownerSnapshot?.exists ? ownerSnapshot.data() : null
+  const uid = owner?.stripeId === subscriptionId
+    && validUid(owner.uid)
+    ? owner.uid
+    : subscription?.metadata?.firebaseUid
   if (!validUid(uid)) return null
   const tombstone = await db.collection('accountDeletionTombstones').doc(uid).get()
   return tombstone.exists ? db.collection('users').doc(uid) : null
@@ -158,7 +167,7 @@ async function commitEvent(
       if (!accountDeleted) {
         const userData = buildUserData(userSnapshot.data())
         rejected = !userData
-        indexBillingResources(transaction, userRef, billingResources, serverTimestamp())
+        indexBillingResources(transaction, db, userRef, billingResources, serverTimestamp())
         if (userData && !duplicate && eventIsNewer(event, userSnapshot.data())) {
           transaction.set(userRef, {
             ...userData,
@@ -298,7 +307,9 @@ async function processStripeEvent({ db, event, expectedPriceId, serverTimestamp,
       subscriptionUpdatedAt: serverTimestamp(),
     }
     if (!active) update.proSince = null
-    const cancellationSubscriptionId = active ? stringId(currentSubscription.id) : null
+    const cancellationSubscriptionId = !TERMINAL_SUBSCRIPTION_STATUSES.has(currentSubscription.status)
+      ? stringId(currentSubscription.id)
+      : null
     const result = await commitEvent(db, event, userRef, userData => {
       const currentSubscriptionId = userData.stripeSubscriptionId
       if (currentSubscriptionId && currentSubscriptionId !== stringId(subscription.id)) return null
@@ -462,11 +473,14 @@ async function createCheckout({ appUrl, auth, db, expectedPriceId, req, stripe }
         || tombstone.exists
         || snapshot.data().accountDeletionStartedAt
       if (deletionStarted) {
-        await queueBillingCleanup(transaction, tombstoneRef, [
+        const resources = [
           { type: 'checkoutSession', stripeId: session.id },
           { type: 'customer', stripeId: stringId(session.customer) || customer.customer },
           { type: 'subscription', stripeId: stringId(session.subscription) },
-        ], new Date())
+        ]
+        const timestamp = new Date()
+        await queueBillingCleanup(transaction, tombstoneRef, resources, timestamp)
+        indexSubscriptionOwners(transaction, db, identity.uid, resources, timestamp)
         return { deletionStarted: true, persisted: false }
       }
       if (snapshot.data().stripeCheckoutAttemptId !== attemptId) {
@@ -479,7 +493,7 @@ async function createCheckout({ appUrl, auth, db, expectedPriceId, req, stripe }
           ? new Date(session.expires_at * 1000)
           : new Date(now + CHECKOUT_RESERVATION_MS),
       }, { merge: true })
-      indexBillingResources(transaction, userRef, [
+      indexBillingResources(transaction, db, userRef, [
         { type: 'checkoutSession', stripeId: session.id },
         { type: 'customer', stripeId: stringId(session.customer) || customer.customer },
       ], new Date())
@@ -550,7 +564,7 @@ async function createBillingPortal({ appUrl, auth, db, req, stripe }) {
         throw error
       }
       if (!currentIndex.exists) {
-        indexBillingResources(transaction, userRef, [
+        indexBillingResources(transaction, db, userRef, [
           { type: 'customer', stripeId: customerId },
         ], new Date())
       }
@@ -563,7 +577,7 @@ async function createBillingPortal({ appUrl, auth, db, req, stripe }) {
 }
 
 async function backfillBillingResourcePage({ db, serverTimestamp, stripe }) {
-  const stateRef = db.collection('systemMigrations').doc('stripeBillingResourcesV1')
+  const stateRef = db.collection('systemMigrations').doc('stripeBillingResourceOwnersV1')
   const stateSnapshot = await stateRef.get()
   const state = stateSnapshot.exists ? stateSnapshot.data() : {}
   if (state.completed === true) return { completed: true, processed: 0 }
@@ -577,6 +591,11 @@ async function backfillBillingResourcePage({ db, serverTimestamp, stripe }) {
     const uid = session.client_reference_id || session.metadata?.firebaseUid
     if (!validUid(uid) || !stripeSessionBelongsToUser(session, uid)) continue
     const userRef = db.collection('users').doc(uid)
+    const resources = [
+      { type: 'checkoutSession', stripeId: stringId(session.id) },
+      { type: 'customer', stripeId: stringId(session.customer) },
+      { type: 'subscription', stripeId: stringId(session.subscription) },
+    ]
     const indexed = await db.runTransaction(async transaction => {
       const tombstoneRef = db.collection('accountDeletionTombstones').doc(uid)
       const [userSnapshot, tombstoneSnapshot] = await Promise.all([
@@ -586,11 +605,9 @@ async function backfillBillingResourcePage({ db, serverTimestamp, stripe }) {
       if (!userSnapshot.exists
         || tombstoneSnapshot.exists
         || userSnapshot.data().accountDeletionStartedAt) {
-        await queueBillingCleanup(transaction, tombstoneRef, [
-          { type: 'checkoutSession', stripeId: stringId(session.id) },
-          { type: 'customer', stripeId: stringId(session.customer) },
-          { type: 'subscription', stripeId: stringId(session.subscription) },
-        ], serverTimestamp())
+        const timestamp = serverTimestamp()
+        await queueBillingCleanup(transaction, tombstoneRef, resources, timestamp)
+        indexSubscriptionOwners(transaction, db, uid, resources, timestamp)
         transaction.set(tombstoneRef, {
           cleanupStatus: 'pending',
           cleanupUpdatedAt: serverTimestamp(),
@@ -601,11 +618,7 @@ async function backfillBillingResourcePage({ db, serverTimestamp, stripe }) {
         }, { merge: true })
         return false
       }
-      indexBillingResources(transaction, userRef, [
-        { type: 'checkoutSession', stripeId: stringId(session.id) },
-        { type: 'customer', stripeId: stringId(session.customer) },
-        { type: 'subscription', stripeId: stringId(session.subscription) },
-      ], serverTimestamp())
+      indexBillingResources(transaction, db, userRef, resources, serverTimestamp())
       return true
     })
     if (indexed) processed += 1

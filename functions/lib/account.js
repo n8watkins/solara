@@ -1,4 +1,5 @@
 const {
+  indexSubscriptionOwners,
   queueBillingCleanup,
   stripeSessionBelongsToUser,
 } = require('./billing-resources')
@@ -148,9 +149,11 @@ async function claimCleanupResources(db, tombstoneRef) {
   })
 }
 
-async function queueDiscoveredResources(db, tombstoneRef, resources) {
+async function queueDiscoveredResources(db, tombstoneRef, uid, resources) {
   await db.runTransaction(async transaction => {
-    await queueBillingCleanup(transaction, tombstoneRef, resources, new Date())
+    const timestamp = new Date()
+    await queueBillingCleanup(transaction, tombstoneRef, resources, timestamp)
+    indexSubscriptionOwners(transaction, db, uid, resources, timestamp)
   })
 }
 
@@ -170,7 +173,7 @@ async function processCheckoutCleanup({ db, resource, stripe, tombstoneRef, uid 
     await markCleanupResource(db, resource, { status: 'completed', ownershipRejected: true })
     return
   }
-  await queueDiscoveredResources(db, tombstoneRef, [
+  await queueDiscoveredResources(db, tombstoneRef, uid, [
     { type: 'customer', stripeId: stringId(session.customer) },
     { type: 'subscription', stripeId: stringId(session.subscription) },
   ])
@@ -252,7 +255,7 @@ async function processCustomerCleanup({ db, resource, stripe, tombstoneRef, uid 
       ...(data.subscriptionCursor ? { starting_after: data.subscriptionCursor } : {}),
     }),
   ])
-  await queueDiscoveredResources(db, tombstoneRef, [
+  await queueDiscoveredResources(db, tombstoneRef, uid, [
     ...(sessionPage?.data || []).map(session => ({
       type: 'checkoutSession',
       stripeId: stringId(session.id),
@@ -353,10 +356,13 @@ async function processAccountDeletionPage({ auth, db, stripe, tombstoneRef, uid 
         || currentData.resourceIndexCursor !== tombstone.resourceIndexCursor) {
         return false
       }
-      await queueBillingCleanup(transaction, tombstoneRef, page.docs.map(doc => ({
+      const resources = page.docs.map(doc => ({
         ...doc.data(),
         verified: true,
-      })), new Date())
+      }))
+      const timestamp = new Date()
+      await queueBillingCleanup(transaction, tombstoneRef, resources, timestamp)
+      indexSubscriptionOwners(transaction, db, uid, resources, timestamp)
       transaction.set(tombstoneRef, {
         resourceIndexComplete: page.docs.length < BILLING_INDEX_PAGE_SIZE,
         resourceIndexCursor: page.docs.at(-1)?.id || null,
