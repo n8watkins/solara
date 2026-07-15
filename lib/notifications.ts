@@ -106,6 +106,7 @@ async function completeRemoteRegistration(
   uid: string,
   subscription: LocalDeviceSubscription,
 ): Promise<boolean> {
+  writeLocalSubscription(uid, { ...subscription, migrationPending: true })
   for (let attempt = 0; attempt < REGISTRATION_MIGRATION_ATTEMPTS; attempt++) {
     const result = await mutateRemoteDevice(uid, 'registerNotificationDevice', 'POST', {
       deviceId: subscription.deviceId,
@@ -151,16 +152,8 @@ export async function enableNotifications(uid: string): Promise<void> {
   const existing = readLocalSubscription(uid)
   const deviceId = existing?.deviceId || randomDeviceId()
   const subscription = { deviceId, token }
-  try {
-    const completed = await completeRemoteRegistration(uid, subscription)
-    if (!completed) throw new Error('Notification setup is still being finalized. Try again shortly.')
-  } catch (error) {
-    if (!readLocalSubscription(uid) && !existing) {
-      const m = getMessagingInstance()
-      if (m) await deleteToken(m).catch(() => false)
-    }
-    throw error
-  }
+  const completed = await completeRemoteRegistration(uid, subscription)
+  if (!completed) throw new Error('Notification setup is still being finalized. Try again shortly.')
   writeLocalSubscription(uid, subscription)
   try { localStorage.removeItem('solara_fcm_token') } catch {}
 }

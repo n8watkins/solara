@@ -115,6 +115,25 @@ describe('device notification subscriptions', () => {
     expect(notificationsEnabledLocally('user-1')).toBe(true)
   })
 
+  it('resumes registration after an ambiguous server response', async () => {
+    vi.mocked(fetch).mockRejectedValueOnce(new Error('connection closed'))
+
+    await expect(enableNotifications('user-1')).rejects.toThrow('connection closed')
+
+    expect(notificationsEnabledLocally('user-1')).toBe(false)
+    expect(mocks.deleteToken).not.toHaveBeenCalled()
+    const pending = JSON.parse(values.get('solara_notification_device_user-1') || '{}')
+    expect(pending).toEqual(expect.objectContaining({
+      deviceId: expect.any(String),
+      migrationPending: true,
+      token: 'new-fcm-token-that-is-long-enough',
+    }))
+
+    await expect(migrateLegacyNotificationToken('user-1')).resolves.toBe(true)
+    expect(fetch).toHaveBeenCalledTimes(2)
+    expect(notificationsEnabledLocally('user-1')).toBe(true)
+  })
+
   it('deactivates the current device and removes its token during sign-out', async () => {
     await enableNotifications('user-1')
     vi.mocked(fetch).mockClear()

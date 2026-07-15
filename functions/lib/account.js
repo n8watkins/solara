@@ -339,14 +339,18 @@ async function processCustomerCleanup({ db, resource, stripe, tombstoneRef, uid 
     }),
   ])
   await queueDiscoveredResources(db, tombstoneRef, uid, [
-    ...(sessionPage?.data || []).map(session => ({
-      type: 'checkoutSession',
-      stripeId: stringId(session.id),
-    })),
-    ...(subscriptionPage?.data || []).map(subscription => ({
-      type: 'subscription',
-      stripeId: stringId(subscription.id),
-    })),
+    ...(sessionPage?.data || [])
+      .filter(session => stripeSessionBelongsToUser(session, uid))
+      .map(session => ({
+        type: 'checkoutSession',
+        stripeId: stringId(session.id),
+      })),
+    ...(subscriptionPage?.data || [])
+      .filter(subscription => subscription?.metadata?.firebaseUid === uid)
+      .map(subscription => ({
+        type: 'subscription',
+        stripeId: stringId(subscription.id),
+      })),
   ])
   const checkoutCursor = sessionPage ? stripePageCursor(sessionPage) : null
   const subscriptionCursor = subscriptionPage ? stripePageCursor(subscriptionPage) : null

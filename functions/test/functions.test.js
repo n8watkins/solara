@@ -22,6 +22,7 @@ const {
   backfillBillingResourcePage,
   createBillingPortal,
   createCheckout,
+  findUserBySubscription,
   processStripeEvent,
   subscriptionHasPrice,
   validAttemptId,
@@ -732,14 +733,17 @@ describe('account data security', () => {
     const stripe = {
       checkout: { sessions: { list: async request => {
         checkoutRequests.push(request)
-        return { data: [{ id: `cs_${checkoutRequests.length}` }], has_more: false }
+        return {
+          data: [{ id: `cs_${checkoutRequests.length}`, client_reference_id: 'alice' }],
+          has_more: false,
+        }
       } } },
       subscriptions: { list: async request => {
         subscriptionRequests.push(request)
         if (subscriptionRequests.length === 1) {
-          return { data: [{ id: 'sub_1' }], has_more: true }
+          return { data: [{ id: 'sub_1', metadata: { firebaseUid: 'alice' } }], has_more: true }
         }
-        return { data: [{ id: 'sub_2' }], has_more: false }
+        return { data: [{ id: 'sub_2', metadata: { firebaseUid: 'alice' } }], has_more: false }
       } },
     }
 
@@ -750,6 +754,52 @@ describe('account data security', () => {
     assert.equal(checkoutRequests.length, 1)
     assert.equal(subscriptionRequests.length, 2)
     assert.equal(subscriptionRequests[1].starting_after, 'sub_1')
+  })
+
+  test('queues only account-owned resources from a shared Stripe customer', async () => {
+    const { db, tombstoneRef } = fakeDeletionDb({
+      cleanup: [{
+        id: 'customer',
+        type: 'customer',
+        stripeId: 'cus_shared',
+        status: 'pending',
+        verified: true,
+      }],
+      tombstone: { cleanupStatus: 'pending', resourceIndexComplete: true },
+    })
+    const stripe = {
+      checkout: { sessions: { list: async () => ({
+        data: [
+          { id: 'cs_alice', client_reference_id: 'alice' },
+          { id: 'cs_bob', client_reference_id: 'bob' },
+        ],
+        has_more: false,
+      }) } },
+      subscriptions: { list: async () => ({
+        data: [
+          { id: 'sub_alice', metadata: { firebaseUid: 'alice' } },
+          { id: 'sub_bob', metadata: { firebaseUid: 'bob' } },
+          { id: 'sub_legacy', metadata: {} },
+        ],
+        has_more: false,
+      }) },
+    }
+
+    await processAccountDeletionPage({
+      auth: deletionAuth(db),
+      db,
+      stripe,
+      tombstoneRef,
+      uid: 'alice',
+    })
+
+    assert.deepEqual(
+      [...db.cleanupResources.values()]
+        .map(resource => resource.stripeId)
+        .filter(stripeId => stripeId !== 'cus_shared')
+        .sort(),
+      ['cs_alice', 'sub_alice'],
+    )
   })
 
   test('rescans earlier customer sessions after legacy ownership verification', async () => {
@@ -788,7 +838,7 @@ describe('account data security', () => {
     assert.equal(requests[2].starting_after, undefined)
     assert.equal(
       [...db.cleanupResources.values()].some(resource => resource.stripeId === 'cs_early'),
-      true,
+      false,
     )
   })
 
@@ -1624,6 +1674,35 @@ describe('Stripe fulfillment security', () => {
         .map(resource => `${resource.stripeId}:${resource.uid}`).sort(),
       ['sub_123:alice'],
     )
+  })
+
+  test('leaves a subscription unresolved when indexed ownership is ambiguous', async () => {
+    const userRef = id => ({ id, get: async () => ({ exists: true, ref: { id } }) })
+    const indexedDoc = id => ({
+      data: () => ({ type: 'subscription' }),
+      ref: { parent: { parent: userRef(id) } },
+    })
+    const db = {
+      collection(name) {
+        if (name === 'stripeSubscriptionOwners') {
+          return { doc: () => ({ get: async () => ({ exists: false }) }) }
+        }
+        throw new Error(`Unexpected collection ${name}`)
+      },
+      collectionGroup: () => ({
+        where() { return this },
+        limit() { return this },
+        get: async () => ({ docs: [indexedDoc('alice'), indexedDoc('bob')] }),
+      }),
+    }
+
+    const user = await findUserBySubscription(db, {}, {
+      id: 'sub_shared',
+      customer: 'cus_shared',
+      metadata: {},
+    })
+
+    assert.equal(user, null)
   })
 
   test('cancels a checkout subscription when its account was deleted', async () => {

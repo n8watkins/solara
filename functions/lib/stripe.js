@@ -90,24 +90,57 @@ async function validateCheckoutSession(stripe, session, expectedPriceId, { requi
 async function findUserBySubscription(db, stripe, subscription) {
   const subscriptionId = stringId(subscription?.id)
   const customerId = stringId(subscription?.customer)
-  for (const stripeId of [subscriptionId, customerId]) {
-    if (!stripeId) continue
+  const metadataUid = subscription?.metadata?.firebaseUid
+  if (metadataUid !== undefined && !validUid(metadataUid)) return null
+
+  const ownerRef = subscriptionOwnerRef(db, subscriptionId)
+  const ownerSnapshot = ownerRef ? await ownerRef.get() : null
+  const owner = ownerSnapshot?.exists ? ownerSnapshot.data() : null
+  const ownerUid = owner?.stripeId === subscriptionId && validUid(owner.uid) ? owner.uid : null
+  if (ownerUid && metadataUid && ownerUid !== metadataUid) return null
+
+  const authoritativeUid = ownerUid || metadataUid
+  if (authoritativeUid) {
+    const user = await db.collection('users').doc(authoritativeUid).get()
+    return user.exists ? user : null
+  }
+
+  if (subscriptionId) {
     const indexed = await db.collectionGroup('billingResources')
-      .where('stripeId', '==', stripeId).limit(1).get()
-    if (!indexed.empty) return indexed.docs[0].ref.parent.parent.get()
+      .where('stripeId', '==', subscriptionId).limit(2).get()
+    const indexedOwners = new Map(indexed.docs
+      .filter(doc => doc.data().type === 'subscription')
+      .map(doc => [doc.ref.parent.parent.id, doc.ref.parent.parent]))
+    if (indexedOwners.size > 1) return null
+    if (indexedOwners.size === 1) {
+      const user = await [...indexedOwners.values()][0].get()
+      return user.exists ? user : null
+    }
   }
   if (subscriptionId) {
     const bySubscription = await db.collection('users')
-      .where('stripeSubscriptionId', '==', subscriptionId).limit(1).get()
-    if (!bySubscription.empty) {
-      const candidate = bySubscription.docs[0]
-      if (subscription?.metadata?.firebaseUid === candidate.ref.id) return candidate
-    }
+      .where('stripeSubscriptionId', '==', subscriptionId).limit(2).get()
+    if (bySubscription.docs.length > 1) return null
+    if (bySubscription.docs.length === 1) return bySubscription.docs[0]
   }
   if (customerId) {
+    const indexed = await db.collectionGroup('billingResources')
+      .where('stripeId', '==', customerId).limit(2).get()
+    const indexedOwners = new Map(indexed.docs
+      .filter(doc => doc.data().type === 'customer')
+      .map(doc => [doc.ref.parent.parent.id, doc.ref.parent.parent]))
+    if (indexedOwners.size > 1) return null
+    if (indexedOwners.size === 1) {
+      const candidateRef = [...indexedOwners.values()][0]
+      if (!await customerBelongsToUser(stripe, customerId, candidateRef.id)) return null
+      const user = await candidateRef.get()
+      return user.exists ? user : null
+    }
+
     const byCustomer = await db.collection('users')
-      .where('stripeCustomerId', '==', customerId).limit(1).get()
-    if (!byCustomer.empty) {
+      .where('stripeCustomerId', '==', customerId).limit(2).get()
+    if (byCustomer.docs.length > 1) return null
+    if (byCustomer.docs.length === 1) {
       const candidate = byCustomer.docs[0]
       if (await customerBelongsToUser(stripe, customerId, candidate.ref.id)) return candidate
     }
@@ -646,6 +679,7 @@ module.exports = {
   backfillBillingResourcePage,
   createBillingPortal,
   createCheckout,
+  findUserBySubscription,
   listCustomerSubscriptions,
   processStripeEvent,
   subscriptionHasPrice,
