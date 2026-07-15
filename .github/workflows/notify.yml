@@ -2,15 +2,15 @@ name: Send morning notifications
 
 on:
   schedule:
-    - cron: '*/15 * * * *'
+    - cron: "*/15 * * * *"
   workflow_dispatch:
     inputs:
       dry_run:
-        description: 'Build & log messages without sending any push'
+        description: "Build & log messages without sending any push"
         type: boolean
         default: false
       force_send:
-        description: 'Ignore local-time eligibility while preserving idempotency'
+        description: "Ignore local-time eligibility while preserving idempotency"
         type: boolean
         default: false
 
@@ -38,6 +38,6 @@ jobs:
         run: node scripts/send-notifications.js
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          NEXT_PUBLIC_SITE_URL:     ${{ secrets.NEXT_PUBLIC_SITE_URL }}
-          DRY_RUN:                  ${{ inputs.dry_run && '1' || '0' }}
-          FORCE_SEND:               ${{ inputs.force_send && '1' || '0' }}
+          NEXT_PUBLIC_SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL }}
+          DRY_RUN: ${{ inputs.dry_run && '1' || '0' }}
+          FORCE_SEND: ${{ inputs.force_send && '1' || '0' }}
