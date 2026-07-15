@@ -92,12 +92,16 @@ function toLocation(result: GeocodingResult): Location {
   }
 }
 
+function normalizeLocationPart(value: string): string {
+  return value.trim().toLocaleLowerCase()
+}
+
 function matchesQualifier(result: GeocodingResult, qualifier: string): boolean {
-  const normalizedQualifier = qualifier.trim().toLocaleLowerCase()
+  const normalizedQualifier = normalizeLocationPart(qualifier)
   const acceptedValues = new Set([normalizedQualifier, REGION_ABBREVIATIONS[normalizedQualifier]])
   return [result.admin1, result.admin2, result.country, result.country_code]
     .filter((value): value is string => Boolean(value))
-    .some(value => acceptedValues.has(value.trim().toLocaleLowerCase()))
+    .some(value => acceptedValues.has(normalizeLocationPart(value)))
 }
 
 async function fetchResults(query: string, count: number): Promise<GeocodingResult[]> {
@@ -127,7 +131,9 @@ export async function searchLocation(query: string): Promise<Location | null> {
 
   const qualifiers = qualifierParts.map(part => part.toLocaleLowerCase())
   const findQualifiedResult = (results: GeocodingResult[]) =>
-    results.find(result => qualifiers.every(qualifier => matchesQualifier(result, qualifier)))
+    results.find(result =>
+      normalizeLocationPart(result.name) === normalizeLocationPart(city)
+      && qualifiers.every(qualifier => matchesQualifier(result, qualifier)))
 
   const directResult = findQualifiedResult(await fetchResults(normalized, 10))
   if (directResult) return toLocation(directResult)

@@ -65,6 +65,18 @@ describe('searchLocation', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
+  it('rejects fuzzy city matches from the requested region', async () => {
+    const nearbyResult = { latitude: 45.5231, longitude: -122.6765, name: 'East Portland', admin1: 'Oregon' }
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ results: [nearbyResult] }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ results: [nearbyResult] }) })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(searchLocation('Portland, Oregon')).resolves.toBeNull()
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
   it('matches region abbreviations without accepting substrings', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
