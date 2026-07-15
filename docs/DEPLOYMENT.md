@@ -1,129 +1,212 @@
-# Solara — Deployment Guide
+# Solara Deployment Guide
 
-_Last updated: 2026-05-29_
+_Last reviewed: 2026-07-15_
 
-## Spark or Blaze?
+Solara exports a static Next.js site to `out/` and hosts it on Firebase Hosting.
+Firebase Functions provide trusted server behavior for Stripe fulfillment and the live calendar feed.
+The notification dispatcher is available as a manual GitHub Actions workflow until live scheduled delivery is approved.
 
-The app was deliberately architected to run on the **Spark (free)** plan. Check your
-current plan at **Firebase Console → ⚙️ → Usage and billing → Details & settings**.
+## Plan requirements
 
-| Service used | Plan needed | How it's wired |
-|---|---|---|
-| Hosting (static `out/`) | ✅ Spark | `firebase.json` |
-| Auth (Google sign-in) | ✅ Spark | `lib/firebase.ts` |
-| Firestore (prefs, FCM tokens) | ✅ Spark | `firestore.rules` |
-| FCM push notifications | ✅ Spark | sent from **GitHub Actions cron** (`notify.yml`), not Cloud Functions |
-| Cloud Functions | ❌ **Blaze** | _none exist yet_ |
+Firebase Hosting, Authentication, Firestore, and Cloud Messaging can operate on the Spark plan within their quotas.
+Deploying Firebase Functions requires the Blaze plan and an attached billing account.
+Set a budget alert before enabling Blaze.
 
-**As built today, Spark is enough — $0/mo.** The daily notification job runs on GitHub
-Actions with `firebase-admin`, which avoids Cloud Functions / Cloud Scheduler — the usual
-trigger for needing Blaze.
+## Local environment
 
-**What flips you to Blaze:** real monetization. The Stripe webhook that auto-grants `paid`
-after payment *must* be a Cloud Function, and Cloud Functions require Blaze. Blaze keeps the
-entire Spark free tier and adds ~2M free function calls/month, so a low-volume webhook costs
-effectively **$0** — just attach a billing account and set a budget alert.
+Copy `.env.local.example` to `.env.local` and populate the features you need.
 
-> The same applies if the planned **Google Calendar scheduling** feature ever needs a
-> server-side token exchange or a Calendar push-notification webhook. The client-only design
-> (see `docs/SMART_SCHEDULING.md`) stays on Spark; a server component would require Blaze.
+Required for account access:
 
----
+- `NEXT_PUBLIC_FIREBASE_API_KEY`
+- `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`
+- `NEXT_PUBLIC_FIREBASE_PROJECT_ID`
+- `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`
+- `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`
+- `NEXT_PUBLIC_FIREBASE_APP_ID`
 
-## Phase 0 — Decide the plan
+Required for push registration:
 
-- **Launch without auto-billing → stay on Spark.** Payment Links still work; buyers are
-  flipped to Pro manually (or you collect waitlist only).
-- **Launch with auto-billing → upgrade to Blaze**, and set a **budget alert** (e.g. $5/mo)
-  so there are no surprises.
+- `NEXT_PUBLIC_FIREBASE_VAPID_KEY`
+- `NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY`
+- `NEXT_PUBLIC_FUNCTIONS_URL`
 
-## Phase 1 — Firebase project setup
+The notification registration endpoints require a valid App Check token and paid entitlement.
 
-- [ ] Create the Firebase project (or confirm the existing one).
-- [ ] Replace `YOUR_FIREBASE_PROJECT_ID` in **`.firebaserc`** (still a placeholder).
-- [ ] Enable **Auth → Google** provider; add the deploy domain to authorized domains.
-- [ ] Enable **Firestore** in production mode (`firestore.rules` already locks it per-user).
-- [ ] Enable **Cloud Messaging**; generate a **Web Push (VAPID) key**.
+Optional feature activation:
 
-## Phase 2 — Secrets (GitHub → repo → Settings → Secrets)
+- `NEXT_PUBLIC_SITE_URL` sets the canonical deployed origin.
+- `NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID` enables Google Calendar access.
+- `NEXT_PUBLIC_PRO_PRICE` controls the displayed Pro price.
+- `NEXT_PUBLIC_FUNCTIONS_URL` enables Function-backed product surfaces.
+- `NEXT_PUBLIC_GA_MEASUREMENT_ID` offers an explicit analytics choice and loads GA4 only after the visitor opts in.
 
-`deploy.yml` and `notify.yml` already reference these — they must exist:
+All `NEXT_PUBLIC_*` variables are public and compiled into the browser bundle.
+Never put a Stripe secret, Firebase service-account JSON, webhook secret, or OAuth client secret in a `NEXT_PUBLIC_*` variable.
 
-- [ ] `NEXT_PUBLIC_FIREBASE_API_KEY`
-- [ ] `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`
-- [ ] `NEXT_PUBLIC_FIREBASE_PROJECT_ID`
-- [ ] `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`
-- [ ] `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`
-- [ ] `NEXT_PUBLIC_FIREBASE_APP_ID`
-- [ ] `NEXT_PUBLIC_FIREBASE_VAPID_KEY`
-- [ ] `FIREBASE_SERVICE_ACCOUNT` (JSON — hosting deploy + the notify cron)
-- [ ] `NEXT_PUBLIC_SITE_URL` (absolute URL for OG/Twitter share images)
-- [ ] _Monetization (optional):_ `NEXT_PUBLIC_STRIPE_PAYMENT_LINK`, `NEXT_PUBLIC_PRO_PRICE`
-- [ ] _Calendar scheduling (optional):_ `NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID` — OAuth
-      client ID from a Google Cloud project with the Calendar API enabled and the
-      deploy domain as an authorized JS origin. Stays on Spark (client-only reads).
+## GitHub Actions secrets
 
-## Phase 3 — First deploy
+Add the required client variables above as repository secrets.
+Also add `FIREBASE_SERVICE_ACCOUNT` as the complete JSON for a narrowly scoped deployment and notification service account.
+The deployment workflow uses that credential to publish Hosting and Firestore rules, plus indexes and Functions when `ENABLE_BLAZE_FUNCTIONS` is `true`.
+The notification workflow uses it to access notification data and send through Firebase Cloud Messaging.
 
-- [ ] **Fix the CI gap:** `action-hosting-deploy` deploys **Hosting only** — Firestore rules
-      are never deployed by CI. Either run `firebase deploy --only firestore:rules` once
-      manually, or add that step to the workflow. _Without this the DB can sit on
-      default-open rules — a security hole._
-- [ ] `npm run build` locally to confirm the static export.
-- [ ] Push to `main` → confirm `deploy.yml` succeeds → site is live.
+Server configuration is split across these locations:
 
-## Phase 4 — Verify in production (not localhost)
+- Firebase Secret Manager stores `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET`.
+- GitHub Actions provides `NEXT_PUBLIC_SITE_URL` to Functions as `APP_URL` and provides `STRIPE_PRICE_ID` as a deploy-time Functions parameter.
+- The `ENABLE_BLAZE_FUNCTIONS` GitHub repository variable controls whether the deployment publishes Firestore indexes and Functions and exposes `NEXT_PUBLIC_FUNCTIONS_URL` in the client build.
+- GitHub repository secrets store `NEXT_PUBLIC_FUNCTIONS_URL`, `FIREBASE_SERVICE_ACCOUNT`, and the public client configuration used during the static build.
 
-- [ ] Google sign-in round-trips; prefs sync to Firestore.
-- [ ] PWA installs (manifest + PNG/maskable icons); home-screen icon renders correctly.
-- [ ] Share a link → OG card renders (needs `NEXT_PUBLIC_SITE_URL` + `metadataBase`).
-- [ ] FCM: register a token in a real browser, `workflow_dispatch` `notify.yml`, confirm
-      delivery. _(Never tested end-to-end — see ROADMAP.)_
+Before enabling the backend deployment, put the project on Blaze, configure both Stripe secrets in Firebase Secret Manager, and configure `STRIPE_PRICE_ID`, `NEXT_PUBLIC_FUNCTIONS_URL`, and `NEXT_PUBLIC_SITE_URL` in GitHub.
+When `ENABLE_BLAZE_FUNCTIONS` is `true`, the main deployment passes `NEXT_PUBLIC_SITE_URL` as `APP_URL` and `STRIPE_PRICE_ID` to the Functions deployment before it deploys Hosting.
 
-## Phase 5 — Monetization (Blaze only)
+The `main` deployment is blocked until lint, typecheck, app and Functions unit tests, Firestore emulator rules tests, production build, and browser smoke tests pass.
+Pull requests and non-main pushes run the same quality checks without deploying.
 
-The webhook is **scaffolded** in `functions/` (`stripeWebhook`); these steps deploy and wire it.
+## Firebase console setup
 
-- [ ] Create the Stripe **Payment Link**; set `NEXT_PUBLIC_STRIPE_PAYMENT_LINK`.
-- [ ] `cd functions && npm install` (separate runtime; not part of the app's deps).
-- [ ] Set secrets: `firebase functions:secrets:set STRIPE_SECRET_KEY` and
-      `STRIPE_WEBHOOK_SECRET`.
-- [ ] `firebase deploy --only functions` (needs the `functions` block now in
-      `firebase.json`). Register the deployed `stripeWebhook` URL in Stripe; copy the
-      signing secret into `STRIPE_WEBHOOK_SECRET`. Test in Stripe **test mode**.
-- [x] **Tier self-grant is locked** in `firestore.rules`: clients may set any non-paid
-      tier, but only the webhook's Admin SDK may write `tier == 'paid'`. Without this the
-      webhook is pointless (any user could self-upgrade from the console).
+1. Enable Google Authentication.
+2. Add the production and preview domains to Authentication Authorized domains.
+3. Create Firestore and deploy the repository rules.
+4. Enable Cloud Messaging and generate a Web Push VAPID key.
+5. Register the web app for App Check with reCAPTCHA v3, set the site key, monitor enforcement metrics, and then enforce supported Firebase products.
+6. Enable Hosting.
+7. Upgrade to Blaze only when Functions are ready to deploy.
+8. Set a billing budget alert before the first Functions deployment.
 
-## Phase 7b — Live calendar feed (Blaze only)
-
-Both halves exist: the `calendarFeed` function in `functions/`, and the client wiring
-(`lib/feed.ts`, `components/CalendarFeed.tsx`, the `calendarFeedToken` pref).
-
-- [ ] `firebase deploy --only functions` deploys `calendarFeed` alongside the webhook.
-- [ ] Set `NEXT_PUBLIC_FUNCTIONS_URL` to the functions base URL (e.g.
-      `https://<region>-<project>.cloudfunctions.net`) so the Subscribe UI un-gates.
-- [ ] Verify: subscribe a calendar app to the generated URL; confirm it refreshes as the
-      forecast changes. Note the feed only works for **signed-in** users (the token must be
-      persisted to Firestore for the function to resolve it).
-
----
-
-## Known gaps to address before/at launch
-
-1. **CI does not deploy Firestore rules** (Phase 3) — _fixed_: `deploy.yml` now deploys
-   `firestore:rules`.
-2. **Notifications never tested end-to-end** (Phase 4).
-3. **Pro fulfilment**: webhook scaffolded (Phase 5) but not yet deployed/tested in Stripe.
-4. **Subscription lifecycle**: the webhook grants Pro on `checkout.session.completed` and
-   revokes it on `customer.subscription.deleted` (via the persisted `stripeCustomerId`).
-   Both paths are still untested against live Stripe events.
-
-## Quick commands
+For local Firebase CLI use, select the intended project explicitly.
 
 ```bash
-npm run build                              # static export to out/
-firebase deploy --only hosting             # manual hosting deploy
-firebase deploy --only firestore:rules     # deploy security rules (CI gap)
-firebase deploy                            # everything in firebase.json
+npx firebase-tools use <project-id>
 ```
+
+## First deployment
+
+Verify the same gates used by CI.
+
+```bash
+npm ci
+npm run lint
+npm run typecheck
+npm test
+npm run build
+npx playwright install chromium
+npm run test:e2e
+```
+
+Merge a reviewed pull request into `main` after the required GitHub secrets exist.
+When `ENABLE_BLAZE_FUNCTIONS` is `true`, the deployment workflow builds with those values, deploys transitional Firestore rules and indexes, deploys Functions, deploys Hosting, and then restores the final rules.
+When the variable is not `true`, the workflow keeps Function-backed client surfaces disabled, deploys Hosting, and restores the final Firestore rules.
+
+## Service worker generation
+
+`public/firebase-messaging-sw.js` is a generated, ignored artifact.
+Both `npm run dev` and `npm run build` run `scripts/generate-sw.js` first and create it from the Firebase values in `.env.local` or the deployment environment.
+Do not commit or hand-edit the generated worker.
+Re-run the generator through either command after changing Firebase client configuration.
+
+For a controlled manual deployment, use an explicit project ID.
+
+```bash
+npx firebase-tools deploy --only firestore --config firebase.pre-functions.json --project <project-id>
+npx firebase-tools deploy --only functions --project <project-id>
+npx firebase-tools deploy --only hosting --project <project-id>
+npx firebase-tools deploy --only firestore:rules --project <project-id>
+```
+
+Supply `APP_URL` and `STRIPE_PRICE_ID` when manually deploying Functions.
+Wait for every index in `firestore.indexes.json` to report `READY` before enabling Function-backed account or billing surfaces.
+
+## Notification activation
+
+The notification workflow installs the committed dependency graph with `npm ci` and prevents overlapping dispatch runs.
+Scheduled delivery remains disabled until the real-device verification below is complete and live activation is approved.
+
+Each run is bounded by page and time budgets and checkpoints its device and legacy-registration cursors in `notificationDispatchState/morning` or `notificationDispatchState/morning-dry-run`.
+Later runs resume from those cursors and alternate between current device registrations and legacy registrations so a large or repeatedly interrupted scan cannot starve either source.
+
+Use `workflow_dispatch` for controlled verification.
+The workflow defaults to `dry_run = true`.
+Use `force_send = true` only when you intentionally need to bypass local-time eligibility during a manual test.
+Application idempotency should still prevent the same delivery from being sent twice.
+
+The dispatcher creates a transactional claim on the device before it calls FCM.
+`notificationDeliveryStatus` is `claimed` while the provider outcome is pending, `delivered` after a confirmed send, `failed` after a definite provider rejection, and `unknown` when delivery may have occurred.
+Definite failures are retried for the same local date.
+To preserve at-most-once delivery after an ambiguous interruption, a `claimed` attempt suppresses every later attempt for the same local date regardless of claim age.
+Retries use the same platform notification tag or collapse identifier so the phone replaces an earlier delivery instead of displaying a duplicate.
+Do not manually clear an `unknown` claim unless delivery has been reconciled with the user or provider evidence.
+Use `notificationDeliveryKey`, `notificationDeliveryAttemptId`, `notificationDeliveryAttemptCount`, `notificationDeliveryClaimedAt`, and `notificationDeliveryRunId` to correlate the device record with workflow logs.
+The dispatcher emits a structured `notification-delivery-unknown` log when it catches an ambiguous provider or transport result.
+
+Before adding a schedule, verify all of the following on a real phone:
+
+1. The account is eligible for notifications.
+2. The deployed Functions URL is configured so the authenticated registration endpoint can store the device.
+3. The device registration is stored for the correct signed-in paid account.
+4. Registering the same phone under another account transfers ownership instead of retaining two deliveries.
+5. Legacy notification fields are cleared after the first successful device migration.
+6. A dry run selects the expected user, activity, and local date.
+7. One manual real send creates exactly one system notification.
+8. Tapping the notification opens the intended Solara route.
+9. Disabling notifications or signing out stops delivery to that device.
+
+## Firebase Functions and Stripe
+
+Functions require a reproducible install in `functions/` and a Blaze-enabled Firebase project.
+Configure Stripe secrets with the Firebase CLI instead of local files or GitHub build variables.
+Keep the `ENABLE_BLAZE_FUNCTIONS` GitHub repository variable unset until the project is Blaze-enabled and the required Functions and Stripe configuration is ready.
+Set it to `true` only when the transitional rules, Functions, and final rules deployment sequence should run on `main`.
+The deployment always restores the final rules after the Functions and Hosting deployment attempt, including when either deployment fails, so transitional rules are never left active.
+
+```bash
+cd functions
+npm ci
+npx firebase-tools functions:secrets:set STRIPE_SECRET_KEY
+npx firebase-tools functions:secrets:set STRIPE_WEBHOOK_SECRET
+npx firebase-tools deploy --only functions --project <project-id>
+```
+
+The Functions deployment includes three scheduled maintenance jobs:
+
+- `backfillStripeBillingResources` runs hourly and builds durable ownership records for existing Stripe resources.
+- `cleanupDeletedAccountBilling` runs every five minutes and resumes account deletion, Stripe cancellation, and data cleanup with bounded retries.
+- `cleanupFailedCheckouts` runs every five minutes and neutralizes Stripe Checkout Sessions that could not be cleaned up during the original request.
+
+The scheduled jobs depend on the `accountDeletionTombstones`, `billingCleanupResources`, and `stripeCheckoutCleanupTasks` indexes in `firestore.indexes.json`.
+Confirm those indexes are ready and all three jobs run successfully before enabling checkout or account deletion.
+Allow the billing-resource backfill to complete before relying on deletion cleanup for legacy Stripe customers and subscriptions.
+
+Register the deployed Stripe webhook URL in Stripe test mode first.
+Subscribe the endpoint to `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `customer.subscription.updated`, and `customer.subscription.deleted`.
+Verify a successful checkout, duplicate webhook delivery, cancellation, payment failure, and entitlement revocation before using live mode.
+Also verify repeated checkout is rejected, out-of-order events cannot restore canceled access, and changing away from the configured Pro price revokes the entitlement.
+Open the account page and verify the Stripe customer portal can update payment details, display invoices, and cancel the subscription.
+No local test can replace these Stripe-signed integration checks when keys and a test account are unavailable.
+
+## Account export and deletion
+
+Account export and deletion require `NEXT_PUBLIC_FUNCTIONS_URL` and an authenticated account.
+Deletion additionally requires a recent Google reauthentication and the exact `DELETE` confirmation.
+
+Deletion may return HTTP 202 and sign the user out while cleanup continues.
+The backend creates `accountDeletionTombstones/{uid}`, blocks further account access, revokes Firebase sessions, cancels owned Stripe resources, removes notification ownership records, recursively deletes the user document, and deletes the Firebase Authentication user.
+The scheduled cleanup job resumes incomplete work with leases and retry backoff until `cleanupStatus` becomes `completed`.
+
+Monitor `cleanupStatus`, `cleanupLastError`, `cleanupNextAttemptAt`, and the `cleanupDeletedAccountBilling` logs for pending deletions.
+Do not manually remove a tombstone or mark it complete while billing cleanup resources remain pending.
+Before production activation, verify that export excludes capability tokens and payment-provider identifiers and that deletion eventually removes the user data, notification registration, owned subscription, and Authentication account.
+
+## Google Calendar activation
+
+Create a Google OAuth Web client, enable the Calendar API, configure its consent screen, and add each deployed origin as an Authorized JavaScript origin.
+Set `NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID` and deploy again.
+Verify that Solara reads only free/busy data and that creating an event produces the expected time and description.
+
+## Operational rollback
+
+Use the Firebase Hosting release history to roll Hosting back.
+Disable the notification workflow before investigating any duplicate or incorrectly timed delivery incident.
+Rotate a compromised service account, calendar-feed token, FCM token, or Stripe webhook secret immediately.
+Do not log full notification tokens, calendar tokens, service-account JSON, or Stripe secrets.

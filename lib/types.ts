@@ -3,6 +3,7 @@ export type TierLevel  = 'anonymous' | 'free' | 'paid'
 
 export interface Location {
   lat: number; lon: number; city: string; region: string
+  timezone?: string
 }
 
 export interface PreferredHours {
@@ -61,6 +62,7 @@ export interface UserPreferences {
     email?: string
     createdAt: string
   }
+  notificationHour?: number
 }
 
 export interface HourlyForecast {

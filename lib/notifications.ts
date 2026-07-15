@@ -1,8 +1,19 @@
-import { getMessaging, getToken, onMessage, Messaging } from 'firebase/messaging'
-import { doc, updateDoc, getDoc, setDoc } from 'firebase/firestore'
-import { app, db } from './firebase'
+import { getToken as getAppCheckToken } from 'firebase/app-check'
+import { deleteToken, getMessaging, getToken, onMessage, Messaging } from 'firebase/messaging'
+import { app, appCheck, auth } from './firebase'
 
-const VAPID_KEY = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY
+interface LocalDeviceSubscription {
+  deviceId: string
+  token: string
+  migrationPending?: boolean
+  pendingRemoval?: boolean
+}
+
+interface NotificationDeviceMutationResult {
+  migrationPending?: boolean
+}
+
+const REGISTRATION_MIGRATION_ATTEMPTS = 3
 
 let messaging: Messaging | null = null
 
@@ -18,13 +29,105 @@ function getMessagingInstance(): Messaging | null {
   return messaging
 }
 
+function storageKey(uid: string): string {
+  return `solara_notification_device_${uid}`
+}
+
+function randomDeviceId(): string {
+  const bytes = new Uint8Array(18)
+  crypto.getRandomValues(bytes)
+  return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('')
+}
+
+function readLocalSubscription(uid: string): LocalDeviceSubscription | null {
+  try {
+    const raw = localStorage.getItem(storageKey(uid))
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as Partial<LocalDeviceSubscription>
+    return typeof parsed.deviceId === 'string' && typeof parsed.token === 'string'
+      ? {
+          deviceId: parsed.deviceId,
+          token: parsed.token,
+          migrationPending: parsed.migrationPending === true,
+          pendingRemoval: parsed.pendingRemoval === true,
+        }
+      : null
+  } catch {
+    return null
+  }
+}
+
+function writeLocalSubscription(uid: string, subscription: LocalDeviceSubscription): void {
+  localStorage.setItem(storageKey(uid), JSON.stringify(subscription))
+}
+
+function functionsUrl(): string | null {
+  return process.env.NEXT_PUBLIC_FUNCTIONS_URL?.replace(/\/$/, '') || null
+}
+
+export function notificationRegistrationConfigured(): boolean {
+  return !!(
+    functionsUrl()
+    && process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY
+    && process.env.NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY
+  )
+}
+
+async function mutateRemoteDevice(
+  uid: string,
+  path: 'registerNotificationDevice' | 'removeNotificationDevice',
+  method: 'POST' | 'DELETE',
+  body: Record<string, string>,
+): Promise<NotificationDeviceMutationResult> {
+  const baseUrl = functionsUrl()
+  const user = auth?.currentUser
+  if (!baseUrl) throw new Error('Notification registration is not configured')
+  if (!user || user.uid !== uid) throw new Error('Sign in again to manage notifications')
+
+  const token = await user.getIdToken()
+  const appCheckToken = appCheck ? await getAppCheckToken(appCheck) : null
+  const response = await fetch(`${baseUrl}/${path}`, {
+    method,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      ...(appCheckToken ? { 'X-Firebase-AppCheck': appCheckToken.token } : {}),
+    },
+    body: JSON.stringify(body),
+  })
+  if (!response.ok) {
+    const result = await response.json().catch(() => null) as { error?: string } | null
+    throw new Error(result?.error || 'Could not update notification registration')
+  }
+  return await response.json().catch(() => ({})) as NotificationDeviceMutationResult
+}
+
+async function completeRemoteRegistration(
+  uid: string,
+  subscription: LocalDeviceSubscription,
+): Promise<boolean> {
+  writeLocalSubscription(uid, { ...subscription, migrationPending: true })
+  for (let attempt = 0; attempt < REGISTRATION_MIGRATION_ATTEMPTS; attempt++) {
+    const result = await mutateRemoteDevice(uid, 'registerNotificationDevice', 'POST', {
+      deviceId: subscription.deviceId,
+      token: subscription.token,
+      platform: 'web',
+    })
+    if (result.migrationPending !== true) return true
+    writeLocalSubscription(uid, { ...subscription, migrationPending: true })
+  }
+  return false
+}
+
 export async function requestNotificationPermission(): Promise<string | null> {
   try {
+    const vapidKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY
+    if (!vapidKey || !appCheck) return null
     const m = getMessagingInstance()
     if (!m) return null
     const permission = await Notification.requestPermission()
     if (permission !== 'granted') return null
-    const token = await getToken(m, { vapidKey: VAPID_KEY })
+    const token = await getToken(m, { vapidKey })
     return token || null
   } catch (err) {
     console.error('FCM token error:', err)
@@ -32,31 +135,115 @@ export async function requestNotificationPermission(): Promise<string | null> {
   }
 }
 
-export async function saveFCMToken(uid: string, token: string): Promise<void> {
-  if (!db) return
-  try {
-    const ref = doc(db, 'users', uid)
-    const snap = await getDoc(ref)
-    if (snap.exists()) {
-      await updateDoc(ref, { fcmToken: token, notificationsEnabled: true })
-    } else {
-      await setDoc(ref, { uid, fcmToken: token, notificationsEnabled: true })
-    }
-  } catch (err) {
-    console.error('Save FCM token error:', err)
+export function notificationsEnabledLocally(uid: string): boolean {
+  const subscription = readLocalSubscription(uid)
+  return typeof Notification !== 'undefined'
+    && Notification.permission === 'granted'
+    && !!subscription
+    && subscription.migrationPending !== true
+    && subscription.pendingRemoval !== true
+}
+
+export async function enableNotifications(uid: string): Promise<void> {
+  if (!notificationRegistrationConfigured()) throw new Error('Notification registration is not configured')
+  const token = await requestNotificationPermission()
+  if (!token) throw new Error('Notification permission was not granted')
+
+  const existing = readLocalSubscription(uid)
+  const deviceId = existing?.deviceId || randomDeviceId()
+  const subscription = { deviceId, token }
+  const completed = await completeRemoteRegistration(uid, subscription)
+  if (!completed) throw new Error('Notification setup is still being finalized. Try again shortly.')
+  writeLocalSubscription(uid, subscription)
+  try { localStorage.removeItem('solara_fcm_token') } catch {}
+}
+
+export async function migrateLegacyNotificationToken(uid: string): Promise<boolean> {
+  if (!notificationRegistrationConfigured()) return false
+  const existing = readLocalSubscription(uid)
+  if (existing?.pendingRemoval) {
+    await disableNotifications(uid)
+    return false
   }
+  if (existing?.migrationPending) {
+    const completed = await completeRemoteRegistration(uid, existing)
+    if (!completed) throw new Error('Notification setup is still being finalized. Try again shortly.')
+    writeLocalSubscription(uid, { deviceId: existing.deviceId, token: existing.token })
+    return true
+  }
+  if (existing) return false
+  let token: string | null = null
+  try { token = localStorage.getItem('solara_fcm_token') } catch {}
+  if (!token || Notification.permission !== 'granted') return false
+
+  const deviceId = randomDeviceId()
+  const completed = await completeRemoteRegistration(uid, { deviceId, token })
+  if (!completed) throw new Error('Notification setup is still being finalized. Try again shortly.')
+  writeLocalSubscription(uid, { deviceId, token })
+  try { localStorage.removeItem('solara_fcm_token') } catch {}
+  return true
 }
 
-export function saveFCMTokenLocally(token: string): void {
-  try { localStorage.setItem('solara_fcm_token', token) } catch {}
-}
-
-export function getFCMTokenLocally(): string | null {
-  try { return localStorage.getItem('solara_fcm_token') } catch { return null }
-}
-
-export function onForegroundMessage(callback: (payload: unknown) => void): void {
+export async function disableNotifications(uid: string): Promise<void> {
+  const local = readLocalSubscription(uid)
+  let removalError: unknown
+  if (local) {
+    writeLocalSubscription(uid, { ...local, pendingRemoval: true })
+    try {
+      await mutateRemoteDevice(
+        uid,
+        'removeNotificationDevice',
+        'DELETE',
+        { deviceId: local.deviceId },
+      )
+    } catch (error) {
+      removalError = error
+    }
+  }
   const m = getMessagingInstance()
-  if (!m) return
-  onMessage(m, callback)
+  const tokenRemoved = m ? await deleteToken(m).catch(() => false) : !local
+  try {
+    if (!removalError) localStorage.removeItem(storageKey(uid))
+    localStorage.removeItem('solara_fcm_token')
+  } catch {}
+  if (removalError && !tokenRemoved) throw removalError
+}
+
+export async function clearLocalNotificationState(uid: string): Promise<void> {
+  const m = getMessagingInstance()
+  if (m) await deleteToken(m).catch(() => false)
+  try {
+    localStorage.removeItem(storageKey(uid))
+    localStorage.removeItem('solara_fcm_token')
+  } catch {}
+}
+
+export function onForegroundMessage(callback: (payload: unknown) => void): () => void {
+  const m = getMessagingInstance()
+  return m ? onMessage(m, payload => {
+    const data = payload.data
+    if (data?.title && data.body && data.deliveryKey && data.deliveryScope && 'serviceWorker' in navigator) {
+      void (async () => {
+        const cache = await caches.open('solara-notification-deliveries-v1')
+        const scopedKey = `${data.deliveryScope}:${data.deliveryKey}`
+        const marker = new Request(`/notification-delivery/${encodeURIComponent(scopedKey)}`)
+        if (await cache.match(marker)) return
+        await cache.put(marker, new Response('shown'))
+        try {
+          const registration = await navigator.serviceWorker.ready
+          await registration.showNotification(data.title, {
+            body: data.body,
+            icon: '/icon-192.png',
+            badge: '/icon-192.png',
+            tag: scopedKey,
+            data: { link: data.link || '/' },
+          })
+        } catch (error) {
+          await cache.delete(marker)
+          throw error
+        }
+      })().catch(error => console.error('Foreground notification error:', error))
+    }
+    callback(payload)
+  }) : () => {}
 }

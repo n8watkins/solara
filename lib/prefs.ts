@@ -13,7 +13,26 @@ const CATEGORY_NAMES = new Set(ACTIVITY_CATEGORIES.map(c => c.name))
 
 function isLocation(value: unknown): value is Location {
   const loc = value as Partial<Location> | null
-  return !!loc && typeof loc.lat === 'number' && typeof loc.lon === 'number' && typeof loc.city === 'string'
+  return !!loc
+    && Number.isFinite(loc.lat)
+    && loc.lat! >= -90
+    && loc.lat! <= 90
+    && Number.isFinite(loc.lon)
+    && loc.lon! >= -180
+    && loc.lon! <= 180
+    && typeof loc.city === 'string'
+}
+
+function normalizeLocation(value: Location): Location {
+  return {
+    lat: value.lat,
+    lon: value.lon,
+    city: value.city.trim().slice(0, 120),
+    region: typeof value.region === 'string' ? value.region.trim().slice(0, 120) : '',
+    timezone: typeof value.timezone === 'string' && /^(?:UTC|[A-Za-z_]+(?:\/[A-Za-z0-9_+.-]+)+)$/.test(value.timezone)
+      ? value.timezone
+      : undefined,
+  }
 }
 
 function sameLocation(a: Location, b: Location): boolean {
@@ -30,7 +49,8 @@ function normalizeSavedLocations(raw: unknown): Location[] {
   const list = Array.isArray(raw) ? raw.filter(isLocation) : []
   const out: Location[] = []
   for (const loc of list) {
-    if (!out.some(l => sameLocation(l, loc))) out.push(loc)
+    const normalized = normalizeLocation(loc)
+    if (!out.some(l => sameLocation(l, normalized))) out.push(normalized)
   }
   return out.slice(0, 12)
 }
@@ -68,6 +88,19 @@ function normalizeStringList(raw: unknown, allowed?: Set<string>): string[] {
       .map(v => v.trim())
       .filter(v => !allowed || allowed.has(v))
   ))
+}
+
+function normalizeUpgradeInterest(raw: unknown): UserPreferences['upgradeInterest'] {
+  const interest = raw as Partial<NonNullable<UserPreferences['upgradeInterest']>> | null
+  if (!interest || typeof interest.createdAt !== 'string' || !Number.isFinite(Date.parse(interest.createdAt))) {
+    return undefined
+  }
+  return {
+    email: typeof interest.email === 'string' && interest.email.trim()
+      ? interest.email.trim().slice(0, 254)
+      : undefined,
+    createdAt: interest.createdAt,
+  }
 }
 
 function normalizePreferredHours(raw: unknown): PreferredHours | undefined {
@@ -121,7 +154,12 @@ function normalizeActivity(raw: unknown, index: number, globalSunscreen: boolean
 
 export function normalizePrefs(raw: Partial<UserPreferences> | null, fallbackLocation?: Location): UserPreferences | null {
   if (!raw) return null
-  const location = isLocation(raw.location) ? raw.location : fallbackLocation
+  const rawLocation = isLocation(raw.location)
+    ? raw.location
+    : isLocation(fallbackLocation)
+      ? fallbackLocation
+      : undefined
+  const location = rawLocation ? normalizeLocation(rawLocation) : undefined
   if (!location) return null
 
   const sunscreen = typeof raw.sunscreen === 'boolean' ? raw.sunscreen : false
@@ -131,8 +169,6 @@ export function normalizePrefs(raw: Partial<UserPreferences> | null, fallbackLoc
     : []
 
   return {
-    ...defaultPrefs(location),
-    ...raw,
     uid: typeof raw.uid === 'string' ? raw.uid : '',
     schemaVersion: PREFS_SCHEMA_VERSION,
     location,
@@ -148,9 +184,13 @@ export function normalizePrefs(raw: Partial<UserPreferences> | null, fallbackLoc
     calendarHours: raw.calendarHours && typeof raw.calendarHours.from === 'number' && typeof raw.calendarHours.to === 'number'
       ? { from: Math.max(0, Math.min(23, raw.calendarHours.from)), to: Math.max(1, Math.min(24, raw.calendarHours.to)) }
       : undefined,
+    showSunPath: typeof raw.showSunPath === 'boolean' ? raw.showSunPath : undefined,
     hiddenActivitySuggestionIds: normalizeStringList(raw.hiddenActivitySuggestionIds, PRESET_IDS),
     collapsedActivityCategories: normalizeStringList(raw.collapsedActivityCategories, CATEGORY_NAMES),
-    upgradeInterest: raw.upgradeInterest,
+    upgradeInterest: normalizeUpgradeInterest(raw.upgradeInterest),
+    notificationHour: typeof raw.notificationHour === 'number'
+      ? Math.max(5, Math.min(10, Math.round(raw.notificationHour)))
+      : 7,
   }
 }
 
@@ -175,12 +215,31 @@ export function saveLocalPrefs(prefs: Partial<UserPreferences>): void {
   localStorage.setItem(PREFS_KEY, JSON.stringify({ ...prefs, schemaVersion: PREFS_SCHEMA_VERSION }))
 }
 
-export async function loadFirestorePrefs(uid: string): Promise<UserPreferences | null> {
-  if (!db) return null
+export function clearLocalPrefs(): void {
+  if (typeof window === 'undefined') return
+  try { localStorage.removeItem(PREFS_KEY) } catch {}
+}
+
+export type FirestorePrefsResult =
+  | { status: 'found'; prefs: UserPreferences }
+  | { status: 'missing' }
+  | { status: 'error'; error: Error }
+
+export async function loadFirestorePrefs(uid: string): Promise<FirestorePrefsResult> {
+  if (!db) return { status: 'error', error: new Error('Firebase is not configured') }
   try {
     const snap = await getDoc(doc(db, 'users', uid))
-    return snap.exists() ? normalizePrefs(snap.data() as Partial<UserPreferences>) : null
-  } catch { return null }
+    if (!snap.exists()) return { status: 'missing' }
+    const prefs = normalizePrefs(snap.data() as Partial<UserPreferences>)
+    return prefs
+      ? { status: 'found', prefs }
+      : { status: 'error', error: new Error('Saved preferences are invalid') }
+  } catch (error) {
+    return {
+      status: 'error',
+      error: error instanceof Error ? error : new Error('Could not load saved preferences'),
+    }
+  }
 }
 
 export async function saveFirestorePrefs(uid: string, prefs: Partial<UserPreferences>): Promise<void> {

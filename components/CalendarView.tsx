@@ -145,7 +145,7 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
     <div style={{ padding: '3rem 0', textAlign: 'center' }}>
       <p style={{ fontSize: '34px', marginBottom: '10px' }}>🗓️</p>
       <p style={{ fontWeight: 600, color: 'var(--text)', marginBottom: '6px', fontSize: '16px' }}>No activities yet</p>
-      <p style={{ fontSize: '14px', color: 'var(--text-3)' }}>Add activities from the Dashboard to see your safe windows.</p>
+      <p style={{ fontSize: '14px', color: 'var(--text-3)' }}>Add activities from the Dashboard to see estimated lower-UV windows.</p>
     </div>
   )
 
@@ -343,7 +343,7 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
               </span>
             </p>
             <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-3)', lineHeight: 1.5 }}>
-              Safe window: <strong style={{ color: 'var(--text)' }}>{fmtH(popup.win.from)} – {fmtH(popup.win.to)}</strong>
+              Estimated lower-UV window: <strong style={{ color: 'var(--text)' }}>{fmtH(popup.win.from)} – {fmtH(popup.win.to)}</strong>
               &nbsp;·&nbsp; Peak UV {popup.win.peakUV.toFixed(1)}
               &nbsp;·&nbsp; Schedule your{' '}
               <strong style={{ color: 'var(--text)' }}>
@@ -395,6 +395,10 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
           ))}
         </div>
       </div>
+
+      <p style={{ margin: 0, padding: '9px 16px', borderTop: `0.5px solid ${grid.line}`, background: grid.headerBg, fontSize: '11px', color: 'var(--text-3)', lineHeight: 1.45 }}>
+        Forecast-based planning estimate only. Recheck current UV and use appropriate sun protection.
+      </p>
 
       {editingActivity && (
         <EditActivityModal

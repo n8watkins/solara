@@ -1,4 +1,5 @@
 import { initializeApp, getApps, FirebaseApp } from 'firebase/app'
+import { initializeAppCheck, ReCaptchaV3Provider, type AppCheck } from 'firebase/app-check'
 import { getAuth, Auth, GoogleAuthProvider } from 'firebase/auth'
 import { initializeFirestore, Firestore } from 'firebase/firestore'
 
@@ -11,6 +12,7 @@ let app: FirebaseApp | null = null
 let auth: Auth | null = null
 let db: Firestore | null = null
 let googleProvider: GoogleAuthProvider | null = null
+let appCheck: AppCheck | null = null
 
 if (hasConfig) {
   const firebaseConfig = {
@@ -29,7 +31,15 @@ if (hasConfig) {
   // throw on those instead of simply omitting them.
   db = initializeFirestore(app, { ignoreUndefinedProperties: true })
   googleProvider = new GoogleAuthProvider()
+
+  const appCheckSiteKey = process.env.NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY
+  if (typeof window !== 'undefined' && appCheckSiteKey) {
+    appCheck = initializeAppCheck(app, {
+      provider: new ReCaptchaV3Provider(appCheckSiteKey),
+      isTokenAutoRefreshEnabled: true,
+    })
+  }
 }
 
 export const firebaseEnabled = hasConfig
-export { app, auth, db, googleProvider }
+export { app, appCheck, auth, db, googleProvider }

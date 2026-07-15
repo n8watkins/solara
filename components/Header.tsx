@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { User, signOut } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
+import { disableNotifications } from '@/lib/notifications'
 import { UserPreferences, TierLevel } from '@/lib/types'
 import { getSavedLocationLimit } from '@/lib/tiers'
 import PreferencesModal from './PreferencesModal'
@@ -23,6 +24,7 @@ interface Props {
 export default function Header({ user, prefs, onPrefsUpdate, onGoHome, forceOpenTab, onModalClose, currentUV, displayTier }: Props) {
   const [showPrefs, setShowPrefs] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [signOutError, setSignOutError] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => { if (forceOpenTab) setShowPrefs(true) }, [forceOpenTab])
@@ -45,6 +47,16 @@ export default function Header({ user, prefs, onPrefsUpdate, onGoHome, forceOpen
   }, [menuOpen])
 
   async function handleSignOut() {
+    setSignOutError(false)
+    if (user) {
+      try {
+        await disableNotifications(user.uid)
+      } catch (error) {
+        console.error('Notification cleanup failed:', error)
+        setSignOutError(true)
+        return
+      }
+    }
     if (auth) await signOut(auth)
   }
 
@@ -173,6 +185,14 @@ export default function Header({ user, prefs, onPrefsUpdate, onGoHome, forceOpen
                       >
                         ⚙️ Settings
                       </button>
+                      <a
+                        role="menuitem"
+                        href="/account/"
+                        className="hdr-menu-item"
+                        style={{ textDecoration: 'none' }}
+                      >
+                        👤 Account & billing
+                      </a>
                       <button
                         role="menuitem"
                         onClick={() => { setMenuOpen(false); handleSignOut() }}
@@ -191,6 +211,12 @@ export default function Header({ user, prefs, onPrefsUpdate, onGoHome, forceOpen
           </div>
         </div>
       </header>
+
+      {signOutError && (
+        <div role="alert" style={{ maxWidth: '900px', margin: '12px auto 0', padding: '0 14px', color: '#991B1B', fontSize: '13px' }}>
+          Sign-out paused because notifications could not be disabled. Check your connection and try again.
+        </div>
+      )}
 
       {showPrefs && (
         <PreferencesModal

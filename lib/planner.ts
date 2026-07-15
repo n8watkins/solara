@@ -1,6 +1,7 @@
 import { DayWeather, Activity, SkinType, SafeActivityWindow } from './types'
 import { getActivityWindow } from './weather'
 import { recommendSlot, SlotRecommendation, BusyInterval } from './scheduler'
+import { activityRunsOnDate } from './recommendation'
 
 export interface UpcomingWindow {
   activity: Activity
@@ -16,9 +17,7 @@ export interface UpcomingWindow {
  * No restriction (undefined/empty) means it runs every day.
  */
 export function activityRunsOn(activity: Activity, dateStr: string): boolean {
-  if (!activity.daysOfWeek || activity.daysOfWeek.length === 0) return true
-  const weekday = new Date(dateStr + 'T12:00:00').getDay()
-  return activity.daysOfWeek.includes(weekday)
+  return activityRunsOnDate(activity, dateStr)
 }
 
 /** The lowest-average-UV window on a single day (ties broken by longer window). */

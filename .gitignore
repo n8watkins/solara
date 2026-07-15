@@ -3,6 +3,10 @@
 node_modules/
 .next/
 out/
+public/firebase-messaging-sw.js
+.firebase/
+playwright-report/
+test-results/
 .DS_Store
 *.log
 *.tsbuildinfo

@@ -7,11 +7,91 @@ on:
 
 env:
   # action-hosting-deploy@v0 still declares Node 20; GitHub forces Node 24 on
-  # June 16, 2026 — opt in early so any breakage surfaces while we're watching.
+  # June 16, 2026. Opt in early so any breakage surfaces while we're watching.
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
+concurrency:
+  group: solara-production-deploy
+  cancel-in-progress: false
+
 jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Audit dependencies
+        run: npm audit --audit-level=high
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Production build
+        run: npm run build
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Browser smoke tests
+        run: npm run test:e2e
+
+      - name: Upload browser report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install Functions dependencies
+        run: npm ci --prefix functions
+
+      - name: Audit Functions dependencies
+        run: npm audit --prefix functions --audit-level=high
+
+      - name: Functions tests
+        run: npm test --prefix functions
+
+      - name: Firestore rules tests
+        run: npm run test:rules --prefix functions
+
   deploy:
+    needs: [quality, backend]
     runs-on: ubuntu-latest
 
     steps:
@@ -25,43 +105,70 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Install Functions dependencies
+        run: npm ci --prefix functions
+
       - name: Build
         run: npm run build
         env:
-          NEXT_PUBLIC_FIREBASE_API_KEY:            ${{ secrets.NEXT_PUBLIC_FIREBASE_API_KEY }}
-          NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN:        ${{ secrets.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}
-          NEXT_PUBLIC_FIREBASE_PROJECT_ID:         ${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
-          NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET:     ${{ secrets.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET }}
+          NEXT_PUBLIC_FIREBASE_API_KEY: ${{ secrets.NEXT_PUBLIC_FIREBASE_API_KEY }}
+          NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ secrets.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}
+          NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
+          NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ${{ secrets.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET }}
           NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
-          NEXT_PUBLIC_FIREBASE_APP_ID:             ${{ secrets.NEXT_PUBLIC_FIREBASE_APP_ID }}
-          NEXT_PUBLIC_FIREBASE_VAPID_KEY:          ${{ secrets.NEXT_PUBLIC_FIREBASE_VAPID_KEY }}
-          # Static export bakes NEXT_PUBLIC_* at build time — anything missing here is
+          NEXT_PUBLIC_FIREBASE_APP_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_APP_ID }}
+          NEXT_PUBLIC_FIREBASE_VAPID_KEY: ${{ secrets.NEXT_PUBLIC_FIREBASE_VAPID_KEY }}
+          NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY: ${{ secrets.NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY }}
+          # Static export bakes NEXT_PUBLIC_* at build time. Anything missing here is
           # dead in the deployed bundle, even if the secret exists. These are optional
           # flip-ons (OG images, monetization, calendar); empty is fine and keeps the
           # corresponding UI gated off.
-          NEXT_PUBLIC_SITE_URL:                    ${{ secrets.NEXT_PUBLIC_SITE_URL }}
-          NEXT_PUBLIC_STRIPE_PAYMENT_LINK:         ${{ secrets.NEXT_PUBLIC_STRIPE_PAYMENT_LINK }}
-          NEXT_PUBLIC_PRO_PRICE:                   ${{ secrets.NEXT_PUBLIC_PRO_PRICE }}
-          NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID:      ${{ secrets.NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID }}
-          NEXT_PUBLIC_FUNCTIONS_URL:               ${{ secrets.NEXT_PUBLIC_FUNCTIONS_URL }}
-          NEXT_PUBLIC_GA_MEASUREMENT_ID:           ${{ secrets.NEXT_PUBLIC_GA_MEASUREMENT_ID }}
+          NEXT_PUBLIC_SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL }}
+          NEXT_PUBLIC_PRO_PRICE: ${{ secrets.NEXT_PUBLIC_PRO_PRICE }}
+          NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID }}
+          NEXT_PUBLIC_FUNCTIONS_URL: ${{ vars.ENABLE_BLAZE_FUNCTIONS == 'true' && secrets.NEXT_PUBLIC_FUNCTIONS_URL || '' }}
+          NEXT_PUBLIC_GA_MEASUREMENT_ID: ${{ secrets.NEXT_PUBLIC_GA_MEASUREMENT_ID }}
+
+      - name: Protect server-owned billing fields and deploy indexes
+        if: vars.ENABLE_BLAZE_FUNCTIONS == 'true'
+        run: |
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          npx --yes firebase-tools@15 deploy --only firestore \
+            --config firebase.pre-functions.json \
+            --project "$FIREBASE_PROJECT_ID" --non-interactive
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FIREBASE_PROJECT_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
+
+      - name: Deploy Firebase Functions
+        if: vars.ENABLE_BLAZE_FUNCTIONS == 'true'
+        run: |
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          npx --yes firebase-tools@15 deploy --only functions \
+            --project "$FIREBASE_PROJECT_ID" --non-interactive
+        env:
+          APP_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FIREBASE_PROJECT_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
+          STRIPE_PRICE_ID: ${{ secrets.STRIPE_PRICE_ID }}
 
       - name: Deploy to Firebase Hosting
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
-          repoToken:              ${{ secrets.GITHUB_TOKEN }}
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          channelId:              live
-          projectId:              ${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
+          channelId: live
+          projectId: ${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
 
-      # action-hosting-deploy ships Hosting only. Deploy Firestore security rules here
-      # too, or the DB can sit on default-open rules — a data-leak risk.
-      - name: Deploy Firestore rules
+      - name: Restore final Firestore rules
+        if: ${{ always() }}
         run: |
           printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
           export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
-          npx --yes firebase-tools@13 deploy --only firestore:rules \
+          npx --yes firebase-tools@15 deploy --only firestore:rules \
             --project "$FIREBASE_PROJECT_ID" --non-interactive
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          FIREBASE_PROJECT_ID:      ${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
+          FIREBASE_PROJECT_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}

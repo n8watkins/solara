@@ -70,7 +70,7 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
   return (
     <ActivityModalShell
       title="Edit activity"
-      description="Customize the saved activity you use for planning, safe windows, sharing, and calendar actions."
+      description="Customize the activity used for lower-UV planning, sharing, and calendar actions."
       onClose={requestClose}
       footer={(
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap' }}>
@@ -169,14 +169,14 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
           <div>
             <p style={{ margin: '0 0 4px', fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>Preferred time</p>
             <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-3)', lineHeight: 1.45 }}>
-              When several safe times work, which should Solara recommend?
+              When several lower-UV times match, which should Solara recommend?
             </p>
           </div>
           <div style={{ display: 'flex', gap: '8px' }}>
             {([
               { val: 'earliest', label: 'Earliest', hint: 'Soonest free slot' },
-              { val: 'latest',   label: 'Latest',   hint: 'Latest safe slot' },
-              { val: 'sunniest', label: 'Sunniest', hint: 'Most sun, still safe' },
+              { val: 'latest',   label: 'Latest',   hint: 'Latest matching slot' },
+              { val: 'sunniest', label: 'Sunniest', hint: 'Most sun within limit' },
             ] as const).map(o => (
               <button
                 key={o.val}
@@ -243,7 +243,7 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
           <div>
             <p style={{ margin: '0 0 4px', fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>Sun protection</p>
             <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-3)', lineHeight: 1.45 }}>
-              SPF changes the safe UV threshold for this specific activity.
+              SPF changes the planning UV limit for this activity.
             </p>
           </div>
           <div style={{ display: 'flex', gap: '8px' }}>
@@ -290,13 +290,13 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
         <div className="metric-card" style={{ display: 'flex', flexDirection: 'column', gap: '12px', gridColumn: '1 / -1' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'flex-start' }}>
             <div>
-              <p style={{ margin: '0 0 4px', fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>Base safe UV</p>
+              <p style={{ margin: '0 0 4px', fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>Base planning UV limit</p>
               <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-3)', lineHeight: 1.45 }}>
                 Lower is more conservative. SPF may raise the effective threshold.
               </p>
             </div>
             <div style={{ textAlign: 'right', flexShrink: 0 }}>
-              <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-3)' }}>Effective safe UV</p>
+              <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-3)' }}>Effective planning limit</p>
               <p style={{ margin: '2px 0 0', fontSize: '22px', fontWeight: 800, color: 'var(--accent)' }}>{effectiveUV}</p>
             </div>
           </div>

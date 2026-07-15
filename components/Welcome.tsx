@@ -72,7 +72,7 @@ export default function Welcome({ onGetStarted }: Props) {
           Know when to go outside
         </h1>
         <p style={{ fontSize: '15px', color: 'var(--text-2)', lineHeight: '1.6', margin: '0 0 2rem', maxWidth: '360px', marginLeft: 'auto', marginRight: 'auto' }}>
-          Solara tells you exactly when it's safe to run, hike, swim, or just step outside — based on live UV data, your skin type, and your activities.
+          Solara estimates lower-UV times for running, hiking, swimming, and other outdoor activities based on forecast UV, your skin profile, and your plans.
         </p>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'center' }}>

@@ -63,7 +63,7 @@ export default function LocationPopover({ location, savedLocations, limit, onApp
       const data = await res.json()
       if (!data.results?.length) throw new Error('Not found')
       const r = data.results[0]
-      const loc: Location = { lat: r.latitude, lon: r.longitude, city: r.name, region: r.admin1 ?? r.country ?? '' }
+      const loc: Location = { lat: r.latitude, lon: r.longitude, city: r.name, region: r.admin1 ?? r.country ?? '', timezone: r.timezone }
       activate(loc, true) // searching a new city saves it as a shortcut when there's room
       setQuery('')
       if (!atLimit) setTimeout(() => setOpen(false), 800)
@@ -81,7 +81,7 @@ export default function LocationPopover({ location, savedLocations, limit, onApp
         const data = await res.json()
         const city   = data.address?.city || data.address?.town || data.address?.village || 'Your location'
         const region = data.address?.state || ''
-        activate({ lat, lon, city, region }, false) // current location switches but isn't auto-saved
+        activate({ lat, lon, city, region, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone }, false) // current location switches but isn't auto-saved
         setTimeout(() => setOpen(false), 800)
       } catch { setError('Could not resolve.') }
       finally   { setLoading(false) }

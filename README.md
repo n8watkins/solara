@@ -1,87 +1,88 @@
-# Solara ☀️
-**Know your sun window.**
+# Solara
 
-Personalized UV and sun exposure dashboard. Enter your location, skin type, and outdoor activities — Solara tells you exactly when it's safe to go outside without sunscreen.
+Solara is a personalized UV and outdoor-activity planner.
+It combines Open-Meteo forecasts with a user's location, skin profile, sunscreen settings, and activities to estimate lower-UV planning windows.
 
-## Features
-- Live UV + weather data via Open-Meteo (free, no API key)
-- Personalized safe windows per activity and skin type
-- No-sunscreen mode: see exactly when UV is low enough
-- Today and tomorrow forecast
-- Google Calendar integration for activity windows
-- Anonymous use (location saved locally) or Google sign-in (syncs across devices)
-- Adjustable activity durations in preferences
+Solara is a planning aid, not medical advice or a guarantee that sun exposure is safe.
+Conditions and individual sensitivity can change quickly.
+
+## Product capabilities
+
+- Live UV and weather forecasts from Open-Meteo.
+- Personalized activity windows for today and upcoming days.
+- Required Google sign-in with Firestore preference sync.
+- Multiple activities, locations, and profiles with Free and Pro limits.
+- Google Calendar scheduling and calendar-feed support when configured.
+- Web push notifications for eligible accounts when Firebase Cloud Messaging is configured.
+- Stripe-backed Pro fulfillment through Firebase Functions when Stripe is configured.
+- Installable progressive web app assets for supported browsers.
 
 ## Stack
-- Next.js 14 (App Router, static export)
-- Firebase Auth + Firestore
-- Firebase Hosting
-- Tailwind CSS
-- GitHub Actions for CI/CD
 
-## Setup
+- Next.js 16 App Router with static export.
+- React 19 and TypeScript 5.
+- Firebase Authentication, Firestore, Cloud Messaging, Hosting, and Functions.
+- Tailwind CSS 3.
+- Vitest for unit tests and Playwright for browser smoke tests.
+- GitHub Actions for quality checks, deployment, and notification dispatch.
 
-### 1. Clone and install
+## Local setup
+
+Use Node.js 24 to match CI.
+
 ```bash
-git clone https://github.com/yourusername/solara.git
+git clone https://github.com/n8watkins/solara.git
 cd solara
-npm install
-```
-
-### 2. Create a Firebase project
-1. Go to [console.firebase.google.com](https://console.firebase.google.com)
-2. Create a new project
-3. Enable **Authentication** → Google sign-in method
-4. Enable **Firestore Database** → start in production mode
-5. Enable **Hosting**
-6. Go to Project Settings → Web app → copy config values
-
-### 3. Configure environment variables
-```bash
+npm ci
 cp .env.local.example .env.local
-```
-Fill in your Firebase config values in `.env.local`.
-
-### 4. Update Firebase project ID
-In `.firebaserc`, replace `YOUR_FIREBASE_PROJECT_ID` with your actual project ID.
-
-### 5. Run locally
-```bash
 npm run dev
 ```
 
-## Deploy to Firebase Hosting via GitHub Actions
+The app requires Google sign-in before a user can reach the dashboard.
+Without Firebase configuration, local development still supports the welcome and onboarding flow, but the final Google sign-in control is intentionally unavailable.
 
-### 1. Add GitHub Secrets
-Go to your repo → Settings → Secrets and add:
-- `NEXT_PUBLIC_FIREBASE_API_KEY`
-- `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`
-- `NEXT_PUBLIC_FIREBASE_PROJECT_ID`
-- `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`
-- `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`
-- `NEXT_PUBLIC_FIREBASE_APP_ID`
-- `FIREBASE_SERVICE_ACCOUNT` (see below)
+## Firebase setup
 
-### 2. Generate Firebase service account
+1. Create a Firebase project.
+2. Register a Web app and copy its client configuration into `.env.local`.
+3. Enable Google as an Authentication provider and add each deployed domain to Authorized domains.
+4. Create Firestore in production mode and deploy `firestore.rules`.
+5. Enable Cloud Messaging and create a Web Push VAPID key if notifications are required.
+6. Enable Hosting.
+7. Upgrade to Blaze before deploying Firebase Functions for Stripe or live calendar feeds.
+
+The complete environment and activation checklist is in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+
+## Quality checks
+
 ```bash
-npm install -g firebase-tools
-firebase login
-firebase init hosting
+npm run lint
+npm run typecheck
+npm test
+npm run build
+npx playwright install chromium
+npm run test:e2e
 ```
-This generates a service account JSON. Add its contents as the `FIREBASE_SERVICE_ACCOUNT` secret.
 
-### 3. Push to main
-Every push to `main` automatically builds and deploys to Firebase Hosting.
+The Playwright smoke suite deliberately runs without Firebase credentials.
+It verifies the welcome screen and the onboarding flow through the Google sign-in boundary on desktop and mobile Chromium.
+OAuth, Stripe, Cloud Messaging, and cross-device persistence still require controlled staging or production tests.
 
-## Firestore data structure
-```
-users/{uid}
-  uid: string
-  location: { lat, lon, city, region }
-  skinType: 'very-fair' | 'fair' | 'medium' | 'olive' | 'dark'
-  sunscreen: boolean
-  activities: Activity[]
-```
+## Deployment
+
+Pull requests and non-main branches run the quality workflow.
+Merging a reviewed pull request into `main` runs the same gates before Firebase Hosting and Firestore rules deploy.
+Firestore indexes and Firebase Functions also deploy when the `ENABLE_BLAZE_FUNCTIONS` repository variable is `true`.
+Public `NEXT_PUBLIC_*` values are compiled into the static bundle, so changing one requires a new build and deploy.
+
+See [docs/GO_LIVE.md](docs/GO_LIVE.md) for the release checklist and [docs/status.md](docs/status.md) for current activation state.
+
+## Firestore layout
+
+The primary account document is `users/{uid}`, with notification registrations in `users/{uid}/notificationDevices/{deviceId}` and Stripe resource history in `users/{uid}/billingResources/{resourceId}`.
+Trusted backend code owns the global notification-token ownership index, Stripe subscription ownership index, account-deletion tombstones, billing cleanup resources, checkout cleanup tasks, entitlements, and delivery state.
+Firestore rules deny client access to those server-owned collections and prevent clients from writing notification-device or billing state.
 
 ## License
+
 MIT

@@ -18,15 +18,36 @@ firebase.initializeApp(${JSON.stringify(config, null, 2)})
 
 const messaging = firebase.messaging()
 
-messaging.onBackgroundMessage((payload) => {
-  const title = payload.notification?.title || 'Solara'
-  const body  = payload.notification?.body  || 'Your sun window update is ready.'
-  self.registration.showNotification(title, {
-    body,
-    icon: '/icon-192.png',
-    badge: '/icon-192.png',
-    tag: 'solara-notification',
-  })
+const DELIVERY_CACHE = 'solara-notification-deliveries-v1'
+
+messaging.onBackgroundMessage(async payload => {
+  const { title, body, deliveryKey, deliveryScope, link } = payload.data || {}
+  if (!title || !body || !deliveryKey || !deliveryScope) return
+
+  const cache = await caches.open(DELIVERY_CACHE)
+  const scopedKey = deliveryScope + ':' + deliveryKey
+  const marker = new Request('/notification-delivery/' + encodeURIComponent(scopedKey))
+  if (await cache.match(marker)) return
+  await cache.put(marker, new Response('shown'))
+  try {
+    await self.registration.showNotification(title, {
+      body,
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
+      tag: scopedKey,
+      renotify: false,
+      requireInteraction: false,
+      data: { link: link || '/' },
+    })
+  } catch (error) {
+    await cache.delete(marker)
+    throw error
+  }
+})
+
+self.addEventListener('notificationclick', event => {
+  event.notification.close()
+  event.waitUntil(clients.openWindow(event.notification.data?.link || '/'))
 })
 `
 

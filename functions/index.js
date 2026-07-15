@@ -1,136 +1,289 @@
-// Solara Cloud Functions (Blaze plan).
-//
-//   stripeWebhook  (P5) — on checkout.session.completed, flip users/{uid}.tier = 'paid'.
-//   calendarFeed   (P7b) — serve a per-user live .ics the calendar app re-fetches.
-//
-// SCAFFOLD: written but not yet deployed or load-tested. Configure secrets, deploy,
-// then exercise in Stripe test mode and with a real subscribe URL. See docs/DEPLOYMENT.md.
-
 const { onRequest } = require('firebase-functions/v2/https')
-const { defineSecret } = require('firebase-functions/params')
+const { onSchedule } = require('firebase-functions/v2/scheduler')
+const { defineSecret, defineString } = require('firebase-functions/params')
 const admin = require('firebase-admin')
 const Stripe = require('stripe')
 
-const { fetchForecast, buildSunEvents } = require('./lib/sun')
+const {
+  deleteAccount,
+  exportAccountData,
+  processPendingAccountDeletions,
+} = require('./lib/account')
+const { createCalendarFeedHandler } = require('./lib/calendar-feed')
+const { handleCors } = require('./lib/http')
 const { buildICS } = require('./lib/ics')
+const { buildSunEvents, fetchForecast } = require('./lib/sun')
+const { registerNotificationDevice, removeNotificationDevice } = require('./lib/notification-devices')
+const {
+  backfillBillingResourcePage,
+  createBillingPortal,
+  createCheckout,
+  processPendingCheckoutCleanups,
+  processStripeEvent,
+} = require('./lib/stripe')
 
 if (!admin.apps.length) admin.initializeApp()
 const db = admin.firestore()
 
 const STRIPE_SECRET_KEY = defineSecret('STRIPE_SECRET_KEY')
 const STRIPE_WEBHOOK_SECRET = defineSecret('STRIPE_WEBHOOK_SECRET')
+const STRIPE_PRICE_ID = defineString('STRIPE_PRICE_ID', { default: '' })
+const APP_URL = defineString('APP_URL', { default: 'https://uv-activity-planner.web.app' })
 
-const FEED_DAYS = 7
+function stripeClient() {
+  return new Stripe(STRIPE_SECRET_KEY.value())
+}
 
-/**
- * P5 — Stripe fulfilment. Verifies the webhook signature against the raw body,
- * then on a completed checkout grants Pro to the uid carried in client_reference_id
- * (set by lib/billing.ts). The tier write is idempotent, so Stripe retries are safe.
- */
-exports.stripeWebhook = onRequest(
-  { secrets: [STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET] },
+function setApiHeaders(res) {
+  res.set('Cache-Control', 'no-store')
+  res.set('Content-Type', 'application/json; charset=utf-8')
+  res.set('Referrer-Policy', 'no-referrer')
+  res.set('X-Content-Type-Options', 'nosniff')
+}
+
+exports.createCheckoutSession = onRequest(
+  { secrets: [STRIPE_SECRET_KEY], timeoutSeconds: 30, maxInstances: 10 },
   async (req, res) => {
-    if (req.method !== 'POST') { res.status(405).send('Method Not Allowed'); return }
-
-    const stripe = new Stripe(STRIPE_SECRET_KEY.value())
-    let event
-    try {
-      event = stripe.webhooks.constructEvent(
-        req.rawBody, // raw body is required for signature verification
-        req.headers['stripe-signature'],
-        STRIPE_WEBHOOK_SECRET.value(),
-      )
-    } catch (err) {
-      console.error('Stripe signature verification failed:', err.message)
-      res.status(400).send(`Webhook Error: ${err.message}`)
+    setApiHeaders(res)
+    if (handleCors(req, res, APP_URL.value().replace(/\/$/, ''), ['POST'])) return
+    if (req.method !== 'POST') {
+      res.set('Allow', 'POST')
+      res.status(405).json({ error: 'Method Not Allowed' })
       return
     }
-
     try {
-      if (event.type === 'checkout.session.completed') {
-        const session = event.data.object
-        const uid = session.client_reference_id
-        if (uid) {
-          // Persist the Stripe customer id so a future customer.subscription.deleted
-          // handler can map the cancellation back to this uid and downgrade.
-          await db.collection('users').doc(uid).set(
-            {
-              tier: 'paid',
-              proSince: admin.firestore.FieldValue.serverTimestamp(),
-              stripeCustomerId: session.customer || null,
-            },
-            { merge: true },
-          )
-          console.log(`Granted Pro to ${uid} (session ${session.id})`)
-        } else {
-          console.warn(`checkout.session.completed without client_reference_id (session ${session.id})`)
-        }
-      } else if (event.type === 'customer.subscription.deleted') {
-        // Subscription ended (cancelled or final payment failed) → revoke Pro. We map
-        // back to the user via the stripeCustomerId persisted at checkout. Downgrade to
-        // 'free' rather than 'anonymous' — they had an account.
-        const customerId = event.data.object.customer
-        if (customerId) {
-          const snap = await db.collection('users')
-            .where('stripeCustomerId', '==', customerId).limit(1).get()
-          if (!snap.empty) {
-            const ref = snap.docs[0].ref
-            await ref.set(
-              { tier: 'free', proSince: admin.firestore.FieldValue.delete() },
-              { merge: true },
-            )
-            console.log(`Revoked Pro for ${ref.id} (customer ${customerId})`)
-          } else {
-            console.warn(`subscription.deleted for unknown customer ${customerId}`)
-          }
-        }
-      }
-      res.status(200).json({ received: true })
-    } catch (err) {
-      console.error('stripeWebhook handler error:', err)
-      res.status(500).send('Handler error')
+      const session = await createCheckout({
+        appUrl: APP_URL.value().replace(/\/$/, ''),
+        auth: admin.auth(),
+        db,
+        expectedPriceId: STRIPE_PRICE_ID.value(),
+        req,
+        stripe: stripeClient(),
+      })
+      res.status(200).json({ url: session.url })
+    } catch (error) {
+      const status = error.status || 500
+      console.error('createCheckoutSession failed', { name: error?.name, message: error?.message })
+      res.status(status).json({ error: status === 401 ? 'Authentication required' : 'Checkout unavailable' })
     }
   },
 )
 
-/**
- * P7b — live calendar feed. The user subscribes their calendar to
- * `…/calendarFeed?token=<feedToken>`; we look the user up by token and regenerate
- * the .ics from the latest forecast + prefs, so it updates as the forecast changes.
- * The token is the only credential, so it must be unguessable and revocable.
- */
-exports.calendarFeed = onRequest({ cors: true }, async (req, res) => {
-  const token = req.query.token
-  if (!token || typeof token !== 'string' || token.length < 16) {
-    res.status(400).send('Missing or invalid token')
-    return
-  }
+exports.createBillingPortalSession = onRequest(
+  { secrets: [STRIPE_SECRET_KEY], timeoutSeconds: 30, maxInstances: 10 },
+  async (req, res) => {
+    setApiHeaders(res)
+    if (handleCors(req, res, APP_URL.value().replace(/\/$/, ''), ['POST'])) return
+    if (req.method !== 'POST') {
+      res.set('Allow', 'POST')
+      res.status(405).json({ error: 'Method Not Allowed' })
+      return
+    }
+    try {
+      const session = await createBillingPortal({
+        appUrl: APP_URL.value().replace(/\/$/, ''),
+        auth: admin.auth(),
+        db,
+        req,
+        stripe: stripeClient(),
+      })
+      res.status(200).json({ url: session.url })
+    } catch (error) {
+      const status = error.status || 500
+      console.error('createBillingPortalSession failed', { name: error?.name, message: error?.message })
+      res.status(status).json({ error: status === 401 ? 'Authentication required' : 'Billing management unavailable' })
+    }
+  },
+)
 
-  let snap
-  try {
-    snap = await db.collection('users').where('calendarFeedToken', '==', token).limit(1).get()
-  } catch (err) {
-    console.error('calendarFeed lookup error:', err)
-    res.status(500).send('Lookup failed')
-    return
-  }
-  if (snap.empty) { res.status(404).send('Unknown feed'); return }
+exports.exportAccountData = onRequest(
+  { timeoutSeconds: 30, maxInstances: 10 },
+  async (req, res) => {
+    setApiHeaders(res)
+    if (handleCors(req, res, APP_URL.value().replace(/\/$/, ''), ['GET'])) return
+    if (req.method !== 'GET') {
+      res.set('Allow', 'GET')
+      res.status(405).json({ error: 'Method Not Allowed' })
+      return
+    }
+    try {
+      const data = await exportAccountData({ auth: admin.auth(), db, req })
+      res.status(200).json(data)
+    } catch (error) {
+      const status = error.status || 500
+      console.error('exportAccountData failed', { name: error?.name, message: error?.message })
+      res.status(status).json({ error: status === 401 ? 'Authentication required' : 'Export unavailable' })
+    }
+  },
+)
 
-  const user = snap.docs[0].data()
-  res.set('Content-Type', 'text/calendar; charset=utf-8')
-  // private: the URL carries a per-user secret token, so shared proxies must not cache it.
-  res.set('Cache-Control', 'private, max-age=3600')
+exports.deleteAccount = onRequest(
+  { secrets: [STRIPE_SECRET_KEY], timeoutSeconds: 60, maxInstances: 5 },
+  async (req, res) => {
+    setApiHeaders(res)
+    if (handleCors(req, res, APP_URL.value().replace(/\/$/, ''), ['DELETE'])) return
+    if (req.method !== 'DELETE') {
+      res.set('Allow', 'DELETE')
+      res.status(405).json({ error: 'Method Not Allowed' })
+      return
+    }
+    try {
+      const result = await deleteAccount({ auth: admin.auth(), db, req, stripe: stripeClient() })
+      res.status(result.completed ? 200 : 202).json({
+        deleted: result.completed,
+        deletionPending: !result.completed,
+      })
+    } catch (error) {
+      const status = error.status || 500
+      console.error('deleteAccount failed', { name: error?.name, message: error?.message })
+      const message = error.code === 'reauth-required'
+        ? 'Recent authentication required'
+        : status === 401 ? 'Authentication required'
+        : status === 400 ? 'Type DELETE to confirm' : 'Deletion unavailable'
+      res.status(status).json({ error: message, code: error.code || undefined })
+    }
+  },
+)
 
-  if (!user.location || typeof user.location.lat !== 'number') {
-    res.status(200).send(buildICS([]))
-    return
-  }
+exports.registerNotificationDevice = onRequest(
+  { timeoutSeconds: 30, maxInstances: 20 },
+  async (req, res) => {
+    setApiHeaders(res)
+    if (handleCors(req, res, APP_URL.value().replace(/\/$/, ''), ['POST'])) return
+    if (req.method !== 'POST') {
+      res.set('Allow', 'POST')
+      res.status(405).json({ error: 'Method Not Allowed' })
+      return
+    }
+    try {
+      const result = await registerNotificationDevice({
+        appCheck: admin.appCheck(),
+        auth: admin.auth(),
+        db,
+        req,
+        serverTimestamp: () => admin.firestore.FieldValue.serverTimestamp(),
+      })
+      res.status(200).json(result)
+    } catch (error) {
+      const status = error.status || 500
+      console.error('registerNotificationDevice failed', { name: error?.name, message: error?.message })
+      res.status(status).json({ error: status < 500 ? error.message : 'Registration unavailable' })
+    }
+  },
+)
 
-  try {
-    const forecast = await fetchForecast(user.location.lat, user.location.lon, FEED_DAYS)
-    res.status(200).send(buildICS(buildSunEvents(user, forecast)))
-  } catch (err) {
-    console.error('calendarFeed build error:', err)
-    res.status(502).send('Could not build feed')
-  }
-})
+exports.removeNotificationDevice = onRequest(
+  { timeoutSeconds: 30, maxInstances: 20 },
+  async (req, res) => {
+    setApiHeaders(res)
+    if (handleCors(req, res, APP_URL.value().replace(/\/$/, ''), ['DELETE'])) return
+    if (req.method !== 'DELETE') {
+      res.set('Allow', 'DELETE')
+      res.status(405).json({ error: 'Method Not Allowed' })
+      return
+    }
+    try {
+      const result = await removeNotificationDevice({
+        appCheck: admin.appCheck(),
+        auth: admin.auth(),
+        db,
+        req,
+      })
+      res.status(200).json(result)
+    } catch (error) {
+      const status = error.status || 500
+      console.error('removeNotificationDevice failed', { name: error?.name, message: error?.message })
+      res.status(status).json({ error: status < 500 ? error.message : 'Removal unavailable' })
+    }
+  },
+)
+
+exports.stripeWebhook = onRequest(
+  { secrets: [STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET], timeoutSeconds: 60, maxInstances: 10 },
+  async (req, res) => {
+    setApiHeaders(res)
+    if (req.method !== 'POST') {
+      res.set('Allow', 'POST')
+      res.status(405).json({ error: 'Method Not Allowed' })
+      return
+    }
+
+    const stripe = stripeClient()
+    let event
+    try {
+      event = stripe.webhooks.constructEvent(
+        req.rawBody,
+        req.headers['stripe-signature'],
+        STRIPE_WEBHOOK_SECRET.value(),
+      )
+    } catch (error) {
+      console.warn('Stripe signature verification failed', { message: error?.message })
+      res.status(400).json({ error: 'Invalid signature' })
+      return
+    }
+
+    try {
+      const result = await processStripeEvent({
+        db,
+        event,
+        expectedPriceId: STRIPE_PRICE_ID.value(),
+        serverTimestamp: () => admin.firestore.FieldValue.serverTimestamp(),
+        stripe,
+      })
+      res.status(200).json({ received: true, duplicate: result.duplicate === true })
+    } catch (error) {
+      console.error('stripeWebhook failed', {
+        eventId: event.id,
+        eventType: event.type,
+        name: error?.name,
+        message: error?.message,
+      })
+      res.status(500).json({ error: 'Webhook processing failed' })
+    }
+  },
+)
+
+exports.backfillStripeBillingResources = onSchedule(
+  { schedule: 'every 60 minutes', secrets: [STRIPE_SECRET_KEY], timeoutSeconds: 300 },
+  async () => {
+    const stripe = stripeClient()
+    let result
+    for (let page = 0; page < 20; page += 1) {
+      result = await backfillBillingResourcePage({
+        db,
+        serverTimestamp: () => admin.firestore.FieldValue.serverTimestamp(),
+        stripe,
+      })
+      if (result.completed) break
+    }
+    console.log('Stripe billing resource backfill run completed', result)
+  },
+)
+
+exports.cleanupDeletedAccountBilling = onSchedule(
+  { schedule: 'every 5 minutes', secrets: [STRIPE_SECRET_KEY], timeoutSeconds: 300 },
+  async () => {
+    const results = await processPendingAccountDeletions({
+      auth: admin.auth(),
+      db,
+      stripe: stripeClient(),
+    })
+    console.log('Deleted account billing cleanup pages processed', { results })
+  },
+)
+
+exports.cleanupFailedCheckouts = onSchedule(
+  { schedule: 'every 5 minutes', secrets: [STRIPE_SECRET_KEY], timeoutSeconds: 300 },
+  async () => {
+    const results = await processPendingCheckoutCleanups({
+      db,
+      stripe: stripeClient(),
+    })
+    console.log('Failed checkout cleanup tasks processed', { results })
+  },
+)
+
+exports.calendarFeed = onRequest(
+  { cors: false, timeoutSeconds: 30, maxInstances: 20, concurrency: 20 },
+  createCalendarFeedHandler({ buildICS, buildSunEvents, db, days: 7, fetchForecast }),
+)

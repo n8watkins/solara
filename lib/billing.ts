@@ -1,33 +1,87 @@
-// Monetization for a static-export app: we can't run Stripe Checkout Sessions
-// server-side, so Pro upgrades go through a Stripe Payment Link (a hosted URL).
-// The link is configured via env so the repo ships no secrets.
-//
-// client_reference_id carries the Firebase uid into Stripe; a future webhook /
-// Cloud Function reads it to flip the user's tier to "paid". Until that backend
-// exists, checkout still works — fulfilment is just manual/pending.
+import type { User } from 'firebase/auth'
+import { doc, onSnapshot } from 'firebase/firestore'
+import { db } from './firebase'
+import { normalizePrefs } from './prefs'
+import type { UserPreferences } from './types'
 
-const PAYMENT_LINK = process.env.NEXT_PUBLIC_STRIPE_PAYMENT_LINK
+const FUNCTIONS_URL = process.env.NEXT_PUBLIC_FUNCTIONS_URL?.replace(/\/$/, '')
 export const PRO_PRICE = process.env.NEXT_PUBLIC_PRO_PRICE || '$3.99/mo'
 
-/** Whether a real checkout link is configured. When false, callers fall back to the waitlist. */
+/** Whether authenticated server-side checkout is deployed and configured. */
 export function isCheckoutConfigured(): boolean {
-  return !!PAYMENT_LINK
+  return !!FUNCTIONS_URL
 }
 
-/**
- * Build the Stripe Payment Link with the user's email prefilled and uid attached
- * as client_reference_id. Returns null when no link is configured.
- */
-export function buildCheckoutUrl(opts: { email?: string; uid?: string } = {}): string | null {
-  if (!PAYMENT_LINK) return null
-  try {
-    const url = new URL(PAYMENT_LINK)
-    if (opts.email) url.searchParams.set('prefilled_email', opts.email)
-    if (opts.uid) url.searchParams.set('client_reference_id', opts.uid)
-    return url.toString()
-  } catch {
-    return null
+export async function createCheckoutUrl(user: User): Promise<string> {
+  if (!FUNCTIONS_URL) throw new Error('Checkout is not configured')
+  const token = await user.getIdToken(true)
+  const attemptId = crypto.randomUUID()
+  const response = await fetch(`${FUNCTIONS_URL}/createCheckoutSession`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ attemptId }),
+  })
+  const body = await response.json().catch(() => ({}))
+  if (!response.ok || typeof body.url !== 'string' || !body.url.startsWith('https://checkout.stripe.com/')) {
+    throw new Error(body.error || 'Checkout is temporarily unavailable')
   }
+  return body.url
+}
+
+export async function createBillingPortalUrl(user: User): Promise<string> {
+  if (!FUNCTIONS_URL) throw new Error('Billing management is not configured')
+  const token = await user.getIdToken(true)
+  const response = await fetch(`${FUNCTIONS_URL}/createBillingPortalSession`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: '{}',
+  })
+  const body = await response.json().catch(() => ({}))
+  let url: URL | null = null
+  try { url = new URL(body.url) } catch {}
+  if (!response.ok || url?.protocol !== 'https:' || url.hostname !== 'billing.stripe.com') {
+    throw new Error(body.error || 'Billing management is temporarily unavailable')
+  }
+  return url.toString()
+}
+
+export type CheckoutResult =
+  | { status: 'waiting' }
+  | { status: 'pending' }
+  | { status: 'succeeded'; prefs: UserPreferences }
+  | { status: 'failed' }
+
+export function observeCheckoutResult(
+  uid: string,
+  sessionId: string,
+  onResult: (result: CheckoutResult) => void,
+  onError: () => void,
+): () => void {
+  if (!db) {
+    onError()
+    return () => {}
+  }
+  return onSnapshot(doc(db, 'users', uid), snapshot => {
+    if (!snapshot.exists()) {
+      onResult({ status: 'waiting' })
+      return
+    }
+    const raw = snapshot.data()
+    if (raw.stripeCheckoutSessionId !== sessionId) {
+      onResult({ status: 'waiting' })
+      return
+    }
+    if (raw.stripeCheckoutStatus === 'failed') {
+      onResult({ status: 'failed' })
+      return
+    }
+    const prefs = normalizePrefs(raw)
+    if (raw.stripeCheckoutStatus === 'succeeded' && prefs?.tier === 'paid') {
+      onResult({ status: 'succeeded', prefs })
+      return
+    }
+    onResult({ status: 'pending' })
+  }, onError)
 }
 
 export interface ProFeature {

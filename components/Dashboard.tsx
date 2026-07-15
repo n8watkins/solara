@@ -255,7 +255,7 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
       {!activitiesLocked && prefs.activities.length > 0 && (
         bestShareActivity && bestShareWindow ? (
           <div className="card" style={{ background: 'linear-gradient(180deg, rgba(249,115,22,0.10), rgba(249,115,22,0.04))', border: '0.5px solid rgba(249,115,22,0.30)' }}>
-            <p className="section-label" style={{ color: 'var(--accent)' }}>Best {dateLabel.toLowerCase()} window</p>
+            <p className="section-label" style={{ color: 'var(--accent)' }}>Estimated lower-UV window</p>
             <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginTop: '9px' }}>
               <span style={{ fontSize: '32px', flexShrink: 0 }}>{bestShareActivity.icon}</span>
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -267,13 +267,13 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
                 </p>
               </div>
               {isToday && bestSafeNow && (
-                <span className="badge badge-safe" style={{ flexShrink: 0 }}>Safe now</span>
+                <span className="badge badge-safe" style={{ flexShrink: 0 }}>Within limit now</span>
               )}
             </div>
           </div>
         ) : (
           <div className="card" style={{ background: 'var(--bg-metric)', border: '0.5px solid var(--border-md)' }}>
-            <p className="section-label">No safe window {dateLabel.toLowerCase()}</p>
+            <p className="section-label">No matching lower-UV window {dateLabel.toLowerCase()}</p>
             <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginTop: '9px' }}>
               <span style={{ fontSize: '30px', flexShrink: 0 }}>🌥️</span>
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -281,7 +281,7 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
                   Peak UV {peakUV.toFixed(1)} at {fmtHour(peakHour)}
                 </p>
                 <p style={{ margin: '3px 0 0', fontSize: '13px', color: 'var(--text-3)', lineHeight: 1.4 }}>
-                  UV stays above your activity limits — aim for early morning or evening.
+                  Forecast UV stays above your activity limit. Check early morning or evening instead.
                 </p>
               </div>
             </div>
@@ -336,8 +336,8 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
         <div className="metric-card" style={{ padding: '10px 12px' }}>
           <p style={{ margin: '0 0 3px', fontSize: '12px', color: 'var(--text-3)', fontWeight: 500 }}>
             <span className="tooltip-anchor">
-              Burn time
-              <Tooltip text={`How long until ${prefs.skinType} skin burns without sunscreen at the current UV level. Move to shade before this time is up.`}>
+              Estimated burn time
+              <Tooltip text={`A rough estimate for ${prefs.skinType} skin without sunscreen at this UV level. Do not use it as a timer for unprotected exposure.`}>
                 <></>
               </Tooltip>
             </span>
@@ -348,8 +348,8 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
         <div className="metric-card" style={{ padding: '10px 12px' }}>
           <p style={{ margin: '0 0 3px', fontSize: '12px', color: 'var(--text-3)', fontWeight: 500 }}>
             <span className="tooltip-anchor">
-              Vitamin D dose
-              <Tooltip text="Estimated time to produce a meaningful vitamin D dose at the current UV level, with arms and legs exposed. Varies by skin type.">
+              Vitamin D estimate
+              <Tooltip text="A rough model, not a recommended exposure target. Vitamin D needs and production vary widely; ask a clinician if you are concerned.">
                 <></>
               </Tooltip>
             </span>
@@ -360,7 +360,7 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
       </div>
 
       <p style={{ margin: '-6px 2px 0', fontSize: '11px', color: 'var(--text-3)', lineHeight: 1.5 }}>
-        Burn and vitamin D times are estimates, not medical advice. Actual exposure varies with cloud cover, altitude, shade, and reflected light.
+        Forecasts and exposure estimates can change. Use sun protection and do not treat these planning estimates as medical advice.
       </p>
 
       <TipCarousel />
@@ -369,7 +369,7 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
         <div style={{ marginBottom: '12px' }}>
           <p style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: 'var(--text)' }}>Activities</p>
           <p style={{ margin: '3px 0 0', fontSize: '13px', color: 'var(--text-3)' }}>
-            Add what you do outside, then Solara finds the safest windows.
+            Add what you do outside, then Solara estimates lower-UV windows.
           </p>
           {/* One Add control on the LEFT, Manage pushed to the far RIGHT via
               space-between so the two actions are never clustered together. */}
@@ -463,7 +463,7 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
             <p style={{ fontSize: '30px', marginBottom: '10px' }}>🏃</p>
             <p style={{ fontWeight: 650, fontSize: '16px', color: 'var(--text)', margin: '0 0 7px' }}>No activities set up yet</p>
             <p style={{ fontSize: '14px', color: 'var(--text-3)', margin: '0 0 20px', lineHeight: '1.55' }}>
-              Add the activities you do outside and we'll show you exactly when it's safe to go.
+              Add your outdoor activities to see forecast-based, lower-UV planning windows.
             </p>
             <button className="btn btn-primary" onClick={() => setActivityModal('add')} style={{ fontSize: '14px', padding: '10px 24px', borderRadius: '12px' }}>
               + Add Activity

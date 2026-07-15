@@ -1,20 +1,9 @@
 import { HourlyForecast, Activity, ActivityWindow, SkinType, SafeActivityWindow } from './types'
-import { effectiveMaxUV } from './tiers'
+import { burnMins, effectiveMaxUV, findRecommendationWindows } from './recommendation'
 import { cloudAdjustedUV } from './exposure'
 
-export const SKIN_BURN_BASE: Record<SkinType, number> = {
-  'very-fair': 10,
-  'fair':      15,
-  'medium':    25,
-  'olive':     35,
-  'dark':      50,
-}
-
-export function burnMins(uv: number, skinType: SkinType): number | null {
-  if (uv < 0.5) return null
-  const base = SKIN_BURN_BASE[skinType]
-  return Math.round((base * 10) / uv)
-}
+export { burnMins, SKIN_BURN_BASE } from './recommendation'
+import { SKIN_BURN_BASE } from './recommendation'
 
 export function vitDMins(uv: number, skinType: SkinType): number | null {
   if (uv < 1) return null
@@ -95,34 +84,9 @@ export function gcalLink(
   const start = new Date(base.getFullYear(), base.getMonth(), base.getDate(), window.from, 0, 0)
   const end = new Date(start.getTime() + durationMins * 60000)
   const fmt = (d: Date) => d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
-  const title = encodeURIComponent(`${activityName} — sun window`)
-  const details = encodeURIComponent('Scheduled by Solara — safe UV window for your skin type.')
+  const title = encodeURIComponent(`${activityName}: lower-UV window`)
+  const details = encodeURIComponent('Forecast-based lower-UV planning estimate from Solara. Recheck current UV and use sun protection.')
   return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${fmt(start)}/${fmt(end)}&details=${details}`
-}
-
-function labelWindow(from: number, to: number): SafeActivityWindow['label'] {
-  if (from <= 7 && to >= 19) return 'All day'
-  const midpoint = (from + to) / 2
-  if (midpoint < 11) return 'Morning'
-  if (midpoint < 14) return 'Midday'
-  if (midpoint < 17) return 'Afternoon'
-  return 'Evening'
-}
-
-function summarizeSafeWindow(hourly: HourlyForecast[], from: number, to: number): SafeActivityWindow {
-  const samples = hourly.filter(h => h.hour >= from && h.hour < to)
-  const peakUV = samples.length ? Math.max(...samples.map(h => h.uv)) : 0
-  const avgUV = samples.length
-    ? Math.round((samples.reduce((sum, h) => sum + h.uv, 0) / samples.length) * 10) / 10
-    : 0
-
-  return {
-    from,
-    to,
-    label: labelWindow(from, to),
-    peakUV: Math.round(peakUV * 10) / 10,
-    avgUV,
-  }
 }
 
 function withinPreferredHours(hour: number, activity: Activity): boolean {
@@ -141,44 +105,27 @@ export function getActivityWindow(
   // reported window UV (summarizeSafeWindow) stays the true forecast value.
   const exposureUV = (h: HourlyForecast) =>
     activity.cloudSensitive ? cloudAdjustedUV(h.uv, h.cloudCover) : h.uv
-  let start: number | null = null
-  const allWindows: SafeActivityWindow[] = []
-  let safeCount = 0
-
-  for (let i = 0; i < hourly.length; i++) {
-    const { hour } = hourly[i]
-    const hourAllowed = withinPreferredHours(hour, activity)
-    if (exposureUV(hourly[i]) <= maxUV && hourAllowed) {
-      safeCount++
-      if (start === null) start = hour
-    } else {
-      if (start !== null) {
-        if ((hour - start) * 60 >= activity.durationMins) {
-          allWindows.push(summarizeSafeWindow(hourly, start, hour))
-        }
-        start = null
-      }
-    }
-  }
-
-  if (start !== null && hourly.length) {
-    const lastAllowedHour = activity.preferredHours ? Math.min(activity.preferredHours.to, hourly[hourly.length - 1].hour + 1) : hourly[hourly.length - 1].hour + 1
-    if ((lastAllowedHour - start) * 60 >= activity.durationMins) {
-      allWindows.push(summarizeSafeWindow(hourly, start, lastAllowedHour))
-    }
-  }
-
+  const planningHours = hourly.map(hour => ({
+    ...hour,
+    planningUV: exposureUV(hour),
+  }))
+  const allWindows = findRecommendationWindows(
+    planningHours,
+    maxUV,
+    activity.durationMins,
+    activity.preferredHours,
+  )
   const best = allWindows
     .slice()
-    .sort((a, b) => {
-      if (a.avgUV !== b.avgUV) return a.avgUV - b.avgUV
-      return (b.to - b.from) - (a.to - a.from)
-    })[0] ?? null
+    .sort((a, b) => (a.avgUV - b.avgUV) || ((b.to - b.from) - (a.to - a.from)))[0] ?? null
 
   const bestWindow = best ? { from: best.from, to: best.to } : null
   const current = hourly.find(h => h.hour === currentHour)
   const safeNow = current ? exposureUV(current) <= maxUV && withinPreferredHours(current.hour, activity) : false
-  const pctDaySafe = hourly.length ? Math.round((safeCount / hourly.length) * 100) : 0
+  const qualifyingHours = hourly.filter(hour =>
+    exposureUV(hour) <= maxUV && withinPreferredHours(hour.hour, activity)
+  ).length
+  const pctDaySafe = hourly.length ? Math.round((qualifyingHours / hourly.length) * 100) : 0
   const burn = burnMins(maxUV, skinType)
 
   return { activity, bestWindow, allWindows, safeNow, pctDaySafe, burnMins: burn }
