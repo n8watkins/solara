@@ -322,7 +322,11 @@ describe('notification ownership', () => {
 
     try {
       const subscriptions: Array<{ userRef: { id: string } }> = []
-      await scanSubscriptions(database, async batch => subscriptions.push(...batch), 1)
+      await scanSubscriptions(
+        database,
+        async (batch: Array<{ userRef: { id: string } }>) => subscriptions.push(...batch),
+        1,
+      )
       expect(subscriptions.map(subscription => subscription.userRef.id)).toEqual(['valid'])
       expect(writes).toEqual([])
     } finally {
