@@ -32,7 +32,6 @@ const RUN_ID = process.env.GITHUB_RUN_ID
 const DEAD_TOKEN_CODES = new Set([
   'messaging/registration-token-not-registered',
   'messaging/invalid-registration-token',
-  'messaging/invalid-argument',
 ])
 
 let db

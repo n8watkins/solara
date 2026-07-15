@@ -524,6 +524,32 @@ describe('notification delivery claims', () => {
     expect(definite.state.data.notificationDeliveryStatus).toBe('failed')
     expect(ambiguous.state.data.notificationDeliveryStatus).toBe('unknown')
   })
+
+  it('does not disable a device for a request-level invalid argument', async () => {
+    const subscription = {
+      token: 'token'.padEnd(24, 'x'),
+      deviceId: 'device-1',
+      deviceRef: { path: 'users/user-1/notificationDevices/device-1' },
+      userRef: { id: 'user-1', kind: 'user' },
+    }
+    const delivery = makeDeliveryDatabase({
+      enabled: true,
+      notificationDeliveryKey: key,
+      notificationDeliveryStatus: 'claimed',
+      notificationDeliveryAttemptId: 'attempt-1',
+    })
+
+    await expect(recordDeliveryFailure(
+      subscription,
+      key,
+      'attempt-1',
+      { code: 'messaging/invalid-argument' },
+      delivery.database,
+    )).resolves.toEqual({ certainty: 'definite', deadToken: false })
+
+    expect(delivery.state.data.enabled).toBe(true)
+    expect(delivery.state.data.notificationDeliveryStatus).toBe('failed')
+  })
 })
 
 describe('notification content', () => {
