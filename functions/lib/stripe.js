@@ -56,7 +56,8 @@ function subscriptionHasPrice(subscription, expectedPriceId) {
 
 async function validateCheckoutSession(stripe, session, expectedPriceId, { requirePaid = true } = {}) {
   const uid = session?.client_reference_id
-  if (!validUid(uid) || session?.metadata?.firebaseUid !== uid) {
+  const metadataUid = session?.metadata?.firebaseUid
+  if (!validUid(uid) || (metadataUid !== undefined && metadataUid !== uid)) {
     throw new Error('Checkout session is not bound to an authenticated account')
   }
   if (session.mode !== 'subscription') throw new Error('Checkout session has an unexpected mode')
@@ -104,12 +105,33 @@ async function commitEvent(db, event, userRef, buildUserData, serverTimestamp) {
   const eventRef = db.collection('stripeWebhookEvents').doc(event.id)
   return db.runTransaction(async transaction => {
     const eventSnapshot = await transaction.get(eventRef)
-    if (eventSnapshot.exists) return { duplicate: true }
+    if (eventSnapshot.exists) {
+      if (!userRef || !buildUserData) return { duplicate: true }
+      const tombstoneRef = db.collection('accountDeletionTombstones').doc(userRef.id)
+      const [userSnapshot, tombstoneSnapshot] = await Promise.all([
+        transaction.get(userRef),
+        transaction.get(tombstoneRef),
+      ])
+      return {
+        duplicate: true,
+        accountDeleted: tombstoneSnapshot.exists
+          || !userSnapshot.exists
+          || !!userSnapshot.data().accountDeletionStartedAt,
+      }
+    }
 
     let applied = false
+    let accountDeleted = false
     if (userRef && buildUserData) {
-      const userSnapshot = await transaction.get(userRef)
-      if (userSnapshot.exists && eventIsNewer(event, userSnapshot.data())) {
+      const tombstoneRef = db.collection('accountDeletionTombstones').doc(userRef.id)
+      const [userSnapshot, tombstoneSnapshot] = await Promise.all([
+        transaction.get(userRef),
+        transaction.get(tombstoneRef),
+      ])
+      accountDeleted = tombstoneSnapshot.exists
+        || !userSnapshot.exists
+        || !!userSnapshot.data().accountDeletionStartedAt
+      if (!accountDeleted && eventIsNewer(event, userSnapshot.data())) {
         const userData = buildUserData(userSnapshot.data())
         if (userData) {
           transaction.set(userRef, {
@@ -126,7 +148,7 @@ async function commitEvent(db, event, userRef, buildUserData, serverTimestamp) {
       created: event.created,
       processedAt: serverTimestamp(),
     })
-    return { duplicate: false, applied }
+    return { duplicate: false, applied, accountDeleted }
   })
 }
 
@@ -150,7 +172,7 @@ async function processStripeEvent({ db, event, expectedPriceId, serverTimestamp,
       ? 'failed'
       : paid && active ? 'succeeded' : 'pending'
 
-    return commitEvent(db, event, userRef, userData => {
+    const result = await commitEvent(db, event, userRef, userData => {
       if (userData.stripeSubscriptionId
         && userData.stripeSubscriptionId !== subscriptionId
         && !TERMINAL_SUBSCRIPTION_STATUSES.has(userData.subscriptionStatus)) return null
@@ -166,6 +188,14 @@ async function processStripeEvent({ db, event, expectedPriceId, serverTimestamp,
         subscriptionUpdatedAt: serverTimestamp(),
       }
     }, serverTimestamp)
+    if (result.accountDeleted) {
+      try {
+        await stripe.subscriptions.cancel(subscriptionId)
+      } catch (error) {
+        if (error?.code !== 'resource_missing') throw error
+      }
+    }
+    return result
   }
 
   if (event.type === 'customer.subscription.updated' || event.type === 'customer.subscription.deleted') {

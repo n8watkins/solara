@@ -14,7 +14,7 @@ const {
   notificationKey,
   runsOnDate,
 } = require('../scripts/notification-core')
-const { claimDelivery, notificationScope, recordDeliveryFailure } = require('../scripts/send-notifications')
+const { claimDelivery, loadSubscriptions, notificationScope, recordDeliveryFailure } = require('../scripts/send-notifications')
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const hourly = [
@@ -82,6 +82,101 @@ describe('notification scheduling', () => {
       reason: 'already-sent',
       key: first.key,
     })
+  })
+})
+
+describe('notification ownership', () => {
+  function notificationDatabase({
+    devices = [],
+    legacyUsers = [],
+    owners = {},
+  }: {
+    devices?: Array<{ deviceId: string; token: string; uid: string }>
+    legacyUsers?: Array<{ token: string; uid: string }>
+    owners?: Record<string, { deviceId: string; uid: string }>
+  }) {
+    const writes: Array<{ data: Record<string, unknown>; path: string }> = []
+    const ref = (path: string, id: string, parent: unknown = null) => ({
+      id,
+      parent,
+      path,
+      set: async (data: Record<string, unknown>) => { writes.push({ data, path }) },
+    })
+    const userRefs = new Map<string, ReturnType<typeof ref>>()
+    const userRef = (uid: string) => {
+      if (!userRefs.has(uid)) userRefs.set(uid, ref(`users/${uid}`, uid))
+      return userRefs.get(uid)!
+    }
+    const deviceDocs = devices.map(device => {
+      const user = userRef(device.uid)
+      const parent = { parent: user }
+      return {
+        id: device.deviceId,
+        ref: ref(`users/${device.uid}/notificationDevices/${device.deviceId}`, device.deviceId, parent),
+        data: () => ({ enabled: true, token: device.token }),
+      }
+    })
+    const legacyDocs = legacyUsers.map(user => ({
+      id: user.uid,
+      ref: userRef(user.uid),
+      data: () => ({ fcmToken: user.token, notificationsEnabled: true }),
+    }))
+    return {
+      database: {
+        collectionGroup: () => ({ where: () => ({ get: async () => ({ docs: deviceDocs }) }) }),
+        collection: (name: string) => {
+          if (name === 'users') return { where: () => ({ get: async () => ({ docs: legacyDocs }) }) }
+          if (name === 'notificationTokenOwners') {
+            return { doc: (id: string) => ({ id, owner: owners[id] }) }
+          }
+          throw new Error(`Unexpected collection ${name}`)
+        },
+        getAll: async (...ownerRefs: Array<{ owner?: { deviceId: string; uid: string } }>) => ownerRefs.map(ownerRef => ({
+          exists: !!ownerRef.owner,
+          data: () => ownerRef.owner,
+        })),
+      },
+      writes,
+    }
+  }
+
+  it('dispatches only to the canonical owner and quarantines stale claims', async () => {
+    const token = 'shared-token'.padEnd(24, 'x')
+    const ownerId = require('node:crypto').createHash('sha256').update(token).digest('hex')
+    const { database, writes } = notificationDatabase({
+      devices: [
+        { deviceId: 'device-alice', token, uid: 'alice' },
+        { deviceId: 'device-bob', token, uid: 'bob' },
+      ],
+      legacyUsers: [{ token, uid: 'carol' }],
+      owners: { [ownerId]: { uid: 'bob', deviceId: 'device-bob' } },
+    })
+
+    const subscriptions = await loadSubscriptions(database)
+
+    expect(subscriptions).toHaveLength(1)
+    expect(subscriptions[0].userRef.id).toBe('bob')
+    expect(writes.map(write => write.path).sort()).toEqual([
+      'users/alice/notificationDevices/device-alice',
+      'users/carol',
+    ])
+  })
+
+  it('keeps one legacy claim but quarantines ambiguous legacy ownership', async () => {
+    const unique = 'unique-token'.padEnd(24, 'x')
+    const shared = 'shared-token'.padEnd(24, 'x')
+    const { database, writes } = notificationDatabase({
+      legacyUsers: [
+        { token: unique, uid: 'alice' },
+        { token: shared, uid: 'bob' },
+        { token: shared, uid: 'carol' },
+      ],
+    })
+
+    const subscriptions = await loadSubscriptions(database)
+
+    expect(subscriptions.map((subscription: { userRef: { id: string } }) => subscription.userRef.id)).toEqual(['alice'])
+    expect(writes.map(write => write.path).sort()).toEqual(['users/bob', 'users/carol'])
   })
 })
 

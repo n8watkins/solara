@@ -2,6 +2,7 @@ const { initializeApp, cert } = require('firebase-admin/app')
 const { getFirestore, FieldValue } = require('firebase-admin/firestore')
 const { getMessaging } = require('firebase-admin/messaging')
 const { createHash, randomUUID } = require('node:crypto')
+const { tokenOwnerId } = require('../functions/lib/notification-devices')
 const {
   buildMessage,
   claimDecision,
@@ -65,28 +66,74 @@ async function fetchHourly(lat, lon) {
   return request
 }
 
-async function loadSubscriptions() {
+async function loadSubscriptions(database = db) {
   const [devices, legacyUsers] = await Promise.all([
-    db.collectionGroup('notificationDevices').where('enabled', '==', true).get(),
-    db.collection('users').where('notificationsEnabled', '==', true).get(),
+    database.collectionGroup('notificationDevices').where('enabled', '==', true).get(),
+    database.collection('users').where('notificationsEnabled', '==', true).get(),
   ])
-  const subscriptions = []
-  const tokens = new Set()
+  const candidatesByToken = new Map()
+  const addCandidate = candidate => {
+    const candidates = candidatesByToken.get(candidate.token) || []
+    candidates.push(candidate)
+    candidatesByToken.set(candidate.token, candidates)
+  }
 
   for (const deviceDoc of devices.docs) {
     const token = deviceDoc.data().token
     const userRef = deviceDoc.ref.parent.parent
-    if (!token || !userRef || tokens.has(token)) continue
-    tokens.add(token)
-    subscriptions.push({ token, deviceRef: deviceDoc.ref, userRef, lastNotificationKey: deviceDoc.data().lastNotificationKey })
+    if (!token || !userRef) continue
+    addCandidate({
+      token,
+      deviceId: deviceDoc.id,
+      deviceRef: deviceDoc.ref,
+      userRef,
+      lastNotificationKey: deviceDoc.data().lastNotificationKey,
+    })
   }
 
   for (const userDoc of legacyUsers.docs) {
     const token = userDoc.data().fcmToken
-    if (!token || tokens.has(token)) continue
-    tokens.add(token)
-    subscriptions.push({ token, deviceRef: userDoc.ref, userRef: userDoc.ref, lastNotificationKey: userDoc.data().lastNotificationKey, legacy: true })
+    if (!token) continue
+    addCandidate({
+      token,
+      deviceRef: userDoc.ref,
+      userRef: userDoc.ref,
+      lastNotificationKey: userDoc.data().lastNotificationKey,
+      legacy: true,
+    })
   }
+
+  const tokens = [...candidatesByToken.keys()]
+  const ownerRefs = tokens.map(token => database.collection('notificationTokenOwners').doc(tokenOwnerId(token)))
+  const ownerSnapshots = ownerRefs.length ? await database.getAll(...ownerRefs) : []
+  const subscriptions = []
+  const quarantineWrites = []
+  const quarantine = candidate => {
+    const patch = candidate.legacy
+      ? { fcmToken: null, notificationsEnabled: false }
+      : { enabled: false, updatedAt: FieldValue.serverTimestamp() }
+    quarantineWrites.push(candidate.deviceRef.set(patch, { merge: true }))
+  }
+  for (const [index, token] of tokens.entries()) {
+    const candidates = candidatesByToken.get(token)
+    const owner = ownerSnapshots[index]?.exists ? ownerSnapshots[index].data() : null
+    if (owner) {
+      const ownedDevice = candidates.find(candidate => !candidate.legacy
+        && candidate.userRef.id === owner.uid
+        && candidate.deviceId === owner.deviceId)
+      if (ownedDevice) subscriptions.push(ownedDevice)
+      for (const candidate of candidates) {
+        if (candidate !== ownedDevice) quarantine(candidate)
+      }
+      continue
+    }
+    if (candidates.length === 1 && candidates[0].legacy) {
+      subscriptions.push(candidates[0])
+    } else {
+      for (const candidate of candidates) quarantine(candidate)
+    }
+  }
+  await Promise.all(quarantineWrites)
   return subscriptions
 }
 
