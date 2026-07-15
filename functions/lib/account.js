@@ -567,7 +567,12 @@ async function deleteAccount({ auth, db, req, stripe }) {
       transaction.set(userRef, { accountDeletionStartedAt: timestamp }, { merge: true })
     }
   })
-  return processAccountDeletionPage({ auth, db, stripe, tombstoneRef, uid: identity.uid })
+  try {
+    return await processAccountDeletionPage({ auth, db, stripe, tombstoneRef, uid: identity.uid })
+  } catch (error) {
+    await markAccountCleanupFailure(db, tombstoneRef, error).catch(() => false)
+    return { completed: false, processed: 0 }
+  }
 }
 
 module.exports = {

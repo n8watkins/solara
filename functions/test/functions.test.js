@@ -638,6 +638,48 @@ describe('account data security', () => {
     assert.equal([...db.cleanupResources.values()].every(resource => resource.status === 'pending'), true)
   })
 
+  test('acknowledges deletion after committed cleanup fails', async () => {
+    const { db } = fakeDeletionDb()
+    const auth = {
+      verifyIdToken: async () => ({ uid: 'alice', auth_time: Math.floor(Date.now() / 1000) }),
+      revokeRefreshTokens: async () => { throw new Error('Auth unavailable') },
+    }
+    const result = await deleteAccount({
+      auth,
+      db,
+      req: { headers: { authorization: 'Bearer valid' }, body: { confirmation: 'DELETE' } },
+      stripe: {},
+    })
+
+    assert.deepEqual(result, { completed: false, processed: 0 })
+    assert.equal(db.tombstoneData.cleanupStatus, 'pending')
+    assert.equal(db.tombstoneData.cleanupAttemptCount, 1)
+    assert.equal(db.tombstoneData.cleanupLastError, 'Auth unavailable')
+  })
+
+  test('acknowledges deletion when cleanup failure persistence also fails', async () => {
+    const { db } = fakeDeletionDb()
+    const runTransaction = db.runTransaction.bind(db)
+    let transactionCount = 0
+    db.runTransaction = async callback => {
+      transactionCount += 1
+      if (transactionCount === 2) throw new Error('Firestore unavailable')
+      return runTransaction(callback)
+    }
+    const result = await deleteAccount({
+      auth: {
+        verifyIdToken: async () => ({ uid: 'alice', auth_time: Math.floor(Date.now() / 1000) }),
+        revokeRefreshTokens: async () => { throw new Error('Auth unavailable') },
+      },
+      db,
+      req: { headers: { authorization: 'Bearer valid' }, body: { confirmation: 'DELETE' } },
+      stripe: {},
+    })
+
+    assert.deepEqual(result, { completed: false, processed: 0 })
+    assert.equal(db.tombstoneData.cleanupStatus, 'pending')
+  })
+
   test('retains failed Stripe cleanup for retry before final deletion', async () => {
     const { db, tombstoneRef } = fakeDeletionDb({
       resources: [{ id: 'subscription', type: 'subscription', stripeId: 'sub_retry' }],
