@@ -49,7 +49,7 @@ Without Firebase configuration, local development still supports the welcome and
 4. Create Firestore in production mode and deploy `firestore.rules`.
 5. Enable Cloud Messaging and create a Web Push VAPID key if notifications are required.
 6. Enable Hosting.
-7. Upgrade to Blaze before deploying Firebase Functions for Stripe or live calendar feeds.
+7. Upgrade to Blaze before deploying Firebase Functions.
 
 The complete environment and activation checklist is in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 

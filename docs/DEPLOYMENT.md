@@ -3,7 +3,7 @@
 _Last reviewed: 2026-07-15_
 
 Solara exports a static Next.js site to `out/` and hosts it on Firebase Hosting.
-Firebase Functions provide trusted server behavior for Stripe fulfillment and the live calendar feed.
+Firebase Functions provide trusted server behavior for billing, account data, notification registration, scheduled cleanup, and calendar feeds.
 The notification dispatcher is available as a manual GitHub Actions workflow until live scheduled delivery is approved.
 
 ## Plan requirements
@@ -56,7 +56,7 @@ Server configuration is split across these locations:
 
 - Firebase Secret Manager stores `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET`.
 - GitHub Actions provides `NEXT_PUBLIC_SITE_URL` to Functions as `APP_URL` and provides `STRIPE_PRICE_ID` as a deploy-time Functions parameter.
-- The `ENABLE_BLAZE_FUNCTIONS` GitHub repository variable controls whether the deployment publishes Firestore indexes and Functions and exposes `NEXT_PUBLIC_FUNCTIONS_URL` in the client build.
+- The `ENABLE_BLAZE_FUNCTIONS` GitHub repository variable controls whether the deployment publishes Functions and exposes `NEXT_PUBLIC_FUNCTIONS_URL` in the client build.
 - GitHub repository secrets store `NEXT_PUBLIC_FUNCTIONS_URL`, `FIREBASE_SERVICE_ACCOUNT`, and the public client configuration used during the static build.
 
 Before enabling the backend deployment, put the project on Blaze, configure both Stripe secrets in Firebase Secret Manager, and configure `STRIPE_PRICE_ID`, `NEXT_PUBLIC_FUNCTIONS_URL`, and `NEXT_PUBLIC_SITE_URL` in GitHub.
