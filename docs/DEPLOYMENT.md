@@ -49,6 +49,7 @@ Never put a Stripe secret, Firebase service-account JSON, webhook secret, or OAu
 Add the required client variables above as repository secrets.
 Also add `FIREBASE_SERVICE_ACCOUNT` as the complete JSON for a narrowly scoped deployment and notification service account.
 The deployment workflow uses that credential to publish Hosting, Firestore rules, and Firestore indexes.
+Grant that service account `roles/datastore.indexAdmin` so the workflow can create and update the indexes declared in `firestore.indexes.json`.
 It also publishes Functions when `ENABLE_BLAZE_FUNCTIONS` is `true`.
 The notification workflow uses it to access notification data and send through Firebase Cloud Messaging.
 

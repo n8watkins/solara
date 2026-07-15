@@ -130,6 +130,8 @@ jobs:
           NEXT_PUBLIC_GA_MEASUREMENT_ID: ${{ secrets.NEXT_PUBLIC_GA_MEASUREMENT_ID }}
 
       - name: Deploy Firestore indexes
+        id: firestore_indexes
+        continue-on-error: true
         run: |
           printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
           export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
@@ -140,7 +142,7 @@ jobs:
           FIREBASE_PROJECT_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
 
       - name: Protect server-owned billing fields
-        if: vars.ENABLE_BLAZE_FUNCTIONS == 'true'
+        if: vars.ENABLE_BLAZE_FUNCTIONS == 'true' && steps.firestore_indexes.outcome == 'success'
         run: |
           printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
           export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
@@ -152,7 +154,7 @@ jobs:
           FIREBASE_PROJECT_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
 
       - name: Deploy Firebase Functions
-        if: vars.ENABLE_BLAZE_FUNCTIONS == 'true'
+        if: vars.ENABLE_BLAZE_FUNCTIONS == 'true' && steps.firestore_indexes.outcome == 'success'
         run: |
           printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
           export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
@@ -165,6 +167,7 @@ jobs:
           STRIPE_PRICE_ID: ${{ secrets.STRIPE_PRICE_ID }}
 
       - name: Deploy to Firebase Hosting
+        if: vars.ENABLE_BLAZE_FUNCTIONS != 'true' || steps.firestore_indexes.outcome == 'success'
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
@@ -182,3 +185,9 @@ jobs:
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           FIREBASE_PROJECT_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
+
+      - name: Report Firestore index deployment failure
+        if: steps.firestore_indexes.outcome == 'failure'
+        run: |
+          echo "::error::Firestore indexes were not deployed. Grant the Firebase deployment service account roles/datastore.indexAdmin and rerun this workflow."
+          exit 1
