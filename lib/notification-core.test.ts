@@ -186,7 +186,10 @@ describe('notification ownership', () => {
       startAfter: (...cursor: Array<QueryDoc | string>) => {
         const index = cursor.length === 1
           ? docs.findIndex(doc => doc.ref.path === cursor[0])
-          : docs.findIndex(doc => doc.data().fcmToken === cursor[0] && doc.id === cursor[1])
+          : docs.findIndex(doc => {
+              const data = doc.data()
+              return 'fcmToken' in data && data.fcmToken === cursor[0] && doc.id === cursor[1]
+            })
         return query(docs, index + 1, pageSize)
       },
       limit: (limit: number) => query(docs, start, limit),
