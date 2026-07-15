@@ -37,7 +37,7 @@ The release is not complete until the automated gates and relevant real-service 
 - [ ] Confirm the Firestore rules deployment succeeds.
 - [ ] Confirm the Functions deployment succeeds before the Hosting deployment starts.
 - [ ] Confirm `backfillStripeBillingResources`, `cleanupDeletedAccountBilling`, and `cleanupFailedCheckouts` are deployed and healthy.
-- [ ] Confirm the final Firestore rules deploy only after Hosting succeeds.
+- [ ] Confirm the final Firestore rules are restored after the deployment attempt, including when Functions or Hosting fails.
 - [ ] Record the deployed commit and Firebase release.
 
 ## 4. Production smoke test
