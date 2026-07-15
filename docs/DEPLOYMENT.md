@@ -1,6 +1,6 @@
 # Solara Deployment Guide
 
-_Last reviewed: 2026-07-14_
+_Last reviewed: 2026-07-15_
 
 Solara exports a static Next.js site to `out/` and hosts it on Firebase Hosting.
 Firebase Functions provide trusted server behavior for Stripe fulfillment and the live calendar feed.
@@ -48,7 +48,7 @@ Never put a Stripe secret, Firebase service-account JSON, webhook secret, or OAu
 
 Add the required client variables above as repository secrets.
 Also add `FIREBASE_SERVICE_ACCOUNT` as the complete JSON for a narrowly scoped deployment and notification service account.
-The deployment workflow uses that credential to publish Hosting, Firestore rules and indexes, and Functions.
+The deployment workflow uses that credential to publish Hosting and Firestore rules, plus indexes and Functions when `ENABLE_BLAZE_FUNCTIONS` is `true`.
 The notification workflow uses it to access notification data and send through Firebase Cloud Messaging.
 
 Server configuration is split across these locations:
@@ -95,9 +95,16 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-Push to `main` after the required GitHub secrets exist.
+Merge a reviewed pull request into `main` after the required GitHub secrets exist.
 When `ENABLE_BLAZE_FUNCTIONS` is `true`, the deployment workflow builds with those values, deploys transitional Firestore rules and indexes, deploys Functions, deploys Hosting, and then restores the final rules.
 When the variable is not `true`, the workflow keeps Function-backed client surfaces disabled, deploys Hosting, and restores the final Firestore rules.
+
+## Service worker generation
+
+`public/firebase-messaging-sw.js` is a generated, ignored artifact.
+Both `npm run dev` and `npm run build` run `scripts/generate-sw.js` first and create it from the Firebase values in `.env.local` or the deployment environment.
+Do not commit or hand-edit the generated worker.
+Re-run the generator through either command after changing Firebase client configuration.
 
 For a controlled manual deployment, use an explicit project ID.
 
@@ -115,6 +122,9 @@ Wait for every index in `firestore.indexes.json` to report `READY` before enabli
 
 The notification workflow installs the committed dependency graph with `npm ci` and prevents overlapping dispatch runs.
 Scheduled delivery remains disabled until the real-device verification below is complete and live activation is approved.
+
+Each run is bounded by page and time budgets and checkpoints its device and legacy-registration cursors in `notificationDispatchState/morning` or `notificationDispatchState/morning-dry-run`.
+Later runs resume from those cursors and alternate between current device registrations and legacy registrations so a large or repeatedly interrupted scan cannot starve either source.
 
 Use `workflow_dispatch` for controlled verification.
 The workflow defaults to `dry_run = true`.

@@ -1,6 +1,6 @@
 # Solara Go-Live Runbook
 
-_Last reviewed: 2026-07-14_
+_Last reviewed: 2026-07-15_
 
 Use this checklist for each production release.
 The release is not complete until the automated gates and relevant real-service checks pass.
@@ -31,7 +31,7 @@ The release is not complete until the automated gates and relevant real-service 
 
 ## 3. Deploy
 
-- [ ] Push the reviewed commits to `main`.
+- [ ] Merge the reviewed pull request into `main`.
 - [ ] Confirm the frontend and backend jobs pass every automated quality gate.
 - [ ] Confirm the Hosting deployment succeeds.
 - [ ] Confirm the Firestore rules deployment succeeds.
