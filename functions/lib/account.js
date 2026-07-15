@@ -108,6 +108,12 @@ function safeDeviceData(snapshot) {
 async function exportAccountData({ auth, db, req }) {
   const identity = await authenticate(auth, req.headers.authorization)
   const userRef = db.collection('users').doc(identity.uid)
+  const tombstone = await db.collection('accountDeletionTombstones').doc(identity.uid).get()
+  if (tombstone.exists) {
+    const error = new Error('Account deletion is in progress')
+    error.status = 409
+    throw error
+  }
   const [userSnapshot, devicesSnapshot] = await Promise.all([
     userRef.get(),
     userRef.collection('notificationDevices').get(),
@@ -118,6 +124,18 @@ async function exportAccountData({ auth, db, req }) {
     account: userSnapshot.exists ? safeAccountData(userSnapshot.data()) : null,
     notificationDevices: safeDeviceData(devicesSnapshot),
   }
+}
+
+async function ensureSessionsRevoked(auth, db, tombstoneRef, tombstone, uid) {
+  if (tombstone.sessionsRevokedAt) return
+  await auth.revokeRefreshTokens(uid)
+  await db.runTransaction(async transaction => {
+    const current = await transaction.get(tombstoneRef)
+    if (!current.exists || current.data().cleanupStatus !== 'pending') return
+    if (!current.data().sessionsRevokedAt) {
+      transaction.set(tombstoneRef, { sessionsRevokedAt: new Date() }, { merge: true })
+    }
+  })
 }
 
 async function markCleanupResource(db, resource, data) {
@@ -404,6 +422,7 @@ async function processAccountDeletionPage({ auth, db, stripe, tombstoneRef, uid 
     return { completed: tombstoneSnapshot.data()?.cleanupStatus === 'completed', processed: 0 }
   }
   const tombstone = tombstoneSnapshot.data()
+  await ensureSessionsRevoked(auth, db, tombstoneRef, tombstone, uid)
   if (tombstone.resourceIndexComplete !== true) {
     let query = userRef.collection('billingResources').orderBy('__name__').limit(BILLING_INDEX_PAGE_SIZE)
     if (tombstone.resourceIndexCursor) query = query.startAfter(tombstone.resourceIndexCursor)

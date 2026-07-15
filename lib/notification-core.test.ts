@@ -123,10 +123,19 @@ describe('notification ownership', () => {
     owners = {},
     transactionOwners = owners,
   }: {
-    devices?: Array<{ deviceId: string; token: string; uid: string }>
+    devices?: Array<{
+      deviceId: string
+      registrationMigrationId?: string
+      token: string
+      uid: string
+    }>
     legacyUsers?: Array<{ token: string; uid: string }>
-    owners?: Record<string, { deviceId: string; uid: string }>
-    transactionOwners?: Record<string, { deviceId: string; uid: string }>
+    owners?: Record<string, { deviceId: string; registrationMigrationId?: string; uid: string }>
+    transactionOwners?: Record<string, {
+      deviceId: string
+      registrationMigrationId?: string
+      uid: string
+    }>
   }) {
     const writes: Array<{ data: Record<string, unknown>; path: string }> = []
     const dataByPath = new Map<string, Record<string, unknown>>()
@@ -144,7 +153,13 @@ describe('notification ownership', () => {
       const user = userRef(device.uid)
       const parent = { parent: user }
       const deviceRef = ref(`users/${device.uid}/notificationDevices/${device.deviceId}`, device.deviceId, parent)
-      const data = { enabled: true, token: device.token }
+      const data = {
+        enabled: true,
+        token: device.token,
+        ...(device.registrationMigrationId
+          ? { registrationMigrationId: device.registrationMigrationId }
+          : {}),
+      }
       dataByPath.set(deviceRef.path, data)
       return {
         id: device.deviceId,
@@ -225,6 +240,30 @@ describe('notification ownership', () => {
       'users/alice/notificationDevices/device-alice',
       'users/carol',
     ])
+  })
+
+  it('does not dispatch a device until legacy migration completes', async () => {
+    const token = 'migrating-token'.padEnd(24, 'x')
+    const ownerId = createHash('sha256').update(token).digest('hex')
+    const { database, writes } = notificationDatabase({
+      devices: [{
+        deviceId: 'device-alice',
+        registrationMigrationId: 'migration-1',
+        token,
+        uid: 'alice',
+      }],
+      legacyUsers: [{ token, uid: 'legacy-alice' }],
+      owners: {
+        [ownerId]: {
+          uid: 'alice',
+          deviceId: 'device-alice',
+          registrationMigrationId: 'migration-1',
+        },
+      },
+    })
+
+    expect(await loadSubscriptions(database)).toEqual([])
+    expect(writes).toEqual([])
   })
 
   it('keeps one legacy claim but quarantines ambiguous legacy ownership', async () => {

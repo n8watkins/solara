@@ -25,6 +25,14 @@ function fakeDb({
 } = {}) {
   const writes = []
   const deletes = []
+  const legacyPageReads = []
+  let currentDevice = existingDeviceData ? { ...existingDeviceData } : null
+  let priorDevice = priorDeviceData ? { ...priorDeviceData } : null
+  let tokenOwner = owner ? { ...owner } : null
+  const legacyUsers = new Map(legacyTokenOwners.map(uid => [uid, {
+    fcmToken: TOKEN,
+    ...(legacyTokenOwnerData[uid] || {}),
+  }]))
   const ref = (kind, id, uid) => ({ kind, id, uid })
   const userRef = uid => ({
     ...ref('user', uid, uid),
@@ -36,6 +44,9 @@ function fakeDb({
   const db = {
     writes,
     deletes,
+    legacyPageReads,
+    deviceData: () => currentDevice,
+    ownerData: () => tokenOwner,
     collection(name) {
       if (name === 'users') {
         return {
@@ -45,6 +56,8 @@ function fakeDb({
             field,
             operator,
             value,
+            pageSize: Number.POSITIVE_INFINITY,
+            limit(size) { this.pageSize = size; return this },
           }),
         }
       }
@@ -55,15 +68,22 @@ function fakeDb({
       throw new Error(`Unexpected collection ${name}`)
     },
     async runTransaction(callback) {
-      await callback({
+      return callback({
         async get(ref) {
           if (ref.kind === 'user') {
-            return { exists: true, data: () => ({ tier, accountDeletionStartedAt }) }
+            return {
+              exists: true,
+              data: () => ({
+                tier,
+                accountDeletionStartedAt,
+                ...(legacyUsers.get(ref.uid) || {}),
+              }),
+            }
           }
           if (ref.kind === 'device') {
             const data = ref.uid === 'alice' && ref.id === DEVICE_ID
-              ? existingDeviceData
-              : priorDeviceData
+              ? currentDevice
+              : priorDevice
             return { exists: !!data, data: () => data }
           }
           if (ref.kind === 'device-query') return { size: activeDeviceCount }
@@ -71,26 +91,52 @@ function fakeDb({
             assert.equal(ref.field, 'fcmToken')
             assert.equal(ref.operator, '==')
             assert.equal(ref.value, TOKEN)
-            return {
-              docs: legacyTokenOwners.map(uid => ({
-                id: uid,
-                ref: userRef(uid),
-                data: () => legacyTokenOwnerData[uid] || {},
-              })),
-            }
+            const docs = [...legacyUsers.entries()]
+                .filter(([, data]) => data.fcmToken === TOKEN)
+                .slice(0, ref.pageSize)
+                .map(([uid, data]) => ({
+                  id: uid,
+                  ref: userRef(uid),
+                  data: () => ({ ...data }),
+                }))
+            legacyPageReads.push(docs.length)
+            return { docs }
           }
-          if (ref.kind === 'owner') return { exists: !!owner, data: () => owner }
+          if (ref.kind === 'owner') return { exists: !!tokenOwner, data: () => tokenOwner }
           if (ref.kind === 'limit') {
             return { exists: !!registrationLimit, data: () => registrationLimit }
           }
           throw new Error('Unexpected transaction read')
         },
-        set(ref, data, options) { writes.push({ ref, data, options }) },
-        delete(ref) { deletes.push(ref) },
+        set(ref, data, options) {
+          writes.push({ ref, data, options })
+          if (ref.kind === 'device') {
+            if (ref.uid === 'alice' && ref.id === DEVICE_ID) {
+              currentDevice = options?.merge ? { ...currentDevice, ...data } : { ...data }
+            } else {
+              priorDevice = options?.merge ? { ...priorDevice, ...data } : { ...data }
+            }
+          }
+          if (ref.kind === 'owner') tokenOwner = options?.merge ? { ...tokenOwner, ...data } : { ...data }
+          if (ref.kind === 'user') {
+            legacyUsers.set(ref.uid, { ...legacyUsers.get(ref.uid), ...data })
+          }
+        },
+        delete(ref) {
+          deletes.push(ref)
+          if (ref.kind === 'device') priorDevice = null
+          if (ref.kind === 'owner') tokenOwner = null
+        },
       })
     },
   }
   return db
+}
+
+function latestWrite(db, kind) {
+  if (kind === 'device') return { data: db.deviceData() }
+  if (kind === 'owner') return { data: db.ownerData() }
+  return db.writes.filter(write => write.ref.kind === kind).at(-1)
 }
 
 function request(body, authorization = 'Bearer valid') {
@@ -125,22 +171,20 @@ describe('notification device mutations', () => {
     })
 
     assert.deepEqual(result, { deviceId: DEVICE_ID, registered: true })
-    const deviceWrite = db.writes.find(write => write.ref.kind === 'device')
+    const deviceWrite = latestWrite(db, 'device')
     assert.deepEqual(deviceWrite.data, {
       token: TOKEN,
       enabled: true,
       platform: 'web',
+      registrationMigrationId: null,
       createdAt: 'server-time',
       updatedAt: 'server-time',
     })
     assert.deepEqual(
-      db.writes.find(write => write.ref.kind === 'owner').data,
+      latestWrite(db, 'owner').data,
       { uid: 'alice', deviceId: DEVICE_ID, updatedAt: 'server-time' },
     )
-    assert.deepEqual(
-      db.writes.find(write => write.ref.kind === 'user').data,
-      { fcmToken: null, notificationsEnabled: false },
-    )
+    assert.equal(db.writes.some(write => write.ref.kind === 'user'), false)
   })
 
   test('preserves delivery state when a device token rotates', async () => {
@@ -159,7 +203,7 @@ describe('notification device mutations', () => {
       req: request({ deviceId: DEVICE_ID, platform: 'web', token: TOKEN }),
       serverTimestamp: () => 'server-time',
     })
-    const deviceWrite = db.writes.find(write => write.ref.kind === 'device')
+    const deviceWrite = latestWrite(db, 'device')
     assert.equal(deviceWrite.data.lastNotificationKey, 'daily-v2:2026-07-14')
     assert.equal(deviceWrite.data.notificationDeliveryStatus, 'delivered')
     assert.equal(deviceWrite.data.notificationDeliveryAttemptId, null)
@@ -254,7 +298,7 @@ describe('notification device mutations', () => {
       req: request({ deviceId: DEVICE_ID, platform: 'web', token: TOKEN }),
       serverTimestamp: () => 'server-time',
     })
-    const deviceWrite = db.writes.find(write => write.ref.kind === 'device')
+    const deviceWrite = latestWrite(db, 'device')
     assert.equal(Object.hasOwn(deviceWrite.data, 'createdAt'), false)
   })
 
@@ -330,14 +374,14 @@ describe('notification device mutations', () => {
       serverTimestamp: () => 'server-time',
     })
 
-    const deviceWrite = db.writes.find(write => write.ref.kind === 'device')
+    const deviceWrite = latestWrite(db, 'device')
     assert.equal(deviceWrite.data.notificationDeliveryKey, 'daily-v2:2026-07-14')
     assert.equal(deviceWrite.data.notificationDeliveryStatus, 'unknown')
     assert.equal(deviceWrite.data.notificationDeliveryAttemptId, 'attempt-1')
     assert.equal(deviceWrite.data.notificationDeliveryClaimedAt, claimedAt)
   })
 
-  test('does not transfer a legacy token during an active delivery claim', async () => {
+  test('preserves a legacy active claim while taking ownership', async () => {
     const db = fakeDb({
       legacyTokenOwners: ['bob'],
       legacyTokenOwnerData: {
@@ -347,18 +391,19 @@ describe('notification device mutations', () => {
         },
       },
     })
-    await assert.rejects(registerNotificationDevice({
+    await assert.doesNotReject(registerNotificationDevice({
       appCheck,
       auth,
       db,
       nowMs: 2_000,
       req: request({ deviceId: DEVICE_ID, platform: 'web', token: TOKEN }),
       serverTimestamp: () => 'server-time',
-    }), error => error.status === 409)
-    assert.equal(db.writes.length, 0)
+    }))
+    assert.equal(db.deviceData().notificationDeliveryStatus, 'claimed')
+    assert.equal(db.deviceData().notificationDeliveryClaimedAt.getTime(), 1_000)
   })
 
-  test('does not migrate the authenticated legacy token during an active delivery claim', async () => {
+  test('preserves the authenticated legacy active claim during migration', async () => {
     const db = fakeDb({
       legacyTokenOwners: ['alice'],
       legacyTokenOwnerData: {
@@ -368,15 +413,16 @@ describe('notification device mutations', () => {
         },
       },
     })
-    await assert.rejects(registerNotificationDevice({
+    await assert.doesNotReject(registerNotificationDevice({
       appCheck,
       auth,
       db,
       nowMs: 2_000,
       req: request({ deviceId: DEVICE_ID, platform: 'web', token: TOKEN }),
       serverTimestamp: () => 'server-time',
-    }), error => error.status === 409)
-    assert.equal(db.writes.length, 0)
+    }))
+    assert.equal(db.deviceData().notificationDeliveryStatus, 'claimed')
+    assert.equal(db.deviceData().notificationDeliveryClaimedAt.getTime(), 1_000)
   })
 
   test('preserves legacy delivery state when migrating a token', async () => {
@@ -399,7 +445,7 @@ describe('notification device mutations', () => {
       serverTimestamp: () => 'server-time',
     })
 
-    const deviceWrite = db.writes.find(write => write.ref.kind === 'device')
+    const deviceWrite = latestWrite(db, 'device')
     assert.equal(deviceWrite.data.lastNotificationKey, 'daily-v2:2026-07-14')
     assert.equal(deviceWrite.data.notificationDeliveryStatus, 'unknown')
     assert.equal(deviceWrite.data.notificationDeliveryAttemptId, 'attempt-1')
@@ -433,7 +479,7 @@ describe('notification device mutations', () => {
       serverTimestamp: () => 'server-time',
     })
 
-    const deviceWrite = db.writes.find(write => write.ref.kind === 'device')
+    const deviceWrite = latestWrite(db, 'device')
     assert.equal(deviceWrite.data.notificationDeliveryStatus, 'unknown')
     assert.equal(deviceWrite.data.notificationDeliveryAttemptId, 'ambiguous-attempt')
     assert.equal(deviceWrite.data.notificationDeliveryError, null)
@@ -467,7 +513,7 @@ describe('notification device mutations', () => {
       serverTimestamp: () => 'server-time',
     })
 
-    const deviceWrite = db.writes.find(write => write.ref.kind === 'device')
+    const deviceWrite = latestWrite(db, 'device')
     assert.equal(deviceWrite.data.notificationDeliveryKey, 'daily-v2:2026-07-14')
     assert.equal(deviceWrite.data.notificationDeliveryStatus, 'failed')
     assert.equal(deviceWrite.data.notificationDeliveryError, 'definite failure')
@@ -492,6 +538,23 @@ describe('notification device mutations', () => {
     for (const write of db.writes.filter(write => write.ref.kind === 'user')) {
       assert.deepEqual(write.data, { fcmToken: null, notificationsEnabled: false })
     }
+  })
+
+  test('migrates duplicate legacy records in bounded pages', async () => {
+    const owners = Array.from({ length: 205 }, (_, index) => `legacy-${index}`)
+    const db = fakeDb({ legacyTokenOwners: owners })
+
+    await registerNotificationDevice({
+      appCheck,
+      auth,
+      db,
+      req: request({ deviceId: DEVICE_ID, platform: 'web', token: TOKEN }),
+      serverTimestamp: () => 'server-time',
+    })
+
+    assert.deepEqual(db.legacyPageReads, [100, 100, 5, 0])
+    assert.equal(db.writes.filter(write => write.ref.kind === 'user').length, 205)
+    assert.equal(db.deviceData().registrationMigrationId, null)
   })
 
   test('removes only the authenticated account device', async () => {

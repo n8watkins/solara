@@ -4,6 +4,7 @@ const assert = require('node:assert/strict')
 const {
   authenticate,
   deleteAccount,
+  exportAccountData,
   processAccountDeletionPage,
   processPendingAccountDeletions,
   safeAccountData,
@@ -344,6 +345,13 @@ function fakeDeletionDb({ cleanup = [], resources = [], tombstone = {}, user = {
   return { db, tombstoneRef }
 }
 
+function deletionAuth(db) {
+  return {
+    deleteUser: async uid => db.deleted.push(`auth:${uid}`),
+    revokeRefreshTokens: async uid => db.deleted.push(`sessions:${uid}`),
+  }
+}
+
 afterEach(clearForecastCache)
 
 describe('account data security', () => {
@@ -482,6 +490,28 @@ describe('account data security', () => {
     }), { location: { city: 'Seattle' } })
   })
 
+  test('rejects exports after account deletion starts', async () => {
+    let userRead = false
+    const db = {
+      collection(name) {
+        if (name === 'accountDeletionTombstones') {
+          return { doc: () => ({ get: async () => ({ exists: true }) }) }
+        }
+        if (name === 'users') {
+          return { doc: () => ({ get: async () => { userRead = true } }) }
+        }
+        throw new Error(`Unexpected collection ${name}`)
+      },
+    }
+
+    await assert.rejects(exportAccountData({
+      auth: { verifyIdToken: async () => ({ uid: 'alice' }) },
+      db,
+      req: { headers: { authorization: 'Bearer valid' } },
+    }), error => error.status === 409)
+    assert.equal(userRead, false)
+  })
+
   test('quarantines deletion and copies the billing index in bounded pages', async () => {
     const resources = Array.from({ length: 30 }, (_, index) => ({
       id: `resource-${String(index).padStart(2, '0')}`,
@@ -495,6 +525,7 @@ describe('account data security', () => {
     const result = await deleteAccount({
       auth: {
         verifyIdToken: async () => ({ uid: 'alice', auth_time: Math.floor(Date.now() / 1000) }),
+        revokeRefreshTokens: async uid => db.deleted.push(`sessions:${uid}`),
       },
       db,
       req: { headers: { authorization: 'Bearer valid' }, body: { confirmation: 'DELETE' } },
@@ -502,6 +533,8 @@ describe('account data security', () => {
     })
     assert.deepEqual(result, { completed: false, processed: 25 })
     assert.equal(db.userData.accountDeletionStartedAt instanceof Date, true)
+    assert.deepEqual(db.deleted, ['sessions:alice'])
+    assert.equal(db.tombstoneData.sessionsRevokedAt instanceof Date, true)
     assert.equal(db.tombstoneData.cleanupStatus, 'pending')
     assert.equal(db.tombstoneData.resourceIndexComplete, false)
     assert.equal(db.cleanupResources.size, 26)
@@ -518,7 +551,7 @@ describe('account data security', () => {
       resources: [{ id: 'subscription', type: 'subscription', stripeId: 'sub_retry' }],
       tombstone: { cleanupStatus: 'pending', resourceIndexComplete: false },
     })
-    const auth = { deleteUser: async uid => db.deleted.push(`auth:${uid}`) }
+    const auth = deletionAuth(db)
     const stripe = {
       subscriptions: {
         retrieve: async () => ({ id: 'sub_retry', status: 'active' }),
@@ -545,7 +578,10 @@ describe('account data security', () => {
     await processAccountDeletionPage({ auth, db, stripe, tombstoneRef, uid: 'alice' })
     job = [...db.cleanupResources.values()][0]
     assert.equal(job.status, 'completed')
-    assert.deepEqual(db.deleted, ['stripe:sub_retry', 'limit', 'user', 'auth:alice'])
+    assert.deepEqual(
+      db.deleted,
+      ['sessions:alice', 'stripe:sub_retry', 'limit', 'user', 'auth:alice'],
+    )
     assert.equal(db.tombstoneData.cleanupStatus, 'completed')
     assert.deepEqual(
       [...db.subscriptionOwners.values()].map(resource => ({
@@ -579,8 +615,9 @@ describe('account data security', () => {
       },
     }
 
-    await processAccountDeletionPage({ auth: {}, db, stripe, tombstoneRef, uid: 'alice' })
-    await processAccountDeletionPage({ auth: {}, db, stripe, tombstoneRef, uid: 'alice' })
+    const auth = deletionAuth(db)
+    await processAccountDeletionPage({ auth, db, stripe, tombstoneRef, uid: 'alice' })
+    await processAccountDeletionPage({ auth, db, stripe, tombstoneRef, uid: 'alice' })
 
     assert.deepEqual(attempted.slice(0, 10), cleanup.slice(0, 10).map(resource => resource.stripeId))
     assert.equal(attempted[10], 'sub_10')
@@ -612,12 +649,13 @@ describe('account data security', () => {
       },
     }
 
-    const firstWorker = processAccountDeletionPage({ auth: {}, db, stripe, tombstoneRef, uid: 'alice' })
+    const auth = deletionAuth(db)
+    const firstWorker = processAccountDeletionPage({ auth, db, stripe, tombstoneRef, uid: 'alice' })
     await retrieveStarted
-    const secondResult = await processAccountDeletionPage({ auth: {}, db, stripe, tombstoneRef, uid: 'alice' })
+    const secondResult = await processAccountDeletionPage({ auth, db, stripe, tombstoneRef, uid: 'alice' })
 
     assert.deepEqual(secondResult, { completed: false, processed: 0 })
-    assert.deepEqual(db.deleted, [])
+    assert.deepEqual(db.deleted, ['sessions:alice'])
     continueRetrieve()
     await firstWorker
   })
@@ -649,8 +687,9 @@ describe('account data security', () => {
       } },
     }
 
-    await processAccountDeletionPage({ auth: {}, db, stripe, tombstoneRef, uid: 'alice' })
-    await processAccountDeletionPage({ auth: {}, db, stripe, tombstoneRef, uid: 'alice' })
+    const auth = deletionAuth(db)
+    await processAccountDeletionPage({ auth, db, stripe, tombstoneRef, uid: 'alice' })
+    await processAccountDeletionPage({ auth, db, stripe, tombstoneRef, uid: 'alice' })
 
     assert.equal(checkoutRequests.length, 1)
     assert.equal(subscriptionRequests.length, 2)
@@ -684,9 +723,10 @@ describe('account data security', () => {
       subscriptions: { list: async () => ({ data: [], has_more: false }) },
     }
 
-    await processAccountDeletionPage({ auth: {}, db, stripe, tombstoneRef, uid: 'alice' })
-    await processAccountDeletionPage({ auth: {}, db, stripe, tombstoneRef, uid: 'alice' })
-    await processAccountDeletionPage({ auth: {}, db, stripe, tombstoneRef, uid: 'alice' })
+    const auth = deletionAuth(db)
+    await processAccountDeletionPage({ auth, db, stripe, tombstoneRef, uid: 'alice' })
+    await processAccountDeletionPage({ auth, db, stripe, tombstoneRef, uid: 'alice' })
+    await processAccountDeletionPage({ auth, db, stripe, tombstoneRef, uid: 'alice' })
 
     assert.equal(requests[1].starting_after, 'cs_early')
     assert.equal(requests[2].starting_after, undefined)

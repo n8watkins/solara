@@ -1,8 +1,9 @@
 const { authenticate } = require('./account')
-const { createHash } = require('node:crypto')
+const { createHash, randomUUID } = require('node:crypto')
 
 const MAX_NOTIFICATION_DEVICES = 5
 const MAX_REGISTRATIONS_PER_MINUTE = 10
+const LEGACY_MIGRATION_PAGE_SIZE = 100
 const NOTIFICATION_CLAIM_LEASE_MS = 12 * 60 * 1000
 const DEVICE_ID_PATTERN = /^[a-f0-9]{36}$/
 const PLATFORMS = new Set(['web', 'ios', 'android'])
@@ -161,7 +162,7 @@ async function registerNotificationDevice({ appCheck, auth, db, req, serverTimes
   const deviceRef = userRef.collection('notificationDevices').doc(device.deviceId)
   const ownerRef = db.collection('notificationTokenOwners').doc(tokenOwnerId(device.token))
   const limitRef = db.collection('notificationRegistrationLimits').doc(identity.uid)
-  const legacyOwnersQuery = db.collection('users').where('fcmToken', '==', device.token)
+  const migrationId = randomUUID()
 
   await db.runTransaction(async transaction => {
     const [
@@ -170,7 +171,6 @@ async function registerNotificationDevice({ appCheck, auth, db, req, serverTimes
       devicesSnapshot,
       ownerSnapshot,
       limitSnapshot,
-      legacyOwnersSnapshot,
     ] = await Promise.all([
       transaction.get(userRef),
       transaction.get(deviceRef),
@@ -178,7 +178,6 @@ async function registerNotificationDevice({ appCheck, auth, db, req, serverTimes
         .where('enabled', '==', true).limit(MAX_NOTIFICATION_DEVICES + 1)),
       transaction.get(ownerRef),
       transaction.get(limitRef),
-      transaction.get(legacyOwnersQuery),
     ])
     if (userSnapshot.exists && userSnapshot.data().accountDeletionStartedAt) {
       throw httpError('Account deletion is in progress', 409)
@@ -215,11 +214,6 @@ async function registerNotificationDevice({ appCheck, auth, db, req, serverTimes
     if (current?.token !== device.token && activeDeliveryClaim(current, nowMs)) {
       throw httpError('Notification delivery is in progress', 409)
     }
-    if (legacyOwnersSnapshot.docs.some(legacyOwner => (
-      activeDeliveryClaim(legacyOwner.data(), nowMs)
-    ))) {
-      throw httpError('Notification delivery is in progress', 409)
-    }
     const reclaimsActiveSlot = priorOwner?.uid === identity.uid
       && priorDeviceSnapshot?.exists
       && priorDeviceSnapshot.data().enabled === true
@@ -246,12 +240,12 @@ async function registerNotificationDevice({ appCheck, auth, db, req, serverTimes
       priorDeviceSnapshot?.exists && priorDeviceSnapshot.data().token === device.token
         ? priorDeviceSnapshot.data()
         : null,
-      ...legacyOwnersSnapshot.docs.map(legacyOwner => legacyOwner.data()),
     ])
     transaction.set(deviceRef, {
       token: device.token,
       enabled: true,
       platform: device.platform,
+      registrationMigrationId: migrationId,
       ...transferredDeliveryState,
       ...(deviceSnapshot.exists ? {} : { createdAt: serverTimestamp() }),
       updatedAt: serverTimestamp(),
@@ -259,6 +253,7 @@ async function registerNotificationDevice({ appCheck, auth, db, req, serverTimes
     transaction.set(ownerRef, {
       uid: identity.uid,
       deviceId: device.deviceId,
+      registrationMigrationId: migrationId,
       updatedAt: serverTimestamp(),
     })
     transaction.set(limitRef, {
@@ -266,18 +261,58 @@ async function registerNotificationDevice({ appCheck, auth, db, req, serverTimes
       windowStartedAt: withinWindow ? windowStartedAt : nowMs,
       updatedAt: serverTimestamp(),
     })
-    for (const legacyOwner of legacyOwnersSnapshot.docs) {
-      if (legacyOwner.id === identity.uid) continue
-      transaction.set(legacyOwner.ref, {
-        fcmToken: null,
-        notificationsEnabled: false,
-      }, { merge: true })
-    }
-    transaction.set(userRef, {
-      fcmToken: null,
-      notificationsEnabled: false,
-    }, { merge: true })
   })
+
+  const legacyOwnersQuery = db.collection('users')
+    .where('fcmToken', '==', device.token)
+    .limit(LEGACY_MIGRATION_PAGE_SIZE)
+  while (true) {
+    const completed = await db.runTransaction(async transaction => {
+      const [deviceSnapshot, ownerSnapshot, legacyOwnersSnapshot] = await Promise.all([
+        transaction.get(deviceRef),
+        transaction.get(ownerRef),
+        transaction.get(legacyOwnersQuery),
+      ])
+      const current = deviceSnapshot.exists ? deviceSnapshot.data() : null
+      const owner = ownerSnapshot.exists ? ownerSnapshot.data() : null
+      if (current?.token !== device.token
+        || current.registrationMigrationId !== migrationId
+        || owner?.uid !== identity.uid
+        || owner.deviceId !== device.deviceId
+        || owner.registrationMigrationId !== migrationId) {
+        throw httpError('Notification registration was superseded', 409)
+      }
+      const transferredDeliveryState = mergeDeliveryStates([
+        current,
+        ...legacyOwnersSnapshot.docs.map(legacyOwner => legacyOwner.data()),
+      ])
+      if (legacyOwnersSnapshot.docs.length === 0) {
+        transaction.set(deviceRef, {
+          ...transferredDeliveryState,
+          registrationMigrationId: null,
+          updatedAt: serverTimestamp(),
+        }, { merge: true })
+        transaction.set(ownerRef, {
+          uid: identity.uid,
+          deviceId: device.deviceId,
+          updatedAt: serverTimestamp(),
+        })
+        return true
+      }
+      transaction.set(deviceRef, {
+        ...transferredDeliveryState,
+        updatedAt: serverTimestamp(),
+      }, { merge: true })
+      for (const legacyOwner of legacyOwnersSnapshot.docs) {
+        transaction.set(legacyOwner.ref, {
+          fcmToken: null,
+          notificationsEnabled: false,
+        }, { merge: true })
+      }
+      return false
+    })
+    if (completed) break
+  }
 
   return { deviceId: device.deviceId, registered: true }
 }

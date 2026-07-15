@@ -81,6 +81,7 @@ async function fetchHourly(lat, lon) {
 }
 
 function deviceCandidate(deviceDoc) {
+  if (deviceDoc.data().registrationMigrationId) return null
   const token = deviceDoc.data().token
   const userRef = deviceDoc.ref.parent.parent
   if (!token || !userRef) return null
@@ -174,7 +175,11 @@ async function resolveLegacyPage(candidates, state, database, final = false) {
     }
     if (state.token === null) state.token = candidate.token
 
-    if (owners[index]?.exists) {
+    const owner = owners[index]?.exists ? owners[index].data() : null
+    if (owner?.registrationMigrationId) {
+      state.candidate = null
+      state.blocked = true
+    } else if (owner) {
       if (state.candidate) quarantine.push(state.candidate)
       state.candidate = null
       state.blocked = true
