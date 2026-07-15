@@ -6,8 +6,10 @@
     "postcss": "^8.5.10"
   },
   "scripts": {
+    "predev": "node scripts/generate-sw.js",
     "dev": "next dev",
-    "build": "node scripts/generate-sw.js && next build",
+    "prebuild": "node scripts/generate-sw.js",
+    "build": "next build",
     "start": "next start",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
