@@ -98,7 +98,7 @@ export default function AccountPage() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg)', padding: '32px 16px 64px' }}>
+    <main style={{ minHeight: '100vh', background: 'var(--bg)', padding: '32px 16px 64px' }}>
       <div style={{ maxWidth: '680px', margin: '0 auto' }}>
         <Link href="/" style={{ color: 'var(--accent)', fontSize: '14px', textDecoration: 'none' }}>← Back to Solara</Link>
         <h1 style={{ margin: '24px 0 8px', fontSize: 'clamp(28px, 6vw, 42px)' }}>Account controls</h1>
@@ -177,6 +177,6 @@ export default function AccountPage() {
           Review the <Link href="/privacy/">Privacy Policy</Link> and <Link href="/terms/">Terms of Use</Link>.
         </p>
       </div>
-    </div>
+    </main>
   )
 }
