@@ -2,6 +2,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Location } from '@/lib/types'
 import { clearWeatherCache } from '@/lib/cache'
+import { searchLocation } from '@/lib/geocoding'
 
 interface Props {
   location: Location
@@ -59,11 +60,8 @@ export default function LocationPopover({ location, savedLocations, limit, onApp
     if (!query.trim()) return
     setLoading(true); setError(null); setNote(null)
     try {
-      const res  = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=1&language=en&format=json`)
-      const data = await res.json()
-      if (!data.results?.length) throw new Error('Not found')
-      const r = data.results[0]
-      const loc: Location = { lat: r.latitude, lon: r.longitude, city: r.name, region: r.admin1 ?? r.country ?? '', timezone: r.timezone }
+      const loc = await searchLocation(query)
+      if (!loc) throw new Error('Not found')
       activate(loc, true) // searching a new city saves it as a shortcut when there's room
       setQuery('')
       if (!atLimit) setTimeout(() => setOpen(false), 800)

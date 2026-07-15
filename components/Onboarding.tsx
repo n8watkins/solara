@@ -4,6 +4,7 @@ import { User } from 'firebase/auth'
 import { saveLocalPrefs, defaultPrefs } from '@/lib/prefs'
 import { UserPreferences, Location, SkinType } from '@/lib/types'
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
+import { searchLocation } from '@/lib/geocoding'
 import GoogleSignInButton from './GoogleSignInButton'
 
 interface Props {
@@ -65,11 +66,8 @@ export default function Onboarding({ onComplete }: Props) {
     if (!cityInput.trim()) return
     setLocLoad(true); setGeoError(null)
     try {
-      const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(cityInput)}&count=1&language=en&format=json`)
-      const data = await res.json()
-      if (!data.results?.length) throw new Error('Not found')
-      const r = data.results[0]
-      const loc: Location = { lat: r.latitude, lon: r.longitude, city: r.name, region: r.admin1 ?? r.country ?? '', timezone: r.timezone }
+      const loc = await searchLocation(cityInput)
+      if (!loc) throw new Error('Not found')
       setLocation(loc)
       await fetchUVPreview(loc)
     } catch {
