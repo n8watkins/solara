@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { createHash } from 'node:crypto'
 
 /* eslint-disable @typescript-eslint/no-require-imports */
 const {
@@ -30,7 +31,9 @@ const hourly = [
 ]
 
 function makeDeliveryDatabase(initial: Record<string, unknown>) {
-  const state = { data: { token: 'token'.padEnd(24, 'x'), ...initial } }
+  const state: { data: Record<string, unknown> } = {
+    data: { token: 'token'.padEnd(24, 'x'), ...initial },
+  }
   const owner = { data: { uid: 'user-1', deviceId: 'device-1' } }
   const database = {
     collection: () => ({ doc: () => ({ kind: 'owner' }) }),
@@ -184,7 +187,7 @@ describe('notification ownership', () => {
 
   it('dispatches only to the canonical owner and quarantines stale claims', async () => {
     const token = 'shared-token'.padEnd(24, 'x')
-    const ownerId = require('node:crypto').createHash('sha256').update(token).digest('hex')
+    const ownerId = createHash('sha256').update(token).digest('hex')
     const { database, writes } = notificationDatabase({
       devices: [
         { deviceId: 'device-alice', token, uid: 'alice' },
@@ -223,7 +226,7 @@ describe('notification ownership', () => {
 
   it('does not quarantine a device that became the canonical owner', async () => {
     const token = 'shared-token'.padEnd(24, 'x')
-    const ownerId = require('node:crypto').createHash('sha256').update(token).digest('hex')
+    const ownerId = createHash('sha256').update(token).digest('hex')
     const { database, writes } = notificationDatabase({
       devices: [
         { deviceId: 'device-alice', token, uid: 'alice' },

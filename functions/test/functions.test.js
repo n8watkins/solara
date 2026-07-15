@@ -755,6 +755,10 @@ describe('Stripe fulfillment security', () => {
         assert.equal(name, 'billingCleanupResources')
         return { doc: id => ({
           id,
+          async get() {
+            const data = cleanup.get(id)
+            return { exists: !!data, data: () => ({ ...data }) }
+          },
           async set(data) { cleanup.set(id, { ...cleanup.get(id), ...data }) },
         }) }
       },
