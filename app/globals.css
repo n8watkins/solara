@@ -1,9 +1,14 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* Design tokens. Every text token meets WCAG AA (4.5:1) on every surface token
+   in its theme, including the --accent-soft tint; lib/design-tokens.test.ts checks it.
+   --brand is the decorative brand orange (logo, sun art, theme color). Use
+   --accent for interactive and text uses, and --on-accent for text on an
+   --accent fill. */
 :root {
+  color-scheme: light;
   --bg: #fffbf5;
   --bg-card: #ffffff;
   --bg-metric: #fff3e0;
@@ -12,12 +17,23 @@
   --border-md: rgba(0, 0, 0, 0.14);
   --text: #1a1208;
   --text-2: #6b5b3e;
-  --text-3: #9c8b72;
-  --accent: #f97316;
-  --accent-2: #fb923c;
+  --text-3: #776650;
+  --brand: #f97316;
+  --accent: #bd410c;
+  --accent-hover: #9a3412;
+  --on-accent: #ffffff;
+  --accent-soft: #fee9da;
+  --accent-border: #fdba74;
+  --success: #166534;
+  --warning: #92400e;
+  --danger: #b91c1c;
+  --notice-bg: #fff7ed;
+  --notice-border: #fed7aa;
+  --notice-text: #9a3412;
 }
 
 .dark {
+  color-scheme: dark;
   --bg: #111010;
   --bg-card: #1c1c1c;
   --bg-metric: #242320;
@@ -26,13 +42,23 @@
   --border-md: rgba(255, 255, 255, 0.14);
   --text: #f5efe6;
   --text-2: #b0a090;
-  --text-3: #6b6050;
+  --text-3: #a3947f;
+  --brand: #f97316;
   --accent: #fb923c;
-  --accent-2: #fdba74;
+  --accent-hover: #fdba74;
+  --on-accent: #1a1208;
+  --accent-soft: #3a2516;
+  --accent-border: #9a3412;
+  --success: #4ade80;
+  --warning: #fbbf24;
+  --danger: #f87171;
+  --notice-bg: #2a1d12;
+  --notice-border: #7c2d12;
+  --notice-text: #fdba74;
 }
 
 html {
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: var(--font-inter), system-ui, sans-serif;
 }
 
 body {
@@ -103,30 +129,40 @@ body {
   cursor: pointer;
   transition:
     background 0.15s,
+    border-color 0.15s,
     transform 0.1s;
 }
-.btn:hover {
-  background: var(--bg-metric);
-}
-.btn:active {
+.btn:active:not(:disabled) {
   transform: scale(0.97);
 }
 
 .btn-primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
-}
-.btn-primary:hover {
-  background: var(--accent-2);
-  border-color: var(--accent-2);
+  color: var(--on-accent);
 }
 
 .btn-ghost {
   border-color: transparent;
 }
-.btn-ghost:hover {
-  background: var(--bg-metric);
+
+/* Disabled buttons look inert: faded, no hover or press feedback. */
+.btn:disabled,
+.btn[aria-disabled='true'] {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+/* Hover only where a real pointer can hover, so taps on touch screens do not
+   leave a stuck highlight. */
+@media (hover: hover) {
+  .btn:hover:not(:disabled, [aria-disabled='true']) {
+    background: var(--bg-metric);
+  }
+  .btn-primary:hover:not(:disabled, [aria-disabled='true']) {
+    background: var(--accent-hover);
+    border-color: var(--accent-hover);
+  }
 }
 
 input,
@@ -141,9 +177,21 @@ select {
   transition: border-color 0.15s;
 }
 input:focus,
-select:focus {
+select:focus,
+textarea:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.12);
+}
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+input:disabled,
+select:disabled,
+textarea:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 /* Native controls pick up the brand color instead of browser blue */
@@ -268,11 +316,50 @@ input[type='range'] {
   }
 }
 
-/* Keyboard focus ring on buttons (mouse clicks stay clean) */
-.btn:focus-visible,
-button:focus-visible {
+/* Keyboard focus ring on buttons, links and other focusable elements (mouse
+   clicks stay clean). Inputs have their own ring above. */
+:where(a, button, summary, [tabindex]):focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+/* Segmented control (theme picker): native radios, visually a pill group. */
+.segmented {
+  display: inline-flex;
+  gap: 2px;
+  margin: 0;
+  padding: 2px;
+  border: 0.5px solid var(--border-md);
+  border-radius: 10px;
+  background: var(--bg-metric);
+}
+.segmented-option {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 12px;
+  border-radius: 8px;
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.segmented-option input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.segmented-option:has(input:checked) {
+  background: var(--bg-card);
+  color: var(--text);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+.segmented-option:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 
 .section-label {
@@ -377,8 +464,10 @@ button:focus-visible {
     background 0.12s,
     color 0.12s;
 }
-.settings-nav-btn:hover {
-  background: var(--bg-metric);
+@media (hover: hover) {
+  .settings-nav-btn:hover {
+    background: var(--bg-metric);
+  }
 }
 .settings-nav-btn.active {
   background: var(--bg-metric);
@@ -478,8 +567,10 @@ button:focus-visible {
   color: var(--text);
   transition: background 0.12s;
 }
-.hdr-menu-item:hover {
-  background: var(--bg-metric);
+@media (hover: hover) {
+  .hdr-menu-item:hover {
+    background: var(--bg-metric);
+  }
 }
 
 @media (max-width: 560px) {

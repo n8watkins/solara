@@ -366,11 +366,11 @@ export default function App() {
               gap: '10px',
               padding: '12px 16px',
               borderRadius: '12px',
-              background: '#FFF7ED',
-              border: '0.5px solid #FED7AA',
+              background: 'var(--notice-bg)',
+              border: '0.5px solid var(--notice-border)',
               marginBottom: '16px',
               fontSize: '14px',
-              color: '#9A3412',
+              color: 'var(--notice-text)',
             }}
           >
             <span>🔔</span>
@@ -436,11 +436,11 @@ export default function App() {
               gap: '10px',
               padding: '12px 16px',
               borderRadius: '12px',
-              background: '#FFF7ED',
-              border: '0.5px solid #FED7AA',
+              background: 'var(--notice-bg)',
+              border: '0.5px solid var(--notice-border)',
               marginBottom: '16px',
               fontSize: '14px',
-              color: '#9A3412',
+              color: 'var(--notice-text)',
             }}
           >
             <span>☁️</span>

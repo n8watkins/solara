@@ -35,10 +35,10 @@ const SCREENS = [
   },
 ] as const
 
-// Only Google Fonts may load (the app imports Inter from there today). Anything
-// else off-origin would make screenshots depend on the network, so it is blocked
-// and reported.
-const ALLOWED_HOSTS = new Set(['127.0.0.1', 'fonts.googleapis.com', 'fonts.gstatic.com'])
+// Only same-origin requests may load (Inter is self-hosted through next/font).
+// Anything off-origin would make screenshots depend on the network, so it is
+// blocked and reported.
+const ALLOWED_HOSTS = new Set(['127.0.0.1'])
 
 async function prepare(page: Page, colorScheme: 'light' | 'dark') {
   const blocked: string[] = []
@@ -49,7 +49,7 @@ async function prepare(page: Page, colorScheme: 'light' | 'dark') {
     return route.abort('blockedbyclient')
   })
   await startClock(page)
-  // The app does not follow the system theme yet (REPORT UX-8); it reads its own key.
+  // Pin the theme explicitly so screenshots do not depend on the system default.
   await page.addInitScript(theme => {
     try {
       window.localStorage.setItem('solara_theme', theme)
