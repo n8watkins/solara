@@ -2,7 +2,7 @@ const { applicationDefault, cert, initializeApp } = require('firebase-admin/app'
 const { getFirestore, FieldPath, FieldValue } = require('firebase-admin/firestore')
 const { getMessaging } = require('firebase-admin/messaging')
 const { createHash, randomUUID } = require('node:crypto')
-const { tokenOwnerId } = require('../functions/lib/notification-devices')
+const { tokenOwnerId } = require('../lib/notification-devices')
 const {
   buildMessage,
   claimDecision,
@@ -13,12 +13,7 @@ const {
   mapLimit,
   weatherLabel,
 } = require('./notification-core')
-const {
-  fetchJson,
-  forecastUrl,
-  isPlannableHour,
-  parseHourlyRows,
-} = require('../functions/lib/forecast-core')
+const { fetchJson, forecastUrl, isPlannableHour, parseHourlyRows } = require('#core')
 
 const DRY_RUN = process.env.DRY_RUN === '1' || process.env.DRY_RUN === 'true'
 const FORCE_SEND = process.env.FORCE_SEND === '1' || process.env.FORCE_SEND === 'true'

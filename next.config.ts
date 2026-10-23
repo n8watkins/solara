@@ -9,6 +9,8 @@ const nextConfig: NextConfig = {
   output: 'export',
   trailingSlash: true,
   images: { unoptimized: true },
+  // @solara/core is a workspace package published as TypeScript source.
+  transpilePackages: ['@solara/core'],
   ...(uiHarness && {
     pageExtensions: ['tsx', 'ts', 'jsx', 'js', 'harness.tsx'],
     distDir: 'test-results/ui-harness/site',

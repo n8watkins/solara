@@ -1,3 +1,4 @@
+import { windowEventTitle } from '@solara/core'
 import type { Activity } from './types'
 import { effectiveMaxUV, findRecommendationWindows } from './recommendation'
 export { fmtHour as fmtH } from './weather'
@@ -40,7 +41,7 @@ export function gcalWindowLink(activity: Activity, window: SafeWindow, dateStr: 
   const end = new Date(year, month - 1, day, window.to, 0, 0)
   const fmt = (d: Date) => d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
   const planningUVLimit = effectiveMaxUV(activity)
-  const title = encodeURIComponent(`${activity.name}: lower-UV window`)
+  const title = encodeURIComponent(windowEventTitle(activity.name))
   const details = encodeURIComponent(
     `Estimated lower-UV window for ${activity.name}. Forecast UV stays at or below the planning limit of ${planningUVLimit} from ${window.from}:00–${window.to}:00${activity.sunscreen ? ' assuming SPF 30+.' : '.'} Schedule your ${activity.durationMins < 60 ? activity.durationMins + 'min' : activity.durationMins / 60 + 'hr'} session in this range. Recheck conditions and use sun protection; this is not medical advice.`,
   )

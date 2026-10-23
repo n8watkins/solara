@@ -3,9 +3,10 @@ const {
   burnMins,
   effectiveMaxUV,
   findWindows,
+  isSkinType,
   runsOn,
-} = require('../functions/lib/recommendation-engine')
-const { weatherLabel } = require('../functions/lib/forecast-core')
+  weatherLabel,
+} = require('#core')
 
 const DEFINITE_MESSAGING_FAILURE_CODES = new Set([
   'messaging/invalid-argument',
@@ -114,9 +115,7 @@ function buildMessage(user, hourly, dateStr) {
   const activities = (user.activities ?? []).filter(
     activity => !dateStr || runsOn(activity, dateStr),
   )
-  const skinType = ['very-fair', 'fair', 'medium', 'olive', 'dark'].includes(user.skinType)
-    ? user.skinType
-    : 'fair'
+  const skinType = isSkinType(user.skinType) ? user.skinType : 'fair'
   const city = user.location?.city ?? 'your area'
   const peakUV = hourly.length ? Math.max(...hourly.map(sample => sample.uv)) : null
 

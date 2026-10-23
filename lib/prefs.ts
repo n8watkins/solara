@@ -1,3 +1,4 @@
+import { isSkinType } from '@solara/core'
 import { doc, getDoc, runTransaction, updateDoc } from 'firebase/firestore'
 import { db } from './firebase'
 import { roundCoordinate } from './geocoding'
@@ -15,7 +16,6 @@ import { PRESET_ACTIVITIES, ACTIVITY_CATEGORIES, TIER_LIMITS } from './tiers'
 const PREFS_KEY = 'solara_prefs'
 export const PREFS_SCHEMA_VERSION = 2
 
-const SKIN_TYPES: SkinType[] = ['very-fair', 'fair', 'medium', 'olive', 'dark']
 const TIERS: TierLevel[] = ['anonymous', 'free', 'paid']
 const PRESET_IDS = new Set(PRESET_ACTIVITIES.map(a => a.id))
 const CATEGORY_NAMES = new Set(ACTIVITY_CATEGORIES.map(c => c.name))
@@ -75,7 +75,7 @@ function normalizeProfiles(raw: unknown): Profile[] | undefined {
   for (let i = 0; i < raw.length; i++) {
     const p = raw[i] as Partial<Profile> | null
     if (!p || typeof p.name !== 'string' || !p.name.trim()) continue
-    if (!SKIN_TYPES.includes(p.skinType as SkinType)) continue
+    if (!isSkinType(p.skinType)) continue
     const id = typeof p.id === 'string' && p.id.trim() ? p.id : `profile_${i}`
     if (out.some(e => e.id === id)) continue
     out.push({
@@ -204,7 +204,7 @@ export function normalizePrefs(
     activeProfileId: profiles?.some(p => p.id === raw.activeProfileId)
       ? raw.activeProfileId
       : undefined,
-    skinType: SKIN_TYPES.includes(raw.skinType as SkinType) ? (raw.skinType as SkinType) : 'fair',
+    skinType: isSkinType(raw.skinType) ? raw.skinType : 'fair',
     sunscreen,
     activities,
     tier: TIERS.includes(raw.tier as TierLevel) ? (raw.tier as TierLevel) : 'anonymous',

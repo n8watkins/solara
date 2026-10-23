@@ -240,8 +240,19 @@ jobs:
           fi
           printf 'STRIPE_PRICE_ID=%s\n' "$STRIPE_PRICE_ID" > "functions/.env.$FIREBASE_PROJECT_ID"
 
+      # @solara/core is compiled into functions/core, inside the uploaded source.
+      # The predeploy hook in firebase.json rebuilds it; building it here lets
+      # the checks below load the exact source the deploy uploads.
+      - name: Build @solara/core into functions/
+        run: |
+          npm ci --ignore-scripts
+          npm run build:core
+
       - name: Check Functions params
         run: node .github/scripts/check-functions-params.js "$FIREBASE_PROJECT_ID"
+
+      - name: Check the Functions deploy payload
+        run: node .github/scripts/check-functions-payload.js
 
       - name: Deploy Functions
         run: functions/node_modules/.bin/firebase deploy --only functions --project "$FIREBASE_PROJECT_ID" --non-interactive

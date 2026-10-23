@@ -59,15 +59,30 @@ Without Firebase configuration, local development still supports the welcome and
 
 The complete environment and activation checklist is in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
+## Code layout
+
+The repository is an npm workspace.
+
+- The web app (Next.js static export) lives at the root: `app/`, `components/` and `lib/`.
+- `packages/core` (`@solara/core`) holds the business logic every surface shares: the recommendation engine, the Zod-validated Open-Meteo parser and weather labels, the iCalendar builder and the calendar feed token policy.
+  The web app imports its TypeScript source.
+- `functions/` holds the Cloud Functions and the morning notifier (`functions/scripts/send-notifications.js`).
+  It is a separate npm package, because `firebase deploy` uploads only that directory.
+  `npm run build:core` compiles `@solara/core` to CommonJS in `functions/core/` (gitignored), which Functions load through the `#core` import in `functions/package.json`.
+  The Functions test scripts and the Functions predeploy hook run it automatically.
+
 ## Quality checks
 
+The unit tests also exercise the Functions code, so install both packages first.
+
 ```bash
+npm ci
+npm ci --prefix functions
 npm audit --omit=dev --audit-level=high
 npm run lint
 npm run typecheck
 npm test
 npm run build
-npm ci --prefix functions
 npm audit --prefix functions --omit=dev --audit-level=high
 npm test --prefix functions
 npm run test:rules --prefix functions

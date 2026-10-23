@@ -60,5 +60,6 @@ export default defineConfig([
     'test-results/**',
     'next-env.d.ts',
     'public/firebase-messaging-sw.js',
+    'functions/core/**',
   ]),
 ])

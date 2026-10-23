@@ -152,7 +152,7 @@ gh variable set GCP_DEPLOY_SERVICE_ACCOUNT -R "$REPO" --body "$DEPLOY_SA"
 Then run the Deploy workflow from the Actions tab (Run workflow on `main`).
 Each deploy job should log "Authenticating with Workload Identity Federation as solara-deploy@...".
 
-Set the notifier variable only after `scripts/send-notifications.js` can use Application Default Credentials (today it requires the `FIREBASE_SERVICE_ACCOUNT` JSON):
+Set the notifier variable only after `functions/scripts/send-notifications.js` can use Application Default Credentials (today it requires the `FIREBASE_SERVICE_ACCOUNT` JSON):
 
 ```bash
 gh variable set GCP_NOTIFIER_SERVICE_ACCOUNT -R "$REPO" --body "$NOTIFIER_SA"

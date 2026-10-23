@@ -6,6 +6,7 @@
 // and indexes it by hash. The owner reads their current link from a server-written
 // document, so it shows on every device, and can rotate or revoke it.
 
+import { isValidFeedToken } from '@solara/core'
 import type { User } from 'firebase/auth'
 import { doc, onSnapshot } from 'firebase/firestore'
 import { db } from './firebase'
@@ -29,8 +30,6 @@ export function buildWebcalUrl(token: string): string | null {
   return url ? url.replace(/^https?:\/\//, 'webcal://') : null
 }
 
-const TOKEN_PATTERN = /^[A-Za-z0-9_-]{32,128}$/
-
 export type FeedTokenState = { status: 'loading' } | { status: 'ready'; token: string | null }
 
 /**
@@ -53,7 +52,7 @@ export function watchFeedToken(
       const token: unknown = snapshot.exists() ? snapshot.get('token') : null
       onChange({
         status: 'ready',
-        token: typeof token === 'string' && TOKEN_PATTERN.test(token) ? token : null,
+        token: isValidFeedToken(token) ? token : null,
       })
     },
     onError,
@@ -68,7 +67,7 @@ export async function rotateFeedToken(user: User): Promise<string> {
     body: {},
     fallbackMessage,
   })) as { token?: unknown } | null
-  if (typeof body?.token !== 'string' || !TOKEN_PATTERN.test(body.token)) {
+  if (!isValidFeedToken(body?.token)) {
     throw new Error(fallbackMessage)
   }
   return body.token

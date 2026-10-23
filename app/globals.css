@@ -224,55 +224,6 @@ input[type='range'] {
   color: var(--accent);
 }
 
-.analytics-consent-backdrop {
-  position: fixed;
-  z-index: 100;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-  background: rgba(17, 24, 39, 0.48);
-  -webkit-backdrop-filter: blur(3px);
-  backdrop-filter: blur(3px);
-}
-.analytics-consent-banner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  width: 100%;
-  max-width: 760px;
-  padding: 18px 20px;
-  color: var(--text);
-  background: var(--bg-card);
-  border: 0.5px solid var(--border-md);
-  border-radius: 16px;
-  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.2);
-}
-.analytics-consent-banner h2 {
-  margin: 0 0 5px;
-  font-size: 16px;
-}
-.analytics-consent-banner p {
-  max-width: 480px;
-  margin: 0;
-  color: var(--text-2);
-  font-size: 13px;
-  line-height: 1.5;
-}
-.analytics-consent-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-}
-.analytics-consent-actions a {
-  color: var(--text-2);
-  font-size: 12px;
-  white-space: nowrap;
-}
-
 .analytics-preference {
   margin: 16px 0 20px;
   padding: 16px;
@@ -290,30 +241,6 @@ input[type='range'] {
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 12px;
-}
-
-@media (max-width: 640px) {
-  .analytics-consent-backdrop {
-    align-items: flex-end;
-    padding: 12px 12px max(12px, env(safe-area-inset-bottom));
-  }
-  .analytics-consent-banner {
-    align-items: stretch;
-    flex-direction: column;
-    gap: 14px;
-  }
-  .analytics-consent-actions {
-    align-items: stretch;
-    flex-direction: column;
-  }
-  .analytics-consent-actions .btn {
-    justify-content: center;
-    min-height: 42px;
-  }
-  .analytics-consent-actions a {
-    padding: 4px;
-    text-align: center;
-  }
 }
 
 /* Keyboard focus ring on buttons, links and other focusable elements (mouse
@@ -376,179 +303,6 @@ input[type='range'] {
   gap: 5px;
   cursor: default;
 }
-.tooltip-icon {
-  width: 15px;
-  height: 15px;
-  border-radius: 50%;
-  background: var(--bg-metric);
-  border: 0.5px solid var(--border-md);
-  color: var(--text-3);
-  font-size: 9px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: help;
-  flex-shrink: 0;
-}
-
-/* Settings modal: a centered floating card on desktop, a full-screen view on
-   phones (≤640px) so options aren't trapped in a tiny scroll box. */
-.settings-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 50;
-  background: rgba(0, 0, 0, 0.45);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 16px;
-}
-.settings-card {
-  background: var(--bg-card);
-  border: 0.5px solid var(--border-md);
-  border-radius: 20px;
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.24);
-  width: 100%;
-  max-width: 860px;
-  height: min(88vh, 720px);
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-.settings-topbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 18px 22px 14px;
-  border-bottom: 0.5px solid var(--border-md);
-  flex-shrink: 0;
-}
-.settings-footer {
-  display: flex;
-  gap: 10px;
-  padding: 15px 22px;
-  border-top: 0.5px solid var(--border-md);
-  flex-shrink: 0;
-}
-
-/* left nav rail on desktop, horizontal strip on small screens */
-.settings-body {
-  display: flex;
-  flex: 1;
-  min-height: 0;
-}
-.settings-nav {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  width: 188px;
-  flex-shrink: 0;
-  padding: 14px 10px;
-  border-right: 0.5px solid var(--border-md);
-  overflow-y: auto;
-}
-.settings-nav-btn {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 9px 12px;
-  border-radius: 9px;
-  border: none;
-  background: none;
-  cursor: pointer;
-  text-align: left;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-2);
-  transition:
-    background 0.12s,
-    color 0.12s;
-}
-@media (hover: hover) {
-  .settings-nav-btn:hover {
-    background: var(--bg-metric);
-  }
-}
-.settings-nav-btn.active {
-  background: var(--bg-metric);
-  color: var(--accent);
-}
-.settings-content {
-  flex: 1;
-  overflow-y: auto;
-  padding: 20px;
-  min-width: 0;
-}
-
-@media (max-width: 640px) {
-  /* Full-screen view: no overlay padding, no floating card chrome. */
-  .settings-overlay {
-    padding: 0;
-    align-items: stretch;
-    justify-content: stretch;
-  }
-  .settings-card {
-    max-width: none;
-    width: 100%;
-    height: 100%;
-    border: none;
-    border-radius: 0;
-    box-shadow: none;
-    /* Respect notches / home indicators on phones. */
-    height: 100dvh;
-  }
-  .settings-topbar {
-    padding: 14px 16px;
-    padding-top: max(14px, env(safe-area-inset-top));
-  }
-  .settings-footer {
-    padding: 12px 16px;
-    padding-bottom: max(12px, env(safe-area-inset-bottom));
-  }
-
-  .settings-body {
-    flex-direction: column;
-  }
-  .settings-nav {
-    flex-direction: row;
-    width: auto;
-    padding: 8px 16px;
-    border-right: none;
-    border-bottom: 0.5px solid var(--border-md);
-    overflow-x: auto;
-    overflow-y: visible;
-  }
-  .settings-nav-btn {
-    white-space: nowrap;
-    flex-shrink: 0;
-  }
-  /* Even left/right padding + full-width content on phones. */
-  .settings-content {
-    padding: 16px;
-  }
-}
-
-/* App header: a single row on desktop; on mobile the location pill wraps to its
-   own full-width row beneath the logo/controls so the two never collide. */
-.hdr-row {
-  display: flex;
-  align-items: center;
-  min-height: 52px;
-  gap: 8px;
-}
-.hdr-logo {
-  flex-shrink: 0;
-}
-.hdr-loc {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-.hdr-right {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
-}
 
 /* Profile dropdown menu items (Settings / Sign out). */
 .hdr-menu-item {
@@ -570,23 +324,6 @@ input[type='range'] {
 @media (hover: hover) {
   .hdr-menu-item:hover {
     background: var(--bg-metric);
-  }
-}
-
-@media (max-width: 560px) {
-  .hdr-row {
-    flex-wrap: wrap;
-    min-height: auto;
-    padding: 7px 0;
-    gap: 6px 8px;
-  }
-  .hdr-right {
-    margin-left: auto;
-  }
-  .hdr-loc {
-    order: 3;
-    flex-basis: 100%;
-    min-width: 100%;
   }
 }
 
@@ -641,17 +378,6 @@ input[type='range'] {
 .tip-track::-webkit-scrollbar {
   display: none;
   height: 0;
-}
-
-/* Sun-path arc plot — give the curve real presence; still a touch shorter on
-   phones so the strip below stays visible without scrolling. */
-.sun-arc-plot {
-  height: 150px;
-}
-@media (max-width: 560px) {
-  .sun-arc-plot {
-    height: 120px;
-  }
 }
 
 .show-mobile {

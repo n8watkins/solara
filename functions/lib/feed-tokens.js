@@ -8,13 +8,15 @@
 
 const { createHash, randomBytes } = require('node:crypto')
 const { FieldValue } = require('firebase-admin/firestore')
+const {
+  FEED_TOKEN_BYTES: TOKEN_BYTES,
+  FEED_TOKEN_PATTERN: TOKEN_PATTERN,
+  isValidFeedToken,
+} = require('#core')
 const { HttpError } = require('./errors')
 
-/** 32 random bytes as base64url: 43 URL-safe characters, 256 bits of entropy. */
-const TOKEN_BYTES = 32
-const TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/
-/** Tokens from the retired client-minted scheme that the migration may preserve. */
-const LEGACY_TOKEN_PATTERN = /^[A-Za-z0-9_-]{32,128}$/
+// The token format policy (32 random bytes as base64url, plus the legacy
+// client-minted shape) lives in @solara/core, shared with the web app.
 const FEEDS = 'calendarFeeds'
 const LEGACY_FIELD = 'calendarFeedToken'
 
@@ -37,9 +39,7 @@ function feedTokenHash(token) {
 
 /** @param {unknown} token @returns {token is string} */
 function validFeedToken(token) {
-  return (
-    typeof token === 'string' && (TOKEN_PATTERN.test(token) || LEGACY_TOKEN_PATTERN.test(token))
-  )
+  return isValidFeedToken(token)
 }
 
 /** @param {Firestore} db @param {string} uid */

@@ -13,7 +13,7 @@ const {
   mapLimit,
   notificationKey,
   runsOnDate,
-} = require('../scripts/notification-core')
+} = require('../functions/scripts/notification-core')
 const {
   claimDelivery,
   dispatchStateDocumentId,
@@ -22,7 +22,7 @@ const {
   recordDeliveryFailure,
   scanSubscriptions,
   sendSubscription,
-} = require('../scripts/send-notifications')
+} = require('../functions/scripts/send-notifications')
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const hourly = [

@@ -2,10 +2,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fetchForecast, weatherLabel } from '@/lib/forecast'
 
 /* eslint-disable @typescript-eslint/no-require-imports */
-const core = require('../functions/lib/forecast-core')
+const core = require('../functions/core')
 const sun = require('../functions/lib/sun')
-const notificationCore = require('../scripts/notification-core')
-const { clearForecastCache, fetchHourly } = require('../scripts/send-notifications')
+const notificationCore = require('../functions/scripts/notification-core')
+const { clearForecastCache, fetchHourly } = require('../functions/scripts/send-notifications')
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 function okJson(body: unknown) {

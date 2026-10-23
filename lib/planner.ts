@@ -1,3 +1,4 @@
+import { lowestUVWindow } from '@solara/core'
 import type { DayWeather, Activity, SkinType, SafeActivityWindow } from './types'
 import { getActivityWindow } from './weather'
 import type { SlotRecommendation, BusyInterval } from './scheduler'
@@ -19,13 +20,6 @@ export interface UpcomingWindow {
  */
 export function activityRunsOn(activity: Activity, dateStr: string): boolean {
   return activityRunsOnDate(activity, dateStr)
-}
-
-/** The lowest-average-UV window on a single day (ties broken by longer window). */
-function bestWindowOfDay(windows: SafeActivityWindow[]): SafeActivityWindow | null {
-  return (
-    windows.slice().sort((a, b) => a.avgUV - b.avgUV || b.to - b.from - (a.to - a.from))[0] ?? null
-  )
 }
 
 /**
@@ -50,7 +44,7 @@ export function bestUpcomingWindow(
     if (!day.hourly.length) continue
     if (!activityRunsOn(activity, day.dateStr)) continue
     const { allWindows } = getActivityWindow(day.hourly, activity, -1, skinType)
-    const dayBest = bestWindowOfDay(allWindows)
+    const dayBest = lowestUVWindow(allWindows)
     if (!dayBest) continue
 
     // Strictly-lower avgUV replaces; equal keeps the earlier day (we iterate in order).

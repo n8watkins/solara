@@ -118,12 +118,12 @@ Verify the same gates used by CI.
 
 ```bash
 npm ci
+npm ci --prefix functions
 npm audit --omit=dev --audit-level=high
 npm run lint
 npm run typecheck
 npm test
 npm run build
-npm ci --prefix functions
 npm audit --prefix functions --omit=dev --audit-level=high
 npm test --prefix functions
 npm run test:rules --prefix functions
