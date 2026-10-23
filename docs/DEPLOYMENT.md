@@ -30,13 +30,25 @@ Required for account access:
 - `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`
 - `NEXT_PUBLIC_FIREBASE_APP_ID`
 
-Required for push registration:
+Required for every Function-backed surface (checkout, billing portal, export, deletion, calendar feed links and push registration):
+
+- `NEXT_PUBLIC_FUNCTIONS_URL`
+- `NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY`
+
+Optional App Check settings:
+
+- `NEXT_PUBLIC_FIREBASE_APP_CHECK_PROVIDER` selects `recaptcha-enterprise` or `recaptcha-v3` (the default).
+- `NEXT_PUBLIC_FIREBASE_APP_CHECK_DEBUG_TOKEN` registers an App Check debug token for local or staging builds; never set it for production.
+
+Required in addition for push registration:
 
 - `NEXT_PUBLIC_FIREBASE_VAPID_KEY`
-- `NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY`
-- `NEXT_PUBLIC_FUNCTIONS_URL`
 
-The notification registration endpoints require a valid App Check token and paid entitlement.
+Every browser-called Function verifies a Firebase ID token and an App Check token before doing any work.
+Checkout and account deletion require a limited-use App Check token, which the server consumes so a captured request cannot be replayed.
+App Check, and with it reCAPTCHA, starts only after someone signs in, so signed-out visitors never load it.
+Errors reach the browser only as `{ error, code }` with a code from the allowlist in `functions/lib/errors.js`.
+The notification registration endpoints also require paid entitlement.
 
 Optional feature activation:
 
@@ -89,7 +101,7 @@ Any push to `main`, reviewed or not, runs the production deployment.
 2. Add the production and preview domains to Authentication Authorized domains.
 3. Create Firestore and deploy the repository rules.
 4. Enable Cloud Messaging and generate a Web Push VAPID key.
-5. Register the web app for App Check with reCAPTCHA v3, set the site key, monitor enforcement metrics, and then enforce supported Firebase products.
+5. Register the web app for App Check with reCAPTCHA Enterprise (preferred) or reCAPTCHA v3, set the site key and matching `NEXT_PUBLIC_FIREBASE_APP_CHECK_PROVIDER`, monitor enforcement metrics, and then enforce supported Firebase products (see [App Check](#app-check)).
 6. Enable Hosting.
 7. Upgrade to Blaze only when Functions are ready to deploy.
 8. Set a billing budget alert before the first Functions deployment.
@@ -221,13 +233,50 @@ Also verify repeated checkout is rejected, out-of-order events cannot restore ca
 Open the account page and verify the Stripe customer portal can update payment details, display invoices, and cancel the subscription.
 No local test can replace these Stripe-signed integration checks when keys and a test account are unavailable.
 
+## App Check
+
+The Functions enforce App Check in code, so they reject requests without a valid token as soon as they are deployed; the site key must be configured before Function-backed surfaces are enabled.
+Firestore enforcement is a separate console switch.
+To turn it on:
+
+1. Create a reCAPTCHA Enterprise key for the production domains (or reuse the existing v3 key) and register it for the web app under App Check in the Firebase console.
+2. Set `NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY` and, for Enterprise, `NEXT_PUBLIC_FIREBASE_APP_CHECK_PROVIDER=recaptcha-enterprise` for the production build.
+3. Deploy, then watch the App Check metrics for Firestore until verified requests dominate.
+4. Enforce App Check for Cloud Firestore in the console.
+
+Because App Check starts after sign-in, enforcing Firestore never affects signed-out visitors, who make no Firestore requests.
+
+## Calendar feed tokens
+
+Calendar feed links are capability URLs, so the server mints their tokens (32 random bytes, base64url) through `rotateCalendarFeed` and revokes them through `revokeCalendarFeed`.
+Each live token is indexed by its SHA-256 hash in the server-only `calendarFeeds/{hash}` collection, and the feed resolves a token with one document read.
+The owner reads the current link from `users/{uid}/private/calendarFeed`, which clients cannot write.
+Feed responses are `Cache-Control: private, max-age=900` with a weak `ETag`, and both a single feed and an address that keeps requesting unknown tokens are rate limited.
+Account deletion removes the account's `calendarFeeds` entries along with the user document.
+
+### Migration from client-minted tokens
+
+Earlier builds let the browser write `users.calendarFeedToken`, and the feed looked it up with a query.
+After the first deployment of these Functions and rules, run the one-time migration with credentials that can write Firestore:
+
+```bash
+cd functions
+npm run migrate:feed-tokens -- --project <project-id> --dry-run
+npm run migrate:feed-tokens -- --project <project-id>
+```
+
+The migration keeps a legacy token working only when it is well formed and held by exactly one account.
+A token shared by several accounts is revoked for every holder, because sharing is exactly how a copied link could hijack a feed.
+It removes the legacy field from every account and is safe to run again.
+Until it runs, legacy links return 404, which is harmless while Functions are not deployed.
+
 ## Account export and deletion
 
-Account export and deletion require `NEXT_PUBLIC_FUNCTIONS_URL` and an authenticated account.
+Account export and deletion require `NEXT_PUBLIC_FUNCTIONS_URL`, an App Check site key and an authenticated account.
 Deletion additionally requires a recent Google reauthentication and the exact `DELETE` confirmation.
 
 Deletion may return HTTP 202 and sign the user out while cleanup continues.
-The backend creates `accountDeletionTombstones/{uid}`, blocks further account access, revokes Firebase sessions, cancels owned Stripe resources, removes notification ownership records, recursively deletes the user document, and deletes the Firebase Authentication user.
+The backend creates `accountDeletionTombstones/{uid}`, blocks further account access, revokes Firebase sessions, cancels owned Stripe resources, removes notification ownership records and calendar feed index entries, recursively deletes the user document, and deletes the Firebase Authentication user.
 The scheduled cleanup job resumes incomplete work with leases and retry backoff until `cleanupStatus` becomes `completed`.
 
 Monitor `cleanupStatus`, `cleanupLastError`, `cleanupNextAttemptAt`, and the `cleanupDeletedAccountBilling` logs for pending deletions.

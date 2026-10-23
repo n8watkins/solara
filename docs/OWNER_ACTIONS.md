@@ -61,9 +61,14 @@ The repository agent can run the end-to-end test matrix and inspect provider log
 
 ## App Check (D11)
 
-- [ ] Register the production web app with the selected reCAPTCHA provider.
-- [ ] Store the public site key as `NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY` in GitHub Actions secrets.
-- [ ] Choose when enforcement may begin after monitoring shows legitimate production traffic is accepted.
+The code supports reCAPTCHA Enterprise and reCAPTCHA v3; `NEXT_PUBLIC_FIREBASE_APP_CHECK_PROVIDER` selects one, and v3 is the default so the existing key keeps working.
+The Functions already require App Check in code; the decisions below are about the key and Firestore enforcement.
+
+- [ ] Decide between a new reCAPTCHA Enterprise key (recommended) and the existing v3 key.
+- [ ] Register the production web app with that provider under App Check in the Firebase console.
+- [ ] Store the public site key as `NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY`, and for Enterprise set `NEXT_PUBLIC_FIREBASE_APP_CHECK_PROVIDER=recaptcha-enterprise`, for the production build.
+- [ ] Choose when Firestore enforcement may begin after monitoring shows legitimate production traffic is accepted (see `docs/DEPLOYMENT.md`, "App Check").
+- [ ] After the first Functions deployment, run the calendar feed token migration (see `docs/DEPLOYMENT.md`, "Calendar feed tokens").
 
 The repository agent can redeploy and verify token attachment and failure behavior after registration.
 
