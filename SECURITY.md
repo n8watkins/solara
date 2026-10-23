@@ -3,7 +3,7 @@
 ## Reporting a vulnerability
 
 Please report vulnerabilities privately and do not open a public issue.
-Email the operator at **[OWNER TO CONFIRM: security contact email]** with a description, the affected URL or file, and steps to reproduce.
+Email the operator at **contact@n8builds.dev** with a description, the affected URL or file, and steps to reproduce.
 You should get an acknowledgement within 5 business days.
 
 Only the current production site and the `main` branch are supported.

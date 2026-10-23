@@ -19,7 +19,7 @@ D1 (Functions deployment status) is resolved: Functions are not deployed because
 | D5 | Buy an Open-Meteo commercial plan or choose another forecast provider | Wave 3 | Free tier plus attribution; the licensing risk stays open |
 | D6 | Relaunch morning notifications | Wave 3 | Relaunch on a scheduled Function |
 | D7 | Offer a guest mode before sign-in | Wave 3 | Yes |
-| D8 | Provide the operator name, contact email, jurisdiction and license | Wave 1 | Clearly marked placeholders |
+| D8 | Provide the operator name, contact email, jurisdiction and license | Done (2026-10-23) | Nathan Watkins, contact@n8builds.dev, California, all rights reserved |
 | D9 | Create a staging Firebase project and enable Stripe test mode | Wave 3 | Required before the billing and operations launch work finishes |
 | D10 | Choose an error-reporting service | Wave 3 | Sentry with PII scrubbing |
 | D11 | Enforce App Check in the console and provide a reCAPTCHA Enterprise key | Wave 1 | Code supports both reCAPTCHA v3 and Enterprise |
@@ -83,11 +83,12 @@ Do not provide or expose an OAuth client secret because this browser integration
 
 ## Legal identity and licensing (D8)
 
-- [ ] Provide the legal operator name for the Privacy Policy and Terms of Use.
-- [ ] Provide a support and privacy contact email address or URL.
-- [ ] Provide the governing jurisdiction and governing-law language to be reviewed by qualified counsel.
-- [ ] Choose the repository license.
-- [ ] Provide the copyright holder and year if the chosen license requires them.
+- [x] Provide the legal operator name for the Privacy Policy and Terms of Use: Nathan Watkins.
+- [x] Provide a support and privacy contact email address or URL: contact@n8builds.dev.
+- [x] Provide the governing jurisdiction: California, United States.
+- [ ] Have qualified counsel review the governing-law language.
+- [x] Choose the repository license: All rights reserved.
+- [x] Provide the copyright holder and year if the chosen license requires them: not required for "All rights reserved".
 
 The repository agent can insert and format the approved facts, but it must not invent legal identity, contact, jurisdiction, or license ownership.
 
