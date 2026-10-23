@@ -13,36 +13,26 @@ export function isCheckoutConfigured(): boolean {
 }
 
 export async function createCheckoutUrl(user: User): Promise<string> {
-  const fallbackMessage = 'Checkout is temporarily unavailable'
-  const body = (await callFunction(user, 'createCheckoutSession', {
+  // The response contract only accepts a Stripe Checkout URL (FUNCTION_RESPONSES).
+  const { url } = await callFunction(user, 'createCheckoutSession', {
     method: 'POST',
     body: { attemptId: crypto.randomUUID() },
     limitedUse: true,
     freshIdToken: true,
-    fallbackMessage,
-  })) as { url?: unknown } | null
-  if (typeof body?.url !== 'string' || !body.url.startsWith('https://checkout.stripe.com/')) {
-    throw new Error(fallbackMessage)
-  }
-  return body.url
+    fallbackMessage: 'Checkout is temporarily unavailable',
+  })
+  return url
 }
 
 export async function createBillingPortalUrl(user: User): Promise<string> {
-  const fallbackMessage = 'Billing management is temporarily unavailable'
-  const body = (await callFunction(user, 'createBillingPortalSession', {
+  // The response contract only accepts an https billing.stripe.com URL (FUNCTION_RESPONSES).
+  const { url } = await callFunction(user, 'createBillingPortalSession', {
     method: 'POST',
     body: {},
     freshIdToken: true,
-    fallbackMessage,
-  })) as { url?: unknown } | null
-  let url: URL | null = null
-  try {
-    url = new URL(String(body?.url))
-  } catch {}
-  if (url?.protocol !== 'https:' || url.hostname !== 'billing.stripe.com') {
-    throw new Error(fallbackMessage)
-  }
-  return url.toString()
+    fallbackMessage: 'Billing management is temporarily unavailable',
+  })
+  return new URL(url).toString()
 }
 
 export type CheckoutResult =

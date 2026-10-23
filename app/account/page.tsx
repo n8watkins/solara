@@ -84,13 +84,13 @@ export default function AccountPage() {
       await reauthenticateWithPopup(user, googleProvider)
       // A limited-use App Check token is consumed by the server, so this request cannot be
       // replayed.
-      const result = (await callFunction(user, 'deleteAccount', {
+      const result = await callFunction(user, 'deleteAccount', {
         method: 'DELETE',
         body: { confirmation },
         limitedUse: true,
         freshIdToken: true,
         fallbackMessage: 'Deletion could not be completed.',
-      })) as { deletionPending?: boolean }
+      })
       clearLocalPrefs()
       await clearLocalNotificationState(user.uid)
       if (auth) await signOut(auth)

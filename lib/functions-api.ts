@@ -1,9 +1,17 @@
+import {
+  parseFunctionError,
+  parseFunctionResponse,
+  type FunctionName,
+  type FunctionResponse,
+} from '@solara/core'
 import type { User } from 'firebase/auth'
 import { appCheckConfigured, appCheckToken } from './firebase'
 
 // One client for the browser-called Cloud Functions. Each request carries the user's
 // Firebase ID token and an App Check token; the server answers errors as
 // `{ error, code }` with a code from a fixed allowlist (functions/lib/errors.js).
+// Success bodies are validated against the endpoint's contract in @solara/core
+// (FUNCTION_RESPONSES), so callers get typed data or a FunctionsApiError.
 
 export function functionsBaseUrl(): string | null {
   return process.env.NEXT_PUBLIC_FUNCTIONS_URL?.replace(/\/$/, '') || null
@@ -36,11 +44,11 @@ export interface CallOptions {
   fallbackMessage: string
 }
 
-export async function callFunction(
+export async function callFunction<Name extends FunctionName>(
   user: User,
-  path: string,
+  path: Name,
   { method, body, limitedUse = false, freshIdToken = false, fallbackMessage }: CallOptions,
-): Promise<unknown> {
+): Promise<FunctionResponse<Name>> {
   const baseUrl = functionsBaseUrl()
   if (!baseUrl || !appCheckConfigured()) {
     throw new FunctionsApiError('Account services are not configured yet.', 0, 'not-configured')
@@ -62,12 +70,10 @@ export async function callFunction(
   })
   const result: unknown = await response.json().catch(() => null)
   if (!response.ok) {
-    const error = result as { error?: unknown; code?: unknown } | null
-    throw new FunctionsApiError(
-      typeof error?.error === 'string' && error.error ? error.error : fallbackMessage,
-      response.status,
-      typeof error?.code === 'string' ? error.code : null,
-    )
+    const error = parseFunctionError(result)
+    throw new FunctionsApiError(error.error ?? fallbackMessage, response.status, error.code ?? null)
   }
-  return result
+  const data = parseFunctionResponse(path, result)
+  if (!data) throw new FunctionsApiError(fallbackMessage, response.status, 'invalid-response')
+  return data
 }

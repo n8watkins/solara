@@ -1,3 +1,4 @@
+import type { FunctionResponse } from '@solara/core'
 import type { Messaging } from 'firebase/messaging'
 import { deleteToken, getMessaging, getToken, onMessage } from 'firebase/messaging'
 import { app, appCheckConfigured, auth } from './firebase'
@@ -8,10 +9,6 @@ interface LocalDeviceSubscription {
   token: string
   migrationPending?: boolean
   pendingRemoval?: boolean
-}
-
-interface NotificationDeviceMutationResult {
-  migrationPending?: boolean
 }
 
 const REGISTRATION_MIGRATION_ATTEMPTS = 3
@@ -66,21 +63,23 @@ export function notificationRegistrationConfigured(): boolean {
   return functionsApiConfigured() && !!process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY
 }
 
-async function mutateRemoteDevice(
+async function mutateRemoteDevice<
+  Name extends 'registerNotificationDevice' | 'removeNotificationDevice',
+>(
   uid: string,
-  path: 'registerNotificationDevice' | 'removeNotificationDevice',
+  path: Name,
   method: 'POST' | 'DELETE',
   body: Record<string, string>,
-): Promise<NotificationDeviceMutationResult> {
+): Promise<FunctionResponse<Name>> {
   const user = auth?.currentUser
   if (!functionsApiConfigured()) throw new Error('Notification registration is not configured')
   if (!user || user.uid !== uid) throw new Error('Sign in again to manage notifications')
 
-  return (await callFunction(user, path, {
+  return callFunction(user, path, {
     method,
     body,
     fallbackMessage: 'Could not update notification registration',
-  })) as NotificationDeviceMutationResult
+  })
 }
 
 async function completeRemoteRegistration(

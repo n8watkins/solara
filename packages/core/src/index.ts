@@ -4,6 +4,7 @@
 
 export * from './feed-token'
 export * from './forecast'
+export * from './functions-api'
 export * from './geocoding'
 export * from './ics'
 export * from './prefs'
