@@ -1,8 +1,8 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useId, useRef } from 'react'
+import type { KeyboardEvent } from 'react'
 import type { User } from 'firebase/auth'
 import type { UserPreferences, SkinType, Location } from '@/lib/types'
-import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
 import { clearWeatherCache } from '@/lib/cache'
 import { searchLocation } from '@/lib/geocoding'
 import { TIER_LIMITS } from '@/lib/tiers'
@@ -16,6 +16,8 @@ import { toggleTheme, getStoredTheme } from '@/lib/theme'
 import { firebaseEnabled } from '@/lib/firebase'
 import { signOutAndClear } from '@/lib/session'
 import ActivitySuggestionSettings from './ActivitySuggestionSettings'
+import Dialog from './Dialog'
+import styles from './PreferencesModal.module.css'
 import PricingModal from './PricingModal'
 import GoogleSignInButton from './GoogleSignInButton'
 
@@ -44,7 +46,8 @@ type LegacyTab = 'general' | 'activities' | 'location'
 type Tab = 'general' | 'appearance' | 'activities' | 'location' | 'account'
 
 export default function PreferencesModal({ prefs, onSave, onClose, initialTab, user }: Props) {
-  useBodyScrollLock()
+  const idPrefix = useId()
+  const tabRefs = useRef<Partial<Record<Tab, HTMLButtonElement | null>>>({})
   const [tab, setTab] = useState<Tab>(initialTab || 'general')
   const [skinType, setSkinType] = useState<SkinType>(prefs.skinType)
   const [location, setLocation] = useState<Location>(prefs.location)
@@ -246,15 +249,53 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
     { id: 'account', label: 'Account', emoji: '👤', desc: 'Plan, sign-in, and cross-device sync.' },
   ]
   const activeSection = SECTIONS.find(s => s.id === tab) ?? SECTIONS[0]!
+  const titleId = `${idPrefix}-title`
+  const tabId = (id: Tab) => `${idPrefix}-tab-${id}`
+  const panelId = `${idPrefix}-panel`
+  const skinTitleId = `${idPrefix}-skin-title`
+  const skinDescId = `${idPrefix}-skin-desc`
+  const themeDescId = `${idPrefix}-theme-desc`
+  const sunPathTitleId = `${idPrefix}-sun-path-title`
+  const sunPathDescId = `${idPrefix}-sun-path-desc`
+
+  // Tabs pattern: arrows move between sections (the rail is vertical on
+  // desktop and horizontal on phones, so both axes work), Home and End jump.
+  function handleTabKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
+    const index = SECTIONS.findIndex(s => s.id === tab)
+    const last = SECTIONS.length - 1
+    const next =
+      event.key === 'ArrowDown' || event.key === 'ArrowRight'
+        ? index === last
+          ? 0
+          : index + 1
+        : event.key === 'ArrowUp' || event.key === 'ArrowLeft'
+          ? index === 0
+            ? last
+            : index - 1
+          : event.key === 'Home'
+            ? 0
+            : event.key === 'End'
+              ? last
+              : null
+    if (next === null) return
+    event.preventDefault()
+    const nextTab = SECTIONS[next]!.id
+    setTab(nextTab)
+    tabRefs.current[nextTab]?.focus()
+  }
 
   return (
-    <div className="settings-overlay" onClick={e => e.target === e.currentTarget && requestClose()}>
-      <div className="settings-card">
-        <div className="settings-topbar">
-          <p style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: 'var(--text)' }}>
+    <Dialog onClose={requestClose} labelledBy={titleId} variant="sheet">
+      <div className={styles.layout}>
+        <div className={styles.topbar}>
+          <h2
+            id={titleId}
+            style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: 'var(--text)' }}
+          >
             Settings
-          </p>
+          </h2>
           <button
+            type="button"
             onClick={requestClose}
             style={{
               background: 'var(--bg-metric)',
@@ -272,28 +313,47 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
             }}
             aria-label="Close settings"
           >
-            ×
+            <span aria-hidden="true">×</span>
           </button>
         </div>
 
-        <div className="settings-body">
-          <nav className="settings-nav">
+        <div className={styles.body}>
+          <div role="tablist" aria-label="Settings sections" className={styles.tabs}>
             {SECTIONS.map(s => (
               <button
                 key={s.id}
+                ref={el => {
+                  tabRefs.current[s.id] = el
+                }}
+                type="button"
+                role="tab"
+                id={tabId(s.id)}
+                aria-selected={tab === s.id}
+                aria-controls={panelId}
+                tabIndex={tab === s.id ? 0 : -1}
                 onClick={() => setTab(s.id)}
-                className={`settings-nav-btn${tab === s.id ? ' active' : ''}`}
+                onKeyDown={handleTabKeyDown}
+                className={styles.tab}
               >
-                <span style={{ fontSize: '15px' }}>{s.emoji}</span> {s.label}
+                <span aria-hidden="true" className={styles.tabIcon}>
+                  {s.emoji}
+                </span>
+                {s.label}
               </button>
             ))}
-          </nav>
+          </div>
 
-          <div className="settings-content">
+          <div
+            role="tabpanel"
+            id={panelId}
+            aria-labelledby={tabId(tab)}
+            tabIndex={0}
+            className={styles.panel}
+          >
             <div style={{ marginBottom: '18px' }}>
-              <p style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: 'var(--text)' }}>
-                {activeSection.emoji} {activeSection.label}
-              </p>
+              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: 'var(--text)' }}>
+                <span aria-hidden="true">{activeSection.emoji}</span> {activeSection.label}
+              </h3>
               <p style={{ margin: '4px 0 0', fontSize: '13px', color: 'var(--text-3)' }}>
                 {activeSection.desc}
               </p>
@@ -305,16 +365,9 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
                   className="metric-card"
                   style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}
                 >
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'flex-start',
-                      justifyContent: 'space-between',
-                      gap: '14px',
-                    }}
-                  >
+                  <div className={styles.field}>
                     <div>
-                      <p
+                      <h4
                         style={{
                           margin: '0 0 4px',
                           fontSize: '13px',
@@ -322,9 +375,12 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
                           color: 'var(--text)',
                         }}
                       >
-                        Skin type
-                      </p>
+                        <label id={skinTitleId} htmlFor={`${idPrefix}-skin`}>
+                          Skin type
+                        </label>
+                      </h4>
                       <p
+                        id={skinDescId}
                         style={{
                           margin: 0,
                           fontSize: '13px',
@@ -336,9 +392,11 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
                       </p>
                     </div>
                     <select
+                      id={`${idPrefix}-skin`}
+                      aria-describedby={skinDescId}
                       value={skinType}
                       onChange={e => setSkinType(e.target.value as SkinType)}
-                      style={{ minWidth: '170px', fontSize: '14px' }}
+                      className={styles.fieldControl}
                     >
                       {SKIN_OPTIONS.map(o => (
                         <option key={o.value} value={o.value}>
@@ -386,7 +444,10 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
                     </span>
                   </div>
                   <button
+                    type="button"
                     className="btn btn-ghost"
+                    aria-expanded={showSkinHelp}
+                    aria-controls={`${idPrefix}-skin-help`}
                     onClick={() => setShowSkinHelp(s => !s)}
                     style={{
                       justifyContent: 'flex-start',
@@ -399,6 +460,7 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
                   </button>
                   {showSkinHelp && (
                     <p
+                      id={`${idPrefix}-skin-help`}
                       style={{
                         margin: 0,
                         fontSize: '13px',
@@ -417,9 +479,11 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
                   className="metric-card"
                   style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}
                 >
-                  <p style={{ margin: 0, fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>
+                  <h4
+                    style={{ margin: 0, fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}
+                  >
                     Sunscreen is activity-specific
-                  </p>
+                  </h4>
                   <p
                     style={{
                       margin: 0,
@@ -583,7 +647,7 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
                   }}
                 >
                   <div>
-                    <p
+                    <h4
                       style={{
                         margin: '0 0 4px',
                         fontSize: '13px',
@@ -592,12 +656,18 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
                       }}
                     >
                       Theme
-                    </p>
-                    <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-3)' }}>
+                    </h4>
+                    <p
+                      id={themeDescId}
+                      style={{ margin: 0, fontSize: '13px', color: 'var(--text-3)' }}
+                    >
                       Switch between light and dark mode.
                     </p>
                   </div>
                   <button
+                    type="button"
+                    aria-label={`Theme: ${dark ? 'Dark' : 'Light'}`}
+                    aria-describedby={themeDescId}
                     onClick={handleToggleTheme}
                     className="btn"
                     style={{ whiteSpace: 'nowrap' }}
@@ -615,7 +685,8 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
                   }}
                 >
                   <div>
-                    <p
+                    <h4
+                      id={sunPathTitleId}
                       style={{
                         margin: '0 0 4px',
                         fontSize: '13px',
@@ -624,12 +695,19 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
                       }}
                     >
                       Sun path animation
-                    </p>
-                    <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-3)' }}>
+                    </h4>
+                    <p
+                      id={sunPathDescId}
+                      style={{ margin: 0, fontSize: '13px', color: 'var(--text-3)' }}
+                    >
                       The arc above the hourly UV chart showing the sun&apos;s position.
                     </p>
                   </div>
                   <button
+                    type="button"
+                    aria-pressed={showSunPath}
+                    aria-labelledby={sunPathTitleId}
+                    aria-describedby={sunPathDescId}
                     onClick={() => setShowSunPath(s => !s)}
                     className="btn"
                     style={{ whiteSpace: 'nowrap' }}
@@ -665,6 +743,8 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
                 </button>
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <input
+                    type="search"
+                    aria-label="Search a city"
                     placeholder="Search a city…"
                     value={citySearch}
                     onChange={e => setCitySearch(e.target.value)}
@@ -678,7 +758,9 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
                   </button>
                 </div>
                 {locError && (
-                  <p style={{ margin: 0, fontSize: '12px', color: '#DC2626' }}>{locError}</p>
+                  <p role="alert" style={{ margin: 0, fontSize: '12px', color: '#DC2626' }}>
+                    {locError}
+                  </p>
                 )}
               </div>
             )}
@@ -837,8 +919,9 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
           </div>
         </div>
 
-        <div className="settings-footer">
+        <div className={styles.footer}>
           <button
+            type="button"
             className="btn"
             onClick={requestClose}
             style={{ flex: 1, justifyContent: 'center' }}
@@ -846,6 +929,7 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
             {dirty ? 'Discard' : 'Cancel'}
           </button>
           <button
+            type="button"
             className="btn btn-primary"
             onClick={() => onSave(draft)}
             style={{ flex: 1, justifyContent: 'center' }}
@@ -864,6 +948,6 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
           onClose={() => setShowPricing(false)}
         />
       )}
-    </div>
+    </Dialog>
   )
 }

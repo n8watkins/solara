@@ -1,0 +1,55 @@
+/* Native modal dialog. The <dialog> element is the panel itself; the browser
+   draws ::backdrop behind it in the top layer. */
+.dialog {
+  box-sizing: border-box;
+  margin: auto;
+  padding: 0;
+  border: 0.5px solid var(--border-md);
+  border-radius: 20px;
+  background: var(--bg-card);
+  color: var(--text);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.24);
+  overflow: hidden;
+  /* 16 px of breathing room on every side, like the old overlay padding. */
+  width: calc(100% - 32px);
+  max-width: 820px;
+  max-height: calc(100% - 32px);
+}
+
+/* Only an open dialog gets a layout; a closed one keeps the UA display: none. */
+.dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+
+.dialog::backdrop {
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.dialog:focus {
+  outline: none;
+}
+
+.card {
+  max-height: min(88vh, 760px);
+}
+
+/* Fixed height on desktop so switching sections does not resize the panel;
+   the whole screen on phones so options are not trapped in a small box. */
+.sheet {
+  max-width: 860px;
+  height: min(88vh, 720px);
+}
+
+@media (max-width: 640px) {
+  .sheet {
+    width: 100%;
+    max-width: none;
+    height: 100%;
+    height: 100dvh;
+    max-height: none;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+  }
+}
