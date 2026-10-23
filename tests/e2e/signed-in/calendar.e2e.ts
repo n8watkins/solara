@@ -21,7 +21,10 @@ test('the calendar shows each activity window and opens its details', async ({
   // Filtering to one activity hides the others.
   await main.getByRole('combobox', { name: 'Show' }).selectOption({ label: '🏃 Running' })
   await expect(main.getByRole('button', { name: /^Hiking,/ })).toHaveCount(0)
-  await expect(main.getByRole('button', { name: /^Running, Today,/ })).toHaveCount(2)
+  // At the frozen 10:30 the morning window has already passed, so today offers
+  // only the evening one; tomorrow has both.
+  await expect(main.getByRole('button', { name: /^Running, Today,/ })).toHaveCount(1)
+  await expect(main.getByRole('button', { name: /^Running, Tomorrow,/ })).toHaveCount(2)
 
   await main.getByRole('button', { name: 'Running, Today, 6pm – 8pm, peak UV 3.1' }).click()
   const details = page.getByRole('dialog', { name: 'Running' })
