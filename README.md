@@ -58,13 +58,13 @@ The complete environment and activation checklist is in [docs/DEPLOYMENT.md](doc
 ## Quality checks
 
 ```bash
-npm audit --audit-level=high
+npm audit --omit=dev --audit-level=high
 npm run lint
 npm run typecheck
 npm test
 npm run build
 npm ci --prefix functions
-npm audit --prefix functions --audit-level=high
+npm audit --prefix functions --omit=dev --audit-level=high
 npm test --prefix functions
 npm run test:rules --prefix functions
 npx playwright install chromium
