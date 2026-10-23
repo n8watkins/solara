@@ -1,16 +1,21 @@
 # Solara Deployment Guide
 
-_Last reviewed: 2026-07-15_
+_Last reviewed: 2026-10-23_
 
 Solara exports a static Next.js site to `out/` and hosts it on Firebase Hosting.
 Firebase Functions provide trusted server behavior for billing, account data, notification registration, scheduled cleanup, and calendar feeds.
 The notification dispatcher is available as a manual GitHub Actions workflow until live scheduled delivery is approved.
+
+As of 2026-10-23, production runs Hosting and Firestore only.
+Firebase Functions are not deployed, and the Cloud Functions API is not enabled on project `uv-activity-planner`.
+See [status.md](./status.md) for the verified production state.
 
 ## Plan requirements
 
 Firebase Hosting, Authentication, Firestore, and Cloud Messaging can operate on the Spark plan within their quotas.
 Deploying Firebase Functions requires the Blaze plan and an attached billing account.
 Set a budget alert before enabling Blaze.
+The project's current billing plan is owner to confirm.
 
 ## Local environment
 
@@ -47,24 +52,36 @@ Never put a Stripe secret, Firebase service-account JSON, webhook secret, or OAu
 ## GitHub Actions secrets
 
 Add the required client variables above as repository secrets.
-Also add `FIREBASE_SERVICE_ACCOUNT` as the complete JSON for a narrowly scoped deployment and notification service account.
+Also add `FIREBASE_SERVICE_ACCOUNT` as the complete service-account JSON key used by both workflows.
 The deployment workflow uses that credential to publish Hosting, Firestore rules, and Firestore indexes.
 Grant that service account `roles/datastore.indexAdmin` so the workflow can create and update the indexes declared in `firestore.indexes.json`.
 It also publishes Functions when `ENABLE_BLAZE_FUNCTIONS` is `true`.
-The notification workflow uses it to access notification data and send through Firebase Cloud Messaging.
+The notification workflow uses the same key to access notification data and send through Firebase Cloud Messaging.
+
+The current setup is not narrowly scoped.
+One long-lived JSON key is shared by deployment and notification dispatch.
+The deployment workflow writes it to a file on the runner, and the notifier reads it from an environment variable.
+The key previously found locally identified the Firebase Admin SDK account `firebase-adminsdk-fbsvc@uv-activity-planner.iam.gserviceaccount.com`; whether the GitHub secret uses the same account, and which IAM roles it holds, is owner to confirm.
+The deployment identity does not have `roles/datastore.indexAdmin`: every deployment since 2026-07-15 has failed at the index step, and the 2026-10-23 run logged HTTP 403 ("The caller does not have permission").
+Replacing the key with Workload Identity Federation and separate deployment and notifier identities is planned (owner decisions D3 and D4 in [OWNER_ACTIONS.md](./OWNER_ACTIONS.md)).
 
 Server configuration is split across these locations:
 
 - Firebase Secret Manager stores `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET`.
-- GitHub Actions provides `NEXT_PUBLIC_SITE_URL` to Functions as `APP_URL` and provides `STRIPE_PRICE_ID` as a deploy-time Functions parameter.
+- The deployment workflow sets `APP_URL` (from `NEXT_PUBLIC_SITE_URL`) and `STRIPE_PRICE_ID` as environment variables on the Functions deploy step.
+  This does not work yet: the Firebase CLI resolves `defineString` params only from `functions/.env*` files or interactive prompts, never from the process environment, and fails in `--non-interactive` mode when a param has no value there.
+  `functions/.env` does not exist, so the CI Functions deploy cannot succeed until the params get a supported source.
 - The `ENABLE_BLAZE_FUNCTIONS` GitHub repository variable controls whether the deployment publishes Functions and exposes `NEXT_PUBLIC_FUNCTIONS_URL` in the client build.
 - GitHub repository secrets store `NEXT_PUBLIC_FUNCTIONS_URL`, `FIREBASE_SERVICE_ACCOUNT`, and the public client configuration used during the static build.
 
 Before enabling the backend deployment, put the project on Blaze, configure both Stripe secrets in Firebase Secret Manager, and configure `STRIPE_PRICE_ID`, `NEXT_PUBLIC_FUNCTIONS_URL`, and `NEXT_PUBLIC_SITE_URL` in GitHub.
-When `ENABLE_BLAZE_FUNCTIONS` is `true`, the main deployment passes `NEXT_PUBLIC_SITE_URL` as `APP_URL` and `STRIPE_PRICE_ID` to the Functions deployment before it deploys Hosting.
+When `ENABLE_BLAZE_FUNCTIONS` is `true`, the main deployment deploys Functions before it deploys Hosting.
+No repository variables are set as of 2026-10-23, so `ENABLE_BLAZE_FUNCTIONS` is off.
 
-The `main` deployment is blocked until lint, typecheck, app and Functions unit tests, Firestore emulator rules tests, production build, and browser smoke tests pass.
+The `main` deployment is blocked until production dependency audits, lint, typecheck, app and Functions unit tests, Firestore emulator rules tests, production build, and browser smoke tests pass.
 Pull requests and non-main pushes run the same quality checks without deploying.
+The repository is private on GitHub Free, so it has no branch protection, rulesets or environments.
+Any push to `main`, reviewed or not, runs the production deployment.
 
 ## Firebase console setup
 
@@ -103,6 +120,7 @@ npm run test:e2e
 ```
 
 Merge a reviewed pull request into `main` after the required GitHub secrets exist.
+Nothing enforces the review, so do not push directly to `main`.
 The deployment workflow attempts to deploy Firestore indexes on every release so manual notification dry-runs can receive the required collection-group index even while Functions remain disabled.
 When index IAM is missing and Functions are disabled, Hosting and final Firestore rules still deploy, but the workflow remains failed with an actionable index-permission error.
 When Functions are enabled, an index failure also blocks the Functions and Hosting steps.
@@ -144,7 +162,10 @@ Wait for every index in `firestore.indexes.json` to report `READY` before enabli
 ## Notification activation
 
 The notification workflow installs the committed dependency graph with `npm ci` and prevents overlapping dispatch runs.
-Scheduled delivery remains disabled until the real-device verification below is complete and live activation is approved.
+The workflow has no schedule.
+Pull request #13 removed the daily cron on 2026-07-15, so no morning notifications have been sent since the last scheduled run on 2026-07-14.
+Do not add a schedule until the real-device verification below is complete and live activation is approved.
+Device registration goes through the `registerNotificationDevice` Function, so notifications also need deployed Functions.
 
 Each run is bounded by page and time budgets and checkpoints its device and legacy-registration cursors in `notificationDispatchState/morning` or `notificationDispatchState/morning-dry-run`.
 Later runs resume from those cursors and alternate between current device registrations and legacy registrations so a large or repeatedly interrupted scan cannot starve either source.
@@ -225,7 +246,9 @@ Before production activation, verify that export excludes capability tokens and 
 
 Create a Google OAuth Web client, enable the Calendar API, configure its consent screen, and add each deployed origin as an Authorized JavaScript origin.
 Set `NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID` and deploy again.
-Verify that Solara reads only free/busy data and that creating an event produces the expected time and description.
+Connecting a calendar requests the `calendar.readonly` scope, and Solara only calls the `freeBusy` endpoint with it.
+Creating an event requests the `calendar.events` scope at booking time.
+Verify both consent prompts, that only busy times are read, and that creating an event produces the expected time and description.
 
 ## Operational rollback
 
