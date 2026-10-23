@@ -124,7 +124,9 @@ function buildSite() {
     NEXT_PUBLIC_FIREBASE_VAPID_KEY: '',
     NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY: '',
     NEXT_PUBLIC_FUNCTIONS_URL: `${origin}/${PROJECT}/us-central1`,
-    NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID: '',
+    // A placeholder client: the suite answers Google Identity Services and the
+    // Calendar API itself (fake-google-calendar.ts), so scheduling can be tested.
+    NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID: 'solara-e2e.apps.googleusercontent.com',
     NEXT_PUBLIC_GA_MEASUREMENT_ID: '',
     NEXT_PUBLIC_UI_HARNESS: '',
     NEXT_TELEMETRY_DISABLED: '1',
