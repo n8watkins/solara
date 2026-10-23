@@ -1,5 +1,7 @@
 import type { Metadata } from 'next'
 import LegalPage from '@/components/LegalPage'
+import LegalDetail from '@/components/LegalDetail'
+import { LEGAL_LAST_UPDATED } from '@/lib/legal'
 
 export const metadata: Metadata = {
   title: 'Terms of Use | Solara',
@@ -8,7 +10,13 @@ export const metadata: Metadata = {
 
 export default function TermsPage() {
   return (
-    <LegalPage title="Terms of Use" updated="July 14, 2026">
+    <LegalPage title="Terms of Use" updated={LEGAL_LAST_UPDATED}>
+      <h2>Who provides Solara</h2>
+      <p>
+        Solara is provided by <LegalDetail name="operatorName" />. Questions about these terms go to{' '}
+        <LegalDetail name="contactEmail" />.
+      </p>
+
       <h2>Using Solara</h2>
       <p>You may use Solara only in compliance with applicable law and these terms.</p>
       <p>
@@ -52,6 +60,21 @@ export default function TermsPage() {
         another person&apos;s rights.
       </p>
 
+      <h2>Data sources and licenses</h2>
+      <p>
+        Forecasts and place search use data from <a href="https://open-meteo.com/">Open-Meteo</a>,
+        licensed under <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>.
+      </p>
+      <p>
+        Place names for your device location come from{' '}
+        <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>, available
+        under the Open Database License.
+      </p>
+      <p>
+        Solara&apos;s own software and content are licensed as follows:{' '}
+        <LegalDetail name="codeLicense" />.
+      </p>
+
       <h2>Availability and changes</h2>
       <p>
         Solara may change, suspend, or discontinue features and may update these terms as the
@@ -68,6 +91,13 @@ export default function TermsPage() {
       <p>
         Some jurisdictions do not allow certain warranty exclusions or liability limitations, so
         those provisions may not apply to you.
+      </p>
+
+      <h2>Governing law</h2>
+      <p>
+        These terms are governed by the laws of <LegalDetail name="jurisdiction" />, without regard
+        to conflict-of-law rules, except where the law where you live gives you rights that cannot
+        be waived.
       </p>
 
       <h2>Account termination</h2>
