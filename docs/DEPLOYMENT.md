@@ -134,26 +134,18 @@ Both `npm run dev` and `npm run build` run `scripts/generate-sw.js` first and cr
 Do not commit or hand-edit the generated worker.
 Re-run the generator through either command after changing Firebase client configuration.
 
-For a controlled manual deployment, use an explicit project ID and guarantee that final rules are restored even if an intermediate command fails.
+For a controlled manual deployment, use an explicit project ID and deploy in dependency order.
 
 ```bash
 set -euo pipefail
 
 PROJECT_ID=<project-id>
 
-restore_final_rules() {
-  npx firebase-tools deploy --only firestore:rules --project "$PROJECT_ID"
-}
-
-trap restore_final_rules EXIT
-
 npx firebase-tools deploy --only firestore:indexes --project "$PROJECT_ID"
 # Wait for every required index to report READY before continuing.
-npx firebase-tools deploy --only firestore:rules --config firebase.pre-functions.json --project "$PROJECT_ID"
 npx firebase-tools deploy --only functions --project "$PROJECT_ID"
+npx firebase-tools deploy --only firestore:rules --project "$PROJECT_ID"
 npx firebase-tools deploy --only hosting --project "$PROJECT_ID"
-restore_final_rules
-trap - EXIT
 ```
 
 Supply `APP_URL` and `STRIPE_PRICE_ID` when manually deploying Functions.

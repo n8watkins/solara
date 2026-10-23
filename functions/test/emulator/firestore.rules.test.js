@@ -11,7 +11,6 @@ const {
 
 const projectId = 'demo-solara'
 let testEnv
-let preDeployEnv
 
 function prefs(uid, overrides = {}) {
   return {
@@ -34,50 +33,10 @@ before(async () => {
       rules: fs.readFileSync(path.resolve(__dirname, '../../../firestore.rules'), 'utf8'),
     },
   })
-  preDeployEnv = await initializeTestEnvironment({
-    projectId: `${projectId}-pre-functions`,
-    firestore: {
-      rules: fs.readFileSync(
-        path.resolve(__dirname, '../../../firestore.pre-functions.rules'),
-        'utf8',
-      ),
-    },
-  })
 })
 
-afterEach(async () => Promise.all([testEnv.clearFirestore(), preDeployEnv.clearFirestore()]))
-after(async () => Promise.all([testEnv.cleanup(), preDeployEnv.cleanup()]))
-
-describe('pre-Functions deployment compatibility', () => {
-  test('allows legacy preferences while protecting billing ownership', async () => {
-    const ref = preDeployEnv.authenticatedContext('alice').firestore().doc('users/alice')
-    await assertSucceeds(ref.set(prefs('alice', { legacyPreference: true })))
-    await assertSucceeds(ref.update({ anotherLegacyPreference: 'kept-compatible' }))
-    await assertFails(ref.update({ stripeCustomerId: 'cus_attacker' }))
-    await assertFails(ref.update({ stripeCheckoutSessionId: 'cs_attacker' }))
-  })
-
-  test('requires the server deletion endpoint before Functions deploy', async () => {
-    await preDeployEnv.withSecurityRulesDisabled(async context => {
-      await context.firestore().doc('users/alice').set(prefs('alice'))
-    })
-    const ref = preDeployEnv.authenticatedContext('alice').firestore().doc('users/alice')
-    await assertFails(ref.delete())
-  })
-
-  test('keeps tombstoned accounts isolated during Functions deploy', async () => {
-    await preDeployEnv.withSecurityRulesDisabled(async context => {
-      const db = context.firestore()
-      await db.doc('users/alice').set(prefs('alice'))
-      await db.doc('accountDeletionTombstones/alice').set({ cleanupStatus: 'pending' })
-    })
-
-    const ref = preDeployEnv.authenticatedContext('alice').firestore().doc('users/alice')
-    await assertFails(ref.get())
-    await assertFails(ref.update({ skinType: 'dark' }))
-    await assertFails(ref.set(prefs('alice')))
-  })
-})
+afterEach(async () => testEnv.clearFirestore())
+after(async () => testEnv.cleanup())
 
 describe('user preferences', () => {
   test('an owner can create and update allowlisted preference fields', async () => {

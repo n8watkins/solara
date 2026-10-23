@@ -1,4 +1,4 @@
-const { initializeApp, cert } = require('firebase-admin/app')
+const { applicationDefault, cert, initializeApp } = require('firebase-admin/app')
 const { getFirestore, FieldPath, FieldValue } = require('firebase-admin/firestore')
 const { getMessaging } = require('firebase-admin/messaging')
 const { createHash, randomUUID } = require('node:crypto')
@@ -575,8 +575,13 @@ async function sendSubscription(subscription, now) {
 }
 
 async function main() {
-  if (!process.env.FIREBASE_SERVICE_ACCOUNT) throw new Error('FIREBASE_SERVICE_ACCOUNT is required')
-  initializeApp({ credential: cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)) })
+  // A JSON key is optional: without one, Application Default Credentials apply (Workload
+  // Identity Federation in CI, or `gcloud auth application-default login` locally).
+  initializeApp({
+    credential: process.env.FIREBASE_SERVICE_ACCOUNT
+      ? cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT))
+      : applicationDefault(),
+  })
   db = getFirestore()
   messaging = getMessaging()
 
