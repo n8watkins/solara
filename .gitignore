@@ -5,6 +5,7 @@ node_modules/
 out/
 public/firebase-messaging-sw.js
 .firebase/
+coverage/
 playwright-report/
 test-results/
 .DS_Store
