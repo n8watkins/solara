@@ -1,3 +1,4 @@
+import { COORDINATE_DECIMALS, roundCoordinate } from '@solara/core'
 import type { Location } from './types'
 
 interface GeocodingResult {
@@ -82,18 +83,9 @@ const REGION_ABBREVIATIONS: Readonly<Record<string, string>> = {
   yt: 'yukon',
 }
 
-/**
- * Coordinates are rounded to 2 decimals (about 1 km) before they leave the
- * device or are stored. That is plenty for a UV forecast and a city name, and it
- * avoids sending or keeping an exact home position.
- */
-export const COORDINATE_DECIMALS = 2
-
-export function roundCoordinate(value: number): number {
-  const factor = 10 ** COORDINATE_DECIMALS
-  // `+ 0` folds -0 into 0 so rounded values compare and serialize cleanly.
-  return Math.round(value * factor) / factor + 0
-}
+// Coordinates are rounded to 2 decimals (about 1 km) before they leave the device or
+// are stored; the rule lives in @solara/core so the preferences schema applies it too.
+export { COORDINATE_DECIMALS, roundCoordinate }
 
 function toLocation(result: GeocodingResult): Location {
   return {
