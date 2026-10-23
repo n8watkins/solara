@@ -5,7 +5,7 @@ _Last reviewed: 2026-10-23_
 ## Current result
 
 Production dependencies in both the app and Functions report zero advisories (`npm audit --omit=dev`).
-Firebase's client SDK still pins `@grpc/grpc-js ~1.9.0`, so both packages override it to `^1.14.6` to remove two gRPC advisories; Firestore rules tests and Functions tests pass with the override.
+Firebase's client SDK still pins `@grpc/grpc-js ~1.9.0` (checked 2026-10-23 with `firebase` 13.1.0 and `@firebase/firestore` 4.19.0), so both packages override it to `^1.14.6` to remove two gRPC advisories; Firestore rules tests and Functions tests pass with the override.
 
 The app's development dependencies report zero advisories too (`npm audit`), since the Tailwind CSS 4 migration removed `postcss-selector-parser`.
 The Functions development dependencies still report moderate advisories that have no compatible fix (checked 2026-10-23):
