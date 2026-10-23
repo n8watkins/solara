@@ -1,0 +1,7 @@
+# zizmor configuration (https://docs.zizmor.sh/configuration/).
+rules:
+  # The `$/` self-repository syntax is what zizmor recommends, but actionlint
+  # 1.7.12 rejects it. Revisit when actionlint supports it; local `./` references
+  # here only point at files from the same checkout.
+  self-repository:
+    disable: true

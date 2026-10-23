@@ -1,0 +1,68 @@
+name: Firebase CLI
+description: >
+  Installs the locked firebase-tools from functions/package-lock.json and
+  authenticates to Google Cloud. Uses Workload Identity Federation when a
+  provider is given, otherwise the service-account key (until WIF is set up;
+  see docs/WIF_SETUP.md).
+
+inputs:
+  workload-identity-provider:
+    description: Full resource name of the Workload Identity Provider, or empty.
+    required: false
+    default: ''
+  service-account:
+    description: Service account to impersonate through Workload Identity Federation.
+    required: false
+    default: ''
+  credentials-json:
+    description: Service-account JSON key, used only without a Workload Identity Provider.
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      with:
+        node-version-file: .nvmrc
+        # No dependency cache in deploy jobs: they hold cloud credentials.
+        package-manager-cache: false
+
+    # Callers run it as functions/node_modules/.bin/firebase.
+    - name: Install the locked firebase-tools
+      shell: bash
+      run: npm ci --prefix functions --ignore-scripts
+
+    - name: Check the credential configuration
+      shell: bash
+      env:
+        PROVIDER: ${{ inputs.workload-identity-provider }}
+        SERVICE_ACCOUNT: ${{ inputs.service-account }}
+        HAS_KEY: ${{ inputs.credentials-json != '' }}
+      run: |
+        if [ -n "$PROVIDER" ] && [ -z "$SERVICE_ACCOUNT" ]; then
+          echo "::error::A Workload Identity Provider is set without a service account to impersonate."
+          exit 1
+        fi
+        if [ -z "$PROVIDER" ] && [ "$HAS_KEY" != "true" ]; then
+          echo "::error::No Google Cloud credentials: set the Workload Identity variables (docs/WIF_SETUP.md) or the key secret."
+          exit 1
+        fi
+        if [ -n "$PROVIDER" ]; then
+          echo "Authenticating with Workload Identity Federation as $SERVICE_ACCOUNT."
+        else
+          echo "::warning::Authenticating with a long-lived service-account key. Set up Workload Identity Federation (docs/WIF_SETUP.md)."
+        fi
+
+    - name: Authenticate with Workload Identity Federation
+      if: inputs.workload-identity-provider != ''
+      uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+      with:
+        workload_identity_provider: ${{ inputs.workload-identity-provider }}
+        service_account: ${{ inputs.service-account }}
+
+    - name: Authenticate with the service-account key
+      if: inputs.workload-identity-provider == ''
+      uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+      with:
+        credentials_json: ${{ inputs.credentials-json }}
