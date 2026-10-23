@@ -6,10 +6,10 @@ import { buildICS } from '@/lib/ics'
 import type { Activity } from '@/lib/types'
 
 /* eslint-disable @typescript-eslint/no-require-imports */
-const engine = require('../functions/lib/recommendation-engine')
+const engine = require('../functions/core')
 const sun = require('../functions/lib/sun')
-const { buildMessage } = require('../scripts/notification-core')
-const { clearForecastCache, fetchHourly } = require('../scripts/send-notifications')
+const { buildMessage } = require('../functions/scripts/notification-core')
+const { clearForecastCache, fetchHourly } = require('../functions/scripts/send-notifications')
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 // Acceptance for CQ-1: Open-Meteo returns `null` for hours it has no data for.

@@ -1,25 +1,61 @@
-const recommendation = require('./recommendation-engine')
+// Calendar feed forecast: the daytime UV series per day and the ICS events for
+// each activity's best window. The calculations come from @solara/core.
+
 const {
+  bestWindow,
+  effectiveMaxUV,
   fetchJson,
+  findWindows,
   forecastDates,
   forecastUrl,
   isPlannableHour,
   parseHourlyRows,
-} = require('./forecast-core')
-const { validActivityId } = require('./ics')
+  runsOn,
+  validActivityId,
+  windowEventSummary,
+  windowEventUid,
+} = require('#core')
 
-const { effectiveMaxUV, runsOn, bestWindow } = recommendation
+/**
+ * @typedef {import('#core').IcsEvent} IcsEvent
+ * @typedef {import('#core').PreferredHours} PreferredHours
+ * @typedef {import('#core').RecommendationHour} RecommendationHour
+ * @typedef {{ dateStr: string, hourly: RecommendationHour[] }} SunForecastDay
+ * @typedef {{
+ *   id?: unknown,
+ *   name: string,
+ *   icon?: string | null,
+ *   maxUV?: number | null,
+ *   sunscreen?: boolean | null,
+ *   durationMins?: number | null,
+ *   preferredHours?: PreferredHours | null,
+ *   daysOfWeek?: number[] | null,
+ * }} FeedActivity
+ */
 
 // A forecast older than this is no longer served when the provider is down.
 const LAST_GOOD_MAX_AGE_MS = 6 * 60 * 60 * 1000
 const MAX_LAST_GOOD_ENTRIES = 500
+/** @type {Map<string, { forecast: SunForecastDay[], fetchedAt: number }>} */
 const lastGoodForecasts = new Map()
 
+/**
+ * @param {RecommendationHour[]} hourly
+ * @param {number} maxUV
+ * @param {number} [durationMins]
+ * @param {{ preferredHours?: PreferredHours | null }} [activity]
+ */
 function safeWindows(hourly, maxUV, durationMins, activity) {
-  return recommendation.findWindows(hourly, maxUV, durationMins, activity?.preferredHours)
+  return findWindows(hourly, maxUV, durationMins, activity?.preferredHours)
 }
 
-/** Daytime (06-20) hours with a known UV, grouped by date. Unknown hours are omitted. */
+/**
+ * Daytime (06-20) hours with a known UV, grouped by date. Unknown hours are omitted.
+ *
+ * @param {unknown} raw
+ * @param {number} days
+ * @returns {SunForecastDay[]}
+ */
 function parseSunForecast(raw, days) {
   const rows = parseHourlyRows(raw)
   return forecastDates(rows)
@@ -28,19 +64,22 @@ function parseSunForecast(raw, days) {
       dateStr,
       hourly: rows
         .filter(row => row.date === dateStr && isPlannableHour(row))
-        .map(row => ({ hour: row.hour, uv: row.uv })),
+        .map(row => ({ hour: row.hour, uv: /** @type {number} */ (row.uv) })),
     }))
 }
 
+/** @param {number} lat @param {number} lon @param {number} days */
 function lastGoodKey(lat, lon, days) {
   return `${Number(lat).toFixed(2)}:${Number(lon).toFixed(2)}:${days}`
 }
 
+/** @param {string} key @param {SunForecastDay[]} forecast @param {number} now */
 function rememberLastGood(key, forecast, now) {
   lastGoodForecasts.delete(key)
   lastGoodForecasts.set(key, { forecast, fetchedAt: now })
-  if (lastGoodForecasts.size > MAX_LAST_GOOD_ENTRIES) {
-    lastGoodForecasts.delete(lastGoodForecasts.keys().next().value)
+  const oldest = lastGoodForecasts.keys().next().value
+  if (lastGoodForecasts.size > MAX_LAST_GOOD_ENTRIES && oldest !== undefined) {
+    lastGoodForecasts.delete(oldest)
   }
 }
 
@@ -48,6 +87,12 @@ function rememberLastGood(key, forecast, now) {
  * Fetch daytime (06-20) hourly UV per day for `days` days. The request times out
  * after 5 s. When the provider fails, the last good forecast for the same place
  * (at most 6 hours old) is returned instead; otherwise the error is thrown.
+ *
+ * @param {number} lat
+ * @param {number} lon
+ * @param {number} days
+ * @param {{ fetchImpl?: typeof fetch, now?: number }} [options]
+ * @returns {Promise<SunForecastDay[]>}
  */
 async function fetchForecast(lat, lon, days, { fetchImpl, now = Date.now() } = {}) {
   const key = lastGoodKey(lat, lon, days)
@@ -62,7 +107,7 @@ async function fetchForecast(lat, lon, days, { fetchImpl, now = Date.now() } = {
     const lastGood = lastGoodForecasts.get(key)
     if (lastGood && now - lastGood.fetchedAt <= LAST_GOOD_MAX_AGE_MS) {
       console.warn('forecast fetch failed; serving last good forecast', {
-        message: error?.message,
+        message: error instanceof Error ? error.message : undefined,
         ageMs: now - lastGood.fetchedAt,
       })
       return lastGood.forecast
@@ -75,9 +120,18 @@ function clearLastGoodForecasts() {
   lastGoodForecasts.clear()
 }
 
-/** Build ICS events for each activity's best window on each eligible day. */
+/**
+ * Build ICS events for each activity's best window on each eligible day.
+ *
+ * @param {{ activities?: FeedActivity[] | null }} user
+ * @param {SunForecastDay[]} forecast
+ * @returns {IcsEvent[]}
+ */
 function buildSunEvents(user, forecast) {
-  const activities = (user.activities || []).filter(act => validActivityId(act?.id))
+  const activities = (user.activities || []).flatMap(act =>
+    validActivityId(act?.id) ? [{ ...act, id: act.id }] : [],
+  )
+  /** @type {IcsEvent[]} */
   const events = []
   for (const day of forecast) {
     for (const act of activities) {
@@ -93,8 +147,8 @@ function buildSunEvents(user, forecast) {
       const start = win.from
       const end = Math.min(win.from + durH, win.to)
       events.push({
-        uid: `${day.dateStr}-${act.id}-${Math.round(start * 60)}@solara`,
-        summary: `${act.icon || '☀️'} ${act.name}: lower-UV window`,
+        uid: windowEventUid(day.dateStr, act.id, start),
+        summary: windowEventSummary(act),
         description: `Estimated lower-UV window ${win.from}:00–${win.to}:00 (avg UV ${win.avgUV})${act.sunscreen ? ', assumes SPF 30+' : ', no sunscreen'}. Forecast-based estimate only. Recheck current UV and use sun protection. Planned by Solara.`,
         dateStr: day.dateStr,
         start,

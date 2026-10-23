@@ -1,4 +1,6 @@
-export type SkinType = 'very-fair' | 'fair' | 'medium' | 'olive' | 'dark'
+import type { PreferredHours, RecommendationWindow, SkinType } from '@solara/core'
+
+export type { PreferredHours, SkinType }
 export type TierLevel = 'anonymous' | 'free' | 'paid'
 
 export interface Location {
@@ -7,11 +9,6 @@ export interface Location {
   city: string
   region: string
   timezone?: string
-}
-
-export interface PreferredHours {
-  from: number
-  to: number
 }
 
 /** A person/pet whose skin type drives safety math when selected. */
@@ -89,13 +86,7 @@ export interface WeatherResponse {
   forecast: DayWeather[] // all available days starting from today
 }
 
-export interface SafeActivityWindow {
-  from: number
-  to: number
-  label: 'Morning' | 'Midday' | 'Afternoon' | 'Evening' | 'All day'
-  peakUV: number
-  avgUV: number
-}
+export type SafeActivityWindow = RecommendationWindow
 
 export interface ActivityWindow {
   activity: Activity

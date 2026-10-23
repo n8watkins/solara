@@ -11,7 +11,7 @@ import { getActivityWindow } from '@/lib/weather'
 import type { Activity, HourlyForecast, SkinType } from '@/lib/types'
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const functionsEngine = require('../functions/lib/recommendation-engine')
+const functionsEngine = require('../functions/core')
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const functionsSun = require('../functions/lib/sun')
 

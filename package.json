@@ -2,6 +2,9 @@
   "name": "solara",
   "version": "0.1.0",
   "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
   "overrides": {
     "postcss": "^8.5.10",
     "@grpc/grpc-js": "^1.14.6"
@@ -12,9 +15,11 @@
     "prebuild": "node scripts/generate-sw.js",
     "build": "next build",
     "postbuild": "node scripts/check-no-ui-harness.mjs && node scripts/csp.mjs",
+    "build:core": "node scripts/build-core.mjs",
     "start": "next start",
     "lint": "eslint . --max-warnings=0 && npm run format:check",
     "typecheck": "next typegen && tsc --noEmit",
+    "pretest": "npm run build:core",
     "test": "vitest run --coverage",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
@@ -24,10 +29,10 @@
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.3.0",
+    "@solara/core": "*",
     "clsx": "^2.1.1",
     "dotenv": "^16.6.1",
     "firebase": "^12.16.0",
-    "firebase-admin": "^14.1.0",
     "next": "^16.2.10",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"

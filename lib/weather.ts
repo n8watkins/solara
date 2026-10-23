@@ -1,3 +1,4 @@
+import { hourAllowed, lowestUVWindow, windowEventTitle } from '@solara/core'
 import type { HourlyForecast, Activity, ActivityWindow, SkinType } from './types'
 import { burnMins, effectiveMaxUV, findRecommendationWindows } from './recommendation'
 import { cloudAdjustedUV } from './exposure'
@@ -93,7 +94,7 @@ export function gcalLink(
   const end = new Date(start)
   end.setMinutes(end.getMinutes() + Math.round(durationMins))
   const fmt = (d: Date) => d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
-  const title = encodeURIComponent(`${activityName}: lower-UV window`)
+  const title = encodeURIComponent(windowEventTitle(activityName))
   const details = encodeURIComponent(
     'Forecast-based lower-UV planning estimate from Solara. Recheck current UV and use sun protection.',
   )
@@ -101,8 +102,7 @@ export function gcalLink(
 }
 
 function withinPreferredHours(hour: number, activity: Activity): boolean {
-  if (!activity.preferredHours) return true
-  return hour >= activity.preferredHours.from && hour < activity.preferredHours.to
+  return hourAllowed(hour, activity.preferredHours)
 }
 
 export function getActivityWindow(
@@ -126,9 +126,7 @@ export function getActivityWindow(
     activity.durationMins,
     activity.preferredHours,
   )
-  const best =
-    allWindows.slice().sort((a, b) => a.avgUV - b.avgUV || b.to - b.from - (a.to - a.from))[0] ??
-    null
+  const best = lowestUVWindow(allWindows)
 
   const bestWindow = best ? { from: best.from, to: best.to } : null
   const current = hourly.find(h => h.hour === currentHour)

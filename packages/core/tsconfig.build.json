@@ -1,0 +1,23 @@
+// CommonJS build of @solara/core for Cloud Functions (npm run build:core).
+// It writes to functions/core, inside the Functions source directory, because
+// `firebase deploy` uploads only that directory. Type checking of the source
+// happens in the root tsconfig, which the web app shares.
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2023", "DOM"],
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "rootDir": "src",
+    "outDir": "../../functions/core",
+    "declaration": true,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noFallthroughCasesInSwitch": true,
+    "skipLibCheck": true,
+    "types": [],
+    "newLine": "lf"
+  },
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts"]
+}

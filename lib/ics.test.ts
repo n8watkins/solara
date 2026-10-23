@@ -5,7 +5,7 @@ import type { SlotRecommendation } from '@/lib/scheduler'
 import type { Activity } from '@/lib/types'
 
 /* eslint-disable @typescript-eslint/no-require-imports */
-const feedIcs = require('../functions/lib/ics')
+const feedIcs = require('../functions/core')
 const sun = require('../functions/lib/sun')
 /* eslint-enable @typescript-eslint/no-require-imports */
 

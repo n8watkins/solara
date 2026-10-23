@@ -1,44 +1,13 @@
+import * as core from '@solara/core'
+import type { OpenMeteoHourlyRow, OpenMeteoPayload, OpenMeteoResponse } from '@solara/core'
 import type { Location, WeatherResponse, HourlyForecast, DayWeather } from './types'
 import { roundCoordinate } from './geocoding'
 
-type OpenMeteoHourlyRow = {
-  date: string
-  hour: number
-  uv: number | null
-  tempF: number | null
-  weatherCode: number | null
-  cloudCover: number | null
-}
-
-type ForecastCore = {
-  FETCH_TIMEOUT_MS: number
-  weatherLabel: (code: number | null) => string
-  roundUV: (value: unknown) => number | null
-  toFahrenheit: (celsius: unknown) => number | null
-  splitTime: (time: unknown) => { date: string; hour: number } | null
-  parseHourlyRows: (raw: unknown) => OpenMeteoHourlyRow[]
-  isPlannableHour: (row: OpenMeteoHourlyRow) => boolean
-  forecastDates: (rows: OpenMeteoHourlyRow[]) => string[]
-  forecastUrl: (request: {
-    lat: number
-    lon: number
-    days: number
-    hourly: string[]
-    current?: string[]
-  }) => string
-  fetchJson: (
-    url: string,
-    opts?: { timeoutMs?: number; signal?: AbortSignal; fetchImpl?: typeof fetch },
-  ) => Promise<unknown>
-}
-
-// The same portable parser the calendar feed and notifier use, so every surface
-// reads Open-Meteo identically (including how missing values are handled).
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const core = require('../functions/lib/forecast-core') as ForecastCore
+// The same Zod-validated parser the calendar feed and notifier use, so every
+// surface reads Open-Meteo identically (including how missing values are handled).
 
 /** Open-Meteo WMO weather code to a short human label ("Unknown" when missing). */
-export const weatherLabel: (code: number | null) => string = core.weatherLabel
+export const weatherLabel = core.weatherLabel
 
 /** Local YYYY-MM-DD for `daysFromNow` (en-CA renders ISO-style). */
 export function localDateString(daysFromNow = 0): string {
@@ -47,23 +16,12 @@ export function localDateString(daysFromNow = 0): string {
   return d.toLocaleDateString('en-CA')
 }
 
-/** Raw Open-Meteo forecast. Values may be `null` where the provider has no data. */
-export interface RawForecast {
-  /** IANA zone of the forecast location (Open-Meteo `timezone=auto`). */
-  timezone?: string
-  current?: {
-    time?: string
-    uv_index?: number | null
-    temperature_2m?: number | null
-    weathercode?: number | null
-  }
-  hourly: {
-    time: string[]
-    uv_index: (number | null)[]
-    temperature_2m: (number | null)[]
-    weathercode: (number | null)[]
-    cloudcover?: (number | null)[]
-  }
+/**
+ * Raw Open-Meteo forecast with the series the app requests. Values may be
+ * `null` where the provider has no data.
+ */
+export type RawForecast = OpenMeteoPayload & {
+  hourly: Required<Pick<OpenMeteoPayload['hourly'], 'uv_index' | 'temperature_2m' | 'weathercode'>>
 }
 
 /**
@@ -107,7 +65,7 @@ function wallClockIn(timeZone: string | undefined): { date: string; hour: number
  * provider's `current` block is missing a value. Throws when UV or temperature
  * is unknown either way, so a gap is never shown as UV 0.
  */
-function currentConditions(raw: RawForecast, rows: OpenMeteoHourlyRow[]) {
+function currentConditions(raw: OpenMeteoResponse, rows: OpenMeteoHourlyRow[]) {
   const at = core.splitTime(raw.current?.time) ?? wallClockIn(raw.timezone)
   const row = rows.find(r => r.date === at.date && r.hour === at.hour)
   const uv = core.roundUV(raw.current?.uv_index) ?? row?.uv ?? null
@@ -115,19 +73,17 @@ function currentConditions(raw: RawForecast, rows: OpenMeteoHourlyRow[]) {
   if (uv === null || tempF === null) {
     throw new Error('Forecast response has no current UV or temperature')
   }
-  const code = raw.current?.weathercode
   return {
     uv,
     tempF,
-    condition: core.weatherLabel(
-      typeof code === 'number' && Number.isFinite(code) ? code : (row?.weatherCode ?? null),
-    ),
+    condition: core.weatherLabel(raw.current?.weathercode ?? row?.weatherCode ?? null),
   }
 }
 
 /** Build the normalized WeatherResponse (current + today/tomorrow + N-day forecast). */
-export function parseForecast(raw: RawForecast, days = 10): WeatherResponse {
-  const rows = core.parseHourlyRows(raw)
+export function parseForecast(input: RawForecast, days = 10): WeatherResponse {
+  const raw = core.parseOpenMeteoResponse(input)
+  const rows = core.hourlyRows(raw)
 
   const forecast: DayWeather[] = core
     .forecastDates(rows)
@@ -169,6 +125,6 @@ export async function fetchForecast(
     hourly: ['uv_index', 'temperature_2m', 'weathercode', 'cloudcover'],
     current: ['uv_index', 'temperature_2m', 'weathercode'],
   })
-  const raw = (await core.fetchJson(url, { signal, timeoutMs })) as RawForecast
-  return parseForecast(raw, days)
+  const raw = await core.fetchJson(url, { signal, timeoutMs })
+  return parseForecast(raw as RawForecast, days)
 }

@@ -1,7 +1,9 @@
 // Strict type checking of the Functions JavaScript via JSDoc (npm run typecheck, also run
-// by npm test). The forecast modules (sun.js, ics.js, recommendation-engine.js,
-// forecast-core.js) are checked through their .d.ts boundaries until lane W2-B moves
-// functions/ to TypeScript.
+// by npm test). Shared logic comes from @solara/core through the `#core` import, whose
+// declarations are built into core/ by `npm run build:core`. The morning notifier
+// (scripts/send-notifications.js and scripts/notification-core.js, moved from the repo
+// root so firebase-admin leaves the web app) predates type checking; plan lane W3-B
+// replaces it with a scheduled Function.
 {
   "compilerOptions": {
     "target": "ES2023",
@@ -28,9 +30,7 @@
     "scripts/**/*.js"
   ],
   "exclude": [
-    "lib/sun.js",
-    "lib/ics.js",
-    "lib/recommendation-engine.js",
-    "lib/forecast-core.js"
+    "scripts/send-notifications.js",
+    "scripts/notification-core.js"
   ]
 }

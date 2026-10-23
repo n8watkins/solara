@@ -1,3 +1,4 @@
+import { windowEventSummary } from '@solara/core'
 import type { BusyInterval, SlotRecommendation } from './scheduler'
 import type { Activity } from './types'
 import { fmtClock } from './weather'
@@ -198,7 +199,7 @@ export function buildEventBody(
     : 'UTC',
 ): CalendarEventBody {
   return {
-    summary: `${activity.icon} ${activity.name}: lower-UV window`,
+    summary: windowEventSummary(activity),
     description,
     start: { dateTime: localDateTime(dateStr, start), timeZone },
     end: { dateTime: localDateTime(dateStr, end), timeZone },

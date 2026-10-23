@@ -17,7 +17,7 @@ const { createCalendarFeedHandler } = require('./lib/calendar-feed')
 const { revokeCalendarFeed, rotateCalendarFeed } = require('./lib/feed-tokens')
 const { loggableError } = require('./lib/errors')
 const { createApiHandler, setApiHeaders } = require('./lib/http')
-const { buildICS } = require('./lib/ics')
+const { buildICS } = require('#core')
 const { buildSunEvents, fetchForecast } = require('./lib/sun')
 const {
   registerNotificationDevice,

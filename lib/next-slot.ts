@@ -7,6 +7,7 @@
 //     window already under way is trimmed to start now),
 //   - ends inside the forecast day the UV strip shows (the last hourly sample),
 //   - is long enough for the activity.
+import { lowestUVWindow, summarizeWindow } from '@solara/core'
 import type { Activity, HourlyForecast, SafeActivityWindow, SkinType } from './types'
 import { getActivityWindow } from './weather'
 import type { BusyInterval, SlotRecommendation } from './scheduler'
@@ -22,32 +23,6 @@ const NOW_STEP_MINUTES = 5
 export function nowHourOf(date: Date): number {
   const minutes = date.getHours() * 60 + date.getMinutes()
   return (Math.ceil(minutes / NOW_STEP_MINUTES) * NOW_STEP_MINUTES) / 60
-}
-
-// Mirrors labelWindow in functions/lib/recommendation-engine.js so a trimmed
-// window is labelled the same way the engine labels a whole one.
-function labelFor(from: number, to: number): SafeActivityWindow['label'] {
-  if (from <= 7 && to >= 19) return 'All day'
-  const midpoint = (from + to) / 2
-  if (midpoint < 11) return 'Morning'
-  if (midpoint < 14) return 'Midday'
-  if (midpoint < 17) return 'Afternoon'
-  return 'Evening'
-}
-
-/** Peak and average forecast UV over the hourly samples a [from, to) span touches. */
-function summarize(
-  hourly: HourlyForecast[],
-  from: number,
-  to: number,
-): Pick<SafeActivityWindow, 'peakUV' | 'avgUV'> {
-  const samples = hourly.filter(h => h.hour >= Math.floor(from) && h.hour < to).map(h => h.uv)
-  if (!samples.length) return { peakUV: 0, avgUV: 0 }
-  const round = (n: number) => Math.round(n * 10) / 10
-  return {
-    peakUV: round(Math.max(...samples)),
-    avgUV: round(samples.reduce((sum, uv) => sum + uv, 0) / samples.length),
-  }
 }
 
 /**
@@ -68,21 +43,13 @@ export function actionableWindows(
     const from = nowHour >= 0 ? Math.max(w.from, nowHour) : w.from
     const to = Math.min(w.to, dayEnd)
     if (to <= from || (to - from) * 60 < durationMins) continue
-    if (from === w.from && to === w.to) {
-      result.push(w)
-    } else {
-      result.push({ from, to, label: labelFor(from, to), ...summarize(hourly, from, to) })
-    }
+    result.push(from === w.from && to === w.to ? w : summarizeWindow(hourly, from, to))
   }
   return result
 }
 
 /** Lowest-average-UV window, ties broken toward the longer one, then the earlier one. */
-export function lowestUVWindow(windows: SafeActivityWindow[]): SafeActivityWindow | null {
-  return (
-    windows.slice().sort((a, b) => a.avgUV - b.avgUV || b.to - b.from - (a.to - a.from))[0] ?? null
-  )
-}
+export { lowestUVWindow }
 
 export interface ActivityDayPlan {
   activity: Activity

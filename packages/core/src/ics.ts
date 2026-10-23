@@ -1,26 +1,50 @@
-'use strict'
-
 // iCalendar (RFC 5545) serializer shared by the calendar feed and the browser's
-// .ics download (lib/ics.ts loads this module), so both always emit the same
-// document. Keep it free of Firebase, browser and Node-only APIs.
+// .ics download, so both always emit the same document. Keep it free of
+// Firebase, browser and Node-only APIs.
 // Times are floating local (no TZ): the hour numbers come from Open-Meteo's
 // timezone=auto, so they render correctly in the subscriber's local calendar.
+
+export interface IcsEvent {
+  uid: string
+  summary: string
+  description: string
+  /** Local date, YYYY-MM-DD. */
+  dateStr: string
+  /** Fractional local hour. */
+  start: number
+  end: number
+}
 
 const ACTIVITY_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/
 
 /** Activity ids end up in event UIDs, so only plain identifier characters are accepted. */
-function validActivityId(id) {
+export function validActivityId(id: unknown): id is string {
   return typeof id === 'string' && ACTIVITY_ID_PATTERN.test(id)
 }
 
-const pad = n => String(n).padStart(2, '0')
+/** Stable event UID for an activity's window starting at `start` (fractional hour) on a date. */
+export function windowEventUid(dateStr: string, activityId: string, start: number): string {
+  return `${dateStr}-${activityId}-${Math.round(start * 60)}@solara`
+}
+
+/** Calendar event title for an activity's lower-UV window. */
+export function windowEventTitle(activityName: string): string {
+  return `${activityName}: lower-UV window`
+}
+
+/** Calendar event summary: the title led by the activity's icon. */
+export function windowEventSummary(activity: { icon?: string | null; name: string }): string {
+  return `${activity.icon || '☀️'} ${windowEventTitle(activity.name)}`
+}
+
+const pad = (n: number) => String(n).padStart(2, '0')
 
 /**
  * Escape a TEXT value per RFC 5545: backslash, semicolon, comma and line breaks
  * (CRLF, LF or a lone CR). Other control characters are dropped so a value can
  * never start a new content line.
  */
-function escapeText(s) {
+export function escapeText(s: unknown): string {
   return String(s)
     .replace(/\\/g, '\\\\')
     .replace(/;/g, '\\;')
@@ -29,7 +53,7 @@ function escapeText(s) {
     .replace(/[\u0000-\u001f\u007f]/g, '')
 }
 
-function localStamp(dateStr, h) {
+function localStamp(dateStr: string, h: number): string {
   let hr = Math.floor(h)
   let min = Math.round((h - hr) * 60)
   if (min === 60) {
@@ -39,11 +63,11 @@ function localStamp(dateStr, h) {
   return `${dateStr.replace(/-/g, '')}T${pad(hr)}${pad(min)}00`
 }
 
-function utcStamp(d) {
+function utcStamp(d: Date): string {
   return `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}Z`
 }
 
-function utf8Length(codePoint) {
+function utf8Length(codePoint: number): number {
   if (codePoint < 0x80) return 1
   if (codePoint < 0x800) return 2
   if (codePoint < 0x10000) return 3
@@ -54,12 +78,12 @@ function utf8Length(codePoint) {
  * RFC 5545 line folding: content lines are at most 75 octets of UTF-8, and each
  * continuation line starts with a single space. Never splits a character.
  */
-function fold(line) {
-  const out = []
+function fold(line: string): string {
+  const out: string[] = []
   let current = ''
   let octets = 0
   for (const char of line) {
-    const size = utf8Length(char.codePointAt(0))
+    const size = utf8Length(char.codePointAt(0) ?? 0)
     const limit = out.length === 0 ? 75 : 74
     if (octets + size > limit) {
       out.push(out.length === 0 ? current : ` ${current}`)
@@ -73,7 +97,8 @@ function fold(line) {
   return out.join('\r\n')
 }
 
-function buildICS(events, now = new Date()) {
+/** Serialize events into a VCALENDAR document (CRLF-delimited, RFC 5545). */
+export function buildICS(events: readonly IcsEvent[], now: Date = new Date()): string {
   const stamp = utcStamp(now)
   const lines = [
     'BEGIN:VCALENDAR',
@@ -98,5 +123,3 @@ function buildICS(events, now = new Date()) {
   lines.push('END:VCALENDAR')
   return lines.map(fold).join('\r\n')
 }
-
-module.exports = { buildICS, escapeText, validActivityId }

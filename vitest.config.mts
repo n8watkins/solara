@@ -9,12 +9,12 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    include: ['lib/**/*.test.ts'],
+    include: ['lib/**/*.test.ts', 'packages/*/src/**/*.test.ts'],
     coverage: {
       provider: 'v8',
       // Measure all web app source, not just files a test happens to import,
       // so untested components count against the totals.
-      include: ['lib/**/*.ts', 'components/**/*.tsx', 'app/**/*.tsx'],
+      include: ['lib/**/*.ts', 'components/**/*.tsx', 'app/**/*.tsx', 'packages/*/src/**/*.ts'],
       exclude: ['**/*.test.ts'],
       reporter: ['text-summary', 'html', 'json-summary'],
       // Floors at the measured baseline. Raise them as coverage grows; they
