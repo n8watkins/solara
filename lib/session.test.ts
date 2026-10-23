@@ -136,7 +136,7 @@ beforeEach(() => {
   mocks.deleteToken.mockResolvedValue(true)
   mocks.getIdToken.mockResolvedValue('id-token')
   vi.stubEnv('NEXT_PUBLIC_FUNCTIONS_URL', 'https://functions.example.test')
-  // The removeNotificationDevice success body (functions/lib/notification-devices.js).
+  // The removeNotificationDevice success body (functions/src/notifications/devices.ts).
   vi.stubGlobal(
     'fetch',
     vi

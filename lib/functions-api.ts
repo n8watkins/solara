@@ -9,7 +9,7 @@ import { appCheckConfigured, appCheckToken } from './firebase'
 
 // One client for the browser-called Cloud Functions. Each request carries the user's
 // Firebase ID token and an App Check token; the server answers errors as
-// `{ error, code }` with a code from a fixed allowlist (functions/lib/errors.js).
+// `{ error, code }` with a code from a fixed allowlist (functions/src/shared/errors.ts).
 // Success bodies are validated against the endpoint's contract in @solara/core
 // (FUNCTION_RESPONSES), so callers get typed data or a FunctionsApiError.
 

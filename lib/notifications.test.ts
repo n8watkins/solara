@@ -36,7 +36,7 @@ const localStorageMock = {
   removeItem: (key: string) => values.delete(key),
 }
 
-/** The registerNotificationDevice success body (functions/lib/notification-devices.js). */
+/** The registerNotificationDevice success body (functions/src/notifications/devices.ts). */
 function registered(migrationPending: boolean) {
   return { deviceId: 'device', registered: true, migrationPending }
 }
