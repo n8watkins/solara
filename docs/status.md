@@ -20,7 +20,8 @@ The full audit, including development dependencies, runs as a non-blocking step;
 
 Checked on 2026-10-23.
 
-- **Hosting:** the static app is served at `https://uv-activity-planner.web.app` (Firebase project `uv-activity-planner`).
+- **Hosting:** the static app is served at `https://solara-uv.web.app` (Firebase project `uv-activity-planner`, Hosting site `solara-uv`).
+The original address `https://uv-activity-planner.web.app` is the project's default site and now permanently redirects every path to the same path on `solara-uv.web.app`.
   Any custom domain is owner to confirm.
   The latest Hosting release is from commit `82294e8`, published on 2026-10-23.
 - **Firestore rules:** the final rules in `firestore.rules` are deployed by every `main` deployment.

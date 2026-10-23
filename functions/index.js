@@ -37,7 +37,7 @@ const db = getFirestore()
 const STRIPE_SECRET_KEY = defineSecret('STRIPE_SECRET_KEY')
 const STRIPE_WEBHOOK_SECRET = defineSecret('STRIPE_WEBHOOK_SECRET')
 const STRIPE_PRICE_ID = defineString('STRIPE_PRICE_ID', { default: '' })
-const APP_URL = defineString('APP_URL', { default: 'https://uv-activity-planner.web.app' })
+const APP_URL = defineString('APP_URL', { default: 'https://solara-uv.web.app' })
 
 function stripeClient() {
   return new Stripe(STRIPE_SECRET_KEY.value())

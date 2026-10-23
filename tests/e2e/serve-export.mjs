@@ -78,7 +78,9 @@ while (!(await portIsFree(port))) {
   }
   await new Promise(resolveDelay => setTimeout(resolveDelay, 250))
 }
-const { hosting } = JSON.parse(readFileSync('firebase.json', 'utf8'))
+// firebase.json lists the app site first; the second site only redirects the
+// old address. Serve the app site's headers, rewrites and caching rules.
+const { site: _appSite, ...hosting } = JSON.parse(readFileSync('firebase.json', 'utf8')).hosting[0]
 // The config lives in the gitignored .firebase/ directory: firebase-tools resolves
 // `public` relative to the config file and serves nothing for a public directory
 // outside an ancestor of the config.

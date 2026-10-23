@@ -22,7 +22,7 @@ const {
 
 const DRY_RUN = process.env.DRY_RUN === '1' || process.env.DRY_RUN === 'true'
 const FORCE_SEND = process.env.FORCE_SEND === '1' || process.env.FORCE_SEND === 'true'
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://uv-activity-planner.web.app'
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://solara-uv.web.app'
 function positiveInteger(value, fallback) {
   const parsed = Number(value)
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback

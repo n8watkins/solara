@@ -123,11 +123,19 @@ interface HostingRule {
   source: string
   headers: Array<{ key: string; value: string }>
 }
-const hosting = (
+interface HostingSite {
+  site: string
+  headers: HostingRule[]
+  rewrites?: unknown[]
+  redirects?: Array<{ source: string; destination: string; type: number }>
+  trailingSlash?: boolean
+}
+const sites = (
   JSON.parse(readFileSync(new URL('../firebase.json', import.meta.url), 'utf8')) as {
-    hosting: { headers: HostingRule[]; rewrites?: unknown[]; trailingSlash?: boolean }
+    hosting: HostingSite[]
   }
 ).hosting
+const hosting = sites.find(site => site.site === 'solara-uv')!
 
 describe('firebase.json hosting', () => {
   const global = hosting.headers.find(rule => rule.source === '**')?.headers ?? []
@@ -150,6 +158,14 @@ describe('firebase.json hosting', () => {
       { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
     ])
     expect(JSON.stringify(hosting)).not.toContain('no-store')
+  })
+
+  it('permanently redirects every path on the old address to the same path on the app site', () => {
+    const old = sites.find(site => site.site === 'uv-activity-planner')
+    expect(old?.redirects).toEqual([
+      { source: '/', destination: 'https://solara-uv.web.app/', type: 301 },
+      { source: '/:path*', destination: 'https://solara-uv.web.app/:path*', type: 301 },
+    ])
   })
 
   it('keeps share pages out of search engines', () => {

@@ -19,7 +19,7 @@ links:
 
 deployments:
   - provider: firebase
-    production_url: https://uv-activity-planner.web.app
+    production_url: https://solara-uv.web.app
 
 docs:
   readme: README.md
