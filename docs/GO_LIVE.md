@@ -24,7 +24,7 @@ Firebase Functions are not deployed as of 2026-10-23 (see [status.md](./status.m
 
 - [ ] Confirm all required Firebase client variables exist in GitHub Actions secrets.
 - [ ] Confirm `FIREBASE_SERVICE_ACCOUNT` is valid and includes `roles/datastore.indexAdmin`.
-  As of 2026-10-23 it lacks that role and is a shared Admin SDK key rather than a narrowly scoped identity; see [DEPLOYMENT.md](./DEPLOYMENT.md#github-actions-secrets).
+  As of 2026-10-23 it lacks that role and is one long-lived key shared by deployment and notification dispatch rather than a narrowly scoped identity; see [DEPLOYMENT.md](./DEPLOYMENT.md#github-actions-secrets).
 - [ ] Confirm the production domain is an authorized Firebase Authentication domain.
 - [ ] Confirm the VAPID key is present when notifications are enabled.
 - [ ] Confirm App Check registration is monitored before enabling enforcement.
