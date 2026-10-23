@@ -1,6 +1,18 @@
 const { authenticate } = require('./account')
 const { createHash, randomUUID } = require('node:crypto')
-const { HttpError } = require('./errors')
+const { HttpError, errorMessage } = require('./errors')
+
+/** @typedef {import("./types").Auth} Auth */
+/** @typedef {import("./types").BillingResource} BillingResource */
+/** @typedef {import("./types").ClaimedResource} ClaimedResource */
+/** @typedef {import("./types").DocumentData} DocumentData */
+/** @typedef {import("./types").DocumentReference} DocumentReference */
+/** @typedef {import("./types").Firestore} Firestore */
+/** @typedef {import("./types").Request} Request */
+/** @typedef {import("./types").ServerTimestamp} ServerTimestamp */
+/** @typedef {import("./types").StripeClient} StripeClient */
+/** @typedef {import("./types").StripeRecord} StripeRecord */
+/** @typedef {import("./types").Transaction} Transaction */
 
 const MAX_NOTIFICATION_DEVICES = 5
 const MAX_REGISTRATIONS_PER_MINUTE = 10
@@ -25,27 +37,56 @@ const DELIVERY_ATTEMPT_FIELDS = [
 ]
 const DELIVERY_STATE_FIELDS = [...DELIVERED_HISTORY_FIELDS, ...DELIVERY_ATTEMPT_FIELDS]
 
+/**
+ * @overload
+ * @param {unknown} input
+ * @param {{ requireToken: true }} options
+ * @returns {{ deviceId: string, platform: string, token: string }}
+ */
+/**
+ * @overload
+ * @param {unknown} input
+ * @param {{ requireToken: false }} options
+ * @returns {{ deviceId: string }}
+ */
+/**
+ * @param {unknown} input
+ * @param {{ requireToken: boolean }} options
+ * @returns {{ deviceId: string, platform?: string, token?: string }}
+ */
 function parseDevice(input, { requireToken }) {
-  const deviceId = input?.deviceId
+  const body = /** @type {{ deviceId?: unknown, token?: unknown, platform?: unknown } | null} */ (
+    input
+  )
+  const deviceId = body?.deviceId
   if (typeof deviceId !== 'string' || !DEVICE_ID_PATTERN.test(deviceId)) {
     throw new HttpError('invalid-argument', 'Invalid device identifier')
   }
 
   if (!requireToken) return { deviceId }
 
-  const token = input?.token
-  const platform = input?.platform
+  const token = body?.token
+  const platform = body?.platform
   if (typeof token !== 'string' || token.length < 20 || token.length > 4096) {
     throw new HttpError('invalid-argument', 'Invalid notification token')
   }
-  if (!PLATFORMS.has(platform)) throw new HttpError('invalid-argument', 'Invalid device platform')
+  if (typeof platform !== 'string' || !PLATFORMS.has(platform)) {
+    throw new HttpError('invalid-argument', 'Invalid device platform')
+  }
   return { deviceId, platform, token }
 }
 
+/**
+ * @param {string} token
+ */
 function tokenOwnerId(token) {
   return createHash('sha256').update(token).digest('hex')
 }
 
+/**
+ * @param {DocumentData | null | undefined} data
+ * @param {number} nowMs
+ */
 function activeDeliveryClaim(data, nowMs) {
   if (data?.notificationDeliveryStatus !== 'claimed') return false
   const claimedAt = data.notificationDeliveryClaimedAt
@@ -58,21 +99,32 @@ function activeDeliveryClaim(data, nowMs) {
   return Number.isFinite(claimedAtMs) && nowMs - claimedAtMs < NOTIFICATION_CLAIM_LEASE_MS
 }
 
+/**
+ * @param {DocumentData | null | undefined} data
+ */
 function deliveryState(data) {
+  const source = data ?? {}
   return Object.fromEntries(
-    DELIVERY_STATE_FIELDS.filter(field => Object.hasOwn(data || {}, field)).map(field => [
+    DELIVERY_STATE_FIELDS.filter(field => Object.hasOwn(source, field)).map(field => [
       field,
-      data[field],
+      source[field],
     ]),
   )
 }
 
+/**
+ * @param {unknown} value
+ */
 function timestampMillis(value) {
   if (value instanceof Date) return value.getTime()
-  if (value && typeof value.toMillis === 'function') return value.toMillis()
+  const timestamp = /** @type {{ toMillis?: unknown } | null | undefined} */ (value)
+  if (timestamp && typeof timestamp.toMillis === 'function') return timestamp.toMillis()
   return Number.NEGATIVE_INFINITY
 }
 
+/**
+ * @param {unknown} key
+ */
 function notificationDay(key) {
   const match = typeof key === 'string' && key.match(/^daily-v\d+:(\d{4})-(\d{2})-(\d{2})$/)
   if (!match) return Number.NEGATIVE_INFINITY
@@ -85,6 +137,10 @@ function notificationDay(key) {
     : Number.NEGATIVE_INFINITY
 }
 
+/**
+ * @param {DocumentData[]} states
+ * @param {(state: DocumentData) => { day: number, protective: boolean, updatedAt: number }} metadata
+ */
 function selectNewestState(states, metadata) {
   return states.reduce((selected, candidate) => {
     if (!selected) return candidate
@@ -96,9 +152,12 @@ function selectNewestState(states, metadata) {
       return next.updatedAt > current.updatedAt ? candidate : selected
     }
     return Object.keys(candidate).length > Object.keys(selected).length ? candidate : selected
-  }, null)
+  }, /** @type {DocumentData | null} */ (null))
 }
 
+/**
+ * @param {DocumentData} state
+ */
 function attemptMetadata(state) {
   const updatedAt = Math.max(
     timestampMillis(state.notificationDeliveryUpdatedAt),
@@ -113,6 +172,9 @@ function attemptMetadata(state) {
   }
 }
 
+/**
+ * @param {Array<DocumentData | null | undefined>} sources
+ */
 function mergeDeliveryStates(sources) {
   const states = sources.map(deliveryState)
   const histories = states
@@ -157,6 +219,9 @@ function mergeDeliveryStates(sources) {
   }
 }
 
+/**
+ * @param {{ auth: Auth, db: Firestore, req: Request, serverTimestamp: ServerTimestamp, nowMs?: number }} options
+ */
 async function registerNotificationDevice({ auth, db, req, serverTimestamp, nowMs = Date.now() }) {
   const identity = await authenticate(auth, req.headers.authorization)
   const device = parseDevice(req.body, { requireToken: true })
@@ -180,17 +245,17 @@ async function registerNotificationDevice({ auth, db, req, serverTimestamp, nowM
         transaction.get(ownerRef),
         transaction.get(limitRef),
       ])
-    if (userSnapshot.exists && userSnapshot.data().accountDeletionStartedAt) {
+    if (userSnapshot.exists && userSnapshot.data()?.accountDeletionStartedAt) {
       throw new HttpError('deletion-in-progress', 'Account deletion is in progress')
     }
-    if (!userSnapshot.exists || userSnapshot.data().tier !== 'paid') {
+    if (!userSnapshot.exists || userSnapshot.data()?.tier !== 'paid') {
       throw new HttpError('permission-denied', 'A paid subscription is required')
     }
 
     const limit = limitSnapshot.exists ? limitSnapshot.data() : null
-    const windowStartedAt = Number.isFinite(limit?.windowStartedAt) ? limit.windowStartedAt : nowMs
+    const windowStartedAt = Number.isFinite(limit?.windowStartedAt) ? limit?.windowStartedAt : nowMs
     const withinWindow = nowMs - windowStartedAt < 60_000
-    const registrationCount = withinWindow && Number.isFinite(limit?.count) ? limit.count : 0
+    const registrationCount = withinWindow && Number.isFinite(limit?.count) ? limit?.count : 0
     if (registrationCount >= MAX_REGISTRATIONS_PER_MINUTE) {
       throw new HttpError('rate-limited', 'Too many notification registration attempts')
     }
@@ -222,8 +287,8 @@ async function registerNotificationDevice({ auth, db, req, serverTimestamp, nowM
     const reclaimsActiveSlot =
       priorOwner?.uid === identity.uid &&
       priorDeviceSnapshot?.exists &&
-      priorDeviceSnapshot.data().enabled === true &&
-      priorDeviceSnapshot.data().token === device.token
+      priorDeviceSnapshot.data()?.enabled === true &&
+      priorDeviceSnapshot.data()?.token === device.token
     const projectedActiveDevices =
       devicesSnapshot.size + (current?.enabled === true ? 0 : 1) - (reclaimsActiveSlot ? 1 : 0)
     if (projectedActiveDevices > MAX_NOTIFICATION_DEVICES) {
@@ -233,19 +298,19 @@ async function registerNotificationDevice({ auth, db, req, serverTimestamp, nowM
     if (
       priorDeviceRef &&
       priorDeviceSnapshot?.exists &&
-      priorDeviceSnapshot.data().token === device.token
+      priorDeviceSnapshot.data()?.token === device.token
     ) {
       transaction.delete(priorDeviceRef)
     }
     if (oldOwnerRef && oldOwnerSnapshot?.exists) {
       const oldOwner = oldOwnerSnapshot.data()
-      if (oldOwner.uid === identity.uid && oldOwner.deviceId === device.deviceId) {
+      if (oldOwner?.uid === identity.uid && oldOwner?.deviceId === device.deviceId) {
         transaction.delete(oldOwnerRef)
       }
     }
     const transferredDeliveryState = mergeDeliveryStates([
       current,
-      priorDeviceSnapshot?.exists && priorDeviceSnapshot.data().token === device.token
+      priorDeviceSnapshot?.exists && priorDeviceSnapshot.data()?.token === device.token
         ? priorDeviceSnapshot.data()
         : null,
     ])
@@ -291,10 +356,10 @@ async function registerNotificationDevice({ auth, db, req, serverTimestamp, nowM
       const owner = ownerSnapshot.exists ? ownerSnapshot.data() : null
       if (
         current?.token !== device.token ||
-        current.registrationMigrationId !== migrationId ||
+        current?.registrationMigrationId !== migrationId ||
         owner?.uid !== identity.uid ||
-        owner.deviceId !== device.deviceId ||
-        owner.registrationMigrationId !== migrationId
+        owner?.deviceId !== device.deviceId ||
+        owner?.registrationMigrationId !== migrationId
       ) {
         throw new HttpError('conflict', 'Notification registration was superseded')
       }
@@ -337,7 +402,7 @@ async function registerNotificationDevice({ auth, db, req, serverTimestamp, nowM
       JSON.stringify({
         event: 'notification-registration-migration-deferred',
         deviceId: device.deviceId,
-        error: error?.message || String(error),
+        error: errorMessage(error, String(error)),
       }),
     )
   }
@@ -349,6 +414,9 @@ async function registerNotificationDevice({ auth, db, req, serverTimestamp, nowM
   }
 }
 
+/**
+ * @param {{ auth: Auth, db: Firestore, req: Request, nowMs?: number }} options
+ */
 async function removeNotificationDevice({ auth, db, req, nowMs = Date.now() }) {
   const identity = await authenticate(auth, req.headers.authorization)
   const { deviceId } = parseDevice(req.body, { requireToken: false })
@@ -363,7 +431,7 @@ async function removeNotificationDevice({ auth, db, req, nowMs = Date.now() }) {
     if (activeDeliveryClaim(deviceSnapshot.data(), nowMs)) {
       throw new HttpError('conflict', 'Notification delivery is in progress')
     }
-    const token = deviceSnapshot.data().token
+    const token = deviceSnapshot.data()?.token
     const ownerRef =
       typeof token === 'string'
         ? db.collection('notificationTokenOwners').doc(tokenOwnerId(token))
@@ -372,7 +440,7 @@ async function removeNotificationDevice({ auth, db, req, nowMs = Date.now() }) {
     transaction.delete(deviceRef)
     if (ownerRef && ownerSnapshot?.exists) {
       const owner = ownerSnapshot.data()
-      if (owner.uid === identity.uid && owner.deviceId === deviceId) transaction.delete(ownerRef)
+      if (owner?.uid === identity.uid && owner?.deviceId === deviceId) transaction.delete(ownerRef)
     }
   })
   return { deviceId, removed: true }

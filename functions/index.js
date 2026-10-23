@@ -15,6 +15,7 @@ const {
 } = require('./lib/account')
 const { createCalendarFeedHandler } = require('./lib/calendar-feed')
 const { revokeCalendarFeed, rotateCalendarFeed } = require('./lib/feed-tokens')
+const { loggableError } = require('./lib/errors')
 const { createApiHandler, setApiHeaders } = require('./lib/http')
 const { buildICS } = require('./lib/ics')
 const { buildSunEvents, fetchForecast } = require('./lib/sun')
@@ -191,15 +192,13 @@ exports.stripeWebhook = onRequest(
     }
 
     const stripe = stripeClient()
+    const signature = req.headers['stripe-signature']
     let event
     try {
-      event = stripe.webhooks.constructEvent(
-        req.rawBody,
-        req.headers['stripe-signature'],
-        STRIPE_WEBHOOK_SECRET.value(),
-      )
+      if (typeof signature !== 'string') throw new Error('Missing Stripe signature')
+      event = stripe.webhooks.constructEvent(req.rawBody, signature, STRIPE_WEBHOOK_SECRET.value())
     } catch (error) {
-      console.warn('Stripe signature verification failed', { message: error?.message })
+      console.warn('Stripe signature verification failed', loggableError(error))
       res.status(400).json({ error: 'Invalid signature' })
       return
     }
@@ -212,13 +211,13 @@ exports.stripeWebhook = onRequest(
         serverTimestamp,
         stripe,
       })
-      res.status(200).json({ received: true, duplicate: result.duplicate === true })
+      const duplicate = 'duplicate' in result && result.duplicate === true
+      res.status(200).json({ received: true, duplicate })
     } catch (error) {
       console.error('stripeWebhook failed', {
         eventId: event.id,
         eventType: event.type,
-        name: error?.name,
-        message: error?.message,
+        ...loggableError(error),
       })
       res.status(500).json({ error: 'Webhook processing failed' })
     }

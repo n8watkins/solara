@@ -4,8 +4,20 @@ const {
   stripeSessionBelongsToUser,
 } = require('./billing-resources')
 const { randomUUID } = require('node:crypto')
-const { HttpError } = require('./errors')
+const { HttpError, errorCode, errorMessage } = require('./errors')
 const { deleteCalendarFeedsForUser } = require('./feed-tokens')
+
+/** @typedef {import("./types").Auth} Auth */
+/** @typedef {import("./types").BillingResource} BillingResource */
+/** @typedef {import("./types").ClaimedResource} ClaimedResource */
+/** @typedef {import("./types").DocumentData} DocumentData */
+/** @typedef {import("./types").DocumentReference} DocumentReference */
+/** @typedef {import("./types").Firestore} Firestore */
+/** @typedef {import("./types").Request} Request */
+/** @typedef {import("./types").ServerTimestamp} ServerTimestamp */
+/** @typedef {import("./types").StripeClient} StripeClient */
+/** @typedef {import("./types").StripeRecord} StripeRecord */
+/** @typedef {import("./types").Transaction} Transaction */
 
 const PORTABLE_ACCOUNT_FIELDS = new Set([
   'activeProfileId',
@@ -34,6 +46,9 @@ const BILLING_CLEANUP_LEASE_MS = 5 * 60 * 1000
 const BILLING_CLEANUP_RETRY_BASE_MS = 5 * 60 * 1000
 const BILLING_CLEANUP_RETRY_MAX_MS = 24 * 60 * 60 * 1000
 
+/**
+ * @param {number} attemptCount
+ */
 function cleanupRetryDelay(attemptCount) {
   return Math.min(
     BILLING_CLEANUP_RETRY_BASE_MS * 2 ** Math.min(attemptCount - 1, 30),
@@ -41,23 +56,39 @@ function cleanupRetryDelay(attemptCount) {
   )
 }
 
+/**
+ * @param {unknown} value
+ */
 function timestampMillis(value) {
   if (value instanceof Date) return value.getTime()
-  if (value && typeof value.toMillis === 'function') return value.toMillis()
+  const timestamp = /** @type {{ toMillis?: unknown } | null | undefined} */ (value)
+  if (timestamp && typeof timestamp.toMillis === 'function') return timestamp.toMillis()
   return Number.NaN
 }
 
+/**
+ * @param {unknown} value
+ */
 function stringId(value) {
   if (typeof value === 'string') return value
-  return value && typeof value.id === 'string' ? value.id : null
+  const object = /** @type {{ id?: unknown } | null | undefined} */ (value)
+  return object && typeof object.id === 'string' ? object.id : null
 }
 
+/**
+ * @param {StripeRecord} page
+ */
 function stripePageCursor(page) {
   const cursor = page.has_more ? stringId(page.data.at(-1)) : null
   if (page.has_more && !cursor) throw new Error('Stripe pagination was incomplete')
   return cursor
 }
 
+/**
+ * @param {Auth} auth
+ * @param {string | undefined} authorization
+ * @param {{ maxAgeSeconds?: number, nowSeconds?: number }} [options]
+ */
 async function authenticate(auth, authorization, options = {}) {
   const match = (authorization || '').match(/^Bearer (.+)$/)
   if (!match?.[1]) throw new HttpError('unauthenticated', 'Authentication required')
@@ -77,12 +108,18 @@ async function authenticate(auth, authorization, options = {}) {
   return identity
 }
 
+/**
+ * @param {DocumentData} data
+ */
 function safeAccountData(data) {
   return Object.fromEntries(
     Object.entries(data || {}).filter(([key]) => PORTABLE_ACCOUNT_FIELDS.has(key)),
   )
 }
 
+/**
+ * @param {import("firebase-admin/firestore").QuerySnapshot} snapshot
+ */
 function safeDeviceData(snapshot) {
   return snapshot.docs.map(doc => {
     const data = doc.data()
@@ -98,6 +135,9 @@ function safeDeviceData(snapshot) {
   })
 }
 
+/**
+ * @param {{ auth: Auth, db: Firestore, req: Request }} options
+ */
 async function exportAccountData({ auth, db, req }) {
   const identity = await authenticate(auth, req.headers.authorization)
   const userRef = db.collection('users').doc(identity.uid)
@@ -117,30 +157,42 @@ async function exportAccountData({ auth, db, req }) {
   return {
     formatVersion: 1,
     exportedAt: new Date().toISOString(),
-    account: userSnapshot.exists ? safeAccountData(userSnapshot.data()) : null,
+    account: userSnapshot.exists ? safeAccountData(userSnapshot.data() ?? {}) : null,
     notificationDevices: safeDeviceData(devicesSnapshot),
   }
 }
 
+/**
+ * @param {Auth} auth
+ * @param {Firestore} db
+ * @param {DocumentReference} tombstoneRef
+ * @param {DocumentData} tombstone
+ * @param {string} uid
+ */
 async function ensureSessionsRevoked(auth, db, tombstoneRef, tombstone, uid) {
   if (tombstone.sessionsRevokedAt) return
   await auth.revokeRefreshTokens(uid)
   await db.runTransaction(async transaction => {
     const current = await transaction.get(tombstoneRef)
-    if (!current.exists || current.data().cleanupStatus !== 'pending') return
-    if (!current.data().sessionsRevokedAt) {
+    if (!current.exists || current.data()?.cleanupStatus !== 'pending') return
+    if (!current.data()?.sessionsRevokedAt) {
       transaction.set(tombstoneRef, { sessionsRevokedAt: new Date() }, { merge: true })
     }
   })
 }
 
+/**
+ * @param {Firestore} db
+ * @param {ClaimedResource} resource
+ * @param {DocumentData} data
+ */
 async function markCleanupResource(db, resource, data) {
   return db.runTransaction(async transaction => {
     const current = await transaction.get(resource.ref)
     if (
       !current.exists ||
-      current.data().status !== 'pending' ||
-      current.data().processingToken !== resource.data().processingToken
+      current.data()?.status !== 'pending' ||
+      current.data()?.processingToken !== resource.data()?.processingToken
     ) {
       return false
     }
@@ -159,26 +211,31 @@ async function markCleanupResource(db, resource, data) {
   })
 }
 
+/**
+ * @param {Firestore} db
+ * @param {ClaimedResource} resource
+ * @param {unknown} error
+ */
 async function markCleanupFailure(db, resource, error) {
   return db.runTransaction(async transaction => {
     const current = await transaction.get(resource.ref)
     if (
       !current.exists ||
-      current.data().status !== 'pending' ||
-      current.data().processingToken !== resource.data().processingToken
+      current.data()?.status !== 'pending' ||
+      current.data()?.processingToken !== resource.data()?.processingToken
     ) {
       return false
     }
     const timestamp = new Date()
-    const attemptCount = Number.isSafeInteger(current.data().attemptCount)
-      ? current.data().attemptCount + 1
+    const attemptCount = Number.isSafeInteger(current.data()?.attemptCount)
+      ? current.data()?.attemptCount + 1
       : 1
     const delay = cleanupRetryDelay(attemptCount)
     transaction.set(
       resource.ref,
       {
         attemptCount,
-        lastError: error?.message || 'Billing cleanup failed',
+        lastError: errorMessage(error, 'Billing cleanup failed'),
         lastFailedAt: timestamp,
         nextAttemptAt: new Date(timestamp.getTime() + delay),
         processingToken: null,
@@ -190,20 +247,25 @@ async function markCleanupFailure(db, resource, error) {
   })
 }
 
+/**
+ * @param {Firestore} db
+ * @param {DocumentReference} tombstoneRef
+ * @param {unknown} error
+ */
 async function markAccountCleanupFailure(db, tombstoneRef, error) {
   return db.runTransaction(async transaction => {
     const current = await transaction.get(tombstoneRef)
-    if (!current.exists || current.data().cleanupStatus !== 'pending') return false
+    if (!current.exists || current.data()?.cleanupStatus !== 'pending') return false
     const timestamp = new Date()
-    const attemptCount = Number.isSafeInteger(current.data().cleanupAttemptCount)
-      ? current.data().cleanupAttemptCount + 1
+    const attemptCount = Number.isSafeInteger(current.data()?.cleanupAttemptCount)
+      ? current.data()?.cleanupAttemptCount + 1
       : 1
     const nextAttemptAt = new Date(timestamp.getTime() + cleanupRetryDelay(attemptCount))
     transaction.set(
       tombstoneRef,
       {
         cleanupAttemptCount: attemptCount,
-        cleanupLastError: error?.message || 'Account deletion cleanup failed',
+        cleanupLastError: errorMessage(error, 'Account deletion cleanup failed'),
         cleanupLastFailedAt: timestamp,
         cleanupNextAttemptAt: nextAttemptAt,
         cleanupUpdatedAt: nextAttemptAt,
@@ -214,6 +276,11 @@ async function markAccountCleanupFailure(db, tombstoneRef, error) {
   })
 }
 
+/**
+ * @param {Firestore} db
+ * @param {DocumentReference} tombstoneRef
+ * @returns {Promise<ClaimedResource[]>}
+ */
 async function claimCleanupResources(db, tombstoneRef) {
   const timestamp = new Date()
   const query = tombstoneRef
@@ -244,6 +311,12 @@ async function claimCleanupResources(db, tombstoneRef) {
   })
 }
 
+/**
+ * @param {Firestore} db
+ * @param {DocumentReference} tombstoneRef
+ * @param {string} uid
+ * @param {BillingResource[]} resources
+ */
 async function queueDiscoveredResources(db, tombstoneRef, uid, resources) {
   await db.runTransaction(async transaction => {
     const timestamp = new Date()
@@ -252,13 +325,16 @@ async function queueDiscoveredResources(db, tombstoneRef, uid, resources) {
   })
 }
 
+/**
+ * @param {{ db: Firestore, resource: ClaimedResource, stripe: StripeClient, tombstoneRef: DocumentReference, uid: string }} options
+ */
 async function processCheckoutCleanup({ db, resource, stripe, tombstoneRef, uid }) {
   const data = resource.data()
   let session
   try {
     session = await stripe.checkout.sessions.retrieve(data.stripeId)
   } catch (error) {
-    if (error?.code === 'resource_missing') {
+    if (errorCode(error) === 'resource_missing') {
       await markCleanupResource(db, resource, { status: 'completed' })
       return
     }
@@ -283,13 +359,16 @@ async function processCheckoutCleanup({ db, resource, stripe, tombstoneRef, uid 
   await markCleanupResource(db, resource, { status: 'completed', verified: true })
 }
 
+/**
+ * @param {{ db: Firestore, resource: ClaimedResource, stripe: StripeClient, uid: string }} options
+ */
 async function processSubscriptionCleanup({ db, resource, stripe, uid }) {
   const data = resource.data()
   let subscription
   try {
     subscription = await stripe.subscriptions.retrieve(data.stripeId)
   } catch (error) {
-    if (error?.code === 'resource_missing') {
+    if (errorCode(error) === 'resource_missing') {
       await markCleanupResource(db, resource, { status: 'completed' })
       return
     }
@@ -303,12 +382,15 @@ async function processSubscriptionCleanup({ db, resource, stripe, uid }) {
     try {
       await stripe.subscriptions.cancel(data.stripeId)
     } catch (error) {
-      if (error?.code !== 'resource_missing') throw error
+      if (errorCode(error) !== 'resource_missing') throw error
     }
   }
   await markCleanupResource(db, resource, { status: 'completed', verified: true })
 }
 
+/**
+ * @param {{ db: Firestore, resource: ClaimedResource, stripe: StripeClient, tombstoneRef: DocumentReference, uid: string }} options
+ */
 async function processCustomerCleanup({ db, resource, stripe, tombstoneRef, uid }) {
   const data = resource.data()
   if (data.verified !== true) {
@@ -382,6 +464,9 @@ async function processCustomerCleanup({ db, resource, stripe, tombstoneRef, uid 
   })
 }
 
+/**
+ * @param {{ auth: Auth, db: Firestore, tombstoneRef: DocumentReference, uid: string, userRef: DocumentReference }} options
+ */
 async function finalizeAccountDeletion({ auth, db, tombstoneRef, uid, userRef }) {
   const timestamp = new Date()
   const finalizationToken = randomUUID()
@@ -394,7 +479,7 @@ async function finalizeAccountDeletion({ auth, db, tombstoneRef, uid, userRef })
       transaction.get(tombstoneRef),
       transaction.get(pendingQuery),
     ])
-    const tombstone = tombstoneSnapshot.exists ? tombstoneSnapshot.data() : {}
+    const tombstone = tombstoneSnapshot.data() ?? {}
     const leaseExpiresAt =
       tombstone.finalizationLeaseExpiresAt?.toDate?.() || tombstone.finalizationLeaseExpiresAt
     if (
@@ -424,7 +509,7 @@ async function finalizeAccountDeletion({ auth, db, tombstoneRef, uid, userRef })
   try {
     await auth.deleteUser(uid)
   } catch (error) {
-    if (error?.code !== 'auth/user-not-found') throw error
+    if (errorCode(error) !== 'auth/user-not-found') throw error
   }
   return db.runTransaction(async transaction => {
     const [tombstoneSnapshot, pending] = await Promise.all([
@@ -457,13 +542,16 @@ async function finalizeAccountDeletion({ auth, db, tombstoneRef, uid, userRef })
   })
 }
 
+/**
+ * @param {{ auth: Auth, db: Firestore, stripe: StripeClient, tombstoneRef: DocumentReference, uid: string }} options
+ */
 async function processAccountDeletionPage({ auth, db, stripe, tombstoneRef, uid }) {
   const userRef = db.collection('users').doc(uid)
   const tombstoneSnapshot = await tombstoneRef.get()
-  if (!tombstoneSnapshot.exists || tombstoneSnapshot.data().cleanupStatus !== 'pending') {
+  if (!tombstoneSnapshot.exists || tombstoneSnapshot.data()?.cleanupStatus !== 'pending') {
     return { completed: tombstoneSnapshot.data()?.cleanupStatus === 'completed', processed: 0 }
   }
-  const tombstone = tombstoneSnapshot.data()
+  const tombstone = tombstoneSnapshot.data() ?? {}
   await ensureSessionsRevoked(auth, db, tombstoneRef, tombstone, uid)
   if (tombstone.resourceIndexComplete !== true) {
     let query = userRef
@@ -474,7 +562,7 @@ async function processAccountDeletionPage({ auth, db, stripe, tombstoneRef, uid 
     const page = await query.get()
     const indexed = await db.runTransaction(async transaction => {
       const current = await transaction.get(tombstoneRef)
-      const currentData = current.exists ? current.data() : {}
+      const currentData = current.data() ?? {}
       if (
         currentData.cleanupStatus !== 'pending' ||
         currentData.resourceIndexComplete === true ||
@@ -482,8 +570,9 @@ async function processAccountDeletionPage({ auth, db, stripe, tombstoneRef, uid 
       ) {
         return false
       }
+      /** @type {BillingResource[]} */
       const resources = page.docs.map(doc => ({
-        ...doc.data(),
+        .../** @type {BillingResource} */ (doc.data()),
         verified: true,
       }))
       const timestamp = new Date()
@@ -511,9 +600,9 @@ async function processAccountDeletionPage({ auth, db, stripe, tombstoneRef, uid 
   for (const resource of pending) {
     try {
       const options = { db, resource, stripe, tombstoneRef, uid }
-      if (resource.data().type === 'checkoutSession') await processCheckoutCleanup(options)
-      if (resource.data().type === 'customer') await processCustomerCleanup(options)
-      if (resource.data().type === 'subscription') await processSubscriptionCleanup(options)
+      if (resource.data()?.type === 'checkoutSession') await processCheckoutCleanup(options)
+      if (resource.data()?.type === 'customer') await processCustomerCleanup(options)
+      if (resource.data()?.type === 'subscription') await processSubscriptionCleanup(options)
       processed += 1
     } catch (error) {
       await markCleanupFailure(db, resource, error)
@@ -534,6 +623,9 @@ async function processAccountDeletionPage({ auth, db, stripe, tombstoneRef, uid 
   return { completed, processed }
 }
 
+/**
+ * @param {{ auth: Auth, db: Firestore, stripe: StripeClient, now?: Date }} options
+ */
 async function processPendingAccountDeletions({ auth, db, stripe, now = new Date() }) {
   const tombstones = await db
     .collection('accountDeletionTombstones')
@@ -581,6 +673,9 @@ async function processPendingAccountDeletions({ auth, db, stripe, now = new Date
   return results
 }
 
+/**
+ * @param {{ auth: Auth, db: Firestore, req: Request, stripe: StripeClient }} options
+ */
 async function deleteAccount({ auth, db, req, stripe }) {
   const identity = await authenticate(auth, req.headers.authorization, { maxAgeSeconds: 300 })
   if (req.body?.confirmation !== 'DELETE') {
@@ -594,7 +689,7 @@ async function deleteAccount({ auth, db, req, stripe }) {
       transaction.get(tombstoneRef),
     ])
     const timestamp = new Date()
-    const userData = userSnapshot.exists ? userSnapshot.data() : {}
+    const userData = userSnapshot.data() ?? {}
     if (tombstoneSnapshot.data()?.cleanupStatus === 'completed') return
     await queueBillingCleanup(
       transaction,
@@ -614,9 +709,9 @@ async function deleteAccount({ auth, db, req, stripe }) {
         cleanupNextAttemptAt: timestamp,
         cleanupStatus: 'pending',
         cleanupUpdatedAt: timestamp,
-        createdAt: tombstoneSnapshot.exists ? tombstoneSnapshot.data().createdAt : timestamp,
+        createdAt: tombstoneSnapshot.exists ? tombstoneSnapshot.data()?.createdAt : timestamp,
         resourceIndexComplete: tombstoneSnapshot.exists
-          ? tombstoneSnapshot.data().resourceIndexComplete === true
+          ? tombstoneSnapshot.data()?.resourceIndexComplete === true
           : false,
         revokedBefore: Math.floor(Date.now() / 1000),
       },

@@ -75,4 +75,24 @@ function loggableError(error) {
   return { name: typeof error }
 }
 
-module.exports = { ERROR_CODES, HttpError, loggableError, publicError }
+/**
+ * The `code` of an SDK error (Stripe, Firebase Admin), or undefined.
+ *
+ * @param {unknown} error
+ * @returns {unknown}
+ */
+function errorCode(error) {
+  return typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined
+}
+
+/**
+ * A thrown value's message for server-side records, with a fallback.
+ *
+ * @param {unknown} error
+ * @param {string} fallback
+ */
+function errorMessage(error, fallback) {
+  return error instanceof Error && error.message ? error.message : fallback
+}
+
+module.exports = { ERROR_CODES, HttpError, errorCode, errorMessage, loggableError, publicError }
