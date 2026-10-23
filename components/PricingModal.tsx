@@ -14,10 +14,42 @@ interface Props {
 }
 
 function Cell({ value }: { value: string | boolean }) {
-  if (value === true) return <span style={{ color: '#16A34A', fontWeight: 700 }}>✓</span>
-  if (value === false) return <span style={{ color: 'var(--text-3)' }}>—</span>
+  if (value === true)
+    return (
+      <>
+        <span aria-hidden="true" style={{ color: 'var(--success)', fontWeight: 700 }}>
+          ✓
+        </span>
+        <span className="sr-only">Included</span>
+      </>
+    )
+  if (value === false)
+    return (
+      <>
+        <span aria-hidden="true" style={{ color: 'var(--text-3)' }}>
+          —
+        </span>
+        <span className="sr-only">Not included</span>
+      </>
+    )
   return <span style={{ color: 'var(--text)', fontWeight: 600 }}>{value}</span>
 }
+
+const headerCell = {
+  padding: '10px 8px',
+  textAlign: 'center',
+  fontSize: '13px',
+  fontWeight: 700,
+  color: 'var(--text-2)',
+} as const
+
+const bodyCell = {
+  padding: '11px 8px',
+  textAlign: 'center',
+  fontSize: '13px',
+  fontWeight: 400,
+  borderTop: '0.5px solid var(--border-md)',
+} as const
 
 export default function PricingModal({
   user,
@@ -75,6 +107,7 @@ export default function PricingModal({
               <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-3)' }}>Cancel anytime</p>
             </div>
             <button
+              type="button"
               className="btn btn-primary"
               onClick={() => void upgrade()}
               disabled={!user || checkoutLoading}
@@ -86,12 +119,16 @@ export default function PricingModal({
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
             <input
+              type="email"
+              autoComplete="email"
+              aria-label="Email for early access"
               placeholder="Email for early access"
               value={waitEmail}
               onChange={e => setWaitEmail(e.target.value)}
               style={{ flex: 1, minWidth: '180px', fontSize: '13px' }}
             />
             <button
+              type="button"
               className="btn btn-primary"
               onClick={join}
               disabled={!waitEmail.trim()}
@@ -109,8 +146,8 @@ export default function PricingModal({
             style={{
               padding: '10px 12px',
               borderRadius: '10px',
-              background: 'rgba(249,115,22,0.08)',
-              border: '0.5px solid rgba(249,115,22,0.2)',
+              background: 'var(--notice-bg)',
+              border: '0.5px solid var(--notice-border)',
               fontSize: '13px',
               color: 'var(--text-2)',
             }}
@@ -124,8 +161,9 @@ export default function PricingModal({
             style={{
               padding: '10px 12px',
               borderRadius: '10px',
-              background: '#FEF3C7',
-              color: '#92400E',
+              background: 'var(--notice-bg)',
+              border: '0.5px solid var(--notice-border)',
+              color: 'var(--notice-text)',
               fontSize: '13px',
             }}
           >
@@ -133,82 +171,60 @@ export default function PricingModal({
           </div>
         )}
         {checkoutError && (
-          <p role="alert" style={{ margin: 0, fontSize: '13px', color: '#DC2626' }}>
+          <p role="alert" style={{ margin: 0, fontSize: '13px', color: 'var(--danger)' }}>
             {checkoutError}
           </p>
         )}
 
         <div className="metric-card" style={{ padding: 0, overflow: 'hidden' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr 1fr', gap: 0 }}>
-            <div
-              style={{
-                padding: '10px 14px',
-                fontSize: '12px',
-                fontWeight: 700,
-                color: 'var(--text-3)',
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-              }}
-            />
-            <div
-              style={{
-                padding: '10px 8px',
-                textAlign: 'center',
-                fontSize: '13px',
-                fontWeight: 700,
-                color: 'var(--text-2)',
-              }}
-            >
-              Free
-            </div>
-            <div
-              style={{
-                padding: '10px 8px',
-                textAlign: 'center',
-                fontSize: '13px',
-                fontWeight: 800,
-                color: 'var(--accent)',
-              }}
-            >
-              Pro
-            </div>
-
-            {PRO_FEATURES.map(f => (
-              <div key={f.label} style={{ display: 'contents' }}>
-                <div
-                  style={{
-                    padding: '11px 14px',
-                    fontSize: '13px',
-                    color: 'var(--text)',
-                    borderTop: '0.5px solid var(--border-md)',
-                  }}
-                >
-                  {f.label}
-                </div>
-                <div
-                  style={{
-                    padding: '11px 8px',
-                    textAlign: 'center',
-                    fontSize: '13px',
-                    borderTop: '0.5px solid var(--border-md)',
-                  }}
-                >
-                  <Cell value={f.free} />
-                </div>
-                <div
-                  style={{
-                    padding: '11px 8px',
-                    textAlign: 'center',
-                    fontSize: '13px',
-                    borderTop: '0.5px solid var(--border-md)',
-                    background: 'rgba(249,115,22,0.04)',
-                  }}
-                >
-                  <Cell value={f.pro} />
-                </div>
-              </div>
-            ))}
-          </div>
+          <table
+            style={{
+              width: '100%',
+              borderCollapse: 'collapse',
+              tableLayout: 'fixed',
+            }}
+          >
+            <caption className="sr-only">Free and Pro plan features</caption>
+            <colgroup>
+              <col style={{ width: '44.4%' }} />
+              <col style={{ width: '27.8%' }} />
+              <col style={{ width: '27.8%' }} />
+            </colgroup>
+            <thead>
+              <tr>
+                <td style={{ padding: '10px 14px' }} />
+                <th scope="col" style={headerCell}>
+                  Free
+                </th>
+                <th scope="col" style={{ ...headerCell, fontWeight: 800, color: 'var(--accent)' }}>
+                  Pro
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {PRO_FEATURES.map(f => (
+                <tr key={f.label}>
+                  <th
+                    scope="row"
+                    style={{
+                      ...bodyCell,
+                      padding: '11px 14px',
+                      textAlign: 'left',
+                      color: 'var(--text)',
+                    }}
+                  >
+                    {f.label}
+                  </th>
+                  <td style={bodyCell}>
+                    <Cell value={f.free} />
+                  </td>
+                  <td style={{ ...bodyCell, background: 'var(--accent-soft)' }}>
+                    <Cell value={f.pro} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
     </ActivityModalShell>
