@@ -1,28 +1,35 @@
-/* Layout for the privacy policy and terms bodies (inside LegalPage's .legal-copy). */
-.policy h2 {
-  font-weight: 650;
-}
+/* Same layer as the hand-written rules in app/globals.css, so Tailwind
+   utilities override module styles. The statement repeats the layer order in
+   case this stylesheet loads before globals.css. */
+@layer theme, base, components, utilities;
 
-.policy ul {
-  margin: 0 0 16px;
-  padding-left: 20px;
-  list-style: disc;
-}
+@layer components {
+  /* Layout for the privacy policy and terms bodies (inside LegalPage's .legal-copy). */
+  .policy h2 {
+    font-weight: 650;
+  }
 
-.policy li {
-  margin: 0 0 10px;
-  padding-left: 2px;
-}
+  .policy ul {
+    margin: 0 0 16px;
+    padding-left: 20px;
+    list-style: disc;
+  }
 
-.policy li::marker {
-  color: var(--text-3);
-}
+  .policy li {
+    margin: 0 0 10px;
+    padding-left: 2px;
+  }
 
-.policy strong {
-  color: var(--text);
-  font-weight: 650;
-}
+  .policy li::marker {
+    color: var(--text-3);
+  }
 
-.policy code {
-  font-size: 0.92em;
+  .policy strong {
+    color: var(--text);
+    font-weight: 650;
+  }
+
+  .policy code {
+    font-size: 0.92em;
+  }
 }

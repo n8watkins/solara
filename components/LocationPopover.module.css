@@ -1,49 +1,56 @@
-.trigger {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  max-width: 100%;
-  padding: 3px 7px;
-  font-size: 13px;
-  color: var(--text-3);
-  background: none;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: background 0.1s;
-}
+/* Same layer as the hand-written rules in app/globals.css, so Tailwind
+   utilities override module styles. The statement repeats the layer order in
+   case this stylesheet loads before globals.css. */
+@layer theme, base, components, utilities;
 
-.panel {
-  position: absolute;
-  top: calc(100% + 6px);
-  z-index: 100;
-  box-sizing: border-box;
-  /* Never wider than the viewport minus a 12 px gutter on each side. */
-  width: min(270px, calc(100vw - 24px));
-  padding: 14px;
-  background: var(--bg-card);
-  border: 0.5px solid var(--border-md);
-  border-radius: 14px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
-}
+@layer components {
+  .trigger {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    max-width: 100%;
+    padding: 3px 7px;
+    font-size: 13px;
+    color: var(--text-3);
+    background: none;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.1s;
+  }
 
-.shortcut {
-  flex: 1;
-  min-width: 0;
-  padding: 6px 8px;
-  font-size: 13px;
-  color: var(--text-2);
-  text-align: left;
-  background: none;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-}
+  .panel {
+    position: absolute;
+    top: calc(100% + 6px);
+    z-index: 100;
+    box-sizing: border-box;
+    /* Never wider than the viewport minus a 12 px gutter on each side. */
+    width: min(270px, calc(100vw - 24px));
+    padding: 14px;
+    background: var(--bg-card);
+    border: 0.5px solid var(--border-md);
+    border-radius: 14px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  }
 
-/* Hover only where a pointer can hover, so a tap does not leave it stuck on. */
-@media (hover: hover) {
-  .trigger:hover,
-  .shortcut:hover {
-    background: var(--bg-metric);
+  .shortcut {
+    flex: 1;
+    min-width: 0;
+    padding: 6px 8px;
+    font-size: 13px;
+    color: var(--text-2);
+    text-align: left;
+    background: none;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+
+  /* Hover only where a pointer can hover, so a tap does not leave it stuck on. */
+  @media (hover: hover) {
+    .trigger:hover,
+    .shortcut:hover {
+      background: var(--bg-metric);
+    }
   }
 }
