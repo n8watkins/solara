@@ -11,6 +11,7 @@
     "dev": "next dev",
     "prebuild": "node scripts/generate-sw.js",
     "build": "next build",
+    "postbuild": "node scripts/check-no-ui-harness.mjs",
     "start": "next start",
     "lint": "eslint . --max-warnings=0 && npm run format:check",
     "typecheck": "next typegen && tsc --noEmit",
