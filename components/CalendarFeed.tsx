@@ -1,6 +1,6 @@
 'use client'
 import { useState } from 'react'
-import { UserPreferences } from '@/lib/types'
+import type { UserPreferences } from '@/lib/types'
 import { isFeedConfigured, randomFeedToken, buildFeedUrl } from '@/lib/feed'
 
 interface Props {

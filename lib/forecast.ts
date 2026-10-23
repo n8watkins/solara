@@ -1,4 +1,4 @@
-import { Location, WeatherResponse, HourlyForecast, DayWeather } from './types'
+import type { Location, WeatherResponse, HourlyForecast, DayWeather } from './types'
 
 /** Open-Meteo WMO weather code → short human label. */
 export function weatherLabel(code: number): string {
@@ -36,12 +36,12 @@ interface RawForecast {
 function parseDay(raw: RawForecast, dateStr: string): HourlyForecast[] {
   return raw.hourly.time
     .map((t, i): HourlyForecast => ({
-      date: t.split('T')[0],
-      hour: parseInt(t.split('T')[1].split(':')[0]),
-      uv: Math.round(raw.hourly.uv_index[i] * 10) / 10,
-      tempF: Math.round(raw.hourly.temperature_2m[i] * 9 / 5 + 32),
-      condition: weatherLabel(raw.hourly.weathercode[i]),
-      cloudCover: raw.hourly.cloudcover ? Math.round(raw.hourly.cloudcover[i]) : undefined,
+      date: t.split('T')[0]!,
+      hour: parseInt(t.split('T')[1]!.split(':')[0]!),
+      uv: Math.round(raw.hourly.uv_index[i]! * 10) / 10,
+      tempF: Math.round(raw.hourly.temperature_2m[i]! * 9 / 5 + 32),
+      condition: weatherLabel(raw.hourly.weathercode[i]!),
+      cloudCover: raw.hourly.cloudcover ? Math.round(raw.hourly.cloudcover[i]!) : undefined,
     }))
     .filter(h => h.date === dateStr && h.hour >= DAY_START && h.hour <= DAY_END)
 }
@@ -49,7 +49,7 @@ function parseDay(raw: RawForecast, dateStr: string): HourlyForecast[] {
 /** Build the normalized WeatherResponse (current + today/tomorrow + N-day forecast). */
 export function parseForecast(raw: RawForecast, days = 10): WeatherResponse {
   const dateSet = new Set<string>()
-  raw.hourly.time.forEach(t => dateSet.add(t.split('T')[0]))
+  raw.hourly.time.forEach(t => dateSet.add(t.split('T')[0]!))
   const allDates = Array.from(dateSet).sort()
 
   const forecast: DayWeather[] = allDates.slice(0, days).map((dateStr, idx) => {

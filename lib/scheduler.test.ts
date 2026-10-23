@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { recommendSlot, BusyInterval } from '@/lib/scheduler'
+import type { BusyInterval } from '@/lib/scheduler'
+import { recommendSlot } from '@/lib/scheduler'
 import { fmtClock } from '@/lib/weather'
-import { SafeActivityWindow } from '@/lib/types'
+import type { SafeActivityWindow } from '@/lib/types'
 
 const morning: SafeActivityWindow = { from: 6, to: 10, label: 'Morning', peakUV: 1, avgUV: 1 }
 const evening: SafeActivityWindow = { from: 17, to: 21, label: 'Evening', peakUV: 2, avgUV: 2 }

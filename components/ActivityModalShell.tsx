@@ -1,5 +1,5 @@
 'use client'
-import { ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
 
 interface Props {

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { User } from 'firebase/auth'
+import type { User } from 'firebase/auth'
 import { enableNotifications, notificationRegistrationConfigured } from '@/lib/notifications'
 
 interface Props {

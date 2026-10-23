@@ -1,4 +1,4 @@
-import { SafeActivityWindow, TimePreference } from './types'
+import type { SafeActivityWindow, TimePreference } from './types'
 
 /** A busy block from the calendar, in fractional hours within a single day: [start, end). */
 export interface BusyInterval {

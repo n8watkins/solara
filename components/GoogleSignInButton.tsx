@@ -1,9 +1,11 @@
 'use client'
-import { CSSProperties, useState } from 'react'
-import { User, signInWithPopup } from 'firebase/auth'
+import type { CSSProperties } from 'react'
+import { useState } from 'react'
+import type { User } from 'firebase/auth'
+import { signInWithPopup } from 'firebase/auth'
 import { auth, googleProvider, firebaseEnabled } from '@/lib/firebase'
 import { loadFirestorePrefs, saveFirestorePrefs } from '@/lib/prefs'
-import { UserPreferences } from '@/lib/types'
+import type { UserPreferences } from '@/lib/types'
 
 // Shared between the dashboard activities gate and the onboarding sign-in step
 // so the pitch can't drift between the two.

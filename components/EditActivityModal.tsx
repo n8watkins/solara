@@ -1,6 +1,6 @@
 'use client'
 import { useState } from 'react'
-import { Activity, TimePreference } from '@/lib/types'
+import type { Activity, TimePreference } from '@/lib/types'
 import { effectiveMaxUV } from '@/lib/tiers'
 import { fmtHour } from '@/lib/weather'
 import ActivityModalShell from './ActivityModalShell'

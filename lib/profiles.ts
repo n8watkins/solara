@@ -1,4 +1,4 @@
-import { Profile, SkinType, UserPreferences } from './types'
+import type { Profile, SkinType, UserPreferences } from './types'
 
 export const SKIN_TYPE_LABELS: Record<SkinType, string> = {
   'very-fair': 'Very fair',

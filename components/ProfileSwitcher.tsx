@@ -1,6 +1,6 @@
 'use client'
 import { useState, useRef, useEffect } from 'react'
-import { UserPreferences, Profile, SkinType, TierLevel } from '@/lib/types'
+import type { UserPreferences, Profile, SkinType, TierLevel } from '@/lib/types'
 import { activeProfile, defaultProfile, selectProfile, SKIN_TYPE_LABELS } from '@/lib/profiles'
 import { getProfileLimit } from '@/lib/tiers'
 

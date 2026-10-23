@@ -76,7 +76,7 @@ describe('device notification subscriptions', () => {
         }),
       }),
     )
-    expect(JSON.parse(vi.mocked(fetch).mock.calls[0][1]?.body as string)).toEqual(expect.objectContaining({
+    expect(JSON.parse(vi.mocked(fetch).mock.calls[0]![1]?.body as string)).toEqual(expect.objectContaining({
       token: 'new-fcm-token-that-is-long-enough',
       platform: 'web',
     }))
@@ -191,7 +191,7 @@ describe('device notification subscriptions', () => {
     await expect(migrateLegacyNotificationToken('user-1')).resolves.toBe(true)
     await expect(migrateLegacyNotificationToken('user-1')).resolves.toBe(false)
     expect(fetch).toHaveBeenCalledTimes(1)
-    expect(JSON.parse(vi.mocked(fetch).mock.calls[0][1]?.body as string)).toEqual(expect.objectContaining({ token: 'legacy-token' }))
+    expect(JSON.parse(vi.mocked(fetch).mock.calls[0]![1]?.body as string)).toEqual(expect.objectContaining({ token: 'legacy-token' }))
     expect(values.has('solara_fcm_token')).toBe(false)
   })
 

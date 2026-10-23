@@ -1,6 +1,6 @@
 'use client'
 import { useState } from 'react'
-import { User } from 'firebase/auth'
+import type { User } from 'firebase/auth'
 import ActivityModalShell from './ActivityModalShell'
 import { PRO_FEATURES, PRO_PRICE, isCheckoutConfigured, createCheckoutUrl } from '@/lib/billing'
 

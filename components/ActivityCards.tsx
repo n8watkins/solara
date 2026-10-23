@@ -1,10 +1,11 @@
 'use client'
 import { useState } from 'react'
-import { Activity, ActivityWindow, SafeActivityWindow, TierLevel, Location, HourlyForecast } from '@/lib/types'
+import type { Activity, ActivityWindow, SafeActivityWindow, TierLevel, Location, HourlyForecast } from '@/lib/types'
 import { fmtHour, fmtClock, fmtDays, gcalLink } from '@/lib/weather'
 import { canUseCalendar, effectiveMaxUV } from '@/lib/tiers'
 import { buildActivityShareText, buildActivityShareUrl, shareOrCopy } from '@/lib/share'
-import { recommendSlot, BusyInterval, SlotRecommendation } from '@/lib/scheduler'
+import type { BusyInterval, SlotRecommendation } from '@/lib/scheduler'
+import { recommendSlot } from '@/lib/scheduler'
 
 interface Props {
   windows: ActivityWindow[]

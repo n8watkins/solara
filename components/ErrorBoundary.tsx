@@ -1,5 +1,6 @@
 'use client'
-import { Component, ReactNode } from 'react'
+import type { ReactNode } from 'react'
+import { Component } from 'react'
 
 interface Props {
   children: ReactNode
@@ -18,13 +19,13 @@ interface State {
  * component crash) shows a recoverable card instead of white-screening the whole app.
  */
 export default class ErrorBoundary extends Component<Props, State> {
-  state: State = { error: null }
+  override state: State = { error: null }
 
   static getDerivedStateFromError(error: Error): State {
     return { error }
   }
 
-  componentDidCatch(error: Error) {
+  override componentDidCatch(error: Error) {
     // Surface in the console for debugging; analytics hook can attach here later.
     console.error('Solara caught a render error:', error)
   }
@@ -34,7 +35,7 @@ export default class ErrorBoundary extends Component<Props, State> {
     this.props.onReset?.()
   }
 
-  render() {
+  override render() {
     if (this.state.error) {
       const what = this.props.label ?? 'this section'
       return (

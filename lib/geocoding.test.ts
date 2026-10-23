@@ -44,8 +44,8 @@ describe('searchLocation', () => {
 
     expect(result).toMatchObject({ city: 'Pasadena', region: 'California', lat: 34.1478 })
     expect(fetchMock).toHaveBeenCalledTimes(2)
-    expect(fetchMock.mock.calls[1][0]).toContain('name=Pasadena')
-    expect(fetchMock.mock.calls[1][0]).toContain('count=10')
+    expect(fetchMock.mock.calls[1]![0]).toContain('name=Pasadena')
+    expect(fetchMock.mock.calls[1]![0]).toContain('count=10')
   })
 
   it('returns null when no location matches', async () => {

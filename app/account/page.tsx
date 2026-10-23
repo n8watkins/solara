@@ -1,7 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { onAuthStateChanged, reauthenticateWithPopup, signOut, User } from 'firebase/auth'
+import type { User } from 'firebase/auth'
+import { onAuthStateChanged, reauthenticateWithPopup, signOut } from 'firebase/auth'
 import { useEffect, useState } from 'react'
 import { auth, googleProvider } from '@/lib/firebase'
 import { createBillingPortalUrl } from '@/lib/billing'

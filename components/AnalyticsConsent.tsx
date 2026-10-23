@@ -3,10 +3,11 @@
 import Script from 'next/script'
 import { usePathname } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
+import type {
+  AnalyticsConsent as AnalyticsConsentValue} from '@/lib/analytics-consent';
 import {
   ANALYTICS_CONSENT_EVENT,
   ANALYTICS_CONSENT_STORAGE_KEY,
-  AnalyticsConsent as AnalyticsConsentValue,
   parseAnalyticsConsent,
   persistAnalyticsConsent,
   readAnalyticsConsent,
@@ -61,9 +62,9 @@ export default function AnalyticsConsent({ measurementId }: { measurementId?: st
         announceConsent('declined')
         return
       }
-      if (event.key !== 'Tab' || focusable.length === 0) return
       const first = focusable[0]
-      const last = focusable[focusable.length - 1]
+      const last = focusable.at(-1)
+      if (event.key !== 'Tab' || !first || !last) return
       if (event.shiftKey && document.activeElement === first) {
         event.preventDefault()
         last.focus()

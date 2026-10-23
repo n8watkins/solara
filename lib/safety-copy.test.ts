@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { buildActivityShareText } from '@/lib/share'
 import { gcalWindowLink } from '@/lib/calendar'
-import { Activity, Location, SafeActivityWindow } from '@/lib/types'
+import type { Activity, Location, SafeActivityWindow } from '@/lib/types'
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { buildSunEvents } = require('../functions/lib/sun')

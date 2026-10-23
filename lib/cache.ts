@@ -1,4 +1,4 @@
-import { WeatherResponse } from './types'
+import type { WeatherResponse } from './types'
 
 const CACHE_KEY = 'solara_weather'
 const TTL = 60 * 60 * 1000

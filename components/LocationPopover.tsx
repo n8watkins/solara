@@ -1,6 +1,6 @@
 'use client'
 import { useState, useRef, useEffect } from 'react'
-import { Location } from '@/lib/types'
+import type { Location } from '@/lib/types'
 import { clearWeatherCache } from '@/lib/cache'
 import { searchLocation } from '@/lib/geocoding'
 

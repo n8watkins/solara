@@ -1,4 +1,4 @@
-import { Activity, Location, SafeActivityWindow } from './types'
+import type { Activity, Location, SafeActivityWindow } from './types'
 import { fmtClock } from './weather'
 
 export interface ActivitySharePayload {

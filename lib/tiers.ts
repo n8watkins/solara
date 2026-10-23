@@ -1,4 +1,4 @@
-import { TierLevel, Activity } from './types'
+import type { TierLevel, Activity } from './types'
 import { effectiveMaxUV as sharedEffectiveMaxUV } from './recommendation'
 
 export const TIER_LIMITS: Record<TierLevel, { activities: number; calendar: boolean; notifications: boolean; futureDays: number; savedLocations: number; profiles: number }> = {

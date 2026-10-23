@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { buildICS, recToIcsEvent, IcsEvent } from '@/lib/ics'
-import { SlotRecommendation } from '@/lib/scheduler'
-import { Activity } from '@/lib/types'
+import type { IcsEvent } from '@/lib/ics'
+import { buildICS, recToIcsEvent } from '@/lib/ics'
+import type { SlotRecommendation } from '@/lib/scheduler'
+import type { Activity } from '@/lib/types'
 
 const ev: IcsEvent = {
   uid: 'u1@solara',

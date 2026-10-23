@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { busyIntervalsForDay, BusyPeriod, buildEventBody, buildEventDescription } from '@/lib/gcal'
-import { SlotRecommendation } from '@/lib/scheduler'
-import { Activity } from '@/lib/types'
+import type { BusyPeriod } from '@/lib/gcal'
+import { busyIntervalsForDay, buildEventBody, buildEventDescription } from '@/lib/gcal'
+import type { SlotRecommendation } from '@/lib/scheduler'
+import type { Activity } from '@/lib/types'
 
 // Timestamps use no 'Z' so they parse in node's local TZ — the same offset as the
 // day anchor, so the fractional-hour math is deterministic regardless of machine TZ.

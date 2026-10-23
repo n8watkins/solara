@@ -109,13 +109,13 @@ describe('authenticated checkout', () => {
       onboardingComplete: true,
     }
 
-    snapshots[0]({
+    snapshots[0]!({
       exists: () => true,
       data: () => ({ ...basePrefs, tier: 'free', stripeCheckoutSessionId: 'cs_returned', stripeCheckoutStatus: 'pending' }),
     })
     expect(onResult).toHaveBeenLastCalledWith({ status: 'pending' })
 
-    snapshots[0]({
+    snapshots[0]!({
       exists: () => true,
       data: () => ({ ...basePrefs, tier: 'paid', stripeCheckoutSessionId: 'cs_returned', stripeCheckoutStatus: 'succeeded' }),
     })

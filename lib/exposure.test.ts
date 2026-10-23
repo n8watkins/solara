@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { cloudAdjustedUV } from '@/lib/exposure'
 import { getActivityWindow } from '@/lib/weather'
-import { Activity, HourlyForecast } from '@/lib/types'
+import type { Activity, HourlyForecast } from '@/lib/types'
 
 describe('cloudAdjustedUV', () => {
   it('does not change UV when no cloud data', () => {
@@ -38,6 +38,6 @@ describe('getActivityWindow — cloud sensitivity', () => {
     const r = getActivityWindow(hourly, { ...base, cloudSensitive: true, maxUV: 4.5 }, -1, 'fair')
     expect(r.allWindows.length).toBeGreaterThan(0)
     // Reported UV stays the true forecast value, not the discounted one.
-    expect(r.allWindows[0].peakUV).toBe(6)
+    expect(r.allWindows[0]!.peakUV).toBe(6)
   })
 })

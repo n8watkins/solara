@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { TierLevel } from '@/lib/types'
+import type { TierLevel } from '@/lib/types'
 
 const KEY = 'solara_dev_tier'
 

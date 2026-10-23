@@ -1,7 +1,8 @@
 'use client'
-import { DayWeather, Activity, SkinType } from '@/lib/types'
-import { planUpcomingSlots, UpcomingSlot } from '@/lib/planner'
-import { BusyInterval, SlotRecommendation } from '@/lib/scheduler'
+import type { DayWeather, Activity, SkinType } from '@/lib/types'
+import type { UpcomingSlot } from '@/lib/planner'
+import { planUpcomingSlots } from '@/lib/planner'
+import type { BusyInterval, SlotRecommendation } from '@/lib/scheduler'
 import { fmtClock } from '@/lib/weather'
 import { buildICS, recToIcsEvent, downloadICS } from '@/lib/ics'
 

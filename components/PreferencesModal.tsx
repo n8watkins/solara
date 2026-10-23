@@ -1,7 +1,8 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { User, signOut } from 'firebase/auth'
-import { UserPreferences, SkinType, Location } from '@/lib/types'
+import type { User } from 'firebase/auth'
+import { signOut } from 'firebase/auth'
+import type { UserPreferences, SkinType, Location } from '@/lib/types'
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
 import { clearWeatherCache } from '@/lib/cache'
 import { searchLocation } from '@/lib/geocoding'
@@ -103,7 +104,7 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
     }
   }
 
-  const selectedSkin = SKIN_OPTIONS.find(o => o.value === skinType) ?? SKIN_OPTIONS[1]
+  const selectedSkin = SKIN_OPTIONS.find(o => o.value === skinType) ?? SKIN_OPTIONS[1]!
   const draft: UserPreferences = { ...prefs, skinType, location, showSunPath, hiddenActivitySuggestionIds, collapsedActivityCategories, notificationHour }
   const dirty = JSON.stringify({ skinType: prefs.skinType, location: prefs.location, showSunPath: prefs.showSunPath !== false, hiddenActivitySuggestionIds: prefs.hiddenActivitySuggestionIds ?? [], collapsedActivityCategories: prefs.collapsedActivityCategories ?? [], notificationHour: prefs.notificationHour ?? 7 }) !==
     JSON.stringify({ skinType, location, showSunPath, hiddenActivitySuggestionIds, collapsedActivityCategories, notificationHour })
@@ -166,7 +167,7 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
     { id: 'location',   label: 'Location',    emoji: '📍', desc: 'Where Solara checks the UV forecast.' },
     { id: 'account',    label: 'Account',     emoji: '👤', desc: 'Plan, sign-in, and cross-device sync.' },
   ]
-  const activeSection = SECTIONS.find(s => s.id === tab) ?? SECTIONS[0]
+  const activeSection = SECTIONS.find(s => s.id === tab) ?? SECTIONS[0]!
 
   return (
     <div

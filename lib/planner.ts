@@ -1,6 +1,7 @@
-import { DayWeather, Activity, SkinType, SafeActivityWindow } from './types'
+import type { DayWeather, Activity, SkinType, SafeActivityWindow } from './types'
 import { getActivityWindow } from './weather'
-import { recommendSlot, SlotRecommendation, BusyInterval } from './scheduler'
+import type { SlotRecommendation, BusyInterval } from './scheduler'
+import { recommendSlot } from './scheduler'
 import { activityRunsOnDate } from './recommendation'
 
 export interface UpcomingWindow {
@@ -22,10 +23,9 @@ export function activityRunsOn(activity: Activity, dateStr: string): boolean {
 
 /** The lowest-average-UV window on a single day (ties broken by longer window). */
 function bestWindowOfDay(windows: SafeActivityWindow[]): SafeActivityWindow | null {
-  if (!windows.length) return null
   return windows
     .slice()
-    .sort((a, b) => (a.avgUV - b.avgUV) || ((b.to - b.from) - (a.to - a.from)))[0]
+    .sort((a, b) => (a.avgUV - b.avgUV) || ((b.to - b.from) - (a.to - a.from)))[0] ?? null
 }
 
 /**
@@ -46,8 +46,7 @@ export function bestUpcomingWindow(
   let best: UpcomingWindow | null = null
   const days = forecast.slice(0, Math.max(0, dayLimit))
 
-  for (let i = 0; i < days.length; i++) {
-    const day = days[i]
+  for (const [i, day] of days.entries()) {
     if (!day.hourly.length) continue
     if (!activityRunsOn(activity, day.dateStr)) continue
     const { allWindows } = getActivityWindow(day.hourly, activity, -1, skinType)
@@ -103,8 +102,7 @@ export function bestUpcomingSlot(
   const days = forecast.slice(0, Math.max(0, dayLimit))
   let best: UpcomingSlot | null = null
 
-  for (let i = 0; i < days.length; i++) {
-    const day = days[i]
+  for (const [i, day] of days.entries()) {
     if (!day.hourly.length) continue
     if (!activityRunsOn(activity, day.dateStr)) continue
     const { allWindows } = getActivityWindow(day.hourly, activity, -1, skinType)

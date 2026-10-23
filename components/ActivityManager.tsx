@@ -1,8 +1,8 @@
 'use client'
 import { useState } from 'react'
-import { Activity } from '@/lib/types'
+import type { Activity } from '@/lib/types'
 import { ACTIVITY_CATEGORIES, canAddActivity, TIER_LIMITS } from '@/lib/tiers'
-import { TierLevel } from '@/lib/types'
+import type { TierLevel } from '@/lib/types'
 import EmojiPicker from './EmojiPicker'
 
 interface Props {

@@ -1,5 +1,5 @@
-import { BusyInterval, SlotRecommendation } from './scheduler'
-import { Activity } from './types'
+import type { BusyInterval, SlotRecommendation } from './scheduler'
+import type { Activity } from './types'
 import { fmtClock } from './weather'
 
 // Google Calendar read access for a static app: the browser gets a short-lived

@@ -23,7 +23,7 @@ export function randomFeedToken(): string {
     for (let i = 0; i < len; i++) bytes[i] = Math.floor(Math.random() * 256)
   }
   let out = ''
-  for (let i = 0; i < len; i++) out += alphabet[bytes[i] % alphabet.length]
+  for (const byte of bytes) out += alphabet[byte % alphabet.length]
   return out
 }
 

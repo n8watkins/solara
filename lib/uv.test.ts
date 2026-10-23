@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { burnMins, vitDMins, uvLabel, fmtHour, formatUV, getActivityWindow } from '@/lib/weather'
 import { effectiveMaxUV, canAddActivity, getFutureDays } from '@/lib/tiers'
-import { HourlyForecast, Activity } from '@/lib/types'
+import type { HourlyForecast, Activity } from '@/lib/types'
 
 // ---------------------------------------------------------------------------
 // burnMins — time-to-burn estimate. A wrong value here is genuinely unsafe

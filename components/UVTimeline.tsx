@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { HourlyForecast } from '@/lib/types'
+import type { HourlyForecast } from '@/lib/types'
 import { uvColorHex, uvTextHex, fmtHour, formatUV } from '@/lib/weather'
 
 interface Props {

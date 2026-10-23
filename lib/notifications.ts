@@ -1,5 +1,6 @@
 import { getToken as getAppCheckToken } from 'firebase/app-check'
-import { deleteToken, getMessaging, getToken, onMessage, Messaging } from 'firebase/messaging'
+import type { Messaging } from 'firebase/messaging'
+import { deleteToken, getMessaging, getToken, onMessage } from 'firebase/messaging'
 import { app, appCheck, auth } from './firebase'
 
 interface LocalDeviceSubscription {
@@ -222,7 +223,8 @@ export function onForegroundMessage(callback: (payload: unknown) => void): () =>
   const m = getMessagingInstance()
   return m ? onMessage(m, payload => {
     const data = payload.data
-    if (data?.title && data.body && data.deliveryKey && data.deliveryScope && 'serviceWorker' in navigator) {
+    const title = data?.title
+    if (data && title && data.body && data.deliveryKey && data.deliveryScope && 'serviceWorker' in navigator) {
       void (async () => {
         const cache = await caches.open('solara-notification-deliveries-v1')
         const scopedKey = `${data.deliveryScope}:${data.deliveryKey}`
@@ -231,7 +233,7 @@ export function onForegroundMessage(callback: (payload: unknown) => void): () =>
         await cache.put(marker, new Response('shown'))
         try {
           const registration = await navigator.serviceWorker.ready
-          await registration.showNotification(data.title, {
+          await registration.showNotification(title, {
             body: data.body,
             icon: '/icon-192.png',
             badge: '/icon-192.png',

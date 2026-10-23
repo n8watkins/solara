@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { bestUpcomingWindow, planUpcoming, bestUpcomingSlot, planUpcomingSlots, activityRunsOn } from '@/lib/planner'
-import { DayWeather, Activity, HourlyForecast } from '@/lib/types'
+import type { DayWeather, Activity, HourlyForecast } from '@/lib/types'
 
 function day(dateStr: string, label: string, uvByHour: (h: number) => number): DayWeather {
   const hourly: HourlyForecast[] = []
@@ -96,7 +96,7 @@ describe('planUpcoming', () => {
     const swim: Activity = { id: 'swim', name: 'Swimming', icon: '🏊', durationMins: 60, maxUV: 1, sunscreen: false } // never safe at uv2
     const plan = planUpcoming(forecast, [run, swim], 'fair', 10)
     expect(plan).toHaveLength(1)
-    expect(plan[0].activity.id).toBe('run')
+    expect(plan[0]!.activity.id).toBe('run')
   })
 })
 
@@ -156,7 +156,7 @@ describe('planUpcomingSlots', () => {
     const swim: Activity = { id: 'swim', name: 'Swimming', icon: '🏊', durationMins: 60, maxUV: 1, sunscreen: false }
     const plan = planUpcomingSlots(forecast, [run, swim], 'fair', 10)
     expect(plan).toHaveLength(1)
-    expect(plan[0].activity.id).toBe('run')
-    expect(plan[0].slot.start).toBe(6)
+    expect(plan[0]!.activity.id).toBe('run')
+    expect(plan[0]!.slot.start).toBe(6)
   })
 })

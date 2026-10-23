@@ -225,7 +225,7 @@ describe('notification ownership', () => {
           get: async target => {
             if (target.kind === 'owner') {
               const owner = transactionOwners[target.id]
-              return { exists: !!owner, data: () => owner }
+              return { exists: !!owner, data: () => owner! }
             }
             if (quarantineFailurePaths.includes(target.path || '')) {
               throw new Error('quarantine unavailable')
@@ -255,7 +255,7 @@ describe('notification ownership', () => {
     const subscriptions = await loadSubscriptions(database)
 
     expect(subscriptions).toHaveLength(1)
-    expect(subscriptions[0].userRef.id).toBe('bob')
+    expect(subscriptions[0]!.userRef.id).toBe('bob')
     expect(writes.map(write => write.path).sort()).toEqual([
       'users/alice/notificationDevices/device-alice',
       'users/carol',
@@ -476,7 +476,7 @@ describe('notification ownership', () => {
 
     expect(result.pages).toBe(1)
     expect(savedStates).toHaveLength(1)
-    expect(savedStates[0].deviceCursor).toBe('users/device-user-1/notificationDevices/device-1')
+    expect(savedStates[0]!.deviceCursor).toBe('users/device-user-1/notificationDevices/device-1')
   })
 
   it('leaves the cursor untouched when a resolved batch cannot start safely', async () => {

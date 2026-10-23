@@ -8,7 +8,7 @@ import {
 } from '@/lib/recommendation'
 import { getSafeWindowsForActivity } from '@/lib/calendar'
 import { getActivityWindow } from '@/lib/weather'
-import { Activity, HourlyForecast, SkinType } from '@/lib/types'
+import type { Activity, HourlyForecast, SkinType } from '@/lib/types'
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const functionsEngine = require('../functions/lib/recommendation-engine')

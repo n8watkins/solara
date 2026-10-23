@@ -1,5 +1,5 @@
 'use client'
-import { Activity, TierLevel } from '@/lib/types'
+import type { Activity, TierLevel } from '@/lib/types'
 import ActivityManager from './ActivityManager'
 import ActivityModalShell from './ActivityModalShell'
 

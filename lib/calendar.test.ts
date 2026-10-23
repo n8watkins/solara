@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { getSafeWindows, getSafeWindowsForActivity } from '@/lib/calendar'
-import { Activity } from '@/lib/types'
+import type { Activity } from '@/lib/types'
 
 type Hourly = { hour: number; uv: number; tempF: number }[]
 

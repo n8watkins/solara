@@ -1,6 +1,6 @@
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore'
 import { db } from './firebase'
-import { UserPreferences, Location, Activity, SkinType, TierLevel, PreferredHours, Profile } from './types'
+import type { UserPreferences, Location, Activity, SkinType, TierLevel, PreferredHours, Profile } from './types'
 import { PRESET_ACTIVITIES, ACTIVITY_CATEGORIES } from './tiers'
 
 const PREFS_KEY = 'solara_prefs'

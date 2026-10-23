@@ -1,4 +1,4 @@
-import { Activity } from './types'
+import type { Activity } from './types'
 import { effectiveMaxUV, findRecommendationWindows } from './recommendation'
 export { fmtHour as fmtH } from './weather'
 
@@ -30,7 +30,7 @@ export function gcalWindowLink(
   window: SafeWindow,
   dateStr: string
 ): string {
-  const [year, month, day] = dateStr.split('-').map(Number)
+  const [year = NaN, month = NaN, day = NaN] = dateStr.split('-').map(Number)
   const start = new Date(year, month - 1, day, window.from, 0, 0)
   const end   = new Date(year, month - 1, day, window.to,   0, 0)
   const fmt   = (d: Date) => d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'

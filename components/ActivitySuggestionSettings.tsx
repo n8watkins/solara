@@ -1,5 +1,5 @@
 'use client'
-import { UserPreferences } from '@/lib/types'
+import type { UserPreferences } from '@/lib/types'
 import { ACTIVITY_CATEGORIES } from '@/lib/tiers'
 
 interface Props {

@@ -26,7 +26,11 @@
         "./*"
       ]
     },
-    "target": "ES2017"
+    "target": "ES2022",
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "verbatimModuleSyntax": true
   },
   "include": [
     "next-env.d.ts",

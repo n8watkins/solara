@@ -1,5 +1,5 @@
-import { SlotRecommendation } from './scheduler'
-import { Activity } from './types'
+import type { SlotRecommendation } from './scheduler'
+import type { Activity } from './types'
 import { buildEventDescription } from './gcal'
 
 // Client-side iCalendar (.ics) export. A static app can't host a live feed without a

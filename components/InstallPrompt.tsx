@@ -1,5 +1,6 @@
 'use client'
-import { CSSProperties, useEffect, useState } from 'react'
+import type { CSSProperties } from 'react'
+import { useEffect, useState } from 'react'
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>

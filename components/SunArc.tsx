@@ -1,6 +1,6 @@
 'use client'
 import { useRef } from 'react'
-import { HourlyForecast } from '@/lib/types'
+import type { HourlyForecast } from '@/lib/types'
 import { fmtHour, uvLabel, uvColorHex } from '@/lib/weather'
 
 interface Props {
@@ -44,11 +44,13 @@ export default function SunArc({ hourly, currentHour, isToday, focused, onSelect
   const svgRef = useRef<SVGSVGElement>(null)
   const dragging = useRef(false)
 
-  if (!hourly.length) return null
+  const firstEntry = hourly[0]
+  const lastEntry = hourly.at(-1)
+  if (!firstEntry || !lastEntry) return null
 
-  const firstHour = hourly[0].hour
-  const lastHour = hourly[hourly.length - 1].hour
-  const peak = hourly.reduce((best, h) => h.uv > best.uv ? h : best, hourly[0])
+  const firstHour = firstEntry.hour
+  const lastHour = lastEntry.hour
+  const peak = hourly.reduce((best, h) => h.uv > best.uv ? h : best)
   const current = hourly.find(h => h.hour === currentHour)
 
   const hourToProgress = (hour: number) => {
@@ -93,7 +95,7 @@ export default function SunArc({ hourly, currentHour, isToday, focused, onSelect
     const t = clamp((svgX - P0.x) / (P2.x - P0.x), 0, 1)
     const targetHour = firstHour + t * (lastHour - firstHour)
     const nearest = hourly.reduce((best, h) =>
-      Math.abs(h.hour - targetHour) < Math.abs(best.hour - targetHour) ? h : best, hourly[0])
+      Math.abs(h.hour - targetHour) < Math.abs(best.hour - targetHour) ? h : best)
     onSelectHour(nearest)
   }
 
