@@ -19,11 +19,15 @@ Conditions and individual sensitivity can change quickly.
 - Stripe-backed Pro fulfillment through Firebase Functions when Stripe is configured.
 - Installable progressive web app assets for supported browsers.
 
+Production currently serves only the static app, Firestore and Google sign-in.
+Firebase Functions are not deployed, so the calendar feed, push notifications, Stripe checkout, and account export and deletion are built but not live.
+See [docs/status.md](docs/status.md) for the verified production state.
+
 ## Stack
 
 - Next.js 16 App Router with static export.
 - React 19 and TypeScript 5.
-- Firebase Authentication, Firestore, Cloud Messaging, Hosting, and Functions.
+- Firebase Authentication, Firestore, Cloud Messaging, Hosting, and Functions (Node.js 24 runtime).
 - Tailwind CSS 3.
 - Vitest for unit tests and Playwright for browser smoke tests.
 - GitHub Actions for quality checks, deployment, and notification dispatch.
@@ -72,15 +76,16 @@ npm run test:e2e
 ```
 
 The Playwright smoke suite deliberately runs without Firebase credentials.
-It verifies the welcome screen and the onboarding flow through the Google sign-in boundary on desktop and mobile Chromium.
+It verifies the welcome screen, the analytics consent choice, and the onboarding flow through the Google sign-in boundary on desktop and mobile Chromium.
 OAuth, Stripe, Cloud Messaging, and cross-device persistence still require controlled staging or production tests.
 
 ## Deployment
 
 Pull requests and non-main branches run the quality workflow.
-Merging a reviewed pull request into `main` runs the same gates before Firebase Hosting and Firestore rules deploy.
-The deployment workflow attempts to deploy Firestore indexes on every release and reports missing index IAM separately from Hosting.
-Firebase Functions deploy when the `ENABLE_BLAZE_FUNCTIONS` repository variable is `true`.
+Every push to `main` runs the same gates before Firebase Hosting and Firestore rules deploy.
+The repository has no branch protection, so reviews are a convention rather than an enforced rule.
+The deployment workflow attempts to deploy Firestore indexes on every release and reports missing index IAM separately from Hosting; it currently fails at that step until the owner grants `roles/datastore.indexAdmin`.
+Firebase Functions deploy only when the `ENABLE_BLAZE_FUNCTIONS` repository variable is `true`, and it is not set.
 Public `NEXT_PUBLIC_*` values are compiled into the static bundle, so changing one requires a new build and deploy.
 
 See [docs/GO_LIVE.md](docs/GO_LIVE.md) for the release checklist, [docs/status.md](docs/status.md) for current activation state, and [docs/OWNER_ACTIONS.md](docs/OWNER_ACTIONS.md) for the remaining owner-only decisions and provider setup.
