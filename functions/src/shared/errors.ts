@@ -4,8 +4,10 @@
 // message and an allowlisted machine-readable code. Every other error (Stripe, Firestore,
 // programming bugs) becomes a generic per-endpoint message so internal details never leak.
 
+import { redact } from './logging'
+
 /** Machine-readable codes a browser may receive, mapped to their HTTP status. */
-const ERROR_CODES = Object.freeze({
+export const ERROR_CODES = Object.freeze({
   'invalid-argument': 400,
   unauthenticated: 401,
   'reauth-required': 401,
@@ -21,78 +23,73 @@ const ERROR_CODES = Object.freeze({
   unavailable: 503,
 })
 
-/** @typedef {keyof typeof ERROR_CODES} ErrorCode */
+export type ErrorCode = keyof typeof ERROR_CODES
 
-class HttpError extends Error {
+export class HttpError extends Error {
+  readonly code: ErrorCode
+  readonly status: number
+
   /**
-   * @param {ErrorCode} code Allowlisted code; it also fixes the HTTP status.
-   * @param {string} message Public, user-safe message. Never interpolate internal data.
-   * @param {{ cause?: unknown }} [options]
+   * @param code Allowlisted code; it also fixes the HTTP status.
+   * @param message Public, user-safe message. Never interpolate internal data.
    */
-  constructor(code, message, options) {
+  constructor(code: ErrorCode, message: string, options?: { cause?: unknown }) {
     super(message, options)
     if (!Object.hasOwn(ERROR_CODES, code)) throw new TypeError(`Unknown error code: ${code}`)
     this.name = 'HttpError'
-    /** @type {ErrorCode} */
     this.code = code
-    /** @type {number} */
     this.status = ERROR_CODES[code]
   }
+}
+
+export interface PublicError {
+  status: number
+  body: { error: string; code: ErrorCode }
 }
 
 /**
  * The status and JSON body a browser receives for any thrown value.
  *
- * @param {unknown} error
- * @param {string} fallbackMessage Generic message for anything that is not an HttpError.
- * @returns {{ status: number, body: { error: string, code: ErrorCode } }}
+ * @param fallbackMessage Generic message for anything that is not an HttpError.
  */
-function publicError(error, fallbackMessage) {
+export function publicError(error: unknown, fallbackMessage: string): PublicError {
   if (error instanceof HttpError) {
     return { status: error.status, body: { error: error.message, code: error.code } }
   }
   return { status: 500, body: { error: fallbackMessage, code: 'internal' } }
 }
 
+export interface LoggableError {
+  name: string
+  code?: string | number
+  message?: string
+}
+
 /**
- * Fields that are safe to log for any error. Messages from third parties can include
- * identifiers, so only HttpError messages (which are authored here) are logged verbatim.
- *
- * @param {unknown} error
+ * Fields that are safe to log for any error. HttpError messages are authored here and
+ * logged verbatim; any other message comes from a third party, so it is redacted.
  */
-function loggableError(error) {
+export function loggableError(error: unknown): LoggableError {
   if (error instanceof HttpError) {
     return { name: error.name, code: error.code, message: error.message }
   }
   if (error instanceof Error) {
-    const code = /** @type {{ code?: unknown }} */ (error).code
+    const code = (error as { code?: unknown }).code
     return {
       name: error.name,
-      code: typeof code === 'string' || typeof code === 'number' ? code : undefined,
-      message: error.message,
+      ...(typeof code === 'string' || typeof code === 'number' ? { code } : {}),
+      message: redact(error.message),
     }
   }
   return { name: typeof error }
 }
 
-/**
- * The `code` of an SDK error (Stripe, Firebase Admin), or undefined.
- *
- * @param {unknown} error
- * @returns {unknown}
- */
-function errorCode(error) {
+/** The `code` of an SDK error (Stripe, Firebase Admin), or undefined. */
+export function errorCode(error: unknown): unknown {
   return typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined
 }
 
-/**
- * A thrown value's message for server-side records, with a fallback.
- *
- * @param {unknown} error
- * @param {string} fallback
- */
-function errorMessage(error, fallback) {
+/** A thrown value's message for server-side records, with a fallback. */
+export function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message ? error.message : fallback
 }
-
-module.exports = { ERROR_CODES, HttpError, errorCode, errorMessage, loggableError, publicError }

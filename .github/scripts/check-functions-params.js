@@ -2,7 +2,8 @@
 // Proves that `firebase deploy --only functions --non-interactive` can resolve
 // every Functions parameter, without deploying anything.
 //
-// It loads functions/index.js the way the deploy does (so a source that crashes
+// It loads the Functions entry point (package.json "main", the compiled
+// functions/lib/index.js from `npm run build --prefix functions`) the way the deploy does (so a source that crashes
 // on load fails here too), reads the declared params, and runs them through the
 // locked firebase-tools resolver with the dotenv files the deploy would read
 // (functions/.env and functions/.env.<project>). Secret params are skipped: they
@@ -21,7 +22,7 @@ async function main() {
     require(functionsDir)
   } catch (error) {
     throw new Error(
-      `functions/index.js fails to load, so no deploy can analyze it: ${error.message}`,
+      `the Functions entry point fails to load, so no deploy can analyze it (run npm run build --prefix functions first): ${error.message}`,
     )
   }
   const { declaredParams } = fromFunctions('firebase-functions/params')

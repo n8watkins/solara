@@ -1,11 +1,16 @@
+import { createRequire } from 'node:module'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fetchForecast, weatherLabel } from '@/lib/forecast'
 
 /* eslint-disable @typescript-eslint/no-require-imports */
 const core = require('../functions/core')
-const sun = require('../functions/lib/sun')
+const sun = require('../functions/lib/feed/sun')
 const notificationCore = require('../functions/scripts/notification-core')
 const { clearForecastCache, fetchHourly } = require('../functions/scripts/send-notifications')
+// The Functions log through firebase-functions/logger, resolved from functions/.
+const { logger } = createRequire(require.resolve('../functions/package.json'))(
+  'firebase-functions/logger',
+)
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 function okJson(body: unknown) {
@@ -141,13 +146,17 @@ describe('calendar feed forecast', () => {
       fetchImpl: async () => okJson(rawDay('2026-06-15')),
       now: t0,
     })
-    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const warn = vi.spyOn(logger, 'warn').mockImplementation(() => {})
 
     const fallback = await sun.fetchForecast(34, -118, 1, {
       fetchImpl: async () => failing(),
       now: t0 + sun.LAST_GOOD_MAX_AGE_MS,
     })
     expect(fallback).toEqual(good)
+    expect(warn).toHaveBeenCalledWith('Forecast fetch failed; serving the last good forecast', {
+      error: { name: 'Error', message: 'Forecast request failed: 503' },
+      ageMs: sun.LAST_GOOD_MAX_AGE_MS,
+    })
 
     await expect(
       sun.fetchForecast(34, -118, 1, {

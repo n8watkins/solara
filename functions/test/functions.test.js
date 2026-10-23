@@ -1,16 +1,27 @@
 const { afterEach, describe, test } = require('node:test')
 const assert = require('node:assert/strict')
 
+// The tests run against the compiled output in lib/ (npm test builds it first).
 const {
-  authenticate,
   deleteAccount,
-  exportAccountData,
   processAccountDeletionPage,
   processPendingAccountDeletions,
-  safeAccountData,
-} = require('../lib/account')
-const { queueBillingCleanup, subscriptionOwnerRef } = require('../lib/billing-resources')
-const { handleCors } = require('../lib/http')
+} = require('../lib/account/deletion')
+const { exportAccountData, safeAccountData } = require('../lib/account/export')
+const { backfillBillingResourcePage } = require('../lib/billing/backfill')
+const {
+  createBillingPortal,
+  createCheckout,
+  processPendingCheckoutCleanups,
+} = require('../lib/billing/checkout')
+const { validAttemptId, validUid } = require('../lib/billing/ids')
+const { queueBillingCleanup, subscriptionOwnerRef } = require('../lib/billing/resources')
+const {
+  findUserBySubscription,
+  processStripeEvent,
+  subscriptionHasPrice,
+  validateCheckoutSession,
+} = require('../lib/billing/webhook')
 const {
   FEED_REQUESTS_PER_MINUTE,
   UNKNOWN_FEED_REQUESTS_PER_MINUTE,
@@ -20,20 +31,13 @@ const {
   createCalendarFeedHandler,
   validCoordinates,
   validFeedToken,
-} = require('../lib/calendar-feed')
-const { feedTokenHash, mintFeedToken } = require('../lib/feed-tokens')
-const {
-  backfillBillingResourcePage,
-  createBillingPortal,
-  createCheckout,
-  findUserBySubscription,
-  processPendingCheckoutCleanups,
-  processStripeEvent,
-  subscriptionHasPrice,
-  validAttemptId,
-  validUid,
-  validateCheckoutSession,
-} = require('../lib/stripe')
+} = require('../lib/feed/calendar-feed')
+const { feedTokenHash, mintFeedToken } = require('../lib/feed/tokens')
+const { authenticate } = require('../lib/shared/auth')
+const { handleCors } = require('../lib/shared/http')
+const { captureLogs } = require('./support/logs')
+
+const logs = captureLogs()
 
 function responseRecorder() {
   return {
@@ -631,6 +635,12 @@ describe('account data security', () => {
       }),
       { location: { city: 'Seattle' } },
     )
+  })
+
+  test('exports exactly the fields of the preferences schema', () => {
+    const { PREFERENCE_FIELDS } = require('#core')
+    const everyField = Object.fromEntries(PREFERENCE_FIELDS.map(field => [field, field]))
+    assert.deepEqual(safeAccountData({ ...everyField, stripeCustomerId: 'cus_secret' }), everyField)
   })
 
   test('rejects exports after account deletion starts', async () => {
@@ -1463,6 +1473,31 @@ describe('calendar feed security', () => {
     await handler(feedRequest(TOKEN, { 'if-none-match': first.headers.ETag }), second)
     assert.equal(second.statusCode, 200)
     assert.notEqual(second.headers.ETag, first.headers.ETag)
+  })
+
+  test('logs a failed build as an error without the token or the location', async () => {
+    const { handler } = liveFeed({
+      fetchForecast: async () => {
+        throw new Error(
+          `Forecast request failed for https://api.open-meteo.com/v1/forecast?latitude=1&longitude=2&token=${TOKEN}`,
+        )
+      },
+    })
+    const res = responseRecorder()
+    await handler(feedRequest(TOKEN), res)
+    assert.equal(res.statusCode, 502)
+    assert.equal(res.body, 'Could not build feed')
+    assert.deepEqual(
+      logs.entries.map(({ severity, message }) => [severity, message]),
+      [['ERROR', 'calendarFeed failed']],
+    )
+    const logged = JSON.stringify(logs.entries)
+    assert.doesNotMatch(logged, new RegExp(TOKEN))
+    assert.doesNotMatch(logged, /latitude=1|longitude=2/)
+    assert.match(
+      logged,
+      /Forecast request failed for https:\/\/api\.open-meteo\.com\/v1\/forecast\?\[redacted\]/,
+    )
   })
 
   test('does not resolve a token that is not indexed, even if a user doc holds it', async () => {

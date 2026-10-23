@@ -24,9 +24,9 @@ export default defineConfig([
     },
   },
   {
-    // Type-aware rules need type information, so they apply to the files the
-    // root tsconfig compiles. The CommonJS backend in functions/ and scripts/
-    // is not part of that program yet.
+    // Type-aware rules need type information. The project service gives each
+    // file the program of its nearest tsconfig: the root one for the web app,
+    // functions/tsconfig.json for the Cloud Functions source in functions/src.
     files: ['**/*.ts', '**/*.tsx'],
     languageOptions: {
       parserOptions: {
@@ -61,5 +61,6 @@ export default defineConfig([
     'next-env.d.ts',
     'public/firebase-messaging-sw.js',
     'functions/core/**',
+    'functions/lib/**',
   ]),
 ])

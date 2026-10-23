@@ -1,8 +1,9 @@
 rules_version = '2';
 
 // Every client-writable field of users/{userId} is typed and size-capped here, with a test
-// per field in functions/test/emulator/firestore.rules.test.js. Keep the field list in sync
-// with lib/types.ts (UserPreferences) and lib/prefs.ts (normalizePrefs).
+// per field in functions/test/emulator/firestore.rules.test.js. The field list and limits
+// come from the preferences schema in packages/core/src/prefs.ts; lib/firestore-rules.test.ts
+// fails when the two drift.
 //
 // Budget: the rules engine stops at 1,000 evaluated expressions per request (each `&&`
 // term costs several), and the emulator enforces the same limit. Each list fits at its cap
@@ -162,7 +163,7 @@ service cloud.firestore {
         'schemaVersion', 'location', 'savedLocations', 'skinType', 'profiles', 'activeProfileId',
         'sunscreen', 'activities', 'onboardingComplete', 'calendarHours', 'showSunPath',
         'hiddenActivitySuggestionIds', 'collapsedActivityCategories', 'upgradeInterest',
-        'notificationHour', 'timezone'
+        'notificationHour'
       ];
     }
 
@@ -194,8 +195,7 @@ service cloud.firestore {
         && (!('notificationHour' in keys)
           || (data.notificationHour is int
             && data.notificationHour >= 0
-            && data.notificationHour <= 23))
-        && (!('timezone' in keys) || (data.timezone is string && data.timezone.size() <= 64));
+            && data.notificationHour <= 23));
     }
 
     function validNewUser(userId) {
@@ -216,10 +216,14 @@ service cloud.firestore {
       let changed = data.diff(resource.data);
       let written = changed.changedKeys().union(changed.addedKeys());
       // The retired client-minted feed token may be removed but never written again;
-      // calendar feed tokens are now minted by the server (functions/lib/feed-tokens.js).
+      // calendar feed tokens are now minted by the server (functions/src/feed/tokens.ts).
+      // A stored schemaVersion never goes down, so an older client cannot downgrade a
+      // document that a newer one migrated.
       return written.hasOnly(preferenceKeys())
         && changed.removedKeys().hasOnly(['calendarFeedToken'])
-        && validPreferences(data, written);
+        && validPreferences(data, written)
+        && (!('schemaVersion' in resource.data)
+          || data.schemaVersion >= resource.data.schemaVersion);
     }
 
     match /users/{userId} {

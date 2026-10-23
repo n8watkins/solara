@@ -7,7 +7,7 @@ import type { Activity } from '@/lib/types'
 
 /* eslint-disable @typescript-eslint/no-require-imports */
 const engine = require('../functions/core')
-const sun = require('../functions/lib/sun')
+const sun = require('../functions/lib/feed/sun')
 const { buildMessage } = require('../functions/scripts/notification-core')
 const { clearForecastCache, fetchHourly } = require('../functions/scripts/send-notifications')
 /* eslint-enable @typescript-eslint/no-require-imports */

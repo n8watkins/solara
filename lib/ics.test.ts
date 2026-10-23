@@ -6,7 +6,7 @@ import type { Activity } from '@/lib/types'
 
 /* eslint-disable @typescript-eslint/no-require-imports */
 const feedIcs = require('../functions/core')
-const sun = require('../functions/lib/sun')
+const sun = require('../functions/lib/feed/sun')
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const ev: IcsEvent = {

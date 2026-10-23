@@ -13,7 +13,7 @@ import type { Activity, HourlyForecast, SkinType } from '@/lib/types'
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const functionsEngine = require('../functions/core')
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const functionsSun = require('../functions/lib/sun')
+const functionsSun = require('../functions/lib/feed/sun')
 
 const hourly: HourlyForecast[] = [
   { hour: 6, uv: 1, tempF: 60, condition: 'Clear' },

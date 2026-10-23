@@ -1,70 +1,79 @@
-const { createHash } = require('node:crypto')
+// The billing-resource index: which Stripe objects belong to which account.
+//
+// `users/{uid}/billingResources` lists every checkout session, customer and subscription
+// an account owns, `stripeSubscriptionOwners/{sha256}` maps a subscription back to its
+// account, and an account deletion queues each resource under its tombstone for cleanup.
 
-/** @typedef {import("./types").Auth} Auth */
-/** @typedef {import("firebase-admin/firestore").FieldValue} FieldValue */
-/** @typedef {import("./types").BillingResource} BillingResource */
-/** @typedef {import("./types").ClaimedResource} ClaimedResource */
-/** @typedef {import("./types").DocumentData} DocumentData */
-/** @typedef {import("./types").DocumentReference} DocumentReference */
-/** @typedef {import("./types").Firestore} Firestore */
-/** @typedef {import("./types").Request} Request */
-/** @typedef {import("./types").ServerTimestamp} ServerTimestamp */
-/** @typedef {import("./types").StripeClient} StripeClient */
-/** @typedef {import("./types").StripeRecord} StripeRecord */
-/** @typedef {import("./types").Transaction} Transaction */
+import { createHash } from 'node:crypto'
 
-/** @type {ReadonlySet<unknown>} */
-const BILLING_RESOURCE_TYPES = new Set(['checkoutSession', 'customer', 'subscription'])
+import type {
+  DocumentReference,
+  FieldValue,
+  Firestore,
+  Transaction,
+} from 'firebase-admin/firestore'
+import type Stripe from 'stripe'
 
-/**
- * @param {unknown} type
- * @param {unknown} stripeId
- * @returns {stripeId is string}
- */
-function validBillingResource(type, stripeId) {
+export type BillingResourceType = 'checkoutSession' | 'customer' | 'subscription'
+
+export interface BillingResource {
+  type: BillingResourceType | string
+  stripeId: string | null | undefined
+  verified?: boolean
+}
+
+/** The ownership fields of a checkout session, read defensively. */
+export interface SessionOwnership {
+  client_reference_id?: string | null
+  metadata?: Record<string, unknown> | null
+}
+
+const BILLING_RESOURCE_TYPES: ReadonlySet<unknown> = new Set([
+  'checkoutSession',
+  'customer',
+  'subscription',
+])
+
+export function validBillingResource(type: unknown, stripeId: unknown): stripeId is string {
   return BILLING_RESOURCE_TYPES.has(type) && typeof stripeId === 'string' && stripeId.length > 0
 }
 
-/**
- * @param {DocumentReference} userRef
- * @param {string} type
- * @param {string | null | undefined} stripeId
- */
-function billingResourceRef(userRef, type, stripeId) {
+export function billingResourceRef(
+  userRef: DocumentReference,
+  type: string,
+  stripeId: string | null | undefined,
+): DocumentReference | null {
   if (!validBillingResource(type, stripeId)) return null
   const digest = createHash('sha256').update(`${type}\0${stripeId}`).digest('base64url')
   return userRef.collection('billingResources').doc(`${type}_${digest}`)
 }
 
-/**
- * @param {DocumentReference} tombstoneRef
- * @param {string} type
- * @param {string | null | undefined} stripeId
- */
-function billingCleanupResourceRef(tombstoneRef, type, stripeId) {
+export function billingCleanupResourceRef(
+  tombstoneRef: DocumentReference,
+  type: string,
+  stripeId: string | null | undefined,
+): DocumentReference | null {
   if (!validBillingResource(type, stripeId)) return null
   const digest = createHash('sha256').update(`${type}\0${stripeId}`).digest('base64url')
   return tombstoneRef.collection('billingCleanupResources').doc(`${type}_${digest}`)
 }
 
-/**
- * @param {Firestore} db
- * @param {string | null | undefined} stripeId
- */
-function subscriptionOwnerRef(db, stripeId) {
+export function subscriptionOwnerRef(
+  db: Firestore,
+  stripeId: string | null | undefined,
+): DocumentReference | null {
   if (!validBillingResource('subscription', stripeId)) return null
   const digest = createHash('sha256').update(stripeId).digest('base64url')
   return db.collection('stripeSubscriptionOwners').doc(digest)
 }
 
-/**
- * @param {Transaction} transaction
- * @param {Firestore} db
- * @param {string} uid
- * @param {BillingResource[]} resources
- * @param {Date | FieldValue} timestamp
- */
-function indexSubscriptionOwners(transaction, db, uid, resources, timestamp) {
+export function indexSubscriptionOwners(
+  transaction: Transaction,
+  db: Firestore,
+  uid: string,
+  resources: BillingResource[],
+  timestamp: Date | FieldValue,
+): void {
   for (const { type, stripeId, verified = true } of resources) {
     if (type !== 'subscription' || verified === false) continue
     const ref = subscriptionOwnerRef(db, stripeId)
@@ -73,14 +82,13 @@ function indexSubscriptionOwners(transaction, db, uid, resources, timestamp) {
   }
 }
 
-/**
- * @param {Transaction} transaction
- * @param {Firestore} db
- * @param {DocumentReference} userRef
- * @param {BillingResource[]} resources
- * @param {Date | FieldValue} timestamp
- */
-function indexBillingResources(transaction, db, userRef, resources, timestamp) {
+export function indexBillingResources(
+  transaction: Transaction,
+  db: Firestore,
+  userRef: DocumentReference,
+  resources: BillingResource[],
+  timestamp: Date | FieldValue,
+): void {
   for (const { type, stripeId } of resources) {
     const ref = billingResourceRef(userRef, type, stripeId)
     if (!ref) continue
@@ -89,13 +97,12 @@ function indexBillingResources(transaction, db, userRef, resources, timestamp) {
   indexSubscriptionOwners(transaction, db, userRef.id, resources, timestamp)
 }
 
-/**
- * @param {Transaction} transaction
- * @param {DocumentReference} tombstoneRef
- * @param {BillingResource[]} resources
- * @param {Date | FieldValue} timestamp
- */
-async function queueBillingCleanup(transaction, tombstoneRef, resources, timestamp) {
+export async function queueBillingCleanup(
+  transaction: Transaction,
+  tombstoneRef: DocumentReference,
+  resources: BillingResource[],
+  timestamp: Date | FieldValue,
+): Promise<void> {
   const entries = resources.flatMap(({ type, stripeId, verified = true }) => {
     const ref = billingCleanupResourceRef(tombstoneRef, type, stripeId)
     return ref ? [{ ref, stripeId, type, verified }] : []
@@ -127,7 +134,7 @@ async function queueBillingCleanup(transaction, tombstoneRef, resources, timesta
     queued ||= status === 'pending'
   }
   if (queued) {
-    const tombstone = tombstoneSnapshot.data() ?? {}
+    const tombstone = tombstoneSnapshot?.data() ?? {}
     const preserveFailureSchedule =
       Number.isSafeInteger(tombstone.cleanupAttemptCount) && tombstone.cleanupAttemptCount > 0
     transaction.set(
@@ -149,10 +156,13 @@ async function queueBillingCleanup(transaction, tombstoneRef, resources, timesta
 }
 
 /**
- * @param {StripeRecord} session
- * @param {string} uid
+ * Whether a checkout session was created for `uid`: its client reference or metadata names
+ * the account, and neither names another one.
  */
-function stripeSessionBelongsToUser(session, uid) {
+export function stripeSessionBelongsToUser(
+  session: SessionOwnership | null | undefined,
+  uid: string,
+): boolean {
   const clientUid = session?.client_reference_id
   const metadataUid = session?.metadata?.firebaseUid
   if (clientUid !== undefined && clientUid !== null && clientUid !== uid) return false
@@ -160,13 +170,12 @@ function stripeSessionBelongsToUser(session, uid) {
   return clientUid === uid || metadataUid === uid
 }
 
-/**
- * @param {StripeClient} stripe
- * @param {string} customerId
- */
-async function listCustomerCheckoutSessions(stripe, customerId) {
-  const sessions = []
-  let startingAfter
+export async function listCustomerCheckoutSessions(
+  stripe: Stripe,
+  customerId: string,
+): Promise<Stripe.Checkout.Session[]> {
+  const sessions: Stripe.Checkout.Session[] = []
+  let startingAfter: string | null | undefined
   do {
     const page = await stripe.checkout.sessions.list({
       customer: customerId,
@@ -181,25 +190,11 @@ async function listCustomerCheckoutSessions(stripe, customerId) {
   return sessions
 }
 
-/**
- * @param {StripeClient} stripe
- * @param {string} customerId
- * @param {string} uid
- */
-async function customerBelongsToUser(stripe, customerId, uid) {
+export async function customerBelongsToUser(
+  stripe: Stripe,
+  customerId: string,
+  uid: string,
+): Promise<boolean> {
   const sessions = await listCustomerCheckoutSessions(stripe, customerId)
   return sessions.some(session => stripeSessionBelongsToUser(session, uid))
-}
-
-module.exports = {
-  billingResourceRef,
-  billingCleanupResourceRef,
-  customerBelongsToUser,
-  indexBillingResources,
-  indexSubscriptionOwners,
-  listCustomerCheckoutSessions,
-  queueBillingCleanup,
-  stripeSessionBelongsToUser,
-  subscriptionOwnerRef,
-  validBillingResource,
 }

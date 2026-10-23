@@ -4,14 +4,14 @@ const assert = require('node:assert/strict')
 const { deleteApp, initializeApp } = require('firebase-admin/app')
 const { getFirestore } = require('firebase-admin/firestore')
 
-const { createCalendarFeedHandler, clearFeedRateLimits } = require('../../lib/calendar-feed')
+const { createCalendarFeedHandler, clearFeedRateLimits } = require('../../lib/feed/calendar-feed')
 const {
   deleteCalendarFeedsForUser,
   feedTokenHash,
   migrateLegacyFeedTokens,
   revokeCalendarFeed,
   rotateCalendarFeed,
-} = require('../../lib/feed-tokens')
+} = require('../../lib/feed/tokens')
 
 const projectId = 'demo-solara-feeds'
 /** @type {import('firebase-admin/app').App} */

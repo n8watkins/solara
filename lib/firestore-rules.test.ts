@@ -72,12 +72,7 @@ describe('firestore.rules match the preferences schema', () => {
   const preferences = rulesFunction('validPreferences')
 
   it('lets clients write exactly the schema fields the server does not own', () => {
-    // `timezone` is a retired top-level field the rules still accept; the schema
-    // neither reads nor writes it.
-    const RULES_ONLY_LEGACY_FIELDS = ['timezone']
-    expect(sorted(rulesList('preferenceKeys'))).toEqual(
-      sorted([...CLIENT_PREFERENCE_FIELDS, ...RULES_ONLY_LEGACY_FIELDS]),
-    )
+    expect(sorted(rulesList('preferenceKeys'))).toEqual(sorted(CLIENT_PREFERENCE_FIELDS))
     const newUser = rulesFunction('validNewUser')
     expect(sorted(listAfter(newUser, 'keys.removeAll('))).toEqual(sorted(SERVER_OWNED_FIELDS))
   })

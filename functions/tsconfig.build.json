@@ -1,0 +1,15 @@
+// Compiles src/ to CommonJS in lib/ (npm run build), the code `firebase deploy` uploads.
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "allowJs": false,
+    "checkJs": false,
+    "noEmit": false,
+    "noEmitOnError": true,
+    "rootDir": "src",
+    "outDir": "lib",
+    "sourceMap": true
+  },
+  "include": ["src"],
+  "exclude": []
+}

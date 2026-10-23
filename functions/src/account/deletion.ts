@@ -1,175 +1,69 @@
-const {
+// Account deletion.
+//
+// Deleting an account writes a tombstone, revokes sessions, then cancels and cleans up
+// every Stripe resource the account owns in small leased pages (a scheduled job resumes
+// any page that fails), and only then deletes the account data and the Auth user.
+
+import { randomUUID } from 'node:crypto'
+
+import type { Auth } from 'firebase-admin/auth'
+import type { DocumentData, DocumentReference, Firestore } from 'firebase-admin/firestore'
+import { logger } from 'firebase-functions/logger'
+import type { Request } from 'firebase-functions/v2/https'
+import type Stripe from 'stripe'
+
+import { TERMINAL_SUBSCRIPTION_STATUSES, stringId, stripePageCursor } from '../billing/ids'
+import {
+  type BillingResource,
   indexSubscriptionOwners,
   queueBillingCleanup,
   stripeSessionBelongsToUser,
-} = require('./billing-resources')
-const { randomUUID } = require('node:crypto')
-const { HttpError, errorCode, errorMessage } = require('./errors')
-const { deleteCalendarFeedsForUser } = require('./feed-tokens')
+} from '../billing/resources'
+import { deleteCalendarFeedsForUser } from '../feed/tokens'
+import { authenticate } from '../shared/auth'
+import { HttpError, errorCode, errorMessage, loggableError } from '../shared/errors'
+import { toMillis } from '../shared/time'
 
-/** @typedef {import("./types").Auth} Auth */
-/** @typedef {import("./types").BillingResource} BillingResource */
-/** @typedef {import("./types").ClaimedResource} ClaimedResource */
-/** @typedef {import("./types").DocumentData} DocumentData */
-/** @typedef {import("./types").DocumentReference} DocumentReference */
-/** @typedef {import("./types").Firestore} Firestore */
-/** @typedef {import("./types").Request} Request */
-/** @typedef {import("./types").ServerTimestamp} ServerTimestamp */
-/** @typedef {import("./types").StripeClient} StripeClient */
-/** @typedef {import("./types").StripeRecord} StripeRecord */
-/** @typedef {import("./types").Transaction} Transaction */
-
-const PORTABLE_ACCOUNT_FIELDS = new Set([
-  'activeProfileId',
-  'activities',
-  'calendarHours',
-  'collapsedActivityCategories',
-  'hiddenActivitySuggestionIds',
-  'location',
-  'notificationHour',
-  'onboardingComplete',
-  'profiles',
-  'savedLocations',
-  'schemaVersion',
-  'showSunPath',
-  'skinType',
-  'sunscreen',
-  'tier',
-  'timezone',
-  'uid',
-  'upgradeInterest',
-])
-const TERMINAL_SUBSCRIPTION_STATUSES = new Set(['canceled', 'incomplete_expired'])
 const BILLING_INDEX_PAGE_SIZE = 25
 const BILLING_CLEANUP_PAGE_SIZE = 10
 const BILLING_CLEANUP_LEASE_MS = 5 * 60 * 1000
 const BILLING_CLEANUP_RETRY_BASE_MS = 5 * 60 * 1000
 const BILLING_CLEANUP_RETRY_MAX_MS = 24 * 60 * 60 * 1000
 
-/**
- * @param {number} attemptCount
- */
-function cleanupRetryDelay(attemptCount) {
+/** A cleanup resource claimed under a processing lease. */
+interface ClaimedResource {
+  id: string
+  ref: DocumentReference
+  data: () => DocumentData
+}
+
+interface CleanupContext {
+  db: Firestore
+  resource: ClaimedResource
+  stripe: Stripe
+  tombstoneRef: DocumentReference
+  uid: string
+}
+
+export interface DeletionPageResult {
+  completed: boolean
+  processed: number
+}
+
+function cleanupRetryDelay(attemptCount: number): number {
   return Math.min(
     BILLING_CLEANUP_RETRY_BASE_MS * 2 ** Math.min(attemptCount - 1, 30),
     BILLING_CLEANUP_RETRY_MAX_MS,
   )
 }
 
-/**
- * @param {unknown} value
- */
-function timestampMillis(value) {
-  if (value instanceof Date) return value.getTime()
-  const timestamp = /** @type {{ toMillis?: unknown } | null | undefined} */ (value)
-  if (timestamp && typeof timestamp.toMillis === 'function') return timestamp.toMillis()
-  return Number.NaN
-}
-
-/**
- * @param {unknown} value
- */
-function stringId(value) {
-  if (typeof value === 'string') return value
-  const object = /** @type {{ id?: unknown } | null | undefined} */ (value)
-  return object && typeof object.id === 'string' ? object.id : null
-}
-
-/**
- * @param {StripeRecord} page
- */
-function stripePageCursor(page) {
-  const cursor = page.has_more ? stringId(page.data.at(-1)) : null
-  if (page.has_more && !cursor) throw new Error('Stripe pagination was incomplete')
-  return cursor
-}
-
-/**
- * @param {Auth} auth
- * @param {string | undefined} authorization
- * @param {{ maxAgeSeconds?: number, nowSeconds?: number }} [options]
- */
-async function authenticate(auth, authorization, options = {}) {
-  const match = (authorization || '').match(/^Bearer (.+)$/)
-  if (!match?.[1]) throw new HttpError('unauthenticated', 'Authentication required')
-  let identity
-  try {
-    identity = await auth.verifyIdToken(match[1], true)
-  } catch (error) {
-    throw new HttpError('unauthenticated', 'Authentication required', { cause: error })
-  }
-  if (options.maxAgeSeconds) {
-    const authenticatedAt = identity.auth_time
-    const nowSeconds = options.nowSeconds ?? Math.floor(Date.now() / 1000)
-    if (!Number.isFinite(authenticatedAt) || nowSeconds - authenticatedAt > options.maxAgeSeconds) {
-      throw new HttpError('reauth-required', 'Recent authentication required')
-    }
-  }
-  return identity
-}
-
-/**
- * @param {DocumentData} data
- */
-function safeAccountData(data) {
-  return Object.fromEntries(
-    Object.entries(data || {}).filter(([key]) => PORTABLE_ACCOUNT_FIELDS.has(key)),
-  )
-}
-
-/**
- * @param {import("firebase-admin/firestore").QuerySnapshot} snapshot
- */
-function safeDeviceData(snapshot) {
-  return snapshot.docs.map(doc => {
-    const data = doc.data()
-    return {
-      id: doc.id,
-      enabled: data.enabled === true,
-      platform: data.platform || 'unknown',
-      createdAt: data.createdAt || null,
-      updatedAt: data.updatedAt || null,
-      lastDeliveredAt: data.lastDeliveredAt || null,
-      lastError: data.lastError || null,
-    }
-  })
-}
-
-/**
- * @param {{ auth: Auth, db: Firestore, req: Request }} options
- */
-async function exportAccountData({ auth, db, req }) {
-  const identity = await authenticate(auth, req.headers.authorization)
-  const userRef = db.collection('users').doc(identity.uid)
-  const tombstoneRef = db.collection('accountDeletionTombstones').doc(identity.uid)
-  const devicesQuery = userRef.collection('notificationDevices')
-  const { userSnapshot, devicesSnapshot } = await db.runTransaction(async transaction => {
-    const tombstone = await transaction.get(tombstoneRef)
-    if (tombstone.exists) {
-      throw new HttpError('deletion-in-progress', 'Account deletion is in progress')
-    }
-    const [account, devices] = await Promise.all([
-      transaction.get(userRef),
-      transaction.get(devicesQuery),
-    ])
-    return { userSnapshot: account, devicesSnapshot: devices }
-  })
-  return {
-    formatVersion: 1,
-    exportedAt: new Date().toISOString(),
-    account: userSnapshot.exists ? safeAccountData(userSnapshot.data() ?? {}) : null,
-    notificationDevices: safeDeviceData(devicesSnapshot),
-  }
-}
-
-/**
- * @param {Auth} auth
- * @param {Firestore} db
- * @param {DocumentReference} tombstoneRef
- * @param {DocumentData} tombstone
- * @param {string} uid
- */
-async function ensureSessionsRevoked(auth, db, tombstoneRef, tombstone, uid) {
+async function ensureSessionsRevoked(
+  auth: Auth,
+  db: Firestore,
+  tombstoneRef: DocumentReference,
+  tombstone: DocumentData,
+  uid: string,
+): Promise<void> {
   if (tombstone.sessionsRevokedAt) return
   await auth.revokeRefreshTokens(uid)
   await db.runTransaction(async transaction => {
@@ -181,12 +75,11 @@ async function ensureSessionsRevoked(auth, db, tombstoneRef, tombstone, uid) {
   })
 }
 
-/**
- * @param {Firestore} db
- * @param {ClaimedResource} resource
- * @param {DocumentData} data
- */
-async function markCleanupResource(db, resource, data) {
+async function markCleanupResource(
+  db: Firestore,
+  resource: ClaimedResource,
+  data: DocumentData,
+): Promise<boolean> {
   return db.runTransaction(async transaction => {
     const current = await transaction.get(resource.ref)
     if (
@@ -211,12 +104,11 @@ async function markCleanupResource(db, resource, data) {
   })
 }
 
-/**
- * @param {Firestore} db
- * @param {ClaimedResource} resource
- * @param {unknown} error
- */
-async function markCleanupFailure(db, resource, error) {
+async function markCleanupFailure(
+  db: Firestore,
+  resource: ClaimedResource,
+  error: unknown,
+): Promise<boolean> {
   return db.runTransaction(async transaction => {
     const current = await transaction.get(resource.ref)
     if (
@@ -247,12 +139,11 @@ async function markCleanupFailure(db, resource, error) {
   })
 }
 
-/**
- * @param {Firestore} db
- * @param {DocumentReference} tombstoneRef
- * @param {unknown} error
- */
-async function markAccountCleanupFailure(db, tombstoneRef, error) {
+async function markAccountCleanupFailure(
+  db: Firestore,
+  tombstoneRef: DocumentReference,
+  error: unknown,
+): Promise<boolean> {
   return db.runTransaction(async transaction => {
     const current = await transaction.get(tombstoneRef)
     if (!current.exists || current.data()?.cleanupStatus !== 'pending') return false
@@ -276,12 +167,10 @@ async function markAccountCleanupFailure(db, tombstoneRef, error) {
   })
 }
 
-/**
- * @param {Firestore} db
- * @param {DocumentReference} tombstoneRef
- * @returns {Promise<ClaimedResource[]>}
- */
-async function claimCleanupResources(db, tombstoneRef) {
+async function claimCleanupResources(
+  db: Firestore,
+  tombstoneRef: DocumentReference,
+): Promise<ClaimedResource[]> {
   const timestamp = new Date()
   const query = tombstoneRef
     .collection('billingCleanupResources')
@@ -311,13 +200,12 @@ async function claimCleanupResources(db, tombstoneRef) {
   })
 }
 
-/**
- * @param {Firestore} db
- * @param {DocumentReference} tombstoneRef
- * @param {string} uid
- * @param {BillingResource[]} resources
- */
-async function queueDiscoveredResources(db, tombstoneRef, uid, resources) {
+async function queueDiscoveredResources(
+  db: Firestore,
+  tombstoneRef: DocumentReference,
+  uid: string,
+  resources: BillingResource[],
+): Promise<void> {
   await db.runTransaction(async transaction => {
     const timestamp = new Date()
     await queueBillingCleanup(transaction, tombstoneRef, resources, timestamp)
@@ -325,12 +213,15 @@ async function queueDiscoveredResources(db, tombstoneRef, uid, resources) {
   })
 }
 
-/**
- * @param {{ db: Firestore, resource: ClaimedResource, stripe: StripeClient, tombstoneRef: DocumentReference, uid: string }} options
- */
-async function processCheckoutCleanup({ db, resource, stripe, tombstoneRef, uid }) {
+async function processCheckoutCleanup({
+  db,
+  resource,
+  stripe,
+  tombstoneRef,
+  uid,
+}: CleanupContext): Promise<void> {
   const data = resource.data()
-  let session
+  let session: Stripe.Checkout.Session
   try {
     session = await stripe.checkout.sessions.retrieve(data.stripeId)
   } catch (error) {
@@ -359,12 +250,14 @@ async function processCheckoutCleanup({ db, resource, stripe, tombstoneRef, uid 
   await markCleanupResource(db, resource, { status: 'completed', verified: true })
 }
 
-/**
- * @param {{ db: Firestore, resource: ClaimedResource, stripe: StripeClient, uid: string }} options
- */
-async function processSubscriptionCleanup({ db, resource, stripe, uid }) {
+async function processSubscriptionCleanup({
+  db,
+  resource,
+  stripe,
+  uid,
+}: CleanupContext): Promise<void> {
   const data = resource.data()
-  let subscription
+  let subscription: Stripe.Subscription
   try {
     subscription = await stripe.subscriptions.retrieve(data.stripeId)
   } catch (error) {
@@ -388,10 +281,13 @@ async function processSubscriptionCleanup({ db, resource, stripe, uid }) {
   await markCleanupResource(db, resource, { status: 'completed', verified: true })
 }
 
-/**
- * @param {{ db: Firestore, resource: ClaimedResource, stripe: StripeClient, tombstoneRef: DocumentReference, uid: string }} options
- */
-async function processCustomerCleanup({ db, resource, stripe, tombstoneRef, uid }) {
+async function processCustomerCleanup({
+  db,
+  resource,
+  stripe,
+  tombstoneRef,
+  uid,
+}: CleanupContext): Promise<void> {
   const data = resource.data()
   if (data.verified !== true) {
     const ownershipPage = await stripe.checkout.sessions.list({
@@ -464,10 +360,19 @@ async function processCustomerCleanup({ db, resource, stripe, tombstoneRef, uid 
   })
 }
 
-/**
- * @param {{ auth: Auth, db: Firestore, tombstoneRef: DocumentReference, uid: string, userRef: DocumentReference }} options
- */
-async function finalizeAccountDeletion({ auth, db, tombstoneRef, uid, userRef }) {
+async function finalizeAccountDeletion({
+  auth,
+  db,
+  tombstoneRef,
+  uid,
+  userRef,
+}: {
+  auth: Auth
+  db: Firestore
+  tombstoneRef: DocumentReference
+  uid: string
+  userRef: DocumentReference
+}): Promise<boolean> {
   const timestamp = new Date()
   const finalizationToken = randomUUID()
   const pendingQuery = tombstoneRef
@@ -480,7 +385,7 @@ async function finalizeAccountDeletion({ auth, db, tombstoneRef, uid, userRef })
       transaction.get(pendingQuery),
     ])
     const tombstone = tombstoneSnapshot.data() ?? {}
-    const leaseExpiresAt =
+    const leaseExpiresAt: unknown =
       tombstone.finalizationLeaseExpiresAt?.toDate?.() || tombstone.finalizationLeaseExpiresAt
     if (
       tombstone.cleanupStatus !== 'pending' ||
@@ -542,10 +447,19 @@ async function finalizeAccountDeletion({ auth, db, tombstoneRef, uid, userRef })
   })
 }
 
-/**
- * @param {{ auth: Auth, db: Firestore, stripe: StripeClient, tombstoneRef: DocumentReference, uid: string }} options
- */
-async function processAccountDeletionPage({ auth, db, stripe, tombstoneRef, uid }) {
+export async function processAccountDeletionPage({
+  auth,
+  db,
+  stripe,
+  tombstoneRef,
+  uid,
+}: {
+  auth: Auth
+  db: Firestore
+  stripe: Stripe
+  tombstoneRef: DocumentReference
+  uid: string
+}): Promise<DeletionPageResult> {
   const userRef = db.collection('users').doc(uid)
   const tombstoneSnapshot = await tombstoneRef.get()
   if (!tombstoneSnapshot.exists || tombstoneSnapshot.data()?.cleanupStatus !== 'pending') {
@@ -570,9 +484,8 @@ async function processAccountDeletionPage({ auth, db, stripe, tombstoneRef, uid 
       ) {
         return false
       }
-      /** @type {BillingResource[]} */
-      const resources = page.docs.map(doc => ({
-        .../** @type {BillingResource} */ (doc.data()),
+      const resources: BillingResource[] = page.docs.map(doc => ({
+        ...(doc.data() as BillingResource),
         verified: true,
       }))
       const timestamp = new Date()
@@ -599,10 +512,10 @@ async function processAccountDeletionPage({ auth, db, stripe, tombstoneRef, uid 
   let processed = 0
   for (const resource of pending) {
     try {
-      const options = { db, resource, stripe, tombstoneRef, uid }
-      if (resource.data()?.type === 'checkoutSession') await processCheckoutCleanup(options)
-      if (resource.data()?.type === 'customer') await processCustomerCleanup(options)
-      if (resource.data()?.type === 'subscription') await processSubscriptionCleanup(options)
+      const context: CleanupContext = { db, resource, stripe, tombstoneRef, uid }
+      if (resource.data()?.type === 'checkoutSession') await processCheckoutCleanup(context)
+      if (resource.data()?.type === 'customer') await processCustomerCleanup(context)
+      if (resource.data()?.type === 'subscription') await processSubscriptionCleanup(context)
       processed += 1
     } catch (error) {
       await markCleanupFailure(db, resource, error)
@@ -623,21 +536,29 @@ async function processAccountDeletionPage({ auth, db, stripe, tombstoneRef, uid 
   return { completed, processed }
 }
 
-/**
- * @param {{ auth: Auth, db: Firestore, stripe: StripeClient, now?: Date }} options
- */
-async function processPendingAccountDeletions({ auth, db, stripe, now = new Date() }) {
+/** Resumes up to 10 pending deletions that are due; throws if any of them failed. */
+export async function processPendingAccountDeletions({
+  auth,
+  db,
+  stripe,
+  now = new Date(),
+}: {
+  auth: Auth
+  db: Firestore
+  stripe: Stripe
+  now?: Date
+}): Promise<DeletionPageResult[]> {
   const tombstones = await db
     .collection('accountDeletionTombstones')
     .where('cleanupStatus', '==', 'pending')
     .orderBy('cleanupUpdatedAt')
     .limit(10)
     .get()
-  const results = []
-  const failures = []
+  const results: DeletionPageResult[] = []
+  const failures: Error[] = []
   for (const tombstone of tombstones.docs) {
     const nextAttemptAt = tombstone.data?.().cleanupNextAttemptAt
-    const nextAttemptAtMs = timestampMillis(nextAttemptAt)
+    const nextAttemptAtMs = toMillis(nextAttemptAt)
     if (Number.isFinite(nextAttemptAtMs) && nextAttemptAtMs > now.getTime()) continue
     try {
       results.push(
@@ -673,10 +594,17 @@ async function processPendingAccountDeletions({ auth, db, stripe, now = new Date
   return results
 }
 
-/**
- * @param {{ auth: Auth, db: Firestore, req: Request, stripe: StripeClient }} options
- */
-async function deleteAccount({ auth, db, req, stripe }) {
+export async function deleteAccount({
+  auth,
+  db,
+  req,
+  stripe,
+}: {
+  auth: Auth
+  db: Firestore
+  req: Request
+  stripe: Stripe
+}): Promise<DeletionPageResult> {
   const identity = await authenticate(auth, req.headers.authorization, { maxAgeSeconds: 300 })
   if (req.body?.confirmation !== 'DELETE') {
     throw new HttpError('invalid-argument', 'Type DELETE to confirm')
@@ -724,16 +652,12 @@ async function deleteAccount({ auth, db, req, stripe }) {
   try {
     return await processAccountDeletionPage({ auth, db, stripe, tombstoneRef, uid: identity.uid })
   } catch (error) {
+    // The tombstone is written, so the scheduled cleanup resumes from here.
+    logger.warn('deleteAccount cleanup deferred to the scheduled job', {
+      uid: identity.uid,
+      error: loggableError(error),
+    })
     await markAccountCleanupFailure(db, tombstoneRef, error).catch(() => false)
     return { completed: false, processed: 0 }
   }
-}
-
-module.exports = {
-  authenticate,
-  deleteAccount,
-  exportAccountData,
-  processAccountDeletionPage,
-  processPendingAccountDeletions,
-  safeAccountData,
 }

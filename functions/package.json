@@ -4,23 +4,27 @@
   "engines": {
     "node": "24"
   },
-  "main": "index.js",
+  "main": "lib/index.js",
   "imports": {
     "#core": "./core/index.js"
   },
   "private": true,
   "scripts": {
     "build:core": "npm --prefix .. run build:core",
-    "preserve": "npm run build:core",
+    "clean": "node -e \"require('node:fs').rmSync('lib', { recursive: true, force: true })\"",
+    "build": "npm run build:core && npm run clean && tsc -p tsconfig.build.json",
+    "gcp-build": "",
+    "preserve": "npm run build",
     "serve": "firebase emulators:start --only functions",
     "deploy": "firebase deploy --only functions",
     "pretypecheck": "npm run build:core",
     "typecheck": "tsc -p .",
-    "pretest": "npm run build:core",
+    "pretest": "npm run build",
     "test": "tsc -p . && node --test test/*.test.js",
-    "pretest:rules": "npm run build:core",
+    "pretest:rules": "npm run build",
     "test:rules": "cd .. && firebase emulators:exec --project demo-solara --only firestore \"node --test functions/test/emulator/*.test.js\"",
-    "migrate:feed-tokens": "node scripts/migrate-calendar-feed-tokens.js"
+    "premigrate:feed-tokens": "npm run build",
+    "migrate:feed-tokens": "node lib/feed/migrate-legacy-tokens.js"
   },
   "dependencies": {
     "firebase-admin": "^14.5.0",

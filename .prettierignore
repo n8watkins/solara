@@ -8,6 +8,7 @@ next-env.d.ts
 public/firebase-messaging-sw.js
 .firebase/
 functions/core/
+functions/lib/
 
 # Lockfiles are owned by npm
 package-lock.json
