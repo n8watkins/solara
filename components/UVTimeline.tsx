@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useId, type ReactNode } from 'react'
 import type { HourlyForecast } from '@/lib/types'
 import { uvColorHex, uvTextHex, fmtHour, formatUV, uvLabel } from '@/lib/weather'
+import VisuallyHidden from './VisuallyHidden'
 
 /** Space between bars, in px. SunArc uses it to put each hour above its bar. */
 export const UV_BAR_GAP = 4
@@ -35,18 +36,6 @@ export function uvDaySummary(hourly: HourlyForecast[]): string {
   }
   return parts.join(' ')
 }
-
-const visuallyHidden = {
-  position: 'absolute',
-  width: '1px',
-  height: '1px',
-  padding: 0,
-  margin: '-1px',
-  overflow: 'hidden',
-  clip: 'rect(0 0 0 0)',
-  whiteSpace: 'nowrap',
-  border: 0,
-} as const
 
 interface Props {
   hourly: HourlyForecast[]
@@ -197,9 +186,7 @@ export default function UVTimeline({
 
   return (
     <div style={{ userSelect: 'none', WebkitUserSelect: 'none' }}>
-      <p id={summaryId} style={visuallyHidden}>
-        {uvDaySummary(hourly)}
-      </p>
+      <VisuallyHidden id={summaryId}>{uvDaySummary(hourly)}</VisuallyHidden>
       <div
         className="uv-strip"
         ref={stripRef}
@@ -234,7 +221,6 @@ export default function UVTimeline({
                   onClick={() => selectHour(h)}
                   className="uv-bar"
                   aria-pressed={isSel}
-                  aria-label={`${fmtHour(h.hour)}, UV ${h.uv.toFixed(1)}, ${uvLabel(h.uv)}${isNow ? ', current hour' : ''}`}
                   style={{
                     flex: `1 0 ${UV_BAR_MIN_WIDTH}px`,
                     minWidth: `${UV_BAR_MIN_WIDTH}px`,
@@ -257,11 +243,16 @@ export default function UVTimeline({
                     transition: 'border-color 0.12s',
                   }}
                 >
+                  {/* Read as "UV 6.0, High, at 10am, current hour": hidden words fill in
+                      around the visible number and hour so the name contains both. */}
                   <span style={{ fontSize: '13px', fontWeight: 700, lineHeight: 1 }}>
+                    <VisuallyHidden>UV </VisuallyHidden>
                     {formatUV(h.uv, { compact: true })}
+                    <VisuallyHidden>, {uvLabel(h.uv)}, at </VisuallyHidden>
                   </span>
                   <span style={{ fontSize: '10px', opacity: 0.75, lineHeight: 1 }}>
                     {fmtHour(h.hour)}
+                    {isNow && <VisuallyHidden>, current hour</VisuallyHidden>}
                   </span>
                 </button>
               )

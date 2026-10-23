@@ -6,6 +6,7 @@ import { canUseCalendar, effectiveMaxUV } from '@/lib/tiers'
 import { buildActivityShareText, buildActivityShareUrl, shareOrCopy } from '@/lib/share'
 import type { SlotRecommendation } from '@/lib/scheduler'
 import type { ActivityDayPlan } from '@/lib/next-slot'
+import VisuallyHidden from './VisuallyHidden'
 
 interface Props {
   /** One plan per activity for the selected day (see planActivityDay). */
@@ -130,10 +131,9 @@ function WindowRow({
             href={calendarHref}
             target="_blank"
             rel="noopener noreferrer"
-            aria-label={`Add ${range} to Google Calendar`}
             style={{ padding: '5px 9px', fontSize: '11px', textDecoration: 'none' }}
           >
-            Cal
+            Cal<VisuallyHidden>: add {range} to Google Calendar</VisuallyHidden>
           </a>
         )}
       </div>
