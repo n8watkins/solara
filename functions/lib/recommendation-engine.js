@@ -78,6 +78,8 @@ function summarizeWindow(hourly, from, to) {
  * Find contiguous [from,to) windows whose planning UV is at or below maxUV.
  * `planningUV` may hold a conservative adjustment while `uv` always remains
  * the forecast value used in the returned summary.
+ * An hour without a finite UV never qualifies, and a window never spans a gap
+ * in the hour sequence, so an unknown or missing hour is never recommended.
  */
 function findWindows(hourly, maxUV, durationMins = 0, preferredHours) {
   const windows = []
@@ -85,24 +87,24 @@ function findWindows(hourly, maxUV, durationMins = 0, preferredHours) {
 
   for (let i = 0; i <= hourly.length; i++) {
     const current = hourly[i]
+    const previous = hourly[i - 1]
+    const planningUV = current ? (current.planningUV ?? current.uv) : null
     const qualifies =
-      current &&
-      (current.planningUV ?? current.uv) <= maxUV &&
+      current !== undefined &&
+      Number.isFinite(current.uv) &&
+      Number.isFinite(planningUV) &&
+      planningUV <= maxUV &&
       hourAllowed(current.hour, preferredHours)
+    const continues = qualifies && previous !== undefined && current.hour === previous.hour + 1
 
-    if (qualifies) {
-      if (start === null) start = current.hour
-      continue
-    }
-
-    if (start !== null) {
-      const previousHour = hourly[i - 1]?.hour ?? start
-      const to = previousHour + 1
+    if (start !== null && !continues) {
+      const to = previous.hour + 1
       if ((to - start) * 60 >= durationMins) {
         windows.push(summarizeWindow(hourly, start, to))
       }
       start = null
     }
+    if (qualifies && start === null) start = current.hour
   }
 
   return windows

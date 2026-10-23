@@ -5,6 +5,7 @@ const {
   findWindows,
   runsOn,
 } = require('../functions/lib/recommendation-engine')
+const { weatherLabel } = require('../functions/lib/forecast-core')
 
 const DEFINITE_MESSAGING_FAILURE_CODES = new Set([
   'messaging/invalid-argument',
@@ -20,14 +21,6 @@ const DEFINITE_MESSAGING_FAILURE_CODES = new Set([
   'messaging/registration-token-not-registered',
   'messaging/too-many-topics',
 ])
-
-function weatherLabel(code) {
-  if (code === 0) return 'Clear'
-  if (code <= 3) return 'Partly cloudy'
-  if (code <= 49) return 'Foggy'
-  if (code <= 67) return 'Rainy'
-  return 'Cloudy'
-}
 
 function fmtHour(hour) {
   if (hour === 12) return '12pm'
