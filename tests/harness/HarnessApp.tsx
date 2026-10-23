@@ -7,6 +7,7 @@
 //   screen = dashboard (default) | calendar | settings | pricing
 //   tier   = paid (default) | free
 //   tab    = general (default) | activities | location   (settings only)
+//   fixture = default (default) | uv-gaps   (see uv-gap-fixtures.ts)
 //
 // Only reachable in builds made with NEXT_PUBLIC_UI_HARNESS=1; see
 // app/harness/page.harness.tsx and scripts/check-no-ui-harness.mjs.
@@ -17,6 +18,7 @@ import Dashboard from '@/components/Dashboard'
 import CalendarView from '@/components/CalendarView'
 import PricingModal from '@/components/PricingModal'
 import { HARNESS_MARKER, buildPrefs, buildUser, buildWeather } from './fixtures'
+import { buildGapWeather } from './uv-gap-fixtures'
 
 export type HarnessScreen = 'dashboard' | 'calendar' | 'settings' | 'pricing'
 type SettingsTab = 'general' | 'activities' | 'location'
@@ -33,13 +35,17 @@ function readParams() {
     screen: screen && SCREENS.includes(screen) ? screen : 'dashboard',
     tier: tier as TierLevel,
     tab: tab && TABS.includes(tab) ? tab : 'general',
+    fixture: params.get('fixture') === 'uv-gaps' ? 'uv-gaps' : 'default',
   }
 }
 
 export default function HarnessApp() {
   const initial = useMemo(() => readParams(), [])
   const user = useMemo(() => buildUser(), [])
-  const weather = useMemo(() => buildWeather(), [])
+  const weather = useMemo(
+    () => (initial.fixture === 'uv-gaps' ? buildGapWeather() : buildWeather()),
+    [initial.fixture],
+  )
   const [prefs, setPrefs] = useState<UserPreferences>(() => buildPrefs(initial.tier))
   const [view, setView] = useState<'dashboard' | 'calendar'>(
     initial.screen === 'calendar' ? 'calendar' : 'dashboard',

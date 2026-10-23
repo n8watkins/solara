@@ -13,6 +13,12 @@ const {
   mapLimit,
   weatherLabel,
 } = require('./notification-core')
+const {
+  fetchJson,
+  forecastUrl,
+  isPlannableHour,
+  parseHourlyRows,
+} = require('../functions/lib/forecast-core')
 
 const DRY_RUN = process.env.DRY_RUN === '1' || process.env.DRY_RUN === 'true'
 const FORCE_SEND = process.env.FORCE_SEND === '1' || process.env.FORCE_SEND === 'true'
@@ -57,7 +63,51 @@ function forecastCacheKey(lat, lon) {
   return `${Number(lat).toFixed(2)},${Number(lon).toFixed(2)}`
 }
 
-async function fetchHourly(lat, lon) {
+const FORECAST_ATTEMPTS = 2
+
+/** Today's daytime (06-20) hours with a known UV, in the forecast's own timezone. */
+function parseNotificationForecast(data, now = new Date()) {
+  const rows = parseHourlyRows(data)
+  if (typeof data.timezone !== 'string' || !data.timezone) {
+    throw new Error('Forecast response was incomplete')
+  }
+  const local = localParts(now, data.timezone)
+  const hourly = rows
+    .filter(row => row.date === local?.date && isPlannableHour(row))
+    .map(row => ({
+      date: row.date,
+      hour: row.hour,
+      uv: row.uv,
+      tempF: row.tempF,
+      condition: weatherLabel(row.weatherCode),
+    }))
+  return { hourly, timezone: data.timezone }
+}
+
+async function requestForecast(lat, lon, fetchImpl) {
+  const url = forecastUrl({
+    lat,
+    lon,
+    days: 1,
+    hourly: ['uv_index', 'temperature_2m', 'weathercode'],
+  })
+  let lastError
+  for (let attempt = 1; attempt <= FORECAST_ATTEMPTS; attempt++) {
+    try {
+      return parseNotificationForecast(await fetchJson(url, { fetchImpl }))
+    } catch (error) {
+      lastError = error
+    }
+  }
+  throw lastError
+}
+
+/**
+ * Today's forecast for a location, shared by every subscriber in the same grid
+ * cell for the rest of the run. Each request times out after 5 s and is retried
+ * once; a failed lookup is evicted so a later subscriber tries again.
+ */
+async function fetchHourly(lat, lon, { fetchImpl } = {}) {
   const key = forecastCacheKey(lat, lon)
   if (forecastCache.has(key)) {
     const cached = forecastCache.get(key)
@@ -66,29 +116,19 @@ async function fetchHourly(lat, lon) {
     return cached
   }
 
-  const request = (async () => {
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=uv_index,temperature_2m,weathercode&timezone=auto&forecast_days=1`
-    const response = await fetch(url, { signal: AbortSignal.timeout(10_000) })
-    if (!response.ok) throw new Error(`Forecast request failed: ${response.status}`)
-    const data = await response.json()
-    if (!data.hourly?.time || !data.timezone) throw new Error('Forecast response was incomplete')
-    const local = localParts(new Date(), data.timezone)
-    const hourly = data.hourly.time
-      .map((time, index) => ({
-        date: time.split('T')[0],
-        hour: Number(time.split('T')[1].split(':')[0]),
-        uv: Math.round(data.hourly.uv_index[index] * 10) / 10,
-        tempF: Math.round((data.hourly.temperature_2m[index] * 9) / 5 + 32),
-        condition: weatherLabel(data.hourly.weathercode[index]),
-      }))
-      .filter(sample => sample.date === local?.date && sample.hour >= 6 && sample.hour <= 20)
-    return { hourly, timezone: data.timezone }
-  })()
+  const request = requestForecast(lat, lon, fetchImpl)
   forecastCache.set(key, request)
   if (forecastCache.size > FORECAST_CACHE_SIZE) {
     forecastCache.delete(forecastCache.keys().next().value)
   }
+  request.catch(() => {
+    if (forecastCache.get(key) === request) forecastCache.delete(key)
+  })
   return request
+}
+
+function clearForecastCache() {
+  forecastCache.clear()
 }
 
 function deviceCandidate(deviceDoc) {
@@ -582,10 +622,12 @@ async function main() {
 
 module.exports = {
   claimDelivery,
+  clearForecastCache,
   dispatchStateDocumentId,
   fetchHourly,
   finishDelivery,
   notificationScope,
+  parseNotificationForecast,
   recordDeliveryFailure,
   scanSubscriptions,
   sendSubscription,

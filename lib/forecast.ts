@@ -1,15 +1,43 @@
 import type { Location, WeatherResponse, HourlyForecast, DayWeather } from './types'
 
-/** Open-Meteo WMO weather code → short human label. */
-export function weatherLabel(code: number): string {
-  if (code === 0) return 'Clear'
-  if (code <= 3) return 'Partly cloudy'
-  if (code <= 49) return 'Foggy'
-  if (code <= 67) return 'Rainy'
-  if (code <= 77) return 'Snowy'
-  if (code <= 82) return 'Showers'
-  return 'Stormy'
+type OpenMeteoHourlyRow = {
+  date: string
+  hour: number
+  uv: number | null
+  tempF: number | null
+  weatherCode: number | null
+  cloudCover: number | null
 }
+
+type ForecastCore = {
+  FETCH_TIMEOUT_MS: number
+  weatherLabel: (code: number | null) => string
+  roundUV: (value: unknown) => number | null
+  toFahrenheit: (celsius: unknown) => number | null
+  splitTime: (time: unknown) => { date: string; hour: number } | null
+  parseHourlyRows: (raw: unknown) => OpenMeteoHourlyRow[]
+  isPlannableHour: (row: OpenMeteoHourlyRow) => boolean
+  forecastDates: (rows: OpenMeteoHourlyRow[]) => string[]
+  forecastUrl: (request: {
+    lat: number
+    lon: number
+    days: number
+    hourly: string[]
+    current?: string[]
+  }) => string
+  fetchJson: (
+    url: string,
+    opts?: { timeoutMs?: number; signal?: AbortSignal; fetchImpl?: typeof fetch },
+  ) => Promise<unknown>
+}
+
+// The same portable parser the calendar feed and notifier use, so every surface
+// reads Open-Meteo identically (including how missing values are handled).
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const core = require('../functions/lib/forecast-core') as ForecastCore
+
+/** Open-Meteo WMO weather code to a short human label ("Unknown" when missing). */
+export const weatherLabel: (code: number | null) => string = core.weatherLabel
 
 /** Local YYYY-MM-DD for `daysFromNow` (en-CA renders ISO-style). */
 export function localDateString(daysFromNow = 0): string {
@@ -18,60 +46,106 @@ export function localDateString(daysFromNow = 0): string {
   return d.toLocaleDateString('en-CA')
 }
 
-const DAY_START = 6
-const DAY_END = 20
-
-interface RawForecast {
-  current?: { uv_index: number; temperature_2m: number; weathercode: number }
+/** Raw Open-Meteo forecast. Values may be `null` where the provider has no data. */
+export interface RawForecast {
+  /** IANA zone of the forecast location (Open-Meteo `timezone=auto`). */
+  timezone?: string
+  current?: {
+    time?: string
+    uv_index?: number | null
+    temperature_2m?: number | null
+    weathercode?: number | null
+  }
   hourly: {
     time: string[]
-    uv_index: number[]
-    temperature_2m: number[]
-    weathercode: number[]
-    cloudcover?: number[]
+    uv_index: (number | null)[]
+    temperature_2m: (number | null)[]
+    weathercode: (number | null)[]
+    cloudcover?: (number | null)[]
   }
 }
 
-/** Parse one day's daytime (06–20) hours out of the flat Open-Meteo arrays. */
-function parseDay(raw: RawForecast, dateStr: string): HourlyForecast[] {
-  return raw.hourly.time
-    .map((t, i): HourlyForecast => ({
-      date: t.split('T')[0]!,
-      hour: parseInt(t.split('T')[1]!.split(':')[0]!),
-      uv: Math.round(raw.hourly.uv_index[i]! * 10) / 10,
-      tempF: Math.round((raw.hourly.temperature_2m[i]! * 9) / 5 + 32),
-      condition: weatherLabel(raw.hourly.weathercode[i]!),
-      cloudCover: raw.hourly.cloudcover ? Math.round(raw.hourly.cloudcover[i]!) : undefined,
-    }))
-    .filter(h => h.date === dateStr && h.hour >= DAY_START && h.hour <= DAY_END)
+/**
+ * One day's daytime (06-20) hours with a known UV and temperature. Hours the
+ * provider left blank are omitted rather than guessed, and the recommendation
+ * engine never bridges an omitted hour, so unknown hours are never recommended.
+ */
+function daytimeHours(rows: OpenMeteoHourlyRow[], dateStr: string): HourlyForecast[] {
+  const hours: HourlyForecast[] = []
+  for (const row of rows) {
+    if (row.date !== dateStr || !core.isPlannableHour(row)) continue
+    if (row.uv === null || row.tempF === null) continue
+    hours.push({
+      date: row.date,
+      hour: row.hour,
+      uv: row.uv,
+      tempF: row.tempF,
+      condition: core.weatherLabel(row.weatherCode),
+      cloudCover: row.cloudCover ?? undefined,
+    })
+  }
+  return hours
+}
+
+/** Today's date and hour in the forecast location's zone, or the device's when unknown. */
+function wallClockIn(timeZone: string | undefined): { date: string; hour: number } {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(new Date())
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find(p => p.type === type)?.value ?? ''
+  return { date: `${part('year')}-${part('month')}-${part('day')}`, hour: Number(part('hour')) }
+}
+
+/**
+ * Current conditions. Falls back to the hourly row for the current hour when the
+ * provider's `current` block is missing a value. Throws when UV or temperature
+ * is unknown either way, so a gap is never shown as UV 0.
+ */
+function currentConditions(raw: RawForecast, rows: OpenMeteoHourlyRow[]) {
+  const at = core.splitTime(raw.current?.time) ?? wallClockIn(raw.timezone)
+  const row = rows.find(r => r.date === at.date && r.hour === at.hour)
+  const uv = core.roundUV(raw.current?.uv_index) ?? row?.uv ?? null
+  const tempF = core.toFahrenheit(raw.current?.temperature_2m) ?? row?.tempF ?? null
+  if (uv === null || tempF === null) {
+    throw new Error('Forecast response has no current UV or temperature')
+  }
+  const code = raw.current?.weathercode
+  return {
+    uv,
+    tempF,
+    condition: core.weatherLabel(
+      typeof code === 'number' && Number.isFinite(code) ? code : (row?.weatherCode ?? null),
+    ),
+  }
 }
 
 /** Build the normalized WeatherResponse (current + today/tomorrow + N-day forecast). */
 export function parseForecast(raw: RawForecast, days = 10): WeatherResponse {
-  const dateSet = new Set<string>()
-  raw.hourly.time.forEach(t => dateSet.add(t.split('T')[0]!))
-  const allDates = Array.from(dateSet).sort()
+  const rows = core.parseHourlyRows(raw)
 
-  const forecast: DayWeather[] = allDates.slice(0, days).map((dateStr, idx) => {
-    const d = new Date(dateStr + 'T12:00:00')
-    const label =
-      idx === 0
-        ? 'Today'
-        : idx === 1
-          ? 'Tomorrow'
-          : d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
-    return { dateStr, label, hourly: parseDay(raw, dateStr) }
-  })
+  const forecast: DayWeather[] = core
+    .forecastDates(rows)
+    .slice(0, days)
+    .map((dateStr, idx) => {
+      const d = new Date(dateStr + 'T12:00:00')
+      const label =
+        idx === 0
+          ? 'Today'
+          : idx === 1
+            ? 'Tomorrow'
+            : d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+      return { dateStr, label, hourly: daytimeHours(rows, dateStr) }
+    })
 
-  const cur = raw.current
   return {
-    current: {
-      uv: cur ? Math.round(cur.uv_index * 10) / 10 : 0,
-      tempF: cur ? Math.round((cur.temperature_2m * 9) / 5 + 32) : 0,
-      condition: cur ? weatherLabel(cur.weathercode) : 'Clear',
-    },
-    today: parseDay(raw, localDateString(0)),
-    tomorrow: parseDay(raw, localDateString(1)),
+    current: currentConditions(raw, rows),
+    today: daytimeHours(rows, localDateString(0)),
+    tomorrow: daytimeHours(rows, localDateString(1)),
     forecast,
   }
 }
@@ -79,20 +153,21 @@ export function parseForecast(raw: RawForecast, days = 10): WeatherResponse {
 /**
  * Single source of truth for fetching the forecast. Both the Dashboard and the
  * Calendar consume this so they never disagree or double-fetch. `cloudcover` is
- * requested so cloud-sensitivity (P3) needs no fetch change.
+ * requested so cloud-sensitivity (P3) needs no fetch change. The request is
+ * abandoned after 5 s so a slow provider surfaces as an error instead of a hang.
  */
 export async function fetchForecast(
   location: Location,
-  opts: { days?: number; signal?: AbortSignal } = {},
+  opts: { days?: number; signal?: AbortSignal; timeoutMs?: number } = {},
 ): Promise<WeatherResponse> {
-  const { days = 10, signal } = opts
-  const url =
-    `https://api.open-meteo.com/v1/forecast` +
-    `?latitude=${location.lat}&longitude=${location.lon}` +
-    `&hourly=uv_index,temperature_2m,weathercode,cloudcover` +
-    `&current=uv_index,temperature_2m,weathercode` +
-    `&timezone=auto&forecast_days=${days}`
-  const res = await fetch(url, { signal })
-  if (!res.ok) throw new Error(`Forecast fetch failed: ${res.status}`)
-  return parseForecast(await res.json(), days)
+  const { days = 10, signal, timeoutMs = core.FETCH_TIMEOUT_MS } = opts
+  const url = core.forecastUrl({
+    lat: location.lat,
+    lon: location.lon,
+    days,
+    hourly: ['uv_index', 'temperature_2m', 'weathercode', 'cloudcover'],
+    current: ['uv_index', 'temperature_2m', 'weathercode'],
+  })
+  const raw = (await core.fetchJson(url, { signal, timeoutMs })) as RawForecast
+  return parseForecast(raw, days)
 }
