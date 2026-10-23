@@ -14,7 +14,7 @@
     "dev": "next dev",
     "prebuild": "node scripts/generate-sw.js",
     "build": "next build",
-    "postbuild": "node scripts/check-no-ui-harness.mjs && node scripts/csp.mjs",
+    "postbuild": "node scripts/check-no-ui-harness.mjs && node scripts/check-no-emulators.mjs && node scripts/csp.mjs",
     "build:core": "node scripts/build-core.mjs",
     "start": "next start",
     "lint": "eslint . --max-warnings=0 && npm run format:check",
@@ -23,6 +23,7 @@
     "test": "vitest run --coverage",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "test:e2e:signed-in": "node tests/e2e/signed-in/run.mjs",
     "format": "prettier --write \"**/*.{ts,tsx,mts,js,mjs,cjs,css}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,mts,js,mjs,cjs,css}\"",
     "test:harness": "playwright test -c playwright.harness.config.ts"

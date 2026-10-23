@@ -89,6 +89,56 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  e2e-signed-in:
+    name: Signed-in browser tests on emulators
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            functions/package-lock.json
+
+      # The Firestore emulator runs on Java.
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: 21
+
+      # functions/ provides the locked firebase-tools and the Functions under test.
+      - name: Install dependencies
+        run: |
+          npm ci --ignore-scripts
+          npm ci --prefix functions --ignore-scripts
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      # Builds an emulator-only export, then runs Playwright inside
+      # `firebase emulators:exec` with Auth, Firestore and Functions on free ports.
+      - name: Signed-in browser tests
+        run: npm run test:e2e:signed-in
+
+      - name: Upload traces and report
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: signed-in-traces
+          path: |
+            test-results/signed-in/artifacts/
+            playwright-report/signed-in/
+          if-no-files-found: ignore
+          retention-days: 7
+
   ui-harness:
     name: Signed-in UI harness
     runs-on: ubuntu-latest
