@@ -2,7 +2,7 @@
 // (tests/e2e/signed-in/run.mjs sets NODE_OPTIONS=--require <this file>).
 //
 // Every browser-called Function verifies an App Check token with the Admin SDK
-// (functions/lib/http.js). There is no App Check emulator, and real tokens, even
+// (functions/src/shared/app-check.ts). There is no App Check emulator, and real tokens, even
 // debug ones, are minted by Google's servers, which the suite never contacts. So
 // emulator builds of the web app mint opaque local tokens (see
 // emulatorAppCheckProvider in lib/firebase.ts) and this file teaches the Admin SDK

@@ -5,7 +5,7 @@
 //
 // 1. Picks a free port for the test server and for every emulator, so runs never
 //    collide with each other or with other emulators on the machine.
-// 2. Builds the Functions' shared core and an emulator build of the static export
+// 2. Builds the Functions and an emulator build of the static export
 //    (NEXT_PUBLIC_FIREBASE_EMULATORS=1) into test-results/signed-in/site, never
 //    into out/.
 // 3. Starts the emulators with `firebase emulators:exec` and runs Playwright inside
@@ -89,8 +89,9 @@ const origin = `http://${HOST}:${port}`
 
 // --- Build ---------------------------------------------------------------------------
 
-// The Functions load @solara/core from functions/core (npm run build:core).
-run('npm', ['run', 'build:core'])
+// The Functions emulator loads the compiled Functions (functions/lib, with
+// @solara/core in functions/core), the same build `firebase deploy` uploads.
+run('npm', ['run', 'build', '--prefix', 'functions'])
 
 // SIGNED_IN_SKIP_BUILD=1 reuses the previous build while iterating locally on
 // tests; it must have been built for the same port.
