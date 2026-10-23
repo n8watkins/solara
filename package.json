@@ -23,6 +23,7 @@
     "test": "vitest run --coverage",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "test:e2e:signed-in": "node tests/e2e/signed-in/run.mjs",
     "format": "prettier --write \"**/*.{ts,tsx,mts,js,mjs,cjs,css}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,mts,js,mjs,cjs,css}\"",
     "test:harness": "playwright test -c playwright.harness.config.ts"

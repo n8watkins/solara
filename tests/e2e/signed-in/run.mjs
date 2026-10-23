@@ -1,0 +1,263 @@
+#!/usr/bin/env node
+// Runs the signed-in e2e suite (npm run test:e2e:signed-in) against the Firebase
+// Local Emulator Suite: Auth, Firestore (with the real firestore.rules) and the real
+// Functions source.
+//
+// 1. Picks a free port for the test server and for every emulator, so runs never
+//    collide with each other or with other emulators on the machine.
+// 2. Builds the Functions' shared core and an emulator build of the static export
+//    (NEXT_PUBLIC_FIREBASE_EMULATORS=1) into test-results/signed-in/site, never
+//    into out/.
+// 3. Starts the emulators with `firebase emulators:exec` and runs Playwright inside
+//    it (tests/e2e/signed-in/playwright.config.ts).
+//
+// Usage: node tests/e2e/signed-in/run.mjs [playwright test args...]
+// Set PLAYWRIGHT_PORT to pin the test server's port. Needs Java 21 for the
+// Firestore emulator and `npm ci --prefix functions` for firebase-tools.
+import { spawn, spawnSync } from 'node:child_process'
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs'
+import { createServer } from 'node:net'
+import { join, resolve } from 'node:path'
+
+const HOST = '127.0.0.1'
+// A demo- project needs no credentials, and the emulators never let it reach a
+// real Firebase project.
+const PROJECT = 'demo-solara-signed-in'
+const SITE_DIR = resolve('test-results/signed-in/site')
+// Records which test-server origin a build targets (it is baked into the bundle).
+const SITE_INFO = resolve('test-results/signed-in/site.json')
+
+/** Asks the OS for a free TCP port on HOST. */
+function freePort() {
+  return new Promise((resolvePort, reject) => {
+    const server = createServer()
+    server.once('error', reject)
+    server.listen(0, HOST, () => {
+      const address = server.address()
+      server.close(() => resolvePort(typeof address === 'object' && address ? address.port : 0))
+    })
+  })
+}
+
+/** Distinct free ports other than `exclude`, so no two services share a port. */
+async function freePorts(count, exclude) {
+  const ports = new Set()
+  while (ports.size < count) {
+    const candidate = await freePort()
+    if (candidate !== exclude) ports.add(candidate)
+  }
+  return [...ports]
+}
+
+function run(command, args, env = process.env) {
+  const result = spawnSync(command, args, { stdio: 'inherit', env })
+  if (result.status !== 0) {
+    console.error(`signed-in: ${command} ${args.join(' ')} failed`)
+    process.exit(result.status ?? 1)
+  }
+}
+
+const firebaseBin = resolve('functions/node_modules/.bin/firebase')
+if (!existsSync(firebaseBin)) {
+  console.error('signed-in: firebase-tools is missing. Run `npm ci --prefix functions` first.')
+  process.exit(1)
+}
+
+const pinned = Number(process.env.PLAYWRIGHT_PORT)
+const [
+  picked,
+  authPort,
+  firestorePort,
+  firestoreWsPort,
+  functionsPort,
+  eventarcPort,
+  tasksPort,
+  hubPort,
+  loggingPort,
+] = await freePorts(9, pinned)
+const port = pinned || picked
+const origin = `http://${HOST}:${port}`
+
+// --- Build ---------------------------------------------------------------------------
+
+// The Functions load @solara/core from functions/core (npm run build:core).
+run('npm', ['run', 'build:core'])
+
+// SIGNED_IN_SKIP_BUILD=1 reuses the previous build while iterating locally on
+// tests; it must have been built for the same port.
+const reuse = process.env.SIGNED_IN_SKIP_BUILD === '1'
+if (reuse) {
+  const info = existsSync(SITE_INFO) ? JSON.parse(readFileSync(SITE_INFO, 'utf8')) : null
+  if (info?.origin !== origin) {
+    console.error(
+      `signed-in: no previous build for ${origin}; run once without SIGNED_IN_SKIP_BUILD.`,
+    )
+    process.exit(1)
+  }
+} else {
+  buildSite()
+}
+
+function buildSite() {
+  // Hermetic public env: a demo Firebase project wired to the emulators, nothing else.
+  // The process env wins over .env files, so a developer's .env.local cannot leak in.
+  const buildEnv = {
+    ...process.env,
+    NEXT_PUBLIC_FIREBASE_EMULATORS: '1',
+    NEXT_PUBLIC_FIREBASE_API_KEY: 'demo-api-key',
+    // Required by popup sign-in; in emulator builds the helper pages come from the
+    // Auth emulator instead, so this host is never contacted.
+    NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: `${PROJECT}.firebaseapp.com`,
+    NEXT_PUBLIC_FIREBASE_PROJECT_ID: PROJECT,
+    NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: '',
+    NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: '',
+    NEXT_PUBLIC_FIREBASE_APP_ID: '',
+    NEXT_PUBLIC_FIREBASE_VAPID_KEY: '',
+    NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY: '',
+    NEXT_PUBLIC_FUNCTIONS_URL: `${origin}/${PROJECT}/us-central1`,
+    NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID: '',
+    NEXT_PUBLIC_GA_MEASUREMENT_ID: '',
+    NEXT_PUBLIC_UI_HARNESS: '',
+    NEXT_TELEMETRY_DISABLED: '1',
+  }
+
+  // `next build` directly, not `npm run build`: the production postbuild refuses the
+  // emulator flag (scripts/check-no-emulators.mjs). The export is moved out of out/
+  // right away, so out/ never keeps an emulator build.
+  run('node', ['scripts/generate-sw.js'], buildEnv)
+  run(process.execPath, [join('node_modules', 'next', 'dist', 'bin', 'next'), 'build'], buildEnv)
+  rmSync(SITE_DIR, { recursive: true, force: true })
+  mkdirSync(resolve(SITE_DIR, '..'), { recursive: true })
+  renameSync(resolve('out'), SITE_DIR)
+  run('node', ['scripts/check-no-emulators.mjs', SITE_DIR, '--expect-emulators'], buildEnv)
+  run('node', ['scripts/csp.mjs', SITE_DIR], buildEnv)
+
+  // The production policy frames the Auth helper from the https authDomain. Emulator
+  // builds load that helper from the emulator, which this suite serves on the page's
+  // own origin, so the frame source becomes 'self'. Everything else stays as shipped.
+  let framed = 0
+  for (const file of (function* walk(dir) {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, entry.name)
+      if (entry.isDirectory()) yield* walk(full)
+      else if (entry.name.endsWith('.html')) yield full
+    }
+  })(SITE_DIR)) {
+    const html = readFileSync(file, 'utf8')
+    const next = html.replace(
+      /(<meta http-equiv="Content-Security-Policy" content="[^"]*?frame-src) /,
+      "$1 'self' ",
+    )
+    if (next !== html) {
+      writeFileSync(file, next)
+      framed++
+    }
+  }
+  if (framed === 0) {
+    console.error('signed-in: found no Content-Security-Policy frame-src to adjust.')
+    process.exit(1)
+  }
+
+  writeFileSync(SITE_INFO, JSON.stringify({ origin }))
+}
+
+// --- Emulators -----------------------------------------------------------------------
+
+// firebase-tools only accepts rules and Functions source inside the directory that
+// holds the config, so the run gets its own project directory in the gitignored
+// .firebase/ folder, linking to the real rules and Functions source.
+const projectDir = resolve('.firebase', `signed-in-${port}`)
+const configPath = join(projectDir, 'firebase.json')
+rmSync(projectDir, { recursive: true, force: true })
+mkdirSync(projectDir, { recursive: true })
+symlinkSync(resolve('firestore.rules'), join(projectDir, 'firestore.rules'))
+symlinkSync(resolve('functions'), join(projectDir, 'functions'), 'dir')
+writeFileSync(
+  configPath,
+  JSON.stringify(
+    {
+      firestore: { rules: 'firestore.rules' },
+      functions: { source: 'functions' },
+      emulators: {
+        auth: { host: HOST, port: authPort },
+        firestore: { host: HOST, port: firestorePort, websocketPort: firestoreWsPort },
+        functions: { host: HOST, port: functionsPort },
+        // Started alongside Functions; their default ports are shared machine-wide.
+        eventarc: { host: HOST, port: eventarcPort },
+        tasks: { host: HOST, port: tasksPort },
+        hub: { host: HOST, port: hubPort },
+        logging: { host: HOST, port: loggingPort },
+        ui: { enabled: false },
+        singleProjectMode: true,
+      },
+    },
+    null,
+    2,
+  ),
+)
+
+const playwrightCli = resolve('node_modules/@playwright/test/cli.js')
+const testArgs = process.argv.slice(2).map(arg => `'${arg.replace(/'/g, `'\\''`)}'`)
+const testCommand = [
+  `'${process.execPath}'`,
+  `'${playwrightCli}'`,
+  'test',
+  '-c',
+  'tests/e2e/signed-in/playwright.config.ts',
+  ...testArgs,
+].join(' ')
+
+const child = spawn(
+  firebaseBin,
+  [
+    'emulators:exec',
+    '--only',
+    'auth,firestore,functions',
+    '--project',
+    PROJECT,
+    '--config',
+    configPath,
+    testCommand,
+  ],
+  {
+    stdio: 'inherit',
+    env: {
+      ...process.env,
+      NO_UPDATE_NOTIFIER: '1',
+      // Accepts the emulator build's local App Check tokens inside the Functions
+      // emulator only; see the file for why this cannot reach production.
+      NODE_OPTIONS: [
+        process.env.NODE_OPTIONS,
+        `--require=${resolve('tests/e2e/signed-in/emulator-app-check.js')}`,
+      ]
+        .filter(Boolean)
+        .join(' '),
+      SIGNED_IN_PORT: String(port),
+      SIGNED_IN_SITE_DIR: SITE_DIR,
+      SIGNED_IN_PROJECT: PROJECT,
+      SIGNED_IN_AUTH_PORT: String(authPort),
+      SIGNED_IN_FIRESTORE_PORT: String(firestorePort),
+      SIGNED_IN_FUNCTIONS_PORT: String(functionsPort),
+    },
+  },
+)
+
+function cleanup() {
+  rmSync(projectDir, { recursive: true, force: true })
+}
+for (const signal of ['SIGINT', 'SIGTERM']) {
+  process.on(signal, () => child.kill(signal))
+}
+child.on('exit', (code, signal) => {
+  cleanup()
+  process.exit(code ?? (signal ? 1 : 0))
+})

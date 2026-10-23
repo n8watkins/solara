@@ -81,7 +81,7 @@ function connectEmulators(authInstance: Auth, firestore: Firestore): void {
 /**
  * App Check for emulator builds. There is no App Check emulator, and a real provider
  * (even the debug one) must reach Google, so the page mints opaque local tokens that
- * only the Functions emulator accepts (tests/e2e/signed-in/emulator-app-check.cjs).
+ * only the Functions emulator accepts (tests/e2e/signed-in/emulator-app-check.js).
  * Each call returns a fresh token, so limited-use replay protection still applies.
  */
 function emulatorAppCheckProvider(): CustomProvider {
