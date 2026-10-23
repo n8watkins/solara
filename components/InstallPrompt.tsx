@@ -35,10 +35,9 @@ function ShareIcon() {
  * "Add to home screen" prompt. Two paths:
  *  - Chromium (Android/desktop): capture the deferred `beforeinstallprompt` event
  *    and offer a one-tap Install button.
- *  - iOS Safari: that event never fires, AND iOS only allows web-push notifications
- *    for apps added to the Home Screen — so an iPhone can't receive sun alerts until
- *    it's installed. Since we can't trigger install programmatically there, surface
- *    the manual Share → Add to Home Screen instructions instead.
+ *  - iOS Safari: that event never fires and install can't be triggered
+ *    programmatically, so surface the manual Share, then Add to Home Screen
+ *    instructions instead.
  * Hidden if already installed (standalone), already dismissed, or unsupported.
  */
 export default function InstallPrompt() {
@@ -55,8 +54,8 @@ export default function InstallPrompt() {
     if (localStorage.getItem(DISMISS_KEY)) return
 
     // iOS (incl. iPadOS 13+, which reports as MacIntel with a touch screen) never
-    // fires beforeinstallprompt, and only Safari can add to the Home Screen — the
-    // one path to web push on iPhone. Show manual instructions for that case.
+    // fires beforeinstallprompt, and only Safari can add to the Home Screen. Show
+    // manual instructions for that case.
     const ua = window.navigator.userAgent
     const isIOS =
       /iPad|iPhone|iPod/.test(ua) ||
@@ -131,8 +130,8 @@ export default function InstallPrompt() {
             Add Solara to your home screen
           </p>
           <p style={{ margin: '2px 0 0', fontSize: '12px', color: 'var(--text-3)' }}>
-            Tap <ShareIcon /> Share, then <strong>Add to Home Screen</strong> — needed on iPhone to
-            get sun alerts.
+            Tap <ShareIcon /> Share, then <strong>Add to Home Screen</strong> to open Solara in one
+            tap.
           </p>
         </div>
         <button onClick={dismiss} aria-label="Dismiss" style={dismissBtn}>
