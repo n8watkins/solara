@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest'
 import type { BusyPeriod } from '@/lib/gcal'
-import { busyIntervalsForDay, buildEventBody, buildEventDescription } from '@/lib/gcal'
+import {
+  busyIntervalsForDay,
+  buildEventBody,
+  buildEventDescription,
+  CALENDAR_BOOKING_SCOPE,
+  CALENDAR_FREEBUSY_SCOPE,
+} from '@/lib/gcal'
 import type { SlotRecommendation } from '@/lib/scheduler'
 import type { Activity } from '@/lib/types'
 
@@ -108,5 +114,15 @@ describe('buildEventBody', () => {
     const body = buildEventBody(run, '2026-05-29', 9.5, 10.25, 'desc', 'UTC')
     expect(body.start.dateTime).toBe('2026-05-29T09:30:00')
     expect(body.end.dateTime).toBe('2026-05-29T10:15:00')
+  })
+})
+
+describe('Google Calendar scopes', () => {
+  it('requests availability only, never event read access', () => {
+    expect(CALENDAR_FREEBUSY_SCOPE).toBe('https://www.googleapis.com/auth/calendar.freebusy')
+    expect(CALENDAR_BOOKING_SCOPE).toBe('https://www.googleapis.com/auth/calendar.events.owned')
+    for (const scope of [CALENDAR_FREEBUSY_SCOPE, CALENDAR_BOOKING_SCOPE]) {
+      expect(scope).not.toMatch(/calendar(\.readonly|\.events)?$/)
+    }
   })
 })

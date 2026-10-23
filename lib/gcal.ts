@@ -2,19 +2,23 @@ import type { BusyInterval, SlotRecommendation } from './scheduler'
 import type { Activity } from './types'
 import { fmtClock } from './weather'
 
-// Google Calendar read access for a static app: the browser gets a short-lived
-// OAuth access token via Google Identity Services (incremental authorization,
-// decoupled from Firebase login) and calls the Calendar REST API directly.
-// Read scope is freeBusy only — we see *when* you're busy, never event details.
+// Google Calendar access for a static app: the browser gets a short-lived OAuth
+// access token via Google Identity Services (incremental authorization, decoupled
+// from Firebase login) and calls the Calendar REST API directly.
+//
+// Two narrow scopes, each requested only when needed:
+// - connect: `calendar.freebusy` lets Solara see *when* you are busy, never event
+//   titles, attendees or other details.
+// - booking: `calendar.events.owned` lets Solara add an event to a calendar you
+//   own, requested the first time you book and never for reading events.
 //
 // Configured via env so the repo ships no client ID. When unset, the UI hides
 // the "connect calendar" affordance and recommendations run calendar-free.
 
 const CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID
-// Read scope (freeBusy only) is requested at connect; the write scope is requested
-// incrementally at booking time so the default connection never grants event access.
-const SCOPE_READONLY = 'https://www.googleapis.com/auth/calendar.readonly'
-const SCOPE_EVENTS = 'https://www.googleapis.com/auth/calendar.events'
+// Keep in sync with the OAuth consent screen and the privacy policy.
+export const CALENDAR_FREEBUSY_SCOPE = 'https://www.googleapis.com/auth/calendar.freebusy'
+export const CALENDAR_BOOKING_SCOPE = 'https://www.googleapis.com/auth/calendar.events.owned'
 const GSI_SRC = 'https://accounts.google.com/gsi/client'
 
 /** A busy block from the freeBusy API, as RFC3339 timestamps. */
@@ -81,14 +85,14 @@ async function getToken(scope: string): Promise<string> {
   })
 }
 
-/** Read-only token for freeBusy (the default connection — no event access). */
+/** Token for the freeBusy query only (the default connection, no event access). */
 export function requestAccessToken(): Promise<string> {
-  return getToken(SCOPE_READONLY)
+  return getToken(CALENDAR_FREEBUSY_SCOPE)
 }
 
-/** Write token for creating events — requested incrementally when the user books. */
+/** Token for adding an event to a calendar you own, requested when you book. */
 export function requestWriteToken(): Promise<string> {
-  return getToken(SCOPE_EVENTS)
+  return getToken(CALENDAR_BOOKING_SCOPE)
 }
 
 /** Query the primary calendar's busy periods over [timeMin, timeMax]. */
