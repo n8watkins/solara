@@ -50,7 +50,7 @@ export default function SunArc({ hourly, currentHour, isToday, focused, onSelect
 
   const firstHour = firstEntry.hour
   const lastHour = lastEntry.hour
-  const peak = hourly.reduce((best, h) => h.uv > best.uv ? h : best)
+  const peak = hourly.reduce((best, h) => (h.uv > best.uv ? h : best))
   const current = hourly.find(h => h.hour === currentHour)
 
   const hourToProgress = (hour: number) => {
@@ -95,43 +95,70 @@ export default function SunArc({ hourly, currentHour, isToday, focused, onSelect
     const t = clamp((svgX - P0.x) / (P2.x - P0.x), 0, 1)
     const targetHour = firstHour + t * (lastHour - firstHour)
     const nearest = hourly.reduce((best, h) =>
-      Math.abs(h.hour - targetHour) < Math.abs(best.hour - targetHour) ? h : best)
+      Math.abs(h.hour - targetHour) < Math.abs(best.hour - targetHour) ? h : best,
+    )
     onSelectHour(nearest)
   }
 
   return (
-    <div style={{
-      position: 'relative',
-      overflow: 'hidden',
-      borderRadius: '14px',
-      padding: '10px 14px 6px',
-      marginBottom: '10px',
-      userSelect: 'none', WebkitUserSelect: 'none',
-      background: 'linear-gradient(180deg, rgba(251,191,36,0.13), rgba(249,115,22,0.05))',
-      border: '0.5px solid rgba(251,191,36,0.24)',
-    }}>
+    <div
+      style={{
+        position: 'relative',
+        overflow: 'hidden',
+        borderRadius: '14px',
+        padding: '10px 14px 6px',
+        marginBottom: '10px',
+        userSelect: 'none',
+        WebkitUserSelect: 'none',
+        background: 'linear-gradient(180deg, rgba(251,191,36,0.13), rgba(249,115,22,0.05))',
+        border: '0.5px solid rgba(251,191,36,0.24)',
+      }}
+    >
       <div className="sun-arc-plot" style={{ position: 'relative' }}>
         <svg
           ref={svgRef}
           viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
           preserveAspectRatio="none"
-          style={{ width: '100%', height: '100%', display: 'block', cursor: 'pointer', touchAction: 'pan-y' }}
+          style={{
+            width: '100%',
+            height: '100%',
+            display: 'block',
+            cursor: 'pointer',
+            touchAction: 'pan-y',
+          }}
           role="slider"
           aria-label="Sun path — scrub to an hour"
           aria-valuemin={firstHour}
           aria-valuemax={lastHour}
           aria-valuenow={focused?.hour ?? currentHour}
           aria-valuetext={focused ? `${fmtHour(focused.hour)}, ${focusLabel}` : undefined}
-          onPointerDown={(e) => { dragging.current = true; e.currentTarget.setPointerCapture(e.pointerId); selectFromClientX(e.clientX) }}
-          onPointerMove={(e) => { if (dragging.current) selectFromClientX(e.clientX) }}
-          onPointerUp={() => { dragging.current = false }}
-          onPointerCancel={() => { dragging.current = false }}
+          onPointerDown={e => {
+            dragging.current = true
+            e.currentTarget.setPointerCapture(e.pointerId)
+            selectFromClientX(e.clientX)
+          }}
+          onPointerMove={e => {
+            if (dragging.current) selectFromClientX(e.clientX)
+          }}
+          onPointerUp={() => {
+            dragging.current = false
+          }}
+          onPointerCancel={() => {
+            dragging.current = false
+          }}
         >
           <defs>
             {/* gradientUnits=userSpaceOnUse so offsets map to x=34..286 — the arc's
                 horizontal span, which is linear in hour — keeping each color aligned
                 with the hour beneath it on the UV strip. */}
-            <linearGradient id="sunArcLine" gradientUnits="userSpaceOnUse" x1={P0.x} x2={P2.x} y1="0" y2="0">
+            <linearGradient
+              id="sunArcLine"
+              gradientUnits="userSpaceOnUse"
+              x1={P0.x}
+              x2={P2.x}
+              y1="0"
+              y2="0"
+            >
               {uvStops.map((s, i) => (
                 <stop key={i} offset={`${s.offset}%`} stopColor={s.color} />
               ))}
@@ -147,23 +174,83 @@ export default function SunArc({ hourly, currentHour, isToday, focused, onSelect
             const x = xForHour(h)
             return (
               <g key={`tick-${h}`}>
-                <line x1={x} y1={BASELINE_Y} x2={x} y2={BASELINE_Y + 4} stroke="rgba(156,163,175,0.45)" strokeWidth="1" />
-                <text x={x} y={TICK_LABEL_Y} textAnchor="middle" fill="var(--text-3)" fontSize="9.5" fontWeight="600">{fmtHour(h)}</text>
+                <line
+                  x1={x}
+                  y1={BASELINE_Y}
+                  x2={x}
+                  y2={BASELINE_Y + 4}
+                  stroke="rgba(156,163,175,0.45)"
+                  strokeWidth="1"
+                />
+                <text
+                  x={x}
+                  y={TICK_LABEL_Y}
+                  textAnchor="middle"
+                  fill="var(--text-3)"
+                  fontSize="9.5"
+                  fontWeight="600"
+                >
+                  {fmtHour(h)}
+                </text>
               </g>
             )
           })}
 
-          <path d="M 34 118 Q 160 12 286 118" fill="none" stroke="url(#sunArcLine)" strokeWidth="4" strokeLinecap="round" />
-          <path d="M 34 118 Q 160 12 286 118" fill="none" stroke="rgba(255,255,255,0.34)" strokeWidth="1" strokeLinecap="round" strokeDasharray="4 7" />
-          <line x1="34" y1="118" x2="286" y2="118" stroke="rgba(156,163,175,0.24)" strokeWidth="1" />
+          <path
+            d="M 34 118 Q 160 12 286 118"
+            fill="none"
+            stroke="url(#sunArcLine)"
+            strokeWidth="4"
+            strokeLinecap="round"
+          />
+          <path
+            d="M 34 118 Q 160 12 286 118"
+            fill="none"
+            stroke="rgba(255,255,255,0.34)"
+            strokeWidth="1"
+            strokeLinecap="round"
+            strokeDasharray="4 7"
+          />
+          <line
+            x1="34"
+            y1="118"
+            x2="286"
+            y2="118"
+            stroke="rgba(156,163,175,0.24)"
+            strokeWidth="1"
+          />
 
           {/* Peak marker + on-arc callout (the header "Peak X at Ypm" line was
               removed, so the peak is surfaced here instead). */}
-          <circle cx={peakPoint.x} cy={peakPoint.y} r={isToday ? 6 : 7} fill="rgba(249,115,22,0.18)" stroke="rgba(249,115,22,0.85)" strokeWidth="2" />
+          <circle
+            cx={peakPoint.x}
+            cy={peakPoint.y}
+            r={isToday ? 6 : 7}
+            fill="rgba(249,115,22,0.18)"
+            stroke="rgba(249,115,22,0.85)"
+            strokeWidth="2"
+          />
           {showPeakLabel && (
             <>
-              <text x={peakPoint.x} y={peakPoint.y - 20} textAnchor="middle" fill="#F97316" fontSize="11" fontWeight="700">Peak {peak.uv.toFixed(1)}</text>
-              <text x={peakPoint.x} y={peakPoint.y - 10} textAnchor="middle" fill="rgba(249,115,22,0.75)" fontSize="9">{fmtHour(peak.hour)}</text>
+              <text
+                x={peakPoint.x}
+                y={peakPoint.y - 20}
+                textAnchor="middle"
+                fill="#F97316"
+                fontSize="11"
+                fontWeight="700"
+              >
+                Peak {peak.uv.toFixed(1)}
+              </text>
+              <text
+                x={peakPoint.x}
+                y={peakPoint.y - 10}
+                textAnchor="middle"
+                fill="rgba(249,115,22,0.75)"
+                fontSize="9"
+              >
+                {fmtHour(peak.hour)}
+              </text>
             </>
           )}
 
@@ -171,15 +258,37 @@ export default function SunArc({ hourly, currentHour, isToday, focused, onSelect
           {currentPoint && (
             <>
               <circle cx={currentPoint.x} cy={currentPoint.y} r="18" fill="url(#sunGlow)" />
-              <circle cx={currentPoint.x} cy={currentPoint.y} r="7" fill="#FBBF24" stroke="#F97316" strokeWidth="2" />
+              <circle
+                cx={currentPoint.x}
+                cy={currentPoint.y}
+                r="7"
+                fill="#FBBF24"
+                stroke="#F97316"
+                strokeWidth="2"
+              />
             </>
           )}
 
           {/* Movable focus marker — sits exactly on the bezier at the focused hour. */}
           {focusedPoint && (
             <>
-              <line x1={focusedPoint.x} y1={focusedPoint.y} x2={focusedPoint.x} y2="118" stroke="rgba(249,115,22,0.35)" strokeWidth="1.5" strokeDasharray="3 4" />
-              <circle cx={focusedPoint.x} cy={focusedPoint.y} r="9" fill="rgba(255,255,255,0.9)" stroke="#F97316" strokeWidth="2.5" />
+              <line
+                x1={focusedPoint.x}
+                y1={focusedPoint.y}
+                x2={focusedPoint.x}
+                y2="118"
+                stroke="rgba(249,115,22,0.35)"
+                strokeWidth="1.5"
+                strokeDasharray="3 4"
+              />
+              <circle
+                cx={focusedPoint.x}
+                cy={focusedPoint.y}
+                r="9"
+                fill="rgba(255,255,255,0.9)"
+                stroke="#F97316"
+                strokeWidth="2.5"
+              />
               <circle cx={focusedPoint.x} cy={focusedPoint.y} r="3.5" fill="#F97316" />
             </>
           )}

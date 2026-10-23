@@ -23,7 +23,12 @@ describe('normalizePrefs — savedLocations', () => {
   })
 
   it('hard-caps the list at 12', () => {
-    const many = Array.from({ length: 20 }, (_, i) => ({ lat: i, lon: i, city: `C${i}`, region: '' }))
+    const many = Array.from({ length: 20 }, (_, i) => ({
+      lat: i,
+      lon: i,
+      city: `C${i}`,
+      region: '',
+    }))
     expect(base({ savedLocations: many }).savedLocations).toHaveLength(12)
   })
 
@@ -45,7 +50,9 @@ describe('normalizePrefs — savedLocations', () => {
 
 describe('normalizePrefs - location timezone', () => {
   it('keeps valid IANA timezones and drops malformed values', () => {
-    expect(base({ location: { ...LA, timezone: 'America/Los_Angeles' } }).location.timezone).toBe('America/Los_Angeles')
+    expect(base({ location: { ...LA, timezone: 'America/Los_Angeles' } }).location.timezone).toBe(
+      'America/Los_Angeles',
+    )
     expect(base({ location: { ...LA, timezone: 'UTC' } }).location.timezone).toBe('UTC')
     expect(base({ location: { ...LA, timezone: '<script>' } }).location.timezone).toBeUndefined()
   })
@@ -71,14 +78,16 @@ describe('normalizePrefs - client-owned fields', () => {
 
 describe('normalizePrefs — activity routine + cloud fields', () => {
   it('normalizes daysOfWeek (none/all-seven → undefined, else sorted unique subset)', () => {
-    const act = (daysOfWeek: unknown) => base({ activities: [{ id: 'run', name: 'Run', daysOfWeek }] }).activities[0]!
+    const act = (daysOfWeek: unknown) =>
+      base({ activities: [{ id: 'run', name: 'Run', daysOfWeek }] }).activities[0]!
     expect(act([]).daysOfWeek).toBeUndefined()
     expect(act([0, 1, 2, 3, 4, 5, 6]).daysOfWeek).toBeUndefined()
     expect(act([5, 1, 1, 9, -1]).daysOfWeek).toEqual([1, 5]) // dedupe, sort, drop out-of-range
   })
 
   it('keeps cloudSensitive only when explicitly true', () => {
-    const act = (cloudSensitive: unknown) => base({ activities: [{ id: 'run', name: 'Run', cloudSensitive }] }).activities[0]!
+    const act = (cloudSensitive: unknown) =>
+      base({ activities: [{ id: 'run', name: 'Run', cloudSensitive }] }).activities[0]!
     expect(act(true).cloudSensitive).toBe(true)
     expect(act(false).cloudSensitive).toBeUndefined()
     expect(act('yes').cloudSensitive).toBeUndefined()

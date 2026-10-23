@@ -28,7 +28,13 @@ interface Props {
  * the selected hour's stats appear in exactly one place). Numbers are
  * non-selectable so a tap never triggers the OS text/“search” menu.
  */
-export default function UVTimeline({ hourly, currentHour, onFocusHour, focused, onSelectHour }: Props) {
+export default function UVTimeline({
+  hourly,
+  currentHour,
+  onFocusHour,
+  focused,
+  onSelectHour,
+}: Props) {
   // Controlled when the parent passes ownership of the focus (shared with the sun
   // path); otherwise this local `selected` state drives the highlight on its own.
   const controlled = onSelectHour !== undefined
@@ -67,7 +73,9 @@ export default function UVTimeline({ hourly, currentHour, onFocusHour, focused, 
     if (programmaticTimer.current) window.clearTimeout(programmaticTimer.current)
     // The scrollLeft write fires a scroll event; hold the flag long enough for it
     // to settle, then resume scroll-driven selection.
-    programmaticTimer.current = window.setTimeout(() => { programmaticScroll.current = false }, 250)
+    programmaticTimer.current = window.setTimeout(() => {
+      programmaticScroll.current = false
+    }, 250)
   }
 
   // Center the current hour in the scroller on mount / when the day changes.
@@ -100,7 +108,10 @@ export default function UVTimeline({ hourly, currentHour, onFocusHour, focused, 
     for (const el of Array.from(strip.querySelectorAll<HTMLElement>('[data-hour]'))) {
       const mid = el.offsetLeft + el.offsetWidth / 2
       const dist = Math.abs(mid - stripMid)
-      if (dist < bestDist) { bestDist = dist; bestHour = Number(el.dataset.hour) }
+      if (dist < bestDist) {
+        bestDist = dist
+        bestHour = Number(el.dataset.hour)
+      }
     }
     return bestHour
   }
@@ -120,14 +131,19 @@ export default function UVTimeline({ hourly, currentHour, onFocusHour, focused, 
     })
   }
 
-  useEffect(() => () => {
-    if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
-    if (programmaticTimer.current) window.clearTimeout(programmaticTimer.current)
-  }, [])
+  useEffect(
+    () => () => {
+      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
+      if (programmaticTimer.current) window.clearTimeout(programmaticTimer.current)
+    },
+    [],
+  )
 
   // Only fire the legacy onFocusHour callback in uncontrolled mode — in controlled
   // mode the parent already owns the focus, so echoing it back would loop.
-  useEffect(() => { if (!controlled) onFocusHour?.(active) }, [active, onFocusHour, controlled])
+  useEffect(() => {
+    if (!controlled) onFocusHour?.(active)
+  }, [active, onFocusHour, controlled])
 
   return (
     <div style={{ userSelect: 'none', WebkitUserSelect: 'none' }}>
@@ -145,18 +161,44 @@ export default function UVTimeline({ hourly, currentHour, onFocusHour, focused, 
               aria-pressed={isSel}
               aria-label={`${fmtHour(h.hour)}, UV ${h.uv.toFixed(1)}`}
               style={{
-                flex: '0 0 auto', width: '42px',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '3px',
-                padding: '12px 0', borderRadius: '10px', cursor: 'pointer',
-                background: uvColorHex(h.uv), color: uvTextHex(h.uv),
+                flex: '0 0 auto',
+                width: '42px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '3px',
+                padding: '12px 0',
+                borderRadius: '10px',
+                cursor: 'pointer',
+                background: uvColorHex(h.uv),
+                color: uvTextHex(h.uv),
                 border: isSel ? '2px solid var(--text)' : '2px solid transparent',
-                boxShadow: isNow && !isSel ? '0 0 0 2px var(--bg-card), 0 0 0 3.5px var(--text)' : 'none',
-                scrollSnapAlign: 'center', transition: 'border-color 0.12s',
+                boxShadow:
+                  isNow && !isSel ? '0 0 0 2px var(--bg-card), 0 0 0 3.5px var(--text)' : 'none',
+                scrollSnapAlign: 'center',
+                transition: 'border-color 0.12s',
               }}
             >
-              <span style={{ fontSize: '13px', fontWeight: 700, lineHeight: 1 }}>{formatUV(h.uv, { compact: true })}</span>
-              <span style={{ fontSize: '10px', opacity: 0.75, lineHeight: 1 }}>{fmtHour(h.hour)}</span>
-              {isNow && <span style={{ fontSize: '8px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', lineHeight: 1 }}>now</span>}
+              <span style={{ fontSize: '13px', fontWeight: 700, lineHeight: 1 }}>
+                {formatUV(h.uv, { compact: true })}
+              </span>
+              <span style={{ fontSize: '10px', opacity: 0.75, lineHeight: 1 }}>
+                {fmtHour(h.hour)}
+              </span>
+              {isNow && (
+                <span
+                  style={{
+                    fontSize: '8px',
+                    fontWeight: 800,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.04em',
+                    lineHeight: 1,
+                  }}
+                >
+                  now
+                </span>
+              )}
             </button>
           )
         })}
@@ -164,7 +206,18 @@ export default function UVTimeline({ hourly, currentHour, onFocusHour, focused, 
 
       <button
         onClick={() => setShowLegend(s => !s)}
-        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px 2px 4px', fontSize: '11px', fontWeight: 600, color: 'var(--text-3)', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+        style={{
+          background: 'none',
+          border: 'none',
+          cursor: 'pointer',
+          padding: '6px 2px 4px',
+          fontSize: '11px',
+          fontWeight: 600,
+          color: 'var(--text-3)',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '5px',
+        }}
         aria-expanded={showLegend}
       >
         UV scale {showLegend ? '▲' : '▼'}
@@ -178,8 +231,25 @@ export default function UVTimeline({ hourly, currentHour, onFocusHour, focused, 
             ['#F87171', 'Very high (8–10)'],
             ['#C084FC', 'Extreme (11+)'],
           ].map(([color, label]) => (
-            <span key={label} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '12px', color: 'var(--text-3)' }}>
-              <span style={{ width: '10px', height: '10px', borderRadius: '3px', background: color, flexShrink: 0 }} />
+            <span
+              key={label}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+                fontSize: '12px',
+                color: 'var(--text-3)',
+              }}
+            >
+              <span
+                style={{
+                  width: '10px',
+                  height: '10px',
+                  borderRadius: '3px',
+                  background: color,
+                  flexShrink: 0,
+                }}
+              />
               {label}
             </span>
           ))}

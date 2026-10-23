@@ -39,19 +39,41 @@ export default class ErrorBoundary extends Component<Props, State> {
     if (this.state.error) {
       const what = this.props.label ?? 'this section'
       return (
-        <div className="card" style={{ textAlign: 'center', padding: '28px 22px', maxWidth: '480px', margin: '24px auto' }}>
+        <div
+          className="card"
+          style={{
+            textAlign: 'center',
+            padding: '28px 22px',
+            maxWidth: '480px',
+            margin: '24px auto',
+          }}
+        >
           <p style={{ fontSize: '34px', margin: '0 0 10px' }}>🌥️</p>
-          <h2 style={{ margin: '0 0 8px', fontSize: '18px', fontWeight: 750, color: 'var(--text)' }}>
+          <h2
+            style={{ margin: '0 0 8px', fontSize: '18px', fontWeight: 750, color: 'var(--text)' }}
+          >
             Something went wrong loading {what}
           </h2>
-          <p style={{ margin: '0 0 18px', fontSize: '14px', color: 'var(--text-3)', lineHeight: 1.5 }}>
-            This usually clears up on a retry. If it keeps happening, your saved data may be out of date.
+          <p
+            style={{
+              margin: '0 0 18px',
+              fontSize: '14px',
+              color: 'var(--text-3)',
+              lineHeight: 1.5,
+            }}
+          >
+            This usually clears up on a retry. If it keeps happening, your saved data may be out of
+            date.
           </p>
           <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
-            <button className="btn btn-primary" onClick={this.handleReset}>Try again</button>
+            <button className="btn btn-primary" onClick={this.handleReset}>
+              Try again
+            </button>
             <button
               className="btn"
-              onClick={() => { if (typeof window !== 'undefined') window.location.reload() }}
+              onClick={() => {
+                if (typeof window !== 'undefined') window.location.reload()
+              }}
             >
               Reload app
             </button>

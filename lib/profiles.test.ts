@@ -15,8 +15,12 @@ describe('profile helpers', () => {
   })
 
   it('resolves the active profile by id, else first', () => {
-    expect(activeProfile({ profiles: [ava, rex], activeProfileId: 'rex', skinType: 'fair' }).id).toBe('rex')
-    expect(activeProfile({ profiles: [ava, rex], activeProfileId: 'missing', skinType: 'fair' }).id).toBe('ava')
+    expect(
+      activeProfile({ profiles: [ava, rex], activeProfileId: 'rex', skinType: 'fair' }).id,
+    ).toBe('rex')
+    expect(
+      activeProfile({ profiles: [ava, rex], activeProfileId: 'missing', skinType: 'fair' }).id,
+    ).toBe('ava')
   })
 
   it('selectProfile mirrors skin type into the live field', () => {
@@ -28,7 +32,9 @@ describe('normalizePrefs — profiles', () => {
   const base = (extra: Record<string, unknown>) => normalizePrefs({ location: LA, ...extra })!
 
   it('drops invalid profiles and dedupes by id', () => {
-    const r = base({ profiles: [ava, { name: 'NoSkin' }, { id: 'ava', name: 'Dup', skinType: 'fair' }, 5] })
+    const r = base({
+      profiles: [ava, { name: 'NoSkin' }, { id: 'ava', name: 'Dup', skinType: 'fair' }, 5],
+    })
     expect(r.profiles).toHaveLength(1)
     expect(r.profiles![0]!.id).toBe('ava')
   })

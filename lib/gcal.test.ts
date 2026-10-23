@@ -48,14 +48,29 @@ describe('busyIntervalsForDay', () => {
   it('skips malformed timestamps and handles empties', () => {
     expect(busyIntervalsForDay([{ start: 'nonsense', end: `${D}T10:00:00` }], D)).toEqual([])
     expect(busyIntervalsForDay([], D)).toEqual([])
-    expect(busyIntervalsForDay([{ start: `${D}T09:00:00`, end: `${D}T10:00:00` }], 'bad-date')).toEqual([])
+    expect(
+      busyIntervalsForDay([{ start: `${D}T09:00:00`, end: `${D}T10:00:00` }], 'bad-date'),
+    ).toEqual([])
   })
 })
 
-const run: Activity = { id: 'run', name: 'Running', icon: '🏃', durationMins: 60, maxUV: 4, sunscreen: false }
+const run: Activity = {
+  id: 'run',
+  name: 'Running',
+  icon: '🏃',
+  durationMins: 60,
+  maxUV: 4,
+  sunscreen: false,
+}
 const rec: SlotRecommendation = {
-  start: 17, end: 18, earliestStart: 17, latestStart: 20,
-  windowLabel: 'Afternoon', peakUV: 5, avgUV: 4, reason: 'Earliest free spot in your afternoon window',
+  start: 17,
+  end: 18,
+  earliestStart: 17,
+  latestStart: 20,
+  windowLabel: 'Afternoon',
+  peakUV: 5,
+  avgUV: 4,
+  reason: 'Earliest free spot in your afternoon window',
 }
 
 describe('buildEventDescription', () => {

@@ -10,12 +10,12 @@ const config: Config = {
     extend: {
       colors: {
         uv: {
-          none:     '#D1D5DB',
-          low:      '#86EFAC',
+          none: '#D1D5DB',
+          low: '#86EFAC',
           moderate: '#FCD34D',
-          high:     '#FB923C',
+          high: '#FB923C',
           veryhigh: '#F87171',
-          extreme:  '#C084FC',
+          extreme: '#C084FC',
         },
       },
       fontFamily: {

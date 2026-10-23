@@ -13,7 +13,8 @@ const GA_ID = isAnalyticsMeasurementId(RAW_GA_ID) ? RAW_GA_ID : undefined
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: 'Solara: Plan around UV',
-  description: 'Forecast-based, lower-UV activity planning personalized for your skin profile and location.',
+  description:
+    'Forecast-based, lower-UV activity planning personalized for your skin profile and location.',
   applicationName: 'Solara',
   manifest: '/manifest.webmanifest',
   icons: {
@@ -25,7 +26,9 @@ export const metadata: Metadata = {
     description: 'Forecast-based, lower-UV activity planning for your skin profile and location.',
     type: 'website',
     siteName: 'Solara',
-    images: [{ url: '/og-image.png', width: 1200, height: 630, alt: 'Solara lower-UV activity planner' }],
+    images: [
+      { url: '/og-image.png', width: 1200, height: 630, alt: 'Solara lower-UV activity planner' },
+    ],
   },
   twitter: {
     card: 'summary_large_image',
@@ -46,12 +49,26 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <AnalyticsConsent measurementId={GA_ID} />
         <ThemeInit />
         {children}
-        <footer style={{ padding: '20px 16px', textAlign: 'center', fontSize: '12px', color: 'var(--text-3)', background: 'var(--bg)' }}>
-          <a href="/privacy/" style={{ color: 'inherit' }}>Privacy</a>
+        <footer
+          style={{
+            padding: '20px 16px',
+            textAlign: 'center',
+            fontSize: '12px',
+            color: 'var(--text-3)',
+            background: 'var(--bg)',
+          }}
+        >
+          <a href="/privacy/" style={{ color: 'inherit' }}>
+            Privacy
+          </a>
           <span aria-hidden="true"> · </span>
-          <a href="/terms/" style={{ color: 'inherit' }}>Terms</a>
+          <a href="/terms/" style={{ color: 'inherit' }}>
+            Terms
+          </a>
           <span aria-hidden="true"> · </span>
-          <a href="/account/" style={{ color: 'inherit' }}>Account data</a>
+          <a href="/account/" style={{ color: 'inherit' }}>
+            Account data
+          </a>
         </footer>
       </body>
     </html>

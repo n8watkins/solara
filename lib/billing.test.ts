@@ -32,8 +32,12 @@ describe('authenticated checkout', () => {
     delete process.env.NEXT_PUBLIC_FUNCTIONS_URL
     const { createBillingPortalUrl, createCheckoutUrl, isCheckoutConfigured } = await freshBilling()
     expect(isCheckoutConfigured()).toBe(false)
-    await expect(createCheckoutUrl({ getIdToken: vi.fn() } as never)).rejects.toThrow('not configured')
-    await expect(createBillingPortalUrl({ getIdToken: vi.fn() } as never)).rejects.toThrow('not configured')
+    await expect(createCheckoutUrl({ getIdToken: vi.fn() } as never)).rejects.toThrow(
+      'not configured',
+    )
+    await expect(createBillingPortalUrl({ getIdToken: vi.fn() } as never)).rejects.toThrow(
+      'not configured',
+    )
   })
 
   it('creates checkout with a freshly issued Firebase ID token', async () => {
@@ -48,7 +52,9 @@ describe('authenticated checkout', () => {
     const { createCheckoutUrl, isCheckoutConfigured } = await freshBilling()
 
     expect(isCheckoutConfigured()).toBe(true)
-    await expect(createCheckoutUrl({ getIdToken } as never)).resolves.toBe('https://checkout.stripe.com/c/pay_test')
+    await expect(createCheckoutUrl({ getIdToken } as never)).resolves.toBe(
+      'https://checkout.stripe.com/c/pay_test',
+    )
     expect(getIdToken).toHaveBeenCalledWith(true)
     expect(fetchMock).toHaveBeenCalledWith(
       'https://functions.example.test/createCheckoutSession',
@@ -62,12 +68,17 @@ describe('authenticated checkout', () => {
 
   it('rejects untrusted checkout URLs returned by the backend', async () => {
     process.env.NEXT_PUBLIC_FUNCTIONS_URL = 'https://functions.example.test'
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ url: 'https://attacker.example/checkout' }),
-    }))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ url: 'https://attacker.example/checkout' }),
+      }),
+    )
     const { createCheckoutUrl } = await freshBilling()
-    await expect(createCheckoutUrl({ getIdToken: vi.fn().mockResolvedValue('token') } as never)).rejects.toThrow('unavailable')
+    await expect(
+      createCheckoutUrl({ getIdToken: vi.fn().mockResolvedValue('token') } as never),
+    ).rejects.toThrow('unavailable')
   })
 
   it('opens only Stripe-hosted billing portal sessions', async () => {
@@ -80,18 +91,25 @@ describe('authenticated checkout', () => {
     const getIdToken = vi.fn().mockResolvedValue('firebase-id-token')
     const { createBillingPortalUrl } = await freshBilling()
 
-    await expect(createBillingPortalUrl({ getIdToken } as never)).resolves.toBe('https://billing.stripe.com/session/test')
+    await expect(createBillingPortalUrl({ getIdToken } as never)).resolves.toBe(
+      'https://billing.stripe.com/session/test',
+    )
     expect(fetchMock).toHaveBeenCalledWith(
       'https://functions.example.test/createBillingPortalSession',
       expect.objectContaining({ method: 'POST' }),
     )
 
-    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ url: 'https://attacker.example/' }) })
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ url: 'https://attacker.example/' }),
+    })
     await expect(createBillingPortalUrl({ getIdToken } as never)).rejects.toThrow('unavailable')
   })
 
   it('observes the returned checkout until its entitlement settles', async () => {
-    const snapshots: Array<(snapshot: { exists: () => boolean; data: () => Record<string, unknown> }) => void> = []
+    const snapshots: Array<
+      (snapshot: { exists: () => boolean; data: () => Record<string, unknown> }) => void
+    > = []
     const unsubscribe = vi.fn()
     firestore.onSnapshot.mockImplementation((_ref, onNext) => {
       snapshots.push(onNext)
@@ -111,18 +129,30 @@ describe('authenticated checkout', () => {
 
     snapshots[0]!({
       exists: () => true,
-      data: () => ({ ...basePrefs, tier: 'free', stripeCheckoutSessionId: 'cs_returned', stripeCheckoutStatus: 'pending' }),
+      data: () => ({
+        ...basePrefs,
+        tier: 'free',
+        stripeCheckoutSessionId: 'cs_returned',
+        stripeCheckoutStatus: 'pending',
+      }),
     })
     expect(onResult).toHaveBeenLastCalledWith({ status: 'pending' })
 
     snapshots[0]!({
       exists: () => true,
-      data: () => ({ ...basePrefs, tier: 'paid', stripeCheckoutSessionId: 'cs_returned', stripeCheckoutStatus: 'succeeded' }),
+      data: () => ({
+        ...basePrefs,
+        tier: 'paid',
+        stripeCheckoutSessionId: 'cs_returned',
+        stripeCheckoutStatus: 'succeeded',
+      }),
     })
-    expect(onResult).toHaveBeenLastCalledWith(expect.objectContaining({
-      status: 'succeeded',
-      prefs: expect.not.objectContaining({ stripeCheckoutSessionId: expect.anything() }),
-    }))
+    expect(onResult).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        status: 'succeeded',
+        prefs: expect.not.objectContaining({ stripeCheckoutSessionId: expect.anything() }),
+      }),
+    )
 
     stop()
     expect(unsubscribe).toHaveBeenCalledOnce()

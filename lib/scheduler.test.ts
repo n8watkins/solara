@@ -55,7 +55,10 @@ describe('recommendSlot — calendar busy', () => {
 
   it('merges overlapping/unsorted busy blocks correctly', () => {
     const wide: SafeActivityWindow = { from: 6, to: 12, label: 'Morning', peakUV: 2, avgUV: 2 }
-    const busy: BusyInterval[] = [{ start: 9, end: 11 }, { start: 8, end: 10 }]
+    const busy: BusyInterval[] = [
+      { start: 9, end: 11 },
+      { start: 8, end: 10 },
+    ]
     const r = recommendSlot([wide], busy, 60, 'earliest')!
     // free = [6,8] and [11,12]; earliest 60-min slot starts at 6, latest start 7
     expect(r.start).toBe(6)
@@ -63,12 +66,18 @@ describe('recommendSlot — calendar busy', () => {
   })
 
   it('reproduces the "5pm, flexible 5–9" scenario', () => {
-    const afternoon: SafeActivityWindow = { from: 13, to: 21, label: 'Afternoon', peakUV: 5, avgUV: 4 }
+    const afternoon: SafeActivityWindow = {
+      from: 13,
+      to: 21,
+      label: 'Afternoon',
+      peakUV: 5,
+      avgUV: 4,
+    }
     const busy: BusyInterval[] = [{ start: 13, end: 17 }] // busy until 5pm
     const r = recommendSlot([afternoon], busy, 60, 'earliest')!
-    expect(r.start).toBe(17)            // 5pm — earliest free time
-    expect(r.earliestStart).toBe(17)    // could start anytime 5pm…
-    expect(r.latestStart).toBe(20)      // …up to 8pm (1h run ends by the 9pm window edge)
+    expect(r.start).toBe(17) // 5pm — earliest free time
+    expect(r.earliestStart).toBe(17) // could start anytime 5pm…
+    expect(r.latestStart).toBe(20) // …up to 8pm (1h run ends by the 9pm window edge)
     expect(r.reason).toContain('afternoon')
   })
 })
@@ -100,8 +109,12 @@ describe('recommendSlot — occupancy UV (hourly provided)', () => {
   // One safe window 6–12, but UV is cool early (1) and hot late (7).
   const wide: SafeActivityWindow = { from: 6, to: 12, label: 'Morning', peakUV: 7, avgUV: 4 }
   const hourly = [
-    { hour: 6, uv: 1 }, { hour: 7, uv: 1 }, { hour: 8, uv: 1 },
-    { hour: 9, uv: 7 }, { hour: 10, uv: 7 }, { hour: 11, uv: 7 },
+    { hour: 6, uv: 1 },
+    { hour: 7, uv: 1 },
+    { hour: 8, uv: 1 },
+    { hour: 9, uv: 7 },
+    { hour: 10, uv: 7 },
+    { hour: 11, uv: 7 },
   ]
 
   it('reports UV over the occupied slot, not the whole window', () => {

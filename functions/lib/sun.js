@@ -20,7 +20,9 @@ async function fetchForecast(lat, lon, days) {
     if (hour < 6 || hour > 20) return
     ;(byDate[d] ||= []).push({ hour, uv: Math.round(data.hourly.uv_index[i] * 10) / 10 })
   })
-  return Object.entries(byDate).slice(0, days).map(([dateStr, hourly]) => ({ dateStr, hourly }))
+  return Object.entries(byDate)
+    .slice(0, days)
+    .map(([dateStr, hourly]) => ({ dateStr, hourly }))
 }
 
 /** Build ICS events for each activity's best window on each eligible day. */
@@ -30,7 +32,12 @@ function buildSunEvents(user, forecast) {
   for (const day of forecast) {
     for (const act of activities) {
       if (!runsOn(act, day.dateStr)) continue
-      const win = bestWindow(day.hourly, effectiveMaxUV(act), act.durationMins ?? 30, act.preferredHours)
+      const win = bestWindow(
+        day.hourly,
+        effectiveMaxUV(act),
+        act.durationMins ?? 30,
+        act.preferredHours,
+      )
       if (!win) continue
       const durH = (act.durationMins ?? 30) / 60
       const start = win.from
@@ -39,7 +46,9 @@ function buildSunEvents(user, forecast) {
         uid: `${day.dateStr}-${act.id}-${Math.round(start * 60)}@solara`,
         summary: `${act.icon || '☀️'} ${act.name}: lower-UV window`,
         description: `Estimated lower-UV window ${win.from}:00–${win.to}:00 (avg UV ${win.avgUV})${act.sunscreen ? ', assumes SPF 30+' : ', no sunscreen'}. Forecast-based estimate only. Recheck current UV and use sun protection. Planned by Solara.`,
-        dateStr: day.dateStr, start, end,
+        dateStr: day.dateStr,
+        start,
+        end,
       })
     }
   }

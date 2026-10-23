@@ -13,27 +13,27 @@ export function vitDMins(uv: number, skinType: SkinType): number | null {
 
 export function uvLabel(uv: number): string {
   if (uv < 0.5) return 'None'
-  if (uv <= 2)  return 'Low'
-  if (uv <= 5)  return 'Moderate'
-  if (uv <= 7)  return 'High'
+  if (uv <= 2) return 'Low'
+  if (uv <= 5) return 'Moderate'
+  if (uv <= 7) return 'High'
   if (uv <= 10) return 'Very high'
   return 'Extreme'
 }
 
 export function uvColorHex(uv: number): string {
   if (uv < 0.5) return '#D1D5DB'
-  if (uv <= 2)  return '#86EFAC'
-  if (uv <= 5)  return '#FCD34D'
-  if (uv <= 7)  return '#FB923C'
+  if (uv <= 2) return '#86EFAC'
+  if (uv <= 5) return '#FCD34D'
+  if (uv <= 7) return '#FB923C'
   if (uv <= 10) return '#F87171'
   return '#C084FC'
 }
 
 export function uvTextHex(uv: number): string {
   if (uv < 0.5) return '#374151'
-  if (uv <= 2)  return '#14532D'
-  if (uv <= 5)  return '#78350F'
-  if (uv <= 7)  return '#7C2D12'
+  if (uv <= 2) return '#14532D'
+  if (uv <= 5) return '#78350F'
+  if (uv <= 7) return '#7C2D12'
   if (uv <= 10) return '#7F1D1D'
   return '#4A044E'
 }
@@ -55,7 +55,10 @@ export function formatUV(uv: number, opts?: { compact?: boolean }): string {
 export function fmtClock(h: number): string {
   let hr = Math.floor(h)
   let min = Math.round((h - hr) * 60)
-  if (min === 60) { hr += 1; min = 0 }
+  if (min === 60) {
+    hr += 1
+    min = 0
+  }
   const base = fmtHour(hr)
   if (min === 0) return base
   const m = base.match(/^(\d+)(am|pm)$/)
@@ -70,14 +73,17 @@ export function fmtDays(days?: number[]): string | null {
   const set = new Set(days)
   if (set.size === 5 && [1, 2, 3, 4, 5].every(d => set.has(d))) return 'Weekdays'
   if (set.size === 2 && set.has(0) && set.has(6)) return 'Weekends'
-  return [...days].sort((a, b) => a - b).map(d => DAY_ABBR[d]).join(', ')
+  return [...days]
+    .sort((a, b) => a - b)
+    .map(d => DAY_ABBR[d])
+    .join(', ')
 }
 
 export function gcalLink(
   activityName: string,
   window: { from: number; to: number },
   durationMins: number,
-  daysFromNow = 0
+  daysFromNow = 0,
 ): string {
   const base = new Date()
   base.setDate(base.getDate() + daysFromNow)
@@ -85,7 +91,9 @@ export function gcalLink(
   const end = new Date(start.getTime() + durationMins * 60000)
   const fmt = (d: Date) => d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
   const title = encodeURIComponent(`${activityName}: lower-UV window`)
-  const details = encodeURIComponent('Forecast-based lower-UV planning estimate from Solara. Recheck current UV and use sun protection.')
+  const details = encodeURIComponent(
+    'Forecast-based lower-UV planning estimate from Solara. Recheck current UV and use sun protection.',
+  )
   return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${fmt(start)}/${fmt(end)}&details=${details}`
 }
 
@@ -98,7 +106,7 @@ export function getActivityWindow(
   hourly: HourlyForecast[],
   activity: Activity,
   currentHour: number,
-  skinType: SkinType = 'fair'
+  skinType: SkinType = 'fair',
 ): ActivityWindow {
   const maxUV = effectiveMaxUV(activity)
   // Cloud-sensitive activities judge safety against UV discounted by cloud cover; the
@@ -115,15 +123,17 @@ export function getActivityWindow(
     activity.durationMins,
     activity.preferredHours,
   )
-  const best = allWindows
-    .slice()
-    .sort((a, b) => (a.avgUV - b.avgUV) || ((b.to - b.from) - (a.to - a.from)))[0] ?? null
+  const best =
+    allWindows.slice().sort((a, b) => a.avgUV - b.avgUV || b.to - b.from - (a.to - a.from))[0] ??
+    null
 
   const bestWindow = best ? { from: best.from, to: best.to } : null
   const current = hourly.find(h => h.hour === currentHour)
-  const safeNow = current ? exposureUV(current) <= maxUV && withinPreferredHours(current.hour, activity) : false
-  const qualifyingHours = hourly.filter(hour =>
-    exposureUV(hour) <= maxUV && withinPreferredHours(hour.hour, activity)
+  const safeNow = current
+    ? exposureUV(current) <= maxUV && withinPreferredHours(current.hour, activity)
+    : false
+  const qualifyingHours = hourly.filter(
+    hour => exposureUV(hour) <= maxUV && withinPreferredHours(hour.hour, activity),
   ).length
   const pctDaySafe = hourly.length ? Math.round((qualifyingHours / hourly.length) * 100) : 0
   const burn = burnMins(maxUV, skinType)

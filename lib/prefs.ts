@@ -1,6 +1,14 @@
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore'
 import { db } from './firebase'
-import type { UserPreferences, Location, Activity, SkinType, TierLevel, PreferredHours, Profile } from './types'
+import type {
+  UserPreferences,
+  Location,
+  Activity,
+  SkinType,
+  TierLevel,
+  PreferredHours,
+  Profile,
+} from './types'
 import { PRESET_ACTIVITIES, ACTIVITY_CATEGORIES } from './tiers'
 
 const PREFS_KEY = 'solara_prefs'
@@ -13,14 +21,16 @@ const CATEGORY_NAMES = new Set(ACTIVITY_CATEGORIES.map(c => c.name))
 
 function isLocation(value: unknown): value is Location {
   const loc = value as Partial<Location> | null
-  return !!loc
-    && Number.isFinite(loc.lat)
-    && loc.lat! >= -90
-    && loc.lat! <= 90
-    && Number.isFinite(loc.lon)
-    && loc.lon! >= -180
-    && loc.lon! <= 180
-    && typeof loc.city === 'string'
+  return (
+    !!loc &&
+    Number.isFinite(loc.lat) &&
+    loc.lat! >= -90 &&
+    loc.lat! <= 90 &&
+    Number.isFinite(loc.lon) &&
+    loc.lon! >= -180 &&
+    loc.lon! <= 180 &&
+    typeof loc.city === 'string'
+  )
 }
 
 function normalizeLocation(value: Location): Location {
@@ -29,9 +39,11 @@ function normalizeLocation(value: Location): Location {
     lon: value.lon,
     city: value.city.trim().slice(0, 120),
     region: typeof value.region === 'string' ? value.region.trim().slice(0, 120) : '',
-    timezone: typeof value.timezone === 'string' && /^(?:UTC|[A-Za-z_]+(?:\/[A-Za-z0-9_+.-]+)+)$/.test(value.timezone)
-      ? value.timezone
-      : undefined,
+    timezone:
+      typeof value.timezone === 'string' &&
+      /^(?:UTC|[A-Za-z_]+(?:\/[A-Za-z0-9_+.-]+)+)$/.test(value.timezone)
+        ? value.timezone
+        : undefined,
   }
 }
 
@@ -82,23 +94,30 @@ function normalizeFeedToken(raw: unknown): string | undefined {
 
 function normalizeStringList(raw: unknown, allowed?: Set<string>): string[] {
   if (!Array.isArray(raw)) return []
-  return Array.from(new Set(
-    raw
-      .filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
-      .map(v => v.trim())
-      .filter(v => !allowed || allowed.has(v))
-  ))
+  return Array.from(
+    new Set(
+      raw
+        .filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
+        .map(v => v.trim())
+        .filter(v => !allowed || allowed.has(v)),
+    ),
+  )
 }
 
 function normalizeUpgradeInterest(raw: unknown): UserPreferences['upgradeInterest'] {
   const interest = raw as Partial<NonNullable<UserPreferences['upgradeInterest']>> | null
-  if (!interest || typeof interest.createdAt !== 'string' || !Number.isFinite(Date.parse(interest.createdAt))) {
+  if (
+    !interest ||
+    typeof interest.createdAt !== 'string' ||
+    !Number.isFinite(Date.parse(interest.createdAt))
+  ) {
     return undefined
   }
   return {
-    email: typeof interest.email === 'string' && interest.email.trim()
-      ? interest.email.trim().slice(0, 254)
-      : undefined,
+    email:
+      typeof interest.email === 'string' && interest.email.trim()
+        ? interest.email.trim().slice(0, 254)
+        : undefined,
     createdAt: interest.createdAt,
   }
 }
@@ -114,9 +133,13 @@ function normalizePreferredHours(raw: unknown): PreferredHours | undefined {
 /** Whole-day restriction: a sorted, deduped subset of 0–6. Undefined = every day. */
 function normalizeDaysOfWeek(raw: unknown): number[] | undefined {
   if (!Array.isArray(raw)) return undefined
-  const days = Array.from(new Set(
-    raw.filter((d): d is number => typeof d === 'number' && Number.isInteger(d) && d >= 0 && d <= 6)
-  )).sort((a, b) => a - b)
+  const days = Array.from(
+    new Set(
+      raw.filter(
+        (d): d is number => typeof d === 'number' && Number.isInteger(d) && d >= 0 && d <= 6,
+      ),
+    ),
+  ).sort((a, b) => a - b)
   // Empty or all-seven means "every day" — store nothing so the field stays clean.
   return days.length === 0 || days.length === 7 ? undefined : days
 }
@@ -125,34 +148,38 @@ function normalizeActivity(raw: unknown, index: number, globalSunscreen: boolean
   const a = raw as Partial<Activity> | null
   if (!a || typeof a.name !== 'string') return null
 
-  const preset = typeof a.id === 'string'
-    ? PRESET_ACTIVITIES.find(p => p.id === a.id)
-    : undefined
+  const preset = typeof a.id === 'string' ? PRESET_ACTIVITIES.find(p => p.id === a.id) : undefined
 
-  const durationMins = typeof a.durationMins === 'number'
-    ? Math.max(5, Math.round(a.durationMins))
-    : preset?.durationMins ?? 30
+  const durationMins =
+    typeof a.durationMins === 'number'
+      ? Math.max(5, Math.round(a.durationMins))
+      : (preset?.durationMins ?? 30)
 
-  const maxUV = typeof a.maxUV === 'number'
-    ? Math.max(0, Math.min(11, a.maxUV))
-    : preset?.maxUV ?? 4
+  const maxUV =
+    typeof a.maxUV === 'number' ? Math.max(0, Math.min(11, a.maxUV)) : (preset?.maxUV ?? 4)
 
   return {
     id: typeof a.id === 'string' && a.id.trim() ? a.id : `migrated_${index}`,
     name: a.name.trim() || preset?.name || 'Outdoor activity',
-    icon: typeof a.icon === 'string' && a.icon.trim() ? a.icon : preset?.icon ?? '☀️',
+    icon: typeof a.icon === 'string' && a.icon.trim() ? a.icon : (preset?.icon ?? '☀️'),
     durationMins,
     maxUV,
     sunscreen: typeof a.sunscreen === 'boolean' ? a.sunscreen : globalSunscreen,
     custom: a.custom === true || a.id?.startsWith('custom_') || undefined,
     preferredHours: normalizePreferredHours(a.preferredHours),
-    timePreference: a.timePreference === 'latest' || a.timePreference === 'sunniest' ? a.timePreference : undefined,
+    timePreference:
+      a.timePreference === 'latest' || a.timePreference === 'sunniest'
+        ? a.timePreference
+        : undefined,
     daysOfWeek: normalizeDaysOfWeek(a.daysOfWeek),
     cloudSensitive: a.cloudSensitive === true ? true : undefined,
   }
 }
 
-export function normalizePrefs(raw: Partial<UserPreferences> | null, fallbackLocation?: Location): UserPreferences | null {
+export function normalizePrefs(
+  raw: Partial<UserPreferences> | null,
+  fallbackLocation?: Location,
+): UserPreferences | null {
   if (!raw) return null
   const rawLocation = isLocation(raw.location)
     ? raw.location
@@ -165,7 +192,9 @@ export function normalizePrefs(raw: Partial<UserPreferences> | null, fallbackLoc
   const sunscreen = typeof raw.sunscreen === 'boolean' ? raw.sunscreen : false
   const profiles = normalizeProfiles(raw.profiles)
   const activities = Array.isArray(raw.activities)
-    ? raw.activities.map((a, i) => normalizeActivity(a, i, sunscreen)).filter(Boolean) as Activity[]
+    ? (raw.activities
+        .map((a, i) => normalizeActivity(a, i, sunscreen))
+        .filter(Boolean) as Activity[])
     : []
 
   return {
@@ -174,23 +203,35 @@ export function normalizePrefs(raw: Partial<UserPreferences> | null, fallbackLoc
     location,
     savedLocations: normalizeSavedLocations(raw.savedLocations),
     profiles,
-    activeProfileId: profiles?.some(p => p.id === raw.activeProfileId) ? raw.activeProfileId : undefined,
-    skinType: SKIN_TYPES.includes(raw.skinType as SkinType) ? raw.skinType as SkinType : 'fair',
+    activeProfileId: profiles?.some(p => p.id === raw.activeProfileId)
+      ? raw.activeProfileId
+      : undefined,
+    skinType: SKIN_TYPES.includes(raw.skinType as SkinType) ? (raw.skinType as SkinType) : 'fair',
     sunscreen,
     activities,
-    tier: TIERS.includes(raw.tier as TierLevel) ? raw.tier as TierLevel : 'anonymous',
+    tier: TIERS.includes(raw.tier as TierLevel) ? (raw.tier as TierLevel) : 'anonymous',
     calendarFeedToken: normalizeFeedToken(raw.calendarFeedToken),
     onboardingComplete: raw.onboardingComplete === true,
-    calendarHours: raw.calendarHours && typeof raw.calendarHours.from === 'number' && typeof raw.calendarHours.to === 'number'
-      ? { from: Math.max(0, Math.min(23, raw.calendarHours.from)), to: Math.max(1, Math.min(24, raw.calendarHours.to)) }
-      : undefined,
+    calendarHours:
+      raw.calendarHours &&
+      typeof raw.calendarHours.from === 'number' &&
+      typeof raw.calendarHours.to === 'number'
+        ? {
+            from: Math.max(0, Math.min(23, raw.calendarHours.from)),
+            to: Math.max(1, Math.min(24, raw.calendarHours.to)),
+          }
+        : undefined,
     showSunPath: typeof raw.showSunPath === 'boolean' ? raw.showSunPath : undefined,
     hiddenActivitySuggestionIds: normalizeStringList(raw.hiddenActivitySuggestionIds, PRESET_IDS),
-    collapsedActivityCategories: normalizeStringList(raw.collapsedActivityCategories, CATEGORY_NAMES),
+    collapsedActivityCategories: normalizeStringList(
+      raw.collapsedActivityCategories,
+      CATEGORY_NAMES,
+    ),
     upgradeInterest: normalizeUpgradeInterest(raw.upgradeInterest),
-    notificationHour: typeof raw.notificationHour === 'number'
-      ? Math.max(5, Math.min(10, Math.round(raw.notificationHour)))
-      : 7,
+    notificationHour:
+      typeof raw.notificationHour === 'number'
+        ? Math.max(5, Math.min(10, Math.round(raw.notificationHour)))
+        : 7,
   }
 }
 
@@ -198,14 +239,16 @@ export function loadLocalPrefs(): UserPreferences | null {
   if (typeof window === 'undefined') return null
   try {
     const raw = localStorage.getItem(PREFS_KEY)
-    const parsed = raw ? JSON.parse(raw) as Partial<UserPreferences> : null
+    const parsed = raw ? (JSON.parse(raw) as Partial<UserPreferences>) : null
     const normalized = normalizePrefs(parsed)
     if (normalized && JSON.stringify(parsed) !== JSON.stringify(normalized)) {
       saveLocalPrefs(normalized)
     }
     return normalized
   } catch {
-    try { localStorage.removeItem(PREFS_KEY) } catch {}
+    try {
+      localStorage.removeItem(PREFS_KEY)
+    } catch {}
     return null
   }
 }
@@ -217,7 +260,9 @@ export function saveLocalPrefs(prefs: Partial<UserPreferences>): void {
 
 export function clearLocalPrefs(): void {
   if (typeof window === 'undefined') return
-  try { localStorage.removeItem(PREFS_KEY) } catch {}
+  try {
+    localStorage.removeItem(PREFS_KEY)
+  } catch {}
 }
 
 export type FirestorePrefsResult =
@@ -242,10 +287,15 @@ export async function loadFirestorePrefs(uid: string): Promise<FirestorePrefsRes
   }
 }
 
-export async function saveFirestorePrefs(uid: string, prefs: Partial<UserPreferences>): Promise<void> {
+export async function saveFirestorePrefs(
+  uid: string,
+  prefs: Partial<UserPreferences>,
+): Promise<void> {
   if (!db) return
   const ref = doc(db, 'users', uid)
-  const normalized = normalizePrefs({ ...prefs, uid }) ?? ({ uid, ...prefs, schemaVersion: PREFS_SCHEMA_VERSION } as Partial<UserPreferences>)
+  const normalized =
+    normalizePrefs({ ...prefs, uid }) ??
+    ({ uid, ...prefs, schemaVersion: PREFS_SCHEMA_VERSION } as Partial<UserPreferences>)
   const snap = await getDoc(ref)
   if (snap.exists()) {
     await updateDoc(ref, { ...normalized })

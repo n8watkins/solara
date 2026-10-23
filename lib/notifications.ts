@@ -68,9 +68,9 @@ function functionsUrl(): string | null {
 
 export function notificationRegistrationConfigured(): boolean {
   return !!(
-    functionsUrl()
-    && process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY
-    && process.env.NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY
+    functionsUrl() &&
+    process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY &&
+    process.env.NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY
   )
 }
 
@@ -97,10 +97,10 @@ async function mutateRemoteDevice(
     body: JSON.stringify(body),
   })
   if (!response.ok) {
-    const result = await response.json().catch(() => null) as { error?: string } | null
+    const result = (await response.json().catch(() => null)) as { error?: string } | null
     throw new Error(result?.error || 'Could not update notification registration')
   }
-  return await response.json().catch(() => ({})) as NotificationDeviceMutationResult
+  return (await response.json().catch(() => ({}))) as NotificationDeviceMutationResult
 }
 
 async function completeRemoteRegistration(
@@ -138,15 +138,18 @@ export async function requestNotificationPermission(): Promise<string | null> {
 
 export function notificationsEnabledLocally(uid: string): boolean {
   const subscription = readLocalSubscription(uid)
-  return typeof Notification !== 'undefined'
-    && Notification.permission === 'granted'
-    && !!subscription
-    && subscription.migrationPending !== true
-    && subscription.pendingRemoval !== true
+  return (
+    typeof Notification !== 'undefined' &&
+    Notification.permission === 'granted' &&
+    !!subscription &&
+    subscription.migrationPending !== true &&
+    subscription.pendingRemoval !== true
+  )
 }
 
 export async function enableNotifications(uid: string): Promise<void> {
-  if (!notificationRegistrationConfigured()) throw new Error('Notification registration is not configured')
+  if (!notificationRegistrationConfigured())
+    throw new Error('Notification registration is not configured')
   const token = await requestNotificationPermission()
   if (!token) throw new Error('Notification permission was not granted')
 
@@ -156,7 +159,9 @@ export async function enableNotifications(uid: string): Promise<void> {
   const completed = await completeRemoteRegistration(uid, subscription)
   if (!completed) throw new Error('Notification setup is still being finalized. Try again shortly.')
   writeLocalSubscription(uid, subscription)
-  try { localStorage.removeItem('solara_fcm_token') } catch {}
+  try {
+    localStorage.removeItem('solara_fcm_token')
+  } catch {}
 }
 
 export async function migrateLegacyNotificationToken(uid: string): Promise<boolean> {
@@ -168,20 +173,25 @@ export async function migrateLegacyNotificationToken(uid: string): Promise<boole
   }
   if (existing?.migrationPending) {
     const completed = await completeRemoteRegistration(uid, existing)
-    if (!completed) throw new Error('Notification setup is still being finalized. Try again shortly.')
+    if (!completed)
+      throw new Error('Notification setup is still being finalized. Try again shortly.')
     writeLocalSubscription(uid, { deviceId: existing.deviceId, token: existing.token })
     return true
   }
   if (existing) return false
   let token: string | null = null
-  try { token = localStorage.getItem('solara_fcm_token') } catch {}
+  try {
+    token = localStorage.getItem('solara_fcm_token')
+  } catch {}
   if (!token || Notification.permission !== 'granted') return false
 
   const deviceId = randomDeviceId()
   const completed = await completeRemoteRegistration(uid, { deviceId, token })
   if (!completed) throw new Error('Notification setup is still being finalized. Try again shortly.')
   writeLocalSubscription(uid, { deviceId, token })
-  try { localStorage.removeItem('solara_fcm_token') } catch {}
+  try {
+    localStorage.removeItem('solara_fcm_token')
+  } catch {}
   return true
 }
 
@@ -191,12 +201,9 @@ export async function disableNotifications(uid: string): Promise<void> {
   if (local) {
     writeLocalSubscription(uid, { ...local, pendingRemoval: true })
     try {
-      await mutateRemoteDevice(
-        uid,
-        'removeNotificationDevice',
-        'DELETE',
-        { deviceId: local.deviceId },
-      )
+      await mutateRemoteDevice(uid, 'removeNotificationDevice', 'DELETE', {
+        deviceId: local.deviceId,
+      })
     } catch (error) {
       removalError = error
     }
@@ -221,31 +228,40 @@ export async function clearLocalNotificationState(uid: string): Promise<void> {
 
 export function onForegroundMessage(callback: (payload: unknown) => void): () => void {
   const m = getMessagingInstance()
-  return m ? onMessage(m, payload => {
-    const data = payload.data
-    const title = data?.title
-    if (data && title && data.body && data.deliveryKey && data.deliveryScope && 'serviceWorker' in navigator) {
-      void (async () => {
-        const cache = await caches.open('solara-notification-deliveries-v1')
-        const scopedKey = `${data.deliveryScope}:${data.deliveryKey}`
-        const marker = new Request(`/notification-delivery/${encodeURIComponent(scopedKey)}`)
-        if (await cache.match(marker)) return
-        await cache.put(marker, new Response('shown'))
-        try {
-          const registration = await navigator.serviceWorker.ready
-          await registration.showNotification(title, {
-            body: data.body,
-            icon: '/icon-192.png',
-            badge: '/icon-192.png',
-            tag: scopedKey,
-            data: { link: data.link || '/' },
-          })
-        } catch (error) {
-          await cache.delete(marker)
-          throw error
+  return m
+    ? onMessage(m, payload => {
+        const data = payload.data
+        const title = data?.title
+        if (
+          data &&
+          title &&
+          data.body &&
+          data.deliveryKey &&
+          data.deliveryScope &&
+          'serviceWorker' in navigator
+        ) {
+          void (async () => {
+            const cache = await caches.open('solara-notification-deliveries-v1')
+            const scopedKey = `${data.deliveryScope}:${data.deliveryKey}`
+            const marker = new Request(`/notification-delivery/${encodeURIComponent(scopedKey)}`)
+            if (await cache.match(marker)) return
+            await cache.put(marker, new Response('shown'))
+            try {
+              const registration = await navigator.serviceWorker.ready
+              await registration.showNotification(title, {
+                body: data.body,
+                icon: '/icon-192.png',
+                badge: '/icon-192.png',
+                tag: scopedKey,
+                data: { link: data.link || '/' },
+              })
+            } catch (error) {
+              await cache.delete(marker)
+              throw error
+            }
+          })().catch(error => console.error('Foreground notification error:', error))
         }
-      })().catch(error => console.error('Foreground notification error:', error))
-    }
-    callback(payload)
-  }) : () => {}
+        callback(payload)
+      })
+    : () => {}
 }

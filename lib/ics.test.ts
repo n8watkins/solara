@@ -52,10 +52,23 @@ describe('buildICS', () => {
 
 describe('recToIcsEvent', () => {
   const rec: SlotRecommendation = {
-    start: 17, end: 18, earliestStart: 17, latestStart: 19,
-    windowLabel: 'Evening', peakUV: 3, avgUV: 2, reason: 'Earliest free spot in your evening window',
+    start: 17,
+    end: 18,
+    earliestStart: 17,
+    latestStart: 19,
+    windowLabel: 'Evening',
+    peakUV: 3,
+    avgUV: 2,
+    reason: 'Earliest free spot in your evening window',
   }
-  const activity: Activity = { id: 'run', name: 'Running', icon: '🏃', durationMins: 60, maxUV: 4, sunscreen: false }
+  const activity: Activity = {
+    id: 'run',
+    name: 'Running',
+    icon: '🏃',
+    durationMins: 60,
+    maxUV: 4,
+    sunscreen: false,
+  }
 
   it('builds a stable uid and reuses the calendar description', () => {
     const e = recToIcsEvent(activity, '2026-05-30', rec)

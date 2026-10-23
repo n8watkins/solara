@@ -35,7 +35,10 @@ before(async () => {
   preDeployEnv = await initializeTestEnvironment({
     projectId: `${projectId}-pre-functions`,
     firestore: {
-      rules: fs.readFileSync(path.resolve(__dirname, '../../firestore.pre-functions.rules'), 'utf8'),
+      rules: fs.readFileSync(
+        path.resolve(__dirname, '../../firestore.pre-functions.rules'),
+        'utf8',
+      ),
     },
   })
 })
@@ -80,11 +83,13 @@ describe('user preferences', () => {
     const ref = db.doc('users/alice')
 
     await assertSucceeds(ref.set(prefs('alice')))
-    await assertSucceeds(ref.update({
-      skinType: 'olive',
-      showSunPath: false,
-      notificationHour: 8,
-    }))
+    await assertSucceeds(
+      ref.update({
+        skinType: 'olive',
+        showSunPath: false,
+        notificationHour: 8,
+      }),
+    )
   })
 
   test('a user cannot access another account', async () => {
@@ -138,21 +143,31 @@ describe('user preferences', () => {
     const db = testEnv.authenticatedContext('alice').firestore()
     const ref = db.doc('users/alice')
     await assertSucceeds(ref.set(prefs('alice')))
-    await assertSucceeds(ref.update({
-      location: { lat: -90, lon: 180, city: 'Boundary', region: '', timezone: 'UTC' },
-    }))
-    await assertFails(ref.update({
-      location: { lat: 91, lon: 0, city: 'Invalid', region: '' },
-    }))
-    await assertFails(ref.update({
-      location: { lat: 0, lon: -181, city: 'Invalid', region: '' },
-    }))
-    await assertFails(ref.update({
-      location: { lat: 0, lon: 0, city: 123, region: '' },
-    }))
-    await assertFails(ref.update({
-      location: { lat: 0, lon: 0, city: 'Missing region' },
-    }))
+    await assertSucceeds(
+      ref.update({
+        location: { lat: -90, lon: 180, city: 'Boundary', region: '', timezone: 'UTC' },
+      }),
+    )
+    await assertFails(
+      ref.update({
+        location: { lat: 91, lon: 0, city: 'Invalid', region: '' },
+      }),
+    )
+    await assertFails(
+      ref.update({
+        location: { lat: 0, lon: -181, city: 'Invalid', region: '' },
+      }),
+    )
+    await assertFails(
+      ref.update({
+        location: { lat: 0, lon: 0, city: 123, region: '' },
+      }),
+    )
+    await assertFails(
+      ref.update({
+        location: { lat: 0, lon: 0, city: 'Missing region' },
+      }),
+    )
   })
 
   test('saved locations are bounded and each location is valid', async () => {
@@ -166,23 +181,32 @@ describe('user preferences', () => {
     }))
 
     await assertSucceeds(ref.set(prefs('alice', { savedLocations })))
-    await assertFails(ref.update({
-      savedLocations: [...savedLocations, { lat: 20, lon: 20, city: 'Extra', region: 'WA' }],
-    }))
-    await assertFails(ref.update({
-      savedLocations: [{ lat: 91, lon: 0, city: 'Invalid', region: 'WA' }],
-    }))
+    await assertFails(
+      ref.update({
+        savedLocations: [...savedLocations, { lat: 20, lon: 20, city: 'Extra', region: 'WA' }],
+      }),
+    )
+    await assertFails(
+      ref.update({
+        savedLocations: [{ lat: 91, lon: 0, city: 'Invalid', region: 'WA' }],
+      }),
+    )
     await assertFails(ref.update({ savedLocations: [{ lat: 0, lon: 0, city: 'Missing region' }] }))
     await assertFails(ref.update({ savedLocations: 'Seattle' }))
   })
 
   test('server-owned fields remain unchanged during preference updates', async () => {
     await testEnv.withSecurityRulesDisabled(async context => {
-      await context.firestore().doc('users/alice').set(prefs('alice', {
-        tier: 'paid',
-        stripeCustomerId: 'cus_123',
-        subscriptionStatus: 'active',
-      }))
+      await context
+        .firestore()
+        .doc('users/alice')
+        .set(
+          prefs('alice', {
+            tier: 'paid',
+            stripeCustomerId: 'cus_123',
+            subscriptionStatus: 'active',
+          }),
+        )
     })
 
     const ref = testEnv.authenticatedContext('alice').firestore().doc('users/alice')
@@ -203,7 +227,9 @@ describe('notification devices', () => {
   }
 
   test('an owner can read but cannot mutate a device registration directly', async () => {
-    const ref = testEnv.authenticatedContext('alice').firestore()
+    const ref = testEnv
+      .authenticatedContext('alice')
+      .firestore()
       .doc('users/alice/notificationDevices/device-1')
 
     await testEnv.withSecurityRulesDisabled(async context => {
@@ -217,17 +243,22 @@ describe('notification devices', () => {
   })
 
   test('clients cannot write delivery state', async () => {
-    const ref = testEnv.authenticatedContext('alice').firestore()
+    const ref = testEnv
+      .authenticatedContext('alice')
+      .firestore()
       .doc('users/alice/notificationDevices/device-1')
 
     await assertFails(ref.set({ ...registration, lastError: 'fake' }))
 
     await testEnv.withSecurityRulesDisabled(async context => {
-      await context.firestore().doc('users/alice/notificationDevices/device-1').set({
-        ...registration,
-        lastDeliveredAt: new Date(),
-        lastNotificationKey: '2026-01-01:daily',
-      })
+      await context
+        .firestore()
+        .doc('users/alice/notificationDevices/device-1')
+        .set({
+          ...registration,
+          lastDeliveredAt: new Date(),
+          lastNotificationKey: '2026-01-01:daily',
+        })
     })
 
     await assertFails(ref.update({ enabled: false }))
@@ -236,7 +267,9 @@ describe('notification devices', () => {
   })
 
   test('another user cannot access a device registration', async () => {
-    const ref = testEnv.authenticatedContext('mallory').firestore()
+    const ref = testEnv
+      .authenticatedContext('mallory')
+      .firestore()
       .doc('users/alice/notificationDevices/device-1')
 
     await assertFails(ref.set(registration))

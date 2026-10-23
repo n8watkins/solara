@@ -24,14 +24,22 @@ describe('analytics consent', () => {
   })
 
   it('fails closed when storage cannot be read', () => {
-    const storage = { getItem: vi.fn(() => { throw new Error('blocked') }) }
+    const storage = {
+      getItem: vi.fn(() => {
+        throw new Error('blocked')
+      }),
+    }
 
     expect(readAnalyticsConsent(storage)).toBe('unset')
   })
 
   it('persists an explicit decision and reports storage failures', () => {
     const workingStorage = { setItem: vi.fn() }
-    const blockedStorage = { setItem: vi.fn(() => { throw new Error('blocked') }) }
+    const blockedStorage = {
+      setItem: vi.fn(() => {
+        throw new Error('blocked')
+      }),
+    }
 
     expect(persistAnalyticsConsent(workingStorage, 'accepted')).toBe(true)
     expect(workingStorage.setItem).toHaveBeenCalledWith(ANALYTICS_CONSENT_STORAGE_KEY, 'accepted')

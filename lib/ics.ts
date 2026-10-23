@@ -11,8 +11,8 @@ export interface IcsEvent {
   uid: string
   summary: string
   description: string
-  dateStr: string   // YYYY-MM-DD
-  start: number     // fractional hour, local
+  dateStr: string // YYYY-MM-DD
+  start: number // fractional hour, local
   end: number
 }
 
@@ -27,7 +27,10 @@ function escapeText(s: string): string {
 function localStamp(dateStr: string, h: number): string {
   let hr = Math.floor(h)
   let min = Math.round((h - hr) * 60)
-  if (min === 60) { hr += 1; min = 0 }
+  if (min === 60) {
+    hr += 1
+    min = 0
+  }
   return `${dateStr.replace(/-/g, '')}T${pad(hr)}${pad(min)}00`
 }
 
@@ -75,7 +78,11 @@ export function buildICS(events: IcsEvent[], now: Date = new Date()): string {
 }
 
 /** Map a recommended slot to an ICS event, reusing the calendar event description. */
-export function recToIcsEvent(activity: Activity, dateStr: string, rec: SlotRecommendation): IcsEvent {
+export function recToIcsEvent(
+  activity: Activity,
+  dateStr: string,
+  rec: SlotRecommendation,
+): IcsEvent {
   return {
     uid: `${dateStr}-${activity.id}-${Math.round(rec.start * 60)}@solara`,
     summary: `${activity.icon} ${activity.name} — sun window`,

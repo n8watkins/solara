@@ -21,7 +21,7 @@ describe('burnMins', () => {
 
   it('reflects skin type — darker skin burns slower at the same UV', () => {
     expect(burnMins(5, 'very-fair')).toBe(20) // (10*10)/5
-    expect(burnMins(5, 'dark')).toBe(100)     // (50*10)/5
+    expect(burnMins(5, 'dark')).toBe(100) // (50*10)/5
     expect(burnMins(5, 'dark')!).toBeGreaterThan(burnMins(5, 'very-fair')!)
   })
 
@@ -83,7 +83,13 @@ describe('fmtHour', () => {
 // ---------------------------------------------------------------------------
 describe('effectiveMaxUV', () => {
   const base = (over: Partial<Activity>): Activity => ({
-    id: 'x', name: 'X', icon: '🏃', durationMins: 30, maxUV: 4, sunscreen: false, ...over,
+    id: 'x',
+    name: 'X',
+    icon: '🏃',
+    durationMins: 30,
+    maxUV: 4,
+    sunscreen: false,
+    ...over,
   })
 
   it('returns base maxUV without sunscreen', () => {
@@ -141,7 +147,14 @@ function buildDay(): HourlyForecast[] {
   return hours
 }
 
-const runActivity: Activity = { id: 'run', name: 'Running', icon: '🏃', durationMins: 60, maxUV: 4, sunscreen: false }
+const runActivity: Activity = {
+  id: 'run',
+  name: 'Running',
+  icon: '🏃',
+  durationMins: 60,
+  maxUV: 4,
+  sunscreen: false,
+}
 
 describe('getActivityWindow', () => {
   it('finds both safe windows and skips the unsafe midday block', () => {

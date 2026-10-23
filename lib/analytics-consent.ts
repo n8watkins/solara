@@ -22,7 +22,10 @@ export function readAnalyticsConsent(storage: StorageReader): AnalyticsConsent {
   }
 }
 
-export function persistAnalyticsConsent(storage: StorageWriter, consent: Exclude<AnalyticsConsent, 'unset'>): boolean {
+export function persistAnalyticsConsent(
+  storage: StorageWriter,
+  consent: Exclude<AnalyticsConsent, 'unset'>,
+): boolean {
   try {
     storage.setItem(ANALYTICS_CONSENT_STORAGE_KEY, consent)
     return true

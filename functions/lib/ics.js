@@ -5,13 +5,20 @@
 const pad = n => String(n).padStart(2, '0')
 
 function escapeText(s) {
-  return String(s).replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n')
+  return String(s)
+    .replace(/\\/g, '\\\\')
+    .replace(/;/g, '\\;')
+    .replace(/,/g, '\\,')
+    .replace(/\r?\n/g, '\\n')
 }
 
 function localStamp(dateStr, h) {
   let hr = Math.floor(h)
   let min = Math.round((h - hr) * 60)
-  if (min === 60) { hr += 1; min = 0 }
+  if (min === 60) {
+    hr += 1
+    min = 0
+  }
   return `${dateStr.replace(/-/g, '')}T${pad(hr)}${pad(min)}00`
 }
 
@@ -33,7 +40,14 @@ function fold(line) {
 
 function buildICS(events, now = new Date()) {
   const stamp = utcStamp(now)
-  const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Solara//Sun Planner//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'X-WR-CALNAME:Solara Sun Plan']
+  const lines = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Solara//Sun Planner//EN',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
+    'X-WR-CALNAME:Solara Sun Plan',
+  ]
   for (const e of events) {
     lines.push(
       'BEGIN:VEVENT',

@@ -19,13 +19,16 @@ function rawPayload(days: number) {
     const ds = day.toLocaleDateString('en-CA')
     for (let h = 0; h < 24; h++) {
       time.push(`${ds}T${String(h).padStart(2, '0')}:00`)
-      uv_index.push(h)            // uv == hour, easy to assert
-      temperature_2m.push(20)     // 20°C → 68°F
+      uv_index.push(h) // uv == hour, easy to assert
+      temperature_2m.push(20) // 20°C → 68°F
       weathercode.push(0)
-      cloudcover.push(h * 4)      // 0..92
+      cloudcover.push(h * 4) // 0..92
     }
   }
-  return { current: { uv_index: 5, temperature_2m: 25, weathercode: 3 }, hourly: { time, uv_index, temperature_2m, weathercode, cloudcover } }
+  return {
+    current: { uv_index: 5, temperature_2m: 25, weathercode: 3 },
+    hourly: { time, uv_index, temperature_2m, weathercode, cloudcover },
+  }
 }
 
 describe('weatherLabel', () => {

@@ -45,14 +45,16 @@ describe('health-adjacent recommendation copy', () => {
   })
 
   it('qualifies live calendar-feed events and includes protection context', () => {
-    const [event] = buildSunEvents(
-      { activities: [activity] },
-      [{ dateStr: '2026-05-29', hourly: [
-        { hour: 7, uv: 1 },
-        { hour: 8, uv: 2 },
-        { hour: 9, uv: 8 },
-      ] }],
-    )
+    const [event] = buildSunEvents({ activities: [activity] }, [
+      {
+        dateStr: '2026-05-29',
+        hourly: [
+          { hour: 7, uv: 1 },
+          { hour: 8, uv: 2 },
+          { hour: 9, uv: 8 },
+        ],
+      },
+    ])
     expect(event.summary).toBe('🏃 Running: lower-UV window')
     expect(event.description).toContain('Estimated lower-UV window')
     expect(event.description).toContain('Recheck current UV and use sun protection.')

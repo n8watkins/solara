@@ -82,18 +82,15 @@ describe('shared recommendation engine contracts', () => {
     )
 
     expect(clientWindows).toEqual(functionWindows)
-    expect(clientWindows).toEqual([
-      { from: 6, to: 8, label: 'Morning', peakUV: 1.5, avgUV: 1.3 },
-    ])
-    expect(getSafeWindowsForActivity(hourly, activity)).toEqual([
-      { from: 6, to: 8, peakUV: 1.5 },
-    ])
+    expect(clientWindows).toEqual([{ from: 6, to: 8, label: 'Morning', peakUV: 1.5, avgUV: 1.3 }])
+    expect(getSafeWindowsForActivity(hourly, activity)).toEqual([{ from: 6, to: 8, peakUV: 1.5 }])
     expect(getActivityWindow(hourly, activity, 6, 'fair').allWindows).toEqual(clientWindows)
   })
 
   it('uses the same lowest-average-UV best-window tie breaking', () => {
     const maxUV = effectiveMaxUV(activity)
-    expect(bestRecommendationWindow(hourly, maxUV, 60))
-      .toEqual(functionsSun.bestWindow(hourly, maxUV, 60))
+    expect(bestRecommendationWindow(hourly, maxUV, 60)).toEqual(
+      functionsSun.bestWindow(hourly, maxUV, 60),
+    )
   })
 })

@@ -14,19 +14,32 @@ interface Props {
   onClose: () => void
 }
 
-export default function AddActivityModal({ activities, tier, hiddenSuggestionIds, collapsedCategories, onActivitiesChange, onHideSuggestion, onToggleCategory, onClose }: Props) {
+export default function AddActivityModal({
+  activities,
+  tier,
+  hiddenSuggestionIds,
+  collapsedCategories,
+  onActivitiesChange,
+  onHideSuggestion,
+  onToggleCategory,
+  onClose,
+}: Props) {
   return (
     <ActivityModalShell
       title="Add activity"
       description="Choose a preset or create a custom outdoor activity. You can fine-tune duration and SPF after adding."
       onClose={onClose}
-      footer={(
+      footer={
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-          <button className="btn btn-primary" onClick={onClose} style={{ minWidth: '120px', justifyContent: 'center' }}>
+          <button
+            className="btn btn-primary"
+            onClick={onClose}
+            style={{ minWidth: '120px', justifyContent: 'center' }}
+          >
             Done
           </button>
         </div>
-      )}
+      }
     >
       <ActivityManager
         selected={activities}

@@ -24,7 +24,10 @@ export default function ProfileSwitcher({ prefs, tier, onApply }: Props) {
 
   useEffect(() => {
     function handle(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) { setOpen(false); setEditing(null) }
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false)
+        setEditing(null)
+      }
     }
     document.addEventListener('mousedown', handle)
     return () => document.removeEventListener('mousedown', handle)
@@ -76,9 +79,17 @@ export default function ProfileSwitcher({ prefs, tier, onApply }: Props) {
         onClick={() => setOpen(o => !o)}
         title="Switch profile"
         style={{
-          display: 'flex', alignItems: 'center', gap: '5px', background: 'var(--bg-metric)',
-          border: '0.5px solid var(--border-md)', borderRadius: '999px', cursor: 'pointer',
-          padding: '4px 9px 4px 7px', fontSize: '12px', color: 'var(--text-2)', whiteSpace: 'nowrap',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '5px',
+          background: 'var(--bg-metric)',
+          border: '0.5px solid var(--border-md)',
+          borderRadius: '999px',
+          cursor: 'pointer',
+          padding: '4px 9px 4px 7px',
+          fontSize: '12px',
+          color: 'var(--text-2)',
+          whiteSpace: 'nowrap',
         }}
       >
         <span style={{ fontSize: '13px' }}>{active.icon ?? '🧑'}</span>
@@ -87,19 +98,43 @@ export default function ProfileSwitcher({ prefs, tier, onApply }: Props) {
       </button>
 
       {open && (
-        <div style={{
-          position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 100,
-          background: 'var(--bg-card)', border: '0.5px solid var(--border-md)',
-          borderRadius: '14px', padding: '12px', width: '260px',
-          boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
-        }}>
-          <p style={{ margin: '0 0 8px', fontSize: '12px', fontWeight: 600, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+        <div
+          style={{
+            position: 'absolute',
+            top: 'calc(100% + 6px)',
+            right: 0,
+            zIndex: 100,
+            background: 'var(--bg-card)',
+            border: '0.5px solid var(--border-md)',
+            borderRadius: '14px',
+            padding: '12px',
+            width: '260px',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+          }}
+        >
+          <p
+            style={{
+              margin: '0 0 8px',
+              fontSize: '12px',
+              fontWeight: 600,
+              color: 'var(--text)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.06em',
+            }}
+          >
             Profiles
           </p>
 
           {!editing && (
             <>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', marginBottom: '8px' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '3px',
+                  marginBottom: '8px',
+                }}
+              >
                 {list.map(p => {
                   const isActive = p.id === active.id
                   return (
@@ -107,21 +142,61 @@ export default function ProfileSwitcher({ prefs, tier, onApply }: Props) {
                       <button
                         onClick={() => switchTo(p)}
                         style={{
-                          flex: 1, display: 'flex', alignItems: 'center', gap: '8px', textAlign: 'left',
+                          flex: 1,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          textAlign: 'left',
                           background: isActive ? 'rgba(249,115,22,0.08)' : 'none',
-                          border: isActive ? '1px solid rgba(249,115,22,0.25)' : '1px solid transparent',
-                          borderRadius: '9px', cursor: 'pointer', padding: '7px 9px',
+                          border: isActive
+                            ? '1px solid rgba(249,115,22,0.25)'
+                            : '1px solid transparent',
+                          borderRadius: '9px',
+                          cursor: 'pointer',
+                          padding: '7px 9px',
                         }}
                       >
                         <span style={{ fontSize: '16px' }}>{p.icon ?? '🧑'}</span>
                         <span style={{ flex: 1, minWidth: 0 }}>
-                          <span style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>{p.name}</span>
-                          <span style={{ display: 'block', fontSize: '11px', color: 'var(--text-3)' }}>{SKIN_TYPE_LABELS[p.skinType]} skin</span>
+                          <span
+                            style={{
+                              display: 'block',
+                              fontSize: '13px',
+                              fontWeight: 600,
+                              color: 'var(--text)',
+                            }}
+                          >
+                            {p.name}
+                          </span>
+                          <span
+                            style={{ display: 'block', fontSize: '11px', color: 'var(--text-3)' }}
+                          >
+                            {SKIN_TYPE_LABELS[p.skinType]} skin
+                          </span>
                         </span>
-                        {isActive && <span style={{ fontSize: '11px', color: 'var(--accent)', fontWeight: 700 }}>Active</span>}
+                        {isActive && (
+                          <span
+                            style={{ fontSize: '11px', color: 'var(--accent)', fontWeight: 700 }}
+                          >
+                            Active
+                          </span>
+                        )}
                       </button>
                       {saved.length > 0 && (
-                        <button onClick={() => setEditing(p)} aria-label={`Edit ${p.name}`} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', fontSize: '13px', padding: '4px' }}>✎</button>
+                        <button
+                          onClick={() => setEditing(p)}
+                          aria-label={`Edit ${p.name}`}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                            color: 'var(--text-3)',
+                            fontSize: '13px',
+                            padding: '4px',
+                          }}
+                        >
+                          ✎
+                        </button>
                       )}
                     </div>
                   )
@@ -129,12 +204,20 @@ export default function ProfileSwitcher({ prefs, tier, onApply }: Props) {
               </div>
 
               {canAdd ? (
-                <button className="btn" onClick={startAdd} style={{ width: '100%', justifyContent: 'center', fontSize: '13px' }}>
+                <button
+                  className="btn"
+                  onClick={startAdd}
+                  style={{ width: '100%', justifyContent: 'center', fontSize: '13px' }}
+                >
                   ＋ Add person or pet
                 </button>
               ) : (
-                <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-3)', lineHeight: 1.45 }}>
-                  {limit === 1 ? '🔒 Family & pet profiles are a Pro feature.' : `Profile limit reached (${limit}).`}
+                <p
+                  style={{ margin: 0, fontSize: '12px', color: 'var(--text-3)', lineHeight: 1.45 }}
+                >
+                  {limit === 1
+                    ? '🔒 Family & pet profiles are a Pro feature.'
+                    : `Profile limit reached (${limit}).`}
                 </p>
               )}
             </>
@@ -147,7 +230,14 @@ export default function ProfileSwitcher({ prefs, tier, onApply }: Props) {
               onChange={setEditing}
               onSave={() => saveProfile(editing)}
               onCancel={() => setEditing(null)}
-              onDelete={saved.some(p => p.id === editing.id) ? () => { removeProfile(editing.id); setEditing(null) } : undefined}
+              onDelete={
+                saved.some(p => p.id === editing.id)
+                  ? () => {
+                      removeProfile(editing.id)
+                      setEditing(null)
+                    }
+                  : undefined
+              }
             />
           )}
         </div>
@@ -156,7 +246,14 @@ export default function ProfileSwitcher({ prefs, tier, onApply }: Props) {
   )
 }
 
-function ProfileEditor({ draft, isNew, onChange, onSave, onCancel, onDelete }: {
+function ProfileEditor({
+  draft,
+  isNew,
+  onChange,
+  onSave,
+  onCancel,
+  onDelete,
+}: {
   draft: Profile
   isNew: boolean
   onChange: (p: Profile) => void
@@ -172,11 +269,18 @@ function ProfileEditor({ draft, isNew, onChange, onSave, onCancel, onDelete }: {
             key={ic}
             onClick={() => onChange({ ...draft, icon: ic })}
             style={{
-              width: '30px', height: '30px', fontSize: '16px', borderRadius: '8px', cursor: 'pointer',
-              border: draft.icon === ic ? '1.5px solid var(--accent)' : '0.5px solid var(--border-md)',
+              width: '30px',
+              height: '30px',
+              fontSize: '16px',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              border:
+                draft.icon === ic ? '1.5px solid var(--accent)' : '0.5px solid var(--border-md)',
               background: draft.icon === ic ? 'rgba(249,115,22,0.08)' : 'var(--bg-card)',
             }}
-          >{ic}</button>
+          >
+            {ic}
+          </button>
         ))}
       </div>
       <input
@@ -186,14 +290,37 @@ function ProfileEditor({ draft, isNew, onChange, onSave, onCancel, onDelete }: {
         autoFocus
         style={{ width: '100%', boxSizing: 'border-box', fontSize: '14px', padding: '8px 10px' }}
       />
-      <select value={draft.skinType} onChange={e => onChange({ ...draft, skinType: e.target.value as SkinType })} style={{ fontSize: '13px', padding: '7px' }}>
-        {SKIN_TYPES.map(st => <option key={st} value={st}>{SKIN_TYPE_LABELS[st]} skin</option>)}
+      <select
+        value={draft.skinType}
+        onChange={e => onChange({ ...draft, skinType: e.target.value as SkinType })}
+        style={{ fontSize: '13px', padding: '7px' }}
+      >
+        {SKIN_TYPES.map(st => (
+          <option key={st} value={st}>
+            {SKIN_TYPE_LABELS[st]} skin
+          </option>
+        ))}
       </select>
       <div style={{ display: 'flex', gap: '8px' }}>
-        {onDelete && <button className="btn" onClick={onDelete} style={{ color: '#DC2626', borderColor: '#FECACA', fontSize: '12px' }}>Delete</button>}
+        {onDelete && (
+          <button
+            className="btn"
+            onClick={onDelete}
+            style={{ color: '#DC2626', borderColor: '#FECACA', fontSize: '12px' }}
+          >
+            Delete
+          </button>
+        )}
         <div style={{ display: 'flex', gap: '8px', marginLeft: 'auto' }}>
-          <button className="btn" onClick={onCancel} style={{ fontSize: '12px' }}>Cancel</button>
-          <button className="btn btn-primary" onClick={onSave} disabled={!draft.name.trim()} style={{ fontSize: '12px' }}>
+          <button className="btn" onClick={onCancel} style={{ fontSize: '12px' }}>
+            Cancel
+          </button>
+          <button
+            className="btn btn-primary"
+            onClick={onSave}
+            disabled={!draft.name.trim()}
+            style={{ fontSize: '12px' }}
+          >
             {isNew ? 'Add' : 'Save'}
           </button>
         </div>

@@ -45,7 +45,14 @@ describe('getSafeWindows', () => {
 })
 
 describe('getSafeWindowsForActivity', () => {
-  const run: Activity = { id: 'run', name: 'Running', icon: '🏃', durationMins: 60, maxUV: 4, sunscreen: false }
+  const run: Activity = {
+    id: 'run',
+    name: 'Running',
+    icon: '🏃',
+    durationMins: 60,
+    maxUV: 4,
+    sunscreen: false,
+  }
 
   it('uses the activity duration and effective threshold', () => {
     const w = getSafeWindowsForActivity(buildDay(), run)

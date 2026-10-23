@@ -34,8 +34,16 @@ function uvTone(uv: number): string {
  * visible (it would just echo the activity cards).
  */
 export default function PlanAhead({
-  forecast, activities, skinType, dayLimit, busyByDate = {}, nowHourToday = -1,
-  lockedDays, upgradeCopy, onUpgrade, onBook,
+  forecast,
+  activities,
+  skinType,
+  dayLimit,
+  busyByDate = {},
+  nowHourToday = -1,
+  lockedDays,
+  upgradeCopy,
+  onUpgrade,
+  onBook,
 }: Props) {
   if (!activities.length || dayLimit <= 1) return null
 
@@ -49,9 +57,19 @@ export default function PlanAhead({
 
   return (
     <div className="card">
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px', marginBottom: '12px' }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
+          gap: '12px',
+          marginBottom: '12px',
+        }}
+      >
         <div>
-          <p style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: 'var(--text)' }}>Best day this week</p>
+          <p style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: 'var(--text)' }}>
+            Best day this week
+          </p>
           <p style={{ margin: '3px 0 0', fontSize: '13px', color: 'var(--text-3)' }}>
             The best upcoming day and time for each activity.
           </p>
@@ -71,14 +89,28 @@ export default function PlanAhead({
           <div
             key={activity.id}
             style={{
-              display: 'flex', alignItems: 'center', gap: '12px',
-              padding: '10px 12px', borderRadius: '10px',
-              background: 'var(--bg-metric)', border: '0.5px solid var(--border-md)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              padding: '10px 12px',
+              borderRadius: '10px',
+              background: 'var(--bg-metric)',
+              border: '0.5px solid var(--border-md)',
             }}
           >
             <span style={{ fontSize: '20px', flexShrink: 0 }}>{activity.icon}</span>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{ margin: 0, fontSize: '13px', fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  color: 'var(--text)',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
                 {activity.name}
               </p>
               <p style={{ margin: '2px 0 0', fontSize: '12px', color: 'var(--text-3)' }}>
@@ -86,7 +118,9 @@ export default function PlanAhead({
               </p>
             </div>
             <div style={{ textAlign: 'right', flexShrink: 0 }}>
-              <p style={{ margin: 0, fontSize: '14px', fontWeight: 750, color: uvTone(slot.avgUV) }}>
+              <p
+                style={{ margin: 0, fontSize: '14px', fontWeight: 750, color: uvTone(slot.avgUV) }}
+              >
                 {slot.windowLabel}
               </p>
               <p style={{ margin: '2px 0 0', fontSize: '11px', color: 'var(--text-3)' }}>
@@ -110,7 +144,14 @@ export default function PlanAhead({
         <button
           onClick={onUpgrade}
           className="btn"
-          style={{ marginTop: '12px', width: '100%', justifyContent: 'center', fontSize: '12px', color: 'var(--accent)', borderColor: 'rgba(249,115,22,0.4)' }}
+          style={{
+            marginTop: '12px',
+            width: '100%',
+            justifyContent: 'center',
+            fontSize: '12px',
+            color: 'var(--accent)',
+            borderColor: 'rgba(249,115,22,0.4)',
+          }}
         >
           🔒 {upgradeCopy} — see {lockedDays} more day{lockedDays === 1 ? '' : 's'} of plans
         </button>

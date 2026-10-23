@@ -40,7 +40,8 @@ export function parseActivityShareParams(params: URLSearchParams): ParsedActivit
     from < 0 ||
     to > 24 ||
     to <= from
-  ) return null
+  )
+    return null
 
   return {
     activity,
@@ -54,14 +55,23 @@ export function parseActivityShareParams(params: URLSearchParams): ParsedActivit
   }
 }
 
-export function buildActivityShareText({ activity, window: win, location, dateLabel }: ActivitySharePayload): string {
+export function buildActivityShareText({
+  activity,
+  window: win,
+  location,
+  dateLabel,
+}: ActivitySharePayload): string {
   const place = `${location.city}${location.region ? `, ${location.region}` : ''}`
   const uvCopy = typeof win.peakUV === 'number' ? ` Peak UV ${win.peakUV.toFixed(1)}.` : ''
-  const duration = activity.durationMins < 60 ? `${activity.durationMins} min` : `${activity.durationMins / 60} hr`
+  const duration =
+    activity.durationMins < 60 ? `${activity.durationMins} min` : `${activity.durationMins / 60} hr`
   return `Let's do ${activity.name.toLowerCase()} ${dateLabel.toLowerCase()} from ${fmtClock(win.from)}–${fmtClock(win.to)} in ${place}. Solara estimates this as a lower-UV ${duration} planning window.${uvCopy} Recheck current conditions and use sun protection.`
 }
 
-export function buildActivityShareUrl({ activity, window: win, location, dateLabel, dayOffset = 0 }: ActivitySharePayload, origin?: string): string {
+export function buildActivityShareUrl(
+  { activity, window: win, location, dateLabel, dayOffset = 0 }: ActivitySharePayload,
+  origin?: string,
+): string {
   const base = origin || 'https://uv-activity-planner.web.app'
   const params = new URLSearchParams({
     a: activity.name,
@@ -77,7 +87,11 @@ export function buildActivityShareUrl({ activity, window: win, location, dateLab
   return `${base}/share?${params.toString()}`
 }
 
-export async function shareOrCopy(title: string, text: string, url: string): Promise<'shared' | 'copied' | 'unsupported'> {
+export async function shareOrCopy(
+  title: string,
+  text: string,
+  url: string,
+): Promise<'shared' | 'copied' | 'unsupported'> {
   if (typeof navigator !== 'undefined' && navigator.share) {
     await navigator.share({ title, text, url })
     return 'shared'

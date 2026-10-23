@@ -50,13 +50,22 @@ describe('device notification subscriptions', () => {
     mocks.getAppCheckToken.mockResolvedValue({ token: 'firebase-app-check-token' })
     mocks.deleteToken.mockResolvedValue(true)
     mocks.getIdToken.mockResolvedValue('firebase-id-token')
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: true,
-      json: vi.fn().mockResolvedValue({}),
-    }))
-    Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: localStorageMock })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({}),
+      }),
+    )
+    Object.defineProperty(globalThis, 'localStorage', {
+      configurable: true,
+      value: localStorageMock,
+    })
     Object.defineProperty(globalThis, 'window', { configurable: true, value: {} })
-    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { userAgent: 'test-browser' } })
+    Object.defineProperty(globalThis, 'navigator', {
+      configurable: true,
+      value: { userAgent: 'test-browser' },
+    })
     Object.defineProperty(globalThis, 'Notification', {
       configurable: true,
       value: { permission: 'granted', requestPermission: vi.fn().mockResolvedValue('granted') },
@@ -76,19 +85,30 @@ describe('device notification subscriptions', () => {
         }),
       }),
     )
-    expect(JSON.parse(vi.mocked(fetch).mock.calls[0]![1]?.body as string)).toEqual(expect.objectContaining({
-      token: 'new-fcm-token-that-is-long-enough',
-      platform: 'web',
-    }))
+    expect(JSON.parse(vi.mocked(fetch).mock.calls[0]![1]?.body as string)).toEqual(
+      expect.objectContaining({
+        token: 'new-fcm-token-that-is-long-enough',
+        platform: 'web',
+      }),
+    )
     expect(notificationsEnabledLocally('user-1')).toBe(true)
     expect(notificationsEnabledLocally('user-2')).toBe(false)
   })
 
   it('continues bounded migration pages before reporting notifications enabled', async () => {
     vi.mocked(fetch)
-      .mockResolvedValueOnce({ ok: true, json: vi.fn().mockResolvedValue({ migrationPending: true }) } as unknown as Response)
-      .mockResolvedValueOnce({ ok: true, json: vi.fn().mockResolvedValue({ migrationPending: true }) } as unknown as Response)
-      .mockResolvedValueOnce({ ok: true, json: vi.fn().mockResolvedValue({ migrationPending: false }) } as unknown as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue({ migrationPending: true }),
+      } as unknown as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue({ migrationPending: true }),
+      } as unknown as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue({ migrationPending: false }),
+      } as unknown as Response)
 
     await enableNotifications('user-1')
 
@@ -123,11 +143,13 @@ describe('device notification subscriptions', () => {
     expect(notificationsEnabledLocally('user-1')).toBe(false)
     expect(mocks.deleteToken).not.toHaveBeenCalled()
     const pending = JSON.parse(values.get('solara_notification_device_user-1') || '{}')
-    expect(pending).toEqual(expect.objectContaining({
-      deviceId: expect.any(String),
-      migrationPending: true,
-      token: 'new-fcm-token-that-is-long-enough',
-    }))
+    expect(pending).toEqual(
+      expect.objectContaining({
+        deviceId: expect.any(String),
+        migrationPending: true,
+        token: 'new-fcm-token-that-is-long-enough',
+      }),
+    )
 
     await expect(migrateLegacyNotificationToken('user-1')).resolves.toBe(true)
     expect(fetch).toHaveBeenCalledTimes(2)
@@ -191,7 +213,9 @@ describe('device notification subscriptions', () => {
     await expect(migrateLegacyNotificationToken('user-1')).resolves.toBe(true)
     await expect(migrateLegacyNotificationToken('user-1')).resolves.toBe(false)
     expect(fetch).toHaveBeenCalledTimes(1)
-    expect(JSON.parse(vi.mocked(fetch).mock.calls[0]![1]?.body as string)).toEqual(expect.objectContaining({ token: 'legacy-token' }))
+    expect(JSON.parse(vi.mocked(fetch).mock.calls[0]![1]?.body as string)).toEqual(
+      expect.objectContaining({ token: 'legacy-token' }),
+    )
     expect(values.has('solara_fcm_token')).toBe(false)
   })
 
@@ -204,15 +228,15 @@ describe('device notification subscriptions', () => {
     expect(fetch).not.toHaveBeenCalled()
   })
 
-  it.each([
-    ['NEXT_PUBLIC_FIREBASE_VAPID_KEY'],
-    ['NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY'],
-  ])('does not request browser permission when %s is unavailable', async variable => {
-    vi.stubEnv(variable, '')
+  it.each([['NEXT_PUBLIC_FIREBASE_VAPID_KEY'], ['NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY']])(
+    'does not request browser permission when %s is unavailable',
+    async variable => {
+      vi.stubEnv(variable, '')
 
-    await expect(enableNotifications('user-1')).rejects.toThrow('not configured')
+      await expect(enableNotifications('user-1')).rejects.toThrow('not configured')
 
-    expect(Notification.requestPermission).not.toHaveBeenCalled()
-    expect(fetch).not.toHaveBeenCalled()
-  })
+      expect(Notification.requestPermission).not.toHaveBeenCalled()
+      expect(fetch).not.toHaveBeenCalled()
+    },
+  )
 })

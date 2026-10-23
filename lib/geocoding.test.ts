@@ -10,7 +10,15 @@ describe('searchLocation', () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
-        results: [{ latitude: 34.1478, longitude: -118.1445, name: 'Pasadena', admin1: 'California', timezone: 'America/Los_Angeles' }],
+        results: [
+          {
+            latitude: 34.1478,
+            longitude: -118.1445,
+            name: 'Pasadena',
+            admin1: 'California',
+            timezone: 'America/Los_Angeles',
+          },
+        ],
       }),
     })
     vi.stubGlobal('fetch', fetchMock)
@@ -33,8 +41,20 @@ describe('searchLocation', () => {
         ok: true,
         json: async () => ({
           results: [
-            { latitude: 29.6911, longitude: -95.2091, name: 'Pasadena', admin1: 'Texas', country: 'United States' },
-            { latitude: 34.1478, longitude: -118.1445, name: 'Pasadena', admin1: 'California', country: 'United States' },
+            {
+              latitude: 29.6911,
+              longitude: -95.2091,
+              name: 'Pasadena',
+              admin1: 'Texas',
+              country: 'United States',
+            },
+            {
+              latitude: 34.1478,
+              longitude: -118.1445,
+              name: 'Pasadena',
+              admin1: 'California',
+              country: 'United States',
+            },
           ],
         }),
       })
@@ -54,7 +74,13 @@ describe('searchLocation', () => {
   })
 
   it('rejects qualified results from a different region', async () => {
-    const texasResult = { latitude: 29.6911, longitude: -95.2091, name: 'Pasadena', admin1: 'Texas', country: 'United States' }
+    const texasResult = {
+      latitude: 29.6911,
+      longitude: -95.2091,
+      name: 'Pasadena',
+      admin1: 'Texas',
+      country: 'United States',
+    }
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce({ ok: true, json: async () => ({ results: [texasResult] }) })
@@ -66,7 +92,12 @@ describe('searchLocation', () => {
   })
 
   it('rejects fuzzy city matches from the requested region', async () => {
-    const nearbyResult = { latitude: 45.5231, longitude: -122.6765, name: 'East Portland', admin1: 'Oregon' }
+    const nearbyResult = {
+      latitude: 45.5231,
+      longitude: -122.6765,
+      name: 'East Portland',
+      admin1: 'Oregon',
+    }
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce({ ok: true, json: async () => ({ results: [nearbyResult] }) })

@@ -30,5 +30,7 @@ export function setCachedWeather(lat: number, lon: number, data: WeatherResponse
 }
 
 export function clearWeatherCache(): void {
-  try { localStorage.removeItem(CACHE_KEY) } catch {}
+  try {
+    localStorage.removeItem(CACHE_KEY)
+  } catch {}
 }

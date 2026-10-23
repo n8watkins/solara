@@ -36,7 +36,11 @@ interface FreeSlot {
  * Subtract busy intervals from a [winFrom, winTo) window, returning the free
  * sub-intervals. Handles overlapping/unsorted busy blocks via a sweep.
  */
-function subtractBusy(winFrom: number, winTo: number, busy: BusyInterval[]): Array<[number, number]> {
+function subtractBusy(
+  winFrom: number,
+  winTo: number,
+  busy: BusyInterval[],
+): Array<[number, number]> {
   const clipped = busy
     .map(b => [Math.max(b.start, winFrom), Math.min(b.end, winTo)] as [number, number])
     .filter(([s, e]) => e > s)
@@ -57,7 +61,11 @@ function labelPhrase(label: SafeActivityWindow['label']): string {
 }
 
 /** Peak/avg UV over the hours the activity actually occupies [from, to). */
-function summarizeUV(hourly: { hour: number; uv: number }[], from: number, to: number): { peak: number; avg: number } | null {
+function summarizeUV(
+  hourly: { hour: number; uv: number }[],
+  from: number,
+  to: number,
+): { peak: number; avg: number } | null {
   const lo = Math.floor(from)
   const hi = Math.ceil(to)
   const samples = hourly.filter(h => h.hour >= lo && h.hour < hi).map(h => h.uv)
@@ -92,7 +100,10 @@ function sunniestPlacement(
     if (c > latest + 1e-9) continue
     const s = summarizeUV(hourly, c, c + durHours)
     const avg = s ? s.avg : f.avgUV
-    if (avg > bestAvg) { bestAvg = avg; bestStart = c }
+    if (avg > bestAvg) {
+      bestAvg = avg
+      bestStart = c
+    }
   }
   return { start: bestStart, avg: bestAvg }
 }
@@ -155,7 +166,8 @@ export function recommendSlot(
       start = best!.start
     } else {
       chosen = feasible.reduce((best, f) =>
-        f.avgUV > best.avgUV || (f.avgUV === best.avgUV && f.from < best.from) ? f : best)
+        f.avgUV > best.avgUV || (f.avgUV === best.avgUV && f.from < best.from) ? f : best,
+      )
       start = chosen.from
     }
   } else {

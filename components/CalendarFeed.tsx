@@ -28,7 +28,12 @@ export default function CalendarFeed({ prefs, onPrefsUpdate }: Props) {
   }
 
   function regenerate() {
-    if (!confirm('Regenerate the feed link? Your existing subscription will stop updating until you re-subscribe with the new link.')) return
+    if (
+      !confirm(
+        'Regenerate the feed link? Your existing subscription will stop updating until you re-subscribe with the new link.',
+      )
+    )
+      return
     onPrefsUpdate({ ...prefs, calendarFeedToken: randomFeedToken() })
     setCopied(false)
   }
@@ -39,11 +44,24 @@ export default function CalendarFeed({ prefs, onPrefsUpdate }: Props) {
       await navigator.clipboard.writeText(url)
       setCopied(true)
       window.setTimeout(() => setCopied(false), 2000)
-    } catch { /* clipboard blocked — the field is selectable as a fallback */ }
+    } catch {
+      /* clipboard blocked — the field is selectable as a fallback */
+    }
   }
 
   return (
-    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '10px 12px', borderRadius: '10px', marginBottom: '12px', background: 'var(--bg-metric)', border: '0.5px solid var(--border-md)' }}>
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: '10px',
+        padding: '10px 12px',
+        borderRadius: '10px',
+        marginBottom: '12px',
+        background: 'var(--bg-metric)',
+        border: '0.5px solid var(--border-md)',
+      }}
+    >
       <span style={{ fontSize: '16px', flexShrink: 0 }}>🔄</span>
       <div style={{ flex: 1, minWidth: 0 }}>
         {!url ? (
@@ -65,13 +83,27 @@ export default function CalendarFeed({ prefs, onPrefsUpdate }: Props) {
               readOnly
               value={url}
               onFocus={e => e.currentTarget.select()}
-              style={{ marginTop: '8px', width: '100%', boxSizing: 'border-box', fontSize: '12px', padding: '7px 9px', borderRadius: '8px', border: '0.5px solid var(--border-md)', background: 'var(--bg)', color: 'var(--text-2)' }}
+              style={{
+                marginTop: '8px',
+                width: '100%',
+                boxSizing: 'border-box',
+                fontSize: '12px',
+                padding: '7px 9px',
+                borderRadius: '8px',
+                border: '0.5px solid var(--border-md)',
+                background: 'var(--bg)',
+                color: 'var(--text-2)',
+              }}
             />
             <div style={{ display: 'flex', gap: '8px', marginTop: '8px', flexWrap: 'wrap' }}>
               <button className="btn" onClick={() => void copy()} style={{ fontSize: '12px' }}>
                 {copied ? '✓ Copied' : 'Copy link'}
               </button>
-              <button className="btn" onClick={regenerate} style={{ fontSize: '12px', color: 'var(--text-3)' }}>
+              <button
+                className="btn"
+                onClick={regenerate}
+                style={{ fontSize: '12px', color: 'var(--text-3)' }}
+              >
                 Regenerate
               </button>
             </div>
