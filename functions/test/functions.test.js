@@ -12,12 +12,16 @@ const {
 const { queueBillingCleanup, subscriptionOwnerRef } = require('../lib/billing-resources')
 const { handleCors } = require('../lib/http')
 const {
+  FEED_REQUESTS_PER_MINUTE,
+  UNKNOWN_FEED_REQUESTS_PER_MINUTE,
   cachedForecast,
+  clearFeedRateLimits,
   clearForecastCache,
   createCalendarFeedHandler,
   validCoordinates,
   validFeedToken,
 } = require('../lib/calendar-feed')
+const { feedTokenHash, mintFeedToken } = require('../lib/feed-tokens')
 const {
   backfillBillingResourcePage,
   createBillingPortal,
@@ -416,6 +420,15 @@ function fakeDeletionDb({ cleanup = [], resources = [], tombstone = {}, user = {
       }
       if (name === 'notificationRegistrationLimits') {
         return { doc: () => ({ delete: async () => deleted.push('limit') }) }
+      }
+      if (name === 'calendarFeeds') {
+        return {
+          where: (field, op, value) => {
+            assert.deepEqual([field, op, value], ['uid', '==', 'alice'])
+            const feed = { ref: { delete: async () => deleted.push('feed') } }
+            return { get: async () => ({ docs: [feed], size: 1 }) }
+          },
+        }
       }
       if (name === 'stripeSubscriptionOwners') {
         return {
@@ -822,6 +835,7 @@ describe('account data security', () => {
       'sessions:alice',
       'stripe:sub_retry',
       'limit',
+      'feed',
       'user',
       'auth:alice',
     ])
@@ -1334,13 +1348,73 @@ describe('browser API CORS', () => {
   })
 })
 
+function feedDb({ feeds = {}, users = {} } = {}) {
+  const reads = []
+  return {
+    reads,
+    collection(name) {
+      const store = name === 'calendarFeeds' ? feeds : name === 'users' ? users : null
+      if (!store) throw new Error(`Unexpected collection ${name}`)
+      return {
+        doc: id => ({
+          async get() {
+            reads.push(`${name}/${id}`)
+            return { exists: Object.hasOwn(store, id), data: () => store[id] }
+          },
+        }),
+      }
+    },
+  }
+}
+
+function feedRequest(token, headers = {}, method = 'GET') {
+  return { method, query: { token }, headers: { 'x-forwarded-for': '203.0.113.9', ...headers } }
+}
+
 describe('calendar feed security', () => {
+  const TOKEN = 'A'.repeat(43)
+
+  afterEach(() => {
+    clearFeedRateLimits()
+    clearForecastCache()
+  })
+
+  function liveFeed(overrides = {}) {
+    const db = feedDb({
+      feeds: { [feedTokenHash(TOKEN)]: { uid: 'alice' } },
+      users: { alice: { location: { lat: 1, lon: 2 }, activities: [] } },
+    })
+    return {
+      db,
+      handler: createCalendarFeedHandler({
+        buildICS: events => `calendar:${events.length}`,
+        buildSunEvents: () => [{ id: 1 }],
+        db,
+        days: 7,
+        fetchForecast: async () => [],
+        ...overrides,
+      }),
+    }
+  }
+
   test('accepts only fixed-format URL-safe secrets and valid coordinates', () => {
+    assert.equal(validFeedToken(mintFeedToken()), true)
     assert.equal(validFeedToken('A'.repeat(32)), true)
     assert.equal(validFeedToken('A'.repeat(31)), false)
-    assert.equal(validFeedToken(`${'A'.repeat(31)}!`), false)
+    assert.equal(validFeedToken(`${'A'.repeat(42)}!`), false)
+    assert.equal(validFeedToken(['A'.repeat(43)]), false)
     assert.equal(validCoordinates({ lat: 90, lon: -180 }), true)
     assert.equal(validCoordinates({ lat: 91, lon: 0 }), false)
+  })
+
+  test('mints unique 256-bit URL-safe tokens and hashes them for lookup', () => {
+    const tokens = new Set(Array.from({ length: 200 }, () => mintFeedToken()))
+    assert.equal(tokens.size, 200)
+    for (const token of tokens) assert.match(token, /^[A-Za-z0-9_-]{43}$/)
+    assert.equal(
+      feedTokenHash('abc'),
+      'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad',
+    )
   })
 
   test('caches identical rounded-location forecast requests', async () => {
@@ -1354,24 +1428,66 @@ describe('calendar feed security', () => {
     assert.equal(calls, 1)
   })
 
-  test('returns a private feed with defensive headers', async () => {
-    const handler = createCalendarFeedHandler({
-      buildICS: events => `calendar:${events.length}`,
-      buildSunEvents: () => [{ id: 1 }],
-      db: { collection: () => queryWith({ data: () => ({ location: { lat: 1, lon: 2 } }) }) },
-      days: 7,
-      fetchForecast: async () => [],
-    })
+  test('resolves a feed by hashed document id and returns cacheable private ICS', async () => {
+    const { db, handler } = liveFeed()
     const res = responseRecorder()
-    await handler({ method: 'GET', query: { token: 'A'.repeat(32) } }, res)
+    await handler(feedRequest(TOKEN), res)
     assert.equal(res.statusCode, 200)
     assert.equal(res.body, 'calendar:1')
-    assert.equal(res.headers['Cache-Control'], 'private, no-store, max-age=0')
+    assert.deepEqual(db.reads, [`calendarFeeds/${feedTokenHash(TOKEN)}`, 'users/alice'])
+    assert.equal(res.headers['Cache-Control'], 'private, max-age=900')
+    assert.match(res.headers.ETag, /^W\/"[A-Za-z0-9_-]{32}"$/)
+    assert.equal(res.headers['Content-Type'], 'text/calendar; charset=utf-8')
     assert.equal(res.headers['X-Content-Type-Options'], 'nosniff')
     assert.equal(res.headers['X-Robots-Tag'], 'noindex, nofollow, noarchive')
   })
 
+  test('answers a matching If-None-Match with 304 and no body', async () => {
+    const { handler } = liveFeed()
+    const first = responseRecorder()
+    await handler(feedRequest(TOKEN), first)
+    const second = responseRecorder()
+    await handler(feedRequest(TOKEN, { 'if-none-match': `"other", ${first.headers.ETag}` }), second)
+    assert.equal(second.statusCode, 304)
+    assert.equal(second.body, '')
+    assert.equal(second.headers.ETag, first.headers.ETag)
+  })
+
+  test('changes the ETag when the planned events change', async () => {
+    let events = [{ id: 1 }]
+    const { handler } = liveFeed({ buildSunEvents: () => events })
+    const first = responseRecorder()
+    await handler(feedRequest(TOKEN), first)
+    events = [{ id: 2 }]
+    const second = responseRecorder()
+    await handler(feedRequest(TOKEN, { 'if-none-match': first.headers.ETag }), second)
+    assert.equal(second.statusCode, 200)
+    assert.notEqual(second.headers.ETag, first.headers.ETag)
+  })
+
+  test('does not resolve a token that is not indexed, even if a user doc holds it', async () => {
+    const db = feedDb({
+      users: { mallory: { calendarFeedToken: TOKEN, location: { lat: 1, lon: 2 } } },
+    })
+    const handler = createCalendarFeedHandler({
+      buildICS: () => 'leak',
+      buildSunEvents: () => [],
+      db,
+      days: 7,
+      fetchForecast: async () => [],
+    })
+    const res = responseRecorder()
+    await handler(feedRequest(TOKEN), res)
+    assert.equal(res.statusCode, 404)
+    assert.equal(res.headers['Cache-Control'], 'private, no-store, max-age=0')
+    assert.deepEqual(db.reads, [`calendarFeeds/${feedTokenHash(TOKEN)}`])
+  })
+
   test('rejects a feed after account deletion starts', async () => {
+    const db = feedDb({
+      feeds: { [feedTokenHash(TOKEN)]: { uid: 'alice' } },
+      users: { alice: { accountDeletionStartedAt: new Date(), location: { lat: 1, lon: 2 } } },
+    })
     const handler = createCalendarFeedHandler({
       buildICS: () => {
         throw new Error('must not build')
@@ -1379,18 +1495,50 @@ describe('calendar feed security', () => {
       buildSunEvents: () => {
         throw new Error('must not build')
       },
-      db: {
-        collection: () => queryWith({ data: () => ({ accountDeletionStartedAt: new Date() }) }),
-      },
+      db,
       days: 7,
       fetchForecast: async () => {
         throw new Error('must not fetch')
       },
     })
     const res = responseRecorder()
-    await handler({ method: 'GET', query: { token: 'A'.repeat(32) } }, res)
+    await handler(feedRequest(TOKEN), res)
     assert.equal(res.statusCode, 404)
     assert.equal(res.body, 'Unknown feed')
+  })
+
+  test('rate limits a single feed and tells the client when to retry', async () => {
+    const { handler } = liveFeed()
+    for (let i = 0; i < FEED_REQUESTS_PER_MINUTE; i += 1) {
+      const res = responseRecorder()
+      await handler(feedRequest(TOKEN), res)
+      assert.equal(res.statusCode, 200)
+    }
+    const limited = responseRecorder()
+    await handler(feedRequest(TOKEN), limited)
+    assert.equal(limited.statusCode, 429)
+    assert.match(limited.headers['Retry-After'], /^\d+$/)
+  })
+
+  test('stops looking up unknown tokens from an address that keeps guessing', async () => {
+    const db = feedDb()
+    const handler = createCalendarFeedHandler({
+      buildICS: () => '',
+      buildSunEvents: () => [],
+      db,
+      days: 7,
+      fetchForecast: async () => [],
+    })
+    for (let i = 0; i < UNKNOWN_FEED_REQUESTS_PER_MINUTE; i += 1) {
+      const res = responseRecorder()
+      await handler(feedRequest(mintFeedToken()), res)
+      assert.equal(res.statusCode, 404)
+    }
+    const lookups = db.reads.length
+    const limited = responseRecorder()
+    await handler(feedRequest(mintFeedToken()), limited)
+    assert.equal(limited.statusCode, 429)
+    assert.equal(db.reads.length, lookups)
   })
 
   test('rejects unsupported methods before querying Firestore', async () => {
@@ -1406,7 +1554,7 @@ describe('calendar feed security', () => {
       fetchForecast: async () => [],
     })
     const res = responseRecorder()
-    await handler({ method: 'POST', query: {} }, res)
+    await handler({ method: 'POST', query: {}, headers: {} }, res)
     assert.equal(res.statusCode, 405)
     assert.equal(res.headers.Allow, 'GET, HEAD')
   })

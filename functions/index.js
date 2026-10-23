@@ -1,16 +1,22 @@
 const { onRequest } = require('firebase-functions/v2/https')
 const { onSchedule } = require('firebase-functions/v2/scheduler')
 const { defineSecret, defineString } = require('firebase-functions/params')
-const admin = require('firebase-admin')
+const { getApps, initializeApp } = require('firebase-admin/app')
+const { getAppCheck } = require('firebase-admin/app-check')
+const { getAuth } = require('firebase-admin/auth')
+const { FieldValue, getFirestore } = require('firebase-admin/firestore')
 const Stripe = require('stripe')
 
 const {
+  authenticate,
   deleteAccount,
   exportAccountData,
   processPendingAccountDeletions,
 } = require('./lib/account')
 const { createCalendarFeedHandler } = require('./lib/calendar-feed')
-const { handleCors } = require('./lib/http')
+const { revokeCalendarFeed, rotateCalendarFeed } = require('./lib/feed-tokens')
+const { loggableError } = require('./lib/errors')
+const { createApiHandler, setApiHeaders } = require('./lib/http')
 const { buildICS } = require('./lib/ics')
 const { buildSunEvents, fetchForecast } = require('./lib/sun')
 const {
@@ -25,8 +31,8 @@ const {
   processStripeEvent,
 } = require('./lib/stripe')
 
-if (!admin.apps.length) admin.initializeApp()
-const db = admin.firestore()
+if (getApps().length === 0) initializeApp()
+const db = getFirestore()
 
 const STRIPE_SECRET_KEY = defineSecret('STRIPE_SECRET_KEY')
 const STRIPE_WEBHOOK_SECRET = defineSecret('STRIPE_WEBHOOK_SECRET')
@@ -37,187 +43,142 @@ function stripeClient() {
   return new Stripe(STRIPE_SECRET_KEY.value())
 }
 
-function setApiHeaders(res) {
-  res.set('Cache-Control', 'no-store')
-  res.set('Content-Type', 'application/json; charset=utf-8')
-  res.set('Referrer-Policy', 'no-referrer')
-  res.set('X-Content-Type-Options', 'nosniff')
+const appOrigin = () => APP_URL.value().replace(/\/$/, '')
+const serverTimestamp = () => FieldValue.serverTimestamp()
+
+/**
+ * Every browser-called endpoint shares one pipeline: exact-origin CORS, one method,
+ * App Check, then the handler. `limited-use` consumes the App Check token so it cannot
+ * be replayed; it is used for the two irreversible or money-moving actions.
+ *
+ * @template T
+ * @param {Omit<Parameters<typeof createApiHandler<T>>[0], 'allowedOrigin' | 'appCheck'>} options
+ */
+function browserApi(options) {
+  return createApiHandler({ ...options, allowedOrigin: appOrigin, appCheck: () => getAppCheck() })
 }
 
 exports.createCheckoutSession = onRequest(
   { secrets: [STRIPE_SECRET_KEY], timeoutSeconds: 30, maxInstances: 10 },
-  async (req, res) => {
-    setApiHeaders(res)
-    if (handleCors(req, res, APP_URL.value().replace(/\/$/, ''), ['POST'])) return
-    if (req.method !== 'POST') {
-      res.set('Allow', 'POST')
-      res.status(405).json({ error: 'Method Not Allowed' })
-      return
-    }
-    try {
+  browserApi({
+    name: 'createCheckoutSession',
+    method: 'POST',
+    appCheckMode: 'limited-use',
+    fallbackMessage: 'Checkout unavailable',
+    handler: async req => {
       const session = await createCheckout({
-        appUrl: APP_URL.value().replace(/\/$/, ''),
-        auth: admin.auth(),
+        appUrl: appOrigin(),
+        auth: getAuth(),
         db,
         expectedPriceId: STRIPE_PRICE_ID.value(),
         req,
         stripe: stripeClient(),
       })
-      res.status(200).json({ url: session.url })
-    } catch (error) {
-      const status = error.status || 500
-      console.error('createCheckoutSession failed', { name: error?.name, message: error?.message })
-      res
-        .status(status)
-        .json({ error: status === 401 ? 'Authentication required' : 'Checkout unavailable' })
-    }
-  },
+      return { body: { url: session.url } }
+    },
+  }),
 )
 
 exports.createBillingPortalSession = onRequest(
   { secrets: [STRIPE_SECRET_KEY], timeoutSeconds: 30, maxInstances: 10 },
-  async (req, res) => {
-    setApiHeaders(res)
-    if (handleCors(req, res, APP_URL.value().replace(/\/$/, ''), ['POST'])) return
-    if (req.method !== 'POST') {
-      res.set('Allow', 'POST')
-      res.status(405).json({ error: 'Method Not Allowed' })
-      return
-    }
-    try {
+  browserApi({
+    name: 'createBillingPortalSession',
+    method: 'POST',
+    appCheckMode: 'standard',
+    fallbackMessage: 'Billing management unavailable',
+    handler: async req => {
       const session = await createBillingPortal({
-        appUrl: APP_URL.value().replace(/\/$/, ''),
-        auth: admin.auth(),
+        appUrl: appOrigin(),
+        auth: getAuth(),
         db,
         req,
         stripe: stripeClient(),
       })
-      res.status(200).json({ url: session.url })
-    } catch (error) {
-      const status = error.status || 500
-      console.error('createBillingPortalSession failed', {
-        name: error?.name,
-        message: error?.message,
-      })
-      res.status(status).json({
-        error: status === 401 ? 'Authentication required' : 'Billing management unavailable',
-      })
-    }
-  },
+      return { body: { url: session.url } }
+    },
+  }),
 )
 
 exports.exportAccountData = onRequest(
   { timeoutSeconds: 30, maxInstances: 10 },
-  async (req, res) => {
-    setApiHeaders(res)
-    if (handleCors(req, res, APP_URL.value().replace(/\/$/, ''), ['GET'])) return
-    if (req.method !== 'GET') {
-      res.set('Allow', 'GET')
-      res.status(405).json({ error: 'Method Not Allowed' })
-      return
-    }
-    try {
-      const data = await exportAccountData({ auth: admin.auth(), db, req })
-      res.status(200).json(data)
-    } catch (error) {
-      const status = error.status || 500
-      console.error('exportAccountData failed', { name: error?.name, message: error?.message })
-      res
-        .status(status)
-        .json({ error: status === 401 ? 'Authentication required' : 'Export unavailable' })
-    }
-  },
+  browserApi({
+    name: 'exportAccountData',
+    method: 'GET',
+    appCheckMode: 'standard',
+    fallbackMessage: 'Export unavailable',
+    handler: async req => ({ body: await exportAccountData({ auth: getAuth(), db, req }) }),
+  }),
 )
 
 exports.deleteAccount = onRequest(
   { secrets: [STRIPE_SECRET_KEY], timeoutSeconds: 60, maxInstances: 5 },
-  async (req, res) => {
-    setApiHeaders(res)
-    if (handleCors(req, res, APP_URL.value().replace(/\/$/, ''), ['DELETE'])) return
-    if (req.method !== 'DELETE') {
-      res.set('Allow', 'DELETE')
-      res.status(405).json({ error: 'Method Not Allowed' })
-      return
-    }
-    try {
-      const result = await deleteAccount({ auth: admin.auth(), db, req, stripe: stripeClient() })
-      res.status(result.completed ? 200 : 202).json({
-        deleted: result.completed,
-        deletionPending: !result.completed,
-      })
-    } catch (error) {
-      const status = error.status || 500
-      console.error('deleteAccount failed', { name: error?.name, message: error?.message })
-      const message =
-        error.code === 'reauth-required'
-          ? 'Recent authentication required'
-          : status === 401
-            ? 'Authentication required'
-            : status === 400
-              ? 'Type DELETE to confirm'
-              : 'Deletion unavailable'
-      res.status(status).json({ error: message, code: error.code || undefined })
-    }
-  },
+  browserApi({
+    name: 'deleteAccount',
+    method: 'DELETE',
+    appCheckMode: 'limited-use',
+    fallbackMessage: 'Deletion unavailable',
+    handler: async req => {
+      const result = await deleteAccount({ auth: getAuth(), db, req, stripe: stripeClient() })
+      return {
+        status: result.completed ? 200 : 202,
+        body: { deleted: result.completed, deletionPending: !result.completed },
+      }
+    },
+  }),
 )
 
 exports.registerNotificationDevice = onRequest(
   { timeoutSeconds: 30, maxInstances: 20 },
-  async (req, res) => {
-    setApiHeaders(res)
-    if (handleCors(req, res, APP_URL.value().replace(/\/$/, ''), ['POST'])) return
-    if (req.method !== 'POST') {
-      res.set('Allow', 'POST')
-      res.status(405).json({ error: 'Method Not Allowed' })
-      return
-    }
-    try {
-      const result = await registerNotificationDevice({
-        appCheck: admin.appCheck(),
-        auth: admin.auth(),
-        db,
-        req,
-        serverTimestamp: () => admin.firestore.FieldValue.serverTimestamp(),
-      })
-      res.status(200).json(result)
-    } catch (error) {
-      const status = error.status || 500
-      console.error('registerNotificationDevice failed', {
-        name: error?.name,
-        message: error?.message,
-      })
-      res.status(status).json({ error: status < 500 ? error.message : 'Registration unavailable' })
-    }
-  },
+  browserApi({
+    name: 'registerNotificationDevice',
+    method: 'POST',
+    appCheckMode: 'standard',
+    fallbackMessage: 'Registration unavailable',
+    handler: async req => ({
+      body: await registerNotificationDevice({ auth: getAuth(), db, req, serverTimestamp }),
+    }),
+  }),
 )
 
 exports.removeNotificationDevice = onRequest(
   { timeoutSeconds: 30, maxInstances: 20 },
-  async (req, res) => {
-    setApiHeaders(res)
-    if (handleCors(req, res, APP_URL.value().replace(/\/$/, ''), ['DELETE'])) return
-    if (req.method !== 'DELETE') {
-      res.set('Allow', 'DELETE')
-      res.status(405).json({ error: 'Method Not Allowed' })
-      return
-    }
-    try {
-      const result = await removeNotificationDevice({
-        appCheck: admin.appCheck(),
-        auth: admin.auth(),
-        db,
-        req,
-      })
-      res.status(200).json(result)
-    } catch (error) {
-      const status = error.status || 500
-      console.error('removeNotificationDevice failed', {
-        name: error?.name,
-        message: error?.message,
-      })
-      res.status(status).json({ error: status < 500 ? error.message : 'Removal unavailable' })
-    }
-  },
+  browserApi({
+    name: 'removeNotificationDevice',
+    method: 'DELETE',
+    appCheckMode: 'standard',
+    fallbackMessage: 'Removal unavailable',
+    handler: async req => ({
+      body: await removeNotificationDevice({ auth: getAuth(), db, req }),
+    }),
+  }),
+)
+
+exports.rotateCalendarFeed = onRequest(
+  { timeoutSeconds: 30, maxInstances: 10 },
+  browserApi({
+    name: 'rotateCalendarFeed',
+    method: 'POST',
+    appCheckMode: 'standard',
+    fallbackMessage: 'Calendar feed unavailable',
+    handler: async req => {
+      const identity = await authenticate(getAuth(), req.headers.authorization)
+      return { body: await rotateCalendarFeed({ db, uid: identity.uid }) }
+    },
+  }),
+)
+
+exports.revokeCalendarFeed = onRequest(
+  { timeoutSeconds: 30, maxInstances: 10 },
+  browserApi({
+    name: 'revokeCalendarFeed',
+    method: 'DELETE',
+    appCheckMode: 'standard',
+    fallbackMessage: 'Calendar feed unavailable',
+    handler: async req => {
+      const identity = await authenticate(getAuth(), req.headers.authorization)
+      return { body: await revokeCalendarFeed({ db, uid: identity.uid }) }
+    },
+  }),
 )
 
 exports.stripeWebhook = onRequest(
@@ -231,15 +192,13 @@ exports.stripeWebhook = onRequest(
     }
 
     const stripe = stripeClient()
+    const signature = req.headers['stripe-signature']
     let event
     try {
-      event = stripe.webhooks.constructEvent(
-        req.rawBody,
-        req.headers['stripe-signature'],
-        STRIPE_WEBHOOK_SECRET.value(),
-      )
+      if (typeof signature !== 'string') throw new Error('Missing Stripe signature')
+      event = stripe.webhooks.constructEvent(req.rawBody, signature, STRIPE_WEBHOOK_SECRET.value())
     } catch (error) {
-      console.warn('Stripe signature verification failed', { message: error?.message })
+      console.warn('Stripe signature verification failed', loggableError(error))
       res.status(400).json({ error: 'Invalid signature' })
       return
     }
@@ -249,16 +208,16 @@ exports.stripeWebhook = onRequest(
         db,
         event,
         expectedPriceId: STRIPE_PRICE_ID.value(),
-        serverTimestamp: () => admin.firestore.FieldValue.serverTimestamp(),
+        serverTimestamp,
         stripe,
       })
-      res.status(200).json({ received: true, duplicate: result.duplicate === true })
+      const duplicate = 'duplicate' in result && result.duplicate === true
+      res.status(200).json({ received: true, duplicate })
     } catch (error) {
       console.error('stripeWebhook failed', {
         eventId: event.id,
         eventType: event.type,
-        name: error?.name,
-        message: error?.message,
+        ...loggableError(error),
       })
       res.status(500).json({ error: 'Webhook processing failed' })
     }
@@ -273,7 +232,7 @@ exports.backfillStripeBillingResources = onSchedule(
     for (let page = 0; page < 20; page += 1) {
       result = await backfillBillingResourcePage({
         db,
-        serverTimestamp: () => admin.firestore.FieldValue.serverTimestamp(),
+        serverTimestamp,
         stripe,
       })
       if (result.completed) break
@@ -286,7 +245,7 @@ exports.cleanupDeletedAccountBilling = onSchedule(
   { schedule: 'every 5 minutes', secrets: [STRIPE_SECRET_KEY], timeoutSeconds: 300 },
   async () => {
     const results = await processPendingAccountDeletions({
-      auth: admin.auth(),
+      auth: getAuth(),
       db,
       stripe: stripeClient(),
     })

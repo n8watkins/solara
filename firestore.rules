@@ -1,5 +1,17 @@
 rules_version = '2';
 
+// Every client-writable field of users/{userId} is typed and size-capped here, with a test
+// per field in functions/test/emulator/firestore.rules.test.js. Keep the field list in sync
+// with lib/types.ts (UserPreferences) and lib/prefs.ts (normalizePrefs).
+//
+// Budget: the rules engine stops at 1,000 evaluated expressions per request (each `&&`
+// term costs several), and the emulator enforces the same limit. Each list fits at its cap
+// on its own, and so does a realistic write that changes several lists; one write that
+// changes every list at its cap does not, which is fine because clients save one change at
+// a time. Top-level fields are fully
+// typed; list elements get a key allowlist plus a size cap on their free-text field, which
+// bounds growth without exceeding the budget. Lists are unrolled (rules cannot loop) and nested so that
+// evaluation stops at the list's real length.
 service cloud.firestore {
   match /databases/{database}/documents {
     function isOwner(userId) {
@@ -11,120 +23,203 @@ service cloud.firestore {
       return !exists(deletionPath);
     }
 
-    function userCreateKeys() {
-      return [
-        'uid',
-        'schemaVersion',
-        'location',
-        'savedLocations',
-        'skinType',
-        'profiles',
-        'activeProfileId',
-        'sunscreen',
-        'activities',
-        'tier',
-        'calendarFeedToken',
-        'onboardingComplete',
-        'calendarHours',
-        'showSunPath',
-        'hiddenActivitySuggestionIds',
-        'collapsedActivityCategories',
-        'upgradeInterest',
-        'notificationHour',
-        'timezone'
-      ];
-    }
-
-    function userUpdateKeys() {
-      return [
-        'schemaVersion',
-        'location',
-        'savedLocations',
-        'skinType',
-        'profiles',
-        'activeProfileId',
-        'sunscreen',
-        'activities',
-        'calendarFeedToken',
-        'onboardingComplete',
-        'calendarHours',
-        'showSunPath',
-        'hiddenActivitySuggestionIds',
-        'collapsedActivityCategories',
-        'upgradeInterest',
-        'notificationHour',
-        'timezone'
-      ];
-    }
+    // ---- Field validators -------------------------------------------------------------
 
     function validLocation(location) {
       return location is map
         && location.keys().hasAll(['lat', 'lon', 'city', 'region'])
         && location.keys().hasOnly(['lat', 'lon', 'city', 'region', 'timezone'])
-        && location.lat is number
-        && location.lat >= -90
-        && location.lat <= 90
-        && location.lon is number
-        && location.lon >= -180
-        && location.lon <= 180
-        && location.city is string
-        && location.region is string
-        && (!location.keys().hasAny(['timezone']) || location.timezone is string);
+        && location.lat is number && location.lat >= -90 && location.lat <= 90
+        && location.lon is number && location.lon >= -180 && location.lon <= 180
+        && location.city is string && location.city.size() <= 120
+        && location.region is string && location.region.size() <= 120
+        && (!('timezone' in location)
+          || (location.timezone is string && location.timezone.size() <= 64));
     }
 
-    function validSavedLocations(locations) {
-      return locations is list
-        && locations.size() <= 12
-        && (locations.size() < 1 || validSavedLocation(locations[0]))
-        && (locations.size() < 2 || validSavedLocation(locations[1]))
-        && (locations.size() < 3 || validSavedLocation(locations[2]))
-        && (locations.size() < 4 || validSavedLocation(locations[3]))
-        && (locations.size() < 5 || validSavedLocation(locations[4]))
-        && (locations.size() < 6 || validSavedLocation(locations[5]))
-        && (locations.size() < 7 || validSavedLocation(locations[6]))
-        && (locations.size() < 8 || validSavedLocation(locations[7]))
-        && (locations.size() < 9 || validSavedLocation(locations[8]))
-        && (locations.size() < 10 || validSavedLocation(locations[9]))
-        && (locations.size() < 11 || validSavedLocation(locations[10]))
-        && (locations.size() < 12 || validSavedLocation(locations[11]));
+    // Coordinates are range-checked when a shortcut becomes the active `location`.
+    function validSavedLocation(location, allowedKeys) {
+      return location.keys().hasOnly(allowedKeys)
+        && location.lat is number
+        && location.lon is number
+        && location.city.size() <= 120
+        && location.region.size() <= 120;
     }
 
-    function validSavedLocation(location) {
-      return location is map
-        && location.lat is number
-        && location.lat >= -90
-        && location.lat <= 90
-        && location.lon is number
-        && location.lon >= -180
-        && location.lon <= 180
-        && location.city is string
-        && location.region is string;
+    // At most 12 shortcuts, matching normalizeSavedLocations.
+    function validSavedLocations(list) {
+      let n = list.size();
+      let k = ['lat', 'lon', 'city', 'region', 'timezone'];
+      return n <= 12
+        && (n < 1 || (validSavedLocation(list[0], k)
+          && (n < 2 || (validSavedLocation(list[1], k)
+          && (n < 3 || (validSavedLocation(list[2], k)
+          && (n < 4 || (validSavedLocation(list[3], k)
+          && (n < 5 || (validSavedLocation(list[4], k)
+          && (n < 6 || (validSavedLocation(list[5], k)
+          && (n < 7 || (validSavedLocation(list[6], k)
+          && (n < 8 || (validSavedLocation(list[7], k)
+          && (n < 9 || (validSavedLocation(list[8], k)
+          && (n < 10 || (validSavedLocation(list[9], k)
+          && (n < 11 || (validSavedLocation(list[10], k)
+          && (n < 12 || (validSavedLocation(list[11], k)))))))))))))))))))))))));
+    }
+
+    function validProfile(profile, allowedKeys) {
+      return profile.keys().hasOnly(allowedKeys) && profile.name.size() <= 40;
+    }
+
+    // At most 12 profiles, matching normalizeProfiles.
+    function validProfiles(list) {
+      let n = list.size();
+      let k = ['id', 'name', 'skinType', 'icon'];
+      return n <= 12
+        && (n < 1 || (validProfile(list[0], k)
+          && (n < 2 || (validProfile(list[1], k)
+          && (n < 3 || (validProfile(list[2], k)
+          && (n < 4 || (validProfile(list[3], k)
+          && (n < 5 || (validProfile(list[4], k)
+          && (n < 6 || (validProfile(list[5], k)
+          && (n < 7 || (validProfile(list[6], k)
+          && (n < 8 || (validProfile(list[7], k)
+          && (n < 9 || (validProfile(list[8], k)
+          && (n < 10 || (validProfile(list[9], k)
+          && (n < 11 || (validProfile(list[10], k)
+          && (n < 12 || (validProfile(list[11], k)))))))))))))))))))))))));
+    }
+
+    function validActivity(activity, allowedKeys) {
+      return activity.keys().hasOnly(allowedKeys) && activity.name.size() <= 100;
+    }
+
+    // Checks list[start] .. list[start + 9], stopping at the list's end. Blocks keep each
+    // nested expression shallow enough for the rules compiler.
+    function validActivityBlock(list, k, n, start) {
+      return (n <= start || (validActivity(list[start], k)
+        && (n <= start + 1 || (validActivity(list[start + 1], k)
+        && (n <= start + 2 || (validActivity(list[start + 2], k)
+        && (n <= start + 3 || (validActivity(list[start + 3], k)
+        && (n <= start + 4 || (validActivity(list[start + 4], k)
+        && (n <= start + 5 || (validActivity(list[start + 5], k)
+        && (n <= start + 6 || (validActivity(list[start + 6], k)
+        && (n <= start + 7 || (validActivity(list[start + 7], k)
+        && (n <= start + 8 || (validActivity(list[start + 8], k)
+        && (n <= start + 9 || (validActivity(list[start + 9], k)))))))))))))))))))));
+    }
+
+    // At most 20 activities: well above real use. The emulator accepts up to 28 within the
+    // expression budget, so 20 leaves headroom for the other checks in the same request.
+    function validActivities(list) {
+      let n = list.size();
+      let k = [
+        'id', 'name', 'icon', 'durationMins', 'maxUV', 'sunscreen', 'custom',
+        'preferredHours', 'timePreference', 'daysOfWeek', 'cloudSensitive'
+      ];
+      return n <= 20
+        && validActivityBlock(list, k, n, 0)
+        && validActivityBlock(list, k, n, 10);
+    }
+
+    function validCalendarHours(hours) {
+      return hours is map
+        && hours.keys().hasOnly(['from', 'to'])
+        && hours.from is number && hours.from >= 0 && hours.from <= 23
+        && hours.to is number && hours.to >= 1 && hours.to <= 24;
+    }
+
+    function validUpgradeInterest(interest) {
+      return interest is map
+        && interest.keys().hasOnly(['email', 'createdAt'])
+        && interest.createdAt is string && interest.createdAt.size() <= 40
+        && (!('email' in interest) || (interest.email is string && interest.email.size() <= 254));
+    }
+
+    // Must match PRESET_ACTIVITIES ids in lib/tiers.ts (checked by lib/firestore-rules.test.ts).
+    function presetActivityIds() {
+      return [
+        'run', 'jog', 'cycle', 'mtb', 'sprint',
+        'swim', 'surf', 'kayak', 'paddle',
+        'walk', 'hike', 'picnic', 'garden', 'photo', 'read',
+        'golf', 'tennis', 'soccer', 'baseball', 'yoga', 'bball',
+        'break', 'lunch', 'coffee', 'dog'
+      ];
+    }
+
+    // Must match ACTIVITY_CATEGORIES names in lib/tiers.ts (checked by lib/firestore-rules.test.ts).
+    function activityCategoryNames() {
+      return [
+        'Running & cycling', 'Water sports', 'Outdoor leisure', 'Sports & courts', 'Quick breaks'
+      ];
+    }
+
+    // ---- Document validators ----------------------------------------------------------
+
+    // Client-writable preference fields. Server-owned fields (tier after creation, billing,
+    // notification delivery state, deletion markers, feed tokens) are absent, so clients
+    // cannot set them.
+    function preferenceKeys() {
+      return [
+        'schemaVersion', 'location', 'savedLocations', 'skinType', 'profiles', 'activeProfileId',
+        'sunscreen', 'activities', 'onboardingComplete', 'calendarHours', 'showSunPath',
+        'hiddenActivitySuggestionIds', 'collapsedActivityCategories', 'upgradeInterest',
+        'notificationHour', 'timezone'
+      ];
+    }
+
+    // Validates every preference field named in `keys` (the written or changed keys).
+    function validPreferences(data, keys) {
+      return (!('schemaVersion' in keys)
+          || (data.schemaVersion is int && data.schemaVersion >= 1 && data.schemaVersion <= 100))
+        && (!('location' in keys) || validLocation(data.location))
+        && (!('savedLocations' in keys)
+          || (data.savedLocations is list && validSavedLocations(data.savedLocations)))
+        && (!('skinType' in keys)
+          || data.skinType in ['very-fair', 'fair', 'medium', 'olive', 'dark'])
+        && (!('profiles' in keys) || (data.profiles is list && validProfiles(data.profiles)))
+        && (!('activeProfileId' in keys)
+          || (data.activeProfileId is string && data.activeProfileId.size() <= 64))
+        && (!('sunscreen' in keys) || data.sunscreen is bool)
+        && (!('activities' in keys)
+          || (data.activities is list && validActivities(data.activities)))
+        && (!('onboardingComplete' in keys) || data.onboardingComplete is bool)
+        && (!('calendarHours' in keys) || validCalendarHours(data.calendarHours))
+        && (!('showSunPath' in keys) || data.showSunPath is bool)
+        && (!('hiddenActivitySuggestionIds' in keys)
+          || (data.hiddenActivitySuggestionIds is list
+            && data.hiddenActivitySuggestionIds.hasOnly(presetActivityIds())))
+        && (!('collapsedActivityCategories' in keys)
+          || (data.collapsedActivityCategories is list
+            && data.collapsedActivityCategories.hasOnly(activityCategoryNames())))
+        && (!('upgradeInterest' in keys) || validUpgradeInterest(data.upgradeInterest))
+        && (!('notificationHour' in keys)
+          || (data.notificationHour is int
+            && data.notificationHour >= 0
+            && data.notificationHour <= 23))
+        && (!('timezone' in keys) || (data.timezone is string && data.timezone.size() <= 64));
     }
 
     function validNewUser(userId) {
-      return request.resource.data.keys().hasOnly(userCreateKeys())
-        && request.resource.data.uid == userId
-        && request.resource.data.tier in ['anonymous', 'free']
-        && validLocation(request.resource.data.location)
-        && (!request.resource.data.keys().hasAny(['savedLocations'])
-          || validSavedLocations(request.resource.data.savedLocations))
-        && (!request.resource.data.keys().hasAny(['notificationHour'])
-          || (request.resource.data.notificationHour is int
-            && request.resource.data.notificationHour >= 0
-            && request.resource.data.notificationHour <= 23));
+      let data = request.resource.data;
+      let keys = data.keys();
+      return keys.hasAll([
+          'uid', 'schemaVersion', 'location', 'skinType', 'sunscreen', 'activities', 'tier',
+          'onboardingComplete'
+        ])
+        && keys.removeAll(['uid', 'tier']).hasOnly(preferenceKeys())
+        && data.uid == userId
+        && data.tier in ['anonymous', 'free']
+        && validPreferences(data, keys);
     }
 
     function validUserUpdate(userId) {
-      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(userUpdateKeys())
-        && request.resource.data.uid == userId
-        && request.resource.data.tier == resource.data.tier
-        && validLocation(request.resource.data.location)
-        && (!request.resource.data.keys().hasAny(['savedLocations'])
-          || validSavedLocations(request.resource.data.savedLocations))
-        && (!request.resource.data.keys().hasAny(['notificationHour'])
-          || (request.resource.data.notificationHour is int
-            && request.resource.data.notificationHour >= 0
-            && request.resource.data.notificationHour <= 23));
+      let data = request.resource.data;
+      let changed = data.diff(resource.data);
+      let written = changed.changedKeys().union(changed.addedKeys());
+      // The retired client-minted feed token may be removed but never written again;
+      // calendar feed tokens are now minted by the server (functions/lib/feed-tokens.js).
+      return written.hasOnly(preferenceKeys())
+        && changed.removedKeys().hasOnly(['calendarFeedToken'])
+        && validPreferences(data, written);
     }
 
     match /users/{userId} {
@@ -136,6 +231,17 @@ service cloud.firestore {
         allow read: if isOwner(userId) && isActiveAccount(userId);
         allow write: if false;
       }
+
+      // Server-written secrets the owner may read, such as the calendar feed token.
+      match /private/{docId} {
+        allow read: if isOwner(userId) && isActiveAccount(userId);
+        allow write: if false;
+      }
+    }
+
+    // Feed token hash index: server-only.
+    match /calendarFeeds/{tokenHash} {
+      allow read, write: if false;
     }
 
     match /{document=**} {

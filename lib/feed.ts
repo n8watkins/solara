@@ -1,36 +1,25 @@
-// Live calendar feed (P7b) — client helpers for the Cloud Function `calendarFeed`.
+// Live calendar feed - client helpers for the Cloud Functions behind the feed.
 //
-// The user subscribes their calendar app to a stable URL that re-fetches periodically;
-// the function regenerates the .ics from the latest forecast, so the plan stays current
-// without a manual re-export. The token in the URL is the ONLY credential, so it must be
-// long, random, and revocable (regenerate to invalidate every existing subscription).
+// The user subscribes their calendar app to a stable URL that re-fetches periodically; the
+// `calendarFeed` function regenerates the .ics from the latest forecast. The token in the
+// URL is the only credential, so the server mints it (256 bits, never chosen by a client)
+// and indexes it by hash. The owner reads their current link from a server-written
+// document, so it shows on every device, and can rotate or revoke it.
 
-const FUNCTIONS_URL = process.env.NEXT_PUBLIC_FUNCTIONS_URL
+import type { User } from 'firebase/auth'
+import { doc, onSnapshot } from 'firebase/firestore'
+import { db } from './firebase'
+import { callFunction, functionsApiConfigured, functionsBaseUrl } from './functions-api'
 
-/** Whether the calendarFeed function base URL is configured (Blaze deploy done). */
+/** Whether the feed functions are deployed and callable from this build. */
 export function isFeedConfigured(): boolean {
-  return !!FUNCTIONS_URL
-}
-
-/** A 32-char URL-safe random token. Uses Web Crypto; falls back to Math.random off-browser. */
-export function randomFeedToken(): string {
-  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-'
-  const len = 32
-  const bytes = new Uint8Array(len)
-  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
-    crypto.getRandomValues(bytes)
-  } else {
-    for (let i = 0; i < len; i++) bytes[i] = Math.floor(Math.random() * 256)
-  }
-  let out = ''
-  for (const byte of bytes) out += alphabet[byte % alphabet.length]
-  return out
+  return functionsApiConfigured()
 }
 
 /** The subscribe URL for a given token, or null when the feed isn't configured. */
 export function buildFeedUrl(token: string): string | null {
-  if (!FUNCTIONS_URL || !token) return null
-  const base = FUNCTIONS_URL.replace(/\/$/, '')
+  const base = functionsBaseUrl()
+  if (!base || !token) return null
   return `${base}/calendarFeed?token=${encodeURIComponent(token)}`
 }
 
@@ -38,4 +27,57 @@ export function buildFeedUrl(token: string): string | null {
 export function buildWebcalUrl(token: string): string | null {
   const url = buildFeedUrl(token)
   return url ? url.replace(/^https?:\/\//, 'webcal://') : null
+}
+
+const TOKEN_PATTERN = /^[A-Za-z0-9_-]{32,128}$/
+
+export type FeedTokenState = { status: 'loading' } | { status: 'ready'; token: string | null }
+
+/**
+ * Follows the signed-in user's current feed token. Reports `null` when no feed exists.
+ * Returns an unsubscribe function.
+ */
+export function watchFeedToken(
+  uid: string,
+  onChange: (state: FeedTokenState) => void,
+  onError: (error: Error) => void,
+): () => void {
+  if (!db) {
+    onError(new Error('Firebase is not configured'))
+    return () => {}
+  }
+  onChange({ status: 'loading' })
+  return onSnapshot(
+    doc(db, 'users', uid, 'private', 'calendarFeed'),
+    snapshot => {
+      const token: unknown = snapshot.exists() ? snapshot.get('token') : null
+      onChange({
+        status: 'ready',
+        token: typeof token === 'string' && TOKEN_PATTERN.test(token) ? token : null,
+      })
+    },
+    onError,
+  )
+}
+
+/** Creates a feed link, replacing (and revoking) any previous one. */
+export async function rotateFeedToken(user: User): Promise<string> {
+  const fallbackMessage = 'Could not create a feed link. Try again shortly.'
+  const body = (await callFunction(user, 'rotateCalendarFeed', {
+    method: 'POST',
+    body: {},
+    fallbackMessage,
+  })) as { token?: unknown } | null
+  if (typeof body?.token !== 'string' || !TOKEN_PATTERN.test(body.token)) {
+    throw new Error(fallbackMessage)
+  }
+  return body.token
+}
+
+/** Turns the feed off; existing subscriptions stop updating. */
+export async function revokeFeedToken(user: User): Promise<void> {
+  await callFunction(user, 'revokeCalendarFeed', {
+    method: 'DELETE',
+    fallbackMessage: 'Could not turn off the feed. Try again shortly.',
+  })
 }

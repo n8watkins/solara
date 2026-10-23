@@ -1,0 +1,36 @@
+// Strict type checking of the Functions JavaScript via JSDoc (npm run typecheck, also run
+// by npm test). The forecast modules (sun.js, ics.js, recommendation-engine.js,
+// forecast-core.js) are checked through their .d.ts boundaries until lane W2-B moves
+// functions/ to TypeScript.
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": [
+      "ES2023"
+    ],
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noFallthroughCasesInSwitch": true,
+    "skipLibCheck": true,
+    "types": [
+      "node"
+    ]
+  },
+  "include": [
+    "index.js",
+    "lib/**/*.js",
+    "lib/**/*.d.ts",
+    "scripts/**/*.js"
+  ],
+  "exclude": [
+    "lib/sun.js",
+    "lib/ics.js",
+    "lib/recommendation-engine.js",
+    "lib/forecast-core.js"
+  ]
+}

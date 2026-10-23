@@ -9,6 +9,19 @@ const {
   subscriptionOwnerRef,
 } = require('./billing-resources')
 const { createHash, randomUUID } = require('node:crypto')
+const { HttpError, errorCode, errorMessage } = require('./errors')
+
+/** @typedef {import("./types").Auth} Auth */
+/** @typedef {import("./types").BillingResource} BillingResource */
+/** @typedef {import("./types").ClaimedResource} ClaimedResource */
+/** @typedef {import("./types").DocumentData} DocumentData */
+/** @typedef {import("./types").DocumentReference} DocumentReference */
+/** @typedef {import("./types").Firestore} Firestore */
+/** @typedef {import("./types").Request} Request */
+/** @typedef {import("./types").ServerTimestamp} ServerTimestamp */
+/** @typedef {import("./types").StripeClient} StripeClient */
+/** @typedef {import("./types").StripeRecord} StripeRecord */
+/** @typedef {import("./types").Transaction} Transaction */
 
 const ACTIVE_SUBSCRIPTION_STATUSES = new Set(['active', 'trialing'])
 const TERMINAL_SUBSCRIPTION_STATUSES = new Set(['canceled', 'incomplete_expired'])
@@ -16,6 +29,7 @@ const CHECKOUT_RESERVATION_MS = 24 * 60 * 60 * 1000
 const CHECKOUT_CLEANUP_LEASE_MS = 5 * 60 * 1000
 const CHECKOUT_CLEANUP_LIMIT = 10
 const CHECKOUT_CLEANUP_MAX_RETRY_MS = 24 * 60 * 60 * 1000
+/** @type {Record<string, number>} */
 const EVENT_PRIORITY = {
   'checkout.session.completed': 0,
   'checkout.session.async_payment_failed': 1,
@@ -24,25 +38,44 @@ const EVENT_PRIORITY = {
   'customer.subscription.deleted': 4,
 }
 
+/**
+ * @param {unknown} value
+ * @returns {value is string}
+ */
 function validUid(value) {
   return typeof value === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(value)
 }
 
+/**
+ * @param {unknown} value
+ */
 function validAttemptId(value) {
   return typeof value === 'string' && /^[A-Za-z0-9_-]{16,64}$/.test(value)
 }
 
+/**
+ * @param {unknown} value
+ */
 function stringId(value) {
   if (typeof value === 'string') return value
-  return value && typeof value.id === 'string' ? value.id : null
+  const object = /** @type {{ id?: unknown } | null | undefined} */ (value)
+  return object && typeof object.id === 'string' ? object.id : null
 }
 
+/**
+ * @param {unknown} value
+ */
 function dateMillis(value) {
   if (value instanceof Date) return value.getTime()
-  if (value && typeof value.toMillis === 'function') return value.toMillis()
+  const timestamp = /** @type {{ toMillis?: unknown } | null | undefined} */ (value)
+  if (timestamp && typeof timestamp.toMillis === 'function') return timestamp.toMillis()
   return NaN
 }
 
+/**
+ * @param {StripeClient} stripe
+ * @param {string} customerId
+ */
 async function listCustomerSubscriptions(stripe, customerId) {
   const subscriptions = []
   let startingAfter
@@ -61,12 +94,16 @@ async function listCustomerSubscriptions(stripe, customerId) {
   return subscriptions
 }
 
+/**
+ * @param {StripeClient} stripe
+ * @param {string} sessionId
+ */
 async function neutralizeCheckoutSession(stripe, sessionId) {
   let session
   try {
     session = await stripe.checkout.sessions.retrieve(sessionId)
   } catch (error) {
-    if (error?.code === 'resource_missing') return
+    if (errorCode(error) === 'resource_missing') return
     throw error
   }
   if (session.status === 'expired') return
@@ -80,23 +117,32 @@ async function neutralizeCheckoutSession(stripe, sessionId) {
     try {
       await stripe.subscriptions.cancel(subscriptionId)
     } catch (error) {
-      if (error?.code !== 'resource_missing') throw error
+      if (errorCode(error) !== 'resource_missing') throw error
     }
     return
   }
   throw new Error('Checkout session has an unexpected status')
 }
 
+/**
+ * @param {Firestore} db
+ * @param {string} sessionId
+ */
 function checkoutCleanupTaskRef(db, sessionId) {
   const digest = createHash('sha256').update(sessionId).digest('base64url')
   return db.collection('stripeCheckoutCleanupTasks').doc(digest)
 }
 
+/**
+ * @param {Firestore} db
+ * @param {string} sessionId
+ * @param {string} uid
+ */
 async function queueCheckoutCleanup(db, sessionId, uid) {
   const taskRef = checkoutCleanupTaskRef(db, sessionId)
   await db.runTransaction(async transaction => {
     const snapshot = await transaction.get(taskRef)
-    if (snapshot.exists && ['completed', 'pending'].includes(snapshot.data().status)) return
+    if (snapshot.exists && ['completed', 'pending'].includes(snapshot.data()?.status)) return
     const timestamp = new Date()
     transaction.set(
       taskRef,
@@ -115,6 +161,9 @@ async function queueCheckoutCleanup(db, sessionId, uid) {
   })
 }
 
+/**
+ * @param {number} attemptCount
+ */
 function checkoutCleanupRetryDelay(attemptCount) {
   return Math.min(
     60_000 * 2 ** Math.min(Math.max(attemptCount - 1, 0), 10),
@@ -122,6 +171,9 @@ function checkoutCleanupRetryDelay(attemptCount) {
   )
 }
 
+/**
+ * @param {{ db: Firestore, stripe: StripeClient, now?: Date }} options
+ */
 async function processPendingCheckoutCleanups({ db, stripe, now = new Date() }) {
   const tasks = await db
     .collection('stripeCheckoutCleanupTasks')
@@ -135,8 +187,8 @@ async function processPendingCheckoutCleanups({ db, stripe, now = new Date() }) 
     const processingToken = randomUUID()
     const claimed = await db.runTransaction(async transaction => {
       const current = await transaction.get(task.ref)
-      if (!current.exists || current.data().status !== 'pending') return null
-      const nextAttemptAt = dateMillis(current.data().nextAttemptAt)
+      if (!current.exists || current.data()?.status !== 'pending') return null
+      const nextAttemptAt = dateMillis(current.data()?.nextAttemptAt)
       if (Number.isFinite(nextAttemptAt) && nextAttemptAt > now.getTime()) return null
       transaction.set(
         task.ref,
@@ -154,7 +206,7 @@ async function processPendingCheckoutCleanups({ db, stripe, now = new Date() }) 
       await neutralizeCheckoutSession(stripe, claimed.sessionId)
       await db.runTransaction(async transaction => {
         const current = await transaction.get(task.ref)
-        if (!current.exists || current.data().processingToken !== processingToken) return
+        if (!current.exists || current.data()?.processingToken !== processingToken) return
         transaction.set(
           task.ref,
           {
@@ -171,16 +223,16 @@ async function processPendingCheckoutCleanups({ db, stripe, now = new Date() }) 
     } catch (error) {
       await db.runTransaction(async transaction => {
         const current = await transaction.get(task.ref)
-        if (!current.exists || current.data().processingToken !== processingToken) return
-        const attemptCount = Number.isSafeInteger(current.data().attemptCount)
-          ? current.data().attemptCount + 1
+        if (!current.exists || current.data()?.processingToken !== processingToken) return
+        const attemptCount = Number.isSafeInteger(current.data()?.attemptCount)
+          ? current.data()?.attemptCount + 1
           : 1
         const timestamp = new Date()
         transaction.set(
           task.ref,
           {
             attemptCount,
-            lastError: error?.message || 'Checkout cleanup failed',
+            lastError: errorMessage(error, 'Checkout cleanup failed'),
             nextAttemptAt: new Date(timestamp.getTime() + checkoutCleanupRetryDelay(attemptCount)),
             processingToken: null,
             updatedAt: timestamp,
@@ -194,12 +246,22 @@ async function processPendingCheckoutCleanups({ db, stripe, now = new Date() }) 
   return results
 }
 
+/**
+ * @param {StripeRecord} subscription
+ * @param {string} expectedPriceId
+ */
 function subscriptionHasPrice(subscription, expectedPriceId) {
   if (!expectedPriceId) return false
   const items = subscription?.items?.data
   return Array.isArray(items) && items.some(item => stringId(item?.price) === expectedPriceId)
 }
 
+/**
+ * @param {StripeClient} stripe
+ * @param {StripeRecord} session
+ * @param {string} expectedPriceId
+ * @param {{ requirePaid?: boolean }} options
+ */
 async function validateCheckoutSession(
   stripe,
   session,
@@ -230,6 +292,28 @@ async function validateCheckoutSession(
   return { uid, customerId, subscriptionId, paid }
 }
 
+/**
+ * The distinct user documents that own billing-resource index entries of `type`.
+ *
+ * @param {import('firebase-admin/firestore').QueryDocumentSnapshot[]} docs
+ * @param {string} type
+ * @returns {Map<string, DocumentReference>}
+ */
+function indexedUserRefs(docs, type) {
+  /** @type {Map<string, DocumentReference>} */
+  const owners = new Map()
+  for (const doc of docs) {
+    const userRef = doc.ref.parent.parent
+    if (doc.data()?.type === type && userRef) owners.set(userRef.id, userRef)
+  }
+  return owners
+}
+
+/**
+ * @param {Firestore} db
+ * @param {StripeClient} stripe
+ * @param {StripeRecord} subscription
+ */
 async function findUserBySubscription(db, stripe, subscription) {
   const subscriptionId = stringId(subscription?.id)
   const customerId = stringId(subscription?.customer)
@@ -239,7 +323,9 @@ async function findUserBySubscription(db, stripe, subscription) {
   const ownerRef = subscriptionOwnerRef(db, subscriptionId)
   const ownerSnapshot = ownerRef ? await ownerRef.get() : null
   const owner = ownerSnapshot?.exists ? ownerSnapshot.data() : null
-  const ownerUid = owner?.stripeId === subscriptionId && validUid(owner.uid) ? owner.uid : null
+  const ownerUidCandidate = owner?.uid
+  const ownerUid =
+    owner?.stripeId === subscriptionId && validUid(ownerUidCandidate) ? ownerUidCandidate : null
   if (ownerUid && metadataUid && ownerUid !== metadataUid) return null
 
   const authoritativeUid = ownerUid || metadataUid
@@ -254,14 +340,11 @@ async function findUserBySubscription(db, stripe, subscription) {
       .where('stripeId', '==', subscriptionId)
       .limit(2)
       .get()
-    const indexedOwners = new Map(
-      indexed.docs
-        .filter(doc => doc.data().type === 'subscription')
-        .map(doc => [doc.ref.parent.parent.id, doc.ref.parent.parent]),
-    )
+    const indexedOwners = indexedUserRefs(indexed.docs, 'subscription')
     if (indexedOwners.size > 1) return null
-    if (indexedOwners.size === 1) {
-      const user = await [...indexedOwners.values()][0].get()
+    const indexedOwner = indexedOwners.values().next().value
+    if (indexedOwner) {
+      const user = await indexedOwner.get()
       return user.exists ? user : null
     }
   }
@@ -272,7 +355,7 @@ async function findUserBySubscription(db, stripe, subscription) {
       .limit(2)
       .get()
     if (bySubscription.docs.length > 1) return null
-    if (bySubscription.docs.length === 1) return bySubscription.docs[0]
+    if (bySubscription.docs.length === 1) return bySubscription.docs[0] ?? null
   }
   if (customerId) {
     const indexed = await db
@@ -280,14 +363,10 @@ async function findUserBySubscription(db, stripe, subscription) {
       .where('stripeId', '==', customerId)
       .limit(2)
       .get()
-    const indexedOwners = new Map(
-      indexed.docs
-        .filter(doc => doc.data().type === 'customer')
-        .map(doc => [doc.ref.parent.parent.id, doc.ref.parent.parent]),
-    )
+    const indexedOwners = indexedUserRefs(indexed.docs, 'customer')
     if (indexedOwners.size > 1) return null
-    if (indexedOwners.size === 1) {
-      const candidateRef = [...indexedOwners.values()][0]
+    const candidateRef = indexedOwners.values().next().value
+    if (candidateRef) {
       if (!(await customerBelongsToUser(stripe, customerId, candidateRef.id))) return null
       const user = await candidateRef.get()
       return user.exists ? user : null
@@ -301,33 +380,53 @@ async function findUserBySubscription(db, stripe, subscription) {
     if (byCustomer.docs.length > 1) return null
     if (byCustomer.docs.length === 1) {
       const candidate = byCustomer.docs[0]
-      if (await customerBelongsToUser(stripe, customerId, candidate.ref.id)) return candidate
+      if (candidate && (await customerBelongsToUser(stripe, customerId, candidate.ref.id))) {
+        return candidate
+      }
     }
   }
   return null
 }
 
+/**
+ * @param {Firestore} db
+ * @param {StripeRecord} subscription
+ */
 async function findTombstonedUserRef(db, subscription) {
   const subscriptionId = stringId(subscription?.id)
   const ownerRef = subscriptionOwnerRef(db, subscriptionId)
   const ownerSnapshot = ownerRef ? await ownerRef.get() : null
   const owner = ownerSnapshot?.exists ? ownerSnapshot.data() : null
+  const ownerUid = owner?.uid
   const uid =
-    owner?.stripeId === subscriptionId && validUid(owner.uid)
-      ? owner.uid
+    owner?.stripeId === subscriptionId && validUid(ownerUid)
+      ? ownerUid
       : subscription?.metadata?.firebaseUid
   if (!validUid(uid)) return null
   const tombstone = await db.collection('accountDeletionTombstones').doc(uid).get()
   return tombstone.exists ? db.collection('users').doc(uid) : null
 }
 
+/**
+ * @param {StripeRecord} event
+ * @param {DocumentData | undefined} userData
+ */
 function eventIsNewer(event, userData) {
   const previousCreated = userData?.stripeEventCreated
   if (!Number.isFinite(previousCreated)) return true
   if (event.created !== previousCreated) return event.created > previousCreated
-  return (EVENT_PRIORITY[event.type] ?? -1) >= (userData.stripeEventPriority ?? -1)
+  return (EVENT_PRIORITY[event.type] ?? -1) >= (userData?.stripeEventPriority ?? -1)
 }
 
+/**
+ * @param {Firestore} db
+ * @param {StripeRecord} event
+ * @param {DocumentReference | null} userRef
+ * @param {((userData: DocumentData) => DocumentData | null) | null} buildUserData
+ * @param {ServerTimestamp} serverTimestamp
+ * @param {string | null} [cancellationSubscriptionId]
+ * @param {BillingResource[]} [billingResources]
+ */
 async function commitEvent(
   db,
   event,
@@ -356,9 +455,9 @@ async function commitEvent(
       accountDeleted =
         tombstoneSnapshot.exists ||
         !userSnapshot.exists ||
-        !!userSnapshot.data().accountDeletionStartedAt
+        !!userSnapshot.data()?.accountDeletionStartedAt
       if (!accountDeleted) {
-        const userData = buildUserData(userSnapshot.data())
+        const userData = buildUserData(userSnapshot.data() ?? {})
         rejected = !userData
         indexBillingResources(transaction, db, userRef, billingResources, serverTimestamp())
         if (userData && !duplicate && eventIsNewer(event, userSnapshot.data())) {
@@ -425,6 +524,9 @@ async function commitEvent(
   })
 }
 
+/**
+ * @param {{ db: Firestore, event: StripeRecord, result: StripeRecord, serverTimestamp: ServerTimestamp, stripe: StripeClient }} options
+ */
 async function completePendingCancellation({ db, event, result, serverTimestamp, stripe }) {
   if (!result.cancellationPending) return
   const eventRef = db.collection('stripeWebhookEvents').doc(event.id)
@@ -432,7 +534,7 @@ async function completePendingCancellation({ db, event, result, serverTimestamp,
   try {
     await stripe.subscriptions.cancel(subscriptionId)
   } catch (error) {
-    if (error?.code !== 'resource_missing') throw error
+    if (errorCode(error) !== 'resource_missing') throw error
   }
   await eventRef.set(
     {
@@ -443,6 +545,9 @@ async function completePendingCancellation({ db, event, result, serverTimestamp,
   )
 }
 
+/**
+ * @param {{ db: Firestore, event: StripeRecord, expectedPriceId: string, serverTimestamp: ServerTimestamp, stripe: StripeClient }} options
+ */
 async function processStripeEvent({ db, event, expectedPriceId, serverTimestamp, stripe }) {
   if (
     event.type === 'checkout.session.completed' ||
@@ -532,6 +637,7 @@ async function processStripeEvent({ db, event, expectedPriceId, serverTimestamp,
           currentSubscription.status === 'unpaid'
         ? 'failed'
         : null
+    /** @type {DocumentData} */
     const update = {
       tier: active ? 'paid' : 'free',
       stripeCustomerId: stringId(currentSubscription.customer),
@@ -570,58 +676,38 @@ async function processStripeEvent({ db, event, expectedPriceId, serverTimestamp,
   return { ignored: true }
 }
 
+/**
+ * @param {{ appUrl: string, auth: Auth, db: Firestore, expectedPriceId: string, req: Request, stripe: StripeClient }} options
+ */
 async function createCheckout({ appUrl, auth, db, expectedPriceId, req, stripe }) {
   if (!expectedPriceId) throw new Error('STRIPE_PRICE_ID is not configured')
-  const authorization = req.headers.authorization || ''
-  const match = authorization.match(/^Bearer (.+)$/)
-  if (!match) {
-    const error = new Error('Authentication required')
-    error.status = 401
-    throw error
-  }
-  let identity
-  try {
-    identity = await auth.verifyIdToken(match[1], true)
-  } catch {
-    const error = new Error('Authentication required')
-    error.status = 401
-    throw error
-  }
+  const identity = await authenticate(auth, req.headers.authorization)
   if (!validUid(identity.uid)) {
-    const error = new Error('Invalid account')
-    error.status = 401
-    throw error
+    throw new HttpError('unauthenticated', 'Invalid account')
   }
   const attemptId = req.body?.attemptId
   if (!validAttemptId(attemptId)) {
-    const error = new Error('Invalid checkout attempt')
-    error.status = 400
-    throw error
+    throw new HttpError('invalid-argument', 'Invalid checkout attempt')
   }
 
   const userRef = db.collection('users').doc(identity.uid)
   const now = Date.now()
+  /** @param {string} [expiredSessionId] */
   const reserveCheckout = expiredSessionId =>
     db.runTransaction(async transaction => {
       const snapshot = await transaction.get(userRef)
       if (!snapshot.exists) {
-        const error = new Error('Account does not exist')
-        error.status = 404
-        throw error
+        throw new HttpError('not-found', 'Account does not exist')
       }
-      const current = snapshot.data()
+      const current = snapshot.data() ?? {}
       if (current.accountDeletionStartedAt) {
-        const error = new Error('Account deletion is in progress')
-        error.status = 409
-        throw error
+        throw new HttpError('deletion-in-progress', 'Account deletion is in progress')
       }
       if (
         current.stripeSubscriptionId &&
         !TERMINAL_SUBSCRIPTION_STATUSES.has(current.subscriptionStatus)
       ) {
-        const error = new Error('Account already has a subscription')
-        error.status = 409
-        throw error
+        throw new HttpError('conflict', 'Account already has a subscription')
       }
       const reservedBy = current.stripeCheckoutAttemptId
       const reservedUntil = dateMillis(current.stripeCheckoutReservedUntil)
@@ -640,9 +726,7 @@ async function createCheckout({ appUrl, auth, db, expectedPriceId, req, stripe }
         reservedUntil > now &&
         sessionId !== expiredSessionId
       ) {
-        const error = new Error('Checkout is already in progress')
-        error.status = 409
-        throw error
+        throw new HttpError('conflict', 'Checkout is already in progress')
       }
       transaction.set(
         userRef,
@@ -659,27 +743,26 @@ async function createCheckout({ appUrl, auth, db, expectedPriceId, req, stripe }
 
   let reservation = await reserveCheckout()
   while (reservation.reuseSessionId) {
+    /** @type {StripeRecord} */
     let existing
     try {
       existing = await stripe.checkout.sessions.retrieve(reservation.reuseSessionId)
     } catch (error) {
-      if (error?.code !== 'resource_missing') throw error
+      if (errorCode(error) !== 'resource_missing') throw error
     }
     const owned = existing && stripeSessionBelongsToUser(existing, identity.uid)
     if (owned && existing.status === 'open' && existing.url) return existing
     if (owned && existing.status === 'complete') {
-      const error = new Error('Checkout payment is being processed')
-      error.status = 409
-      throw error
+      throw new HttpError('conflict', 'Checkout payment is being processed')
     }
     reservation = await reserveCheckout(reservation.reuseSessionId)
   }
-  const userData = reservation.userData
+  const userData = reservation.userData ?? {}
 
   const releaseReservation = async () =>
     db.runTransaction(async transaction => {
       const snapshot = await transaction.get(userRef)
-      if (!snapshot.exists || snapshot.data().stripeCheckoutAttemptId !== attemptId) return
+      if (!snapshot.exists || snapshot.data()?.stripeCheckoutAttemptId !== attemptId) return
       transaction.set(
         userRef,
         {
@@ -700,22 +783,19 @@ async function createCheckout({ appUrl, auth, db, expectedPriceId, req, stripe }
   try {
     if (customer.customer) {
       const customerRef = billingResourceRef(userRef, 'customer', customer.customer)
+      if (!customerRef) throw new Error('Invalid billing customer identifier')
       const indexedCustomer = await customerRef.get()
       if (
         !indexedCustomer.exists &&
         !(await customerBelongsToUser(stripe, customer.customer, identity.uid))
       ) {
-        const error = new Error('Billing account ownership could not be verified')
-        error.status = 409
-        throw error
+        throw new HttpError('conflict', 'Billing account ownership could not be verified')
       }
       const subscriptions = await listCustomerSubscriptions(stripe, customer.customer)
       if (
         subscriptions.some(subscription => !TERMINAL_SUBSCRIPTION_STATUSES.has(subscription.status))
       ) {
-        const error = new Error('Account already has a subscription')
-        error.status = 409
-        throw error
+        throw new HttpError('conflict', 'Account already has a subscription')
       }
     }
     const session = await stripe.checkout.sessions.create(
@@ -744,7 +824,7 @@ async function createCheckout({ appUrl, auth, db, expectedPriceId, req, stripe }
         transaction.get(tombstoneRef),
       ])
       const deletionStarted =
-        !snapshot.exists || tombstone.exists || snapshot.data().accountDeletionStartedAt
+        !snapshot.exists || tombstone.exists || snapshot.data()?.accountDeletionStartedAt
       if (deletionStarted) {
         const resources = [
           { type: 'checkoutSession', stripeId: session.id },
@@ -756,7 +836,7 @@ async function createCheckout({ appUrl, auth, db, expectedPriceId, req, stripe }
         indexSubscriptionOwners(transaction, db, identity.uid, resources, timestamp)
         return { deletionStarted: true, persisted: false }
       }
-      if (snapshot.data().stripeCheckoutAttemptId !== attemptId) {
+      if (snapshot.data()?.stripeCheckoutAttemptId !== attemptId) {
         return { deletionStarted: false, persisted: false }
       }
       transaction.set(
@@ -784,13 +864,9 @@ async function createCheckout({ appUrl, auth, db, expectedPriceId, req, stripe }
     })
     cleanupQueued = persistence.deletionStarted
     if (!persistence.persisted) {
-      const error = new Error(
-        persistence.deletionStarted
-          ? 'Account deletion is in progress'
-          : 'Checkout reservation changed',
-      )
-      error.status = 409
-      throw error
+      throw persistence.deletionStarted
+        ? new HttpError('deletion-in-progress', 'Account deletion is in progress')
+        : new HttpError('conflict', 'Checkout reservation changed')
     }
     return session
   } catch (error) {
@@ -820,34 +896,30 @@ async function createCheckout({ appUrl, auth, db, expectedPriceId, req, stripe }
   }
 }
 
+/**
+ * @param {{ appUrl: string, auth: Auth, db: Firestore, req: Request, stripe: StripeClient }} options
+ */
 async function createBillingPortal({ appUrl, auth, db, req, stripe }) {
   const identity = await authenticate(auth, req.headers.authorization)
   if (!validUid(identity.uid)) {
-    const error = new Error('Invalid account')
-    error.status = 401
-    throw error
+    throw new HttpError('unauthenticated', 'Invalid account')
   }
   const userRef = db.collection('users').doc(identity.uid)
   const userSnapshot = await userRef.get()
-  const customerId = userSnapshot.exists ? userSnapshot.data().stripeCustomerId : null
+  const customerId = userSnapshot.exists ? userSnapshot.data()?.stripeCustomerId : null
   if (typeof customerId !== 'string' || !customerId) {
-    const error = new Error('No billing account exists')
-    error.status = 404
-    throw error
+    throw new HttpError('not-found', 'No billing account exists')
   }
-  if (userSnapshot.data().accountDeletionStartedAt) {
-    const error = new Error('Account deletion is in progress')
-    error.status = 409
-    throw error
+  if (userSnapshot.data()?.accountDeletionStartedAt) {
+    throw new HttpError('deletion-in-progress', 'Account deletion is in progress')
   }
   const customerRef = billingResourceRef(userRef, 'customer', customerId)
+  if (!customerRef) throw new Error('Invalid billing customer identifier')
   const indexedCustomer = await customerRef.get()
   if (!indexedCustomer.exists) {
     const owned = await customerBelongsToUser(stripe, customerId, identity.uid)
     if (!owned) {
-      const error = new Error('No verified billing account exists')
-      error.status = 404
-      throw error
+      throw new HttpError('not-found', 'No verified billing account exists')
     }
     await db.runTransaction(async transaction => {
       const [currentUser, tombstone, currentIndex] = await Promise.all([
@@ -858,12 +930,10 @@ async function createBillingPortal({ appUrl, auth, db, req, stripe }) {
       if (
         !currentUser.exists ||
         tombstone.exists ||
-        currentUser.data().accountDeletionStartedAt ||
-        currentUser.data().stripeCustomerId !== customerId
+        currentUser.data()?.accountDeletionStartedAt ||
+        currentUser.data()?.stripeCustomerId !== customerId
       ) {
-        const error = new Error('Account deletion is in progress')
-        error.status = 409
-        throw error
+        throw new HttpError('deletion-in-progress', 'Account deletion is in progress')
       }
       if (!currentIndex.exists) {
         indexBillingResources(
@@ -882,10 +952,13 @@ async function createBillingPortal({ appUrl, auth, db, req, stripe }) {
   })
 }
 
+/**
+ * @param {{ db: Firestore, serverTimestamp: ServerTimestamp, stripe: StripeClient }} options
+ */
 async function backfillBillingResourcePage({ db, serverTimestamp, stripe }) {
   const stateRef = db.collection('systemMigrations').doc('stripeBillingResourceOwnersV1')
   const stateSnapshot = await stateRef.get()
-  const state = stateSnapshot.exists ? stateSnapshot.data() : {}
+  const state = stateSnapshot.data() ?? {}
   if (state.completed === true) return { completed: true, processed: 0 }
 
   const page = await stripe.checkout.sessions.list({
@@ -911,7 +984,7 @@ async function backfillBillingResourcePage({ db, serverTimestamp, stripe }) {
       if (
         !userSnapshot.exists ||
         tombstoneSnapshot.exists ||
-        userSnapshot.data().accountDeletionStartedAt
+        userSnapshot.data()?.accountDeletionStartedAt
       ) {
         const timestamp = serverTimestamp()
         await queueBillingCleanup(transaction, tombstoneRef, resources, timestamp)
@@ -929,7 +1002,7 @@ async function backfillBillingResourcePage({ db, serverTimestamp, stripe }) {
                   cleanupUpdatedAt: serverTimestamp(),
                 }),
             createdAt: tombstoneSnapshot.exists
-              ? tombstoneSnapshot.data().createdAt
+              ? tombstoneSnapshot.data()?.createdAt
               : serverTimestamp(),
             resourceIndexComplete: !userSnapshot.exists,
           },

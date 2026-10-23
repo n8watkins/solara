@@ -793,11 +793,9 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
                   {[
                     [
                       'Activities',
-                      tier === 'paid'
-                        ? 'Unlimited'
-                        : tier === 'anonymous'
-                          ? 'Sign in required'
-                          : `${prefs.activities.length} / ${TIER_LIMITS[tier].activities}`,
+                      tier === 'anonymous'
+                        ? 'Sign in required'
+                        : `${prefs.activities.length} / ${TIER_LIMITS[tier].activities}`,
                     ],
                     ['Calendar sync', TIER_LIMITS[tier].calendar ? '✓' : '—'],
                     ['10-day forecast', tier === 'paid' ? '✓' : '—'],

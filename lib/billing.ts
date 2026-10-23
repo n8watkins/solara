@@ -1,52 +1,46 @@
 import type { User } from 'firebase/auth'
 import { doc, onSnapshot } from 'firebase/firestore'
 import { db } from './firebase'
+import { callFunction, functionsApiConfigured } from './functions-api'
 import { normalizePrefs } from './prefs'
 import type { UserPreferences } from './types'
 
-const FUNCTIONS_URL = process.env.NEXT_PUBLIC_FUNCTIONS_URL?.replace(/\/$/, '')
 export const PRO_PRICE = process.env.NEXT_PUBLIC_PRO_PRICE || '$3.99/mo'
 
 /** Whether authenticated server-side checkout is deployed and configured. */
 export function isCheckoutConfigured(): boolean {
-  return !!FUNCTIONS_URL
+  return functionsApiConfigured()
 }
 
 export async function createCheckoutUrl(user: User): Promise<string> {
-  if (!FUNCTIONS_URL) throw new Error('Checkout is not configured')
-  const token = await user.getIdToken(true)
-  const attemptId = crypto.randomUUID()
-  const response = await fetch(`${FUNCTIONS_URL}/createCheckoutSession`, {
+  const fallbackMessage = 'Checkout is temporarily unavailable'
+  const body = (await callFunction(user, 'createCheckoutSession', {
     method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ attemptId }),
-  })
-  const body = await response.json().catch(() => ({}))
-  if (
-    !response.ok ||
-    typeof body.url !== 'string' ||
-    !body.url.startsWith('https://checkout.stripe.com/')
-  ) {
-    throw new Error(body.error || 'Checkout is temporarily unavailable')
+    body: { attemptId: crypto.randomUUID() },
+    limitedUse: true,
+    freshIdToken: true,
+    fallbackMessage,
+  })) as { url?: unknown } | null
+  if (typeof body?.url !== 'string' || !body.url.startsWith('https://checkout.stripe.com/')) {
+    throw new Error(fallbackMessage)
   }
   return body.url
 }
 
 export async function createBillingPortalUrl(user: User): Promise<string> {
-  if (!FUNCTIONS_URL) throw new Error('Billing management is not configured')
-  const token = await user.getIdToken(true)
-  const response = await fetch(`${FUNCTIONS_URL}/createBillingPortalSession`, {
+  const fallbackMessage = 'Billing management is temporarily unavailable'
+  const body = (await callFunction(user, 'createBillingPortalSession', {
     method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: '{}',
-  })
-  const body = await response.json().catch(() => ({}))
+    body: {},
+    freshIdToken: true,
+    fallbackMessage,
+  })) as { url?: unknown } | null
   let url: URL | null = null
   try {
-    url = new URL(body.url)
+    url = new URL(String(body?.url))
   } catch {}
-  if (!response.ok || url?.protocol !== 'https:' || url.hostname !== 'billing.stripe.com') {
-    throw new Error(body.error || 'Billing management is temporarily unavailable')
+  if (url?.protocol !== 'https:' || url.hostname !== 'billing.stripe.com') {
+    throw new Error(fallbackMessage)
   }
   return url.toString()
 }
@@ -102,7 +96,7 @@ export interface ProFeature {
 
 /** Single source of truth for the Free-vs-Pro comparison shown in the pricing modal. */
 export const PRO_FEATURES: ProFeature[] = [
-  { label: 'Outdoor activities', free: '3', pro: 'Unlimited' },
+  { label: 'Outdoor activities', free: '3', pro: 'Up to 20' },
   { label: 'Forecast horizon', free: '2 days', pro: '10 days' },
   { label: 'Best-day planning', free: '2 days', pro: 'Full 10-day' },
   { label: 'Calendar sync', free: true, pro: true },

@@ -1,7 +1,7 @@
-import { getToken as getAppCheckToken } from 'firebase/app-check'
 import type { Messaging } from 'firebase/messaging'
 import { deleteToken, getMessaging, getToken, onMessage } from 'firebase/messaging'
-import { app, appCheck, auth } from './firebase'
+import { app, appCheckConfigured, auth } from './firebase'
+import { callFunction, functionsApiConfigured } from './functions-api'
 
 interface LocalDeviceSubscription {
   deviceId: string
@@ -62,16 +62,8 @@ function writeLocalSubscription(uid: string, subscription: LocalDeviceSubscripti
   localStorage.setItem(storageKey(uid), JSON.stringify(subscription))
 }
 
-function functionsUrl(): string | null {
-  return process.env.NEXT_PUBLIC_FUNCTIONS_URL?.replace(/\/$/, '') || null
-}
-
 export function notificationRegistrationConfigured(): boolean {
-  return !!(
-    functionsUrl() &&
-    process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY &&
-    process.env.NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY
-  )
+  return functionsApiConfigured() && !!process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY
 }
 
 async function mutateRemoteDevice(
@@ -80,27 +72,15 @@ async function mutateRemoteDevice(
   method: 'POST' | 'DELETE',
   body: Record<string, string>,
 ): Promise<NotificationDeviceMutationResult> {
-  const baseUrl = functionsUrl()
   const user = auth?.currentUser
-  if (!baseUrl) throw new Error('Notification registration is not configured')
+  if (!functionsApiConfigured()) throw new Error('Notification registration is not configured')
   if (!user || user.uid !== uid) throw new Error('Sign in again to manage notifications')
 
-  const token = await user.getIdToken()
-  const appCheckToken = appCheck ? await getAppCheckToken(appCheck) : null
-  const response = await fetch(`${baseUrl}/${path}`, {
+  return (await callFunction(user, path, {
     method,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-      ...(appCheckToken ? { 'X-Firebase-AppCheck': appCheckToken.token } : {}),
-    },
-    body: JSON.stringify(body),
-  })
-  if (!response.ok) {
-    const result = (await response.json().catch(() => null)) as { error?: string } | null
-    throw new Error(result?.error || 'Could not update notification registration')
-  }
-  return (await response.json().catch(() => ({}))) as NotificationDeviceMutationResult
+    body,
+    fallbackMessage: 'Could not update notification registration',
+  })) as NotificationDeviceMutationResult
 }
 
 async function completeRemoteRegistration(
@@ -123,7 +103,7 @@ async function completeRemoteRegistration(
 export async function requestNotificationPermission(): Promise<string | null> {
   try {
     const vapidKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY
-    if (!vapidKey || !appCheck) return null
+    if (!vapidKey || !appCheckConfigured()) return null
     const m = getMessagingInstance()
     if (!m) return null
     const permission = await Notification.requestPermission()

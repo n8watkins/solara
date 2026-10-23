@@ -7,10 +7,6 @@ const mocks = vi.hoisted(() => ({
   getIdToken: vi.fn(),
 }))
 
-vi.mock('firebase/app-check', () => ({
-  getToken: mocks.getAppCheckToken,
-}))
-
 vi.mock('firebase/messaging', () => ({
   getMessaging: vi.fn(() => ({ kind: 'messaging' })),
   getToken: mocks.getToken,
@@ -20,7 +16,8 @@ vi.mock('firebase/messaging', () => ({
 
 vi.mock('@/lib/firebase', () => ({
   app: { kind: 'app' },
-  appCheck: { kind: 'app-check' },
+  appCheckConfigured: () => !!process.env.NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY,
+  appCheckToken: mocks.getAppCheckToken,
   auth: { currentUser: { uid: 'user-1', getIdToken: mocks.getIdToken } },
 }))
 
@@ -47,7 +44,7 @@ describe('device notification subscriptions', () => {
     vi.stubEnv('NEXT_PUBLIC_FIREBASE_VAPID_KEY', 'test-vapid-key')
     vi.stubEnv('NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY', 'test-app-check-key')
     mocks.getToken.mockResolvedValue('new-fcm-token-that-is-long-enough')
-    mocks.getAppCheckToken.mockResolvedValue({ token: 'firebase-app-check-token' })
+    mocks.getAppCheckToken.mockResolvedValue('firebase-app-check-token')
     mocks.deleteToken.mockResolvedValue(true)
     mocks.getIdToken.mockResolvedValue('firebase-id-token')
     vi.stubGlobal(
