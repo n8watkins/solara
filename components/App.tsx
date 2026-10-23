@@ -4,7 +4,7 @@ import { QueryClientProvider, useQueryClient } from '@tanstack/react-query'
 import type { User } from 'firebase/auth'
 import { onAuthStateChanged } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
-import { saveLocalPrefs, saveFirestorePrefs } from '@/lib/prefs'
+import { NewerPreferencesVersionError, saveLocalPrefs, saveFirestorePrefs } from '@/lib/prefs'
 import { loadAccountPrefs } from '@/lib/session'
 import { FORECAST_QUERY_KEY, createQueryClient, useWeather } from '@/lib/use-forecast'
 import { resolveUnits, unitFormatters } from '@/lib/units'
@@ -55,7 +55,8 @@ function SignedInApp() {
   const [prefsOpen, setPrefsOpen] = useState(false)
   const [prefsTab] = useState<'general' | 'activities' | 'location'>('general')
   const [accountError, setAccountError] = useState<string | null>(null)
-  const [syncError, setSyncError] = useState<string | null>(null)
+  // A failed cloud save: retry it, or reload when a newer Solara wrote the document.
+  const [syncError, setSyncError] = useState<{ message: string; reload: boolean } | null>(null)
   const [authReloadKey, setAuthReloadKey] = useState(0)
   const [foregroundNotice, setForegroundNotice] = useState(false)
   const [billingNotice, setBillingNotice] = useState<string | null>(null)
@@ -215,9 +216,19 @@ function SignedInApp() {
       saveLocalPrefs({ ...updated, uid: user.uid })
       try {
         await saveFirestorePrefs(user.uid, updated)
-      } catch {
+      } catch (error) {
         setSyncError(
-          'Saved on this device, but cloud sync failed. Retry when your connection returns.',
+          error instanceof NewerPreferencesVersionError
+            ? {
+                message:
+                  'Solara was updated in another tab or device. Reload to keep editing your settings.',
+                reload: true,
+              }
+            : {
+                message:
+                  'Saved on this device, but cloud sync failed. Retry when your connection returns.',
+                reload: false,
+              },
         )
       }
     }
@@ -405,14 +416,24 @@ function SignedInApp() {
             }}
           >
             <span>☁️</span>
-            <span style={{ flex: 1 }}>{syncError}</span>
-            <button
-              className="btn"
-              onClick={() => void handlePrefsUpdate(prefs)}
-              style={{ fontSize: '12px' }}
-            >
-              Retry sync
-            </button>
+            <span style={{ flex: 1 }}>{syncError.message}</span>
+            {syncError.reload ? (
+              <button
+                className="btn"
+                onClick={() => window.location.reload()}
+                style={{ fontSize: '12px' }}
+              >
+                Reload
+              </button>
+            ) : (
+              <button
+                className="btn"
+                onClick={() => void handlePrefsUpdate(prefs)}
+                style={{ fontSize: '12px' }}
+              >
+                Retry sync
+              </button>
+            )}
           </div>
         )}
         {effectiveView === 'dashboard' && (
