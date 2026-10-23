@@ -1,6 +1,7 @@
 // Data export: the portable account fields and notification devices, never billing ids,
 // tokens or internal bookkeeping.
 
+import { PREFERENCE_FIELDS } from '#core'
 import type { Auth } from 'firebase-admin/auth'
 import type { DocumentData, Firestore, QuerySnapshot } from 'firebase-admin/firestore'
 import type { Request } from 'firebase-functions/v2/https'
@@ -8,26 +9,8 @@ import type { Request } from 'firebase-functions/v2/https'
 import { authenticate } from '../shared/auth'
 import { HttpError } from '../shared/errors'
 
-const PORTABLE_ACCOUNT_FIELDS = new Set([
-  'activeProfileId',
-  'activities',
-  'calendarHours',
-  'collapsedActivityCategories',
-  'hiddenActivitySuggestionIds',
-  'location',
-  'notificationHour',
-  'onboardingComplete',
-  'profiles',
-  'savedLocations',
-  'schemaVersion',
-  'showSunPath',
-  'skinType',
-  'sunscreen',
-  'tier',
-  'timezone',
-  'uid',
-  'upgradeInterest',
-])
+// The preferences schema's fields; never billing ids, tokens or internal bookkeeping.
+const PORTABLE_ACCOUNT_FIELDS: ReadonlySet<string> = new Set(PREFERENCE_FIELDS)
 
 export function safeAccountData(data: DocumentData | null | undefined): DocumentData {
   return Object.fromEntries(

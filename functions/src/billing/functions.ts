@@ -35,6 +35,8 @@ export const createCheckoutSession = onRequest(
         req,
         stripe: stripeClient(),
       })
+      // Hosted Checkout always has a URL; without one the browser has nowhere to go.
+      if (!session.url) throw new Error('Checkout session has no URL')
       return { body: { url: session.url } }
     },
   }),

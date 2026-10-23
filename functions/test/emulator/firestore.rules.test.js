@@ -226,7 +226,6 @@ describe('typed and size-capped preference fields', () => {
           collapsedActivityCategories: ['Water sports'],
           upgradeInterest: { email: 'a@example.com', createdAt: '2026-10-23T00:00:00.000Z' },
           notificationHour: 7,
-          timezone: 'UTC',
         }),
       ),
     )
@@ -302,8 +301,18 @@ describe('typed and size-capped preference fields', () => {
     const ref = await ownerRef()
     await assertSucceeds(ref.update({ schemaVersion: 3 }))
     await assertFails(ref.update({ schemaVersion: 0 }))
-    await assertFails(ref.update({ schemaVersion: 2.5 }))
-    await assertFails(ref.update({ schemaVersion: '2' }))
+    await assertFails(ref.update({ schemaVersion: 3.5 }))
+    await assertFails(ref.update({ schemaVersion: '4' }))
+  })
+
+  test('schemaVersion never goes down', async () => {
+    const ref = await ownerRef()
+    await assertSucceeds(ref.update({ schemaVersion: 3 }))
+    // An older client may still save its other preferences without touching the version.
+    await assertSucceeds(ref.update({ showSunPath: false }))
+    await assertSucceeds(ref.update({ schemaVersion: 3, showSunPath: true }))
+    await assertFails(ref.update({ schemaVersion: 2 }))
+    await assertFails(ref.update({ schemaVersion: 1, showSunPath: false }))
   })
 
   test('location display fields are capped and unknown keys rejected', async () => {
@@ -415,11 +424,14 @@ describe('typed and size-capped preference fields', () => {
     await assertFails(ref.update({ upgradeInterest: { createdAt: 'x'.repeat(41) } }))
   })
 
-  test('timezone is a short string', async () => {
+  test('the retired top-level timezone is not writable (the location carries it)', async () => {
     const ref = await ownerRef()
-    await assertSucceeds(ref.update({ timezone: 'Europe/Berlin' }))
-    await assertFails(ref.update({ timezone: 'x'.repeat(65) }))
-    await assertFails(ref.update({ timezone: 1 }))
+    await assertFails(ref.update({ timezone: 'Europe/Berlin' }))
+    await assertSucceeds(
+      ref.update({
+        location: { lat: 1, lon: 2, city: 'c', region: 'r', timezone: 'Europe/Berlin' },
+      }),
+    )
   })
 })
 

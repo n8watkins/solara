@@ -637,6 +637,12 @@ describe('account data security', () => {
     )
   })
 
+  test('exports exactly the fields of the preferences schema', () => {
+    const { PREFERENCE_FIELDS } = require('#core')
+    const everyField = Object.fromEntries(PREFERENCE_FIELDS.map(field => [field, field]))
+    assert.deepEqual(safeAccountData({ ...everyField, stripeCustomerId: 'cus_secret' }), everyField)
+  })
+
   test('rejects exports after account deletion starts', async () => {
     let userRead = false
     const userRef = {
