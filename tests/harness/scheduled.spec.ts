@@ -1,5 +1,6 @@
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
+import AxeBuilder from '@axe-core/playwright'
 import { expect, test, type Page } from '@playwright/test'
 import { HARNESS_DATE, pauseClock, startClock } from './clock'
 import { HARNESS_MARKER } from './fixtures'
@@ -155,4 +156,21 @@ test('add, change time and remove from the calendar', async ({ page }, testInfo)
   await expect(sheet).toBeHidden()
   await expect(today.getByRole('button', { name: /^Scheduled: Running/ })).toHaveCount(0)
   await expect(page.getByTestId('scheduled-row')).toHaveCount(2)
+})
+
+test('scheduled screens have no accessibility violations', async ({ page }, testInfo) => {
+  await open(page, 'screen=calendar&scheduled=reconnect', scheme(testInfo.project.name))
+  await expect(page.getByRole('region', { name: 'Scheduled' })).toBeVisible()
+  const tags = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']
+  const ids = async () =>
+    (await new AxeBuilder({ page }).withTags(tags).analyze()).violations.map(
+      v => `${v.id}: ${v.nodes.map(n => n.target.join(' ')).join(', ')}`,
+    )
+  expect(await ids()).toEqual([])
+  await page.getByRole('button', { name: /^Scheduled: Running, Today, 6pm/ }).click()
+  await page
+    .getByRole('dialog', { name: 'Running' })
+    .getByRole('button', { name: 'Change time' })
+    .click()
+  expect(await ids()).toEqual([])
 })

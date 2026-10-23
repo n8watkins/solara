@@ -114,7 +114,7 @@ test('add a window to Google Calendar, then open, move and remove it', async ({
   await expect(
     main
       .getByRole('region', { name: 'Scheduled' })
-      .getByRole('button', { name: 'Scheduled: Running, Today · 6pm – 6:45pm' }),
+      .getByRole('button', { name: 'Scheduled: Running Today · 6pm – 6:45pm' }),
   ).toBeVisible()
 
   // Details: open the event in Google Calendar.

@@ -5,6 +5,7 @@ import { scheduledSpan, upcomingScheduled } from '@/lib/scheduled'
 import { useScheduled, type SyncChanges } from '@/lib/scheduled-context'
 import { useUnits } from '@/lib/use-units'
 import type { Activity } from '@/lib/types'
+import VisuallyHidden from './VisuallyHidden'
 import styles from './Scheduled.module.css'
 
 interface Props {
@@ -77,7 +78,6 @@ export default function ScheduledList({ activities, timeZone, nowMs, dayLabel, o
                   className={styles.row}
                   data-testid="scheduled-row"
                   aria-haspopup="dialog"
-                  aria-label={`Scheduled: ${name}, ${when}`}
                   onClick={() => onOpen(item)}
                 >
                   <span
@@ -89,7 +89,10 @@ export default function ScheduledList({ activities, timeZone, nowMs, dayLabel, o
                     <span className={styles.tileCheck}>✓</span>
                   </span>
                   <span className={styles.rowText}>
-                    <span className={styles.rowName}>{name}</span>
+                    <span className={styles.rowName}>
+                      <VisuallyHidden>Scheduled: </VisuallyHidden>
+                      {name}
+                    </span>
                     <span className={styles.rowWhen}>{when}</span>
                   </span>
                 </button>
