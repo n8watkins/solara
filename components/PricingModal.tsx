@@ -55,7 +55,7 @@ export default function PricingModal({
   return (
     <ActivityModalShell
       title="Solara Pro"
-      description="Unlimited activities, 10-day planning, and morning sun-window alerts."
+      description="Unlimited activities, 10-day planning, saved places and family profiles."
       onClose={onClose}
       footer={
         checkoutReady ? (

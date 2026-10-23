@@ -1,7 +1,7 @@
 'use client'
 // Signed-in UI harness. Renders the real Header, Dashboard, CalendarView,
-// PreferencesModal and PricingModal with fixed fixtures, laid out the way
-// components/App.tsx lays out the signed-in app.
+// PreferencesModal and PricingModal with fixed fixtures inside the same
+// AppShell that components/App.tsx uses for the signed-in app.
 //
 // Query parameters:
 //   screen = dashboard (default) | calendar | settings | pricing
@@ -13,6 +13,7 @@
 // app/harness/page.harness.tsx and scripts/check-no-ui-harness.mjs.
 import { useMemo, useState } from 'react'
 import type { DayWeather, TierLevel, UserPreferences } from '@/lib/types'
+import AppShell, { type AppView } from '@/components/AppShell'
 import Header from '@/components/Header'
 import Dashboard from '@/components/Dashboard'
 import CalendarView from '@/components/CalendarView'
@@ -47,7 +48,7 @@ export default function HarnessApp() {
     [initial.fixture],
   )
   const [prefs, setPrefs] = useState<UserPreferences>(() => buildPrefs(initial.tier))
-  const [view, setView] = useState<'dashboard' | 'calendar'>(
+  const [view, setView] = useState<AppView>(
     initial.screen === 'calendar' ? 'calendar' : 'dashboard',
   )
   const [selectedDay, setSelectedDay] = useState<DayWeather | null>(null)
@@ -56,67 +57,36 @@ export default function HarnessApp() {
 
   const displayTier = prefs.tier
 
-  // Mirrors the signed-in shell in components/App.tsx (sticky header, view tabs,
-  // main column widths). Keep in sync until App exposes a reusable shell.
   return (
-    <div
-      data-testid={HARNESS_MARKER}
-      data-screen={initial.screen}
-      style={{ minHeight: '100vh', background: 'var(--bg)' }}
-    >
-      <div style={{ position: 'sticky', top: 0, zIndex: 40 }}>
-        <Header
-          user={user}
-          prefs={prefs}
-          displayTier={displayTier}
-          onPrefsUpdate={setPrefs}
-          forceOpenTab={settingsOpen ? initial.tab : undefined}
-          onModalClose={() => setSettingsOpen(false)}
-          onGoHome={() => {
-            setView('dashboard')
-            setSelectedDay(null)
-          }}
-          currentUV={weather.current.uv}
-        />
-        <div style={{ borderBottom: '0.5px solid var(--border-md)', background: 'var(--bg-card)' }}>
-          <div
-            style={{
-              maxWidth: '900px',
-              margin: '0 auto',
-              padding: '0 1rem',
-              display: 'flex',
-              gap: '0',
+    <div data-testid={HARNESS_MARKER} data-screen={initial.screen}>
+      <AppShell
+        header={
+          <Header
+            user={user}
+            prefs={prefs}
+            displayTier={displayTier}
+            onPrefsUpdate={setPrefs}
+            forceOpenTab={settingsOpen ? initial.tab : undefined}
+            onModalClose={() => setSettingsOpen(false)}
+            onGoHome={() => {
+              setView('dashboard')
+              setSelectedDay(null)
             }}
-          >
-            {(['dashboard', 'calendar'] as const).map(v => (
-              <button
-                key={v}
-                onClick={() => setView(v)}
-                style={{
-                  padding: '11px 16px',
-                  fontSize: '13px',
-                  fontWeight: 500,
-                  cursor: 'pointer',
-                  background: 'none',
-                  border: 'none',
-                  borderBottom: view === v ? '2px solid var(--accent)' : '2px solid transparent',
-                  color: view === v ? 'var(--accent)' : 'var(--text-3)',
-                  textTransform: 'capitalize',
-                  transition: 'color 0.15s',
-                }}
-              >
-                {v === 'dashboard' ? '☀️ Dashboard' : '🗓️ Calendar'}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-      <main
-        style={{
-          maxWidth: view === 'calendar' ? '1120px' : '900px',
-          margin: '0 auto',
-          padding: '1.5rem 1rem',
-        }}
+            currentUV={weather.current.uv}
+          />
+        }
+        view={view}
+        onViewChange={setView}
+        after={
+          pricingOpen && (
+            <PricingModal
+              user={user}
+              email={user.email ?? undefined}
+              onJoinWaitlist={() => {}}
+              onClose={() => setPricingOpen(false)}
+            />
+          )
+        }
       >
         {view === 'dashboard' && (
           <Dashboard
@@ -139,15 +109,7 @@ export default function HarnessApp() {
             />
           </div>
         )}
-      </main>
-      {pricingOpen && (
-        <PricingModal
-          user={user}
-          email={user.email ?? undefined}
-          onJoinWaitlist={() => {}}
-          onClose={() => setPricingOpen(false)}
-        />
-      )}
+      </AppShell>
     </div>
   )
 }

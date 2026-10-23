@@ -1,0 +1,68 @@
+/* Header layout. One row at every width: on phones the location shrinks (and
+   truncates) instead of wrapping, so the city and current UV stay visible without
+   a second row. */
+.header {
+  background: var(--bg-card);
+  border-bottom: 0.5px solid var(--border-md);
+  padding: 0 14px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 900px;
+  min-height: 52px;
+  margin: 0 auto;
+}
+
+.logo {
+  flex-shrink: 0;
+}
+
+.location {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Let LocationPopover's trigger shrink so a long city name truncates. */
+.location > * {
+  max-width: 100%;
+}
+
+.right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.uv {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 8px;
+  border-radius: 9px;
+  background: var(--bg-metric);
+  font-size: 12px;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+
+@media (max-width: 560px) {
+  .row {
+    position: relative;
+    gap: 4px;
+    min-height: 50px;
+  }
+  /* The location trigger sits mid-row on phones, so anchor its panel to the
+     header row instead, keeping it on screen at narrow widths. */
+  .location > * {
+    position: static !important;
+  }
+  /* The plan badge gives way so the city fits; the plan stays visible in Settings. */
+  .uvLevel,
+  .pro {
+    display: none;
+  }
+}

@@ -106,5 +106,4 @@ export const PRO_FEATURES: ProFeature[] = [
   { label: 'Forecast horizon', free: '2 days', pro: '10 days' },
   { label: 'Best-day planning', free: '2 days', pro: 'Full 10-day' },
   { label: 'Calendar sync', free: true, pro: true },
-  { label: 'Morning sun-window alerts', free: false, pro: true },
 ]
