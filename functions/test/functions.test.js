@@ -2960,3 +2960,19 @@ describe('Stripe fulfillment security', () => {
     assert.deepEqual(canceled, ['sub_deleted'])
   })
 })
+
+describe('Stripe client configuration', () => {
+  test('pins the API version the SDK types describe', () => {
+    const Stripe = require('stripe')
+    const { STRIPE_API_VERSION, stripeClient } = require('../lib/billing/config')
+    const previous = process.env.STRIPE_SECRET_KEY
+    process.env.STRIPE_SECRET_KEY = 'sk_test_api_version'
+    try {
+      assert.equal(STRIPE_API_VERSION, Stripe.API_VERSION)
+      assert.equal(stripeClient().getApiField('version'), STRIPE_API_VERSION)
+    } finally {
+      if (previous === undefined) delete process.env.STRIPE_SECRET_KEY
+      else process.env.STRIPE_SECRET_KEY = previous
+    }
+  })
+})
