@@ -9,6 +9,10 @@ const nextConfig: NextConfig = {
   output: 'export',
   trailingSlash: true,
   images: { unoptimized: true },
+  // Automatic memoization (babel-plugin-react-compiler). Components that break the
+  // Rules of React are reported by the react-hooks lint rules and skipped by the
+  // compiler instead of being miscompiled.
+  reactCompiler: true,
   // @solara/core is a workspace package published as TypeScript source.
   transpilePackages: ['@solara/core'],
   ...(uiHarness && {

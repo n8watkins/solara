@@ -18,6 +18,8 @@ import Header from '@/components/Header'
 import Dashboard from '@/components/Dashboard'
 import CalendarView from '@/components/CalendarView'
 import PricingModal from '@/components/PricingModal'
+import { resolveUnits, unitFormatters } from '@/lib/units'
+import { UnitsContext } from '@/lib/use-units'
 import { HARNESS_MARKER, buildPrefs, buildUser, buildWeather } from './fixtures'
 import { buildGapWeather } from './uv-gap-fixtures'
 
@@ -56,60 +58,64 @@ export default function HarnessApp() {
   const [pricingOpen, setPricingOpen] = useState(initial.screen === 'pricing')
 
   const displayTier = prefs.tier
+  // Display units from the account, else the browser locale, as in components/App.tsx.
+  const units = unitFormatters(resolveUnits(prefs))
 
   return (
-    <div data-testid={HARNESS_MARKER} data-screen={initial.screen}>
-      <AppShell
-        header={
-          <Header
-            user={user}
-            prefs={prefs}
-            displayTier={displayTier}
-            onPrefsUpdate={setPrefs}
-            forceOpenTab={settingsOpen ? initial.tab : undefined}
-            onModalClose={() => setSettingsOpen(false)}
-            onGoHome={() => {
-              setView('dashboard')
-              setSelectedDay(null)
-            }}
-            currentUV={weather.current.uv}
-          />
-        }
-        view={view}
-        onViewChange={setView}
-        after={
-          pricingOpen && (
-            <PricingModal
+    <UnitsContext value={units}>
+      <div data-testid={HARNESS_MARKER} data-screen={initial.screen}>
+        <AppShell
+          header={
+            <Header
               user={user}
-              email={user.email ?? undefined}
-              onJoinWaitlist={() => {}}
-              onClose={() => setPricingOpen(false)}
-            />
-          )
-        }
-      >
-        {view === 'dashboard' && (
-          <Dashboard
-            weather={weather}
-            prefs={prefs}
-            displayTier={displayTier}
-            onPrefsUpdate={setPrefs}
-            onRefresh={() => {}}
-            selectedDay={selectedDay}
-            onSelectDay={setSelectedDay}
-          />
-        )}
-        {view === 'calendar' && (
-          <div className="card">
-            <CalendarView
               prefs={prefs}
               displayTier={displayTier}
-              weather={weather}
               onPrefsUpdate={setPrefs}
+              forceOpenTab={settingsOpen ? initial.tab : undefined}
+              onModalClose={() => setSettingsOpen(false)}
+              onGoHome={() => {
+                setView('dashboard')
+                setSelectedDay(null)
+              }}
+              currentUV={weather.current.uv}
             />
-          </div>
-        )}
-      </AppShell>
-    </div>
+          }
+          view={view}
+          onViewChange={setView}
+          after={
+            pricingOpen && (
+              <PricingModal
+                user={user}
+                email={user.email ?? undefined}
+                onJoinWaitlist={() => {}}
+                onClose={() => setPricingOpen(false)}
+              />
+            )
+          }
+        >
+          {view === 'dashboard' && (
+            <Dashboard
+              weather={weather}
+              prefs={prefs}
+              displayTier={displayTier}
+              onPrefsUpdate={setPrefs}
+              onRefresh={() => {}}
+              selectedDay={selectedDay}
+              onSelectDay={setSelectedDay}
+            />
+          )}
+          {view === 'calendar' && (
+            <div className="card">
+              <CalendarView
+                prefs={prefs}
+                displayTier={displayTier}
+                weather={weather}
+                onPrefsUpdate={setPrefs}
+              />
+            </div>
+          )}
+        </AppShell>
+      </div>
+    </UnitsContext>
   )
 }

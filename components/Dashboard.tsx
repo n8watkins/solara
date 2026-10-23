@@ -197,19 +197,19 @@ export default function Dashboard({
 
   async function bookSlotOn(activity: Activity, rec: SlotRecommendation, dateStr: string) {
     setShareMsg('Adding to your calendar…')
+    // For a future day the "peak" context belongs to that day, not today's reading.
+    const peak = dateStr === activeDateStr ? { peakUV, peakHour } : { peakUV: rec.peakUV }
+    const description = buildEventDescription(rec, activity, peak)
+    const body = buildEventBody(
+      activity,
+      dateStr,
+      rec.start,
+      rec.end,
+      description,
+      weather.timezone,
+    )
     try {
       const token = await requestWriteToken()
-      // For a future day the "peak" context belongs to that day, not today's reading.
-      const peak = dateStr === activeDateStr ? { peakUV, peakHour } : { peakUV: rec.peakUV }
-      const description = buildEventDescription(rec, activity, peak)
-      const body = buildEventBody(
-        activity,
-        dateStr,
-        rec.start,
-        rec.end,
-        description,
-        weather.timezone,
-      )
       const event = await createCalendarEvent(token, body)
       setShareMsg('✓ Added to your Google Calendar.')
       if (event.htmlLink) window.open(event.htmlLink, '_blank', 'noopener')

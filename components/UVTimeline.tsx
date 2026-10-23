@@ -1,6 +1,14 @@
 'use client'
 
-import { useState, useRef, useEffect, useId, type ReactNode, type RefObject } from 'react'
+import {
+  useState,
+  useRef,
+  useEffect,
+  useEffectEvent,
+  useId,
+  type ReactNode,
+  type RefObject,
+} from 'react'
 import type { HourlyForecast } from '@/lib/types'
 import { uvColorHex, uvTextHex, fmtHour, formatUV, uvLabel } from '@/lib/weather'
 import { useUnits } from '@/lib/use-units'
@@ -168,21 +176,6 @@ export default function UVTimeline({
     centerHour(nowRef.current)
   }, [currentHour, hourly.length])
 
-  // When the parent moves the focus (a tap on the arc, or the big readout updating),
-  // bring that hour into view so the strip tracks the shared focus — "move the bar
-  // along with displaying the new stats." Skipped when the focus is already the
-  // bar nearest center (e.g. when WE drove the change via scroll).
-  useEffect(() => {
-    if (!controlled || !focused) return
-    const strip = stripRef.current
-    if (!strip) return
-    const bar = strip.querySelector<HTMLElement>(`[data-hour="${focused.hour}"]`)
-    if (!bar) return
-    if (nearestHourToCenter() === focused.hour) return
-    centerHour(bar)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [controlled, focused?.hour])
-
   // The hour of the bar whose center is closest to the strip's horizontal center.
   function nearestHourToCenter(): number | null {
     const strip = stripRef.current
@@ -200,6 +193,20 @@ export default function UVTimeline({
     }
     return bestHour
   }
+
+  // When the parent moves the focus (a tap on the arc, or the big readout updating),
+  // bring that hour into view so the strip tracks the shared focus — "move the bar
+  // along with displaying the new stats." Skipped when the focus is already the
+  // bar nearest center (e.g. when WE drove the change via scroll).
+  const focusedHour = controlled ? (focused?.hour ?? null) : null
+  const followFocus = useEffectEvent((hour: number) => {
+    const bar = stripRef.current?.querySelector<HTMLElement>(`[data-hour="${hour}"]`)
+    if (!bar || nearestHourToCenter() === hour) return
+    centerHour(bar)
+  })
+  useEffect(() => {
+    if (focusedHour !== null) followFocus(focusedHour)
+  }, [focusedHour])
 
   // Scroll-sync: on horizontal scroll, focus the bar nearest the strip's center,
   // debounced to one update per animation frame. No-ops when the motion was

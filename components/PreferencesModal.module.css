@@ -92,6 +92,11 @@
   gap: 14px;
 }
 
+/* A one-line label beside its control; centered on the row on wide screens. */
+.fieldInline {
+  align-items: center;
+}
+
 .fieldControl {
   min-width: 170px;
   font-size: 14px;
@@ -149,6 +154,10 @@
     flex-direction: column;
     align-items: stretch;
     gap: 10px;
+  }
+
+  .fieldInline {
+    align-items: flex-start;
   }
 
   .fieldControl {

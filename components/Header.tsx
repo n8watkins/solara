@@ -34,6 +34,11 @@ function uvIcon(uv: number): string {
   return '🟣'
 }
 
+/** The account menu's items, in order. */
+function menuItems(list: HTMLElement | null): HTMLElement[] {
+  return Array.from(list?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])
+}
+
 export default function Header({
   user,
   prefs,
@@ -84,13 +89,9 @@ export default function Header({
   // An opened menu moves focus to its first (or, from ArrowUp, last) item.
   useEffect(() => {
     if (!menuOpen) return
-    const items = menuItems()
+    const items = menuItems(menuListRef.current)
     ;(menuFocus === 'last' ? items.at(-1) : items[0])?.focus()
   }, [menuOpen, menuFocus])
-
-  function menuItems(): HTMLElement[] {
-    return Array.from(menuListRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])
-  }
 
   function openMenu(focus: 'first' | 'last') {
     setMenuFocus(focus)
@@ -106,7 +107,7 @@ export default function Header({
   // Arrow keys move between items (wrapping), Home and End jump to the ends,
   // Space activates the link item like a button, and Tab leaves the menu.
   function onMenuKeyDown(e: ReactKeyboardEvent<HTMLDivElement>) {
-    const items = menuItems()
+    const items = menuItems(menuListRef.current)
     const index = items.indexOf(document.activeElement as HTMLElement)
     if (e.key === 'Tab') {
       // Tab then moves on from the menu button, as if the menu were not there.
@@ -127,16 +128,20 @@ export default function Header({
 
   async function handleSignOut() {
     setSignOutError(null)
+    const uid = user?.uid
+    let failure: { error: unknown } | null = null
     try {
-      await signOutAndClear(user?.uid)
+      await signOutAndClear(uid)
     } catch (error) {
-      console.error('Sign-out failed:', error)
-      setSignOutError(
-        error instanceof SignOutBlockedError
-          ? 'Sign-out paused because notifications could not be disabled. Check your connection and try again.'
-          : 'Could not sign out. Check your connection and try again.',
-      )
+      failure = { error }
     }
+    if (!failure) return
+    console.error('Sign-out failed:', failure.error)
+    setSignOutError(
+      failure.error instanceof SignOutBlockedError
+        ? 'Sign-out paused because notifications could not be disabled. Check your connection and try again.'
+        : 'Could not sign out. Check your connection and try again.',
+    )
   }
 
   function handlePrefsUpdate(updated: UserPreferences) {

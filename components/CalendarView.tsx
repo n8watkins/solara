@@ -1,5 +1,12 @@
 'use client'
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
+import {
+  useEffect,
+  useEffectEvent,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+} from 'react'
 import type { Activity, DayWeather, UserPreferences, WeatherResponse } from '@/lib/types'
 import { canUseCalendar, getFutureDays, TIER_LIMITS } from '@/lib/tiers'
 import type { SafeWindow } from '@/lib/calendar'
@@ -175,16 +182,16 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
 
   // Detail sheet: focus moves into it on open, Escape closes it, and focus returns
   // to the chip that opened it.
+  const selectedKey = selected?.key
+  const onSheetKey = useEffectEvent((e: KeyboardEvent) => {
+    if (e.key === 'Escape') closeSheet()
+  })
   useEffect(() => {
-    if (!selected) return
+    if (!selectedKey) return
     sheetRef.current?.focus()
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') closeSheet()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- Re-run per opened window; closeSheet only touches refs and setters.
-  }, [selected?.key])
+    window.addEventListener('keydown', onSheetKey)
+    return () => window.removeEventListener('keydown', onSheetKey)
+  }, [selectedKey])
 
   function flash(message: string, ms = 3500) {
     setConfirm(message)
@@ -204,19 +211,21 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
       payload,
       typeof window !== 'undefined' ? window.location.origin : undefined,
     )
+    let result: Awaited<ReturnType<typeof shareOrCopy>>
     try {
-      const result = await shareOrCopy(`${act.name} sun window`, text, url)
-      flash(
-        result === 'shared'
-          ? 'Shared activity window.'
-          : result === 'copied'
-            ? 'Copied share text and link.'
-            : `${text} ${url}`,
-        4500,
-      )
+      result = await shareOrCopy(`${act.name} sun window`, text, url)
     } catch {
       setConfirm(null)
+      return
     }
+    flash(
+      result === 'shared'
+        ? 'Shared activity window.'
+        : result === 'copied'
+          ? 'Copied share text and link.'
+          : `${text} ${url}`,
+      4500,
+    )
   }
 
   function updateActivity(updated: Activity) {

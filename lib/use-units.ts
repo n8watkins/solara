@@ -10,10 +10,13 @@ export const UnitsContext = createContext<UnitFormatters | null>(null)
 
 let localeDefault: UnitFormatters | null = null
 
+/** The browser locale's units, computed once. */
+function localeUnits(): UnitFormatters {
+  if (!localeDefault) localeDefault = unitFormatters(resolveUnits(null))
+  return localeDefault
+}
+
 /** Temperature and clock formatters in the person's display units. */
 export function useUnits(): UnitFormatters {
-  const units = useContext(UnitsContext)
-  if (units) return units
-  localeDefault ??= unitFormatters(resolveUnits(null))
-  return localeDefault
+  return useContext(UnitsContext) ?? localeUnits()
 }

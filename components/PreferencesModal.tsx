@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useId, useRef } from 'react'
+import { useState, useId, useRef } from 'react'
 import type { KeyboardEvent } from 'react'
 import type { User } from 'firebase/auth'
 import type { UserPreferences, SkinType, Location } from '@/lib/types'
@@ -50,6 +50,16 @@ const SKIN_OPTIONS: { value: SkinType; label: string; burn: string; desc: string
 type LegacyTab = 'general' | 'activities' | 'location'
 type Tab = 'general' | 'appearance' | 'activities' | 'location' | 'account'
 
+type NotifState = 'enabled' | 'blocked' | 'default'
+
+function readNotifState(user: User | null | undefined): NotifState {
+  if (typeof window === 'undefined' || !('Notification' in window)) return 'blocked'
+  if (Notification.permission === 'granted')
+    return user && notificationsEnabledLocally(user.uid) ? 'enabled' : 'default'
+  if (Notification.permission === 'denied') return 'blocked'
+  return 'default'
+}
+
 export default function PreferencesModal({ prefs, onSave, onClose, initialTab, user }: Props) {
   const idPrefix = useId()
   const tabRefs = useRef<Partial<Record<Tab, HTMLButtonElement | null>>>({})
@@ -76,26 +86,11 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
   const [notificationHour, setNotificationHour] = useState(prefs.notificationHour ?? 7)
   const tier = prefs.tier || 'anonymous'
 
-  // SSR-safe notification state: 'unknown' until read in the browser via useEffect,
-  // so the server/build render never touches `Notification` or `localStorage`.
-  type NotifState = 'unknown' | 'enabled' | 'blocked' | 'default'
-  const [notifState, setNotifState] = useState<NotifState>('unknown')
+  // The modal only ever renders in the browser (it opens from the client-only app),
+  // so the permission is read on first render instead of in an effect.
+  const [notifState, setNotifState] = useState<NotifState>(() => readNotifState(user))
   const [notifLoading, setNotifLoading] = useState(false)
   const [notifError, setNotifError] = useState<string | null>(null)
-
-  function readNotifState(): NotifState {
-    if (typeof window === 'undefined' || !('Notification' in window)) return 'blocked'
-    if (Notification.permission === 'granted')
-      return user && notificationsEnabledLocally(user.uid) ? 'enabled' : 'default'
-    if (Notification.permission === 'denied') return 'blocked'
-    return 'default'
-  }
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- Browser-only state is read after hydration so the static export's prerendered markup matches the first client render.
-    setNotifState(readNotifState())
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- Read the notification permission once when the modal mounts.
-  }, [])
 
   async function handleEnableNotifications() {
     if (!user) return
@@ -621,7 +616,7 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
             {tab === 'appearance' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                 <div className="metric-card">
-                  <div className={styles.field} style={{ alignItems: 'center' }}>
+                  <div className={`${styles.field} ${styles.fieldInline}`}>
                     <div>
                       <h4
                         style={{
@@ -658,7 +653,7 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
                     Automatic follows your browser&apos;s language and region.
                   </p>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    <div className={styles.field} style={{ alignItems: 'center' }}>
+                    <div className={`${styles.field} ${styles.fieldInline}`}>
                       <label
                         htmlFor={`${idPrefix}-temperature`}
                         style={{ fontSize: '13px', color: 'var(--text-2)' }}
@@ -681,7 +676,7 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
                         <option value="fahrenheit">Fahrenheit (°F)</option>
                       </select>
                     </div>
-                    <div className={styles.field} style={{ alignItems: 'center' }}>
+                    <div className={`${styles.field} ${styles.fieldInline}`}>
                       <label
                         htmlFor={`${idPrefix}-clock`}
                         style={{ fontSize: '13px', color: 'var(--text-2)' }}
