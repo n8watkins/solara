@@ -50,9 +50,9 @@ What users get:
   Every deploy since run 40013061416 (commit `2d1ae1e`) has been green.
 - **Credentials:** deploys and the notifier authenticate with the long-lived `FIREBASE_SERVICE_ACCOUNT` key, because the Workload Identity Federation variables are not set yet.
 - **Configuration:** `NEXT_PUBLIC_SITE_URL` is a repository variable; the other public `NEXT_PUBLIC_*` values are still repository secrets, which the build reads as a fallback.
-- **Dependencies:** Dependabot version updates run weekly with a 7-day cooldown; eleven major-version PRs (#31-#41) are open and belong to Wave 4.
+- **Dependencies:** Dependabot version updates run weekly with a 7-day cooldown; the major-version PRs #31-#40 are open and belong to Wave 4, W4-F (the Tailwind PRs #41 and #54 were superseded by the Tailwind 4 migration).
   Dependabot alerts and security updates are off.
-  Production dependency audits report zero advisories in both packages; accepted development advisories are in [DEPENDENCY_RISK.md](DEPENDENCY_RISK.md).
+  Production dependency audits report zero advisories in both packages, and so does the app's full audit; the accepted Functions development advisories are in [DEPENDENCY_RISK.md](DEPENDENCY_RISK.md).
 - **Repository:** private on GitHub Free, so there is no branch protection, ruleset or environment, and any push to `main` deploys to production.
 
 How deploys work and how to configure them is in [DEPLOYMENT.md](DEPLOYMENT.md).
