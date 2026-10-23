@@ -28,7 +28,7 @@ Checked on 2026-10-23.
   Hosting and rules still publish, but the workflow run is reported as failed.
 - **Firebase Functions:** not deployed.
   The Cloud Functions API is not enabled on `uv-activity-planner` (`firebase functions:list` returns 403), and the `ENABLE_BLAZE_FUNCTIONS` repository variable is not set, so deployments skip Functions and build the client with an empty `NEXT_PUBLIC_FUNCTIONS_URL`.
-  Checkout, the billing portal, account export and deletion, notification device registration, the calendar feed and the three scheduled billing and deletion jobs are therefore unavailable in production, and the client hides their controls.
+  Checkout, the billing portal, account export and deletion, notification device registration, the calendar feed and the three scheduled billing and deletion jobs are therefore unavailable in production, and the client hides or disables their controls.
 - **Firebase billing plan (Spark or Blaze):** owner to confirm.
 - **Morning notifications:** not sent since 2026-07-15.
   Pull request #13 removed the daily `notify.yml` schedule; the last scheduled run was on 2026-07-14 and the only later run, a manual dry run on 2026-07-15, failed on the missing `notificationDevices.enabled` collection-group index.
