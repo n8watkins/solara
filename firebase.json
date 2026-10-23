@@ -97,8 +97,8 @@
           "type": 301
         },
         {
-          "source": "/:path*",
-          "destination": "https://solara-uv.web.app/:path*",
+          "regex": "^/(?P<path>(?:[^_]|_[^_]|_$).*)$",
+          "destination": "https://solara-uv.web.app/:path",
           "type": 301
         }
       ]
