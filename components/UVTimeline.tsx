@@ -1,13 +1,91 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useId, type ReactNode, type RefObject } from 'react'
 import type { HourlyForecast } from '@/lib/types'
-import { uvColorHex, uvTextHex, fmtHour, formatUV } from '@/lib/weather'
+import { uvColorHex, uvTextHex, fmtHour, formatUV, uvLabel } from '@/lib/weather'
+import VisuallyHidden from './VisuallyHidden'
+
+/** Space between bars, in px. SunArc uses it to put each hour above its bar. */
+export const UV_BAR_GAP = 4
+/** Narrowest a bar may get; below this the strip scrolls instead of squeezing. */
+export const UV_BAR_MIN_WIDTH = 42
+
+/** Horizontal center (px) of bar `index` of `count` bars spread across `width` px. */
+export function uvBarCenter(index: number, count: number, width: number): number {
+  const barWidth = (width - (count - 1) * UV_BAR_GAP) / count
+  return index * (barWidth + UV_BAR_GAP) + barWidth / 2
+}
+
+/** One hour on the strip: its forecast, or null when the forecast has no UV for it. */
+export interface HourSlot {
+  hour: number
+  data: HourlyForecast | null
+}
+
+/**
+ * Every hour from the day's first to its last forecast hour. Hours the forecast
+ * omits (unknown UV) come back with `data: null` so the strip and sun path show
+ * the gap instead of closing it up.
+ */
+export function hourSlots(hourly: HourlyForecast[]): HourSlot[] {
+  const first = hourly[0]
+  const last = hourly.at(-1)
+  if (!first || !last) return []
+  const byHour = new Map(hourly.map(h => [h.hour, h]))
+  const slots: HourSlot[] = []
+  for (let hour = first.hour; hour <= last.hour; hour++)
+    slots.push({ hour, data: byHour.get(hour) ?? null })
+  return slots
+}
+
+/** Contiguous runs of hours with no UV data, as [firstHour, lastHour] pairs. */
+export function missingRuns(slots: HourSlot[]): Array<[number, number]> {
+  const runs: Array<[number, number]> = []
+  for (const s of slots) {
+    if (s.data) continue
+    const run = runs.at(-1)
+    if (run && run[1] === s.hour - 1) run[1] = s.hour
+    else runs.push([s.hour, s.hour])
+  }
+  return runs
+}
+
+/** One-sentence summary of the day for screen readers (the strip's description). */
+export function uvDaySummary(hourly: HourlyForecast[]): string {
+  const first = hourly[0]
+  if (!first) return 'No UV forecast for this day.'
+  const peak = hourly.reduce((best, h) => (h.uv > best.uv ? h : best), first)
+  const parts = [
+    `UV peaks at ${peak.uv.toFixed(1)}, ${uvLabel(peak.uv)}, at ${fmtHour(peak.hour)}.`,
+  ]
+  const high = hourly.filter(h => h.uv > 5)
+  const firstHigh = high[0]
+  const lastHigh = high.at(-1)
+  if (firstHigh && lastHigh) {
+    parts.push(
+      firstHigh === lastHigh
+        ? `High or above at ${fmtHour(firstHigh.hour)}.`
+        : `High or above from ${fmtHour(firstHigh.hour)} to ${fmtHour(lastHigh.hour)}.`,
+    )
+  }
+  for (const [from, to] of missingRuns(hourSlots(hourly))) {
+    parts.push(
+      from === to
+        ? `No UV data at ${fmtHour(from)}.`
+        : `No UV data from ${fmtHour(from)} to ${fmtHour(to)}.`,
+    )
+  }
+  return parts.join(' ')
+}
 
 interface Props {
   hourly: HourlyForecast[]
   currentHour: number
-  skinType?: string
+  /**
+   * Rendered inside the scroller, above the bars and at the same width (the sun
+   * path), so it lines up with the bars and scrolls with them.
+   */
+  above?: ReactNode
   /** Notifies parent of the focused hour (current or tapped) — e.g. for a synced sun path. */
   onFocusHour?: (h: HourlyForecast | null) => void
   /**
@@ -34,13 +112,15 @@ export default function UVTimeline({
   onFocusHour,
   focused,
   onSelectHour,
+  above,
 }: Props) {
+  const summaryId = useId()
   // Controlled when the parent passes ownership of the focus (shared with the sun
   // path); otherwise this local `selected` state drives the highlight on its own.
   const controlled = onSelectHour !== undefined
   const [selected, setSelected] = useState<HourlyForecast | null>(null)
   const [showLegend, setShowLegend] = useState(false)
-  const nowRef = useRef<HTMLButtonElement>(null)
+  const nowRef = useRef<HTMLElement>(null)
   const stripRef = useRef<HTMLDivElement>(null)
   const rafRef = useRef<number | null>(null)
   // True while WE are programmatically scrolling the strip (centering a tapped /
@@ -49,12 +129,12 @@ export default function UVTimeline({
   const programmaticScroll = useRef(false)
   const programmaticTimer = useRef<number | null>(null)
 
-  // The highlighted hour: a controlled focus / explicit tap wins, else the current
-  // hour, else the first hour of the day.
+  // The highlighted hour. Controlled: only an explicit focus is highlighted, so with
+  // nothing scrubbed no bar claims to be the "now" reading (the parent's readout
+  // shows the live value; the current hour keeps its ring). Uncontrolled: a tap
+  // wins, else the current hour, else the first hour of the day.
   const localActive = selected ?? hourly.find(h => h.hour === currentHour) ?? hourly[0] ?? null
-  const active = controlled
-    ? (focused ?? hourly.find(h => h.hour === currentHour) ?? hourly[0] ?? null)
-    : localActive
+  const active = controlled ? (focused ?? null) : localActive
 
   function selectHour(h: HourlyForecast) {
     if (controlled) onSelectHour!(h)
@@ -105,7 +185,7 @@ export default function UVTimeline({
     const stripMid = strip.scrollLeft + strip.clientWidth / 2
     let bestHour: number | null = null
     let bestDist = Infinity
-    for (const el of Array.from(strip.querySelectorAll<HTMLElement>('[data-hour]'))) {
+    for (const el of Array.from(strip.querySelectorAll<HTMLElement>('button[data-hour]'))) {
       const mid = el.offsetLeft + el.offsetWidth / 2
       const dist = Math.abs(mid - stripMid)
       if (dist < bestDist) {
@@ -147,61 +227,116 @@ export default function UVTimeline({
 
   return (
     <div style={{ userSelect: 'none', WebkitUserSelect: 'none' }}>
-      <div className="uv-strip" ref={stripRef} onScroll={onScroll}>
-        {hourly.map(h => {
-          const isNow = h.hour === currentHour
-          const isSel = active?.hour === h.hour
-          return (
-            <button
-              key={h.hour}
-              data-hour={h.hour}
-              ref={isNow ? nowRef : undefined}
-              onClick={() => selectHour(h)}
-              className="uv-bar"
-              aria-pressed={isSel}
-              aria-label={`${fmtHour(h.hour)}, UV ${h.uv.toFixed(1)}`}
-              style={{
-                flex: '0 0 auto',
-                width: '42px',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '3px',
-                padding: '12px 0',
-                borderRadius: '10px',
-                cursor: 'pointer',
-                background: uvColorHex(h.uv),
-                color: uvTextHex(h.uv),
-                border: isSel ? '2px solid var(--text)' : '2px solid transparent',
-                boxShadow:
-                  isNow && !isSel ? '0 0 0 2px var(--bg-card), 0 0 0 3.5px var(--text)' : 'none',
-                scrollSnapAlign: 'center',
-                transition: 'border-color 0.12s',
-              }}
-            >
-              <span style={{ fontSize: '13px', fontWeight: 700, lineHeight: 1 }}>
-                {formatUV(h.uv, { compact: true })}
-              </span>
-              <span style={{ fontSize: '10px', opacity: 0.75, lineHeight: 1 }}>
-                {fmtHour(h.hour)}
-              </span>
-              {isNow && (
-                <span
+      <VisuallyHidden id={summaryId}>{uvDaySummary(hourly)}</VisuallyHidden>
+      <div
+        className="uv-strip"
+        ref={stripRef}
+        onScroll={onScroll}
+        role="group"
+        aria-label="UV forecast by hour"
+        aria-describedby={summaryId}
+        // Positioned so bar offsetLeft is measured from the strip (used to center bars).
+        style={{ position: 'relative' }}
+      >
+        {/* One column at least as wide as the strip: bars stretch to fill it on wide
+            screens and keep their minimum width (scrolling) on phones; `above` shares
+            the column, so it always spans exactly the bars. */}
+        <div
+          style={{
+            flex: '1 0 auto',
+            minWidth: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          {above}
+          <div style={{ display: 'flex', gap: `${UV_BAR_GAP}px` }}>
+            {hourSlots(hourly).map(({ hour, data: h }) => {
+              const isNow = hour === currentHour
+              if (!h) {
+                // Unknown UV: an explicit, non-interactive gap marker in the bar's place.
+                return (
+                  <div
+                    key={hour}
+                    data-hour={hour}
+                    data-missing="true"
+                    ref={isNow ? (nowRef as RefObject<HTMLDivElement>) : undefined}
+                    style={{
+                      flex: `1 0 ${UV_BAR_MIN_WIDTH}px`,
+                      minWidth: `${UV_BAR_MIN_WIDTH}px`,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '3px',
+                      padding: '12px 0',
+                      borderRadius: '10px',
+                      border: '1.5px dashed var(--border-md)',
+                      color: 'var(--text-3)',
+                      boxShadow: isNow
+                        ? '0 0 0 2px var(--bg-card), 0 0 0 3.5px var(--text)'
+                        : 'none',
+                      scrollSnapAlign: 'center',
+                    }}
+                  >
+                    <span style={{ fontSize: '13px', fontWeight: 700, lineHeight: 1 }}>
+                      <span aria-hidden="true">–</span>
+                      <VisuallyHidden>No UV data at </VisuallyHidden>
+                    </span>
+                    <span style={{ fontSize: '10px', lineHeight: 1 }}>
+                      {fmtHour(hour)}
+                      {isNow && <VisuallyHidden>, current hour</VisuallyHidden>}
+                    </span>
+                  </div>
+                )
+              }
+              const isSel = active?.hour === h.hour
+              return (
+                <button
+                  key={h.hour}
+                  data-hour={h.hour}
+                  ref={isNow ? (nowRef as RefObject<HTMLButtonElement>) : undefined}
+                  onClick={() => selectHour(h)}
+                  className="uv-bar"
+                  aria-pressed={isSel}
                   style={{
-                    fontSize: '8px',
-                    fontWeight: 800,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.04em',
-                    lineHeight: 1,
+                    flex: `1 0 ${UV_BAR_MIN_WIDTH}px`,
+                    minWidth: `${UV_BAR_MIN_WIDTH}px`,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '3px',
+                    padding: '12px 0',
+                    borderRadius: '10px',
+                    cursor: 'pointer',
+                    background: uvColorHex(h.uv),
+                    color: uvTextHex(h.uv),
+                    border: isSel ? '2px solid var(--text)' : '2px solid transparent',
+                    boxShadow:
+                      isNow && !isSel
+                        ? '0 0 0 2px var(--bg-card), 0 0 0 3.5px var(--text)'
+                        : 'none',
+                    scrollSnapAlign: 'center',
+                    transition: 'border-color 0.12s',
                   }}
                 >
-                  now
-                </span>
-              )}
-            </button>
-          )
-        })}
+                  {/* Read as "UV 6.0, High, at 10am, current hour": hidden words fill in
+                      around the visible number and hour so the name contains both. */}
+                  <span style={{ fontSize: '13px', fontWeight: 700, lineHeight: 1 }}>
+                    <VisuallyHidden>UV </VisuallyHidden>
+                    {formatUV(h.uv, { compact: true })}
+                    <VisuallyHidden>, {uvLabel(h.uv)}, at </VisuallyHidden>
+                  </span>
+                  <span style={{ fontSize: '10px', lineHeight: 1 }}>
+                    {fmtHour(h.hour)}
+                    {isNow && <VisuallyHidden>, current hour</VisuallyHidden>}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
       </div>
 
       <button

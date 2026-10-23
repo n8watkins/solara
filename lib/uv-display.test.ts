@@ -7,7 +7,7 @@ import { fmtClock, fmtDays, gcalLink, uvColorHex, uvTextHex } from '@/lib/weathe
 const BAND_SAMPLES = [0, 1, 4, 6, 9, 11]
 
 describe('UV color bands', () => {
-  it('gives each band its own background and text color', () => {
+  it('gives each band its own background and AA-contrast text', () => {
     expect(BAND_SAMPLES.map(uvColorHex)).toEqual([
       '#D1D5DB',
       '#86EFAC',
@@ -16,14 +16,9 @@ describe('UV color bands', () => {
       '#F87171',
       '#C084FC',
     ])
-    expect(BAND_SAMPLES.map(uvTextHex)).toEqual([
-      '#374151',
-      '#14532D',
-      '#78350F',
-      '#7C2D12',
-      '#7F1D1D',
-      '#4A044E',
-    ])
+    for (const uv of BAND_SAMPLES) {
+      expect(contrastRatio(uvTextHex(uv), uvColorHex(uv))).toBeGreaterThanOrEqual(4.5)
+    }
   })
 
   it('puts band edges on the low side of each boundary', () => {
@@ -100,3 +95,16 @@ describe('downloadICS', () => {
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:solara')
   })
 })
+
+function luminance(hex: string): number {
+  const channels = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255)
+  const [r = 0, g = 0, b = 0] = channels.map(c =>
+    c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4,
+  )
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b
+}
+
+function contrastRatio(a: string, b: string): number {
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x) as [number, number]
+  return (hi + 0.05) / (lo + 0.05)
+}

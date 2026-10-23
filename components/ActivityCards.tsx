@@ -1,31 +1,32 @@
 'use client'
 import { useState } from 'react'
-import type {
-  Activity,
-  ActivityWindow,
-  SafeActivityWindow,
-  TierLevel,
-  Location,
-  HourlyForecast,
-} from '@/lib/types'
+import type { Activity, SafeActivityWindow, TierLevel, Location } from '@/lib/types'
 import { fmtHour, fmtClock, fmtDays, gcalLink } from '@/lib/weather'
 import { canUseCalendar, effectiveMaxUV } from '@/lib/tiers'
 import { buildActivityShareText, buildActivityShareUrl, shareOrCopy } from '@/lib/share'
-import type { BusyInterval, SlotRecommendation } from '@/lib/scheduler'
-import { recommendSlot } from '@/lib/scheduler'
+import type { SlotRecommendation } from '@/lib/scheduler'
+import type { ActivityDayPlan } from '@/lib/next-slot'
+import VisuallyHidden from './VisuallyHidden'
 
 interface Props {
-  windows: ActivityWindow[]
+  /** One plan per activity for the selected day (see planActivityDay). */
+  plans: ActivityDayPlan[]
+  isToday: boolean
   daysFromNow: number
   tier: TierLevel
   location: Location
   dateLabel: string
-  hourly?: HourlyForecast[]
-  busy?: BusyInterval[]
   /** When provided (calendar connected), books the recommended slot as a real event. */
   onBookRecommended?: (activity: Activity, rec: SlotRecommendation) => void
   onEditActivity?: (activity: Activity) => void
 }
+
+const recommendedActionStyle = {
+  marginTop: '8px',
+  width: '100%',
+  justifyContent: 'center',
+  fontSize: '12px',
+} as const
 
 function Row({ label, val, accent }: { label: string; val: string; accent?: string }) {
   return (
@@ -36,47 +37,55 @@ function Row({ label, val, accent }: { label: string; val: string; accent?: stri
   )
 }
 
-/** Time-of-day cue so a 6–10am window reads differently from a 5–9pm one at a glance. */
-function dayPhase(win: SafeActivityWindow): { icon: string; label: string } {
-  const mid = (win.from + win.to) / 2
-  if (mid < 12) return { icon: '🌅', label: 'Morning' }
-  if (mid < 16) return { icon: '☀️', label: 'Midday' }
-  return { icon: '🌇', label: 'Evening' }
-}
-
 function WindowRow({
   win,
   isBest,
   cloudNote,
   onShare,
-  onCalendar,
+  calendarHref,
 }: {
   win: SafeActivityWindow
   isBest: boolean
   cloudNote?: boolean
   onShare: () => void
-  onCalendar?: () => void
+  calendarHref?: string
 }) {
-  const phase = dayPhase(win)
+  const range = `${fmtClock(win.from)}–${fmtClock(win.to)}`
   return (
     <div
+      data-testid="activity-window"
+      data-from={win.from}
+      data-to={win.to}
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: '10px',
+        gap: '9px',
         padding: '8px 10px',
         borderRadius: '10px',
         border: isBest ? '1.5px solid var(--accent)' : '0.5px solid var(--border-md)',
         background: isBest ? 'rgba(249,115,22,0.08)' : 'var(--bg-metric)',
       }}
     >
-      <span title={phase.label} style={{ fontSize: '17px', flexShrink: 0 }}>
-        {phase.icon}
-      </span>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: '7px' }}>
-          <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>
-            {fmtHour(win.from)}–{fmtHour(win.to)}
+        {/* The time range never breaks inside itself; BEST wraps below it as a unit
+            when a narrow card has no room beside it. */}
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'baseline',
+            columnGap: '7px',
+          }}
+        >
+          <span
+            style={{
+              fontSize: '13px',
+              fontWeight: 700,
+              color: 'var(--text)',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {range}
           </span>
           {isBest && (
             <span
@@ -86,29 +95,46 @@ function WindowRow({
                 color: 'var(--accent)',
                 textTransform: 'uppercase',
                 letterSpacing: '0.05em',
+                whiteSpace: 'nowrap',
               }}
             >
               Best
             </span>
           )}
         </div>
-        <span style={{ fontSize: '11px', color: 'var(--text-3)' }}>
-          {phase.label} · Peak UV {win.peakUV.toFixed(1)}
-          {cloudNote ? ' · ☁ qualifies with cloud estimate' : ''}
+        <span
+          style={{
+            display: 'block',
+            fontSize: '11px',
+            color: 'var(--text-3)',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          {win.label} · Peak UV {win.peakUV.toFixed(1)}
+          {cloudNote ? ' · ☁ with cloud estimate' : ''}
         </span>
       </div>
       <div style={{ display: 'flex', gap: '5px', flexShrink: 0 }}>
-        <button className="btn" onClick={onShare} style={{ padding: '5px 9px', fontSize: '11px' }}>
+        <button
+          className="btn"
+          onClick={onShare}
+          aria-label={`Share ${range}`}
+          style={{ padding: '5px 9px', fontSize: '11px' }}
+        >
           Share
         </button>
-        {onCalendar && (
-          <button
+        {calendarHref && (
+          <a
             className="btn"
-            onClick={onCalendar}
-            style={{ padding: '5px 9px', fontSize: '11px' }}
+            href={calendarHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ padding: '5px 9px', fontSize: '11px', textDecoration: 'none' }}
           >
-            Cal
-          </button>
+            Cal<VisuallyHidden>: add {range} to Google Calendar</VisuallyHidden>
+          </a>
         )}
       </div>
     </div>
@@ -116,34 +142,22 @@ function WindowRow({
 }
 
 export default function ActivityCards({
-  windows,
+  plans,
+  isToday,
   daysFromNow,
   tier,
   location,
   dateLabel,
-  hourly,
-  busy = [],
   onBookRecommended,
   onEditActivity,
 }: Props) {
   const [confirm, setConfirm] = useState<string | null>(null)
   const calendarAllowed = canUseCalendar(tier)
-  // For today, don't recommend a start time that's already passed (fractional so
-  // 9:45 doesn't surface a 9:00 start).
-  const now = new Date()
-  const nowHour = daysFromNow === 0 ? now.getHours() + now.getMinutes() / 60 : -1
 
-  function openCalendar(
-    activityName: string,
-    selectedWindow: { from: number; to: number },
-    durationMins: number,
-  ) {
-    const opened = window.open(
-      gcalLink(activityName, selectedWindow, durationMins, daysFromNow),
-      '_blank',
-    )
-    setConfirm(opened ? 'Opened Google Calendar.' : 'Pop-up blocked. Allow pop-ups or try again.')
-    window.setTimeout(() => setConfirm(null), 3500)
+  // Calendar actions are plain links (rel=noopener), so they are never pop-up
+  // blocked and the new tab cannot reach back into this one.
+  function calendarHref(activityName: string, span: { from: number; to: number }, mins: number) {
+    return gcalLink(activityName, span, mins, daysFromNow)
   }
 
   async function shareWindow(activity: Activity, selectedWindow: SafeActivityWindow) {
@@ -195,29 +209,39 @@ export default function ActivityCards({
           gap: '10px',
         }}
       >
-        {windows.map(({ activity, bestWindow, allWindows, safeNow, pctDaySafe, burnMins }) => {
-          const status = safeNow ? 'safe' : bestWindow ? 'caution' : 'avoid'
+        {plans.map(plan => {
+          const { activity, bestWindow, windows, slot: rec, pctDaySafe, burnMins } = plan
+          // The badge describes the recommendation below it, never a window that
+          // cannot be finished or has already passed.
+          const status = plan.startsNow ? 'safe' : rec ? 'caution' : 'avoid'
+          const badge = plan.startsNow
+            ? 'Now'
+            : rec
+              ? isToday
+                ? 'Later'
+                : 'Available'
+              : plan.elapsed
+                ? 'None left'
+                : 'No match'
           const durationLabel =
             activity.durationMins < 60
               ? `${activity.durationMins}m`
               : `${activity.durationMins / 60}h`
           const windowLabel = bestWindow
-            ? `${fmtHour(bestWindow.from)}–${fmtHour(bestWindow.to)}`
-            : 'None today'
+            ? `${fmtClock(bestWindow.from)}–${fmtClock(bestWindow.to)}`
+            : plan.elapsed
+              ? 'None left today'
+              : isToday
+                ? 'None today'
+                : 'None'
           const safeUv = effectiveMaxUV(activity)
-          const rec = recommendSlot(
-            allWindows,
-            busy,
-            activity.durationMins,
-            activity.timePreference ?? 'earliest',
-            nowHour,
-            hourly,
-          )
 
           return (
             <div
               key={activity.id}
               className="card"
+              data-testid="activity-card"
+              data-activity={activity.id}
               style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -236,7 +260,7 @@ export default function ActivityCards({
                   {activity.name}
                 </span>
                 <span className={`badge badge-${status}`} style={{ flexShrink: 0 }}>
-                  {status === 'safe' ? 'Within limit' : status === 'caution' ? 'Later' : 'No match'}
+                  {badge}
                 </span>
                 {onEditActivity && (
                   <button
@@ -258,6 +282,9 @@ export default function ActivityCards({
 
               {rec && (
                 <div
+                  data-testid="recommended-slot"
+                  data-start={rec.start}
+                  data-end={rec.end}
                   style={{
                     borderRadius: '9px',
                     background: 'rgba(249,115,22,0.07)',
@@ -307,33 +334,40 @@ export default function ActivityCards({
                     }}
                   >
                     {rec.reason}
-                    {rec.latestStart > rec.earliestStart
-                      ? `. Could start anytime ${fmtClock(rec.earliestStart)}–${fmtClock(rec.latestStart)}`
-                      : ''}
+                    {rec.latestStart > rec.earliestStart && (
+                      <>
+                        . Could start anytime{' '}
+                        <span style={{ whiteSpace: 'nowrap' }}>
+                          {fmtClock(rec.earliestStart)}–{fmtClock(rec.latestStart)}
+                        </span>
+                      </>
+                    )}
                     .
                   </p>
-                  {calendarAllowed && (
-                    <button
-                      className="btn"
-                      onClick={() =>
-                        onBookRecommended
-                          ? onBookRecommended(activity, rec)
-                          : openCalendar(
-                              activity.name,
-                              { from: rec.start, to: rec.end },
-                              activity.durationMins,
-                            )
-                      }
-                      style={{
-                        marginTop: '8px',
-                        width: '100%',
-                        justifyContent: 'center',
-                        fontSize: '12px',
-                      }}
-                    >
-                      📅 {onBookRecommended ? 'Book this time' : 'Add to Calendar'}
-                    </button>
-                  )}
+                  {calendarAllowed &&
+                    (onBookRecommended ? (
+                      <button
+                        className="btn"
+                        onClick={() => onBookRecommended(activity, rec)}
+                        style={recommendedActionStyle}
+                      >
+                        📅 Book this time
+                      </button>
+                    ) : (
+                      <a
+                        className="btn"
+                        href={calendarHref(
+                          activity.name,
+                          { from: rec.start, to: rec.end },
+                          activity.durationMins,
+                        )}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ ...recommendedActionStyle, textDecoration: 'none' }}
+                      >
+                        📅 Add to Calendar
+                      </a>
+                    ))}
                 </div>
               )}
 
@@ -358,7 +392,7 @@ export default function ActivityCards({
                 <Row
                   label="Best window"
                   val={windowLabel}
-                  accent={bestWindow ? '#16A34A' : '#DC2626'}
+                  accent={bestWindow ? 'var(--success)' : 'var(--danger)'}
                 />
               </div>
 
@@ -377,7 +411,11 @@ export default function ActivityCards({
                       borderRadius: '2px',
                       width: `${pctDaySafe}%`,
                       background:
-                        pctDaySafe >= 60 ? '#16A34A' : pctDaySafe >= 30 ? '#D97706' : '#DC2626',
+                        pctDaySafe >= 60
+                          ? 'var(--success)'
+                          : pctDaySafe >= 30
+                            ? 'var(--warning)'
+                            : 'var(--danger)',
                     }}
                   />
                 </div>
@@ -397,11 +435,11 @@ export default function ActivityCards({
                     letterSpacing: '0.055em',
                   }}
                 >
-                  Estimated lower-UV windows
+                  {isToday ? 'Lower-UV windows left today' : 'Estimated lower-UV windows'}
                 </p>
-                {allWindows.length > 0 ? (
+                {windows.length > 0 ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    {allWindows.map(win => {
+                    {windows.map(win => {
                       const isBest =
                         !!bestWindow && win.from === bestWindow.from && win.to === bestWindow.to
                       return (
@@ -411,9 +449,9 @@ export default function ActivityCards({
                           isBest={isBest}
                           cloudNote={!!activity.cloudSensitive && win.peakUV > safeUv}
                           onShare={() => void shareWindow(activity, win)}
-                          onCalendar={
+                          calendarHref={
                             calendarAllowed
-                              ? () => openCalendar(activity.name, win, activity.durationMins)
+                              ? calendarHref(activity.name, win, activity.durationMins)
                               : undefined
                           }
                         />
@@ -429,8 +467,9 @@ export default function ActivityCards({
                       lineHeight: 1.45,
                     }}
                   >
-                    No forecast window matches this activity today. Try shortening the duration,
-                    widening preferred hours, or adjusting the planning UV limit.
+                    {plan.elapsed
+                      ? "Today's matching windows have passed. See Best day this week for the next one."
+                      : `No forecast window matches this activity ${isToday ? 'today' : 'this day'}. Try shortening the duration, widening preferred hours, or adjusting the planning UV limit.`}
                   </p>
                 )}
               </div>

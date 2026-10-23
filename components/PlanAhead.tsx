@@ -3,7 +3,7 @@ import type { DayWeather, Activity, SkinType } from '@/lib/types'
 import type { UpcomingSlot } from '@/lib/planner'
 import { planUpcomingSlots } from '@/lib/planner'
 import type { BusyInterval, SlotRecommendation } from '@/lib/scheduler'
-import { fmtClock } from '@/lib/weather'
+import { fmtClock, uvColorHex, uvLabel, uvTextHex } from '@/lib/weather'
 import { buildICS, recToIcsEvent, downloadICS } from '@/lib/ics'
 
 interface Props {
@@ -18,13 +18,6 @@ interface Props {
   onUpgrade?: () => void
   /** When provided (calendar connected), books the slot on its specific day. */
   onBook?: (activity: Activity, rec: SlotRecommendation, dateStr: string) => void
-}
-
-function uvTone(uv: number): string {
-  if (uv <= 2) return '#16A34A'
-  if (uv <= 5) return '#D97706'
-  if (uv <= 7) return '#EA580C'
-  return '#DC2626'
 }
 
 /**
@@ -88,6 +81,11 @@ export default function PlanAhead({
         {plan.map(({ activity, label, dateStr, slot }: UpcomingSlot) => (
           <div
             key={activity.id}
+            data-testid="plan-ahead-row"
+            data-activity={activity.id}
+            data-date={dateStr}
+            data-start={slot.start}
+            data-end={slot.end}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -117,15 +115,28 @@ export default function PlanAhead({
                 {label} · {fmtClock(slot.start)}–{fmtClock(slot.end)}
               </p>
             </div>
+            {/* Color means one thing here: the slot's average UV, on the same scale
+                as the hourly strip. The time-of-day label stays neutral. */}
             <div style={{ textAlign: 'right', flexShrink: 0 }}>
-              <p
-                style={{ margin: 0, fontSize: '14px', fontWeight: 750, color: uvTone(slot.avgUV) }}
-              >
+              <p style={{ margin: 0, fontSize: '12px', fontWeight: 600, color: 'var(--text-2)' }}>
                 {slot.windowLabel}
               </p>
-              <p style={{ margin: '2px 0 0', fontSize: '11px', color: 'var(--text-3)' }}>
+              <span
+                title={`Average UV ${slot.avgUV.toFixed(1)}, ${uvLabel(slot.avgUV)}`}
+                style={{
+                  display: 'inline-block',
+                  marginTop: '3px',
+                  padding: '2px 7px',
+                  borderRadius: '999px',
+                  fontSize: '11px',
+                  fontWeight: 650,
+                  whiteSpace: 'nowrap',
+                  background: uvColorHex(slot.avgUV),
+                  color: uvTextHex(slot.avgUV),
+                }}
+              >
                 avg UV {slot.avgUV.toFixed(1)}
-              </p>
+              </span>
             </div>
             {onBook && (
               <button

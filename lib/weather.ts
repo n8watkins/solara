@@ -29,13 +29,12 @@ export function uvColorHex(uv: number): string {
   return '#C084FC'
 }
 
-export function uvTextHex(uv: number): string {
-  if (uv < 0.5) return '#374151'
-  if (uv <= 2) return '#14532D'
-  if (uv <= 5) return '#78350F'
-  if (uv <= 7) return '#7C2D12'
-  if (uv <= 10) return '#7F1D1D'
-  return '#4A044E'
+/**
+ * Text color on a UV fill (uvColorHex). Every fill is a light tint, so one
+ * near-black reads at 4.5:1 or better on all of them, in both themes.
+ */
+export function uvTextHex(_uv: number): string {
+  return '#1a1208'
 }
 
 export function fmtHour(h: number): string {
@@ -87,8 +86,12 @@ export function gcalLink(
 ): string {
   const base = new Date()
   base.setDate(base.getDate() + daysFromNow)
-  const start = new Date(base.getFullYear(), base.getMonth(), base.getDate(), window.from, 0, 0)
-  const end = new Date(start.getTime() + durationMins * 60000)
+  // Midnight plus whole minutes, so a fractional start (10.5 = 10:30) is kept
+  // instead of truncated to the hour by the Date constructor.
+  const start = new Date(base.getFullYear(), base.getMonth(), base.getDate())
+  start.setMinutes(Math.round(window.from * 60))
+  const end = new Date(start)
+  end.setMinutes(end.getMinutes() + Math.round(durationMins))
   const fmt = (d: Date) => d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
   const title = encodeURIComponent(`${activityName}: lower-UV window`)
   const details = encodeURIComponent(

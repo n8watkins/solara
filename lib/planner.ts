@@ -1,7 +1,7 @@
 import type { DayWeather, Activity, SkinType, SafeActivityWindow } from './types'
 import { getActivityWindow } from './weather'
 import type { SlotRecommendation, BusyInterval } from './scheduler'
-import { recommendSlot } from './scheduler'
+import { planActivityDay } from './next-slot'
 import { activityRunsOnDate } from './recommendation'
 
 export interface UpcomingWindow {
@@ -82,7 +82,7 @@ export interface UpcomingSlot {
 }
 
 /**
- * Best upcoming day AND concrete time for an activity: runs recommendSlot per day
+ * Best upcoming day AND concrete time for an activity: runs planActivityDay per day
  * across the horizon (respecting each day's calendar busy + the activity's
  * timePreference), then picks the best day.
  *
@@ -105,16 +105,11 @@ export function bestUpcomingSlot(
   for (const [i, day] of days.entries()) {
     if (!day.hourly.length) continue
     if (!activityRunsOn(activity, day.dateStr)) continue
-    const { allWindows } = getActivityWindow(day.hourly, activity, -1, skinType)
-    const busy = busyByDate[day.dateStr] ?? []
-    const slot = recommendSlot(
-      allWindows,
-      busy,
-      activity.durationMins,
-      pref,
-      i === 0 ? nowHourToday : -1,
-      day.hourly,
-    )
+    // The same actionable-slot calculation the dashboard cards and hero use.
+    const { slot } = planActivityDay(day.hourly, activity, skinType, {
+      nowHour: i === 0 ? nowHourToday : -1,
+      busy: busyByDate[day.dateStr] ?? [],
+    })
     if (!slot) continue
 
     const candidate: UpcomingSlot = {
