@@ -29,7 +29,7 @@ It worked for Waves 0-2 (PRs #17-#52) and applies to every later wave.
    Never use the em dash character; use a plain dash.
 5. Before finishing, run every check in the README's [quality checks](../README.md#quality-checks) and fix any failure or flake you see, even if unrelated, and mention it.
 6. Edit only owned files and listed touch points.
-   Never edit `CHANGELOG.md` or generated files (`next-env.d.ts`, the `AGENTS.md` block that `next dev` writes).
+   Never edit changelog files or generated files (`next-env.d.ts`, the `AGENTS.md` block that `next dev` writes).
 7. Push the branch and open a PR against `main`.
    Do not merge, deploy, or change cloud, GitHub or Stripe settings.
 8. Finish with a summary: what changed, test evidence, finding IDs closed, anything deferred, and any owner action now required.

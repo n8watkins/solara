@@ -18,7 +18,7 @@ What users get:
 - Google sign-in, required before the dashboard, with preferences synced to Firestore.
 - UV and weather forecasts from Open-Meteo, in the location's time zone, with Celsius or Fahrenheit and 12- or 24-hour time chosen from the locale or in Settings.
 - Personalized activity windows on the dashboard and in the week calendar, with Free (2-day) and Pro (10-day) limits.
-- Saved locations and family profiles, share links (`/share/`), and a one-off `.ics` download from Plan ahead.
+- Saved locations and family profiles, share links (`/share/`), and a one-off calendar file download from Plan ahead.
 - Opt-in Google Analytics 4 (the measurement ID is compiled into the live page).
 - The privacy policy and terms with the operator details (D8), and the Search Console ownership file.
 - Firestore rules and indexes, deployed by every push to `main`.
