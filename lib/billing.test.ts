@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const firestore = vi.hoisted(() => ({
   onSnapshot: vi.fn(),
@@ -12,7 +12,13 @@ vi.mock('firebase/firestore', () => ({
   updateDoc: vi.fn(),
 }))
 
-vi.mock('@/lib/firebase', () => ({ db: { kind: 'test-db' } }))
+const appCheck = vi.hoisted(() => ({ token: vi.fn() }))
+
+vi.mock('@/lib/firebase', () => ({
+  db: { kind: 'test-db' },
+  appCheckConfigured: () => !!process.env.NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY,
+  appCheckToken: appCheck.token,
+}))
 
 async function freshBilling() {
   vi.resetModules()
@@ -22,7 +28,15 @@ async function freshBilling() {
 describe('authenticated checkout', () => {
   const original = process.env.NEXT_PUBLIC_FUNCTIONS_URL
 
+  beforeEach(() => {
+    vi.stubEnv('NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY', 'site-key')
+    appCheck.token.mockImplementation(async ({ limitedUse = false } = {}) =>
+      limitedUse ? 'limited-use-app-check' : 'app-check',
+    )
+  })
+
   afterEach(() => {
+    vi.unstubAllEnvs()
     process.env.NEXT_PUBLIC_FUNCTIONS_URL = original
     vi.unstubAllGlobals()
     firestore.onSnapshot.mockReset()
@@ -60,10 +74,38 @@ describe('authenticated checkout', () => {
       'https://functions.example.test/createCheckoutSession',
       expect.objectContaining({
         method: 'POST',
-        headers: expect.objectContaining({ Authorization: 'Bearer firebase-id-token' }),
+        headers: expect.objectContaining({
+          Authorization: 'Bearer firebase-id-token',
+          'X-Firebase-AppCheck': 'limited-use-app-check',
+        }),
         body: JSON.stringify({ attemptId: '12345678-1234-1234-1234-123456789abc' }),
       }),
     )
+    expect(appCheck.token).toHaveBeenCalledWith({ limitedUse: true })
+  })
+
+  it('reports unconfigured without an App Check site key', async () => {
+    process.env.NEXT_PUBLIC_FUNCTIONS_URL = 'https://functions.example.test'
+    vi.stubEnv('NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY', '')
+    const { isCheckoutConfigured } = await freshBilling()
+    expect(isCheckoutConfigured()).toBe(false)
+  })
+
+  it('shows the allowlisted server message when checkout is refused', async () => {
+    process.env.NEXT_PUBLIC_FUNCTIONS_URL = 'https://functions.example.test'
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 409,
+        json: async () => ({ error: 'Account already has a subscription', code: 'conflict' }),
+      }),
+    )
+    vi.stubGlobal('crypto', { randomUUID: vi.fn(() => '12345678-1234-1234-1234-123456789abc') })
+    const { createCheckoutUrl } = await freshBilling()
+    await expect(
+      createCheckoutUrl({ getIdToken: vi.fn().mockResolvedValue('token') } as never),
+    ).rejects.toMatchObject({ message: 'Account already has a subscription', code: 'conflict' })
   })
 
   it('rejects untrusted checkout URLs returned by the backend', async () => {

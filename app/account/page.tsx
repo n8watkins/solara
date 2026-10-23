@@ -6,10 +6,11 @@ import { onAuthStateChanged, reauthenticateWithPopup, signOut } from 'firebase/a
 import { useEffect, useState } from 'react'
 import { auth, googleProvider } from '@/lib/firebase'
 import { createBillingPortalUrl } from '@/lib/billing'
+import { callFunction, functionsApiConfigured } from '@/lib/functions-api'
 import { clearLocalPrefs } from '@/lib/prefs'
 import { clearLocalNotificationState } from '@/lib/notifications'
 
-const FUNCTIONS_URL = process.env.NEXT_PUBLIC_FUNCTIONS_URL?.replace(/\/$/, '')
+const FUNCTIONS_READY = functionsApiConfigured()
 
 export default function AccountPage() {
   const [user, setUser] = useState<User | null>(null)
@@ -36,27 +37,16 @@ export default function AccountPage() {
     setDeletionPending(new URLSearchParams(window.location.search).get('deletion') === 'pending')
   }, [])
 
-  async function authorizedRequest(path: string, init?: RequestInit) {
-    if (!user || !FUNCTIONS_URL) throw new Error('Account controls are not configured yet.')
-    const token = await user.getIdToken(true)
-    const response = await fetch(`${FUNCTIONS_URL}/${path}`, {
-      ...init,
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-        ...init?.headers,
-      },
-    })
-    const body = await response.json().catch(() => ({}))
-    if (!response.ok) throw new Error(body.error || 'The request could not be completed.')
-    return body
-  }
-
   async function downloadData() {
     setBusy('export')
     setMessage('')
     try {
-      const data = await authorizedRequest('exportAccountData')
+      if (!user) throw new Error('Sign in again to download your data.')
+      const data = await callFunction(user, 'exportAccountData', {
+        method: 'GET',
+        freshIdToken: true,
+        fallbackMessage: 'The export could not be completed.',
+      })
       const url = URL.createObjectURL(
         new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }),
       )
@@ -92,9 +82,14 @@ export default function AccountPage() {
     try {
       if (!googleProvider) throw new Error('Google reauthentication is not configured.')
       await reauthenticateWithPopup(user, googleProvider)
-      const result = (await authorizedRequest('deleteAccount', {
+      // A limited-use App Check token is consumed by the server, so this request cannot be
+      // replayed.
+      const result = (await callFunction(user, 'deleteAccount', {
         method: 'DELETE',
-        body: JSON.stringify({ confirmation }),
+        body: { confirmation },
+        limitedUse: true,
+        freshIdToken: true,
+        fallbackMessage: 'Deletion could not be completed.',
       })) as { deletionPending?: boolean }
       clearLocalPrefs()
       await clearLocalNotificationState(user.uid)
@@ -148,7 +143,7 @@ export default function AccountPage() {
               </p>
               <button
                 className="btn btn-primary"
-                disabled={busy !== null || !FUNCTIONS_URL}
+                disabled={busy !== null || !FUNCTIONS_READY}
                 onClick={() => void manageBilling()}
               >
                 {busy === 'billing' ? 'Opening...' : 'Manage subscription'}
@@ -163,7 +158,7 @@ export default function AccountPage() {
               </p>
               <button
                 className="btn btn-primary"
-                disabled={busy !== null || !FUNCTIONS_URL}
+                disabled={busy !== null || !FUNCTIONS_READY}
                 onClick={() => void downloadData()}
               >
                 {busy === 'export' ? 'Preparing...' : 'Download account data'}
@@ -195,7 +190,7 @@ export default function AccountPage() {
                 <button
                   className="btn"
                   style={{ color: '#DC2626', borderColor: '#FCA5A5' }}
-                  disabled={confirmation !== 'DELETE' || busy !== null || !FUNCTIONS_URL}
+                  disabled={confirmation !== 'DELETE' || busy !== null || !FUNCTIONS_READY}
                   onClick={() => void removeAccount()}
                 >
                   {busy === 'delete' ? 'Deleting...' : 'Delete permanently'}
@@ -205,7 +200,7 @@ export default function AccountPage() {
           </div>
         )}
 
-        {!FUNCTIONS_URL && authReady && (
+        {!FUNCTIONS_READY && authReady && (
           <p
             style={{
               marginTop: '18px',
@@ -216,7 +211,8 @@ export default function AccountPage() {
               fontSize: '13px',
             }}
           >
-            Account controls will become available after the Cloud Functions URL is configured.
+            Account controls will become available after the Cloud Functions and App Check are
+            configured.
           </p>
         )}
         {message && (
