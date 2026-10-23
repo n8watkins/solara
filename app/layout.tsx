@@ -22,8 +22,8 @@ const inter = localFont({
   adjustFontFallback: 'Arial',
 })
 
-// Interpolated into an inline script below. Refuse anything that is not a plain
-// GA4 measurement id so a malformed env value can't break out of the string.
+// Refuse anything that is not a plain GA4 measurement id: it ends up in the
+// gtag.js URL and GA config, and a malformed env value should disable analytics.
 const RAW_GA_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID
 const GA_ID = isAnalyticsMeasurementId(RAW_GA_ID) ? RAW_GA_ID : undefined
 

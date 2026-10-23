@@ -110,8 +110,8 @@ Complete only the sections activated for this release.
 ### Google Calendar
 
 - [ ] Complete OAuth consent on the production origin.
-- [ ] Confirm connecting requests `calendar.readonly` and Solara only reads busy times through the `freeBusy` endpoint.
-- [ ] Confirm `calendar.events` is requested only when creating an event.
+- [ ] Confirm connecting requests only `calendar.freebusy` and Solara only reads busy times through the `freeBusy` endpoint.
+- [ ] Confirm `calendar.events.owned` is requested only when creating an event.
 - [ ] Create a test event and verify its date, time, timezone, and description.
 - [ ] Revoke access and confirm Solara handles the disconnected state.
 

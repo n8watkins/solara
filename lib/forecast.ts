@@ -1,4 +1,5 @@
 import type { Location, WeatherResponse, HourlyForecast, DayWeather } from './types'
+import { roundCoordinate } from './geocoding'
 
 type OpenMeteoHourlyRow = {
   date: string
@@ -162,8 +163,8 @@ export async function fetchForecast(
 ): Promise<WeatherResponse> {
   const { days = 10, signal, timeoutMs = core.FETCH_TIMEOUT_MS } = opts
   const url = core.forecastUrl({
-    lat: location.lat,
-    lon: location.lon,
+    lat: roundCoordinate(location.lat),
+    lon: roundCoordinate(location.lon),
     days,
     hourly: ['uv_index', 'temperature_2m', 'weathercode', 'cloudcover'],
     current: ['uv_index', 'temperature_2m', 'weathercode'],

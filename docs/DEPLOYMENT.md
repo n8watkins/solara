@@ -142,9 +142,20 @@ When the variable is not `true`, the workflow keeps Function-backed client surfa
 ## Service worker generation
 
 `public/firebase-messaging-sw.js` is a generated, ignored artifact.
-Both `npm run dev` and `npm run build` run `scripts/generate-sw.js` first and create it from the Firebase values in `.env.local` or the deployment environment.
+Both `npm run dev` and `npm run build` run `scripts/generate-sw.js` first, which bundles `scripts/sw/firebase-messaging-sw.ts` with the app's npm Firebase SDK and the Firebase values in `.env.local` or the deployment environment.
+The worker loads no script from a CDN, and notification clicks open only same-origin links, focusing an open Solara window when there is one.
 Do not commit or hand-edit the generated worker.
 Re-run the generator through either command after changing Firebase client configuration.
+
+## Content Security Policy
+
+`npm run build` ends with `scripts/csp.mjs`, which writes a `<meta http-equiv="Content-Security-Policy">` tag into every HTML file in `out/`.
+Each page's policy lists the SHA-256 hash of every inline script on that page, so scripts never need `'unsafe-inline'`.
+The policy itself is defined in `lib/csp.mts`; add a host there, with a comment saying what needs it, when a new third-party service is introduced, and list the service in the privacy policy.
+The Functions origin and Firebase auth domain come from `NEXT_PUBLIC_FUNCTIONS_URL` and `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` at build time, so deploy the `out/` directory produced by the same build.
+`firebase.json` adds the directives a meta tag cannot carry (`frame-ancestors`) as a header.
+Because the meta policy cannot send reports, violations show only in the browser console; check the console on the deployed site after a release.
+Unknown paths are served the exported `404.html` with a 404 status; there is no catch-all rewrite.
 
 For a controlled manual deployment, use an explicit project ID and deploy in dependency order.
 
@@ -287,8 +298,9 @@ Before production activation, verify that export excludes capability tokens and 
 
 Create a Google OAuth Web client, enable the Calendar API, configure its consent screen, and add each deployed origin as an Authorized JavaScript origin.
 Set `NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID` and deploy again.
-Connecting a calendar requests the `calendar.readonly` scope, and Solara only calls the `freeBusy` endpoint with it.
-Creating an event requests the `calendar.events` scope at booking time.
+Add only these two scopes to the consent screen's data access list: `https://www.googleapis.com/auth/calendar.freebusy` and `https://www.googleapis.com/auth/calendar.events.owned`.
+Connecting a calendar requests `calendar.freebusy`, which can read busy times and nothing else.
+Creating an event requests `calendar.events.owned` at booking time.
 Verify both consent prompts, that only busy times are read, and that creating an event produces the expected time and description.
 
 ## Operational rollback

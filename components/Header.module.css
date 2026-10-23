@@ -55,11 +55,6 @@
     gap: 4px;
     min-height: 50px;
   }
-  /* The location trigger sits mid-row on phones, so anchor its panel to the
-     header row instead, keeping it on screen at narrow widths. */
-  .location > * {
-    position: static !important;
-  }
   /* The plan badge gives way so the city fits; the plan stays visible in Settings. */
   .uvLevel,
   .pro {

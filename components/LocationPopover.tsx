@@ -1,8 +1,13 @@
 'use client'
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useLayoutEffect } from 'react'
 import type { Location } from '@/lib/types'
 import { clearWeatherCache } from '@/lib/cache'
-import { searchLocation } from '@/lib/geocoding'
+import { locationFromCoordinates, searchLocation } from '@/lib/geocoding'
+import DataAttribution from './DataAttribution'
+import styles from './LocationPopover.module.css'
+
+/** Minimum gap between the panel and the viewport edge. */
+const VIEWPORT_GUTTER = 12
 
 interface Props {
   location: Location
@@ -23,6 +28,27 @@ export default function LocationPopover({ location, savedLocations, limit, onApp
   const [error, setError] = useState<string | null>(null)
   const [note, setNote] = useState<string | null>(null)
   const ref = useRef<HTMLDivElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+  // Horizontal nudge that keeps the panel inside the viewport wherever the
+  // trigger sits in the header.
+  const [shift, setShift] = useState(0)
+
+  useLayoutEffect(() => {
+    if (!open) return
+    function clamp() {
+      const panel = panelRef.current
+      const anchor = ref.current
+      if (!panel || !anchor) return
+      const left = anchor.getBoundingClientRect().left
+      const width = panel.offsetWidth
+      const maxLeft = window.innerWidth - VIEWPORT_GUTTER - width
+      const target = Math.max(VIEWPORT_GUTTER, Math.min(left, maxLeft))
+      setShift(target - left)
+    }
+    clamp()
+    window.addEventListener('resize', clamp)
+    return () => window.removeEventListener('resize', clamp)
+  }, [open])
 
   useEffect(() => {
     function handle(e: MouseEvent) {
@@ -80,18 +106,8 @@ export default function LocationPopover({ location, savedLocations, limit, onApp
     setNote(null)
     async function resolvePosition(pos: GeolocationPosition) {
       try {
-        const { latitude: lat, longitude: lon } = pos.coords
-        const res = await fetch(
-          `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`,
-        )
-        const data = await res.json()
-        const city =
-          data.address?.city || data.address?.town || data.address?.village || 'Your location'
-        const region = data.address?.state || ''
-        activate(
-          { lat, lon, city, region, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone },
-          false,
-        ) // current location switches but isn't auto-saved
+        const loc = await locationFromCoordinates(pos.coords.latitude, pos.coords.longitude)
+        activate(loc, false) // current location switches but isn't auto-saved
         setTimeout(() => setOpen(false), 800)
       } catch {
         setError('Could not resolve.')
@@ -110,25 +126,7 @@ export default function LocationPopover({ location, savedLocations, limit, onApp
 
   return (
     <div ref={ref} style={{ position: 'relative', display: 'inline-block' }}>
-      <button
-        onClick={() => setOpen(o => !o)}
-        style={{
-          fontSize: '13px',
-          color: 'var(--text-3)',
-          background: 'none',
-          border: 'none',
-          cursor: 'pointer',
-          padding: '3px 7px',
-          borderRadius: '6px',
-          transition: 'background 0.1s',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '4px',
-          maxWidth: '100%',
-        }}
-        onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-metric)')}
-        onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-      >
+      <button className={styles.trigger} onClick={() => setOpen(o => !o)}>
         📍{' '}
         <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {location.city}
@@ -136,20 +134,7 @@ export default function LocationPopover({ location, savedLocations, limit, onApp
       </button>
 
       {open && (
-        <div
-          style={{
-            position: 'absolute',
-            top: 'calc(100% + 6px)',
-            left: 0,
-            zIndex: 100,
-            background: 'var(--bg-card)',
-            border: '0.5px solid var(--border-md)',
-            borderRadius: '14px',
-            padding: '14px',
-            width: '270px',
-            boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
-          }}
-        >
+        <div ref={panelRef} className={styles.panel} style={{ left: shift }}>
           <p
             style={{
               margin: '0 0 10px',
@@ -220,22 +205,7 @@ export default function LocationPopover({ location, savedLocations, limit, onApp
                   key={`${loc.lat},${loc.lon}`}
                   style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
                 >
-                  <button
-                    onClick={() => activate(loc, false)}
-                    style={{
-                      flex: 1,
-                      textAlign: 'left',
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      padding: '6px 8px',
-                      borderRadius: '8px',
-                      fontSize: '13px',
-                      color: 'var(--text-2)',
-                    }}
-                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-metric)')}
-                    onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-                  >
+                  <button className={styles.shortcut} onClick={() => activate(loc, false)}>
                     {loc.city}
                     {loc.region ? `, ${loc.region}` : ''}
                   </button>
@@ -279,14 +249,15 @@ export default function LocationPopover({ location, savedLocations, limit, onApp
               onKeyDown={e => {
                 if (e.key === 'Enter') void search()
               }}
-              style={{ flex: 1, fontSize: '13px', padding: '7px 10px' }}
+              aria-label="Add a city"
+              style={{ flex: 1, minWidth: 0, fontSize: '13px', padding: '7px 10px' }}
               autoFocus
             />
             <button
               className="btn"
               onClick={() => void search()}
               disabled={loading}
-              style={{ fontSize: '13px', padding: '7px 12px' }}
+              style={{ flexShrink: 0, fontSize: '13px', padding: '7px 12px' }}
             >
               {loading ? '…' : 'Go'}
             </button>
@@ -300,6 +271,14 @@ export default function LocationPopover({ location, savedLocations, limit, onApp
           {note && (
             <p style={{ margin: '6px 0 0', fontSize: '12px', color: 'var(--text-2)' }}>{note}</p>
           )}
+          <DataAttribution
+            compact
+            style={{
+              marginTop: '10px',
+              paddingTop: '8px',
+              borderTop: '0.5px solid var(--border-md)',
+            }}
+          />
         </div>
       )}
     </div>
