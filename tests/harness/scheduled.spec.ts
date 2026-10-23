@@ -100,16 +100,19 @@ test('dashboard: the activity card shows what is scheduled', async ({ page }, te
   const card = page.locator('[data-testid="activity-card"][data-activity="run"]')
   const row = card.getByTestId('scheduled-card-row')
   await expect(row.getByText('✓ Scheduled')).toBeVisible()
-  await expect(row.getByText('6pm–6:45pm')).toBeVisible()
-  await expect(row.getByRole('link', { name: /Open ↗/ })).toHaveAttribute(
-    'href',
-    'https://www.google.com/calendar/event?eid=harnessrun1',
-  )
-  await expect(row.getByRole('link', { name: /Open ↗/ })).toHaveAttribute(
-    'rel',
-    'noopener noreferrer',
-  )
-  // The recommended 6pm slot is already on the calendar, so it is not offered again.
+  await expect(row.getByText('6pm–6:45pm', { exact: true })).toBeVisible()
+  await expect(
+    row.getByRole('link', {
+      name: 'Open scheduled Running, 6pm–6:45pm, in Google Calendar',
+    }),
+  ).toHaveAttribute('href', 'https://www.google.com/calendar/event?eid=harnessrun1')
+  await expect(
+    row.getByRole('link', {
+      name: 'Open scheduled Running, 6pm–6:45pm, in Google Calendar',
+    }),
+  ).toHaveAttribute('rel', 'noopener noreferrer')
+  // The recommended 6pm slot is already on the calendar: the Scheduled row replaces it.
+  await expect(card.getByTestId('recommended-slot')).toHaveCount(0)
   await expect(card.getByRole('button', { name: /Add to Google Calendar/ })).toHaveCount(0)
   await card.scrollIntoViewIfNeeded()
   await shot(page, 'scheduled-dashboard', testInfo.project.name)

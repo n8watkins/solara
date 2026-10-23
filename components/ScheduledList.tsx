@@ -79,17 +79,18 @@ export default function ScheduledList({ activities, timeZone, nowMs, dayLabel, o
                   aria-haspopup="dialog"
                   aria-label={`Scheduled: ${name}, ${when}`}
                   onClick={() => onOpen(item)}
-                  style={{ borderLeftColor: activityColor(activities, item.activityId) }}
                 >
-                  <span aria-hidden="true" className={styles.rowIcon}>
+                  <span
+                    aria-hidden="true"
+                    className={`${styles.tile} ${styles.rowTile}`}
+                    style={{ background: activityColor(activities, item.activityId) }}
+                  >
                     {activity?.icon ?? item.icon}
+                    <span className={styles.tileCheck}>✓</span>
                   </span>
                   <span className={styles.rowText}>
                     <span className={styles.rowName}>{name}</span>
                     <span className={styles.rowWhen}>{when}</span>
-                  </span>
-                  <span aria-hidden="true" className={styles.pill}>
-                    ✓ Scheduled
                   </span>
                 </button>
               </li>

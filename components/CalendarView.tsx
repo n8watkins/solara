@@ -814,14 +814,18 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
                               zIndex: isSel ? 2 : 1,
                             }}
                           >
-                            <ChipLabel
-                              act={act}
-                              win={win}
-                              variant={variant}
-                              lines={lines}
-                              fmt={fmt}
-                              startsNow={day.isToday && win.from === todayNowHour}
-                            />
+                            {/* A receded window's label would sit under the scheduled
+                                block; the block and the accessible name say it all. */}
+                            {!soft && (
+                              <ChipLabel
+                                act={act}
+                                win={win}
+                                variant={variant}
+                                lines={lines}
+                                fmt={fmt}
+                                startsNow={day.isToday && win.from === todayNowHour}
+                              />
+                            )}
                             {/* The visible label is abbreviated, so the accessible
                                 name is this full description instead. */}
                             <span data-sr-only style={srOnly}>

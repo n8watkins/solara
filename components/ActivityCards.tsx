@@ -5,7 +5,7 @@ import { fmtDays, gcalLink } from '@/lib/weather'
 import { useUnits } from '@/lib/use-units'
 import { canUseCalendar, effectiveMaxUV } from '@/lib/tiers'
 import { buildActivityShareText, buildActivityShareUrl, shareOrCopy } from '@/lib/share'
-import type { SlotRecommendation } from '@/lib/scheduler'
+import { recommendSlot, type SlotRecommendation } from '@/lib/scheduler'
 import type { ActivityDayPlan } from '@/lib/next-slot'
 import type { ScheduledActivity, ScheduledSpan } from '@/lib/scheduled'
 import VisuallyHidden from './VisuallyHidden'
@@ -53,12 +53,15 @@ function WindowRow({
   cloudNote,
   onShare,
   calendarHref,
+  onSchedule,
 }: {
   win: SafeActivityWindow
   isBest: boolean
   cloudNote?: boolean
   onShare: () => void
   calendarHref?: string
+  /** Adds this window to Google Calendar as a scheduled activity (replaces the link). */
+  onSchedule?: () => void
 }) {
   const fmt = useUnits()
   const range = `${fmt.time(win.from)}–${fmt.time(win.to)}`
@@ -136,16 +139,26 @@ function WindowRow({
         >
           Share
         </button>
-        {calendarHref && (
-          <a
+        {onSchedule ? (
+          <button
             className="btn"
-            href={calendarHref}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ padding: '5px 9px', fontSize: '11px', textDecoration: 'none' }}
+            onClick={onSchedule}
+            style={{ padding: '5px 9px', fontSize: '11px' }}
           >
             Cal<VisuallyHidden>: add {range} to Google Calendar</VisuallyHidden>
-          </a>
+          </button>
+        ) : (
+          calendarHref && (
+            <a
+              className="btn"
+              href={calendarHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ padding: '5px 9px', fontSize: '11px', textDecoration: 'none' }}
+            >
+              Cal<VisuallyHidden>: add {range} to Google Calendar</VisuallyHidden>
+            </a>
+          )
         )}
       </div>
     </div>
@@ -253,7 +266,7 @@ export default function ActivityCards({
                 : 'None'
           const safeUv = effectiveMaxUV(activity)
           const scheduled = scheduledFor?.(activity.id) ?? []
-          // Once the recommended slot is on the calendar, it is not offered again.
+          // Once the recommended slot is on the calendar, the Scheduled row replaces it.
           const recScheduled =
             !!rec && scheduled.some(({ span }) => span.from < rec.end && span.to > rec.start)
 
@@ -320,11 +333,9 @@ export default function ActivityCards({
                         href={item.htmlLink}
                         target="_blank"
                         rel="noopener noreferrer"
+                        aria-label={`Open scheduled ${activity.name}, ${range}, in Google Calendar`}
                       >
-                        Open ↗
-                        <VisuallyHidden>
-                          : {activity.name} {range} in Google Calendar
-                        </VisuallyHidden>
+                        Open <span aria-hidden="true">↗</span>
                       </a>
                       {onOpenScheduled && (
                         <button
@@ -332,11 +343,9 @@ export default function ActivityCards({
                           className={`btn ${styles.small}`}
                           aria-haspopup="dialog"
                           onClick={() => onOpenScheduled(item)}
+                          aria-label={`Manage scheduled ${activity.name}, ${range}`}
                         >
                           Manage
-                          <VisuallyHidden>
-                            : scheduled {activity.name} {range}
-                          </VisuallyHidden>
                         </button>
                       )}
                     </div>
@@ -344,7 +353,7 @@ export default function ActivityCards({
                 )
               })}
 
-              {rec && (
+              {rec && !recScheduled && (
                 <div
                   data-testid="recommended-slot"
                   data-start={rec.start}
@@ -409,7 +418,6 @@ export default function ActivityCards({
                     .
                   </p>
                   {calendarAllowed &&
-                    !recScheduled &&
                     (onBookRecommended ? (
                       <button
                         className="btn"
@@ -517,6 +525,19 @@ export default function ActivityCards({
                           calendarHref={
                             calendarAllowed
                               ? calendarHref(activity.name, win, activity.durationMins)
+                              : undefined
+                          }
+                          onSchedule={
+                            calendarAllowed && onBookRecommended
+                              ? () => {
+                                  const slot = recommendSlot(
+                                    [win],
+                                    [],
+                                    activity.durationMins,
+                                    activity.timePreference ?? 'earliest',
+                                  )
+                                  if (slot) onBookRecommended(activity, slot)
+                                }
                               : undefined
                           }
                         />
