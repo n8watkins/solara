@@ -73,6 +73,9 @@ const FRAME_SOURCES = [
 
 const IMG_SOURCES = [
   'https://*.googleusercontent.com', // Google profile photos
+  // Firestore's WebChannel transport loads this one image to test connectivity
+  // after a connection error. A path without a trailing slash matches only itself.
+  'https://www.google.com/images/cleardot.gif',
   'https://*.google-analytics.com',
   'https://*.googletagmanager.com',
 ]

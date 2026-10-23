@@ -69,6 +69,14 @@ describe('page policy', () => {
     ])
   })
 
+  it('allows exactly the image Firestore loads to test connectivity, nothing else on google.com', () => {
+    const images = directive(policy, 'img-src')
+    expect(images).toContain('https://www.google.com/images/cleardot.gif')
+    expect(images.filter(s => s.includes('www.google.com'))).toEqual([
+      'https://www.google.com/images/cleardot.gif',
+    ])
+  })
+
   it('omits optional origins that are not configured or not https', () => {
     const bare = serializePolicy(pagePolicy([], { functionsUrl: 'http://insecure.test' }))
     expect(bare).not.toContain('insecure.test')
