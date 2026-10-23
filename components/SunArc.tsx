@@ -1,8 +1,8 @@
 'use client'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import type { HourlyForecast } from '@/lib/types'
 import { fmtHour, uvColorHex } from '@/lib/weather'
-import { UV_BAR_GAP, uvBarCenter } from './UVTimeline'
+import { UV_BAR_GAP, hourSlots, missingRuns, uvBarCenter } from './UVTimeline'
 
 interface Props {
   hourly: HourlyForecast[]
@@ -54,7 +54,13 @@ export default function SunArc({ hourly, nowHour, focused, onSelectHour }: Props
   const [wrapRef, width] = useWidth<HTMLDivElement>()
   const dragging = useRef(false)
 
-  const count = hourly.length
+  const ids = useId()
+  const lineId = `${ids}-line`
+  const clipId = `${ids}-known`
+  // Positions follow the strip's slots, which include hours with no UV data.
+  const slots = hourSlots(hourly)
+  const count = slots.length
+  const firstHour = slots[0]?.hour ?? 0
   const first = hourly[0]
   if (!first) return null
 
@@ -71,7 +77,8 @@ export default function SunArc({ hourly, nowHour, focused, onSelectHour }: Props
       y: mt * mt * BASELINE_Y + 2 * mt * t * CONTROL_Y + t * t * BASELINE_Y,
     }
   }
-  const indexOfHour = (hour: number) => hourly.findIndex(h => h.hour === hour)
+  const indexOfHour = (hour: number) =>
+    hour >= firstHour && hour < firstHour + count ? hour - firstHour : -1
   /** Fractional bar index for a fractional hour (10.5 sits halfway from 10am to 11am). */
   const indexForTime = (time: number) => {
     const whole = indexOfHour(Math.floor(time))
@@ -91,6 +98,17 @@ export default function SunArc({ hourly, nowHour, focused, onSelectHour }: Props
   const peakAnchor =
     peakPoint.x < 60 ? 'start' : peakPoint.x > width - 60 ? 'end' : ('middle' as const)
 
+  // x-ranges with data on both sides: everything except each gap's span from the
+  // last known hour before it to the first known hour after it.
+  const gaps = missingRuns(slots)
+  const knownSpans: Array<[number, number]> = []
+  let spanStart = 0
+  for (const [from, to] of gaps) {
+    knownSpans.push([spanStart, center(indexOfHour(from) - 1)])
+    spanStart = center(indexOfHour(to) + 1)
+  }
+  knownSpans.push([spanStart, width])
+
   const path = `M ${x0} ${BASELINE_Y} Q ${(x0 + x1) / 2} ${CONTROL_Y} ${x1} ${BASELINE_Y}`
 
   // Map a pointer x (client px) to the nearest bar's hour, then report it upward.
@@ -99,7 +117,10 @@ export default function SunArc({ hourly, nowHour, focused, onSelectHour }: Props
     if (rect.width === 0 || count === 0) return
     const pitch = (rect.width + UV_BAR_GAP) / count
     const index = clamp(Math.floor((clientX - rect.left + UV_BAR_GAP / 2) / pitch), 0, count - 1)
-    const h = hourly[index]
+    // A gap has nothing to inspect: snap to the nearest hour that has data.
+    let h = slots[index]?.data ?? null
+    for (let d = 1; !h && d < count; d++)
+      h = slots[index - d]?.data ?? slots[index + d]?.data ?? null
     if (h) onSelectHour(h)
   }
 
@@ -141,17 +162,30 @@ export default function SunArc({ hourly, nowHour, focused, onSelectHour }: Props
             {/* userSpaceOnUse: gradient offsets follow the bars, so each stretch of
                 the line takes the color of the hour beneath it. */}
             <linearGradient
-              id="sunArcLine"
+              id={lineId}
               gradientUnits="userSpaceOnUse"
               x1={x0}
               x2={x1}
               y1="0"
               y2="0"
             >
-              {hourly.map((h, i) => (
-                <stop key={h.hour} offset={`${tForIndex(i) * 100}%`} stopColor={uvColorHex(h.uv)} />
-              ))}
+              {slots.map((slot, i) =>
+                slot.data ? (
+                  <stop
+                    key={slot.hour}
+                    offset={`${tForIndex(i) * 100}%`}
+                    stopColor={uvColorHex(slot.data.uv)}
+                  />
+                ) : null,
+              )}
             </linearGradient>
+            {/* The colored line is drawn only where both ends of a stretch have
+                data; across a gap only the faint dashed guide remains. */}
+            <clipPath id={clipId}>
+              {knownSpans.map(([from, to]) => (
+                <rect key={from} x={from} y="0" width={to - from} height={HEIGHT} />
+              ))}
+            </clipPath>
             <radialGradient id="sunGlow" cx="50%" cy="50%" r="50%">
               <stop offset="0%" stopColor="rgba(251,191,36,0.48)" />
               <stop offset="100%" stopColor="rgba(251,191,36,0)" />
@@ -178,21 +212,48 @@ export default function SunArc({ hourly, nowHour, focused, onSelectHour }: Props
             stroke="rgba(156,163,175,0.24)"
             strokeWidth="1"
           />
-          <path
-            d={path}
-            fill="none"
-            stroke="url(#sunArcLine)"
-            strokeWidth="4"
-            strokeLinecap="round"
-          />
-          <path
-            d={path}
-            fill="none"
-            stroke="rgba(255,255,255,0.34)"
-            strokeWidth="1"
-            strokeLinecap="round"
-            strokeDasharray="4 7"
-          />
+          {gaps.length > 0 && (
+            <path
+              d={path}
+              fill="none"
+              stroke="rgba(156,163,175,0.55)"
+              strokeWidth="1.5"
+              strokeDasharray="3 5"
+            />
+          )}
+          <g clipPath={`url(#${clipId})`}>
+            <path
+              d={path}
+              fill="none"
+              stroke={`url(#${lineId})`}
+              strokeWidth="4"
+              strokeLinecap="round"
+            />
+            <path
+              d={path}
+              fill="none"
+              stroke="rgba(255,255,255,0.34)"
+              strokeWidth="1"
+              strokeLinecap="round"
+              strokeDasharray="4 7"
+            />
+          </g>
+          {gaps.map(([from, to]) => {
+            const mid = pointAt(tForIndex((indexOfHour(from) + indexOfHour(to)) / 2))
+            return (
+              <text
+                key={from}
+                x={mid.x}
+                y={mid.y - 10}
+                textAnchor="middle"
+                fill="var(--text-3)"
+                fontSize="10.5"
+                fontWeight="600"
+              >
+                No data
+              </text>
+            )
+          })}
 
           {hasPeak && (
             <circle
