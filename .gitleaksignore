@@ -1,0 +1,8 @@
+# Findings reviewed and accepted. gitleaks matches these fingerprints exactly.
+#
+# A Firebase web API key in an old generated service worker. Firebase web API
+# keys are public identifiers compiled into every client bundle, not secrets;
+# access is enforced by Firestore rules and App Check. The file is generated
+# and gitignored now.
+54905c940a10900068877864a0fbebbe0723f407:public/firebase-messaging-sw.js:gcp-api-key:5
+3121c1669fa940918866d30359033fab9c64862a:public/firebase-messaging-sw.js:gcp-api-key:5

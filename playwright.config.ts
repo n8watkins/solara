@@ -1,6 +1,23 @@
+import { execFileSync } from 'node:child_process'
 import { defineConfig, devices } from '@playwright/test'
 
-const port = Number(process.env.PLAYWRIGHT_PORT || 45678)
+// The e2e suite runs against the static export served by the Firebase Hosting
+// emulator (tests/e2e/serve-export.mjs), so it exercises the real firebase.json
+// headers and rewrites. By default the server builds `out/` with the hermetic
+// public env below; set E2E_SITE_DIR to test an existing export instead.
+
+/** Asks the OS for a free port. Synchronous because the config must be. */
+function freePort(): number {
+  const script =
+    "const s=require('node:net').createServer();" +
+    "s.listen(0,'127.0.0.1',()=>{process.stdout.write(String(s.address().port));s.close()})"
+  return Number(execFileSync(process.execPath, ['-e', script], { encoding: 'utf8' }))
+}
+
+// A random port unless PLAYWRIGHT_PORT pins one. Exported to the environment so
+// worker processes, which load this config again, agree on the same port.
+const port = Number(process.env.PLAYWRIGHT_PORT) || freePort()
+process.env.PLAYWRIGHT_PORT = String(port)
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -25,10 +42,18 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: `npm run dev -- --hostname 127.0.0.1 --port ${port}`,
+    command: `node tests/e2e/serve-export.mjs ${port}`,
     url: `http://127.0.0.1:${port}`,
-    reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
+    // Never reuse a server: a stale one would serve an old build.
+    reuseExistingServer: false,
+    // The default build runs first (about a minute on a cold CI runner).
+    timeout: 240_000,
+    // SIGTERM lets the emulator shut down cleanly and remove its temporary config.
+    gracefulShutdown: { signal: 'SIGTERM', timeout: 10_000 },
+    stdout: 'pipe',
+    // Hermetic public env for the default build: no Firebase project, so the app
+    // stays signed out, and a fake GA id so the consent flow renders. The process
+    // env wins over .env files, so a developer's .env.local cannot leak in.
     env: {
       NEXT_PUBLIC_FIREBASE_API_KEY: '',
       NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: '',
@@ -37,7 +62,11 @@ export default defineConfig({
       NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: '',
       NEXT_PUBLIC_FIREBASE_APP_ID: '',
       NEXT_PUBLIC_FIREBASE_VAPID_KEY: '',
+      NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY: '',
+      NEXT_PUBLIC_FUNCTIONS_URL: '',
+      NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID: '',
       NEXT_PUBLIC_GA_MEASUREMENT_ID: 'G-TEST123',
+      NEXT_TELEMETRY_DISABLED: '1',
     },
   },
 })
