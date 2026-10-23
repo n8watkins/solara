@@ -9,24 +9,23 @@ project_kind: single
 local:
   dev_command: npm run dev
   build_command: npm run build
-  test_command: npm run typecheck
+  test_command: npm test
   package_manager: npm
+
+links:
+  - label: GitHub
+    type: repo
+    url: https://github.com/n8watkins/solara
 
 deployments:
   - provider: firebase
-    production_url:
+    production_url: https://uv-activity-planner.web.app
 
 docs:
   readme: README.md
   status: docs/status.md
-  roadmap: docs/roadmap.md
-  decisions: docs/decisions.md
-  links: docs/links.md
-  onboarding: docs/onboarding.md
 
 agent:
-  agents_md: AGENTS.md
-  claude_md: CLAUDE.md
   update_protocol: false
 
 tags:

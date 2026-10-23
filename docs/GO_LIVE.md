@@ -1,10 +1,11 @@
 # Solara Go-Live Runbook
 
-_Last reviewed: 2026-07-15_
+_Last reviewed: 2026-10-23_
 
 Use this checklist for each production release.
 The release is not complete until the automated gates and relevant real-service checks pass.
 Use [OWNER_ACTIONS.md](./OWNER_ACTIONS.md) for the subset that requires owner decisions, credentials, provider-console changes, legal facts, or physical-device evidence.
+Firebase Functions are not deployed as of 2026-10-23 (see [status.md](./status.md)), so the Functions, notification, Stripe, calendar-feed, and account export and deletion checks apply only once Functions are live.
 
 ## 1. Local preflight
 
@@ -16,13 +17,14 @@ Use [OWNER_ACTIONS.md](./OWNER_ACTIONS.md) for the subset that requires owner de
 - [ ] Run `npm run build` with the intended public environment configuration.
 - [ ] Run `npx playwright install chromium` if Chromium is not installed.
 - [ ] Run `npm run test:e2e`.
-- [ ] Review `npm audit` and the accepted transitive advisories in [DEPENDENCY_RISK.md](./DEPENDENCY_RISK.md).
+- [ ] Run `npm audit --omit=dev --audit-level=high` and review the full `npm audit` output against the accepted development advisories in [DEPENDENCY_RISK.md](./DEPENDENCY_RISK.md).
 - [ ] Run `npm ci --prefix functions`, `npm audit --prefix functions --omit=dev --audit-level=high`, `npm test --prefix functions`, and `npm run test:rules --prefix functions`.
 
 ## 2. Configuration preflight
 
 - [ ] Confirm all required Firebase client variables exist in GitHub Actions secrets.
-- [ ] Confirm `FIREBASE_SERVICE_ACCOUNT` is valid, narrowly scoped, and includes `roles/datastore.indexAdmin`.
+- [ ] Confirm `FIREBASE_SERVICE_ACCOUNT` is valid and includes `roles/datastore.indexAdmin`.
+  As of 2026-10-23 it lacks that role and is one long-lived key shared by deployment and notification dispatch rather than a narrowly scoped identity; see [DEPLOYMENT.md](./DEPLOYMENT.md#github-actions-secrets).
 - [ ] Confirm the production domain is an authorized Firebase Authentication domain.
 - [ ] Confirm the VAPID key is present when notifications are enabled.
 - [ ] Confirm App Check registration is monitored before enabling enforcement.
@@ -34,6 +36,7 @@ Use [OWNER_ACTIONS.md](./OWNER_ACTIONS.md) for the subset that requires owner de
 ## 3. Deploy
 
 - [ ] Merge the reviewed pull request into `main`.
+  The repository has no branch protection, so the review is not enforced and any push to `main` deploys.
 - [ ] Confirm the frontend and backend jobs pass every automated quality gate.
 - [ ] Confirm the Hosting deployment succeeds.
 - [ ] Confirm the Firestore rules deployment succeeds.
@@ -107,7 +110,8 @@ Complete only the sections activated for this release.
 ### Google Calendar
 
 - [ ] Complete OAuth consent on the production origin.
-- [ ] Confirm only free/busy data is used.
+- [ ] Confirm connecting requests `calendar.readonly` and Solara only reads busy times through the `freeBusy` endpoint.
+- [ ] Confirm `calendar.events` is requested only when creating an event.
 - [ ] Create a test event and verify its date, time, timezone, and description.
 - [ ] Revoke access and confirm Solara handles the disconnected state.
 
