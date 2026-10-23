@@ -32,24 +32,25 @@ const SAN_DIEGO: Location = {
 
 /** Per-day shape: clear-sky UV peak, cloud cover %, WMO code and max temperature in C. */
 const DAYS: { peakUV: number; cloud: number; code: number; maxC: number }[] = [
-  { peakUV: 10.4, cloud: 8,  code: 0,  maxC: 29 },
-  { peakUV: 9.8,  cloud: 22, code: 2,  maxC: 27 },
-  { peakUV: 6.2,  cloud: 78, code: 3,  maxC: 23 },
-  { peakUV: 4.1,  cloud: 92, code: 61, maxC: 20 },
-  { peakUV: 8.7,  cloud: 35, code: 2,  maxC: 25 },
-  { peakUV: 10.9, cloud: 4,  code: 0,  maxC: 31 },
-  { peakUV: 11.3, cloud: 0,  code: 0,  maxC: 33 },
-  { peakUV: 9.1,  cloud: 18, code: 1,  maxC: 28 },
-  { peakUV: 7.4,  cloud: 55, code: 3,  maxC: 24 },
-  { peakUV: 10.0, cloud: 10, code: 0,  maxC: 30 },
+  { peakUV: 10.4, cloud: 8, code: 0, maxC: 29 },
+  { peakUV: 9.8, cloud: 22, code: 2, maxC: 27 },
+  { peakUV: 6.2, cloud: 78, code: 3, maxC: 23 },
+  { peakUV: 4.1, cloud: 92, code: 61, maxC: 20 },
+  { peakUV: 8.7, cloud: 35, code: 2, maxC: 25 },
+  { peakUV: 10.9, cloud: 4, code: 0, maxC: 31 },
+  { peakUV: 11.3, cloud: 0, code: 0, maxC: 33 },
+  { peakUV: 9.1, cloud: 18, code: 1, maxC: 28 },
+  { peakUV: 7.4, cloud: 55, code: 3, maxC: 24 },
+  { peakUV: 10.0, cloud: 10, code: 0, maxC: 30 },
 ]
 
 const round1 = (n: number) => Math.round(n * 10) / 10
 
 /** YYYY-MM-DD for HARNESS_DATE + offset days, computed in UTC so it is zone-independent. */
 function dateOffset(days: number): string {
-  const [y, m, d] = HARNESS_DATE.split('-').map(Number)
-  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10)
+  const base = new Date(`${HARNESS_DATE}T00:00:00Z`)
+  base.setUTCDate(base.getUTCDate() + days)
+  return base.toISOString().slice(0, 10)
 }
 
 /** UV for a fractional local hour: zero outside 6:00-20:00, a smooth peak at 13:00. */
@@ -87,11 +88,14 @@ export function buildRawForecast(): RawForecast {
     }
   })
 
+  const [today] = DAYS
+  if (!today) throw new Error('Harness fixtures need at least one day')
+
   return {
     current: {
-      uv_index: uvAt(10.5, DAYS[0].peakUV),
-      temperature_2m: tempAt(10.5, DAYS[0].maxC),
-      weathercode: DAYS[0].code,
+      uv_index: uvAt(10.5, today.peakUV),
+      temperature_2m: tempAt(10.5, today.maxC),
+      weathercode: today.code,
     },
     hourly: {
       time,
@@ -109,10 +113,43 @@ export function buildWeather(): WeatherResponse {
 }
 
 const ACTIVITIES: Activity[] = [
-  { id: 'run', name: 'Running', icon: '🏃', durationMins: 45, maxUV: 4, sunscreen: false, timePreference: 'earliest' },
-  { id: 'hike', name: 'Hiking', icon: '🥾', durationMins: 120, maxUV: 3, sunscreen: true, cloudSensitive: true },
-  { id: 'tennis', name: 'Tennis', icon: '🎾', durationMins: 60, maxUV: 4, sunscreen: true, preferredHours: { from: 16, to: 20 }, timePreference: 'latest' },
-  { id: 'garden', name: 'Gardening', icon: '🌱', durationMins: 60, maxUV: 3, sunscreen: false, daysOfWeek: [0, 1, 3, 6] },
+  {
+    id: 'run',
+    name: 'Running',
+    icon: '🏃',
+    durationMins: 45,
+    maxUV: 4,
+    sunscreen: false,
+    timePreference: 'earliest',
+  },
+  {
+    id: 'hike',
+    name: 'Hiking',
+    icon: '🥾',
+    durationMins: 120,
+    maxUV: 3,
+    sunscreen: true,
+    cloudSensitive: true,
+  },
+  {
+    id: 'tennis',
+    name: 'Tennis',
+    icon: '🎾',
+    durationMins: 60,
+    maxUV: 4,
+    sunscreen: true,
+    preferredHours: { from: 16, to: 20 },
+    timePreference: 'latest',
+  },
+  {
+    id: 'garden',
+    name: 'Gardening',
+    icon: '🌱',
+    durationMins: 60,
+    maxUV: 3,
+    sunscreen: false,
+    daysOfWeek: [0, 1, 3, 6],
+  },
 ]
 
 export function buildPrefs(tier: TierLevel = 'paid'): UserPreferences {

@@ -32,10 +32,14 @@ const env = {
   NEXT_TELEMETRY_DISABLED: '1',
 }
 
-const build = spawnSync(process.execPath, [join('node_modules', 'next', 'dist', 'bin', 'next'), 'build'], {
-  env,
-  stdio: 'inherit',
-})
+const build = spawnSync(
+  process.execPath,
+  [join('node_modules', 'next', 'dist', 'bin', 'next'), 'build'],
+  {
+    env,
+    stdio: 'inherit',
+  },
+)
 if (build.status !== 0) process.exit(build.status ?? 1)
 if (!existsSync(join(root, 'harness', 'index.html'))) {
   console.error(`UI harness build did not produce ${join(root, 'harness', 'index.html')}`)

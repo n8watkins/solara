@@ -13,10 +13,26 @@ import { HARNESS_MARKER } from './fixtures'
 const OUTPUT_DIR = join('test-results', 'ui-harness')
 
 const SCREENS = [
-  { name: 'dashboard', ready: (page: Page) => page.getByRole('button', { name: /Today/ }).first(), fullPage: true },
-  { name: 'calendar', ready: (page: Page) => page.getByText('Mon', { exact: false }).first(), fullPage: true },
-  { name: 'settings', ready: (page: Page) => page.getByText('Skin type', { exact: false }).first(), fullPage: false },
-  { name: 'pricing', ready: (page: Page) => page.getByText('Solara Pro', { exact: true }), fullPage: false },
+  {
+    name: 'dashboard',
+    ready: (page: Page) => page.getByRole('button', { name: /Today/ }).first(),
+    fullPage: true,
+  },
+  {
+    name: 'calendar',
+    ready: (page: Page) => page.getByText('Mon', { exact: false }).first(),
+    fullPage: true,
+  },
+  {
+    name: 'settings',
+    ready: (page: Page) => page.getByText('Skin type', { exact: false }).first(),
+    fullPage: false,
+  },
+  {
+    name: 'pricing',
+    ready: (page: Page) => page.getByText('Solara Pro', { exact: true }),
+    fullPage: false,
+  },
 ] as const
 
 // Only Google Fonts may load (the app imports Inter from there today). Anything
@@ -35,7 +51,9 @@ async function prepare(page: Page, colorScheme: 'light' | 'dark') {
   await startClock(page)
   // The app does not follow the system theme yet (REPORT UX-8); it reads its own key.
   await page.addInitScript(theme => {
-    try { window.localStorage.setItem('solara_theme', theme) } catch {}
+    try {
+      window.localStorage.setItem('solara_theme', theme)
+    } catch {}
   }, colorScheme)
   return blocked
 }
@@ -58,15 +76,24 @@ for (const screen of SCREENS) {
     await page.goto(`/harness/?screen=${screen.name}`)
     await expect(page.getByTestId(HARNESS_MARKER)).toHaveAttribute('data-screen', screen.name)
     await expect(screen.ready(page)).toBeVisible()
-    await expect(page.locator('html')).toHaveClass(colorScheme === 'dark' ? /\bdark\b/ : /^(?!.*\bdark\b).*$/)
+    await expect(page.locator('html')).toHaveClass(
+      colorScheme === 'dark' ? /\bdark\b/ : /^(?!.*\bdark\b).*$/,
+    )
     const elapsed = await pauseClock(page)
-    expect(elapsed, 'fake clock ran too long before pausing; timers may have fired').toBeLessThan(MAX_SETTLE_MS)
+    expect(elapsed, 'fake clock ran too long before pausing; timers may have fired').toBeLessThan(
+      MAX_SETTLE_MS,
+    )
     await settle(page)
 
     const shotDir = join(OUTPUT_DIR, 'screenshots')
     mkdirSync(shotDir, { recursive: true })
     const shotPath = join(shotDir, `${screen.name}--${testInfo.project.name}.png`)
-    await page.screenshot({ path: shotPath, fullPage: screen.fullPage, animations: 'disabled', caret: 'hide' })
+    await page.screenshot({
+      path: shotPath,
+      fullPage: screen.fullPage,
+      animations: 'disabled',
+      caret: 'hide',
+    })
     await testInfo.attach('screenshot', { path: shotPath, contentType: 'image/png' })
 
     // axe-core schedules work with timers; let the (still frozen-date) clock run.
@@ -106,7 +133,9 @@ test('production leak check detects a harness build', async ({}, testInfo) => {
   // postbuild check that guards `out/` would be proving nothing.
   let status = 0
   try {
-    execFileSync(process.execPath, ['scripts/check-no-ui-harness.mjs', join(OUTPUT_DIR, 'site')], { stdio: 'pipe' })
+    execFileSync(process.execPath, ['scripts/check-no-ui-harness.mjs', join(OUTPUT_DIR, 'site')], {
+      stdio: 'pipe',
+    })
   } catch (error) {
     status = (error as { status?: number }).status ?? -1
   }

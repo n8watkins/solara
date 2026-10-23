@@ -38,7 +38,8 @@ let scanned = 0
 for (const file of walk(dir)) {
   if (!TEXT_EXTENSIONS.test(file)) continue
   scanned++
-  if (readFileSync(file, 'utf8').includes(MARKER)) problems.push(`${relative(dir, file)} contains "${MARKER}"`)
+  if (readFileSync(file, 'utf8').includes(MARKER))
+    problems.push(`${relative(dir, file)} contains "${MARKER}"`)
 }
 
 if (problems.length) {
@@ -47,4 +48,6 @@ if (problems.length) {
   process.exit(1)
 }
 
-console.log(`check-no-ui-harness: ${dir} has no harness route or harness code (${scanned} files scanned).`)
+console.log(
+  `check-no-ui-harness: ${dir} has no harness route or harness code (${scanned} files scanned).`,
+)

@@ -41,7 +41,9 @@ export default function HarnessApp() {
   const user = useMemo(() => buildUser(), [])
   const weather = useMemo(() => buildWeather(), [])
   const [prefs, setPrefs] = useState<UserPreferences>(() => buildPrefs(initial.tier))
-  const [view, setView] = useState<'dashboard' | 'calendar'>(initial.screen === 'calendar' ? 'calendar' : 'dashboard')
+  const [view, setView] = useState<'dashboard' | 'calendar'>(
+    initial.screen === 'calendar' ? 'calendar' : 'dashboard',
+  )
   const [selectedDay, setSelectedDay] = useState<DayWeather | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(initial.screen === 'settings')
   const [pricingOpen, setPricingOpen] = useState(initial.screen === 'pricing')
@@ -51,7 +53,11 @@ export default function HarnessApp() {
   // Mirrors the signed-in shell in components/App.tsx (sticky header, view tabs,
   // main column widths). Keep in sync until App exposes a reusable shell.
   return (
-    <div data-testid={HARNESS_MARKER} data-screen={initial.screen} style={{ minHeight: '100vh', background: 'var(--bg)' }}>
+    <div
+      data-testid={HARNESS_MARKER}
+      data-screen={initial.screen}
+      style={{ minHeight: '100vh', background: 'var(--bg)' }}
+    >
       <div style={{ position: 'sticky', top: 0, zIndex: 40 }}>
         <Header
           user={user}
@@ -60,26 +66,52 @@ export default function HarnessApp() {
           onPrefsUpdate={setPrefs}
           forceOpenTab={settingsOpen ? initial.tab : undefined}
           onModalClose={() => setSettingsOpen(false)}
-          onGoHome={() => { setView('dashboard'); setSelectedDay(null) }}
+          onGoHome={() => {
+            setView('dashboard')
+            setSelectedDay(null)
+          }}
           currentUV={weather.current.uv}
         />
         <div style={{ borderBottom: '0.5px solid var(--border-md)', background: 'var(--bg-card)' }}>
-          <div style={{ maxWidth: '900px', margin: '0 auto', padding: '0 1rem', display: 'flex', gap: '0' }}>
+          <div
+            style={{
+              maxWidth: '900px',
+              margin: '0 auto',
+              padding: '0 1rem',
+              display: 'flex',
+              gap: '0',
+            }}
+          >
             {(['dashboard', 'calendar'] as const).map(v => (
-              <button key={v} onClick={() => setView(v)} style={{
-                padding: '11px 16px', fontSize: '13px', fontWeight: 500, cursor: 'pointer',
-                background: 'none', border: 'none',
-                borderBottom: view === v ? '2px solid var(--accent)' : '2px solid transparent',
-                color: view === v ? 'var(--accent)' : 'var(--text-3)',
-                textTransform: 'capitalize', transition: 'color 0.15s',
-              }}>
+              <button
+                key={v}
+                onClick={() => setView(v)}
+                style={{
+                  padding: '11px 16px',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  background: 'none',
+                  border: 'none',
+                  borderBottom: view === v ? '2px solid var(--accent)' : '2px solid transparent',
+                  color: view === v ? 'var(--accent)' : 'var(--text-3)',
+                  textTransform: 'capitalize',
+                  transition: 'color 0.15s',
+                }}
+              >
                 {v === 'dashboard' ? '☀️ Dashboard' : '🗓️ Calendar'}
               </button>
             ))}
           </div>
         </div>
       </div>
-      <main style={{ maxWidth: view === 'calendar' ? '1120px' : '900px', margin: '0 auto', padding: '1.5rem 1rem' }}>
+      <main
+        style={{
+          maxWidth: view === 'calendar' ? '1120px' : '900px',
+          margin: '0 auto',
+          padding: '1.5rem 1rem',
+        }}
+      >
         {view === 'dashboard' && (
           <Dashboard
             weather={weather}
@@ -93,7 +125,12 @@ export default function HarnessApp() {
         )}
         {view === 'calendar' && (
           <div className="card">
-            <CalendarView prefs={prefs} displayTier={displayTier} weather={weather} onPrefsUpdate={setPrefs} />
+            <CalendarView
+              prefs={prefs}
+              displayTier={displayTier}
+              weather={weather}
+              onPrefsUpdate={setPrefs}
+            />
           </div>
         )}
       </main>

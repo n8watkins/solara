@@ -14,8 +14,18 @@ const shared: Partial<PlaywrightTestOptions> = {
   permissions: [],
 }
 
-const desktop = { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1, isMobile: false, hasTouch: false }
-const mobile = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true }
+const desktop = {
+  viewport: { width: 1440, height: 900 },
+  deviceScaleFactor: 1,
+  isMobile: false,
+  hasTouch: false,
+}
+const mobile = {
+  viewport: { width: 390, height: 844 },
+  deviceScaleFactor: 2,
+  isMobile: true,
+  hasTouch: true,
+}
 
 export default defineConfig({
   testDir: './tests/harness',
@@ -31,7 +41,12 @@ export default defineConfig({
     // Software, non-partial rasterization: GPU and tiled raster occasionally shift
     // anti-aliased edges by one color step between runs.
     launchOptions: {
-      args: ['--disable-gpu', '--disable-partial-raster', '--disable-skia-runtime-opts', '--force-color-profile=srgb'],
+      args: [
+        '--disable-gpu',
+        '--disable-partial-raster',
+        '--disable-skia-runtime-opts',
+        '--force-color-profile=srgb',
+      ],
     },
     trace: 'retain-on-failure',
     ...shared,
