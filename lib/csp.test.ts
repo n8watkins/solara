@@ -128,7 +128,7 @@ interface HostingSite {
   site: string
   headers: HostingRule[]
   rewrites?: unknown[]
-  redirects?: Array<{ source: string; destination: string; type: number }>
+  redirects?: Array<{ source?: string; regex?: string; destination: string; type: number }>
   trailingSlash?: boolean
 }
 const sites = (
@@ -173,12 +173,25 @@ describe('firebase.json hosting', () => {
     expect(JSON.stringify(hosting)).not.toContain('no-store')
   })
 
-  it('permanently redirects every path on the old address to the same path on the app site', () => {
+  it('permanently redirects the old address to the same path on the app site', () => {
     const old = sites.find(site => site.site === 'uv-activity-planner')
-    expect(old?.redirects).toEqual([
-      { source: '/', destination: 'https://solara-uv.web.app/', type: 301 },
-      { source: '/:path*', destination: 'https://solara-uv.web.app/:path*', type: 301 },
-    ])
+    expect(old?.redirects?.[0]).toEqual({
+      source: '/',
+      destination: 'https://solara-uv.web.app/',
+      type: 301,
+    })
+    const rule = old?.redirects?.[1] as { regex: string; destination: string } | undefined
+    expect(rule?.destination).toBe('https://solara-uv.web.app/:path')
+    // Hosting evaluates RE2 `(?P<name>)` groups; JavaScript spells them `(?<name>)`.
+    const pattern = new RegExp(rule!.regex.replace('(?P<', '(?<'))
+    const target = (path: string) => pattern.exec(path)?.groups?.path
+    expect(target('/privacy/')).toBe('privacy/')
+    expect(target('/share/x')).toBe('share/x')
+    expect(target('/_next/static/a.js')).toBe('_next/static/a.js')
+    expect(target('/_')).toBe('_')
+    // Firebase's reserved paths (sign-in helpers, SDK config) stay on the old origin.
+    expect(pattern.test('/__/firebase/init.json')).toBe(false)
+    expect(pattern.test('/__/auth/handler')).toBe(false)
   })
 
   it('keeps share pages out of search engines', () => {
