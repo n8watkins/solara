@@ -1,9 +1,10 @@
 'use client'
 
-import Script from 'next/script'
 import { usePathname } from 'next/navigation'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { AnalyticsConsent as AnalyticsConsentValue } from '@/lib/analytics-consent'
+import { clearAnalyticsCookies, GTAG_CONSENT_DEFAULTS, gtagConfig, gtagPageParams } from '@/lib/ga'
+import styles from './AnalyticsConsent.module.css'
 import {
   ANALYTICS_CONSENT_EVENT,
   ANALYTICS_CONSENT_STORAGE_KEY,
@@ -44,93 +45,86 @@ function useAnalyticsConsent() {
   return consent
 }
 
+declare global {
+  interface Window {
+    dataLayer?: unknown[]
+    gtag?: (...args: unknown[]) => void
+  }
+}
+
+const GTAG_SCRIPT_ID = 'ga-library'
+
+/**
+ * Start GA4 without any inline script, so the page CSP needs no hash for it:
+ * the dataLayer queue is set up here and gtag.js is loaded from its origin.
+ */
+function startAnalytics(measurementId: string) {
+  if (document.getElementById(GTAG_SCRIPT_ID)) return
+  window.dataLayer = window.dataLayer || []
+  // gtag.js reads `arguments` objects from the queue, not arrays.
+  window.gtag = function gtag() {
+    // eslint-disable-next-line prefer-rest-params -- gtag.js requires the Arguments object.
+    window.dataLayer!.push(arguments)
+  }
+  window.gtag('consent', 'default', GTAG_CONSENT_DEFAULTS)
+  window.gtag('js', new Date())
+  window.gtag('config', measurementId, gtagConfig(window.location.href, document.referrer))
+
+  const script = document.createElement('script')
+  script.id = GTAG_SCRIPT_ID
+  script.async = true
+  script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(measurementId)}`
+  document.head.appendChild(script)
+}
+
+/** gtag.js honors `window['ga-disable-<id>']` as a kill switch. */
+function setAnalyticsDisabled(measurementId: string, disabled: boolean) {
+  ;(window as unknown as Record<string, boolean>)[`ga-disable-${measurementId}`] = disabled
+}
+
 export default function AnalyticsConsent({ measurementId }: { measurementId?: string }) {
   const consent = useAnalyticsConsent()
   const pathname = usePathname()
   const hasPageLevelControls = pathname === '/privacy' || pathname === '/privacy/'
-  const dialogRef = useRef<HTMLElement>(null)
 
   useEffect(() => {
-    if (consent !== 'unset' || hasPageLevelControls || !dialogRef.current) return
-    const dialog = dialogRef.current
-    const focusable = Array.from(dialog.querySelectorAll<HTMLElement>('button, a[href]'))
-    focusable[0]?.focus()
+    if (!measurementId || consent === null) return
+    setAnalyticsDisabled(measurementId, consent !== 'accepted')
+    if (consent === 'accepted') startAnalytics(measurementId)
+    else clearAnalyticsCookies(document, window.location.hostname)
+  }, [consent, measurementId])
 
-    const keepFocusInDialog = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault()
-        announceConsent('declined')
-        return
-      }
-      const first = focusable[0]
-      const last = focusable.at(-1)
-      if (event.key !== 'Tab' || !first || !last) return
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault()
-        last.focus()
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault()
-        first.focus()
-      }
+  // Keep the page URL current for later events, still without the query string.
+  useEffect(() => {
+    if (consent === 'accepted' && window.gtag) {
+      window.gtag('set', { page_location: gtagPageParams(window.location.href, '').page_location })
     }
+  }, [consent, pathname])
 
-    document.addEventListener('keydown', keepFocusInDialog)
-    return () => document.removeEventListener('keydown', keepFocusInDialog)
-  }, [consent, hasPageLevelControls])
+  if (!measurementId || consent !== 'unset' || hasPageLevelControls) return null
 
-  if (!measurementId) return null
-
+  // A non-blocking banner: the page stays usable, nothing is focused or trapped,
+  // and both choices carry equal visual weight.
   return (
-    <>
-      {consent === 'accepted' && (
-        <>
-          <Script id="ga-consent-init" strategy="afterInteractive">
-            {`window.dataLayer = window.dataLayer || [];
-              function gtag(){dataLayer.push(arguments);}
-              gtag('js', new Date());
-              gtag('config', '${measurementId}');`}
-          </Script>
-          <Script
-            id="ga-library"
-            src={`https://www.googletagmanager.com/gtag/js?id=${measurementId}`}
-            strategy="afterInteractive"
-          />
-        </>
-      )}
-
-      {consent === 'unset' && !hasPageLevelControls && (
-        <div className="analytics-consent-backdrop">
-          <section
-            ref={dialogRef}
-            className="analytics-consent-banner"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="analytics-consent-title"
-          >
-            <div>
-              <h2 id="analytics-consent-title">Help improve Solara</h2>
-              <p>
-                Allow optional analytics to help us understand which features are useful. No
-                analytics loads unless you choose Allow.
-              </p>
-            </div>
-            <div className="analytics-consent-actions">
-              <button
-                className="btn btn-primary"
-                type="button"
-                onClick={() => announceConsent('accepted')}
-              >
-                Allow analytics
-              </button>
-              <button className="btn" type="button" onClick={() => announceConsent('declined')}>
-                Not now
-              </button>
-              <a href="/privacy/">Privacy details</a>
-            </div>
-          </section>
-        </div>
-      )}
-    </>
+    <section className={styles.banner} aria-labelledby="analytics-consent-title">
+      <div className={styles.copy}>
+        <h2 id="analytics-consent-title" className={styles.title}>
+          Help improve Solara
+        </h2>
+        <p className={styles.text}>
+          Allow optional analytics to help us understand which features are useful. Nothing loads
+          unless you choose Allow. <a href="/privacy/">Privacy details</a>
+        </p>
+      </div>
+      <div className={styles.actions}>
+        <button className="btn" type="button" onClick={() => announceConsent('accepted')}>
+          Allow analytics
+        </button>
+        <button className="btn" type="button" onClick={() => announceConsent('declined')}>
+          Not now
+        </button>
+      </div>
+    </section>
   )
 }
 
@@ -144,6 +138,8 @@ export function AnalyticsPreferenceControl({ enabled }: { enabled: boolean }) {
   const choose = (nextConsent: Exclude<AnalyticsConsentValue, 'unset'>) => {
     const shouldReload = consent === 'accepted' && nextConsent === 'declined'
     announceConsent(nextConsent)
+    if (nextConsent === 'declined') clearAnalyticsCookies(document, window.location.hostname)
+    // gtag.js cannot be unloaded, so a reload guarantees it stops running.
     if (shouldReload) window.location.reload()
   }
 
@@ -158,7 +154,7 @@ export function AnalyticsPreferenceControl({ enabled }: { enabled: boolean }) {
       </p>
       <div className="analytics-preference-actions">
         <button
-          className="btn btn-primary"
+          className="btn"
           type="button"
           aria-pressed={consent === 'accepted'}
           onClick={() => choose('accepted')}
