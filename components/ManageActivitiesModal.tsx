@@ -160,7 +160,7 @@ export default function ManageActivitiesModal({
                     aria-label={`Remove ${activity.name}`}
                     className="btn"
                     onClick={() => remove(activity.id)}
-                    style={{ fontSize: '12px', color: '#DC2626', borderColor: '#FECACA' }}
+                    style={{ fontSize: '12px', color: 'var(--danger)', borderColor: '#FECACA' }}
                   >
                     Remove
                   </button>

@@ -189,9 +189,9 @@ export default function ProfileSwitcher({ prefs, tier, onApply }: Props) {
                           alignItems: 'center',
                           gap: '8px',
                           textAlign: 'left',
-                          background: isActive ? 'rgba(249,115,22,0.08)' : 'none',
+                          background: isActive ? 'var(--accent-soft)' : 'none',
                           border: isActive
-                            ? '1px solid rgba(249,115,22,0.25)'
+                            ? '1px solid var(--accent-border)'
                             : '1px solid transparent',
                           borderRadius: '9px',
                           cursor: 'pointer',
@@ -331,7 +331,7 @@ function ProfileEditor({
               cursor: 'pointer',
               border:
                 draft.icon === ic ? '1.5px solid var(--accent)' : '0.5px solid var(--border-md)',
-              background: draft.icon === ic ? 'rgba(249,115,22,0.08)' : 'var(--bg-card)',
+              background: draft.icon === ic ? 'var(--accent-soft)' : 'var(--bg-card)',
             }}
           >
             {ic}
@@ -370,7 +370,7 @@ function ProfileEditor({
             type="button"
             className="btn"
             onClick={onDelete}
-            style={{ color: '#DC2626', borderColor: '#FECACA', fontSize: '12px' }}
+            style={{ color: 'var(--danger)', borderColor: '#FECACA', fontSize: '12px' }}
           >
             Delete
           </button>

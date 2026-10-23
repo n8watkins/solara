@@ -418,7 +418,7 @@ function EmojiBtn({
         borderRadius: '6px',
         cursor: 'pointer',
         border: selected ? '1.5px solid var(--accent)' : 'none',
-        background: selected ? 'rgba(249,115,22,0.1)' : 'transparent',
+        background: selected ? 'var(--accent-soft)' : 'transparent',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -426,7 +426,7 @@ function EmojiBtn({
       }}
       onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-metric)')}
       onMouseLeave={e =>
-        (e.currentTarget.style.background = selected ? 'rgba(249,115,22,0.1)' : 'transparent')
+        (e.currentTarget.style.background = selected ? 'var(--accent-soft)' : 'transparent')
       }
     >
       {e}

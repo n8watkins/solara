@@ -164,8 +164,8 @@ export default function ActivityManager({
               style={{
                 padding: '10px 14px',
                 borderRadius: '10px',
-                background: 'rgba(249,115,22,0.08)',
-                border: '0.5px solid rgba(249,115,22,0.2)',
+                background: 'var(--notice-bg)',
+                border: '0.5px solid var(--notice-border)',
                 fontSize: '13px',
                 color: 'var(--text-2)',
               }}
@@ -187,7 +187,7 @@ export default function ActivityManager({
                   background: 'rgba(22,163,74,0.1)',
                   border: '0.5px solid rgba(22,163,74,0.3)',
                   fontSize: '13px',
-                  color: '#16A34A',
+                  color: 'var(--success)',
                 }}
               >
                 ✓ {addedName} added
@@ -315,7 +315,7 @@ export default function ActivityManager({
                             ? '1.5px solid var(--accent)'
                             : '0.5px solid var(--border-md)',
                         background:
-                          customSunscreen === o.val ? 'rgba(249,115,22,0.08)' : 'var(--bg-card)',
+                          customSunscreen === o.val ? 'var(--accent-soft)' : 'var(--bg-card)',
                         color: 'var(--text)',
                         fontSize: '13px',
                         fontWeight: 650,
@@ -443,7 +443,7 @@ export default function ActivityManager({
                                 border: sel
                                   ? '1.5px solid var(--accent)'
                                   : '0.5px solid var(--border-md)',
-                                background: sel ? 'rgba(249,115,22,0.07)' : 'var(--bg-card)',
+                                background: sel ? 'var(--accent-soft)' : 'var(--bg-card)',
                                 opacity: locked ? 0.4 : 1,
                                 transition: 'all 0.12s',
                               }}
@@ -656,7 +656,7 @@ export default function ActivityManager({
                           a.sunscreen === o.val
                             ? '1.5px solid var(--accent)'
                             : '0.5px solid var(--border-md)',
-                        background: a.sunscreen === o.val ? 'rgba(249,115,22,0.08)' : 'transparent',
+                        background: a.sunscreen === o.val ? 'var(--accent-soft)' : 'transparent',
                         color: 'var(--text)',
                         fontSize: '12px',
                         fontWeight: 650,

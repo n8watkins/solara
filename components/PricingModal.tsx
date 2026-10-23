@@ -17,7 +17,7 @@ function Cell({ value }: { value: string | boolean }) {
   if (value === true)
     return (
       <>
-        <span aria-hidden="true" style={{ color: '#16A34A', fontWeight: 700 }}>
+        <span aria-hidden="true" style={{ color: 'var(--success)', fontWeight: 700 }}>
           ✓
         </span>
         <span className="sr-only">Included</span>
@@ -146,8 +146,8 @@ export default function PricingModal({
             style={{
               padding: '10px 12px',
               borderRadius: '10px',
-              background: 'rgba(249,115,22,0.08)',
-              border: '0.5px solid rgba(249,115,22,0.2)',
+              background: 'var(--notice-bg)',
+              border: '0.5px solid var(--notice-border)',
               fontSize: '13px',
               color: 'var(--text-2)',
             }}
@@ -161,8 +161,9 @@ export default function PricingModal({
             style={{
               padding: '10px 12px',
               borderRadius: '10px',
-              background: '#FEF3C7',
-              color: '#92400E',
+              background: 'var(--notice-bg)',
+              border: '0.5px solid var(--notice-border)',
+              color: 'var(--notice-text)',
               fontSize: '13px',
             }}
           >
@@ -170,7 +171,7 @@ export default function PricingModal({
           </div>
         )}
         {checkoutError && (
-          <p role="alert" style={{ margin: 0, fontSize: '13px', color: '#DC2626' }}>
+          <p role="alert" style={{ margin: 0, fontSize: '13px', color: 'var(--danger)' }}>
             {checkoutError}
           </p>
         )}
@@ -217,7 +218,7 @@ export default function PricingModal({
                   <td style={bodyCell}>
                     <Cell value={f.free} />
                   </td>
-                  <td style={{ ...bodyCell, background: 'rgba(249,115,22,0.04)' }}>
+                  <td style={{ ...bodyCell, background: 'var(--accent-soft)' }}>
                     <Cell value={f.pro} />
                   </td>
                 </tr>

@@ -12,10 +12,10 @@ import {
   notificationRegistrationConfigured,
   notificationsEnabledLocally,
 } from '@/lib/notifications'
-import { toggleTheme, getStoredTheme } from '@/lib/theme'
 import { firebaseEnabled } from '@/lib/firebase'
 import { signOutAndClear } from '@/lib/session'
 import ActivitySuggestionSettings from './ActivitySuggestionSettings'
+import DarkModeToggle from './DarkModeToggle'
 import Dialog from './Dialog'
 import styles from './PreferencesModal.module.css'
 import PricingModal from './PricingModal'
@@ -54,7 +54,6 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
   const [citySearch, setCitySearch] = useState('')
   const [locLoading, setLocLoading] = useState(false)
   const [locError, setLocError] = useState<string | null>(null)
-  const [dark, setDark] = useState(getStoredTheme() === 'dark')
   const [showSunPath, setShowSunPath] = useState(prefs.showSunPath !== false)
   const [upgradeEmail] = useState(user?.email ?? prefs.upgradeInterest?.email ?? '')
   const [upgradeSaved, setUpgradeSaved] = useState(false)
@@ -150,11 +149,6 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
   function requestClose() {
     if (dirty && !window.confirm('Discard unsaved settings changes?')) return
     onClose()
-  }
-
-  function handleToggleTheme() {
-    const next = toggleTheme()
-    setDark(next === 'dark')
   }
 
   async function searchCity() {
@@ -254,7 +248,6 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
   const panelId = `${idPrefix}-panel`
   const skinTitleId = `${idPrefix}-skin-title`
   const skinDescId = `${idPrefix}-skin-desc`
-  const themeDescId = `${idPrefix}-theme-desc`
   const sunPathTitleId = `${idPrefix}-sun-path-title`
   const sunPathDescId = `${idPrefix}-sun-path-desc`
 
@@ -637,43 +630,25 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
 
             {tab === 'appearance' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                <div
-                  className="metric-card"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: '14px',
-                  }}
-                >
-                  <div>
-                    <h4
-                      style={{
-                        margin: '0 0 4px',
-                        fontSize: '13px',
-                        fontWeight: 700,
-                        color: 'var(--text)',
-                      }}
-                    >
-                      Theme
-                    </h4>
-                    <p
-                      id={themeDescId}
-                      style={{ margin: 0, fontSize: '13px', color: 'var(--text-3)' }}
-                    >
-                      Switch between light and dark mode.
-                    </p>
+                <div className="metric-card">
+                  <div className={styles.field} style={{ alignItems: 'center' }}>
+                    <div>
+                      <h4
+                        style={{
+                          margin: '0 0 4px',
+                          fontSize: '13px',
+                          fontWeight: 700,
+                          color: 'var(--text)',
+                        }}
+                      >
+                        Theme
+                      </h4>
+                      <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-3)' }}>
+                        Follow your device, or always use light or dark.
+                      </p>
+                    </div>
+                    <DarkModeToggle />
                   </div>
-                  <button
-                    type="button"
-                    aria-label={`Theme: ${dark ? 'Dark' : 'Light'}`}
-                    aria-describedby={themeDescId}
-                    onClick={handleToggleTheme}
-                    className="btn"
-                    style={{ whiteSpace: 'nowrap' }}
-                  >
-                    {dark ? '🌙 Dark' : '☀️ Light'}
-                  </button>
                 </div>
                 <div
                   className="metric-card"
@@ -706,7 +681,8 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
                   <button
                     type="button"
                     aria-pressed={showSunPath}
-                    aria-labelledby={sunPathTitleId}
+                    id={`${sunPathTitleId}-toggle`}
+                    aria-labelledby={`${sunPathTitleId} ${sunPathTitleId}-toggle`}
                     aria-describedby={sunPathDescId}
                     onClick={() => setShowSunPath(s => !s)}
                     className="btn"

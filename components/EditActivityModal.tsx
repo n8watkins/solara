@@ -23,6 +23,22 @@ const DAY_NAMES = [
   'Saturday',
 ] as const
 
+function comparable(a: Activity) {
+  const days = a.daysOfWeek
+  return {
+    name: a.name,
+    icon: a.icon,
+    durationMins: a.durationMins,
+    sunscreen: a.sunscreen,
+    maxUV: a.maxUV,
+    preferredHours: a.preferredHours ?? null,
+    timePreference: a.timePreference ?? 'earliest',
+    daysOfWeek:
+      !days || days.length === 0 || days.length === 7 ? null : [...days].sort((x, y) => x - y),
+    cloudSensitive: !!a.cloudSensitive,
+  }
+}
+
 function clampUV(value: number) {
   return Math.max(0, Math.min(11, Math.round(value * 10) / 10))
 }
@@ -84,29 +100,9 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
     cloudSensitive: cloudSensitive || undefined,
   }
 
-  const dirty =
-    JSON.stringify({
-      name: activity.name,
-      icon: activity.icon,
-      durationMins: activity.durationMins,
-      sunscreen: activity.sunscreen,
-      maxUV: activity.maxUV,
-      preferredHours: activity.preferredHours,
-      timePreference: activity.timePreference,
-      daysOfWeek: activity.daysOfWeek,
-      cloudSensitive: activity.cloudSensitive,
-    }) !==
-    JSON.stringify({
-      name: draft.name,
-      icon: draft.icon,
-      durationMins: draft.durationMins,
-      sunscreen: draft.sunscreen,
-      maxUV: draft.maxUV,
-      preferredHours: draft.preferredHours,
-      timePreference: draft.timePreference,
-      daysOfWeek: draft.daysOfWeek,
-      cloudSensitive: draft.cloudSensitive,
-    })
+  // Compare in the draft's normalized form, so defaults the draft drops
+  // ('earliest', no cloud adjustment, every day) do not count as edits.
+  const dirty = JSON.stringify(comparable(activity)) !== JSON.stringify(comparable(draft))
 
   function requestClose() {
     if (dirty && !window.confirm('Discard unsaved activity changes?')) return
@@ -138,7 +134,7 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
             type="button"
             className="btn"
             onClick={handleDelete}
-            style={{ color: '#DC2626', borderColor: '#FECACA' }}
+            style={{ color: 'var(--danger)', borderColor: '#FECACA' }}
           >
             Delete
           </button>
@@ -248,7 +244,6 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
             <button
               type="button"
               className="btn"
-              aria-label="15 minutes shorter"
               onClick={() => setDurationMins(m => Math.max(5, m - 15))}
             >
               −15m
@@ -264,12 +259,7 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
               style={{ width: '96px', fontSize: '14px' }}
             />
             <span style={{ fontSize: '13px', color: 'var(--text-3)' }}>minutes</span>
-            <button
-              type="button"
-              className="btn"
-              aria-label="15 minutes longer"
-              onClick={() => setDurationMins(m => m + 15)}
-            >
+            <button type="button" className="btn" onClick={() => setDurationMins(m => m + 15)}>
               +15m
             </button>
           </div>
@@ -413,7 +403,7 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
                     timePreference === o.val
                       ? '1.5px solid var(--accent)'
                       : '0.5px solid var(--border-md)',
-                  background: timePreference === o.val ? 'rgba(249,115,22,0.08)' : 'var(--bg-card)',
+                  background: timePreference === o.val ? 'var(--accent-soft)' : 'var(--bg-card)',
                   color: 'var(--text)',
                   fontSize: '13px',
                   fontWeight: 650,
@@ -466,7 +456,7 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
                     borderRadius: '9px',
                     cursor: 'pointer',
                     border: on ? '1.5px solid var(--accent)' : '0.5px solid var(--border-md)',
-                    background: on ? 'rgba(249,115,22,0.08)' : 'var(--bg-card)',
+                    background: on ? 'var(--accent-soft)' : 'var(--bg-card)',
                     color: on ? 'var(--accent)' : 'var(--text-3)',
                     fontSize: '13px',
                     fontWeight: 700,
@@ -547,7 +537,7 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
                     sunscreen === option.val
                       ? '1.5px solid var(--accent)'
                       : '0.5px solid var(--border-md)',
-                  background: sunscreen === option.val ? 'rgba(249,115,22,0.08)' : 'var(--bg-card)',
+                  background: sunscreen === option.val ? 'var(--accent-soft)' : 'var(--bg-card)',
                   color: 'var(--text)',
                   cursor: 'pointer',
                   fontSize: '13px',
@@ -595,7 +585,8 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
             <button
               type="button"
               aria-pressed={cloudSensitive}
-              aria-labelledby={ids.cloud}
+              id={`${ids.cloud}-toggle`}
+              aria-labelledby={`${ids.cloud} ${ids.cloud}-toggle`}
               aria-describedby={ids.cloudDesc}
               className={cloudSensitive ? 'btn btn-primary' : 'btn'}
               onClick={() => setCloudSensitive(v => !v)}
@@ -628,7 +619,7 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
                   color: 'var(--text)',
                 }}
               >
-                Base planning UV limit
+                <label htmlFor={`${ids.uv}-range`}>Base planning UV limit</label>
               </h3>
               <p
                 id={ids.uvDesc}
@@ -659,7 +650,7 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
             max="11"
             step="0.5"
             value={maxUV}
-            aria-labelledby={ids.uv}
+            id={`${ids.uv}-range`}
             aria-describedby={ids.uvDesc}
             onChange={e => setMaxUV(parseFloat(e.target.value))}
             style={{ width: '100%' }}

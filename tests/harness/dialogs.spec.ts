@@ -81,7 +81,7 @@ test('settings: tabs, labels, focus trap and Escape', async ({ page }) => {
   await expect(appearance).toBeFocused()
   await expect(appearance).toHaveAttribute('aria-selected', 'true')
   await expect(dialog.getByRole('tabpanel')).toContainText('Sun path animation')
-  await expect(dialog.getByRole('button', { name: 'Sun path animation' })).toHaveAttribute(
+  await expect(dialog.getByRole('button', { name: /^Sun path animation/ })).toHaveAttribute(
     'aria-pressed',
     'true',
   )
@@ -238,7 +238,8 @@ test('tip carousel: focusable track, 24 px dots and a pause button', async ({ pa
   await expect(carousel.getByRole('button', { name: 'Play tips' })).toBeFocused()
 })
 
-test('profile switcher: disclosure with Escape and focus return', async ({ page }) => {
+test('profile switcher: disclosure with Escape and focus return', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name.startsWith('mobile'), 'the compact mobile header hides it')
   await open(page, 'dashboard')
   const trigger = page.getByRole('button', { name: 'Profile: Me' })
   await trigger.focus()
