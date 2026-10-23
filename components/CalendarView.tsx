@@ -4,6 +4,21 @@ import type { Activity, UserPreferences, WeatherResponse } from '@/lib/types'
 import { canUseCalendar, getFutureDays, TIER_LIMITS } from '@/lib/tiers'
 import type { DayForecast, SafeWindow } from '@/lib/calendar'
 import { getSafeWindowsForActivity, gcalWindowLink, fmtH } from '@/lib/calendar'
+import {
+  LANE_GAP,
+  UV_BANDS,
+  VIEWS,
+  chipVariant,
+  computeAxis,
+  computeColumns,
+  pageTarget,
+  rangeLabel,
+  shortHour,
+  uvBand,
+  visibleDays,
+  type ChipVariant,
+  type ViewKey,
+} from '@/lib/calendar-layout'
 import { fetchForecast } from '@/lib/forecast'
 import { buildActivityShareText, buildActivityShareUrl, shareOrCopy } from '@/lib/share'
 import EditActivityModal from './EditActivityModal'
@@ -15,19 +30,12 @@ interface Props {
   onPrefsUpdate?: (prefs: UserPreferences) => void
 }
 
-// Grid geometry. Every day column has the same width; each visible activity gets an
-// equal lane inside it, and lanes are clipped to their column so nothing can spill
-// into the neighbouring day.
+// Vertical geometry. Column and lane widths live in lib/calendar-layout.ts; lanes
+// are clipped to their day column so nothing can spill into the next day.
 const ROW_H = 44
-const GUTTER_W = 46
 // Room above the first and below the last hour line so their labels are not cut.
 const AXIS_PAD = 10
 const HEADER_H = 52
-// Narrowest lane that still fits an icon and a short time such as "10a".
-const MIN_LANE_W = 25
-const LANE_GAP = 2
-// At most a week side by side; further days scroll horizontally.
-const MAX_DAYS_ACROSS = 7
 const MAX_BODY_H = 760
 
 // 700-level hues: white text on each meets WCAG AA (4.5:1) in both themes.
@@ -42,15 +50,6 @@ const ACT_COLORS = [
   '#4D7C0F',
 ]
 
-const UV_BANDS = [
-  { max: 0.5, rgb: '156,163,175', label: null, weight: 0.4 },
-  { max: 2, rgb: '74,222,128', label: 'Low', weight: 1 },
-  { max: 5, rgb: '250,204,21', label: 'Moderate', weight: 1 },
-  { max: 7, rgb: '251,146,60', label: 'High', weight: 1 },
-  { max: 10, rgb: '248,113,113', label: 'Very high', weight: 1 },
-  { max: Infinity, rgb: '192,132,252', label: 'Extreme', weight: 1 },
-] as const
-
 const UV_ROW_ALPHA = 0.11
 
 const pagerButton: CSSProperties = {
@@ -62,38 +61,23 @@ const pagerButton: CSSProperties = {
   lineHeight: 1,
 }
 
-const sheetAction: CSSProperties = { justifyContent: 'center', minHeight: '40px' }
-
-function uvBand(uv: number) {
-  if (uv < UV_BANDS[0].max) return UV_BANDS[0]
-  return UV_BANDS.find(b => b.label && uv <= b.max) ?? UV_BANDS[5]
+const srOnly: CSSProperties = {
+  position: 'absolute',
+  width: '1px',
+  height: '1px',
+  padding: 0,
+  margin: '-1px',
+  overflow: 'hidden',
+  clip: 'rect(0 0 0 0)',
+  whiteSpace: 'nowrap',
+  border: 0,
 }
+
+const sheetAction: CSSProperties = { justifyContent: 'center', minHeight: '40px' }
 
 function uvRowBg(uv: number): string {
   const band = uvBand(uv)
   return `rgba(${band.rgb},${UV_ROW_ALPHA * band.weight})`
-}
-
-type ViewKey = 'full' | 'morning' | 'afternoon' | 'evening'
-
-const VIEWS: { key: ViewKey; label: string; from?: number; to?: number }[] = [
-  { key: 'full', label: 'Full day' },
-  { key: 'morning', label: 'Morning', from: 6, to: 12 },
-  { key: 'afternoon', label: 'Afternoon', from: 12, to: 18 },
-  { key: 'evening', label: 'Evening', from: 16, to: 21 },
-]
-
-type ChipVariant = 'full' | 'stacked' | 'compact'
-
-function chipVariant(laneW: number): ChipVariant {
-  if (laneW >= 76) return 'full'
-  if (laneW >= 36) return 'stacked'
-  return 'compact'
-}
-
-/** "6am" -> "6a", for the narrowest lanes. */
-function shortHour(h: number): string {
-  return fmtH(h).replace(/([ap])m$/, '$1')
 }
 
 function durationText(mins: number): string {
@@ -308,14 +292,10 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
     })),
   }))
 
-  // Axis range. Full day spans the user's hours and widens to fit every window, so
-  // no window starts above the first hour line. Presets are fixed zooms.
+  // Full day starts at the earliest window and ends at the latest, so nothing
+  // opens cut off; the other views are fixed zooms.
   const allWindows = dayWindows.flatMap(d => d.lanes.flatMap(l => l.windows))
-  const prefFrom = prefs.calendarHours?.from ?? 6
-  const prefTo = Math.max(prefFrom + 1, prefs.calendarHours?.to ?? 20)
-  const preset = VIEWS.find(v => v.key === view)
-  const axisFrom = preset?.from ?? Math.min(prefFrom, ...allWindows.map(w => Math.floor(w.from)))
-  const axisTo = preset?.to ?? Math.max(prefTo, ...allWindows.map(w => Math.ceil(w.to)))
+  const { from: axisFrom, to: axisTo } = computeAxis(view, allWindows, prefs.calendarHours)
   const rows = Math.max(1, axisTo - axisFrom)
   const HOURS = Array.from({ length: rows + 1 }, (_, i) => axisFrom + i)
   const bodyH = rows * ROW_H + AXIS_PAD * 2
@@ -324,40 +304,24 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
   const nowFrac = now.getHours() + now.getMinutes() / 60
   const todayStr = now.toLocaleDateString('en-CA')
 
-  // Fit as many days as the width allows without lanes narrower than MIN_LANE_W.
   const laneCount = Math.max(1, visibleActivities.length)
-  const minColW = laneCount * MIN_LANE_W + LANE_GAP * (laneCount + 1)
-  const available = gridWidth ? gridWidth - GUTTER_W : minColW * 3
-  const daysAcross = Math.max(
-    1,
-    Math.min(days.length, MAX_DAYS_ACROSS, Math.floor(available / minColW)),
+  const { colW, gutterW, daysAcross, laneW } = computeColumns(
+    gridWidth,
+    days.length,
+    visibleActivities.length,
   )
-  // Whole-pixel columns; the gutter takes the remainder so the last visible day ends
-  // flush with the edge instead of a sliver of the next day peeking in.
-  const colW = Math.max(minColW, Math.floor(available / daysAcross))
-  const gutterW = gridWidth ? Math.max(GUTTER_W, gridWidth - colW * daysAcross) : GUTTER_W
-  const firstDay = Math.min(Math.max(0, Math.round(scrollLeft / colW)), days.length - 1)
-  const lastDay = Math.min(days.length - 1, firstDay + daysAcross - 1)
+  const { first: firstDay, last: lastDay } = visibleDays(
+    scrollLeft,
+    { colW, daysAcross },
+    days.length,
+  )
   const canPage = days.length > daysAcross
-  const monthDay = (dateStr: string) =>
-    new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-  const firstDate = days[firstDay]?.dateStr
-  const lastDate = days[lastDay]?.dateStr
-  const rangeLabel =
-    firstDate && lastDate
-      ? firstDate.slice(0, 7) === lastDate.slice(0, 7)
-        ? `${monthDay(firstDate)} – ${Number(lastDate.slice(8))}`
-        : `${monthDay(firstDate)} – ${monthDay(lastDate)}`
-      : ''
+  const visibleRange = rangeLabel(days[firstDay]?.dateStr, days[lastDay]?.dateStr)
 
   function pageBy(direction: 1 | -1) {
-    const target = Math.min(
-      Math.max(0, firstDay + direction * daysAcross),
-      Math.max(0, days.length - daysAcross),
-    )
+    const target = pageTarget(firstDay, direction, daysAcross, days.length)
     scrollRef.current?.scrollTo({ left: target * colW, behavior: 'smooth' })
   }
-  const laneW = (colW - LANE_GAP * (laneCount + 1)) / laneCount
   const variant = chipVariant(laneW)
 
   const line = 'var(--border)'
@@ -482,7 +446,7 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
                 fontVariantNumeric: 'tabular-nums',
               }}
             >
-              {rangeLabel}
+              {visibleRange}
             </span>
             <button
               type="button"
@@ -730,7 +694,6 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
                             data-testid="calendar-chip"
                             aria-haspopup="dialog"
                             aria-expanded={isSel}
-                            aria-label={`${act.name}, ${day.label}, ${fmtH(win.from)} to ${fmtH(win.to)}, peak UV ${win.peakUV.toFixed(1)}`}
                             title={`${act.name} · ${fmtH(win.from)}–${fmtH(win.to)}`}
                             onClick={() => {
                               if (isSel) {
@@ -767,6 +730,11 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
                             }}
                           >
                             <ChipLabel act={act} win={win} variant={variant} lines={lines} />
+                            {/* The visible label is abbreviated, so the accessible
+                                name is this full description instead. */}
+                            <span data-sr-only style={srOnly}>
+                              {`${act.name}, ${day.label}, ${fmtH(win.from)} to ${fmtH(win.to)}, peak UV ${win.peakUV.toFixed(1)}`}
+                            </span>
                           </button>
                         )
                       })}
@@ -1047,17 +1015,16 @@ function ChipLabel({
     fontSize: '10.5px',
     fontWeight: 500,
     fontVariantNumeric: 'tabular-nums',
-    color: 'rgba(255,255,255,0.92)',
   }
 
   if (variant === 'full') {
     return (
       <>
-        <span style={{ ...text, fontWeight: 650 }}>
-          <span aria-hidden="true">{act.icon}</span> {act.name}
+        <span aria-hidden="true" style={{ ...text, fontWeight: 650 }}>
+          {act.icon} {act.name}
         </span>
         {lines >= 2 && (
-          <span style={time}>
+          <span aria-hidden="true" style={time}>
             {fmtH(win.from)} – {fmtH(win.to)}
           </span>
         )}
@@ -1071,8 +1038,16 @@ function ChipLabel({
       <span aria-hidden="true" style={{ ...text, fontSize: '12px', lineHeight: '14px' }}>
         {act.icon}
       </span>
-      {lines >= 2 && <span style={time}>{fmt(win.from)}</span>}
-      {lines >= 3 && <span style={time}>{fmt(win.to)}</span>}
+      {lines >= 2 && (
+        <span aria-hidden="true" style={time}>
+          {fmt(win.from)}
+        </span>
+      )}
+      {lines >= 3 && (
+        <span aria-hidden="true" style={time}>
+          {fmt(win.to)}
+        </span>
+      )}
     </>
   )
 }

@@ -58,7 +58,7 @@ test('chip labels and day headers are not clipped', async ({ page }) => {
   const clipped = await page.evaluate(() => {
     const out: string[] = []
     const selector = [
-      '[data-testid="calendar-chip"] span',
+      '[data-testid="calendar-chip"] span:not([data-sr-only])',
       '[data-testid="calendar-day-header"] span',
     ].join(',')
     for (const el of document.querySelectorAll<HTMLElement>(selector)) {
@@ -120,6 +120,7 @@ test('the axis opens at the earliest window, uncut', async ({ page }) => {
 test('a chip opens a detail sheet with a safe calendar link', async ({ page }, testInfo) => {
   const chip = page.getByTestId('calendar-chip').first()
   await chip.click()
+  await expect(chip).toHaveAccessibleName(/^Running, Today, 6am to 10am, peak UV \d/)
   const sheet = page.getByRole('dialog', { name: /Running/ })
   await expect(sheet).toBeVisible()
   await expect(sheet).toBeFocused()
