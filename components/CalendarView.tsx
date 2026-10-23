@@ -7,13 +7,19 @@ import {
   useState,
   type CSSProperties,
 } from 'react'
-import type { Activity, DayWeather, UserPreferences, WeatherResponse } from '@/lib/types'
+import type {
+  Activity,
+  DayWeather,
+  SafeActivityWindow,
+  UserPreferences,
+  WeatherResponse,
+} from '@/lib/types'
 import { canUseCalendar, getFutureDays, TIER_LIMITS } from '@/lib/tiers'
 import type { SafeWindow } from '@/lib/calendar'
 import { gcalWindowLink } from '@/lib/calendar'
 import { nowHourOf, planActivityDay } from '@/lib/next-slot'
 import { activityRunsOnDate } from '@/lib/recommendation'
-import { dayOfMonth, formatDate, fractionalHour } from '@/lib/time'
+import { dayOfMonth, formatDate, fractionalHour, zonedNow } from '@/lib/time'
 import { useUnits } from '@/lib/use-units'
 import type { UnitFormatters } from '@/lib/units'
 import {
@@ -31,7 +37,14 @@ import {
   type ViewKey,
 } from '@/lib/calendar-layout'
 import { buildActivityShareText, buildActivityShareUrl, shareOrCopy } from '@/lib/share'
+import { activityColor } from '@/lib/activity-colors'
+import { buildEventDescription } from '@/lib/gcal'
+import { recommendSlot } from '@/lib/scheduler'
+import { scheduledOn, type ScheduledActivity, type ScheduledSpan } from '@/lib/scheduled'
+import { useScheduled } from '@/lib/scheduled-context'
 import EditActivityModal from './EditActivityModal'
+import ScheduledList from './ScheduledList'
+import ScheduledSheet from './ScheduledSheet'
 
 interface Props {
   prefs: UserPreferences
@@ -48,18 +61,6 @@ const ROW_H = 44
 const AXIS_PAD = 10
 const HEADER_H = 52
 const MAX_BODY_H = 760
-
-// 700-level hues: white text on each meets WCAG AA (4.5:1) in both themes.
-const ACT_COLORS = [
-  '#C2410C',
-  '#1D4ED8',
-  '#047857',
-  '#6D28D9',
-  '#B45309',
-  '#BE185D',
-  '#0E7490',
-  '#4D7C0F',
-]
 
 const UV_ROW_ALPHA = 0.11
 
@@ -119,7 +120,7 @@ function calendarDays(weather: WeatherResponse, limit: number): CalendarDay[] {
 
 interface Selection {
   act: Activity
-  win: SafeWindow
+  win: SafeActivityWindow
   day: CalendarDay
   key: string
 }
@@ -140,6 +141,9 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
   const sheetRef = useRef<HTMLDivElement>(null)
   const chipRefs = useRef(new Map<string, HTMLButtonElement>())
   const returnFocusKey = useRef<string | null>(null)
+  const scheduled = useScheduled()
+  const [openEventId, setOpenEventId] = useState<string | null>(null)
+  const [adding, setAdding] = useState(false)
 
   const calOk = canUseCalendar(tier)
   const visibleActivities =
@@ -166,6 +170,14 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
     obs.observe(el)
     return () => obs.disconnect()
   }, [prefs.activities.length])
+
+  // Opening the calendar checks Solara's events in Google, when a token is already
+  // in memory; without one, saved items show with a "Reconnect to sync" hint.
+  const scheduledEnabled = scheduled.enabled
+  const refreshScheduled = useEffectEvent(() => void scheduled.refresh({ interactive: false }))
+  useEffect(() => {
+    if (scheduledEnabled) refreshScheduled()
+  }, [scheduledEnabled])
 
   // Each view opens at its first hour, which is never later than the earliest window.
   useEffect(() => {
@@ -196,6 +208,38 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
   function flash(message: string, ms = 3500) {
     setConfirm(message)
     window.setTimeout(() => setConfirm(current => (current === message ? null : current)), ms)
+  }
+
+  /** Adds the window's recommended slot to Google Calendar; it then shows as Scheduled. */
+  async function scheduleWindow({ act, win, day }: Selection) {
+    const slot = recommendSlot(
+      [win],
+      [],
+      act.durationMins,
+      act.timePreference ?? 'earliest',
+      -1,
+      day.hourly,
+    )
+    if (!slot) return
+    setAdding(true)
+    try {
+      await scheduled.schedule({
+        activity: act,
+        dateStr: day.dateStr,
+        slot,
+        description: buildEventDescription(slot, act, { peakUV: win.peakUV }),
+        timeZone: weather.timezone,
+      })
+      closeSheet()
+      flash(
+        `Scheduled ${act.name} for ${fmt.time(slot.start)}. It is on your Google Calendar.`,
+        5000,
+      )
+    } catch {
+      flash('Could not add to Google Calendar. Nothing was saved; try again.', 5000)
+    } finally {
+      setAdding(false)
+    }
   }
 
   async function shareWindow(act: Activity, win: SafeWindow, day: CalendarDay) {
@@ -257,10 +301,10 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
       </div>
     )
 
-  const colorFor = (act: Activity) => {
-    const idx = prefs.activities.findIndex(a => a.id === act.id)
-    return ACT_COLORS[Math.max(0, idx) % ACT_COLORS.length] ?? '#C2410C'
-  }
+  const colorFor = (act: Pick<Activity, 'id'>) => activityColor(prefs.activities, act.id)
+  const dayLabel = (dateStr: string) =>
+    days.find(d => d.dateStr === dateStr)?.label ??
+    formatDate(dateStr, { weekday: 'short', month: 'short', day: 'numeric' })
 
   // "Now" is the forecast location's wall clock, never the device's.
   const todayStr = weather.now.date
@@ -275,6 +319,7 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
     lanes: visibleActivities.map(act => ({
       act,
       color: colorFor(act),
+      scheduled: scheduledOn(scheduled.items, act.id, day.dateStr, weather.timezone),
       windows: activityRunsOnDate(act, day.dateStr)
         ? planActivityDay(day.hourly, act, prefs.skinType, {
             nowHour: day.isToday ? todayNowHour : -1,
@@ -316,6 +361,27 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
   }
   const variant = chipVariant(laneW)
 
+  // The scheduled activity whose details are open. It closes by itself when the event
+  // goes away (removed here, on another device, or in Google Calendar).
+  const openItem = openEventId
+    ? (scheduled.items.find(i => i.eventId === openEventId) ?? null)
+    : null
+  const openActivity = openItem
+    ? prefs.activities.find(a => a.id === openItem.activityId)
+    : undefined
+  const openSpanDate = openItem ? zonedNow(weather.timezone, Date.parse(openItem.start)).date : ''
+  const openDay = days.find(d => d.dateStr === openSpanDate)
+  const openWindows =
+    openActivity && openDay
+      ? planActivityDay(openDay.hourly, openActivity, prefs.skinType, {
+          nowHour: openDay.isToday ? todayNowHour : -1,
+        }).windows
+      : []
+
+  function closeScheduled() {
+    setOpenEventId(null)
+  }
+
   const line = 'var(--border)'
   // Decorative tint behind today's column; no text sits on it.
   const todayTint = 'rgba(249,115,22,0.06)'
@@ -325,10 +391,24 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
       <style>{`
         .solara-cal-chip { transition: filter 0.12s, box-shadow 0.12s; }
         .solara-cal-chip:focus-visible { outline: 2px solid #fff; outline-offset: -3px; }
+        .solara-cal-chip-soft:focus-visible { outline-color: var(--accent); }
+        .solara-cal-scheduled:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
         @media (hover: hover) { .solara-cal-chip:hover { filter: brightness(1.12); } }
         .solara-cal-pager { margin-left: auto; }
         .dark .solara-cal-uv { opacity: 0.75; }
       `}</style>
+
+      <ScheduledList
+        activities={prefs.activities}
+        timeZone={weather.timezone}
+        nowMs={weather.now.epochMs}
+        dayLabel={dayLabel}
+        onOpen={item => {
+          setSelected(null)
+          returnFocusKey.current = null
+          setOpenEventId(item.eventId)
+        }}
+      />
 
       <div
         style={{
@@ -662,7 +742,7 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
                     padding: `0 ${LANE_GAP}px`,
                   }}
                 >
-                  {lanes.map(({ act, color, windows }) => (
+                  {lanes.map(({ act, color, windows, scheduled: laneScheduled }) => (
                     <div key={act.id} style={{ position: 'relative', minWidth: 0 }}>
                       {windows.map((win, wi) => {
                         const topH = Math.max(win.from, axisFrom)
@@ -675,6 +755,11 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
                         const cutBottom = win.to > axisTo
                         const isSel = selected?.key === key
                         const lines = Math.floor((height - 6) / 13)
+                        // A window that holds a scheduled activity recedes to a tint, so
+                        // the commitment inside it reads first.
+                        const soft = laneScheduled.some(
+                          ({ span }) => span.from < win.to && span.to > win.from,
+                        )
                         return (
                           <button
                             key={key}
@@ -683,8 +768,11 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
                               else chipRefs.current.delete(key)
                             }}
                             type="button"
-                            className="solara-cal-chip"
+                            className={
+                              soft ? 'solara-cal-chip solara-cal-chip-soft' : 'solara-cal-chip'
+                            }
                             data-testid="calendar-chip"
+                            data-soft={soft || undefined}
                             data-from={win.from}
                             data-to={win.to}
                             aria-haspopup="dialog"
@@ -715,12 +803,14 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
                               cursor: 'pointer',
                               border: 'none',
                               borderRadius: `${cutTop ? 0 : 6}px ${cutTop ? 0 : 6}px ${cutBottom ? 0 : 6}px ${cutBottom ? 0 : 6}px`,
-                              background: color,
-                              color: '#fff',
+                              background: soft ? `${color}2e` : color,
+                              color: soft ? 'var(--text)' : '#fff',
                               textAlign: variant === 'full' ? 'left' : 'center',
-                              boxShadow: isSel
-                                ? `inset 0 0 0 2px rgba(255,255,255,0.95), 0 0 0 1px ${color}`
-                                : 'inset 0 0 0 1px rgba(255,255,255,0.14)',
+                              boxShadow: soft
+                                ? `inset 0 0 0 1px ${color}${isSel ? '' : '99'}`
+                                : isSel
+                                  ? `inset 0 0 0 2px rgba(255,255,255,0.95), 0 0 0 1px ${color}`
+                                  : 'inset 0 0 0 1px rgba(255,255,255,0.14)',
                               zIndex: isSel ? 2 : 1,
                             }}
                           >
@@ -740,6 +830,25 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
                           </button>
                         )
                       })}
+                      {laneScheduled.map(({ item, span }) => (
+                        <ScheduledBlock
+                          key={item.eventId}
+                          act={act}
+                          item={item}
+                          span={span}
+                          color={color}
+                          dayLabel={day.label}
+                          axisFrom={axisFrom}
+                          axisTo={axisTo}
+                          variant={variant}
+                          fmt={fmt}
+                          expanded={openEventId === item.eventId}
+                          onOpen={() => {
+                            setSelected(null)
+                            setOpenEventId(item.eventId)
+                          }}
+                        />
+                      ))}
                     </div>
                   ))}
                 </div>
@@ -975,7 +1084,17 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
               marginTop: '14px',
             }}
           >
-            {calOk ? (
+            {calOk && scheduled.enabled ? (
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={adding}
+                onClick={() => void scheduleWindow(selected)}
+                style={{ ...sheetAction, gridColumn: '1 / -1' }}
+              >
+                {adding ? 'Adding to Google Calendar…' : '📅 Add to Google Calendar'}
+              </button>
+            ) : calOk ? (
               <a
                 className="btn btn-primary"
                 href={gcalWindowLink(
@@ -1023,6 +1142,21 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
             )}
           </div>
         </div>
+      )}
+
+      {openItem && (
+        <ScheduledSheet
+          key={openItem.eventId}
+          item={openItem}
+          activity={openActivity}
+          color={colorFor({ id: openItem.activityId })}
+          timeZone={weather.timezone}
+          dayLabel={dayLabel(openSpanDate)}
+          windows={openWindows}
+          nowHour={openSpanDate === todayStr ? todayNowHour : -1}
+          onClose={closeScheduled}
+          onDone={message => flash(message, 5000)}
+        />
       )}
 
       {editingActivity && (
@@ -1101,5 +1235,108 @@ function ChipLabel({
         </span>
       )}
     </>
+  )
+}
+
+/** A scheduled activity in its lane: solid, with a check, above the suggested windows. */
+function ScheduledBlock({
+  act,
+  item,
+  span,
+  color,
+  dayLabel,
+  axisFrom,
+  axisTo,
+  variant,
+  fmt,
+  expanded,
+  onOpen,
+}: {
+  act: Activity
+  item: ScheduledActivity
+  span: ScheduledSpan
+  color: string
+  dayLabel: string
+  axisFrom: number
+  axisTo: number
+  variant: ChipVariant
+  fmt: UnitFormatters
+  expanded: boolean
+  onOpen: () => void
+}) {
+  const topH = Math.max(span.from, axisFrom)
+  const botH = Math.min(span.to, axisTo)
+  if (botH <= topH) return null
+  const top = (topH - axisFrom) * ROW_H + 1
+  // At least one line tall, so a short activity still shows its check.
+  const height = Math.max(20, (botH - topH) * ROW_H - 2)
+  const lines = Math.floor((height - 4) / 13)
+  const full = variant === 'full'
+  const line: CSSProperties = {
+    display: 'block',
+    maxWidth: '100%',
+    fontSize: '11px',
+    lineHeight: '13px',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+  }
+  return (
+    <button
+      type="button"
+      className="solara-cal-chip solara-cal-scheduled"
+      data-testid="calendar-scheduled"
+      data-event-id={item.eventId}
+      data-from={span.from}
+      data-to={span.to}
+      aria-haspopup="dialog"
+      aria-expanded={expanded}
+      title={`Scheduled: ${act.name} · ${fmt.time(span.from)}–${fmt.time(span.to)}`}
+      onClick={onOpen}
+      style={{
+        position: 'absolute',
+        top: `${top}px`,
+        left: 0,
+        right: 0,
+        height: `${height}px`,
+        margin: 0,
+        padding: full ? '2px 6px' : '2px 1px',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: full ? 'flex-start' : 'center',
+        justifyContent: lines >= 2 ? 'flex-start' : 'center',
+        overflow: 'hidden',
+        cursor: 'pointer',
+        border: 'none',
+        borderRadius: '6px',
+        background: color,
+        color: '#fff',
+        textAlign: full ? 'left' : 'center',
+        boxShadow: expanded
+          ? `inset 0 0 0 2px #fff, 0 0 0 2px ${color}, 0 3px 8px rgba(0,0,0,0.3)`
+          : 'inset 0 0 0 1.5px rgba(255,255,255,0.9), 0 2px 6px rgba(0,0,0,0.28)',
+        zIndex: 2,
+      }}
+    >
+      <span aria-hidden="true" style={{ ...line, fontWeight: 750 }}>
+        {full ? '✓ Scheduled' : '✓'}
+      </span>
+      {lines >= 2 && (
+        <span
+          aria-hidden="true"
+          style={{
+            ...line,
+            fontSize: '10.5px',
+            fontWeight: 500,
+            fontVariantNumeric: 'tabular-nums',
+          }}
+        >
+          {full ? `${fmt.time(span.from)} – ${fmt.time(span.to)}` : fmt.compactHour(span.from)}
+        </span>
+      )}
+      <span data-sr-only style={srOnly}>
+        {`Scheduled: ${act.name}, ${dayLabel}, ${fmt.time(span.from)} – ${fmt.time(span.to)}`}
+      </span>
+    </button>
   )
 }

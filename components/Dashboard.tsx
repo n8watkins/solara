@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useEffect, useEffectEvent, useState } from 'react'
 import type { User } from 'firebase/auth'
 import type {
   Activity,
@@ -17,14 +17,15 @@ import type { BusyPeriod } from '@/lib/gcal'
 import {
   isCalendarConfigured,
   requestAccessToken,
-  requestWriteToken,
   fetchFreeBusy,
-  createCalendarEvent,
-  buildEventBody,
   buildEventDescription,
   busyIntervalsForDay,
 } from '@/lib/gcal'
 import type { SlotRecommendation } from '@/lib/scheduler'
+import { activityColor } from '@/lib/activity-colors'
+import { scheduledOn, scheduledSpan } from '@/lib/scheduled'
+import { useScheduled } from '@/lib/scheduled-context'
+import ScheduledSheet from './ScheduledSheet'
 import SunArc from './SunArc'
 import UVTimeline from './UVTimeline'
 import ActivityCards from './ActivityCards'
@@ -81,6 +82,8 @@ export default function Dashboard({
   // either keeps both in sync. null = fall back to "now" (today) / first hour.
   const [focusedHour, setFocusedHour] = useState<HourlyForecast | null>(null)
   const fmt = useUnits()
+  const scheduled = useScheduled()
+  const [openEventId, setOpenEventId] = useState<string | null>(null)
   // "Now" is the forecast location's wall clock, never the device's.
   const currentHour = weather.now.hour
   // Fractional "now" (rounded up to 5 minutes): the earliest start any recommendation
@@ -201,29 +204,48 @@ export default function Dashboard({
     }
   }
 
+  // Scheduled activities are checked against Google when a token is already in memory.
+  const scheduledEnabled = scheduled.enabled
+  const refreshScheduled = useEffectEvent(() => void scheduled.refresh({ interactive: false }))
+  useEffect(() => {
+    if (scheduledEnabled) refreshScheduled()
+  }, [scheduledEnabled])
+
+  function flashMessage(message: string, ms = 4500) {
+    setShareMsg(message)
+    window.setTimeout(() => setShareMsg(current => (current === message ? null : current)), ms)
+  }
+
   async function bookSlotOn(activity: Activity, rec: SlotRecommendation, dateStr: string) {
-    setShareMsg('Adding to your calendar…')
+    setShareMsg('Adding to your Google Calendar…')
     // For a future day the "peak" context belongs to that day, not today's reading.
     const peak = dateStr === activeDateStr ? { peakUV, peakHour } : { peakUV: rec.peakUV }
-    const description = buildEventDescription(rec, activity, peak)
-    const body = buildEventBody(
-      activity,
-      dateStr,
-      rec.start,
-      rec.end,
-      description,
-      weather.timezone,
-    )
     try {
-      const token = await requestWriteToken()
-      const event = await createCalendarEvent(token, body)
-      setShareMsg('✓ Added to your Google Calendar.')
-      if (event.htmlLink) window.open(event.htmlLink, '_blank', 'noopener')
+      await scheduled.schedule({
+        activity,
+        dateStr,
+        slot: rec,
+        description: buildEventDescription(rec, activity, peak),
+        timeZone: weather.timezone,
+      })
+      flashMessage(
+        `✓ Scheduled ${activity.name} for ${fmt.time(rec.start)}. It is on your Google Calendar.`,
+      )
     } catch {
-      setShareMsg('Could not add to calendar — try again.')
+      flashMessage('Could not add to Google Calendar. Nothing was saved; try again.')
     }
-    window.setTimeout(() => setShareMsg(null), 4000)
   }
+
+  // The scheduled event whose details are open; it closes when the event goes away.
+  const openItem = openEventId
+    ? (scheduled.items.find(item => item.eventId === openEventId) ?? null)
+    : null
+  const openActivity = openItem
+    ? prefs.activities.find(a => a.id === openItem.activityId)
+    : undefined
+  const openDate = openItem ? scheduledSpan(openItem, weather.timezone).date : ''
+  const openDay = weather.forecast.find(day => day.dateStr === openDate)
+  const openIsToday = openDate === weather.now.date
 
   function hideSuggestion(id: string) {
     const hidden = prefs.hiddenActivitySuggestionIds ?? []
@@ -646,7 +668,7 @@ export default function Dashboard({
               upgradeCopy={upgradeCopy}
               onUpgrade={() => setShowPricing(true)}
               onBook={
-                calStatus === 'connected'
+                scheduled.enabled
                   ? (activity, rec, dateStr) => void bookSlotOn(activity, rec, dateStr)
                   : undefined
               }
@@ -733,9 +755,13 @@ export default function Dashboard({
             location={prefs.location}
             dateLabel={dateLabel}
             onBookRecommended={
-              calStatus === 'connected' ? (a, r) => void bookSlotOn(a, r, activeDateStr) : undefined
+              scheduled.enabled ? (a, r) => void bookSlotOn(a, r, activeDateStr) : undefined
             }
             onEditActivity={openEditActivity}
+            scheduledFor={activityId =>
+              scheduledOn(scheduled.items, activityId, activeDateStr, weather.timezone)
+            }
+            onOpenScheduled={item => setOpenEventId(item.eventId)}
           />
         ) : (
           <div className="card" style={{ textAlign: 'center', padding: '2.75rem 1.5rem' }}>
@@ -796,6 +822,27 @@ export default function Dashboard({
           onSave={updateActivity}
           onDelete={deleteActivity}
           onClose={() => setEditingActivityId(null)}
+        />
+      )}
+
+      {openItem && (
+        <ScheduledSheet
+          key={openItem.eventId}
+          item={openItem}
+          activity={openActivity}
+          color={activityColor(prefs.activities, openItem.activityId)}
+          timeZone={weather.timezone}
+          dayLabel={openDay?.label ?? openDate}
+          windows={
+            openActivity && openDay
+              ? planActivityDay(openDay.hourly, openActivity, prefs.skinType, {
+                  nowHour: openIsToday ? nowHour : -1,
+                }).windows
+              : []
+          }
+          nowHour={openIsToday ? nowHour : -1}
+          onClose={() => setOpenEventId(null)}
+          onDone={message => flashMessage(message)}
         />
       )}
 

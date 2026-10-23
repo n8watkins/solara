@@ -8,6 +8,8 @@
 //   tier   = paid (default) | free
 //   tab    = general (default) | activities | location   (settings only)
 //   fixture = default (default) | uv-gaps   (see uv-gap-fixtures.ts)
+//   scheduled = none (default) | synced | reconnect: in-memory scheduled activities
+//            (see scheduled-fixtures.tsx), shown as synced or awaiting reconnect
 //   data   = fixture (default) | live: load the forecast through the app's real data
 //            layer (lib/use-forecast.ts useWeather); specs answer the Open-Meteo
 //            requests with page.route (see data-layer.spec.ts)
@@ -28,6 +30,7 @@ import { createQueryClient, useWeather } from '@/lib/use-forecast'
 import Skeleton from '@/components/Skeleton'
 import { HARNESS_MARKER, buildPrefs, buildUser, buildWeather } from './fixtures'
 import { buildGapWeather } from './uv-gap-fixtures'
+import { HarnessScheduledProvider } from './scheduled-fixtures'
 
 export type HarnessScreen = 'dashboard' | 'calendar' | 'settings' | 'pricing'
 type SettingsTab = 'general' | 'activities' | 'location'
@@ -46,14 +49,22 @@ function readParams() {
     tab: tab && TABS.includes(tab) ? tab : 'general',
     fixture: params.get('fixture') === 'uv-gaps' ? 'uv-gaps' : 'default',
     live: params.get('data') === 'live',
+    scheduled: (['synced', 'reconnect'] as const).find(v => v === params.get('scheduled')) ?? null,
   }
 }
 
 export default function HarnessApp() {
   const [queryClient] = useState(createQueryClient)
+  const [scheduled] = useState(() => readParams().scheduled)
   return (
     <QueryClientProvider client={queryClient}>
-      <Harness />
+      {scheduled ? (
+        <HarnessScheduledProvider sync={scheduled}>
+          <Harness />
+        </HarnessScheduledProvider>
+      ) : (
+        <Harness />
+      )}
     </QueryClientProvider>
   )
 }
