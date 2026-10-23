@@ -86,8 +86,12 @@ export function gcalLink(
 ): string {
   const base = new Date()
   base.setDate(base.getDate() + daysFromNow)
-  const start = new Date(base.getFullYear(), base.getMonth(), base.getDate(), window.from, 0, 0)
-  const end = new Date(start.getTime() + durationMins * 60000)
+  // Midnight plus whole minutes, so a fractional start (10.5 = 10:30) is kept
+  // instead of truncated to the hour by the Date constructor.
+  const start = new Date(base.getFullYear(), base.getMonth(), base.getDate())
+  start.setMinutes(Math.round(window.from * 60))
+  const end = new Date(start)
+  end.setMinutes(end.getMinutes() + Math.round(durationMins))
   const fmt = (d: Date) => d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
   const title = encodeURIComponent(`${activityName}: lower-UV window`)
   const details = encodeURIComponent(
