@@ -1,8 +1,11 @@
 'use client'
-import { useQuery } from '@tanstack/react-query'
+import { useEffect } from 'react'
+import { QueryClient, useQuery } from '@tanstack/react-query'
 import { getCachedForecast, locationKey, setCachedForecast } from './cache'
-import { fetchForecast } from './forecast'
-import type { Location } from './types'
+import { fetchForecast, forecastView } from './forecast'
+import { resolveTimeZone, zonedNow } from './time'
+import type { Location, WeatherResponse } from './types'
+import { useZonedNow } from './use-zoned-now'
 
 // The forecast data layer. TanStack Query owns fetching: one request per
 // location at a time (the dashboard and calendar share it), the request is
@@ -15,8 +18,20 @@ import type { Location } from './types'
 /** A forecast younger than this is shown without refetching. */
 export const FORECAST_STALE_MS = 30 * 60 * 1000
 
+/** Query key prefix for every forecast; remove it to drop all cached forecasts. */
+export const FORECAST_QUERY_KEY = ['forecast'] as const
+
 export function forecastQueryKey(lat: number, lon: number) {
-  return ['forecast', locationKey(lat, lon)] as const
+  return [...FORECAST_QUERY_KEY, locationKey(lat, lon)] as const
+}
+
+/** The app's query client: one quick retry, then the error banner offers a manual one. */
+export function createQueryClient(): QueryClient {
+  return new QueryClient({
+    defaultOptions: {
+      queries: { retry: 1, refetchOnWindowFocus: true, gcTime: 30 * 60 * 1000 },
+    },
+  })
 }
 
 export function useForecast(location: Location | null | undefined) {
@@ -37,4 +52,43 @@ export function useForecast(location: Location | null | undefined) {
     // Keep "now" current on a screen left open.
     refetchInterval: FORECAST_STALE_MS,
   })
+}
+
+export interface WeatherState {
+  /** The forecast as seen now in the location's zone, or null until one is loaded. */
+  weather: WeatherResponse | null
+  /** True while the first forecast for the location is loading. */
+  loading: boolean
+  /** A message when the last fetch failed (the last forecast, if any, stays on screen). */
+  error: string | null
+  /** Fetch a fresh forecast now. */
+  refresh: () => void
+}
+
+/**
+ * The forecast for `location` as the screens use it: "today" and "now" are read
+ * in the forecast's own time zone from a minute clock, so the view rolls over at
+ * the location's midnight, and that day's forecast is refetched when it does.
+ * Pass null to load nothing.
+ */
+export function useWeather(location: Location | null | undefined): WeatherState {
+  const forecast = useForecast(location)
+  const data = forecast.data
+  const now = useZonedNow(resolveTimeZone(data?.timezone, location?.timezone))
+  const weather = data ? forecastView(data, now) : null
+  const fetchedDate = data ? zonedNow(data.timezone, data.fetchedAt).date : null
+  const refetch = forecast.refetch
+  useEffect(() => {
+    if (fetchedDate && fetchedDate < now.date) void refetch()
+  }, [fetchedDate, now.date, refetch])
+  return {
+    weather,
+    loading: !weather && forecast.isPending && !!location,
+    error: forecast.isError
+      ? weather
+        ? 'Could not refresh weather data. Showing the last forecast.'
+        : 'Could not load weather data.'
+      : null,
+    refresh: () => void refetch(),
+  }
 }

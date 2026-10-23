@@ -1,15 +1,12 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
-import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query'
+import { QueryClientProvider, useQueryClient } from '@tanstack/react-query'
 import type { User } from 'firebase/auth'
 import { onAuthStateChanged } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
 import { saveLocalPrefs, saveFirestorePrefs } from '@/lib/prefs'
 import { loadAccountPrefs } from '@/lib/session'
-import { forecastView } from '@/lib/forecast'
-import { useForecast } from '@/lib/use-forecast'
-import { useZonedNow } from '@/lib/use-zoned-now'
-import { resolveTimeZone, zonedNow } from '@/lib/time'
+import { FORECAST_QUERY_KEY, createQueryClient, useWeather } from '@/lib/use-forecast'
 import { resolveUnits, unitFormatters } from '@/lib/units'
 import { UnitsContext } from '@/lib/use-units'
 import {
@@ -37,19 +34,6 @@ const ACCOUNT_LOAD_ERROR =
   'Could not load your saved account. Nothing was changed. Check your connection and try again.'
 const ACCOUNT_CREATE_ERROR =
   'Could not finish setting up your account. Nothing was saved. Check your connection and try again.'
-
-function createQueryClient() {
-  return new QueryClient({
-    defaultOptions: {
-      queries: {
-        // One quick retry, then the error banner offers a manual one.
-        retry: 1,
-        refetchOnWindowFocus: true,
-        gcTime: 30 * 60 * 1000,
-      },
-    },
-  })
-}
 
 export default function App() {
   const [queryClient] = useState(createQueryClient)
@@ -87,7 +71,7 @@ function SignedInApp() {
 
     function resetAccountState() {
       // Drops cached forecasts and aborts any request in flight.
-      queryClient.removeQueries({ queryKey: ['forecast'] })
+      queryClient.removeQueries({ queryKey: FORECAST_QUERY_KEY })
       setPrefs(null)
       setSyncError(null)
       setBillingNotice(null)
@@ -214,29 +198,14 @@ function SignedInApp() {
   }, [user])
 
   // The forecast for the active location. Switching location aborts the old
-  // request; a cached forecast shows at once while a stale one refreshes.
-  const forecast = useForecast(screen === 'dashboard' ? prefs?.location : null)
-  const forecastData = forecast.data
-  const timeZone = resolveTimeZone(forecastData?.timezone, prefs?.location.timezone)
-  // "Now" in the forecast location's zone, ticking every minute; the device's zone
-  // never decides what "today" is.
-  const now = useZonedNow(timeZone)
-  const weather = forecastData ? forecastView(forecastData, now) : null
-  const fetchedDate = forecastData
-    ? zonedNow(forecastData.timezone, forecastData.fetchedAt).date
-    : null
-  const refetchForecast = forecast.refetch
-  useEffect(() => {
-    // Midnight at the location: the view has already moved on to the new day;
-    // fetch that day's fresh forecast too.
-    if (fetchedDate && fetchedDate < now.date) void refetchForecast()
-  }, [fetchedDate, now.date, refetchForecast])
-  const refreshWeather = () => void refetchForecast()
-  const error = forecast.isError
-    ? weather
-      ? 'Could not refresh weather data. Showing the last forecast.'
-      : 'Could not load weather data.'
-    : null
+  // request; a cached forecast shows at once while a stale one refreshes; "today"
+  // and "now" come from the location's time zone.
+  const {
+    weather,
+    loading: weatherLoading,
+    error,
+    refresh: refreshWeather,
+  } = useWeather(screen === 'dashboard' ? prefs?.location : null)
   const units = unitFormatters(resolveUnits(prefs))
 
   async function handlePrefsUpdate(updated: UserPreferences) {
@@ -448,7 +417,7 @@ function SignedInApp() {
         )}
         {effectiveView === 'dashboard' && (
           <>
-            {!weather && forecast.isPending && <Skeleton />}
+            {weatherLoading && <Skeleton />}
             {weather && (
               <ErrorBoundary label="the dashboard" onReset={refreshWeather}>
                 <Dashboard
@@ -464,7 +433,7 @@ function SignedInApp() {
             )}
           </>
         )}
-        {effectiveView === 'calendar' && (weather || forecast.isPending) && (
+        {effectiveView === 'calendar' && (weather || weatherLoading) && (
           <div className="card">
             {weather ? (
               <ErrorBoundary label="the calendar" onReset={refreshWeather}>
