@@ -9,6 +9,10 @@ import {
   PREFS_LIMITS,
   PREFS_SCHEMA_VERSION,
   PROFILE_SHAPE,
+  SCHEDULED_CALENDAR_IDS,
+  SCHEDULED_FIELDS,
+  SCHEDULED_LIMITS,
+  SCHEDULED_SHAPE,
   SERVER_OWNED_FIELDS,
   SKIN_TYPES,
   TEMPERATURE_UNIT_PREFERENCES,
@@ -207,5 +211,37 @@ describe('firestore.rules match the preferences schema', () => {
     expect(sorted(Object.keys(prefs.location))).toEqual(sorted(Object.keys(LOCATION_SHAPE)))
     expect(sorted(Object.keys(prefs.profiles![0]!))).toEqual(sorted(Object.keys(PROFILE_SHAPE)))
     expect(sorted(Object.keys(prefs.activities[0]!))).toEqual(sorted(Object.keys(ACTIVITY_SHAPE)))
+  })
+})
+
+describe('firestore.rules scheduled activities match the schema', () => {
+  const rule = () => rulesFunction('validScheduled')
+
+  it('allows exactly the schema fields', () => {
+    expect(sorted(rulesList('scheduledKeys'))).toEqual(sorted(SCHEDULED_FIELDS))
+    expect(sorted(SCHEDULED_FIELDS)).toEqual(sorted(Object.keys(SCHEDULED_SHAPE)))
+  })
+
+  it('caps every text field at the schema limit', () => {
+    const caps: [string, number][] = [
+      ['activityId', SCHEDULED_LIMITS.activityIdLength],
+      ['title', SCHEDULED_LIMITS.titleLength],
+      ['icon', SCHEDULED_LIMITS.iconLength],
+      ['start', SCHEDULED_LIMITS.timestampLength],
+      ['end', SCHEDULED_LIMITS.timestampLength],
+      ['timeZone', SCHEDULED_LIMITS.timezoneLength],
+      ['htmlLink', SCHEDULED_LIMITS.linkLength],
+      ['createdAt', SCHEDULED_LIMITS.timestampLength],
+      ['updatedAt', SCHEDULED_LIMITS.timestampLength],
+    ]
+    for (const [field, cap] of caps) {
+      expect(numberIn(rule(), new RegExp(`data\\.${field}\\.size\\(\\) <= (\\d+)`))).toBe(cap)
+    }
+    expect(numberIn(rule(), /eventId\.size\(\) <= (\d+)/)).toBe(SCHEDULED_LIMITS.eventIdLength)
+    expect(listAfter(rule(), 'calendarId in')).toEqual([...SCHEDULED_CALENDAR_IDS])
+  })
+
+  it('caps list queries at the client limit', () => {
+    expect(numberIn(rules, /request\.query\.limit <= (\d+)/)).toBe(SCHEDULED_LIMITS.listLimit)
   })
 })

@@ -48,7 +48,7 @@ test('a free account is held to the free plan and offered Pro', async ({ page, e
   await expect(pricing).toBeHidden()
   await settings.getByRole('button', { name: 'Close settings' }).click()
 
-  await page.getByRole('button', { name: /Calendar/ }).click()
+  await page.getByRole('button', { name: '🗓️ Calendar', exact: true }).click()
   await expect(page.getByText('Go Pro for the full 10-day Calendar view.')).toBeVisible()
   await expect(page.getByRole('button', { name: /^Running, Wed, Jun 17,/ })).toHaveCount(0)
 })
@@ -83,7 +83,7 @@ test('a paid account gets the full forecast and more activities', async ({ page,
     .poll(async () => ((await emulators.readPrefs(account))?.activities as unknown[]).length)
     .toBe(4)
 
-  await page.getByRole('button', { name: /Calendar/ }).click()
+  await page.getByRole('button', { name: '🗓️ Calendar', exact: true }).click()
   await expect(
     page.getByRole('button', { name: 'Running, Wed, Jun 24, 6pm – 8pm, peak UV 3.0' }),
   ).toBeVisible()

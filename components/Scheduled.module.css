@@ -1,0 +1,317 @@
+/* Scheduled activities: Google Calendar events Solara created. They read as
+   commitments (solid, with a check) next to suggested lower-UV windows. */
+
+/* "✓ Scheduled" pill: the same green pair as .badge-safe, so "scheduled" and
+   "safe now" share one meaning of green across the app. */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 16px;
+  white-space: nowrap;
+  background: #d1fae5;
+  color: #065f46;
+}
+:global(.dark) .pill {
+  background: #064e3b;
+  color: #6ee7b7;
+}
+
+/* ---- Bottom sheet (shared with the calendar's window sheet geometry) ---- */
+.sheet {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: max(12px, env(safe-area-inset-bottom));
+  margin: 0 auto;
+  max-width: 520px;
+  z-index: 60;
+  padding: 16px;
+  border-radius: 16px;
+  background: var(--bg-card);
+  border: 0.5px solid var(--border-md);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.22);
+  outline: none;
+}
+
+.head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.tile {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+}
+
+/* The check that marks a scheduled item, on its icon tile. */
+.tileCheck {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  color: #fff;
+  background: #047857;
+  box-shadow: 0 0 0 2px var(--bg-card);
+}
+
+.title {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.when {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.body {
+  margin: 12px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-2);
+}
+
+.actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.action {
+  justify-content: center;
+  min-height: 40px;
+  text-decoration: none;
+}
+
+.full {
+  grid-column: 1 / -1;
+}
+
+.danger {
+  color: var(--danger);
+}
+
+.dangerFill {
+  justify-content: center;
+  min-height: 40px;
+  border: none;
+  background: var(--danger);
+  color: #fff;
+}
+:global(.dark) .dangerFill {
+  color: #1a1208;
+}
+
+.panel {
+  margin-top: 14px;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--bg-subtle);
+  border: 0.5px solid var(--border-md);
+}
+
+.panelLabel {
+  display: block;
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.select {
+  width: 100%;
+  font-size: 14px;
+  padding: 8px 10px;
+}
+
+.note {
+  margin: 10px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-3);
+}
+
+.error {
+  margin: 10px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--danger);
+}
+
+/* ---- "Scheduled" list ---- */
+.list {
+  margin: 0 0 16px;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--bg-subtle);
+  border: 0.5px solid var(--border-md);
+}
+
+.listHead {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  margin-bottom: 10px;
+}
+
+.listTitle {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.count {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.syncLine {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.reconnect {
+  font-size: 12px;
+  padding: 5px 10px;
+  min-height: 28px;
+}
+
+.rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 8px;
+}
+
+.row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 0.5px solid var(--border-md);
+  background: var(--bg-card);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+@media (hover: hover) {
+  .row:hover {
+    background: var(--bg-metric);
+  }
+}
+
+.rowTile {
+  width: 32px;
+  height: 32px;
+  font-size: 16px;
+}
+
+.rowText {
+  flex: 1;
+  min-width: 0;
+}
+
+.rowName {
+  display: block;
+  font-size: 13px;
+  font-weight: 650;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rowWhen {
+  display: block;
+  margin-top: 1px;
+  font-size: 12px;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---- Activity card: scheduled row ---- */
+.cardRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  background: var(--bg-card);
+  border: 1px solid #047857;
+  box-shadow: inset 3px 0 0 #047857;
+}
+:global(.dark) .cardRow {
+  border-color: #34d399;
+  box-shadow: inset 3px 0 0 #34d399;
+}
+
+.cardText {
+  flex: 1 0 auto;
+}
+
+.cardTime {
+  display: block;
+  margin-top: 2px;
+  font-size: 14px;
+  font-weight: 750;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.cardActions {
+  display: flex;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+.small {
+  padding: 5px 9px;
+  font-size: 11px;
+  text-decoration: none;
+}

@@ -42,6 +42,18 @@ describe('privacy policy', () => {
     expect(privacy).toContain('train artificial intelligence')
   })
 
+  it('says what Solara keeps about events it creates, and that it reads only those', () => {
+    expect(privacy).toContain('Solara stores the event&apos;s')
+    expect(privacy).toContain('identifier, time, title and link of events it created')
+    expect(privacy).toContain('looks up only')
+    expect(privacy).toContain(
+      'events it created; it does not read, change or delete any other event',
+    )
+    expect(privacy).not.toContain('does not keep a')
+    expect(privacy).toContain('Scheduled activities: until you remove the event')
+    expect(privacy).toContain('scheduled activities, calendar')
+  })
+
   it('describes calendar access as availability only, matching the requested scope', () => {
     expect(privacy).toContain('Solara never sees')
     expect(privacy).toContain('Limited Use')

@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { QueryClientProvider, useQueryClient } from '@tanstack/react-query'
 import type { User } from 'firebase/auth'
 import { onAuthStateChanged } from 'firebase/auth'
@@ -16,7 +16,7 @@ import {
   onForegroundMessage,
 } from '@/lib/notifications'
 import { observeCheckoutResult } from '@/lib/billing'
-import type { UserPreferences, TierLevel, DayWeather } from '@/lib/types'
+import type { Activity, UserPreferences, TierLevel, DayWeather } from '@/lib/types'
 import Welcome from './Welcome'
 import Onboarding from './Onboarding'
 import Dashboard from './Dashboard'
@@ -27,6 +27,7 @@ import CalendarView from './CalendarView'
 import DevPanel from './DevPanel'
 import ErrorBoundary from './ErrorBoundary'
 import AppShell, { type AppView } from './AppShell'
+import ScheduledProvider from './ScheduledProvider'
 
 type Screen = 'loading' | 'welcome' | 'onboarding' | 'dashboard'
 
@@ -311,7 +312,7 @@ function SignedInApp() {
   const effectiveView = displayTier === 'anonymous' ? 'dashboard' : view
 
   return (
-    <UnitsContext value={units}>
+    <AccountContexts units={units} uid={user?.uid ?? null} activities={prefs.activities}>
       <AppShell
         header={
           <Header
@@ -482,6 +483,27 @@ function SignedInApp() {
           </div>
         )}
       </AppShell>
+    </AccountContexts>
+  )
+}
+
+/** Display units and the account's scheduled activities, for everything below. */
+function AccountContexts({
+  units,
+  uid,
+  activities,
+  children,
+}: {
+  units: ReturnType<typeof unitFormatters>
+  uid: string | null
+  activities: Activity[]
+  children: ReactNode
+}) {
+  return (
+    <UnitsContext value={units}>
+      <ScheduledProvider uid={uid} activities={activities}>
+        {children}
+      </ScheduledProvider>
     </UnitsContext>
   )
 }

@@ -647,7 +647,7 @@ describe('account data security', () => {
     let userRead = false
     const userRef = {
       kind: 'user',
-      collection: () => ({ kind: 'devices' }),
+      collection: name => ({ kind: name }),
     }
     const db = {
       collection(name) {
@@ -664,7 +664,7 @@ describe('account data security', () => {
           async get(ref) {
             if (ref.kind === 'tombstone') return { exists: true }
             userRead = true
-            return ref.kind === 'devices' ? { docs: [] } : { exists: true, data: () => ({}) }
+            return ref.kind === 'user' ? { exists: true, data: () => ({}) } : { docs: [] }
           },
         })
       },
@@ -684,11 +684,26 @@ describe('account data security', () => {
   test('reads all exported data from one transaction snapshot', async () => {
     const reads = []
     const devicesQuery = { kind: 'devices' }
+    const scheduledQuery = { kind: 'scheduled' }
+    const scheduledItem = {
+      eventId: 'evt1',
+      calendarId: 'primary',
+      activityId: 'run',
+      title: 'Running: lower-UV window',
+      icon: '🏃',
+      start: '2026-06-16T01:00:00.000Z',
+      end: '2026-06-16T01:45:00.000Z',
+      timeZone: 'America/Los_Angeles',
+      htmlLink: 'https://www.google.com/calendar/event?eid=evt1',
+      createdAt: '2026-06-15T17:30:00.000Z',
+      updatedAt: '2026-06-15T17:30:00.000Z',
+    }
     const userRef = {
       kind: 'user',
       collection(name) {
-        assert.equal(name, 'notificationDevices')
-        return devicesQuery
+        if (name === 'notificationDevices') return devicesQuery
+        assert.equal(name, 'scheduled')
+        return scheduledQuery
       },
     }
     const tombstoneRef = { kind: 'tombstone' }
@@ -707,6 +722,16 @@ describe('account data security', () => {
               return { exists: true, data: () => ({ location: { city: 'Seattle' } }) }
             }
             if (ref === devicesQuery) return { docs: [] }
+            if (ref === scheduledQuery) {
+              return {
+                docs: [
+                  { id: 'evt1', data: () => scheduledItem },
+                  // Malformed or mismatched records are left out.
+                  { id: 'evt2', data: () => ({ ...scheduledItem, htmlLink: 'https://x.test' }) },
+                  { id: 'evt3', data: () => scheduledItem },
+                ],
+              }
+            }
             throw new Error('Unexpected transaction read')
           },
         })
@@ -719,9 +744,10 @@ describe('account data security', () => {
       req: { headers: { authorization: 'Bearer valid' } },
     })
 
-    assert.deepEqual(reads, ['tombstone', 'user', 'devices'])
+    assert.deepEqual(reads, ['tombstone', 'user', 'devices', 'scheduled'])
     assert.deepEqual(result.account, { location: { city: 'Seattle' } })
     assert.deepEqual(result.notificationDevices, [])
+    assert.deepEqual(result.scheduledActivities, [scheduledItem])
   })
 
   test('quarantines deletion and copies the billing index in bounded pages', async () => {

@@ -8,7 +8,7 @@ test('the calendar shows each activity window and opens its details', async ({
   await emulators.seedPrefs(account, { activities: [RUNNING, HIKING] })
   await openDashboard(page, account)
 
-  await page.getByRole('button', { name: /Calendar/ }).click()
+  await page.getByRole('button', { name: '🗓️ Calendar', exact: true }).click()
   const main = page.getByRole('main')
   await expect(main.getByRole('group', { name: 'Hours shown' })).toBeVisible()
   await expect(
@@ -29,10 +29,9 @@ test('the calendar shows each activity window and opens its details', async ({
   await main.getByRole('button', { name: 'Running, Today, 6pm – 8pm, peak UV 3.1' }).click()
   const details = page.getByRole('dialog', { name: 'Running' })
   await expect(details.getByText('Today · 6pm – 8pm')).toBeVisible()
-  await expect(details.getByRole('link', { name: /Add to Google Calendar/ })).toHaveAttribute(
-    'href',
-    /^https:\/\/calendar\.google\.com\/calendar\/render\?action=TEMPLATE&text=Running/,
-  )
+  // With Google Calendar set up, adding goes through the API and shows as Scheduled
+  // (scheduled.e2e.ts); the plain template link is the fallback without it.
+  await expect(details.getByRole('button', { name: /Add to Google Calendar/ })).toBeVisible()
   await details.getByRole('button', { name: 'Close' }).click()
   await expect(details).toBeHidden()
 

@@ -14,6 +14,7 @@ import { expect, test as base } from '@playwright/test'
 import type { Page, Route } from '@playwright/test'
 import { buildRawForecast } from '../../harness/fixtures'
 import { startClock } from '../../harness/clock'
+import { FAKE_GIS, FakeGoogleCalendar } from './fake-google-calendar'
 
 function emulatorEnv(name: string): string {
   const value = process.env[name]
@@ -207,6 +208,32 @@ export class Emulators {
     })
   }
 
+  /** Writes a scheduled-activity record, as the app does after scheduling. */
+  async seedScheduled(account: Account, record: { eventId: string } & Record<string, unknown>) {
+    const { fields } = encode(record).mapValue as { fields: Record<string, FirestoreValue> }
+    await admin(`${FIRESTORE_API}/users/${account.uid}/scheduled/${record.eventId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ fields }),
+    })
+  }
+
+  /** The account's scheduled-activity records, by event id. */
+  async readScheduled(account: Account): Promise<Record<string, Record<string, unknown>>> {
+    const response = await fetch(`${FIRESTORE_API}/users/${account.uid}/scheduled`, {
+      headers: ADMIN,
+    })
+    if (!response.ok) throw new Error(`Listing scheduled failed: ${response.status}`)
+    const { documents = [] } = (await response.json()) as {
+      documents?: { name: string; fields?: Record<string, FirestoreValue> }[]
+    }
+    return Object.fromEntries(
+      documents.map(d => [
+        d.name.split('/').pop()!,
+        decode({ mapValue: { fields: d.fields ?? {} } }) as Record<string, unknown>,
+      ]),
+    )
+  }
+
   /** The account document as stored, or null. */
   async readPrefs(account: Account): Promise<Record<string, unknown> | null> {
     const response = await fetch(`${FIRESTORE_API}/users/${account.uid}`, { headers: ADMIN })
@@ -232,7 +259,12 @@ function fromEmulatorPage(route: Route): boolean {
 }
 
 /** Requests that may leave the test server, and the fixture each one gets. */
-async function stubNetwork(page: Page, origin: string, blocked: string[]): Promise<void> {
+async function stubNetwork(
+  page: Page,
+  origin: string,
+  blocked: string[],
+  calendar: FakeGoogleCalendar,
+): Promise<void> {
   await page.context().route(
     url => url.origin !== origin,
     async route => {
@@ -275,6 +307,15 @@ async function stubNetwork(page: Page, origin: string, blocked: string[]): Promi
         })
         return
       }
+      if (url.origin === 'https://accounts.google.com' && url.pathname === '/gsi/client') {
+        // Google Identity Services: hands out Calendar tokens without a popup.
+        await route.fulfill({ contentType: 'text/javascript', body: FAKE_GIS })
+        return
+      }
+      if (url.origin === 'https://www.googleapis.com' && url.pathname.startsWith('/calendar/')) {
+        await calendar.handle(route)
+        return
+      }
       if (url.origin === 'https://nominatim.openstreetmap.org') {
         await route.fulfill({
           json: { address: { city: 'Los Angeles', state: 'California', country_code: 'us' } },
@@ -291,16 +332,37 @@ async function stubNetwork(page: Page, origin: string, blocked: string[]): Promi
   )
 }
 
-export const test = base.extend<{ emulators: Emulators; blockedRequests: string[] }>({
+/**
+ * Stubs the network and freezes the clock for a page, the way every test's own page
+ * is prepared. Use it for a page in a second browser context ("another device").
+ */
+export async function preparePage(
+  page: Page,
+  baseURL: string,
+  blocked: string[],
+  calendar: FakeGoogleCalendar,
+): Promise<void> {
+  await stubNetwork(page, new URL(baseURL).origin, blocked, calendar)
+  await startClock(page)
+}
+
+export const test = base.extend<{
+  emulators: Emulators
+  googleCalendar: FakeGoogleCalendar
+  blockedRequests: string[]
+}>({
   emulators: async ({}, provide) => {
     await provide(new Emulators())
   },
+  // The test's Google Calendar (see fake-google-calendar.ts), shared by its pages.
+  googleCalendar: async ({}, provide) => {
+    await provide(new FakeGoogleCalendar())
+  },
   // Automatic: stub the network and freeze the clock before the test opens a page.
   blockedRequests: [
-    async ({ page, baseURL }, provide) => {
+    async ({ page, baseURL, googleCalendar }, provide) => {
       const blocked: string[] = []
-      await stubNetwork(page, new URL(baseURL!).origin, blocked)
-      await startClock(page)
+      await preparePage(page, baseURL!, blocked, googleCalendar)
       await provide(blocked)
       expect(blocked, 'requests that tried to leave the machine').toEqual([])
     },

@@ -35,11 +35,14 @@ The sign-in domain `solara-uv.web.app` is an authorized Firebase Auth domain, an
 
 - [ ] Finish the OAuth consent screen: data access lists only `https://www.googleapis.com/auth/calendar.freebusy` and `https://www.googleapis.com/auth/calendar.events.owned`, the privacy policy link points at `https://solara-uv.web.app/privacy/`, and the app is published.
 - [ ] Submit the two Calendar scopes for verification and answer Google's review.
+  For `calendar.events.owned`, the justification is: Solara creates an event for a lower-UV window the person picks, stores its id, time, title and link to show it as Scheduled, and later reads, moves or deletes only events it created (found by a private extended property).
 - [ ] Create a Google OAuth web client with `https://solara-uv.web.app` as an Authorized JavaScript origin, and store its client ID as the `NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID` repository variable.
   This is a public client ID; there is no client secret to store.
 - [ ] With a controlled Google account on production:
   - connecting asks only for `calendar.freebusy`, and only busy times are read;
   - creating an event asks for `calendar.events.owned` at that moment, and the event has the expected date, time, time zone and description;
+  - the window then shows as Scheduled; "Open in Google Calendar" opens that event, "Change time" moves it, and "Remove from calendar" deletes it;
+  - moving or deleting the event in Google Calendar shows in Solara after "Reconnect to sync", and a second signed-in device shows the same Scheduled items;
   - revoking access leaves Solara in a clean disconnected state.
 
 ## App Check

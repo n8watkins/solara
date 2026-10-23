@@ -36,7 +36,8 @@ What users get:
   Relaunch is Wave 3, W3-B.
 - **Google Calendar** connect and booking are hidden: `NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID` is not set as a repository secret or variable, and no OAuth client ID is in the live bundle.
 - **App Check** is not active: no `NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY` is configured, and console enforcement is decision D11.
-- **Scheduled activities** (Google Calendar events that Solara created, shown as Scheduled in the calendar) are in progress on another branch and not merged.
+- **Scheduled activities** (Google Calendar events that Solara created, shown as Scheduled in the calendar, on the activity cards and in a Scheduled list) are built and covered by the signed-in e2e suite with a faked Google Calendar.
+  Like booking, they stay hidden in production until `NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID` is set.
 
 ## CI/CD
 

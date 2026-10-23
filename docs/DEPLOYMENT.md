@@ -268,6 +268,9 @@ Set `NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID` and deploy again.
 Add only these two scopes to the consent screen's data access list: `https://www.googleapis.com/auth/calendar.freebusy` and `https://www.googleapis.com/auth/calendar.events.owned`.
 Connecting a calendar requests `calendar.freebusy`, which can read busy times and nothing else.
 Creating an event requests `calendar.events.owned` at booking time.
+Solara uses that scope only on events it created: each one carries the private extended property `solara=1`, the app lists events with `privateExtendedProperty=solara=1`, and it reads, moves or deletes single events only by the ids it stored.
+Scheduled activities are stored at `users/{uid}/scheduled/{eventId}` (event id, time, time zone, title, link and activity) under the owner-only rules in `firestore.rules`, are included in the account export, and are removed with the account.
+The token stays in browser memory; when it has expired, saved items still show and the calendar offers "Reconnect to sync".
 The consent and booking checks are in the [owner checklist](OWNER_CHECKLIST.md#google-sign-in-and-calendar).
 
 ## Operational rollback

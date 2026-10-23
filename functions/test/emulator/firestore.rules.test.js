@@ -575,3 +575,97 @@ describe('notification devices', () => {
     await assertFails(ref.get())
   })
 })
+
+describe('scheduled activities', () => {
+  function scheduled(eventId, overrides = {}) {
+    return {
+      eventId,
+      calendarId: 'primary',
+      activityId: 'run',
+      title: '🏃 Running: lower-UV window',
+      icon: '🏃',
+      start: '2026-06-16T01:00:00.000Z',
+      end: '2026-06-16T01:45:00.000Z',
+      timeZone: 'America/Los_Angeles',
+      htmlLink: `https://www.google.com/calendar/event?eid=${eventId}`,
+      createdAt: '2026-06-15T17:30:00.000Z',
+      updatedAt: '2026-06-15T17:30:00.000Z',
+      ...overrides,
+    }
+  }
+
+  test('an owner can create, read, list, update and delete their records', async () => {
+    const db = testEnv.authenticatedContext('alice').firestore()
+    const ref = db.doc('users/alice/scheduled/evt1')
+    await assertSucceeds(ref.set(scheduled('evt1')))
+    await assertSucceeds(ref.get())
+    await assertSucceeds(db.collection('users/alice/scheduled').orderBy('start').limit(100).get())
+    await assertSucceeds(
+      ref.set(
+        scheduled('evt1', {
+          start: '2026-06-16T02:00:00.000Z',
+          end: '2026-06-16T02:45:00.000Z',
+        }),
+      ),
+    )
+    await assertSucceeds(ref.delete())
+  })
+
+  test('another user cannot read, list or write them', async () => {
+    await testEnv.withSecurityRulesDisabled(async context => {
+      await context.firestore().doc('users/alice/scheduled/evt1').set(scheduled('evt1'))
+    })
+    const mallory = testEnv.authenticatedContext('mallory').firestore()
+    await assertFails(mallory.doc('users/alice/scheduled/evt1').get())
+    await assertFails(mallory.collection('users/alice/scheduled').limit(10).get())
+    await assertFails(mallory.doc('users/alice/scheduled/evt2').set(scheduled('evt2')))
+    await assertFails(mallory.doc('users/alice/scheduled/evt1').delete())
+    const anonymous = testEnv.unauthenticatedContext().firestore()
+    await assertFails(anonymous.doc('users/alice/scheduled/evt1').get())
+  })
+
+  test('list queries must be capped', async () => {
+    const db = testEnv.authenticatedContext('alice').firestore()
+    await assertFails(db.collection('users/alice/scheduled').get())
+    await assertFails(db.collection('users/alice/scheduled').limit(101).get())
+    await assertSucceeds(db.collection('users/alice/scheduled').limit(100).get())
+  })
+
+  test('records are typed and size-capped', async () => {
+    const db = testEnv.authenticatedContext('alice').firestore()
+    const ref = db.doc('users/alice/scheduled/evt1')
+    await assertFails(ref.set(scheduled('evt2')))
+    await assertFails(ref.set(scheduled('evt1', { extra: true })))
+    const { icon: _icon, ...missing } = scheduled('evt1')
+    await assertFails(ref.set(missing))
+    await assertFails(ref.set(scheduled('evt1', { calendarId: 'work' })))
+    await assertFails(ref.set(scheduled('evt1', { activityId: '' })))
+    await assertFails(ref.set(scheduled('evt1', { activityId: 'a'.repeat(65) })))
+    await assertFails(ref.set(scheduled('evt1', { title: 'x'.repeat(201) })))
+    await assertFails(ref.set(scheduled('evt1', { icon: 'x'.repeat(17) })))
+    await assertFails(ref.set(scheduled('evt1', { start: 5 })))
+    await assertFails(ref.set(scheduled('evt1', { end: '2026-06-16T00:00:00.000Z' })))
+    await assertFails(ref.set(scheduled('evt1', { timeZone: 'x'.repeat(65) })))
+    await assertFails(ref.set(scheduled('evt1', { htmlLink: 'https://evil.example/event' })))
+    await assertFails(ref.set(scheduled('evt1', { htmlLink: 'javascript:alert(1)' })))
+    await assertFails(
+      ref.set(scheduled('evt1', { htmlLink: `https://www.google.com/${'x'.repeat(2048)}` })),
+    )
+    await assertFails(ref.set(scheduled('evt1', { createdAt: 'x'.repeat(41) })))
+    await assertFails(db.doc('users/alice/scheduled/bad.id').set(scheduled('bad.id')))
+    await assertSucceeds(
+      ref.set(scheduled('evt1', { htmlLink: 'https://calendar.google.com/calendar/event?eid=1' })),
+    )
+  })
+
+  test('a tombstoned account cannot read or write its records', async () => {
+    await testEnv.withSecurityRulesDisabled(async context => {
+      const db = context.firestore()
+      await db.doc('users/alice/scheduled/evt1').set(scheduled('evt1'))
+      await db.doc('accountDeletionTombstones/alice').set({ revokedBefore: 200 })
+    })
+    const alice = testEnv.authenticatedContext('alice').firestore()
+    await assertFails(alice.doc('users/alice/scheduled/evt1').get())
+    await assertFails(alice.doc('users/alice/scheduled/evt2').set(scheduled('evt2')))
+  })
+})
