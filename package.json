@@ -19,7 +19,8 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "format": "prettier --write \"**/*.{ts,tsx,mts,js,mjs,cjs,css}\"",
-    "format:check": "prettier --check \"**/*.{ts,tsx,mts,js,mjs,cjs,css}\""
+    "format:check": "prettier --check \"**/*.{ts,tsx,mts,js,mjs,cjs,css}\"",
+    "test:harness": "playwright test -c playwright.harness.config.ts"
   },
   "dependencies": {
     "clsx": "^2.1.1",
@@ -31,6 +32,7 @@
     "react-dom": "^19.2.7"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@playwright/test": "^1.61.1",
     "@types/node": "^20",
     "@types/react": "^19.2.17",
