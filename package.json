@@ -11,7 +11,7 @@
     "dev": "next dev",
     "prebuild": "node scripts/generate-sw.js",
     "build": "next build",
-    "postbuild": "node scripts/check-no-ui-harness.mjs",
+    "postbuild": "node scripts/check-no-ui-harness.mjs && node scripts/csp.mjs",
     "start": "next start",
     "lint": "eslint . --max-warnings=0 && npm run format:check",
     "typecheck": "next typegen && tsc --noEmit",
@@ -34,6 +34,7 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",
+    "@next/env": "^16.4.2",
     "@playwright/test": "^1.61.1",
     "@types/node": "^20",
     "@types/react": "^19.2.17",
