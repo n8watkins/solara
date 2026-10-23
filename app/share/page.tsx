@@ -26,7 +26,9 @@ function ShareContent() {
           style={{ width: '100%', maxWidth: '520px', textAlign: 'center', padding: '32px 26px' }}
         >
           <p style={{ fontSize: '42px', margin: '0 0 12px' }}>☀️</p>
-          <h1 style={{ margin: '0 0 10px', fontSize: '26px', color: 'var(--text)' }}>
+          <h1
+            style={{ margin: '0 0 10px', fontSize: '26px', fontWeight: 750, color: 'var(--text)' }}
+          >
             This shared link can&apos;t be shown
           </h1>
           <p
@@ -90,7 +92,13 @@ function ShareContent() {
           Shared Solara plan
         </p>
         <h1
-          style={{ margin: '0 0 10px', fontSize: '28px', color: 'var(--text)', lineHeight: 1.15 }}
+          style={{
+            margin: '0 0 10px',
+            fontSize: '28px',
+            fontWeight: 750,
+            color: 'var(--text)',
+            lineHeight: 1.15,
+          }}
         >
           {activity}
         </h1>
@@ -118,7 +126,8 @@ function ShareContent() {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: uv ? '1fr 1fr' : '1fr',
+            // Side by side when there is room, stacked on phones.
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
             gap: '10px',
             marginBottom: '24px',
           }}

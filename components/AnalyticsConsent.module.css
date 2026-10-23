@@ -26,6 +26,7 @@
 .title {
   margin: 0 0 4px;
   font-size: 15px;
+  font-weight: 650;
 }
 
 .text {
@@ -36,7 +37,9 @@
 }
 
 .text a {
-  color: inherit;
+  color: var(--text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
   white-space: nowrap;
 }
 

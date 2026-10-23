@@ -27,7 +27,7 @@ export default function NotFound() {
         <p style={{ fontSize: '42px', margin: '0 0 12px' }} aria-hidden="true">
           🌤️
         </p>
-        <h1 style={{ margin: '0 0 10px', fontSize: '26px', color: 'var(--text)' }}>
+        <h1 style={{ margin: '0 0 10px', fontSize: '26px', fontWeight: 750, color: 'var(--text)' }}>
           Page not found
         </h1>
         <p
