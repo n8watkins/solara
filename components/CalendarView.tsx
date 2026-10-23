@@ -1,9 +1,24 @@
 'use client'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import type { Activity, UserPreferences, WeatherResponse } from '@/lib/types'
 import { canUseCalendar, getFutureDays, TIER_LIMITS } from '@/lib/tiers'
 import type { DayForecast, SafeWindow } from '@/lib/calendar'
 import { getSafeWindowsForActivity, gcalWindowLink, fmtH } from '@/lib/calendar'
+import {
+  LANE_GAP,
+  UV_BANDS,
+  VIEWS,
+  chipVariant,
+  computeAxis,
+  computeColumns,
+  pageTarget,
+  rangeLabel,
+  shortHour,
+  uvBand,
+  visibleDays,
+  type ChipVariant,
+  type ViewKey,
+} from '@/lib/calendar-layout'
 import { fetchForecast } from '@/lib/forecast'
 import { buildActivityShareText, buildActivityShareUrl, shareOrCopy } from '@/lib/share'
 import EditActivityModal from './EditActivityModal'
@@ -15,28 +30,63 @@ interface Props {
   onPrefsUpdate?: (prefs: UserPreferences) => void
 }
 
-const ROW_H = 60
-const GUTTER_W = 58
+// Vertical geometry. Column and lane widths live in lib/calendar-layout.ts; lanes
+// are clipped to their day column so nothing can spill into the next day.
+const ROW_H = 44
+// Room above the first and below the last hour line so their labels are not cut.
+const AXIS_PAD = 10
+const HEADER_H = 52
+const MAX_BODY_H = 760
 
+// 700-level hues: white text on each meets WCAG AA (4.5:1) in both themes.
 const ACT_COLORS = [
-  '#F97316',
-  '#3B82F6',
-  '#10B981',
-  '#8B5CF6',
-  '#F59E0B',
-  '#EC4899',
-  '#06B6D4',
-  '#84CC16',
+  '#C2410C',
+  '#1D4ED8',
+  '#047857',
+  '#6D28D9',
+  '#B45309',
+  '#BE185D',
+  '#0E7490',
+  '#4D7C0F',
 ]
 
-function uvRowBg(uv: number, dark: boolean): string {
-  const a = dark ? 0.18 : 0.12
-  if (uv < 0.5) return `rgba(156,163,175,${a * 0.4})`
-  if (uv <= 2) return `rgba(74,222,128,${a})`
-  if (uv <= 5) return `rgba(250,204,21,${a})`
-  if (uv <= 7) return `rgba(251,146,60,${a})`
-  if (uv <= 10) return `rgba(248,113,113,${a})`
-  return `rgba(192,132,252,${a})`
+const UV_ROW_ALPHA = 0.11
+
+const pagerButton: CSSProperties = {
+  justifyContent: 'center',
+  width: '32px',
+  height: '32px',
+  padding: 0,
+  fontSize: '18px',
+  lineHeight: 1,
+}
+
+const srOnly: CSSProperties = {
+  position: 'absolute',
+  width: '1px',
+  height: '1px',
+  padding: 0,
+  margin: '-1px',
+  overflow: 'hidden',
+  clip: 'rect(0 0 0 0)',
+  whiteSpace: 'nowrap',
+  border: 0,
+}
+
+const sheetAction: CSSProperties = { justifyContent: 'center', minHeight: '40px' }
+
+// Hours the forecast has no UV for are hatched, so a gap never reads as "no sun".
+const NO_DATA_BG =
+  'repeating-linear-gradient(135deg, rgba(128,128,128,0.16) 0 3px, transparent 3px 7px)'
+
+function uvRowBg(uv: number | undefined): string {
+  if (uv === undefined) return NO_DATA_BG
+  const band = uvBand(uv)
+  return `rgba(${band.rgb},${UV_ROW_ALPHA * band.weight})`
+}
+
+function durationText(mins: number): string {
+  return mins < 60 ? `${mins} min` : `${mins / 60} hr`
 }
 
 function forecastFromWeather(weather: WeatherResponse, limit = 7): DayForecast[] {
@@ -53,6 +103,13 @@ function forecastFromWeather(weather: WeatherResponse, limit = 7): DayForecast[]
   })
 }
 
+interface Selection {
+  act: Activity
+  win: SafeWindow
+  day: DayForecast
+  key: string
+}
+
 export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdate }: Props) {
   const tier = displayTier || prefs.tier || 'anonymous'
   const dayLimit = getFutureDays(tier)
@@ -61,16 +118,17 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
   )
   const [loading, setLoading] = useState(!weather)
   const [error, setError] = useState<string | null>(null)
-  const [popup, setPopup] = useState<{ act: Activity; win: SafeWindow; day: DayForecast } | null>(
-    null,
-  )
-  const [hrFrom, setHrFrom] = useState(prefs.calendarHours?.from ?? 6)
-  const [hrTo, setHrTo] = useState(prefs.calendarHours?.to ?? 20)
-  const [dark, setDark] = useState(false)
+  const [selected, setSelected] = useState<Selection | null>(null)
+  const [view, setView] = useState<ViewKey>('full')
   const [confirm, setConfirm] = useState<string | null>(null)
   const [focusedActivityId, setFocusedActivityId] = useState<string>('all')
   const [editingActivityId, setEditingActivityId] = useState<string | null>(null)
+  const [gridWidth, setGridWidth] = useState<number | null>(null)
+  const [scrollLeft, setScrollLeft] = useState(0)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const sheetRef = useRef<HTMLDivElement>(null)
+  const chipRefs = useRef(new Map<string, HTMLButtonElement>())
+  const returnFocusKey = useRef<string | null>(null)
 
   const calOk = canUseCalendar(tier)
   const visibleActivities =
@@ -87,22 +145,21 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
         ? 'Go Pro for the full 10-day Calendar view.'
         : null
 
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- Browser-only state is read after hydration so the static export's prerendered markup matches the first client render.
-    setDark(document.documentElement.classList.contains('dark'))
-    const obs = new MutationObserver(() =>
-      setDark(document.documentElement.classList.contains('dark')),
-    )
-    obs.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+  // Column widths depend on the space the calendar actually has, not the viewport.
+  useLayoutEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const measure = () => setGridWidth(el.clientWidth)
+    measure()
+    const obs = new ResizeObserver(measure)
+    obs.observe(el)
     return () => obs.disconnect()
-  }, [])
+  }, [loading, error, prefs.activities.length])
 
+  // Each view opens at its first hour, which is never later than the earliest window.
   useEffect(() => {
-    if (scrollRef.current) {
-      const nowOffset = (new Date().getHours() - hrFrom) * ROW_H - 120
-      scrollRef.current.scrollTop = Math.max(0, nowOffset)
-    }
-  }, [days, hrFrom])
+    if (scrollRef.current) scrollRef.current.scrollTop = 0
+  }, [view, focusedActivityId])
 
   useEffect(() => {
     if (weather) {
@@ -134,14 +191,30 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
     // eslint-disable-next-line react-hooks/exhaustive-deps -- Reload only when the coordinates change, not on every location object identity change (see CQ-7).
   }, [prefs.location.lat, prefs.location.lon, weather, dayLimit])
 
-  function openCalendar(act: Activity, win: SafeWindow, day: DayForecast) {
-    const opened = window.open(gcalWindowLink(act, win, day.dateStr), '_blank')
-    setConfirm(
-      opened
-        ? 'Opened Google Calendar.'
-        : 'Pop-up blocked. Allow pop-ups or copy the calendar link.',
-    )
-    window.setTimeout(() => setConfirm(null), 3500)
+  function closeSheet() {
+    setSelected(null)
+    const key = returnFocusKey.current
+    returnFocusKey.current = null
+    // The chip stays mounted while the sheet is open, so focus can move back at once.
+    if (key) chipRefs.current.get(key)?.focus()
+  }
+
+  // Detail sheet: focus moves into it on open, Escape closes it, and focus returns
+  // to the chip that opened it.
+  useEffect(() => {
+    if (!selected) return
+    sheetRef.current?.focus()
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') closeSheet()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Re-run per opened window; closeSheet only touches refs and setters.
+  }, [selected?.key])
+
+  function flash(message: string, ms = 3500) {
+    setConfirm(message)
+    window.setTimeout(() => setConfirm(current => (current === message ? null : current)), ms)
   }
 
   async function shareWindow(act: Activity, win: SafeWindow, day: DayForecast) {
@@ -153,17 +226,17 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
     )
     try {
       const result = await shareOrCopy(`${act.name} sun window`, text, url)
-      setConfirm(
+      flash(
         result === 'shared'
           ? 'Shared activity window.'
           : result === 'copied'
             ? 'Copied share text and link.'
             : `${text} ${url}`,
+        4500,
       )
     } catch {
       setConfirm(null)
     }
-    window.setTimeout(() => setConfirm(null), 4500)
   }
 
   function updateActivity(updated: Activity) {
@@ -179,12 +252,7 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
     if (!onPrefsUpdate) return
     onPrefsUpdate({ ...prefs, activities: prefs.activities.filter(a => a.id !== id) })
     setEditingActivityId(null)
-    setPopup(null)
-  }
-
-  function applyView(from: number, to: number) {
-    setHrFrom(from)
-    setHrTo(to)
+    setSelected(null)
   }
 
   if (!prefs.activities.length)
@@ -210,122 +278,213 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
     )
   if (error)
     return (
-      <div style={{ padding: '2rem 0', textAlign: 'center', fontSize: '14px', color: '#DC2626' }}>
+      <div
+        style={{ padding: '2rem 0', textAlign: 'center', fontSize: '14px', color: 'var(--danger)' }}
+      >
         {error}
       </div>
     )
 
-  const HOURS = Array.from({ length: Math.max(1, hrTo - hrFrom + 1) }, (_, i) => i + hrFrom)
-  const nowH = new Date().getHours()
-  const nowM = new Date().getMinutes()
-  const todayStr = new Date().toLocaleDateString('en-CA')
+  const colorFor = (act: Activity) => {
+    const idx = prefs.activities.findIndex(a => a.id === act.id)
+    return ACT_COLORS[Math.max(0, idx) % ACT_COLORS.length] ?? '#C2410C'
+  }
 
-  const grid = dark
-    ? {
-        bg: '#161616',
-        line: 'rgba(255,255,255,0.05)',
-        lineMid: 'rgba(255,255,255,0.03)',
-        headerBg: '#1C1C1C',
-        todayBg: 'rgba(249,115,22,0.06)',
-        text: '#6B6050',
-        col: '#E5DDD0',
-      }
-    : {
-        bg: '#FAFAF9',
-        line: 'rgba(0,0,0,0.06)',
-        lineMid: 'rgba(0,0,0,0.03)',
-        headerBg: '#FFFFFF',
-        todayBg: 'rgba(249,115,22,0.05)',
-        text: '#9C8B72',
-        col: '#1A1208',
-      }
+  const dayWindows = days.map(day => ({
+    day,
+    lanes: visibleActivities.map(act => ({
+      act,
+      color: colorFor(act),
+      windows: getSafeWindowsForActivity(day.hourly, act),
+    })),
+  }))
+
+  // Full day starts at the earliest window and ends at the latest, so nothing
+  // opens cut off; the other views are fixed zooms.
+  const allWindows = dayWindows.flatMap(d => d.lanes.flatMap(l => l.windows))
+  const { from: axisFrom, to: axisTo } = computeAxis(view, allWindows, prefs.calendarHours)
+  const hasUVGaps = days.some(day => {
+    const known = new Set(day.hourly.map(h => h.hour))
+    for (let h = axisFrom; h < axisTo; h++) if (!known.has(h)) return true
+    return false
+  })
+  const rows = Math.max(1, axisTo - axisFrom)
+  const HOURS = Array.from({ length: rows + 1 }, (_, i) => axisFrom + i)
+  const bodyH = rows * ROW_H + AXIS_PAD * 2
+
+  const now = new Date()
+  const nowFrac = now.getHours() + now.getMinutes() / 60
+  const todayStr = now.toLocaleDateString('en-CA')
+
+  const laneCount = Math.max(1, visibleActivities.length)
+  const { colW, gutterW, daysAcross, laneW } = computeColumns(
+    gridWidth,
+    days.length,
+    visibleActivities.length,
+  )
+  const { first: firstDay, last: lastDay } = visibleDays(
+    scrollLeft,
+    { colW, daysAcross },
+    days.length,
+  )
+  const canPage = days.length > daysAcross
+  const visibleRange = rangeLabel(days[firstDay]?.dateStr, days[lastDay]?.dateStr)
+
+  function pageBy(direction: 1 | -1) {
+    const target = pageTarget(firstDay, direction, daysAcross, days.length)
+    scrollRef.current?.scrollTo({ left: target * colW, behavior: 'smooth' })
+  }
+  const variant = chipVariant(laneW)
+
+  const line = 'var(--border)'
+  // Decorative tint behind today's column; no text sits on it.
+  const todayTint = 'rgba(249,115,22,0.06)'
 
   return (
-    <div
-      style={{
-        fontFamily: 'var(--font-sans)',
-        borderRadius: '12px',
-        overflow: 'hidden',
-        border: `0.5px solid ${dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'}`,
-      }}
-    >
+    <div>
+      <style>{`
+        .solara-cal-chip { transition: filter 0.12s, box-shadow 0.12s; }
+        .solara-cal-chip:focus-visible { outline: 2px solid #fff; outline-offset: -3px; }
+        @media (hover: hover) { .solara-cal-chip:hover { filter: brightness(1.12); } }
+        .solara-cal-pager { margin-left: auto; }
+        .dark .solara-cal-uv { opacity: 0.75; }
+      `}</style>
+
       <div
         style={{
-          padding: '12px 14px',
-          background: grid.headerBg,
-          borderBottom: `1px solid ${grid.line}`,
           display: 'flex',
-          gap: '8px',
+          gap: '8px 10px',
           alignItems: 'center',
           flexWrap: 'wrap',
+          marginBottom: '12px',
         }}
       >
-        <span
+        <label
+          style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+          htmlFor="calendar-activity-filter"
+        >
+          <span
+            style={{
+              fontSize: '11px',
+              color: 'var(--text-3)',
+              fontWeight: 600,
+              textTransform: 'uppercase',
+              letterSpacing: '0.06em',
+            }}
+          >
+            Show
+          </span>
+          <select
+            id="calendar-activity-filter"
+            value={focusedActivityId}
+            onChange={e => {
+              setFocusedActivityId(e.target.value)
+              setSelected(null)
+            }}
+            style={{ fontSize: '13px', padding: '6px 8px' }}
+          >
+            <option value="all">All activities</option>
+            {prefs.activities.map(a => (
+              <option key={a.id} value={a.id}>
+                {a.icon} {a.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div
+          role="group"
+          aria-label="Hours shown"
           style={{
-            fontSize: '12px',
-            color: 'var(--text-3)',
-            fontWeight: 700,
-            textTransform: 'uppercase',
-            letterSpacing: '0.055em',
+            display: 'inline-flex',
+            padding: '3px',
+            gap: '2px',
+            borderRadius: '10px',
+            background: 'var(--bg-subtle)',
+            border: '0.5px solid var(--border-md)',
           }}
         >
-          Show
-        </span>
-        <select
-          value={focusedActivityId}
-          onChange={e => setFocusedActivityId(e.target.value)}
-          style={{ fontSize: '12px', padding: '6px 8px' }}
-        >
-          <option value="all">All activities</option>
-          {prefs.activities.map(a => (
-            <option key={a.id} value={a.id}>
-              {a.icon} {a.name}
-            </option>
-          ))}
-        </select>
-        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-          <button
-            className="btn"
-            onClick={() => applyView(6, 12)}
-            style={{ fontSize: '12px', padding: '6px 9px' }}
-          >
-            Morning
-          </button>
-          <button
-            className="btn"
-            onClick={() => applyView(12, 18)}
-            style={{ fontSize: '12px', padding: '6px 9px' }}
-          >
-            Afternoon
-          </button>
-          <button
-            className="btn"
-            onClick={() => applyView(16, 20)}
-            style={{ fontSize: '12px', padding: '6px 9px' }}
-          >
-            Evening
-          </button>
-          <button
-            className="btn"
-            onClick={() => applyView(6, 20)}
-            style={{ fontSize: '12px', padding: '6px 9px' }}
-          >
-            Full day
-          </button>
+          {VIEWS.map(v => {
+            const active = v.key === view
+            return (
+              <button
+                key={v.key}
+                type="button"
+                aria-pressed={active}
+                onClick={() => {
+                  setView(v.key)
+                  setSelected(null)
+                }}
+                style={{
+                  fontSize: '12px',
+                  fontWeight: active ? 600 : 500,
+                  padding: '5px 10px',
+                  minHeight: '28px',
+                  borderRadius: '7px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  background: active ? 'var(--bg-card)' : 'transparent',
+                  color: active ? 'var(--text)' : 'var(--text-2)',
+                  boxShadow: active ? '0 1px 2px rgba(0,0,0,0.12)' : 'none',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {v.label}
+              </button>
+            )
+          })}
         </div>
-        <span style={{ fontSize: '12px', color: 'var(--text-3)', marginLeft: 'auto' }}>
-          Click a window to share, edit, or add it to Calendar.
-        </span>
+        {canPage && (
+          <div
+            className="solara-cal-pager"
+            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            <button
+              type="button"
+              className="btn"
+              aria-label="Earlier days"
+              disabled={firstDay === 0}
+              onClick={() => pageBy(-1)}
+              style={pagerButton}
+            >
+              ‹
+            </button>
+            <span
+              aria-live="polite"
+              style={{
+                minWidth: '92px',
+                textAlign: 'center',
+                fontSize: '13px',
+                fontWeight: 600,
+                color: 'var(--text)',
+                fontVariantNumeric: 'tabular-nums',
+              }}
+            >
+              {visibleRange}
+            </span>
+            <button
+              type="button"
+              className="btn"
+              aria-label="Later days"
+              disabled={lastDay >= days.length - 1}
+              onClick={() => pageBy(1)}
+              style={pagerButton}
+            >
+              ›
+            </button>
+          </div>
+        )}
       </div>
 
       {lockedCopy && days.length > 0 && days.length < TIER_LIMITS.paid.futureDays && (
         <div
           style={{
-            padding: '10px 14px',
-            background: 'rgba(249,115,22,0.08)',
-            color: 'var(--text-2)',
+            padding: '9px 12px',
+            marginBottom: '10px',
+            borderRadius: '10px',
+            background: 'var(--notice-bg)',
+            border: '0.5px solid var(--notice-border)',
+            color: 'var(--notice-text)',
             fontSize: '13px',
-            borderBottom: `1px solid ${grid.line}`,
           }}
         >
           🔒 {lockedCopy}
@@ -334,12 +493,15 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
 
       {confirm && (
         <div
+          role="status"
           style={{
-            padding: '9px 14px',
-            background: 'rgba(249,115,22,0.08)',
-            color: 'var(--text-2)',
+            padding: '8px 12px',
+            marginBottom: '10px',
+            borderRadius: '10px',
+            background: 'var(--notice-bg)',
+            border: '0.5px solid var(--notice-border)',
+            color: 'var(--notice-text)',
             fontSize: '12px',
-            borderBottom: `1px solid ${grid.line}`,
           }}
         >
           {confirm}
@@ -347,383 +509,304 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
       )}
 
       <div
-        style={{
-          display: 'flex',
-          background: grid.headerBg,
-          borderBottom: `1px solid ${grid.line}`,
-          position: 'sticky',
-          top: 0,
-          zIndex: 20,
-        }}
-      >
-        <div style={{ width: GUTTER_W, flexShrink: 0 }} />
-        {days.map(day => {
-          const isToday = day.dateStr === todayStr
-          const d = new Date(day.dateStr + 'T12:00:00')
-          return (
-            <div
-              key={day.dateStr}
-              style={{
-                flex: 1,
-                padding: '10px 8px 8px',
-                textAlign: 'center',
-                borderLeft: `0.5px solid ${grid.line}`,
-                background: isToday ? grid.todayBg : 'transparent',
-                minWidth: '96px',
-              }}
-            >
-              <p
-                style={{
-                  margin: 0,
-                  fontSize: '11px',
-                  fontWeight: 500,
-                  color: isToday ? 'var(--accent)' : grid.text,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
-                }}
-              >
-                {day.shortLabel}
-              </p>
-              <p
-                style={{
-                  margin: '2px 0 0',
-                  fontSize: '18px',
-                  fontWeight: 600,
-                  color: isToday ? 'var(--accent)' : grid.col,
-                  lineHeight: 1,
-                }}
-              >
-                {d.getDate()}
-              </p>
-            </div>
-          )
-        })}
-      </div>
-
-      <div
         ref={scrollRef}
-        style={{ height: '760px', overflowY: 'auto', overflowX: 'auto', background: grid.bg }}
+        data-testid="calendar-grid"
+        onScroll={e => setScrollLeft(e.currentTarget.scrollLeft)}
+        style={{
+          maxHeight: `${MAX_BODY_H}px`,
+          overflow: 'auto',
+          scrollSnapType: 'x mandatory',
+          scrollPaddingLeft: `${gutterW}px`,
+          overscrollBehaviorX: 'contain',
+          border: '0.5px solid var(--border-md)',
+          borderRadius: '12px',
+          background: 'var(--bg-card)',
+        }}
       >
         <div
           style={{
-            display: 'flex',
-            position: 'relative',
-            minHeight: `${ROW_H * HOURS.length}px`,
-            minWidth: `${GUTTER_W + days.length * 118}px`,
+            display: 'grid',
+            gridTemplateColumns: `${gutterW}px repeat(${days.length}, minmax(${colW}px, 1fr))`,
+            gridTemplateRows: `${HEADER_H}px ${bodyH}px`,
           }}
         >
-          <div style={{ width: GUTTER_W, flexShrink: 0, position: 'relative', zIndex: 5 }}>
-            {HOURS.map((h, i) => (
+          {/* Corner */}
+          <div
+            data-testid="calendar-corner"
+            style={{
+              position: 'sticky',
+              top: 0,
+              left: 0,
+              zIndex: 4,
+              background: 'var(--bg-card)',
+              borderBottom: `1px solid ${line}`,
+            }}
+          />
+
+          {/* Day headers */}
+          {days.map(day => {
+            const isToday = day.dateStr === todayStr
+            const d = new Date(day.dateStr + 'T12:00:00')
+            return (
               <div
+                key={day.dateStr}
+                data-testid="calendar-day-header"
+                style={{
+                  scrollSnapAlign: 'start',
+                  position: 'sticky',
+                  top: 0,
+                  zIndex: 3,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '3px',
+                  minWidth: 0,
+                  background: isToday ? 'var(--accent-soft)' : 'var(--bg-card)',
+                  borderLeft: `1px solid ${line}`,
+                  borderBottom: `1px solid ${line}`,
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    lineHeight: 1,
+                    letterSpacing: '0.06em',
+                    textTransform: 'uppercase',
+                    color: isToday ? 'var(--accent)' : 'var(--text-3)',
+                  }}
+                >
+                  {day.shortLabel}
+                </span>
+                <span
+                  style={{
+                    fontSize: '17px',
+                    fontWeight: 650,
+                    lineHeight: 1,
+                    fontVariantNumeric: 'tabular-nums',
+                    color: isToday ? 'var(--accent)' : 'var(--text)',
+                  }}
+                >
+                  {d.getDate()}
+                </span>
+              </div>
+            )
+          })}
+
+          {/* Hour gutter */}
+          <div
+            aria-hidden="true"
+            style={{
+              position: 'sticky',
+              left: 0,
+              zIndex: 2,
+              background: 'var(--bg-card)',
+            }}
+          >
+            {HOURS.map((h, i) => (
+              <span
                 key={h}
                 style={{
                   position: 'absolute',
-                  top: `${i * ROW_H - 8}px`,
-                  width: '100%',
-                  paddingRight: '8px',
-                  textAlign: 'right',
+                  top: `${AXIS_PAD + i * ROW_H}px`,
+                  right: '8px',
+                  transform: 'translateY(-50%)',
+                  fontSize: '11px',
+                  lineHeight: 1,
+                  whiteSpace: 'nowrap',
+                  fontVariantNumeric: 'tabular-nums',
+                  color: 'var(--text-3)',
                 }}
               >
-                {i > 0 && (
-                  <span style={{ fontSize: '11px', color: grid.text, fontWeight: 400 }}>
-                    {fmtH(h)}
-                  </span>
-                )}
-              </div>
+                {fmtH(h)}
+              </span>
             ))}
           </div>
 
-          <div style={{ flex: 1, display: 'flex', position: 'relative' }}>
-            {HOURS.map((h, i) => (
+          {/* Day columns */}
+          {dayWindows.map(({ day, lanes }) => {
+            const isToday = day.dateStr === todayStr
+            const uvByHour = new Map(day.hourly.map(h => [h.hour, h.uv]))
+            return (
               <div
-                key={h}
+                key={day.dateStr}
+                data-testid="calendar-day-column"
+                data-date={day.dateStr}
                 style={{
-                  position: 'absolute',
-                  top: `${i * ROW_H}px`,
-                  left: 0,
-                  right: 0,
-                  height: `${ROW_H}px`,
-                  borderTop: `1px solid ${grid.line}`,
-                  zIndex: 0,
+                  position: 'relative',
+                  minWidth: 0,
+                  borderLeft: `1px solid ${line}`,
+                  background: isToday ? todayTint : 'transparent',
                 }}
               >
+                {/* UV tint and hour lines */}
+                <div
+                  aria-hidden="true"
+                  className="solara-cal-uv"
+                  style={{ position: 'absolute', inset: `${AXIS_PAD}px 0`, pointerEvents: 'none' }}
+                >
+                  {HOURS.slice(0, -1).map((h, hi) => (
+                    <div
+                      key={h}
+                      style={{
+                        position: 'absolute',
+                        top: `${hi * ROW_H}px`,
+                        left: 0,
+                        right: 0,
+                        height: `${ROW_H}px`,
+                        background: uvRowBg(uvByHour.get(h)),
+                        borderTop: `1px solid ${line}`,
+                      }}
+                    />
+                  ))}
+                  <div
+                    style={{
+                      position: 'absolute',
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      borderTop: `1px solid ${line}`,
+                    }}
+                  />
+                </div>
+
+                {/* Activity lanes, clipped to the column */}
                 <div
                   style={{
                     position: 'absolute',
-                    top: `${ROW_H / 2}px`,
-                    left: 0,
-                    right: 0,
-                    height: '0.5px',
-                    background: grid.lineMid,
-                  }}
-                />
-              </div>
-            ))}
-
-            {days.map(day => {
-              const isToday = day.dateStr === todayStr
-              const uvMap: Record<number, number> = {}
-              day.hourly.forEach(h => {
-                uvMap[h.hour] = h.uv
-              })
-
-              const wins = visibleActivities.map((act, ai) => ({
-                act,
-                color:
-                  ACT_COLORS[
-                    prefs.activities.findIndex(a => a.id === act.id) % ACT_COLORS.length
-                  ] || ACT_COLORS[ai % ACT_COLORS.length],
-                windows: getSafeWindowsForActivity(day.hourly, act),
-              }))
-
-              return (
-                <div
-                  key={day.dateStr}
-                  style={{
-                    flex: 1,
-                    position: 'relative',
-                    borderLeft: `0.5px solid ${grid.line}`,
-                    background: isToday ? grid.todayBg : 'transparent',
-                    minWidth: '118px',
+                    inset: `${AXIS_PAD}px 0`,
+                    overflow: 'hidden',
+                    display: 'grid',
+                    gridTemplateColumns: `repeat(${laneCount}, minmax(0, 1fr))`,
+                    columnGap: `${LANE_GAP}px`,
+                    padding: `0 ${LANE_GAP}px`,
                   }}
                 >
-                  {HOURS.map((h, hi) => {
-                    const uv = uvMap[h] ?? 0
-                    return (
-                      <div
-                        key={h}
-                        style={{
-                          position: 'absolute',
-                          top: `${hi * ROW_H}px`,
-                          left: 0,
-                          right: 0,
-                          height: `${ROW_H}px`,
-                          background: uvRowBg(uv, dark),
-                          pointerEvents: 'none',
-                        }}
-                      />
-                    )
-                  })}
-
-                  {wins.map(({ act, color, windows }, wi) =>
-                    windows.map((win, wii) => {
-                      const topH = Math.max(win.from, hrFrom)
-                      const botH = Math.min(win.to, hrTo)
-                      if (botH <= topH) return null
-                      const top = (topH - hrFrom) * ROW_H
-                      const height = Math.max((botH - topH) * ROW_H - 2, 18)
-                      const totalActs = visibleActivities.length || 1
-                      const colW = 100 / totalActs
-                      const left = `${wi * colW + 1}%`
-                      const width = `${colW - 2}%`
-                      const isHov =
-                        popup?.act.id === act.id &&
-                        popup?.win === win &&
-                        popup?.day.dateStr === day.dateStr
-                      const durationLabel =
-                        act.durationMins < 60 ? `${act.durationMins}m` : `${act.durationMins / 60}h`
-                      const showText = height > 24
-
-                      return (
-                        <div
-                          key={`${act.id}-${wii}`}
-                          onClick={() => {
-                            setPopup(isHov ? null : { act, win, day })
-                          }}
-                          style={{
-                            position: 'absolute',
-                            top: `${top + 1}px`,
-                            left,
-                            width,
-                            height: `${height}px`,
-                            background: isHov ? color : `${color}CC`,
-                            borderRadius: '6px',
-                            cursor: 'pointer',
-                            zIndex: isHov ? 15 : 5,
-                            border: isHov ? `1.5px solid ${color}` : `1px solid ${color}99`,
-                            padding: '4px 6px',
-                            overflow: 'hidden',
-                            transition: 'all 0.1s',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            justifyContent: 'flex-start',
-                            boxShadow: isHov ? `0 2px 8px ${color}44` : 'none',
-                          }}
-                        >
-                          <span
+                  {lanes.map(({ act, color, windows }) => (
+                    <div key={act.id} style={{ position: 'relative', minWidth: 0 }}>
+                      {windows.map((win, wi) => {
+                        const topH = Math.max(win.from, axisFrom)
+                        const botH = Math.min(win.to, axisTo)
+                        if (botH <= topH) return null
+                        const key = `${day.dateStr}:${act.id}:${wi}`
+                        const top = (topH - axisFrom) * ROW_H + 1
+                        const height = (botH - topH) * ROW_H - 2
+                        const cutTop = win.from < axisFrom
+                        const cutBottom = win.to > axisTo
+                        const isSel = selected?.key === key
+                        const lines = Math.floor((height - 6) / 13)
+                        return (
+                          <button
+                            key={key}
+                            ref={el => {
+                              if (el) chipRefs.current.set(key, el)
+                              else chipRefs.current.delete(key)
+                            }}
+                            type="button"
+                            className="solara-cal-chip"
+                            data-testid="calendar-chip"
+                            aria-haspopup="dialog"
+                            aria-expanded={isSel}
+                            title={`${act.name} · ${fmtH(win.from)}–${fmtH(win.to)}`}
+                            onClick={() => {
+                              if (isSel) {
+                                closeSheet()
+                              } else {
+                                returnFocusKey.current = key
+                                setSelected({ act, win, day, key })
+                              }
+                            }}
                             style={{
-                              fontSize: '11px',
-                              color: '#fff',
-                              fontWeight: 700,
-                              lineHeight: 1.2,
-                              display: 'block',
-                              whiteSpace: 'nowrap',
+                              position: 'absolute',
+                              top: `${top}px`,
+                              left: 0,
+                              right: 0,
+                              height: `${height}px`,
+                              margin: 0,
+                              padding: variant === 'full' ? '4px 6px' : '4px 1px',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: variant === 'full' ? 'flex-start' : 'center',
+                              justifyContent: 'flex-start',
+                              gap: '1px',
                               overflow: 'hidden',
-                              textOverflow: 'ellipsis',
+                              cursor: 'pointer',
+                              border: 'none',
+                              borderRadius: `${cutTop ? 0 : 6}px ${cutTop ? 0 : 6}px ${cutBottom ? 0 : 6}px ${cutBottom ? 0 : 6}px`,
+                              background: color,
+                              color: '#fff',
+                              textAlign: variant === 'full' ? 'left' : 'center',
+                              boxShadow: isSel
+                                ? `inset 0 0 0 2px rgba(255,255,255,0.95), 0 0 0 1px ${color}`
+                                : 'inset 0 0 0 1px rgba(255,255,255,0.14)',
+                              zIndex: isSel ? 2 : 1,
                             }}
                           >
-                            {act.icon} {showText ? act.name : ''}
-                          </span>
-                          {showText && height > 42 && (
-                            <span
-                              style={{
-                                fontSize: '10px',
-                                color: 'rgba(255,255,255,0.88)',
-                                lineHeight: 1.2,
-                              }}
-                            >
-                              {fmtH(win.from)}–{fmtH(win.to)}
+                            <ChipLabel act={act} win={win} variant={variant} lines={lines} />
+                            {/* The visible label is abbreviated, so the accessible
+                                name is this full description instead. */}
+                            <span data-sr-only style={srOnly}>
+                              {`${act.name}, ${day.label}, ${fmtH(win.from)} – ${fmtH(win.to)}, peak UV ${win.peakUV.toFixed(1)}`}
                             </span>
-                          )}
-                          {showText && height > 58 && (
-                            <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.76)' }}>
-                              {durationLabel} session
-                            </span>
-                          )}
-                        </div>
-                      )
-                    }),
-                  )}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  ))}
+                </div>
 
-                  {isToday && nowH >= hrFrom && nowH <= hrTo && (
+                {isToday && nowFrac >= axisFrom && nowFrac <= axisTo && (
+                  <div
+                    aria-hidden="true"
+                    data-testid="calendar-now"
+                    style={{
+                      position: 'absolute',
+                      top: `${AXIS_PAD + (nowFrac - axisFrom) * ROW_H - 1}px`,
+                      left: 0,
+                      right: 0,
+                      height: '2px',
+                      background: 'var(--accent)',
+                      zIndex: 3,
+                      pointerEvents: 'none',
+                    }}
+                  >
                     <div
                       style={{
                         position: 'absolute',
-                        top: `${(nowH - hrFrom) * ROW_H + (nowM / 60) * ROW_H}px`,
                         left: 0,
-                        right: 0,
-                        height: '2px',
+                        top: '-3px',
+                        width: '8px',
+                        height: '8px',
+                        borderRadius: '50%',
                         background: 'var(--accent)',
-                        zIndex: 20,
                       }}
-                    >
-                      <div
-                        style={{
-                          width: '8px',
-                          height: '8px',
-                          borderRadius: '50%',
-                          background: 'var(--accent)',
-                          position: 'absolute',
-                          left: '-4px',
-                          top: '-3px',
-                        }}
-                      />
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
+                    />
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
       </div>
 
-      {popup && (
-        <div
-          style={{
-            padding: '14px 16px',
-            borderTop: `1px solid ${grid.line}`,
-            background: grid.headerBg,
-            display: 'flex',
-            alignItems: 'center',
-            gap: '14px',
-            flexWrap: 'wrap',
-          }}
-        >
-          <div style={{ flex: 1, minWidth: '220px' }}>
-            <p
-              style={{ margin: '0 0 3px', fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}
-            >
-              {popup.act.icon} {popup.act.name}
-              <span
-                style={{
-                  fontWeight: 400,
-                  color: 'var(--text-3)',
-                  marginLeft: '6px',
-                  fontSize: '13px',
-                }}
-              >
-                {popup.day.label}
-              </span>
-            </p>
-            <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-3)', lineHeight: 1.5 }}>
-              Estimated lower-UV window:{' '}
-              <strong style={{ color: 'var(--text)' }}>
-                {fmtH(popup.win.from)} – {fmtH(popup.win.to)}
-              </strong>
-              &nbsp;·&nbsp; Peak UV {popup.win.peakUV.toFixed(1)}
-              &nbsp;·&nbsp; Schedule your{' '}
-              <strong style={{ color: 'var(--text)' }}>
-                {popup.act.durationMins < 60
-                  ? popup.act.durationMins + 'min'
-                  : popup.act.durationMins / 60 + 'hr'}
-              </strong>{' '}
-              anywhere in this range
-            </p>
-          </div>
-          <div
-            style={{
-              display: 'flex',
-              gap: '8px',
-              alignItems: 'center',
-              flexShrink: 0,
-              flexWrap: 'wrap',
-            }}
-          >
-            <button
-              className="btn"
-              onClick={() => void shareWindow(popup.act, popup.win, popup.day)}
-              style={{ fontSize: '13px', whiteSpace: 'nowrap' }}
-            >
-              ↗ Share
-            </button>
-            {onPrefsUpdate && (
-              <button
-                className="btn"
-                onClick={() => setEditingActivityId(popup.act.id)}
-                style={{ fontSize: '13px', whiteSpace: 'nowrap' }}
-              >
-                Edit activity
-              </button>
-            )}
-            {calOk ? (
-              <button
-                className="btn btn-primary"
-                onClick={() => openCalendar(popup.act, popup.win, popup.day)}
-                style={{ fontSize: '13px', whiteSpace: 'nowrap' }}
-              >
-                📅 Add to Calendar
-              </button>
-            ) : (
-              <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-3)' }}>
-                🔒 Sign in to add to Calendar
-              </p>
-            )}
-            <button className="btn" onClick={() => setPopup(null)} style={{ fontSize: '13px' }}>
-              ✕
-            </button>
-          </div>
-        </div>
-      )}
-
       <div
         style={{
-          padding: '10px 16px',
-          borderTop: `0.5px solid ${grid.line}`,
-          background: grid.headerBg,
+          marginTop: '12px',
           display: 'flex',
-          gap: '16px',
+          gap: '8px 16px',
           flexWrap: 'wrap',
           alignItems: 'center',
         }}
       >
-        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-          {prefs.activities.map((a, i) => (
+        <div style={{ display: 'flex', gap: '6px 12px', flexWrap: 'wrap' }}>
+          {prefs.activities.map(a => (
             <span
               key={a.id}
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '5px',
+                gap: '6px',
                 fontSize: '12px',
                 color: 'var(--text-2)',
               }}
@@ -733,8 +816,7 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
                   width: '10px',
                   height: '10px',
                   borderRadius: '3px',
-                  background: ACT_COLORS[i % ACT_COLORS.length],
-                  display: 'inline-block',
+                  background: colorFor(a),
                   flexShrink: 0,
                 }}
               />
@@ -742,19 +824,14 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
             </span>
           ))}
         </div>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-          {[
-            ['rgba(74,222,128,0.4)', 'Low UV'],
-            ['rgba(250,204,21,0.4)', 'Moderate'],
-            ['rgba(251,146,60,0.4)', 'High'],
-            ['rgba(248,113,113,0.4)', 'Very high'],
-          ].map(([bg, l]) => (
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: '6px 10px', flexWrap: 'wrap' }}>
+          {UV_BANDS.filter(b => b.label).map(b => (
             <span
-              key={l}
+              key={b.label}
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '4px',
+                gap: '5px',
                 fontSize: '11px',
                 color: 'var(--text-3)',
               }}
@@ -764,30 +841,178 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
                   width: '10px',
                   height: '10px',
                   borderRadius: '2px',
-                  background: bg,
-                  display: 'inline-block',
+                  background: `rgba(${b.rgb},0.45)`,
                 }}
               />
-              {l}
+              {b.label} UV
             </span>
           ))}
+          {hasUVGaps && (
+            <span
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                fontSize: '11px',
+                color: 'var(--text-3)',
+              }}
+            >
+              <span
+                style={{
+                  width: '10px',
+                  height: '10px',
+                  borderRadius: '2px',
+                  background: NO_DATA_BG,
+                  boxShadow: 'inset 0 0 0 0.5px var(--border-md)',
+                }}
+              />
+              No UV data
+            </span>
+          )}
         </div>
       </div>
 
       <p
         style={{
-          margin: 0,
-          padding: '9px 16px',
-          borderTop: `0.5px solid ${grid.line}`,
-          background: grid.headerBg,
+          margin: '10px 0 0',
           fontSize: '11px',
           color: 'var(--text-3)',
           lineHeight: 1.45,
         }}
       >
-        Forecast-based planning estimate only. Recheck current UV and use appropriate sun
-        protection.
+        Select a window to share it or add it to your calendar. Forecast-based planning estimate
+        only; recheck current UV and use appropriate sun protection.
       </p>
+
+      {selected && (
+        <div
+          ref={sheetRef}
+          role="dialog"
+          aria-modal="false"
+          aria-labelledby="calendar-sheet-title"
+          tabIndex={-1}
+          data-testid="calendar-sheet"
+          style={{
+            position: 'fixed',
+            left: '12px',
+            right: '12px',
+            bottom: 'max(12px, env(safe-area-inset-bottom))',
+            margin: '0 auto',
+            maxWidth: '520px',
+            zIndex: 60,
+            padding: '16px',
+            borderRadius: '16px',
+            background: 'var(--bg-card)',
+            border: '0.5px solid var(--border-md)',
+            boxShadow: '0 12px 40px rgba(0,0,0,0.22)',
+            outline: 'none',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+            <span
+              aria-hidden="true"
+              style={{
+                width: '36px',
+                height: '36px',
+                flexShrink: 0,
+                borderRadius: '10px',
+                display: 'grid',
+                placeItems: 'center',
+                fontSize: '18px',
+                background: colorFor(selected.act),
+              }}
+            >
+              {selected.act.icon}
+            </span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p
+                id="calendar-sheet-title"
+                style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: 'var(--text)' }}
+              >
+                {selected.act.name}
+              </p>
+              <p style={{ margin: '2px 0 0', fontSize: '13px', color: 'var(--text-2)' }}>
+                {selected.day.label} · {fmtH(selected.win.from)} – {fmtH(selected.win.to)}
+              </p>
+            </div>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              aria-label="Close"
+              onClick={closeSheet}
+              style={{ padding: '4px 8px', minWidth: '32px', minHeight: '32px', fontSize: '14px' }}
+            >
+              ✕
+            </button>
+          </div>
+          <p
+            style={{
+              margin: '12px 0 0',
+              fontSize: '13px',
+              color: 'var(--text-2)',
+              lineHeight: 1.5,
+            }}
+          >
+            Estimated lower-UV window with a forecast peak of UV{' '}
+            <strong style={{ color: 'var(--text)' }}>{selected.win.peakUV.toFixed(1)}</strong>.
+            Schedule your{' '}
+            <strong style={{ color: 'var(--text)' }}>
+              {durationText(selected.act.durationMins)}
+            </strong>{' '}
+            session anywhere in this range.
+          </p>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: onPrefsUpdate ? '1fr 1fr' : '1fr',
+              gap: '8px',
+              marginTop: '14px',
+            }}
+          >
+            {calOk ? (
+              <a
+                className="btn btn-primary"
+                href={gcalWindowLink(selected.act, selected.win, selected.day.dateStr)}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => flash('Opened Google Calendar in a new tab.')}
+                style={{ ...sheetAction, gridColumn: '1 / -1', textDecoration: 'none' }}
+              >
+                📅 Add to Google Calendar
+              </a>
+            ) : (
+              <span
+                style={{
+                  gridColumn: '1 / -1',
+                  textAlign: 'center',
+                  fontSize: '12px',
+                  color: 'var(--text-3)',
+                }}
+              >
+                🔒 Sign in to add to Calendar
+              </span>
+            )}
+            <button
+              type="button"
+              className="btn"
+              onClick={() => void shareWindow(selected.act, selected.win, selected.day)}
+              style={sheetAction}
+            >
+              ↗ Share
+            </button>
+            {onPrefsUpdate && (
+              <button
+                type="button"
+                className="btn"
+                onClick={() => setEditingActivityId(selected.act.id)}
+                style={sheetAction}
+              >
+                Edit activity
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {editingActivity && (
         <EditActivityModal
@@ -798,5 +1023,67 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
         />
       )}
     </div>
+  )
+}
+
+function ChipLabel({
+  act,
+  win,
+  variant,
+  lines,
+}: {
+  act: Activity
+  win: SafeWindow
+  variant: ChipVariant
+  lines: number
+}) {
+  const text: CSSProperties = {
+    display: 'block',
+    maxWidth: '100%',
+    fontSize: '11px',
+    lineHeight: '13px',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+  }
+  const time: CSSProperties = {
+    ...text,
+    fontSize: '10.5px',
+    fontWeight: 500,
+    fontVariantNumeric: 'tabular-nums',
+  }
+
+  if (variant === 'full') {
+    return (
+      <>
+        <span aria-hidden="true" style={{ ...text, fontWeight: 650 }}>
+          {act.icon} {act.name}
+        </span>
+        {lines >= 2 && (
+          <span aria-hidden="true" style={time}>
+            {fmtH(win.from)} – {fmtH(win.to)}
+          </span>
+        )}
+      </>
+    )
+  }
+
+  const fmt = variant === 'compact' ? shortHour : fmtH
+  return (
+    <>
+      <span aria-hidden="true" style={{ ...text, fontSize: '12px', lineHeight: '14px' }}>
+        {act.icon}
+      </span>
+      {lines >= 2 && (
+        <span aria-hidden="true" style={time}>
+          {fmt(win.from)}
+        </span>
+      )}
+      {lines >= 3 && (
+        <span aria-hidden="true" style={time}>
+          {fmt(win.to)}
+        </span>
+      )}
+    </>
   )
 }

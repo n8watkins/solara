@@ -69,7 +69,7 @@ export default function AppShell({ header, view, onViewChange, children, after }
       </div>
       <main
         style={{
-          maxWidth: view === 'calendar' ? '1120px' : '900px',
+          maxWidth: '900px',
           margin: '0 auto',
           padding: '1.5rem 1rem',
         }}
