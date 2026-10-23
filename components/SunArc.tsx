@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useId, useRef, useState } from 'react'
 import type { HourlyForecast } from '@/lib/types'
-import { uvColorHex } from '@/lib/weather'
+import { uvColor } from '@/lib/weather'
 import { useUnits } from '@/lib/use-units'
 import { UV_BAR_GAP, hourSlots, missingRuns, uvBarCenter } from './UVTimeline'
 
@@ -176,7 +176,7 @@ export default function SunArc({ hourly, nowHour, focused, onSelectHour }: Props
                   <stop
                     key={slot.hour}
                     offset={`${tForIndex(i) * 100}%`}
-                    stopColor={uvColorHex(slot.data.uv)}
+                    stopColor={uvColor(slot.data.uv)}
                   />
                 ) : null,
               )}

@@ -3,7 +3,7 @@ import type { DayWeather, Activity, SkinType } from '@/lib/types'
 import type { UpcomingSlot } from '@/lib/planner'
 import { planUpcomingSlots } from '@/lib/planner'
 import type { BusyInterval, SlotRecommendation } from '@/lib/scheduler'
-import { uvColorHex, uvLabel, uvTextHex } from '@/lib/weather'
+import { uvColor, uvLabel, uvTextColor } from '@/lib/weather'
 import { useUnits } from '@/lib/use-units'
 import { buildICS, recToIcsEvent, downloadICS } from '@/lib/ics'
 
@@ -133,8 +133,8 @@ export default function PlanAhead({
                   fontSize: '11px',
                   fontWeight: 650,
                   whiteSpace: 'nowrap',
-                  background: uvColorHex(slot.avgUV),
-                  color: uvTextHex(slot.avgUV),
+                  background: uvColor(slot.avgUV),
+                  color: uvTextColor(slot.avgUV),
                 }}
               >
                 avg UV {slot.avgUV.toFixed(1)}
