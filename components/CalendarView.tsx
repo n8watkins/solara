@@ -218,7 +218,13 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
   }
 
   async function shareWindow(act: Activity, win: SafeWindow, day: DayForecast) {
-    const payload = { activity: act, window: win, location: prefs.location, dateLabel: day.label }
+    const payload = {
+      activity: act,
+      window: win,
+      location: prefs.location,
+      dateLabel: day.label,
+      isoDate: day.dateStr,
+    }
     const text = buildActivityShareText(payload)
     const url = buildActivityShareUrl(
       payload,

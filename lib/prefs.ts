@@ -1,5 +1,6 @@
 import { doc, getDoc, runTransaction, updateDoc } from 'firebase/firestore'
 import { db } from './firebase'
+import { roundCoordinate } from './geocoding'
 import type {
   UserPreferences,
   Location,
@@ -35,8 +36,8 @@ function isLocation(value: unknown): value is Location {
 
 function normalizeLocation(value: Location): Location {
   return {
-    lat: value.lat,
-    lon: value.lon,
+    lat: roundCoordinate(value.lat),
+    lon: roundCoordinate(value.lon),
     city: value.city.trim().slice(0, 120),
     region: typeof value.region === 'string' ? value.region.trim().slice(0, 120) : '',
     timezone:

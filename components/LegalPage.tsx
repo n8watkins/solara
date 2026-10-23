@@ -19,7 +19,14 @@ export default function LegalPage({
         <Link href="/" style={{ color: 'var(--accent)', fontSize: '14px', textDecoration: 'none' }}>
           ← Back to Solara
         </Link>
-        <h1 style={{ margin: '24px 0 6px', fontSize: 'clamp(28px, 6vw, 42px)', lineHeight: 1.1 }}>
+        <h1
+          style={{
+            margin: '24px 0 6px',
+            fontSize: 'clamp(28px, 6vw, 42px)',
+            fontWeight: 750,
+            lineHeight: 1.1,
+          }}
+        >
           {title}
         </h1>
         <p style={{ margin: '0 0 32px', color: 'var(--text-3)', fontSize: '13px' }}>
