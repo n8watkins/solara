@@ -1,6 +1,7 @@
 import { defineConfig, globalIgnores } from 'eslint/config'
 import nextVitals from 'eslint-config-next/core-web-vitals'
 import nextTypeScript from 'eslint-config-next/typescript'
+import prettier from 'eslint-config-prettier/flat'
 
 export default defineConfig([
   ...nextVitals,
@@ -49,6 +50,8 @@ export default defineConfig([
       '@typescript-eslint/no-require-imports': 'off',
     },
   },
+  // Formatting is Prettier's job; turn off any stylistic rules that would fight it.
+  prettier,
   globalIgnores([
     '.next/**',
     'out/**',
