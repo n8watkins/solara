@@ -48,6 +48,8 @@ export function localDateString(daysFromNow = 0): string {
 
 /** Raw Open-Meteo forecast. Values may be `null` where the provider has no data. */
 export interface RawForecast {
+  /** IANA zone of the forecast location (Open-Meteo `timezone=auto`). */
+  timezone?: string
   current?: {
     time?: string
     uv_index?: number | null
@@ -85,17 +87,27 @@ function daytimeHours(rows: OpenMeteoHourlyRow[], dateStr: string): HourlyForeca
   return hours
 }
 
+/** Today's date and hour in the forecast location's zone, or the device's when unknown. */
+function wallClockIn(timeZone: string | undefined): { date: string; hour: number } {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(new Date())
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find(p => p.type === type)?.value ?? ''
+  return { date: `${part('year')}-${part('month')}-${part('day')}`, hour: Number(part('hour')) }
+}
+
 /**
  * Current conditions. Falls back to the hourly row for the current hour when the
  * provider's `current` block is missing a value. Throws when UV or temperature
  * is unknown either way, so a gap is never shown as UV 0.
  */
 function currentConditions(raw: RawForecast, rows: OpenMeteoHourlyRow[]) {
-  const now = new Date()
-  const at = core.splitTime(raw.current?.time) ?? {
-    date: now.toLocaleDateString('en-CA'),
-    hour: now.getHours(),
-  }
+  const at = core.splitTime(raw.current?.time) ?? wallClockIn(raw.timezone)
   const row = rows.find(r => r.date === at.date && r.hour === at.hour)
   const uv = core.roundUV(raw.current?.uv_index) ?? row?.uv ?? null
   const tempF = core.toFahrenheit(raw.current?.temperature_2m) ?? row?.tempF ?? null

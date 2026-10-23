@@ -30,7 +30,7 @@ function rawWithGap(): RawForecast & { timezone: string } {
   for (let hour = 0; hour < 24; hour++) time.push(`${DATE}T${String(hour).padStart(2, '0')}:00`)
   return {
     timezone: 'UTC',
-    current: { uv_index: null, temperature_2m: 21, weathercode: 1 },
+    current: { time: `${DATE}T08:00`, uv_index: null, temperature_2m: 21, weathercode: 1 },
     hourly: {
       time,
       uv_index: time.map((_, hour) => uvAt(hour)),
@@ -98,6 +98,15 @@ describe('null UV gaps never produce a recommendation', () => {
 
     raw.current = { time: `${DATE}T12:00`, uv_index: null, temperature_2m: 21, weathercode: 3 }
     expect(() => parseForecast(raw, 1)).toThrow(/no current UV/)
+  })
+
+  it('app: without a current time, the fallback hour is read in the forecast zone', () => {
+    const raw = rawWithGap()
+    raw.current = { uv_index: null, temperature_2m: null, weathercode: 3 }
+    // NOW is 12:00 UTC, inside the gap; in Los Angeles it is 05:00, before it.
+    expect(() => parseForecast(raw, 1)).toThrow(/no current UV/)
+    raw.timezone = 'America/Los_Angeles'
+    expect(parseForecast(raw, 1).current.uv).toBe(1)
   })
 
   it('feed: the calendar feed has no event in the gap', async () => {
