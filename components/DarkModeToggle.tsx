@@ -6,6 +6,7 @@ export default function DarkModeToggle() {
   const [dark, setDark] = useState(false)
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Browser-only state is read after hydration so the static export's prerendered markup matches the first client render.
     setDark(getStoredTheme() === 'dark')
   }, [])
 

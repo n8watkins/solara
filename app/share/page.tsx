@@ -1,4 +1,5 @@
 'use client'
+import Link from 'next/link'
 import { Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { parseActivityShareParams } from '@/lib/share'
@@ -16,9 +17,9 @@ function ShareContent() {
           <p style={{ margin: '0 0 22px', fontSize: '15px', color: 'var(--text-2)', lineHeight: 1.55 }}>
             The link is missing activity or time information. Ask the sender for a new link, or create a fresh plan in Solara.
           </p>
-          <a href="/" className="btn btn-primary" style={{ display: 'inline-flex', textDecoration: 'none', justifyContent: 'center', padding: '11px 18px' }}>
+          <Link href="/" className="btn btn-primary" style={{ display: 'inline-flex', textDecoration: 'none', justifyContent: 'center', padding: '11px 18px' }}>
             Open Solara
-          </a>
+          </Link>
         </div>
       </main>
     )
@@ -51,9 +52,9 @@ function ShareContent() {
         <p style={{ margin: '0 0 22px', fontSize: '14px', color: 'var(--text-3)', lineHeight: 1.55 }}>
           This is a forecast-based planning estimate, not medical advice. Recheck current UV and use appropriate sun protection.
         </p>
-        <a href="/" className="btn btn-primary" style={{ display: 'inline-flex', textDecoration: 'none', justifyContent: 'center', padding: '11px 18px' }}>
+        <Link href="/" className="btn btn-primary" style={{ display: 'inline-flex', textDecoration: 'none', justifyContent: 'center', padding: '11px 18px' }}>
           Open Solara
-        </a>
+        </Link>
       </div>
     </main>
   )

@@ -201,7 +201,7 @@ export default function ActivityCards({ windows, daysFromNow, tier, location, da
                           win={win}
                           isBest={isBest}
                           cloudNote={!!activity.cloudSensitive && win.peakUV > safeUv}
-                          onShare={() => shareWindow(activity, win)}
+                          onShare={() => void shareWindow(activity, win)}
                           onCalendar={calendarAllowed ? () => openCalendar(activity.name, win, activity.durationMins) : undefined}
                         />
                       )

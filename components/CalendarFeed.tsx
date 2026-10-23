@@ -68,7 +68,7 @@ export default function CalendarFeed({ prefs, onPrefsUpdate }: Props) {
               style={{ marginTop: '8px', width: '100%', boxSizing: 'border-box', fontSize: '12px', padding: '7px 9px', borderRadius: '8px', border: '0.5px solid var(--border-md)', background: 'var(--bg)', color: 'var(--text-2)' }}
             />
             <div style={{ display: 'flex', gap: '8px', marginTop: '8px', flexWrap: 'wrap' }}>
-              <button className="btn" onClick={copy} style={{ fontSize: '12px' }}>
+              <button className="btn" onClick={() => void copy()} style={{ fontSize: '12px' }}>
                 {copied ? '✓ Copied' : 'Copy link'}
               </button>
               <button className="btn" onClick={regenerate} style={{ fontSize: '12px', color: 'var(--text-3)' }}>

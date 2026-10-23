@@ -22,6 +22,7 @@ function useAnalyticsConsent() {
   const [consent, setConsent] = useState<AnalyticsConsentValue | null>(null)
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Browser-only state is read after hydration so the static export's prerendered markup matches the first client render.
     setConsent(readAnalyticsConsent(window.localStorage))
 
     const handleConsent = (event: Event) => {

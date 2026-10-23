@@ -56,7 +56,7 @@ export default function PricingModal({ user, email, onJoinWaitlist, alreadyWaitl
               <p style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: 'var(--text)' }}>{PRO_PRICE}</p>
               <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-3)' }}>Cancel anytime</p>
             </div>
-            <button className="btn btn-primary" onClick={upgrade} disabled={!user || checkoutLoading} style={{ fontSize: '14px', padding: '10px 22px' }}>
+            <button className="btn btn-primary" onClick={() => void upgrade()} disabled={!user || checkoutLoading} style={{ fontSize: '14px', padding: '10px 22px' }}>
               {checkoutLoading ? 'Opening checkout...' : 'Upgrade to Pro'}
             </button>
           </div>
@@ -78,7 +78,7 @@ export default function PricingModal({ user, email, onJoinWaitlist, alreadyWaitl
       <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
         {!checkoutReady && (
           <div style={{ padding: '10px 12px', borderRadius: '10px', background: 'rgba(249,115,22,0.08)', border: '0.5px solid rgba(249,115,22,0.2)', fontSize: '13px', color: 'var(--text-2)' }}>
-            Pro is launching soon. Join the waitlist and you'll be first to upgrade.
+            Pro is launching soon. Join the waitlist and you&apos;ll be first to upgrade.
           </div>
         )}
         {checkoutReady && !user && (
@@ -94,7 +94,7 @@ export default function PricingModal({ user, email, onJoinWaitlist, alreadyWaitl
             <div style={{ padding: '10px 8px', textAlign: 'center', fontSize: '13px', fontWeight: 700, color: 'var(--text-2)' }}>Free</div>
             <div style={{ padding: '10px 8px', textAlign: 'center', fontSize: '13px', fontWeight: 800, color: 'var(--accent)' }}>Pro</div>
 
-            {PRO_FEATURES.map((f, i) => (
+            {PRO_FEATURES.map(f => (
               <div key={f.label} style={{ display: 'contents' }}>
                 <div style={{ padding: '11px 14px', fontSize: '13px', color: 'var(--text)', borderTop: '0.5px solid var(--border-md)' }}>{f.label}</div>
                 <div style={{ padding: '11px 8px', textAlign: 'center', fontSize: '13px', borderTop: '0.5px solid var(--border-md)' }}><Cell value={f.free} /></div>

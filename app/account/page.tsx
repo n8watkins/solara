@@ -20,11 +20,13 @@ export default function AccountPage() {
   const [deletionPending, setDeletionPending] = useState(false)
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- With no Firebase config there is no auth subscription to wait for, so readiness is set after mount like the subscribed path.
     if (!auth) { setAuthReady(true); return }
     return onAuthStateChanged(auth, value => { setUser(value); setAuthReady(true) })
   }, [])
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Browser-only state is read after hydration so the static export's prerendered markup matches the first client render.
     setDeletionPending(new URLSearchParams(window.location.search).get('deletion') === 'pending')
   }, [])
 
@@ -128,7 +130,7 @@ export default function AccountPage() {
               <p style={{ margin: '0 0 18px', color: 'var(--text-2)', lineHeight: 1.55 }}>
                 Update your payment method, review invoices, or cancel your subscription securely through Stripe.
               </p>
-              <button className="btn btn-primary" disabled={busy !== null || !FUNCTIONS_URL} onClick={manageBilling}>
+              <button className="btn btn-primary" disabled={busy !== null || !FUNCTIONS_URL} onClick={() => void manageBilling()}>
                 {busy === 'billing' ? 'Opening...' : 'Manage subscription'}
               </button>
             </section>
@@ -139,7 +141,7 @@ export default function AccountPage() {
                 The JSON export includes your account preferences and device registration metadata.
                 Capability tokens and payment-provider identifiers are excluded for security.
               </p>
-              <button className="btn btn-primary" disabled={busy !== null || !FUNCTIONS_URL} onClick={downloadData}>
+              <button className="btn btn-primary" disabled={busy !== null || !FUNCTIONS_URL} onClick={() => void downloadData()}>
                 {busy === 'export' ? 'Preparing...' : 'Download account data'}
               </button>
             </section>
@@ -159,7 +161,7 @@ export default function AccountPage() {
                   className="btn"
                   style={{ color: '#DC2626', borderColor: '#FCA5A5' }}
                   disabled={confirmation !== 'DELETE' || busy !== null || !FUNCTIONS_URL}
-                  onClick={removeAccount}
+                  onClick={() => void removeAccount()}
                 >
                   {busy === 'delete' ? 'Deleting...' : 'Delete permanently'}
                 </button>

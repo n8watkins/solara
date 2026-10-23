@@ -72,7 +72,7 @@ export default function LocationPopover({ location, savedLocations, limit, onApp
 
   async function geolocate() {
     setLoading(true); setError(null); setNote(null)
-    navigator.geolocation.getCurrentPosition(async pos => {
+    async function resolvePosition(pos: GeolocationPosition) {
       try {
         const { latitude: lat, longitude: lon } = pos.coords
         const res  = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`)
@@ -83,7 +83,8 @@ export default function LocationPopover({ location, savedLocations, limit, onApp
         setTimeout(() => setOpen(false), 800)
       } catch { setError('Could not resolve.') }
       finally   { setLoading(false) }
-    }, () => { setError('Location denied.'); setLoading(false) })
+    }
+    navigator.geolocation.getCurrentPosition(pos => void resolvePosition(pos), () => { setError('Location denied.'); setLoading(false) })
   }
 
   return (
@@ -157,7 +158,7 @@ export default function LocationPopover({ location, savedLocations, limit, onApp
 
           <button
             className="btn"
-            onClick={geolocate}
+            onClick={() => void geolocate()}
             disabled={loading}
             style={{ width: '100%', justifyContent: 'center', marginBottom: '8px', fontSize: '13px' }}
           >
@@ -168,11 +169,11 @@ export default function LocationPopover({ location, savedLocations, limit, onApp
               placeholder="Add a city…"
               value={query}
               onChange={e => setQuery(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && search()}
+              onKeyDown={e => { if (e.key === 'Enter') void search() }}
               style={{ flex: 1, fontSize: '13px', padding: '7px 10px' }}
               autoFocus
             />
-            <button className="btn" onClick={search} disabled={loading} style={{ fontSize: '13px', padding: '7px 12px' }}>
+            <button className="btn" onClick={() => void search()} disabled={loading} style={{ fontSize: '13px', padding: '7px 12px' }}>
               {loading ? '…' : 'Go'}
             </button>
           </div>

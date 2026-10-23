@@ -67,7 +67,7 @@ export default function GoogleSignInButton({ label = 'Continue with Google', see
 
   return (
     <div>
-      <button onClick={handleClick} disabled={loading} style={{
+      <button onClick={() => void handleClick()} disabled={loading} style={{
         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
         padding: '9px 14px', borderRadius: '10px', cursor: loading ? 'wait' : 'pointer',
         border: '0.5px solid var(--border-md)', background: 'var(--bg-card)',

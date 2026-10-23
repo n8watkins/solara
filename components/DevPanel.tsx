@@ -26,7 +26,9 @@ export default function DevPanel({ currentTier, onOverride }: Props) {
 
   useEffect(() => {
     const stored = getDevTierOverride()
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Browser-only state is read after hydration so the static export's prerendered markup matches the first client render.
     if (stored) { setActive(stored); onOverride(stored) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- Apply the stored override once on mount only.
   }, [])
 
   function set(tier: TierLevel) {

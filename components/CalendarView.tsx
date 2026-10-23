@@ -70,6 +70,7 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
     : null
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Browser-only state is read after hydration so the static export's prerendered markup matches the first client render.
     setDark(document.documentElement.classList.contains('dark'))
     const obs = new MutationObserver(() => setDark(document.documentElement.classList.contains('dark')))
     obs.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
@@ -85,6 +86,7 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
 
   useEffect(() => {
     if (weather) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Mirrors the weather prop into the state the fetch path also writes; deriving it during render belongs to the data-layer refactor (see CQ-7).
       setDays(forecastFromWeather(weather, dayLimit))
       setLoading(false)
       setError(null)
@@ -103,8 +105,9 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
         setLoading(false)
       }
     }
-    load()
+    void load()
     return () => controller.abort()
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- Reload only when the coordinates change, not on every location object identity change (see CQ-7).
   }, [prefs.location.lat, prefs.location.lon, weather, dayLimit])
 
   function openCalendar(act: Activity, win: SafeWindow, day: DayForecast) {
@@ -354,7 +357,7 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
             </p>
           </div>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0, flexWrap: 'wrap' }}>
-            <button className="btn" onClick={() => shareWindow(popup.act, popup.win, popup.day)} style={{ fontSize: '13px', whiteSpace: 'nowrap' }}>
+            <button className="btn" onClick={() => void shareWindow(popup.act, popup.win, popup.day)} style={{ fontSize: '13px', whiteSpace: 'nowrap' }}>
               ↗ Share
             </button>
             {onPrefsUpdate && (

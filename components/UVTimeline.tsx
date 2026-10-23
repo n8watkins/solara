@@ -73,7 +73,6 @@ export default function UVTimeline({ hourly, currentHour, onFocusHour, focused, 
   // Center the current hour in the scroller on mount / when the day changes.
   useEffect(() => {
     centerHour(nowRef.current)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentHour, hourly.length])
 
   // When the parent moves the focus (a tap on the arc, or the big readout updating),

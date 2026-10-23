@@ -31,7 +31,7 @@ export default function App() {
   const [selectedDay,    setSelectedDay]    = useState<DayWeather | null>(null)
   const [tierOverride,   setTierOverride]   = useState<TierLevel | null>(null)
   const [prefsOpen,      setPrefsOpen]      = useState(false)
-  const [prefsTab,       setPrefsTab]       = useState<'general' | 'activities' | 'location'>('general')
+  const [prefsTab]                          = useState<'general' | 'activities' | 'location'>('general')
   const [weatherLoading, setWeatherLoading] = useState(false)
   const [error,          setError]          = useState<string | null>(null)
   const [accountError,   setAccountError]   = useState<string | null>(null)
@@ -100,10 +100,10 @@ export default function App() {
     }
 
     if (auth) {
-      const unsub = onAuthStateChanged(auth, loadPrefs)
+      const unsub = onAuthStateChanged(auth, u => void loadPrefs(u))
       return () => unsub()
     } else {
-      loadPrefs(null)
+      void loadPrefs(null)
     }
   }, [authReloadKey])
 
@@ -116,6 +116,7 @@ export default function App() {
     if (!user) return
     const params = new URLSearchParams(window.location.search)
     if (params.get('checkout') === 'canceled') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Browser-only state is read after hydration so the static export's prerendered markup matches the first client render.
       setBillingNotice('Checkout was canceled. You were not charged.')
       return
     }
@@ -152,8 +153,9 @@ export default function App() {
 
   useEffect(() => {
     if (prefs?.location && screen === 'dashboard') {
-      fetchWeather(prefs.location)
+      void fetchWeather(prefs.location)
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- Refetch only when the coordinates or screen change, not on every location object identity change (see CQ-7).
   }, [prefs?.location?.lat, prefs?.location?.lon, screen])
 
   async function fetchWeather(location: Location, force = false) {
@@ -223,7 +225,6 @@ export default function App() {
   }
 
   const displayTier = tierOverride || prefs.tier || 'anonymous'
-  const displayPrefs = { ...prefs, tier: displayTier }
   // Guests only get the dashboard — no calendar tab bar, and never a stale
   // 'calendar' view (e.g. right after signing out). Derived rather than reset in
   // the auth listener because DevPanel's tierOverride flips displayTier without an
@@ -233,7 +234,7 @@ export default function App() {
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
       <div style={{ position: 'sticky', top: 0, zIndex: 40 }}>
-        <Header user={user} prefs={prefs} displayTier={displayTier} onPrefsUpdate={p => { handlePrefsUpdate(p); fetchWeather(p.location) }} forceOpenTab={prefsOpen ? prefsTab : undefined} onModalClose={() => setPrefsOpen(false)} onGoHome={() => { setView('dashboard'); setSelectedDay(null) }} currentUV={weather?.current.uv} />
+        <Header user={user} prefs={prefs} displayTier={displayTier} onPrefsUpdate={p => { void handlePrefsUpdate(p); void fetchWeather(p.location) }} forceOpenTab={prefsOpen ? prefsTab : undefined} onModalClose={() => setPrefsOpen(false)} onGoHome={() => { setView('dashboard'); setSelectedDay(null) }} currentUV={weather?.current.uv} />
         {displayTier !== 'anonymous' && (
           <div style={{ borderBottom: '0.5px solid var(--border-md)', background: 'var(--bg-card)' }}>
             <div style={{ maxWidth: '900px', margin: '0 auto', padding: '0 1rem', display: 'flex', gap: '0' }}>
@@ -269,29 +270,29 @@ export default function App() {
         {error && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', borderRadius: '12px', background: '#FEF2F2', border: '0.5px solid #FECACA', marginBottom: '16px', fontSize: '14px', color: '#991B1B' }}>
             <span>⚠️</span><span style={{ flex: 1 }}>{error}</span>
-            <button className="btn" onClick={() => fetchWeather(prefs.location, true)} style={{ fontSize: '12px' }}>Retry</button>
+            <button className="btn" onClick={() => void fetchWeather(prefs.location, true)} style={{ fontSize: '12px' }}>Retry</button>
           </div>
         )}
         {syncError && (
           <div role="alert" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', borderRadius: '12px', background: '#FFF7ED', border: '0.5px solid #FED7AA', marginBottom: '16px', fontSize: '14px', color: '#9A3412' }}>
             <span>☁️</span><span style={{ flex: 1 }}>{syncError}</span>
-            <button className="btn" onClick={() => handlePrefsUpdate(prefs)} style={{ fontSize: '12px' }}>Retry sync</button>
+            <button className="btn" onClick={() => void handlePrefsUpdate(prefs)} style={{ fontSize: '12px' }}>Retry sync</button>
           </div>
         )}
         {effectiveView === 'dashboard' && (
           <>
             {weatherLoading && <Skeleton />}
             {weather && !weatherLoading && (
-              <ErrorBoundary label="the dashboard" onReset={() => fetchWeather(prefs.location, true)}>
-                <Dashboard weather={weather} prefs={prefs} displayTier={displayTier} onPrefsUpdate={handlePrefsUpdate} onRefresh={() => fetchWeather(prefs.location, true)} selectedDay={selectedDay} onSelectDay={setSelectedDay} />
+              <ErrorBoundary label="the dashboard" onReset={() => void fetchWeather(prefs.location, true)}>
+                <Dashboard weather={weather} prefs={prefs} displayTier={displayTier} onPrefsUpdate={p => void handlePrefsUpdate(p)} onRefresh={() => void fetchWeather(prefs.location, true)} selectedDay={selectedDay} onSelectDay={setSelectedDay} />
               </ErrorBoundary>
             )}
           </>
         )}
         {effectiveView === 'calendar' && (
           <div className="card">
-            <ErrorBoundary label="the calendar" onReset={() => fetchWeather(prefs.location, true)}>
-              <CalendarView prefs={prefs} displayTier={displayTier} weather={weather} onPrefsUpdate={handlePrefsUpdate} />
+            <ErrorBoundary label="the calendar" onReset={() => void fetchWeather(prefs.location, true)}>
+              <CalendarView prefs={prefs} displayTier={displayTier} weather={weather} onPrefsUpdate={p => void handlePrefsUpdate(p)} />
             </ErrorBoundary>
           </div>
         )}

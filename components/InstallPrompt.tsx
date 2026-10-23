@@ -54,6 +54,7 @@ export default function InstallPrompt() {
       || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
     const isIOSSafari = isIOS && !/CriOS|FxiOS|EdgiOS|OPiOS|mercury/i.test(ua)
     if (isIOSSafari) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Browser-only state is read after hydration so the static export's prerendered markup matches the first client render.
       setMode('ios')
       return
     }
@@ -122,7 +123,7 @@ export default function InstallPrompt() {
         <p style={{ margin: 0, fontSize: '14px', fontWeight: 650, color: 'var(--text)' }}>Add Solara to your home screen</p>
         <p style={{ margin: '2px 0 0', fontSize: '12px', color: 'var(--text-3)' }}>One tap each morning to check your sun window.</p>
       </div>
-      <button className="btn btn-primary" onClick={install} style={{ fontSize: '13px', padding: '8px 14px', flexShrink: 0 }}>Install</button>
+      <button className="btn btn-primary" onClick={() => void install()} style={{ fontSize: '13px', padding: '8px 14px', flexShrink: 0 }}>Install</button>
       <button onClick={dismiss} aria-label="Dismiss" style={dismissBtn}>×</button>
     </div>
   )

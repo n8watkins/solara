@@ -38,7 +38,6 @@ export default function TipCarousel() {
     if (paused || reduceMotion) return
     const t = setInterval(() => goTo((idx + 1) % TIPS.length), 6500)
     return () => clearInterval(t)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paused, idx])
 
   // Track the visible slide as the user swipes, debounced to a frame.

@@ -51,13 +51,14 @@ export default function Onboarding({ onComplete }: Props) {
 
   async function handleGeolocate() {
     setLocLoad(true); setGeoError(null)
-    navigator.geolocation.getCurrentPosition(async pos => {
+    async function resolvePosition(pos: GeolocationPosition) {
       const { latitude: lat, longitude: lon } = pos.coords
       const city = await reverseGeocode(lat, lon)
       const loc = { lat, lon, ...city }
       setLocation(loc); setLocLoad(false)
       await fetchUVPreview(loc)
-    }, () => {
+    }
+    navigator.geolocation.getCurrentPosition(pos => void resolvePosition(pos), () => {
       setGeoError('Location access denied. Type a city below.'); setLocLoad(false)
     })
   }
@@ -123,7 +124,7 @@ export default function Onboarding({ onComplete }: Props) {
             <>
               <h2 style={{ margin: '0 0 6px', fontSize: '19px', fontWeight: 650, color: 'var(--text)' }}>Where are you?</h2>
               <p style={{ margin: '0 0 18px', fontSize: '14px', color: 'var(--text-2)', lineHeight: 1.5 }}>
-                We'll show the live UV index for your area.
+                We&apos;ll show the live UV index for your area.
               </p>
               <label htmlFor="onboarding-city" style={{ marginBottom: '6px', fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>
                 City or location
@@ -134,14 +135,14 @@ export default function Onboarding({ onComplete }: Props) {
                   placeholder="Type a city, e.g. Los Angeles"
                   value={cityInput}
                   onChange={e => setCityInput(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && handleCitySearch()}
+                  onKeyDown={e => { if (e.key === 'Enter') void handleCitySearch() }}
                   style={{ flex: 1 }}
                 />
-                <button className="btn" onClick={handleCitySearch} disabled={locLoading}>Go</button>
+                <button className="btn" onClick={() => void handleCitySearch()} disabled={locLoading}>Go</button>
               </div>
               {geoError && <p role="alert" style={{ margin: '0 0 8px', fontSize: '12px', color: '#DC2626' }}>{geoError}</p>}
               <div style={{ marginTop: 'auto' }}>
-                <button className="btn btn-primary" onClick={handleGeolocate} disabled={locLoading}
+                <button className="btn btn-primary" onClick={() => void handleGeolocate()} disabled={locLoading}
                   style={{ width: '100%', justifyContent: 'center', padding: '13px' }}>
                   {locLoading ? 'Detecting…' : '📍 Use my location'}
                 </button>

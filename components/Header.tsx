@@ -28,7 +28,13 @@ export default function Header({ user, prefs, onPrefsUpdate, onGoHome, forceOpen
   const [signOutError, setSignOutError] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => { if (forceOpenTab) setShowPrefs(true) }, [forceOpenTab])
+  // Open settings whenever a new tab is forced open (including on mount), adjusting
+  // state during render rather than in an effect.
+  const [seenForceOpenTab, setSeenForceOpenTab] = useState<typeof forceOpenTab>(undefined)
+  if (forceOpenTab !== seenForceOpenTab) {
+    setSeenForceOpenTab(forceOpenTab)
+    if (forceOpenTab) setShowPrefs(true)
+  }
 
   // Close the profile menu on outside-click / Escape.
   useEffect(() => {
@@ -145,6 +151,7 @@ export default function Header({ user, prefs, onPrefsUpdate, onGoHome, forceOpen
                     }}
                   >
                     {user.photoURL ? (
+                      // eslint-disable-next-line @next/next/no-img-element -- Remote account avatar in a static export with images.unoptimized; next/image would add nothing.
                       <img
                         src={user.photoURL}
                         alt={user.displayName ?? 'Account'}
@@ -196,7 +203,7 @@ export default function Header({ user, prefs, onPrefsUpdate, onGoHome, forceOpen
                       </a>
                       <button
                         role="menuitem"
-                        onClick={() => { setMenuOpen(false); handleSignOut() }}
+                        onClick={() => { setMenuOpen(false); void handleSignOut() }}
                         className="hdr-menu-item"
                         style={{ color: '#DC2626' }}
                       >

@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import type { Activity, WeatherResponse, UserPreferences, DayWeather, TierLevel, HourlyForecast } from '@/lib/types'
 import { burnMins, vitDMins, uvLabel, getActivityWindow, fmtHour } from '@/lib/weather'
 import { getFutureDays } from '@/lib/tiers'
@@ -66,7 +66,11 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
   // Switching days clears the scrubbed hour so the arc/strip snap back to "now"
   // (or the new day's first hour) rather than pointing at a stale hour.
   const activeDayKey = effectiveSelectedDay?.dateStr ?? 'today'
-  useEffect(() => { setFocusedHour(null) }, [activeDayKey])
+  const [focusDayKey, setFocusDayKey] = useState(activeDayKey)
+  if (focusDayKey !== activeDayKey) {
+    setFocusDayKey(activeDayKey)
+    setFocusedHour(null)
+  }
   // Guard against a focus left over from another day's array identity.
   const sharedFocus = focusedHour && activeDayData.includes(focusedHour) ? focusedHour : null
 
@@ -406,7 +410,7 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
               lockedDays={lockedForecastCount}
               upgradeCopy={upgradeCopy}
               onUpgrade={() => { setShareMsg(upgradeCopy); window.setTimeout(() => setShareMsg(null), 3500) }}
-              onBook={calStatus === 'connected' ? bookSlotOn : undefined}
+              onBook={calStatus === 'connected' ? (activity, rec, dateStr) => void bookSlotOn(activity, rec, dateStr) : undefined}
             />
           </div>
         )}
@@ -416,15 +420,15 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
             <span style={{ fontSize: '16px', flexShrink: 0 }}>🗓️</span>
             {calStatus === 'connected' ? (
               <p style={{ margin: 0, flex: 1, fontSize: '13px', color: 'var(--text-2)' }}>
-                Recommendations now schedule around your calendar. <span style={{ color: 'var(--text-3)' }}>Solara sees only when you're busy, never event details.</span>
+                Recommendations now schedule around your calendar. <span style={{ color: 'var(--text-3)' }}>Solara sees only when you&apos;re busy, never event details.</span>
               </p>
             ) : (
               <>
                 <p style={{ margin: 0, flex: 1, fontSize: '13px', color: 'var(--text-2)' }}>
                   Connect Google Calendar to schedule activities around your real availability.
-                  {calStatus === 'error' && <span style={{ color: '#DC2626' }}> Couldn't connect — try again.</span>}
+                  {calStatus === 'error' && <span style={{ color: '#DC2626' }}> Couldn&apos;t connect — try again.</span>}
                 </p>
-                <button className="btn" onClick={connectCalendar} disabled={calStatus === 'connecting'} style={{ fontSize: '12px', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                <button className="btn" onClick={() => void connectCalendar()} disabled={calStatus === 'connecting'} style={{ fontSize: '12px', whiteSpace: 'nowrap', flexShrink: 0 }}>
                   {calStatus === 'connecting' ? 'Connecting…' : 'Connect calendar'}
                 </button>
               </>
@@ -456,7 +460,7 @@ export default function Dashboard({ weather, prefs, displayTier, onPrefsUpdate, 
             dateLabel={dateLabel}
             hourly={hourly}
             busy={busyForActiveDay}
-            onBookRecommended={calStatus === 'connected' ? (a, r) => bookSlotOn(a, r, activeDateStr) : undefined}
+            onBookRecommended={calStatus === 'connected' ? (a, r) => void bookSlotOn(a, r, activeDateStr) : undefined}
             onEditActivity={openEditActivity}
           />
         ) : (

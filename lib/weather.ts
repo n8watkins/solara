@@ -1,4 +1,4 @@
-import type { HourlyForecast, Activity, ActivityWindow, SafeActivityWindow, SkinType } from './types'
+import type { HourlyForecast, Activity, ActivityWindow, SkinType } from './types'
 import { burnMins, effectiveMaxUV, findRecommendationWindows } from './recommendation'
 import { cloudAdjustedUV } from './exposure'
 

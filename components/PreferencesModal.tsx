@@ -72,7 +72,9 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Browser-only state is read after hydration so the static export's prerendered markup matches the first client render.
     setNotifState(readNotifState())
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- Read the notification permission once when the modal mounts.
   }, [])
 
   async function handleEnableNotifications() {
@@ -132,9 +134,9 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
     } finally { setLocLoading(false) }
   }
 
-  async function useCurrentLocation() {
+  async function locateCurrentPosition() {
     setLocLoading(true); setLocError(null)
-    navigator.geolocation.getCurrentPosition(async pos => {
+    async function resolvePosition(pos: GeolocationPosition) {
       try {
         const { latitude: lat, longitude: lon } = pos.coords
         const res  = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`)
@@ -144,7 +146,8 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
         clearWeatherCache()
       } catch { setLocError('Could not resolve.') }
       finally   { setLocLoading(false) }
-    }, () => { setLocError('Location denied.'); setLocLoading(false) })
+    }
+    navigator.geolocation.getCurrentPosition(pos => void resolvePosition(pos), () => { setLocError('Location denied.'); setLocLoading(false) })
   }
 
   function joinWaitlistWithEmail(email: string) {
@@ -264,7 +267,7 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
                           {[5, 6, 7, 8, 9, 10].map(hour => <option key={hour} value={hour}>{hour}:00 AM</option>)}
                         </select>
                       </label>
-                      <button className="btn" onClick={handleDisableNotifications} disabled={notifLoading} style={{ alignSelf: 'flex-start' }}>
+                      <button className="btn" onClick={() => void handleDisableNotifications()} disabled={notifLoading} style={{ alignSelf: 'flex-start' }}>
                         {notifLoading ? 'Turning off...' : 'Turn off on this device'}
                       </button>
                     </div>
@@ -275,7 +278,7 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
                   ) : notifState === 'default' ? (
                     <button
                       className="btn btn-primary"
-                      onClick={handleEnableNotifications}
+                      onClick={() => void handleEnableNotifications()}
                       disabled={notifLoading || !notificationRegistrationConfigured()}
                       style={{ alignSelf: 'flex-start', whiteSpace: 'nowrap' }}
                     >
@@ -310,7 +313,7 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
               <div className="metric-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '14px' }}>
                 <div>
                   <p style={{ margin: '0 0 4px', fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>Sun path animation</p>
-                  <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-3)' }}>The arc above the hourly UV chart showing the sun's position.</p>
+                  <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-3)' }}>The arc above the hourly UV chart showing the sun&apos;s position.</p>
                 </div>
                 <button
                   onClick={() => setShowSunPath(s => !s)}
@@ -335,12 +338,12 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
                   {location.city}{location.region ? `, ${location.region}` : ''}
                 </p>
               </div>
-              <button className="btn" onClick={useCurrentLocation} disabled={locLoading} style={{ justifyContent: 'center' }}>
+              <button className="btn" onClick={() => void locateCurrentPosition()} disabled={locLoading} style={{ justifyContent: 'center' }}>
                 📍 {locLoading ? 'Detecting…' : 'Use current location'}
               </button>
               <div style={{ display: 'flex', gap: '8px' }}>
-                <input placeholder="Search a city…" value={citySearch} onChange={e => setCitySearch(e.target.value)} onKeyDown={e => e.key === 'Enter' && searchCity()} style={{ flex: 1 }} />
-                <button className="btn" onClick={searchCity} disabled={locLoading}>{locLoading ? '…' : 'Search'}</button>
+                <input placeholder="Search a city…" value={citySearch} onChange={e => setCitySearch(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') void searchCity() }} style={{ flex: 1 }} />
+                <button className="btn" onClick={() => void searchCity()} disabled={locLoading}>{locLoading ? '…' : 'Search'}</button>
               </div>
               {locError && <p style={{ margin: 0, fontSize: '12px', color: '#DC2626' }}>{locError}</p>}
             </div>
@@ -385,7 +388,7 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
                   </div>
                   <button
                     className="btn"
-                    onClick={async () => {
+                    onClick={() => void (async () => {
                       setNotifError(null)
                       if (user) {
                         try {
@@ -398,7 +401,7 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
                       }
                       if (auth) await signOut(auth)
                       onClose()
-                    }}
+                    })()}
                     style={{ justifyContent: 'center', color: '#DC2626', borderColor: '#FECACA' }}
                   >
                     Sign out

@@ -57,7 +57,7 @@ export default function NotificationBanner({ user, onDismiss }: Props) {
       <div className="flex items-center gap-2 shrink-0">
         <button
           className="btn btn-primary text-xs px-3 py-1.5"
-          onClick={handleEnable}
+          onClick={() => void handleEnable()}
           disabled={loading}
         >
           {loading ? '...' : 'Enable'}
