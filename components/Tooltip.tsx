@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
+import { shiftIntoView } from '@/lib/roving-focus'
 import styles from './Tooltip.module.css'
 
 interface Props {
@@ -29,10 +30,12 @@ export default function Tooltip({ text, children }: Props) {
     const bubble = bubbleRef.current
     if (!show || !bubble) return
     const rect = bubble.getBoundingClientRect()
-    const base = rect.left - shift
-    const width = rect.width
-    const max = document.documentElement.clientWidth - EDGE
-    const next = base < EDGE ? EDGE - base : base + width > max ? max - (base + width) : 0
+    const next = shiftIntoView(
+      rect.left - shift,
+      rect.width,
+      document.documentElement.clientWidth,
+      EDGE,
+    )
     if (next !== shift) setShift(next)
   }, [show, shift])
 

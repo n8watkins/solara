@@ -1,6 +1,7 @@
 'use client'
 import { useId, useState } from 'react'
 import type { Activity, TimePreference } from '@/lib/types'
+import { activityEdited } from '@/lib/activity-draft'
 import { effectiveMaxUV } from '@/lib/tiers'
 import { fmtHour } from '@/lib/weather'
 import ActivityModalShell from './ActivityModalShell'
@@ -22,22 +23,6 @@ const DAY_NAMES = [
   'Friday',
   'Saturday',
 ] as const
-
-function comparable(a: Activity) {
-  const days = a.daysOfWeek
-  return {
-    name: a.name,
-    icon: a.icon,
-    durationMins: a.durationMins,
-    sunscreen: a.sunscreen,
-    maxUV: a.maxUV,
-    preferredHours: a.preferredHours ?? null,
-    timePreference: a.timePreference ?? 'earliest',
-    daysOfWeek:
-      !days || days.length === 0 || days.length === 7 ? null : [...days].sort((x, y) => x - y),
-    cloudSensitive: !!a.cloudSensitive,
-  }
-}
 
 function clampUV(value: number) {
   return Math.max(0, Math.min(11, Math.round(value * 10) / 10))
@@ -100,9 +85,7 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
     cloudSensitive: cloudSensitive || undefined,
   }
 
-  // Compare in the draft's normalized form, so defaults the draft drops
-  // ('earliest', no cloud adjustment, every day) do not count as edits.
-  const dirty = JSON.stringify(comparable(activity)) !== JSON.stringify(comparable(draft))
+  const dirty = activityEdited(activity, draft)
 
   function requestClose() {
     if (dirty && !window.confirm('Discard unsaved activity changes?')) return

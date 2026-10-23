@@ -5,6 +5,7 @@ import type { User } from 'firebase/auth'
 import type { UserPreferences, SkinType, Location } from '@/lib/types'
 import { clearWeatherCache } from '@/lib/cache'
 import { searchLocation } from '@/lib/geocoding'
+import { nextIndex } from '@/lib/roving-focus'
 import { TIER_LIMITS } from '@/lib/tiers'
 import {
   disableNotifications,
@@ -254,22 +255,11 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
   // Tabs pattern: arrows move between sections (the rail is vertical on
   // desktop and horizontal on phones, so both axes work), Home and End jump.
   function handleTabKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
-    const index = SECTIONS.findIndex(s => s.id === tab)
-    const last = SECTIONS.length - 1
-    const next =
-      event.key === 'ArrowDown' || event.key === 'ArrowRight'
-        ? index === last
-          ? 0
-          : index + 1
-        : event.key === 'ArrowUp' || event.key === 'ArrowLeft'
-          ? index === 0
-            ? last
-            : index - 1
-          : event.key === 'Home'
-            ? 0
-            : event.key === 'End'
-              ? last
-              : null
+    const next = nextIndex(
+      event.key,
+      SECTIONS.findIndex(s => s.id === tab),
+      SECTIONS.length,
+    )
     if (next === null) return
     event.preventDefault()
     const nextTab = SECTIONS[next]!.id

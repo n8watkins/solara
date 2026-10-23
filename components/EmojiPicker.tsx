@@ -1,6 +1,7 @@
 'use client'
 import { useState, useRef, useEffect } from 'react'
 import type { KeyboardEvent } from 'react'
+import { nearestInAdjacentRow, nextIndex } from '@/lib/roving-focus'
 
 const EMOJI_GROUPS = [
   {
@@ -265,28 +266,15 @@ export default function EmojiPicker({ id, value, onChange, onClose }: Props) {
     const list = buttons()
     const current = list.indexOf(document.activeElement as HTMLButtonElement)
     if (current < 0) return
-    let next: number | null = null
-    if (event.key === 'ArrowRight') next = Math.min(list.length - 1, current + 1)
-    else if (event.key === 'ArrowLeft') next = Math.max(0, current - 1)
-    else if (event.key === 'Home') next = 0
-    else if (event.key === 'End') next = list.length - 1
-    else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-      // Rows differ in length across groups, so move by geometry: the
-      // nearest button by horizontal position in the next or previous row.
-      const from = list[current]!.getBoundingClientRect()
-      const down = event.key === 'ArrowDown'
-      const rows = list
-        .map((button, i) => ({ i, rect: button.getBoundingClientRect() }))
-        .filter(({ rect }) => (down ? rect.top > from.top + 4 : rect.top < from.top - 4))
-      if (rows.length) {
-        const rowTop = down
-          ? Math.min(...rows.map(r => r.rect.top))
-          : Math.max(...rows.map(r => r.rect.top))
-        const row = rows.filter(r => Math.abs(r.rect.top - rowTop) < 4)
-        row.sort((a, b) => Math.abs(a.rect.left - from.left) - Math.abs(b.rect.left - from.left))
-        next = row[0]!.i
-      }
-    }
+    const next =
+      event.key === 'ArrowDown' || event.key === 'ArrowUp'
+        ? // Rows differ in length across groups, so move by geometry.
+          nearestInAdjacentRow(
+            list.map(button => button.getBoundingClientRect()),
+            current,
+            event.key === 'ArrowDown',
+          )
+        : nextIndex(event.key, current, list.length, { wrap: false })
     if (next === null) return
     event.preventDefault()
     const target = list[next]
