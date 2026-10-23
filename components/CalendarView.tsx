@@ -273,7 +273,9 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
     )
   if (error)
     return (
-      <div style={{ padding: '2rem 0', textAlign: 'center', fontSize: '14px', color: '#DC2626' }}>
+      <div
+        style={{ padding: '2rem 0', textAlign: 'center', fontSize: '14px', color: 'var(--danger)' }}
+      >
         {error}
       </div>
     )
@@ -325,10 +327,11 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
   const variant = chipVariant(laneW)
 
   const line = 'var(--border)'
+  // Decorative tint behind today's column; no text sits on it.
   const todayTint = 'rgba(249,115,22,0.06)'
 
   return (
-    <div style={{ fontFamily: 'var(--font-sans)' }}>
+    <div>
       <style>{`
         .solara-cal-chip { transition: filter 0.12s, box-shadow 0.12s; }
         .solara-cal-chip:focus-visible { outline: 2px solid #fff; outline-offset: -3px; }
@@ -431,7 +434,7 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
               aria-label="Earlier days"
               disabled={firstDay === 0}
               onClick={() => pageBy(-1)}
-              style={{ ...pagerButton, opacity: firstDay === 0 ? 0.4 : 1 }}
+              style={pagerButton}
             >
               ‹
             </button>
@@ -454,7 +457,7 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
               aria-label="Later days"
               disabled={lastDay >= days.length - 1}
               onClick={() => pageBy(1)}
-              style={{ ...pagerButton, opacity: lastDay >= days.length - 1 ? 0.4 : 1 }}
+              style={pagerButton}
             >
               ›
             </button>
@@ -468,8 +471,9 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
             padding: '9px 12px',
             marginBottom: '10px',
             borderRadius: '10px',
-            background: 'rgba(249,115,22,0.08)',
-            color: 'var(--text-2)',
+            background: 'var(--notice-bg)',
+            border: '0.5px solid var(--notice-border)',
+            color: 'var(--notice-text)',
             fontSize: '13px',
           }}
         >
@@ -484,8 +488,9 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
             padding: '8px 12px',
             marginBottom: '10px',
             borderRadius: '10px',
-            background: 'rgba(249,115,22,0.08)',
-            color: 'var(--text-2)',
+            background: 'var(--notice-bg)',
+            border: '0.5px solid var(--notice-border)',
+            color: 'var(--notice-text)',
             fontSize: '12px',
           }}
         >
@@ -547,8 +552,7 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
                   justifyContent: 'center',
                   gap: '3px',
                   minWidth: 0,
-                  background: 'var(--bg-card)',
-                  backgroundImage: isToday ? `linear-gradient(${todayTint}, ${todayTint})` : 'none',
+                  background: isToday ? 'var(--accent-soft)' : 'var(--bg-card)',
                   borderLeft: `1px solid ${line}`,
                   borderBottom: `1px solid ${line}`,
                 }}
