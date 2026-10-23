@@ -175,7 +175,7 @@ export default function ActivityCards({
       dateLabel,
       isoDate: dateStr,
     }
-    const text = buildActivityShareText(payload)
+    const text = buildActivityShareText(payload, fmt.units.clock)
     const url = buildActivityShareUrl(
       payload,
       typeof window !== 'undefined' ? window.location.origin : undefined,

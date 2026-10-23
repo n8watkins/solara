@@ -1,5 +1,6 @@
 import type { Activity, Location, SafeActivityWindow } from './types'
-import { fmtClock } from './weather'
+import { formatClockTime } from './units'
+import type { ClockFormat } from './units'
 
 export interface ActivitySharePayload {
   activity: Activity
@@ -154,17 +155,17 @@ export function formatShareDate(date: string, now = new Date()): string {
   })
 }
 
-export function buildActivityShareText({
-  activity,
-  window: win,
-  location,
-  dateLabel,
-}: ActivitySharePayload): string {
+/** The message sent with a share link, with times in the sender's clock format. */
+export function buildActivityShareText(
+  { activity, window: win, location, dateLabel }: ActivitySharePayload,
+  clock: ClockFormat,
+): string {
+  const time = (hours: number) => formatClockTime(hours, clock)
   const place = `${location.city}${location.region ? `, ${location.region}` : ''}`
   const uvCopy = typeof win.peakUV === 'number' ? ` Peak UV ${win.peakUV.toFixed(1)}.` : ''
   const duration =
     activity.durationMins < 60 ? `${activity.durationMins} min` : `${activity.durationMins / 60} hr`
-  return `Let's do ${activity.name.toLowerCase()} ${dateLabel.toLowerCase()} from ${fmtClock(win.from)}–${fmtClock(win.to)} in ${place}. Solara estimates this as a lower-UV ${duration} planning window.${uvCopy} Recheck current conditions and use sun protection.`
+  return `Let's do ${activity.name.toLowerCase()} ${dateLabel.toLowerCase()} from ${time(win.from)}–${time(win.to)} in ${place}. Solara estimates this as a lower-UV ${duration} planning window.${uvCopy} Recheck current conditions and use sun protection.`
 }
 
 /** Sender text for a link: sanitized, and replaced by `fallback` if it still looks unsafe. */

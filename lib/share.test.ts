@@ -188,12 +188,24 @@ describe('building share links', () => {
 
   it('formats fractional shared windows as clock times', () => {
     expect(
-      buildActivityShareText({
-        activity: run,
-        window: { from: 7.5, to: 8.5 },
-        location: pasadena,
-        dateLabel: 'Today',
-      }),
+      buildActivityShareText(
+        {
+          activity: run,
+          window: { from: 7.5, to: 8.5 },
+          location: pasadena,
+          dateLabel: 'Today',
+        },
+        '12h',
+      ),
     ).toContain('7:30am–8:30am')
+  })
+
+  it("writes shared windows in the sender's clock format", () => {
+    expect(
+      buildActivityShareText(
+        { activity: run, window: { from: 7.5, to: 18 }, location: pasadena, dateLabel: 'Today' },
+        '24h',
+      ),
+    ).toContain('from 07:30–18:00 in Pasadena')
   })
 })

@@ -31,3 +31,34 @@ test('refuses to render link text that looks like a phishing lure', async ({ pag
   )
   await expect(page.getByText('evil.example.com')).toHaveCount(0)
 })
+
+test.describe('in a 24-hour locale', () => {
+  test.use({ locale: 'en-GB' })
+
+  test("shows the plan's times on the viewer's clock", async ({ page }) => {
+    await page.goto(`/share/?a=Run&city=Pasadena&date=${isoDate(1)}&from=7.5&to=18`)
+    await expect(page.getByText(/Tomorrow · 07:30–18:00 · Pasadena/)).toBeVisible()
+    await expect(page.getByText('07:30–18:00', { exact: true })).toBeVisible()
+  })
+})
+
+test("a viewer's saved clock choice wins over the locale", async ({ page }) => {
+  // What Solara keeps on a device where someone chose the 24-hour clock in Settings.
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      'solara_prefs',
+      JSON.stringify({
+        uid: 'viewer',
+        location: { lat: 34.15, lon: -118.14, city: 'Pasadena', region: 'California' },
+        skinType: 'fair',
+        sunscreen: false,
+        activities: [],
+        tier: 'free',
+        onboardingComplete: true,
+        clockFormat: '24h',
+      }),
+    )
+  })
+  await page.goto(`/share/?a=Run&city=Pasadena&date=${isoDate(1)}&from=7.5&to=18`)
+  await expect(page.getByText(/Tomorrow · 07:30–18:00 · Pasadena/)).toBeVisible()
+})

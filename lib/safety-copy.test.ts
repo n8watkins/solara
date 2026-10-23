@@ -25,12 +25,15 @@ const window: SafeActivityWindow = {
 
 describe('health-adjacent recommendation copy', () => {
   it('qualifies shared recommendations and includes protection context', () => {
-    const text = buildActivityShareText({
-      activity,
-      window,
-      location,
-      dateLabel: 'Today',
-    })
+    const text = buildActivityShareText(
+      {
+        activity,
+        window,
+        location,
+        dateLabel: 'Today',
+      },
+      '12h',
+    )
     expect(text).toContain('estimates this as a lower-UV')
     expect(text).toContain('Recheck current conditions and use sun protection.')
     expect(text).not.toMatch(/exactly|\bsafe(?:st)?\b/i)
