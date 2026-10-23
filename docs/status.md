@@ -49,7 +49,7 @@ Checked on 2026-10-23.
 | Account export and deletion | Built behind authenticated Functions | Not live. Needs deployed Functions, live reauthentication testing, Stripe cancellation verification, and cleanup-job monitoring |
 | Billing backfill and cleanup | Built as scheduled Functions with durable indexes and retries | Not live. Needs deployed Functions, ready indexes, Stripe credentials, and monitoring |
 | Live calendar feed | Built as a Function | Not live. Needs deployed Functions and a real calendar client |
-| Analytics | Built with explicit opt-in consent | Whether a GA4 measurement ID is configured is owner to confirm |
+| Analytics | Built with explicit opt-in consent | A GA4 measurement ID is compiled into the production bundle (checked 2026-10-23). Production consent behavior still needs verification |
 | App Check | Client activation built (reCAPTCHA v3 provider) | Registration and enforcement status are owner to confirm |
 | Hosting and Firestore rules | Automated on every push to `main` | Live |
 | Firestore indexes | Deployed by every `main` deployment, independent of the Functions gate | Failing until the deployment service account has `roles/datastore.indexAdmin` |
