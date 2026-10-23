@@ -1,6 +1,6 @@
 /**
  * Operator details shown in the privacy policy and terms (owner decision D8 in
- * docs/assessment-2026-10/PLAN.md). A null value renders a clearly marked
+ * docs/status.md). A null value renders a clearly marked
  * placeholder instead.
  */
 export const LEGAL_DETAILS: Readonly<{
