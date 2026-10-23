@@ -50,6 +50,11 @@ export default function PrivacyPage() {
             your calendar, Solara creates that one event on a calendar you own.
           </li>
           <li>
+            <strong>Scheduled activities</strong>, for events Solara added to your calendar: the
+            event&apos;s identifier, start and end time, time zone, title and link, and which of
+            your activities it is for, so Solara can show and manage it on all your devices.
+          </li>
+          <li>
             <strong>Calendar feed and notifications</strong>, if you turn them on: a private feed
             token and your device&apos;s push notification registration.
           </li>
@@ -88,9 +93,11 @@ export default function PrivacyPage() {
           </li>
           <li>
             <strong>Google Calendar events you create</strong> (<code>calendar.events.owned</code>),
-            only when you choose to add a window to your calendar: Solara creates that one event on
-            your calendar. Solara does not read, change or delete other events, and does not keep a
-            copy of the event.
+            only when you choose to add a window to your calendar: Solara creates that event on a
+            calendar you own and marks it as created by Solara. Solara stores the event&apos;s
+            identifier, time, title and link of events it created, so it can show them as scheduled
+            and let you open, move or remove them. To keep them up to date, Solara looks up only
+            events it created; it does not read, change or delete any other event.
           </li>
         </ul>
         <p>
@@ -178,6 +185,10 @@ export default function PrivacyPage() {
         <ul>
           <li>Account details and preferences: while your account exists.</li>
           <li>
+            Scheduled activities: until you remove the event, it is deleted in Google Calendar, or
+            30 days after it ends, and always when you delete your account.
+          </li>
+          <li>
             Calendar availability: only in your browser for the current session; never stored by
             Solara.
           </li>
@@ -218,8 +229,9 @@ export default function PrivacyPage() {
           browser.
         </p>
         <p>
-          Deleting your account removes your Solara preferences, calendar feed and notification
-          registrations, and cancels an active Solara subscription.
+          Deleting your account removes your Solara preferences, scheduled activities, calendar feed
+          and notification registrations, and cancels an active Solara subscription. Events already
+          in your Google Calendar stay there until you delete them.
         </p>
         <p>You also have the right to complain to your local data protection authority.</p>
 

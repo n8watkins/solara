@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { afterEach, describe, it, expect, vi } from 'vitest'
 import type { BusyPeriod } from '@/lib/gcal'
 import {
   busyIntervalsForDay,
@@ -6,6 +6,12 @@ import {
   buildEventDescription,
   CALENDAR_BOOKING_SCOPE,
   CALENDAR_FREEBUSY_SCOPE,
+  CalendarAuthError,
+  deleteCalendarEvent,
+  getCalendarEvent,
+  listSolaraEvents,
+  patchCalendarEventTime,
+  requestWriteToken,
 } from '@/lib/gcal'
 import type { SlotRecommendation } from '@/lib/scheduler'
 import type { Activity } from '@/lib/types'
@@ -141,6 +147,13 @@ describe('buildEventBody', () => {
     expect(body.end).toEqual({ dateTime: '2026-05-29T18:00:00', timeZone: 'America/Los_Angeles' })
   })
 
+  it("tags the event as Solara's with private extended properties", () => {
+    const body = buildEventBody(run, '2026-05-29', 17, 18, 'desc', 'America/Los_Angeles')
+    expect(body.extendedProperties).toEqual({
+      private: { solara: '1', solaraActivityId: run.id, solaraWindowDate: '2026-05-29' },
+    })
+  })
+
   it('renders fractional hours as minutes', () => {
     const body = buildEventBody(run, '2026-05-29', 9.5, 10.25, 'desc', 'UTC')
     expect(body.start.dateTime).toBe('2026-05-29T09:30:00')
@@ -155,5 +168,84 @@ describe('Google Calendar scopes', () => {
     for (const scope of [CALENDAR_FREEBUSY_SCOPE, CALENDAR_BOOKING_SCOPE]) {
       expect(scope).not.toMatch(/calendar(\.readonly|\.events)?$/)
     }
+  })
+})
+
+describe('Solara event calls', () => {
+  const calls: { url: string; init: RequestInit | undefined }[] = []
+  function mockFetch(...responses: Response[]) {
+    calls.length = 0
+    const queue = [...responses]
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        calls.push({ url, init })
+        const next = queue.shift()
+        if (!next) throw new Error('unexpected fetch')
+        return next
+      }),
+    )
+  }
+  const json = (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
+  const tagged = { id: 'abc123', extendedProperties: { private: { solara: '1' } } }
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('lists only tagged events, filtered by Google, across pages', async () => {
+    mockFetch(
+      json({ items: [tagged], nextPageToken: 'p2' }),
+      // An untagged event never reaches the app, even if a response included one.
+      json({ items: [{ id: 'other1' }, { ...tagged, id: 'abc124' }] }),
+    )
+    const events = await listSolaraEvents(
+      'tok',
+      new Date('2026-06-15T00:00:00Z'),
+      new Date('2026-06-20T00:00:00Z'),
+    )
+    expect(events.map(e => e.id)).toEqual(['abc123', 'abc124'])
+    const first = new URL(calls[0]!.url)
+    expect(first.pathname).toBe('/calendar/v3/calendars/primary/events')
+    expect(first.searchParams.get('privateExtendedProperty')).toBe('solara=1')
+    expect(first.searchParams.get('showDeleted')).toBe('true')
+    expect(new URL(calls[1]!.url).searchParams.get('pageToken')).toBe('p2')
+    expect(calls[0]!.init?.headers).toMatchObject({ Authorization: 'Bearer tok' })
+  })
+
+  it('treats a missing event as gone, and a deleted one as already deleted', async () => {
+    mockFetch(new Response(null, { status: 404 }), new Response(null, { status: 410 }))
+    expect(await getCalendarEvent('tok', 'abc123')).toBeNull()
+    await expect(deleteCalendarEvent('tok', 'abc123')).resolves.toBeUndefined()
+    expect(calls[1]!.init?.method).toBe('DELETE')
+  })
+
+  it('patches only the start and end', async () => {
+    mockFetch(json(tagged))
+    const times = {
+      start: { dateTime: '2026-06-15T19:00:00', timeZone: 'UTC' },
+      end: { dateTime: '2026-06-15T20:00:00', timeZone: 'UTC' },
+    }
+    await patchCalendarEventTime('tok', 'abc123', times)
+    expect(calls[0]!.init?.method).toBe('PATCH')
+    expect(JSON.parse(String(calls[0]!.init?.body))).toEqual(times)
+  })
+
+  it('reports a refused token as CalendarAuthError', async () => {
+    mockFetch(new Response(null, { status: 401 }))
+    await expect(getCalendarEvent('tok', 'abc123')).rejects.toBeInstanceOf(CalendarAuthError)
+  })
+
+  it('never builds a URL from an unsafe event id', async () => {
+    mockFetch()
+    await expect(getCalendarEvent('tok', '../calendarList')).rejects.toThrow('Invalid event id')
+    expect(calls).toEqual([])
+  })
+
+  it('never asks for a token without a click', async () => {
+    await expect(requestWriteToken({ interactive: false })).rejects.toBeInstanceOf(
+      CalendarAuthError,
+    )
   })
 })

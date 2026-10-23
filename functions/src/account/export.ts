@@ -1,7 +1,7 @@
-// Data export: the portable account fields and notification devices, never billing ids,
-// tokens or internal bookkeeping.
+// Data export: the portable account fields, notification devices and scheduled
+// activities, never billing ids, tokens or internal bookkeeping.
 
-import { PREFERENCE_FIELDS } from '#core'
+import { parseScheduledActivity, PREFERENCE_FIELDS } from '#core'
 import type { Auth } from 'firebase-admin/auth'
 import type { DocumentData, Firestore, QuerySnapshot } from 'firebase-admin/firestore'
 import type { Request } from 'firebase-functions/v2/https'
@@ -33,6 +33,14 @@ function safeDeviceData(snapshot: QuerySnapshot) {
   })
 }
 
+/** Scheduled activities (Google Calendar events Solara created), as stored. */
+export function safeScheduledData(snapshot: QuerySnapshot) {
+  return snapshot.docs.flatMap(doc => {
+    const item = parseScheduledActivity(doc.data())
+    return item && item.eventId === doc.id ? [item] : []
+  })
+}
+
 export async function exportAccountData({
   auth,
   db,
@@ -46,21 +54,26 @@ export async function exportAccountData({
   const userRef = db.collection('users').doc(identity.uid)
   const tombstoneRef = db.collection('accountDeletionTombstones').doc(identity.uid)
   const devicesQuery = userRef.collection('notificationDevices')
-  const { userSnapshot, devicesSnapshot } = await db.runTransaction(async transaction => {
-    const tombstone = await transaction.get(tombstoneRef)
-    if (tombstone.exists) {
-      throw new HttpError('deletion-in-progress', 'Account deletion is in progress')
-    }
-    const [account, devices] = await Promise.all([
-      transaction.get(userRef),
-      transaction.get(devicesQuery),
-    ])
-    return { userSnapshot: account, devicesSnapshot: devices }
-  })
+  const scheduledQuery = userRef.collection('scheduled')
+  const { userSnapshot, devicesSnapshot, scheduledSnapshot } = await db.runTransaction(
+    async transaction => {
+      const tombstone = await transaction.get(tombstoneRef)
+      if (tombstone.exists) {
+        throw new HttpError('deletion-in-progress', 'Account deletion is in progress')
+      }
+      const [account, devices, scheduled] = await Promise.all([
+        transaction.get(userRef),
+        transaction.get(devicesQuery),
+        transaction.get(scheduledQuery),
+      ])
+      return { userSnapshot: account, devicesSnapshot: devices, scheduledSnapshot: scheduled }
+    },
+  )
   return {
     formatVersion: 1,
     exportedAt: new Date().toISOString(),
     account: userSnapshot.exists ? safeAccountData(userSnapshot.data() ?? {}) : null,
     notificationDevices: safeDeviceData(devicesSnapshot),
+    scheduledActivities: safeScheduledData(scheduledSnapshot),
   }
 }
