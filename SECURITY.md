@@ -13,8 +13,9 @@ Only the current production site and the `main` branch are supported.
 - **Workflows** run with `permissions: {}` by default and grant each job only what it needs.
   Only deploy jobs on `main` can request Google Cloud credentials.
 - **Actions** are pinned to full commit SHAs, and Dependabot proposes updates weekly after a 7-day cooldown.
-- **Dependencies** install with `npm ci --ignore-scripts` in CI, so no dependency install script runs there.
-  Locally, npm 12 blocks install scripts that are not approved in `allowScripts`.
+- **Dependencies** never run install scripts.
+  Both `package.json` files record an `allowScripts` policy that denies every dependency install script found so far (`@firebase/util`, `protobufjs` and `unrs-resolver` in the web app; `@firebase/util`, `protobufjs` and `re2` in `functions/`), so npm 12 installs them without a warning and blocks any new one until it is reviewed with `npm install-scripts`.
+  CI runs `npm ci --ignore-scripts`, which applies the same policy (no dependency script runs) with the npm 11 that ships with the pinned Node, since npm 11 does not read `allowScripts`.
 - **Deploy tooling** comes from lockfiles: `firebase-tools` is the version locked in `functions/package-lock.json`, never a floating `npx` download.
 - **Every pull request** runs actionlint, zizmor, gitleaks over the full history, and `npm audit` on production dependencies of both packages.
 - **Production deploys** build the static export once, smoke-test it on the Firebase Hosting emulator, record its SHA-256 digest, SBOMs and a provenance record, and deploy exactly that artifact.
