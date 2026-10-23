@@ -8,7 +8,8 @@ import type {
   TierLevel,
   HourlyForecast,
 } from '@/lib/types'
-import { burnMins, vitDMins, uvLabel, getActivityWindow, fmtHour } from '@/lib/weather'
+import { burnMins, vitDMins, uvLabel, fmtHour, fmtClock } from '@/lib/weather'
+import { nowHourOf, planActivityDay, soonestPlan } from '@/lib/next-slot'
 import { getFutureDays } from '@/lib/tiers'
 import type { BusyPeriod } from '@/lib/gcal'
 import {
@@ -72,7 +73,11 @@ export default function Dashboard({
   // The hour being inspected, shared by the sun path + the UV strip so a tap on
   // either keeps both in sync. null = fall back to "now" (today) / first hour.
   const [focusedHour, setFocusedHour] = useState<HourlyForecast | null>(null)
-  const currentHour = new Date().getHours()
+  const now = new Date()
+  const currentHour = now.getHours()
+  // Fractional "now" (rounded up to 5 minutes): the earliest start any recommendation
+  // on today may offer, and where the sun marker sits on the arc.
+  const nowHour = nowHourOf(now)
 
   const accessTier = displayTier || prefs.tier || 'anonymous'
   const activityTier = prefs.tier || 'anonymous'
@@ -106,6 +111,8 @@ export default function Dashboard({
     (best, h) => (h.uv > (best?.uv ?? 0) ? h : best),
     activeDayData[0],
   )
+  // The one "now" UV: the live reading the header shows too. Hourly bars stay
+  // forecasts for their hour; only the unscrubbed readout and burn time say "now".
   const currentUV = isToday ? weather.current.uv : (peakEntry?.uv ?? 0)
   const currentTemp = isToday
     ? weather.current.tempF
@@ -114,37 +121,20 @@ export default function Dashboard({
   const peakUV = hourly.length ? Math.max(...hourly.map(h => h.uv)) : 0
   const peakHour = hourly.find(h => h.uv === peakUV)?.hour ?? 12
 
-  // The hour whose stats fill the card's big header. A tap/scrub on the strip or
-  // arc moves `sharedFocus`; with nothing focused we fall back to the current hour
-  // (today) or the day's peak. This is the single, prominent readout — the small
-  // line that used to live inside UVTimeline has been removed to avoid duplication.
-  const focusHour =
-    sharedFocus ?? (isToday ? (activeDayData.find(h => h.hour === currentHour) ?? null) : null)
+  // The stats in the card's big readout. A tap/scrub on the strip or arc moves
+  // `sharedFocus` and shows that hour's forecast; with nothing focused it shows the
+  // live reading (today) or the day's peak, matching the header and burn card.
+  const focusHour = sharedFocus
   const headUV = focusHour ? focusHour.uv : currentUV
   const headTemp = focusHour ? focusHour.tempF : currentTemp
   const headCond = focusHour ? focusHour.condition : currentCond
-  // Label under the big number: "now" only when the focus is the live current hour.
-  const headIsNow = isToday && (focusHour ? focusHour.hour === currentHour : true)
-  const headSuffix = headIsNow ? ' now' : focusHour ? ` at ${fmtHour(focusHour.hour)}` : ' peak'
+  const headSuffix = focusHour ? ` at ${fmtHour(focusHour.hour)}` : isToday ? ' now' : ' peak'
 
   const burn = burnMins(currentUV, prefs.skinType)
   const vitD = vitDMins(currentUV, prefs.skinType)
   // Burn time for the focused hour drives the consolidated readout's detail line.
   const headBurn = burnMins(headUV, prefs.skinType)
 
-  const activityWindows = prefs.activities.map(a =>
-    getActivityWindow(hourly, a, currentHour, prefs.skinType),
-  )
-  const bestPlan = activityWindows.find(w => w.bestWindow)
-  const bestShareWindow = bestPlan?.bestWindow
-  const bestShareActivity = bestPlan?.activity
-  const bestSafeNow = bestPlan?.safeNow ?? false
-  // The peak UV lives on the matching SafeActivityWindow in allWindows, not on the
-  // bare {from,to} bestWindow — look it up for the hero's "Peak UV" line.
-  const bestWindowPeakUV = bestShareWindow
-    ? bestPlan?.allWindows.find(w => w.from === bestShareWindow.from && w.to === bestShareWindow.to)
-        ?.peakUV
-    : undefined
   const editingActivity = editingActivityId
     ? (prefs.activities.find(a => a.id === editingActivityId) ?? null)
     : null
@@ -156,8 +146,17 @@ export default function Dashboard({
     for (const day of visibleForecast)
       busyByDate[day.dateStr] = busyIntervalsForDay(calBusy, day.dateStr)
   const busyForActiveDay = busyByDate[activeDateStr] ?? []
-  const nowDate = new Date()
-  const nowFractional = nowDate.getHours() + nowDate.getMinutes() / 60
+  // One plan per activity for the selected day; the hero, the cards and their share
+  // and calendar buttons all read from it, and PlanAhead runs the same function.
+  const dayPlans = prefs.activities.map(a =>
+    planActivityDay(hourly, a, prefs.skinType, {
+      nowHour: isToday ? nowHour : -1,
+      busy: busyForActiveDay,
+    }),
+  )
+  const heroPlan = soonestPlan(dayPlans)
+  const allElapsed = isToday && dayPlans.some(p => p.elapsed) && !heroPlan
+  const dayPhrase = isToday ? 'today' : dateLabel === 'Tomorrow' ? 'tomorrow' : `on ${dateLabel}`
   const lockedForecastCount = Math.max(0, weather.forecast.length - visibleForecast.length)
   // No upsell pill for guests — keep their dashboard unintrusive; sign-in CTAs live
   // in the activities section and header only.
@@ -348,19 +347,23 @@ export default function Dashboard({
           gets the actionable takeaway before any of the detail cards. */}
       {!activitiesLocked &&
         prefs.activities.length > 0 &&
-        (bestShareActivity && bestShareWindow ? (
+        (heroPlan?.slot ? (
           <div
             className="card"
+            data-testid="hero-slot"
+            data-activity={heroPlan.activity.id}
+            data-start={heroPlan.slot.start}
+            data-end={heroPlan.slot.end}
             style={{
               background: 'linear-gradient(180deg, rgba(249,115,22,0.10), rgba(249,115,22,0.04))',
               border: '0.5px solid rgba(249,115,22,0.30)',
             }}
           >
             <p className="section-label" style={{ color: 'var(--accent)' }}>
-              Estimated lower-UV window
+              {isToday ? 'Next lower-UV slot' : `Lower-UV slot · ${dateLabel}`}
             </p>
             <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginTop: '9px' }}>
-              <span style={{ fontSize: '32px', flexShrink: 0 }}>{bestShareActivity.icon}</span>
+              <span style={{ fontSize: '32px', flexShrink: 0 }}>{heroPlan.activity.icon}</span>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p
                   style={{
@@ -371,7 +374,7 @@ export default function Dashboard({
                     lineHeight: 1.1,
                   }}
                 >
-                  {fmtHour(bestShareWindow.from)}–{fmtHour(bestShareWindow.to)}
+                  {fmtClock(heroPlan.slot.start)}–{fmtClock(heroPlan.slot.end)}
                 </p>
                 <p
                   style={{
@@ -383,15 +386,13 @@ export default function Dashboard({
                     textOverflow: 'ellipsis',
                   }}
                 >
-                  {bestShareActivity.name}
-                  {bestWindowPeakUV !== undefined
-                    ? ` · Peak UV ${bestWindowPeakUV.toFixed(1)}`
-                    : ''}
+                  {heroPlan.activity.name} · {heroPlan.slot.windowLabel} · Peak UV{' '}
+                  {heroPlan.slot.peakUV.toFixed(1)}
                 </p>
               </div>
-              {isToday && bestSafeNow && (
+              {heroPlan.startsNow && (
                 <span className="badge badge-safe" style={{ flexShrink: 0 }}>
-                  Within limit now
+                  Start now
                 </span>
               )}
             </div>
@@ -401,7 +402,11 @@ export default function Dashboard({
             className="card"
             style={{ background: 'var(--bg-metric)', border: '0.5px solid var(--border-md)' }}
           >
-            <p className="section-label">No matching lower-UV window {dateLabel.toLowerCase()}</p>
+            <p className="section-label">
+              {allElapsed
+                ? 'No lower-UV slot left today'
+                : `No matching lower-UV slot ${dayPhrase}`}
+            </p>
             <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginTop: '9px' }}>
               <span style={{ fontSize: '30px', flexShrink: 0 }}>🌥️</span>
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -424,8 +429,9 @@ export default function Dashboard({
                     lineHeight: 1.4,
                   }}
                 >
-                  Forecast UV stays above your activity limit. Check early morning or evening
-                  instead.
+                  {allElapsed
+                    ? "Today's matching windows have passed. See the best day this week below."
+                    : 'Forecast UV stays above your activity limits. Check early morning or evening instead.'}
                 </p>
               </div>
             </div>
@@ -445,7 +451,7 @@ export default function Dashboard({
             temperature or change the card height as the focused hour changes — row 1
             is the big number + label, row 2 is the temp · condition · burn line, each
             on its own line with reserved height. */}
-        <div style={{ marginBottom: '14px' }}>
+        <div data-testid="uv-readout" style={{ marginBottom: '14px' }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', minHeight: '40px' }}>
             <span
               style={{
@@ -488,21 +494,23 @@ export default function Dashboard({
           </p>
         </div>
 
-        {process.env.NEXT_PUBLIC_HIDE_SUNPATH !== '1' && prefs.showSunPath !== false && (
-          <SunArc
-            hourly={hourly}
-            currentHour={isToday ? currentHour : -1}
-            isToday={isToday}
-            focused={sharedFocus}
-            onSelectHour={setFocusedHour}
-          />
-        )}
+        {/* The sun path renders inside the strip's scroller so each hour on the arc
+            sits exactly above its bar at every width, and scrolls with it on phones. */}
         <UVTimeline
           hourly={hourly}
           currentHour={isToday ? currentHour : -1}
-          skinType={prefs.skinType}
           focused={sharedFocus}
           onSelectHour={setFocusedHour}
+          above={
+            process.env.NEXT_PUBLIC_HIDE_SUNPATH !== '1' && prefs.showSunPath !== false ? (
+              <SunArc
+                hourly={hourly}
+                nowHour={isToday ? nowHour : null}
+                focused={sharedFocus}
+                onSelectHour={setFocusedHour}
+              />
+            ) : null
+          }
         />
       </div>
 
@@ -513,7 +521,7 @@ export default function Dashboard({
           gap: '10px',
         }}
       >
-        <div className="metric-card" style={{ padding: '10px 12px' }}>
+        <div className="metric-card" data-testid="burn-metric" style={{ padding: '10px 12px' }}>
           <p
             style={{ margin: '0 0 3px', fontSize: '12px', color: 'var(--text-3)', fontWeight: 500 }}
           >
@@ -538,7 +546,7 @@ export default function Dashboard({
             {burn ? `${burn}m` : '—'}
           </p>
           <p style={{ margin: '3px 0 0', fontSize: '11px', color: 'var(--text-3)' }}>
-            {prefs.skinType} skin, no SPF
+            {isToday ? 'Now' : 'At peak'} · {prefs.skinType} skin, no SPF
           </p>
         </div>
         <div className="metric-card" style={{ padding: '10px 12px' }}>
@@ -622,7 +630,7 @@ export default function Dashboard({
               skinType={prefs.skinType}
               dayLimit={accessibleDays}
               busyByDate={busyByDate}
-              nowHourToday={nowFractional}
+              nowHourToday={nowHour}
               lockedDays={lockedForecastCount}
               upgradeCopy={upgradeCopy}
               onUpgrade={() => {
@@ -708,13 +716,12 @@ export default function Dashboard({
           </div>
         ) : prefs.activities.length > 0 ? (
           <ActivityCards
-            windows={activityWindows}
+            plans={dayPlans}
+            isToday={isToday}
             daysFromNow={dayIndex}
             tier={accessTier}
             location={prefs.location}
             dateLabel={dateLabel}
-            hourly={hourly}
-            busy={busyForActiveDay}
             onBookRecommended={
               calStatus === 'connected' ? (a, r) => void bookSlotOn(a, r, activeDateStr) : undefined
             }
