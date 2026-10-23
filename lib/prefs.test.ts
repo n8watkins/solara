@@ -76,6 +76,22 @@ describe('normalizePrefs - client-owned fields', () => {
   })
 })
 
+describe('normalizePrefs - display units', () => {
+  it('keeps known unit choices and drops anything else', () => {
+    expect(base({ temperatureUnit: 'celsius', clockFormat: '24h' })).toMatchObject({
+      temperatureUnit: 'celsius',
+      clockFormat: '24h',
+    })
+    expect(base({ temperatureUnit: 'auto', clockFormat: 'auto' })).toMatchObject({
+      temperatureUnit: 'auto',
+      clockFormat: 'auto',
+    })
+    const odd = base({ temperatureUnit: 'kelvin', clockFormat: 24 } as never)
+    expect(odd.temperatureUnit).toBeUndefined()
+    expect(odd.clockFormat).toBeUndefined()
+  })
+})
+
 describe('normalizePrefs — activity routine + cloud fields', () => {
   it('normalizes daysOfWeek (none/all-seven → undefined, else sorted unique subset)', () => {
     const act = (daysOfWeek: unknown) =>

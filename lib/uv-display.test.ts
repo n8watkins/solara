@@ -52,18 +52,10 @@ describe('time and day formatting', () => {
   })
 
   it('builds a Google Calendar link for a lower-UV window', () => {
-    vi.useFakeTimers({ toFake: ['Date'] })
-    vi.setSystemTime(new Date(2026, 5, 15, 8))
-    const link = new URL(gcalLink('Walk', { from: 7, to: 9 }, 30, 1))
-    vi.useRealTimers()
+    const link = new URL(gcalLink('Walk', { from: 7, to: 9 }, 30, '2026-06-16', 'Europe/London'))
     expect(link.searchParams.get('text')).toBe('Walk: lower-UV window')
-    const [start, end] = link.searchParams.get('dates')!.split('/')
-    expect(start).toBe(
-      new Date(2026, 5, 16, 7).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z',
-    )
-    expect(end).toBe(
-      new Date(2026, 5, 16, 7, 30).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z',
-    )
+    // 7:00 British Summer Time is 06:00 UTC.
+    expect(link.searchParams.get('dates')).toBe('20260616T060000Z/20260616T063000Z')
   })
 })
 

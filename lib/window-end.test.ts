@@ -14,7 +14,7 @@ const { buildMessage } = require('../functions/scripts/notification-core')
 const DATE = '2026-06-15'
 const hourly: HourlyForecast[] = []
 for (let hour = 6; hour <= 20; hour++) {
-  hourly.push({ hour, uv: hour <= 9 || hour >= 17 ? 2 : 9, tempF: 70, condition: 'Clear' })
+  hourly.push({ hour, uv: hour <= 9 || hour >= 17 ? 2 : 9, tempC: 21, condition: 'Clear' })
 }
 
 const evening: Activity = {

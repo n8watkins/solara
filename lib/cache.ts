@@ -1,36 +1,122 @@
-import type { WeatherResponse } from './types'
+// Persisted forecast cache: one entry per location, so switching between saved
+// locations (or reopening the app) shows the last forecast at once while a fresh
+// one loads (stale-while-revalidate, driven by lib/use-forecast.ts).
+//
+// localStorage is outside the app's control, so every read is validated: the
+// store carries a version, each entry is checked against a schema, and anything
+// that does not match is dropped instead of being cast into the app.
+import * as z from 'zod/mini'
+import type { ForecastData } from './types'
+import { roundCoordinate } from './geocoding'
+import { isIsoDate, isValidTimeZone } from './time'
 
-const CACHE_KEY = 'solara_weather'
-const TTL = 60 * 60 * 1000
+export const CACHE_KEY = 'solara_forecast'
+/** Bump when the stored shape changes; older stores are discarded, not migrated. */
+export const CACHE_VERSION = 2
+/** Keys of earlier, unversioned caches, removed on sight. */
+const LEGACY_KEYS = ['solara_weather']
+/** Locations kept; the least recently fetched entry is evicted first. */
+export const MAX_ENTRIES = 8
+/** Entries older than this are dropped: too old to show even while refreshing. */
+export const MAX_AGE_MS = 24 * 60 * 60 * 1000
 
-interface Cache {
-  data: WeatherResponse
-  lat: number
-  lon: number
-  ts: number
+const finite = z.number()
+const hourSchema = z.object({
+  date: z.optional(z.string()),
+  hour: z.int().check(z.gte(0), z.lte(23)),
+  uv: finite.check(z.gte(0)),
+  tempC: finite,
+  condition: z.string(),
+  cloudCover: z.optional(finite),
+})
+
+const forecastSchema = z.object({
+  timezone: z.string().check(z.refine(isValidTimeZone)),
+  fetchedAt: finite,
+  current: z.object({ uv: finite.check(z.gte(0)), tempC: finite, condition: z.string() }),
+  days: z.array(
+    z.object({
+      dateStr: z.string().check(z.refine(isIsoDate)),
+      hourly: z.array(hourSchema).check(z.maxLength(24)),
+    }),
+  ),
+})
+
+const entrySchema = z.object({ key: z.string(), data: forecastSchema })
+type Entry = z.infer<typeof entrySchema>
+
+const storeSchema = z.object({
+  version: z.literal(CACHE_VERSION),
+  entries: z.array(z.unknown()),
+})
+
+/** Cache key for a location: coordinates rounded the same way requests round them. */
+export function locationKey(lat: number, lon: number): string {
+  return `${roundCoordinate(lat)},${roundCoordinate(lon)}`
 }
 
-export function getCachedWeather(lat: number, lon: number): WeatherResponse | null {
+function storage(): Storage | null {
   try {
-    const raw = localStorage.getItem(CACHE_KEY)
-    if (!raw) return null
-    const c: Cache = JSON.parse(raw)
-    const fresh = Date.now() - c.ts < TTL
-    const sameLocation = Math.abs(c.lat - lat) < 0.01 && Math.abs(c.lon - lon) < 0.01
-    return fresh && sameLocation ? c.data : null
+    return typeof localStorage === 'undefined' ? null : localStorage
   } catch {
     return null
   }
 }
 
-export function setCachedWeather(lat: number, lon: number, data: WeatherResponse): void {
+/** Every valid, unexpired entry. A malformed store or entry is dropped, never thrown. */
+function readEntries(now: number): Entry[] {
+  const store = storage()
+  if (!store) return []
   try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify({ data, lat, lon, ts: Date.now() }))
-  } catch {}
+    for (const key of LEGACY_KEYS) store.removeItem(key)
+    const raw = store.getItem(CACHE_KEY)
+    if (!raw) return []
+    const parsed = storeSchema.safeParse(JSON.parse(raw))
+    if (!parsed.success) return []
+    const entries: Entry[] = []
+    for (const candidate of parsed.data.entries) {
+      const entry = entrySchema.safeParse(candidate)
+      if (entry.success && now - entry.data.data.fetchedAt <= MAX_AGE_MS) entries.push(entry.data)
+    }
+    return entries
+  } catch {
+    return []
+  }
 }
 
-export function clearWeatherCache(): void {
+function writeEntries(entries: Entry[]): void {
   try {
-    localStorage.removeItem(CACHE_KEY)
+    storage()?.setItem(
+      CACHE_KEY,
+      JSON.stringify({ version: CACHE_VERSION, entries: entries.slice(0, MAX_ENTRIES) }),
+    )
+  } catch {
+    // Quota or privacy mode: the cache is an optimization, so carry on without it.
+  }
+}
+
+/**
+ * The cached forecast for a location, however stale (up to MAX_AGE_MS), or null.
+ * The caller decides whether to refresh it.
+ */
+export function getCachedForecast(lat: number, lon: number, now = Date.now()): ForecastData | null {
+  const key = locationKey(lat, lon)
+  return readEntries(now).find(entry => entry.key === key)?.data ?? null
+}
+
+/** Store a location's forecast, keeping the most recently fetched MAX_ENTRIES locations. */
+export function setCachedForecast(lat: number, lon: number, data: ForecastData): void {
+  const key = locationKey(lat, lon)
+  const others = readEntries(Date.now()).filter(entry => entry.key !== key)
+  const entries = [{ key, data }, ...others].sort((a, b) => b.data.fetchedAt - a.data.fetchedAt)
+  writeEntries(entries)
+}
+
+/** Forget every cached forecast (sign-out). */
+export function clearWeatherCache(): void {
+  const store = storage()
+  try {
+    store?.removeItem(CACHE_KEY)
+    for (const key of LEGACY_KEYS) store?.removeItem(key)
   } catch {}
 }

@@ -16,11 +16,11 @@ const functionsEngine = require('../functions/core')
 const functionsSun = require('../functions/lib/feed/sun')
 
 const hourly: HourlyForecast[] = [
-  { hour: 6, uv: 1, tempF: 60, condition: 'Clear' },
-  { hour: 7, uv: 1.5, tempF: 62, condition: 'Clear' },
-  { hour: 8, uv: 5, tempF: 65, condition: 'Clear' },
-  { hour: 9, uv: 2, tempF: 67, condition: 'Cloudy' },
-  { hour: 10, uv: 2.5, tempF: 68, condition: 'Cloudy' },
+  { hour: 6, uv: 1, tempC: 16, condition: 'Clear' },
+  { hour: 7, uv: 1.5, tempC: 17, condition: 'Clear' },
+  { hour: 8, uv: 5, tempC: 18, condition: 'Clear' },
+  { hour: 9, uv: 2, tempC: 67, condition: 'Cloudy' },
+  { hour: 10, uv: 2.5, tempC: 68, condition: 'Cloudy' },
 ]
 
 const activity: Activity = {

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { parseForecast, type RawForecast } from '@/lib/forecast'
+import { forecastView, parseForecast, type RawForecast } from '@/lib/forecast'
 import { getActivityWindow } from '@/lib/weather'
 import { getSafeWindowsForActivity } from '@/lib/calendar'
 import { buildICS } from '@/lib/ics'
@@ -72,7 +72,7 @@ afterEach(() => {
 
 describe('null UV gaps never produce a recommendation', () => {
   it('app: parsed hours omit the gap and no window covers it', () => {
-    const weather = parseForecast(rawWithGap(), 1)
+    const weather = forecastView(parseForecast(rawWithGap(), { days: 1 }))
     const hours = weather.today.map(h => h.hour)
     expect(hours).toEqual([6, 7, 8, 9, 15, 16, 17, 18, 19, 20])
     expect(weather.today.every(h => h.uv > 0)).toBe(true)
@@ -93,20 +93,20 @@ describe('null UV gaps never produce a recommendation', () => {
   it('app: current UV falls back to the hourly value, never to 0', () => {
     const raw = rawWithGap()
     raw.current = { time: `${DATE}T08:00`, uv_index: null, temperature_2m: null, weathercode: 3 }
-    const weather = parseForecast(raw, 1)
-    expect(weather.current).toEqual({ uv: 1, tempF: 68, condition: 'Partly cloudy' })
+    const weather = parseForecast(raw, { days: 1 })
+    expect(weather.current).toEqual({ uv: 1, tempC: 20, condition: 'Partly cloudy' })
 
     raw.current = { time: `${DATE}T12:00`, uv_index: null, temperature_2m: 21, weathercode: 3 }
-    expect(() => parseForecast(raw, 1)).toThrow(/no current UV/)
+    expect(() => parseForecast(raw, { days: 1 })).toThrow(/no current UV/)
   })
 
   it('app: without a current time, the fallback hour is read in the forecast zone', () => {
     const raw = rawWithGap()
     raw.current = { uv_index: null, temperature_2m: null, weathercode: 3 }
     // NOW is 12:00 UTC, inside the gap; in Los Angeles it is 05:00, before it.
-    expect(() => parseForecast(raw, 1)).toThrow(/no current UV/)
+    expect(() => parseForecast(raw, { days: 1 })).toThrow(/no current UV/)
     raw.timezone = 'America/Los_Angeles'
-    expect(parseForecast(raw, 1).current.uv).toBe(1)
+    expect(parseForecast(raw, { days: 1 }).current.uv).toBe(1)
   })
 
   it('feed: the calendar feed has no event in the gap', async () => {

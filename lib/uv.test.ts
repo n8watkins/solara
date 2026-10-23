@@ -143,7 +143,7 @@ function buildDay(): HourlyForecast[] {
     if (h <= 9) uv = 1
     else if (h <= 16) uv = 8
     else uv = 2
-    hours.push({ hour: h, uv, tempF: 70, condition: 'Clear' })
+    hours.push({ hour: h, uv, tempC: 21, condition: 'Clear' })
   }
   return hours
 }

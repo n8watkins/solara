@@ -398,6 +398,14 @@ describe('typed and size-capped preference fields', () => {
     await assertFails(ref.update({ showSunPath: 0 }))
   })
 
+  test('display units are one of the known choices', async () => {
+    const ref = await ownerRef()
+    await assertSucceeds(ref.update({ temperatureUnit: 'celsius', clockFormat: '24h' }))
+    await assertSucceeds(ref.update({ temperatureUnit: 'auto', clockFormat: 'auto' }))
+    await assertFails(ref.update({ temperatureUnit: 'kelvin' }))
+    await assertFails(ref.update({ clockFormat: 24 }))
+  })
+
   test('hidden suggestions may only name preset activities', async () => {
     const ref = await ownerRef()
     await assertSucceeds(ref.update({ hiddenActivitySuggestionIds: ['run', 'coffee'] }))

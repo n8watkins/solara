@@ -67,10 +67,10 @@ vi.mock('@/lib/firebase', () => ({
   },
 }))
 
-import { setCachedWeather } from '@/lib/cache'
+import { setCachedForecast } from '@/lib/cache'
 import { createAccountPrefs, defaultPrefs, saveLocalPrefs } from '@/lib/prefs'
 import { SignOutBlockedError, loadAccountPrefs, signOutAndClear } from '@/lib/session'
-import type { Location, UserPreferences, WeatherResponse } from '@/lib/types'
+import type { ForecastData, Location, UserPreferences } from '@/lib/types'
 
 const storage = new Map<string, string>()
 
@@ -93,10 +93,12 @@ const accountA: UserPreferences & { calendarFeedToken?: string } = {
   ],
 }
 
-const weather = {
-  current: { uv: 7, tempF: 80, condition: 'Clear' },
+const weather: ForecastData = {
+  timezone: 'America/Los_Angeles',
+  fetchedAt: Date.now(),
+  current: { uv: 7, tempC: 27, condition: 'Clear' },
   days: [],
-} as unknown as WeatherResponse
+}
 
 /** Signs in an existing account and leaves what a session stores in the browser. */
 async function useSolaraAs(prefs: UserPreferences) {
@@ -104,7 +106,7 @@ async function useSolaraAs(prefs: UserPreferences) {
   mocks.users.set(prefs.uid, JSON.parse(JSON.stringify(prefs)) as Record<string, unknown>)
   await expect(loadAccountPrefs(prefs.uid)).resolves.toMatchObject({ status: 'ready' })
   saveLocalPrefs(prefs)
-  setCachedWeather(prefs.location.lat, prefs.location.lon, weather)
+  setCachedForecast(prefs.location.lat, prefs.location.lon, weather)
   storage.set(
     `solara_notification_device_${prefs.uid}`,
     JSON.stringify({ deviceId: 'device-a', token: 'fcm-token-a' }),
@@ -209,7 +211,7 @@ describe('signOutAndClear', () => {
 
   it('clears local data even without a signed-in user', async () => {
     saveLocalPrefs(accountA)
-    setCachedWeather(LA.lat, LA.lon, weather)
+    setCachedForecast(LA.lat, LA.lon, weather)
     await signOutAndClear(null)
     expect(storage.size).toBe(0)
     expect(mocks.signOut).toHaveBeenCalledOnce()

@@ -37,7 +37,7 @@ describe('health-adjacent recommendation copy', () => {
   })
 
   it('qualifies Google Calendar links and includes a medical disclaimer', () => {
-    const link = new URL(gcalWindowLink(activity, window, '2026-05-29'))
+    const link = new URL(gcalWindowLink(activity, window, '2026-05-29', 'America/Los_Angeles'))
     expect(link.searchParams.get('text')).toBe('Running: lower-UV window')
     const details = link.searchParams.get('details') || ''
     expect(details).toContain('Estimated lower-UV window')

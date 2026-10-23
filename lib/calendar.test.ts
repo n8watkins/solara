@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { getSafeWindows, getSafeWindowsForActivity } from '@/lib/calendar'
 import type { Activity } from '@/lib/types'
 
-type Hourly = { hour: number; uv: number; tempF: number }[]
+type Hourly = { hour: number; uv: number; tempC: number }[]
 
 // Safe morning (6–9 @ uv1), unsafe midday (10–16 @ uv8), safe evening (17–20 @ uv2).
 // Windows end at the last hourly sample (20), so the evening block is 17–20.
@@ -10,7 +10,7 @@ function buildDay(): Hourly {
   const hours: Hourly = []
   for (let h = 6; h <= 20; h++) {
     const uv = h <= 9 ? 1 : h <= 16 ? 8 : 2
-    hours.push({ hour: h, uv, tempF: 70 })
+    hours.push({ hour: h, uv, tempC: 21 })
   }
   return hours
 }

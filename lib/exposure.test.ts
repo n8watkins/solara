@@ -26,7 +26,7 @@ describe('getActivityWindow — cloud sensitivity', () => {
   // UV 6 all day (above the activity's max of 4), but heavily overcast.
   const hourly: HourlyForecast[] = []
   for (let h = 6; h <= 20; h++)
-    hourly.push({ hour: h, uv: 6, tempF: 70, condition: 'Cloudy', cloudCover: 100 })
+    hourly.push({ hour: h, uv: 6, tempC: 21, condition: 'Cloudy', cloudCover: 100 })
 
   const base: Activity = {
     id: 'a',

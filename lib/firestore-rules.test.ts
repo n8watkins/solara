@@ -3,6 +3,7 @@ import {
   ACTIVITY_SHAPE,
   CALENDAR_HOUR_BOUNDS,
   CLIENT_PREFERENCE_FIELDS,
+  CLOCK_FORMAT_PREFERENCES,
   LOCATION_SHAPE,
   NOTIFICATION_HOUR,
   PREFS_LIMITS,
@@ -10,6 +11,7 @@ import {
   PROFILE_SHAPE,
   SERVER_OWNED_FIELDS,
   SKIN_TYPES,
+  TEMPERATURE_UNIT_PREFERENCES,
   TIER_LEVELS,
 } from '@solara/core'
 import { describe, expect, it } from 'vitest'
@@ -90,6 +92,15 @@ describe('firestore.rules match the preferences schema', () => {
 
   it('accepts every skin type, and only those', () => {
     expect(sorted(listAfter(preferences, 'data.skinType in'))).toEqual(sorted(SKIN_TYPES))
+  })
+
+  it('accepts every display unit choice, and only those', () => {
+    expect(sorted(listAfter(preferences, 'data.temperatureUnit in'))).toEqual(
+      sorted(TEMPERATURE_UNIT_PREFERENCES),
+    )
+    expect(sorted(listAfter(preferences, 'data.clockFormat in'))).toEqual(
+      sorted(CLOCK_FORMAT_PREFERENCES),
+    )
   })
 
   it('accepts the current schema version and the allowed hours', () => {

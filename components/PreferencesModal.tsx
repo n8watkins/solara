@@ -3,10 +3,14 @@ import { useState, useEffect, useId, useRef } from 'react'
 import type { KeyboardEvent } from 'react'
 import type { User } from 'firebase/auth'
 import type { UserPreferences, SkinType, Location } from '@/lib/types'
-import { clearWeatherCache } from '@/lib/cache'
 import { locationFromCoordinates, searchLocation } from '@/lib/geocoding'
 import { nextIndex } from '@/lib/roving-focus'
 import { TIER_LIMITS } from '@/lib/tiers'
+import {
+  resolveUnits,
+  type ClockFormatPreference,
+  type TemperatureUnitPreference,
+} from '@/lib/units'
 import {
   disableNotifications,
   enableNotifications,
@@ -56,6 +60,9 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
   const [locLoading, setLocLoading] = useState(false)
   const [locError, setLocError] = useState<string | null>(null)
   const [showSunPath, setShowSunPath] = useState(prefs.showSunPath !== false)
+  // 'auto' follows the browser locale.
+  const [temperatureUnit, setTemperatureUnit] = useState(prefs.temperatureUnit ?? 'auto')
+  const [clockFormat, setClockFormat] = useState(prefs.clockFormat ?? 'auto')
   const [upgradeEmail] = useState(user?.email ?? prefs.upgradeInterest?.email ?? '')
   const [upgradeSaved, setUpgradeSaved] = useState(false)
   const [showPricing, setShowPricing] = useState(false)
@@ -128,6 +135,8 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
     hiddenActivitySuggestionIds,
     collapsedActivityCategories,
     notificationHour,
+    temperatureUnit,
+    clockFormat,
   }
   const dirty =
     JSON.stringify({
@@ -137,6 +146,8 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
       hiddenActivitySuggestionIds: prefs.hiddenActivitySuggestionIds ?? [],
       collapsedActivityCategories: prefs.collapsedActivityCategories ?? [],
       notificationHour: prefs.notificationHour ?? 7,
+      temperatureUnit: prefs.temperatureUnit ?? 'auto',
+      clockFormat: prefs.clockFormat ?? 'auto',
     }) !==
     JSON.stringify({
       skinType,
@@ -145,7 +156,10 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
       hiddenActivitySuggestionIds,
       collapsedActivityCategories,
       notificationHour,
+      temperatureUnit,
+      clockFormat,
     })
+  const localeUnits = resolveUnits(null)
 
   function requestClose() {
     if (dirty && !window.confirm('Discard unsaved settings changes?')) return
@@ -160,7 +174,6 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
       const nextLocation = await searchLocation(citySearch)
       if (!nextLocation) throw new Error()
       setLocation(nextLocation)
-      clearWeatherCache()
     } catch {
       setLocError('City not found.')
     } finally {
@@ -174,7 +187,6 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
     async function resolvePosition(pos: GeolocationPosition) {
       try {
         setLocation(await locationFromCoordinates(pos.coords.latitude, pos.coords.longitude))
-        clearWeatherCache()
       } catch {
         setLocError('Could not resolve.')
       } finally {
@@ -214,7 +226,7 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
       id: 'appearance',
       label: 'Appearance',
       emoji: '🎨',
-      desc: 'Theme and what the dashboard shows.',
+      desc: 'Theme, units and what the dashboard shows.',
     },
     {
       id: 'activities',
@@ -238,6 +250,7 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
   const skinDescId = `${idPrefix}-skin-desc`
   const sunPathTitleId = `${idPrefix}-sun-path-title`
   const sunPathDescId = `${idPrefix}-sun-path-desc`
+  const unitsDescId = `${idPrefix}-units-desc`
 
   // Tabs pattern: arrows move between sections (the rail is vertical on
   // desktop and horizontal on phones, so both axes work), Home and End jump.
@@ -625,6 +638,70 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
                       </p>
                     </div>
                     <DarkModeToggle />
+                  </div>
+                </div>
+                <div className="metric-card">
+                  <h4
+                    style={{
+                      margin: '0 0 4px',
+                      fontSize: '13px',
+                      fontWeight: 700,
+                      color: 'var(--text)',
+                    }}
+                  >
+                    Units
+                  </h4>
+                  <p
+                    id={unitsDescId}
+                    style={{ margin: '0 0 12px', fontSize: '13px', color: 'var(--text-3)' }}
+                  >
+                    Automatic follows your browser&apos;s language and region.
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <div className={styles.field} style={{ alignItems: 'center' }}>
+                      <label
+                        htmlFor={`${idPrefix}-temperature`}
+                        style={{ fontSize: '13px', color: 'var(--text-2)' }}
+                      >
+                        Temperature
+                      </label>
+                      <select
+                        id={`${idPrefix}-temperature`}
+                        aria-describedby={unitsDescId}
+                        value={temperatureUnit}
+                        onChange={e =>
+                          setTemperatureUnit(e.target.value as TemperatureUnitPreference)
+                        }
+                        className={styles.fieldControl}
+                      >
+                        <option value="auto">
+                          Automatic ({localeUnits.temperature === 'celsius' ? '°C' : '°F'})
+                        </option>
+                        <option value="celsius">Celsius (°C)</option>
+                        <option value="fahrenheit">Fahrenheit (°F)</option>
+                      </select>
+                    </div>
+                    <div className={styles.field} style={{ alignItems: 'center' }}>
+                      <label
+                        htmlFor={`${idPrefix}-clock`}
+                        style={{ fontSize: '13px', color: 'var(--text-2)' }}
+                      >
+                        Time format
+                      </label>
+                      <select
+                        id={`${idPrefix}-clock`}
+                        aria-describedby={unitsDescId}
+                        value={clockFormat}
+                        onChange={e => setClockFormat(e.target.value as ClockFormatPreference)}
+                        className={styles.fieldControl}
+                      >
+                        <option value="auto">
+                          Automatic ({localeUnits.clock === '12h' ? '1pm' : '13:00'})
+                        </option>
+                        <option value="12h">12-hour (1pm)</option>
+                        <option value="24h">24-hour (13:00)</option>
+                      </select>
+                    </div>
                   </div>
                 </div>
                 <div

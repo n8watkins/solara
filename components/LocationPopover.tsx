@@ -1,7 +1,6 @@
 'use client'
 import { useState, useRef, useEffect, useLayoutEffect } from 'react'
 import type { Location } from '@/lib/types'
-import { clearWeatherCache } from '@/lib/cache'
 import { locationFromCoordinates, searchLocation } from '@/lib/geocoding'
 import DataAttribution from './DataAttribution'
 import styles from './LocationPopover.module.css'
@@ -74,7 +73,6 @@ export default function LocationPopover({ location, savedLocations, limit, onApp
         saved = [...savedLocations, loc]
       }
     }
-    clearWeatherCache()
     onApply({ location: loc, savedLocations: saved })
   }
 

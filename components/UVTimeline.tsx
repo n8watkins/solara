@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useId, type ReactNode, type RefObject } from 'react'
 import type { HourlyForecast } from '@/lib/types'
 import { uvColorHex, uvTextHex, fmtHour, formatUV, uvLabel } from '@/lib/weather'
+import { useUnits } from '@/lib/use-units'
 import VisuallyHidden from './VisuallyHidden'
 
 /** Space between bars, in px. SunArc uses it to put each hour above its bar. */
@@ -51,12 +52,15 @@ export function missingRuns(slots: HourSlot[]): Array<[number, number]> {
 }
 
 /** One-sentence summary of the day for screen readers (the strip's description). */
-export function uvDaySummary(hourly: HourlyForecast[]): string {
+export function uvDaySummary(
+  hourly: HourlyForecast[],
+  formatHour: (hour: number) => string = fmtHour,
+): string {
   const first = hourly[0]
   if (!first) return 'No UV forecast for this day.'
   const peak = hourly.reduce((best, h) => (h.uv > best.uv ? h : best), first)
   const parts = [
-    `UV peaks at ${peak.uv.toFixed(1)}, ${uvLabel(peak.uv)}, at ${fmtHour(peak.hour)}.`,
+    `UV peaks at ${peak.uv.toFixed(1)}, ${uvLabel(peak.uv)}, at ${formatHour(peak.hour)}.`,
   ]
   const high = hourly.filter(h => h.uv > 5)
   const firstHigh = high[0]
@@ -64,15 +68,15 @@ export function uvDaySummary(hourly: HourlyForecast[]): string {
   if (firstHigh && lastHigh) {
     parts.push(
       firstHigh === lastHigh
-        ? `High or above at ${fmtHour(firstHigh.hour)}.`
-        : `High or above from ${fmtHour(firstHigh.hour)} to ${fmtHour(lastHigh.hour)}.`,
+        ? `High or above at ${formatHour(firstHigh.hour)}.`
+        : `High or above from ${formatHour(firstHigh.hour)} to ${formatHour(lastHigh.hour)}.`,
     )
   }
   for (const [from, to] of missingRuns(hourSlots(hourly))) {
     parts.push(
       from === to
-        ? `No UV data at ${fmtHour(from)}.`
-        : `No UV data from ${fmtHour(from)} to ${fmtHour(to)}.`,
+        ? `No UV data at ${formatHour(from)}.`
+        : `No UV data from ${formatHour(from)} to ${formatHour(to)}.`,
     )
   }
   return parts.join(' ')
@@ -115,6 +119,7 @@ export default function UVTimeline({
   above,
 }: Props) {
   const summaryId = useId()
+  const fmt = useUnits()
   // Controlled when the parent passes ownership of the focus (shared with the sun
   // path); otherwise this local `selected` state drives the highlight on its own.
   const controlled = onSelectHour !== undefined
@@ -227,7 +232,7 @@ export default function UVTimeline({
 
   return (
     <div style={{ userSelect: 'none', WebkitUserSelect: 'none' }}>
-      <VisuallyHidden id={summaryId}>{uvDaySummary(hourly)}</VisuallyHidden>
+      <VisuallyHidden id={summaryId}>{uvDaySummary(hourly, fmt.hour)}</VisuallyHidden>
       <div
         className="uv-strip"
         ref={stripRef}
@@ -284,7 +289,7 @@ export default function UVTimeline({
                       <VisuallyHidden>No UV data at </VisuallyHidden>
                     </span>
                     <span style={{ fontSize: '10px', lineHeight: 1 }}>
-                      {fmtHour(hour)}
+                      {fmt.hour(hour)}
                       {isNow && <VisuallyHidden>, current hour</VisuallyHidden>}
                     </span>
                   </div>
@@ -329,7 +334,7 @@ export default function UVTimeline({
                     <VisuallyHidden>, {uvLabel(h.uv)}, at </VisuallyHidden>
                   </span>
                   <span style={{ fontSize: '10px', lineHeight: 1 }}>
-                    {fmtHour(h.hour)}
+                    {fmt.hour(h.hour)}
                     {isNow && <VisuallyHidden>, current hour</VisuallyHidden>}
                   </span>
                 </button>
