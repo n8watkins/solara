@@ -140,6 +140,37 @@ describe('searchLocation', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 503 }))
     await expect(searchLocation('Pasadena')).rejects.toThrow('status 503')
   })
+
+  it('skips malformed results instead of returning a broken location', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        results: [
+          { latitude: '34.1', longitude: -118.1, name: 'Pasadena' },
+          { latitude: 34.1478, longitude: -118.1445, name: '  ' },
+          { latitude: 134.1, longitude: -118.1, name: 'Pasadena' },
+          null,
+          { latitude: 34.1478, longitude: -118.1445, name: 'Pasadena', admin1: 42 },
+        ],
+      }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(searchLocation('Pasadena')).resolves.toEqual({
+      lat: 34.15,
+      lon: -118.14,
+      city: 'Pasadena',
+      region: '',
+    })
+  })
+
+  it('rejects a response that does not have the documented shape', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ results: 'none' }) }),
+    )
+    await expect(searchLocation('Pasadena')).rejects.toThrow('unexpected response')
+  })
 })
 
 describe('roundCoordinate', () => {
@@ -150,7 +181,7 @@ describe('roundCoordinate', () => {
   })
 })
 
-function nominatimResponse(address: Record<string, string>) {
+function nominatimResponse(address: Record<string, unknown>) {
   return { ok: true, json: async () => ({ address }) }
 }
 
@@ -222,6 +253,25 @@ describe('reverseGeocode', () => {
     const retry = reverseGeocode(34.16, -118.05)
     await vi.advanceTimersByTimeAsync(REVERSE_GEOCODE_MIN_INTERVAL_MS)
     await expect(retry).resolves.toEqual({ city: 'Sierra Madre', region: 'California' })
+  })
+
+  it('ignores address parts that are not text', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(nominatimResponse({ city: 7, town: 'Altadena', state: ['CA'] })),
+    )
+    await expect(reverseGeocode(34.19, -118.13)).resolves.toEqual({
+      city: 'Altadena',
+      region: '',
+    })
+  })
+
+  it('falls back to a generic label for a malformed response', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => [] }))
+    await expect(reverseGeocode(34.2, -118.2)).resolves.toEqual({
+      city: 'Your location',
+      region: '',
+    })
   })
 })
 
