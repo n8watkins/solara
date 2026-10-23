@@ -19,7 +19,7 @@
     "start": "next start",
     "lint": "eslint . --max-warnings=0 && npm run format:check",
     "typecheck": "next typegen && tsc --noEmit",
-    "pretest": "npm run build:core",
+    "pretest": "npm run build --prefix functions",
     "test": "vitest run --coverage",
     "test:watch": "vitest",
     "test:e2e": "playwright test",

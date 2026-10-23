@@ -4,7 +4,7 @@ import { gcalWindowLink } from '@/lib/calendar'
 import type { Activity, Location, SafeActivityWindow } from '@/lib/types'
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const { buildSunEvents } = require('../functions/lib/sun')
+const { buildSunEvents } = require('../functions/lib/feed/sun')
 
 const activity: Activity = {
   id: 'run',

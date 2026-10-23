@@ -1,20 +1,16 @@
-const { after, before, describe, test } = require('node:test')
+const { describe, test } = require('node:test')
 const assert = require('node:assert/strict')
 
-const { ERROR_CODES, HttpError, publicError } = require('../lib/errors')
-const { createApiHandler, verifyAppCheck } = require('../lib/http')
-const { FixedWindowLimiter } = require('../lib/rate-limit')
+const { verifyAppCheck } = require('../lib/shared/app-check')
+const { ERROR_CODES, HttpError, publicError } = require('../lib/shared/errors')
+const { createApiHandler } = require('../lib/shared/http')
+const { FixedWindowLimiter } = require('../lib/shared/rate-limit')
+const { captureLogs } = require('./support/logs')
 
 const ORIGIN = 'https://app.example.com'
 
-// Rejections are logged as warnings by design; keep the test output readable.
-const originalWarn = console.warn
-before(() => {
-  console.warn = () => {}
-})
-after(() => {
-  console.warn = originalWarn
-})
+// Rejections are logged by design; capture them to keep the output readable and checkable.
+const logs = captureLogs()
 
 function responseRecorder() {
   return {
@@ -185,15 +181,38 @@ describe('browser API pipeline', () => {
       },
     })
     const hidden = responseRecorder()
-    const originalError = console.error
-    console.error = () => {}
-    try {
-      await crashing.handle(post(), hidden)
-    } finally {
-      console.error = originalError
-    }
+    await crashing.handle(post(), hidden)
     assert.equal(hidden.statusCode, 500)
     assert.deepEqual(hidden.body, { error: 'Service unavailable', code: 'internal' })
+
+    // A 4xx is a warning and a 5xx an error, each with structured fields.
+    assert.deepEqual(
+      logs.entries.map(({ severity, message, fields }) => [severity, message, fields]),
+      [
+        [
+          'WARNING',
+          'testEndpoint rejected',
+          {
+            function: 'testEndpoint',
+            status: 409,
+            error: {
+              name: 'HttpError',
+              code: 'conflict',
+              message: 'Checkout is already in progress',
+            },
+          },
+        ],
+        [
+          'ERROR',
+          'testEndpoint failed',
+          {
+            function: 'testEndpoint',
+            status: 500,
+            error: { name: 'Error', message: 'internal path /srv/secret' },
+          },
+        ],
+      ],
+    )
   })
 
   test('rejects other methods and foreign origins before App Check', async () => {
@@ -212,10 +231,27 @@ describe('browser API pipeline', () => {
 })
 
 describe('deployed entry point', () => {
-  test('loads with the modular Admin SDK and protects every browser endpoint', async () => {
+  test('loads from package.json main and protects every browser endpoint', async () => {
     process.env.GCLOUD_PROJECT ??= 'demo-solara'
     process.env.APP_URL = 'https://solara-uv.web.app'
-    const functions = require('../index.js')
+    // The package entry point, exactly what `firebase deploy` loads.
+    const functions = require('..')
+    assert.equal(require.resolve('..'), require.resolve('../lib/index.js'))
+    assert.deepEqual(Object.keys(functions).sort(), [
+      'backfillStripeBillingResources',
+      'calendarFeed',
+      'cleanupDeletedAccountBilling',
+      'cleanupFailedCheckouts',
+      'createBillingPortalSession',
+      'createCheckoutSession',
+      'deleteAccount',
+      'exportAccountData',
+      'registerNotificationDevice',
+      'removeNotificationDevice',
+      'revokeCalendarFeed',
+      'rotateCalendarFeed',
+      'stripeWebhook',
+    ])
     const browserEndpoints = {
       createCheckoutSession: 'POST',
       createBillingPortalSession: 'POST',
@@ -238,6 +274,14 @@ describe('deployed entry point', () => {
         { error: 'App verification required', code: 'app-check-required' },
         name,
       )
+      // Wrong method and foreign origin are refused before App Check, as before.
+      const wrongMethod = responseRecorder()
+      await functions[name](
+        { method: 'PUT', headers: { origin: 'https://solara-uv.web.app' }, body: {} },
+        wrongMethod,
+      )
+      assert.equal(wrongMethod.statusCode, 405, name)
+      assert.equal(wrongMethod.headers.Allow, method, name)
     }
     assert.equal(typeof functions.calendarFeed, 'function')
     assert.equal(typeof functions.stripeWebhook, 'function')

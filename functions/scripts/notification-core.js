@@ -7,6 +7,16 @@ const {
   runsOn,
   weatherLabel,
 } = require('#core')
+const { createHash } = require('node:crypto')
+
+/**
+ * The `notificationTokenOwners` document id for an FCM token. It must match
+ * `tokenOwnerId` in src/notifications/devices.ts (a test checks); it is repeated here so
+ * the notifier runs without the compiled Functions (plan lane W3-B retires this script).
+ */
+function tokenOwnerId(token) {
+  return createHash('sha256').update(token).digest('hex')
+}
 
 const DEFINITE_MESSAGING_FAILURE_CODES = new Set([
   'messaging/invalid-argument',
@@ -177,5 +187,6 @@ module.exports = {
   notificationKey,
   runsOnDate: runsOn,
   safeWindows: findWindows,
+  tokenOwnerId,
   weatherLabel,
 }

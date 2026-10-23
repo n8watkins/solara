@@ -4,7 +4,7 @@ import { planActivityDay } from '@/lib/next-slot'
 import type { Activity, HourlyForecast } from '@/lib/types'
 
 /* eslint-disable @typescript-eslint/no-require-imports */
-const sun = require('../functions/lib/sun')
+const sun = require('../functions/lib/feed/sun')
 const { buildMessage } = require('../functions/scripts/notification-core')
 /* eslint-enable @typescript-eslint/no-require-imports */
 

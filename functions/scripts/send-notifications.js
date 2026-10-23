@@ -1,8 +1,8 @@
 const { applicationDefault, cert, initializeApp } = require('firebase-admin/app')
 const { getFirestore, FieldPath, FieldValue } = require('firebase-admin/firestore')
 const { getMessaging } = require('firebase-admin/messaging')
+const { logger } = require('firebase-functions/logger')
 const { createHash, randomUUID } = require('node:crypto')
-const { tokenOwnerId } = require('../lib/notification-devices')
 const {
   buildMessage,
   claimDecision,
@@ -11,6 +11,7 @@ const {
   isEligibleUser,
   localParts,
   mapLimit,
+  tokenOwnerId,
   weatherLabel,
 } = require('./notification-core')
 const { fetchJson, forecastUrl, isPlannableHour, parseHourlyRows } = require('#core')
@@ -156,13 +157,11 @@ async function runBounded(items, worker) {
   const results = await mapLimit(items, CONCURRENCY, worker)
   for (const [index, result] of results.entries()) {
     if (result.status === 'rejected') {
-      console.error(
-        JSON.stringify({
-          event: 'notification-quarantine-failed',
-          subscriptionPath: items[index].deviceRef.path,
-          error: errorText(result.reason),
-        }),
-      )
+      logger.error('Notification quarantine failed', {
+        event: 'notification-quarantine-failed',
+        subscriptionPath: items[index].deviceRef.path,
+        error: errorText(result.reason),
+      })
     }
   }
 }
@@ -554,16 +553,14 @@ async function sendSubscription(subscription, now) {
       return { outcome: 'cleaned', reason: error.code, key, attemptId }
     }
     if (failure.certainty === 'unknown') {
-      console.error(
-        JSON.stringify({
-          event: 'notification-delivery-unknown',
-          key,
-          attemptId,
-          runId: RUN_ID,
-          subscriptionPath: subscription.deviceRef.path,
-          error: errorText(error),
-        }),
-      )
+      logger.error('Notification delivery outcome unknown', {
+        event: 'notification-delivery-unknown',
+        key,
+        attemptId,
+        runId: RUN_ID,
+        subscriptionPath: subscription.deviceRef.path,
+        error: errorText(error),
+      })
     }
     throw error
   }
@@ -592,7 +589,7 @@ async function main() {
     },
     save: state => dispatchStateRef.set({ ...state, updatedAt: FieldValue.serverTimestamp() }),
   }
-  console.log(`${DRY_RUN ? 'Dry-running' : 'Processing'} notification subscriptions in pages`)
+  logger.info('Notification run started', { runId: RUN_ID, dryRun: DRY_RUN })
   const deadline = Date.now() + RUN_BUDGET_MS
   await scanSubscriptions(
     db,
@@ -605,7 +602,12 @@ async function main() {
       for (const result of results) {
         const outcome = result.status === 'fulfilled' ? result.value.outcome : 'failed'
         counts[outcome] = (counts[outcome] || 0) + 1
-        if (result.status === 'rejected') console.error(result.reason)
+        if (result.status === 'rejected') {
+          logger.error('Notification delivery failed', {
+            runId: RUN_ID,
+            error: errorText(result.reason),
+          })
+        }
       }
     },
     DISPATCH_BATCH_SIZE,
@@ -615,8 +617,7 @@ async function main() {
       stateStore,
     },
   )
-  console.log(`Processed ${processed} notification subscription(s)`)
-  console.log('Notification run complete:', counts)
+  logger.info('Notification run complete', { runId: RUN_ID, dryRun: DRY_RUN, processed, counts })
   if (counts.failed) process.exitCode = 1
 }
 
@@ -635,7 +636,7 @@ module.exports = {
 
 if (require.main === module) {
   main().catch(error => {
-    console.error(error)
+    logger.error('Notification run crashed', { runId: RUN_ID, error: errorText(error) })
     process.exit(1)
   })
 }

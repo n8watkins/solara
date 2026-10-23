@@ -1,36 +1,30 @@
-// Strict type checking of the Functions JavaScript via JSDoc (npm run typecheck, also run
-// by npm test). Shared logic comes from @solara/core through the `#core` import, whose
-// declarations are built into core/ by `npm run build:core`. The morning notifier
-// (scripts/send-notifications.js and scripts/notification-core.js, moved from the repo
-// root so firebase-admin leaves the web app) predates type checking; plan lane W3-B
-// replaces it with a scheduled Function.
+// Type checking for the Functions (npm run typecheck, also run by npm test): the
+// TypeScript source in src/ and the JavaScript scripts (checkJs). tsconfig.build.json
+// compiles src/ into lib/, the code that deploys. Shared logic comes from @solara/core
+// through the `#core` import, whose declarations `npm run build:core` writes into core/.
+// The morning notifier (scripts/send-notifications.js, scripts/notification-core.js)
+// predates type checking; plan lane W3-B replaces it with a scheduled Function.
 {
   "compilerOptions": {
     "target": "ES2023",
-    "lib": [
-      "ES2023"
-    ],
+    "lib": ["ES2023"],
     "module": "nodenext",
     "moduleResolution": "nodenext",
+    "esModuleInterop": true,
+    "isolatedModules": true,
     "allowJs": true,
     "checkJs": true,
     "noEmit": true,
     "strict": true,
     "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
+    "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
-    "types": [
-      "node"
-    ]
+    "types": ["node"],
+    "newLine": "lf"
   },
-  "include": [
-    "index.js",
-    "lib/**/*.js",
-    "lib/**/*.d.ts",
-    "scripts/**/*.js"
-  ],
-  "exclude": [
-    "scripts/send-notifications.js",
-    "scripts/notification-core.js"
-  ]
+  "include": ["src", "scripts/**/*.js"],
+  "exclude": ["scripts/send-notifications.js", "scripts/notification-core.js"]
 }

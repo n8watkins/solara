@@ -1,26 +1,33 @@
-const { authenticate } = require('./account')
-const { createHash, randomUUID } = require('node:crypto')
-const { HttpError, errorMessage } = require('./errors')
+// Notification device registration.
+//
+// A paid account registers up to five devices. Each FCM token belongs to exactly one
+// device: `notificationTokenOwners/{sha256(token)}` points at it, so re-registering a
+// token on another account moves it (with its delivery history, so a morning is never
+// notified twice) instead of duplicating it. Legacy `users.fcmToken` holders are migrated
+// in bounded pages.
 
-/** @typedef {import("./types").Auth} Auth */
-/** @typedef {import("./types").BillingResource} BillingResource */
-/** @typedef {import("./types").ClaimedResource} ClaimedResource */
-/** @typedef {import("./types").DocumentData} DocumentData */
-/** @typedef {import("./types").DocumentReference} DocumentReference */
-/** @typedef {import("./types").Firestore} Firestore */
-/** @typedef {import("./types").Request} Request */
-/** @typedef {import("./types").ServerTimestamp} ServerTimestamp */
-/** @typedef {import("./types").StripeClient} StripeClient */
-/** @typedef {import("./types").StripeRecord} StripeRecord */
-/** @typedef {import("./types").Transaction} Transaction */
+import { createHash, randomUUID } from 'node:crypto'
 
-const MAX_NOTIFICATION_DEVICES = 5
-const MAX_REGISTRATIONS_PER_MINUTE = 10
+import type { Auth } from 'firebase-admin/auth'
+import type { DocumentData, Firestore } from 'firebase-admin/firestore'
+import { logger } from 'firebase-functions/logger'
+import type { Request } from 'firebase-functions/v2/https'
+
+import { authenticate } from '../shared/auth'
+import { HttpError, loggableError } from '../shared/errors'
+import { type ServerTimestamp, toMillis } from '../shared/time'
+
+export const MAX_NOTIFICATION_DEVICES = 5
+export const MAX_REGISTRATIONS_PER_MINUTE = 10
 const LEGACY_MIGRATION_PAGE_SIZE = 100
 const NOTIFICATION_CLAIM_LEASE_MS = 12 * 60 * 1000
 const DEVICE_ID_PATTERN = /^[a-f0-9]{36}$/
-const PLATFORMS = new Set(['web', 'ios', 'android'])
-const PROTECTIVE_DELIVERY_STATUSES = new Set(['claimed', 'delivered', 'unknown'])
+const PLATFORMS: ReadonlySet<unknown> = new Set(['web', 'ios', 'android'])
+const PROTECTIVE_DELIVERY_STATUSES: ReadonlySet<unknown> = new Set([
+  'claimed',
+  'delivered',
+  'unknown',
+])
 const DELIVERED_HISTORY_FIELDS = ['lastDeliveredAt', 'lastNotificationKey']
 const DELIVERY_ATTEMPT_FIELDS = [
   'notificationDeliveryKey',
@@ -37,27 +44,19 @@ const DELIVERY_ATTEMPT_FIELDS = [
 ]
 const DELIVERY_STATE_FIELDS = [...DELIVERED_HISTORY_FIELDS, ...DELIVERY_ATTEMPT_FIELDS]
 
-/**
- * @overload
- * @param {unknown} input
- * @param {{ requireToken: true }} options
- * @returns {{ deviceId: string, platform: string, token: string }}
- */
-/**
- * @overload
- * @param {unknown} input
- * @param {{ requireToken: false }} options
- * @returns {{ deviceId: string }}
- */
-/**
- * @param {unknown} input
- * @param {{ requireToken: boolean }} options
- * @returns {{ deviceId: string, platform?: string, token?: string }}
- */
-function parseDevice(input, { requireToken }) {
-  const body = /** @type {{ deviceId?: unknown, token?: unknown, platform?: unknown } | null} */ (
-    input
-  )
+export interface RegisteredDevice {
+  deviceId: string
+  platform: string
+  token: string
+}
+
+export function parseDevice(input: unknown, options: { requireToken: true }): RegisteredDevice
+export function parseDevice(input: unknown, options: { requireToken: false }): { deviceId: string }
+export function parseDevice(
+  input: unknown,
+  { requireToken }: { requireToken: boolean },
+): { deviceId: string; platform?: string; token?: string } {
+  const body = input as { deviceId?: unknown; token?: unknown; platform?: unknown } | null
   const deviceId = body?.deviceId
   if (typeof deviceId !== 'string' || !DEVICE_ID_PATTERN.test(deviceId)) {
     throw new HttpError('invalid-argument', 'Invalid device identifier')
@@ -76,33 +75,18 @@ function parseDevice(input, { requireToken }) {
   return { deviceId, platform, token }
 }
 
-/**
- * @param {string} token
- */
-function tokenOwnerId(token) {
+/** The `notificationTokenOwners` document id for an FCM token. */
+export function tokenOwnerId(token: string): string {
   return createHash('sha256').update(token).digest('hex')
 }
 
-/**
- * @param {DocumentData | null | undefined} data
- * @param {number} nowMs
- */
-function activeDeliveryClaim(data, nowMs) {
+function activeDeliveryClaim(data: DocumentData | null | undefined, nowMs: number): boolean {
   if (data?.notificationDeliveryStatus !== 'claimed') return false
-  const claimedAt = data.notificationDeliveryClaimedAt
-  const claimedAtMs =
-    claimedAt instanceof Date
-      ? claimedAt.getTime()
-      : claimedAt && typeof claimedAt.toMillis === 'function'
-        ? claimedAt.toMillis()
-        : NaN
+  const claimedAtMs = toMillis(data.notificationDeliveryClaimedAt)
   return Number.isFinite(claimedAtMs) && nowMs - claimedAtMs < NOTIFICATION_CLAIM_LEASE_MS
 }
 
-/**
- * @param {DocumentData | null | undefined} data
- */
-function deliveryState(data) {
+function deliveryState(data: DocumentData | null | undefined): DocumentData {
   const source = data ?? {}
   return Object.fromEntries(
     DELIVERY_STATE_FIELDS.filter(field => Object.hasOwn(source, field)).map(field => [
@@ -112,20 +96,13 @@ function deliveryState(data) {
   )
 }
 
-/**
- * @param {unknown} value
- */
-function timestampMillis(value) {
-  if (value instanceof Date) return value.getTime()
-  const timestamp = /** @type {{ toMillis?: unknown } | null | undefined} */ (value)
-  if (timestamp && typeof timestamp.toMillis === 'function') return timestamp.toMillis()
-  return Number.NEGATIVE_INFINITY
+/** Like `toMillis`, but missing or malformed timestamps sort before every real one. */
+function timestampMillis(value: unknown): number {
+  const millis = toMillis(value)
+  return Number.isNaN(millis) ? Number.NEGATIVE_INFINITY : millis
 }
 
-/**
- * @param {unknown} key
- */
-function notificationDay(key) {
+function notificationDay(key: unknown): number {
   const match = typeof key === 'string' && key.match(/^daily-v\d+:(\d{4})-(\d{2})-(\d{2})$/)
   if (!match) return Number.NEGATIVE_INFINITY
   const year = Number(match[1])
@@ -137,12 +114,17 @@ function notificationDay(key) {
     : Number.NEGATIVE_INFINITY
 }
 
-/**
- * @param {DocumentData[]} states
- * @param {(state: DocumentData) => { day: number, protective: boolean, updatedAt: number }} metadata
- */
-function selectNewestState(states, metadata) {
-  return states.reduce((selected, candidate) => {
+interface StateMetadata {
+  day: number
+  protective: boolean
+  updatedAt: number
+}
+
+function selectNewestState(
+  states: DocumentData[],
+  metadata: (state: DocumentData) => StateMetadata,
+): DocumentData | null {
+  return states.reduce<DocumentData | null>((selected, candidate) => {
     if (!selected) return candidate
     const current = metadata(selected)
     const next = metadata(candidate)
@@ -152,13 +134,10 @@ function selectNewestState(states, metadata) {
       return next.updatedAt > current.updatedAt ? candidate : selected
     }
     return Object.keys(candidate).length > Object.keys(selected).length ? candidate : selected
-  }, /** @type {DocumentData | null} */ (null))
+  }, null)
 }
 
-/**
- * @param {DocumentData} state
- */
-function attemptMetadata(state) {
+function attemptMetadata(state: DocumentData): StateMetadata {
   const updatedAt = Math.max(
     timestampMillis(state.notificationDeliveryUpdatedAt),
     timestampMillis(state.notificationDeliveryCompletedAt),
@@ -172,10 +151,7 @@ function attemptMetadata(state) {
   }
 }
 
-/**
- * @param {Array<DocumentData | null | undefined>} sources
- */
-function mergeDeliveryStates(sources) {
+function mergeDeliveryStates(sources: Array<DocumentData | null | undefined>): DocumentData {
   const states = sources.map(deliveryState)
   const histories = states
     .map(state =>
@@ -219,10 +195,19 @@ function mergeDeliveryStates(sources) {
   }
 }
 
-/**
- * @param {{ auth: Auth, db: Firestore, req: Request, serverTimestamp: ServerTimestamp, nowMs?: number }} options
- */
-async function registerNotificationDevice({ auth, db, req, serverTimestamp, nowMs = Date.now() }) {
+export async function registerNotificationDevice({
+  auth,
+  db,
+  req,
+  serverTimestamp,
+  nowMs = Date.now(),
+}: {
+  auth: Auth
+  db: Firestore
+  req: Request
+  serverTimestamp: ServerTimestamp
+  nowMs?: number
+}): Promise<{ deviceId: string; registered: true; migrationPending: boolean }> {
   const identity = await authenticate(auth, req.headers.authorization)
   const device = parseDevice(req.body, { requireToken: true })
   const userRef = db.collection('users').doc(identity.uid)
@@ -398,13 +383,11 @@ async function registerNotificationDevice({ auth, db, req, serverTimestamp, nowM
     })
   } catch (error) {
     if (error instanceof HttpError) throw error
-    console.error(
-      JSON.stringify({
-        event: 'notification-registration-migration-deferred',
-        deviceId: device.deviceId,
-        error: errorMessage(error, String(error)),
-      }),
-    )
+    // The device is registered; the next registration resumes the legacy migration.
+    logger.warn('Notification registration migration deferred', {
+      deviceId: device.deviceId,
+      error: loggableError(error),
+    })
   }
 
   return {
@@ -414,10 +397,17 @@ async function registerNotificationDevice({ auth, db, req, serverTimestamp, nowM
   }
 }
 
-/**
- * @param {{ auth: Auth, db: Firestore, req: Request, nowMs?: number }} options
- */
-async function removeNotificationDevice({ auth, db, req, nowMs = Date.now() }) {
+export async function removeNotificationDevice({
+  auth,
+  db,
+  req,
+  nowMs = Date.now(),
+}: {
+  auth: Auth
+  db: Firestore
+  req: Request
+  nowMs?: number
+}): Promise<{ deviceId: string; removed: true }> {
   const identity = await authenticate(auth, req.headers.authorization)
   const { deviceId } = parseDevice(req.body, { requireToken: false })
   const deviceRef = db
@@ -444,13 +434,4 @@ async function removeNotificationDevice({ auth, db, req, nowMs = Date.now() }) {
     }
   })
   return { deviceId, removed: true }
-}
-
-module.exports = {
-  MAX_NOTIFICATION_DEVICES,
-  MAX_REGISTRATIONS_PER_MINUTE,
-  parseDevice,
-  registerNotificationDevice,
-  removeNotificationDevice,
-  tokenOwnerId,
 }

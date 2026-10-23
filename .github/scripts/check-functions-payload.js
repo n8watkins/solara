@@ -6,9 +6,12 @@
 // outside functions/ (such as the packages/core workspace) is available at run
 // time. This script packages the source with the locked firebase-tools exactly
 // as a deploy does (same ignore rules), unpacks it into an empty directory,
-// installs production dependencies from the lockfile, and loads index.js there.
+// installs production dependencies from the lockfile, and loads the package entry
+// point (package.json "main", the compiled lib/index.js) there.
 //
-// Run `npm run build:core` first (the Functions predeploy hook does it on deploy).
+// Run `npm run build --prefix functions` first (the Functions predeploy hook does it
+// on deploy): it compiles @solara/core into functions/core and the TypeScript source
+// into functions/lib.
 //
 // Usage: node .github/scripts/check-functions-payload.js
 const { execFileSync } = require('node:child_process')
@@ -48,9 +51,12 @@ async function main() {
   const payload = fs.mkdtempSync(path.join(os.tmpdir(), 'functions-payload-'))
   try {
     execFileSync('tar', ['-xzf', pathToSource, '-C', payload])
-    for (const required of ['index.js', 'package.json', 'package-lock.json', 'core/index.js']) {
+    const { main } = JSON.parse(fs.readFileSync(path.join(payload, 'package.json'), 'utf8'))
+    for (const required of [main, 'package.json', 'package-lock.json', 'core/index.js']) {
       if (!fs.existsSync(path.join(payload, required))) {
-        throw new Error(`the payload has no ${required} (run npm run build:core first)`)
+        throw new Error(
+          `the payload has no ${required} (run npm run build --prefix functions first)`,
+        )
       }
     }
     if (fs.existsSync(path.join(payload, 'node_modules'))) {
@@ -72,7 +78,7 @@ async function main() {
     )
     const exported = JSON.parse(loaded.trim().split('\n').at(-1))
     const missing = EXPECTED_EXPORTS.filter(name => !exported.includes(name))
-    if (missing.length) throw new Error(`index.js does not export ${missing.join(', ')}`)
+    if (missing.length) throw new Error(`${main} does not export ${missing.join(', ')}`)
     console.log(
       `The Functions payload loads on its own and exports ${exported.length} functions: ${exported.join(', ')}.`,
     )

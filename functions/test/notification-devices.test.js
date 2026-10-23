@@ -7,7 +7,10 @@ const {
   registerNotificationDevice,
   removeNotificationDevice,
   tokenOwnerId,
-} = require('../lib/notification-devices')
+} = require('../lib/notifications/devices')
+const { captureLogs } = require('./support/logs')
+
+const logs = captureLogs()
 
 const DEVICE_ID = 'a'.repeat(36)
 const TOKEN = 'token-'.padEnd(24, 'x')
@@ -591,12 +594,13 @@ describe('notification device mutations', () => {
       serverTimestamp: () => 'server-time',
     }
 
-    const consoleError = console.error
-    console.error = () => {}
-    const deferred = await registerNotificationDevice(registration).finally(() => {
-      console.error = consoleError
-    })
+    const deferred = await registerNotificationDevice(registration)
     assert.equal(deferred.migrationPending, true)
+    assert.deepEqual(
+      logs.entries.map(({ severity, message, fields }) => [severity, message, fields.deviceId]),
+      [['WARNING', 'Notification registration migration deferred', DEVICE_ID]],
+    )
+    assert.doesNotMatch(JSON.stringify(logs.entries), new RegExp(TOKEN))
     assert.equal(typeof db.deviceData().registrationMigrationId, 'string')
 
     const result = await registerNotificationDevice(registration)
@@ -646,5 +650,14 @@ describe('notification device mutations', () => {
       error => error.status === 409,
     )
     assert.equal(db.deletes.length, 0)
+  })
+})
+
+describe('morning notifier', () => {
+  test('derives the same token owner ids as device registration', () => {
+    const notifier = require('../scripts/notification-core')
+    for (const token of [TOKEN, 'x'.repeat(4096), 'fcm:APA91b-token_with.symbols']) {
+      assert.equal(notifier.tokenOwnerId(token), tokenOwnerId(token))
+    }
   })
 })

@@ -4,26 +4,28 @@
 // Cloud Run instance enforces it independently, and `maxInstances` bounds the total.
 // Memory stays bounded because the oldest keys are evicted first.
 
-class FixedWindowLimiter {
-  /**
-   * @param {{ limit: number, windowMs: number, maxKeys?: number }} options
-   */
-  constructor({ limit, windowMs, maxKeys = 10_000 }) {
+export class FixedWindowLimiter {
+  readonly limit: number
+  readonly windowMs: number
+  readonly maxKeys: number
+  readonly windows = new Map<string, { count: number; resetAt: number }>()
+
+  constructor({
+    limit,
+    windowMs,
+    maxKeys = 10_000,
+  }: {
+    limit: number
+    windowMs: number
+    maxKeys?: number
+  }) {
     this.limit = limit
     this.windowMs = windowMs
     this.maxKeys = maxKeys
-    /** @type {Map<string, { count: number, resetAt: number }>} */
-    this.windows = new Map()
   }
 
-  /**
-   * Counts one request for `key`.
-   *
-   * @param {string} key
-   * @param {number} [now]
-   * @returns {{ allowed: boolean, retryAfterSeconds: number }}
-   */
-  take(key, now = Date.now()) {
+  /** Counts one request for `key`. */
+  take(key: string, now = Date.now()): { allowed: boolean; retryAfterSeconds: number } {
     let window = this.windows.get(key)
     if (!window || window.resetAt <= now) {
       this.windows.delete(key)
@@ -41,20 +43,13 @@ class FixedWindowLimiter {
     }
   }
 
-  /**
-   * Whether `key` has already used its budget in the current window, without counting.
-   *
-   * @param {string} key
-   * @param {number} [now]
-   */
-  exhausted(key, now = Date.now()) {
+  /** Whether `key` has already used its budget in the current window, without counting. */
+  exhausted(key: string, now = Date.now()): boolean {
     const window = this.windows.get(key)
     return !!window && window.resetAt > now && window.count >= this.limit
   }
 
-  clear() {
+  clear(): void {
     this.windows.clear()
   }
 }
-
-module.exports = { FixedWindowLimiter }
