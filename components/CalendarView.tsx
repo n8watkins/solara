@@ -265,6 +265,8 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
   // "Now" is the forecast location's wall clock, never the device's.
   const todayStr = weather.now.date
   const nowFrac = fractionalHour(weather.now)
+  // The earliest start offered today (now, rounded up to 5 minutes).
+  const todayNowHour = nowHourOf(weather.now)
   // The same actionable windows the dashboard offers (lib/next-slot.ts): today's
   // windows that have already passed are left out, one under way starts now, and
   // an activity limited to certain weekdays only appears on those days.
@@ -275,7 +277,7 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
       color: colorFor(act),
       windows: activityRunsOnDate(act, day.dateStr)
         ? planActivityDay(day.hourly, act, prefs.skinType, {
-            nowHour: day.isToday ? nowHourOf(weather.now) : -1,
+            nowHour: day.isToday ? todayNowHour : -1,
           }).windows
         : [],
     })),
@@ -728,6 +730,7 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
                               variant={variant}
                               lines={lines}
                               fmt={fmt}
+                              startsNow={day.isToday && win.from === todayNowHour}
                             />
                             {/* The visible label is abbreviated, so the accessible
                                 name is this full description instead. */}
@@ -1040,12 +1043,15 @@ function ChipLabel({
   variant,
   lines,
   fmt,
+  startsNow,
 }: {
   act: Activity
   win: SafeWindow
   variant: ChipVariant
   lines: number
   fmt: UnitFormatters
+  /** A window under way, trimmed to start now: its start reads "now" (short and exact). */
+  startsNow: boolean
 }) {
   const text: CSSProperties = {
     display: 'block',
@@ -1071,7 +1077,7 @@ function ChipLabel({
         </span>
         {lines >= 2 && (
           <span aria-hidden="true" style={time}>
-            {fmt.time(win.from)} – {fmt.time(win.to)}
+            {startsNow ? 'now' : fmt.time(win.from)} – {fmt.time(win.to)}
           </span>
         )}
       </>
@@ -1086,7 +1092,7 @@ function ChipLabel({
       </span>
       {lines >= 2 && (
         <span aria-hidden="true" style={time}>
-          {label(win.from)}
+          {startsNow ? 'now' : label(win.from)}
         </span>
       )}
       {lines >= 3 && (

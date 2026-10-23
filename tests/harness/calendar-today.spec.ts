@@ -7,7 +7,7 @@ import { HARNESS_MARKER } from './fixtures'
 // window already under way starts now. Calendar links point at the right moment
 // in the forecast location's zone.
 
-async function openCalendar(page: Page, at?: string) {
+async function openCalendar(page: Page, at?: string, query = '') {
   await page.route('**/*', route =>
     new URL(route.request().url()).hostname === '127.0.0.1'
       ? route.continue()
@@ -15,7 +15,7 @@ async function openCalendar(page: Page, at?: string) {
   )
   if (at) await page.clock.install({ time: new Date(at).getTime() })
   else await startClock(page)
-  await page.goto('/harness/?screen=calendar')
+  await page.goto(`/harness/?screen=calendar${query}`)
   await expect(page.getByTestId(HARNESS_MARKER)).toHaveAttribute('data-screen', 'calendar')
   await expect(page.getByTestId('calendar-chip').first()).toBeVisible()
 }
@@ -68,10 +68,26 @@ test('a window under way starts now and links to the right moment', async ({ pag
   const chip = todayColumn(page).getByRole('button', { name: /^Running, Today, 7am – 10am/ })
   await expect(chip).toBeVisible()
   await expect(chip).toHaveAttribute('data-from', '7')
+  // The visible start of a window under way is "now", which fits the narrowest chip.
+  await expect(chip).toContainText('now')
   await chip.click()
   const link = page.getByRole('dialog', { name: /Running/ }).getByRole('link', {
     name: /Add to Google Calendar/,
   })
   // 07:00-10:00 PDT is 14:00-17:00 UTC.
   await expect(link).toHaveAttribute('href', /dates=20260615T140000Z\/20260615T170000Z&/)
+})
+
+test('labels of windows under way fit their chips', async ({ page }, testInfo) => {
+  test.skip(!testInfo.project.name.startsWith('desktop'), 'logic check, desktop only')
+  // The overcast fixture has windows that are under way at 10:30.
+  await openCalendar(page, undefined, '&fixture=uv-gaps')
+  const chips = todayColumn(page).getByTestId('calendar-chip')
+  await expect(chips.filter({ hasText: 'now' }).first()).toBeVisible()
+  const clipped = await todayColumn(page)
+    .locator('[data-testid="calendar-chip"] span:not([data-sr-only])')
+    .evaluateAll(spans =>
+      spans.filter(span => span.scrollWidth > span.clientWidth + 0.5).map(span => span.textContent),
+    )
+  expect(clipped).toEqual([])
 })
