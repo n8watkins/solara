@@ -1,14 +1,19 @@
 'use client'
 import { useState } from 'react'
 import type { User } from 'firebase/auth'
-import { saveLocalPrefs, defaultPrefs } from '@/lib/prefs'
+import { defaultPrefs } from '@/lib/prefs'
 import type { UserPreferences, Location, SkinType } from '@/lib/types'
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
 import { locationFromCoordinates, searchLocation } from '@/lib/geocoding'
 import GoogleSignInButton from './GoogleSignInButton'
 
 interface Props {
-  onComplete: (prefs: UserPreferences) => void
+  /**
+   * Called once sign-in has finished. The answers never go to the app directly: they
+   * only seed a brand-new account (GoogleSignInButton's `seedPrefs`), and the app then
+   * loads whatever the account holds.
+   */
+  onComplete: () => void
   user?: User | null
 }
 
@@ -95,12 +100,6 @@ export default function Onboarding({ onComplete }: Props) {
     } catch {
       setStep('skin')
     }
-  }
-
-  function finish() {
-    if (!collected) return
-    saveLocalPrefs(collected)
-    onComplete(collected)
   }
 
   const progress = { location: 1, uvpreview: 1, skin: 2, signin: 3 }[step]
@@ -428,7 +427,7 @@ export default function Onboarding({ onComplete }: Props) {
                 <GoogleSignInButton
                   label="Continue with Google"
                   seedPrefs={collected}
-                  onSignedIn={finish}
+                  onSignedIn={onComplete}
                   style={{ width: '100%', justifyContent: 'center', padding: '13px' }}
                 />
                 <button

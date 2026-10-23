@@ -234,14 +234,13 @@ function SignedInApp() {
     }
   }
 
-  function handleOnboardingComplete(p: UserPreferences) {
-    // Onboarding stores its answers unowned; tie them to the account that just
-    // signed in so a different account on this browser never reuses them.
-    const uid = auth?.currentUser?.uid
-    const owned = uid ? { ...p, uid } : p
-    if (uid) saveLocalPrefs(owned)
-    setPrefs(owned)
-    setScreen('dashboard')
+  function handleOnboardingComplete() {
+    // Sign-in from setup has created the account from the setup answers, or found
+    // the account that already existed. Either way the saved account is the only
+    // source for what is on screen, so load it rather than showing the answers: a
+    // returning account must never see (or save over its plan with) setup answers.
+    setScreen(prev => (prev === 'dashboard' ? prev : 'loading'))
+    setAuthReloadKey(key => key + 1)
   }
 
   if (screen === 'loading') {
