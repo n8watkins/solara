@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore'
+import { doc, getDoc, runTransaction, updateDoc } from 'firebase/firestore'
 import { db } from './firebase'
 import type {
   UserPreferences,
@@ -287,21 +287,73 @@ export async function loadFirestorePrefs(uid: string): Promise<FirestorePrefsRes
   }
 }
 
+/**
+ * The preferences a brand-new account starts with: defaults plus the answers the
+ * person gave during onboarding (location, skin type, onboarding flag), owned by
+ * `uid` on the free tier. Everything else in `seed` is ignored on purpose, so a new
+ * account can never inherit another account's activities, profiles, tier or
+ * calendar feed token from data left on a shared device.
+ */
+export function newAccountPrefs(
+  uid: string,
+  seed: Partial<UserPreferences>,
+): UserPreferences | null {
+  const answers = normalizePrefs(seed)
+  if (!answers) return null
+  return {
+    ...defaultPrefs(answers.location),
+    uid,
+    tier: 'free',
+    skinType: answers.skinType,
+    onboardingComplete: answers.onboardingComplete,
+  }
+}
+
+/**
+ * Creates the account document from onboarding answers (see `newAccountPrefs`).
+ * Runs as a transaction so two concurrent seeders never overwrite each other: if
+ * the document already exists, it is returned unchanged. Throws if the write fails
+ * or the seed has no valid location.
+ */
+export async function createAccountPrefs(
+  uid: string,
+  seed: Partial<UserPreferences>,
+): Promise<UserPreferences> {
+  const fresh = newAccountPrefs(uid, seed)
+  if (!fresh) throw new Error('Onboarding answers are missing a valid location')
+  if (!db) return fresh
+  const ref = doc(db, 'users', uid)
+  return runTransaction(db, async tx => {
+    const snap = await tx.get(ref)
+    if (snap.exists()) {
+      const existing = normalizePrefs(snap.data() as Partial<UserPreferences>)
+      if (!existing) throw new Error('Saved preferences are invalid')
+      return existing
+    }
+    tx.set(ref, { ...fresh })
+    return fresh
+  })
+}
+
+/**
+ * Saves preferences to the account document. If the document does not exist yet,
+ * it is created from onboarding answers only (see `createAccountPrefs`).
+ */
 export async function saveFirestorePrefs(
   uid: string,
   prefs: Partial<UserPreferences>,
 ): Promise<void> {
   if (!db) return
   const ref = doc(db, 'users', uid)
+  const snap = await getDoc(ref)
+  if (!snap.exists()) {
+    await createAccountPrefs(uid, prefs)
+    return
+  }
   const normalized =
     normalizePrefs({ ...prefs, uid }) ??
     ({ uid, ...prefs, schemaVersion: PREFS_SCHEMA_VERSION } as Partial<UserPreferences>)
-  const snap = await getDoc(ref)
-  if (snap.exists()) {
-    await updateDoc(ref, { ...normalized })
-  } else {
-    await setDoc(ref, { ...normalized, uid })
-  }
+  await updateDoc(ref, { ...normalized })
 }
 
 export function defaultPrefs(location: Location): UserPreferences {

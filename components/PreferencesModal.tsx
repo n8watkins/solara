@@ -1,7 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
 import type { User } from 'firebase/auth'
-import { signOut } from 'firebase/auth'
 import type { UserPreferences, SkinType, Location } from '@/lib/types'
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
 import { clearWeatherCache } from '@/lib/cache'
@@ -14,7 +13,8 @@ import {
   notificationsEnabledLocally,
 } from '@/lib/notifications'
 import { toggleTheme, getStoredTheme } from '@/lib/theme'
-import { auth, firebaseEnabled } from '@/lib/firebase'
+import { firebaseEnabled } from '@/lib/firebase'
+import { signOutAndClear } from '@/lib/session'
 import ActivitySuggestionSettings from './ActivitySuggestionSettings'
 import PricingModal from './PricingModal'
 import GoogleSignInButton from './GoogleSignInButton'
@@ -454,7 +454,7 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
                           color: 'var(--text)',
                         }}
                       >
-                        🔔 Morning sun alerts
+                        🔔 Morning sun alerts (paused)
                       </p>
                       <p
                         style={{
@@ -464,7 +464,7 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
                           lineHeight: 1.45,
                         }}
                       >
-                        A daily lower-UV planning summary in your local morning.
+                        Morning summaries are paused and not being sent right now.
                       </p>
                     </div>
                     {!TIER_LIMITS[tier].notifications && (
@@ -493,7 +493,7 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
                             color: 'var(--accent)',
                           }}
                         >
-                          ✓ Morning planning summaries are on for this device
+                          ✓ On for this device once summaries resume
                         </p>
                         <label
                           style={{
@@ -559,7 +559,7 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
                         lineHeight: 1.45,
                       }}
                     >
-                      Available on the Pro plan.
+                      Paused for all plans right now.
                     </p>
                   )}
                   {notifError && (
@@ -752,7 +752,6 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
                           : `${prefs.activities.length} / ${TIER_LIMITS[tier].activities}`,
                     ],
                     ['Calendar sync', TIER_LIMITS[tier].calendar ? '✓' : '—'],
-                    ['Push notifications', TIER_LIMITS[tier].notifications ? '✓' : '—'],
                     ['10-day forecast', tier === 'paid' ? '✓' : '—'],
                   ].map(([label, val]) => (
                     <div
@@ -794,18 +793,15 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
                       onClick={() =>
                         void (async () => {
                           setNotifError(null)
-                          if (user) {
-                            try {
-                              await disableNotifications(user.uid)
-                            } catch (error) {
-                              console.error('Notification cleanup failed:', error)
-                              setNotifError(
-                                'Could not safely sign out. Check your connection and try again.',
-                              )
-                              return
-                            }
+                          try {
+                            await signOutAndClear(user?.uid)
+                          } catch (error) {
+                            console.error('Sign-out failed:', error)
+                            setNotifError(
+                              'Could not safely sign out. Check your connection and try again.',
+                            )
+                            return
                           }
-                          if (auth) await signOut(auth)
                           onClose()
                         })()
                       }
