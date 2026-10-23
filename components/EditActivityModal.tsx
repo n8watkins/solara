@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import type { Activity, TimePreference } from '@/lib/types'
 import { effectiveMaxUV } from '@/lib/tiers'
 import { fmtHour } from '@/lib/weather'
@@ -12,6 +12,16 @@ interface Props {
   onDelete: (id: string) => void
   onClose: () => void
 }
+
+const DAY_NAMES = [
+  'Sunday',
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+] as const
 
 function clampUV(value: number) {
   return Math.max(0, Math.min(11, Math.round(value * 10) / 10))
@@ -32,6 +42,25 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
   const [days, setDays] = useState<number[]>(activity.daysOfWeek ?? [])
   const [cloudSensitive, setCloudSensitive] = useState(activity.cloudSensitive ?? false)
   const [showEmoji, setShowEmoji] = useState(false)
+  const id = useId()
+  const ids = {
+    name: `${id}-name`,
+    duration: `${id}-duration`,
+    durationDesc: `${id}-duration-desc`,
+    hours: `${id}-hours`,
+    hoursDesc: `${id}-hours-desc`,
+    time: `${id}-time`,
+    timeDesc: `${id}-time-desc`,
+    days: `${id}-days`,
+    daysDesc: `${id}-days-desc`,
+    spf: `${id}-spf`,
+    spfDesc: `${id}-spf-desc`,
+    cloud: `${id}-cloud`,
+    cloudDesc: `${id}-cloud-desc`,
+    uv: `${id}-uv`,
+    uvDesc: `${id}-uv-desc`,
+    emoji: `${id}-emoji`,
+  }
 
   // All-seven or none both mean "every day" — store nothing (matches prefs normalizer).
   const draftDays =
@@ -106,6 +135,7 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
           }}
         >
           <button
+            type="button"
             className="btn"
             onClick={handleDelete}
             style={{ color: '#DC2626', borderColor: '#FECACA' }}
@@ -113,10 +143,11 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
             Delete
           </button>
           <div style={{ display: 'flex', gap: '10px', marginLeft: 'auto' }}>
-            <button className="btn" onClick={requestClose}>
+            <button type="button" className="btn" onClick={requestClose}>
               Cancel
             </button>
             <button
+              type="button"
               className="btn btn-primary"
               onClick={() => onSave(draft)}
               disabled={!name.trim()}
@@ -142,6 +173,10 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div style={{ position: 'relative' }}>
               <button
+                type="button"
+                aria-expanded={showEmoji}
+                aria-haspopup="dialog"
+                aria-controls={showEmoji ? ids.emoji : undefined}
                 onClick={() => setShowEmoji(s => !s)}
                 style={{
                   width: '50px',
@@ -160,11 +195,17 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
                 {icon}
               </button>
               {showEmoji && (
-                <EmojiPicker value={icon} onChange={setIcon} onClose={() => setShowEmoji(false)} />
+                <EmojiPicker
+                  id={ids.emoji}
+                  value={icon}
+                  onChange={setIcon}
+                  onClose={() => setShowEmoji(false)}
+                />
               )}
             </div>
             <div style={{ flex: 1 }}>
               <label
+                htmlFor={ids.name}
                 style={{
                   display: 'block',
                   fontSize: '12px',
@@ -175,6 +216,7 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
                 Activity name
               </label>
               <input
+                id={ids.name}
                 value={name}
                 onChange={e => setName(e.target.value)}
                 placeholder="Activity name"
@@ -189,17 +231,26 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
           style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}
         >
           <div>
-            <p
+            <h3
+              id={ids.duration}
               style={{ margin: '0 0 4px', fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}
             >
               Duration
-            </p>
-            <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-3)', lineHeight: 1.45 }}>
+            </h3>
+            <p
+              id={ids.durationDesc}
+              style={{ margin: 0, fontSize: '13px', color: 'var(--text-3)', lineHeight: 1.45 }}
+            >
               How long you usually need for this activity.
             </p>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-            <button className="btn" onClick={() => setDurationMins(m => Math.max(5, m - 15))}>
+            <button
+              type="button"
+              className="btn"
+              aria-label="15 minutes shorter"
+              onClick={() => setDurationMins(m => Math.max(5, m - 15))}
+            >
               −15m
             </button>
             <input
@@ -207,11 +258,18 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
               min="5"
               step="5"
               value={durationMins}
+              aria-labelledby={ids.duration}
+              aria-describedby={ids.durationDesc}
               onChange={e => setDurationMins(Math.max(5, parseInt(e.target.value) || 5))}
               style={{ width: '96px', fontSize: '14px' }}
             />
             <span style={{ fontSize: '13px', color: 'var(--text-3)' }}>minutes</span>
-            <button className="btn" onClick={() => setDurationMins(m => m + 15)}>
+            <button
+              type="button"
+              className="btn"
+              aria-label="15 minutes longer"
+              onClick={() => setDurationMins(m => m + 15)}
+            >
               +15m
             </button>
           </div>
@@ -230,7 +288,8 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
             }}
           >
             <div>
-              <p
+              <h3
+                id={ids.hours}
                 style={{
                   margin: '0 0 4px',
                   fontSize: '13px',
@@ -239,12 +298,18 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
                 }}
               >
                 Preferred hours
-              </p>
-              <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-3)', lineHeight: 1.45 }}>
+              </h3>
+              <p
+                id={ids.hoursDesc}
+                style={{ margin: 0, fontSize: '13px', color: 'var(--text-3)', lineHeight: 1.45 }}
+              >
                 Limit recommendations to the part of the day you actually care about.
               </p>
             </div>
             <button
+              type="button"
+              aria-pressed={preferredEnabled}
+              aria-describedby={ids.hoursDesc}
               className={preferredEnabled ? 'btn btn-primary' : 'btn'}
               onClick={() => setPreferredEnabled(v => !v)}
               style={{ fontSize: '12px', whiteSpace: 'nowrap' }}
@@ -307,16 +372,25 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
           style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}
         >
           <div>
-            <p
+            <h3
+              id={ids.time}
               style={{ margin: '0 0 4px', fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}
             >
               Preferred time
-            </p>
-            <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-3)', lineHeight: 1.45 }}>
+            </h3>
+            <p
+              id={ids.timeDesc}
+              style={{ margin: 0, fontSize: '13px', color: 'var(--text-3)', lineHeight: 1.45 }}
+            >
               When several lower-UV times match, which should Solara recommend?
             </p>
           </div>
-          <div style={{ display: 'flex', gap: '8px' }}>
+          <div
+            role="group"
+            aria-labelledby={ids.time}
+            aria-describedby={ids.timeDesc}
+            style={{ display: 'flex', gap: '8px' }}
+          >
             {(
               [
                 { val: 'earliest', label: 'Earliest', hint: 'Soonest free slot' },
@@ -326,6 +400,8 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
             ).map(o => (
               <button
                 key={o.val}
+                type="button"
+                aria-pressed={timePreference === o.val}
                 onClick={() => setTimePreference(o.val)}
                 title={o.hint}
                 style={{
@@ -354,28 +430,36 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
           style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}
         >
           <div>
-            <p
+            <h3
+              id={ids.days}
               style={{ margin: '0 0 4px', fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}
             >
               Days
-            </p>
-            <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-3)', lineHeight: 1.45 }}>
-              Which days this activity should be planned for — e.g. a weekday run or a weekend hike.
+            </h3>
+            <p
+              id={ids.daysDesc}
+              style={{ margin: 0, fontSize: '13px', color: 'var(--text-3)', lineHeight: 1.45 }}
+            >
+              Which days this activity should be planned for, such as a weekday run or a weekend
+              hike.
             </p>
           </div>
-          <div style={{ display: 'flex', gap: '6px' }}>
+          <div
+            role="group"
+            aria-labelledby={ids.days}
+            aria-describedby={ids.daysDesc}
+            style={{ display: 'flex', gap: '6px' }}
+          >
             {(['S', 'M', 'T', 'W', 'T', 'F', 'S'] as const).map((label, d) => {
               const on = days.includes(d)
               return (
                 <button
                   key={d}
+                  type="button"
                   onClick={() => toggleDay(d)}
                   aria-pressed={on}
-                  title={
-                    ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][
-                      d
-                    ]
-                  }
+                  aria-label={DAY_NAMES[d]}
+                  title={DAY_NAMES[d]}
                   style={{
                     flex: 1,
                     padding: '9px 0',
@@ -401,6 +485,7 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
             ].map(p => (
               <button
                 key={p.label}
+                type="button"
                 className="btn"
                 onClick={() => setDays(p.set)}
                 style={{ fontSize: '12px', padding: '5px 9px' }}
@@ -426,22 +511,33 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
           style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}
         >
           <div>
-            <p
+            <h3
+              id={ids.spf}
               style={{ margin: '0 0 4px', fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}
             >
               Sun protection
-            </p>
-            <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-3)', lineHeight: 1.45 }}>
+            </h3>
+            <p
+              id={ids.spfDesc}
+              style={{ margin: 0, fontSize: '13px', color: 'var(--text-3)', lineHeight: 1.45 }}
+            >
               SPF changes the planning UV limit for this activity.
             </p>
           </div>
-          <div style={{ display: 'flex', gap: '8px' }}>
+          <div
+            role="group"
+            aria-labelledby={ids.spf}
+            aria-describedby={ids.spfDesc}
+            style={{ display: 'flex', gap: '8px' }}
+          >
             {[
               { val: false, label: 'No SPF' },
               { val: true, label: 'SPF 30+' },
             ].map(option => (
               <button
                 key={String(option.val)}
+                type="button"
+                aria-pressed={sunscreen === option.val}
                 onClick={() => setSunscreen(option.val)}
                 style={{
                   flex: 1,
@@ -477,7 +573,8 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
             }}
           >
             <div>
-              <p
+              <h3
+                id={ids.cloud}
                 style={{
                   margin: '0 0 4px',
                   fontSize: '13px',
@@ -486,13 +583,20 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
                 }}
               >
                 Account for cloud cover
-              </p>
-              <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-3)', lineHeight: 1.45 }}>
-                Heavy cloud lowers UV, so a borderline hour can become workable. Conservative — thin
+              </h3>
+              <p
+                id={ids.cloudDesc}
+                style={{ margin: 0, fontSize: '13px', color: 'var(--text-3)', lineHeight: 1.45 }}
+              >
+                Heavy cloud lowers UV, so a borderline hour can become workable. Conservative: thin
                 cloud still counts as full sun.
               </p>
             </div>
             <button
+              type="button"
+              aria-pressed={cloudSensitive}
+              aria-labelledby={ids.cloud}
+              aria-describedby={ids.cloudDesc}
               className={cloudSensitive ? 'btn btn-primary' : 'btn'}
               onClick={() => setCloudSensitive(v => !v)}
               style={{ fontSize: '12px', whiteSpace: 'nowrap' }}
@@ -515,7 +619,8 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
             }}
           >
             <div>
-              <p
+              <h3
+                id={ids.uv}
                 style={{
                   margin: '0 0 4px',
                   fontSize: '13px',
@@ -524,8 +629,11 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
                 }}
               >
                 Base planning UV limit
-              </p>
-              <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-3)', lineHeight: 1.45 }}>
+              </h3>
+              <p
+                id={ids.uvDesc}
+                style={{ margin: 0, fontSize: '13px', color: 'var(--text-3)', lineHeight: 1.45 }}
+              >
                 Lower is more conservative. SPF may raise the effective threshold.
               </p>
             </div>
@@ -551,6 +659,8 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
             max="11"
             step="0.5"
             value={maxUV}
+            aria-labelledby={ids.uv}
+            aria-describedby={ids.uvDesc}
             onChange={e => setMaxUV(parseFloat(e.target.value))}
             style={{ width: '100%' }}
           />
@@ -569,6 +679,7 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
               max="11"
               step="0.5"
               value={maxUV}
+              aria-labelledby={ids.uv}
               onChange={e => setMaxUV(clampUV(parseFloat(e.target.value) || 0))}
               style={{ width: '90px', fontSize: '13px', textAlign: 'center' }}
             />

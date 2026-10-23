@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import type { Activity } from '@/lib/types'
 import { ACTIVITY_CATEGORIES, canAddActivity, TIER_LIMITS } from '@/lib/tiers'
 import type { TierLevel } from '@/lib/types'
@@ -33,6 +33,10 @@ export default function ActivityManager({
   const [customSunscreen, setCustomSunscreen] = useState(false)
   const [showEmoji, setShowEmoji] = useState(false)
   const [addedName, setAddedName] = useState<string | null>(null)
+  const id = useId()
+  const emojiId = `${id}-emoji`
+  const customDurationId = `${id}-custom-duration`
+  const spfLabelId = `${id}-spf`
 
   const hiddenSet = new Set(hiddenSuggestionIds)
   const collapsedSet = new Set(collapsedCategories)
@@ -115,8 +119,10 @@ export default function ActivityManager({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-      {/* Mode tabs */}
+      {/* Mode switch */}
       <div
+        role="group"
+        aria-label="View"
         style={{
           display: 'flex',
           gap: '4px',
@@ -128,6 +134,8 @@ export default function ActivityManager({
         {(['browse', 'manage'] as const).map(m => (
           <button
             key={m}
+            type="button"
+            aria-pressed={mode === m}
             onClick={() => setMode(m)}
             style={{
               flex: 1,
@@ -168,23 +176,29 @@ export default function ActivityManager({
             </div>
           )}
 
-          {addedName && (
-            <div
-              style={{
-                padding: '8px 12px',
-                borderRadius: '9px',
-                background: 'rgba(22,163,74,0.1)',
-                border: '0.5px solid rgba(22,163,74,0.3)',
-                fontSize: '13px',
-                color: '#16A34A',
-              }}
-            >
-              ✓ {addedName} added
-            </div>
-          )}
+          {/* Mounted for as long as presets can be added, so screen readers
+              announce each addition. display: contents adds no layout box. */}
+          <div role="status" style={{ display: 'contents' }}>
+            {addedName && (
+              <div
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: '9px',
+                  background: 'rgba(22,163,74,0.1)',
+                  border: '0.5px solid rgba(22,163,74,0.3)',
+                  fontSize: '13px',
+                  color: '#16A34A',
+                }}
+              >
+                ✓ {addedName} added
+              </div>
+            )}
+          </div>
 
           <div style={{ position: 'relative' }}>
             <button
+              type="button"
+              aria-expanded={showCreate}
               onClick={() => setShowCreate(s => !s)}
               className="btn btn-primary"
               style={{
@@ -215,6 +229,11 @@ export default function ActivityManager({
                 <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                   <div style={{ position: 'relative' }}>
                     <button
+                      type="button"
+                      aria-label="Choose icon"
+                      aria-expanded={showEmoji}
+                      aria-haspopup="dialog"
+                      aria-controls={showEmoji ? emojiId : undefined}
                       onClick={() => setShowEmoji(s => !s)}
                       style={{
                         width: '44px',
@@ -233,6 +252,7 @@ export default function ActivityManager({
                     </button>
                     {showEmoji && (
                       <EmojiPicker
+                        id={emojiId}
                         value={customIcon}
                         onChange={setCustomIcon}
                         onClose={() => setShowEmoji(false)}
@@ -240,6 +260,7 @@ export default function ActivityManager({
                     )}
                   </div>
                   <input
+                    aria-label="Activity name"
                     placeholder="Activity name"
                     value={customName}
                     onChange={e => setCustomName(e.target.value)}
@@ -250,10 +271,14 @@ export default function ActivityManager({
                 <div
                   style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}
                 >
-                  <span style={{ fontSize: '13px', color: 'var(--text-2)', flexShrink: 0 }}>
+                  <label
+                    htmlFor={customDurationId}
+                    style={{ fontSize: '13px', color: 'var(--text-2)', flexShrink: 0 }}
+                  >
                     Duration
-                  </span>
+                  </label>
                   <input
+                    id={customDurationId}
                     type="number"
                     min="5"
                     step="5"
@@ -263,13 +288,22 @@ export default function ActivityManager({
                   />
                   <span style={{ fontSize: '13px', color: 'var(--text-3)' }}>min</span>
                 </div>
-                <div style={{ display: 'flex', gap: '8px' }}>
+                <span id={spfLabelId} className="sr-only">
+                  Sun protection
+                </span>
+                <div
+                  role="group"
+                  aria-labelledby={spfLabelId}
+                  style={{ display: 'flex', gap: '8px' }}
+                >
                   {[
                     { val: false, label: 'No SPF' },
                     { val: true, label: 'SPF 30+' },
                   ].map(o => (
                     <button
                       key={String(o.val)}
+                      type="button"
+                      aria-pressed={customSunscreen === o.val}
                       onClick={() => setCustomSunscreen(o.val)}
                       style={{
                         flex: 1,
@@ -292,6 +326,7 @@ export default function ActivityManager({
                   ))}
                 </div>
                 <button
+                  type="button"
                   className="btn btn-primary"
                   onClick={addCustom}
                   disabled={!customName.trim()}
@@ -304,6 +339,8 @@ export default function ActivityManager({
           </div>
 
           <input
+            type="search"
+            aria-label="Search activities"
             placeholder="Search activities..."
             value={search}
             onChange={e => setSearch(e.target.value)}
@@ -326,7 +363,7 @@ export default function ActivityManager({
                   color: 'var(--text-3)',
                 }}
               >
-                No suggestions match. Restore hidden suggestions in Settings → Activity prefs.
+                No suggestions match. Restore hidden suggestions in Settings, under Activities.
               </div>
             )}
             {filteredCats.map(cat => {
@@ -343,10 +380,14 @@ export default function ActivityManager({
                     }}
                   >
                     <button
+                      type="button"
+                      aria-expanded={search ? undefined : !collapsed}
+                      disabled={!!search}
                       onClick={() => !search && onToggleCategory?.(cat.name)}
                       style={{
                         margin: 0,
                         padding: 0,
+                        minHeight: '24px',
                         background: 'none',
                         border: 'none',
                         cursor: search ? 'default' : 'pointer',
@@ -357,10 +398,16 @@ export default function ActivityManager({
                         letterSpacing: '0.06em',
                       }}
                     >
-                      {!search && (collapsed ? '▸' : '▾')} {cat.emoji} {cat.name}
+                      <span aria-hidden="true">
+                        {!search && (collapsed ? '▸' : '▾')} {cat.emoji}
+                      </span>{' '}
+                      {cat.name}
                     </button>
                     {!search && (
-                      <span style={{ fontSize: '11px', color: 'var(--text-3)' }}>
+                      <span
+                        aria-label={`${cat.activities.length} activities`}
+                        style={{ fontSize: '11px', color: 'var(--text-3)' }}
+                      >
                         {cat.activities.length}
                       </span>
                     )}
@@ -379,6 +426,8 @@ export default function ActivityManager({
                         return (
                           <div key={p.id} style={{ position: 'relative' }}>
                             <button
+                              type="button"
+                              aria-pressed={sel}
                               onClick={() => toggle(p)}
                               disabled={locked}
                               style={{
@@ -399,7 +448,9 @@ export default function ActivityManager({
                                 transition: 'all 0.12s',
                               }}
                             >
-                              <span style={{ fontSize: '16px', flexShrink: 0 }}>{p.icon}</span>
+                              <span aria-hidden="true" style={{ fontSize: '16px', flexShrink: 0 }}>
+                                {p.icon}
+                              </span>
                               <div style={{ minWidth: 0 }}>
                                 <p
                                   style={{
@@ -421,20 +472,24 @@ export default function ActivityManager({
                                 </p>
                               </div>
                               {locked && (
-                                <span style={{ marginLeft: 'auto', fontSize: '11px' }}>🔒</span>
+                                <span style={{ marginLeft: 'auto', fontSize: '11px' }}>
+                                  <span aria-hidden="true">🔒</span>
+                                  <span className="sr-only">Locked</span>
+                                </span>
                               )}
                             </button>
                             {!sel && onHideSuggestion && (
                               <button
+                                type="button"
                                 onClick={() => onHideSuggestion(p.id)}
                                 aria-label={`Hide ${p.name} suggestion`}
                                 title="Hide suggestion"
                                 style={{
                                   position: 'absolute',
-                                  top: '7px',
-                                  right: '7px',
-                                  width: '22px',
-                                  height: '22px',
+                                  top: '6px',
+                                  right: '6px',
+                                  width: '24px',
+                                  height: '24px',
                                   borderRadius: '50%',
                                   border: 'none',
                                   background: 'var(--bg-metric)',
@@ -466,6 +521,7 @@ export default function ActivityManager({
               No activities added yet.
             </p>
             <button
+              type="button"
               onClick={() => setMode('browse')}
               style={{
                 background: 'none',
@@ -499,7 +555,9 @@ export default function ActivityManager({
                     marginBottom: '10px',
                   }}
                 >
-                  <span style={{ fontSize: '18px' }}>{a.icon}</span>
+                  <span aria-hidden="true" style={{ fontSize: '18px' }}>
+                    {a.icon}
+                  </span>
                   <span
                     style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text)', flex: 1 }}
                   >
@@ -507,6 +565,8 @@ export default function ActivityManager({
                   </span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                     <button
+                      type="button"
+                      aria-label={`${a.name}: 5 minutes shorter`}
                       onClick={() => updateDuration(a.id, a.durationMins - 5)}
                       style={{
                         width: '24px',
@@ -526,6 +586,7 @@ export default function ActivityManager({
                       min="5"
                       step="5"
                       value={a.durationMins}
+                      aria-label={`${a.name} duration in minutes`}
                       onChange={e => updateDuration(a.id, parseInt(e.target.value) || 5)}
                       style={{
                         width: '44px',
@@ -537,6 +598,8 @@ export default function ActivityManager({
                     />
                     <span style={{ fontSize: '11px', color: 'var(--text-3)' }}>min</span>
                     <button
+                      type="button"
+                      aria-label={`${a.name}: 5 minutes longer`}
                       onClick={() => updateDuration(a.id, a.durationMins + 5)}
                       style={{
                         width: '24px',
@@ -553,6 +616,8 @@ export default function ActivityManager({
                     </button>
                   </div>
                   <button
+                    type="button"
+                    aria-label={`Remove ${a.name}`}
                     onClick={() => remove(a.id)}
                     style={{
                       background: 'transparent',
@@ -560,19 +625,27 @@ export default function ActivityManager({
                       cursor: 'pointer',
                       color: 'var(--text-3)',
                       fontSize: '16px',
+                      minWidth: '24px',
+                      height: '24px',
                       padding: '0 4px',
                     }}
                   >
-                    ×
+                    <span aria-hidden="true">×</span>
                   </button>
                 </div>
-                <div style={{ display: 'flex', gap: '8px' }}>
+                <div
+                  role="group"
+                  aria-label={`${a.name} sun protection`}
+                  style={{ display: 'flex', gap: '8px' }}
+                >
                   {[
                     { val: false, label: 'No SPF' },
                     { val: true, label: 'SPF 30+' },
                   ].map(o => (
                     <button
                       key={String(o.val)}
+                      type="button"
+                      aria-pressed={a.sunscreen === o.val}
                       onClick={() => updateSunscreen(a.id, o.val)}
                       style={{
                         flex: 1,

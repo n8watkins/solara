@@ -52,10 +52,11 @@ export default function ManageActivitiesModal({
             flexWrap: 'wrap',
           }}
         >
-          <button className="btn" onClick={onAddActivity}>
+          <button type="button" className="btn" onClick={onAddActivity}>
             + Add another
           </button>
           <button
+            type="button"
             className="btn btn-primary"
             onClick={onClose}
             style={{ minWidth: '120px', justifyContent: 'center' }}
@@ -67,10 +68,14 @@ export default function ManageActivitiesModal({
     >
       {activities.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '2rem 1rem' }}>
-          <p style={{ fontSize: '32px', margin: '0 0 10px' }}>🏃</p>
-          <p style={{ margin: '0 0 6px', fontSize: '16px', fontWeight: 700, color: 'var(--text)' }}>
-            No activities yet
+          <p aria-hidden="true" style={{ fontSize: '32px', margin: '0 0 10px' }}>
+            🏃
           </p>
+          <h3
+            style={{ margin: '0 0 6px', fontSize: '16px', fontWeight: 700, color: 'var(--text)' }}
+          >
+            No activities yet
+          </h3>
           <p
             style={{
               margin: '0 0 18px',
@@ -81,12 +86,21 @@ export default function ManageActivitiesModal({
           >
             Add an activity first, then come back here to manage it.
           </p>
-          <button className="btn btn-primary" onClick={onAddActivity}>
+          <button type="button" className="btn btn-primary" onClick={onAddActivity}>
             + Add activity
           </button>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        <ul
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '10px',
+            margin: 0,
+            padding: 0,
+            listStyle: 'none',
+          }}
+        >
           {activities.map(activity => {
             const durationLabel =
               activity.durationMins < 60
@@ -94,7 +108,7 @@ export default function ManageActivitiesModal({
                 : `${activity.durationMins / 60}h`
             const safeUv = effectiveMaxUV(activity)
             return (
-              <div
+              <li
                 key={activity.id}
                 style={{
                   border: '0.5px solid var(--border-md)',
@@ -107,11 +121,15 @@ export default function ManageActivitiesModal({
                   flexWrap: 'wrap',
                 }}
               >
-                <span style={{ fontSize: '24px' }}>{activity.icon}</span>
+                <span aria-hidden="true" style={{ fontSize: '24px' }}>
+                  {activity.icon}
+                </span>
                 <div style={{ flex: 1, minWidth: '170px' }}>
-                  <p style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: 'var(--text)' }}>
+                  <h3
+                    style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: 'var(--text)' }}
+                  >
                     {activity.name}
-                  </p>
+                  </h3>
                   <p style={{ margin: '3px 0 0', fontSize: '12px', color: 'var(--text-3)' }}>
                     {durationLabel} · {activity.sunscreen ? 'SPF 30+' : 'No SPF'} · UV limit{' '}
                     {safeUv}
@@ -119,6 +137,8 @@ export default function ManageActivitiesModal({
                 </div>
                 <div style={{ display: 'flex', gap: '8px', marginLeft: 'auto', flexWrap: 'wrap' }}>
                   <button
+                    type="button"
+                    aria-label={`Edit ${activity.name}`}
                     className="btn btn-primary"
                     onClick={() => onEditActivity(activity)}
                     style={{ fontSize: '12px' }}
@@ -126,6 +146,8 @@ export default function ManageActivitiesModal({
                     Edit
                   </button>
                   <button
+                    type="button"
+                    aria-label={`Duplicate ${activity.name}`}
                     className="btn"
                     onClick={() => duplicate(activity)}
                     disabled={atLimit}
@@ -134,6 +156,8 @@ export default function ManageActivitiesModal({
                     Duplicate
                   </button>
                   <button
+                    type="button"
+                    aria-label={`Remove ${activity.name}`}
                     className="btn"
                     onClick={() => remove(activity.id)}
                     style={{ fontSize: '12px', color: '#DC2626', borderColor: '#FECACA' }}
@@ -141,10 +165,10 @@ export default function ManageActivitiesModal({
                     Remove
                   </button>
                 </div>
-              </div>
+              </li>
             )
           })}
-        </div>
+        </ul>
       )}
     </ActivityModalShell>
   )

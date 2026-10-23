@@ -1,4 +1,5 @@
 'use client'
+import { useId } from 'react'
 import type { UserPreferences } from '@/lib/types'
 import { ACTIVITY_CATEGORIES } from '@/lib/tiers'
 
@@ -8,6 +9,7 @@ interface Props {
 }
 
 export default function ActivitySuggestionSettings({ prefs, onChange }: Props) {
+  const hintId = useId()
   const hiddenIds = prefs.hiddenActivitySuggestionIds ?? []
   const collapsed = prefs.collapsedActivityCategories ?? []
   const allPresets = ACTIVITY_CATEGORIES.flatMap(cat =>
@@ -42,9 +44,9 @@ export default function ActivitySuggestionSettings({ prefs, onChange }: Props) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
       <div className="metric-card" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        <p style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: 'var(--text)' }}>
+        <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: 'var(--text)' }}>
           Activity suggestions
-        </p>
+        </h4>
         <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-3)', lineHeight: 1.5 }}>
           Add and edit active activities from the Dashboard. This panel only controls which preset
           suggestions appear there.
@@ -64,17 +66,22 @@ export default function ActivitySuggestionSettings({ prefs, onChange }: Props) {
           }}
         >
           <div>
-            <p
+            <h4
               style={{ margin: '0 0 3px', fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}
             >
               Hidden suggestions
-            </p>
+            </h4>
             <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-3)' }}>
               {hiddenPresets.length} hidden
             </p>
           </div>
           {hiddenPresets.length > 0 && (
-            <button className="btn" onClick={restoreAllSuggestions} style={{ fontSize: '12px' }}>
+            <button
+              type="button"
+              className="btn"
+              onClick={restoreAllSuggestions}
+              style={{ fontSize: '12px' }}
+            >
               Restore all
             </button>
           )}
@@ -103,13 +110,15 @@ export default function ActivitySuggestionSettings({ prefs, onChange }: Props) {
               >
                 <div style={{ minWidth: 0 }}>
                   <p style={{ margin: 0, fontSize: '13px', fontWeight: 650, color: 'var(--text)' }}>
-                    {activity.icon} {activity.name}
+                    <span aria-hidden="true">{activity.icon}</span> {activity.name}
                   </p>
                   <p style={{ margin: '2px 0 0', fontSize: '11px', color: 'var(--text-3)' }}>
                     {activity.category}
                   </p>
                 </div>
                 <button
+                  type="button"
+                  aria-label={`Restore ${activity.name}`}
                   className="btn"
                   onClick={() => restoreSuggestion(activity.id)}
                   style={{ fontSize: '12px', padding: '5px 9px' }}
@@ -135,27 +144,42 @@ export default function ActivitySuggestionSettings({ prefs, onChange }: Props) {
           }}
         >
           <div>
-            <p
+            <h4
               style={{ margin: '0 0 3px', fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}
             >
               Preset categories
-            </p>
+            </h4>
             <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-3)' }}>
               {collapsed.length} collapsed
             </p>
           </div>
           {collapsed.length > 0 && (
-            <button className="btn" onClick={expandAllCategories} style={{ fontSize: '12px' }}>
+            <button
+              type="button"
+              className="btn"
+              onClick={expandAllCategories}
+              style={{ fontSize: '12px' }}
+            >
               Expand all
             </button>
           )}
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
+        <p className="sr-only" id={hintId}>
+          Pressed categories start expanded in the Add activity picker.
+        </p>
+        <div
+          role="group"
+          aria-label="Preset categories"
+          aria-describedby={hintId}
+          style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}
+        >
           {ACTIVITY_CATEGORIES.map(category => {
             const isCollapsed = collapsed.includes(category.name)
             return (
               <button
                 key={category.name}
+                type="button"
+                aria-pressed={!isCollapsed}
                 onClick={() => toggleCategory(category.name)}
                 style={{
                   display: 'flex',
@@ -172,10 +196,14 @@ export default function ActivitySuggestionSettings({ prefs, onChange }: Props) {
                 }}
               >
                 <span style={{ fontSize: '13px', fontWeight: 650 }}>
-                  {isCollapsed ? '▸' : '▾'} {category.emoji} {category.name}
+                  <span aria-hidden="true">
+                    {isCollapsed ? '▸' : '▾'} {category.emoji}
+                  </span>{' '}
+                  {category.name}
                 </span>
                 <span style={{ fontSize: '11px', color: 'var(--text-3)' }}>
                   {category.activities.length}
+                  <span className="sr-only"> presets</span>
                 </span>
               </button>
             )

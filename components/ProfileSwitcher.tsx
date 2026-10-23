@@ -1,5 +1,5 @@
 'use client'
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useId } from 'react'
 import type { UserPreferences, Profile, SkinType, TierLevel } from '@/lib/types'
 import { activeProfile, defaultProfile, selectProfile, SKIN_TYPE_LABELS } from '@/lib/profiles'
 import { getProfileLimit } from '@/lib/tiers'
@@ -21,6 +21,16 @@ export default function ProfileSwitcher({ prefs, tier, onApply }: Props) {
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Profile | null>(null) // profile being edited, or a blank draft for "add"
   const ref = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const id = useId()
+  const panelId = `${id}-panel`
+  const titleId = `${id}-title`
+
+  function close({ returnFocus }: { returnFocus: boolean }) {
+    setOpen(false)
+    setEditing(null)
+    if (returnFocus) triggerRef.current?.focus()
+  }
 
   useEffect(() => {
     function handle(e: MouseEvent) {
@@ -42,7 +52,7 @@ export default function ProfileSwitcher({ prefs, tier, onApply }: Props) {
 
   function switchTo(p: Profile) {
     onApply(selectProfile(p))
-    setOpen(false)
+    close({ returnFocus: true })
   }
 
   function startAdd() {
@@ -74,8 +84,30 @@ export default function ProfileSwitcher({ prefs, tier, onApply }: Props) {
   }
 
   return (
-    <div ref={ref} style={{ position: 'relative', display: 'inline-block' }}>
+    <div
+      ref={ref}
+      style={{ position: 'relative', display: 'inline-block' }}
+      onKeyDown={event => {
+        if (event.key === 'Escape' && open) {
+          event.preventDefault()
+          event.stopPropagation()
+          close({ returnFocus: true })
+        }
+      }}
+      onBlur={event => {
+        // Tabbing out of the switcher closes it, like a click outside does.
+        if (open && !ref.current?.contains(event.relatedTarget as Node | null)) {
+          close({ returnFocus: false })
+        }
+      }}
+    >
       <button
+        ref={triggerRef}
+        type="button"
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        aria-controls={open ? panelId : undefined}
+        aria-label={`Profile: ${active.name}`}
         onClick={() => setOpen(o => !o)}
         title="Switch profile"
         style={{
@@ -92,13 +124,20 @@ export default function ProfileSwitcher({ prefs, tier, onApply }: Props) {
           whiteSpace: 'nowrap',
         }}
       >
-        <span style={{ fontSize: '13px' }}>{active.icon ?? '🧑'}</span>
+        <span aria-hidden="true" style={{ fontSize: '13px' }}>
+          {active.icon ?? '🧑'}
+        </span>
         <span style={{ fontWeight: 600 }}>{active.name}</span>
-        <span style={{ color: 'var(--text-3)' }}>▾</span>
+        <span aria-hidden="true" style={{ color: 'var(--text-3)' }}>
+          ▾
+        </span>
       </button>
 
       {open && (
         <div
+          id={panelId}
+          role="dialog"
+          aria-labelledby={titleId}
           style={{
             position: 'absolute',
             top: 'calc(100% + 6px)',
@@ -112,7 +151,8 @@ export default function ProfileSwitcher({ prefs, tier, onApply }: Props) {
             boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
           }}
         >
-          <p
+          <h2
+            id={titleId}
             style={{
               margin: '0 0 8px',
               fontSize: '12px',
@@ -123,7 +163,7 @@ export default function ProfileSwitcher({ prefs, tier, onApply }: Props) {
             }}
           >
             Profiles
-          </p>
+          </h2>
 
           {!editing && (
             <>
@@ -140,6 +180,8 @@ export default function ProfileSwitcher({ prefs, tier, onApply }: Props) {
                   return (
                     <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                       <button
+                        type="button"
+                        aria-pressed={isActive}
                         onClick={() => switchTo(p)}
                         style={{
                           flex: 1,
@@ -156,7 +198,9 @@ export default function ProfileSwitcher({ prefs, tier, onApply }: Props) {
                           padding: '7px 9px',
                         }}
                       >
-                        <span style={{ fontSize: '16px' }}>{p.icon ?? '🧑'}</span>
+                        <span aria-hidden="true" style={{ fontSize: '16px' }}>
+                          {p.icon ?? '🧑'}
+                        </span>
                         <span style={{ flex: 1, minWidth: 0 }}>
                           <span
                             style={{
@@ -176,6 +220,7 @@ export default function ProfileSwitcher({ prefs, tier, onApply }: Props) {
                         </span>
                         {isActive && (
                           <span
+                            aria-hidden="true"
                             style={{ fontSize: '11px', color: 'var(--accent)', fontWeight: 700 }}
                           >
                             Active
@@ -184,6 +229,7 @@ export default function ProfileSwitcher({ prefs, tier, onApply }: Props) {
                       </button>
                       {saved.length > 0 && (
                         <button
+                          type="button"
                           onClick={() => setEditing(p)}
                           aria-label={`Edit ${p.name}`}
                           style={{
@@ -192,10 +238,13 @@ export default function ProfileSwitcher({ prefs, tier, onApply }: Props) {
                             cursor: 'pointer',
                             color: 'var(--text-3)',
                             fontSize: '13px',
+                            minWidth: '28px',
+                            minHeight: '28px',
                             padding: '4px',
+                            borderRadius: '7px',
                           }}
                         >
-                          ✎
+                          <span aria-hidden="true">✎</span>
                         </button>
                       )}
                     </div>
@@ -205,6 +254,7 @@ export default function ProfileSwitcher({ prefs, tier, onApply }: Props) {
 
               {canAdd ? (
                 <button
+                  type="button"
                   className="btn"
                   onClick={startAdd}
                   style={{ width: '100%', justifyContent: 'center', fontSize: '13px' }}
@@ -230,6 +280,7 @@ export default function ProfileSwitcher({ prefs, tier, onApply }: Props) {
               onChange={setEditing}
               onSave={() => saveProfile(editing)}
               onCancel={() => setEditing(null)}
+              labelPrefix={id}
               onDelete={
                 saved.some(p => p.id === editing.id)
                   ? () => {
@@ -253,7 +304,9 @@ function ProfileEditor({
   onSave,
   onCancel,
   onDelete,
+  labelPrefix,
 }: {
+  labelPrefix: string
   draft: Profile
   isNew: boolean
   onChange: (p: Profile) => void
@@ -263,10 +316,12 @@ function ProfileEditor({
 }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+      <div role="group" aria-label="Icon" style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
         {ICON_CHOICES.map(ic => (
           <button
             key={ic}
+            type="button"
+            aria-pressed={draft.icon === ic}
             onClick={() => onChange({ ...draft, icon: ic })}
             style={{
               width: '30px',
@@ -283,14 +338,22 @@ function ProfileEditor({
           </button>
         ))}
       </div>
+      <label className="sr-only" htmlFor={`${labelPrefix}-name`}>
+        Name
+      </label>
       <input
+        id={`${labelPrefix}-name`}
         value={draft.name}
         onChange={e => onChange({ ...draft, name: e.target.value })}
         placeholder="Name (e.g. Ava, Rex)"
         autoFocus
         style={{ width: '100%', boxSizing: 'border-box', fontSize: '14px', padding: '8px 10px' }}
       />
+      <label className="sr-only" htmlFor={`${labelPrefix}-skin`}>
+        Skin type
+      </label>
       <select
+        id={`${labelPrefix}-skin`}
         value={draft.skinType}
         onChange={e => onChange({ ...draft, skinType: e.target.value as SkinType })}
         style={{ fontSize: '13px', padding: '7px' }}
@@ -304,6 +367,7 @@ function ProfileEditor({
       <div style={{ display: 'flex', gap: '8px' }}>
         {onDelete && (
           <button
+            type="button"
             className="btn"
             onClick={onDelete}
             style={{ color: '#DC2626', borderColor: '#FECACA', fontSize: '12px' }}
@@ -312,10 +376,11 @@ function ProfileEditor({
           </button>
         )}
         <div style={{ display: 'flex', gap: '8px', marginLeft: 'auto' }}>
-          <button className="btn" onClick={onCancel} style={{ fontSize: '12px' }}>
+          <button type="button" className="btn" onClick={onCancel} style={{ fontSize: '12px' }}>
             Cancel
           </button>
           <button
+            type="button"
             className="btn btn-primary"
             onClick={onSave}
             disabled={!draft.name.trim()}
