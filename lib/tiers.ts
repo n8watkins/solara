@@ -30,7 +30,7 @@ export const TIER_LIMITS: Record<
     profiles: 1,
   },
   paid: {
-    activities: 999,
+    activities: 20,
     calendar: true,
     notifications: true,
     futureDays: 10,

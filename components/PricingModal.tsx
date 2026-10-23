@@ -87,7 +87,7 @@ export default function PricingModal({
   return (
     <ActivityModalShell
       title="Solara Pro"
-      description="Unlimited activities, 10-day planning, saved places and family profiles."
+      description="Up to 20 activities, 10-day planning, saved places and family profiles."
       onClose={onClose}
       footer={
         checkoutReady ? (

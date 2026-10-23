@@ -167,7 +167,6 @@ export function buildPrefs(tier: TierLevel = 'paid'): UserPreferences {
     sunscreen: false,
     activities: tier === 'free' ? ACTIVITIES.slice(0, 3) : ACTIVITIES,
     tier,
-    calendarFeedToken: 'harnessfeedtoken0000000000000000',
     onboardingComplete: true,
     calendarHours: { from: 6, to: 20 },
     showSunPath: true,

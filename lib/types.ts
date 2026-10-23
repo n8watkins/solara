@@ -55,7 +55,6 @@ export interface UserPreferences {
   sunscreen: boolean // legacy global sunscreen fallback for old activities
   activities: Activity[]
   tier: TierLevel
-  calendarFeedToken?: string // per-user secret for the live .ics feed (P7b); see lib/feed.ts
   onboardingComplete: boolean
   calendarHours?: CalendarHours
   showSunPath?: boolean // sun-path arc on the dashboard; default on (Appearance setting)

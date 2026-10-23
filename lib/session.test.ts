@@ -57,6 +57,8 @@ vi.mock('firebase/messaging', () => ({
 vi.mock('@/lib/firebase', () => ({
   app: { kind: 'app' },
   appCheck: null,
+  appCheckConfigured: () => true,
+  appCheckToken: async () => 'app-check-token',
   db: { kind: 'db' },
   auth: {
     get currentUser() {
@@ -76,7 +78,8 @@ const LA: Location = { lat: 34.05, lon: -118.24, city: 'Los Angeles', region: 'C
 const BOSTON: Location = { lat: 42.36, lon: -71.06, city: 'Boston', region: 'MA' }
 const A_TOKEN = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
 
-const accountA: UserPreferences = {
+// Includes a legacy feed token field so the tests prove old stored data never leaks.
+const accountA: UserPreferences & { calendarFeedToken?: string } = {
   ...defaultPrefs(LA),
   uid: 'user-a',
   tier: 'paid',

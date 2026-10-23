@@ -691,9 +691,7 @@ export default function Dashboard({
           </div>
         )}
 
-        {!activitiesLocked && prefs.activities.length > 0 && (
-          <CalendarFeed prefs={prefs} onPrefsUpdate={onPrefsUpdate} />
-        )}
+        {!activitiesLocked && prefs.activities.length > 0 && <CalendarFeed prefs={prefs} />}
 
         {/* The sign-in gate must win even over legacy guest activities saved before
             the activities-require-sign-in policy; they still seed the account on sign-in. */}

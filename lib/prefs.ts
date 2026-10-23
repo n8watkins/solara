@@ -9,7 +9,7 @@ import type {
   PreferredHours,
   Profile,
 } from './types'
-import { PRESET_ACTIVITIES, ACTIVITY_CATEGORIES } from './tiers'
+import { PRESET_ACTIVITIES, ACTIVITY_CATEGORIES, TIER_LIMITS } from './tiers'
 
 const PREFS_KEY = 'solara_prefs'
 export const PREFS_SCHEMA_VERSION = 2
@@ -87,11 +87,6 @@ function normalizeProfiles(raw: unknown): Profile[] | undefined {
   return out.length ? out.slice(0, 12) : undefined
 }
 
-/** The live-feed token must be a long, URL-safe secret. Reject anything weaker. */
-function normalizeFeedToken(raw: unknown): string | undefined {
-  return typeof raw === 'string' && /^[A-Za-z0-9_-]{16,}$/.test(raw) ? raw : undefined
-}
-
 function normalizeStringList(raw: unknown, allowed?: Set<string>): string[] {
   if (!Array.isArray(raw)) return []
   return Array.from(
@@ -160,7 +155,7 @@ function normalizeActivity(raw: unknown, index: number, globalSunscreen: boolean
 
   return {
     id: typeof a.id === 'string' && a.id.trim() ? a.id : `migrated_${index}`,
-    name: a.name.trim() || preset?.name || 'Outdoor activity',
+    name: (a.name.trim() || preset?.name || 'Outdoor activity').slice(0, 100),
     icon: typeof a.icon === 'string' && a.icon.trim() ? a.icon : (preset?.icon ?? '☀️'),
     durationMins,
     maxUV,
@@ -192,9 +187,11 @@ export function normalizePrefs(
   const sunscreen = typeof raw.sunscreen === 'boolean' ? raw.sunscreen : false
   const profiles = normalizeProfiles(raw.profiles)
   const activities = Array.isArray(raw.activities)
-    ? (raw.activities
-        .map((a, i) => normalizeActivity(a, i, sunscreen))
-        .filter(Boolean) as Activity[])
+    ? (
+        raw.activities
+          .map((a, i) => normalizeActivity(a, i, sunscreen))
+          .filter(Boolean) as Activity[]
+      ).slice(0, TIER_LIMITS.paid.activities)
     : []
 
   return {
@@ -210,7 +207,6 @@ export function normalizePrefs(
     sunscreen,
     activities,
     tier: TIERS.includes(raw.tier as TierLevel) ? (raw.tier as TierLevel) : 'anonymous',
-    calendarFeedToken: normalizeFeedToken(raw.calendarFeedToken),
     onboardingComplete: raw.onboardingComplete === true,
     calendarHours:
       raw.calendarHours &&

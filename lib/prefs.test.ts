@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { normalizePrefs } from '@/lib/prefs'
+import { defaultPrefs, normalizePrefs } from '@/lib/prefs'
 import type { Location } from '@/lib/types'
 
 const LA: Location = { lat: 34.05, lon: -118.24, city: 'Los Angeles', region: 'CA' }
@@ -91,5 +91,26 @@ describe('normalizePrefs — activity routine + cloud fields', () => {
     expect(act(true).cloudSensitive).toBe(true)
     expect(act(false).cloudSensitive).toBeUndefined()
     expect(act('yes').cloudSensitive).toBeUndefined()
+  })
+})
+
+describe('limits shared with the Firestore rules', () => {
+  it('drops legacy feed tokens and caps activities and their names', () => {
+    const raw = {
+      ...defaultPrefs({ lat: 34.05, lon: -118.24, city: 'Los Angeles', region: 'CA' }),
+      calendarFeedToken: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      activities: Array.from({ length: 25 }, (_, i) => ({
+        id: `custom_${i}`,
+        name: 'x'.repeat(150),
+        icon: '🏃',
+        durationMins: 30,
+        maxUV: 3,
+        sunscreen: false,
+      })),
+    }
+    const prefs = normalizePrefs(raw)
+    expect(prefs).not.toHaveProperty('calendarFeedToken')
+    expect(prefs?.activities).toHaveLength(20)
+    expect(prefs?.activities.every(a => a.name.length === 100)).toBe(true)
   })
 })

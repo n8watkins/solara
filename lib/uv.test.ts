@@ -111,7 +111,8 @@ describe('tier limits', () => {
     expect(canAddActivity('anonymous', 0)).toBe(false) // activities require an account
     expect(canAddActivity('free', 2)).toBe(true)
     expect(canAddActivity('free', 3)).toBe(false)
-    expect(canAddActivity('paid', 50)).toBe(true)
+    expect(canAddActivity('paid', 19)).toBe(true)
+    expect(canAddActivity('paid', 20)).toBe(false) // matches the Firestore rules cap
   })
   it('exposes future-day horizon per tier', () => {
     expect(getFutureDays('anonymous')).toBe(1)
