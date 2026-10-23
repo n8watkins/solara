@@ -8,16 +8,24 @@
 //   tier   = paid (default) | free
 //   tab    = general (default) | activities | location   (settings only)
 //   fixture = default (default) | uv-gaps   (see uv-gap-fixtures.ts)
+//   data   = fixture (default) | live: load the forecast through the app's real data
+//            layer (lib/use-forecast.ts useWeather); specs answer the Open-Meteo
+//            requests with page.route (see data-layer.spec.ts)
 //
 // Only reachable in builds made with NEXT_PUBLIC_UI_HARNESS=1; see
 // app/harness/page.harness.tsx and scripts/check-no-ui-harness.mjs.
 import { useMemo, useState } from 'react'
+import { QueryClientProvider } from '@tanstack/react-query'
 import type { DayWeather, TierLevel, UserPreferences } from '@/lib/types'
 import AppShell, { type AppView } from '@/components/AppShell'
 import Header from '@/components/Header'
 import Dashboard from '@/components/Dashboard'
 import CalendarView from '@/components/CalendarView'
 import PricingModal from '@/components/PricingModal'
+import { resolveUnits, unitFormatters } from '@/lib/units'
+import { UnitsContext } from '@/lib/use-units'
+import { createQueryClient, useWeather } from '@/lib/use-forecast'
+import Skeleton from '@/components/Skeleton'
 import { HARNESS_MARKER, buildPrefs, buildUser, buildWeather } from './fixtures'
 import { buildGapWeather } from './uv-gap-fixtures'
 
@@ -37,17 +45,29 @@ function readParams() {
     tier: tier as TierLevel,
     tab: tab && TABS.includes(tab) ? tab : 'general',
     fixture: params.get('fixture') === 'uv-gaps' ? 'uv-gaps' : 'default',
+    live: params.get('data') === 'live',
   }
 }
 
 export default function HarnessApp() {
+  const [queryClient] = useState(createQueryClient)
+  return (
+    <QueryClientProvider client={queryClient}>
+      <Harness />
+    </QueryClientProvider>
+  )
+}
+
+function Harness() {
   const initial = useMemo(() => readParams(), [])
   const user = useMemo(() => buildUser(), [])
-  const weather = useMemo(
+  const fixtureWeather = useMemo(
     () => (initial.fixture === 'uv-gaps' ? buildGapWeather() : buildWeather()),
     [initial.fixture],
   )
   const [prefs, setPrefs] = useState<UserPreferences>(() => buildPrefs(initial.tier))
+  const live = useWeather(initial.live ? prefs.location : null)
+  const weather = initial.live ? live.weather : fixtureWeather
   const [view, setView] = useState<AppView>(
     initial.screen === 'calendar' ? 'calendar' : 'dashboard',
   )
@@ -56,60 +76,70 @@ export default function HarnessApp() {
   const [pricingOpen, setPricingOpen] = useState(initial.screen === 'pricing')
 
   const displayTier = prefs.tier
+  // Display units from the account, else the browser locale, as in components/App.tsx.
+  const units = unitFormatters(resolveUnits(prefs))
 
   return (
-    <div data-testid={HARNESS_MARKER} data-screen={initial.screen}>
-      <AppShell
-        header={
-          <Header
-            user={user}
-            prefs={prefs}
-            displayTier={displayTier}
-            onPrefsUpdate={setPrefs}
-            forceOpenTab={settingsOpen ? initial.tab : undefined}
-            onModalClose={() => setSettingsOpen(false)}
-            onGoHome={() => {
-              setView('dashboard')
-              setSelectedDay(null)
-            }}
-            currentUV={weather.current.uv}
-          />
-        }
-        view={view}
-        onViewChange={setView}
-        after={
-          pricingOpen && (
-            <PricingModal
+    <UnitsContext value={units}>
+      <div data-testid={HARNESS_MARKER} data-screen={initial.screen}>
+        <AppShell
+          header={
+            <Header
               user={user}
-              email={user.email ?? undefined}
-              onJoinWaitlist={() => {}}
-              onClose={() => setPricingOpen(false)}
-            />
-          )
-        }
-      >
-        {view === 'dashboard' && (
-          <Dashboard
-            weather={weather}
-            prefs={prefs}
-            displayTier={displayTier}
-            onPrefsUpdate={setPrefs}
-            onRefresh={() => {}}
-            selectedDay={selectedDay}
-            onSelectDay={setSelectedDay}
-          />
-        )}
-        {view === 'calendar' && (
-          <div className="card">
-            <CalendarView
               prefs={prefs}
               displayTier={displayTier}
-              weather={weather}
               onPrefsUpdate={setPrefs}
+              forceOpenTab={settingsOpen ? initial.tab : undefined}
+              onModalClose={() => setSettingsOpen(false)}
+              onGoHome={() => {
+                setView('dashboard')
+                setSelectedDay(null)
+              }}
+              currentUV={weather?.current.uv}
             />
-          </div>
-        )}
-      </AppShell>
-    </div>
+          }
+          view={view}
+          onViewChange={setView}
+          after={
+            pricingOpen && (
+              <PricingModal
+                user={user}
+                email={user.email ?? undefined}
+                onJoinWaitlist={() => {}}
+                onClose={() => setPricingOpen(false)}
+              />
+            )
+          }
+        >
+          {initial.live && live.error && (
+            <p role="alert" data-testid="weather-error">
+              {live.error}
+            </p>
+          )}
+          {live.loading && <Skeleton />}
+          {view === 'dashboard' && weather && (
+            <Dashboard
+              weather={weather}
+              prefs={prefs}
+              displayTier={displayTier}
+              onPrefsUpdate={setPrefs}
+              onRefresh={live.refresh}
+              selectedDay={selectedDay}
+              onSelectDay={setSelectedDay}
+            />
+          )}
+          {view === 'calendar' && weather && (
+            <div className="card">
+              <CalendarView
+                prefs={prefs}
+                displayTier={displayTier}
+                weather={weather}
+                onPrefsUpdate={setPrefs}
+              />
+            </div>
+          )}
+        </AppShell>
+      </div>
+    </UnitsContext>
   )
 }

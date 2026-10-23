@@ -18,11 +18,12 @@ import { recommendSlot } from './scheduler'
 const NOW_STEP_MINUTES = 5
 
 /**
- * The current local time as fractional hours, rounded up to a 5-minute step.
- * Pass the result as `nowHour` for today; future days use -1.
+ * The current time as fractional hours, rounded up to a 5-minute step. Pass the
+ * forecast location's wall clock (lib/time.ts zonedNow), never the device's.
+ * Use the result as `nowHour` for today; future days use -1.
  */
-export function nowHourOf(date: Date): number {
-  const minutes = date.getHours() * 60 + date.getMinutes()
+export function nowHourOf(now: { hour: number; minute: number }): number {
+  const minutes = now.hour * 60 + now.minute
   return (Math.ceil(minutes / NOW_STEP_MINUTES) * NOW_STEP_MINUTES) / 60
 }
 

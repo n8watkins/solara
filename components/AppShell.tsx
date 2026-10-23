@@ -3,10 +3,24 @@ import type { ReactNode } from 'react'
 
 export type AppView = 'dashboard' | 'calendar'
 
-const VIEWS: { id: AppView; label: string }[] = [
-  { id: 'dashboard', label: '☀️ Dashboard' },
-  { id: 'calendar', label: '🗓️ Calendar' },
+const VIEWS: { id: AppView; label: string; heading: string }[] = [
+  { id: 'dashboard', label: '☀️ Dashboard', heading: 'UV dashboard' },
+  { id: 'calendar', label: '🗓️ Calendar', heading: 'Activity calendar' },
 ]
+
+// The page's one h1 names the view for assistive tech; the header and the active
+// tab already say where you are visually, so it is not drawn.
+const visuallyHidden = {
+  position: 'absolute',
+  width: '1px',
+  height: '1px',
+  padding: 0,
+  margin: '-1px',
+  overflow: 'hidden',
+  clip: 'rect(0 0 0 0)',
+  whiteSpace: 'nowrap',
+  border: 0,
+} as const
 
 interface Props {
   /** The page header (normally `<Header>`), kept sticky together with the view tabs. */
@@ -74,6 +88,7 @@ export default function AppShell({ header, view, onViewChange, children, after }
           padding: '1.5rem 1rem',
         }}
       >
+        <h1 style={visuallyHidden}>{VIEWS.find(v => v.id === view)?.heading}</h1>
         {children}
       </main>
       {after}

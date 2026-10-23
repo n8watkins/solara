@@ -3,7 +3,8 @@ import type { DayWeather, Activity, SkinType } from '@/lib/types'
 import type { UpcomingSlot } from '@/lib/planner'
 import { planUpcomingSlots } from '@/lib/planner'
 import type { BusyInterval, SlotRecommendation } from '@/lib/scheduler'
-import { fmtClock, uvColorHex, uvLabel, uvTextHex } from '@/lib/weather'
+import { uvColorHex, uvLabel, uvTextHex } from '@/lib/weather'
+import { useUnits } from '@/lib/use-units'
 import { buildICS, recToIcsEvent, downloadICS } from '@/lib/ics'
 
 interface Props {
@@ -38,6 +39,7 @@ export default function PlanAhead({
   onUpgrade,
   onBook,
 }: Props) {
+  const fmt = useUnits()
   if (!activities.length || dayLimit <= 1) return null
 
   const plan = planUpcomingSlots(forecast, activities, skinType, dayLimit, busyByDate, nowHourToday)
@@ -112,7 +114,7 @@ export default function PlanAhead({
                 {activity.name}
               </p>
               <p style={{ margin: '2px 0 0', fontSize: '12px', color: 'var(--text-3)' }}>
-                {label} · {fmtClock(slot.start)}–{fmtClock(slot.end)}
+                {label} · {fmt.time(slot.start)}–{fmt.time(slot.end)}
               </p>
             </div>
             {/* Color means one thing here: the slot's average UV, on the same scale

@@ -1,7 +1,8 @@
 'use client'
 import { useState } from 'react'
 import type { Activity, SafeActivityWindow, TierLevel, Location } from '@/lib/types'
-import { fmtHour, fmtClock, fmtDays, gcalLink } from '@/lib/weather'
+import { fmtDays, gcalLink } from '@/lib/weather'
+import { useUnits } from '@/lib/use-units'
 import { canUseCalendar, effectiveMaxUV } from '@/lib/tiers'
 import { buildActivityShareText, buildActivityShareUrl, shareOrCopy } from '@/lib/share'
 import type { SlotRecommendation } from '@/lib/scheduler'
@@ -12,7 +13,10 @@ interface Props {
   /** One plan per activity for the selected day (see planActivityDay). */
   plans: ActivityDayPlan[]
   isToday: boolean
-  daysFromNow: number
+  /** The plans' date (YYYY-MM-DD) in the forecast location's zone. */
+  dateStr: string
+  /** The forecast location's IANA zone; calendar links are built in it. */
+  timeZone: string
   tier: TierLevel
   location: Location
   dateLabel: string
@@ -50,7 +54,8 @@ function WindowRow({
   onShare: () => void
   calendarHref?: string
 }) {
-  const range = `${fmtClock(win.from)}–${fmtClock(win.to)}`
+  const fmt = useUnits()
+  const range = `${fmt.time(win.from)}–${fmt.time(win.to)}`
   return (
     <div
       data-testid="activity-window"
@@ -144,20 +149,22 @@ function WindowRow({
 export default function ActivityCards({
   plans,
   isToday,
-  daysFromNow,
+  dateStr,
+  timeZone,
   tier,
   location,
   dateLabel,
   onBookRecommended,
   onEditActivity,
 }: Props) {
+  const fmt = useUnits()
   const [confirm, setConfirm] = useState<string | null>(null)
   const calendarAllowed = canUseCalendar(tier)
 
   // Calendar actions are plain links (rel=noopener), so they are never pop-up
   // blocked and the new tab cannot reach back into this one.
   function calendarHref(activityName: string, span: { from: number; to: number }, mins: number) {
-    return gcalLink(activityName, span, mins, daysFromNow)
+    return gcalLink(activityName, span, mins, dateStr, timeZone)
   }
 
   async function shareWindow(activity: Activity, selectedWindow: SafeActivityWindow) {
@@ -166,26 +173,28 @@ export default function ActivityCards({
       window: selectedWindow,
       location,
       dateLabel,
-      dayOffset: daysFromNow,
+      isoDate: dateStr,
     }
     const text = buildActivityShareText(payload)
     const url = buildActivityShareUrl(
       payload,
       typeof window !== 'undefined' ? window.location.origin : undefined,
     )
+    let result: Awaited<ReturnType<typeof shareOrCopy>>
     try {
-      const result = await shareOrCopy(`${activity.name} sun window`, text, url)
-      const msg =
-        result === 'shared'
-          ? 'Shared activity window.'
-          : result === 'copied'
-            ? 'Copied share text and link.'
-            : 'Sharing not supported — copy the link manually.'
-      setConfirm(msg)
-      setTimeout(() => setConfirm(null), 4500)
+      result = await shareOrCopy(`${activity.name} sun window`, text, url)
     } catch {
       // AbortError: user dismissed the share sheet — no feedback needed
+      return
     }
+    setConfirm(
+      result === 'shared'
+        ? 'Shared activity window.'
+        : result === 'copied'
+          ? 'Copied share text and link.'
+          : 'Sharing not supported — copy the link manually.',
+    )
+    setTimeout(() => setConfirm(null), 4500)
   }
 
   return (
@@ -228,7 +237,7 @@ export default function ActivityCards({
               ? `${activity.durationMins}m`
               : `${activity.durationMins / 60}h`
           const windowLabel = bestWindow
-            ? `${fmtClock(bestWindow.from)}–${fmtClock(bestWindow.to)}`
+            ? `${fmt.time(bestWindow.from)}–${fmt.time(bestWindow.to)}`
             : plan.elapsed
               ? 'None left today'
               : isToday
@@ -323,7 +332,7 @@ export default function ActivityCards({
                       color: 'var(--text)',
                     }}
                   >
-                    {fmtClock(rec.start)}–{fmtClock(rec.end)}
+                    {fmt.time(rec.start)}–{fmt.time(rec.end)}
                   </p>
                   <p
                     style={{
@@ -338,7 +347,7 @@ export default function ActivityCards({
                       <>
                         . Could start anytime{' '}
                         <span style={{ whiteSpace: 'nowrap' }}>
-                          {fmtClock(rec.earliestStart)}–{fmtClock(rec.latestStart)}
+                          {fmt.time(rec.earliestStart)}–{fmt.time(rec.latestStart)}
                         </span>
                       </>
                     )}
@@ -380,7 +389,7 @@ export default function ActivityCards({
                 {activity.preferredHours && (
                   <Row
                     label="Preferred"
-                    val={`${fmtHour(activity.preferredHours.from)}–${fmtHour(activity.preferredHours.to)}`}
+                    val={`${fmt.hour(activity.preferredHours.from)}–${fmt.hour(activity.preferredHours.to)}`}
                   />
                 )}
                 {fmtDays(activity.daysOfWeek) && (

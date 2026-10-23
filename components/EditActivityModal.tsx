@@ -3,7 +3,7 @@ import { useId, useState } from 'react'
 import type { Activity, TimePreference } from '@/lib/types'
 import { activityEdited } from '@/lib/activity-draft'
 import { effectiveMaxUV } from '@/lib/tiers'
-import { fmtHour } from '@/lib/weather'
+import { useUnits } from '@/lib/use-units'
 import ActivityModalShell from './ActivityModalShell'
 import EmojiPicker from './EmojiPicker'
 
@@ -29,6 +29,7 @@ function clampUV(value: number) {
 }
 
 export default function EditActivityModal({ activity, onSave, onDelete, onClose }: Props) {
+  const fmt = useUnits()
   const [name, setName] = useState(activity.name)
   const [icon, setIcon] = useState(activity.icon)
   const [durationMins, setDurationMins] = useState(activity.durationMins)
@@ -309,7 +310,7 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
                 >
                   {Array.from({ length: 24 }, (_, h) => (
                     <option key={h} value={h}>
-                      {fmtHour(h)}
+                      {fmt.hour(h)}
                     </option>
                   ))}
                 </select>
@@ -331,7 +332,7 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
                 >
                   {Array.from({ length: 24 }, (_, i) => i + 1).map(h => (
                     <option key={h} value={h}>
-                      {fmtHour(h)}
+                      {fmt.hour(h)}
                     </option>
                   ))}
                 </select>

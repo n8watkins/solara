@@ -40,6 +40,20 @@ export type TierLevel = (typeof TIER_LEVELS)[number]
 export const TIME_PREFERENCES = Object.freeze(['earliest', 'latest', 'sunniest'] as const)
 export type TimePreference = (typeof TIME_PREFERENCES)[number]
 
+/**
+ * Display units. 'auto' (or a missing field) follows the browser locale; the app
+ * resolves it (lib/units.ts). Added without a version bump: the fields are optional,
+ * older documents read as 'auto', and older clients write only the fields they know.
+ */
+export const TEMPERATURE_UNIT_PREFERENCES = Object.freeze([
+  'auto',
+  'celsius',
+  'fahrenheit',
+] as const)
+export type TemperatureUnitPreference = (typeof TEMPERATURE_UNIT_PREFERENCES)[number]
+export const CLOCK_FORMAT_PREFERENCES = Object.freeze(['auto', '12h', '24h'] as const)
+export type ClockFormatPreference = (typeof CLOCK_FORMAT_PREFERENCES)[number]
+
 /** Morning notification hour: allowed range and default. */
 export const NOTIFICATION_HOUR = Object.freeze({ min: 5, max: 10, default: 7 })
 
@@ -322,6 +336,10 @@ export const PREFERENCES_SHAPE = {
     ),
     NOTIFICATION_HOUR.default,
   ),
+  /** Temperature display unit; see TEMPERATURE_UNIT_PREFERENCES. */
+  temperatureUnit: z.catch(z.optional(z.enum(TEMPERATURE_UNIT_PREFERENCES)), undefined),
+  /** 12- or 24-hour clock; see CLOCK_FORMAT_PREFERENCES. */
+  clockFormat: z.catch(z.optional(z.enum(CLOCK_FORMAT_PREFERENCES)), undefined),
 }
 
 const DocumentSchema = z.object(PREFERENCES_SHAPE)

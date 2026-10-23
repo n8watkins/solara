@@ -15,7 +15,7 @@ import { HARNESS_NOW } from '@/tests/harness/clock'
 function day(uvByHour: (h: number) => number = h => (h <= 10 || h >= 17 ? 2 : 9)) {
   const hourly: HourlyForecast[] = []
   for (let h = 6; h <= 20; h++)
-    hourly.push({ hour: h, uv: uvByHour(h), tempF: 70, condition: 'Clear' })
+    hourly.push({ hour: h, uv: uvByHour(h), tempC: 21, condition: 'Clear' })
   return hourly
 }
 
@@ -38,9 +38,9 @@ const win = (from: number, to: number, label: SafeActivityWindow['label']): Safe
 
 describe('nowHourOf', () => {
   it('returns fractional hours rounded up to five minutes', () => {
-    expect(nowHourOf(new Date(2026, 5, 15, 10, 30))).toBe(10.5)
-    expect(nowHourOf(new Date(2026, 5, 15, 10, 31))).toBeCloseTo(10 + 35 / 60)
-    expect(nowHourOf(new Date(2026, 5, 15, 7, 0))).toBe(7)
+    expect(nowHourOf({ hour: 10, minute: 30 })).toBe(10.5)
+    expect(nowHourOf({ hour: 10, minute: 31 })).toBeCloseTo(10 + 35 / 60)
+    expect(nowHourOf({ hour: 7, minute: 0 })).toBe(7)
   })
 })
 

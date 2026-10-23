@@ -163,7 +163,7 @@ service cloud.firestore {
         'schemaVersion', 'location', 'savedLocations', 'skinType', 'profiles', 'activeProfileId',
         'sunscreen', 'activities', 'onboardingComplete', 'calendarHours', 'showSunPath',
         'hiddenActivitySuggestionIds', 'collapsedActivityCategories', 'upgradeInterest',
-        'notificationHour'
+        'notificationHour', 'temperatureUnit', 'clockFormat'
       ];
     }
 
@@ -195,7 +195,10 @@ service cloud.firestore {
         && (!('notificationHour' in keys)
           || (data.notificationHour is int
             && data.notificationHour >= 0
-            && data.notificationHour <= 23));
+            && data.notificationHour <= 23))
+        && (!('temperatureUnit' in keys)
+          || data.temperatureUnit in ['auto', 'celsius', 'fahrenheit'])
+        && (!('clockFormat' in keys) || data.clockFormat in ['auto', '12h', '24h']);
     }
 
     function validNewUser(userId) {

@@ -1,7 +1,8 @@
 'use client'
 import { useEffect, useId, useRef, useState } from 'react'
 import type { HourlyForecast } from '@/lib/types'
-import { fmtHour, uvColorHex } from '@/lib/weather'
+import { uvColorHex } from '@/lib/weather'
+import { useUnits } from '@/lib/use-units'
 import { UV_BAR_GAP, hourSlots, missingRuns, uvBarCenter } from './UVTimeline'
 
 interface Props {
@@ -51,6 +52,7 @@ function useWidth<T extends HTMLElement>() {
  * bars below are the accessible, keyboard-operable version of the same control.
  */
 export default function SunArc({ hourly, nowHour, focused, onSelectHour }: Props) {
+  const fmt = useUnits()
   const [wrapRef, width] = useWidth<HTMLDivElement>()
   const dragging = useRef(false)
 
@@ -280,7 +282,7 @@ export default function SunArc({ hourly, nowHour, focused, onSelectHour }: Props
               Peak {peak.uv.toFixed(1)}
               <tspan fontWeight="500" fill="var(--text-3)">
                 {' '}
-                · {fmtHour(peak.hour)}
+                · {fmt.hour(peak.hour)}
               </tspan>
             </text>
           )}

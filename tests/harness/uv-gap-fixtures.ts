@@ -3,7 +3,7 @@
 // 12:00-14:00 and returns `null` there. Solara must not recommend those hours;
 // before CQ-1 was fixed, the null hours read as UV 0 and every activity got one
 // all-day window straight through the gap.
-import { parseForecast } from '@/lib/forecast'
+import { forecastView, parseForecast } from '@/lib/forecast'
 import type { WeatherResponse } from '@/lib/types'
 import { buildRawForecast } from './fixtures'
 
@@ -22,12 +22,14 @@ export function buildGapWeather(): WeatherResponse {
     if (value === null || (hour >= UV_GAP.from && hour < UV_GAP.to)) return null
     return Math.round((value / peak) * OVERCAST_PEAK_UV * 10) / 10
   })
-  return parseForecast(
-    {
-      ...raw,
-      current: { ...raw.current, uv_index: null },
-      hourly: { ...raw.hourly, uv_index: uv },
-    },
-    10,
+  return forecastView(
+    parseForecast(
+      {
+        ...raw,
+        current: { ...raw.current, uv_index: null },
+        hourly: { ...raw.hourly, uv_index: uv },
+      },
+      { days: 10 },
+    ),
   )
 }

@@ -11,7 +11,7 @@ import type { HourlyForecast } from '@/lib/types'
 const hour = (h: number, uv: number): HourlyForecast => ({
   hour: h,
   uv,
-  tempF: 70,
+  tempC: 21,
   condition: 'Clear',
 })
 

@@ -11,7 +11,7 @@ import type { DayWeather, Activity, HourlyForecast } from '@/lib/types'
 function day(dateStr: string, label: string, uvByHour: (h: number) => number): DayWeather {
   const hourly: HourlyForecast[] = []
   for (let h = 6; h <= 20; h++)
-    hourly.push({ hour: h, uv: uvByHour(h), tempF: 70, condition: 'Clear' })
+    hourly.push({ hour: h, uv: uvByHour(h), tempC: 21, condition: 'Clear' })
   return { dateStr, label, hourly }
 }
 

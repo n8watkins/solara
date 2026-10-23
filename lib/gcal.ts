@@ -2,6 +2,7 @@ import { windowEventSummary } from '@solara/core'
 import type { BusyInterval, SlotRecommendation } from './scheduler'
 import type { Activity } from './types'
 import { fmtClock } from './weather'
+import { addDays, isIsoDate, zonedInstant } from './time'
 
 // Google Calendar access for a static app: the browser gets a short-lived OAuth
 // access token via Google Identity Services (incremental authorization, decoupled
@@ -118,17 +119,20 @@ export async function fetchFreeBusy(
 
 /**
  * PURE. Convert absolute busy periods into per-day busy intervals in fractional
- * hours since local midnight of `dateStr` (YYYY-MM-DD), clipped to [0, 24].
- * Handles multi-day and midnight-spanning events; drops periods that miss the day.
- *
- * Assumes the device timezone matches the forecast location's timezone (the
- * common case — checking the weather where you are). The engine's subtractBusy
- * sorts/merges, so no need to here.
+ * hours since local midnight of `dateStr` (YYYY-MM-DD) in the forecast location's
+ * `timeZone`, clipped to the day. Handles multi-day and midnight-spanning events
+ * and 23- or 25-hour DST days; drops periods that miss the day. The engine's
+ * subtractBusy sorts and merges, so no need to here.
  */
-export function busyIntervalsForDay(periods: BusyPeriod[], dateStr: string): BusyInterval[] {
-  const dayStart = new Date(`${dateStr}T00:00:00`).getTime()
-  if (Number.isNaN(dayStart)) return []
-  const dayEnd = dayStart + 24 * 3_600_000
+export function busyIntervalsForDay(
+  periods: BusyPeriod[],
+  dateStr: string,
+  timeZone: string,
+): BusyInterval[] {
+  if (!isIsoDate(dateStr)) return []
+  const dayStart = zonedInstant(dateStr, 0, timeZone)
+  const dayEnd = zonedInstant(addDays(dateStr, 1), 0, timeZone)
+  if (Number.isNaN(dayStart) || Number.isNaN(dayEnd)) return []
 
   const out: BusyInterval[] = []
   for (const p of periods) {
@@ -194,9 +198,7 @@ export function buildEventBody(
   start: number,
   end: number,
   description: string,
-  timeZone: string = typeof Intl !== 'undefined'
-    ? Intl.DateTimeFormat().resolvedOptions().timeZone
-    : 'UTC',
+  timeZone: string,
 ): CalendarEventBody {
   return {
     summary: windowEventSummary(activity),

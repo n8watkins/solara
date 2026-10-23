@@ -8,7 +8,8 @@ import type {
   TierLevel,
   HourlyForecast,
 } from '@/lib/types'
-import { burnMins, vitDMins, uvLabel, fmtHour, fmtClock } from '@/lib/weather'
+import { burnMins, vitDMins, uvLabel } from '@/lib/weather'
+import { useUnits } from '@/lib/use-units'
 import { nowHourOf, planActivityDay, soonestPlan } from '@/lib/next-slot'
 import { getFutureDays } from '@/lib/tiers'
 import type { BusyPeriod } from '@/lib/gcal'
@@ -73,11 +74,12 @@ export default function Dashboard({
   // The hour being inspected, shared by the sun path + the UV strip so a tap on
   // either keeps both in sync. null = fall back to "now" (today) / first hour.
   const [focusedHour, setFocusedHour] = useState<HourlyForecast | null>(null)
-  const now = new Date()
-  const currentHour = now.getHours()
+  const fmt = useUnits()
+  // "Now" is the forecast location's wall clock, never the device's.
+  const currentHour = weather.now.hour
   // Fractional "now" (rounded up to 5 minutes): the earliest start any recommendation
   // on today may offer, and where the sun marker sits on the arc.
-  const nowHour = nowHourOf(now)
+  const nowHour = nowHourOf(weather.now)
 
   const accessTier = displayTier || prefs.tier || 'anonymous'
   const activityTier = prefs.tier || 'anonymous'
@@ -91,9 +93,6 @@ export default function Dashboard({
 
   const activeDayData = effectiveSelectedDay ? effectiveSelectedDay.hourly : weather.today
   const isToday = !effectiveSelectedDay
-  const dayIndex = effectiveSelectedDay
-    ? weather.forecast.findIndex(d => d.dateStr === effectiveSelectedDay.dateStr)
-    : 0
 
   // Switching days clears the scrubbed hour so the arc/strip snap back to "now"
   // (or the new day's first hour) rather than pointing at a stale hour.
@@ -114,9 +113,7 @@ export default function Dashboard({
   // The one "now" UV: the live reading the header shows too. Hourly bars stay
   // forecasts for their hour; only the unscrubbed readout and burn time say "now".
   const currentUV = isToday ? weather.current.uv : (peakEntry?.uv ?? 0)
-  const currentTemp = isToday
-    ? weather.current.tempF
-    : (peakEntry?.tempF ?? ('--' as string | number))
+  const currentTemp = isToday ? weather.current.tempC : peakEntry?.tempC
   const currentCond = isToday ? weather.current.condition : (peakEntry?.condition ?? '')
   const peakUV = hourly.length ? Math.max(...hourly.map(h => h.uv)) : 0
   const peakHour = hourly.find(h => h.uv === peakUV)?.hour ?? 12
@@ -126,9 +123,9 @@ export default function Dashboard({
   // live reading (today) or the day's peak, matching the header and burn card.
   const focusHour = sharedFocus
   const headUV = focusHour ? focusHour.uv : currentUV
-  const headTemp = focusHour ? focusHour.tempF : currentTemp
+  const headTemp = focusHour ? focusHour.tempC : currentTemp
   const headCond = focusHour ? focusHour.condition : currentCond
-  const headSuffix = focusHour ? ` at ${fmtHour(focusHour.hour)}` : isToday ? ' now' : ' peak'
+  const headSuffix = focusHour ? ` at ${fmt.hour(focusHour.hour)}` : isToday ? ' now' : ' peak'
 
   const burn = burnMins(currentUV, prefs.skinType)
   const vitD = vitDMins(currentUV, prefs.skinType)
@@ -144,7 +141,7 @@ export default function Dashboard({
   const busyByDate: Record<string, ReturnType<typeof busyIntervalsForDay>> = {}
   if (calBusy)
     for (const day of visibleForecast)
-      busyByDate[day.dateStr] = busyIntervalsForDay(calBusy, day.dateStr)
+      busyByDate[day.dateStr] = busyIntervalsForDay(calBusy, day.dateStr, weather.timezone)
   const busyForActiveDay = busyByDate[activeDateStr] ?? []
   // One plan per activity for the selected day; the hero, the cards and their share
   // and calendar buttons all read from it, and PlanAhead runs the same function.
@@ -200,12 +197,19 @@ export default function Dashboard({
 
   async function bookSlotOn(activity: Activity, rec: SlotRecommendation, dateStr: string) {
     setShareMsg('Adding to your calendar…')
+    // For a future day the "peak" context belongs to that day, not today's reading.
+    const peak = dateStr === activeDateStr ? { peakUV, peakHour } : { peakUV: rec.peakUV }
+    const description = buildEventDescription(rec, activity, peak)
+    const body = buildEventBody(
+      activity,
+      dateStr,
+      rec.start,
+      rec.end,
+      description,
+      weather.timezone,
+    )
     try {
       const token = await requestWriteToken()
-      // For a future day the "peak" context belongs to that day, not today's reading.
-      const peak = dateStr === activeDateStr ? { peakUV, peakHour } : { peakUV: rec.peakUV }
-      const description = buildEventDescription(rec, activity, peak)
-      const body = buildEventBody(activity, dateStr, rec.start, rec.end, description)
       const event = await createCalendarEvent(token, body)
       setShareMsg('✓ Added to your Google Calendar.')
       if (event.htmlLink) window.open(event.htmlLink, '_blank', 'noopener')
@@ -374,7 +378,7 @@ export default function Dashboard({
                     lineHeight: 1.1,
                   }}
                 >
-                  {fmtClock(heroPlan.slot.start)}–{fmtClock(heroPlan.slot.end)}
+                  {fmt.time(heroPlan.slot.start)}–{fmt.time(heroPlan.slot.end)}
                 </p>
                 <p
                   style={{
@@ -419,7 +423,7 @@ export default function Dashboard({
                     lineHeight: 1.15,
                   }}
                 >
-                  Peak UV {peakUV.toFixed(1)} at {fmtHour(peakHour)}
+                  Peak UV {peakUV.toFixed(1)} at {fmt.hour(peakHour)}
                 </p>
                 <p
                   style={{
@@ -489,7 +493,7 @@ export default function Dashboard({
               textOverflow: 'ellipsis',
             }}
           >
-            {typeof headTemp === 'number' ? `${headTemp}°F` : headTemp} · {headCond}
+            {headTemp === undefined ? '--' : fmt.temp(headTemp)} · {headCond}
             {headBurn ? ` · burn ~${headBurn}m` : ''}
           </p>
         </div>
@@ -719,7 +723,8 @@ export default function Dashboard({
           <ActivityCards
             plans={dayPlans}
             isToday={isToday}
-            daysFromNow={dayIndex}
+            dateStr={activeDateStr}
+            timeZone={weather.timezone}
             tier={accessTier}
             location={prefs.location}
             dateLabel={dateLabel}

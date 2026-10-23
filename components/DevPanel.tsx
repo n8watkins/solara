@@ -22,17 +22,14 @@ const TIERS: { value: TierLevel; label: string; emoji: string; desc: string }[] 
 
 export default function DevPanel({ currentTier, onOverride }: Props) {
   const [open, setOpen] = useState(false)
-  const [active, setActive] = useState<TierLevel>(currentTier)
+  // Dev-only and client-only (rendered by components/App.tsx), so the stored
+  // override is read on first render.
+  const [active, setActive] = useState<TierLevel>(() => getDevTierOverride() ?? currentTier)
 
   useEffect(() => {
     const stored = getDevTierOverride()
-    if (stored) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- Browser-only state is read after hydration so the static export's prerendered markup matches the first client render.
-      setActive(stored)
-      onOverride(stored)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- Apply the stored override once on mount only.
-  }, [])
+    if (stored) onOverride(stored)
+  }, [onOverride])
 
   function set(tier: TierLevel) {
     setActive(tier)

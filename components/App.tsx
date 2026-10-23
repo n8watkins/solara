@@ -1,12 +1,14 @@
 'use client'
-import { useEffect, useEffectEvent, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { QueryClientProvider, useQueryClient } from '@tanstack/react-query'
 import type { User } from 'firebase/auth'
 import { onAuthStateChanged } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
-import { saveLocalPrefs, saveFirestorePrefs } from '@/lib/prefs'
+import { NewerPreferencesVersionError, saveLocalPrefs, saveFirestorePrefs } from '@/lib/prefs'
 import { loadAccountPrefs } from '@/lib/session'
-import { getCachedWeather, setCachedWeather } from '@/lib/cache'
-import { fetchForecast } from '@/lib/forecast'
+import { FORECAST_QUERY_KEY, createQueryClient, useWeather } from '@/lib/use-forecast'
+import { resolveUnits, unitFormatters } from '@/lib/units'
+import { UnitsContext } from '@/lib/use-units'
 import {
   enableNotifications,
   migrateLegacyNotificationToken,
@@ -14,7 +16,7 @@ import {
   onForegroundMessage,
 } from '@/lib/notifications'
 import { observeCheckoutResult } from '@/lib/billing'
-import type { UserPreferences, WeatherResponse, Location, TierLevel, DayWeather } from '@/lib/types'
+import type { UserPreferences, TierLevel, DayWeather } from '@/lib/types'
 import Welcome from './Welcome'
 import Onboarding from './Onboarding'
 import Dashboard from './Dashboard'
@@ -34,24 +36,30 @@ const ACCOUNT_CREATE_ERROR =
   'Could not finish setting up your account. Nothing was saved. Check your connection and try again.'
 
 export default function App() {
+  const [queryClient] = useState(createQueryClient)
+  return (
+    <QueryClientProvider client={queryClient}>
+      <SignedInApp />
+    </QueryClientProvider>
+  )
+}
+
+function SignedInApp() {
+  const queryClient = useQueryClient()
   const [user, setUser] = useState<User | null>(null)
   const [prefs, setPrefs] = useState<UserPreferences | null>(null)
-  const [weather, setWeather] = useState<WeatherResponse | null>(null)
   const [screen, setScreen] = useState<Screen>('loading')
   const [view, setView] = useState<AppView>('dashboard')
   const [selectedDay, setSelectedDay] = useState<DayWeather | null>(null)
   const [tierOverride, setTierOverride] = useState<TierLevel | null>(null)
   const [prefsOpen, setPrefsOpen] = useState(false)
   const [prefsTab] = useState<'general' | 'activities' | 'location'>('general')
-  const [weatherLoading, setWeatherLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [accountError, setAccountError] = useState<string | null>(null)
-  const [syncError, setSyncError] = useState<string | null>(null)
+  // A failed cloud save: retry it, or reload when a newer Solara wrote the document.
+  const [syncError, setSyncError] = useState<{ message: string; reload: boolean } | null>(null)
   const [authReloadKey, setAuthReloadKey] = useState(0)
   const [foregroundNotice, setForegroundNotice] = useState(false)
   const [billingNotice, setBillingNotice] = useState<string | null>(null)
-  // The weather request in flight; a newer request, a sign-out or unmount aborts it.
-  const weatherRequest = useRef<AbortController | null>(null)
   // The account whose data is on screen, to detect a switch to a different account.
   const accountUid = useRef<string | null>(null)
   const isDev = process.env.NODE_ENV === 'development'
@@ -63,12 +71,9 @@ export default function App() {
     let disposed = false
 
     function resetAccountState() {
-      weatherRequest.current?.abort()
-      weatherRequest.current = null
+      // Drops cached forecasts and aborts any request in flight.
+      queryClient.removeQueries({ queryKey: FORECAST_QUERY_KEY })
       setPrefs(null)
-      setWeather(null)
-      setWeatherLoading(false)
-      setError(null)
       setSyncError(null)
       setBillingNotice(null)
       setForegroundNotice(false)
@@ -139,9 +144,7 @@ export default function App() {
     return () => {
       disposed = true
     }
-  }, [authReloadKey])
-
-  useEffect(() => () => weatherRequest.current?.abort(), [])
+  }, [authReloadKey, queryClient])
 
   useEffect(() => {
     if (!user) return
@@ -195,50 +198,16 @@ export default function App() {
     )
   }, [user])
 
-  const lat = prefs?.location.lat
-  const lon = prefs?.location.lon
-  const loadWeatherForPrefs = useEffectEvent(() => {
-    if (prefs?.location) void fetchWeather(prefs.location)
-  })
-  useEffect(() => {
-    // Refetch only when the coordinates or screen change, not on every location
-    // object identity change.
-    if (screen === 'dashboard' && lat !== undefined && lon !== undefined) loadWeatherForPrefs()
-  }, [lat, lon, screen])
-
-  async function fetchWeather(location: Location, force = false) {
-    // Only the latest request may update the screen: abort whatever is in flight
-    // (for example the forecast for a location the person just switched away from).
-    weatherRequest.current?.abort()
-    const controller = new AbortController()
-    weatherRequest.current = controller
-    if (!force) {
-      const cached = getCachedWeather(location.lat, location.lon)
-      if (cached) {
-        weatherRequest.current = null
-        setWeather(cached)
-        setWeatherLoading(false)
-        setError(null)
-        return
-      }
-    }
-    setWeatherLoading(true)
-    setError(null)
-    try {
-      const data = await fetchForecast(location, { signal: controller.signal })
-      if (controller.signal.aborted) return
-      setCachedWeather(location.lat, location.lon, data)
-      setWeather(data)
-    } catch {
-      if (controller.signal.aborted) return
-      setError('Could not load weather data.')
-    } finally {
-      if (weatherRequest.current === controller) {
-        weatherRequest.current = null
-        setWeatherLoading(false)
-      }
-    }
-  }
+  // The forecast for the active location. Switching location aborts the old
+  // request; a cached forecast shows at once while a stale one refreshes; "today"
+  // and "now" come from the location's time zone.
+  const {
+    weather,
+    loading: weatherLoading,
+    error,
+    refresh: refreshWeather,
+  } = useWeather(screen === 'dashboard' ? prefs?.location : null)
+  const units = unitFormatters(resolveUnits(prefs))
 
   async function handlePrefsUpdate(updated: UserPreferences) {
     setPrefs(updated)
@@ -247,9 +216,19 @@ export default function App() {
       saveLocalPrefs({ ...updated, uid: user.uid })
       try {
         await saveFirestorePrefs(user.uid, updated)
-      } catch {
+      } catch (error) {
         setSyncError(
-          'Saved on this device, but cloud sync failed. Retry when your connection returns.',
+          error instanceof NewerPreferencesVersionError
+            ? {
+                message:
+                  'Solara was updated in another tab or device. Reload to keep editing your settings.',
+                reload: true,
+              }
+            : {
+                message:
+                  'Saved on this device, but cloud sync failed. Retry when your connection returns.',
+                reload: false,
+              },
         )
       }
     }
@@ -333,159 +312,176 @@ export default function App() {
   const effectiveView = displayTier === 'anonymous' ? 'dashboard' : view
 
   return (
-    <AppShell
-      header={
-        <Header
-          user={user}
-          prefs={prefs}
-          displayTier={displayTier}
-          onPrefsUpdate={p => void handlePrefsUpdate(p)}
-          forceOpenTab={prefsOpen ? prefsTab : undefined}
-          onModalClose={() => setPrefsOpen(false)}
-          onGoHome={() => {
-            setView('dashboard')
-            setSelectedDay(null)
-          }}
-          currentUV={weather?.current.uv}
-        />
-      }
-      view={effectiveView}
-      onViewChange={displayTier !== 'anonymous' ? setView : undefined}
-      after={isDev && <DevPanel currentTier={displayTier} onOverride={setTierOverride} />}
-    >
-      <InstallPrompt />
-      {foregroundNotice && (
-        <div
-          role="status"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
-            padding: '12px 16px',
-            borderRadius: '12px',
-            background: 'var(--notice-bg)',
-            border: '0.5px solid var(--notice-border)',
-            marginBottom: '16px',
-            fontSize: '14px',
-            color: 'var(--notice-text)',
-          }}
-        >
-          <span>🔔</span>
-          <span style={{ flex: 1 }}>Your latest local-morning planning summary is ready.</span>
-          <button
-            className="btn"
-            onClick={() => setForegroundNotice(false)}
-            style={{ fontSize: '12px' }}
+    <UnitsContext value={units}>
+      <AppShell
+        header={
+          <Header
+            user={user}
+            prefs={prefs}
+            displayTier={displayTier}
+            onPrefsUpdate={p => void handlePrefsUpdate(p)}
+            forceOpenTab={prefsOpen ? prefsTab : undefined}
+            onModalClose={() => setPrefsOpen(false)}
+            onGoHome={() => {
+              setView('dashboard')
+              setSelectedDay(null)
+            }}
+            currentUV={weather?.current.uv}
+          />
+        }
+        view={effectiveView}
+        onViewChange={displayTier !== 'anonymous' ? setView : undefined}
+        after={isDev && <DevPanel currentTier={displayTier} onOverride={setTierOverride} />}
+      >
+        <InstallPrompt />
+        {foregroundNotice && (
+          <div
+            role="status"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              padding: '12px 16px',
+              borderRadius: '12px',
+              background: 'var(--notice-bg)',
+              border: '0.5px solid var(--notice-border)',
+              marginBottom: '16px',
+              fontSize: '14px',
+              color: 'var(--notice-text)',
+            }}
           >
-            Dismiss
-          </button>
-        </div>
-      )}
-      {billingNotice && (
-        <div
-          role="status"
-          style={{
-            padding: '12px 16px',
-            borderRadius: '12px',
-            background: '#EFF6FF',
-            border: '0.5px solid #BFDBFE',
-            marginBottom: '16px',
-            fontSize: '14px',
-            color: '#1E40AF',
-          }}
-        >
-          {billingNotice}
-        </div>
-      )}
-      {error && (
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
-            padding: '12px 16px',
-            borderRadius: '12px',
-            background: '#FEF2F2',
-            border: '0.5px solid #FECACA',
-            marginBottom: '16px',
-            fontSize: '14px',
-            color: '#991B1B',
-          }}
-        >
-          <span>⚠️</span>
-          <span style={{ flex: 1 }}>{error}</span>
-          <button
-            className="btn"
-            onClick={() => void fetchWeather(prefs.location, true)}
-            style={{ fontSize: '12px' }}
-          >
-            Retry
-          </button>
-        </div>
-      )}
-      {syncError && (
-        <div
-          role="alert"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
-            padding: '12px 16px',
-            borderRadius: '12px',
-            background: 'var(--notice-bg)',
-            border: '0.5px solid var(--notice-border)',
-            marginBottom: '16px',
-            fontSize: '14px',
-            color: 'var(--notice-text)',
-          }}
-        >
-          <span>☁️</span>
-          <span style={{ flex: 1 }}>{syncError}</span>
-          <button
-            className="btn"
-            onClick={() => void handlePrefsUpdate(prefs)}
-            style={{ fontSize: '12px' }}
-          >
-            Retry sync
-          </button>
-        </div>
-      )}
-      {effectiveView === 'dashboard' && (
-        <>
-          {weatherLoading && <Skeleton />}
-          {weather && !weatherLoading && (
-            <ErrorBoundary
-              label="the dashboard"
-              onReset={() => void fetchWeather(prefs.location, true)}
+            <span>🔔</span>
+            <span style={{ flex: 1 }}>Your latest local-morning planning summary is ready.</span>
+            <button
+              className="btn"
+              onClick={() => setForegroundNotice(false)}
+              style={{ fontSize: '12px' }}
             >
-              <Dashboard
-                weather={weather}
-                prefs={prefs}
-                displayTier={displayTier}
-                onPrefsUpdate={p => void handlePrefsUpdate(p)}
-                onRefresh={() => void fetchWeather(prefs.location, true)}
-                selectedDay={selectedDay}
-                onSelectDay={setSelectedDay}
-              />
-            </ErrorBoundary>
-          )}
-        </>
-      )}
-      {effectiveView === 'calendar' && (
-        <div className="card">
-          <ErrorBoundary
-            label="the calendar"
-            onReset={() => void fetchWeather(prefs.location, true)}
+              Dismiss
+            </button>
+          </div>
+        )}
+        {billingNotice && (
+          <div
+            role="status"
+            style={{
+              padding: '12px 16px',
+              borderRadius: '12px',
+              background: '#EFF6FF',
+              border: '0.5px solid #BFDBFE',
+              marginBottom: '16px',
+              fontSize: '14px',
+              color: '#1E40AF',
+            }}
           >
-            <CalendarView
-              prefs={prefs}
-              displayTier={displayTier}
-              weather={weather}
-              onPrefsUpdate={p => void handlePrefsUpdate(p)}
-            />
-          </ErrorBoundary>
-        </div>
-      )}
-    </AppShell>
+            {billingNotice}
+          </div>
+        )}
+        {error && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              padding: '12px 16px',
+              borderRadius: '12px',
+              background: '#FEF2F2',
+              border: '0.5px solid #FECACA',
+              marginBottom: '16px',
+              fontSize: '14px',
+              color: '#991B1B',
+            }}
+          >
+            <span>⚠️</span>
+            <span style={{ flex: 1 }}>{error}</span>
+            <button className="btn" onClick={refreshWeather} style={{ fontSize: '12px' }}>
+              Retry
+            </button>
+          </div>
+        )}
+        {syncError && (
+          <div
+            role="alert"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              padding: '12px 16px',
+              borderRadius: '12px',
+              background: 'var(--notice-bg)',
+              border: '0.5px solid var(--notice-border)',
+              marginBottom: '16px',
+              fontSize: '14px',
+              color: 'var(--notice-text)',
+            }}
+          >
+            <span>☁️</span>
+            <span style={{ flex: 1 }}>{syncError.message}</span>
+            {syncError.reload ? (
+              <button
+                className="btn"
+                onClick={() => window.location.reload()}
+                style={{ fontSize: '12px' }}
+              >
+                Reload
+              </button>
+            ) : (
+              <button
+                className="btn"
+                onClick={() => void handlePrefsUpdate(prefs)}
+                style={{ fontSize: '12px' }}
+              >
+                Retry sync
+              </button>
+            )}
+          </div>
+        )}
+        {effectiveView === 'dashboard' && (
+          <>
+            {weatherLoading && <Skeleton />}
+            {weather && (
+              <ErrorBoundary label="the dashboard" onReset={refreshWeather}>
+                <Dashboard
+                  weather={weather}
+                  prefs={prefs}
+                  displayTier={displayTier}
+                  onPrefsUpdate={p => void handlePrefsUpdate(p)}
+                  onRefresh={refreshWeather}
+                  selectedDay={selectedDay}
+                  onSelectDay={setSelectedDay}
+                />
+              </ErrorBoundary>
+            )}
+          </>
+        )}
+        {effectiveView === 'calendar' && (weather || weatherLoading) && (
+          <div className="card">
+            {weather ? (
+              <ErrorBoundary label="the calendar" onReset={refreshWeather}>
+                <CalendarView
+                  prefs={prefs}
+                  displayTier={displayTier}
+                  weather={weather}
+                  onPrefsUpdate={p => void handlePrefsUpdate(p)}
+                />
+              </ErrorBoundary>
+            ) : (
+              <p
+                role="status"
+                style={{
+                  padding: '3rem 0',
+                  margin: 0,
+                  textAlign: 'center',
+                  fontSize: '14px',
+                  color: 'var(--text-3)',
+                }}
+              >
+                Loading forecast…
+              </p>
+            )}
+          </div>
+        )}
+      </AppShell>
+    </UnitsContext>
   )
 }

@@ -2,6 +2,10 @@ import { hourAllowed, lowestUVWindow, windowEventTitle } from '@solara/core'
 import type { HourlyForecast, Activity, ActivityWindow, SkinType } from './types'
 import { burnMins, effectiveMaxUV, findRecommendationWindows } from './recommendation'
 import { cloudAdjustedUV } from './exposure'
+import { zonedInstant } from './time'
+
+/** 12-hour hour and time labels; components use useUnits() for the person's clock. */
+export { formatHour as fmtHour, formatClockTime as fmtClock } from './units'
 
 export { burnMins, SKIN_BURN_BASE } from './recommendation'
 import { SKIN_BURN_BASE } from './recommendation'
@@ -38,31 +42,11 @@ export function uvTextHex(_uv: number): string {
   return '#1a1208'
 }
 
-export function fmtHour(h: number): string {
-  if (h === 0 || h === 24) return '12am'
-  if (h === 12) return '12pm'
-  return h < 12 ? `${h}am` : `${h - 12}pm`
-}
-
 // UV values display with one decimal everywhere; `compact` drops the decimal at
 // double digits so the value fits the ~22px mobile timeline bars.
 export function formatUV(uv: number, opts?: { compact?: boolean }): string {
   if (opts?.compact && uv >= 10) return String(Math.round(uv))
   return uv.toFixed(1)
-}
-
-// Like fmtHour but supports fractional hours: 6.75 → "6:45am", 17 → "5pm".
-export function fmtClock(h: number): string {
-  let hr = Math.floor(h)
-  let min = Math.round((h - hr) * 60)
-  if (min === 60) {
-    hr += 1
-    min = 0
-  }
-  const base = fmtHour(hr)
-  if (min === 0) return base
-  const m = base.match(/^(\d+)(am|pm)$/)
-  return m ? `${m[1]}:${String(min).padStart(2, '0')}${m[2]}` : base
 }
 
 const DAY_ABBR = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -79,26 +63,30 @@ export function fmtDays(days?: number[]): string | null {
     .join(', ')
 }
 
+/** Google Calendar's compact UTC timestamp, e.g. 20260615T173000Z. */
+export function gcalTimestamp(epochMs: number): string {
+  return new Date(epochMs).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
+}
+
+/**
+ * A Google Calendar "add event" link for a slot on `dateStr`, starting at the
+ * fractional hour `window.from` in the forecast location's `timeZone`, so the event
+ * lands at the right moment whatever zone the device is in.
+ */
 export function gcalLink(
   activityName: string,
   window: { from: number; to: number },
   durationMins: number,
-  daysFromNow = 0,
+  dateStr: string,
+  timeZone: string,
 ): string {
-  const base = new Date()
-  base.setDate(base.getDate() + daysFromNow)
-  // Midnight plus whole minutes, so a fractional start (10.5 = 10:30) is kept
-  // instead of truncated to the hour by the Date constructor.
-  const start = new Date(base.getFullYear(), base.getMonth(), base.getDate())
-  start.setMinutes(Math.round(window.from * 60))
-  const end = new Date(start)
-  end.setMinutes(end.getMinutes() + Math.round(durationMins))
-  const fmt = (d: Date) => d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
+  const start = zonedInstant(dateStr, window.from, timeZone)
+  const end = start + Math.round(durationMins) * 60_000
   const title = encodeURIComponent(windowEventTitle(activityName))
   const details = encodeURIComponent(
     'Forecast-based lower-UV planning estimate from Solara. Recheck current UV and use sun protection.',
   )
-  return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${fmt(start)}/${fmt(end)}&details=${details}`
+  return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${gcalTimestamp(start)}/${gcalTimestamp(end)}&details=${details}`
 }
 
 function withinPreferredHours(hour: number, activity: Activity): boolean {

@@ -5,9 +5,9 @@
 // `parseForecast`, so the harness exercises the same parsing the live app uses.
 // Everything here is pure: no Date.now, no randomness, no network.
 import type { User } from 'firebase/auth'
-import { parseForecast } from '@/lib/forecast'
+import { forecastView, parseForecast } from '@/lib/forecast'
 import type { Activity, Location, TierLevel, UserPreferences, WeatherResponse } from '@/lib/types'
-import { HARNESS_DATE } from './clock'
+import { HARNESS_DATE, HARNESS_TIMEZONE } from './clock'
 
 /** Unique string the production leak check looks for (scripts/check-no-ui-harness.mjs). */
 export const HARNESS_MARKER = 'solara-ui-harness'
@@ -92,6 +92,7 @@ export function buildRawForecast(): RawForecast {
   if (!today) throw new Error('Harness fixtures need at least one day')
 
   return {
+    timezone: HARNESS_TIMEZONE,
     current: {
       uv_index: uvAt(10.5, today.peakUV),
       temperature_2m: tempAt(10.5, today.maxC),
@@ -107,9 +108,9 @@ export function buildRawForecast(): RawForecast {
   }
 }
 
-/** The parsed forecast. Call in the browser after the clock is frozen. */
+/** The parsed forecast as seen now. Call in the browser after the clock is frozen. */
 export function buildWeather(): WeatherResponse {
-  return parseForecast(buildRawForecast(), DAYS.length)
+  return forecastView(parseForecast(buildRawForecast(), { days: DAYS.length }))
 }
 
 const ACTIVITIES: Activity[] = [

@@ -1,9 +1,21 @@
 'use client'
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
-import type { Activity, UserPreferences, WeatherResponse } from '@/lib/types'
+import {
+  useEffect,
+  useEffectEvent,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+} from 'react'
+import type { Activity, DayWeather, UserPreferences, WeatherResponse } from '@/lib/types'
 import { canUseCalendar, getFutureDays, TIER_LIMITS } from '@/lib/tiers'
-import type { DayForecast, SafeWindow } from '@/lib/calendar'
-import { getSafeWindowsForActivity, gcalWindowLink, fmtH } from '@/lib/calendar'
+import type { SafeWindow } from '@/lib/calendar'
+import { gcalWindowLink } from '@/lib/calendar'
+import { nowHourOf, planActivityDay } from '@/lib/next-slot'
+import { activityRunsOnDate } from '@/lib/recommendation'
+import { dayOfMonth, formatDate, fractionalHour } from '@/lib/time'
+import { useUnits } from '@/lib/use-units'
+import type { UnitFormatters } from '@/lib/units'
 import {
   LANE_GAP,
   UV_BANDS,
@@ -13,19 +25,18 @@ import {
   computeColumns,
   pageTarget,
   rangeLabel,
-  shortHour,
   uvBand,
   visibleDays,
   type ChipVariant,
   type ViewKey,
 } from '@/lib/calendar-layout'
-import { fetchForecast } from '@/lib/forecast'
 import { buildActivityShareText, buildActivityShareUrl, shareOrCopy } from '@/lib/share'
 import EditActivityModal from './EditActivityModal'
 
 interface Props {
   prefs: UserPreferences
-  weather?: WeatherResponse | null
+  /** The forecast as seen now in the location's zone (see lib/forecast.ts forecastView). */
+  weather: WeatherResponse
   displayTier?: UserPreferences['tier']
   onPrefsUpdate?: (prefs: UserPreferences) => void
 }
@@ -89,16 +100,19 @@ function durationText(mins: number): string {
   return mins < 60 ? `${mins} min` : `${mins / 60} hr`
 }
 
-function forecastFromWeather(weather: WeatherResponse, limit = 7): DayForecast[] {
-  const todayStr = new Date().toLocaleDateString('en-CA')
+interface CalendarDay extends DayWeather {
+  /** Column header: "Today", or the weekday ("Tue"). */
+  shortLabel: string
+  isToday: boolean
+}
+
+function calendarDays(weather: WeatherResponse, limit: number): CalendarDay[] {
   return weather.forecast.slice(0, limit).map(day => {
-    const d = new Date(day.dateStr + 'T12:00:00')
+    const isToday = day.dateStr === weather.now.date
     return {
-      dateStr: day.dateStr,
-      label: day.label,
-      shortLabel:
-        day.dateStr === todayStr ? 'Today' : d.toLocaleDateString('en-US', { weekday: 'short' }),
-      hourly: day.hourly.map(h => ({ hour: h.hour, uv: h.uv, tempF: h.tempF })),
+      ...day,
+      isToday,
+      shortLabel: isToday ? 'Today' : formatDate(day.dateStr, { weekday: 'short' }),
     }
   })
 }
@@ -106,18 +120,15 @@ function forecastFromWeather(weather: WeatherResponse, limit = 7): DayForecast[]
 interface Selection {
   act: Activity
   win: SafeWindow
-  day: DayForecast
+  day: CalendarDay
   key: string
 }
 
 export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdate }: Props) {
   const tier = displayTier || prefs.tier || 'anonymous'
   const dayLimit = getFutureDays(tier)
-  const [days, setDays] = useState<DayForecast[]>(
-    weather ? forecastFromWeather(weather, dayLimit) : [],
-  )
-  const [loading, setLoading] = useState(!weather)
-  const [error, setError] = useState<string | null>(null)
+  const fmt = useUnits()
+  const days = calendarDays(weather, dayLimit)
   const [selected, setSelected] = useState<Selection | null>(null)
   const [view, setView] = useState<ViewKey>('full')
   const [confirm, setConfirm] = useState<string | null>(null)
@@ -154,42 +165,12 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
     const obs = new ResizeObserver(measure)
     obs.observe(el)
     return () => obs.disconnect()
-  }, [loading, error, prefs.activities.length])
+  }, [prefs.activities.length])
 
   // Each view opens at its first hour, which is never later than the earliest window.
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = 0
   }, [view, focusedActivityId])
-
-  useEffect(() => {
-    if (weather) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- Mirrors the weather prop into the state the fetch path also writes; deriving it during render belongs to the data-layer refactor (see CQ-7).
-      setDays(forecastFromWeather(weather, dayLimit))
-      setLoading(false)
-      setError(null)
-      return
-    }
-
-    const controller = new AbortController()
-    async function load() {
-      setLoading(true)
-      setError(null)
-      try {
-        const data = await fetchForecast(prefs.location, {
-          days: dayLimit,
-          signal: controller.signal,
-        })
-        setDays(forecastFromWeather(data, dayLimit))
-      } catch (e) {
-        if ((e as Error)?.name !== 'AbortError') setError('Could not load forecast.')
-      } finally {
-        setLoading(false)
-      }
-    }
-    void load()
-    return () => controller.abort()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- Reload only when the coordinates change, not on every location object identity change (see CQ-7).
-  }, [prefs.location.lat, prefs.location.lon, weather, dayLimit])
 
   function closeSheet() {
     setSelected(null)
@@ -201,23 +182,23 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
 
   // Detail sheet: focus moves into it on open, Escape closes it, and focus returns
   // to the chip that opened it.
+  const selectedKey = selected?.key
+  const onSheetKey = useEffectEvent((e: KeyboardEvent) => {
+    if (e.key === 'Escape') closeSheet()
+  })
   useEffect(() => {
-    if (!selected) return
+    if (!selectedKey) return
     sheetRef.current?.focus()
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') closeSheet()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- Re-run per opened window; closeSheet only touches refs and setters.
-  }, [selected?.key])
+    window.addEventListener('keydown', onSheetKey)
+    return () => window.removeEventListener('keydown', onSheetKey)
+  }, [selectedKey])
 
   function flash(message: string, ms = 3500) {
     setConfirm(message)
     window.setTimeout(() => setConfirm(current => (current === message ? null : current)), ms)
   }
 
-  async function shareWindow(act: Activity, win: SafeWindow, day: DayForecast) {
+  async function shareWindow(act: Activity, win: SafeWindow, day: CalendarDay) {
     const payload = {
       activity: act,
       window: win,
@@ -230,19 +211,21 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
       payload,
       typeof window !== 'undefined' ? window.location.origin : undefined,
     )
+    let result: Awaited<ReturnType<typeof shareOrCopy>>
     try {
-      const result = await shareOrCopy(`${act.name} sun window`, text, url)
-      flash(
-        result === 'shared'
-          ? 'Shared activity window.'
-          : result === 'copied'
-            ? 'Copied share text and link.'
-            : `${text} ${url}`,
-        4500,
-      )
+      result = await shareOrCopy(`${act.name} sun window`, text, url)
     } catch {
       setConfirm(null)
+      return
     }
+    flash(
+      result === 'shared'
+        ? 'Shared activity window.'
+        : result === 'copied'
+          ? 'Copied share text and link.'
+          : `${text} ${url}`,
+      4500,
+    )
   }
 
   function updateActivity(updated: Activity) {
@@ -274,34 +257,29 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
       </div>
     )
 
-  if (loading)
-    return (
-      <div
-        style={{ padding: '3rem 0', textAlign: 'center', fontSize: '14px', color: 'var(--text-3)' }}
-      >
-        Loading forecast…
-      </div>
-    )
-  if (error)
-    return (
-      <div
-        style={{ padding: '2rem 0', textAlign: 'center', fontSize: '14px', color: 'var(--danger)' }}
-      >
-        {error}
-      </div>
-    )
-
   const colorFor = (act: Activity) => {
     const idx = prefs.activities.findIndex(a => a.id === act.id)
     return ACT_COLORS[Math.max(0, idx) % ACT_COLORS.length] ?? '#C2410C'
   }
 
+  // "Now" is the forecast location's wall clock, never the device's.
+  const todayStr = weather.now.date
+  const nowFrac = fractionalHour(weather.now)
+  // The earliest start offered today (now, rounded up to 5 minutes).
+  const todayNowHour = nowHourOf(weather.now)
+  // The same actionable windows the dashboard offers (lib/next-slot.ts): today's
+  // windows that have already passed are left out, one under way starts now, and
+  // an activity limited to certain weekdays only appears on those days.
   const dayWindows = days.map(day => ({
     day,
     lanes: visibleActivities.map(act => ({
       act,
       color: colorFor(act),
-      windows: getSafeWindowsForActivity(day.hourly, act),
+      windows: activityRunsOnDate(act, day.dateStr)
+        ? planActivityDay(day.hourly, act, prefs.skinType, {
+            nowHour: day.isToday ? todayNowHour : -1,
+          }).windows
+        : [],
     })),
   }))
 
@@ -317,10 +295,6 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
   const rows = Math.max(1, axisTo - axisFrom)
   const HOURS = Array.from({ length: rows + 1 }, (_, i) => axisFrom + i)
   const bodyH = rows * ROW_H + AXIS_PAD * 2
-
-  const now = new Date()
-  const nowFrac = now.getHours() + now.getMinutes() / 60
-  const todayStr = now.toLocaleDateString('en-CA')
 
   const laneCount = Math.max(1, visibleActivities.length)
   const { colW, gutterW, daysAcross, laneW } = computeColumns(
@@ -551,8 +525,7 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
 
           {/* Day headers */}
           {days.map(day => {
-            const isToday = day.dateStr === todayStr
-            const d = new Date(day.dateStr + 'T12:00:00')
+            const isToday = day.isToday
             return (
               <div
                 key={day.dateStr}
@@ -594,7 +567,7 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
                     color: isToday ? 'var(--accent)' : 'var(--text)',
                   }}
                 >
-                  {d.getDate()}
+                  {dayOfMonth(day.dateStr)}
                 </span>
               </div>
             )
@@ -625,7 +598,7 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
                   color: 'var(--text-3)',
                 }}
               >
-                {fmtH(h)}
+                {fmt.hour(h)}
               </span>
             ))}
           </div>
@@ -712,9 +685,11 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
                             type="button"
                             className="solara-cal-chip"
                             data-testid="calendar-chip"
+                            data-from={win.from}
+                            data-to={win.to}
                             aria-haspopup="dialog"
                             aria-expanded={isSel}
-                            title={`${act.name} · ${fmtH(win.from)}–${fmtH(win.to)}`}
+                            title={`${act.name} · ${fmt.time(win.from)}–${fmt.time(win.to)}`}
                             onClick={() => {
                               if (isSel) {
                                 closeSheet()
@@ -749,11 +724,18 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
                               zIndex: isSel ? 2 : 1,
                             }}
                           >
-                            <ChipLabel act={act} win={win} variant={variant} lines={lines} />
+                            <ChipLabel
+                              act={act}
+                              win={win}
+                              variant={variant}
+                              lines={lines}
+                              fmt={fmt}
+                              startsNow={day.isToday && win.from === todayNowHour}
+                            />
                             {/* The visible label is abbreviated, so the accessible
                                 name is this full description instead. */}
                             <span data-sr-only style={srOnly}>
-                              {`${act.name}, ${day.label}, ${fmtH(win.from)} – ${fmtH(win.to)}, peak UV ${win.peakUV.toFixed(1)}`}
+                              {`${act.name}, ${day.label}, ${fmt.time(win.from)} – ${fmt.time(win.to)}, peak UV ${win.peakUV.toFixed(1)}`}
                             </span>
                           </button>
                         )
@@ -762,6 +744,24 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
                   ))}
                 </div>
 
+                {/* Hours already gone today are faded: nothing there can still be
+                    planned, so the column's live part starts at the now line. */}
+                {isToday && nowFrac > axisFrom && (
+                  <div
+                    aria-hidden="true"
+                    data-testid="calendar-past"
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      height: `${AXIS_PAD + (Math.min(nowFrac, axisTo) - axisFrom) * ROW_H}px`,
+                      background: 'var(--bg-card)',
+                      opacity: 0.55,
+                      pointerEvents: 'none',
+                    }}
+                  />
+                )}
                 {isToday && nowFrac >= axisFrom && nowFrac <= axisTo && (
                   <div
                     aria-hidden="true"
@@ -938,7 +938,7 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
                 {selected.act.name}
               </p>
               <p style={{ margin: '2px 0 0', fontSize: '13px', color: 'var(--text-2)' }}>
-                {selected.day.label} · {fmtH(selected.win.from)} – {fmtH(selected.win.to)}
+                {selected.day.label} · {fmt.time(selected.win.from)} – {fmt.time(selected.win.to)}
               </p>
             </div>
             <button
@@ -978,7 +978,12 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
             {calOk ? (
               <a
                 className="btn btn-primary"
-                href={gcalWindowLink(selected.act, selected.win, selected.day.dateStr)}
+                href={gcalWindowLink(
+                  selected.act,
+                  selected.win,
+                  selected.day.dateStr,
+                  weather.timezone,
+                )}
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={() => flash('Opened Google Calendar in a new tab.')}
@@ -1037,11 +1042,16 @@ function ChipLabel({
   win,
   variant,
   lines,
+  fmt,
+  startsNow,
 }: {
   act: Activity
   win: SafeWindow
   variant: ChipVariant
   lines: number
+  fmt: UnitFormatters
+  /** A window under way, trimmed to start now: its start reads "now" (short and exact). */
+  startsNow: boolean
 }) {
   const text: CSSProperties = {
     display: 'block',
@@ -1067,14 +1077,14 @@ function ChipLabel({
         </span>
         {lines >= 2 && (
           <span aria-hidden="true" style={time}>
-            {fmtH(win.from)} – {fmtH(win.to)}
+            {startsNow ? 'now' : fmt.time(win.from)} – {fmt.time(win.to)}
           </span>
         )}
       </>
     )
   }
 
-  const fmt = variant === 'compact' ? shortHour : fmtH
+  const label = variant === 'compact' ? fmt.compactHour : fmt.time
   return (
     <>
       <span aria-hidden="true" style={{ ...text, fontSize: '12px', lineHeight: '14px' }}>
@@ -1082,12 +1092,12 @@ function ChipLabel({
       </span>
       {lines >= 2 && (
         <span aria-hidden="true" style={time}>
-          {fmt(win.from)}
+          {startsNow ? 'now' : label(win.from)}
         </span>
       )}
       {lines >= 3 && (
         <span aria-hidden="true" style={time}>
-          {fmt(win.to)}
+          {label(win.to)}
         </span>
       )}
     </>
