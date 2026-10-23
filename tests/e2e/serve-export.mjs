@@ -58,6 +58,26 @@ function freePort() {
 // The emulator hub and logging ports default to fixed numbers shared machine-wide,
 // so pick free ones; only Hosting listens on the port Playwright chose.
 const [hubPort, loggingPort] = [await freePort(), await freePort()]
+
+/** Resolves true once `candidate` can be bound on HOST. */
+function portIsFree(candidate) {
+  return new Promise(resolveFree => {
+    const server = createServer()
+    server.once('error', () => resolveFree(false))
+    server.listen(candidate, HOST, () => server.close(() => resolveFree(true)))
+  })
+}
+
+// A pinned PLAYWRIGHT_PORT can still be held for a moment by the previous run's
+// server while it shuts down. Wait for it instead of failing with EADDRINUSE.
+const portDeadline = Date.now() + 30_000
+while (!(await portIsFree(port))) {
+  if (Date.now() > portDeadline) {
+    console.error(`serve-export: port ${port} is still in use after 30 s.`)
+    process.exit(1)
+  }
+  await new Promise(resolveDelay => setTimeout(resolveDelay, 250))
+}
 const { hosting } = JSON.parse(readFileSync('firebase.json', 'utf8'))
 // The config lives in the gitignored .firebase/ directory: firebase-tools resolves
 // `public` relative to the config file and serves nothing for a public directory
