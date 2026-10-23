@@ -154,18 +154,16 @@ function latestWrite(db, kind) {
 function request(body, authorization = 'Bearer valid') {
   return {
     body,
-    headers: { authorization, 'x-firebase-appcheck': 'valid-app-check-token' },
+    headers: { authorization },
   }
 }
 
 const auth = { verifyIdToken: async () => ({ uid: 'alice' }) }
-const appCheck = { verifyToken: async () => ({ appId: 'test-app' }) }
 
 describe('notification device mutations', () => {
-  test('requires a valid App Check token', async () => {
+  test('requires a Firebase ID token', async () => {
     await assert.rejects(
       registerNotificationDevice({
-        appCheck,
         auth,
         db: fakeDb(),
         req: { body: { deviceId: DEVICE_ID, platform: 'web', token: TOKEN }, headers: {} },
@@ -178,7 +176,6 @@ describe('notification device mutations', () => {
   test('registers a valid device for a paid account', async () => {
     const db = fakeDb()
     const result = await registerNotificationDevice({
-      appCheck,
       auth,
       db,
       req: request({ deviceId: DEVICE_ID, platform: 'web', token: TOKEN }),
@@ -220,7 +217,6 @@ describe('notification device mutations', () => {
       },
     })
     await registerNotificationDevice({
-      appCheck,
       auth,
       db,
       req: request({ deviceId: DEVICE_ID, platform: 'web', token: TOKEN }),
@@ -235,7 +231,6 @@ describe('notification device mutations', () => {
   test('rejects free accounts and invalid device input', async () => {
     await assert.rejects(
       registerNotificationDevice({
-        appCheck,
         auth,
         db: fakeDb({ tier: 'free' }),
         req: request({ deviceId: DEVICE_ID, platform: 'web', token: TOKEN }),
@@ -245,7 +240,6 @@ describe('notification device mutations', () => {
     )
     await assert.rejects(
       registerNotificationDevice({
-        appCheck,
         auth,
         db: fakeDb(),
         req: request({ deviceId: '../other-user', platform: 'web', token: TOKEN }),
@@ -258,7 +252,6 @@ describe('notification device mutations', () => {
   test('rejects registration after account deletion starts', async () => {
     await assert.rejects(
       registerNotificationDevice({
-        appCheck,
         auth,
         db: fakeDb({ accountDeletionStartedAt: 'server-time' }),
         req: request({ deviceId: DEVICE_ID, platform: 'web', token: TOKEN }),
@@ -271,7 +264,6 @@ describe('notification device mutations', () => {
   test('throttles repeated registration attempts per account', async () => {
     await assert.rejects(
       registerNotificationDevice({
-        appCheck,
         auth,
         db: fakeDb({
           registrationLimit: { count: MAX_REGISTRATIONS_PER_MINUTE, windowStartedAt: 1_000 },
@@ -288,7 +280,6 @@ describe('notification device mutations', () => {
     })
     await assert.doesNotReject(
       registerNotificationDevice({
-        appCheck,
         auth,
         db,
         nowMs: 61_000,
@@ -306,7 +297,6 @@ describe('notification device mutations', () => {
   test('enforces the cap while allowing an existing device to refresh', async () => {
     await assert.rejects(
       registerNotificationDevice({
-        appCheck,
         auth,
         db: fakeDb({ activeDeviceCount: MAX_NOTIFICATION_DEVICES }),
         req: request({ deviceId: DEVICE_ID, platform: 'web', token: TOKEN }),
@@ -320,7 +310,6 @@ describe('notification device mutations', () => {
       existingDeviceData: { enabled: true, token: TOKEN },
     })
     await registerNotificationDevice({
-      appCheck,
       auth,
       db,
       req: request({ deviceId: DEVICE_ID, platform: 'web', token: TOKEN }),
@@ -334,7 +323,6 @@ describe('notification device mutations', () => {
     const db = fakeDb({ activeDeviceCount: MAX_NOTIFICATION_DEVICES - 1 })
     await assert.doesNotReject(
       registerNotificationDevice({
-        appCheck,
         auth,
         db,
         req: request({ deviceId: DEVICE_ID, platform: 'web', token: TOKEN }),
@@ -349,7 +337,6 @@ describe('notification device mutations', () => {
       priorDeviceData: { enabled: true, token: TOKEN },
     })
     await registerNotificationDevice({
-      appCheck,
       auth,
       db,
       req: request({ deviceId: DEVICE_ID, platform: 'web', token: TOKEN }),
@@ -375,7 +362,6 @@ describe('notification device mutations', () => {
     })
     await assert.rejects(
       registerNotificationDevice({
-        appCheck,
         auth,
         db,
         nowMs: 2_000,
@@ -402,7 +388,6 @@ describe('notification device mutations', () => {
     })
 
     await registerNotificationDevice({
-      appCheck,
       auth,
       db,
       nowMs: 2_000,
@@ -429,7 +414,6 @@ describe('notification device mutations', () => {
     })
     await assert.doesNotReject(
       registerNotificationDevice({
-        appCheck,
         auth,
         db,
         nowMs: 2_000,
@@ -453,7 +437,6 @@ describe('notification device mutations', () => {
     })
     await assert.doesNotReject(
       registerNotificationDevice({
-        appCheck,
         auth,
         db,
         nowMs: 2_000,
@@ -478,7 +461,6 @@ describe('notification device mutations', () => {
       },
     })
     await registerNotificationDevice({
-      appCheck,
       auth,
       db,
       req: request({ deviceId: DEVICE_ID, platform: 'web', token: TOKEN }),
@@ -512,7 +494,6 @@ describe('notification device mutations', () => {
     })
 
     await registerNotificationDevice({
-      appCheck,
       auth,
       db,
       req: request({ deviceId: DEVICE_ID, platform: 'web', token: TOKEN }),
@@ -546,7 +527,6 @@ describe('notification device mutations', () => {
     })
 
     await registerNotificationDevice({
-      appCheck,
       auth,
       db,
       req: request({ deviceId: DEVICE_ID, platform: 'web', token: TOKEN }),
@@ -563,7 +543,6 @@ describe('notification device mutations', () => {
   test('clears every legacy account that still holds a transferred token', async () => {
     const db = fakeDb({ legacyTokenOwners: ['alice', 'bob', 'carol'] })
     await registerNotificationDevice({
-      appCheck,
       auth,
       db,
       req: request({ deviceId: DEVICE_ID, platform: 'web', token: TOKEN }),
@@ -586,7 +565,6 @@ describe('notification device mutations', () => {
 
     const migratePage = () =>
       registerNotificationDevice({
-        appCheck,
         auth,
         db,
         req: request({ deviceId: DEVICE_ID, platform: 'web', token: TOKEN }),
@@ -607,7 +585,6 @@ describe('notification device mutations', () => {
   test('resumes a migration after a bounded page fails', async () => {
     const db = fakeDb({ legacyQueryFailures: 1, legacyTokenOwners: ['legacy-user'] })
     const registration = {
-      appCheck,
       auth,
       db,
       req: request({ deviceId: DEVICE_ID, platform: 'web', token: TOKEN }),
@@ -634,7 +611,6 @@ describe('notification device mutations', () => {
       owner: { uid: 'alice', deviceId: DEVICE_ID, token: TOKEN },
     })
     const result = await removeNotificationDevice({
-      appCheck,
       auth,
       db,
       req: request({ deviceId: DEVICE_ID }),
@@ -662,7 +638,6 @@ describe('notification device mutations', () => {
     })
     await assert.rejects(
       removeNotificationDevice({
-        appCheck,
         auth,
         db,
         nowMs: 2_000,

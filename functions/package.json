@@ -9,8 +9,9 @@
   "scripts": {
     "serve": "firebase emulators:start --only functions",
     "deploy": "firebase deploy --only functions",
-    "test": "node --test test/functions.test.js test/notification-devices.test.js",
-    "test:rules": "cd .. && firebase emulators:exec --project demo-solara --only firestore \"node --test functions/test/firestore.rules.test.js\""
+    "test": "node --test test/*.test.js",
+    "test:rules": "cd .. && firebase emulators:exec --project demo-solara --only firestore \"node --test functions/test/emulator/*.test.js\"",
+    "migrate:feed-tokens": "node scripts/migrate-calendar-feed-tokens.js"
   },
   "dependencies": {
     "firebase-admin": "^14.5.0",

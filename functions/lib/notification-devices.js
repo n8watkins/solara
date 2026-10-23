@@ -1,5 +1,6 @@
 const { authenticate } = require('./account')
 const { createHash, randomUUID } = require('node:crypto')
+const { HttpError } = require('./errors')
 
 const MAX_NOTIFICATION_DEVICES = 5
 const MAX_REGISTRATIONS_PER_MINUTE = 10
@@ -24,16 +25,10 @@ const DELIVERY_ATTEMPT_FIELDS = [
 ]
 const DELIVERY_STATE_FIELDS = [...DELIVERED_HISTORY_FIELDS, ...DELIVERY_ATTEMPT_FIELDS]
 
-function httpError(message, status) {
-  const error = new Error(message)
-  error.status = status
-  return error
-}
-
 function parseDevice(input, { requireToken }) {
   const deviceId = input?.deviceId
   if (typeof deviceId !== 'string' || !DEVICE_ID_PATTERN.test(deviceId)) {
-    throw httpError('Invalid device identifier', 400)
+    throw new HttpError('invalid-argument', 'Invalid device identifier')
   }
 
   if (!requireToken) return { deviceId }
@@ -41,9 +36,9 @@ function parseDevice(input, { requireToken }) {
   const token = input?.token
   const platform = input?.platform
   if (typeof token !== 'string' || token.length < 20 || token.length > 4096) {
-    throw httpError('Invalid notification token', 400)
+    throw new HttpError('invalid-argument', 'Invalid notification token')
   }
-  if (!PLATFORMS.has(platform)) throw httpError('Invalid device platform', 400)
+  if (!PLATFORMS.has(platform)) throw new HttpError('invalid-argument', 'Invalid device platform')
   return { deviceId, platform, token }
 }
 
@@ -162,24 +157,7 @@ function mergeDeliveryStates(sources) {
   }
 }
 
-async function authenticateApp(appCheck, token) {
-  if (typeof token !== 'string' || !token) throw httpError('App verification required', 401)
-  try {
-    await appCheck.verifyToken(token)
-  } catch {
-    throw httpError('App verification required', 401)
-  }
-}
-
-async function registerNotificationDevice({
-  appCheck,
-  auth,
-  db,
-  req,
-  serverTimestamp,
-  nowMs = Date.now(),
-}) {
-  await authenticateApp(appCheck, req.headers['x-firebase-appcheck'])
+async function registerNotificationDevice({ auth, db, req, serverTimestamp, nowMs = Date.now() }) {
   const identity = await authenticate(auth, req.headers.authorization)
   const device = parseDevice(req.body, { requireToken: true })
   const userRef = db.collection('users').doc(identity.uid)
@@ -203,10 +181,10 @@ async function registerNotificationDevice({
         transaction.get(limitRef),
       ])
     if (userSnapshot.exists && userSnapshot.data().accountDeletionStartedAt) {
-      throw httpError('Account deletion is in progress', 409)
+      throw new HttpError('deletion-in-progress', 'Account deletion is in progress')
     }
     if (!userSnapshot.exists || userSnapshot.data().tier !== 'paid') {
-      throw httpError('A paid subscription is required', 403)
+      throw new HttpError('permission-denied', 'A paid subscription is required')
     }
 
     const limit = limitSnapshot.exists ? limitSnapshot.data() : null
@@ -214,7 +192,7 @@ async function registerNotificationDevice({
     const withinWindow = nowMs - windowStartedAt < 60_000
     const registrationCount = withinWindow && Number.isFinite(limit?.count) ? limit.count : 0
     if (registrationCount >= MAX_REGISTRATIONS_PER_MINUTE) {
-      throw httpError('Too many notification registration attempts', 429)
+      throw new HttpError('rate-limited', 'Too many notification registration attempts')
     }
 
     const current = deviceSnapshot.exists ? deviceSnapshot.data() : null
@@ -236,10 +214,10 @@ async function registerNotificationDevice({
       oldOwnerRef ? transaction.get(oldOwnerRef) : null,
     ])
     if (priorDeviceRef && activeDeliveryClaim(priorDeviceSnapshot?.data(), nowMs)) {
-      throw httpError('Notification delivery is in progress', 409)
+      throw new HttpError('conflict', 'Notification delivery is in progress')
     }
     if (current?.token !== device.token && activeDeliveryClaim(current, nowMs)) {
-      throw httpError('Notification delivery is in progress', 409)
+      throw new HttpError('conflict', 'Notification delivery is in progress')
     }
     const reclaimsActiveSlot =
       priorOwner?.uid === identity.uid &&
@@ -249,7 +227,7 @@ async function registerNotificationDevice({
     const projectedActiveDevices =
       devicesSnapshot.size + (current?.enabled === true ? 0 : 1) - (reclaimsActiveSlot ? 1 : 0)
     if (projectedActiveDevices > MAX_NOTIFICATION_DEVICES) {
-      throw httpError('Notification device limit reached', 409)
+      throw new HttpError('conflict', 'Notification device limit reached')
     }
 
     if (
@@ -318,7 +296,7 @@ async function registerNotificationDevice({
         owner.deviceId !== device.deviceId ||
         owner.registrationMigrationId !== migrationId
       ) {
-        throw httpError('Notification registration was superseded', 409)
+        throw new HttpError('conflict', 'Notification registration was superseded')
       }
       const transferredDeliveryState = mergeDeliveryStates([
         current,
@@ -354,7 +332,7 @@ async function registerNotificationDevice({
       return pending
     })
   } catch (error) {
-    if (error?.status) throw error
+    if (error instanceof HttpError) throw error
     console.error(
       JSON.stringify({
         event: 'notification-registration-migration-deferred',
@@ -371,8 +349,7 @@ async function registerNotificationDevice({
   }
 }
 
-async function removeNotificationDevice({ appCheck, auth, db, req, nowMs = Date.now() }) {
-  await authenticateApp(appCheck, req.headers['x-firebase-appcheck'])
+async function removeNotificationDevice({ auth, db, req, nowMs = Date.now() }) {
   const identity = await authenticate(auth, req.headers.authorization)
   const { deviceId } = parseDevice(req.body, { requireToken: false })
   const deviceRef = db
@@ -384,7 +361,7 @@ async function removeNotificationDevice({ appCheck, auth, db, req, nowMs = Date.
     const deviceSnapshot = await transaction.get(deviceRef)
     if (!deviceSnapshot.exists) return
     if (activeDeliveryClaim(deviceSnapshot.data(), nowMs)) {
-      throw httpError('Notification delivery is in progress', 409)
+      throw new HttpError('conflict', 'Notification delivery is in progress')
     }
     const token = deviceSnapshot.data().token
     const ownerRef =
@@ -404,7 +381,6 @@ async function removeNotificationDevice({ appCheck, auth, db, req, nowMs = Date.
 module.exports = {
   MAX_NOTIFICATION_DEVICES,
   MAX_REGISTRATIONS_PER_MINUTE,
-  authenticateApp,
   parseDevice,
   registerNotificationDevice,
   removeNotificationDevice,

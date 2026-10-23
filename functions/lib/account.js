@@ -4,6 +4,8 @@ const {
   stripeSessionBelongsToUser,
 } = require('./billing-resources')
 const { randomUUID } = require('node:crypto')
+const { HttpError } = require('./errors')
+const { deleteCalendarFeedsForUser } = require('./feed-tokens')
 
 const PORTABLE_ACCOUNT_FIELDS = new Set([
   'activeProfileId',
@@ -58,27 +60,18 @@ function stripePageCursor(page) {
 
 async function authenticate(auth, authorization, options = {}) {
   const match = (authorization || '').match(/^Bearer (.+)$/)
-  if (!match) {
-    const error = new Error('Authentication required')
-    error.status = 401
-    throw error
-  }
+  if (!match?.[1]) throw new HttpError('unauthenticated', 'Authentication required')
   let identity
   try {
     identity = await auth.verifyIdToken(match[1], true)
-  } catch {
-    const error = new Error('Authentication required')
-    error.status = 401
-    throw error
+  } catch (error) {
+    throw new HttpError('unauthenticated', 'Authentication required', { cause: error })
   }
   if (options.maxAgeSeconds) {
     const authenticatedAt = identity.auth_time
     const nowSeconds = options.nowSeconds ?? Math.floor(Date.now() / 1000)
     if (!Number.isFinite(authenticatedAt) || nowSeconds - authenticatedAt > options.maxAgeSeconds) {
-      const error = new Error('Recent authentication required')
-      error.status = 401
-      error.code = 'reauth-required'
-      throw error
+      throw new HttpError('reauth-required', 'Recent authentication required')
     }
   }
   return identity
@@ -113,9 +106,7 @@ async function exportAccountData({ auth, db, req }) {
   const { userSnapshot, devicesSnapshot } = await db.runTransaction(async transaction => {
     const tombstone = await transaction.get(tombstoneRef)
     if (tombstone.exists) {
-      const error = new Error('Account deletion is in progress')
-      error.status = 409
-      throw error
+      throw new HttpError('deletion-in-progress', 'Account deletion is in progress')
     }
     const [account, devices] = await Promise.all([
       transaction.get(userRef),
@@ -428,6 +419,7 @@ async function finalizeAccountDeletion({ auth, db, tombstoneRef, uid, userRef })
   const tokenOwners = await db.collection('notificationTokenOwners').where('uid', '==', uid).get()
   await Promise.all(tokenOwners.docs.map(owner => owner.ref.delete()))
   await db.collection('notificationRegistrationLimits').doc(uid).delete()
+  await deleteCalendarFeedsForUser(db, uid)
   await db.recursiveDelete(userRef)
   try {
     await auth.deleteUser(uid)
@@ -592,9 +584,7 @@ async function processPendingAccountDeletions({ auth, db, stripe, now = new Date
 async function deleteAccount({ auth, db, req, stripe }) {
   const identity = await authenticate(auth, req.headers.authorization, { maxAgeSeconds: 300 })
   if (req.body?.confirmation !== 'DELETE') {
-    const error = new Error('Deletion confirmation required')
-    error.status = 400
-    throw error
+    throw new HttpError('invalid-argument', 'Type DELETE to confirm')
   }
   const userRef = db.collection('users').doc(identity.uid)
   const tombstoneRef = db.collection('accountDeletionTombstones').doc(identity.uid)

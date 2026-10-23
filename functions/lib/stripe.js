@@ -9,6 +9,7 @@ const {
   subscriptionOwnerRef,
 } = require('./billing-resources')
 const { createHash, randomUUID } = require('node:crypto')
+const { HttpError } = require('./errors')
 
 const ACTIVE_SUBSCRIPTION_STATUSES = new Set(['active', 'trialing'])
 const TERMINAL_SUBSCRIPTION_STATUSES = new Set(['canceled', 'incomplete_expired'])
@@ -572,31 +573,13 @@ async function processStripeEvent({ db, event, expectedPriceId, serverTimestamp,
 
 async function createCheckout({ appUrl, auth, db, expectedPriceId, req, stripe }) {
   if (!expectedPriceId) throw new Error('STRIPE_PRICE_ID is not configured')
-  const authorization = req.headers.authorization || ''
-  const match = authorization.match(/^Bearer (.+)$/)
-  if (!match) {
-    const error = new Error('Authentication required')
-    error.status = 401
-    throw error
-  }
-  let identity
-  try {
-    identity = await auth.verifyIdToken(match[1], true)
-  } catch {
-    const error = new Error('Authentication required')
-    error.status = 401
-    throw error
-  }
+  const identity = await authenticate(auth, req.headers.authorization)
   if (!validUid(identity.uid)) {
-    const error = new Error('Invalid account')
-    error.status = 401
-    throw error
+    throw new HttpError('unauthenticated', 'Invalid account')
   }
   const attemptId = req.body?.attemptId
   if (!validAttemptId(attemptId)) {
-    const error = new Error('Invalid checkout attempt')
-    error.status = 400
-    throw error
+    throw new HttpError('invalid-argument', 'Invalid checkout attempt')
   }
 
   const userRef = db.collection('users').doc(identity.uid)
@@ -605,23 +588,17 @@ async function createCheckout({ appUrl, auth, db, expectedPriceId, req, stripe }
     db.runTransaction(async transaction => {
       const snapshot = await transaction.get(userRef)
       if (!snapshot.exists) {
-        const error = new Error('Account does not exist')
-        error.status = 404
-        throw error
+        throw new HttpError('not-found', 'Account does not exist')
       }
       const current = snapshot.data()
       if (current.accountDeletionStartedAt) {
-        const error = new Error('Account deletion is in progress')
-        error.status = 409
-        throw error
+        throw new HttpError('deletion-in-progress', 'Account deletion is in progress')
       }
       if (
         current.stripeSubscriptionId &&
         !TERMINAL_SUBSCRIPTION_STATUSES.has(current.subscriptionStatus)
       ) {
-        const error = new Error('Account already has a subscription')
-        error.status = 409
-        throw error
+        throw new HttpError('conflict', 'Account already has a subscription')
       }
       const reservedBy = current.stripeCheckoutAttemptId
       const reservedUntil = dateMillis(current.stripeCheckoutReservedUntil)
@@ -640,9 +617,7 @@ async function createCheckout({ appUrl, auth, db, expectedPriceId, req, stripe }
         reservedUntil > now &&
         sessionId !== expiredSessionId
       ) {
-        const error = new Error('Checkout is already in progress')
-        error.status = 409
-        throw error
+        throw new HttpError('conflict', 'Checkout is already in progress')
       }
       transaction.set(
         userRef,
@@ -668,9 +643,7 @@ async function createCheckout({ appUrl, auth, db, expectedPriceId, req, stripe }
     const owned = existing && stripeSessionBelongsToUser(existing, identity.uid)
     if (owned && existing.status === 'open' && existing.url) return existing
     if (owned && existing.status === 'complete') {
-      const error = new Error('Checkout payment is being processed')
-      error.status = 409
-      throw error
+      throw new HttpError('conflict', 'Checkout payment is being processed')
     }
     reservation = await reserveCheckout(reservation.reuseSessionId)
   }
@@ -705,17 +678,13 @@ async function createCheckout({ appUrl, auth, db, expectedPriceId, req, stripe }
         !indexedCustomer.exists &&
         !(await customerBelongsToUser(stripe, customer.customer, identity.uid))
       ) {
-        const error = new Error('Billing account ownership could not be verified')
-        error.status = 409
-        throw error
+        throw new HttpError('conflict', 'Billing account ownership could not be verified')
       }
       const subscriptions = await listCustomerSubscriptions(stripe, customer.customer)
       if (
         subscriptions.some(subscription => !TERMINAL_SUBSCRIPTION_STATUSES.has(subscription.status))
       ) {
-        const error = new Error('Account already has a subscription')
-        error.status = 409
-        throw error
+        throw new HttpError('conflict', 'Account already has a subscription')
       }
     }
     const session = await stripe.checkout.sessions.create(
@@ -784,13 +753,9 @@ async function createCheckout({ appUrl, auth, db, expectedPriceId, req, stripe }
     })
     cleanupQueued = persistence.deletionStarted
     if (!persistence.persisted) {
-      const error = new Error(
-        persistence.deletionStarted
-          ? 'Account deletion is in progress'
-          : 'Checkout reservation changed',
-      )
-      error.status = 409
-      throw error
+      throw persistence.deletionStarted
+        ? new HttpError('deletion-in-progress', 'Account deletion is in progress')
+        : new HttpError('conflict', 'Checkout reservation changed')
     }
     return session
   } catch (error) {
@@ -823,31 +788,23 @@ async function createCheckout({ appUrl, auth, db, expectedPriceId, req, stripe }
 async function createBillingPortal({ appUrl, auth, db, req, stripe }) {
   const identity = await authenticate(auth, req.headers.authorization)
   if (!validUid(identity.uid)) {
-    const error = new Error('Invalid account')
-    error.status = 401
-    throw error
+    throw new HttpError('unauthenticated', 'Invalid account')
   }
   const userRef = db.collection('users').doc(identity.uid)
   const userSnapshot = await userRef.get()
   const customerId = userSnapshot.exists ? userSnapshot.data().stripeCustomerId : null
   if (typeof customerId !== 'string' || !customerId) {
-    const error = new Error('No billing account exists')
-    error.status = 404
-    throw error
+    throw new HttpError('not-found', 'No billing account exists')
   }
   if (userSnapshot.data().accountDeletionStartedAt) {
-    const error = new Error('Account deletion is in progress')
-    error.status = 409
-    throw error
+    throw new HttpError('deletion-in-progress', 'Account deletion is in progress')
   }
   const customerRef = billingResourceRef(userRef, 'customer', customerId)
   const indexedCustomer = await customerRef.get()
   if (!indexedCustomer.exists) {
     const owned = await customerBelongsToUser(stripe, customerId, identity.uid)
     if (!owned) {
-      const error = new Error('No verified billing account exists')
-      error.status = 404
-      throw error
+      throw new HttpError('not-found', 'No verified billing account exists')
     }
     await db.runTransaction(async transaction => {
       const [currentUser, tombstone, currentIndex] = await Promise.all([
@@ -861,9 +818,7 @@ async function createBillingPortal({ appUrl, auth, db, req, stripe }) {
         currentUser.data().accountDeletionStartedAt ||
         currentUser.data().stripeCustomerId !== customerId
       ) {
-        const error = new Error('Account deletion is in progress')
-        error.status = 409
-        throw error
+        throw new HttpError('deletion-in-progress', 'Account deletion is in progress')
       }
       if (!currentIndex.exists) {
         indexBillingResources(
