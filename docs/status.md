@@ -1,92 +1,92 @@
-# Solara Project Status
+# Solara status
 
 _Last reviewed: 2026-10-23_
 
-Claims marked "owner to confirm" could not be checked from the repository, GitHub or the Firebase CLI and need console access.
+This is the single page for the current state of Solara: what is live, what is not, how CI/CD runs, and which owner actions are done or open.
+Facts were checked against the code, the workflows, GitHub (`gh`) and the live site on the date above.
+Items marked "owner reported" depend on a console the repository cannot read.
+Open engineering work is in [ROADMAP.md](ROADMAP.md); owner steps are in [OWNER_CHECKLIST.md](OWNER_CHECKLIST.md).
 
-## Current source baseline
+## Live at https://solara-uv.web.app
 
-Solara is a Next.js 16 and React 19 static application deployed through Firebase Hosting.
-Google sign-in is required before users can reach the personalized dashboard.
-Firestore stores account preferences, and trusted backend paths are responsible for billing entitlements and notification delivery state.
-The backend maintains durable Stripe ownership indexes, retries failed checkout cleanup, and completes account deletion through tombstone-owned scheduled cleanup.
-Firebase Functions target the Node.js 24 runtime with `firebase-functions` 7, `firebase-admin` 14 and `stripe` 22; the local and CI Node.js version comes from `.nvmrc` (24.16.0, pinned exactly).
+Solara is served from the Firebase Hosting site `solara-uv` in project `uv-activity-planner`.
+The original address, `https://uv-activity-planner.web.app`, permanently redirects every path to the same path on `solara-uv.web.app`, except Firebase's reserved `/__/` paths (#42, #45).
+Production runs commit `7b657c8` (PR #52), deployed by run 40034677351.
 
-The repository includes unit coverage for the core planning modules and credential-free Playwright coverage for the welcome, onboarding and analytics-consent flows on desktop and mobile Chromium.
-CI blocks on production dependency audits (`npm audit --omit=dev --audit-level=high`) for the app and Functions, lint, typecheck, app and Functions tests, Firestore emulator rules tests, production build, and browser smoke tests before a production deploy can begin.
-The full audit, including development dependencies, runs as a non-blocking step; accepted development advisories are recorded in [DEPENDENCY_RISK.md](./DEPENDENCY_RISK.md).
+What users get:
 
-## Production state
+- Google sign-in, required before the dashboard, with preferences synced to Firestore.
+- UV and weather forecasts from Open-Meteo, in the location's time zone, with Celsius or Fahrenheit and 12- or 24-hour time chosen from the locale or in Settings.
+- Personalized activity windows on the dashboard and in the week calendar, with Free (2-day) and Pro (10-day) limits.
+- Saved locations and family profiles, share links (`/share/`), and a one-off `.ics` download from Plan ahead.
+- Opt-in Google Analytics 4 (the measurement ID is compiled into the live page).
+- The privacy policy and terms with the operator details (D8), and the Search Console ownership file.
+- Firestore rules and indexes, deployed by every push to `main`.
 
-Checked on 2026-10-23.
+## Not live
 
-- **Hosting:** the static app is served at `https://solara-uv.web.app` (Firebase project `uv-activity-planner`, Hosting site `solara-uv`).
-The original address `https://uv-activity-planner.web.app` is the project's default site and now permanently redirects every path to the same path on `solara-uv.web.app`.
-  Any custom domain is owner to confirm.
-  The latest Hosting release is from commit `82294e8`, published on 2026-10-23.
-- **Firestore rules:** the final rules in `firestore.rules` are deployed by every `main` deployment.
-- **Firestore indexes:** every deployment since 2026-07-15 has failed at the index step because the deployment service account lacks `roles/datastore.indexAdmin`.
-  Hosting and rules still publish, but the workflow run is reported as failed.
-- **Firebase Functions:** not deployed.
-  The Cloud Functions API is not enabled on `uv-activity-planner` (`firebase functions:list` returns 403), and the `ENABLE_BLAZE_FUNCTIONS` repository variable is not set, so deployments skip Functions and build the client with an empty `NEXT_PUBLIC_FUNCTIONS_URL`.
-  Checkout, the billing portal, account export and deletion, notification device registration, the calendar feed and the three scheduled billing and deletion jobs are therefore unavailable in production, and the client hides or disables their controls.
-- **Firebase billing plan (Spark or Blaze):** owner to confirm.
-- **Morning notifications:** not sent since 2026-07-15.
-  Pull request #13 removed the daily `notify.yml` schedule; the last scheduled run was on 2026-07-14 and the only later run, a manual dry run on 2026-07-15, failed on the missing `notificationDevices.enabled` collection-group index.
-  The workflow can now only be started manually, and new device registrations need the undeployed `registerNotificationDevice` Function.
-  The pricing modal and `PRO_FEATURES` in `lib/billing.ts` still advertise "morning sun-window alerts" as a Pro feature.
-- **Repository:** private on GitHub Free, with no branch protection, rulesets or environments.
-  Any push to `main`, reviewed or not, runs the production deployment.
+- **Cloud Functions are not deployed.**
+  The Cloud Functions API is not enabled on `uv-activity-planner`, and the `ENABLE_BLAZE_FUNCTIONS` repository variable is not set, so the build ships with an empty `NEXT_PUBLIC_FUNCTIONS_URL` and the client hides or disables everything that needs Functions.
+  Unavailable as a result: checkout and the billing portal, account export and deletion, the live calendar feed, notification device registration, and the three scheduled billing and deletion jobs.
+  The Firebase billing plan (Spark or Blaze) is owner to confirm.
+- **Stripe** is not configured for deploys: no `STRIPE_PRICE_ID` variable exists, and without Functions the pricing dialog offers a waitlist instead of checkout.
+  Whether Stripe secrets exist in Secret Manager is owner to confirm.
+- **Notifications** have not been sent since 2026-07-15.
+  `.github/workflows/notify.yml` has no schedule and can only be started by hand, device registration needs the undeployed Functions, and the app no longer advertises alerts (#24).
+  Relaunch is Wave 3, W3-B.
+- **Google Calendar** connect and booking are hidden: `NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID` is not set as a repository secret or variable, and no OAuth client ID is in the live bundle.
+- **App Check** is not active: no `NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY` is configured, and console enforcement is decision D11.
+- **Scheduled activities** (Google Calendar events that Solara created, shown as Scheduled in the calendar) are in progress on another branch and not merged.
 
-## Feature activation state
+## CI/CD
 
-| Area | Source state | Production state and remaining activation |
-| --- | --- | --- |
-| Forecast and activity planning | Built | Live. Verify Open-Meteo behavior and recommendation consistency |
-| Google sign-in and Firestore sync | Built | Live. Preference persistence still needs a controlled signed-in account check |
-| Push notifications | Built; manual dispatcher only, no schedule | Not delivering. Needs deployed Functions, the collection-group index, VAPID, an eligible test account, real-device verification, and approval before any schedule is added |
-| Google Calendar | Built behind `NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID` | Whether the client ID is configured is owner to confirm. Needs live consent testing |
-| Stripe Pro fulfillment | Built behind authenticated Functions | Not live. Needs Blaze, deployed Functions, Stripe test keys, webhook registration, and signed event tests |
-| Account export and deletion | Built behind authenticated Functions | Not live. Needs deployed Functions, live reauthentication testing, Stripe cancellation verification, and cleanup-job monitoring |
-| Billing backfill and cleanup | Built as scheduled Functions with durable indexes and retries | Not live. Needs deployed Functions, ready indexes, Stripe credentials, and monitoring |
-| Live calendar feed | Built as a Function | Not live. Needs deployed Functions and a real calendar client |
-| Analytics | Built with explicit opt-in consent | A GA4 measurement ID is compiled into the production bundle (checked 2026-10-23). Production consent behavior still needs verification |
-| App Check | Client activation built (reCAPTCHA v3 provider) | Registration and enforcement status are owner to confirm |
-| Hosting and Firestore rules | Automated on every push to `main` | Live |
-| Firestore indexes | Deployed by every `main` deployment, independent of the Functions gate | Failing until the deployment service account has `roles/datastore.indexAdmin` |
-| Firebase Functions | Built and deployment-gated by `ENABLE_BLAZE_FUNCTIONS` | Not deployed. The CI Functions step also cannot yet supply the `STRIPE_PRICE_ID` and `APP_URL` params (see [DEPLOYMENT.md](./DEPLOYMENT.md#github-actions-secrets)) |
+- **Pull requests** run `.github/workflows/ci.yml`, which calls the reusable `.github/workflows/quality.yml` once per commit (older runs are cancelled).
+  Its jobs: lint, typecheck, unit tests and the production audit; browser tests on the static export served by the Hosting emulator; signed-in browser tests on the Firebase emulators; the signed-in UI harness with screenshots and an axe report; Functions typecheck, tests, deploy params and payload checks, and Firestore rules tests; actionlint, zizmor, gitleaks and the docs link check.
+  Dependency review runs only once the repository is public.
+- **Pushes to `main`** run `.github/workflows/deploy.yml`: the same quality workflow, then one production build that is checked, smoke-tested on the Hosting emulator and packaged with its SHA-256, SBOMs and a provenance record.
+  Separate jobs then deploy Firestore rules, Firestore indexes, Functions (only when `ENABLE_BLAZE_FUNCTIONS` is `true`) and Hosting, which receives exactly the tested artifact.
+  Artifact attestation runs only when the repository is public.
+  Every deploy since run 40013061416 (commit `2d1ae1e`) has been green.
+- **Credentials:** deploys and the notifier authenticate with the long-lived `FIREBASE_SERVICE_ACCOUNT` key, because the Workload Identity Federation variables are not set yet.
+- **Configuration:** `NEXT_PUBLIC_SITE_URL` is a repository variable; the other public `NEXT_PUBLIC_*` values are still repository secrets, which the build reads as a fallback.
+- **Dependencies:** Dependabot version updates run weekly with a 7-day cooldown; eleven major-version PRs (#31-#41) are open and belong to Wave 4.
+  Dependabot alerts and security updates are off.
+  Production dependency audits report zero advisories in both packages; accepted development advisories are in [DEPENDENCY_RISK.md](DEPENDENCY_RISK.md).
+- **Repository:** private on GitHub Free, so there is no branch protection, ruleset or environment, and any push to `main` deploys to production.
 
-## Quality baseline
+How deploys work and how to configure them is in [DEPLOYMENT.md](DEPLOYMENT.md).
 
-- `npm run lint` passes with the Next.js 16 flat ESLint configuration.
-- `npm run typecheck` passes with React 19 types.
-- The unit suite passes.
-- The Functions and Firestore security-rule suites pass.
-- The static production build passes.
-- The Playwright desktop and mobile smoke suite passes without credentials.
-- Production dependency audits for both packages report no advisories.
-- CI blocks deployment when any required gate fails.
+## Owner actions
 
-## Required follow-up outside the repository
+Decision numbers (D1-D12) come from the October 2026 assessment; the decisions still open are explained in [ROADMAP.md](ROADMAP.md#owner-decisions).
 
-1. Complete the owner-only decisions and provider configuration in [OWNER_ACTIONS.md](./OWNER_ACTIONS.md).
-2. Use controlled test accounts and, where practical, a preview deployment before enabling credential-backed features.
-3. Verify Google sign-in and preference persistence with a real account.
-4. Verify exactly one push notification on a real phone, then verify disable and sign-out cleanup.
-5. Exercise Stripe checkout, signed webhook lifecycle behavior, billing backfill, and durable cleanup in test mode when keys are available.
-6. Verify account export redaction and the complete asynchronous deletion lifecycle with an active Stripe test subscription.
-7. Exercise Google Calendar OAuth, event creation, access revocation, and calendar-feed rotation with real services.
-8. Run the full [GO_LIVE.md](./GO_LIVE.md) checklist before promoting the release.
+### Done
 
-## Current production blocker
+| Action | State |
+| --- | --- |
+| D1 Functions deployment status | Resolved: Functions are not deployed (see above) |
+| D3 Firestore index role for the deploy identity | Granted on 2026-10-23; the Firestore indexes job is green from run 40013061416 on |
+| D8 Operator, contact, jurisdiction and license | Nathan Watkins, contact@n8builds.dev, California, all rights reserved (#46) |
+| Move to `solara-uv.web.app` | Done (#42, #45); `NEXT_PUBLIC_SITE_URL` variable set |
+| Firebase Auth authorized domain for `solara-uv.web.app` | Owner reported |
+| Search Console ownership of `https://solara-uv.web.app/` | File served (#43); verification owner reported |
 
-Hosting and final Firestore rules are deployed from commit `82294e8` (pull request #17), published by deployment run 39943429394 on 2026-10-23.
-That run is red because the Firestore index step returned HTTP 403 ("The caller does not have permission").
-The deployment service account cannot create Firestore indexes without `roles/datastore.indexAdmin`, so every deployment run ends red even though Hosting and rules publish.
-The same missing index blocks the notification dry run.
-The project owner must grant the role (decision D3 in [OWNER_ACTIONS.md](./OWNER_ACTIONS.md)); the repository agent can then rerun the deployment, wait for every index to report `READY`, and rerun the notification dry run.
+### Open
+
+| Action | Where the steps are |
+| --- | --- |
+| Workload Identity Federation, then delete the key (D4) | [WIF_SETUP.md](WIF_SETUP.md) |
+| Move the `NEXT_PUBLIC_*` secrets to repository variables and delete the leftover `NEXT_PUBLIC_SITE_URL` secret | [WIF_SETUP.md](WIF_SETUP.md#move-public-build-values-from-secrets-to-variables) |
+| Turn on Dependabot alerts and security updates | [OWNER_CHECKLIST.md](OWNER_CHECKLIST.md#repository) |
+| Google OAuth consent screen publishing and scope verification, and the Calendar OAuth client ID | [OWNER_CHECKLIST.md](OWNER_CHECKLIST.md#google-sign-in-and-calendar) |
+| D2 repository visibility (going public is planned) and the settings that come with it | [OWNER_CHECKLIST.md](OWNER_CHECKLIST.md#repository) |
+| D5 forecast provider licensing, D6 notifications relaunch, D7 guest mode, D9 staging and Stripe test mode, D10 error reporting | [ROADMAP.md](ROADMAP.md#owner-decisions) |
+| D11 App Check key and enforcement | [OWNER_CHECKLIST.md](OWNER_CHECKLIST.md#app-check) |
+| Blaze plan, budget alert and Stripe setup before Functions | [OWNER_CHECKLIST.md](OWNER_CHECKLIST.md#functions-and-stripe) |
+| Counsel review of the governing-law language | [OWNER_CHECKLIST.md](OWNER_CHECKLIST.md#legal) |
+| D12 local branch and worktree cleanup (8 worktrees remain under `projects/polish/`) | Owner's machine |
 
 ## Known test boundary
 
-Credential-free CI cannot prove OAuth consent, Firebase token delivery, APNs or Android notification presentation, Stripe signatures, cross-device Firestore behavior, or third-party calendar refresh timing.
-Those checks remain explicit release requirements rather than silent assumptions.
+The signed-in e2e suite runs the real app, rules and Functions against the Firebase emulators, but CI cannot prove Google OAuth consent, App Check with real reCAPTCHA tokens, FCM, APNs or Android notification presentation, Stripe signatures, or third-party calendar refresh timing.
+Those checks stay explicit steps in the [owner checklist](OWNER_CHECKLIST.md#release-verification) rather than silent assumptions.
