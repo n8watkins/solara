@@ -27,10 +27,15 @@ test('a free account is held to the free plan and offered Pro', async ({ page, e
   await expect(days.getByText('8 more days are available on a higher plan.')).toBeVisible()
   await days.getByRole('button', { name: 'Close' }).click()
 
-  // The plan upsell names the upgrade (for now it does not open the plans, which
-  // live in Settings).
+  // The plan upsell opens the Pro plans, as Settings does.
   await page.getByRole('button', { name: /Go Pro for 10-day planning/ }).click()
-  await expect(page.getByText('Go Pro for 10-day planning', { exact: true })).toBeVisible()
+  const plans = page.getByRole('dialog', { name: 'Solara Pro' })
+  await expect(plans.getByRole('table', { name: 'Free and Pro plan features' })).toBeVisible()
+  await expect(plans.getByRole('button', { name: 'Upgrade to Pro' })).toBeEnabled()
+  await plans.getByRole('button', { name: 'Close' }).click()
+  await expect(plans).toBeHidden()
+  await expect(page.getByRole('button', { name: /Go Pro for 10-day planning/ })).toBeFocused()
+
   await accountMenu(page, 'Settings')
   const settings = page.getByRole('dialog', { name: 'Settings' })
   await settings.getByRole('tab', { name: 'Account' }).click()

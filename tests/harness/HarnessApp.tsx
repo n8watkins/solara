@@ -119,6 +119,7 @@ function Harness() {
           {live.loading && <Skeleton />}
           {view === 'dashboard' && weather && (
             <Dashboard
+              user={user}
               weather={weather}
               prefs={prefs}
               displayTier={displayTier}

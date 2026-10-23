@@ -441,6 +441,7 @@ function SignedInApp() {
             {weather && (
               <ErrorBoundary label="the dashboard" onReset={refreshWeather}>
                 <Dashboard
+                  user={user}
                   weather={weather}
                   prefs={prefs}
                   displayTier={displayTier}
