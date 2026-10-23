@@ -250,7 +250,7 @@ export default function UVTimeline({
                     {formatUV(h.uv, { compact: true })}
                     <VisuallyHidden>, {uvLabel(h.uv)}, at </VisuallyHidden>
                   </span>
-                  <span style={{ fontSize: '10px', opacity: 0.75, lineHeight: 1 }}>
+                  <span style={{ fontSize: '10px', lineHeight: 1 }}>
                     {fmtHour(h.hour)}
                     {isNow && <VisuallyHidden>, current hour</VisuallyHidden>}
                   </span>
