@@ -42,6 +42,9 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Docs links and paths
+        run: npm run check:docs
+
       - name: Typecheck
         run: npm run typecheck
 
