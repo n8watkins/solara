@@ -155,6 +155,18 @@ const META_TAG = /<meta http-equiv="Content-Security-Policy"[^>]*>/i
  * Put the policy in a `<meta>` as the very first element of `<head>`, before
  * any script, replacing an existing one so the step can run twice.
  */
+/**
+ * Google Search Console ownership files (`google<16 hex>.html`) are plain text
+ * that must be served byte for byte, so the CSP step leaves them alone. They run
+ * no script; the header policy in firebase.json still applies to them.
+ */
+export function isSiteVerificationFile(name: string, contents: string): boolean {
+  return (
+    /^google[0-9a-f]{16}\.html$/.test(name) &&
+    contents.trim() === `google-site-verification: ${name}`
+  )
+}
+
 export function injectCspMeta(html: string, policy: string): string {
   const meta = `<meta http-equiv="Content-Security-Policy" content="${escapeAttribute(policy)}"/>`
   const withoutOld = html.replace(META_TAG, '')

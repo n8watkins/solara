@@ -6,12 +6,13 @@
 // Usage: node scripts/csp.mjs [exportDir]   (default: out)
 // Fails the build if a page has no <head> or uses inline event handlers.
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
-import { join, relative } from 'node:path'
+import { basename, join, relative } from 'node:path'
 import nextEnv from '@next/env'
 import {
   injectCspMeta,
   inlineEventHandlers,
   inlineScriptHashes,
+  isSiteVerificationFile,
   pagePolicy,
   serializePolicy,
 } from '../lib/csp.mts'
@@ -48,6 +49,7 @@ let pages = 0
 let hashCount = 0
 for (const file of walk(dir)) {
   const html = readFileSync(file, 'utf8')
+  if (isSiteVerificationFile(basename(file), html)) continue
   const handlers = inlineEventHandlers(html)
   if (handlers.length) {
     problems.push(`${relative(dir, file)} uses inline event handlers: ${handlers.join(', ')}`)

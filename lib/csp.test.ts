@@ -6,6 +6,7 @@ import {
   injectCspMeta,
   inlineEventHandlers,
   inlineScriptHashes,
+  isSiteVerificationFile,
   pagePolicy,
   scriptHash,
   serializePolicy,
@@ -136,6 +137,18 @@ const sites = (
   }
 ).hosting
 const hosting = sites.find(site => site.site === 'solara-uv')!
+
+describe('isSiteVerificationFile', () => {
+  it('matches only exact Google Search Console ownership files', () => {
+    const name = 'google21ab865e0385ac48.html'
+    expect(isSiteVerificationFile(name, `google-site-verification: ${name}\n`)).toBe(true)
+    expect(isSiteVerificationFile(name, '<html><head></head></html>')).toBe(false)
+    expect(
+      isSiteVerificationFile('google21ab.html', 'google-site-verification: google21ab.html'),
+    ).toBe(false)
+    expect(isSiteVerificationFile('index.html', 'google-site-verification: index.html')).toBe(false)
+  })
+})
 
 describe('firebase.json hosting', () => {
   const global = hosting.headers.find(rule => rule.source === '**')?.headers ?? []
