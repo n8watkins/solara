@@ -67,6 +67,54 @@ export default function PrivacyPage() {
           </li>
         </ul>
 
+        <h2>How Solara uses Google user data</h2>
+        <p>
+          Solara asks for Google permissions only for the features below, and only when you use
+          them.
+        </p>
+        <ul>
+          <li>
+            <strong>Google Sign-In</strong> (<code>openid</code>, <code>email</code>,{' '}
+            <code>profile</code>): your Google account identifier, name, email address and profile
+            image. Used to create and secure your Solara account and to show who is signed in.
+            Stored in Firebase Authentication while your account exists.
+          </li>
+          <li>
+            <strong>Google Calendar free/busy</strong> (<code>calendar.freebusy</code>), only if you
+            connect a calendar: the start and end times of your busy periods. Used in your browser
+            to schedule lower-UV windows around your commitments. Never stored on Solara&apos;s
+            servers and discarded when you close the page. Solara cannot read event titles,
+            descriptions, locations or attendees with this permission.
+          </li>
+          <li>
+            <strong>Google Calendar events you create</strong> (<code>calendar.events.owned</code>),
+            only when you choose to add a window to your calendar: Solara creates that one event on
+            your calendar. Solara does not read, change or delete other events, and does not keep a
+            copy of the event.
+          </li>
+        </ul>
+        <p>
+          Solara does not sell Google user data, does not use it for advertising, and does not use
+          it to train artificial intelligence or machine learning models. Google user data is not
+          shared with anyone except the service providers listed below that run Solara&apos;s
+          features, and only as needed for those features. No person at Solara reads your Google
+          user data unless you ask for help with it, it is needed for security, or the law requires
+          it.
+        </p>
+        <p>
+          You can disconnect Solara from your Google Account at any time in your{' '}
+          <a href="https://myaccount.google.com/connections">Google Account connections</a>, which
+          stops all further access. Deleting your Solara account removes the Google account details
+          Solara stores.
+        </p>
+        <p>
+          Solara&apos;s use and transfer of information received from Google APIs adheres to the{' '}
+          <a href="https://developers.google.com/terms/api-services-user-data-policy">
+            Google API Services User Data Policy
+          </a>
+          , including the Limited Use requirements.
+        </p>
+
         <h2>Why it is used, and the legal basis</h2>
         <ul>
           <li>
@@ -124,13 +172,6 @@ export default function PrivacyPage() {
           Some providers process data in the United States and other countries. Where required,
           transfers rely on the providers&apos; standard contractual clauses or equivalent
           safeguards.
-        </p>
-        <p>
-          Solara&apos;s use of information received from Google APIs adheres to the{' '}
-          <a href="https://developers.google.com/terms/api-services-user-data-policy">
-            Google API Services User Data Policy
-          </a>
-          , including the Limited Use requirements.
         </p>
 
         <h2>How long information is kept</h2>

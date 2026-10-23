@@ -33,6 +33,15 @@ describe('privacy policy', () => {
     expect(privacy).toContain('<LegalDetail name="contactEmail" />')
   })
 
+  it('has a Google user data section naming every requested Google scope', () => {
+    expect(privacy).toContain('<h2>How Solara uses Google user data</h2>')
+    for (const scope of ['calendar.freebusy', 'calendar.events.owned', 'openid']) {
+      expect(privacy).toContain(scope)
+    }
+    expect(privacy).toContain('does not use it for advertising')
+    expect(privacy).toContain('train artificial intelligence')
+  })
+
   it('describes calendar access as availability only, matching the requested scope', () => {
     expect(privacy).toContain('Solara never sees')
     expect(privacy).toContain('Limited Use')
