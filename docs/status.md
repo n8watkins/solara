@@ -10,7 +10,7 @@ Solara is a Next.js 16 and React 19 static application deployed through Firebase
 Google sign-in is required before users can reach the personalized dashboard.
 Firestore stores account preferences, and trusted backend paths are responsible for billing entitlements and notification delivery state.
 The backend maintains durable Stripe ownership indexes, retries failed checkout cleanup, and completes account deletion through tombstone-owned scheduled cleanup.
-Firebase Functions target the Node.js 24 runtime with `firebase-functions` 7, `firebase-admin` 14 and `stripe` 22; the local and CI Node.js version comes from `.nvmrc` (24).
+Firebase Functions target the Node.js 24 runtime with `firebase-functions` 7, `firebase-admin` 14 and `stripe` 22; the local and CI Node.js version comes from `.nvmrc` (24.16.0, pinned exactly).
 
 The repository includes unit coverage for the core planning modules and credential-free Playwright coverage for the welcome, onboarding and analytics-consent flows on desktop and mobile Chromium.
 CI blocks on production dependency audits (`npm audit --omit=dev --audit-level=high`) for the app and Functions, lint, typecheck, app and Functions tests, Firestore emulator rules tests, production build, and browser smoke tests before a production deploy can begin.
