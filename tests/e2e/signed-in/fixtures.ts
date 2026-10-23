@@ -344,17 +344,9 @@ export function uvStrip(page: Page) {
   return page.getByRole('group', { name: 'UV forecast by hour' })
 }
 
-/**
- * Signs a returning account in and opens its dashboard.
- *
- * Signing in from setup currently shows the setup answers instead of the saved
- * account until the next page load (see onboarding.e2e.ts), so this reloads once
- * after sign-in, as a returning user would see after any refresh.
- */
+/** Signs a returning account in from setup and waits for its dashboard. */
 export async function openDashboard(page: Page, account: Account): Promise<void> {
   await signIn(page, account)
-  await expect(uvStrip(page)).toBeVisible()
-  await page.reload()
   await expect(uvStrip(page)).toBeVisible()
 }
 

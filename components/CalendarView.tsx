@@ -206,7 +206,7 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
       dateLabel: day.label,
       isoDate: day.dateStr,
     }
-    const text = buildActivityShareText(payload)
+    const text = buildActivityShareText(payload, fmt.units.clock)
     const url = buildActivityShareUrl(
       payload,
       typeof window !== 'undefined' ? window.location.origin : undefined,

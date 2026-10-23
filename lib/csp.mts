@@ -23,6 +23,21 @@ export interface CspEnv {
   authDomain?: string
   /** NEXT_PUBLIC_FUNCTIONS_URL: origin of the account, billing and feed endpoints. */
   functionsUrl?: string
+  /**
+   * NEXT_PUBLIC_FIREBASE_EMULATORS=1: a build for the signed-in e2e suite only, which
+   * production builds refuse (scripts/check-no-emulators.mjs). Its sign-in helper
+   * comes from the Auth emulator, served on the page's own origin.
+   */
+  emulators?: boolean
+}
+
+/** The CSP env for the current build, from the same variables `next build` reads. */
+export function cspEnvFrom(env: Record<string, string | undefined>): CspEnv {
+  return {
+    authDomain: env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+    functionsUrl: env.NEXT_PUBLIC_FUNCTIONS_URL,
+    emulators: env.NEXT_PUBLIC_FIREBASE_EMULATORS === '1',
+  }
 }
 
 export type CspDirectives = Record<string, string[]>
@@ -73,6 +88,9 @@ const FRAME_SOURCES = [
 
 const IMG_SOURCES = [
   'https://*.googleusercontent.com', // Google profile photos
+  // Firestore's WebChannel transport loads this one image to test connectivity
+  // after a connection error. A path without a trailing slash matches only itself.
+  'https://www.google.com/images/cleardot.gif',
   'https://*.google-analytics.com',
   'https://*.googletagmanager.com',
 ]
@@ -128,7 +146,7 @@ export function pagePolicy(hashes: string[], env: CspEnv = {}): CspDirectives {
     'font-src': ["'self'"],
     'img-src': ["'self'", 'data:', 'blob:', ...IMG_SOURCES],
     'connect-src': ["'self'", ...present([functionsOrigin]), ...CONNECT_SOURCES],
-    'frame-src': [...present([authOrigin]), ...FRAME_SOURCES],
+    'frame-src': [...(env.emulators ? ["'self'"] : []), ...present([authOrigin]), ...FRAME_SOURCES],
     'worker-src': ["'self'"],
     'manifest-src': ["'self'"],
     'media-src': ["'none'"],

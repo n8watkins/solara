@@ -47,7 +47,7 @@ Required in addition for push registration:
 Every browser-called Function verifies a Firebase ID token and an App Check token before doing any work.
 Checkout and account deletion require a limited-use App Check token, which the server consumes so a captured request cannot be replayed.
 App Check, and with it reCAPTCHA, starts only after someone signs in, so signed-out visitors never load it.
-Errors reach the browser only as `{ error, code }` with a code from the allowlist in `functions/lib/errors.js`.
+Errors reach the browser only as `{ error, code }` with a code from the allowlist in `functions/src/shared/errors.ts`.
 The notification registration endpoints also require paid entitlement.
 
 Optional feature activation:
@@ -154,6 +154,7 @@ Each page's policy lists the SHA-256 hash of every inline script on that page, s
 The policy itself is defined in `lib/csp.mts`; add a host there, with a comment saying what needs it, when a new third-party service is introduced, and list the service in the privacy policy.
 The Functions origin and Firebase auth domain come from `NEXT_PUBLIC_FUNCTIONS_URL` and `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` at build time, so deploy the `out/` directory produced by the same build.
 `firebase.json` adds the directives a meta tag cannot carry (`frame-ancestors`) as a header.
+Only an emulator build for the signed-in e2e suite (`NEXT_PUBLIC_FIREBASE_EMULATORS=1`) also frames `'self'`, where the Auth emulator serves its sign-in helper; production builds refuse that flag (`scripts/check-no-emulators.mjs`).
 Because the meta policy cannot send reports, violations show only in the browser console; check the console on the deployed site after a release.
 Unknown paths are served the exported `404.html` with a 404 status; there is no catch-all rewrite.
 

@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import {
+  cspEnvFrom,
   HEADER_POLICY,
   httpsOrigin,
   injectCspMeta,
@@ -67,6 +68,39 @@ describe('page policy', () => {
       'https://www.google.com/recaptcha/',
       'https://recaptcha.google.com/recaptcha/',
     ])
+  })
+
+  it('allows exactly the image Firestore loads to test connectivity, nothing else on google.com', () => {
+    const images = directive(policy, 'img-src')
+    expect(images).toContain('https://www.google.com/images/cleardot.gif')
+    expect(images.filter(s => s.includes('www.google.com'))).toEqual([
+      'https://www.google.com/images/cleardot.gif',
+    ])
+  })
+
+  it('frames its own origin only in an emulator build, and changes nothing else', () => {
+    const emulator = pagePolicy(["'sha256-abc='"], { ...ENV, emulators: true })
+    const production = pagePolicy(["'sha256-abc='"], ENV)
+    expect(emulator['frame-src']).toEqual(["'self'", ...(production['frame-src'] ?? [])])
+    expect({ ...emulator, 'frame-src': production['frame-src'] }).toEqual(production)
+    expect(directive(policy, 'frame-src')).not.toContain("'self'")
+  })
+
+  it('reads the emulator option only from the exact emulator flag', () => {
+    const build = {
+      NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ENV.authDomain,
+      NEXT_PUBLIC_FUNCTIONS_URL: ENV.functionsUrl,
+    }
+    // A production build (no flag, or any other value) gets the same policy as before.
+    for (const flag of [undefined, '', '0', 'true']) {
+      const env = cspEnvFrom({ ...build, NEXT_PUBLIC_FIREBASE_EMULATORS: flag })
+      expect(env.emulators).toBe(false)
+      expect(pagePolicy([], env)).toEqual(pagePolicy([], ENV))
+    }
+    expect(cspEnvFrom({ ...build, NEXT_PUBLIC_FIREBASE_EMULATORS: '1' })).toEqual({
+      ...ENV,
+      emulators: true,
+    })
   })
 
   it('omits optional origins that are not configured or not https', () => {

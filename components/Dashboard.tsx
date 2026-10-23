@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import type { User } from 'firebase/auth'
 import type {
   Activity,
   WeatherResponse,
@@ -36,8 +37,11 @@ import ActivityModalShell from './ActivityModalShell'
 import Tooltip from './Tooltip'
 import TipCarousel from './TipCarousel'
 import GoogleSignInButton, { ACTIVITY_SIGNIN_BLURB } from './GoogleSignInButton'
+import PricingModal from './PricingModal'
 
 interface Props {
+  /** The signed-in account, for checkout from the Pro plans dialog. */
+  user?: User | null
   weather: WeatherResponse
   prefs: UserPreferences
   displayTier?: TierLevel
@@ -57,6 +61,7 @@ function uvNumberColor(uv: number): string {
 }
 
 export default function Dashboard({
+  user,
   weather,
   prefs,
   displayTier,
@@ -66,6 +71,7 @@ export default function Dashboard({
   onSelectDay,
 }: Props) {
   const [shareMsg, setShareMsg] = useState<string | null>(null)
+  const [showPricing, setShowPricing] = useState(false)
   const [activityModal, setActivityModal] = useState<'add' | 'manage' | null>(null)
   const [showDayModal, setShowDayModal] = useState(false)
   const [editingActivityId, setEditingActivityId] = useState<string | null>(null)
@@ -333,6 +339,7 @@ export default function Dashboard({
 
       {shareMsg && (
         <div
+          role="status"
           style={{
             padding: '11px 13px',
             borderRadius: '10px',
@@ -637,10 +644,7 @@ export default function Dashboard({
               nowHourToday={nowHour}
               lockedDays={lockedForecastCount}
               upgradeCopy={upgradeCopy}
-              onUpgrade={() => {
-                setShareMsg(upgradeCopy)
-                window.setTimeout(() => setShareMsg(null), 3500)
-              }}
+              onUpgrade={() => setShowPricing(true)}
               onBook={
                 calStatus === 'connected'
                   ? (activity, rec, dateStr) => void bookSlotOn(activity, rec, dateStr)
@@ -864,6 +868,21 @@ export default function Dashboard({
             )}
           </div>
         </ActivityModalShell>
+      )}
+
+      {showPricing && (
+        <PricingModal
+          user={user}
+          email={user?.email ?? prefs.upgradeInterest?.email}
+          alreadyWaitlisted={!!prefs.upgradeInterest}
+          onJoinWaitlist={email =>
+            onPrefsUpdate({
+              ...prefs,
+              upgradeInterest: { email: email || undefined, createdAt: new Date().toISOString() },
+            })
+          }
+          onClose={() => setShowPricing(false)}
+        />
       )}
     </div>
   )

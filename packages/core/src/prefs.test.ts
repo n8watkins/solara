@@ -110,7 +110,7 @@ const V2_PRODUCTION = {
   hiddenActivitySuggestionIds: ['golf', 'golf'],
   collapsedActivityCategories: ['Water sports'],
   notificationHour: 8,
-  // Retired client-minted feed token; the server migrates it out (functions/lib/feed-tokens.js).
+  // Retired client-minted feed token; the server migrates it out (functions/src/feed/tokens.ts).
   calendarFeedToken: 'a'.repeat(40),
   // Server-owned fields.
   stripeCustomerId: 'cus_123',

@@ -4,7 +4,7 @@ import { useState } from 'react'
 import type { User } from 'firebase/auth'
 import { signInWithPopup } from 'firebase/auth'
 import { auth, googleProvider, firebaseEnabled } from '@/lib/firebase'
-import { loadFirestorePrefs, saveFirestorePrefs } from '@/lib/prefs'
+import { createAccountPrefs } from '@/lib/prefs'
 import type { UserPreferences } from '@/lib/types'
 
 // Shared between the dashboard activities gate and the onboarding sign-in step
@@ -72,13 +72,9 @@ export default function GoogleSignInButton({
       const result = await signInWithPopup(auth, googleProvider)
       const u = result.user
       if (!u) return
-      if (seedPrefs) {
-        const existing = await loadFirestorePrefs(u.uid)
-        if (existing.status === 'error') throw existing.error
-        if (existing.status === 'missing') {
-          await saveFirestorePrefs(u.uid, { ...seedPrefs, uid: u.uid, tier: 'free' })
-        }
-      }
+      // Creates the account only if it does not exist yet, in one transaction, so a
+      // returning account's saved document is never written here.
+      if (seedPrefs) await createAccountPrefs(u.uid, seedPrefs)
       onSignedIn?.(u)
     } catch (e) {
       console.error('Google sign-in failed:', e)

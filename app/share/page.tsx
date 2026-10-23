@@ -4,7 +4,8 @@ import { Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import DataAttribution from '@/components/DataAttribution'
 import { formatShareDate, parseActivityShareParams, shareDateStatus } from '@/lib/share'
-import { fmtClock } from '@/lib/weather'
+import { loadLocalPrefs } from '@/lib/prefs'
+import { resolveUnits, unitFormatters } from '@/lib/units'
 
 function ShareContent() {
   const sharedPlan = parseActivityShareParams(useSearchParams())
@@ -62,6 +63,10 @@ function ShareContent() {
   const { activity, icon, city, region, date, from, to, uv } = sharedPlan
   const place = `${city}${region ? `, ${region}` : ''}`
   const isPast = shareDateStatus(date) === 'past'
+  // The viewer's clock: their saved choice on this device, else their locale's.
+  // (This content renders only in the browser: useSearchParams opts it out of the
+  // static prerender.)
+  const fmt = unitFormatters(resolveUnits(loadLocalPrefs()))
 
   return (
     <main
@@ -105,7 +110,7 @@ function ShareContent() {
         <p
           style={{ margin: '0 0 22px', fontSize: '16px', color: 'var(--text-2)', lineHeight: 1.5 }}
         >
-          {formatShareDate(date)} · {fmtClock(from)}–{fmtClock(to)} · {place}
+          {formatShareDate(date)} · {fmt.time(from)}–{fmt.time(to)} · {place}
         </p>
         {isPast && (
           <p
@@ -137,7 +142,7 @@ function ShareContent() {
               Recommended window
             </p>
             <p style={{ margin: 0, fontSize: '22px', fontWeight: 800, color: 'var(--accent)' }}>
-              {fmtClock(from)}–{fmtClock(to)}
+              {fmt.time(from)}–{fmt.time(to)}
             </p>
           </div>
           {uv && (

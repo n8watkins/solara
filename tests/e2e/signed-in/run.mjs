@@ -18,7 +18,6 @@ import { spawn, spawnSync } from 'node:child_process'
 import {
   existsSync,
   mkdirSync,
-  readdirSync,
   readFileSync,
   renameSync,
   rmSync,
@@ -140,33 +139,9 @@ function buildSite() {
   mkdirSync(resolve(SITE_DIR, '..'), { recursive: true })
   renameSync(resolve('out'), SITE_DIR)
   run('node', ['scripts/check-no-emulators.mjs', SITE_DIR, '--expect-emulators'], buildEnv)
+  // The emulator flag in buildEnv also lets the policy frame the Auth emulator's
+  // sign-in helper, which this suite serves on the page's own origin (lib/csp.mts).
   run('node', ['scripts/csp.mjs', SITE_DIR], buildEnv)
-
-  // The production policy frames the Auth helper from the https authDomain. Emulator
-  // builds load that helper from the emulator, which this suite serves on the page's
-  // own origin, so the frame source becomes 'self'. Everything else stays as shipped.
-  let framed = 0
-  for (const file of (function* walk(dir) {
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      const full = join(dir, entry.name)
-      if (entry.isDirectory()) yield* walk(full)
-      else if (entry.name.endsWith('.html')) yield full
-    }
-  })(SITE_DIR)) {
-    const html = readFileSync(file, 'utf8')
-    const next = html.replace(
-      /(<meta http-equiv="Content-Security-Policy" content="[^"]*?frame-src) /,
-      "$1 'self' ",
-    )
-    if (next !== html) {
-      writeFileSync(file, next)
-      framed++
-    }
-  }
-  if (framed === 0) {
-    console.error('signed-in: found no Content-Security-Policy frame-src to adjust.')
-    process.exit(1)
-  }
 
   writeFileSync(SITE_INFO, JSON.stringify({ origin }))
 }
