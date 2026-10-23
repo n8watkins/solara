@@ -5,7 +5,8 @@
 // they can never disagree. A slot is actionable when it:
 //   - starts no earlier than "now" on today (elapsed windows are dropped and a
 //     window already under way is trimmed to start now),
-//   - ends inside the forecast day the UV strip shows (the last hourly sample),
+//   - ends inside the forecast day the UV strip shows (the last hourly sample;
+//     the engine in @solara/core already ends every window there),
 //   - is long enough for the activity.
 import { lowestUVWindow, summarizeWindow } from '@solara/core'
 import type { Activity, HourlyForecast, SafeActivityWindow, SkinType } from './types'
@@ -27,8 +28,8 @@ export function nowHourOf(date: Date): number {
 
 /**
  * Trim safe windows to what is still actionable: from `nowHour` (today; -1 for
- * other days) to the last hourly sample, keeping only spans that still fit the
- * activity. Trimmed windows get their label and UV stats recomputed.
+ * other days), keeping only spans that still fit the activity. Trimmed windows
+ * get their label and UV stats recomputed.
  */
 export function actionableWindows(
   windows: SafeActivityWindow[],
@@ -36,14 +37,11 @@ export function actionableWindows(
   durationMins: number,
   nowHour = -1,
 ): SafeActivityWindow[] {
-  const dayEnd = hourly.at(-1)?.hour
-  if (dayEnd === undefined) return []
   const result: SafeActivityWindow[] = []
   for (const w of windows) {
     const from = nowHour >= 0 ? Math.max(w.from, nowHour) : w.from
-    const to = Math.min(w.to, dayEnd)
-    if (to <= from || (to - from) * 60 < durationMins) continue
-    result.push(from === w.from && to === w.to ? w : summarizeWindow(hourly, from, to))
+    if (w.to <= from || (w.to - from) * 60 < durationMins) continue
+    result.push(from === w.from ? w : summarizeWindow(hourly, from, w.to))
   }
   return result
 }

@@ -4,7 +4,8 @@ import type { Activity } from '@/lib/types'
 
 type Hourly = { hour: number; uv: number; tempF: number }[]
 
-// Safe morning (6–9 @ uv1), unsafe midday (10–16 @ uv8), safe evening (17–20 @ uv2)
+// Safe morning (6–9 @ uv1), unsafe midday (10–16 @ uv8), safe evening (17–20 @ uv2).
+// Windows end at the last hourly sample (20), so the evening block is 17–20.
 function buildDay(): Hourly {
   const hours: Hourly = []
   for (let h = 6; h <= 20; h++) {
@@ -19,7 +20,7 @@ describe('getSafeWindows', () => {
     const w = getSafeWindows(buildDay(), 4)
     expect(w).toHaveLength(2)
     expect(w[0]).toMatchObject({ from: 6, to: 10, peakUV: 1 })
-    expect(w[1]).toMatchObject({ from: 17, to: 21, peakUV: 2 })
+    expect(w[1]).toMatchObject({ from: 17, to: 20, peakUV: 2 })
   })
 
   it('returns no windows when nothing meets the threshold', () => {
@@ -29,18 +30,19 @@ describe('getSafeWindows', () => {
   it('returns a single all-day window when everything is under threshold', () => {
     const w = getSafeWindows(buildDay(), 11)
     expect(w).toHaveLength(1)
-    expect(w[0]).toMatchObject({ from: 6, to: 21 })
+    expect(w[0]).toMatchObject({ from: 6, to: 20 })
   })
 
   it('drops blocks shorter than the requested duration', () => {
-    // evening block is 17–21 (4h); morning is 6–10 (4h). Require 5h → both dropped.
+    // evening block is 17–20 (3h); morning is 6–10 (4h). Require 5h → both dropped.
     expect(getSafeWindows(buildDay(), 4, 300)).toHaveLength(0)
   })
 
   it('keeps blocks that meet the duration exactly', () => {
-    // 4h block, require 240 min → kept
+    // 4h morning block, require 240 min → kept; the 3h evening block is not
     const w = getSafeWindows(buildDay(), 4, 240)
-    expect(w).toHaveLength(2)
+    expect(w).toHaveLength(1)
+    expect(w[0]).toMatchObject({ from: 6, to: 10 })
   })
 })
 
@@ -70,6 +72,6 @@ describe('getSafeWindowsForActivity', () => {
     const spf: Activity = { ...run, sunscreen: true }
     const w = getSafeWindowsForActivity(buildDay(), spf)
     expect(w).toHaveLength(1)
-    expect(w[0]).toMatchObject({ from: 6, to: 21 })
+    expect(w[0]).toMatchObject({ from: 6, to: 20 })
   })
 })

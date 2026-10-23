@@ -141,6 +141,9 @@ export function summarizeWindow(
  *
  * An hour without a finite UV never qualifies, and a window never spans a gap
  * in the hour sequence, so an unknown or missing hour is never recommended.
+ * A window ends no later than the day's last hourly sample: the forecast day
+ * shown to the user ends there, so every surface (dashboard, calendar, feed and
+ * notifications) offers the same span.
  */
 export function findWindows(
   hourly: readonly RecommendationHour[],
@@ -149,6 +152,7 @@ export function findWindows(
   preferredHours?: PreferredHours | null,
 ): RecommendationWindow[] {
   const windows: RecommendationWindow[] = []
+  const lastHour = hourly.at(-1)?.hour
   let start: number | null = null
 
   for (let i = 0; i <= hourly.length; i++) {
@@ -164,9 +168,9 @@ export function findWindows(
       hourAllowed(current.hour, preferredHours)
     const continues = qualifies && previous !== undefined && current.hour === previous.hour + 1
 
-    if (start !== null && previous !== undefined && !continues) {
-      const to = previous.hour + 1
-      if ((to - start) * 60 >= durationMins) {
+    if (start !== null && previous !== undefined && lastHour !== undefined && !continues) {
+      const to = Math.min(previous.hour + 1, lastHour)
+      if (to > start && (to - start) * 60 >= durationMins) {
         windows.push(summarizeWindow(hourly, start, to))
       }
       start = null

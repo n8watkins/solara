@@ -162,7 +162,7 @@ describe('getActivityWindow', () => {
     const w = getActivityWindow(buildDay(), runActivity, 7, 'fair')
     expect(w.allWindows).toHaveLength(2)
     expect(w.allWindows[0]).toMatchObject({ from: 6, to: 10, peakUV: 1 })
-    expect(w.allWindows[1]).toMatchObject({ from: 17, to: 21, peakUV: 2 })
+    expect(w.allWindows[1]).toMatchObject({ from: 17, to: 20, peakUV: 2 })
   })
 
   it('picks the lowest-average-UV window as best', () => {
@@ -206,6 +206,6 @@ describe('getActivityWindow', () => {
     expect(w.safeNow).toBe(true)
     // whole 6–20 range is now under threshold → one continuous window
     expect(w.allWindows).toHaveLength(1)
-    expect(w.allWindows[0]).toMatchObject({ from: 6, to: 21 })
+    expect(w.allWindows[0]).toMatchObject({ from: 6, to: 20 })
   })
 })

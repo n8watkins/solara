@@ -76,14 +76,21 @@ describe('actionableWindows', () => {
     expect(actionableWindows([win(6, 12, 'Morning')], hourly, 120, 10.5)).toEqual([])
   })
 
+  // The engine (@solara/core findWindows) ends windows at the last hourly
+  // sample, so the plan ends there without a second clip here.
   it('ends windows at the last hour the strip shows', () => {
-    const [evening] = actionableWindows([win(17, 21, 'Evening')], hourly, 60)
-    expect(evening!.to).toBe(20)
-    expect(actionableWindows([win(20, 21, 'Evening')], hourly, 30)).toEqual([])
+    const plan = planActivityDay(hourly, run, 'fair')
+    expect(plan.windows.at(-1)).toMatchObject({ from: 17, to: 20 })
+    const lastHourOnly = planActivityDay(
+      day(h => (h === 20 ? 2 : 9)),
+      { ...run, durationMins: 30 },
+      'fair',
+    )
+    expect(lastHourOnly.windows).toEqual([])
   })
 
   it('returns nothing for an empty day', () => {
-    expect(actionableWindows([win(6, 9, 'Morning')], [], 30)).toEqual([])
+    expect(planActivityDay([], run, 'fair').windows).toEqual([])
   })
 })
 

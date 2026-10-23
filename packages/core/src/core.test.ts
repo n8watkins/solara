@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
+  bestWindow,
+  findWindows,
   isValidFeedToken,
   parseHourlyRows,
   parseOpenMeteoResponse,
@@ -10,7 +12,36 @@ import {
 const day = (uvByHour: (hour: number) => number) =>
   Array.from({ length: 15 }, (_, i) => ({ hour: 6 + i, uv: uvByHour(6 + i) }))
 
+const lowFrom = (start: number) => day(h => (h >= start ? 2 : 9))
+const lowUntil = (end: number) => day(h => (h <= end ? 1 : 9))
+const lowOnlyAt = (hour: number) => day(h => (h === hour ? 2 : 9))
 const rising = day(h => h)
+
+describe('findWindows', () => {
+  it('ends the last window at the last hourly sample', () => {
+    expect(findWindows(lowFrom(17), 3)).toEqual([
+      { from: 17, to: 20, label: 'Evening', peakUV: 2, avgUV: 2 },
+    ])
+  })
+
+  it('never offers a window that starts at the last sample', () => {
+    expect(findWindows(lowOnlyAt(20), 3)).toEqual([])
+  })
+
+  it('applies the duration after the end is clipped', () => {
+    expect(findWindows(lowFrom(18), 3, 120)).toEqual([
+      { from: 18, to: 20, label: 'Evening', peakUV: 2, avgUV: 2 },
+    ])
+    expect(findWindows(lowFrom(18), 3, 121)).toEqual([])
+    expect(bestWindow(lowFrom(18), 3, 180)).toBeNull()
+  })
+
+  it('keeps windows that end before the last sample unchanged', () => {
+    expect(findWindows(lowUntil(9), 3)).toEqual([
+      { from: 6, to: 10, label: 'Morning', peakUV: 1, avgUV: 1 },
+    ])
+  })
+})
 
 describe('summarizeWindow', () => {
   it('includes the hour a fractional start falls in', () => {

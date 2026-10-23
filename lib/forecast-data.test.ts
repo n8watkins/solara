@@ -81,7 +81,7 @@ describe('null UV gaps never produce a recommendation', () => {
     expect(dashboard.safeNow).toBe(false)
     expect(dashboard.allWindows.map(w => [w.from, w.to])).toEqual([
       [6, 10],
-      [15, 21],
+      [15, 20],
     ])
     expect(dashboard.allWindows.some(touchesUnknownHours)).toBe(false)
 
@@ -141,6 +141,8 @@ describe('findWindows', () => {
       { hour: 11, uv: Number.NaN },
       { hour: 12, uv: 1, planningUV: Number.NaN },
       { hour: 13, uv: 1 },
+      // Windows end at the day's last sample, so the day continues past 13.
+      { hour: 14, uv: 9 },
     ]
     expect(engine.findWindows(hourly, 3).map((w: { from: number }) => w.from)).toEqual([9, 13])
   })
@@ -151,6 +153,7 @@ describe('findWindows', () => {
       { hour: 9, uv: 1 },
       { hour: 12, uv: 1 },
       { hour: 13, uv: 1 },
+      { hour: 14, uv: 9 },
     ]
     expect(
       engine.findWindows(hourly, 3).map((w: { from: number; to: number }) => [w.from, w.to]),
@@ -162,7 +165,7 @@ describe('findWindows', () => {
   })
 
   it('still joins consecutive qualifying hours into one window', () => {
-    const hourly = [6, 7, 8, 9].map(hour => ({ hour, uv: 1 }))
+    const hourly = [...[6, 7, 8, 9].map(hour => ({ hour, uv: 1 })), { hour: 10, uv: 9 }]
     expect(engine.findWindows(hourly, 3, 240)).toEqual([
       { from: 6, to: 10, label: 'Morning', peakUV: 1, avgUV: 1 },
     ])
