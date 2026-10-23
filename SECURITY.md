@@ -25,11 +25,4 @@ Only the current production site and the `main` branch are supported.
 ## Repository settings
 
 The repository is private on GitHub Free (owner decision D2), so branch protection, rulesets, environments, secret scanning and CodeQL are unavailable, and any push to `main` deploys to production.
-If the repository becomes public or moves to GitHub Pro, turn on:
-
-- a ruleset for `main` that requires pull requests and the CI checks to pass;
-- a `production` environment with a required reviewer for the deploy jobs;
-- secret scanning with push protection, and private vulnerability reporting;
-- CodeQL default setup for JavaScript and TypeScript.
-
-Dependabot alerts and Dependabot security updates work on private repositories and should be on now.
+The settings to turn on when it becomes public are listed in the [owner checklist](docs/OWNER_CHECKLIST.md#repository).

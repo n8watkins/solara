@@ -1,8 +1,126 @@
 # Solara assessment - October 2026
 
+> **Archived.**
+> This report is a snapshot of the project on 2026-10-23, before Waves 0-2 of the level-up plan.
+> The finding descriptions, evidence and line numbers below are kept as written and point at code that has since moved or changed.
+> For the project as it is today read [status.md](../../status.md); for the open work read [ROADMAP.md](../../ROADMAP.md).
+> The original wave plan (`docs/assessment-2026-10/PLAN.md`) was replaced by the roadmap and is in git history.
+
+## Finding status
+
+Status as of 2026-10-23, after PRs #17-#52.
+Each "Fixed" entry was checked against the merged code, not only the PR description.
+"Open" names the roadmap lane or owner decision that carries the rest of the work; a partial fix is listed as Open with what already landed.
+
+Totals: 71 fixed, 30 open, 1 won't fix (102 IDs; each ID of a combined row such as `OPS-1 / BE-3` or a range such as `UX-4..9` is counted separately, and CQ-2 comes from the old plan).
+
+| ID | Status | Where |
+| --- | --- | --- |
+| OPS-1 | Fixed | #17: production-dependency audit gate, in-range updates; the gate runs in `.github/workflows/quality.yml` |
+| BE-3 | Fixed | #17, as OPS-1 |
+| BE-1 | Fixed | #17: Functions run on Node 24 with firebase-admin 14 |
+| OPS-2 | Fixed | #17, as BE-1 |
+| CQ-1 | Fixed | #23: unknown UV stays `null` in the app, calendar feed and notifier; moved into `@solara/core` in #44 |
+| PROD-1 | Open | Wave 3, W3-C (guest mode, decision D7) |
+| A11Y-1 | Fixed | #22: accent and text tokens pass WCAG AA; remaining contrast nodes fixed in #25, #26, #27 |
+| FE-3 | Fixed | #24: `signOutAndClear()` and an account-owner marker; covered by the signed-in e2e suite in #51 |
+| BE-2 | Fixed | #28: `functions/.env` plus a per-project price file; `check-functions-params.js` runs in CI |
+| OPS-3 | Fixed | #28 split the deploy into visible jobs without `continue-on-error`; the owner granted `roles/datastore.indexAdmin` (D3) and the Firestore indexes job is green |
+| OPS-4 | Open | #24 removed the notification claims (interim); relaunch is Wave 3, W3-B (D6) |
+| OPS-5 | Open | #28 added Workload Identity Federation with a key fallback; the owner still has to run `docs/WIF_SETUP.md` and delete the key (D4) |
+| BE-11 | Open | Deploy and notifier identities are ready in #28 but wait on the WIF setup; the Functions runtime identity is Wave 3, W3-B |
+| OPS-6 | Open | Repository side done in #28; branch protection, rulesets and environments wait on D2 |
+| OPS-7 | Open | #28 added `SECURITY.md`, `CODEOWNERS` and Dependabot version updates; CodeQL and secret scanning wait on D2, and Dependabot alerts are still off |
+| UX-1 | Fixed | #26: one next-actionable-slot calculation (`lib/next-slot.ts`) for hero, cards and plan-ahead |
+| UX-2 | Fixed | #26: the sun path is drawn in real pixels inside the UV strip's scroller |
+| UX-3 | Fixed | #25: CSS grid week view with clipped lanes and compact chips |
+| PROD-2 | Fixed | #50: "now" and "today" come from the location's time zone (`lib/time.ts`) |
+| PROD-3 | Open | #52 made the dashboard upsell open the plans dialog; pricing content is Wave 3, W3-A, and the remaining upsell wiring is W3-C |
+| PROD-4 | Fixed | #50: Celsius storage, unit and 12/24-hour preferences (`lib/units.ts`) |
+| PROD-5 | Open | Wave 3, W3-C (`app/page.tsx` still renders the app client-only) |
+| A11Y-2 | Fixed | #27: one native `<dialog>` component for every modal |
+| A11Y-3 | Fixed | #26 (sun arc and UV strip), #27 (tooltips) |
+| PERF-1 | Open | Wave 3, W3-C; #30 already keeps reCAPTCHA from loading before sign-in |
+| PERF-2 | Open | Wave 3, W3-C |
+| CQ-10 | Fixed | #20 (coverage), #21 (UI harness), #28 (e2e on the static export), #51 (signed-in e2e on emulators) |
+| BE-4 | Fixed | #30: server-minted feed tokens indexed by hash in `calendarFeeds/{hash}` |
+| BE-5 | Fixed | #30: every client-writable field typed and size-capped, with a rules test per field |
+| BE-6 | Fixed | #30: App Check on every browser endpoint, limited-use tokens for checkout and deletion, Enterprise provider supported; console enforcement is owner decision D11 |
+| FE-10 | Fixed | #30, as BE-6 |
+| BE-7 | Fixed | #23 (timeout, last-good fallback), #30 (single-read lookup, caching, rate limits) |
+| BE-8 | Fixed | #28 stopped deploying the pre-functions rules and #30 deleted them |
+| OPS-11 | Fixed | #28, #30, as BE-8 |
+| BE-9 | Open | Wave 3, W3-A |
+| BE-10 | Open | Wave 3, W3-A |
+| BE-12 | Open | Attribution added in #29; the Open-Meteo licensing question is Wave 3, W3-C, with decision D5 |
+| FE-5 | Fixed | #29: Open-Meteo and OpenStreetMap attribution, one cached and rate-limited reverse-geocode helper |
+| FE-1 | Fixed | #29: per-page hash-based CSP without `'unsafe-inline'` (`scripts/csp.mjs`, `lib/csp.mts`) |
+| FE-2 | Fixed | #29: `calendar.freebusy` to connect and `calendar.events.owned` to book; the consent screen and verification are owner actions |
+| FE-4 | Fixed | #29: coordinates rounded to 2 decimals before any request or storage |
+| FE-6 | Fixed | #22 (self-hosted font), #30 (App Check and reCAPTCHA start only after sign-in) |
+| FE-7 | Fixed | #29 (complete policy), #46 (operator details, D8), #48 (Google user data section) |
+| OPS-8 | Fixed | #28: `permissions: {}` defaults and SHA-pinned actions |
+| OPS-9 | Fixed | #28: `firebase-tools` comes from `functions/package-lock.json` |
+| OPS-10 | Fixed | #28: one reusable `quality.yml`; deploy ships the artifact it tested |
+| OPS-12 | Open | Wave 3, W3-D (D9) |
+| OPS-13 | Open | Wave 4, W4-0 and W4-F; Dependabot PRs #31-#41 are open for these majors |
+| OPS-14 | Fixed | #17 (one firebase-admin version), #44 (backend packages left the web app) |
+| OPS-15 | Open | Structured logging done in #47; error reporting, alerts and uptime checks are Wave 3, W3-D (D10) |
+| OPS-16 | Open | Wave 3, W3-D |
+| OPS-17 | Open | Wave 3, W3-D |
+| CQ-3 | Fixed | #23 (shared parser and ICS), #44 (`@solara/core` shared by the app and Functions) |
+| CQ-4 | Fixed | #47: Functions in TypeScript; the manual notifier stays JavaScript until W3-B replaces it |
+| CQ-5 | Fixed | #49: one Zod prefs schema with migrations and a rules drift test |
+| CQ-6 | Fixed | #49 (API responses), #50 (versioned, validated cache) |
+| CQ-7 | Fixed | #24 (auth race, aborted fetches), #50 (TanStack Query data layer, midnight rollover) |
+| CQ-8 | Fixed | #20 |
+| CQ-9 | Fixed | #20 |
+| CQ-11 | Open | Wave 4, W4-A..E |
+| CQ-12 | Open | Wave 4, W4-0 and W4-A..E |
+| CQ-13 | Open | React Compiler on in #50; `app/global-error.tsx` and error reporting are Wave 3, W3-D, and the inline-style part is Wave 4 |
+| PROD-6 | Open | Wave 3, W3-C |
+| PROD-7 | Fixed | #29: non-blocking consent banner with equal-weight buttons |
+| PROD-8 | Fixed | #29: validated share links with a "has passed" notice and a call to action |
+| UX-4 | Fixed | #22: disabled states look inert |
+| UX-5 | Open | Wave 3, W3-C |
+| UX-6 | Open | Wave 3, W3-C |
+| UX-7 | Fixed | #22: hover only under `@media (hover: hover)`, System/Light/Dark theme without a flash |
+| UX-8 | Fixed | #22: self-hosted variable Inter covers every weight |
+| UX-9 | Fixed | #24: one-row mobile header with city and current UV |
+| A11Y-4 | Fixed | #27 (labels, targets, live regions), #44 (account menu keyboard pattern), #50 (one h1 per view) |
+| PERF-3 | Fixed | #50: multi-location persisted cache with stale-while-revalidate |
+| PERF-4 | Fixed | #22: no render-blocking font import |
+| BE-13 | Open | Wave 3, W3-A |
+| BE-14 | Open | Wave 3, W3-A |
+| BE-15 | Fixed | #23: activity ids validated and ICS UIDs escaped |
+| BE-16 | Fixed | #23: 5 s timeouts, one retry and cache eviction in the notifier and feed |
+| BE-17 | Fixed | #30 (rules field tests, Functions typecheck), #47 (TypeScript Functions under type-aware lint) |
+| BE-18 | Fixed | #30: errors reach the browser only as allowlisted codes |
+| BE-19 | Open | Wave 3, W3-B |
+| BE-20 | Won't fix | #47 kept `onRequest`: the shared pipeline already gives the App Check, auth and typed-error guarantees of `onCall`, and `onCall` would change the browser contract (decision recorded in `functions/src/shared/http.ts`) |
+| FE-8 | Fixed | #29: length and character limits, `noindex` on `/share` |
+| FE-9 | Fixed | #29: no query strings or signals in GA, cookies deleted on decline |
+| FE-11 | Fixed | #29: service worker bundled from npm Firebase, same-origin links only |
+| FE-12 | Fixed | #25 (`CalendarView.tsx`), #26 (`ActivityCards.tsx`) |
+| FE-13 | Fixed | #44: `firebase-admin` left the web app |
+| FE-14 | Fixed | #29: `no-cache` HTML, cached images, immutable hashed assets |
+| FE-15 | Fixed | #29: Permissions-Policy and header additions |
+| FE-16 | Fixed | #29: no catch-all rewrite; unknown paths return 404 |
+| OPS-18 | Fixed | #28 (`npm ci --ignore-scripts`), #44 (`allowScripts` policy) |
+| OPS-19 | Fixed | #17 (`.nvmrc`), #44 (exact pin `24.16.0`), #28 (e2e against the export) |
+| OPS-20 | Open | #28 makes the build read repository variables first; the owner still has to move the `NEXT_PUBLIC_*` secrets (only `NEXT_PUBLIC_SITE_URL` is a variable so far) |
+| OPS-21 | Fixed | #28: job timeouts, SBOMs and a provenance record; artifact attestation turns on when the repository is public |
+| OPS-22 | Fixed | #19 (`.local-ops.yaml`), #46 (license decided: all rights reserved, D8) |
+| OPS-23 | Open | Owner decision D12 (local branch and worktree cleanup) |
+| OPS-24 | Fixed | #19, #17 (`DEPENDENCY_RISK.md`), and the October 2026 docs consolidation |
+| CQ-2 | Fixed | Not described in this report; the plan's coverage matrix credited it to #17 |
+| CQ-14 | Fixed | #30: no `Math.random` token fallback |
+| CQ-15 | Fixed | #28 (Playwright never reuses a server), #21 (axe scans in the UI harness) |
+| A11Y-5 | Fixed | #22: 2 px `:focus-visible` ring on inputs |
+| UX-10 | Open | Wave 4, W4-A..E |
+
 Assessed: 2026-10-23, against `origin/main` at `7d9e871` (last change 2026-07-15).
 Method: five parallel assessors (backend security, frontend security and privacy, CI/CD and operations, code quality and tests, product/UX/accessibility/performance), followed by a lead review that re-checked the highest-impact claims in code and screenshots.
-Companion plan: [PLAN.md](PLAN.md).
 
 ## Executive summary
 
@@ -161,4 +279,4 @@ The Firebase CLI account available to the assessors received 403 on the project.
 ## Screenshots and raw artifacts
 
 Screenshots, axe output and Lighthouse reports were captured to a temporary scratch directory during the assessment and are not committed.
-Re-run them with the signed-in harness described in [PLAN.md](PLAN.md) workstream E.
+Re-run them with the signed-in UI harness (`npm run test:harness`, see the [README](../../../README.md#quality-checks)).
