@@ -392,7 +392,7 @@ export default function ActivityCards({
                 <Row
                   label="Best window"
                   val={windowLabel}
-                  accent={bestWindow ? '#16A34A' : '#DC2626'}
+                  accent={bestWindow ? 'var(--success)' : 'var(--danger)'}
                 />
               </div>
 
@@ -411,7 +411,11 @@ export default function ActivityCards({
                       borderRadius: '2px',
                       width: `${pctDaySafe}%`,
                       background:
-                        pctDaySafe >= 60 ? '#16A34A' : pctDaySafe >= 30 ? '#D97706' : '#DC2626',
+                        pctDaySafe >= 60
+                          ? 'var(--success)'
+                          : pctDaySafe >= 30
+                            ? 'var(--warning)'
+                            : 'var(--danger)',
                     }}
                   />
                 </div>

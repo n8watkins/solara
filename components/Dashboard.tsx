@@ -46,13 +46,13 @@ interface Props {
   onSelectDay: (day: DayWeather | null) => void
 }
 
+// Theme tokens (AA in both themes); the label beside the number names the band.
 function uvNumberColor(uv: number): string {
   if (uv < 0.5) return 'var(--text-3)'
-  if (uv <= 2) return '#16A34A'
-  if (uv <= 5) return '#D97706'
-  if (uv <= 7) return '#EA580C'
-  if (uv <= 10) return '#DC2626'
-  return '#9333EA'
+  if (uv <= 2) return 'var(--success)'
+  if (uv <= 5) return 'var(--warning)'
+  if (uv <= 7) return 'var(--accent)'
+  return 'var(--danger)'
 }
 
 export default function Dashboard({
@@ -290,7 +290,7 @@ export default function Dashboard({
                     fontWeight: 600,
                     cursor: 'pointer',
                     background: active ? 'var(--accent)' : 'var(--bg-metric)',
-                    color: active ? '#fff' : 'var(--text)',
+                    color: active ? 'var(--on-accent)' : 'var(--text)',
                     border: 'none',
                     transition: 'all 0.12s',
                     display: 'flex',
@@ -672,7 +672,10 @@ export default function Dashboard({
                 <p style={{ margin: 0, flex: 1, fontSize: '13px', color: 'var(--text-2)' }}>
                   Connect Google Calendar to schedule activities around your real availability.
                   {calStatus === 'error' && (
-                    <span style={{ color: '#DC2626' }}> Couldn&apos;t connect — try again.</span>
+                    <span style={{ color: 'var(--danger)' }}>
+                      {' '}
+                      Couldn&apos;t connect — try again.
+                    </span>
                   )}
                 </p>
                 <button
@@ -813,7 +816,7 @@ export default function Dashboard({
                     borderRadius: '12px',
                     cursor: 'pointer',
                     background: isActive ? 'var(--accent)' : 'var(--bg-metric)',
-                    color: isActive ? '#fff' : 'var(--text)',
+                    color: isActive ? 'var(--on-accent)' : 'var(--text)',
                     border: isActive ? 'none' : '0.5px solid var(--border-md)',
                     fontSize: '14px',
                     fontWeight: 600,
