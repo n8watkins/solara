@@ -9,6 +9,7 @@ import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from '
 import { basename, join, relative } from 'node:path'
 import nextEnv from '@next/env'
 import {
+  cspEnvFrom,
   injectCspMeta,
   inlineEventHandlers,
   inlineScriptHashes,
@@ -31,10 +32,7 @@ if (!existsSync(dir) || !statSync(dir).isDirectory()) {
 
 // Same env resolution as `next build`, so the policy matches the bundle.
 nextEnv.loadEnvConfig(process.cwd(), false, { info: () => {}, error: console.error })
-const env = {
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  functionsUrl: process.env.NEXT_PUBLIC_FUNCTIONS_URL,
-}
+const env = cspEnvFrom(process.env)
 
 function* walk(path) {
   for (const entry of readdirSync(path, { withFileTypes: true })) {
