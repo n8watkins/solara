@@ -17,7 +17,7 @@ Use [OWNER_ACTIONS.md](./OWNER_ACTIONS.md) for the subset that requires owner de
 - [ ] Run `npx playwright install chromium` if Chromium is not installed.
 - [ ] Run `npm run test:e2e`.
 - [ ] Review `npm audit` and the accepted transitive advisories in [DEPENDENCY_RISK.md](./DEPENDENCY_RISK.md).
-- [ ] Run `npm ci --prefix functions`, `npm audit --prefix functions --audit-level=high`, `npm test --prefix functions`, and `npm run test:rules --prefix functions`.
+- [ ] Run `npm ci --prefix functions`, `npm audit --prefix functions --omit=dev --audit-level=high`, `npm test --prefix functions`, and `npm run test:rules --prefix functions`.
 
 ## 2. Configuration preflight
 

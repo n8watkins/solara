@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "overrides": {
-    "postcss": "^8.5.10"
+    "postcss": "^8.5.10",
+    "@grpc/grpc-js": "^1.14.6"
   },
   "scripts": {
     "predev": "node scripts/generate-sw.js",
@@ -38,5 +39,8 @@
     "tailwindcss": "^3.4.3",
     "typescript": "^5",
     "vitest": "^4.1.10"
+  },
+  "engines": {
+    "node": ">=24"
   }
 }
