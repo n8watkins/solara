@@ -37,10 +37,7 @@ describe('analytics cookies', () => {
   })
 
   it('lists parent domains but never a bare IP', () => {
-    expect(cookieDomains('uv-activity-planner.web.app')).toEqual([
-      'uv-activity-planner.web.app',
-      'web.app',
-    ])
+    expect(cookieDomains('solara-uv.web.app')).toEqual(['solara-uv.web.app', 'web.app'])
     expect(cookieDomains('127.0.0.1')).toEqual(['127.0.0.1'])
     expect(cookieDomains('localhost')).toEqual(['localhost'])
   })

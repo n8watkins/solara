@@ -214,7 +214,7 @@ describe('browser API pipeline', () => {
 describe('deployed entry point', () => {
   test('loads with the modular Admin SDK and protects every browser endpoint', async () => {
     process.env.GCLOUD_PROJECT ??= 'demo-solara'
-    process.env.APP_URL = 'https://uv-activity-planner.web.app'
+    process.env.APP_URL = 'https://solara-uv.web.app'
     const functions = require('../index.js')
     const browserEndpoints = {
       createCheckoutSession: 'POST',
@@ -229,7 +229,7 @@ describe('deployed entry point', () => {
     for (const [name, method] of Object.entries(browserEndpoints)) {
       const res = responseRecorder()
       await functions[name](
-        { method, headers: { origin: 'https://uv-activity-planner.web.app' }, body: {} },
+        { method, headers: { origin: 'https://solara-uv.web.app' }, body: {} },
         res,
       )
       assert.equal(res.statusCode, 401, name)
