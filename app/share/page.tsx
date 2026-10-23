@@ -2,7 +2,8 @@
 import Link from 'next/link'
 import { Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { parseActivityShareParams } from '@/lib/share'
+import DataAttribution from '@/components/DataAttribution'
+import { formatShareDate, parseActivityShareParams, shareDateStatus } from '@/lib/share'
 import { fmtClock } from '@/lib/weather'
 
 function ShareContent() {
@@ -26,7 +27,7 @@ function ShareContent() {
         >
           <p style={{ fontSize: '42px', margin: '0 0 12px' }}>☀️</p>
           <h1 style={{ margin: '0 0 10px', fontSize: '26px', color: 'var(--text)' }}>
-            This shared plan is incomplete
+            This shared link can&apos;t be shown
           </h1>
           <p
             style={{
@@ -36,8 +37,8 @@ function ShareContent() {
               lineHeight: 1.55,
             }}
           >
-            The link is missing activity or time information. Ask the sender for a new link, or
-            create a fresh plan in Solara.
+            The link is incomplete, out of date or contains text Solara doesn&apos;t display. Ask
+            the sender for a new link, or plan your own lower-UV window in Solara.
           </p>
           <Link
             href="/"
@@ -58,6 +59,7 @@ function ShareContent() {
 
   const { activity, icon, city, region, date, from, to, uv } = sharedPlan
   const place = `${city}${region ? `, ${region}` : ''}`
+  const isPast = shareDateStatus(date) === 'past'
 
   return (
     <main
@@ -85,7 +87,7 @@ function ShareContent() {
             fontWeight: 750,
           }}
         >
-          Solara activity window
+          Shared Solara plan
         </p>
         <h1
           style={{ margin: '0 0 10px', fontSize: '28px', color: 'var(--text)', lineHeight: 1.15 }}
@@ -95,8 +97,24 @@ function ShareContent() {
         <p
           style={{ margin: '0 0 22px', fontSize: '16px', color: 'var(--text-2)', lineHeight: 1.5 }}
         >
-          {date} · {fmtClock(from)}–{fmtClock(to)} · {place}
+          {formatShareDate(date)} · {fmtClock(from)}–{fmtClock(to)} · {place}
         </p>
+        {isPast && (
+          <p
+            role="status"
+            style={{
+              margin: '0 0 18px',
+              padding: '10px 12px',
+              borderRadius: '10px',
+              fontSize: '14px',
+              color: 'var(--text)',
+              background: 'var(--bg-metric)',
+              border: '0.5px solid var(--border-md)',
+            }}
+          >
+            This plan was for a day that has passed. Open Solara for today&apos;s forecast.
+          </p>
+        )}
         <div
           style={{
             display: 'grid',
@@ -126,7 +144,8 @@ function ShareContent() {
           style={{ margin: '0 0 22px', fontSize: '14px', color: 'var(--text-3)', lineHeight: 1.55 }}
         >
           This is a forecast-based planning estimate, not medical advice. Recheck current UV and use
-          appropriate sun protection.
+          appropriate sun protection. The activity and place names were written by the person who
+          shared this link.
         </p>
         <Link
           href="/"
@@ -138,8 +157,9 @@ function ShareContent() {
             padding: '11px 18px',
           }}
         >
-          Open Solara
+          Plan your own lower-UV window
         </Link>
+        <DataAttribution style={{ marginTop: '22px' }} />
       </div>
     </main>
   )
