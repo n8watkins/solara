@@ -2,7 +2,8 @@
 import { useState, useRef, useEffect } from 'react'
 import type { Location } from '@/lib/types'
 import { clearWeatherCache } from '@/lib/cache'
-import { searchLocation } from '@/lib/geocoding'
+import { locationFromCoordinates, searchLocation } from '@/lib/geocoding'
+import DataAttribution from './DataAttribution'
 
 interface Props {
   location: Location
@@ -80,18 +81,8 @@ export default function LocationPopover({ location, savedLocations, limit, onApp
     setNote(null)
     async function resolvePosition(pos: GeolocationPosition) {
       try {
-        const { latitude: lat, longitude: lon } = pos.coords
-        const res = await fetch(
-          `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`,
-        )
-        const data = await res.json()
-        const city =
-          data.address?.city || data.address?.town || data.address?.village || 'Your location'
-        const region = data.address?.state || ''
-        activate(
-          { lat, lon, city, region, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone },
-          false,
-        ) // current location switches but isn't auto-saved
+        const loc = await locationFromCoordinates(pos.coords.latitude, pos.coords.longitude)
+        activate(loc, false) // current location switches but isn't auto-saved
         setTimeout(() => setOpen(false), 800)
       } catch {
         setError('Could not resolve.')
@@ -300,6 +291,14 @@ export default function LocationPopover({ location, savedLocations, limit, onApp
           {note && (
             <p style={{ margin: '6px 0 0', fontSize: '12px', color: 'var(--text-2)' }}>{note}</p>
           )}
+          <DataAttribution
+            compact
+            style={{
+              marginTop: '10px',
+              paddingTop: '8px',
+              borderTop: '0.5px solid var(--border-md)',
+            }}
+          />
         </div>
       )}
     </div>

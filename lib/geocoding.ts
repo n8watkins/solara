@@ -82,10 +82,23 @@ const REGION_ABBREVIATIONS: Readonly<Record<string, string>> = {
   yt: 'yukon',
 }
 
+/**
+ * Coordinates are rounded to 2 decimals (about 1 km) before they leave the
+ * device or are stored. That is plenty for a UV forecast and a city name, and it
+ * avoids sending or keeping an exact home position.
+ */
+export const COORDINATE_DECIMALS = 2
+
+export function roundCoordinate(value: number): number {
+  const factor = 10 ** COORDINATE_DECIMALS
+  // `+ 0` folds -0 into 0 so rounded values compare and serialize cleanly.
+  return Math.round(value * factor) / factor + 0
+}
+
 function toLocation(result: GeocodingResult): Location {
   return {
-    lat: result.latitude,
-    lon: result.longitude,
+    lat: roundCoordinate(result.latitude),
+    lon: roundCoordinate(result.longitude),
     city: result.name,
     region: result.admin1 ?? result.country ?? '',
     timezone: result.timezone,
@@ -146,4 +159,110 @@ export async function searchLocation(query: string): Promise<Location | null> {
   const fallbackResults = await fetchResults(city, 10)
   const qualifiedResult = findQualifiedResult(fallbackResults)
   return qualifiedResult ? toLocation(qualifiedResult) : null
+}
+
+interface ReverseGeocodeResponse {
+  address?: {
+    city?: string
+    town?: string
+    village?: string
+    municipality?: string
+    state?: string
+    country?: string
+  }
+}
+
+export interface PlaceName {
+  city: string
+  region: string
+}
+
+const FALLBACK_PLACE: PlaceName = { city: 'Your location', region: '' }
+/** Nominatim's usage policy allows at most one request per second per app. */
+export const REVERSE_GEOCODE_MIN_INTERVAL_MS = 1100
+const REVERSE_GEOCODE_CACHE_LIMIT = 50
+
+const placeCache = new Map<string, Promise<PlaceName>>()
+let nextRequestAt = 0
+
+function wait(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+async function requestPlaceName(lat: number, lon: number): Promise<PlaceName> {
+  // Space requests out instead of firing one per click, per the usage policy.
+  const now = Date.now()
+  const startAt = Math.max(now, nextRequestAt)
+  nextRequestAt = startAt + REVERSE_GEOCODE_MIN_INTERVAL_MS
+  if (startAt > now) await wait(startAt - now)
+
+  const params = new URLSearchParams({
+    lat: lat.toFixed(COORDINATE_DECIMALS),
+    lon: lon.toFixed(COORDINATE_DECIMALS),
+    format: 'json',
+    // City-level detail only; we never need a street address.
+    zoom: '10',
+    'accept-language': 'en',
+  })
+  const response = await fetch(`https://nominatim.openstreetmap.org/reverse?${params}`)
+  if (!response.ok) throw new Error(`Reverse geocoding failed with status ${response.status}`)
+  const data = (await response.json()) as ReverseGeocodeResponse
+  const address = data.address ?? {}
+  return {
+    city:
+      address.city ||
+      address.town ||
+      address.village ||
+      address.municipality ||
+      FALLBACK_PLACE.city,
+    region: address.state || address.country || '',
+  }
+}
+
+/**
+ * Turn coordinates into a city and region with OpenStreetMap Nominatim.
+ *
+ * The one shared helper for every "use my location" button: coordinates are
+ * rounded first, results are cached per rounded position for the session,
+ * concurrent calls share one request, and requests are spaced at least
+ * {@link REVERSE_GEOCODE_MIN_INTERVAL_MS} apart. Failures resolve to a generic
+ * "Your location" label and are not cached, so a later attempt can retry.
+ */
+export function reverseGeocode(lat: number, lon: number): Promise<PlaceName> {
+  const roundedLat = roundCoordinate(lat)
+  const roundedLon = roundCoordinate(lon)
+  const key = `${roundedLat},${roundedLon}`
+  const cached = placeCache.get(key)
+  if (cached) return cached
+
+  const pending = requestPlaceName(roundedLat, roundedLon).catch(() => {
+    placeCache.delete(key)
+    return FALLBACK_PLACE
+  })
+  placeCache.set(key, pending)
+  if (placeCache.size > REVERSE_GEOCODE_CACHE_LIMIT) {
+    const oldest = placeCache.keys().next().value
+    if (oldest !== undefined) placeCache.delete(oldest)
+  }
+  return pending
+}
+
+/**
+ * Build a {@link Location} from a device position: rounded coordinates, a place
+ * name from {@link reverseGeocode}, and the device time zone.
+ */
+export async function locationFromCoordinates(lat: number, lon: number): Promise<Location> {
+  const place = await reverseGeocode(lat, lon)
+  return {
+    lat: roundCoordinate(lat),
+    lon: roundCoordinate(lon),
+    ...place,
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+  }
+}
+
+/** Test hook: forget cached place names and the request spacing. */
+export function resetReverseGeocodeCache(): void {
+  placeCache.clear()
+  nextRequestAt = 0
 }

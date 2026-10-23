@@ -4,7 +4,7 @@ import type { KeyboardEvent } from 'react'
 import type { User } from 'firebase/auth'
 import type { UserPreferences, SkinType, Location } from '@/lib/types'
 import { clearWeatherCache } from '@/lib/cache'
-import { searchLocation } from '@/lib/geocoding'
+import { locationFromCoordinates, searchLocation } from '@/lib/geocoding'
 import { nextIndex } from '@/lib/roving-focus'
 import { TIER_LIMITS } from '@/lib/tiers'
 import {
@@ -173,20 +173,7 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
     setLocError(null)
     async function resolvePosition(pos: GeolocationPosition) {
       try {
-        const { latitude: lat, longitude: lon } = pos.coords
-        const res = await fetch(
-          `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`,
-        )
-        const data = await res.json()
-        const city =
-          data.address?.city || data.address?.town || data.address?.village || 'Your location'
-        setLocation({
-          lat,
-          lon,
-          city,
-          region: data.address?.state || '',
-          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        })
+        setLocation(await locationFromCoordinates(pos.coords.latitude, pos.coords.longitude))
         clearWeatherCache()
       } catch {
         setLocError('Could not resolve.')

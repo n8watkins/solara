@@ -4,7 +4,7 @@ import type { User } from 'firebase/auth'
 import { saveLocalPrefs, defaultPrefs } from '@/lib/prefs'
 import type { UserPreferences, Location, SkinType } from '@/lib/types'
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
-import { searchLocation } from '@/lib/geocoding'
+import { locationFromCoordinates, searchLocation } from '@/lib/geocoding'
 import GoogleSignInButton from './GoogleSignInButton'
 
 interface Props {
@@ -53,9 +53,7 @@ export default function Onboarding({ onComplete }: Props) {
     setLocLoad(true)
     setGeoError(null)
     async function resolvePosition(pos: GeolocationPosition) {
-      const { latitude: lat, longitude: lon } = pos.coords
-      const city = await reverseGeocode(lat, lon)
-      const loc = { lat, lon, ...city }
+      const loc = await locationFromCoordinates(pos.coords.latitude, pos.coords.longitude)
       setLocation(loc)
       setLocLoad(false)
       await fetchUVPreview(loc)
@@ -453,23 +451,4 @@ export default function Onboarding({ onComplete }: Props) {
       </div>
     </main>
   )
-}
-
-async function reverseGeocode(
-  lat: number,
-  lon: number,
-): Promise<{ city: string; region: string; timezone?: string }> {
-  try {
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`,
-    )
-    const data = await res.json()
-    return {
-      city: data.address?.city || data.address?.town || data.address?.village || 'Your location',
-      region: data.address?.state || data.address?.country || '',
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-    }
-  } catch {
-    return { city: 'Your location', region: '' }
-  }
 }
