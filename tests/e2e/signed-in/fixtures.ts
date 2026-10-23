@@ -127,10 +127,24 @@ export const TENNIS: SeedActivity = {
   sunscreen: true,
 }
 
+export interface SeedProfile {
+  id: string
+  name: string
+  skinType: string
+  icon?: string
+}
+
+export interface SeedOptions {
+  tier?: Tier
+  activities?: SeedActivity[]
+  profiles?: SeedProfile[]
+  activeProfileId?: string
+}
+
 /** A saved account document, as the app writes it after onboarding. */
 export function accountPrefs(
   uid: string,
-  { tier = 'free', activities = [] }: { tier?: Tier; activities?: SeedActivity[] } = {},
+  { tier = 'free', activities = [], profiles, activeProfileId }: SeedOptions = {},
 ) {
   return {
     uid,
@@ -145,6 +159,8 @@ export function accountPrefs(
     hiddenActivitySuggestionIds: [],
     collapsedActivityCategories: [],
     notificationHour: 7,
+    ...(profiles && { profiles }),
+    ...(activeProfileId && { activeProfileId }),
   }
 }
 
@@ -170,7 +186,7 @@ export class Emulators {
   }
 
   /** Writes the account's saved preferences, as onboarding and billing would. */
-  async seedPrefs(account: Account, options: Parameters<typeof accountPrefs>[1] = {}) {
+  async seedPrefs(account: Account, options: SeedOptions = {}) {
     const { fields } = encode(accountPrefs(account.uid, options)).mapValue as {
       fields: Record<string, FirestoreValue>
     }

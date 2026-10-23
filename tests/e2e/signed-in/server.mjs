@@ -13,6 +13,7 @@
 // SIGNED_IN_FUNCTIONS_PORT).
 import { createReadStream, existsSync, statSync } from 'node:fs'
 import { createServer, request } from 'node:http'
+import { createServer as createTcpServer } from 'node:net'
 import { extname, join, normalize, resolve, sep } from 'node:path'
 
 const HOST = '127.0.0.1'
@@ -126,6 +127,26 @@ function forward(req, res, route) {
     res.end(`Emulator unavailable: ${error.message}`)
   })
   req.pipe(upstream)
+}
+
+/** Resolves true once `candidate` can be bound on HOST. */
+function portIsFree(candidate) {
+  return new Promise(resolveFree => {
+    const probe = createTcpServer()
+    probe.once('error', () => resolveFree(false))
+    probe.listen(candidate, HOST, () => probe.close(() => resolveFree(true)))
+  })
+}
+
+// A pinned PLAYWRIGHT_PORT can still be held for a moment by the previous run's
+// server while it shuts down. Wait for it instead of failing with EADDRINUSE.
+const portDeadline = Date.now() + 30_000
+while (!(await portIsFree(port))) {
+  if (Date.now() > portDeadline) {
+    console.error(`signed-in server: port ${port} is still in use after 30 s.`)
+    process.exit(1)
+  }
+  await new Promise(resolveDelay => setTimeout(resolveDelay, 250))
 }
 
 createServer((req, res) => {

@@ -42,3 +42,60 @@ test('discarding unsaved settings leaves the account alone', async ({ page, emul
   await expect(page.getByText('Now · fair skin, no SPF')).toBeVisible()
   expect((await emulators.readPrefs(account))?.skinType).toBe('fair')
 })
+
+test('removing the last family profile stays removed after a reload', async ({
+  page,
+  emulators,
+}) => {
+  const account = await emulators.createAccount('Gia Patel')
+  await emulators.seedPrefs(account, {
+    tier: 'paid',
+    profiles: [{ id: 'maya', name: 'Maya', skinType: 'very-fair', icon: '🧒' }],
+    activeProfileId: 'maya',
+  })
+  await openDashboard(page, account)
+
+  const switcher = page.getByRole('banner').getByRole('button', { name: 'Profile: Maya' })
+  await switcher.click()
+  await page.getByRole('button', { name: 'Edit Maya' }).click()
+  await page.getByRole('button', { name: 'Delete' }).click()
+  await expect(page.getByRole('banner').getByRole('button', { name: 'Profile: Me' })).toBeVisible()
+  await expect.poll(async () => (await emulators.readPrefs(account))?.profiles).toEqual([])
+
+  // Regression (W2-A): the removed profile used to come back on the next load.
+  await page.reload()
+  await expect(page.getByRole('banner').getByRole('button', { name: 'Profile: Me' })).toBeVisible()
+  await expect(page.getByRole('banner').getByRole('button', { name: 'Profile: Maya' })).toHaveCount(
+    0,
+  )
+})
+
+test('settings still save after the server changes the plan in an open tab', async ({
+  page,
+  emulators,
+}) => {
+  const account = await emulators.createAccount('Hugo Lane')
+  await emulators.seedPrefs(account, { tier: 'free' })
+  await openDashboard(page, account)
+  await expect(page.getByRole('banner').getByText('Pro', { exact: true })).toHaveCount(0)
+
+  // The Stripe webhook upgrades the account while this tab still holds the old plan.
+  await emulators.setTier(account, 'paid')
+
+  // Regression (W2-A): every later save used to fail the rules with permission-denied.
+  await accountMenu(page, 'Settings')
+  const settings = page.getByRole('dialog', { name: 'Settings' })
+  await settings.getByRole('combobox', { name: 'Skin type' }).selectOption({ label: 'Medium' })
+  await settings.getByRole('button', { name: 'Save settings' }).click()
+  await expect(settings).toBeHidden()
+  await expect(page.getByText('Now · medium skin, no SPF')).toBeVisible()
+  await expect(page.getByText(/cloud sync failed/)).toHaveCount(0)
+  await expect
+    .poll(() => emulators.readPrefs(account))
+    .toMatchObject({ skinType: 'medium', tier: 'paid' })
+
+  // After a reload the saved setting and the server's plan both show.
+  await page.reload()
+  await expect(page.getByText('Now · medium skin, no SPF')).toBeVisible()
+  await expect(page.getByRole('banner').getByText('Pro', { exact: true })).toBeVisible()
+})
