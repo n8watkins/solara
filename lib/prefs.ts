@@ -1,242 +1,71 @@
-import { isSkinType } from '@solara/core'
+import {
+  clientPreferencesUpdate,
+  isWritablePreferences,
+  NewerPreferencesVersionError,
+  parsePreferences,
+  PREFS_SCHEMA_VERSION,
+} from '@solara/core'
+import { FirebaseError } from 'firebase/app'
 import { doc, getDoc, runTransaction, updateDoc } from 'firebase/firestore'
 import { db } from './firebase'
-import { roundCoordinate } from './geocoding'
-import type {
-  UserPreferences,
-  Location,
-  Activity,
-  SkinType,
-  TierLevel,
-  PreferredHours,
-  Profile,
-} from './types'
-import { PRESET_ACTIVITIES, ACTIVITY_CATEGORIES, TIER_LIMITS } from './tiers'
+import type { UserPreferences, Location } from './types'
+import { PRESET_ACTIVITIES, ACTIVITY_CATEGORIES } from './tiers'
+
+// The document schema, its versions and migrations live in @solara/core
+// (packages/core/src/prefs.ts). This module adds what depends on the app's activity
+// catalog and does the storage: the browser copy and the Firestore account document.
+
+export { NewerPreferencesVersionError, PREFS_SCHEMA_VERSION }
 
 const PREFS_KEY = 'solara_prefs'
-export const PREFS_SCHEMA_VERSION = 2
 
-const TIERS: TierLevel[] = ['anonymous', 'free', 'paid']
-const PRESET_IDS = new Set(PRESET_ACTIVITIES.map(a => a.id))
-const CATEGORY_NAMES = new Set(ACTIVITY_CATEGORIES.map(c => c.name))
+const PRESETS = new Map(PRESET_ACTIVITIES.map(preset => [preset.id, preset]))
+const CATEGORY_NAMES = new Set(ACTIVITY_CATEGORIES.map(category => category.name))
 
-function isLocation(value: unknown): value is Location {
-  const loc = value as Partial<Location> | null
-  return (
-    !!loc &&
-    Number.isFinite(loc.lat) &&
-    loc.lat! >= -90 &&
-    loc.lat! <= 90 &&
-    Number.isFinite(loc.lon) &&
-    loc.lon! >= -180 &&
-    loc.lon! <= 180 &&
-    typeof loc.city === 'string'
-  )
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function normalizeLocation(value: Location): Location {
+/** A preset activity with missing fields takes them from the catalog. */
+function withPresetDefaults(raw: unknown): unknown {
+  if (!isRecord(raw) || typeof raw.id !== 'string') return raw
+  const preset = PRESETS.get(raw.id)
+  if (!preset) return raw
   return {
-    lat: roundCoordinate(value.lat),
-    lon: roundCoordinate(value.lon),
-    city: value.city.trim().slice(0, 120),
-    region: typeof value.region === 'string' ? value.region.trim().slice(0, 120) : '',
-    timezone:
-      typeof value.timezone === 'string' &&
-      /^(?:UTC|[A-Za-z_]+(?:\/[A-Za-z0-9_+.-]+)+)$/.test(value.timezone)
-        ? value.timezone
-        : undefined,
+    ...raw,
+    name: typeof raw.name === 'string' && !raw.name.trim() ? preset.name : raw.name,
+    icon: typeof raw.icon === 'string' && raw.icon.trim() ? raw.icon : preset.icon,
+    durationMins: typeof raw.durationMins === 'number' ? raw.durationMins : preset.durationMins,
+    maxUV: typeof raw.maxUV === 'number' ? raw.maxUV : preset.maxUV,
   }
-}
-
-function sameLocation(a: Location, b: Location): boolean {
-  return Math.abs(a.lat - b.lat) < 0.01 && Math.abs(a.lon - b.lon) < 0.01
 }
 
 /**
- * Validated saved-location shortcuts: deduped by rounded lat/lon and hard-capped at
- * the top tier's limit so the list can't grow unbounded. The active location is NOT
- * forced in here — it's pinned separately in the UI, so changing your one location
- * is never gated; only saving extra shortcuts is.
+ * Migrates and normalizes stored preferences (see `parsePreferences` in @solara/core),
+ * filling preset activities from the catalog and keeping only suggestion ids and
+ * category names the app knows. Returns null without a valid location or fallback.
  */
-function normalizeSavedLocations(raw: unknown): Location[] {
-  const list = Array.isArray(raw) ? raw.filter(isLocation) : []
-  const out: Location[] = []
-  for (const loc of list) {
-    const normalized = normalizeLocation(loc)
-    if (!out.some(l => sameLocation(l, normalized))) out.push(normalized)
-  }
-  return out.slice(0, 12)
-}
-
-/** Validated profiles: each needs a name + valid skin type; deduped by id, capped. */
-function normalizeProfiles(raw: unknown): Profile[] | undefined {
-  if (!Array.isArray(raw)) return undefined
-  const out: Profile[] = []
-  for (let i = 0; i < raw.length; i++) {
-    const p = raw[i] as Partial<Profile> | null
-    if (!p || typeof p.name !== 'string' || !p.name.trim()) continue
-    if (!isSkinType(p.skinType)) continue
-    const id = typeof p.id === 'string' && p.id.trim() ? p.id : `profile_${i}`
-    if (out.some(e => e.id === id)) continue
-    out.push({
-      id,
-      name: p.name.trim().slice(0, 40),
-      skinType: p.skinType as SkinType,
-      icon: typeof p.icon === 'string' && p.icon.trim() ? p.icon : undefined,
-    })
-  }
-  return out.length ? out.slice(0, 12) : undefined
-}
-
-function normalizeStringList(raw: unknown, allowed?: Set<string>): string[] {
-  if (!Array.isArray(raw)) return []
-  return Array.from(
-    new Set(
-      raw
-        .filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
-        .map(v => v.trim())
-        .filter(v => !allowed || allowed.has(v)),
-    ),
+export function normalizePrefs(raw: unknown, fallbackLocation?: Location): UserPreferences | null {
+  const input =
+    isRecord(raw) && Array.isArray(raw.activities)
+      ? { ...raw, activities: raw.activities.map(withPresetDefaults) }
+      : raw
+  const prefs = parsePreferences(input, { fallbackLocation })
+  if (!prefs) return null
+  prefs.hiddenActivitySuggestionIds = prefs.hiddenActivitySuggestionIds.filter(id =>
+    PRESETS.has(id),
   )
-}
-
-function normalizeUpgradeInterest(raw: unknown): UserPreferences['upgradeInterest'] {
-  const interest = raw as Partial<NonNullable<UserPreferences['upgradeInterest']>> | null
-  if (
-    !interest ||
-    typeof interest.createdAt !== 'string' ||
-    !Number.isFinite(Date.parse(interest.createdAt))
-  ) {
-    return undefined
-  }
-  return {
-    email:
-      typeof interest.email === 'string' && interest.email.trim()
-        ? interest.email.trim().slice(0, 254)
-        : undefined,
-    createdAt: interest.createdAt,
-  }
-}
-
-function normalizePreferredHours(raw: unknown): PreferredHours | undefined {
-  const hours = raw as Partial<PreferredHours> | null
-  if (!hours || typeof hours.from !== 'number' || typeof hours.to !== 'number') return undefined
-  const from = Math.max(0, Math.min(23, Math.round(hours.from)))
-  const to = Math.max(from + 1, Math.min(24, Math.round(hours.to)))
-  return { from, to }
-}
-
-/** Whole-day restriction: a sorted, deduped subset of 0–6. Undefined = every day. */
-function normalizeDaysOfWeek(raw: unknown): number[] | undefined {
-  if (!Array.isArray(raw)) return undefined
-  const days = Array.from(
-    new Set(
-      raw.filter(
-        (d): d is number => typeof d === 'number' && Number.isInteger(d) && d >= 0 && d <= 6,
-      ),
-    ),
-  ).sort((a, b) => a - b)
-  // Empty or all-seven means "every day" — store nothing so the field stays clean.
-  return days.length === 0 || days.length === 7 ? undefined : days
-}
-
-function normalizeActivity(raw: unknown, index: number, globalSunscreen: boolean): Activity | null {
-  const a = raw as Partial<Activity> | null
-  if (!a || typeof a.name !== 'string') return null
-
-  const preset = typeof a.id === 'string' ? PRESET_ACTIVITIES.find(p => p.id === a.id) : undefined
-
-  const durationMins =
-    typeof a.durationMins === 'number'
-      ? Math.max(5, Math.round(a.durationMins))
-      : (preset?.durationMins ?? 30)
-
-  const maxUV =
-    typeof a.maxUV === 'number' ? Math.max(0, Math.min(11, a.maxUV)) : (preset?.maxUV ?? 4)
-
-  return {
-    id: typeof a.id === 'string' && a.id.trim() ? a.id : `migrated_${index}`,
-    name: (a.name.trim() || preset?.name || 'Outdoor activity').slice(0, 100),
-    icon: typeof a.icon === 'string' && a.icon.trim() ? a.icon : (preset?.icon ?? '☀️'),
-    durationMins,
-    maxUV,
-    sunscreen: typeof a.sunscreen === 'boolean' ? a.sunscreen : globalSunscreen,
-    custom: a.custom === true || a.id?.startsWith('custom_') || undefined,
-    preferredHours: normalizePreferredHours(a.preferredHours),
-    timePreference:
-      a.timePreference === 'latest' || a.timePreference === 'sunniest'
-        ? a.timePreference
-        : undefined,
-    daysOfWeek: normalizeDaysOfWeek(a.daysOfWeek),
-    cloudSensitive: a.cloudSensitive === true ? true : undefined,
-  }
-}
-
-export function normalizePrefs(
-  raw: Partial<UserPreferences> | null,
-  fallbackLocation?: Location,
-): UserPreferences | null {
-  if (!raw) return null
-  const rawLocation = isLocation(raw.location)
-    ? raw.location
-    : isLocation(fallbackLocation)
-      ? fallbackLocation
-      : undefined
-  const location = rawLocation ? normalizeLocation(rawLocation) : undefined
-  if (!location) return null
-
-  const sunscreen = typeof raw.sunscreen === 'boolean' ? raw.sunscreen : false
-  const profiles = normalizeProfiles(raw.profiles)
-  const activities = Array.isArray(raw.activities)
-    ? (
-        raw.activities
-          .map((a, i) => normalizeActivity(a, i, sunscreen))
-          .filter(Boolean) as Activity[]
-      ).slice(0, TIER_LIMITS.paid.activities)
-    : []
-
-  return {
-    uid: typeof raw.uid === 'string' ? raw.uid : '',
-    schemaVersion: PREFS_SCHEMA_VERSION,
-    location,
-    savedLocations: normalizeSavedLocations(raw.savedLocations),
-    profiles,
-    activeProfileId: profiles?.some(p => p.id === raw.activeProfileId)
-      ? raw.activeProfileId
-      : undefined,
-    skinType: isSkinType(raw.skinType) ? raw.skinType : 'fair',
-    sunscreen,
-    activities,
-    tier: TIERS.includes(raw.tier as TierLevel) ? (raw.tier as TierLevel) : 'anonymous',
-    onboardingComplete: raw.onboardingComplete === true,
-    calendarHours:
-      raw.calendarHours &&
-      typeof raw.calendarHours.from === 'number' &&
-      typeof raw.calendarHours.to === 'number'
-        ? {
-            from: Math.max(0, Math.min(23, raw.calendarHours.from)),
-            to: Math.max(1, Math.min(24, raw.calendarHours.to)),
-          }
-        : undefined,
-    showSunPath: typeof raw.showSunPath === 'boolean' ? raw.showSunPath : undefined,
-    hiddenActivitySuggestionIds: normalizeStringList(raw.hiddenActivitySuggestionIds, PRESET_IDS),
-    collapsedActivityCategories: normalizeStringList(
-      raw.collapsedActivityCategories,
-      CATEGORY_NAMES,
-    ),
-    upgradeInterest: normalizeUpgradeInterest(raw.upgradeInterest),
-    notificationHour:
-      typeof raw.notificationHour === 'number'
-        ? Math.max(5, Math.min(10, Math.round(raw.notificationHour)))
-        : 7,
-  }
+  prefs.collapsedActivityCategories = prefs.collapsedActivityCategories.filter(name =>
+    CATEGORY_NAMES.has(name),
+  )
+  return prefs
 }
 
 export function loadLocalPrefs(): UserPreferences | null {
   if (typeof window === 'undefined') return null
   try {
     const raw = localStorage.getItem(PREFS_KEY)
-    const parsed = raw ? (JSON.parse(raw) as Partial<UserPreferences>) : null
+    const parsed: unknown = raw ? JSON.parse(raw) : null
     const normalized = normalizePrefs(parsed)
     if (normalized && JSON.stringify(parsed) !== JSON.stringify(normalized)) {
       saveLocalPrefs(normalized)
@@ -250,8 +79,13 @@ export function loadLocalPrefs(): UserPreferences | null {
   }
 }
 
+/**
+ * Stores preferences in this browser. Preferences read from a newer schema version
+ * are not written back, so this client never downgrades them.
+ */
 export function saveLocalPrefs(prefs: Partial<UserPreferences>): void {
   if (typeof window === 'undefined') return
+  if ((prefs.schemaVersion ?? 0) > PREFS_SCHEMA_VERSION) return
   localStorage.setItem(PREFS_KEY, JSON.stringify({ ...prefs, schemaVersion: PREFS_SCHEMA_VERSION }))
 }
 
@@ -272,7 +106,7 @@ export async function loadFirestorePrefs(uid: string): Promise<FirestorePrefsRes
   try {
     const snap = await getDoc(doc(db, 'users', uid))
     if (!snap.exists()) return { status: 'missing' }
-    const prefs = normalizePrefs(snap.data() as Partial<UserPreferences>)
+    const prefs = normalizePrefs(snap.data())
     return prefs
       ? { status: 'found', prefs }
       : { status: 'error', error: new Error('Saved preferences are invalid') }
@@ -291,10 +125,7 @@ export async function loadFirestorePrefs(uid: string): Promise<FirestorePrefsRes
  * account can never inherit another account's activities, profiles, tier or
  * calendar feed token from data left on a shared device.
  */
-export function newAccountPrefs(
-  uid: string,
-  seed: Partial<UserPreferences>,
-): UserPreferences | null {
+export function newAccountPrefs(uid: string, seed: unknown): UserPreferences | null {
   const answers = normalizePrefs(seed)
   if (!answers) return null
   return {
@@ -312,10 +143,7 @@ export function newAccountPrefs(
  * the document already exists, it is returned unchanged. Throws if the write fails
  * or the seed has no valid location.
  */
-export async function createAccountPrefs(
-  uid: string,
-  seed: Partial<UserPreferences>,
-): Promise<UserPreferences> {
+export async function createAccountPrefs(uid: string, seed: unknown): Promise<UserPreferences> {
   const fresh = newAccountPrefs(uid, seed)
   if (!fresh) throw new Error('Onboarding answers are missing a valid location')
   if (!db) return fresh
@@ -323,7 +151,7 @@ export async function createAccountPrefs(
   return runTransaction(db, async tx => {
     const snap = await tx.get(ref)
     if (snap.exists()) {
-      const existing = normalizePrefs(snap.data() as Partial<UserPreferences>)
+      const existing = normalizePrefs(snap.data())
       if (!existing) throw new Error('Saved preferences are invalid')
       return existing
     }
@@ -333,24 +161,29 @@ export async function createAccountPrefs(
 }
 
 /**
- * Saves preferences to the account document. If the document does not exist yet,
- * it is created from onboarding answers only (see `createAccountPrefs`).
+ * Saves preferences to the account document with one write of the client-owned fields
+ * (`uid` and `tier` belong to the server once the account exists). If the document does
+ * not exist yet, it is created from onboarding answers only (see `createAccountPrefs`).
+ *
+ * Throws NewerPreferencesVersionError for preferences read from a newer schema version.
  */
-export async function saveFirestorePrefs(
-  uid: string,
-  prefs: Partial<UserPreferences>,
-): Promise<void> {
+export async function saveFirestorePrefs(uid: string, prefs: UserPreferences): Promise<void> {
   if (!db) return
+  if (!isWritablePreferences(prefs)) throw new NewerPreferencesVersionError(prefs.schemaVersion)
+  const normalized = normalizePrefs({ ...prefs, uid })
+  if (!normalized) throw new Error('Preferences are missing a valid location')
   const ref = doc(db, 'users', uid)
-  const snap = await getDoc(ref)
-  if (!snap.exists()) {
+  try {
+    // updateDoc replaces the named top-level fields and never creates the document.
+    // (A merging setDoc would deep-merge maps, keeping a stale location.timezone.)
+    await updateDoc(ref, clientPreferencesUpdate(normalized))
+  } catch (error) {
+    // The rules deny an update of a missing document rather than reporting not-found,
+    // so check before falling back to creating it.
+    if (!(error instanceof FirebaseError) || error.code !== 'permission-denied') throw error
+    if ((await getDoc(ref)).exists()) throw error
     await createAccountPrefs(uid, prefs)
-    return
   }
-  const normalized =
-    normalizePrefs({ ...prefs, uid }) ??
-    ({ uid, ...prefs, schemaVersion: PREFS_SCHEMA_VERSION } as Partial<UserPreferences>)
-  await updateDoc(ref, { ...normalized })
 }
 
 export function defaultPrefs(location: Location): UserPreferences {
@@ -358,6 +191,7 @@ export function defaultPrefs(location: Location): UserPreferences {
     uid: '',
     schemaVersion: PREFS_SCHEMA_VERSION,
     location,
+    savedLocations: [],
     skinType: 'fair',
     sunscreen: false,
     activities: [],
@@ -365,5 +199,6 @@ export function defaultPrefs(location: Location): UserPreferences {
     onboardingComplete: false,
     hiddenActivitySuggestionIds: [],
     collapsedActivityCategories: [],
+    notificationHour: 7,
   }
 }

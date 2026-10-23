@@ -36,6 +36,11 @@ const localStorageMock = {
   removeItem: (key: string) => values.delete(key),
 }
 
+/** The registerNotificationDevice success body (functions/lib/notification-devices.js). */
+function registered(migrationPending: boolean) {
+  return { deviceId: 'device', registered: true, migrationPending }
+}
+
 describe('device notification subscriptions', () => {
   beforeEach(() => {
     values.clear()
@@ -49,10 +54,16 @@ describe('device notification subscriptions', () => {
     mocks.getIdToken.mockResolvedValue('firebase-id-token')
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue({
+      vi.fn(async (url: string) => ({
         ok: true,
-        json: vi.fn().mockResolvedValue({}),
-      }),
+        json: vi
+          .fn()
+          .mockResolvedValue(
+            url.endsWith('/removeNotificationDevice')
+              ? { deviceId: 'device', removed: true }
+              : registered(false),
+          ),
+      })),
     )
     Object.defineProperty(globalThis, 'localStorage', {
       configurable: true,
@@ -96,15 +107,15 @@ describe('device notification subscriptions', () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce({
         ok: true,
-        json: vi.fn().mockResolvedValue({ migrationPending: true }),
+        json: vi.fn().mockResolvedValue(registered(true)),
       } as unknown as Response)
       .mockResolvedValueOnce({
         ok: true,
-        json: vi.fn().mockResolvedValue({ migrationPending: true }),
+        json: vi.fn().mockResolvedValue(registered(true)),
       } as unknown as Response)
       .mockResolvedValueOnce({
         ok: true,
-        json: vi.fn().mockResolvedValue({ migrationPending: false }),
+        json: vi.fn().mockResolvedValue(registered(false)),
       } as unknown as Response)
 
     await enableNotifications('user-1')
@@ -116,7 +127,7 @@ describe('device notification subscriptions', () => {
   it('persists and resumes a migration that exceeds one bounded attempt window', async () => {
     vi.mocked(fetch).mockResolvedValue({
       ok: true,
-      json: vi.fn().mockResolvedValue({ migrationPending: true }),
+      json: vi.fn().mockResolvedValue(registered(true)),
     } as unknown as Response)
 
     await expect(enableNotifications('user-1')).rejects.toThrow('still being finalized')
@@ -126,7 +137,7 @@ describe('device notification subscriptions', () => {
 
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: true,
-      json: vi.fn().mockResolvedValue({ migrationPending: false }),
+      json: vi.fn().mockResolvedValue(registered(false)),
     } as unknown as Response)
     await expect(migrateLegacyNotificationToken('user-1')).resolves.toBe(true)
     expect(notificationsEnabledLocally('user-1')).toBe(true)

@@ -1,19 +1,11 @@
+import {
+  COORDINATE_DECIMALS,
+  parseGeocodingResponse,
+  parseReverseGeocodeResponse,
+  roundCoordinate,
+  type GeocodingResult,
+} from '@solara/core'
 import type { Location } from './types'
-
-interface GeocodingResult {
-  latitude: number
-  longitude: number
-  name: string
-  admin1?: string
-  admin2?: string
-  country?: string
-  country_code?: string
-  timezone?: string
-}
-
-interface GeocodingResponse {
-  results?: GeocodingResult[]
-}
 
 const REGION_ABBREVIATIONS: Readonly<Record<string, string>> = {
   ab: 'alberta',
@@ -82,18 +74,9 @@ const REGION_ABBREVIATIONS: Readonly<Record<string, string>> = {
   yt: 'yukon',
 }
 
-/**
- * Coordinates are rounded to 2 decimals (about 1 km) before they leave the
- * device or are stored. That is plenty for a UV forecast and a city name, and it
- * avoids sending or keeping an exact home position.
- */
-export const COORDINATE_DECIMALS = 2
-
-export function roundCoordinate(value: number): number {
-  const factor = 10 ** COORDINATE_DECIMALS
-  // `+ 0` folds -0 into 0 so rounded values compare and serialize cleanly.
-  return Math.round(value * factor) / factor + 0
-}
+// Coordinates are rounded to 2 decimals (about 1 km) before they leave the device or
+// are stored; the rule lives in @solara/core so the preferences schema applies it too.
+export { COORDINATE_DECIMALS, roundCoordinate }
 
 function toLocation(result: GeocodingResult): Location {
   return {
@@ -126,8 +109,8 @@ async function fetchResults(query: string, count: number): Promise<GeocodingResu
   })
   const response = await fetch(`https://geocoding-api.open-meteo.com/v1/search?${params}`)
   if (!response.ok) throw new Error(`Location search failed with status ${response.status}`)
-  const data = (await response.json()) as GeocodingResponse
-  return data.results ?? []
+  // Results without a usable position or name are dropped; a malformed body throws.
+  return parseGeocodingResponse(await response.json())
 }
 
 export async function searchLocation(query: string): Promise<Location | null> {
@@ -159,17 +142,6 @@ export async function searchLocation(query: string): Promise<Location | null> {
   const fallbackResults = await fetchResults(city, 10)
   const qualifiedResult = findQualifiedResult(fallbackResults)
   return qualifiedResult ? toLocation(qualifiedResult) : null
-}
-
-interface ReverseGeocodeResponse {
-  address?: {
-    city?: string
-    town?: string
-    village?: string
-    municipality?: string
-    state?: string
-    country?: string
-  }
 }
 
 export interface PlaceName {
@@ -206,8 +178,7 @@ async function requestPlaceName(lat: number, lon: number): Promise<PlaceName> {
   })
   const response = await fetch(`https://nominatim.openstreetmap.org/reverse?${params}`)
   if (!response.ok) throw new Error(`Reverse geocoding failed with status ${response.status}`)
-  const data = (await response.json()) as ReverseGeocodeResponse
-  const address = data.address ?? {}
+  const address = parseReverseGeocodeResponse(await response.json())
   return {
     city:
       address.city ||

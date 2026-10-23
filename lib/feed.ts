@@ -62,15 +62,12 @@ export function watchFeedToken(
 /** Creates a feed link, replacing (and revoking) any previous one. */
 export async function rotateFeedToken(user: User): Promise<string> {
   const fallbackMessage = 'Could not create a feed link. Try again shortly.'
-  const body = (await callFunction(user, 'rotateCalendarFeed', {
+  const { token } = await callFunction(user, 'rotateCalendarFeed', {
     method: 'POST',
     body: {},
     fallbackMessage,
-  })) as { token?: unknown } | null
-  if (!isValidFeedToken(body?.token)) {
-    throw new Error(fallbackMessage)
-  }
-  return body.token
+  })
+  return token
 }
 
 /** Turns the feed off; existing subscriptions stop updating. */

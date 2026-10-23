@@ -134,7 +134,13 @@ beforeEach(() => {
   mocks.deleteToken.mockResolvedValue(true)
   mocks.getIdToken.mockResolvedValue('id-token')
   vi.stubEnv('NEXT_PUBLIC_FUNCTIONS_URL', 'https://functions.example.test')
-  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) }))
+  // The removeNotificationDevice success body (functions/lib/notification-devices.js).
+  vi.stubGlobal(
+    'fetch',
+    vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: async () => ({ deviceId: 'device', removed: true }) }),
+  )
   Object.defineProperty(globalThis, 'window', { configurable: true, value: {} })
   Object.defineProperty(globalThis, 'localStorage', {
     configurable: true,
