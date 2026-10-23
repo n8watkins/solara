@@ -1,10 +1,12 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
+import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import type { User } from 'firebase/auth'
 import { SignOutBlockedError, signOutAndClear } from '@/lib/session'
 import type { UserPreferences, TierLevel } from '@/lib/types'
 import { getSavedLocationLimit } from '@/lib/tiers'
 import { uvLabel } from '@/lib/weather'
+import { nextIndex } from '@/lib/roving-focus'
 import PreferencesModal from './PreferencesModal'
 import LocationPopover from './LocationPopover'
 import ProfileSwitcher from './ProfileSwitcher'
@@ -44,8 +46,12 @@ export default function Header({
 }: Props) {
   const [showPrefs, setShowPrefs] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  // Which item takes focus when the account menu opens (menu button pattern).
+  const [menuFocus, setMenuFocus] = useState<'first' | 'last'>('first')
   const [signOutError, setSignOutError] = useState<string | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
+  const menuButtonRef = useRef<HTMLButtonElement>(null)
+  const menuListRef = useRef<HTMLDivElement>(null)
 
   // Open settings whenever a new tab is forced open (including on mount), adjusting
   // state during render rather than in an effect.
@@ -55,14 +61,17 @@ export default function Header({
     if (forceOpenTab) setShowPrefs(true)
   }
 
-  // Close the profile menu on outside-click / Escape.
+  // Close the account menu on outside-click; Escape closes it and returns focus
+  // to the menu button.
   useEffect(() => {
     if (!menuOpen) return
     function onDown(e: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false)
     }
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') setMenuOpen(false)
+      if (e.key !== 'Escape') return
+      setMenuOpen(false)
+      menuButtonRef.current?.focus()
     }
     document.addEventListener('mousedown', onDown)
     document.addEventListener('keydown', onKey)
@@ -71,6 +80,50 @@ export default function Header({
       document.removeEventListener('keydown', onKey)
     }
   }, [menuOpen])
+
+  // An opened menu moves focus to its first (or, from ArrowUp, last) item.
+  useEffect(() => {
+    if (!menuOpen) return
+    const items = menuItems()
+    ;(menuFocus === 'last' ? items.at(-1) : items[0])?.focus()
+  }, [menuOpen, menuFocus])
+
+  function menuItems(): HTMLElement[] {
+    return Array.from(menuListRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])
+  }
+
+  function openMenu(focus: 'first' | 'last') {
+    setMenuFocus(focus)
+    setMenuOpen(true)
+  }
+
+  function onMenuButtonKeyDown(e: ReactKeyboardEvent<HTMLButtonElement>) {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
+    e.preventDefault()
+    openMenu(e.key === 'ArrowUp' ? 'last' : 'first')
+  }
+
+  // Arrow keys move between items (wrapping), Home and End jump to the ends,
+  // Space activates the link item like a button, and Tab leaves the menu.
+  function onMenuKeyDown(e: ReactKeyboardEvent<HTMLDivElement>) {
+    const items = menuItems()
+    const index = items.indexOf(document.activeElement as HTMLElement)
+    if (e.key === 'Tab') {
+      // Tab then moves on from the menu button, as if the menu were not there.
+      menuButtonRef.current?.focus()
+      setMenuOpen(false)
+      return
+    }
+    if (e.key === ' ' && e.target instanceof HTMLAnchorElement) {
+      e.preventDefault()
+      e.target.click()
+      return
+    }
+    const next = nextIndex(e.key, index, items.length)
+    if (next === null) return
+    e.preventDefault()
+    items[next]?.focus()
+  }
 
   async function handleSignOut() {
     setSignOutError(null)
@@ -177,9 +230,13 @@ export default function Header({
             {user ? (
               <div ref={menuRef} style={{ position: 'relative', flexShrink: 0 }}>
                 <button
-                  onClick={() => setMenuOpen(o => !o)}
+                  ref={menuButtonRef}
+                  id="account-menu-button"
+                  onClick={() => (menuOpen ? setMenuOpen(false) : openMenu('first'))}
+                  onKeyDown={onMenuButtonKeyDown}
                   aria-haspopup="menu"
                   aria-expanded={menuOpen}
+                  aria-controls={menuOpen ? 'account-menu' : undefined}
                   aria-label="Account menu"
                   title={user.displayName ?? user.email ?? 'Account'}
                   style={{
@@ -221,7 +278,6 @@ export default function Header({
 
                 {menuOpen && (
                   <div
-                    role="menu"
                     style={{
                       position: 'absolute',
                       top: 'calc(100% + 8px)',
@@ -276,35 +332,46 @@ export default function Header({
                         )}
                       </div>
                     )}
-                    <button
-                      role="menuitem"
-                      onClick={() => {
-                        setMenuOpen(false)
-                        setShowPrefs(true)
-                      }}
-                      className="hdr-menu-item"
+                    <div
+                      ref={menuListRef}
+                      id="account-menu"
+                      role="menu"
+                      aria-labelledby="account-menu-button"
+                      onKeyDown={onMenuKeyDown}
                     >
-                      ⚙️ Settings
-                    </button>
-                    <a
-                      role="menuitem"
-                      href="/account/"
-                      className="hdr-menu-item"
-                      style={{ textDecoration: 'none' }}
-                    >
-                      👤 Account & billing
-                    </a>
-                    <button
-                      role="menuitem"
-                      onClick={() => {
-                        setMenuOpen(false)
-                        void handleSignOut()
-                      }}
-                      className="hdr-menu-item"
-                      style={{ color: 'var(--danger)' }}
-                    >
-                      ↪ Sign out
-                    </button>
+                      <button
+                        role="menuitem"
+                        tabIndex={-1}
+                        onClick={() => {
+                          setMenuOpen(false)
+                          setShowPrefs(true)
+                        }}
+                        className="hdr-menu-item"
+                      >
+                        ⚙️ Settings
+                      </button>
+                      <a
+                        role="menuitem"
+                        tabIndex={-1}
+                        href="/account/"
+                        className="hdr-menu-item"
+                        style={{ textDecoration: 'none' }}
+                      >
+                        👤 Account & billing
+                      </a>
+                      <button
+                        role="menuitem"
+                        tabIndex={-1}
+                        onClick={() => {
+                          setMenuOpen(false)
+                          void handleSignOut()
+                        }}
+                        className="hdr-menu-item"
+                        style={{ color: 'var(--danger)' }}
+                      >
+                        ↪ Sign out
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
