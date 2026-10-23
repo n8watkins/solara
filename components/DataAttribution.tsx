@@ -36,7 +36,7 @@ export default function DataAttribution({
         rel="noopener noreferrer"
         style={link}
       >
-        © OpenStreetMap contributors
+        ©&nbsp;OpenStreetMap contributors
       </a>
       .
     </p>
