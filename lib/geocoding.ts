@@ -1,4 +1,4 @@
-import { Location } from './types'
+import type { Location } from './types'
 
 interface GeocodingResult {
   latitude: number
@@ -121,7 +121,10 @@ export async function searchLocation(query: string): Promise<Location | null> {
   const normalized = query.trim()
   if (!normalized) return null
 
-  const [city, ...qualifierParts] = normalized.split(',').map(part => part.trim()).filter(Boolean)
+  const [city, ...qualifierParts] = normalized
+    .split(',')
+    .map(part => part.trim())
+    .filter(Boolean)
   if (!city) return null
 
   if (qualifierParts.length === 0) {
@@ -131,9 +134,11 @@ export async function searchLocation(query: string): Promise<Location | null> {
 
   const qualifiers = qualifierParts.map(part => part.toLocaleLowerCase())
   const findQualifiedResult = (results: GeocodingResult[]) =>
-    results.find(result =>
-      normalizeLocationPart(result.name) === normalizeLocationPart(city)
-      && qualifiers.every(qualifier => matchesQualifier(result, qualifier)))
+    results.find(
+      result =>
+        normalizeLocationPart(result.name) === normalizeLocationPart(city) &&
+        qualifiers.every(qualifier => matchesQualifier(result, qualifier)),
+    )
 
   const directResult = findQualifiedResult(await fetchResults(normalized, 10))
   if (directResult) return toLocation(directResult)

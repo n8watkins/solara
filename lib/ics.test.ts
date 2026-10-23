@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { buildICS, recToIcsEvent, IcsEvent } from '@/lib/ics'
-import { SlotRecommendation } from '@/lib/scheduler'
-import { Activity } from '@/lib/types'
+import type { IcsEvent } from '@/lib/ics'
+import { buildICS, recToIcsEvent } from '@/lib/ics'
+import type { SlotRecommendation } from '@/lib/scheduler'
+import type { Activity } from '@/lib/types'
 
 const ev: IcsEvent = {
   uid: 'u1@solara',
@@ -51,10 +52,23 @@ describe('buildICS', () => {
 
 describe('recToIcsEvent', () => {
   const rec: SlotRecommendation = {
-    start: 17, end: 18, earliestStart: 17, latestStart: 19,
-    windowLabel: 'Evening', peakUV: 3, avgUV: 2, reason: 'Earliest free spot in your evening window',
+    start: 17,
+    end: 18,
+    earliestStart: 17,
+    latestStart: 19,
+    windowLabel: 'Evening',
+    peakUV: 3,
+    avgUV: 2,
+    reason: 'Earliest free spot in your evening window',
   }
-  const activity: Activity = { id: 'run', name: 'Running', icon: '🏃', durationMins: 60, maxUV: 4, sunscreen: false }
+  const activity: Activity = {
+    id: 'run',
+    name: 'Running',
+    icon: '🏃',
+    durationMins: 60,
+    maxUV: 4,
+    sunscreen: false,
+  }
 
   it('builds a stable uid and reuses the calendar description', () => {
     const e = recToIcsEvent(activity, '2026-05-30', rec)

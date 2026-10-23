@@ -1,5 +1,5 @@
-import { BusyInterval, SlotRecommendation } from './scheduler'
-import { Activity } from './types'
+import type { BusyInterval, SlotRecommendation } from './scheduler'
+import type { Activity } from './types'
 import { fmtClock } from './weather'
 
 // Google Calendar read access for a static app: the browser gets a short-lived
@@ -52,15 +52,21 @@ async function getToken(scope: string): Promise<string> {
   if (!CLIENT_ID) throw new Error('Calendar integration is not configured')
   await loadGis()
   // GIS has no bundled types; access through a narrow cast.
-  const oauth2 = (window as unknown as {
-    google: { accounts: { oauth2: {
-      initTokenClient: (cfg: {
-        client_id: string
-        scope: string
-        callback: (resp: { access_token?: string; error?: string }) => void
-      }) => { requestAccessToken: (opts?: { prompt?: string }) => void }
-    } } }
-  }).google.accounts.oauth2
+  const oauth2 = (
+    window as unknown as {
+      google: {
+        accounts: {
+          oauth2: {
+            initTokenClient: (cfg: {
+              client_id: string
+              scope: string
+              callback: (resp: { access_token?: string; error?: string }) => void
+            }) => { requestAccessToken: (opts?: { prompt?: string }) => void }
+          }
+        }
+      }
+    }
+  ).google.accounts.oauth2
 
   return new Promise<string>((resolve, reject) => {
     const client = oauth2.initTokenClient({
@@ -86,7 +92,11 @@ export function requestWriteToken(): Promise<string> {
 }
 
 /** Query the primary calendar's busy periods over [timeMin, timeMax]. */
-export async function fetchFreeBusy(token: string, timeMin: Date, timeMax: Date): Promise<BusyPeriod[]> {
+export async function fetchFreeBusy(
+  token: string,
+  timeMin: Date,
+  timeMax: Date,
+): Promise<BusyPeriod[]> {
   const res = await fetch('https://www.googleapis.com/calendar/v3/freeBusy', {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -142,7 +152,10 @@ export interface CalendarEventBody {
 function localDateTime(dateStr: string, h: number): string {
   let hr = Math.floor(h)
   let min = Math.round((h - hr) * 60)
-  if (min === 60) { hr += 1; min = 0 }
+  if (min === 60) {
+    hr += 1
+    min = 0
+  }
   return `${dateStr}T${String(hr).padStart(2, '0')}:${String(min).padStart(2, '0')}:00`
 }
 
@@ -156,7 +169,9 @@ export function buildEventDescription(
     `Recommended for ${fmtClock(rec.start)}: ${rec.reason.charAt(0).toLowerCase()}${rec.reason.slice(1)}.`,
   ]
   if (rec.latestStart > rec.earliestStart) {
-    lines.push(`Flexible: start anytime ${fmtClock(rec.earliestStart)}–${fmtClock(rec.latestStart)} within the estimated lower-UV window.`)
+    lines.push(
+      `Flexible: start anytime ${fmtClock(rec.earliestStart)}–${fmtClock(rec.latestStart)} within the estimated lower-UV window.`,
+    )
   }
   if (typeof opts.peakUV === 'number' && typeof opts.peakHour === 'number') {
     lines.push(`Peak UV ${opts.peakUV.toFixed(1)} around ${fmtClock(opts.peakHour)}.`)
@@ -174,7 +189,9 @@ export function buildEventBody(
   start: number,
   end: number,
   description: string,
-  timeZone: string = typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : 'UTC',
+  timeZone: string = typeof Intl !== 'undefined'
+    ? Intl.DateTimeFormat().resolvedOptions().timeZone
+    : 'UTC',
 ): CalendarEventBody {
   return {
     summary: `${activity.icon} ${activity.name}: lower-UV window`,
@@ -185,7 +202,10 @@ export function buildEventBody(
 }
 
 /** Create an event on the user's primary calendar. Returns the created event (incl. htmlLink). */
-export async function createCalendarEvent(token: string, body: CalendarEventBody): Promise<{ htmlLink?: string }> {
+export async function createCalendarEvent(
+  token: string,
+  body: CalendarEventBody,
+): Promise<{ htmlLink?: string }> {
   const res = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },

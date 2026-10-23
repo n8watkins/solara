@@ -1,11 +1,13 @@
-import { initializeApp, getApps, FirebaseApp } from 'firebase/app'
+import type { FirebaseApp } from 'firebase/app'
+import { initializeApp, getApps } from 'firebase/app'
 import { initializeAppCheck, ReCaptchaV3Provider, type AppCheck } from 'firebase/app-check'
-import { getAuth, Auth, GoogleAuthProvider } from 'firebase/auth'
-import { initializeFirestore, Firestore } from 'firebase/firestore'
+import type { Auth } from 'firebase/auth'
+import { getAuth, GoogleAuthProvider } from 'firebase/auth'
+import type { Firestore } from 'firebase/firestore'
+import { initializeFirestore } from 'firebase/firestore'
 
 const hasConfig = !!(
-  process.env.NEXT_PUBLIC_FIREBASE_API_KEY &&
-  process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
+  process.env.NEXT_PUBLIC_FIREBASE_API_KEY && process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
 )
 
 let app: FirebaseApp | null = null
@@ -16,15 +18,15 @@ let appCheck: AppCheck | null = null
 
 if (hasConfig) {
   const firebaseConfig = {
-    apiKey:            process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-    authDomain:        process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-    projectId:         process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-    storageBucket:     process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+    apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+    authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
     messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-    appId:             process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+    appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
   }
 
-  app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig)
+  app = getApps()[0] ?? initializeApp(firebaseConfig)
   auth = getAuth(app)
   // ignoreUndefinedProperties: normalizePrefs emits undefined for absent optional fields
   // (activeProfileId, calendarHours, calendarFeedToken, …); without this, updateDoc/setDoc

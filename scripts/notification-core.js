@@ -71,14 +71,16 @@ function notificationKey(timezone, now = new Date()) {
 }
 
 function isEligibleUser(user) {
-  return user?.tier === 'paid'
-    && !user.accountDeletionStartedAt
-    && Number.isFinite(user.location?.lat)
-    && user.location.lat >= -90
-    && user.location.lat <= 90
-    && Number.isFinite(user.location?.lon)
-    && user.location.lon >= -180
-    && user.location.lon <= 180
+  return (
+    user?.tier === 'paid' &&
+    !user.accountDeletionStartedAt &&
+    Number.isFinite(user.location?.lat) &&
+    user.location.lat >= -90 &&
+    user.location.lat <= 90 &&
+    Number.isFinite(user.location?.lon) &&
+    user.location.lon >= -180 &&
+    user.location.lon <= 180
+  )
 }
 
 function deliveryDecision(user, timezone, lastNotificationKey, options = {}) {
@@ -116,14 +118,23 @@ function failureCertainty(error) {
 }
 
 function buildMessage(user, hourly, dateStr) {
-  const activities = (user.activities ?? []).filter(activity => !dateStr || runsOn(activity, dateStr))
-  const skinType = ['very-fair', 'fair', 'medium', 'olive', 'dark'].includes(user.skinType) ? user.skinType : 'fair'
+  const activities = (user.activities ?? []).filter(
+    activity => !dateStr || runsOn(activity, dateStr),
+  )
+  const skinType = ['very-fair', 'fair', 'medium', 'olive', 'dark'].includes(user.skinType)
+    ? user.skinType
+    : 'fair'
   const city = user.location?.city ?? 'your area'
   const peakUV = hourly.length ? Math.max(...hourly.map(sample => sample.uv)) : null
 
   for (const activity of activities) {
     const threshold = effectiveMaxUV(activity)
-    const window = bestWindow(hourly, threshold, activity.durationMins ?? 30, activity.preferredHours)
+    const window = bestWindow(
+      hourly,
+      threshold,
+      activity.durationMins ?? 30,
+      activity.preferredHours,
+    )
     if (!window) continue
     const burn = burnMins(threshold, skinType)
     return {
@@ -134,9 +145,10 @@ function buildMessage(user, hourly, dateStr) {
 
   return {
     title: `☀️ UV planning update for ${city}`,
-    body: peakUV === null
-      ? 'No forecast was available for your saved activities. Check current conditions before heading outside.'
-      : `Peak UV is forecast near ${peakUV}. No qualifying lower-UV activity window was found. Check current conditions.`,
+    body:
+      peakUV === null
+        ? 'No forecast was available for your saved activities. Check current conditions before heading outside.'
+        : `Peak UV is forecast near ${peakUV}. No qualifying lower-UV activity window was found. Check current conditions.`,
   }
 }
 

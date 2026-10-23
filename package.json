@@ -12,11 +12,13 @@
     "prebuild": "node scripts/generate-sw.js",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint . --max-warnings=0",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "lint": "eslint . --max-warnings=0 && npm run format:check",
+    "typecheck": "next typegen && tsc --noEmit",
+    "test": "vitest run --coverage",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "format": "prettier --write \"**/*.{ts,tsx,mts,js,mjs,cjs,css}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,mts,js,mjs,cjs,css}\""
   },
   "dependencies": {
     "clsx": "^2.1.1",
@@ -32,10 +34,13 @@
     "@types/node": "^20",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
+    "@vitest/coverage-v8": "^4.1.12",
     "autoprefixer": "^10.4.19",
     "eslint": "^9.39.5",
     "eslint-config-next": "^16.2.10",
+    "eslint-config-prettier": "^10.1.8",
     "postcss": "^8.5.10",
+    "prettier": "^3.9.10",
     "tailwindcss": "^3.4.3",
     "typescript": "^5",
     "vitest": "^4.1.10"

@@ -27,7 +27,10 @@ const SUBSCRIPTION_PAGE_SIZE = positiveInteger(process.env.NOTIFICATION_PAGE_SIZ
 const FORECAST_CACHE_SIZE = positiveInteger(process.env.NOTIFICATION_FORECAST_CACHE_SIZE, 500)
 const MAX_DISPATCH_PAGES = positiveInteger(process.env.NOTIFICATION_MAX_PAGES, 4)
 const RUN_BUDGET_MS = positiveInteger(process.env.NOTIFICATION_RUN_BUDGET_MS, 8 * 60 * 1000)
-const CHECKPOINT_RESERVE_MS = positiveInteger(process.env.NOTIFICATION_CHECKPOINT_RESERVE_MS, 30_000)
+const CHECKPOINT_RESERVE_MS = positiveInteger(
+  process.env.NOTIFICATION_CHECKPOINT_RESERVE_MS,
+  30_000,
+)
 const DISPATCH_BATCH_SIZE = Math.min(SUBSCRIPTION_PAGE_SIZE, CONCURRENCY)
 const RUN_ID = process.env.GITHUB_RUN_ID
   ? `github:${process.env.GITHUB_RUN_ID}:${process.env.GITHUB_RUN_ATTEMPT || '1'}`
@@ -75,7 +78,7 @@ async function fetchHourly(lat, lon) {
         date: time.split('T')[0],
         hour: Number(time.split('T')[1].split(':')[0]),
         uv: Math.round(data.hourly.uv_index[index] * 10) / 10,
-        tempF: Math.round(data.hourly.temperature_2m[index] * 9 / 5 + 32),
+        tempF: Math.round((data.hourly.temperature_2m[index] * 9) / 5 + 32),
         condition: weatherLabel(data.hourly.weathercode[index]),
       }))
       .filter(sample => sample.date === local?.date && sample.hour >= 6 && sample.hour <= 20)
@@ -118,11 +121,13 @@ async function runBounded(items, worker) {
   const results = await mapLimit(items, CONCURRENCY, worker)
   for (const [index, result] of results.entries()) {
     if (result.status === 'rejected') {
-      console.error(JSON.stringify({
-        event: 'notification-quarantine-failed',
-        subscriptionPath: items[index].deviceRef.path,
-        error: errorText(result.reason),
-      }))
+      console.error(
+        JSON.stringify({
+          event: 'notification-quarantine-failed',
+          subscriptionPath: items[index].deviceRef.path,
+          error: errorText(result.reason),
+        }),
+      )
     }
   }
 }
@@ -141,8 +146,12 @@ async function quarantineCandidate(candidate, database = db) {
       : current.enabled === true && current.token === candidate.token
     if (!stillCandidate) return false
     const owner = ownerSnapshot.exists ? ownerSnapshot.data() : null
-    if (!candidate.legacy && owner?.uid === candidate.userRef.id
-      && owner.deviceId === candidate.deviceId) return false
+    if (
+      !candidate.legacy &&
+      owner?.uid === candidate.userRef.id &&
+      owner.deviceId === candidate.deviceId
+    )
+      return false
     const patch = candidate.legacy
       ? { fcmToken: null, notificationsEnabled: false }
       : { enabled: false, updatedAt: FieldValue.serverTimestamp() }
@@ -152,8 +161,9 @@ async function quarantineCandidate(candidate, database = db) {
 }
 
 async function ownerSnapshots(candidates, database) {
-  const refs = candidates.map(candidate => database.collection('notificationTokenOwners')
-    .doc(tokenOwnerId(candidate.token)))
+  const refs = candidates.map(candidate =>
+    database.collection('notificationTokenOwners').doc(tokenOwnerId(candidate.token)),
+  )
   return refs.length ? database.getAll(...refs) : []
 }
 
@@ -219,13 +229,15 @@ function restoreLegacyState(state, database) {
   return {
     token: state.legacyGroupToken || null,
     blocked: state.legacyGroupBlocked === true,
-    candidate: uid ? {
-      token: state.legacyCandidateToken,
-      deviceRef: database.collection('users').doc(uid),
-      userRef: database.collection('users').doc(uid),
-      lastNotificationKey: state.legacyCandidateLastNotificationKey,
-      legacy: true,
-    } : null,
+    candidate: uid
+      ? {
+          token: state.legacyCandidateToken,
+          deviceRef: database.collection('users').doc(uid),
+          userRef: database.collection('users').doc(uid),
+          lastNotificationKey: state.legacyCandidateLastNotificationKey,
+          legacy: true,
+        }
+      : null,
   }
 }
 
@@ -266,7 +278,8 @@ async function scanSubscriptions(
     if (completed.has(phase)) continue
 
     if (phase === 'devices') {
-      let query = database.collectionGroup('notificationDevices')
+      let query = database
+        .collectionGroup('notificationDevices')
         .where('enabled', '==', true)
         .orderBy(FieldPath.documentId())
       if (state.deviceCursor) query = query.startAfter(state.deviceCursor)
@@ -284,7 +297,8 @@ async function scanSubscriptions(
       state.deviceCursor = finished ? null : snapshot.docs.at(-1).ref.path
       if (finished) completed.add(phase)
     } else {
-      let query = database.collection('users')
+      let query = database
+        .collection('users')
         .where('notificationsEnabled', '==', true)
         .orderBy('fcmToken')
         .orderBy(FieldPath.documentId())
@@ -316,7 +330,8 @@ async function scanSubscriptions(
 
 async function claimDelivery(subscription, key, attemptId, database = db) {
   return database.runTransaction(async transaction => {
-    const ownerRef = database.collection('notificationTokenOwners')
+    const ownerRef = database
+      .collection('notificationTokenOwners')
       .doc(tokenOwnerId(subscription.token))
     const [snapshot, ownerSnapshot, userSnapshot] = await Promise.all([
       transaction.get(subscription.deviceRef),
@@ -330,42 +345,48 @@ async function claimDelivery(subscription, key, attemptId, database = db) {
 
     const current = snapshot.data()
     const validSubscription = subscription.legacy
-      ? current.notificationsEnabled === true
-        && current.fcmToken === subscription.token
-        && !ownerSnapshot.exists
-      : current.enabled === true
-        && current.token === subscription.token
-        && ownerSnapshot.exists
-        && ownerSnapshot.data().uid === subscription.userRef.id
-        && ownerSnapshot.data().deviceId === subscription.deviceId
+      ? current.notificationsEnabled === true &&
+        current.fcmToken === subscription.token &&
+        !ownerSnapshot.exists
+      : current.enabled === true &&
+        current.token === subscription.token &&
+        ownerSnapshot.exists &&
+        ownerSnapshot.data().uid === subscription.userRef.id &&
+        ownerSnapshot.data().deviceId === subscription.deviceId
     if (!validSubscription) return { claimed: false, reason: 'ownership-changed' }
 
     const delivery = claimDecision(current, key)
     if (!delivery.claim) return { claimed: false, reason: delivery.reason }
 
-    const priorAttempts = current.notificationDeliveryKey === key
-      ? Number(current.notificationDeliveryAttemptCount || 0)
-      : 0
-    transaction.set(subscription.deviceRef, {
-      notificationDeliveryKey: key,
-      notificationDeliveryStatus: 'claimed',
-      notificationDeliveryAttemptId: attemptId,
-      notificationDeliveryAttemptCount: priorAttempts + 1,
-      notificationDeliveryClaimedAt: FieldValue.serverTimestamp(),
-      notificationDeliveryUpdatedAt: FieldValue.serverTimestamp(),
-      notificationDeliveryRunId: RUN_ID,
-      notificationDeliveryCompletedAt: FieldValue.delete(),
-      notificationDeliveryError: FieldValue.delete(),
-      notificationDeliveryErrorAt: FieldValue.delete(),
-      lastError: FieldValue.delete(),
-    }, { merge: true })
+    const priorAttempts =
+      current.notificationDeliveryKey === key
+        ? Number(current.notificationDeliveryAttemptCount || 0)
+        : 0
+    transaction.set(
+      subscription.deviceRef,
+      {
+        notificationDeliveryKey: key,
+        notificationDeliveryStatus: 'claimed',
+        notificationDeliveryAttemptId: attemptId,
+        notificationDeliveryAttemptCount: priorAttempts + 1,
+        notificationDeliveryClaimedAt: FieldValue.serverTimestamp(),
+        notificationDeliveryUpdatedAt: FieldValue.serverTimestamp(),
+        notificationDeliveryRunId: RUN_ID,
+        notificationDeliveryCompletedAt: FieldValue.delete(),
+        notificationDeliveryError: FieldValue.delete(),
+        notificationDeliveryErrorAt: FieldValue.delete(),
+        lastError: FieldValue.delete(),
+      },
+      { merge: true },
+    )
     return { claimed: true, retry: delivery.retry }
   })
 }
 
 async function finishDelivery(subscription, key, attemptId, patch, database = db) {
   return database.runTransaction(async transaction => {
-    const ownerRef = database.collection('notificationTokenOwners')
+    const ownerRef = database
+      .collection('notificationTokenOwners')
       .doc(tokenOwnerId(subscription.token))
     const [snapshot, ownerSnapshot] = await Promise.all([
       transaction.get(subscription.deviceRef),
@@ -374,22 +395,29 @@ async function finishDelivery(subscription, key, attemptId, patch, database = db
     if (!snapshot.exists) return false
     const current = snapshot.data()
     const validSubscription = subscription.legacy
-      ? current.notificationsEnabled === true
-        && current.fcmToken === subscription.token
-        && !ownerSnapshot.exists
-      : current.enabled === true
-        && current.token === subscription.token
-        && ownerSnapshot.exists
-        && ownerSnapshot.data().uid === subscription.userRef.id
-        && ownerSnapshot.data().deviceId === subscription.deviceId
+      ? current.notificationsEnabled === true &&
+        current.fcmToken === subscription.token &&
+        !ownerSnapshot.exists
+      : current.enabled === true &&
+        current.token === subscription.token &&
+        ownerSnapshot.exists &&
+        ownerSnapshot.data().uid === subscription.userRef.id &&
+        ownerSnapshot.data().deviceId === subscription.deviceId
     if (!validSubscription) return false
-    if (current.notificationDeliveryKey !== key || current.notificationDeliveryAttemptId !== attemptId) {
+    if (
+      current.notificationDeliveryKey !== key ||
+      current.notificationDeliveryAttemptId !== attemptId
+    ) {
       return false
     }
-    transaction.set(subscription.deviceRef, {
-      ...patch,
-      notificationDeliveryUpdatedAt: FieldValue.serverTimestamp(),
-    }, { merge: true })
+    transaction.set(
+      subscription.deviceRef,
+      {
+        ...patch,
+        notificationDeliveryUpdatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    )
     return true
   })
 }
@@ -406,13 +434,19 @@ async function recordDeliveryFailure(subscription, key, attemptId, error, databa
       ? { fcmToken: null, notificationsEnabled: false }
       : { enabled: false, updatedAt: FieldValue.serverTimestamp() }
     : {}
-  await finishDelivery(subscription, key, attemptId, {
-    ...cleanup,
-    notificationDeliveryStatus: certainty === 'definite' ? 'failed' : 'unknown',
-    notificationDeliveryError: errorText(error),
-    notificationDeliveryErrorAt: FieldValue.serverTimestamp(),
-    lastError: errorText(error),
-  }, database)
+  await finishDelivery(
+    subscription,
+    key,
+    attemptId,
+    {
+      ...cleanup,
+      notificationDeliveryStatus: certainty === 'definite' ? 'failed' : 'unknown',
+      notificationDeliveryError: errorText(error),
+      notificationDeliveryErrorAt: FieldValue.serverTimestamp(),
+      lastError: errorText(error),
+    },
+    database,
+  )
   return { certainty, deadToken }
 }
 
@@ -453,7 +487,13 @@ async function sendSubscription(subscription, now) {
   try {
     await messaging.send({
       token: subscription.token,
-      data: { title, body, deliveryKey: key, deliveryScope: notificationScope(userSnap.id), link: SITE_URL },
+      data: {
+        title,
+        body,
+        deliveryKey: key,
+        deliveryScope: notificationScope(userSnap.id),
+        link: SITE_URL,
+      },
       webpush: {
         headers: { Urgency: 'high' },
       },
@@ -479,14 +519,16 @@ async function sendSubscription(subscription, now) {
       return { outcome: 'cleaned', reason: error.code, key, attemptId }
     }
     if (failure.certainty === 'unknown') {
-      console.error(JSON.stringify({
-        event: 'notification-delivery-unknown',
-        key,
-        attemptId,
-        runId: RUN_ID,
-        subscriptionPath: subscription.deviceRef.path,
-        error: errorText(error),
-      }))
+      console.error(
+        JSON.stringify({
+          event: 'notification-delivery-unknown',
+          key,
+          attemptId,
+          runId: RUN_ID,
+          subscriptionPath: subscription.deviceRef.path,
+          error: errorText(error),
+        }),
+      )
     }
     throw error
   }
@@ -500,7 +542,8 @@ async function main() {
 
   const counts = {}
   let processed = 0
-  const dispatchStateRef = db.collection('notificationDispatchState')
+  const dispatchStateRef = db
+    .collection('notificationDispatchState')
     .doc(dispatchStateDocumentId(DRY_RUN))
   const stateStore = {
     load: async () => {
@@ -511,24 +554,27 @@ async function main() {
   }
   console.log(`${DRY_RUN ? 'Dry-running' : 'Processing'} notification subscriptions in pages`)
   const deadline = Date.now() + RUN_BUDGET_MS
-  await scanSubscriptions(db, async (subscriptions, batch) => {
-    if (Date.now() + batch.checkpointReserveMs >= batch.deadline) return false
-    processed += subscriptions.length
-    const results = await mapLimit(
-      subscriptions,
-      CONCURRENCY,
-      subscription => sendSubscription(subscription, new Date()),
-    )
-    for (const result of results) {
-      const outcome = result.status === 'fulfilled' ? result.value.outcome : 'failed'
-      counts[outcome] = (counts[outcome] || 0) + 1
-      if (result.status === 'rejected') console.error(result.reason)
-    }
-  }, DISPATCH_BATCH_SIZE, {
-    deadline,
-    maxPages: Math.ceil(MAX_DISPATCH_PAGES * SUBSCRIPTION_PAGE_SIZE / DISPATCH_BATCH_SIZE),
-    stateStore,
-  })
+  await scanSubscriptions(
+    db,
+    async (subscriptions, batch) => {
+      if (Date.now() + batch.checkpointReserveMs >= batch.deadline) return false
+      processed += subscriptions.length
+      const results = await mapLimit(subscriptions, CONCURRENCY, subscription =>
+        sendSubscription(subscription, new Date()),
+      )
+      for (const result of results) {
+        const outcome = result.status === 'fulfilled' ? result.value.outcome : 'failed'
+        counts[outcome] = (counts[outcome] || 0) + 1
+        if (result.status === 'rejected') console.error(result.reason)
+      }
+    },
+    DISPATCH_BATCH_SIZE,
+    {
+      deadline,
+      maxPages: Math.ceil((MAX_DISPATCH_PAGES * SUBSCRIPTION_PAGE_SIZE) / DISPATCH_BATCH_SIZE),
+      stateStore,
+    },
+  )
   console.log(`Processed ${processed} notification subscription(s)`)
   console.log('Notification run complete:', counts)
   if (counts.failed) process.exitCode = 1
@@ -546,5 +592,8 @@ module.exports = {
 }
 
 if (require.main === module) {
-  main().catch(error => { console.error(error); process.exit(1) })
+  main().catch(error => {
+    console.error(error)
+    process.exit(1)
+  })
 }

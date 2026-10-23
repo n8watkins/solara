@@ -22,7 +22,11 @@ export async function createCheckoutUrl(user: User): Promise<string> {
     body: JSON.stringify({ attemptId }),
   })
   const body = await response.json().catch(() => ({}))
-  if (!response.ok || typeof body.url !== 'string' || !body.url.startsWith('https://checkout.stripe.com/')) {
+  if (
+    !response.ok ||
+    typeof body.url !== 'string' ||
+    !body.url.startsWith('https://checkout.stripe.com/')
+  ) {
     throw new Error(body.error || 'Checkout is temporarily unavailable')
   }
   return body.url
@@ -38,7 +42,9 @@ export async function createBillingPortalUrl(user: User): Promise<string> {
   })
   const body = await response.json().catch(() => ({}))
   let url: URL | null = null
-  try { url = new URL(body.url) } catch {}
+  try {
+    url = new URL(body.url)
+  } catch {}
   if (!response.ok || url?.protocol !== 'https:' || url.hostname !== 'billing.stripe.com') {
     throw new Error(body.error || 'Billing management is temporarily unavailable')
   }
@@ -61,27 +67,31 @@ export function observeCheckoutResult(
     onError()
     return () => {}
   }
-  return onSnapshot(doc(db, 'users', uid), snapshot => {
-    if (!snapshot.exists()) {
-      onResult({ status: 'waiting' })
-      return
-    }
-    const raw = snapshot.data()
-    if (raw.stripeCheckoutSessionId !== sessionId) {
-      onResult({ status: 'waiting' })
-      return
-    }
-    if (raw.stripeCheckoutStatus === 'failed') {
-      onResult({ status: 'failed' })
-      return
-    }
-    const prefs = normalizePrefs(raw)
-    if (raw.stripeCheckoutStatus === 'succeeded' && prefs?.tier === 'paid') {
-      onResult({ status: 'succeeded', prefs })
-      return
-    }
-    onResult({ status: 'pending' })
-  }, onError)
+  return onSnapshot(
+    doc(db, 'users', uid),
+    snapshot => {
+      if (!snapshot.exists()) {
+        onResult({ status: 'waiting' })
+        return
+      }
+      const raw = snapshot.data()
+      if (raw.stripeCheckoutSessionId !== sessionId) {
+        onResult({ status: 'waiting' })
+        return
+      }
+      if (raw.stripeCheckoutStatus === 'failed') {
+        onResult({ status: 'failed' })
+        return
+      }
+      const prefs = normalizePrefs(raw)
+      if (raw.stripeCheckoutStatus === 'succeeded' && prefs?.tier === 'paid') {
+        onResult({ status: 'succeeded', prefs })
+        return
+      }
+      onResult({ status: 'pending' })
+    },
+    onError,
+  )
 }
 
 export interface ProFeature {
@@ -92,9 +102,9 @@ export interface ProFeature {
 
 /** Single source of truth for the Free-vs-Pro comparison shown in the pricing modal. */
 export const PRO_FEATURES: ProFeature[] = [
-  { label: 'Outdoor activities',       free: '3',        pro: 'Unlimited' },
-  { label: 'Forecast horizon',         free: '2 days',   pro: '10 days' },
-  { label: 'Best-day planning',        free: '2 days',   pro: 'Full 10-day' },
-  { label: 'Calendar sync',            free: true,       pro: true },
-  { label: 'Morning sun-window alerts', free: false,     pro: true },
+  { label: 'Outdoor activities', free: '3', pro: 'Unlimited' },
+  { label: 'Forecast horizon', free: '2 days', pro: '10 days' },
+  { label: 'Best-day planning', free: '2 days', pro: 'Full 10-day' },
+  { label: 'Calendar sync', free: true, pro: true },
+  { label: 'Morning sun-window alerts', free: false, pro: true },
 ]

@@ -9,13 +9,15 @@ function validFeedToken(token) {
 }
 
 function validCoordinates(location) {
-  return location
-    && Number.isFinite(location.lat)
-    && Number.isFinite(location.lon)
-    && location.lat >= -90
-    && location.lat <= 90
-    && location.lon >= -180
-    && location.lon <= 180
+  return (
+    location &&
+    Number.isFinite(location.lat) &&
+    Number.isFinite(location.lon) &&
+    location.lat >= -90 &&
+    location.lat <= 90 &&
+    location.lon >= -180 &&
+    location.lon <= 180
+  )
 }
 
 function forecastKey(location, days) {
@@ -59,8 +61,11 @@ function createCalendarFeedHandler({ buildICS, buildSunEvents, db, days, fetchFo
     }
 
     try {
-      const snapshot = await db.collection('users')
-        .where('calendarFeedToken', '==', token).limit(1).get()
+      const snapshot = await db
+        .collection('users')
+        .where('calendarFeedToken', '==', token)
+        .limit(1)
+        .get()
       if (snapshot.empty) {
         res.status(404).send('Unknown feed')
         return

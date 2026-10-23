@@ -43,12 +43,14 @@ function indexBillingResources(transaction, db, userRef, resources, timestamp) {
 }
 
 async function queueBillingCleanup(transaction, tombstoneRef, resources, timestamp) {
-  const entries = resources.map(({ type, stripeId, verified = true }) => ({
-    ref: billingCleanupResourceRef(tombstoneRef, type, stripeId),
-    stripeId,
-    type,
-    verified,
-  })).filter(({ ref }) => ref)
+  const entries = resources
+    .map(({ type, stripeId, verified = true }) => ({
+      ref: billingCleanupResourceRef(tombstoneRef, type, stripeId),
+      stripeId,
+      type,
+      verified,
+    }))
+    .filter(({ ref }) => ref)
   const [tombstoneSnapshot, ...snapshots] = await Promise.all([
     transaction.get(tombstoneRef),
     ...entries.map(({ ref }) => transaction.get(ref)),
@@ -56,36 +58,44 @@ async function queueBillingCleanup(transaction, tombstoneRef, resources, timesta
   let queued = false
   for (const [index, { ref, type, stripeId, verified }] of entries.entries()) {
     const existing = snapshots[index].exists ? snapshots[index].data() : {}
-    const reopenRejectedOwnership = existing.status === 'completed'
-      && existing.ownershipRejected === true
-      && verified === true
-    const status = existing.status === 'completed' && !reopenRejectedOwnership
-      ? 'completed'
-      : 'pending'
-    transaction.set(ref, {
-      nextAttemptAt: status === 'pending' ? existing.nextAttemptAt || timestamp : null,
-      ...(reopenRejectedOwnership ? { ownershipRejected: false, processingToken: null } : {}),
-      type,
-      stripeId,
-      status,
-      updatedAt: timestamp,
-      verified: existing.verified === true || verified === true,
-    }, { merge: true })
+    const reopenRejectedOwnership =
+      existing.status === 'completed' && existing.ownershipRejected === true && verified === true
+    const status =
+      existing.status === 'completed' && !reopenRejectedOwnership ? 'completed' : 'pending'
+    transaction.set(
+      ref,
+      {
+        nextAttemptAt: status === 'pending' ? existing.nextAttemptAt || timestamp : null,
+        ...(reopenRejectedOwnership ? { ownershipRejected: false, processingToken: null } : {}),
+        type,
+        stripeId,
+        status,
+        updatedAt: timestamp,
+        verified: existing.verified === true || verified === true,
+      },
+      { merge: true },
+    )
     queued ||= status === 'pending'
   }
   if (queued) {
     const tombstone = tombstoneSnapshot.exists ? tombstoneSnapshot.data() : {}
-    const preserveFailureSchedule = Number.isSafeInteger(tombstone.cleanupAttemptCount)
-      && tombstone.cleanupAttemptCount > 0
-    transaction.set(tombstoneRef, {
-      ...(preserveFailureSchedule ? {} : {
-        cleanupAttemptCount: 0,
-        cleanupLastError: null,
-        cleanupNextAttemptAt: timestamp,
-        cleanupUpdatedAt: timestamp,
-      }),
-      cleanupStatus: 'pending',
-    }, { merge: true })
+    const preserveFailureSchedule =
+      Number.isSafeInteger(tombstone.cleanupAttemptCount) && tombstone.cleanupAttemptCount > 0
+    transaction.set(
+      tombstoneRef,
+      {
+        ...(preserveFailureSchedule
+          ? {}
+          : {
+              cleanupAttemptCount: 0,
+              cleanupLastError: null,
+              cleanupNextAttemptAt: timestamp,
+              cleanupUpdatedAt: timestamp,
+            }),
+        cleanupStatus: 'pending',
+      },
+      { merge: true },
+    )
   }
 }
 
@@ -108,7 +118,8 @@ async function listCustomerCheckoutSessions(stripe, customerId) {
     })
     sessions.push(...page.data)
     startingAfter = page.has_more ? page.data.at(-1)?.id : null
-    if (page.has_more && !startingAfter) throw new Error('Stripe checkout pagination was incomplete')
+    if (page.has_more && !startingAfter)
+      throw new Error('Stripe checkout pagination was incomplete')
   } while (startingAfter)
   return sessions
 }

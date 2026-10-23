@@ -1,21 +1,47 @@
 import { defineConfig, globalIgnores } from 'eslint/config'
 import nextVitals from 'eslint-config-next/core-web-vitals'
 import nextTypeScript from 'eslint-config-next/typescript'
+import prettier from 'eslint-config-prettier/flat'
 
 export default defineConfig([
   ...nextVitals,
   ...nextTypeScript,
   {
     linterOptions: {
-      reportUnusedDisableDirectives: false,
+      reportUnusedDisableDirectives: 'error',
     },
     rules: {
-      '@next/next/no-html-link-for-pages': 'off',
-      '@next/next/no-img-element': 'off',
-      '@typescript-eslint/no-unused-vars': 'off',
-      'react-hooks/exhaustive-deps': 'off',
-      'react-hooks/set-state-in-effect': 'off',
-      'react/no-unescaped-entities': 'off',
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+          destructuredArrayIgnorePattern: '^_',
+          ignoreRestSiblings: true,
+        },
+      ],
+    },
+  },
+  {
+    // Type-aware rules need type information, so they apply to the files the
+    // root tsconfig compiles. The CommonJS backend in functions/ and scripts/
+    // is not part of that program yet.
+    files: ['**/*.ts', '**/*.tsx'],
+    languageOptions: {
+      parserOptions: {
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+    rules: {
+      '@typescript-eslint/consistent-type-imports': [
+        'error',
+        { prefer: 'type-imports', fixStyle: 'separate-type-imports' },
+      ],
+      '@typescript-eslint/no-import-type-side-effects': 'error',
+      '@typescript-eslint/no-floating-promises': 'error',
+      '@typescript-eslint/no-misused-promises': 'error',
     },
   },
   {
@@ -24,6 +50,8 @@ export default defineConfig([
       '@typescript-eslint/no-require-imports': 'off',
     },
   },
+  // Formatting is Prettier's job; turn off any stylistic rules that would fight it.
+  prettier,
   globalIgnores([
     '.next/**',
     'out/**',

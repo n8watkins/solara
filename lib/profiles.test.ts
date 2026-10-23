@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { defaultProfile, activeProfile, selectProfile } from '@/lib/profiles'
 import { normalizePrefs } from '@/lib/prefs'
-import { Location, Profile } from '@/lib/types'
+import type { Location, Profile } from '@/lib/types'
 
 const LA: Location = { lat: 34.05, lon: -118.24, city: 'Los Angeles', region: 'CA' }
 const ava: Profile = { id: 'ava', name: 'Ava', skinType: 'very-fair', icon: '👧' }
@@ -15,8 +15,12 @@ describe('profile helpers', () => {
   })
 
   it('resolves the active profile by id, else first', () => {
-    expect(activeProfile({ profiles: [ava, rex], activeProfileId: 'rex', skinType: 'fair' }).id).toBe('rex')
-    expect(activeProfile({ profiles: [ava, rex], activeProfileId: 'missing', skinType: 'fair' }).id).toBe('ava')
+    expect(
+      activeProfile({ profiles: [ava, rex], activeProfileId: 'rex', skinType: 'fair' }).id,
+    ).toBe('rex')
+    expect(
+      activeProfile({ profiles: [ava, rex], activeProfileId: 'missing', skinType: 'fair' }).id,
+    ).toBe('ava')
   })
 
   it('selectProfile mirrors skin type into the live field', () => {
@@ -28,9 +32,11 @@ describe('normalizePrefs — profiles', () => {
   const base = (extra: Record<string, unknown>) => normalizePrefs({ location: LA, ...extra })!
 
   it('drops invalid profiles and dedupes by id', () => {
-    const r = base({ profiles: [ava, { name: 'NoSkin' }, { id: 'ava', name: 'Dup', skinType: 'fair' }, 5] })
+    const r = base({
+      profiles: [ava, { name: 'NoSkin' }, { id: 'ava', name: 'Dup', skinType: 'fair' }, 5],
+    })
     expect(r.profiles).toHaveLength(1)
-    expect(r.profiles![0].id).toBe('ava')
+    expect(r.profiles![0]!.id).toBe('ava')
   })
 
   it('leaves profiles undefined when none are valid', () => {

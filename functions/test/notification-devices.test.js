@@ -30,10 +30,15 @@ function fakeDb({
   let currentDevice = existingDeviceData ? { ...existingDeviceData } : null
   let priorDevice = priorDeviceData ? { ...priorDeviceData } : null
   let tokenOwner = owner ? { ...owner } : null
-  const legacyUsers = new Map(legacyTokenOwners.map(uid => [uid, {
-    fcmToken: TOKEN,
-    ...(legacyTokenOwnerData[uid] || {}),
-  }]))
+  const legacyUsers = new Map(
+    legacyTokenOwners.map(uid => [
+      uid,
+      {
+        fcmToken: TOKEN,
+        ...(legacyTokenOwnerData[uid] || {}),
+      },
+    ]),
+  )
   const ref = (kind, id, uid) => ({ kind, id, uid })
   const userRef = uid => ({
     ...ref('user', uid, uid),
@@ -58,7 +63,10 @@ function fakeDb({
             operator,
             value,
             pageSize: Number.POSITIVE_INFINITY,
-            limit(size) { this.pageSize = size; return this },
+            limit(size) {
+              this.pageSize = size
+              return this
+            },
           }),
         }
       }
@@ -82,9 +90,7 @@ function fakeDb({
             }
           }
           if (ref.kind === 'device') {
-            const data = ref.uid === 'alice' && ref.id === DEVICE_ID
-              ? currentDevice
-              : priorDevice
+            const data = ref.uid === 'alice' && ref.id === DEVICE_ID ? currentDevice : priorDevice
             return { exists: !!data, data: () => data }
           }
           if (ref.kind === 'device-query') return { size: activeDeviceCount }
@@ -97,13 +103,13 @@ function fakeDb({
             assert.equal(ref.operator, '==')
             assert.equal(ref.value, TOKEN)
             const docs = [...legacyUsers.entries()]
-                .filter(([, data]) => data.fcmToken === TOKEN)
-                .slice(0, ref.pageSize)
-                .map(([uid, data]) => ({
-                  id: uid,
-                  ref: userRef(uid),
-                  data: () => ({ ...data }),
-                }))
+              .filter(([, data]) => data.fcmToken === TOKEN)
+              .slice(0, ref.pageSize)
+              .map(([uid, data]) => ({
+                id: uid,
+                ref: userRef(uid),
+                data: () => ({ ...data }),
+              }))
             legacyPageReads.push(docs.length)
             return { docs }
           }
@@ -122,7 +128,8 @@ function fakeDb({
               priorDevice = options?.merge ? { ...priorDevice, ...data } : { ...data }
             }
           }
-          if (ref.kind === 'owner') tokenOwner = options?.merge ? { ...tokenOwner, ...data } : { ...data }
+          if (ref.kind === 'owner')
+            tokenOwner = options?.merge ? { ...tokenOwner, ...data } : { ...data }
           if (ref.kind === 'user') {
             legacyUsers.set(ref.uid, { ...legacyUsers.get(ref.uid), ...data })
           }
@@ -156,13 +163,16 @@ const appCheck = { verifyToken: async () => ({ appId: 'test-app' }) }
 
 describe('notification device mutations', () => {
   test('requires a valid App Check token', async () => {
-    await assert.rejects(registerNotificationDevice({
-      appCheck,
-      auth,
-      db: fakeDb(),
-      req: { body: { deviceId: DEVICE_ID, platform: 'web', token: TOKEN }, headers: {} },
-      serverTimestamp: () => 'server-time',
-    }), error => error.status === 401)
+    await assert.rejects(
+      registerNotificationDevice({
+        appCheck,
+        auth,
+        db: fakeDb(),
+        req: { body: { deviceId: DEVICE_ID, platform: 'web', token: TOKEN }, headers: {} },
+        serverTimestamp: () => 'server-time',
+      }),
+      error => error.status === 401,
+    )
   })
 
   test('registers a valid device for a paid account', async () => {
@@ -189,11 +199,15 @@ describe('notification device mutations', () => {
       createdAt: 'server-time',
       updatedAt: 'server-time',
     })
-    assert.deepEqual(
-      latestWrite(db, 'owner').data,
-      { uid: 'alice', deviceId: DEVICE_ID, updatedAt: 'server-time' },
+    assert.deepEqual(latestWrite(db, 'owner').data, {
+      uid: 'alice',
+      deviceId: DEVICE_ID,
+      updatedAt: 'server-time',
+    })
+    assert.equal(
+      db.writes.some(write => write.ref.kind === 'user'),
+      false,
     )
-    assert.equal(db.writes.some(write => write.ref.kind === 'user'), false)
   })
 
   test('preserves delivery state when a device token rotates', async () => {
@@ -255,28 +269,33 @@ describe('notification device mutations', () => {
   })
 
   test('throttles repeated registration attempts per account', async () => {
-    await assert.rejects(registerNotificationDevice({
-      appCheck,
-      auth,
-      db: fakeDb({
-        registrationLimit: { count: MAX_REGISTRATIONS_PER_MINUTE, windowStartedAt: 1_000 },
+    await assert.rejects(
+      registerNotificationDevice({
+        appCheck,
+        auth,
+        db: fakeDb({
+          registrationLimit: { count: MAX_REGISTRATIONS_PER_MINUTE, windowStartedAt: 1_000 },
+        }),
+        nowMs: 30_000,
+        req: request({ deviceId: DEVICE_ID, platform: 'web', token: TOKEN }),
+        serverTimestamp: () => 'server-time',
       }),
-      nowMs: 30_000,
-      req: request({ deviceId: DEVICE_ID, platform: 'web', token: TOKEN }),
-      serverTimestamp: () => 'server-time',
-    }), error => error.status === 429)
+      error => error.status === 429,
+    )
 
     const db = fakeDb({
       registrationLimit: { count: MAX_REGISTRATIONS_PER_MINUTE, windowStartedAt: 1_000 },
     })
-    await assert.doesNotReject(registerNotificationDevice({
-      appCheck,
-      auth,
-      db,
-      nowMs: 61_000,
-      req: request({ deviceId: DEVICE_ID, platform: 'web', token: TOKEN }),
-      serverTimestamp: () => 'server-time',
-    }))
+    await assert.doesNotReject(
+      registerNotificationDevice({
+        appCheck,
+        auth,
+        db,
+        nowMs: 61_000,
+        req: request({ deviceId: DEVICE_ID, platform: 'web', token: TOKEN }),
+        serverTimestamp: () => 'server-time',
+      }),
+    )
     assert.deepEqual(db.writes.find(write => write.ref.kind === 'limit').data, {
       count: 1,
       windowStartedAt: 61_000,
@@ -313,13 +332,15 @@ describe('notification device mutations', () => {
 
   test('ignores disabled records when enforcing the active device cap', async () => {
     const db = fakeDb({ activeDeviceCount: MAX_NOTIFICATION_DEVICES - 1 })
-    await assert.doesNotReject(registerNotificationDevice({
-      appCheck,
-      auth,
-      db,
-      req: request({ deviceId: DEVICE_ID, platform: 'web', token: TOKEN }),
-      serverTimestamp: () => 'server-time',
-    }))
+    await assert.doesNotReject(
+      registerNotificationDevice({
+        appCheck,
+        auth,
+        db,
+        req: request({ deviceId: DEVICE_ID, platform: 'web', token: TOKEN }),
+        serverTimestamp: () => 'server-time',
+      }),
+    )
   })
 
   test('transfers a token away from its previous account device', async () => {
@@ -335,7 +356,10 @@ describe('notification device mutations', () => {
       serverTimestamp: () => 'server-time',
     })
 
-    assert.equal(db.deletes.some(ref => ref.kind === 'device' && ref.uid === 'bob'), true)
+    assert.equal(
+      db.deletes.some(ref => ref.kind === 'device' && ref.uid === 'bob'),
+      true,
+    )
     assert.equal(db.writes.find(write => write.ref.kind === 'owner').ref.id, tokenOwnerId(TOKEN))
   })
 
@@ -349,14 +373,17 @@ describe('notification device mutations', () => {
         notificationDeliveryClaimedAt: new Date(1_000),
       },
     })
-    await assert.rejects(registerNotificationDevice({
-      appCheck,
-      auth,
-      db,
-      nowMs: 2_000,
-      req: request({ deviceId: DEVICE_ID, platform: 'web', token: TOKEN }),
-      serverTimestamp: () => 'server-time',
-    }), error => error.status === 409)
+    await assert.rejects(
+      registerNotificationDevice({
+        appCheck,
+        auth,
+        db,
+        nowMs: 2_000,
+        req: request({ deviceId: DEVICE_ID, platform: 'web', token: TOKEN }),
+        serverTimestamp: () => 'server-time',
+      }),
+      error => error.status === 409,
+    )
     assert.equal(db.writes.length, 0)
   })
 
@@ -400,14 +427,16 @@ describe('notification device mutations', () => {
         },
       },
     })
-    await assert.doesNotReject(registerNotificationDevice({
-      appCheck,
-      auth,
-      db,
-      nowMs: 2_000,
-      req: request({ deviceId: DEVICE_ID, platform: 'web', token: TOKEN }),
-      serverTimestamp: () => 'server-time',
-    }))
+    await assert.doesNotReject(
+      registerNotificationDevice({
+        appCheck,
+        auth,
+        db,
+        nowMs: 2_000,
+        req: request({ deviceId: DEVICE_ID, platform: 'web', token: TOKEN }),
+        serverTimestamp: () => 'server-time',
+      }),
+    )
     assert.equal(db.deviceData().notificationDeliveryStatus, 'claimed')
     assert.equal(db.deviceData().notificationDeliveryClaimedAt.getTime(), 1_000)
   })
@@ -422,14 +451,16 @@ describe('notification device mutations', () => {
         },
       },
     })
-    await assert.doesNotReject(registerNotificationDevice({
-      appCheck,
-      auth,
-      db,
-      nowMs: 2_000,
-      req: request({ deviceId: DEVICE_ID, platform: 'web', token: TOKEN }),
-      serverTimestamp: () => 'server-time',
-    }))
+    await assert.doesNotReject(
+      registerNotificationDevice({
+        appCheck,
+        auth,
+        db,
+        nowMs: 2_000,
+        req: request({ deviceId: DEVICE_ID, platform: 'web', token: TOKEN }),
+        serverTimestamp: () => 'server-time',
+      }),
+    )
     assert.equal(db.deviceData().notificationDeliveryStatus, 'claimed')
     assert.equal(db.deviceData().notificationDeliveryClaimedAt.getTime(), 1_000)
   })
@@ -553,13 +584,14 @@ describe('notification device mutations', () => {
     const owners = Array.from({ length: 205 }, (_, index) => `legacy-${index}`)
     const db = fakeDb({ legacyTokenOwners: owners })
 
-    const migratePage = () => registerNotificationDevice({
-      appCheck,
-      auth,
-      db,
-      req: request({ deviceId: DEVICE_ID, platform: 'web', token: TOKEN }),
-      serverTimestamp: () => 'server-time',
-    })
+    const migratePage = () =>
+      registerNotificationDevice({
+        appCheck,
+        auth,
+        db,
+        req: request({ deviceId: DEVICE_ID, platform: 'web', token: TOKEN }),
+        serverTimestamp: () => 'server-time',
+      })
     const first = await migratePage()
     const second = await migratePage()
     const third = await migratePage()
@@ -584,8 +616,9 @@ describe('notification device mutations', () => {
 
     const consoleError = console.error
     console.error = () => {}
-    const deferred = await registerNotificationDevice(registration)
-      .finally(() => { console.error = consoleError })
+    const deferred = await registerNotificationDevice(registration).finally(() => {
+      console.error = consoleError
+    })
     assert.equal(deferred.migrationPending, true)
     assert.equal(typeof db.deviceData().registrationMigrationId, 'string')
 
@@ -607,8 +640,14 @@ describe('notification device mutations', () => {
       req: request({ deviceId: DEVICE_ID }),
     })
     assert.deepEqual(result, { deviceId: DEVICE_ID, removed: true })
-    assert.equal(db.deletes.some(ref => ref.kind === 'device' && ref.uid === 'alice'), true)
-    assert.equal(db.deletes.some(ref => ref.kind === 'owner'), true)
+    assert.equal(
+      db.deletes.some(ref => ref.kind === 'device' && ref.uid === 'alice'),
+      true,
+    )
+    assert.equal(
+      db.deletes.some(ref => ref.kind === 'owner'),
+      true,
+    )
   })
 
   test('does not remove a device during an active delivery claim', async () => {
@@ -621,13 +660,16 @@ describe('notification device mutations', () => {
       },
       owner: { uid: 'alice', deviceId: DEVICE_ID },
     })
-    await assert.rejects(removeNotificationDevice({
-      appCheck,
-      auth,
-      db,
-      nowMs: 2_000,
-      req: request({ deviceId: DEVICE_ID }),
-    }), error => error.status === 409)
+    await assert.rejects(
+      removeNotificationDevice({
+        appCheck,
+        auth,
+        db,
+        nowMs: 2_000,
+        req: request({ deviceId: DEVICE_ID }),
+      }),
+      error => error.status === 409,
+    )
     assert.equal(db.deletes.length, 0)
   })
 })

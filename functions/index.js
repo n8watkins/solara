@@ -13,7 +13,10 @@ const { createCalendarFeedHandler } = require('./lib/calendar-feed')
 const { handleCors } = require('./lib/http')
 const { buildICS } = require('./lib/ics')
 const { buildSunEvents, fetchForecast } = require('./lib/sun')
-const { registerNotificationDevice, removeNotificationDevice } = require('./lib/notification-devices')
+const {
+  registerNotificationDevice,
+  removeNotificationDevice,
+} = require('./lib/notification-devices')
 const {
   backfillBillingResourcePage,
   createBillingPortal,
@@ -64,7 +67,9 @@ exports.createCheckoutSession = onRequest(
     } catch (error) {
       const status = error.status || 500
       console.error('createCheckoutSession failed', { name: error?.name, message: error?.message })
-      res.status(status).json({ error: status === 401 ? 'Authentication required' : 'Checkout unavailable' })
+      res
+        .status(status)
+        .json({ error: status === 401 ? 'Authentication required' : 'Checkout unavailable' })
     }
   },
 )
@@ -90,8 +95,13 @@ exports.createBillingPortalSession = onRequest(
       res.status(200).json({ url: session.url })
     } catch (error) {
       const status = error.status || 500
-      console.error('createBillingPortalSession failed', { name: error?.name, message: error?.message })
-      res.status(status).json({ error: status === 401 ? 'Authentication required' : 'Billing management unavailable' })
+      console.error('createBillingPortalSession failed', {
+        name: error?.name,
+        message: error?.message,
+      })
+      res.status(status).json({
+        error: status === 401 ? 'Authentication required' : 'Billing management unavailable',
+      })
     }
   },
 )
@@ -112,7 +122,9 @@ exports.exportAccountData = onRequest(
     } catch (error) {
       const status = error.status || 500
       console.error('exportAccountData failed', { name: error?.name, message: error?.message })
-      res.status(status).json({ error: status === 401 ? 'Authentication required' : 'Export unavailable' })
+      res
+        .status(status)
+        .json({ error: status === 401 ? 'Authentication required' : 'Export unavailable' })
     }
   },
 )
@@ -136,10 +148,14 @@ exports.deleteAccount = onRequest(
     } catch (error) {
       const status = error.status || 500
       console.error('deleteAccount failed', { name: error?.name, message: error?.message })
-      const message = error.code === 'reauth-required'
-        ? 'Recent authentication required'
-        : status === 401 ? 'Authentication required'
-        : status === 400 ? 'Type DELETE to confirm' : 'Deletion unavailable'
+      const message =
+        error.code === 'reauth-required'
+          ? 'Recent authentication required'
+          : status === 401
+            ? 'Authentication required'
+            : status === 400
+              ? 'Type DELETE to confirm'
+              : 'Deletion unavailable'
       res.status(status).json({ error: message, code: error.code || undefined })
     }
   },
@@ -166,7 +182,10 @@ exports.registerNotificationDevice = onRequest(
       res.status(200).json(result)
     } catch (error) {
       const status = error.status || 500
-      console.error('registerNotificationDevice failed', { name: error?.name, message: error?.message })
+      console.error('registerNotificationDevice failed', {
+        name: error?.name,
+        message: error?.message,
+      })
       res.status(status).json({ error: status < 500 ? error.message : 'Registration unavailable' })
     }
   },
@@ -192,7 +211,10 @@ exports.removeNotificationDevice = onRequest(
       res.status(200).json(result)
     } catch (error) {
       const status = error.status || 500
-      console.error('removeNotificationDevice failed', { name: error?.name, message: error?.message })
+      console.error('removeNotificationDevice failed', {
+        name: error?.name,
+        message: error?.message,
+      })
       res.status(status).json({ error: status < 500 ? error.message : 'Removal unavailable' })
     }
   },

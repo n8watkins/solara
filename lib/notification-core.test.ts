@@ -33,7 +33,9 @@ const hourly = [
 
 async function loadSubscriptions(database: unknown) {
   const subscriptions: Array<{ userRef: { id: string } }> = []
-  await scanSubscriptions(database, async (batch: Array<{ userRef: { id: string } }>) => subscriptions.push(...batch))
+  await scanSubscriptions(database, async (batch: Array<{ userRef: { id: string } }>) =>
+    subscriptions.push(...batch),
+  )
   return subscriptions
 }
 
@@ -44,19 +46,26 @@ function makeDeliveryDatabase(initial: Record<string, unknown>) {
   const owner = { data: { uid: 'user-1', deviceId: 'device-1' } }
   const database = {
     collection: () => ({ doc: () => ({ kind: 'owner' }) }),
-    runTransaction: async (worker: (transaction: {
-      get: (ref: { kind?: string }) => Promise<{ exists: boolean; data: () => Record<string, unknown> }>
-      set: (_ref: unknown, patch: Record<string, unknown>) => void
-    }) => Promise<unknown>) => worker({
-      get: async ref => {
-        if (ref.kind === 'owner') return { exists: true, data: () => ({ ...owner.data }) }
-        if (ref.kind === 'user') {
-          return { exists: true, data: () => ({ tier: 'paid', location: { lat: 1, lon: 2 } }) }
-        }
-        return { exists: true, data: () => ({ ...state.data }) }
-      },
-      set: (_ref, patch) => { state.data = { ...state.data, ...patch } },
-    }),
+    runTransaction: async (
+      worker: (transaction: {
+        get: (ref: {
+          kind?: string
+        }) => Promise<{ exists: boolean; data: () => Record<string, unknown> }>
+        set: (_ref: unknown, patch: Record<string, unknown>) => void
+      }) => Promise<unknown>,
+    ) =>
+      worker({
+        get: async ref => {
+          if (ref.kind === 'owner') return { exists: true, data: () => ({ ...owner.data }) }
+          if (ref.kind === 'user') {
+            return { exists: true, data: () => ({ tier: 'paid', location: { lat: 1, lon: 2 } }) }
+          }
+          return { exists: true, data: () => ({ ...state.data }) }
+        },
+        set: (_ref, patch) => {
+          state.data = { ...state.data, ...patch }
+        },
+      }),
   }
   return { database, state }
 }
@@ -99,23 +108,35 @@ describe('notification scheduling', () => {
   it('requires a paid user with a complete location', () => {
     expect(isEligibleUser({ tier: 'free', location: { lat: 1, lon: 2 } })).toBe(false)
     expect(isEligibleUser({ tier: 'paid', location: { lat: 1 } })).toBe(false)
-    expect(isEligibleUser({
-      tier: 'paid',
-      location: { lat: 1, lon: 2 },
-      accountDeletionStartedAt: new Date(),
-    })).toBe(false)
+    expect(
+      isEligibleUser({
+        tier: 'paid',
+        location: { lat: 1, lon: 2 },
+        accountDeletionStartedAt: new Date(),
+      }),
+    ).toBe(false)
     expect(isEligibleUser({ tier: 'paid', location: { lat: 1, lon: 2 } })).toBe(true)
     expect(isEligibleUser({ tier: 'paid', location: { lat: Number.NaN, lon: 2 } })).toBe(false)
     expect(isEligibleUser({ tier: 'paid', location: { lat: 91, lon: 2 } })).toBe(false)
-    expect(isEligibleUser({ tier: 'paid', location: { lat: 1, lon: Number.POSITIVE_INFINITY } })).toBe(false)
+    expect(
+      isEligibleUser({ tier: 'paid', location: { lat: 1, lon: Number.POSITIVE_INFINITY } }),
+    ).toBe(false)
     expect(isEligibleUser({ tier: 'paid', location: { lat: 1, lon: -181 } })).toBe(false)
   })
 
   it('preserves same-day idempotency during a forced manual run', () => {
     const now = new Date('2026-07-14T03:00:00Z')
-    const first = deliveryDecision({ notificationHour: 7 }, 'America/Los_Angeles', null, { forceSend: true, now })
+    const first = deliveryDecision({ notificationHour: 7 }, 'America/Los_Angeles', null, {
+      forceSend: true,
+      now,
+    })
     expect(first.deliver).toBe(true)
-    expect(deliveryDecision({ notificationHour: 7 }, 'America/Los_Angeles', first.key, { forceSend: true, now })).toEqual({
+    expect(
+      deliveryDecision({ notificationHour: 7 }, 'America/Los_Angeles', first.key, {
+        forceSend: true,
+        now,
+      }),
+    ).toEqual({
       deliver: false,
       reason: 'already-sent',
       key: first.key,
@@ -140,11 +161,14 @@ describe('notification ownership', () => {
     legacyUsers?: Array<{ token: string; uid: string }>
     owners?: Record<string, { deviceId: string; registrationMigrationId?: string; uid: string }>
     quarantineFailurePaths?: string[]
-    transactionOwners?: Record<string, {
-      deviceId: string
-      registrationMigrationId?: string
-      uid: string
-    }>
+    transactionOwners?: Record<
+      string,
+      {
+        deviceId: string
+        registrationMigrationId?: string
+        uid: string
+      }
+    >
   }) {
     const writes: Array<{ data: Record<string, unknown>; path: string }> = []
     const dataByPath = new Map<string, Record<string, unknown>>()
@@ -161,7 +185,11 @@ describe('notification ownership', () => {
     const deviceDocs = devices.map(device => {
       const user = userRef(device.uid)
       const parent = { parent: user }
-      const deviceRef = ref(`users/${device.uid}/notificationDevices/${device.deviceId}`, device.deviceId, parent)
+      const deviceRef = ref(
+        `users/${device.uid}/notificationDevices/${device.deviceId}`,
+        device.deviceId,
+        parent,
+      )
       const data = {
         enabled: true,
         token: device.token,
@@ -176,26 +204,29 @@ describe('notification ownership', () => {
         data: () => data,
       }
     })
-    const legacyDocs = legacyUsers.map(user => {
-      const legacyRef = userRef(user.uid)
-      const data = { fcmToken: user.token, notificationsEnabled: true }
-      dataByPath.set(legacyRef.path, data)
-      return { id: user.uid, ref: legacyRef, data: () => data }
-    }).sort((left, right) => {
-      const tokenOrder = String(left.data().fcmToken).localeCompare(String(right.data().fcmToken))
-      return tokenOrder || left.id.localeCompare(right.id)
-    })
+    const legacyDocs = legacyUsers
+      .map(user => {
+        const legacyRef = userRef(user.uid)
+        const data = { fcmToken: user.token, notificationsEnabled: true }
+        dataByPath.set(legacyRef.path, data)
+        return { id: user.uid, ref: legacyRef, data: () => data }
+      })
+      .sort((left, right) => {
+        const tokenOrder = String(left.data().fcmToken).localeCompare(String(right.data().fcmToken))
+        return tokenOrder || left.id.localeCompare(right.id)
+      })
     type QueryDoc = (typeof deviceDocs)[number] | (typeof legacyDocs)[number]
     const query = (docs: QueryDoc[], start = 0, pageSize = docs.length) => ({
       where: () => query(docs, start, pageSize),
       orderBy: () => query(docs, start, pageSize),
       startAfter: (...cursor: Array<QueryDoc | string>) => {
-        const index = cursor.length === 1
-          ? docs.findIndex(doc => doc.ref.path === cursor[0])
-          : docs.findIndex(doc => {
-              const data = doc.data()
-              return 'fcmToken' in data && data.fcmToken === cursor[0] && doc.id === cursor[1]
-            })
+        const index =
+          cursor.length === 1
+            ? docs.findIndex(doc => doc.ref.path === cursor[0])
+            : docs.findIndex(doc => {
+                const data = doc.data()
+                return 'fcmToken' in data && data.fcmToken === cursor[0] && doc.id === cursor[1]
+              })
         return query(docs, index + 1, pageSize)
       },
       limit: (limit: number) => query(docs, start, limit),
@@ -211,30 +242,36 @@ describe('notification ownership', () => {
           }
           throw new Error(`Unexpected collection ${name}`)
         },
-        getAll: async (...ownerRefs: Array<{ owner?: { deviceId: string; uid: string } }>) => ownerRefs.map(ownerRef => ({
-          exists: !!ownerRef.owner,
-          data: () => ownerRef.owner,
-        })),
-        runTransaction: async (worker: (transaction: {
-          get: (target: { id: string; kind?: string; path?: string }) => Promise<{
-            exists: boolean
-            data: () => Record<string, unknown>
-          }>
-          set: (target: { path: string }, data: Record<string, unknown>) => void
-        }) => Promise<unknown>) => worker({
-          get: async target => {
-            if (target.kind === 'owner') {
-              const owner = transactionOwners[target.id]
-              return { exists: !!owner, data: () => owner }
-            }
-            if (quarantineFailurePaths.includes(target.path || '')) {
-              throw new Error('quarantine unavailable')
-            }
-            const data = dataByPath.get(target.path || '')
-            return { exists: !!data, data: () => data || {} }
-          },
-          set: (target, data) => { writes.push({ data, path: target.path }) },
-        }),
+        getAll: async (...ownerRefs: Array<{ owner?: { deviceId: string; uid: string } }>) =>
+          ownerRefs.map(ownerRef => ({
+            exists: !!ownerRef.owner,
+            data: () => ownerRef.owner,
+          })),
+        runTransaction: async (
+          worker: (transaction: {
+            get: (target: { id: string; kind?: string; path?: string }) => Promise<{
+              exists: boolean
+              data: () => Record<string, unknown>
+            }>
+            set: (target: { path: string }, data: Record<string, unknown>) => void
+          }) => Promise<unknown>,
+        ) =>
+          worker({
+            get: async target => {
+              if (target.kind === 'owner') {
+                const owner = transactionOwners[target.id]
+                return { exists: !!owner, data: () => owner! }
+              }
+              if (quarantineFailurePaths.includes(target.path || '')) {
+                throw new Error('quarantine unavailable')
+              }
+              const data = dataByPath.get(target.path || '')
+              return { exists: !!data, data: () => data || {} }
+            },
+            set: (target, data) => {
+              writes.push({ data, path: target.path })
+            },
+          }),
       },
       writes,
     }
@@ -255,7 +292,7 @@ describe('notification ownership', () => {
     const subscriptions = await loadSubscriptions(database)
 
     expect(subscriptions).toHaveLength(1)
-    expect(subscriptions[0].userRef.id).toBe('bob')
+    expect(subscriptions[0]!.userRef.id).toBe('bob')
     expect(writes.map(write => write.path).sort()).toEqual([
       'users/alice/notificationDevices/device-alice',
       'users/carol',
@@ -266,12 +303,14 @@ describe('notification ownership', () => {
     const token = 'migrating-token'.padEnd(24, 'x')
     const ownerId = createHash('sha256').update(token).digest('hex')
     const { database, writes } = notificationDatabase({
-      devices: [{
-        deviceId: 'device-alice',
-        registrationMigrationId: 'migration-1',
-        token,
-        uid: 'alice',
-      }],
+      devices: [
+        {
+          deviceId: 'device-alice',
+          registrationMigrationId: 'migration-1',
+          token,
+          uid: 'alice',
+        },
+      ],
       legacyUsers: [{ token, uid: 'legacy-alice' }],
       owners: {
         [ownerId]: {
@@ -299,7 +338,9 @@ describe('notification ownership', () => {
 
     const subscriptions = await loadSubscriptions(database)
 
-    expect(subscriptions.map((subscription: { userRef: { id: string } }) => subscription.userRef.id)).toEqual(['alice'])
+    expect(
+      subscriptions.map((subscription: { userRef: { id: string } }) => subscription.userRef.id),
+    ).toEqual(['alice'])
     expect(writes.map(write => write.path).sort()).toEqual(['users/bob', 'users/carol'])
   })
 
@@ -351,11 +392,15 @@ describe('notification ownership', () => {
 
   it('pages subscriptions and preserves duplicate detection across page boundaries', async () => {
     const shared = 'shared-token'.padEnd(24, 'x')
-    const deviceTokens = Array.from({ length: 5 }, (_, index) => `device-token-${index}`.padEnd(24, 'x'))
-    const owners = Object.fromEntries(deviceTokens.map((token, index) => [
-      createHash('sha256').update(token).digest('hex'),
-      { uid: `device-user-${index}`, deviceId: `device-${index}` },
-    ]))
+    const deviceTokens = Array.from({ length: 5 }, (_, index) =>
+      `device-token-${index}`.padEnd(24, 'x'),
+    )
+    const owners = Object.fromEntries(
+      deviceTokens.map((token, index) => [
+        createHash('sha256').update(token).digest('hex'),
+        { uid: `device-user-${index}`, deviceId: `device-${index}` },
+      ]),
+    )
     const { database, writes } = notificationDatabase({
       devices: deviceTokens.map((token, index) => ({
         deviceId: `device-${index}`,
@@ -372,16 +417,23 @@ describe('notification ownership', () => {
     })
     const batches: string[][] = []
 
-    await scanSubscriptions(database, async (subscriptions: Array<{ userRef: { id: string } }>) => {
-      batches.push(subscriptions.map(subscription => subscription.userRef.id))
-    }, 2, { maxPages: 20 })
+    await scanSubscriptions(
+      database,
+      async (subscriptions: Array<{ userRef: { id: string } }>) => {
+        batches.push(subscriptions.map(subscription => subscription.userRef.id))
+      },
+      2,
+      { maxPages: 20 },
+    )
 
     expect(Math.max(...batches.map(batch => batch.length))).toBeLessThanOrEqual(2)
-    expect(batches.flat()).toEqual(expect.arrayContaining([
-      ...deviceTokens.map((_, index) => `device-user-${index}`),
-      'legacy-first',
-      'legacy-last',
-    ]))
+    expect(batches.flat()).toEqual(
+      expect.arrayContaining([
+        ...deviceTokens.map((_, index) => `device-user-${index}`),
+        'legacy-first',
+        'legacy-last',
+      ]),
+    )
     expect(batches.flat()).not.toContain('legacy-shared-a')
     expect(batches.flat()).not.toContain('legacy-shared-b')
     expect(writes.map(write => write.path).sort()).toEqual([
@@ -391,11 +443,15 @@ describe('notification ownership', () => {
   })
 
   it('resumes a bounded fair scan from durable cursors', async () => {
-    const deviceTokens = Array.from({ length: 3 }, (_, index) => `device-token-${index}`.padEnd(24, 'x'))
-    const owners = Object.fromEntries(deviceTokens.map((token, index) => [
-      createHash('sha256').update(token).digest('hex'),
-      { uid: `device-user-${index}`, deviceId: `device-${index}` },
-    ]))
+    const deviceTokens = Array.from({ length: 3 }, (_, index) =>
+      `device-token-${index}`.padEnd(24, 'x'),
+    )
+    const owners = Object.fromEntries(
+      deviceTokens.map((token, index) => [
+        createHash('sha256').update(token).digest('hex'),
+        { uid: `device-user-${index}`, deviceId: `device-${index}` },
+      ]),
+    )
     const { database } = notificationDatabase({
       devices: deviceTokens.map((token, index) => ({
         deviceId: `device-${index}`,
@@ -411,7 +467,9 @@ describe('notification ownership', () => {
     let durableState: Record<string, unknown> = {}
     const stateStore = {
       load: async () => durableState,
-      save: async (state: Record<string, unknown>) => { durableState = { ...state } },
+      save: async (state: Record<string, unknown>) => {
+        durableState = { ...state }
+      },
     }
     const dispatched: string[] = []
 
@@ -427,23 +485,29 @@ describe('notification ownership', () => {
       expect(result.pages).toBeLessThanOrEqual(2)
     }
 
-    expect(dispatched).toEqual(expect.arrayContaining([
-      'device-user-0',
-      'device-user-1',
-      'device-user-2',
-      'legacy-user-0',
-      'legacy-user-1',
-      'legacy-user-2',
-    ]))
+    expect(dispatched).toEqual(
+      expect.arrayContaining([
+        'device-user-0',
+        'device-user-1',
+        'device-user-2',
+        'legacy-user-0',
+        'legacy-user-1',
+        'legacy-user-2',
+      ]),
+    )
     expect(dispatched.indexOf('legacy-user-0')).toBeLessThan(dispatched.indexOf('device-user-2'))
   })
 
   it('checkpoints a small completed batch when dispatch reaches its deadline', async () => {
-    const deviceTokens = Array.from({ length: 4 }, (_, index) => `device-token-${index}`.padEnd(24, 'x'))
-    const owners = Object.fromEntries(deviceTokens.map((token, index) => [
-      createHash('sha256').update(token).digest('hex'),
-      { uid: `device-user-${index}`, deviceId: `device-${index}` },
-    ]))
+    const deviceTokens = Array.from({ length: 4 }, (_, index) =>
+      `device-token-${index}`.padEnd(24, 'x'),
+    )
+    const owners = Object.fromEntries(
+      deviceTokens.map((token, index) => [
+        createHash('sha256').update(token).digest('hex'),
+        { uid: `device-user-${index}`, deviceId: `device-${index}` },
+      ]),
+    )
     const { database } = notificationDatabase({
       devices: deviceTokens.map((token, index) => ({
         deviceId: `device-${index}`,
@@ -457,7 +521,10 @@ describe('notification ownership', () => {
 
     const result = await scanSubscriptions(
       database,
-      async (_subscriptions: unknown[], batch: { deadline: number; checkpointReserveMs: number }) => {
+      async (
+        _subscriptions: unknown[],
+        batch: { deadline: number; checkpointReserveMs: number },
+      ) => {
         expect(batch).toEqual({ deadline: 100, checkpointReserveMs: 30 })
         now = 80
       },
@@ -469,14 +536,16 @@ describe('notification ownership', () => {
         now: () => now,
         stateStore: {
           load: async () => ({}),
-          save: async (state: Record<string, unknown>) => { savedStates.push({ ...state }) },
+          save: async (state: Record<string, unknown>) => {
+            savedStates.push({ ...state })
+          },
         },
       },
     )
 
     expect(result.pages).toBe(1)
     expect(savedStates).toHaveLength(1)
-    expect(savedStates[0].deviceCursor).toBe('users/device-user-1/notificationDevices/device-1')
+    expect(savedStates[0]!.deviceCursor).toBe('users/device-user-1/notificationDevices/device-1')
   })
 
   it('leaves the cursor untouched when a resolved batch cannot start safely', async () => {
@@ -488,21 +557,18 @@ describe('notification ownership', () => {
     })
     const savedStates: Array<Record<string, unknown>> = []
 
-    const result = await scanSubscriptions(
-      database,
-      async () => false,
-      1,
-      {
-        checkpointReserveMs: 30,
-        deadline: 100,
-        maxPages: 20,
-        now: () => 0,
-        stateStore: {
-          load: async () => ({}),
-          save: async (state: Record<string, unknown>) => { savedStates.push({ ...state }) },
+    const result = await scanSubscriptions(database, async () => false, 1, {
+      checkpointReserveMs: 30,
+      deadline: 100,
+      maxPages: 20,
+      now: () => 0,
+      stateStore: {
+        load: async () => ({}),
+        save: async (state: Record<string, unknown>) => {
+          savedStates.push({ ...state })
         },
       },
-    )
+    })
 
     expect(result.pages).toBe(1)
     expect(result.state.deviceCursor).toBeNull()
@@ -533,7 +599,9 @@ describe('notification forecast eligibility', () => {
     }
 
     try {
-      await expect(sendSubscription(subscription, new Date('2026-07-14T03:00:00Z'))).resolves.toEqual({
+      await expect(
+        sendSubscription(subscription, new Date('2026-07-14T03:00:00Z')),
+      ).resolves.toEqual({
         outcome: 'skipped',
         reason: 'not-due',
       })
@@ -549,10 +617,15 @@ describe('notification delivery claims', () => {
 
   it('claims a new day and retries only a recorded definite failure', () => {
     expect(claimDecision({}, key)).toEqual({ claim: true, retry: false })
-    expect(claimDecision({
-      notificationDeliveryKey: key,
-      notificationDeliveryStatus: 'failed',
-    }, key)).toEqual({ claim: true, retry: true })
+    expect(
+      claimDecision(
+        {
+          notificationDeliveryKey: key,
+          notificationDeliveryStatus: 'failed',
+        },
+        key,
+      ),
+    ).toEqual({ claim: true, retry: true })
   })
 
   it('suppresses delivered, claimed, and uncertain attempts for the same day', () => {
@@ -560,45 +633,72 @@ describe('notification delivery claims', () => {
       claim: false,
       reason: 'already-sent',
     })
-    expect(claimDecision({
-      notificationDeliveryKey: key,
-      notificationDeliveryStatus: 'claimed',
-      notificationDeliveryClaimedAt: new Date(1_000),
-    }, key)).toEqual({
+    expect(
+      claimDecision(
+        {
+          notificationDeliveryKey: key,
+          notificationDeliveryStatus: 'claimed',
+          notificationDeliveryClaimedAt: new Date(1_000),
+        },
+        key,
+      ),
+    ).toEqual({
       claim: false,
       reason: 'already-claimed',
     })
-    expect(claimDecision({
-      notificationDeliveryKey: key,
-      notificationDeliveryStatus: 'unknown',
-    }, key)).toEqual({ claim: false, reason: 'delivery-unknown' })
+    expect(
+      claimDecision(
+        {
+          notificationDeliveryKey: key,
+          notificationDeliveryStatus: 'unknown',
+        },
+        key,
+      ),
+    ).toEqual({ claim: false, reason: 'delivery-unknown' })
   })
 
   it('preserves an ambiguous claim regardless of its age', () => {
-    expect(claimDecision({
-      notificationDeliveryKey: key,
-      notificationDeliveryStatus: 'claimed',
-      notificationDeliveryClaimedAt: { toMillis: () => 1_000 },
-    }, key)).toEqual({
+    expect(
+      claimDecision(
+        {
+          notificationDeliveryKey: key,
+          notificationDeliveryStatus: 'claimed',
+          notificationDeliveryClaimedAt: { toMillis: () => 1_000 },
+        },
+        key,
+      ),
+    ).toEqual({
       claim: false,
       reason: 'already-claimed',
     })
-    expect(claimDecision({
-      notificationDeliveryKey: key,
-      notificationDeliveryStatus: 'claimed',
-    }, key)).toEqual({ claim: false, reason: 'already-claimed' })
+    expect(
+      claimDecision(
+        {
+          notificationDeliveryKey: key,
+          notificationDeliveryStatus: 'claimed',
+        },
+        key,
+      ),
+    ).toEqual({ claim: false, reason: 'already-claimed' })
   })
 
   it('allows the next local day even when the previous attempt needs reconciliation', () => {
-    expect(claimDecision({
-      notificationDeliveryKey: 'daily-v2:2026-07-13',
-      notificationDeliveryStatus: 'unknown',
-    }, key)).toEqual({ claim: true, retry: false })
+    expect(
+      claimDecision(
+        {
+          notificationDeliveryKey: 'daily-v2:2026-07-13',
+          notificationDeliveryStatus: 'unknown',
+        },
+        key,
+      ),
+    ).toEqual({ claim: true, retry: false })
   })
 
   it('retries provider rejections but preserves ambiguous delivery claims', () => {
     expect(failureCertainty({ code: 'messaging/message-rate-exceeded' })).toBe('definite')
-    expect(failureCertainty({ code: 'messaging/registration-token-not-registered' })).toBe('definite')
+    expect(failureCertainty({ code: 'messaging/registration-token-not-registered' })).toBe(
+      'definite',
+    )
     expect(failureCertainty({ code: 'messaging/server-unavailable' })).toBe('unknown')
     expect(failureCertainty(new Error('socket closed'))).toBe('unknown')
   })
@@ -628,26 +728,38 @@ describe('notification delivery claims', () => {
     const state = { enabled: true, token: 'token'.padEnd(24, 'x') }
     const database = {
       collection: () => ({ doc: () => ({ kind: 'owner' }) }),
-      runTransaction: (worker: (transaction: {
-        get: (ref: { kind?: string }) => Promise<{ exists: boolean; data: () => Record<string, unknown> }>
-      }) => Promise<unknown>) => worker({
-        get: async ref => {
-          if (ref.kind === 'owner') {
-            return { exists: true, data: () => ({ uid: 'user-2', deviceId: 'device-2' }) }
-          }
-          if (ref.kind === 'user') {
-            return { exists: true, data: () => ({ tier: 'paid', location: { lat: 1, lon: 2 } }) }
-          }
-          return { exists: true, data: () => state }
-        },
-      }),
+      runTransaction: (
+        worker: (transaction: {
+          get: (ref: {
+            kind?: string
+          }) => Promise<{ exists: boolean; data: () => Record<string, unknown> }>
+        }) => Promise<unknown>,
+      ) =>
+        worker({
+          get: async ref => {
+            if (ref.kind === 'owner') {
+              return { exists: true, data: () => ({ uid: 'user-2', deviceId: 'device-2' }) }
+            }
+            if (ref.kind === 'user') {
+              return { exists: true, data: () => ({ tier: 'paid', location: { lat: 1, lon: 2 } }) }
+            }
+            return { exists: true, data: () => state }
+          },
+        }),
     }
-    await expect(claimDelivery({
-      token: state.token,
-      deviceId: 'device-1',
-      deviceRef: { path: 'users/user-1/notificationDevices/device-1' },
-      userRef: { id: 'user-1', kind: 'user' },
-    }, key, 'attempt-1', database)).resolves.toEqual({
+    await expect(
+      claimDelivery(
+        {
+          token: state.token,
+          deviceId: 'device-1',
+          deviceRef: { path: 'users/user-1/notificationDevices/device-1' },
+          userRef: { id: 'user-1', kind: 'user' },
+        },
+        key,
+        'attempt-1',
+        database,
+      ),
+    ).resolves.toEqual({
       claimed: false,
       reason: 'ownership-changed',
     })
@@ -663,19 +775,24 @@ describe('notification delivery claims', () => {
     }
     const database = {
       collection: () => ({ doc: () => ({ kind: 'owner' }) }),
-      runTransaction: (worker: (transaction: {
-        get: (ref: { kind?: string }) => Promise<{ exists: boolean; data: () => Record<string, unknown> }>
-      }) => Promise<unknown>) => worker({
-        get: async ref => {
-          if (ref.kind === 'owner') {
-            return { exists: true, data: () => ({ uid: 'user-1', deviceId: 'device-1' }) }
-          }
-          if (ref.kind === 'user') {
-            return { exists: true, data: () => ({ accountDeletionStartedAt: new Date() }) }
-          }
-          return { exists: true, data: () => ({ enabled: true, token }) }
-        },
-      }),
+      runTransaction: (
+        worker: (transaction: {
+          get: (ref: {
+            kind?: string
+          }) => Promise<{ exists: boolean; data: () => Record<string, unknown> }>
+        }) => Promise<unknown>,
+      ) =>
+        worker({
+          get: async ref => {
+            if (ref.kind === 'owner') {
+              return { exists: true, data: () => ({ uid: 'user-1', deviceId: 'device-1' }) }
+            }
+            if (ref.kind === 'user') {
+              return { exists: true, data: () => ({ accountDeletionStartedAt: new Date() }) }
+            }
+            return { exists: true, data: () => ({ enabled: true, token }) }
+          },
+        }),
     }
     await expect(claimDelivery(subscription, key, 'attempt-1', database)).resolves.toEqual({
       claimed: false,
@@ -693,19 +810,24 @@ describe('notification delivery claims', () => {
     }
     const database = {
       collection: () => ({ doc: () => ({ kind: 'owner' }) }),
-      runTransaction: (worker: (transaction: {
-        get: (ref: { kind?: string }) => Promise<{ exists: boolean; data: () => Record<string, unknown> }>
-      }) => Promise<unknown>) => worker({
-        get: async ref => {
-          if (ref.kind === 'owner') {
-            return { exists: true, data: () => ({ uid: 'user-1', deviceId: 'device-1' }) }
-          }
-          if (ref.kind === 'user') {
-            return { exists: true, data: () => ({ tier: 'free', location: { lat: 1, lon: 2 } }) }
-          }
-          return { exists: true, data: () => ({ enabled: true, token }) }
-        },
-      }),
+      runTransaction: (
+        worker: (transaction: {
+          get: (ref: {
+            kind?: string
+          }) => Promise<{ exists: boolean; data: () => Record<string, unknown> }>
+        }) => Promise<unknown>,
+      ) =>
+        worker({
+          get: async ref => {
+            if (ref.kind === 'owner') {
+              return { exists: true, data: () => ({ uid: 'user-1', deviceId: 'device-1' }) }
+            }
+            if (ref.kind === 'user') {
+              return { exists: true, data: () => ({ tier: 'free', location: { lat: 1, lon: 2 } }) }
+            }
+            return { exists: true, data: () => ({ enabled: true, token }) }
+          },
+        }),
     }
     await expect(claimDelivery(subscription, key, 'attempt-1', database)).resolves.toEqual({
       claimed: false,
@@ -725,13 +847,9 @@ describe('notification delivery claims', () => {
       deviceRef: { path: 'users/user-1/notificationDevices/device-1' },
       userRef: { id: 'user-1', kind: 'user' },
     }
-    await expect(finishDelivery(
-      subscription,
-      key,
-      'attempt-1',
-      { lastNotificationKey: key },
-      database,
-    )).resolves.toBe(false)
+    await expect(
+      finishDelivery(subscription, key, 'attempt-1', { lastNotificationKey: key }, database),
+    ).resolves.toBe(false)
     expect(state.data.lastNotificationKey).toBeUndefined()
   })
 
@@ -784,13 +902,15 @@ describe('notification delivery claims', () => {
       notificationDeliveryAttemptId: 'attempt-1',
     })
 
-    await expect(recordDeliveryFailure(
-      subscription,
-      key,
-      'attempt-1',
-      { code: 'messaging/invalid-argument' },
-      delivery.database,
-    )).resolves.toEqual({ certainty: 'definite', deadToken: false })
+    await expect(
+      recordDeliveryFailure(
+        subscription,
+        key,
+        'attempt-1',
+        { code: 'messaging/invalid-argument' },
+        delivery.database,
+      ),
+    ).resolves.toEqual({ certainty: 'definite', deadToken: false })
 
     expect(delivery.state.data.enabled).toBe(true)
     expect(delivery.state.data.notificationDeliveryStatus).toBe('failed')
@@ -799,21 +919,41 @@ describe('notification delivery claims', () => {
 
 describe('notification content', () => {
   it('builds qualified lower-UV planning copy', () => {
-    const message = buildMessage({
-      location: { city: 'Los Angeles' },
-      skinType: 'fair',
-      activities: [{ id: 'walk', name: 'Walk', icon: '🚶', maxUV: 2, durationMins: 30, sunscreen: false }],
-    }, hourly, '2026-07-14')
+    const message = buildMessage(
+      {
+        location: { city: 'Los Angeles' },
+        skinType: 'fair',
+        activities: [
+          { id: 'walk', name: 'Walk', icon: '🚶', maxUV: 2, durationMins: 30, sunscreen: false },
+        ],
+      },
+      hourly,
+      '2026-07-14',
+    )
     expect(message.title).toContain('Walk')
     expect(message.body).toContain('Estimated lower-UV window')
     expect(message.body).toContain('Check current conditions')
   })
 
   it('does not select an activity that is excluded on the local weekday', () => {
-    const message = buildMessage({
-      location: { city: 'Los Angeles' },
-      activities: [{ id: 'walk', name: 'Walk', icon: '🚶', maxUV: 2, durationMins: 30, sunscreen: false, daysOfWeek: [1] }],
-    }, hourly, '2026-07-14')
+    const message = buildMessage(
+      {
+        location: { city: 'Los Angeles' },
+        activities: [
+          {
+            id: 'walk',
+            name: 'Walk',
+            icon: '🚶',
+            maxUV: 2,
+            durationMins: 30,
+            sunscreen: false,
+            daysOfWeek: [1],
+          },
+        ],
+      },
+      hourly,
+      '2026-07-14',
+    )
     expect(message.title).toContain('UV planning update')
   })
 })

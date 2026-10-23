@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { cloudAdjustedUV } from '@/lib/exposure'
 import { getActivityWindow } from '@/lib/weather'
-import { Activity, HourlyForecast } from '@/lib/types'
+import type { Activity, HourlyForecast } from '@/lib/types'
 
 describe('cloudAdjustedUV', () => {
   it('does not change UV when no cloud data', () => {
@@ -13,8 +13,8 @@ describe('cloudAdjustedUV', () => {
     expect(cloudAdjustedUV(8, 40)).toBe(8)
   })
   it('discounts heavy cloud, capped at 30% and never below input', () => {
-    expect(cloudAdjustedUV(10, 100)).toBe(7)   // full 30% discount
-    expect(cloudAdjustedUV(10, 70)).toBe(8.5)  // halfway → 15%
+    expect(cloudAdjustedUV(10, 100)).toBe(7) // full 30% discount
+    expect(cloudAdjustedUV(10, 70)).toBe(8.5) // halfway → 15%
     expect(cloudAdjustedUV(10, 100)).toBeLessThan(10)
   })
   it('never raises UV', () => {
@@ -25,9 +25,17 @@ describe('cloudAdjustedUV', () => {
 describe('getActivityWindow — cloud sensitivity', () => {
   // UV 6 all day (above the activity's max of 4), but heavily overcast.
   const hourly: HourlyForecast[] = []
-  for (let h = 6; h <= 20; h++) hourly.push({ hour: h, uv: 6, tempF: 70, condition: 'Cloudy', cloudCover: 100 })
+  for (let h = 6; h <= 20; h++)
+    hourly.push({ hour: h, uv: 6, tempF: 70, condition: 'Cloudy', cloudCover: 100 })
 
-  const base: Activity = { id: 'a', name: 'Walk', icon: '🚶', durationMins: 60, maxUV: 4, sunscreen: false }
+  const base: Activity = {
+    id: 'a',
+    name: 'Walk',
+    icon: '🚶',
+    durationMins: 60,
+    maxUV: 4,
+    sunscreen: false,
+  }
 
   it('finds no window at raw UV when not cloud-sensitive', () => {
     const r = getActivityWindow(hourly, base, -1, 'fair')
@@ -38,6 +46,6 @@ describe('getActivityWindow — cloud sensitivity', () => {
     const r = getActivityWindow(hourly, { ...base, cloudSensitive: true, maxUV: 4.5 }, -1, 'fair')
     expect(r.allWindows.length).toBeGreaterThan(0)
     // Reported UV stays the true forecast value, not the discounted one.
-    expect(r.allWindows[0].peakUV).toBe(6)
+    expect(r.allWindows[0]!.peakUV).toBe(6)
   })
 })

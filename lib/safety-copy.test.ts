@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { buildActivityShareText } from '@/lib/share'
 import { gcalWindowLink } from '@/lib/calendar'
-import { Activity, Location, SafeActivityWindow } from '@/lib/types'
+import type { Activity, Location, SafeActivityWindow } from '@/lib/types'
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { buildSunEvents } = require('../functions/lib/sun')
@@ -45,14 +45,16 @@ describe('health-adjacent recommendation copy', () => {
   })
 
   it('qualifies live calendar-feed events and includes protection context', () => {
-    const [event] = buildSunEvents(
-      { activities: [activity] },
-      [{ dateStr: '2026-05-29', hourly: [
-        { hour: 7, uv: 1 },
-        { hour: 8, uv: 2 },
-        { hour: 9, uv: 8 },
-      ] }],
-    )
+    const [event] = buildSunEvents({ activities: [activity] }, [
+      {
+        dateStr: '2026-05-29',
+        hourly: [
+          { hour: 7, uv: 1 },
+          { hour: 8, uv: 2 },
+          { hour: 9, uv: 8 },
+        ],
+      },
+    ])
     expect(event.summary).toBe('🏃 Running: lower-UV window')
     expect(event.description).toContain('Estimated lower-UV window')
     expect(event.description).toContain('Recheck current UV and use sun protection.')

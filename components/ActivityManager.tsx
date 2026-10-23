@@ -1,8 +1,8 @@
 'use client'
 import { useState } from 'react'
-import { Activity } from '@/lib/types'
+import type { Activity } from '@/lib/types'
 import { ACTIVITY_CATEGORIES, canAddActivity, TIER_LIMITS } from '@/lib/tiers'
-import { TierLevel } from '@/lib/types'
+import type { TierLevel } from '@/lib/types'
 import EmojiPicker from './EmojiPicker'
 
 interface Props {
@@ -15,29 +15,45 @@ interface Props {
   onToggleCategory?: (name: string) => void
 }
 
-export default function ActivityManager({ selected, tier, hiddenSuggestionIds = [], collapsedCategories = [], onChange, onHideSuggestion, onToggleCategory }: Props) {
-  const [mode,          setMode]          = useState<'browse' | 'manage'>('browse')
-  const [search,        setSearch]        = useState('')
-  const [showCreate,    setShowCreate]    = useState(false)
-  const [customName,    setCustomName]    = useState('')
-  const [customMins,    setCustomMins]    = useState(30)
-  const [customIcon,    setCustomIcon]    = useState('🏃')
+export default function ActivityManager({
+  selected,
+  tier,
+  hiddenSuggestionIds = [],
+  collapsedCategories = [],
+  onChange,
+  onHideSuggestion,
+  onToggleCategory,
+}: Props) {
+  const [mode, setMode] = useState<'browse' | 'manage'>('browse')
+  const [search, setSearch] = useState('')
+  const [showCreate, setShowCreate] = useState(false)
+  const [customName, setCustomName] = useState('')
+  const [customMins, setCustomMins] = useState(30)
+  const [customIcon, setCustomIcon] = useState('🏃')
   const [customSunscreen, setCustomSunscreen] = useState(false)
-  const [showEmoji,     setShowEmoji]     = useState(false)
-  const [addedName,     setAddedName]     = useState<string | null>(null)
+  const [showEmoji, setShowEmoji] = useState(false)
+  const [addedName, setAddedName] = useState<string | null>(null)
 
-  const hiddenSet    = new Set(hiddenSuggestionIds)
+  const hiddenSet = new Set(hiddenSuggestionIds)
   const collapsedSet = new Set(collapsedCategories)
-  const atLimit      = !canAddActivity(tier, selected.length)
+  const atLimit = !canAddActivity(tier, selected.length)
 
-  function isSelected(id: string) { return selected.some(a => a.id === id) }
+  function isSelected(id: string) {
+    return selected.some(a => a.id === id)
+  }
 
   function flash(name: string) {
     setAddedName(name)
     setTimeout(() => setAddedName(null), 1800)
   }
 
-  function toggle(preset: { id: string; name: string; icon: string; durationMins: number; maxUV: number }) {
+  function toggle(preset: {
+    id: string
+    name: string
+    icon: string
+    durationMins: number
+    maxUV: number
+  }) {
     if (isSelected(preset.id)) {
       onChange(selected.filter(a => a.id !== preset.id))
     } else {
@@ -50,51 +66,85 @@ export default function ActivityManager({ selected, tier, hiddenSuggestionIds = 
   function addCustom() {
     if (!customName.trim() || atLimit) return
     const name = customName.trim()
-    onChange([...selected, {
-      id: `custom_${Date.now()}`, name,
-      icon: customIcon, durationMins: customMins, maxUV: 4,
-      sunscreen: customSunscreen, custom: true,
-    }])
-    setCustomName(''); setCustomMins(30); setCustomSunscreen(false); setShowCreate(false)
+    onChange([
+      ...selected,
+      {
+        id: `custom_${Date.now()}`,
+        name,
+        icon: customIcon,
+        durationMins: customMins,
+        maxUV: 4,
+        sunscreen: customSunscreen,
+        custom: true,
+      },
+    ])
+    setCustomName('')
+    setCustomMins(30)
+    setCustomSunscreen(false)
+    setShowCreate(false)
     flash(name)
     setMode('manage')
   }
 
   function updateDuration(id: string, mins: number) {
-    onChange(selected.map(a => a.id === id ? { ...a, durationMins: Math.max(5, mins) } : a))
+    onChange(selected.map(a => (a.id === id ? { ...a, durationMins: Math.max(5, mins) } : a)))
   }
 
   function updateSunscreen(id: string, sunscreen: boolean) {
-    onChange(selected.map(a => a.id === id ? { ...a, sunscreen } : a))
+    onChange(selected.map(a => (a.id === id ? { ...a, sunscreen } : a)))
   }
 
-  function remove(id: string) { onChange(selected.filter(a => a.id !== id)) }
+  function remove(id: string) {
+    onChange(selected.filter(a => a.id !== id))
+  }
 
   const filteredCats = search
-    ? [{ name: 'Results', emoji: '🔍', activities: ACTIVITY_CATEGORIES.flatMap(c => c.activities).filter(a => !hiddenSet.has(a.id) && a.name.toLowerCase().includes(search.toLowerCase())) }]
+    ? [
+        {
+          name: 'Results',
+          emoji: '🔍',
+          activities: ACTIVITY_CATEGORIES.flatMap(c => c.activities).filter(
+            a => !hiddenSet.has(a.id) && a.name.toLowerCase().includes(search.toLowerCase()),
+          ),
+        },
+      ]
     : ACTIVITY_CATEGORIES.map(cat => ({
-      ...cat,
-      activities: cat.activities.filter(a => !hiddenSet.has(a.id)),
-    })).filter(cat => cat.activities.length > 0)
+        ...cat,
+        activities: cat.activities.filter(a => !hiddenSet.has(a.id)),
+      })).filter(cat => cat.activities.length > 0)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-
       {/* Mode tabs */}
-      <div style={{ display: 'flex', gap: '4px', padding: '3px', borderRadius: '10px', background: 'var(--bg-metric)' }}>
+      <div
+        style={{
+          display: 'flex',
+          gap: '4px',
+          padding: '3px',
+          borderRadius: '10px',
+          background: 'var(--bg-metric)',
+        }}
+      >
         {(['browse', 'manage'] as const).map(m => (
           <button
             key={m}
             onClick={() => setMode(m)}
             style={{
-              flex: 1, padding: '7px 10px', borderRadius: '8px', fontSize: '13px', fontWeight: 600,
+              flex: 1,
+              padding: '7px 10px',
+              borderRadius: '8px',
+              fontSize: '13px',
+              fontWeight: 600,
               background: mode === m ? 'var(--bg-card)' : 'transparent',
               color: mode === m ? 'var(--text)' : 'var(--text-3)',
               border: mode === m ? '0.5px solid var(--border-md)' : 'none',
-              cursor: 'pointer', transition: 'all 0.12s',
+              cursor: 'pointer',
+              transition: 'all 0.12s',
             }}
           >
-            {m === 'browse' ? 'Browse' : `My activities${selected.length ? ` (${selected.length})` : ''}`}
+            {m === 'browse'
+              ? 'Browse'
+              : `My activities${selected.length ? ` (${selected.length})` : ''}`}
           </button>
         ))}
       </div>
@@ -102,13 +152,33 @@ export default function ActivityManager({ selected, tier, hiddenSuggestionIds = 
       {mode === 'browse' && (
         <>
           {atLimit && tier !== 'paid' && (
-            <div style={{ padding: '10px 14px', borderRadius: '10px', background: 'rgba(249,115,22,0.08)', border: '0.5px solid rgba(249,115,22,0.2)', fontSize: '13px', color: 'var(--text-2)' }}>
-              {tier === 'anonymous' ? '👤 Create an account to add activities.' : `🆓 Free plan: ${TIER_LIMITS.free.activities} activities. Upgrade to Pro for unlimited.`}
+            <div
+              style={{
+                padding: '10px 14px',
+                borderRadius: '10px',
+                background: 'rgba(249,115,22,0.08)',
+                border: '0.5px solid rgba(249,115,22,0.2)',
+                fontSize: '13px',
+                color: 'var(--text-2)',
+              }}
+            >
+              {tier === 'anonymous'
+                ? '👤 Create an account to add activities.'
+                : `🆓 Free plan: ${TIER_LIMITS.free.activities} activities. Upgrade to Pro for unlimited.`}
             </div>
           )}
 
           {addedName && (
-            <div style={{ padding: '8px 12px', borderRadius: '9px', background: 'rgba(22,163,74,0.1)', border: '0.5px solid rgba(22,163,74,0.3)', fontSize: '13px', color: '#16A34A' }}>
+            <div
+              style={{
+                padding: '8px 12px',
+                borderRadius: '9px',
+                background: 'rgba(22,163,74,0.1)',
+                border: '0.5px solid rgba(22,163,74,0.3)',
+                fontSize: '13px',
+                color: '#16A34A',
+              }}
+            >
               ✓ {addedName} added
             </div>
           )}
@@ -117,24 +187,56 @@ export default function ActivityManager({ selected, tier, hiddenSuggestionIds = 
             <button
               onClick={() => setShowCreate(s => !s)}
               className="btn btn-primary"
-              style={{ width: '100%', justifyContent: 'center', fontSize: '14px', padding: '10px', borderRadius: '12px' }}
+              style={{
+                width: '100%',
+                justifyContent: 'center',
+                fontSize: '14px',
+                padding: '10px',
+                borderRadius: '12px',
+              }}
               disabled={atLimit}
             >
               {showCreate ? '✕ Cancel' : '+ Create custom activity'}
             </button>
 
             {showCreate && (
-              <div style={{ marginTop: '10px', padding: '14px', borderRadius: '12px', background: 'var(--bg-metric)', border: '0.5px solid var(--border-md)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div
+                style={{
+                  marginTop: '10px',
+                  padding: '14px',
+                  borderRadius: '12px',
+                  background: 'var(--bg-metric)',
+                  border: '0.5px solid var(--border-md)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px',
+                }}
+              >
                 <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                   <div style={{ position: 'relative' }}>
                     <button
                       onClick={() => setShowEmoji(s => !s)}
-                      style={{ width: '44px', height: '44px', fontSize: '22px', borderRadius: '10px', border: '0.5px solid var(--border-md)', background: 'var(--bg-card)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                      style={{
+                        width: '44px',
+                        height: '44px',
+                        fontSize: '22px',
+                        borderRadius: '10px',
+                        border: '0.5px solid var(--border-md)',
+                        background: 'var(--bg-card)',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
                     >
                       {customIcon}
                     </button>
                     {showEmoji && (
-                      <EmojiPicker value={customIcon} onChange={setCustomIcon} onClose={() => setShowEmoji(false)} />
+                      <EmojiPicker
+                        value={customIcon}
+                        onChange={setCustomIcon}
+                        onClose={() => setShowEmoji(false)}
+                      />
                     )}
                   </div>
                   <input
@@ -145,28 +247,56 @@ export default function ActivityManager({ selected, tier, hiddenSuggestionIds = 
                     style={{ flex: 1, fontSize: '14px' }}
                   />
                 </div>
-                <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: '13px', color: 'var(--text-2)', flexShrink: 0 }}>Duration</span>
-                  <input type="number" min="5" step="5" value={customMins} onChange={e => setCustomMins(Math.max(5, parseInt(e.target.value) || 5))} style={{ width: '80px', fontSize: '13px' }} />
+                <div
+                  style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}
+                >
+                  <span style={{ fontSize: '13px', color: 'var(--text-2)', flexShrink: 0 }}>
+                    Duration
+                  </span>
+                  <input
+                    type="number"
+                    min="5"
+                    step="5"
+                    value={customMins}
+                    onChange={e => setCustomMins(Math.max(5, parseInt(e.target.value) || 5))}
+                    style={{ width: '80px', fontSize: '13px' }}
+                  />
                   <span style={{ fontSize: '13px', color: 'var(--text-3)' }}>min</span>
                 </div>
                 <div style={{ display: 'flex', gap: '8px' }}>
-                  {[{ val: false, label: 'No SPF' }, { val: true, label: 'SPF 30+' }].map(o => (
+                  {[
+                    { val: false, label: 'No SPF' },
+                    { val: true, label: 'SPF 30+' },
+                  ].map(o => (
                     <button
                       key={String(o.val)}
                       onClick={() => setCustomSunscreen(o.val)}
                       style={{
-                        flex: 1, padding: '9px 10px', borderRadius: '10px', cursor: 'pointer',
-                        border: customSunscreen === o.val ? '1.5px solid var(--accent)' : '0.5px solid var(--border-md)',
-                        background: customSunscreen === o.val ? 'rgba(249,115,22,0.08)' : 'var(--bg-card)',
-                        color: 'var(--text)', fontSize: '13px', fontWeight: 650,
+                        flex: 1,
+                        padding: '9px 10px',
+                        borderRadius: '10px',
+                        cursor: 'pointer',
+                        border:
+                          customSunscreen === o.val
+                            ? '1.5px solid var(--accent)'
+                            : '0.5px solid var(--border-md)',
+                        background:
+                          customSunscreen === o.val ? 'rgba(249,115,22,0.08)' : 'var(--bg-card)',
+                        color: 'var(--text)',
+                        fontSize: '13px',
+                        fontWeight: 650,
                       }}
                     >
                       {o.label}
                     </button>
                   ))}
                 </div>
-                <button className="btn btn-primary" onClick={addCustom} disabled={!customName.trim()} style={{ justifyContent: 'center' }}>
+                <button
+                  className="btn btn-primary"
+                  onClick={addCustom}
+                  disabled={!customName.trim()}
+                  style={{ justifyContent: 'center' }}
+                >
                   Add activity
                 </button>
               </div>
@@ -177,12 +307,25 @@ export default function ActivityManager({ selected, tier, hiddenSuggestionIds = 
             placeholder="Search activities..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            style={{ width: '100%', boxSizing: 'border-box', fontSize: '13px', padding: '8px 12px' }}
+            style={{
+              width: '100%',
+              boxSizing: 'border-box',
+              fontSize: '13px',
+              padding: '8px 12px',
+            }}
           />
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {filteredCats.length === 0 && (
-              <div style={{ padding: '12px 14px', borderRadius: '10px', background: 'var(--bg-metric)', fontSize: '13px', color: 'var(--text-3)' }}>
+              <div
+                style={{
+                  padding: '12px 14px',
+                  borderRadius: '10px',
+                  background: 'var(--bg-metric)',
+                  fontSize: '13px',
+                  color: 'var(--text-3)',
+                }}
+              >
                 No suggestions match. Restore hidden suggestions in Settings → Activity prefs.
               </div>
             )}
@@ -190,42 +333,116 @@ export default function ActivityManager({ selected, tier, hiddenSuggestionIds = 
               const collapsed = !search && collapsedSet.has(cat.name)
               return (
                 <div key={cat.name}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: collapsed ? 0 : '6px' }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '8px',
+                      marginBottom: collapsed ? 0 : '6px',
+                    }}
+                  >
                     <button
                       onClick={() => !search && onToggleCategory?.(cat.name)}
-                      style={{ margin: 0, padding: 0, background: 'none', border: 'none', cursor: search ? 'default' : 'pointer', fontSize: '11px', fontWeight: 600, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.06em' }}
+                      style={{
+                        margin: 0,
+                        padding: 0,
+                        background: 'none',
+                        border: 'none',
+                        cursor: search ? 'default' : 'pointer',
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        color: 'var(--text-3)',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.06em',
+                      }}
                     >
                       {!search && (collapsed ? '▸' : '▾')} {cat.emoji} {cat.name}
                     </button>
-                    {!search && <span style={{ fontSize: '11px', color: 'var(--text-3)' }}>{cat.activities.length}</span>}
+                    {!search && (
+                      <span style={{ fontSize: '11px', color: 'var(--text-3)' }}>
+                        {cat.activities.length}
+                      </span>
+                    )}
                   </div>
                   {!collapsed && (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '6px' }}>
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
+                        gap: '6px',
+                      }}
+                    >
                       {cat.activities.map(p => {
-                        const sel    = isSelected(p.id)
+                        const sel = isSelected(p.id)
                         const locked = !sel && atLimit
                         return (
                           <div key={p.id} style={{ position: 'relative' }}>
-                            <button onClick={() => toggle(p)} disabled={locked} style={{
-                              width: '100%', minHeight: '48px', display: 'flex', alignItems: 'center', gap: '7px',
-                              padding: '8px 32px 8px 10px', borderRadius: '9px', textAlign: 'left', cursor: locked ? 'not-allowed' : 'pointer',
-                              border: sel ? '1.5px solid var(--accent)' : '0.5px solid var(--border-md)',
-                              background: sel ? 'rgba(249,115,22,0.07)' : 'var(--bg-card)',
-                              opacity: locked ? 0.4 : 1, transition: 'all 0.12s',
-                            }}>
+                            <button
+                              onClick={() => toggle(p)}
+                              disabled={locked}
+                              style={{
+                                width: '100%',
+                                minHeight: '48px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '7px',
+                                padding: '8px 32px 8px 10px',
+                                borderRadius: '9px',
+                                textAlign: 'left',
+                                cursor: locked ? 'not-allowed' : 'pointer',
+                                border: sel
+                                  ? '1.5px solid var(--accent)'
+                                  : '0.5px solid var(--border-md)',
+                                background: sel ? 'rgba(249,115,22,0.07)' : 'var(--bg-card)',
+                                opacity: locked ? 0.4 : 1,
+                                transition: 'all 0.12s',
+                              }}
+                            >
                               <span style={{ fontSize: '16px', flexShrink: 0 }}>{p.icon}</span>
                               <div style={{ minWidth: 0 }}>
-                                <p style={{ margin: 0, fontSize: '12px', fontWeight: sel ? 500 : 400, color: sel ? 'var(--accent)' : 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</p>
-                                <p style={{ margin: 0, fontSize: '10px', color: 'var(--text-3)' }}>{p.durationMins < 60 ? p.durationMins + 'm' : p.durationMins / 60 + 'h'}</p>
+                                <p
+                                  style={{
+                                    margin: 0,
+                                    fontSize: '12px',
+                                    fontWeight: sel ? 500 : 400,
+                                    color: sel ? 'var(--accent)' : 'var(--text)',
+                                    whiteSpace: 'nowrap',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                  }}
+                                >
+                                  {p.name}
+                                </p>
+                                <p style={{ margin: 0, fontSize: '10px', color: 'var(--text-3)' }}>
+                                  {p.durationMins < 60
+                                    ? p.durationMins + 'm'
+                                    : p.durationMins / 60 + 'h'}
+                                </p>
                               </div>
-                              {locked && <span style={{ marginLeft: 'auto', fontSize: '11px' }}>🔒</span>}
+                              {locked && (
+                                <span style={{ marginLeft: 'auto', fontSize: '11px' }}>🔒</span>
+                              )}
                             </button>
                             {!sel && onHideSuggestion && (
                               <button
                                 onClick={() => onHideSuggestion(p.id)}
                                 aria-label={`Hide ${p.name} suggestion`}
                                 title="Hide suggestion"
-                                style={{ position: 'absolute', top: '7px', right: '7px', width: '22px', height: '22px', borderRadius: '50%', border: 'none', background: 'var(--bg-metric)', color: 'var(--text-3)', cursor: 'pointer', fontSize: '13px', lineHeight: 1 }}
+                                style={{
+                                  position: 'absolute',
+                                  top: '7px',
+                                  right: '7px',
+                                  width: '22px',
+                                  height: '22px',
+                                  borderRadius: '50%',
+                                  border: 'none',
+                                  background: 'var(--bg-metric)',
+                                  color: 'var(--text-3)',
+                                  cursor: 'pointer',
+                                  fontSize: '13px',
+                                  lineHeight: 1,
+                                }}
                               >
                                 ×
                               </button>
@@ -242,46 +459,134 @@ export default function ActivityManager({ selected, tier, hiddenSuggestionIds = 
         </>
       )}
 
-      {mode === 'manage' && (
-        selected.length === 0 ? (
+      {mode === 'manage' &&
+        (selected.length === 0 ? (
           <div style={{ padding: '24px', textAlign: 'center' }}>
-            <p style={{ margin: '0 0 10px', fontSize: '13px', color: 'var(--text-3)' }}>No activities added yet.</p>
-            <button onClick={() => setMode('browse')} style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}>
+            <p style={{ margin: '0 0 10px', fontSize: '13px', color: 'var(--text-3)' }}>
+              No activities added yet.
+            </p>
+            <button
+              onClick={() => setMode('browse')}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--accent)',
+                cursor: 'pointer',
+                fontSize: '13px',
+                fontWeight: 600,
+              }}
+            >
               Browse suggestions →
             </button>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {selected.map(a => (
-              <div key={a.id} style={{ background: 'var(--bg-card)', border: '0.5px solid var(--border-md)', borderRadius: '10px', padding: '10px 12px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+              <div
+                key={a.id}
+                style={{
+                  background: 'var(--bg-card)',
+                  border: '0.5px solid var(--border-md)',
+                  borderRadius: '10px',
+                  padding: '10px 12px',
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    marginBottom: '10px',
+                  }}
+                >
                   <span style={{ fontSize: '18px' }}>{a.icon}</span>
-                  <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text)', flex: 1 }}>{a.name}</span>
+                  <span
+                    style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text)', flex: 1 }}
+                  >
+                    {a.name}
+                  </span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <button onClick={() => updateDuration(a.id, a.durationMins - 5)} style={{ width: '24px', height: '24px', borderRadius: '6px', border: '0.5px solid var(--border-md)', background: 'transparent', cursor: 'pointer', fontSize: '14px', color: 'var(--text-2)' }}>−</button>
+                    <button
+                      onClick={() => updateDuration(a.id, a.durationMins - 5)}
+                      style={{
+                        width: '24px',
+                        height: '24px',
+                        borderRadius: '6px',
+                        border: '0.5px solid var(--border-md)',
+                        background: 'transparent',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        color: 'var(--text-2)',
+                      }}
+                    >
+                      −
+                    </button>
                     <input
                       type="number"
                       min="5"
                       step="5"
                       value={a.durationMins}
                       onChange={e => updateDuration(a.id, parseInt(e.target.value) || 5)}
-                      style={{ width: '44px', textAlign: 'center', fontSize: '12px', padding: '2px 4px', borderRadius: '5px' }}
+                      style={{
+                        width: '44px',
+                        textAlign: 'center',
+                        fontSize: '12px',
+                        padding: '2px 4px',
+                        borderRadius: '5px',
+                      }}
                     />
                     <span style={{ fontSize: '11px', color: 'var(--text-3)' }}>min</span>
-                    <button onClick={() => updateDuration(a.id, a.durationMins + 5)} style={{ width: '24px', height: '24px', borderRadius: '6px', border: '0.5px solid var(--border-md)', background: 'transparent', cursor: 'pointer', fontSize: '14px', color: 'var(--text-2)' }}>+</button>
+                    <button
+                      onClick={() => updateDuration(a.id, a.durationMins + 5)}
+                      style={{
+                        width: '24px',
+                        height: '24px',
+                        borderRadius: '6px',
+                        border: '0.5px solid var(--border-md)',
+                        background: 'transparent',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        color: 'var(--text-2)',
+                      }}
+                    >
+                      +
+                    </button>
                   </div>
-                  <button onClick={() => remove(a.id)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-3)', fontSize: '16px', padding: '0 4px' }}>×</button>
+                  <button
+                    onClick={() => remove(a.id)}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      cursor: 'pointer',
+                      color: 'var(--text-3)',
+                      fontSize: '16px',
+                      padding: '0 4px',
+                    }}
+                  >
+                    ×
+                  </button>
                 </div>
                 <div style={{ display: 'flex', gap: '8px' }}>
-                  {[{ val: false, label: 'No SPF' }, { val: true, label: 'SPF 30+' }].map(o => (
+                  {[
+                    { val: false, label: 'No SPF' },
+                    { val: true, label: 'SPF 30+' },
+                  ].map(o => (
                     <button
                       key={String(o.val)}
                       onClick={() => updateSunscreen(a.id, o.val)}
                       style={{
-                        flex: 1, padding: '8px 10px', borderRadius: '9px', cursor: 'pointer',
-                        border: a.sunscreen === o.val ? '1.5px solid var(--accent)' : '0.5px solid var(--border-md)',
+                        flex: 1,
+                        padding: '8px 10px',
+                        borderRadius: '9px',
+                        cursor: 'pointer',
+                        border:
+                          a.sunscreen === o.val
+                            ? '1.5px solid var(--accent)'
+                            : '0.5px solid var(--border-md)',
                         background: a.sunscreen === o.val ? 'rgba(249,115,22,0.08)' : 'transparent',
-                        color: 'var(--text)', fontSize: '12px', fontWeight: 650,
+                        color: 'var(--text)',
+                        fontSize: '12px',
+                        fontWeight: 650,
                       }}
                     >
                       {o.label}
@@ -291,8 +596,7 @@ export default function ActivityManager({ selected, tier, hiddenSuggestionIds = 
               </div>
             ))}
           </div>
-        )
-      )}
+        ))}
     </div>
   )
 }

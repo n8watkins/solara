@@ -22,23 +22,25 @@ export default function Tooltip({ text, children }: Props) {
         ?
       </span>
       {show && (
-        <span style={{
-          position: 'absolute',
-          bottom: '100%',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          marginBottom: '6px',
-          background: 'var(--text)',
-          color: 'var(--bg)',
-          fontSize: '12px',
-          lineHeight: '1.5',
-          padding: '8px 10px',
-          borderRadius: '8px',
-          width: '200px',
-          zIndex: 50,
-          whiteSpace: 'normal',
-          pointerEvents: 'none',
-        }}>
+        <span
+          style={{
+            position: 'absolute',
+            bottom: '100%',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            marginBottom: '6px',
+            background: 'var(--text)',
+            color: 'var(--bg)',
+            fontSize: '12px',
+            lineHeight: '1.5',
+            padding: '8px 10px',
+            borderRadius: '8px',
+            width: '200px',
+            zIndex: 50,
+            whiteSpace: 'normal',
+            pointerEvents: 'none',
+          }}
+        >
           {text}
         </span>
       )}

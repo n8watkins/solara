@@ -5,13 +5,15 @@ test.beforeEach(async ({ page }) => {
     await route.fulfill({
       contentType: 'application/json',
       body: JSON.stringify({
-        results: [{
-          name: 'Pasadena',
-          admin1: 'California',
-          country: 'United States',
-          latitude: 34.1478,
-          longitude: -118.1445,
-        }],
+        results: [
+          {
+            name: 'Pasadena',
+            admin1: 'California',
+            country: 'United States',
+            latitude: 34.1478,
+            longitude: -118.1445,
+          },
+        ],
       }),
     })
   })
@@ -39,7 +41,10 @@ test('completes setup through the sign-in boundary', async ({ page }) => {
   await page.getByRole('button', { name: /Get started/ }).click()
 
   await expect(page.getByRole('heading', { name: 'Where are you?' })).toBeVisible()
-  await expect(page.getByRole('progressbar', { name: 'Setup progress' })).toHaveAttribute('aria-valuetext', 'Step 1 of 3')
+  await expect(page.getByRole('progressbar', { name: 'Setup progress' })).toHaveAttribute(
+    'aria-valuetext',
+    'Step 1 of 3',
+  )
   await page.getByLabel('City or location').fill('Pasadena')
   await page.getByRole('button', { name: 'Go' }).click()
 
@@ -69,7 +74,9 @@ test('announces location errors and exposes utility landmarks', async ({ page })
   await page.getByRole('button', { name: /Get started/ }).click()
   await page.getByLabel('City or location').fill('Not a real city')
   await page.getByRole('button', { name: 'Go' }).click()
-  await expect(page.locator('p[role="alert"]')).toHaveText('City not found. Try a different spelling.')
+  await expect(page.locator('p[role="alert"]')).toHaveText(
+    'City not found. Try a different spelling.',
+  )
 
   await page.goto('/account/')
   await expect(page.getByRole('main')).toBeVisible()

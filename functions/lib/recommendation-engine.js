@@ -35,7 +35,8 @@ function weekdayForDate(dateStr) {
     date.getUTCFullYear() !== year ||
     date.getUTCMonth() !== month - 1 ||
     date.getUTCDate() !== day
-  ) return null
+  )
+    return null
   return date.getUTCDay()
 }
 
@@ -84,7 +85,8 @@ function findWindows(hourly, maxUV, durationMins = 0, preferredHours) {
 
   for (let i = 0; i <= hourly.length; i++) {
     const current = hourly[i]
-    const qualifies = current &&
+    const qualifies =
+      current &&
       (current.planningUV ?? current.uv) <= maxUV &&
       hourAllowed(current.hour, preferredHours)
 
@@ -107,8 +109,11 @@ function findWindows(hourly, maxUV, durationMins = 0, preferredHours) {
 }
 
 function bestWindow(hourly, maxUV, durationMins = 0, preferredHours) {
-  return findWindows(hourly, maxUV, durationMins, preferredHours)
-    .sort((a, b) => (a.avgUV - b.avgUV) || ((b.to - b.from) - (a.to - a.from)))[0] || null
+  return (
+    findWindows(hourly, maxUV, durationMins, preferredHours).sort(
+      (a, b) => a.avgUV - b.avgUV || b.to - b.from - (a.to - a.from),
+    )[0] || null
+  )
 }
 
 module.exports = {

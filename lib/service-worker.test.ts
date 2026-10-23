@@ -4,10 +4,7 @@ import { resolve } from 'node:path'
 
 describe('Firebase messaging service worker', () => {
   it('generates a worker that deduplicates data messages before displaying them', () => {
-    const source = readFileSync(
-      resolve(process.cwd(), 'scripts/generate-sw.js'),
-      'utf8',
-    )
+    const source = readFileSync(resolve(process.cwd(), 'scripts/generate-sw.js'), 'utf8')
     expect(source).toContain('firebase.messaging()')
     expect(source).toContain('solara-notification-deliveries-v1')
     expect(source).toContain('caches.open(')

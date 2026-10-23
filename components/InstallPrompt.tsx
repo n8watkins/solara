@@ -1,5 +1,6 @@
 'use client'
-import { CSSProperties, useEffect, useState } from 'react'
+import type { CSSProperties } from 'react'
+import { useEffect, useState } from 'react'
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>
@@ -12,8 +13,15 @@ const DISMISS_KEY = 'solara_install_dismissed'
 function ShareIcon() {
   return (
     <svg
-      width="11" height="13" viewBox="0 0 16 20" fill="none" stroke="currentColor"
-      strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
+      width="11"
+      height="13"
+      viewBox="0 0 16 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
       style={{ display: 'inline', verticalAlign: '-1px' }}
     >
       <path d="M8 1.5 V11" />
@@ -40,8 +48,9 @@ export default function InstallPrompt() {
   useEffect(() => {
     if (typeof window === 'undefined') return
     // Already installed (running standalone) → never prompt.
-    const standalone = window.matchMedia?.('(display-mode: standalone)').matches
-      || (window.navigator as unknown as { standalone?: boolean }).standalone
+    const standalone =
+      window.matchMedia?.('(display-mode: standalone)').matches ||
+      (window.navigator as unknown as { standalone?: boolean }).standalone
     if (standalone) return
     if (localStorage.getItem(DISMISS_KEY)) return
 
@@ -49,10 +58,12 @@ export default function InstallPrompt() {
     // fires beforeinstallprompt, and only Safari can add to the Home Screen — the
     // one path to web push on iPhone. Show manual instructions for that case.
     const ua = window.navigator.userAgent
-    const isIOS = /iPad|iPhone|iPod/.test(ua)
-      || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+    const isIOS =
+      /iPad|iPhone|iPod/.test(ua) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
     const isIOSSafari = isIOS && !/CriOS|FxiOS|EdgiOS|OPiOS|mercury/i.test(ua)
     if (isIOSSafari) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Browser-only state is read after hydration so the static export's prerendered markup matches the first client render.
       setMode('ios')
       return
     }
@@ -76,7 +87,9 @@ export default function InstallPrompt() {
 
   function dismiss() {
     setMode(null)
-    try { localStorage.setItem(DISMISS_KEY, '1') } catch {}
+    try {
+      localStorage.setItem(DISMISS_KEY, '1')
+    } catch {}
   }
 
   async function install() {
@@ -90,13 +103,23 @@ export default function InstallPrompt() {
   if (!mode) return null
 
   const wrap: CSSProperties = {
-    display: 'flex', alignItems: 'center', gap: '12px',
-    padding: '12px 14px', borderRadius: '12px', marginBottom: '16px',
-    background: 'rgba(249,115,22,0.08)', border: '0.5px solid rgba(249,115,22,0.25)',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+    padding: '12px 14px',
+    borderRadius: '12px',
+    marginBottom: '16px',
+    background: 'rgba(249,115,22,0.08)',
+    border: '0.5px solid rgba(249,115,22,0.25)',
   }
   const dismissBtn: CSSProperties = {
-    background: 'transparent', border: 'none', cursor: 'pointer',
-    color: 'var(--text-3)', fontSize: '18px', padding: '0 4px', flexShrink: 0,
+    background: 'transparent',
+    border: 'none',
+    cursor: 'pointer',
+    color: 'var(--text-3)',
+    fontSize: '18px',
+    padding: '0 4px',
+    flexShrink: 0,
   }
 
   if (mode === 'ios') {
@@ -104,12 +127,17 @@ export default function InstallPrompt() {
       <div style={wrap}>
         <span style={{ fontSize: '22px', flexShrink: 0 }}>☀️</span>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ margin: 0, fontSize: '14px', fontWeight: 650, color: 'var(--text)' }}>Add Solara to your home screen</p>
+          <p style={{ margin: 0, fontSize: '14px', fontWeight: 650, color: 'var(--text)' }}>
+            Add Solara to your home screen
+          </p>
           <p style={{ margin: '2px 0 0', fontSize: '12px', color: 'var(--text-3)' }}>
-            Tap <ShareIcon /> Share, then <strong>Add to Home Screen</strong> — needed on iPhone to get sun alerts.
+            Tap <ShareIcon /> Share, then <strong>Add to Home Screen</strong> — needed on iPhone to
+            get sun alerts.
           </p>
         </div>
-        <button onClick={dismiss} aria-label="Dismiss" style={dismissBtn}>×</button>
+        <button onClick={dismiss} aria-label="Dismiss" style={dismissBtn}>
+          ×
+        </button>
       </div>
     )
   }
@@ -118,11 +146,23 @@ export default function InstallPrompt() {
     <div style={wrap}>
       <span style={{ fontSize: '22px', flexShrink: 0 }}>☀️</span>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ margin: 0, fontSize: '14px', fontWeight: 650, color: 'var(--text)' }}>Add Solara to your home screen</p>
-        <p style={{ margin: '2px 0 0', fontSize: '12px', color: 'var(--text-3)' }}>One tap each morning to check your sun window.</p>
+        <p style={{ margin: 0, fontSize: '14px', fontWeight: 650, color: 'var(--text)' }}>
+          Add Solara to your home screen
+        </p>
+        <p style={{ margin: '2px 0 0', fontSize: '12px', color: 'var(--text-3)' }}>
+          One tap each morning to check your sun window.
+        </p>
       </div>
-      <button className="btn btn-primary" onClick={install} style={{ fontSize: '13px', padding: '8px 14px', flexShrink: 0 }}>Install</button>
-      <button onClick={dismiss} aria-label="Dismiss" style={dismissBtn}>×</button>
+      <button
+        className="btn btn-primary"
+        onClick={() => void install()}
+        style={{ fontSize: '13px', padding: '8px 14px', flexShrink: 0 }}
+      >
+        Install
+      </button>
+      <button onClick={dismiss} aria-label="Dismiss" style={dismissBtn}>
+        ×
+      </button>
     </div>
   )
 }

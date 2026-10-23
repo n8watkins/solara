@@ -1,4 +1,4 @@
-import { Activity, PreferredHours, SafeActivityWindow, SkinType } from './types'
+import type { Activity, PreferredHours, SafeActivityWindow, SkinType } from './types'
 
 type RecommendationHour = {
   hour: number

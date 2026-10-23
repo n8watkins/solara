@@ -1,4 +1,4 @@
-import { WeatherResponse } from './types'
+import type { WeatherResponse } from './types'
 
 const CACHE_KEY = 'solara_weather'
 const TTL = 60 * 60 * 1000
@@ -30,5 +30,7 @@ export function setCachedWeather(lat: number, lon: number, data: WeatherResponse
 }
 
 export function clearWeatherCache(): void {
-  try { localStorage.removeItem(CACHE_KEY) } catch {}
+  try {
+    localStorage.removeItem(CACHE_KEY)
+  } catch {}
 }

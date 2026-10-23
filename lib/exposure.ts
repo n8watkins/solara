@@ -14,6 +14,6 @@
 export function cloudAdjustedUV(uv: number, cloudCover?: number): number {
   if (cloudCover == null || cloudCover <= 40) return uv
   const frac = Math.min(1, (cloudCover - 40) / 60) // 0 at 40%, 1 at 100%
-  const factor = 1 - 0.3 * frac                    // 1.0 → 0.7
+  const factor = 1 - 0.3 * frac // 1.0 → 0.7
   return Math.round(uv * factor * 10) / 10
 }

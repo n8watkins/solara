@@ -1,0 +1,13 @@
+# Generated output
+.next/
+out/
+coverage/
+playwright-report/
+test-results/
+next-env.d.ts
+public/firebase-messaging-sw.js
+.firebase/
+
+# Lockfiles are owned by npm
+package-lock.json
+functions/package-lock.json

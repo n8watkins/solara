@@ -3,10 +3,10 @@
 import Script from 'next/script'
 import { usePathname } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
+import type { AnalyticsConsent as AnalyticsConsentValue } from '@/lib/analytics-consent'
 import {
   ANALYTICS_CONSENT_EVENT,
   ANALYTICS_CONSENT_STORAGE_KEY,
-  AnalyticsConsent as AnalyticsConsentValue,
   parseAnalyticsConsent,
   persistAnalyticsConsent,
   readAnalyticsConsent,
@@ -21,6 +21,7 @@ function useAnalyticsConsent() {
   const [consent, setConsent] = useState<AnalyticsConsentValue | null>(null)
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Browser-only state is read after hydration so the static export's prerendered markup matches the first client render.
     setConsent(readAnalyticsConsent(window.localStorage))
 
     const handleConsent = (event: Event) => {
@@ -61,9 +62,9 @@ export default function AnalyticsConsent({ measurementId }: { measurementId?: st
         announceConsent('declined')
         return
       }
-      if (event.key !== 'Tab' || focusable.length === 0) return
       const first = focusable[0]
-      const last = focusable[focusable.length - 1]
+      const last = focusable.at(-1)
+      if (event.key !== 'Tab' || !first || !last) return
       if (event.shiftKey && document.activeElement === first) {
         event.preventDefault()
         last.focus()
@@ -109,12 +110,16 @@ export default function AnalyticsConsent({ measurementId }: { measurementId?: st
             <div>
               <h2 id="analytics-consent-title">Help improve Solara</h2>
               <p>
-                Allow optional analytics to help us understand which features are useful.
-                No analytics loads unless you choose Allow.
+                Allow optional analytics to help us understand which features are useful. No
+                analytics loads unless you choose Allow.
               </p>
             </div>
             <div className="analytics-consent-actions">
-              <button className="btn btn-primary" type="button" onClick={() => announceConsent('accepted')}>
+              <button
+                className="btn btn-primary"
+                type="button"
+                onClick={() => announceConsent('accepted')}
+              >
                 Allow analytics
               </button>
               <button className="btn" type="button" onClick={() => announceConsent('declined')}>
@@ -142,18 +147,14 @@ export function AnalyticsPreferenceControl({ enabled }: { enabled: boolean }) {
     if (shouldReload) window.location.reload()
   }
 
-  const status = consent === 'accepted'
-    ? 'Allowed'
-    : consent === 'declined'
-      ? 'Not allowed'
-      : 'No choice saved'
+  const status =
+    consent === 'accepted' ? 'Allowed' : consent === 'declined' ? 'Not allowed' : 'No choice saved'
 
   return (
     <div className="analytics-preference" aria-labelledby="analytics-preference-title">
       <h3 id="analytics-preference-title">Optional analytics</h3>
       <p>
-        Current choice: <strong role="status">{status}</strong>.
-        You can change this at any time.
+        Current choice: <strong role="status">{status}</strong>. You can change this at any time.
       </p>
       <div className="analytics-preference-actions">
         <button
