@@ -240,6 +240,9 @@ export default function SunArc({ hourly, nowHour, focused, onSelectHour }: Props
           </g>
           {gaps.map(([from, to]) => {
             const mid = pointAt(tForIndex((indexOfHour(from) + indexOfHour(to)) / 2))
+            // The dashed guide and bars already mark the gap; drop its label rather
+            // than let it collide with the peak callout.
+            if (showPeakLabel && Math.abs(mid.x - peakPoint.x) < 72) return null
             return (
               <text
                 key={from}
