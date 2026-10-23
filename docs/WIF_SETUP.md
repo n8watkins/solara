@@ -34,18 +34,8 @@ DEPLOY_SA="solara-deploy@${PROJECT_ID}.iam.gserviceaccount.com"
 NOTIFIER_SA="solara-notifier@${PROJECT_ID}.iam.gserviceaccount.com"
 ```
 
-## Interim step: unblock the index job (D3)
-
-Until WIF is live, deploys use the existing key, whose identity lacks the Firestore index role.
-Grant it now so the "Firestore indexes" job turns green:
-
-```bash
-gcloud projects add-iam-policy-binding "$PROJECT_ID" \
-  --member "serviceAccount:firebase-adminsdk-fbsvc@${PROJECT_ID}.iam.gserviceaccount.com" \
-  --role roles/datastore.indexAdmin
-```
-
-Confirm first that this is the `client_email` inside the `FIREBASE_SERVICE_ACCOUNT` secret.
+Until WIF is live, deploys use the existing key.
+Its identity was granted `roles/datastore.indexAdmin` on 2026-10-23 (D3), so the "Firestore indexes" job is green; the deploy identity created below gets the same role.
 
 ## 1. Enable the APIs
 
@@ -104,7 +94,7 @@ for role in roles/datastore.user roles/firebasecloudmessaging.admin; do
 done
 ```
 
-### Extra roles when Functions are enabled (D1)
+### Extra roles when Functions are enabled
 
 Skip this until the project is on Blaze and `ENABLE_BLAZE_FUNCTIONS` is about to be set to `true`.
 Functions have never been deployed from CI, so treat this list as the starting point and adjust it if the first Functions deploy reports a missing permission.
@@ -152,7 +142,7 @@ gh variable set GCP_DEPLOY_SERVICE_ACCOUNT -R "$REPO" --body "$DEPLOY_SA"
 Then run the Deploy workflow from the Actions tab (Run workflow on `main`).
 Each deploy job should log "Authenticating with Workload Identity Federation as solara-deploy@...".
 
-Set the notifier variable only after `functions/scripts/send-notifications.js` can use Application Default Credentials (today it requires the `FIREBASE_SERVICE_ACCOUNT` JSON):
+`functions/scripts/send-notifications.js` uses Application Default Credentials when no JSON key is passed, so the notifier can move to its own identity too:
 
 ```bash
 gh variable set GCP_NOTIFIER_SERVICE_ACCOUNT -R "$REPO" --body "$NOTIFIER_SA"
@@ -186,7 +176,8 @@ After the key is deleted, fix the WIF configuration instead; creating a new key 
 
 `NEXT_PUBLIC_*` values are compiled into the public bundle, so they are not secrets, and storing them as secrets masks them in logs and hides mistakes (OPS-20).
 The build reads each one from a repository variable first and falls back to the secret of the same name, so you can move them one at a time.
-For each `NEXT_PUBLIC_*` secret, create a variable with the same name and value, then delete the secret:
+For each `NEXT_PUBLIC_*` secret, create a variable with the same name and value, then delete the secret.
+`NEXT_PUBLIC_SITE_URL` already has a variable, so only its secret is left to delete.
 
 ```bash
 gh variable set NEXT_PUBLIC_FIREBASE_API_KEY -R "$REPO" --body "<value>"

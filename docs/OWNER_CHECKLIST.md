@@ -1,110 +1,113 @@
-# Solara Owner Actions
+# Solara owner checklist
 
 _Last reviewed: 2026-10-23_
 
-This checklist contains only decisions, credentials, provider-console changes, legal facts, and physical-device evidence that the repository agent cannot supply safely.
-The technical implementation is complete for the features listed below, but those features must remain disabled until their applicable owner actions and verification steps are complete.
+This checklist holds what only the owner can do: decisions, credentials, provider consoles, legal facts and real-device evidence, plus the manual checks for each release.
+Which items are already done is tracked in [status.md](status.md#owner-actions); the decisions still open, and the roadmap lane that needs each one, are in [ROADMAP.md](ROADMAP.md#owner-decisions).
+How deploys and configuration work is in [DEPLOYMENT.md](DEPLOYMENT.md).
 
-## Decisions from the October 2026 assessment
+Never paste a secret into an issue, pull request, repository file or chat message.
+When an item is done, tell the repository agent which section changed, without the secret values; the agent can then redeploy, inspect logs and run the automated checks.
 
-The October 2026 assessment (`docs/assessment-2026-10/`) assigns each owner decision an ID.
-Repository agents never make these decisions; they follow the default until the owner decides.
-D1 (Functions deployment status) is resolved: Functions are not deployed because the Cloud Functions API is not enabled on `uv-activity-planner` (checked 2026-10-23).
+## Repository
 
-| # | Decision or action | Needed by | Default until decided |
-| --- | --- | --- | --- |
-| D2 | Make the repository public, or buy GitHub Pro, to get branch protection, environments, CodeQL and secret scanning | Wave 1 | Stay private; use gitleaks, zizmor and actionlint |
-| D3 | Grant the deployment service account `roles/datastore.indexAdmin`; later run the Workload Identity Federation setup the repository will document | Wave 1 | Production deployments stay red at the index step |
-| D4 | Rotate or delete the existing service-account JSON key | When Workload Identity Federation is live | Delete the key right after it works |
-| D5 | Buy an Open-Meteo commercial plan or choose another forecast provider | Wave 3 | Free tier plus attribution; the licensing risk stays open |
-| D6 | Relaunch morning notifications | Wave 3 | Relaunch on a scheduled Function |
-| D7 | Offer a guest mode before sign-in | Wave 3 | Yes |
-| D8 | Provide the operator name, contact email, jurisdiction and license | Done (2026-10-23) | Nathan Watkins, contact@n8builds.dev, California, all rights reserved |
-| D9 | Create a staging Firebase project and enable Stripe test mode | Wave 3 | Required before the billing and operations launch work finishes |
-| D10 | Choose an error-reporting service | Wave 3 | Sentry with PII scrubbing |
-| D11 | Enforce App Check in the console and provide a reCAPTCHA Enterprise key | Wave 1 | Code supports both reCAPTCHA v3 and Enterprise |
-| D12 | Delete the 13 merged local branches and 8 worktrees under `projects/polish/` | Any time | Leave untouched |
+- [ ] Turn on Dependabot alerts and Dependabot security updates (Settings, Code security).
+  They work on private repositories too.
+- [ ] Decide D2: make the repository public, or buy GitHub Pro.
+  CI already scans every pull request with gitleaks and every push to `main` over the full history.
+- [ ] Once it is public (or on Pro), turn on:
+  - a ruleset for `main` that requires pull requests and the CI checks to pass;
+  - a `production` environment with a required reviewer for the deploy jobs;
+  - secret scanning with push protection, and private vulnerability reporting;
+  - CodeQL default setup for JavaScript and TypeScript.
 
-The sections below list the concrete steps behind these decisions and the provider setup that predates them.
+  Dependency review and build provenance attestation turn on by themselves when the repository is public.
 
-## Immediate deployment unblock (D3)
+## Credentials
 
-- [ ] Confirm the `client_email` in the GitHub `FIREBASE_SERVICE_ACCOUNT` secret.
-- [ ] Grant that service account the Google Cloud role `roles/datastore.indexAdmin` in project `uv-activity-planner`.
-- [ ] Tell the repository agent that the role is granted.
+- [ ] Run [WIF_SETUP.md](WIF_SETUP.md) so deploys and the notifier use short-lived credentials with separate identities.
+- [ ] Delete the `FIREBASE_SERVICE_ACCOUNT` key and secret once both workflows run on WIF (D4).
+- [ ] Move every `NEXT_PUBLIC_*` secret to a repository variable, then delete the secret, including the leftover `NEXT_PUBLIC_SITE_URL` secret ([steps](WIF_SETUP.md#move-public-build-values-from-secrets-to-variables)).
 
-The project-local credential found in Downloads identified `firebase-adminsdk-fbsvc@uv-activity-planner.iam.gserviceaccount.com`, but confirm that the GitHub secret uses the same identity before changing IAM.
-The local JSON credential has been removed from Downloads.
+## Google sign-in and Calendar
 
-After the role is granted, the repository agent can rerun deployment, wait for every declared index to become ready, run the notification workflow in dry-run mode, and inspect the result without needing another credential from you.
+The sign-in domain `solara-uv.web.app` is an authorized Firebase Auth domain, and Search Console verifies the site for the OAuth branding review.
 
-## Firebase Functions and billing
+- [ ] Finish the OAuth consent screen: data access lists only `https://www.googleapis.com/auth/calendar.freebusy` and `https://www.googleapis.com/auth/calendar.events.owned`, the privacy policy link points at `https://solara-uv.web.app/privacy/`, and the app is published.
+- [ ] Submit the two Calendar scopes for verification and answer Google's review.
+- [ ] Create a Google OAuth web client with `https://solara-uv.web.app` as an Authorized JavaScript origin, and store its client ID as the `NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID` repository variable.
+  This is a public client ID; there is no client secret to store.
+- [ ] With a controlled Google account on production:
+  - connecting asks only for `calendar.freebusy`, and only busy times are read;
+  - creating an event asks for `calendar.events.owned` at that moment, and the event has the expected date, time, time zone and description;
+  - revoking access leaves Solara in a clean disconnected state.
 
-- [ ] Upgrade `uv-activity-planner` to the Firebase Blaze plan.
-- [ ] Attach the intended billing account.
-- [ ] Create a budget alert before enabling Functions.
-- [ ] Approve enabling Function-backed account, billing, notification-registration, and calendar-feed surfaces after their provider configuration is ready.
+## App Check
 
-After those actions, the repository agent can deploy Functions, determine the deployed Functions URL, configure the non-secret `ENABLE_BLAZE_FUNCTIONS` repository variable, redeploy the static client, and verify the deployment sequence.
+The code supports reCAPTCHA Enterprise and reCAPTCHA v3; `NEXT_PUBLIC_FIREBASE_APP_CHECK_PROVIDER` selects one, and v3 is the default.
+Functions require App Check in code, so a site key is needed before any Function-backed surface is turned on.
 
-## Stripe test configuration
-
-- [ ] Create or choose the Stripe test-mode Pro price.
-- [ ] Store `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` in Firebase Secret Manager.
-- [ ] Provide `STRIPE_PRICE_ID` for the Functions deployment.
-  The workflow currently passes it as an environment variable, which the Firebase CLI ignores (see [DEPLOYMENT.md](./DEPLOYMENT.md#github-actions-secrets)); wait for the repository fix before storing it.
-- [ ] Register the deployed webhook endpoint in Stripe test mode when its URL exists.
-- [ ] Provide controlled test customer approval for checkout, webhook, portal, cancellation, and account-deletion verification.
-
-Do not paste Stripe secrets into an issue, pull request, repository file, or chat message.
-The repository agent can run the end-to-end test matrix and inspect provider logs after the values are stored in their intended consoles.
-
-## App Check (D11)
-
-The code supports reCAPTCHA Enterprise and reCAPTCHA v3; `NEXT_PUBLIC_FIREBASE_APP_CHECK_PROVIDER` selects one, and v3 is the default so the existing key keeps working.
-The Functions already require App Check in code; the decisions below are about the key and Firestore enforcement.
-
-- [ ] Decide between a new reCAPTCHA Enterprise key (recommended) and the existing v3 key.
+- [ ] Decide D11: a new reCAPTCHA Enterprise key (recommended) or a v3 key.
 - [ ] Register the production web app with that provider under App Check in the Firebase console.
-- [ ] Store the public site key as `NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY`, and for Enterprise set `NEXT_PUBLIC_FIREBASE_APP_CHECK_PROVIDER=recaptcha-enterprise`, for the production build.
-- [ ] Choose when Firestore enforcement may begin after monitoring shows legitimate production traffic is accepted (see `docs/DEPLOYMENT.md`, "App Check").
-- [ ] After the first Functions deployment, run the calendar feed token migration (see `docs/DEPLOYMENT.md`, "Calendar feed tokens").
+- [ ] Store the site key as the `NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY` variable, and for Enterprise set `NEXT_PUBLIC_FIREBASE_APP_CHECK_PROVIDER=recaptcha-enterprise`.
+- [ ] Choose when to enforce App Check for Firestore, after the metrics show legitimate traffic is verified ([App Check](DEPLOYMENT.md#app-check)).
 
-The repository agent can redeploy and verify token attachment and failure behavior after registration.
+## Functions and Stripe
 
-## Google Calendar
+Everything in this section waits for Wave 3 (W3-A); see [Firebase Functions and Stripe](DEPLOYMENT.md#firebase-functions-and-stripe) for the commands.
 
-- [ ] Create a Google OAuth web client.
-- [ ] Add the production origin to its Authorized JavaScript origins.
-- [ ] Store the client ID as `NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID` in GitHub Actions secrets.
-- [ ] Provide a controlled Google account for consent, free/busy, event creation, and revocation verification.
+- [ ] Upgrade `uv-activity-planner` to Blaze, attach the billing account, and create a budget alert first.
+- [ ] Decide D9: create a staging Firebase project and use Stripe test mode there first.
+- [ ] Grant the deploy identity the extra Functions roles ([WIF_SETUP.md](WIF_SETUP.md#extra-roles-when-functions-are-enabled)).
+- [ ] Create or choose the Stripe Pro price, store `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` in Firebase Secret Manager, and set the `STRIPE_PRICE_ID` repository variable.
+- [ ] Set `NEXT_PUBLIC_FUNCTIONS_URL` and then `ENABLE_BLAZE_FUNCTIONS=true` as repository variables.
+- [ ] Register the deployed webhook endpoint in Stripe test mode with the events listed in DEPLOYMENT.md.
+- [ ] After the first Functions deploy, run the calendar feed token migration ([Calendar feed tokens](DEPLOYMENT.md#calendar-feed-tokens)).
+- [ ] Confirm the three scheduled jobs (`backfillStripeBillingResources`, `cleanupDeletedAccountBilling`, `cleanupFailedCheckouts`) run cleanly and their indexes are `READY` before turning on checkout or deletion.
+- [ ] Verify Stripe in test mode with a controlled account:
+  - checkout is bound to the signed-in account, and a second checkout is refused while a subscription is active or reserved;
+  - a paid event grants Pro once, a replayed event changes nothing, and out-of-order events cannot restore cancelled access;
+  - asynchronous payment success grants access and failure does not;
+  - changing the subscription away from the Pro price, cancelling, or a failed payment revokes or restricts Pro as designed;
+  - a failed post-creation checkout cleanup is eventually neutralized by `cleanupFailedCheckouts`;
+  - the customer portal updates payment details, shows invoices and cancels;
+  - an invalid webhook signature changes nothing in Firestore.
+- [ ] Verify the account lifecycle:
+  - the export holds portable preferences and safe device metadata only, without capability tokens, notification tokens or Stripe identifiers;
+  - deletion requires a recent Google reauthentication and the exact `DELETE` confirmation;
+  - deleting an account with an active test subscription signs the user out, cancels the subscription, removes notification ownership and feed entries, deletes the user data and the Auth user, and the tombstone reaches `cleanupStatus = completed`.
+- [ ] Verify the calendar feed from a real calendar client: it refreshes after forecast or preference changes, and rotating the link stops the old URL.
 
-Do not provide or expose an OAuth client secret because this browser integration uses a public client ID.
+## Notifications
 
-## Legal identity and licensing (D8)
+Notifications stay off until Wave 3 (W3-B) relaunches them on a scheduled Function (D6) and this real-device evidence is recorded.
 
-- [x] Provide the legal operator name for the Privacy Policy and Terms of Use: Nathan Watkins.
-- [x] Provide a support and privacy contact email address or URL: contact@n8builds.dev.
-- [x] Provide the governing jurisdiction: California, United States.
-- [ ] Have qualified counsel review the governing-law language.
-- [x] Choose the repository license: All rights reserved.
-- [x] Provide the copyright holder and year if the chosen license requires them: not required for "All rights reserved".
+- [ ] Provide a real phone that can receive web push and a controlled paid test account.
+- [ ] Run the dispatcher as a dry run and confirm it selects the expected user, activity, device, local date and time zone.
+- [ ] Approve one real send; exactly one system notification appears while the app is in the background, and tapping it opens the intended page.
+- [ ] Repeat the dispatch; no second notification appears.
+- [ ] Register the same phone to a second controlled account; ownership moves instead of producing two deliveries.
+- [ ] Turn notifications off, then sign out; the device is no longer selected either time.
 
-The repository agent can insert and format the approved facts, but it must not invent legal identity, contact, jurisdiction, or license ownership.
+## Legal
 
-## Physical notification verification
+The operator, contact, jurisdiction and license are published (D8).
 
-- [ ] Provide a real phone that can receive web push notifications.
-- [ ] Provide or approve a controlled eligible paid test account.
-- [ ] Approve one manual real notification send after the dry run is correct.
-- [ ] Observe whether exactly one system notification appears and whether tapping it opens the intended route.
-- [ ] Approve repeating the same dispatch to verify that no second notification appears.
-- [ ] Approve ownership-transfer, disable-notification, and sign-out cleanup checks on the controlled device.
+- [ ] Have qualified counsel review the governing-law language in the terms.
 
-Scheduled notification delivery must remain disabled until this evidence is recorded.
-There is currently no schedule: the daily cron was removed on 2026-07-15, and relaunching is decision D6.
+## Release verification
 
-## Completion handoff
+CI blocks every deploy on the quality workflow and deploys the exact artifact it tested, so the local preflight is the README's [quality checks](../README.md#quality-checks).
+After a release that changes user-facing behavior, check production by hand:
 
-When an item is complete, tell the repository agent which section changed without sharing secret values.
-The agent can then perform every remaining deployment, log inspection, automated test, and safe production verification listed in [GO_LIVE.md](./GO_LIVE.md).
+- [ ] The Deploy run is green, and the Hosting release history in the Firebase console shows the commit.
+- [ ] The site loads in a private desktop window and on a real phone with no console errors, CSP violations or failed requests.
+- [ ] Onboarding completes through Google sign-in; a reload keeps the account's preferences, and a returning account signing in from setup keeps its saved activities.
+- [ ] Dashboard and Calendar show the same window for the same activity; neither shows elapsed windows.
+- [ ] Changing, saving and removing locations updates the forecast and the saved-location count, and Free and Pro limits block saving without blocking a change of the active location.
+- [ ] Creating and editing an activity round-trips, including weekday and weekend presets.
+- [ ] A failed forecast request shows a recoverable error instead of a blank screen.
+- [ ] The PWA manifest installs on supported platforms.
+- [ ] Every section above that the release turns on has its checks done.
+
+If anything is wrong, roll Hosting back from the Firebase console's release history and see [Operational rollback](DEPLOYMENT.md#operational-rollback).
