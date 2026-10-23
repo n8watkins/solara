@@ -75,7 +75,12 @@ const srOnly: CSSProperties = {
 
 const sheetAction: CSSProperties = { justifyContent: 'center', minHeight: '40px' }
 
-function uvRowBg(uv: number): string {
+// Hours the forecast has no UV for are hatched, so a gap never reads as "no sun".
+const NO_DATA_BG =
+  'repeating-linear-gradient(135deg, rgba(128,128,128,0.16) 0 3px, transparent 3px 7px)'
+
+function uvRowBg(uv: number | undefined): string {
+  if (uv === undefined) return NO_DATA_BG
   const band = uvBand(uv)
   return `rgba(${band.rgb},${UV_ROW_ALPHA * band.weight})`
 }
@@ -298,6 +303,11 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
   // opens cut off; the other views are fixed zooms.
   const allWindows = dayWindows.flatMap(d => d.lanes.flatMap(l => l.windows))
   const { from: axisFrom, to: axisTo } = computeAxis(view, allWindows, prefs.calendarHours)
+  const hasUVGaps = days.some(day => {
+    const known = new Set(day.hourly.map(h => h.hour))
+    for (let h = axisFrom; h < axisTo; h++) if (!known.has(h)) return true
+    return false
+  })
   const rows = Math.max(1, axisTo - axisFrom)
   const HOURS = Array.from({ length: rows + 1 }, (_, i) => axisFrom + i)
   const bodyH = rows * ROW_H + AXIS_PAD * 2
@@ -645,7 +655,7 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
                         left: 0,
                         right: 0,
                         height: `${ROW_H}px`,
-                        background: uvRowBg(uvByHour.get(h) ?? 0),
+                        background: uvRowBg(uvByHour.get(h)),
                         borderTop: `1px solid ${line}`,
                       }}
                     />
@@ -737,7 +747,7 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
                             {/* The visible label is abbreviated, so the accessible
                                 name is this full description instead. */}
                             <span data-sr-only style={srOnly}>
-                              {`${act.name}, ${day.label}, ${fmtH(win.from)} to ${fmtH(win.to)}, peak UV ${win.peakUV.toFixed(1)}`}
+                              {`${act.name}, ${day.label}, ${fmtH(win.from)} – ${fmtH(win.to)}, peak UV ${win.peakUV.toFixed(1)}`}
                             </span>
                           </button>
                         )
@@ -837,6 +847,28 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
               {b.label} UV
             </span>
           ))}
+          {hasUVGaps && (
+            <span
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                fontSize: '11px',
+                color: 'var(--text-3)',
+              }}
+            >
+              <span
+                style={{
+                  width: '10px',
+                  height: '10px',
+                  borderRadius: '2px',
+                  background: NO_DATA_BG,
+                  boxShadow: 'inset 0 0 0 0.5px var(--border-md)',
+                }}
+              />
+              No UV data
+            </span>
+          )}
         </div>
       </div>
 
