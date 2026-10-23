@@ -99,3 +99,37 @@ test('settings still save after the server changes the plan in an open tab', asy
   await expect(page.getByText('Now · medium skin, no SPF')).toBeVisible()
   await expect(page.getByRole('banner').getByText('Pro', { exact: true })).toBeVisible()
 })
+
+test('a document from a newer Solara is never overwritten by this one', async ({
+  page,
+  emulators,
+}) => {
+  const account = await emulators.createAccount('Ivy Nakamura')
+  await emulators.seedPrefs(account, {
+    newerClient: { schemaVersion: 99, fields: { futureSetting: 'kept' } },
+  })
+  const stored = await emulators.readPrefs(account)
+  await openDashboard(page, account)
+
+  // The newer document is read best-effort.
+  await expect(page.getByText('Now · fair skin, no SPF')).toBeVisible()
+
+  await accountMenu(page, 'Settings')
+  const settings = page.getByRole('dialog', { name: 'Settings' })
+  await settings.getByRole('combobox', { name: 'Skin type' }).selectOption({ label: 'Medium' })
+  await settings.getByRole('button', { name: 'Save settings' }).click()
+  await expect(settings).toBeHidden()
+
+  const notice = page.getByRole('alert').filter({ hasText: 'updated in another tab' })
+  await expect(notice).toHaveText(
+    /Solara was updated in another tab or device\. Reload to keep editing your settings\./,
+  )
+  await expect(notice.getByRole('button', { name: 'Reload' })).toBeVisible()
+  // Nothing was written: the document is exactly what the newer client saved.
+  expect(await emulators.readPrefs(account)).toEqual(stored)
+
+  await notice.getByRole('button', { name: 'Reload' }).click()
+  await expect(page.getByText('Now · fair skin, no SPF')).toBeVisible()
+  await expect(notice).toHaveCount(0)
+  expect(await emulators.readPrefs(account)).toEqual(stored)
+})

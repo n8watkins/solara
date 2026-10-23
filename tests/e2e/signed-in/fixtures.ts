@@ -139,12 +139,14 @@ export interface SeedOptions {
   activities?: SeedActivity[]
   profiles?: SeedProfile[]
   activeProfileId?: string
+  /** Written by a newer client: a later schema version and fields this one does not know. */
+  newerClient?: { schemaVersion: number; fields: Record<string, unknown> }
 }
 
 /** A saved account document, as the app writes it after onboarding. */
 export function accountPrefs(
   uid: string,
-  { tier = 'free', activities = [], profiles, activeProfileId }: SeedOptions = {},
+  { tier = 'free', activities = [], profiles, activeProfileId, newerClient }: SeedOptions = {},
 ) {
   return {
     uid,
@@ -161,6 +163,7 @@ export function accountPrefs(
     notificationHour: 7,
     ...(profiles && { profiles }),
     ...(activeProfileId && { activeProfileId }),
+    ...(newerClient && { ...newerClient.fields, schemaVersion: newerClient.schemaVersion }),
   }
 }
 
