@@ -18,12 +18,12 @@ What users get:
 - A static landing page at `/` (no framework JavaScript, nothing from Firebase) and the app at `/app/`; a browser with a signed-in account that opens `/` goes to the app.
 - Guest mode (D7): the app works without signing in, on the guest plan (today's forecast, one activity, kept only in the browser).
   Google sign-in is free and syncs preferences to Firestore; a guest plan carries into a brand-new account on its first sign-in and never into an existing one.
-- The plans from `lib/tiers.ts`: Guest (today, 1 activity), Free (today and tomorrow, 3 activities) and Pro (10 days, 20 activities, calendar sync, family profiles, morning alerts).
+- The plans from `lib/tiers.ts`: Guest (today, 1 activity), Free (today and tomorrow, 3 activities, calendar sync until the owner decides) and Pro (10 days, 20 activities, calendar sync, family profiles, morning alerts).
   Pro shows $2.99 a month or $19.99 a year with a 7-day free trial, as a waitlist until billing launches.
   Gentle upsells ("Save your plan, sign in free", "See the next 10 days with Pro", "Get this as a morning alert") open the sign-in or plans dialog and stay dismissed per device.
 - UV and weather forecasts from Open-Meteo, in the location's time zone, with Celsius or Fahrenheit and 12- or 24-hour time chosen from the locale or in Settings.
 - Personalized activity windows on the dashboard and in the week calendar, within each plan's days.
-- Saved locations, share links (`/share/`), and on Pro family profiles and a one-off calendar file download from Plan ahead.
+- Saved locations, share links (`/share/`), a one-off calendar file download from Plan ahead, and family profiles on Pro.
 - Opt-in Google Analytics 4 (the measurement ID is compiled into the live page).
 - The privacy policy and terms with the operator details (D8), and the Search Console ownership file.
 - Firestore rules and indexes, deployed by every push to `main`.

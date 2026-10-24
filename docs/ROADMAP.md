@@ -93,7 +93,7 @@ The Functions feature folders under `functions/src/` keep the backend lanes apar
 ### W3-C - Growth: guest mode, landing, performance, PWA
 
 Phase 1 is done (branch `feat/guest-landing-pricing`): guest mode on the tiers above (`lib/tiers.ts`), with the guest plan kept in the browser and carried into a new account on first sign-in; the three upsells, dismissible per device; the static landing page at `/` (no framework JavaScript, nothing from Firebase, real harness screenshots) and the app at `/app/`, with `/` sending a signed-in browser to the app; Pro pricing ($2.99 a month or $19.99 a year, 7-day trial) as a waitlist; onboarding that hugs its content, with Back on every step and specific geolocation errors.
-Calendar sync (Google Calendar, the live feed and the .ics export) moved to Pro with the tiers.
+Calendar sync (Google Calendar, the live feed and the .ics export) is gated by `TIER_LIMITS[tier].calendar`; Free keeps it until the owner decides whether booking stays free (one-line change in `lib/tiers.ts`).
 
 Still open:
 

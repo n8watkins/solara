@@ -89,7 +89,7 @@ describe('planLimitRows', () => {
   it('counts activities against the plan limit', () => {
     expect(planLimitRows('free', 2)[0]).toEqual({ label: 'Activities', value: '2 / 3' })
     expect(planLimitRows('free', 2).slice(1)).toEqual([
-      { label: 'Calendar sync', value: false },
+      { label: 'Calendar sync', value: true },
       { label: '10-day forecast', value: false },
     ])
     expect(planLimitRows('paid', 5).map(row => row.value)).toEqual(['5 / 20', true, true])

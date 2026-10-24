@@ -3,7 +3,7 @@
 Solara is a personalized UV and outdoor-activity planner, live at https://solara-uv.web.app.
 It combines Open-Meteo forecasts with a user's location, skin profile, sunscreen settings and activities to suggest lower-UV windows for each activity, on a dashboard and in a week calendar.
 Anyone can try it without an account: a guest plan (today's forecast, one activity) stays in the browser.
-Signing in with Google is free and syncs the plan through Firestore; Pro adds 10 days, 20 activities, calendar sync, family profiles and morning alerts, and is a waitlist until billing launches.
+Signing in with Google is free and syncs the plan through Firestore; Pro adds 10 days, 20 activities, family profiles and morning alerts, and is a waitlist until billing launches.
 The plans are defined once, in `lib/tiers.ts`.
 Billing (Stripe), the live calendar feed, account export and deletion, and push notifications are built as Firebase Functions but not deployed yet.
 

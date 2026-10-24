@@ -15,7 +15,8 @@ import {
 
 // The plans decided on 2026-10-23 (D7): Guest = today, 1 activity, this device only;
 // Free account = today and tomorrow, 3 activities, synced; Pro = 10 days, 20
-// activities, calendar, morning alerts and family profiles.
+// activities, calendar, morning alerts and family profiles. Whether calendar sync
+// stays on Free is still the owner's decision; until then Free keeps it.
 describe('guest plan', () => {
   it('sees today only', () => {
     expect(getFutureDays('anonymous')).toBe(1)
@@ -54,8 +55,8 @@ describe('free account', () => {
     expect(isDeviceOnly('free')).toBe(false)
   })
 
-  it('has no calendar, alerts or family profiles', () => {
-    expect(canUseCalendar('free')).toBe(false)
+  it('keeps calendar sync for now, with no alerts or family profiles', () => {
+    expect(canUseCalendar('free')).toBe(true)
     expect(canUseNotifications('free')).toBe(false)
     expect(canUseFamilyProfiles('free')).toBe(false)
     expect(getProfileLimit('free')).toBe(1)

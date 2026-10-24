@@ -144,7 +144,7 @@ export default function CalendarWindowSheet({
           </a>
         ) : (
           <span className="col-span-full text-center text-[12px] text-ink-3">
-            🔒 Adding to your calendar is part of Pro
+            🔒 Sign in to add to Calendar
           </span>
         )}
         <button type="button" className={sheetAction} onClick={() => void share()}>

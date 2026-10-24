@@ -80,7 +80,7 @@ export default function ActivitiesSection({
     }
     setModal('add')
   }
-  // Calendar sync (Google Calendar, the live feed and the .ics export) is part of Pro.
+  // Calendar sync (Google Calendar, the live feed and the .ics export), per plan.
   const calendarIncluded = canUseCalendar(access.accessTier)
 
   return (

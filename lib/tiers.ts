@@ -20,7 +20,7 @@ export interface TierLimits {
 }
 
 /**
- * The three plans (owner decision D7, 2026-10-23):
+ * The three plans (owner decision D7, 2026-10-23; calendar on Free is pending):
  *
  * |                     | Guest (no sign-in) | Free account       | Pro     |
  * | ------------------- | ------------------ | ------------------ | ------- |
@@ -41,7 +41,9 @@ export const TIER_LIMITS: Record<TierLevel, TierLimits> = {
   },
   free: {
     activities: 3,
-    calendar: false,
+    // The D7 table lists calendar under Pro, but whether Google Calendar booking
+    // stays free is still the owner's decision, so Free keeps it until then.
+    calendar: true,
     notifications: false,
     futureDays: 2,
     savedLocations: 3,

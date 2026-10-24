@@ -28,9 +28,6 @@ test('a free account is held to the free plan and offered Pro', async ({ page, e
   await locked.getByRole('button', { name: 'Close' }).click()
   await expect(locked).toBeHidden()
 
-  // Calendar sync is part of Pro: no Google Calendar links on the Free plan.
-  await expect(page.getByRole('link', { name: /Google Calendar/ })).toHaveCount(0)
-
   // The plan upsell opens the Pro plans, as Settings does.
   await page.getByRole('button', { name: /Go Pro for 10-day planning/ }).click()
   const plans = page.getByRole('dialog', { name: 'Solara Pro' })

@@ -5,8 +5,7 @@ test('the calendar shows each activity window and opens its details', async ({
   emulators,
 }) => {
   const account = await emulators.createAccount('Gus Hale')
-  // Pro: adding a window to Google Calendar is a Pro feature.
-  await emulators.seedPrefs(account, { tier: 'paid', activities: [RUNNING, HIKING] })
+  await emulators.seedPrefs(account, { activities: [RUNNING, HIKING] })
   await openDashboard(page, account)
 
   await page.getByRole('button', { name: '🗓️ Calendar', exact: true }).click()
