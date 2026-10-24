@@ -26,20 +26,17 @@ export const HARNESS_NOW = `${HARNESS_DATE}T10:30:00-07:00`
  * `install` replaces Date, timers and requestAnimationFrame with a fake clock that
  * starts at HARNESS_NOW and then runs in step with real time. It cannot start out
  * paused: Next.js needs timers to boot the client bundle. Once the screen has
- * rendered, call `pauseClock` so intervals (for example the tip carousel) stop.
+ * rendered, call `freezeScreen` (freeze.ts) or `pauseClock` so intervals (for example
+ * the tip carousel) stop.
  */
 export async function startClock(page: Page): Promise<void> {
   await page.clock.install({ time: new Date(HARNESS_NOW).getTime() })
 }
 
-/** Longest real time the app may take to render before the frozen minute is at risk. */
-export const MAX_SETTLE_MS = 5_000
-
 /**
  * Pause the fake clock where it is and return how far it ran past HARNESS_NOW.
- * Callers assert the result is below MAX_SETTLE_MS: the tip carousel's 6.5 s
- * interval is the first recurring timer that changes pixels, so a pause inside
- * that budget means it never advanced and every clock reading shows 10:30.
+ * Screenshot specs pause through `freezeScreen` (freeze.ts), which checks that the
+ * pixels that depend on time still show the frozen state.
  */
 export async function pauseClock(page: Page): Promise<number> {
   // pauseAt only moves forward, and the clock keeps running during this round trip,

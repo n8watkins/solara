@@ -2,14 +2,15 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import AxeBuilder from '@axe-core/playwright'
 import { expect, test, type Locator, type Page, type TestInfo } from '@playwright/test'
-import { MAX_SETTLE_MS, pauseClock, startClock } from './clock'
+import { startClock } from './clock'
+import { freezeScreen } from './freeze'
 import { HARNESS_MARKER } from './fixtures'
 
 // Screenshots and axe checks for the Settings, profile and tooltip states that
 // the main harness run does not open: every Settings section, the free tier,
 // inline errors, the profile switcher and an open tooltip. Each state is its
 // own test so its screenshot is taken before the frozen clock reaches the
-// first timer that changes pixels (see clock.ts), and each must have zero axe
+// first timer that changes pixels (see freeze.ts), and each must have zero axe
 // violations of any impact.
 const OUTPUT_DIR = join('test-results', 'ui-harness')
 
@@ -185,10 +186,7 @@ async function open(page: Page, state: State, testInfo: TestInfo) {
 
 /** Screenshot the current state, then require a clean axe run on it. */
 async function capture(page: Page, testInfo: TestInfo, name: string, clip?: Clip) {
-  const elapsed = await pauseClock(page)
-  expect(elapsed, 'fake clock ran too long before pausing; timers may have fired').toBeLessThan(
-    MAX_SETTLE_MS,
-  )
+  await freezeScreen(page)
   await page.evaluate(async () => {
     await document.fonts.ready
   })

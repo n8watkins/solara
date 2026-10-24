@@ -3,7 +3,8 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import AxeBuilder from '@axe-core/playwright'
 import { expect, test, type Page } from '@playwright/test'
-import { MAX_SETTLE_MS, pauseClock, startClock } from './clock'
+import { startClock } from './clock'
+import { freezeScreen } from './freeze'
 import { HARNESS_MARKER } from './fixtures'
 
 // Screenshots and axe results for the signed-in UI, rendered from fixtures at a
@@ -79,10 +80,7 @@ for (const screen of SCREENS) {
     await expect(page.locator('html')).toHaveClass(
       colorScheme === 'dark' ? /\bdark\b/ : /^(?!.*\bdark\b).*$/,
     )
-    const elapsed = await pauseClock(page)
-    expect(elapsed, 'fake clock ran too long before pausing; timers may have fired').toBeLessThan(
-      MAX_SETTLE_MS,
-    )
+    await freezeScreen(page)
     await settle(page)
 
     const shotDir = join(OUTPUT_DIR, 'screenshots')

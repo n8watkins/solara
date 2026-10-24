@@ -2,7 +2,8 @@ import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import AxeBuilder from '@axe-core/playwright'
 import { expect, test, type Page } from '@playwright/test'
-import { HARNESS_DATE, MAX_SETTLE_MS, pauseClock, startClock } from './clock'
+import { HARNESS_DATE, startClock } from './clock'
+import { freezeScreen } from './freeze'
 import { HARNESS_MARKER } from './fixtures'
 
 // Scheduled activities (Google Calendar events Solara created), rendered from the
@@ -29,10 +30,7 @@ async function open(page: Page, query: string, colorScheme: 'light' | 'dark') {
   // Freeze time as soon as the screen is up, before the first timer that changes
   // pixels (the tip carousel's 6.5 s interval) can fire, so every screenshot shows the
   // same state however long the steps before it take.
-  const elapsed = await pauseClock(page)
-  expect(elapsed, 'fake clock ran too long before pausing; timers may have fired').toBeLessThan(
-    MAX_SETTLE_MS,
-  )
+  await freezeScreen(page)
   await page.evaluate(async () => {
     await document.fonts.ready
   })
