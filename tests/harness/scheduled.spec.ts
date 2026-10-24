@@ -2,7 +2,8 @@ import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import AxeBuilder from '@axe-core/playwright'
 import { expect, test, type Page } from '@playwright/test'
-import { HARNESS_DATE, pauseClock, startClock } from './clock'
+import { HARNESS_DATE, startClock } from './clock'
+import { freezeScreen } from './freeze'
 import { HARNESS_MARKER } from './fixtures'
 
 // Scheduled activities (Google Calendar events Solara created), rendered from the
@@ -26,13 +27,16 @@ async function open(page: Page, query: string, colorScheme: 'light' | 'dark') {
   }, colorScheme)
   await page.goto(`/harness/?${query}`)
   await expect(page.getByTestId(HARNESS_MARKER)).toBeVisible()
+  // Freeze time as soon as the screen is up, before the first timer that changes
+  // pixels (the tip carousel's 6.5 s interval) can fire, so every screenshot shows the
+  // same state however long the steps before it take.
+  await freezeScreen(page)
   await page.evaluate(async () => {
     await document.fonts.ready
   })
 }
 
 async function shot(page: Page, name: string, project: string, fullPage = true) {
-  await pauseClock(page)
   mkdirSync(SHOT_DIR, { recursive: true })
   await page.screenshot({
     path: join(SHOT_DIR, `${name}--${project}.png`),
@@ -161,6 +165,8 @@ test('add, change time and remove from the calendar', async ({ page }, testInfo)
 test('scheduled screens have no accessibility violations', async ({ page }, testInfo) => {
   await open(page, 'screen=calendar&scheduled=reconnect', scheme(testInfo.project.name))
   await expect(page.getByRole('region', { name: 'Scheduled' })).toBeVisible()
+  // axe-core schedules work with timers; no screenshots here, so let the clock run.
+  await page.clock.resume()
   const tags = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']
   const ids = async () =>
     (await new AxeBuilder({ page }).withTags(tags).analyze()).violations.map(

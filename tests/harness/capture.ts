@@ -6,7 +6,8 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import AxeBuilder from '@axe-core/playwright'
 import { expect, type Page, type Route, type TestInfo } from '@playwright/test'
-import { MAX_SETTLE_MS, pauseClock, startClock } from './clock'
+import { startClock } from './clock'
+import { freezeScreen } from './freeze'
 
 const OUTPUT_DIR = join('test-results', 'ui-harness')
 
@@ -59,8 +60,7 @@ export async function captureScreen(
   await expect(page.locator('html')).toHaveClass(
     capture.colorScheme === 'dark' ? /\bdark\b/ : /^(?!.*\bdark\b).*$/,
   )
-  const elapsed = await pauseClock(page)
-  expect(elapsed, 'fake clock ran too long before pausing').toBeLessThan(MAX_SETTLE_MS)
+  await freezeScreen(page)
   await page.evaluate(async () => {
     await document.fonts.ready
   })

@@ -26,8 +26,8 @@ function emulatorEnv(name: string): string {
 const FAKE_GAPI = readFileSync('tests/e2e/signed-in/fake-gapi.js', 'utf8')
 
 const PROJECT = emulatorEnv('SIGNED_IN_PROJECT')
-const AUTH_URL = `http://127.0.0.1:${emulatorEnv('SIGNED_IN_AUTH_PORT')}/identitytoolkit.googleapis.com`
-const FIRESTORE_API = `http://127.0.0.1:${emulatorEnv('SIGNED_IN_FIRESTORE_PORT')}/v1/projects/${PROJECT}/databases/(default)/documents`
+export const AUTH_URL = `http://127.0.0.1:${emulatorEnv('SIGNED_IN_AUTH_PORT')}/identitytoolkit.googleapis.com`
+export const FIRESTORE_API = `http://127.0.0.1:${emulatorEnv('SIGNED_IN_FIRESTORE_PORT')}/v1/projects/${PROJECT}/databases/(default)/documents`
 /** Where the app calls the Functions emulator, relative to the test server. */
 export const FUNCTIONS_PATH = `/${PROJECT}/us-central1`
 
@@ -43,7 +43,7 @@ async function admin(url: string, init: RequestInit): Promise<unknown> {
 type FirestoreValue = Record<string, unknown>
 
 /** A plain JSON value in the Firestore REST encoding. */
-function encode(value: unknown): FirestoreValue {
+export function encode(value: unknown): FirestoreValue {
   if (value === null || value === undefined) return { nullValue: null }
   if (typeof value === 'boolean') return { booleanValue: value }
   if (typeof value === 'number') {

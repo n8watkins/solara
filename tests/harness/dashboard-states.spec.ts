@@ -2,6 +2,7 @@ import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { pauseClock, startClock } from './clock'
+import { freezeScreen } from './freeze'
 import { HARNESS_MARKER } from './fixtures'
 
 // Dashboard states the default screenshot does not reach: a scrubbed hour with
@@ -102,7 +103,8 @@ test('another day shows its own hero and cards', async ({ page }, testInfo) => {
   await page.getByRole('button', { name: 'Tomorrow' }).click()
   await expect(page.getByTestId('hero-slot')).toContainText('Lower-UV slot · Tomorrow')
   await expect(page.getByTestId('uv-readout')).toContainText('peak')
-  await pauseClock(page)
+  // A whole-page shot: check the time-dependent pixels (see freeze.ts).
+  await freezeScreen(page)
   await shoot(page, 'tomorrow', testInfo.project.name)
   expect(errors).toEqual([])
 })
@@ -123,7 +125,8 @@ test('the skeleton holds the layout while the forecast loads', async ({ page }, 
   })
   await expect(page.getByRole('status').filter({ hasText: 'Loading the forecast' })).toBeAttached()
   await expect(page.locator('main .animate-pulse')).toBeVisible()
-  await pauseClock(page)
+  // A whole-page shot: check the time-dependent pixels (see freeze.ts).
+  await freezeScreen(page)
   await shoot(page, 'skeleton', testInfo.project.name)
   expect(errors).toEqual([])
 })

@@ -89,9 +89,19 @@ export type AccountLoadResult =
  * Loads the signed-in account's preferences. A brand-new account is created from
  * onboarding answers left in this browser, but only answers that were never tied to
  * another account; anything else sends the person through onboarding.
+ *
+ * `signedIn` is the account document as sign-in from setup read or created it in its
+ * `createAccountPrefs` transaction. When it belongs to `uid` it is used as is: reading
+ * the document again could be answered by a Firestore listen that started before that
+ * transaction committed (the auth listener's own load), which still reports a brand-new
+ * account as missing.
  */
-export async function loadAccountPrefs(uid: string): Promise<AccountLoadResult> {
+export async function loadAccountPrefs(
+  uid: string,
+  signedIn?: UserPreferences | null,
+): Promise<AccountLoadResult> {
   await claimLocalData(uid)
+  if (signedIn?.uid === uid) return { status: 'ready', prefs: signedIn }
   const result = await loadFirestorePrefs(uid)
   if (result.status === 'error') return { status: 'error', stage: 'load', error: result.error }
   if (result.status === 'found') return { status: 'ready', prefs: result.prefs }

@@ -166,7 +166,7 @@ export function SignInStep({
   onBack,
 }: {
   seedPrefs: UserPreferences | null
-  onSignedIn: () => void
+  onSignedIn: (account: UserPreferences | null) => void
   onBack: () => void
 }) {
   return (
@@ -182,7 +182,7 @@ export function SignInStep({
         <GoogleSignInButton
           label="Continue with Google"
           seedPrefs={seedPrefs}
-          onSignedIn={onSignedIn}
+          onSignedIn={(_user, account) => onSignedIn(account)}
           size="lg"
         />
         <button
