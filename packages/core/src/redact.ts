@@ -1,9 +1,11 @@
 // Redaction rules for text that leaves the user's browser or a Function in logs and
-// error reports. The same rules as functions/src/shared/logging.ts (a parity test in
-// lib/sentry-scrub.test.ts keeps them in step), so the web app's error reports and the
-// Functions' logs strip the same things.
+// error reports. The web app's error reports and the Functions' logs (which import this
+// through #core) strip the same things.
 
-const EMAIL = /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g
+// Bounded and anchored to the start of a run, so a long run of address characters with no
+// "@" is scanned once instead of once per start position (no quadratic slowdown).
+// Limits follow RFC 5321: 64 characters before the @, 63 per domain label.
+const EMAIL = /(?<![\w.+-])[\w.+-]{1,64}@[\w-]{1,63}(?:\.[\w-]{1,63}){1,8}/g
 // Query strings carry coordinates (forecast URLs), share details and feed tokens.
 const URL_QUERY = /(\bhttps?:\/\/[^\s?#"']+)[?#][^\s"']*/g
 const COORDINATE_FIELD = /\b(lat|lon|lng|latitude|longitude)(["']?\s*[:=]\s*)-?\d+(?:\.\d+)?/gi

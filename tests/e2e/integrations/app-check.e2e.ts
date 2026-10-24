@@ -38,7 +38,7 @@ test('signing in starts App Check: reCAPTCHA v3 loads and its token is exchanged
 
   // reCAPTCHA loads only after Auth has restored the session.
   const urls = network.requests.map(request => request.url())
-  const lookup = urls.findIndex(url => url.includes('identitytoolkit.googleapis.com'))
+  const lookup = urls.findIndex(url => new URL(url).hostname === 'identitytoolkit.googleapis.com')
   const script = urls.findIndex(url => url.startsWith(RECAPTCHA_SCRIPT))
   expect(lookup).toBeGreaterThanOrEqual(0)
   expect(script).toBeGreaterThan(lookup)
