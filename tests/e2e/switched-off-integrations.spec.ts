@@ -20,7 +20,8 @@ function exportFiles(): string[] {
 // holds for any env because the deploy workflow deletes the maps it uploads to Sentry.
 test('publishes no source maps', { tag: '@smoke' }, async ({ page, request }) => {
   expect(exportFiles().filter(file => file.endsWith('.map'))).toEqual([])
-  await page.goto('/')
+  // The app; the landing page ships no framework scripts (scripts/static-pages.mjs).
+  await page.goto('/app/')
   const scripts = await page
     .locator('script[src^="/_next/static/"]')
     .evaluateAll(nodes => nodes.map(node => node.getAttribute('src') ?? ''))
@@ -50,7 +51,7 @@ test('the export contains no Sentry SDK and no Sentry host', () => {
 test('pages make no Sentry, reCAPTCHA or App Check requests', async ({ page }) => {
   const requests: string[] = []
   page.on('request', request => requests.push(request.url()))
-  for (const path of ['/', '/privacy/', '/terms/', '/account/', '/share/']) {
+  for (const path of ['/', '/app/', '/privacy/', '/terms/', '/account/', '/share/']) {
     await page.goto(path)
     await page.waitForLoadState('networkidle')
     // An uncaught error is exactly when error reporting would send something.

@@ -99,10 +99,7 @@ test('a returning account keeps its own plan, and no later account inherits the 
     .toMatchObject({ uid: next.uid, tier: 'free', skinType: 'medium', activities: [] })
 })
 
-test('an old bookmark of / opens the app for a signed-in account', async ({
-  page,
-  emulators,
-}) => {
+test('an old bookmark of / opens the app for a signed-in account', async ({ page, emulators }) => {
   const account = await emulators.createAccount('Bo Mark')
   await emulators.seedPrefs(account, { activities: [HIKING] })
   await openDashboard(page, account)

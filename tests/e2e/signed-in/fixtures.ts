@@ -424,10 +424,7 @@ export async function signIn(
 }
 
 /** Sets up as a guest (no sign-in) and waits for the guest dashboard. */
-export async function startAsGuest(
-  page: Page,
-  options: { skinType?: string } = {},
-): Promise<void> {
+export async function startAsGuest(page: Page, options: { skinType?: string } = {}): Promise<void> {
   await completeSetup(page, options)
   await page.getByRole('button', { name: /See today's plan/ }).click()
   await expect(uvStrip(page)).toBeVisible()
