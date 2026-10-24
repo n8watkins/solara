@@ -267,6 +267,8 @@ test('another device sees scheduled items; another account sees none', async ({
 
     // Signing out and in as someone else shows none of it.
     await accountMenu(other, 'Sign out')
+    // Sign-out ends on the landing page; let that load finish first.
+    await expect(other.getByRole('heading', { name: 'Know when to go outside' })).toBeVisible()
     const bob = await paidRunner(emulators, 'Bob Lund')
     await openDashboard(other, bob)
     await expect(other.getByTestId('scheduled-card-row')).toHaveCount(0)
