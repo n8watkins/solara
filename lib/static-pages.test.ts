@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { stripFrameworkScripts } from './static-pages.mjs'
+import { stripFrameworkScripts } from './static-pages.mts'
 import { LANDING_REDIRECT_SCRIPT } from './app-routes'
 
 const page = (body: string) => `<!DOCTYPE html><html><head>
@@ -27,6 +27,17 @@ describe('stripFrameworkScripts', () => {
     expect(html).toContain('app.css')
     expect(html).toContain('inter.woff2')
     expect(html).toContain('<main>Hi</main>')
+  })
+
+  it('finds script tags the way browsers do, as the CSP step does', () => {
+    const { html } = stripFrameworkScripts(
+      page(
+        '<script data-src="x">self.__next_f.push([2])</script >' +
+          '<SCRIPT SRC="/_next/static/chunks/c.js"></SCRIPT\n foo>',
+      ),
+    )
+    expect(html).not.toContain('__next_f')
+    expect(html).not.toMatch(/\.js/)
   })
 
   it('refuses an inline script it does not recognize', () => {

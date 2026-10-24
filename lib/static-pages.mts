@@ -1,8 +1,11 @@
 /**
  * Strips the Next.js framework scripts from statically exported pages that need no
  * JavaScript (see scripts/static-pages.mjs). Runs in Node directly (type stripping),
- * so it uses erasable TypeScript syntax and no imports.
+ * so it uses erasable TypeScript syntax and relative imports only. Script tags are
+ * found exactly as scripts/csp.mjs finds them (lib/csp.mts), the way browsers
+ * tokenize them.
  */
+import { SCRIPT_TAG, hasAttribute } from './csp.mts'
 
 /** Pages served without the framework, relative to the export directory. */
 export const STATIC_PAGES = ['index.html']
@@ -17,7 +20,6 @@ const FRAMEWORK_INLINE =
  */
 export const KEEP_ATTRIBUTE = 'data-static'
 
-const SCRIPT = /<script\b([^>]*)>([\s\S]*?)<\/script>/gi
 const LINK = /<link\b[^>]*>/gi
 
 /**
@@ -30,12 +32,12 @@ const LINK = /<link\b[^>]*>/gi
 export function stripFrameworkScripts(html: string): { html: string; removed: number } {
   let removed = 0
   const unknown: string[] = []
-  let out = html.replace(SCRIPT, (tag: string, attributes: string, body: string) => {
-    if (/\bsrc\s*=/i.test(attributes)) {
+  let out = html.replace(SCRIPT_TAG, (tag: string, attributes: string, body: string) => {
+    if (hasAttribute(attributes, 'src')) {
       removed++
       return ''
     }
-    if (new RegExp(`\\s${KEEP_ATTRIBUTE}(?:=""|\\s|$)`).test(attributes)) return tag
+    if (hasAttribute(attributes, KEEP_ATTRIBUTE)) return tag
     if (FRAMEWORK_INLINE.test(body)) {
       removed++
       return ''
