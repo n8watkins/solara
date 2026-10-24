@@ -5,6 +5,7 @@
 import {
   APP_CHECK_EXCHANGE,
   expect,
+  FAKE_APP_CHECK_TOKEN,
   FAKE_RECAPTCHA_TOKEN,
   RECAPTCHA_SCRIPT,
   restoreSession,
@@ -45,6 +46,15 @@ test('signing in starts App Check: reCAPTCHA v3 loads and its token is exchanged
   const [exchange] = network.to(APP_CHECK_EXCHANGE)
   expect(exchange?.method()).toBe('POST')
   expect(exchange?.postDataJSON()).toMatchObject({ recaptcha_v3_token: FAKE_RECAPTCHA_TOKEN })
+
+  // Firestore sends the App Check token from its first request on, so enforcing App
+  // Check for Firestore does not lock signed-in users out. (Its WebChannel transport
+  // carries headers in the request body.)
+  await expect.poll(() => network.to('https://firestore.googleapis.com').length).toBeGreaterThan(0)
+  const [firstFirestore] = network.to('https://firestore.googleapis.com')
+  expect(decodeURIComponent(firstFirestore?.postData() ?? '')).toContain(
+    `x-firebase-appcheck:${FAKE_APP_CHECK_TOKEN}`,
+  )
 
   // The invisible widget Firebase renders stays hidden: no badge or frame on screen.
   await expect(page.locator('#fire_app_check_\\[DEFAULT\\]')).toBeHidden()
