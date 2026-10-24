@@ -84,7 +84,6 @@ Use the theme utilities defined in `app/globals.css` (`bg-surface-card`, `text-i
 | Lane | Files in `components/` and `app/` |
 | --- | --- |
 | W4-A | `Dashboard.tsx`, `SunArc.tsx`, `UVTimeline.tsx`, `PlanAhead.tsx`, `ActivityCards.tsx` |
-| W4-B | `CalendarView.tsx`, `CalendarFeed.tsx` |
 | W4-C | `PreferencesModal.tsx`, `PricingModal.tsx`, `ProfileSwitcher.tsx` |
 | W4-D | `AddActivityModal.tsx`, `EditActivityModal.tsx`, `ManageActivitiesModal.tsx`, `ActivityManager.tsx`, `ActivitySuggestionSettings.tsx`, `EmojiPicker.tsx`, `ActivityModalShell.tsx` |
 | W4-E | `Header.tsx`, `App.tsx`, `AppShell.tsx`, `TipCarousel.tsx`, `InstallPrompt.tsx`, `Welcome.tsx`, `Onboarding.tsx`, `LocationPopover.tsx`, and the pages under `app/` |
