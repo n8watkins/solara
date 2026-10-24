@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
+import clsx from 'clsx'
 
 const TIPS = [
   {
@@ -112,30 +113,15 @@ export default function TipCarousel() {
       onMouseLeave={() => setPaused(false)}
       onFocus={() => setPaused(true)}
       onBlur={() => setPaused(false)}
-      style={{
-        background: 'rgba(251,191,36,0.09)',
-        border: '0.5px solid rgba(251,191,36,0.28)',
-        borderRadius: '12px',
-        padding: '10px 12px 1px',
-        width: '100%',
-        boxSizing: 'border-box',
-      }}
+      className="box-border w-full rounded-xl border-[0.5px] border-[rgba(251,191,36,0.28)] bg-[rgba(251,191,36,0.09)] px-3 pt-2.5 pb-px"
     >
       <div
         ref={trackRef}
         onScroll={onScroll}
-        className="tip-track"
         // Focusable so keyboard users can scroll it with the arrow keys.
         tabIndex={0}
         aria-live={autoplay ? 'off' : 'polite'}
-        style={{
-          display: 'flex',
-          overflowX: 'auto',
-          scrollSnapType: 'x mandatory',
-          scrollbarWidth: 'none',
-          WebkitOverflowScrolling: 'touch' as never,
-          borderRadius: '6px',
-        }}
+        className="tip-track flex snap-x snap-mandatory overflow-x-auto rounded-md [scrollbar-width:none]"
       >
         {TIPS.map((tip, i) => (
           <div
@@ -144,52 +130,19 @@ export default function TipCarousel() {
             aria-roledescription="slide"
             aria-label={`${i + 1} of ${TIPS.length}`}
             aria-hidden={i !== idx}
-            style={{
-              flex: '0 0 100%',
-              minWidth: '100%',
-              scrollSnapAlign: 'start',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-            }}
+            className="flex min-w-full flex-[0_0_100%] snap-start items-center gap-2.5"
           >
-            <span aria-hidden="true" style={{ fontSize: '20px', flexShrink: 0 }}>
+            <span aria-hidden="true" className="shrink-0 text-[20px]">
               {tip.icon}
             </span>
-            <div style={{ minWidth: 0 }}>
-              <p
-                style={{
-                  margin: 0,
-                  fontSize: '13px',
-                  fontWeight: 700,
-                  color: 'var(--text)',
-                  lineHeight: 1.2,
-                }}
-              >
-                {tip.title}
-              </p>
-              <p
-                style={{
-                  margin: '2px 0 0',
-                  fontSize: '12.5px',
-                  color: 'var(--text-2)',
-                  lineHeight: 1.4,
-                }}
-              >
-                {tip.body}
-              </p>
+            <div className="min-w-0">
+              <p className="text-[13px] leading-[1.2] font-bold text-ink">{tip.title}</p>
+              <p className="mt-0.5 text-[12.5px] leading-[1.4] text-ink-2">{tip.body}</p>
             </div>
           </div>
         ))}
       </div>
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          marginTop: 0,
-        }}
-      >
+      <div className="flex items-center justify-center">
         {TIPS.map((_, i) => (
           // A 24 px target around the small visible dot (WCAG 2.5.8).
           <button
@@ -198,29 +151,14 @@ export default function TipCarousel() {
             onClick={() => goTo(i)}
             aria-label={`Show tip ${i + 1}`}
             aria-current={i === idx ? 'true' : undefined}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              minWidth: '24px',
-              height: '24px',
-              padding: '0 2px',
-              border: 'none',
-              background: 'none',
-              cursor: 'pointer',
-              borderRadius: '6px',
-            }}
+            className="flex h-6 min-w-6 items-center justify-center rounded-md px-0.5"
           >
             <span
               aria-hidden="true"
-              style={{
-                display: 'block',
-                width: i === idx ? '16px' : '6px',
-                height: '6px',
-                borderRadius: '3px',
-                background: i === idx ? 'var(--accent)' : 'rgba(251,191,36,0.35)',
-                transition: 'all 0.3s ease',
-              }}
+              className={clsx(
+                'block h-1.5 rounded-[3px] transition-all duration-300 ease-[ease]',
+                i === idx ? 'w-4 bg-accent' : 'w-1.5 bg-[rgba(251,191,36,0.35)]',
+              )}
             />
           </button>
         ))}
@@ -229,22 +167,7 @@ export default function TipCarousel() {
             type="button"
             onClick={() => setStopped(s => !s)}
             aria-label={stopped ? 'Play tips' : 'Pause tips'}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: '24px',
-              height: '24px',
-              marginLeft: '2px',
-              padding: 0,
-              border: 'none',
-              background: 'none',
-              cursor: 'pointer',
-              borderRadius: '6px',
-              color: 'var(--text-3)',
-              fontSize: '10px',
-              lineHeight: 1,
-            }}
+            className="ml-0.5 flex size-6 items-center justify-center rounded-md p-0 text-[10px] leading-none text-ink-3"
           >
             {stopped ? (
               <svg aria-hidden="true" width="10" height="10" viewBox="0 0 10 10">

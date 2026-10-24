@@ -4,7 +4,7 @@ import { Component } from 'react'
 
 interface Props {
   children: ReactNode
-  /** Short label for what failed, e.g. "the dashboard" — used in the fallback copy. */
+  /** Short label for what failed, e.g. "the dashboard" - used in the fallback copy. */
   label?: string
   /** Optional callback to recover (e.g. refetch). When provided, a Retry button is shown. */
   onReset?: () => void
@@ -39,33 +39,16 @@ export default class ErrorBoundary extends Component<Props, State> {
     if (this.state.error) {
       const what = this.props.label ?? 'this section'
       return (
-        <div
-          className="card"
-          style={{
-            textAlign: 'center',
-            padding: '28px 22px',
-            maxWidth: '480px',
-            margin: '24px auto',
-          }}
-        >
-          <p style={{ fontSize: '34px', margin: '0 0 10px' }}>🌥️</p>
-          <h2
-            style={{ margin: '0 0 8px', fontSize: '18px', fontWeight: 750, color: 'var(--text)' }}
-          >
+        <div className="card mx-auto my-6 max-w-[480px] px-[22px] py-7 text-center">
+          <p className="mb-2.5 text-[34px]">🌥️</p>
+          <h2 className="mb-2 text-[18px] font-[750] text-ink">
             Something went wrong loading {what}
           </h2>
-          <p
-            style={{
-              margin: '0 0 18px',
-              fontSize: '14px',
-              color: 'var(--text-3)',
-              lineHeight: 1.5,
-            }}
-          >
+          <p className="mb-[18px] text-[14px] leading-normal text-ink-3">
             This usually clears up on a retry. If it keeps happening, your saved data may be out of
             date.
           </p>
-          <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
+          <div className="flex flex-wrap justify-center gap-2.5">
             <button className="btn btn-primary" onClick={this.handleReset}>
               Try again
             </button>

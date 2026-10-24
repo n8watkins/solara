@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react'
+const LINK = 'text-inherit underline'
 
 /**
  * Credits for the open data Solara is built on. Open-Meteo forecasts and place
@@ -6,18 +6,18 @@ import type { CSSProperties } from 'react'
  * names) is ODbL; both licenses require visible attribution with a link.
  */
 export default function DataAttribution({
-  style,
+  className = '',
   compact = false,
 }: {
-  style?: CSSProperties
+  /** Layout utilities (margins, a top rule) from the caller. */
+  className?: string
   /** Shorter wording for tight spaces such as the location popover. */
   compact?: boolean
 }) {
-  const link: CSSProperties = { color: 'inherit', textDecoration: 'underline' }
   return (
-    <p style={{ margin: 0, fontSize: '11px', lineHeight: 1.5, color: 'var(--text-3)', ...style }}>
+    <p className={`m-0 text-[11px] leading-normal text-ink-3 ${className}`}>
       {compact ? 'Data: ' : 'Weather and place data by '}
-      <a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer" style={link}>
+      <a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer" className={LINK}>
         Open-Meteo
       </a>{' '}
       (
@@ -25,7 +25,7 @@ export default function DataAttribution({
         href="https://creativecommons.org/licenses/by/4.0/"
         target="_blank"
         rel="noopener noreferrer"
-        style={link}
+        className={LINK}
       >
         CC BY 4.0
       </a>
@@ -34,7 +34,7 @@ export default function DataAttribution({
         href="https://www.openstreetmap.org/copyright"
         target="_blank"
         rel="noopener noreferrer"
-        style={link}
+        className={LINK}
       >
         ©&nbsp;OpenStreetMap contributors
       </a>

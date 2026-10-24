@@ -29,7 +29,7 @@ export default function ActivityEmptyState({
         </button>
       ) : (
         // GoogleSignInButton takes only a style prop for its outer layout.
-        <GoogleSignInButton seedPrefs={prefs} style={{ margin: '0 auto', minWidth: '220px' }} />
+        <GoogleSignInButton seedPrefs={prefs} className="mx-auto min-w-[220px]" />
       )}
     </div>
   )

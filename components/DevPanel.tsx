@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import clsx from 'clsx'
 import type { TierLevel } from '@/lib/types'
 
 const KEY = 'solara_dev_tier'
@@ -38,87 +39,45 @@ export default function DevPanel({ currentTier, onOverride }: Props) {
   }
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        bottom: '16px',
-        right: '16px',
-        zIndex: 999,
-        fontFamily: 'var(--font-sans)',
-      }}
-    >
+    <div className="fixed right-4 bottom-4 z-[999] font-sans">
       {open && (
-        <div
-          style={{
-            background: '#1A1A1A',
-            borderRadius: '14px',
-            padding: '14px',
-            marginBottom: '8px',
-            minWidth: '220px',
-            border: '0.5px solid rgba(255,255,255,0.12)',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-          }}
-        >
-          <p
-            style={{
-              margin: '0 0 10px',
-              fontSize: '11px',
-              fontWeight: 600,
-              color: '#888',
-              textTransform: 'uppercase',
-              letterSpacing: '0.08em',
-            }}
-          >
+        <div className="mb-2 min-w-[220px] rounded-[14px] border-[0.5px] border-white/12 bg-[#1a1a1a] p-3.5 shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
+          <p className="mb-2.5 text-[11px] font-semibold tracking-[0.08em] text-[#888] uppercase">
             Dev · Tier Preview
           </p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            {TIERS.map(t => (
-              <button
-                key={t.value}
-                onClick={() => set(t.value)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px',
-                  padding: '9px 12px',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  background:
-                    active === t.value ? 'rgba(249,115,22,0.2)' : 'rgba(255,255,255,0.05)',
-                  border:
-                    active === t.value ? '1px solid rgba(249,115,22,0.5)' : '1px solid transparent',
-                  transition: 'all 0.12s',
-                  textAlign: 'left',
-                }}
-              >
-                <span style={{ fontSize: '16px' }}>{t.emoji}</span>
-                <div>
-                  <p
-                    style={{
-                      margin: 0,
-                      fontSize: '13px',
-                      fontWeight: 500,
-                      color: active === t.value ? '#FB923C' : '#E5E7EB',
-                    }}
-                  >
-                    {t.label}
-                  </p>
-                  <p style={{ margin: 0, fontSize: '11px', color: '#6B7280' }}>{t.desc}</p>
-                </div>
-                {active === t.value && (
-                  <span style={{ marginLeft: 'auto', fontSize: '14px', color: '#FB923C' }}>●</span>
-                )}
-              </button>
-            ))}
+          <div className="flex flex-col gap-1">
+            {TIERS.map(t => {
+              const selected = active === t.value
+              return (
+                <button
+                  key={t.value}
+                  onClick={() => set(t.value)}
+                  className={clsx(
+                    'flex items-center gap-2.5 rounded-lg border px-3 py-[9px] text-left transition-all duration-[120ms]',
+                    selected
+                      ? 'border-[rgba(249,115,22,0.5)] bg-[rgba(249,115,22,0.2)]'
+                      : 'border-transparent bg-white/5',
+                  )}
+                >
+                  <span className="text-[16px]">{t.emoji}</span>
+                  <div>
+                    <p
+                      className={clsx(
+                        'text-[13px] font-medium',
+                        selected ? 'text-[#fb923c]' : 'text-[#e5e7eb]',
+                      )}
+                    >
+                      {t.label}
+                    </p>
+                    <p className="text-[11px] text-[#6b7280]">{t.desc}</p>
+                  </div>
+                  {selected && <span className="ml-auto text-[14px] text-[#fb923c]">●</span>}
+                </button>
+              )
+            })}
           </div>
-          <div
-            style={{
-              marginTop: '10px',
-              paddingTop: '10px',
-              borderTop: '0.5px solid rgba(255,255,255,0.08)',
-            }}
-          >
-            <p style={{ margin: 0, fontSize: '11px', color: '#4B5563' }}>
+          <div className="mt-2.5 border-t-[0.5px] border-white/8 pt-2.5">
+            <p className="text-[11px] text-[#4b5563]">
               Overrides stored in localStorage.
               <br />
               Clears on sign-in.
@@ -129,24 +88,11 @@ export default function DevPanel({ currentTier, onOverride }: Props) {
 
       <button
         onClick={() => setOpen(o => !o)}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '6px',
-          background: '#1A1A1A',
-          border: '0.5px solid rgba(255,255,255,0.15)',
-          borderRadius: '10px',
-          padding: '7px 12px',
-          cursor: 'pointer',
-          color: '#FB923C',
-          fontSize: '12px',
-          fontWeight: 600,
-          boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
-        }}
+        className="flex items-center gap-1.5 rounded-[10px] border-[0.5px] border-white/15 bg-[#1a1a1a] px-3 py-[7px] text-[12px] font-semibold text-[#fb923c] shadow-[0_4px_16px_rgba(0,0,0,0.3)]"
       >
-        <span style={{ fontSize: '14px' }}>⚙️</span>
+        <span className="text-[14px]">⚙️</span>
         Dev · {TIERS.find(t => t.value === active)?.label}
-        <span style={{ fontSize: '10px', color: '#6B7280' }}>{open ? '▲' : '▼'}</span>
+        <span className="text-[10px] text-[#6b7280]">{open ? '▲' : '▼'}</span>
       </button>
     </div>
   )

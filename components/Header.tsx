@@ -1,16 +1,15 @@
 'use client'
-import { useState, useEffect, useRef } from 'react'
-import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { useState } from 'react'
 import type { User } from 'firebase/auth'
 import { SignOutBlockedError, signOutAndClear } from '@/lib/session'
 import type { UserPreferences, TierLevel } from '@/lib/types'
 import { getSavedLocationLimit } from '@/lib/tiers'
-import { uvLabel } from '@/lib/weather'
-import { nextIndex } from '@/lib/roving-focus'
+import { headerUV } from '@/lib/header-display'
 import PreferencesModal from './PreferencesModal'
 import LocationPopover from './LocationPopover'
 import ProfileSwitcher from './ProfileSwitcher'
 import GoogleSignInButton from './GoogleSignInButton'
+import AccountMenu from './AccountMenu'
 import styles from './Header.module.css'
 
 interface Props {
@@ -25,20 +24,6 @@ interface Props {
   displayTier?: TierLevel
 }
 
-function uvIcon(uv: number): string {
-  if (uv < 0.5) return '⚪'
-  if (uv <= 2) return '🟢'
-  if (uv <= 5) return '🟡'
-  if (uv <= 7) return '🟠'
-  if (uv <= 10) return '🔴'
-  return '🟣'
-}
-
-/** The account menu's items, in order. */
-function menuItems(list: HTMLElement | null): HTMLElement[] {
-  return Array.from(list?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])
-}
-
 export default function Header({
   user,
   prefs,
@@ -50,13 +35,7 @@ export default function Header({
   displayTier,
 }: Props) {
   const [showPrefs, setShowPrefs] = useState(false)
-  const [menuOpen, setMenuOpen] = useState(false)
-  // Which item takes focus when the account menu opens (menu button pattern).
-  const [menuFocus, setMenuFocus] = useState<'first' | 'last'>('first')
   const [signOutError, setSignOutError] = useState<string | null>(null)
-  const menuRef = useRef<HTMLDivElement>(null)
-  const menuButtonRef = useRef<HTMLButtonElement>(null)
-  const menuListRef = useRef<HTMLDivElement>(null)
 
   // Open settings whenever a new tab is forced open (including on mount), adjusting
   // state during render rather than in an effect.
@@ -64,66 +43,6 @@ export default function Header({
   if (forceOpenTab !== seenForceOpenTab) {
     setSeenForceOpenTab(forceOpenTab)
     if (forceOpenTab) setShowPrefs(true)
-  }
-
-  // Close the account menu on outside-click; Escape closes it and returns focus
-  // to the menu button.
-  useEffect(() => {
-    if (!menuOpen) return
-    function onDown(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false)
-    }
-    function onKey(e: KeyboardEvent) {
-      if (e.key !== 'Escape') return
-      setMenuOpen(false)
-      menuButtonRef.current?.focus()
-    }
-    document.addEventListener('mousedown', onDown)
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('mousedown', onDown)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [menuOpen])
-
-  // An opened menu moves focus to its first (or, from ArrowUp, last) item.
-  useEffect(() => {
-    if (!menuOpen) return
-    const items = menuItems(menuListRef.current)
-    ;(menuFocus === 'last' ? items.at(-1) : items[0])?.focus()
-  }, [menuOpen, menuFocus])
-
-  function openMenu(focus: 'first' | 'last') {
-    setMenuFocus(focus)
-    setMenuOpen(true)
-  }
-
-  function onMenuButtonKeyDown(e: ReactKeyboardEvent<HTMLButtonElement>) {
-    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
-    e.preventDefault()
-    openMenu(e.key === 'ArrowUp' ? 'last' : 'first')
-  }
-
-  // Arrow keys move between items (wrapping), Home and End jump to the ends,
-  // Space activates the link item like a button, and Tab leaves the menu.
-  function onMenuKeyDown(e: ReactKeyboardEvent<HTMLDivElement>) {
-    const items = menuItems(menuListRef.current)
-    const index = items.indexOf(document.activeElement as HTMLElement)
-    if (e.key === 'Tab') {
-      // Tab then moves on from the menu button, as if the menu were not there.
-      menuButtonRef.current?.focus()
-      setMenuOpen(false)
-      return
-    }
-    if (e.key === ' ' && e.target instanceof HTMLAnchorElement) {
-      e.preventDefault()
-      e.target.click()
-      return
-    }
-    const next = nextIndex(e.key, index, items.length)
-    if (next === null) return
-    e.preventDefault()
-    items[next]?.focus()
   }
 
   async function handleSignOut() {
@@ -151,11 +70,7 @@ export default function Header({
   }
 
   const tier = displayTier || prefs.tier || 'anonymous'
-
-  const uv =
-    typeof currentUV === 'number' && Number.isFinite(currentUV)
-      ? { icon: uvIcon(currentUV), value: currentUV.toFixed(1), level: uvLabel(currentUV) }
-      : null
+  const uv = headerUV(currentUV)
 
   return (
     <>
@@ -163,23 +78,10 @@ export default function Header({
         <div className={styles.row}>
           <button
             onClick={onGoHome}
-            className={styles.logo}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              padding: '4px 6px',
-              borderRadius: '8px',
-              transition: 'background 0.1s',
-            }}
-            onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-metric)')}
-            onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+            className="flex shrink-0 items-center gap-1.5 rounded-lg px-1.5 py-1 transition-colors duration-100 hover:bg-surface-metric"
           >
-            <span style={{ fontSize: '20px' }}>☀️</span>
-            <span style={{ fontWeight: 700, fontSize: '17px', color: 'var(--text)' }}>Solara</span>
+            <span className="text-[20px]">☀️</span>
+            <span className="text-[17px] font-bold text-ink">Solara</span>
           </button>
 
           <div className={styles.location}>
@@ -216,192 +118,26 @@ export default function Header({
             )}
             {tier === 'paid' && (
               <span
-                className={styles.pro}
-                style={{
-                  fontSize: '10px',
-                  fontWeight: 800,
-                  padding: '4px 8px',
-                  borderRadius: '999px',
-                  flexShrink: 0,
-                  background: 'var(--accent-soft)',
-                  color: 'var(--accent)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.055em',
-                }}
+                className={`${styles.pro} shrink-0 rounded-full bg-accent-soft px-2 py-1 text-[10px] font-extrabold tracking-[0.055em] text-accent uppercase`}
               >
                 Pro
               </span>
             )}
             {user ? (
-              <div ref={menuRef} style={{ position: 'relative', flexShrink: 0 }}>
-                <button
-                  ref={menuButtonRef}
-                  id="account-menu-button"
-                  onClick={() => (menuOpen ? setMenuOpen(false) : openMenu('first'))}
-                  onKeyDown={onMenuButtonKeyDown}
-                  aria-haspopup="menu"
-                  aria-expanded={menuOpen}
-                  aria-controls={menuOpen ? 'account-menu' : undefined}
-                  aria-label="Account menu"
-                  title={user.displayName ?? user.email ?? 'Account'}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: '30px',
-                    height: '30px',
-                    borderRadius: '50%',
-                    padding: 0,
-                    cursor: 'pointer',
-                    flexShrink: 0,
-                    overflow: 'hidden',
-                    border: '0.5px solid var(--border-md)',
-                    background: user.photoURL ? 'var(--bg-metric)' : 'var(--accent)',
-                  }}
-                >
-                  {user.photoURL ? (
-                    // eslint-disable-next-line @next/next/no-img-element -- Remote account avatar in a static export with images.unoptimized; next/image would add nothing.
-                    <img
-                      src={user.photoURL}
-                      alt={user.displayName ?? 'Account'}
-                      referrerPolicy="no-referrer"
-                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                    />
-                  ) : (
-                    <span
-                      style={{
-                        color: 'var(--on-accent)',
-                        fontWeight: 700,
-                        fontSize: '14px',
-                        lineHeight: 1,
-                      }}
-                    >
-                      {(user.displayName ?? user.email ?? '?').trim().charAt(0).toUpperCase()}
-                    </span>
-                  )}
-                </button>
-
-                {menuOpen && (
-                  <div
-                    style={{
-                      position: 'absolute',
-                      top: 'calc(100% + 8px)',
-                      right: 0,
-                      zIndex: 40,
-                      minWidth: '200px',
-                      maxWidth: 'calc(100vw - 24px)',
-                      background: 'var(--bg-card)',
-                      border: '0.5px solid var(--border-md)',
-                      borderRadius: '12px',
-                      boxShadow: '0 16px 48px rgba(0,0,0,0.22)',
-                      padding: '6px',
-                      overflow: 'hidden',
-                    }}
-                  >
-                    {(user.email || user.displayName) && (
-                      <div
-                        style={{
-                          padding: '8px 10px 10px',
-                          borderBottom: '0.5px solid var(--border-md)',
-                          marginBottom: '4px',
-                        }}
-                      >
-                        {user.displayName && (
-                          <p
-                            style={{
-                              margin: 0,
-                              fontSize: '13px',
-                              fontWeight: 650,
-                              color: 'var(--text)',
-                              whiteSpace: 'nowrap',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                            }}
-                          >
-                            {user.displayName}
-                          </p>
-                        )}
-                        {user.email && (
-                          <p
-                            style={{
-                              margin: user.displayName ? '2px 0 0' : 0,
-                              fontSize: '12px',
-                              color: 'var(--text-3)',
-                              whiteSpace: 'nowrap',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                            }}
-                          >
-                            {user.email}
-                          </p>
-                        )}
-                      </div>
-                    )}
-                    <div
-                      ref={menuListRef}
-                      id="account-menu"
-                      role="menu"
-                      aria-labelledby="account-menu-button"
-                      onKeyDown={onMenuKeyDown}
-                    >
-                      <button
-                        role="menuitem"
-                        tabIndex={-1}
-                        onClick={() => {
-                          setMenuOpen(false)
-                          setShowPrefs(true)
-                        }}
-                        className="hdr-menu-item"
-                      >
-                        ⚙️ Settings
-                      </button>
-                      <a
-                        role="menuitem"
-                        tabIndex={-1}
-                        href="/account/"
-                        className="hdr-menu-item"
-                        style={{ textDecoration: 'none' }}
-                      >
-                        👤 Account & billing
-                      </a>
-                      <button
-                        role="menuitem"
-                        tabIndex={-1}
-                        onClick={() => {
-                          setMenuOpen(false)
-                          void handleSignOut()
-                        }}
-                        className="hdr-menu-item"
-                        style={{ color: 'var(--danger)' }}
-                      >
-                        ↪ Sign out
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <GoogleSignInButton
-                label="Sign in"
-                seedPrefs={prefs}
-                style={{ fontSize: '12px', padding: '6px 12px' }}
+              <AccountMenu
+                user={user}
+                onOpenSettings={() => setShowPrefs(true)}
+                onSignOut={() => void handleSignOut()}
               />
+            ) : (
+              <GoogleSignInButton label="Sign in" seedPrefs={prefs} size="sm" />
             )}
           </div>
         </div>
       </header>
 
       {signOutError && (
-        <div
-          role="alert"
-          style={{
-            maxWidth: '900px',
-            margin: '12px auto 0',
-            padding: '0 14px',
-            color: 'var(--danger)',
-            fontSize: '13px',
-          }}
-        >
+        <div role="alert" className="mx-auto mt-3 max-w-[900px] px-3.5 text-[13px] text-danger">
           {signOutError}
         </div>
       )}

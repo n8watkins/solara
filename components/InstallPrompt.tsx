@@ -1,13 +1,11 @@
 'use client'
-import type { CSSProperties } from 'react'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
+import { INSTALL_DISMISS_KEY, installPromptKind } from '@/lib/install-prompt'
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
 }
-
-const DISMISS_KEY = 'solara_install_dismissed'
 
 /** The iOS share glyph (box with an up-arrow) so the instruction reads at a glance. */
 function ShareIcon() {
@@ -22,7 +20,7 @@ function ShareIcon() {
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
-      style={{ display: 'inline', verticalAlign: '-1px' }}
+      className="inline align-[-1px]"
     >
       <path d="M8 1.5 V11" />
       <path d="M5 4 L8 1 L11 4" />
@@ -45,27 +43,25 @@ export default function InstallPrompt() {
   const [mode, setMode] = useState<'chromium' | 'ios' | null>(null)
 
   useEffect(() => {
-    if (typeof window === 'undefined') return
-    // Already installed (running standalone) → never prompt.
-    const standalone =
-      window.matchMedia?.('(display-mode: standalone)').matches ||
-      (window.navigator as unknown as { standalone?: boolean }).standalone
-    if (standalone) return
-    if (localStorage.getItem(DISMISS_KEY)) return
-
-    // iOS (incl. iPadOS 13+, which reports as MacIntel with a touch screen) never
-    // fires beforeinstallprompt, and only Safari can add to the Home Screen. Show
-    // manual instructions for that case.
-    const ua = window.navigator.userAgent
-    const isIOS =
-      /iPad|iPhone|iPod/.test(ua) ||
-      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
-    const isIOSSafari = isIOS && !/CriOS|FxiOS|EdgiOS|OPiOS|mercury/i.test(ua)
-    if (isIOSSafari) {
+    let dismissed = false
+    try {
+      dismissed = Boolean(localStorage.getItem(INSTALL_DISMISS_KEY))
+    } catch {}
+    const kind = installPromptKind({
+      standalone:
+        window.matchMedia?.('(display-mode: standalone)').matches ||
+        Boolean((window.navigator as { standalone?: boolean }).standalone),
+      dismissed,
+      userAgent: navigator.userAgent,
+      platform: navigator.platform,
+      maxTouchPoints: navigator.maxTouchPoints,
+    })
+    if (kind === 'ios') {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- Browser-only state is read after hydration so the static export's prerendered markup matches the first client render.
       setMode('ios')
       return
     }
+    if (kind !== 'chromium') return
 
     const onBeforeInstall = (e: Event) => {
       e.preventDefault()
@@ -87,7 +83,7 @@ export default function InstallPrompt() {
   function dismiss() {
     setMode(null)
     try {
-      localStorage.setItem(DISMISS_KEY, '1')
+      localStorage.setItem(INSTALL_DISMISS_KEY, '1')
     } catch {}
   }
 
@@ -101,65 +97,53 @@ export default function InstallPrompt() {
 
   if (!mode) return null
 
-  const wrap: CSSProperties = {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '12px',
-    padding: '12px 14px',
-    borderRadius: '12px',
-    marginBottom: '16px',
-    background: 'rgba(249,115,22,0.08)',
-    border: '0.5px solid rgba(249,115,22,0.25)',
-  }
-  const dismissBtn: CSSProperties = {
-    background: 'transparent',
-    border: 'none',
-    cursor: 'pointer',
-    color: 'var(--text-3)',
-    fontSize: '18px',
-    padding: '0 4px',
-    flexShrink: 0,
-  }
-
   if (mode === 'ios') {
     return (
-      <div style={wrap}>
-        <span style={{ fontSize: '22px', flexShrink: 0 }}>☀️</span>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ margin: 0, fontSize: '14px', fontWeight: 650, color: 'var(--text)' }}>
-            Add Solara to your home screen
-          </p>
-          <p style={{ margin: '2px 0 0', fontSize: '12px', color: 'var(--text-3)' }}>
-            Tap <ShareIcon /> Share, then <strong>Add to Home Screen</strong> to open Solara in one
-            tap.
-          </p>
-        </div>
-        <button onClick={dismiss} aria-label="Dismiss" style={dismissBtn}>
-          ×
-        </button>
-      </div>
+      <Banner onDismiss={dismiss}>
+        Tap <ShareIcon /> Share, then <strong>Add to Home Screen</strong> to open Solara in one tap.
+      </Banner>
     )
   }
 
   return (
-    <div style={wrap}>
-      <span style={{ fontSize: '22px', flexShrink: 0 }}>☀️</span>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ margin: 0, fontSize: '14px', fontWeight: 650, color: 'var(--text)' }}>
-          Add Solara to your home screen
-        </p>
-        <p style={{ margin: '2px 0 0', fontSize: '12px', color: 'var(--text-3)' }}>
-          One tap each morning to check your sun window.
-        </p>
+    <Banner
+      onDismiss={dismiss}
+      action={
+        <button
+          className="btn btn-primary shrink-0 px-3.5 py-2 text-[13px]"
+          onClick={() => void install()}
+        >
+          Install
+        </button>
+      }
+    >
+      One tap each morning to check your sun window.
+    </Banner>
+  )
+}
+
+function Banner({
+  children,
+  action,
+  onDismiss,
+}: {
+  children: ReactNode
+  action?: ReactNode
+  onDismiss: () => void
+}) {
+  return (
+    <div className="mb-4 flex items-center gap-3 rounded-xl border-[0.5px] border-brand/25 bg-brand/8 px-3.5 py-3">
+      <span className="shrink-0 text-[22px]">☀️</span>
+      <div className="min-w-0 flex-1">
+        <p className="text-[14px] font-[650] text-ink">Add Solara to your home screen</p>
+        <p className="mt-0.5 text-[12px] text-ink-3">{children}</p>
       </div>
+      {action}
       <button
-        className="btn btn-primary"
-        onClick={() => void install()}
-        style={{ fontSize: '13px', padding: '8px 14px', flexShrink: 0 }}
+        onClick={onDismiss}
+        aria-label="Dismiss"
+        className="shrink-0 bg-transparent px-1 text-[18px] text-ink-3"
       >
-        Install
-      </button>
-      <button onClick={dismiss} aria-label="Dismiss" style={dismissBtn}>
         ×
       </button>
     </div>

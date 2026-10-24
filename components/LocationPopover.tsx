@@ -1,12 +1,10 @@
 'use client'
-import { useState, useRef, useEffect, useLayoutEffect } from 'react'
+import { useState, useRef, useLayoutEffect } from 'react'
 import type { Location } from '@/lib/types'
 import { locationFromCoordinates, searchLocation } from '@/lib/geocoding'
+import { useOutsideClick } from '@/lib/use-outside-click'
+import { clampShift } from '@/lib/viewport-clamp'
 import DataAttribution from './DataAttribution'
-import styles from './LocationPopover.module.css'
-
-/** Minimum gap between the panel and the viewport edge. */
-const VIEWPORT_GUTTER = 12
 
 interface Props {
   location: Location
@@ -38,24 +36,16 @@ export default function LocationPopover({ location, savedLocations, limit, onApp
       const panel = panelRef.current
       const anchor = ref.current
       if (!panel || !anchor) return
-      const left = anchor.getBoundingClientRect().left
-      const width = panel.offsetWidth
-      const maxLeft = window.innerWidth - VIEWPORT_GUTTER - width
-      const target = Math.max(VIEWPORT_GUTTER, Math.min(left, maxLeft))
-      setShift(target - left)
+      setShift(
+        clampShift(anchor.getBoundingClientRect().left, panel.offsetWidth, window.innerWidth),
+      )
     }
     clamp()
     window.addEventListener('resize', clamp)
     return () => window.removeEventListener('resize', clamp)
   }, [open])
 
-  useEffect(() => {
-    function handle(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', handle)
-    return () => document.removeEventListener('mousedown', handle)
-  }, [])
+  useOutsideClick(ref, open, () => setOpen(false))
 
   const activeSaved = savedLocations.some(l => sameLoc(l, location))
   const atLimit = savedLocations.length >= limit
@@ -123,70 +113,38 @@ export default function LocationPopover({ location, savedLocations, limit, onApp
   }
 
   return (
-    <div ref={ref} style={{ position: 'relative', display: 'inline-block' }}>
-      <button className={styles.trigger} onClick={() => setOpen(o => !o)}>
-        📍{' '}
-        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {location.city}
-        </span>
+    <div ref={ref} className="relative inline-block">
+      <button
+        className="flex max-w-full items-center gap-1 rounded-md px-[7px] py-[3px] text-[13px] text-ink-3 transition-colors duration-100 hover:bg-surface-metric"
+        onClick={() => setOpen(o => !o)}
+      >
+        📍 <span className="truncate">{location.city}</span>
       </button>
 
       {open && (
-        <div ref={panelRef} className={styles.panel} style={{ left: shift }}>
-          <p
-            style={{
-              margin: '0 0 10px',
-              fontSize: '12px',
-              fontWeight: 600,
-              color: 'var(--text)',
-              textTransform: 'uppercase',
-              letterSpacing: '0.06em',
-            }}
-          >
+        <div
+          ref={panelRef}
+          // Never wider than the viewport minus a 12 px gutter on each side.
+          className="absolute top-[calc(100%+6px)] z-[100] box-border w-[min(270px,calc(100vw-24px))] rounded-[14px] border-[0.5px] border-line-strong bg-surface-card p-3.5 shadow-[0_8px_24px_rgba(0,0,0,0.15)]"
+          style={{ left: shift }}
+        >
+          <p className="mb-2.5 text-[12px] font-semibold tracking-[0.06em] text-ink uppercase">
             Location
           </p>
 
           {/* Active location, pinned. */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '8px 10px',
-              borderRadius: '10px',
-              background: 'rgba(249,115,22,0.08)',
-              border: '1px solid rgba(249,115,22,0.25)',
-              marginBottom: '8px',
-            }}
-          >
-            <span style={{ fontSize: '13px' }}>📍</span>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <p
-                style={{
-                  margin: 0,
-                  fontSize: '13px',
-                  fontWeight: 650,
-                  color: 'var(--text)',
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                }}
-              >
-                {location.city}
-              </p>
-              {location.region && (
-                <p style={{ margin: 0, fontSize: '11px', color: 'var(--text-3)' }}>
-                  {location.region}
-                </p>
-              )}
+          <div className="mb-2 flex items-center gap-2 rounded-[10px] border border-brand/25 bg-brand/8 px-2.5 py-2">
+            <span className="text-[13px]">📍</span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[13px] font-[650] text-ink">{location.city}</p>
+              {location.region && <p className="text-[11px] text-ink-3">{location.region}</p>}
             </div>
             {!activeSaved && (
               <button
-                className="btn"
+                className="btn px-2 py-1 text-[11px]"
                 onClick={() => activate(location, true)}
                 disabled={atLimit}
                 title={atLimit ? `Limit reached (${limit})` : 'Save as a shortcut'}
-                style={{ fontSize: '11px', padding: '4px 8px', opacity: atLimit ? 0.5 : 1 }}
               >
                 ☆ Save
               </button>
@@ -195,29 +153,20 @@ export default function LocationPopover({ location, savedLocations, limit, onApp
 
           {/* Saved shortcuts. */}
           {otherSaved.length > 0 && (
-            <div
-              style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '10px' }}
-            >
+            <div className="mb-2.5 flex flex-col gap-1">
               {otherSaved.map(loc => (
-                <div
-                  key={`${loc.lat},${loc.lon}`}
-                  style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-                >
-                  <button className={styles.shortcut} onClick={() => activate(loc, false)}>
+                <div key={`${loc.lat},${loc.lon}`} className="flex items-center gap-1.5">
+                  <button
+                    className="min-w-0 flex-1 rounded-lg px-2 py-1.5 text-left text-[13px] text-ink-2 hover:bg-surface-metric"
+                    onClick={() => activate(loc, false)}
+                  >
                     {loc.city}
                     {loc.region ? `, ${loc.region}` : ''}
                   </button>
                   <button
                     onClick={() => removeShortcut(loc)}
                     aria-label={`Remove ${loc.city}`}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      color: 'var(--text-3)',
-                      fontSize: '14px',
-                      padding: '4px 6px',
-                    }}
+                    className="px-1.5 py-1 text-[14px] text-ink-3"
                   >
                     ✕
                   </button>
@@ -227,19 +176,13 @@ export default function LocationPopover({ location, savedLocations, limit, onApp
           )}
 
           <button
-            className="btn"
+            className="btn mb-2 w-full justify-center text-[13px]"
             onClick={() => void geolocate()}
             disabled={loading}
-            style={{
-              width: '100%',
-              justifyContent: 'center',
-              marginBottom: '8px',
-              fontSize: '13px',
-            }}
           >
             📍 {loading ? 'Detecting…' : 'Use my location'}
           </button>
-          <div style={{ display: 'flex', gap: '6px' }}>
+          <div className="flex gap-1.5">
             <input
               placeholder="Add a city…"
               value={query}
@@ -248,35 +191,23 @@ export default function LocationPopover({ location, savedLocations, limit, onApp
                 if (e.key === 'Enter') void search()
               }}
               aria-label="Add a city"
-              style={{ flex: 1, minWidth: 0, fontSize: '13px', padding: '7px 10px' }}
+              className="min-w-0 flex-1 px-2.5 py-[7px] text-[13px]"
               autoFocus
             />
             <button
-              className="btn"
+              className="btn shrink-0 px-3 py-[7px] text-[13px]"
               onClick={() => void search()}
               disabled={loading}
-              style={{ flexShrink: 0, fontSize: '13px', padding: '7px 12px' }}
             >
               {loading ? '…' : 'Go'}
             </button>
           </div>
-          <p style={{ margin: '8px 0 0', fontSize: '11px', color: 'var(--text-3)' }}>
+          <p className="mt-2 text-[11px] text-ink-3">
             {savedLocations.length}/{limit} saved
           </p>
-          {error && (
-            <p style={{ margin: '6px 0 0', fontSize: '12px', color: '#DC2626' }}>{error}</p>
-          )}
-          {note && (
-            <p style={{ margin: '6px 0 0', fontSize: '12px', color: 'var(--text-2)' }}>{note}</p>
-          )}
-          <DataAttribution
-            compact
-            style={{
-              marginTop: '10px',
-              paddingTop: '8px',
-              borderTop: '0.5px solid var(--border-md)',
-            }}
-          />
+          {error && <p className="mt-1.5 text-[12px] text-danger">{error}</p>}
+          {note && <p className="mt-1.5 text-[12px] text-ink-2">{note}</p>}
+          <DataAttribution compact className="mt-2.5 border-t-[0.5px] border-line-strong pt-2" />
         </div>
       )}
     </div>
