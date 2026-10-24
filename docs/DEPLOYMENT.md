@@ -137,7 +137,7 @@ Deploy Hosting only from the `out/` of a production build (`npm run build`), bec
 ## Service worker generation
 
 `public/firebase-messaging-sw.js` is a generated, ignored artifact.
-Both `npm run dev` and `npm run build` run `scripts/generate-sw.js` first, which bundles `scripts/sw/firebase-messaging-sw.ts` with the app's npm Firebase SDK and the Firebase values in `.env.local` or the deployment environment.
+Both `npm run dev` and `npm run build` run `scripts/generate-sw.js` first, which bundles `scripts/sw/firebase-messaging-sw.ts` with the app's npm Firebase SDK and the Firebase values that Next itself resolves: the deployment environment first, then the `.env*` files (for example `.env.local`).
 The worker loads no script from a CDN, and notification clicks open only same-origin links, focusing an open Solara window when there is one.
 Do not commit or hand-edit the generated worker.
 Re-run the generator through either command after changing Firebase client configuration.

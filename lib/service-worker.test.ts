@@ -21,6 +21,12 @@ describe('Firebase messaging service worker', () => {
     expect(generator).toContain("import('rolldown')")
   })
 
+  it('resolves the Firebase config from the same env files as Next', () => {
+    expect(generator).toContain("require('@next/env')")
+    expect(generator).toContain('loadEnvConfig(')
+    expect(generator).not.toContain('dotenv')
+  })
+
   it('only opens same-origin links and reuses an open window', () => {
     expect(source).toContain('safeNotificationUrl(')
     expect(source).toContain('chooseWindowClient(')

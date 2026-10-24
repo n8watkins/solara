@@ -1,10 +1,15 @@
 // Bundles scripts/sw/firebase-messaging-sw.ts into public/firebase-messaging-sw.js
 // with the npm Firebase SDK and the public web config baked in. Runs before
 // `next dev` and `next build` (predev/prebuild).
-require('dotenv').config({ path: '.env.local', quiet: true })
 const path = require('path')
+const { loadEnvConfig } = require('@next/env')
 
 const root = path.join(__dirname, '..')
+
+// Same env files and precedence as Next: `next dev` (--dev) reads the
+// development files, `next build` the production ones, and variables already
+// set in the environment win over every file.
+loadEnvConfig(root, process.argv.includes('--dev'), { info: () => {}, error: console.error })
 const outFile = path.join(root, 'public', 'firebase-messaging-sw.js')
 
 const config = {
