@@ -115,7 +115,7 @@ test('dashboard: the activity card shows what is scheduled', async ({ page }, te
   // The recommended 6pm slot is already on the calendar: the Scheduled row replaces it.
   await expect(card.getByTestId('recommended-slot')).toHaveCount(0)
   await expect(card.getByRole('button', { name: /Add to Google Calendar/ })).toHaveCount(0)
-  await card.scrollIntoViewIfNeeded()
+  // A full-page shot from the top, so the sticky header sits where it does on load.
   await shot(page, 'scheduled-dashboard', testInfo.project.name)
 })
 

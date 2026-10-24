@@ -19,6 +19,9 @@ interface Props {
 
 type Busy = 'create' | 'regenerate' | 'revoke' | null
 
+const hint = 'text-[13px] text-ink-2'
+const small = 'btn text-[12px]'
+
 /**
  * Live calendar feed. Lets a signed-in user subscribe their calendar app to a stable URL
  * that re-fetches as the forecast changes, unlike the one-shot .ics export. The server
@@ -100,47 +103,31 @@ function CalendarFeedPanel({ uid }: { uid: string }) {
   }
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'flex-start',
-        gap: '10px',
-        padding: '10px 12px',
-        borderRadius: '10px',
-        marginBottom: '12px',
-        background: 'var(--bg-metric)',
-        border: '0.5px solid var(--border-md)',
-      }}
-    >
-      <span aria-hidden="true" style={{ fontSize: '16px', flexShrink: 0 }}>
+    <div className="mb-3 flex items-start gap-2.5 rounded-[10px] border-[0.5px] border-line-strong bg-surface-metric px-3 py-2.5">
+      <span aria-hidden="true" className="shrink-0 text-[16px]">
         🔄
       </span>
-      <div style={{ flex: 1, minWidth: 0 }}>
+      <div className="min-w-0 flex-1">
         {feed.status === 'loading' ? (
-          <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-2)' }}>
-            Loading your calendar feed...
-          </p>
+          <p className={hint}>Loading your calendar feed…</p>
         ) : !url ? (
           <>
-            <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-2)' }}>
+            <p className={hint}>
               Subscribe your calendar to a live sun-plan feed that updates as the forecast changes.
             </p>
             <button
-              className="btn"
+              type="button"
+              className={`${small} mt-2`}
               onClick={create}
               disabled={busy !== null}
-              style={{ marginTop: '8px', fontSize: '12px' }}
             >
-              {busy === 'create' ? 'Creating...' : 'Create feed link'}
+              {busy === 'create' ? 'Creating…' : 'Create feed link'}
             </button>
           </>
         ) : (
           <>
-            <label
-              htmlFor="calendar-feed-url"
-              style={{ display: 'block', margin: 0, fontSize: '13px', color: 'var(--text-2)' }}
-            >
-              Add this URL in your calendar app as a subscribed calendar (Google/Apple/Outlook):
+            <label htmlFor="calendar-feed-url" className={`${hint} block`}>
+              Add this URL in your calendar app as a subscribed calendar (Google, Apple or Outlook):
             </label>
             <input
               id="calendar-feed-url"
@@ -148,51 +135,41 @@ function CalendarFeedPanel({ uid }: { uid: string }) {
               readOnly
               value={url}
               onFocus={e => e.currentTarget.select()}
-              style={{
-                marginTop: '8px',
-                width: '100%',
-                boxSizing: 'border-box',
-                fontSize: '12px',
-                padding: '7px 9px',
-                borderRadius: '8px',
-                border: '0.5px solid var(--border-md)',
-                background: 'var(--bg)',
-                color: 'var(--text-2)',
-              }}
+              className="mt-2 box-border w-full rounded-lg border-[0.5px] border-line-strong bg-surface px-[9px] py-[7px] text-[12px] text-ink-2"
             />
-            <div style={{ display: 'flex', gap: '8px', marginTop: '8px', flexWrap: 'wrap' }}>
+            <div className="mt-2 flex flex-wrap gap-2">
               <button
-                className="btn"
+                type="button"
+                className={small}
                 onClick={() => void copy()}
                 disabled={busy !== null}
-                style={{ fontSize: '12px' }}
               >
                 {copied ? '✓ Copied' : 'Copy link'}
               </button>
               <button
-                className="btn"
+                type="button"
+                className={`${small} text-ink-3`}
                 onClick={regenerate}
                 disabled={busy !== null}
-                style={{ fontSize: '12px', color: 'var(--text-3)' }}
               >
-                {busy === 'regenerate' ? 'Regenerating...' : 'Regenerate'}
+                {busy === 'regenerate' ? 'Regenerating…' : 'Regenerate'}
               </button>
               <button
-                className="btn"
+                type="button"
+                className={`${small} text-ink-3`}
                 onClick={revoke}
                 disabled={busy !== null}
-                style={{ fontSize: '12px', color: 'var(--text-3)' }}
               >
-                {busy === 'revoke' ? 'Turning off...' : 'Turn off'}
+                {busy === 'revoke' ? 'Turning off…' : 'Turn off'}
               </button>
             </div>
-            <p style={{ margin: '8px 0 0', fontSize: '11px', color: 'var(--text-3)' }}>
+            <p className="mt-2 text-[11px] text-ink-3">
               Anyone with this link can see your plan - keep it private. Regenerate to revoke it.
             </p>
           </>
         )}
         {message && (
-          <p role="status" style={{ margin: '8px 0 0', fontSize: '12px', color: 'var(--text-2)' }}>
+          <p role="status" className="mt-2 text-[12px] text-ink-2">
             {message}
           </p>
         )}
