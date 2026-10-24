@@ -13,7 +13,7 @@ test('a free account is held to the free plan and offered Pro', async ({ page, e
   await page.getByRole('button', { name: '+ Add Activity' }).click()
   const add = page.getByRole('dialog', { name: 'Add activity' })
   await expect(
-    add.getByText('Free plan: 3 activities. Upgrade to Pro for unlimited.'),
+    add.getByText('Free plan: up to 3 activities. Upgrade to Pro for up to 20.'),
   ).toBeVisible()
   await expect(add.getByRole('button', { name: /^Jogging 30m Locked/ })).toBeDisabled()
   await expect(add.getByRole('button', { name: '+ Create custom activity' })).toBeDisabled()

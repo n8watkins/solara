@@ -30,11 +30,11 @@ export default function AddActivityModal({
       description="Choose a preset or create a custom outdoor activity. You can fine-tune duration and SPF after adding."
       onClose={onClose}
       footer={
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+        <div className="flex justify-end gap-2.5">
           <button
-            className="btn btn-primary"
+            type="button"
+            className="btn btn-primary min-w-[120px] justify-center"
             onClick={onClose}
-            style={{ minWidth: '120px', justifyContent: 'center' }}
           >
             Done
           </button>

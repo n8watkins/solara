@@ -1,209 +1,12 @@
 'use client'
 import { useState, useRef, useEffect } from 'react'
 import type { KeyboardEvent } from 'react'
+import clsx from 'clsx'
+import { EMOJI_GROUPS, searchEmojis } from '@/lib/emoji-catalog'
 import { nearestInAdjacentRow, nextIndex } from '@/lib/roving-focus'
 
-const EMOJI_GROUPS = [
-  {
-    label: '🏃 Active',
-    emojis: [
-      '🏃',
-      '🚴',
-      '🏊',
-      '🏄',
-      '🧘',
-      '🤸',
-      '🏋️',
-      '⛹️',
-      '🤾',
-      '🏇',
-      '🚵',
-      '🤺',
-      '🏌️',
-      '🎿',
-      '🏂',
-      '🛹',
-      '🧗',
-      '🤼',
-      '🏆',
-      '🥇',
-    ],
-  },
-  {
-    label: '⚽ Sports',
-    emojis: [
-      '⚽',
-      '🏀',
-      '🏈',
-      '⚾',
-      '🥎',
-      '🎾',
-      '🏐',
-      '🏉',
-      '🥏',
-      '🏸',
-      '🏒',
-      '🏑',
-      '🥍',
-      '🏓',
-      '🥊',
-      '🎯',
-      '🏹',
-      '🎣',
-      '🤿',
-    ],
-  },
-  {
-    label: '🌿 Nature',
-    emojis: [
-      '🌿',
-      '🌱',
-      '🌲',
-      '🌳',
-      '🌴',
-      '🌵',
-      '🍀',
-      '🌾',
-      '🌻',
-      '🌸',
-      '🌺',
-      '🍁',
-      '🍂',
-      '🍃',
-      '🌊',
-      '🏔️',
-      '🗻',
-      '🏕️',
-      '🌅',
-      '🌄',
-    ],
-  },
-  {
-    label: '☀️ Sun & sky',
-    emojis: [
-      '☀️',
-      '🌤️',
-      '⛅',
-      '🌈',
-      '🌊',
-      '🏖️',
-      '🏝️',
-      '⛰️',
-      '🌋',
-      '🗺️',
-      '🧭',
-      '⛺',
-      '🔥',
-      '💧',
-      '❄️',
-      '🌬️',
-      '🌪️',
-      '🌫️',
-      '🌡️',
-      '⚡',
-    ],
-  },
-  {
-    label: '🐾 Animals',
-    emojis: [
-      '🐕',
-      '🐈',
-      '🐦',
-      '🦅',
-      '🦁',
-      '🐺',
-      '🦊',
-      '🐻',
-      '🐼',
-      '🐨',
-      '🦋',
-      '🐝',
-      '🐛',
-      '🦎',
-      '🐸',
-      '🐬',
-      '🦈',
-      '🐙',
-      '🦀',
-      '🦜',
-    ],
-  },
-  {
-    label: '🥗 Food & drink',
-    emojis: [
-      '🥗',
-      '🍉',
-      '🍓',
-      '🫐',
-      '🍎',
-      '🍊',
-      '🍋',
-      '🌽',
-      '🥕',
-      '🥦',
-      '☕',
-      '🧃',
-      '💧',
-      '🧊',
-      '🫖',
-      '🍵',
-      '🥤',
-      '🍹',
-      '🍦',
-      '🧁',
-    ],
-  },
-  {
-    label: '🎒 Gear',
-    emojis: [
-      '🎒',
-      '👟',
-      '🧢',
-      '🕶️',
-      '🧣',
-      '🧤',
-      '🧦',
-      '👗',
-      '🩱',
-      '🩲',
-      '🩳',
-      '👒',
-      '⛑️',
-      '🌂',
-      '☂️',
-      '🔦',
-      '🧴',
-      '💊',
-      '🩺',
-      '🏷️',
-    ],
-  },
-  {
-    label: '✨ Other',
-    emojis: [
-      '✨',
-      '⭐',
-      '🌟',
-      '💫',
-      '🔥',
-      '💥',
-      '🎉',
-      '🎊',
-      '🎈',
-      '🎁',
-      '💪',
-      '🙌',
-      '👋',
-      '✌️',
-      '🤙',
-      '👏',
-      '🙏',
-      '💚',
-      '🧡',
-      '❤️',
-    ],
-  },
-]
+/** Eight equal columns that fill the picker's width. */
+const GRID = 'grid grid-cols-8 gap-0.5'
 
 interface Props {
   id?: string
@@ -251,9 +54,8 @@ export default function EmojiPicker({ id, value, onChange, onClose }: Props) {
     closeAndReturnFocus()
   }
 
-  const all = EMOJI_GROUPS.flatMap(g => g.emojis)
-  const filtered = search ? all.filter(e => e.includes(search)) : null
-  const visible = filtered ?? all
+  const filtered = search.trim() ? searchEmojis(search) : null
+  const visible = filtered ?? EMOJI_GROUPS.flatMap(g => g.emojis.map(([e]) => e))
   // Roving tab stop: the selected emoji if it is shown, else the first one.
   const tabStop = visible.includes(value) ? visible.indexOf(value) : 0
   let index = 0
@@ -313,23 +115,9 @@ export default function EmojiPicker({ id, value, onChange, onClose }: Props) {
         const next = event.relatedTarget as Node | null
         if (!ref.current?.contains(next) && !opener?.contains(next)) onClose()
       }}
-      style={{
-        position: 'absolute',
-        top: '110%',
-        left: 0,
-        zIndex: 100,
-        background: 'var(--bg-card)',
-        border: '0.5px solid var(--border-md)',
-        borderRadius: '14px',
-        width: '280px',
-        maxHeight: '300px',
-        overflow: 'hidden',
-        display: 'flex',
-        flexDirection: 'column',
-        boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
-      }}
+      className="absolute top-[110%] left-0 z-[100] flex max-h-[300px] w-[296px] flex-col overflow-hidden rounded-[14px] border-[0.5px] border-line-strong bg-surface-card shadow-[0_8px_24px_rgba(0,0,0,0.15)]"
     >
-      <div style={{ padding: '8px 10px', borderBottom: '0.5px solid var(--border-md)' }}>
+      <div className="border-b-[0.5px] border-line-strong px-2.5 py-2">
         <input
           autoFocus
           type="search"
@@ -337,42 +125,32 @@ export default function EmojiPicker({ id, value, onChange, onClose }: Props) {
           placeholder="Search emojis..."
           value={search}
           onChange={e => setSearch(e.target.value)}
-          style={{ width: '100%', boxSizing: 'border-box', fontSize: '13px', padding: '6px 10px' }}
+          className="w-full px-2.5 py-1.5 text-[13px]"
         />
       </div>
       <div
         ref={gridRef}
         onKeyDown={handleGridKeyDown}
-        style={{ overflowY: 'auto', flex: 1, padding: '8px 10px' }}
+        className="flex-1 overflow-y-auto px-2.5 py-2"
       >
+        {/* Always mounted, so screen readers announce when a search finds nothing. */}
+        <div role="status" className="contents">
+          {filtered?.length === 0 && (
+            <p className="py-1 text-[13px] text-ink-3">{`No icons match "${search.trim()}".`}</p>
+          )}
+        </div>
         {filtered ? (
-          <div
-            role="group"
-            aria-label="Search results"
-            style={{ display: 'flex', flexWrap: 'wrap', gap: '2px' }}
-          >
+          <div role="group" aria-label="Search results" className={GRID}>
             {filtered.map((e, i) => renderButton(e, `search-${i}`))}
           </div>
         ) : (
           EMOJI_GROUPS.map(g => (
-            <div key={g.label} style={{ marginBottom: '10px' }}>
-              <p
-                aria-hidden="true"
-                style={{
-                  margin: '0 0 4px',
-                  fontSize: '11px',
-                  color: 'var(--text-3)',
-                  fontWeight: 500,
-                }}
-              >
-                {g.label}
+            <div key={g.name} className="mb-2.5">
+              <p aria-hidden="true" className="mb-1 text-[11px] font-medium text-ink-3">
+                {g.icon} {g.name}
               </p>
-              <div
-                role="group"
-                aria-label={g.label.replace(/^\S+\s/, '')}
-                style={{ display: 'flex', flexWrap: 'wrap', gap: '2px' }}
-              >
-                {g.emojis.map((e, i) => renderButton(e, `${g.label}-${i}`))}
+              <div role="group" aria-label={g.name} className={GRID}>
+                {g.emojis.map(([e], i) => renderButton(e, `${g.name}-${i}`))}
               </div>
             </div>
           ))
@@ -399,23 +177,10 @@ function EmojiBtn({
       onClick={onClick}
       aria-pressed={selected}
       tabIndex={tabIndex}
-      style={{
-        width: '32px',
-        height: '32px',
-        fontSize: '18px',
-        borderRadius: '6px',
-        cursor: 'pointer',
-        border: selected ? '1.5px solid var(--accent)' : 'none',
-        background: selected ? 'var(--accent-soft)' : 'transparent',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        transition: 'background 0.1s',
-      }}
-      onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-metric)')}
-      onMouseLeave={e =>
-        (e.currentTarget.style.background = selected ? 'var(--accent-soft)' : 'transparent')
-      }
+      className={clsx(
+        'flex h-8 items-center justify-center rounded-md text-[18px] transition-colors duration-100 hover:bg-surface-metric',
+        selected && 'border-[1.5px] border-accent bg-accent-soft',
+      )}
     >
       {e}
     </button>
