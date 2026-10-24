@@ -9,6 +9,43 @@ How deploys and configuration work is in [DEPLOYMENT.md](DEPLOYMENT.md).
 Never paste a secret into an issue, pull request, repository file or chat message.
 When an item is done, tell the repository agent which section changed, without the secret values; the agent can then redeploy, inspect logs and run the automated checks.
 
+## Next steps, in order (as of 2026-10-23)
+
+Each step says what to send the repository agent.
+Everything sent here is a public identifier, not a secret.
+
+### Now: free, no Blaze
+
+1. **Turn on Google Calendar for the Scheduled feature (about 10 minutes).**
+   1. Enable the Google Calendar API: https://console.cloud.google.com/apis/library/calendar-json.googleapis.com?project=uv-activity-planner (click **Enable**; "Manage" means it is already on).
+   2. Open https://console.cloud.google.com/auth/clients?project=uv-activity-planner and open the **Web application** client (or **Create client**, type **Web application**, name "Solara web").
+   3. Under **Authorized JavaScript origins**, make sure `https://solara-uv.web.app` is listed; save.
+   4. Send the agent the **Client ID** (it ends in apps.googleusercontent.com).
+2. **Check the OAuth scopes (2 minutes).** At https://console.cloud.google.com/auth/scopes?project=uv-activity-planner the list should be exactly `openid`, `userinfo.email`, `userinfo.profile`, `calendar.freebusy`, `calendar.events.owned`. Send a screenshot.
+3. **Add the second authorized domain (1 minute).** At https://console.cloud.google.com/auth/branding?project=uv-activity-planner add `uv-activity-planner.firebaseapp.com` next to `solara-uv.web.app` under **Authorized domains**; save.
+4. **Resubmit branding (2 minutes, at least 24 hours after Search Console verification).** Confirm https://solara-uv.web.app/privacy/ shows the operator and the "How Solara uses Google user data" section, then on the Branding page choose **View issues**, **I have fixed the issues**, **Proceed**.
+5. **Publish sign-in (1 minute).** At https://console.cloud.google.com/auth/audience?project=uv-activity-planner, if the status is **Testing**, click **Publish app** and confirm. Send a screenshot of the result.
+6. **Request calendar scope verification (15 minutes, after step 4 passes).** In Google Auth Platform, **Verification Center**, start verification for `calendar.freebusy` and `calendar.events.owned` using the justification text in [Google sign-in and Calendar](#google-sign-in-and-calendar). The agent can script a short demo video.
+7. **Create a reCAPTCHA v3 key for App Check (about 10 minutes).**
+   1. Open https://console.firebase.google.com/project/uv-activity-planner/appcheck and choose the web app.
+   2. Choose **reCAPTCHA** (v3), follow the link to create a key for the domain `solara-uv.web.app` (also add `localhost` for testing), and paste the secret into Firebase only.
+   3. Send the agent the **site key** (public). Do not click **Enforce** yet; the agent will monitor traffic first and tell you when.
+8. **Create a Sentry project (about 5 minutes).** Sign up at https://sentry.io (free Developer plan), create a project of type **Next.js** named `solara-web`, and send the agent the **DSN** (public).
+9. **Confirm the price and tiers.** Pro at $2.99 per month or $19.99 per year with a 7-day trial, and the guest, free and Pro tiers in [ROADMAP.md](ROADMAP.md#tiers-proposed-owner-to-confirm). Reply "confirmed" or give changes.
+10. **Keyless deploys, then delete the old key (about 15 minutes with the agent).** Follow [WIF_SETUP.md](WIF_SETUP.md) together, then delete the `FIREBASE_SERVICE_ACCOUNT` key (D4).
+11. **Move public build values to GitHub variables (about 5 minutes).** The agent will provide exact `gh variable set` commands; you fill in the values.
+
+### At Pro launch: Blaze
+
+12. Upgrade the Firebase project to **Blaze** and create a **$5 per month budget alert** in Google Cloud Billing.
+13. Create a staging Firebase project and a Stripe account in **test mode** (D9); the agent guides both.
+14. Buy the Open-Meteo **Standard** commercial plan (about $29 per month) once the first subscription is live (D5).
+15. Run the release checks in [Release verification](#release-verification).
+
+### Later: mobile app (Wave 6)
+
+16. Create an Apple Developer account ($99 per year) and a Google Play developer account ($25 once).
+
 ## Repository
 
 - [ ] Turn on Dependabot alerts and Dependabot security updates (Settings, Code security).

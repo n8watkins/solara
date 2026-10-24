@@ -15,6 +15,7 @@ Conditions and individual sensitivity can change quickly.
 | [docs/status.md](docs/status.md) | What is live today, what is not, the CI/CD shape, and which owner actions are done or open |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Open work in waves of parallel lanes, the owner decisions they need, and feature candidates |
 | [docs/OWNER_CHECKLIST.md](docs/OWNER_CHECKLIST.md) | Steps only the owner can do, and the manual checks for a release |
+| [docs/COSTS.md](docs/COSTS.md) | Running-cost estimates by user count, free-tier limits and forecast provider options |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Environment variables, GitHub configuration, how a deploy runs, and Functions, App Check, feed, notification and Calendar setup |
 | [docs/WIF_SETUP.md](docs/WIF_SETUP.md) | Replacing the deploy key with Workload Identity Federation, and moving public values to variables |
 | [docs/DEPENDENCY_RISK.md](docs/DEPENDENCY_RISK.md) | Accepted development-dependency advisories and the audit policy |
