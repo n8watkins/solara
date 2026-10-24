@@ -26,11 +26,32 @@ Everything sent here is a public identifier, not a secret.
 4. **Resubmit branding (2 minutes, at least 24 hours after Search Console verification).** Confirm https://solara-uv.web.app/privacy/ shows the operator and the "How Solara uses Google user data" section, then on the Branding page choose **View issues**, **I have fixed the issues**, **Proceed**.
 5. **Publish sign-in (1 minute).** At https://console.cloud.google.com/auth/audience?project=uv-activity-planner, if the status is **Testing**, click **Publish app** and confirm. Send a screenshot of the result.
 6. **Request calendar scope verification (15 minutes, after step 4 passes).** In Google Auth Platform, **Verification Center**, start verification for `calendar.freebusy` and `calendar.events.owned` using the justification text in [Google sign-in and Calendar](#google-sign-in-and-calendar). The agent can script a short demo video.
-7. **Create a reCAPTCHA v3 key for App Check (about 10 minutes).**
-   1. Open https://console.firebase.google.com/project/uv-activity-planner/appcheck and choose the web app.
-   2. Choose **reCAPTCHA** (v3), follow the link to create a key for the domain `solara-uv.web.app` (also add `localhost` for testing), and paste the secret into Firebase only.
-   3. Send the agent the **site key** (public). Do not click **Enforce** yet; the agent will monitor traffic first and tell you when.
-8. **Create a Sentry project (about 5 minutes).** Sign up at https://sentry.io (free Developer plan), create a project of type **Next.js** named `solara-web`, and send the agent the **DSN** (public).
+7. **Turn on App Check with reCAPTCHA v3 (about 15 minutes, then a week of watching).**
+   Cost: free up to 10,000 reCAPTCHA assessments a month, then a flat $8 up to 100,000 ([COSTS.md](COSTS.md)).
+   App Check starts only after sign-in and its token lasts an hour, so assessments are roughly signed-in session-hours: about 3,000 a month at 100 daily users, about 30,000 ($8) at 1,000.
+   1. Create the key at https://www.google.com/recaptcha/admin/create while signed in as the owner: label `Solara web`, type **Score based (v3)**, domain `solara-uv.web.app` (only that one; local development uses App Check debug tokens instead of `localhost`), Google Cloud project `uv-activity-planner`. Submit, then copy the **site key** and the **secret key**.
+   2. Register it with Firebase at https://console.firebase.google.com/project/uv-activity-planner/appcheck, **Apps** tab: open the web app, choose **reCAPTCHA**, paste the **secret key** (it goes only here), keep the token time to live at **1 hour**, and **Save**.
+   3. Set the public **site key** as a repository variable, or send it to the agent: `gh variable set NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY --repo n8watkins/solara --body "<site key>"`.
+      Leave `NEXT_PUBLIC_FIREBASE_APP_CHECK_PROVIDER` unset; v3 is the default.
+      The next deploy turns App Check on for signed-in users.
+   4. Monitor before enforcing: in App Check, **APIs** tab, open **Cloud Firestore** and watch the request metrics for at least 7 days.
+      Verified requests should be nearly all signed-in traffic; "Unverified: outdated client" should fall toward zero as old tabs and installed copies update.
+   5. Do not click **Enforce** until the agent has checked the metrics with you.
+      Then enforce **Cloud Firestore** only.
+      Never enforce **Authentication**: App Check starts after sign-in, so enforcing it there would block sign-in itself.
+      Cloud Functions enforce App Check in their code already.
+8. **Create a Sentry project (about 10 minutes).**
+   Sentry's free Developer plan covers 5,000 errors a month and keeps events for 30 days.
+   1. Sign up at https://sentry.io/signup/ and choose the **United States** data storage location (the privacy policy says providers process data in the United States).
+   2. Create a project: platform **Next.js**, name `solara-web`, alert on every new issue.
+   3. In the project's **Settings**, **Security & Privacy**: keep **Data Scrubber** and **Use Default Scrubbers** on, turn on **Prevent Storing of IP Addresses**, and set **Allowed Domains** to `solara-uv.web.app`, so events from anywhere else are dropped.
+   4. In **Settings**, **Client Keys (DSN)**, copy the **DSN** (public) and set it as a repository variable, or send it to the agent: `gh variable set NEXT_PUBLIC_SENTRY_DSN --repo n8watkins/solara --body "<DSN>"`.
+      The next deploy turns error reporting on.
+   5. For readable stack traces, create an organization token in **Settings**, **Developer Settings**, **Organization Tokens** (name `solara-deploy`), then:
+      `gh secret set SENTRY_AUTH_TOKEN --repo n8watkins/solara` (paste the token when asked; it is a secret),
+      `gh variable set SENTRY_ORG --repo n8watkins/solara --body "<organization slug>"` and
+      `gh variable set SENTRY_PROJECT --repo n8watkins/solara --body solara-web`.
+      With all four set, each deploy uploads source maps to Sentry and removes them from the published site.
 9. **Confirm the price and tiers.** Pro at $2.99 per month or $19.99 per year with a 7-day trial, and the guest, free and Pro tiers in [ROADMAP.md](ROADMAP.md#tiers-proposed-owner-to-confirm). Reply "confirmed" or give changes.
 10. **Keyless deploys, then delete the old key (about 15 minutes with the agent).** Follow [WIF_SETUP.md](WIF_SETUP.md) together, then delete the `FIREBASE_SERVICE_ACCOUNT` key (D4).
 11. **Move public build values to GitHub variables (about 5 minutes).** The agent will provide exact `gh variable set` commands; you fill in the values.
@@ -84,13 +105,21 @@ The sign-in domain `solara-uv.web.app` is an authorized Firebase Auth domain, an
 
 ## App Check
 
-The code supports reCAPTCHA Enterprise and reCAPTCHA v3; `NEXT_PUBLIC_FIREBASE_APP_CHECK_PROVIDER` selects one, and v3 is the default.
-Functions require App Check in code, so a site key is needed before any Function-backed surface is turned on.
+Decision D11 is reCAPTCHA v3; the steps are [step 7](#now-free-no-blaze) above, and how it works is in [App Check](DEPLOYMENT.md#app-check).
+The code also supports reCAPTCHA Enterprise through `NEXT_PUBLIC_FIREBASE_APP_CHECK_PROVIDER=recaptcha-enterprise`, if that is ever needed.
+Functions require App Check in code, so the site key is needed before any Function-backed surface is turned on.
 
-- [ ] Decide D11: a new reCAPTCHA Enterprise key (recommended) or a v3 key.
-- [ ] Register the production web app with that provider under App Check in the Firebase console.
-- [ ] Store the site key as the `NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY` variable, and for Enterprise set `NEXT_PUBLIC_FIREBASE_APP_CHECK_PROVIDER=recaptcha-enterprise`.
-- [ ] Choose when to enforce App Check for Firestore, after the metrics show legitimate traffic is verified ([App Check](DEPLOYMENT.md#app-check)).
+- [ ] Create the reCAPTCHA v3 key and register it for the web app under App Check in the Firebase console.
+- [ ] Store the site key as the `NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY` variable.
+- [ ] Enforce App Check for Cloud Firestore only after the metrics show legitimate traffic is verified.
+
+## Error reporting
+
+Decision D10 is Sentry; the steps are [step 8](#now-free-no-blaze) above, and how it works is in [Error reporting](DEPLOYMENT.md#error-reporting-sentry).
+
+- [ ] Create the Sentry project, with IP storage off and allowed domains set, and store its DSN as the `NEXT_PUBLIC_SENTRY_DSN` variable.
+- [ ] Optionally add `SENTRY_AUTH_TOKEN` (secret), `SENTRY_ORG` and `SENTRY_PROJECT` (variables) for source maps.
+- [ ] After the first deploy with the DSN, confirm with the agent that a test error arrives with no personal data in it.
 
 ## Functions and Stripe
 

@@ -55,6 +55,8 @@ Optional feature activation:
 - `NEXT_PUBLIC_PRO_PRICE` controls the displayed Pro price.
 - `NEXT_PUBLIC_FUNCTIONS_URL` enables Function-backed product surfaces.
 - `NEXT_PUBLIC_GA_MEASUREMENT_ID` offers an explicit analytics choice and loads GA4 only after the visitor opts in.
+- `NEXT_PUBLIC_SENTRY_DSN` turns on error reporting to Sentry ([Error reporting](#error-reporting-sentry)); without it the build contains no Sentry code.
+  The deploy also sets `NEXT_PUBLIC_SENTRY_RELEASE` to the commit SHA.
 
 All `NEXT_PUBLIC_*` variables are public and compiled into the browser bundle.
 Never put a Stripe secret, Firebase service-account JSON, webhook secret, or OAuth client secret in a `NEXT_PUBLIC_*` variable.
@@ -64,6 +66,7 @@ Never put a Stripe secret, Firebase service-account JSON, webhook secret, or OAu
 The build reads every `NEXT_PUBLIC_*` value from a repository variable first and falls back to a repository secret of the same name.
 These values are public, so they belong in variables; [WIF_SETUP.md](WIF_SETUP.md#move-public-build-values-from-secrets-to-variables) shows how to move them.
 `.github/scripts/check-public-env.mjs` fails the build when a required value is missing, points at another project, is not https where a URL is expected, looks like a real secret, or did not make it into `out/`.
+After the build it also fails when `out/` contains a source map, or Sentry code although `NEXT_PUBLIC_SENTRY_DSN` is empty.
 
 Repository variables:
 
@@ -71,12 +74,15 @@ Repository variables:
 - `STRIPE_PRICE_ID`: the Stripe Pro price, written into `functions/.env.<project-id>` by the Functions deploy job, which fails without it.
 - `GCP_WORKLOAD_IDENTITY_PROVIDER`, `GCP_DEPLOY_SERVICE_ACCOUNT` and `GCP_NOTIFIER_SERVICE_ACCOUNT`: Workload Identity Federation ([WIF_SETUP.md](WIF_SETUP.md)).
 - `FIREBASE_PROJECT_ID` (optional): the deploy target, `uv-activity-planner` by default.
+- `NEXT_PUBLIC_SENTRY_DSN` (optional): the Sentry public DSN; read from variables only.
+- `SENTRY_ORG` and `SENTRY_PROJECT` (optional): the Sentry organization and project slugs for the source map upload.
 
 Repository secrets:
 
 - `FIREBASE_SERVICE_ACCOUNT`: a service-account JSON key, used only while the WIF variables are unset.
   `.github/actions/firebase-cli` logs a warning whenever it falls back to the key.
   The key's identity needs `roles/datastore.indexAdmin` for the Firestore indexes job.
+- `SENTRY_AUTH_TOKEN` (optional): a Sentry organization auth token, passed only to the deploy step that uploads source maps.
 
 Server configuration for Functions:
 
@@ -90,7 +96,7 @@ Server configuration for Functions:
 2. Add the production and preview domains to Authentication Authorized domains.
 3. Create Firestore and deploy the repository rules.
 4. Enable Cloud Messaging and generate a Web Push VAPID key.
-5. Register the web app for App Check with reCAPTCHA Enterprise (preferred) or reCAPTCHA v3, set the site key and matching `NEXT_PUBLIC_FIREBASE_APP_CHECK_PROVIDER`, monitor enforcement metrics, and then enforce supported Firebase products (see [App Check](#app-check)).
+5. Register the web app for App Check with reCAPTCHA v3 (decision D11), set the site key, monitor the metrics, and then enforce Firestore (see [App Check](#app-check)).
 6. Enable Hosting.
 7. Upgrade to Blaze only when Functions are ready to deploy.
 8. Set a billing budget alert before the first Functions deployment.
@@ -106,7 +112,7 @@ npx firebase-tools use <project-id>
 Every push to `main` runs `.github/workflows/deploy.yml`:
 
 1. The reusable quality workflow (`.github/workflows/quality.yml`) runs the README's [quality checks](../README.md#quality-checks) plus workflow and secret scanning.
-2. One job builds the static export with the checked public configuration, smoke-tests that `out/` on the Hosting emulator, and packages it with its SHA-256 digest, CycloneDX SBOMs and a provenance record.
+2. One job builds the static export with the checked public configuration, uploads its source maps to Sentry and deletes them when that is configured, smoke-tests that `out/` on the Hosting emulator, and packages it with its SHA-256 digest, CycloneDX SBOMs and a provenance record.
 3. Firestore rules and Firestore indexes deploy as separate jobs, so an index failure is visible on its own and does not hide whether Hosting published.
 4. When `ENABLE_BLAZE_FUNCTIONS` is `true`, the Functions job writes the project's `STRIPE_PRICE_ID`, builds `@solara/core` and the Functions, re-runs the params and payload checks, and deploys after rules and indexes.
 5. Hosting verifies the digest and deploys exactly the tested artifact, after rules and, when they deploy, Functions.
@@ -147,7 +153,8 @@ Re-run the generator through either command after changing Firebase client confi
 `npm run build` ends with `scripts/csp.mjs`, which writes a `<meta http-equiv="Content-Security-Policy">` tag into every HTML file in `out/`.
 Each page's policy lists the SHA-256 hash of every inline script on that page, so scripts never need `'unsafe-inline'`.
 The policy itself is defined in `lib/csp.mts`; add a host there, with a comment saying what needs it, when a new third-party service is introduced, and list the service in the privacy policy.
-The Functions origin and Firebase auth domain come from `NEXT_PUBLIC_FUNCTIONS_URL` and `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` at build time, so deploy the `out/` directory produced by the same build.
+The Functions origin, Firebase auth domain and Sentry ingest host come from `NEXT_PUBLIC_FUNCTIONS_URL`, `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` and `NEXT_PUBLIC_SENTRY_DSN` at build time, so deploy the `out/` directory produced by the same build.
+Without a DSN the policy names no Sentry host.
 `firebase.json` adds the directives a meta tag cannot carry (`frame-ancestors`) as a header.
 Only an emulator build for the signed-in e2e suite (`NEXT_PUBLIC_FIREBASE_EMULATORS=1`) also frames `'self'`, where the Auth emulator serves its sign-in helper; production builds refuse that flag (`scripts/check-no-emulators.mjs`).
 Because the meta policy cannot send reports, violations show only in the browser console; check the console on the deployed site after a release.
@@ -215,16 +222,44 @@ Run the Stripe checks in the [owner checklist](OWNER_CHECKLIST.md#functions-and-
 
 ## App Check
 
+Solara uses App Check with reCAPTCHA v3 (decision D11), which is free up to 10,000 assessments a month ([COSTS.md](COSTS.md)).
+Setting the `NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY` variable is the only code-side step; `NEXT_PUBLIC_FIREBASE_APP_CHECK_PROVIDER` stays unset for v3.
+App Check, and with it reCAPTCHA, starts only after someone signs in, so signed-out visitors never load reCAPTCHA, and assessments track signed-in session-hours rather than page views.
+The CSP allows exactly what reCAPTCHA v3 uses: scripts from `www.google.com/recaptcha/` and `www.gstatic.com/recaptcha/`, its invisible frame from `www.google.com/recaptcha/` (and Google's fallback `recaptcha.google.com/recaptcha/`), and its client reports to `www.google.com/recaptcha/`.
+
+The integrations browser suite (`npm run test:e2e:integrations`) builds the production export with a fake site key and checks all of this: signed-out pages make no reCAPTCHA or App Check request, restoring a session loads reCAPTCHA after Auth, the reCAPTCHA token is exchanged for an App Check token, Firestore sends that token from its first request, and nothing violates the CSP.
+
 The Functions enforce App Check in code, so they reject requests without a valid token as soon as they are deployed; the site key must be configured before Function-backed surfaces are enabled.
 Firestore enforcement is a separate console switch.
 To turn it on:
 
-1. Create a reCAPTCHA Enterprise key for the production domains (or reuse the existing v3 key) and register it for the web app under App Check in the Firebase console.
-2. Set `NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY` and, for Enterprise, `NEXT_PUBLIC_FIREBASE_APP_CHECK_PROVIDER=recaptcha-enterprise` for the production build.
-3. Deploy, then watch the App Check metrics for Firestore until verified requests dominate.
+1. Create a reCAPTCHA v3 key for `solara-uv.web.app` and register it for the web app under App Check in the Firebase console (steps in the [owner checklist](OWNER_CHECKLIST.md#next-steps-in-order-as-of-2026-10-23), step 7).
+2. Set the `NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY` repository variable to the site key and deploy.
+3. Watch the App Check metrics for Cloud Firestore until verified requests dominate and unverified ones are only old clients and bots.
 4. Enforce App Check for Cloud Firestore in the console.
 
 Because App Check starts after sign-in, enforcing Firestore never affects signed-out visitors, who make no Firestore requests.
+For local development against a real project, use an App Check debug token (`NEXT_PUBLIC_FIREBASE_APP_CHECK_DEBUG_TOKEN`, registered under **Manage debug tokens**) instead of adding `localhost` to the production key.
+
+## Error reporting (Sentry)
+
+Solara reports website errors to Sentry (decision D10) once the `NEXT_PUBLIC_SENTRY_DSN` repository variable holds a Sentry public DSN.
+Until then the build contains no Sentry code and makes no request to Sentry; `check-public-env.mjs --built` and the e2e suite verify both.
+
+How it works:
+
+- `instrumentation-client.ts` starts `lib/error-reporting.ts`, which loads the `@sentry/nextjs` browser SDK as its own chunk once the page is idle, and keeps up to ten errors from before that.
+- The SDK reports uncaught errors and unhandled promise rejections; `components/ErrorBoundary.tsx` and `app/global-error.tsx` report the errors they catch.
+- `lib/sentry-scrub.ts` scrubs every event and breadcrumb before it leaves the browser: email addresses, Firebase uids, ID and App Check tokens and other long tokens, coordinates, and every URL query string and fragment, with the same rules the Functions use for their logs.
+- `lib/sentry-options.ts` collects no user fields or IP address, no cookies, no headers except the user agent, no request bodies and no local variables.
+  There is no session replay, no performance tracing (`tracesSampleRate` is 0: tracing would send page timings and URLs from a share of all page loads, which Solara does not need and which would use the free quota) and no per-page-load session tracking, so a request is made only when an error happens.
+- Error reporting relies on legitimate interest (keeping the service working), so it does not wait for the analytics choice; the privacy policy says so and lists Sentry with what it receives and how long it is kept.
+- The CSP allows the DSN's ingest host in `connect-src` only; the SDK itself is served from Solara's origin.
+
+Source maps are uploaded only when the deploy can send them to Sentry: the DSN variable, the `SENTRY_ORG` and `SENTRY_PROJECT` variables and the `SENTRY_AUTH_TOKEN` secret.
+Then the deploy builds with `BROWSER_SOURCE_MAPS=1`, runs `sentry-cli sourcemaps inject` and `sourcemaps upload` for the commit's release, and deletes every source map file and `sourceMappingURL` comment (`.github/scripts/remove-source-maps.mjs`) before the artifact is checked, smoke-tested and packaged.
+The published site never serves a source map; a `@smoke` test checks the deployed artifact for that.
+Use an organization auth token (Sentry **Settings**, **Developer Settings**, **Organization Tokens**): it carries only the `org:ci` scope, which covers releases and source map uploads.
 
 ## Calendar feed tokens
 

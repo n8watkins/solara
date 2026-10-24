@@ -35,16 +35,22 @@ What users get:
   `.github/workflows/notify.yml` has no schedule and can only be started by hand, device registration needs the undeployed Functions, and the app no longer advertises alerts (#24).
   Relaunch is Wave 3, W3-B.
 - **Google Calendar** connect and booking are hidden: `NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID` is not set as a repository secret or variable, and no OAuth client ID is in the live bundle.
-- **App Check** is not active: no `NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY` is configured, and console enforcement is decision D11.
+- **App Check** is not active: no `NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY` is configured.
+  The code is ready for reCAPTCHA v3 (D11): setting the variable turns it on for signed-in users only, and the integrations browser suite (`npm run test:e2e:integrations`) proves with a fake site key that signed-out pages make no reCAPTCHA request, that signing in loads reCAPTCHA and exchanges its token, that Firestore sends the App Check token, and that the CSP allows exactly what reCAPTCHA v3 uses.
+  The key, the Firebase registration and Firestore enforcement are owner steps ([checklist step 7](OWNER_CHECKLIST.md#now-free-no-blaze)).
+- **Error reporting** (Sentry, D10) is built but off: no `NEXT_PUBLIC_SENTRY_DSN` variable is set, so the bundle contains no Sentry code and makes no Sentry request, which the deploy's export check and the e2e suite verify.
+  With a DSN, errors are reported with emails, uids, tokens, coordinates and query strings scrubbed in the browser, and the deploy uploads source maps (when `SENTRY_AUTH_TOKEN`, `SENTRY_ORG` and `SENTRY_PROJECT` are set) and never publishes them.
+  The Sentry project and DSN are owner steps ([checklist step 8](OWNER_CHECKLIST.md#now-free-no-blaze)).
 - **Scheduled activities** (Google Calendar events that Solara created, shown as Scheduled in the calendar, on the activity cards and in a Scheduled list) are built and covered by the signed-in e2e suite with a faked Google Calendar.
   Like booking, they stay hidden in production until `NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID` is set.
 
 ## CI/CD
 
 - **Pull requests** run `.github/workflows/ci.yml`, which calls the reusable `.github/workflows/quality.yml` once per commit (older runs are cancelled).
-  Its jobs: lint, typecheck, unit tests and the production audit; browser tests on the static export served by the Hosting emulator; signed-in browser tests on the Firebase emulators; the signed-in UI harness with screenshots and an axe report; Functions typecheck, tests, deploy params and payload checks, and Firestore rules tests; actionlint, zizmor, gitleaks and the docs link check.
+  Its jobs: lint, typecheck, unit tests and the production audit; browser tests on the static export served by the Hosting emulator; browser tests of a production build with a fake Sentry DSN and reCAPTCHA site key; signed-in browser tests on the Firebase emulators; the signed-in UI harness with screenshots and an axe report; Functions typecheck, tests, deploy params and payload checks, and Firestore rules tests; actionlint, zizmor, gitleaks and the docs link check.
   Dependency review runs only once the repository is public.
 - **Pushes to `main`** run `.github/workflows/deploy.yml`: the same quality workflow, then one production build that is checked, smoke-tested on the Hosting emulator and packaged with its SHA-256, SBOMs and a provenance record.
+  When Sentry source map upload is configured, the build uploads its source maps and deletes them before the checks and packaging.
   Separate jobs then deploy Firestore rules, Firestore indexes, Functions (only when `ENABLE_BLAZE_FUNCTIONS` is `true`) and Hosting, which receives exactly the tested artifact.
   Artifact attestation runs only when the repository is public.
   Every deploy since run 40013061416 (commit `2d1ae1e`) has been green.
@@ -81,13 +87,14 @@ Decision numbers (D1-D12) come from the October 2026 assessment; the decisions s
 | Turn on Dependabot alerts and security updates | [OWNER_CHECKLIST.md](OWNER_CHECKLIST.md#repository) |
 | Google OAuth consent screen publishing and scope verification, and the Calendar OAuth client ID | [OWNER_CHECKLIST.md](OWNER_CHECKLIST.md#google-sign-in-and-calendar) |
 | D2 repository visibility (going public is planned) and the settings that come with it | [OWNER_CHECKLIST.md](OWNER_CHECKLIST.md#repository) |
-| D5 forecast provider licensing, D6 notifications relaunch, D7 guest mode, D9 staging and Stripe test mode, D10 error reporting | [ROADMAP.md](ROADMAP.md#owner-decisions) |
-| D11 App Check key and enforcement | [OWNER_CHECKLIST.md](OWNER_CHECKLIST.md#app-check) |
+| D5 forecast provider licensing, D6 notifications relaunch, D7 guest mode, D9 staging and Stripe test mode | [ROADMAP.md](ROADMAP.md#owner-decisions) |
+| D10 Sentry project and DSN (code ready) | [OWNER_CHECKLIST.md](OWNER_CHECKLIST.md#error-reporting) |
+| D11 reCAPTCHA v3 key, App Check registration and Firestore enforcement (code ready) | [OWNER_CHECKLIST.md](OWNER_CHECKLIST.md#app-check) |
 | Blaze plan, budget alert and Stripe setup before Functions | [OWNER_CHECKLIST.md](OWNER_CHECKLIST.md#functions-and-stripe) |
 | Counsel review of the governing-law language | [OWNER_CHECKLIST.md](OWNER_CHECKLIST.md#legal) |
 | D12 local branch and worktree cleanup (8 worktrees remain under `projects/polish/`) | Owner's machine |
 
 ## Known test boundary
 
-The signed-in e2e suite runs the real app, rules and Functions against the Firebase emulators, but CI cannot prove Google OAuth consent, App Check with real reCAPTCHA tokens, FCM, APNs or Android notification presentation, Stripe signatures, or third-party calendar refresh timing.
+The signed-in e2e suite runs the real app, rules and Functions against the Firebase emulators, but CI cannot prove Google OAuth consent, App Check with real reCAPTCHA tokens (the integrations suite uses a fake reCAPTCHA script and token exchange), delivery to a real Sentry project, FCM, APNs or Android notification presentation, Stripe signatures, or third-party calendar refresh timing.
 Those checks stay explicit steps in the [owner checklist](OWNER_CHECKLIST.md#release-verification) rather than silent assumptions.
