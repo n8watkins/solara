@@ -7,6 +7,7 @@ import { useScheduled } from '@/lib/scheduled-context'
 import { useUnits } from '@/lib/use-units'
 import type { Activity, SafeActivityWindow } from '@/lib/types'
 import BottomSheet, { SheetActions, SheetClose, sheetAction } from './BottomSheet'
+import ChangeTimePanel, { sheetPanel } from './scheduled/ChangeTimePanel'
 import ScheduledPill from './scheduled/ScheduledPill'
 import ScheduledTile from './scheduled/ScheduledTile'
 
@@ -31,7 +32,6 @@ interface Props {
 type Mode = 'view' | 'change' | 'remove'
 
 const bodyText = 'text-[13px] leading-[1.5] text-ink-2'
-const panel = 'mt-3.5 rounded-xl border-[0.5px] border-line-strong bg-surface-subtle p-3'
 
 function problem(error: unknown): string {
   return error instanceof CalendarAuthError
@@ -176,58 +176,22 @@ export default function ScheduledSheet({
       )}
 
       {mode === 'change' && (
-        <div className={panel}>
-          {options.length > 0 ? (
-            <>
-              <label
-                className="mt-0 mb-1.5 block text-[12px] font-semibold text-ink-2"
-                htmlFor={`${titleId}-start`}
-              >
-                New start time, within {dayLabel === 'Today' ? "today's" : "the day's"} lower-UV
-                windows
-              </label>
-              <select
-                id={`${titleId}-start`}
-                className="w-full px-2.5 py-2 text-[14px]"
-                value={picked ?? ''}
-                disabled={busy}
-                onChange={e => setChoice(Number(e.target.value))}
-              >
-                {options.map(h => (
-                  <option key={h} value={h}>
-                    {fmt.time(h)} – {fmt.time(h + hours)}
-                  </option>
-                ))}
-              </select>
-            </>
-          ) : (
-            <p className="m-0 text-[12px] leading-[1.45] text-ink-3">
-              No other lower-UV start time is left on this day for this activity.
-            </p>
-          )}
-          <SheetActions>
-            <button
-              type="button"
-              className={sheetAction}
-              disabled={busy}
-              onClick={() => setMode('view')}
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              className={`${sheetAction} btn-primary`}
-              disabled={busy || picked === null || picked === current}
-              onClick={saveTime}
-            >
-              {busy ? 'Saving…' : 'Save time'}
-            </button>
-          </SheetActions>
-        </div>
+        <ChangeTimePanel
+          id={`${titleId}-start`}
+          today={dayLabel === 'Today'}
+          options={options}
+          hours={hours}
+          picked={picked}
+          current={current}
+          busy={busy}
+          onPick={setChoice}
+          onCancel={() => setMode('view')}
+          onSave={saveTime}
+        />
       )}
 
       {mode === 'remove' && (
-        <div className={panel}>
+        <div className={sheetPanel}>
           <p className={bodyText}>
             Remove this event from your Google Calendar? It is deleted there too.
           </p>

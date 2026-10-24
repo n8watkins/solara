@@ -17,6 +17,7 @@ import { calendarDays, hasUVGaps, planCalendarDays, scheduledDetail } from '@/li
 import { activityColor } from '@/lib/activity-colors'
 import { useScheduled } from '@/lib/scheduled-context'
 import { useStatusFlash } from '@/hooks/useStatusFlash'
+import CalendarEmpty from './calendar/CalendarEmpty'
 import CalendarLegend from './calendar/CalendarLegend'
 import CalendarToolbar from './calendar/CalendarToolbar'
 import CalendarWeekGrid from './calendar/CalendarWeekGrid'
@@ -62,7 +63,7 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
     if (scheduledEnabled) refreshScheduled()
   }, [scheduledEnabled])
 
-  if (!prefs.activities.length) return <NoActivities />
+  if (!prefs.activities.length) return <CalendarEmpty />
 
   const visibleActivities =
     focusedActivityId === 'all'
@@ -240,18 +241,6 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
           onClose={() => setEditingActivityId(null)}
         />
       )}
-    </div>
-  )
-}
-
-function NoActivities() {
-  return (
-    <div className="py-12 text-center">
-      <p className="mb-2.5 text-[34px]">🗓️</p>
-      <p className="mb-1.5 text-[16px] font-semibold text-ink">No activities yet</p>
-      <p className="text-[14px] text-ink-3">
-        Add activities from the Dashboard to see estimated lower-UV windows.
-      </p>
     </div>
   )
 }
