@@ -14,9 +14,14 @@
 //   FIREBASE_PROJECT_ID     the project this build deploys to (required)
 //   ENABLE_BLAZE_FUNCTIONS  'true' when Functions are deployed
 //   NEXT_PUBLIC_*           the values compiled into the bundle
+//
+// With --built it also refuses source maps (the deploy workflow uploads them to
+// Sentry and deletes them first) and, when NEXT_PUBLIC_SENTRY_DSN is empty, any
+// Sentry SDK code in the export.
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { sentryIngestOrigin } from '../../lib/csp.mts'
 
 export const REQUIRED = [
   'NEXT_PUBLIC_FIREBASE_API_KEY',
@@ -34,7 +39,24 @@ const SECRET_PATTERNS = [
   { name: 'a private key', pattern: /PRIVATE KEY/ },
   { name: 'a service-account JSON key', pattern: /"type"\s*:\s*"service_account"/ },
   { name: 'an OAuth client secret', pattern: /\bGOCSPX-/ },
+  { name: 'a Sentry auth token', pattern: /\bsntry[su]_/ },
 ]
+
+/**
+ * Whether a value is a Sentry public DSN, `https://<public key>@<host>/<project id>`.
+ * Legacy DSNs with a secret key (`https://<key>:<secret>@…`) are refused. Uses the
+ * same parser as the Content-Security-Policy, which allows that DSN's host.
+ * @param {string} value
+ */
+export function isSentryDsn(value) {
+  return sentryIngestOrigin(value) !== null
+}
+
+/** A `//# sourceMappingURL=` or `/*# sourceMappingURL=` comment. */
+export const SOURCE_MAP_COMMENT = /^\/[/*][#@] sourceMappingURL=.*$/m
+
+/** Text only the Sentry SDK puts in a bundle: its global carrier object. */
+export const SENTRY_SDK_MARKER = '__SENTRY__'
 
 /**
  * Returns the problems with a production build environment. Pure, for tests.
@@ -80,6 +102,13 @@ export function checkEnv(env) {
     errors.push('NEXT_PUBLIC_FUNCTIONS_URL is set but Functions are not deployed.')
   }
 
+  const dsn = value('NEXT_PUBLIC_SENTRY_DSN')
+  if (dsn && !isSentryDsn(dsn)) {
+    errors.push(
+      'NEXT_PUBLIC_SENTRY_DSN is not a Sentry public DSN (https://<public key>@<host>/<project id>, without a secret key).',
+    )
+  }
+
   if (!value('NEXT_PUBLIC_SITE_URL')) {
     warnings.push('NEXT_PUBLIC_SITE_URL is empty; metadata, robots.txt and sitemap use defaults.')
   }
@@ -108,6 +137,52 @@ export function exportContains(dir, needle) {
   return false
 }
 
+/**
+ * Files in an export, as paths relative to `dir`.
+ * @param {string} dir
+ */
+function exportFiles(dir) {
+  return readdirSync(dir, { withFileTypes: true, recursive: true })
+    .filter(entry => entry.isFile())
+    .map(entry => join(entry.parentPath, entry.name))
+}
+
+/**
+ * Problems with a built export that the environment check cannot see: source maps
+ * that would be published, and Sentry code in a build that has no DSN.
+ * @param {string} dir
+ * @param {Record<string, string | undefined>} env
+ * @returns {string[]}
+ */
+export function checkExport(dir, env) {
+  const errors = []
+  const files = exportFiles(dir)
+  const maps = files.filter(file => file.endsWith('.map'))
+  if (maps.length > 0) {
+    errors.push(
+      `${dir} contains ${maps.length} source map(s), e.g. ${maps[0]}; source maps go to Sentry only and must not be published.`,
+    )
+  }
+  const mapComments = files.filter(
+    file => /\.(js|css)$/.test(file) && SOURCE_MAP_COMMENT.test(readFileSync(file, 'utf8')),
+  )
+  if (mapComments.length > 0) {
+    errors.push(
+      `${mapComments.length} file(s) in ${dir} still reference a source map, e.g. ${mapComments[0]}.`,
+    )
+  }
+  const dsn = (env.NEXT_PUBLIC_SENTRY_DSN ?? '').trim()
+  if (dsn && !exportContains(dir, dsn)) {
+    errors.push(
+      `NEXT_PUBLIC_SENTRY_DSN is not compiled into ${dir}; rebuild with the production env.`,
+    )
+  }
+  if (!dsn && exportContains(dir, SENTRY_SDK_MARKER)) {
+    errors.push(`${dir} contains Sentry SDK code although NEXT_PUBLIC_SENTRY_DSN is empty.`)
+  }
+  return errors
+}
+
 function main(argv) {
   const builtIndex = argv.indexOf('--built')
   const builtDir = builtIndex === -1 ? null : argv[builtIndex + 1]
@@ -119,6 +194,7 @@ function main(argv) {
         errors.push(`${key} is not compiled into ${builtDir}; rebuild with the production env.`)
       }
     }
+    errors.push(...checkExport(builtDir, process.env))
   }
 
   for (const warning of warnings) console.log(`::warning::${warning}`)
