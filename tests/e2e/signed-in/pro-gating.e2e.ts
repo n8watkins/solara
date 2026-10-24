@@ -19,13 +19,14 @@ test('a free account is held to the free plan and offered Pro', async ({ page, e
   await expect(add.getByRole('button', { name: '+ Create custom activity' })).toBeDisabled()
   await add.getByRole('button', { name: 'Done' }).click()
 
-  // Two forecast days; the rest are locked.
-  await page.getByRole('button', { name: 'More days', exact: true }).click()
-  const days = page.getByRole('dialog', { name: 'Choose a day' })
-  await expect(days.getByRole('button', { name: /^Tomorrow/ })).toBeVisible()
-  await expect(days.getByRole('button', { name: /Jun 17/ })).toHaveCount(0)
-  await expect(days.getByText('8 more days are available on a higher plan.')).toBeVisible()
-  await days.getByRole('button', { name: 'Close' }).click()
+  // Two forecast days; the rest sit behind the locked Pro tab, which opens the plans.
+  await expect(page.getByRole('button', { name: 'Tomorrow', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'More days', exact: true })).toHaveCount(0)
+  await page.getByRole('button', { name: 'See the next 10 days with Pro' }).click()
+  const locked = page.getByRole('dialog', { name: 'Solara Pro' })
+  await expect(locked.getByRole('table', { name: 'Free and Pro plan features' })).toBeVisible()
+  await locked.getByRole('button', { name: 'Close' }).click()
+  await expect(locked).toBeHidden()
 
   // The plan upsell opens the Pro plans, as Settings does.
   await page.getByRole('button', { name: /Go Pro for 10-day planning/ }).click()

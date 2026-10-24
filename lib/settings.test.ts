@@ -78,9 +78,9 @@ describe('applySettingsDraft', () => {
 })
 
 describe('planLimitRows', () => {
-  it('asks guests to sign in for activities', () => {
+  it('counts a guest against the one-activity guest plan', () => {
     expect(planLimitRows('anonymous', 0)).toEqual([
-      { label: 'Activities', value: 'Sign in required' },
+      { label: 'Activities', value: '0 / 1' },
       { label: 'Calendar sync', value: false },
       { label: '10-day forecast', value: false },
     ])

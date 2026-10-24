@@ -36,7 +36,7 @@ function weather(days = 10): WeatherResponse {
 const prefs = (tier?: UserPreferences['tier']) => ({ tier }) as UserPreferences
 
 describe('dashboardAccess', () => {
-  it('limits the days by tier and only offers Free the upsell', () => {
+  it('limits the days by tier and offers the plans with locked days an upgrade', () => {
     const free = dashboardAccess(weather(), prefs('free'), undefined, null)
     expect(free.visibleForecast).toHaveLength(2)
     expect(free.lockedForecastCount).toBe(8)
@@ -45,18 +45,21 @@ describe('dashboardAccess', () => {
 
     const paid = dashboardAccess(weather(), prefs('paid'), undefined, null)
     expect(paid.visibleForecast).toHaveLength(10)
+    expect(paid.lockedForecastCount).toBe(0)
     expect(paid.upgradeCopy).toBeNull()
 
+    // A guest sees today, with the rest of the forecast behind the locked tab.
     const guest = dashboardAccess(weather(), prefs(), undefined, null)
-    expect(guest.activitiesLocked).toBe(true)
-    expect(guest.upgradeCopy).toBeNull()
-    expect(guest.showDayTabs).toBe(false)
+    expect(guest.visibleForecast).toHaveLength(1)
+    expect(guest.lockedForecastCount).toBe(9)
+    expect(guest.activityTier).toBe('anonymous')
+    expect(guest.showDayTabs).toBe(true)
   })
 
-  it('lets a preview tier widen the days but not unlock activities', () => {
+  it('lets a preview tier widen the days but not the activity plan', () => {
     const access = dashboardAccess(weather(), prefs(), 'paid', null)
     expect(access.accessibleDays).toBe(10)
-    expect(access.activitiesLocked).toBe(true)
+    expect(access.activityTier).toBe('anonymous')
   })
 
   it('drops a selected day the tier cannot see', () => {
@@ -67,7 +70,7 @@ describe('dashboardAccess', () => {
 })
 
 describe('dayChips', () => {
-  const base = { lockedForecastCount: 0, upgradeCopy: null }
+  const base = { lockedForecastCount: 0 }
 
   it('shows More days for later days and names a later selection', () => {
     const days = [day(0), day(1), day(2)]
@@ -76,6 +79,7 @@ describe('dayChips', () => {
       tomorrow: days[1],
       tomorrowActive: false,
       more: { label: 'More days', active: false },
+      lockedDays: 0,
     })
     const later = dayChips({ ...base, visibleForecast: days, selectedDay: days[2]! })
     expect(later.more).toEqual({ label: 'Day 2', active: true })
@@ -89,17 +93,18 @@ describe('dayChips', () => {
     expect(chips.more).toEqual({ label: 'More days', active: false })
   })
 
-  it('keeps More days for locked days only when there is an upsell', () => {
+  it('puts locked days behind the locked tab instead of More days', () => {
     const days = [day(0), day(1)]
-    expect(dayChips({ ...base, visibleForecast: days, selectedDay: null }).more).toBeNull()
+    expect(dayChips({ ...base, visibleForecast: days, selectedDay: null })).toMatchObject({
+      more: null,
+      lockedDays: 0,
+    })
     expect(
-      dayChips({
-        visibleForecast: days,
-        selectedDay: null,
-        lockedForecastCount: 8,
-        upgradeCopy: UPGRADE_COPY,
-      }).more,
-    ).toEqual({ label: 'More days', active: false })
+      dayChips({ visibleForecast: days, selectedDay: null, lockedForecastCount: 8 }),
+    ).toMatchObject({ more: null, lockedDays: 8 })
+    expect(
+      dayChips({ visibleForecast: [day(0)], selectedDay: null, lockedForecastCount: 9 }),
+    ).toMatchObject({ tomorrow: null, more: null, lockedDays: 9 })
   })
 })
 

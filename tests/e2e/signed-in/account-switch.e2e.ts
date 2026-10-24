@@ -58,7 +58,9 @@ test('after sign-out, the next account starts clean', async ({ page, emulators }
   expect(await localData(page)).toContain(alice.uid)
 
   await accountMenu(page, 'Sign out')
+  // Signed out, the visitor lands on the landing page.
   await expect(page.getByRole('heading', { name: 'Know when to go outside' })).toBeVisible()
+  await expect(page).toHaveURL(/\/$/)
   expect(await localData(page)).not.toContain(alice.uid)
 
   const bob = await emulators.createAccount('Bob Vance')
@@ -86,7 +88,8 @@ test('when a session ends without sign-out, the next account starts clean', asyn
       }),
   )
   await page.reload()
-  await expect(page.getByRole('heading', { name: 'Know when to go outside' })).toBeVisible()
+  // Signed out with no guest plan: setup, and nothing of Alice's on screen.
+  await expect(page.getByRole('heading', { name: 'Where are you?' })).toBeVisible()
 
   const bob = await emulators.createAccount('Bob Vance')
   await signIn(page, bob, { skinType: 'Olive' })

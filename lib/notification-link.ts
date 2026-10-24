@@ -5,11 +5,11 @@
 
 /**
  * The URL a notification click may open: the payload's link when it resolves to
- * an http(s) URL on Solara's own origin, otherwise the app's home page. This
- * stops a notification payload from sending people to another site.
+ * an http(s) URL on Solara's own origin, otherwise the app (`/app/`). This stops
+ * a notification payload from sending people to another site.
  */
 export function safeNotificationUrl(link: unknown, origin: string): string {
-  const home = new URL('/', origin).href
+  const home = new URL('/app/', origin).href
   if (typeof link !== 'string' || !link.trim()) return home
   try {
     const url = new URL(link, origin)

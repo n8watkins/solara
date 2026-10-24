@@ -20,6 +20,8 @@ interface Props {
   onUpgrade?: () => void
   /** When provided (calendar connected), books the slot on its specific day. */
   onBook?: (activity: Activity, rec: SlotRecommendation, dateStr: string) => void
+  /** Offers the .ics download (calendar export is part of Pro). */
+  canExport?: boolean
 }
 
 /**
@@ -39,6 +41,7 @@ export default function PlanAhead({
   upgradeCopy,
   onUpgrade,
   onBook,
+  canExport = true,
 }: Props) {
   const fmt = useUnits()
   if (!activities.length || dayLimit <= 1) return null
@@ -60,13 +63,15 @@ export default function PlanAhead({
             The best upcoming day and time for each activity.
           </p>
         </div>
-        <button
-          className="btn shrink-0 text-[12px] whitespace-nowrap"
-          onClick={exportIcs}
-          title="Download all recommended slots as a calendar file (.ics) for any calendar app"
-        >
-          ⬇ Export .ics
-        </button>
+        {canExport && (
+          <button
+            className="btn shrink-0 text-[12px] whitespace-nowrap"
+            onClick={exportIcs}
+            title="Download all recommended slots as a calendar file (.ics) for any calendar app"
+          >
+            ⬇ Export .ics
+          </button>
+        )}
       </div>
 
       <div className="flex flex-col gap-2">

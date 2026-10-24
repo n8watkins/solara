@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
-import { ONBOARDING_PROGRESS, SKIN_OPTIONS, fetchCurrentUV } from './onboarding'
+import {
+  ONBOARDING_BACK,
+  ONBOARDING_PROGRESS,
+  SKIN_OPTIONS,
+  fetchCurrentUV,
+  geolocationErrorMessage,
+} from './onboarding'
 
 function respond(body: unknown, status = 200) {
   return vi.fn<typeof fetch>(
@@ -49,6 +55,24 @@ describe('setup data', () => {
   })
 
   it('keeps the UV preview on the first progress step', () => {
-    expect(ONBOARDING_PROGRESS).toEqual({ location: 1, uvpreview: 1, skin: 2, signin: 3 })
+    expect(ONBOARDING_PROGRESS).toEqual({ location: 1, uvpreview: 1, skin: 2, finish: 3 })
+  })
+
+  it('goes back one step from every step but the first', () => {
+    expect(ONBOARDING_BACK).toEqual({
+      location: null,
+      uvpreview: 'location',
+      skin: 'location',
+      finish: 'skin',
+    })
+  })
+})
+
+describe('geolocationErrorMessage', () => {
+  it('says why "Use my location" failed', () => {
+    expect(geolocationErrorMessage(1)).toMatch(/turned off for this site/)
+    expect(geolocationErrorMessage(2)).toMatch(/couldn't be found/)
+    expect(geolocationErrorMessage(3)).toMatch(/took too long/)
+    expect(geolocationErrorMessage(null)).toMatch(/can't share your location/)
   })
 })

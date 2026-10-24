@@ -374,17 +374,29 @@ export { expect }
 export type { Page }
 
 /**
- * Signs in through the app's own flow: setup (location and skin type), then
- * "Continue with Google", which opens the Auth emulator's stand-in for Google's
- * sign-in page in a popup. Resolves once the popup has closed.
+ * Clicks a "Continue with Google" style button, then picks `account` on the Auth
+ * emulator's stand-in for Google's sign-in page in the popup. Resolves once the
+ * popup has closed.
  */
-export async function signIn(
+export async function completeGoogleSignIn(
   page: Page,
   account: Account,
+  click: () => Promise<void>,
+): Promise<void> {
+  const popupOpened = page.waitForEvent('popup')
+  await click()
+  const popup = await popupOpened
+  const popupClosed = popup.waitForEvent('close')
+  await popup.getByText(account.email, { exact: true }).click()
+  await popupClosed
+}
+
+/** Goes through setup in the app (location and skin type) up to its last step. */
+export async function completeSetup(
+  page: Page,
   { skinType = 'Fair' }: { skinType?: string } = {},
 ): Promise<void> {
-  await page.goto('/')
-  await page.getByRole('button', { name: /Get started/ }).click()
+  await page.goto('/app/')
   await page.getByLabel('City or location').fill('Los Angeles')
   await page.getByRole('button', { name: 'Go' }).click()
   await expect(page.getByText('UV index right now in')).toBeVisible()
@@ -392,13 +404,30 @@ export async function signIn(
   await expect(page.getByRole('heading', { name: 'Your skin type' })).toBeVisible()
   await page.getByRole('button', { name: new RegExp(`^${skinType}`) }).click()
   await page.getByRole('button', { name: /Continue/ }).click()
+  await expect(page.getByRole('heading', { name: "You're all set" })).toBeVisible()
+}
 
-  const popupOpened = page.waitForEvent('popup')
-  await page.getByRole('button', { name: 'Continue with Google' }).click()
-  const popup = await popupOpened
-  const popupClosed = popup.waitForEvent('close')
-  await popup.getByText(account.email, { exact: true }).click()
-  await popupClosed
+/**
+ * Signs in through the app's own flow: setup (location and skin type), then
+ * "Continue with Google", which opens the Auth emulator's stand-in for Google's
+ * sign-in page in a popup. Resolves once the popup has closed.
+ */
+export async function signIn(
+  page: Page,
+  account: Account,
+  options: { skinType?: string } = {},
+): Promise<void> {
+  await completeSetup(page, options)
+  await completeGoogleSignIn(page, account, () =>
+    page.getByRole('button', { name: 'Continue with Google' }).click(),
+  )
+}
+
+/** Sets up as a guest (no sign-in) and waits for the guest dashboard. */
+export async function startAsGuest(page: Page, options: { skinType?: string } = {}): Promise<void> {
+  await completeSetup(page, options)
+  await page.getByRole('button', { name: /See today's plan/ }).click()
+  await expect(uvStrip(page)).toBeVisible()
 }
 
 /** The dashboard's hourly UV strip, present once the forecast has rendered. */

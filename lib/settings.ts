@@ -70,10 +70,7 @@ export function planLimitRows(tier: TierLevel, activityCount: number): PlanLimit
   return [
     {
       label: 'Activities',
-      value:
-        tier === 'anonymous'
-          ? 'Sign in required'
-          : `${activityCount} / ${TIER_LIMITS[tier].activities}`,
+      value: `${activityCount} / ${TIER_LIMITS[tier].activities}`,
     },
     { label: 'Calendar sync', value: TIER_LIMITS[tier].calendar },
     { label: '10-day forecast', value: tier === 'paid' },

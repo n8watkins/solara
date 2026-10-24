@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import type { DayWeather } from '@/lib/types'
-import { dayChips, type DashboardAccess } from '@/lib/dashboard-view'
+import { LOCKED_DAYS_UPSELL, dayChips, type DashboardAccess } from '@/lib/dashboard-view'
 import ActivityModalShell from '../ActivityModalShell'
 
 type Access = Pick<
   DashboardAccess,
-  'visibleForecast' | 'selectedDay' | 'lockedForecastCount' | 'upgradeCopy' | 'showDayTabs'
+  'visibleForecast' | 'selectedDay' | 'lockedForecastCount' | 'showDayTabs'
 >
 
 function Chip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
@@ -23,24 +23,28 @@ function Chip({ label, active, onClick }: { label: string; active: boolean; onCl
 
 /**
  * The day picker, with no horizontal scroll: Today and Tomorrow are direct
- * chips, and every other day (plus any locked-day upgrade hint) is in a dialog
- * behind "More days". The refresh button always renders, so it stays reachable
- * when only one day is visible.
+ * chips, every later day is in a dialog behind "More days", and a plan with
+ * locked days gets a locked "Next 10 days" tab that opens the Pro plans. The
+ * refresh button always renders, so it stays reachable when only one day is
+ * visible.
  */
 export default function DayPicker({
   access,
   onSelectDay,
   onRefresh,
+  onUpgrade,
 }: {
   access: Access
   onSelectDay: (day: DayWeather | null) => void
   onRefresh: () => void
+  /** Opens the Pro plans from the locked tab. */
+  onUpgrade: () => void
 }) {
   const [open, setOpen] = useState(false)
   const chips = dayChips(access)
   const { tomorrow, more } = chips
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2">
+    <div data-testid="day-picker" className="flex flex-wrap items-center justify-between gap-2">
       <div className="flex min-w-0 flex-1 flex-wrap gap-1.5">
         {access.showDayTabs && (
           <>
@@ -53,6 +57,16 @@ export default function DayPicker({
               />
             )}
             {more && <Chip label={more.label} active={more.active} onClick={() => setOpen(true)} />}
+            {chips.lockedDays > 0 && (
+              <button
+                onClick={onUpgrade}
+                aria-label={LOCKED_DAYS_UPSELL}
+                title={LOCKED_DAYS_UPSELL}
+                className="flex shrink-0 cursor-pointer items-center gap-[5px] rounded-[10px] border-[0.5px] border-dashed border-accent-border bg-transparent px-3.5 py-2 text-[13px] font-semibold text-accent transition-all duration-[120ms]"
+              >
+                <span aria-hidden="true">🔒</span> Next 10 days
+              </button>
+            )}
           </>
         )}
       </div>
@@ -88,7 +102,7 @@ function DayDialog({
   onSelectDay: (day: DayWeather | null) => void
   onClose: () => void
 }) {
-  const { visibleForecast, selectedDay, lockedForecastCount, upgradeCopy } = access
+  const { visibleForecast, selectedDay } = access
   return (
     <ActivityModalShell
       title="Choose a day"
@@ -113,15 +127,6 @@ function DayDialog({
             </button>
           )
         })}
-        {lockedForecastCount > 0 && upgradeCopy && (
-          <div className="mt-1.5 rounded-xl border-[0.5px] border-dashed border-brand/55 bg-brand/6 px-[15px] py-[13px]">
-            <p className="mb-1 text-[13px] font-bold text-accent">🔒 {upgradeCopy}</p>
-            <p className="text-[12px] leading-[1.45] text-ink-3">
-              {lockedForecastCount} more {lockedForecastCount === 1 ? 'day is' : 'days are'}{' '}
-              available on a higher plan.
-            </p>
-          </div>
-        )}
       </div>
     </ActivityModalShell>
   )

@@ -16,7 +16,7 @@ const RECAPTCHA_HOSTS =
   /^https:\/\/(www\.google\.com\/recaptcha|www\.gstatic\.com\/recaptcha|recaptcha\.google\.com)/
 
 test('signed-out pages make no reCAPTCHA or App Check requests', async ({ page, network }) => {
-  for (const path of ['/', '/privacy/', '/terms/', '/account/', '/share/']) {
+  for (const path of ['/', '/app/', '/privacy/', '/terms/', '/account/', '/share/']) {
     await page.goto(path)
     await page.waitForLoadState('networkidle')
   }
@@ -32,7 +32,7 @@ test('signing in starts App Check: reCAPTCHA v3 loads and its token is exchanged
   network,
 }) => {
   await restoreSession(page)
-  await page.goto('/')
+  await page.goto('/app/')
 
   await expect.poll(() => network.to(APP_CHECK_EXCHANGE).length).toBeGreaterThan(0)
 

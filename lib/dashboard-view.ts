@@ -15,22 +15,23 @@ import { busyIntervalsForDay } from './gcal'
 import { getFutureDays } from './tiers'
 import { burnMins, vitDMins } from './weather'
 
-/** The upsell shown to Free accounts that have locked forecast days. */
+/** The planning upsell shown to plans with locked forecast days. */
 export const UPGRADE_COPY = 'Go Pro for 10-day planning'
+
+/** The locked forecast tab's upsell (its accessible name). */
+export const LOCKED_DAYS_UPSELL = 'See the next 10 days with Pro'
 
 export interface DashboardAccess {
   /** Tier that decides how many forecast days show (a preview tier may override). */
   accessTier: TierLevel
-  /** The account's own tier, which decides whether activities are available. */
+  /** The account's own tier (guest, Free or Pro), which decides the activity limit. */
   activityTier: TierLevel
-  /** Activities require an account; guests get a sign-in prompt instead. */
-  activitiesLocked: boolean
   accessibleDays: number
   visibleForecast: DayWeather[]
   /** The selected day when the tier may see it, else null (today). */
   selectedDay: DayWeather | null
   lockedForecastCount: number
-  /** Upgrade copy for Free accounts; null for guests (no upsell) and Pro. */
+  /** Upgrade copy for plans with locked days; null for Pro. */
   upgradeCopy: string | null
   showDayTabs: boolean
 }
@@ -50,17 +51,16 @@ export function dashboardAccess(
       ? selectedDay
       : null
   const lockedForecastCount = Math.max(0, weather.forecast.length - visibleForecast.length)
-  const upgradeCopy = accessTier === 'free' ? UPGRADE_COPY : null
+  const upgradeCopy = lockedForecastCount > 0 ? UPGRADE_COPY : null
   return {
     accessTier,
     activityTier,
-    activitiesLocked: activityTier === 'anonymous',
     accessibleDays,
     visibleForecast,
     selectedDay: allowed,
     lockedForecastCount,
     upgradeCopy,
-    showDayTabs: visibleForecast.length > 1 || (upgradeCopy !== null && lockedForecastCount > 0),
+    showDayTabs: visibleForecast.length > 1 || lockedForecastCount > 0,
   }
 }
 
@@ -70,28 +70,31 @@ export interface DayChips {
   tomorrowActive: boolean
   /** The "More days" chip, labeled with a later selected day; null when hidden. */
   more: { label: string; active: boolean } | null
+  /** Forecast days the plan cannot see, behind the locked "10 days" tab (0: no tab). */
+  lockedDays: number
 }
 
 /**
- * Today and Tomorrow are direct chips; every other day (and the locked-days
- * upgrade hint) sits behind a "More days" chip that names the selected day.
+ * Today and Tomorrow are direct chips; every later visible day sits behind a "More
+ * days" chip that names the selected day, and a plan with locked days gets a locked
+ * tab that opens the Pro plans.
  */
 export function dayChips(
-  access: Pick<
-    DashboardAccess,
-    'visibleForecast' | 'selectedDay' | 'lockedForecastCount' | 'upgradeCopy'
-  >,
+  access: Pick<DashboardAccess, 'visibleForecast' | 'selectedDay' | 'lockedForecastCount'>,
 ): DayChips {
-  const { visibleForecast, selectedDay, lockedForecastCount, upgradeCopy } = access
+  const { visibleForecast, selectedDay, lockedForecastCount } = access
   const tomorrow = visibleForecast[1] ?? null
   const tomorrowActive = !!(selectedDay && tomorrow && selectedDay.dateStr === tomorrow.dateStr)
   const beyond = selectedDay && !tomorrowActive ? selectedDay : null
-  const showMore = visibleForecast.length > 2 || (lockedForecastCount > 0 && !!upgradeCopy)
   return {
     todayActive: !selectedDay,
     tomorrow,
     tomorrowActive,
-    more: showMore ? { label: beyond ? beyond.label : 'More days', active: !!beyond } : null,
+    more:
+      visibleForecast.length > 2
+        ? { label: beyond ? beyond.label : 'More days', active: !!beyond }
+        : null,
+    lockedDays: lockedForecastCount,
   }
 }
 

@@ -5,7 +5,7 @@
 //
 // Query parameters:
 //   screen = dashboard (default) | calendar | settings | pricing
-//   tier   = paid (default) | free
+//   tier   = paid (default) | free | guest (signed out, the guest plan with one activity)
 //   tab    = general (default) | activities | location   (settings only)
 //   fixture = default (default) | uv-gaps   (see uv-gap-fixtures.ts)
 //   scheduled = none (default) | synced | reconnect: in-memory scheduled activities
@@ -41,7 +41,8 @@ const TABS: SettingsTab[] = ['general', 'activities', 'location']
 function readParams() {
   const params = new URLSearchParams(window.location.search)
   const screen = params.get('screen') as HarnessScreen | null
-  const tier = params.get('tier') === 'free' ? 'free' : 'paid'
+  const tierParam = params.get('tier')
+  const tier = tierParam === 'free' ? 'free' : tierParam === 'guest' ? 'anonymous' : 'paid'
   const tab = params.get('tab') as SettingsTab | null
   return {
     screen: screen && SCREENS.includes(screen) ? screen : 'dashboard',
@@ -71,7 +72,7 @@ export default function HarnessApp() {
 
 function Harness() {
   const initial = useMemo(() => readParams(), [])
-  const user = useMemo(() => buildUser(), [])
+  const user = useMemo(() => (initial.tier === 'anonymous' ? null : buildUser()), [initial.tier])
   const fixtureWeather = useMemo(
     () => (initial.fixture === 'uv-gaps' ? buildGapWeather() : buildWeather()),
     [initial.fixture],
@@ -110,12 +111,12 @@ function Harness() {
             />
           }
           view={view}
-          onViewChange={setView}
+          onViewChange={displayTier === 'anonymous' ? undefined : setView}
           after={
             pricingOpen && (
               <PricingModal
                 user={user}
-                email={user.email ?? undefined}
+                email={user?.email ?? undefined}
                 onJoinWaitlist={() => {}}
                 onClose={() => setPricingOpen(false)}
               />

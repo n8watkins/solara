@@ -146,13 +146,14 @@ export function scriptHash(source: string): string {
  * whitespace, `/` or `>`, in any case, and that end tag runs to the next `>`
  * (`</script >` and `</SCRIPT\n foo>` both end it).
  */
-const SCRIPT_TAG =
+export const SCRIPT_TAG =
   /<script(?=[\s/>])((?:[^>"']|"[^"]*"|'[^']*')*)>([\s\S]*?)<\/script(?=[\s/>])[^>]*>/gi
 
 /** One attribute in a start tag: its name, then an optional quoted or bare value. */
 const ATTRIBUTE = /([^\s"'/>=]+)(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'=<>`]+))?/g
 
-function hasAttribute(attributes: string, name: string): boolean {
+/** Whether a start tag's attribute text has the attribute `name` (case-insensitive). */
+export function hasAttribute(attributes: string, name: string): boolean {
   for (const [, attribute = ''] of attributes.matchAll(ATTRIBUTE)) {
     if (attribute.toLowerCase() === name) return true
   }

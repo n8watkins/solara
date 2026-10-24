@@ -199,6 +199,11 @@ export default function PrivacyPage() {
         <ul>
           <li>Account details and preferences: while your account exists.</li>
           <li>
+            A guest plan (used without signing in): only in your browser, until you sign in (it then
+            moves into your new account, or is removed if the account already existed) or clear your
+            browser data.
+          </li>
+          <li>
             Scheduled activities: until you remove the event, it is deleted in Google Calendar, or
             30 days after it ends, and always when you delete your account.
           </li>
@@ -218,9 +223,15 @@ export default function PrivacyPage() {
 
         <h2>Storage on your device</h2>
         <p>
-          Solara keeps your preferences, a cached forecast, your theme and your analytics choice in
-          your browser&apos;s local storage so the app works quickly and remembers your choices.
-          These are needed for the service and are not used for tracking.
+          Solara keeps your preferences, a cached forecast, your theme, your analytics choice and
+          which offers you dismissed in your browser&apos;s local storage so the app works quickly
+          and remembers your choices. These are needed for the service and are not used for
+          tracking.
+        </p>
+        <p>
+          If you use Solara without signing in, your plan (place, skin type and activity) is kept
+          only in this browser and is never sent to Solara. Place search and forecasts still come
+          from Open-Meteo and OpenStreetMap as described above.
         </p>
         <p>
           Google Analytics cookies (<code>_ga</code> and <code>_ga_*</code>) are set only after you

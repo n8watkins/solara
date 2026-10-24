@@ -5,6 +5,11 @@ import type { ActivityDayPlan } from '@/lib/next-slot'
 import type { BusyInterval, SlotRecommendation } from '@/lib/scheduler'
 import { scheduledOn, type ScheduledActivity } from '@/lib/scheduled'
 import { isCalendarConfigured } from '@/lib/gcal'
+import { canAddActivity, canUseCalendar, TIER_LIMITS } from '@/lib/tiers'
+import { isReturningGuest } from '@/lib/guest'
+import { useUpsellDismissal } from '@/lib/upsell'
+import GoogleSignInButton from '../GoogleSignInButton'
+import Upsell from '../Upsell'
 import type { useCalendarBusy } from '@/hooks/useCalendarBusy'
 import ActivityCards from '../ActivityCards'
 import CalendarFeed from '../CalendarFeed'
@@ -17,7 +22,8 @@ import CalendarConnectBanner from './CalendarConnectBanner'
 /**
  * The dashboard's Activities section: the week's best days, calendar options,
  * one card per activity for the selected day, and the add, manage and edit
- * dialogs. Guests get a sign-in prompt instead.
+ * dialogs. A guest who reaches the guest plan's limit, or comes back on a later
+ * day, is offered free sign-in to save the plan.
  */
 export default function ActivitiesSection({
   prefs,
@@ -58,15 +64,43 @@ export default function ActivitiesSection({
 }) {
   const [modal, setModal] = useState<'add' | 'manage' | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
-  const { activitiesLocked } = access
-  const hasActivities = !activitiesLocked && prefs.activities.length > 0
+  const hasActivities = prefs.activities.length > 0
+  const guest = access.activityTier === 'anonymous'
+  const [savePlanDismissed, dismissSavePlan] = useUpsellDismissal('save-plan')
+  const [returningGuest] = useState(() => guest && isReturningGuest())
+  // Set when a guest tries to add more than the guest plan holds.
+  const [wantsMore, setWantsMore] = useState(false)
+  const showSavePlan = guest && !savePlanDismissed && (wantsMore || returningGuest)
+
+  function add() {
+    // The natural moment to offer sign-in: a guest asking for a second activity.
+    if (guest && !savePlanDismissed && !canAddActivity('anonymous', prefs.activities.length)) {
+      setWantsMore(true)
+      return
+    }
+    setModal('add')
+  }
+  // Calendar sync (Google Calendar, the live feed and the .ics export), per plan.
+  const calendarIncluded = canUseCalendar(access.accessTier)
 
   return (
     <section>
-      <ActivitiesIntro
-        onAdd={activitiesLocked ? undefined : () => setModal('add')}
-        onManage={activitiesLocked ? undefined : () => setModal('manage')}
-      />
+      <ActivitiesIntro onAdd={add} onManage={() => setModal('manage')} />
+
+      {showSavePlan && (
+        <div className="mb-3.5">
+          <Upsell
+            icon="💾"
+            title="Save your plan, sign in free"
+            action={<GoogleSignInButton label="Sign in free" />}
+            onDismiss={dismissSavePlan}
+            focusOnShow={wantsMore}
+          >
+            Your plan is kept only on this device. Sign in with Google to keep it on every device,
+            plan up to {TIER_LIMITS.free.activities} activities and see tomorrow too.
+          </Upsell>
+        </div>
+      )}
 
       {hasActivities && (
         <div className="mb-3.5">
@@ -80,22 +114,19 @@ export default function ActivitiesSection({
             lockedDays={access.lockedForecastCount}
             upgradeCopy={access.upgradeCopy}
             onUpgrade={onUpgrade}
-            onBook={onBook}
+            onBook={calendarIncluded ? onBook : undefined}
+            canExport={calendarIncluded}
           />
         </div>
       )}
 
-      {hasActivities && isCalendarConfigured() && (
+      {hasActivities && calendarIncluded && isCalendarConfigured() && (
         <CalendarConnectBanner status={calendar.status} onConnect={() => void calendar.connect()} />
       )}
 
-      {hasActivities && <CalendarFeed prefs={prefs} />}
+      {hasActivities && calendarIncluded && <CalendarFeed prefs={prefs} />}
 
-      {/* The sign-in gate wins even over legacy guest activities saved before
-          activities required sign-in; they still seed the account on sign-in. */}
-      {activitiesLocked ? (
-        <ActivityEmptyState prefs={prefs} />
-      ) : prefs.activities.length > 0 ? (
+      {hasActivities ? (
         <ActivityCards
           plans={plans}
           isToday={isToday}
@@ -112,7 +143,7 @@ export default function ActivitiesSection({
           onOpenScheduled={onOpenScheduled}
         />
       ) : (
-        <ActivityEmptyState prefs={prefs} onAdd={() => setModal('add')} />
+        <ActivityEmptyState onAdd={() => setModal('add')} />
       )}
 
       <ActivityModals

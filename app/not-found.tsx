@@ -1,5 +1,4 @@
 import type { Metadata } from 'next'
-import Link from 'next/link'
 
 export const metadata: Metadata = {
   title: 'Page not found | Solara',
@@ -20,9 +19,10 @@ export default function NotFound() {
           This address doesn&apos;t match anything in Solara. Check the link, or head back to your
           forecast.
         </p>
-        <Link href="/" className="btn btn-primary justify-center px-[18px] py-[11px] no-underline">
+        {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- A full page load, so the landing page sends a signed-in visitor to the app. */}
+        <a href="/" className="btn btn-primary justify-center px-[18px] py-[11px] no-underline">
           Open Solara
-        </Link>
+        </a>
       </div>
     </main>
   )

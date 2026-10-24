@@ -3,7 +3,7 @@ import { captureScreen, preparePage } from './capture'
 import { HARNESS_DATE } from './clock'
 
 // Screenshots and axe results for the screens a visitor sees before signing in:
-// welcome, each onboarding step, the legal pages, share links, the account page
+// the landing page, the sign-in screen, each onboarding step, the legal pages, share links, the account page
 // signed out and the 404 page. Same output layout as ui-harness.spec.ts (it lands
 // in test-results/ui-harness/ and in the axe summary), so before/after evidence for
 // the shell covers every page, not only the signed-in ones.
@@ -37,7 +37,6 @@ function shiftDate(days: number): string {
 const SHARE = `/share/?a=Run&icon=%F0%9F%8F%83&city=Pasadena&region=California&from=7.5&to=8.5&uv=2.1`
 
 async function startOnboarding(page: Page) {
-  await page.getByRole('button', { name: /Get started/ }).click()
   await expect(page.getByRole('heading', { name: 'Where are you?' })).toBeVisible()
 }
 
@@ -64,14 +63,25 @@ interface Screen {
 
 const SCREENS: Screen[] = [
   {
-    name: 'welcome',
+    name: 'landing',
     path: '/',
     fullPage: true,
-    reach: page => page.getByRole('heading', { name: 'Know when to go outside' }),
+    reach: async page => {
+      // The landing page ships no framework JavaScript (scripts/static-pages.mjs).
+      await expect(page.locator('script[src]')).toHaveCount(0)
+      await expect(page.locator('img[src^="/landing/"]')).toHaveJSProperty('complete', true)
+      return page.getByRole('heading', { name: 'Know when to go outside' })
+    },
+  },
+  {
+    name: 'signin',
+    path: '/app/?signin',
+    fullPage: false,
+    reach: page => page.getByRole('heading', { name: 'Sign in to Solara' }),
   },
   {
     name: 'onboarding-location',
-    path: '/',
+    path: '/app/',
     fullPage: false,
     reach: async page => {
       await startOnboarding(page)
@@ -80,7 +90,7 @@ const SCREENS: Screen[] = [
   },
   {
     name: 'onboarding-location-error',
-    path: '/',
+    path: '/app/',
     fullPage: false,
     reach: async page => {
       await startOnboarding(page)
@@ -91,7 +101,7 @@ const SCREENS: Screen[] = [
   },
   {
     name: 'onboarding-uv',
-    path: '/',
+    path: '/app/',
     fullPage: false,
     reach: async page => {
       await searchCity(page)
@@ -100,7 +110,7 @@ const SCREENS: Screen[] = [
   },
   {
     name: 'onboarding-skin',
-    path: '/',
+    path: '/app/',
     fullPage: false,
     reach: async page => {
       await chooseSkin(page)
@@ -108,13 +118,13 @@ const SCREENS: Screen[] = [
     },
   },
   {
-    name: 'onboarding-signin',
-    path: '/',
+    name: 'onboarding-finish',
+    path: '/app/',
     fullPage: false,
     reach: async page => {
       await chooseSkin(page)
       await page.getByRole('button', { name: /Continue/ }).click()
-      return page.getByRole('heading', { name: 'Sign in to finish' })
+      return page.getByRole('heading', { name: "You're all set" })
     },
   },
   {

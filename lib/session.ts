@@ -7,11 +7,10 @@ import { signOut } from 'firebase/auth'
 import { auth } from './firebase'
 import { clearWeatherCache } from './cache'
 import { clearLocalNotificationState, disableNotifications } from './notifications'
+import { clearGuestData, loadGuestPrefs } from './guest'
 import { clearLocalPrefs, createAccountPrefs, loadFirestorePrefs, loadLocalPrefs } from './prefs'
+import { ACCOUNT_OWNER_KEY } from './app-routes'
 import type { UserPreferences } from './types'
-
-/** Remembers which account the locally stored data belongs to. */
-const ACCOUNT_OWNER_KEY = 'solara_account_owner'
 
 /** Sign-out stopped because this device could not be unsubscribed from notifications. */
 export class SignOutBlockedError extends Error {
@@ -59,6 +58,7 @@ export async function signOutAndClear(uid: string | null | undefined): Promise<v
     }
   }
   clearAccountData()
+  clearGuestData()
   if (auth) await signOut(auth)
 }
 
@@ -86,11 +86,16 @@ export type AccountLoadResult =
   | { status: 'error'; stage: 'load' | 'create'; error: Error }
 
 /**
- * Loads the signed-in account's preferences. A brand-new account is created from
- * onboarding answers left in this browser, but only answers that were never tied to
- * another account; anything else sends the person through onboarding.
+ * Loads the signed-in account's preferences. A brand-new account is created from the
+ * guest plan kept in this browser (lib/guest.ts), else from setup answers left here
+ * that were never tied to another account; with neither, the person goes through
+ * setup. An account that already exists always keeps its own plan.
  *
- * `signedIn` is the account document as sign-in from setup read or created it in its
+ * Once an account is ready, the guest plan is removed from this browser: it carried
+ * over into a new account or gave way to an existing one, and either way no later
+ * account on this device may inherit it.
+ *
+ * `signedIn` is the account document as sign-in read or created it in its
  * `createAccountPrefs` transaction. When it belongs to `uid` it is used as is: reading
  * the document again could be answered by a Firestore listen that started before that
  * transaction committed (the auth listener's own load), which still reports a brand-new
@@ -100,16 +105,30 @@ export async function loadAccountPrefs(
   uid: string,
   signedIn?: UserPreferences | null,
 ): Promise<AccountLoadResult> {
+  const result = await loadOrCreateAccount(uid, signedIn)
+  if (result.status === 'ready') clearGuestData()
+  return result
+}
+
+async function loadOrCreateAccount(
+  uid: string,
+  signedIn?: UserPreferences | null,
+): Promise<AccountLoadResult> {
   await claimLocalData(uid)
   if (signedIn?.uid === uid) return { status: 'ready', prefs: signedIn }
   const result = await loadFirestorePrefs(uid)
   if (result.status === 'error') return { status: 'error', stage: 'load', error: result.error }
   if (result.status === 'found') return { status: 'ready', prefs: result.prefs }
 
+  const guest = loadGuestPrefs()
   const local = loadLocalPrefs()
-  if (!local || (local.uid && local.uid !== uid)) return { status: 'needs-onboarding' }
+  const seed = guest ?? (local && (!local.uid || local.uid === uid) ? local : null)
+  if (!seed) return { status: 'needs-onboarding' }
   try {
-    return { status: 'ready', prefs: await createAccountPrefs(uid, local) }
+    return {
+      status: 'ready',
+      prefs: await createAccountPrefs(uid, seed, guest ? 'guest' : 'setup'),
+    }
   } catch (error) {
     return {
       status: 'error',

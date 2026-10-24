@@ -3,6 +3,10 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { saveLocalPrefs, saveFirestorePrefs } from '@/lib/prefs'
 import { syncErrorFor, type SyncError } from '@/lib/sync-error'
+import { SIGN_IN_PARAM } from '@/lib/app-routes'
+import { loadGuestPrefs, saveGuestPrefs } from '@/lib/guest'
+import { SignedInContext } from '@/lib/signed-in-context'
+import { canUseCalendar } from '@/lib/tiers'
 import { screenAfterOnboarding } from '@/lib/account-screen'
 import { useAccount } from '@/lib/use-account'
 import { useCheckoutReturn } from '@/lib/use-checkout-return'
@@ -11,7 +15,7 @@ import { resolveUnits, unitFormatters } from '@/lib/units'
 import { UnitsContext } from '@/lib/use-units'
 import { onForegroundMessage } from '@/lib/notifications'
 import type { Activity, UserPreferences, TierLevel, DayWeather } from '@/lib/types'
-import Welcome from './Welcome'
+import SignInScreen from './SignInScreen'
 import Onboarding from './Onboarding'
 import Dashboard from './Dashboard'
 import Header from './Header'
@@ -34,7 +38,13 @@ export default function App() {
   )
 }
 
+/** Whether the visitor came to sign in (the landing page's "Sign in" link). */
+function signInRequestedByUrl(): boolean {
+  return new URLSearchParams(window.location.search).has(SIGN_IN_PARAM)
+}
+
 function SignedInApp() {
+  const [signInRequested] = useState(signInRequestedByUrl)
   const [view, setView] = useState<AppView>('dashboard')
   const [selectedDay, setSelectedDay] = useState<DayWeather | null>(null)
   const [tierOverride, setTierOverride] = useState<TierLevel | null>(null)
@@ -45,15 +55,26 @@ function SignedInApp() {
   const [billingNotice, setBillingNotice] = useState<string | null>(null)
   const isDev = process.env.NODE_ENV === 'development'
 
-  const { user, prefs, setPrefs, screen, setScreen, accountError, reload } = useAccount({
-    onAccountReset: () => {
-      setSyncError(null)
-      setBillingNotice(null)
-      setForegroundNotice(false)
-      setSelectedDay(null)
-      setView('dashboard')
-    },
-  })
+  const { user, prefs, setPrefs, screen, setScreen, accountError, reload, continueAsGuest } =
+    useAccount({
+      onAccountReset: () => {
+        setSyncError(null)
+        setBillingNotice(null)
+        setForegroundNotice(false)
+        setSelectedDay(null)
+        setView('dashboard')
+      },
+      signInRequested,
+    })
+
+  // The sign-in flag is read once; drop it so a reload or a later sign-out does not
+  // bring the sign-in screen back.
+  useEffect(() => {
+    if (!signInRequested) return
+    const url = new URL(window.location.href)
+    url.searchParams.delete(SIGN_IN_PARAM)
+    window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash)
+  }, [signInRequested])
 
   useEffect(() => {
     if (!user) return
@@ -76,7 +97,11 @@ function SignedInApp() {
   async function handlePrefsUpdate(updated: UserPreferences) {
     setPrefs(updated)
     setSyncError(null)
-    if (!user) return
+    // A guest's plan stays in this browser (lib/guest.ts).
+    if (!user) {
+      saveGuestPrefs(updated)
+      return
+    }
     saveLocalPrefs({ ...updated, uid: user.uid })
     try {
       await saveFirestorePrefs(user.uid, updated)
@@ -85,15 +110,22 @@ function SignedInApp() {
     }
   }
 
-  function handleOnboardingComplete(account: UserPreferences | null) {
-    // Sign-in from setup has created the account from the setup answers, or found
-    // the account that already existed. Either way the saved account is the only
-    // source for what is on screen, so load it rather than showing the answers: a
-    // returning account must never see (or save over its plan with) setup answers.
-    // The reload uses the document that sign-in's transaction returned instead of
-    // reading it again (see loadAccountPrefs).
+  function handleSignedIn(account: UserPreferences | null) {
+    // Sign-in (from setup, the sign-in screen or any upsell) has created the account
+    // from the guest plan or the setup answers, or found the account that already
+    // existed. Either way the saved account is the only source for what is on screen,
+    // so load it rather than showing what was on this device: a returning account
+    // must never see (or save over its plan with) guest data. The reload uses the
+    // document that sign-in's transaction returned instead of reading it again (see
+    // loadAccountPrefs).
     setScreen(screenAfterOnboarding)
     reload(account)
+  }
+
+  function handleStartAsGuest(answers: UserPreferences) {
+    saveGuestPrefs(answers)
+    setPrefs(loadGuestPrefs() ?? answers)
+    setScreen('dashboard')
   }
 
   if (screen === 'loading') {
@@ -104,12 +136,18 @@ function SignedInApp() {
     )
   }
 
-  if (screen === 'welcome') {
-    return <Welcome onGetStarted={() => setScreen('onboarding')} />
+  if (screen === 'signin') {
+    return (
+      <SignedInContext value={handleSignedIn}>
+        <SignInScreen onContinueAsGuest={continueAsGuest} />
+      </SignedInContext>
+    )
   }
 
   if (screen === 'onboarding' || !prefs?.location) {
-    return <Onboarding onComplete={handleOnboardingComplete} />
+    return (
+      <Onboarding user={user} onSignedIn={handleSignedIn} onStartAsGuest={handleStartAsGuest} />
+    )
   }
 
   const displayTier = tierOverride || prefs.tier || 'anonymous'
@@ -121,7 +159,13 @@ function SignedInApp() {
   const savePrefs = (p: UserPreferences) => void handlePrefsUpdate(p)
 
   return (
-    <AccountContexts units={units} uid={user?.uid ?? null} activities={prefs.activities}>
+    <AccountContexts
+      onSignedIn={handleSignedIn}
+      units={units}
+      // Scheduled activities (Google Calendar) are part of Pro.
+      uid={user && canUseCalendar(prefs.tier) ? user.uid : null}
+      activities={prefs.activities}
+    >
       <AppShell
         header={
           <Header
@@ -219,23 +263,30 @@ function SignedInApp() {
   )
 }
 
-/** Display units and the account's scheduled activities, for everything below. */
+/**
+ * Display units, what sign-in does, and the account's scheduled activities, for
+ * everything below.
+ */
 function AccountContexts({
+  onSignedIn,
   units,
   uid,
   activities,
   children,
 }: {
+  onSignedIn: (account: UserPreferences | null) => void
   units: ReturnType<typeof unitFormatters>
   uid: string | null
   activities: Activity[]
   children: ReactNode
 }) {
   return (
-    <UnitsContext value={units}>
-      <ScheduledProvider uid={uid} activities={activities}>
-        {children}
-      </ScheduledProvider>
-    </UnitsContext>
+    <SignedInContext value={onSignedIn}>
+      <UnitsContext value={units}>
+        <ScheduledProvider uid={uid} activities={activities}>
+          {children}
+        </ScheduledProvider>
+      </UnitsContext>
+    </SignedInContext>
   )
 }
