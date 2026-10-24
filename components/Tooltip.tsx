@@ -2,7 +2,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { shiftIntoView } from '@/lib/roving-focus'
-import styles from './Tooltip.module.css'
 
 interface Props {
   text: string
@@ -52,15 +51,16 @@ export default function Tooltip({ text, children }: Props) {
   return (
     <span
       ref={anchorRef}
-      className="tooltip-anchor"
-      style={{ position: 'relative' }}
+      className="relative inline-flex cursor-default items-center gap-[5px]"
       onMouseEnter={() => setShow(true)}
       onMouseLeave={() => setShow(false)}
     >
       {children}
       <button
         type="button"
-        className={styles.trigger}
+        // A 24 px target (WCAG 2.5.8) around the 15 px icon; the negative
+        // margin keeps the text layout as tight as the icon alone.
+        className="-m-[4.5px] inline-flex size-6 shrink-0 cursor-help items-center justify-center rounded-full"
         aria-label="More info"
         aria-describedby={id}
         aria-expanded={show}
@@ -77,7 +77,10 @@ export default function Tooltip({ text, children }: Props) {
           }
         }}
       >
-        <span aria-hidden="true" className={styles.icon}>
+        <span
+          aria-hidden="true"
+          className="inline-flex size-[15px] items-center justify-center rounded-full border-[0.5px] border-line-strong bg-surface-metric text-[9px] leading-none font-normal tracking-normal text-ink-3 normal-case"
+        >
           ?
         </span>
       </button>
@@ -86,7 +89,7 @@ export default function Tooltip({ text, children }: Props) {
         id={id}
         role="tooltip"
         hidden={!show}
-        className={styles.bubble}
+        className="absolute bottom-full left-1/2 z-50 mb-1.5 w-50 max-w-[calc(100vw-16px)] rounded-lg bg-ink px-2.5 py-2 text-left text-[12px] leading-normal font-normal tracking-normal whitespace-normal text-surface normal-case"
         style={{ transform: `translateX(calc(-50% + ${shift}px))` }}
       >
         {text}
