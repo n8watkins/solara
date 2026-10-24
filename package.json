@@ -25,12 +25,14 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:signed-in": "node tests/e2e/signed-in/run.mjs",
+    "test:e2e:integrations": "playwright test -c tests/e2e/integrations/playwright.config.ts",
     "format": "prettier --write \"**/*.{ts,tsx,mts,js,mjs,cjs,css}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,mts,js,mjs,cjs,css}\"",
     "test:harness": "playwright test -c playwright.harness.config.ts"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.3.0",
+    "@sentry/nextjs": "^11.8.0",
     "@solara/core": "*",
     "@tanstack/react-query": "^5.104.5",
     "clsx": "^2.1.1",
@@ -44,6 +46,7 @@
     "@axe-core/playwright": "^4.13.0",
     "@next/env": "^16.4.2",
     "@playwright/test": "^1.61.1",
+    "@sentry/cli": "^3.8.0",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^24.19.2",
     "@types/react": "^19.2.17",
@@ -65,6 +68,7 @@
   },
   "allowScripts": {
     "@firebase/util": false,
+    "@sentry/cli": false,
     "protobufjs": false,
     "unrs-resolver": false
   }

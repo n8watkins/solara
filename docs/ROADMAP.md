@@ -58,8 +58,8 @@ D1, D3 and D8 are done; the current state of every owner action is in [status.md
 | D6 | Relaunch morning notifications | W3-B | Relaunch on a scheduled Function |
 | D7 | Offer a guest mode before sign-in | W3-C | Yes |
 | D9 | Create a staging Firebase project and enable Stripe test mode | W3-A and W3-D | Required before W3-A and W3-D finish |
-| D10 | Choose an error-reporting service | W3-D | Sentry with PII scrubbing |
-| D11 | Enforce App Check in the console and provide a reCAPTCHA Enterprise key | Before Function-backed surfaces go live | Code supports reCAPTCHA v3 (default) and Enterprise |
+| D10 | Create the Sentry project and set `NEXT_PUBLIC_SENTRY_DSN` (code ready; [checklist step 8](OWNER_CHECKLIST.md#now-free-no-blaze)) | Any time | Error reporting off, no Sentry code shipped |
+| D11 | Create the reCAPTCHA v3 key, register it in App Check, set `NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY`, then enforce Firestore (code ready; [checklist step 7](OWNER_CHECKLIST.md#now-free-no-blaze)) | Before Function-backed surfaces go live | App Check off |
 | D12 | Delete the merged local branches and worktrees under `projects/polish/` on the owner's machine | Any time | Leave untouched |
 | - | Upgrade `uv-activity-planner` to Blaze with a budget alert | Before any Functions deploy (W3-A, W3-B) | Spark; Functions stay undeployed |
 | - | Publish the Google OAuth consent screen and pass scope verification for `calendar.freebusy` and `calendar.events.owned` | Before Google Calendar is turned on in production | Calendar connect stays hidden (no OAuth client ID in the build) |
@@ -67,7 +67,8 @@ D1, D3 and D8 are done; the current state of every owner action is in [status.md
 ## Wave 3 - Launch tracks (4 lanes)
 
 Wave 3 runs in two phases.
-**Phase 1 (free, now):** W3-C (guest mode with the tiers above, landing page) and the Sentry part of W3-D, plus App Check with reCAPTCHA v3.
+**Phase 1 (free, now):** W3-C (guest mode with the tiers above, landing page).
+The Sentry part of W3-D and App Check with reCAPTCHA v3 are built and wait only for the owner's keys (D10, D11).
 **Phase 2 (Pro launch, Blaze):** W3-A (billing), W3-B (Pro-only morning alerts), the rest of W3-D (staging, alerts, backups).
 
 The Functions feature folders under `functions/src/` keep the backend lanes apart.
@@ -101,9 +102,9 @@ The Functions feature folders under `functions/src/` keep the backend lanes apar
 ### W3-D - Operations
 
 - **Branch:** `ops/observability-staging`
-- **Closes:** OPS-12, OPS-15 (remaining), OPS-16, OPS-17, CQ-13 (error reporting part)
+- **Closes:** OPS-12, OPS-15 (alerts and uptime checks; error reporting is done), OPS-16, OPS-17
 - **Owns:** `.github/` except `notify.yml`, `.firebaserc`, `infra/` (new), `docs/RUNBOOK.md` (new), `components/ErrorBoundary.tsx`, `app/global-error.tsx` (new), `instrumentation-client.ts` (new)
-- **Work:** error reporting with source maps and PII scrubbing (D10); uptime checks; alerts on Function errors, scheduled-job failures, webhook 5xx and stalled deletions; PITR, delete protection, daily backups and a restore drill; budget alerts; PR preview channels and staging promotion (D9); a runbook with rollback per component and a secret rotation table.
+- **Work:** uptime checks; alerts on Function errors, scheduled-job failures, webhook 5xx and stalled deletions; PITR, delete protection, daily backups and a restore drill; budget alerts; PR preview channels and staging promotion (D9); a runbook with rollback per component and a secret rotation table.
 
 ## Wave 4 - Styling system, upgrades and polish
 

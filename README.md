@@ -79,11 +79,14 @@ npm test --prefix functions
 npm run test:rules --prefix functions
 npx playwright install chromium
 npm run test:e2e
+npm run test:e2e:integrations
 npm run test:e2e:signed-in
 npm run test:harness
 ```
 
 - `npm run test:e2e` builds the static export with a hermetic public configuration and tests it on the Firebase Hosting emulator without credentials: welcome, onboarding, analytics consent, legal pages, share links and Hosting headers.
+- `npm run test:e2e:integrations` builds the production export with a fake Sentry DSN and reCAPTCHA site key, answers every third-party request with a fake, and checks that error reports arrive scrubbed and that App Check starts only after sign-in, within the CSP.
+  It writes `out/` like `npm run test:e2e`, so run the two one after the other.
 - `npm run test:e2e:signed-in` signs in through the Auth emulator and covers the dashboard, activities, settings, calendar, sharing, Pro gating, account isolation and export against the real rules and Functions.
 - `npm run test:harness` captures screenshots at desktop and phone widths in both themes, with an axe report, into `test-results/ui-harness/`: the signed-in screens and header popovers, and the pages a visitor sees before signing in (welcome, each onboarding step, legal pages, share links, the account page and the 404 page).
 - `npm run check:docs` checks that every relative link and backticked repository path in the Markdown docs resolves.

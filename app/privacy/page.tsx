@@ -67,6 +67,13 @@ export default function PrivacyPage() {
             strings), approximate device and browser details, and feature usage.
           </li>
           <li>
+            <strong>Error reports</strong>, when something breaks: the error message and where in
+            the code it happened, the page address without its query string, your browser, device
+            type, language and time zone, and the app steps just before the error. Email addresses,
+            account identifiers, tokens and locations are removed in your browser before a report is
+            sent, and no IP address is stored with it.
+          </li>
+          <li>
             <strong>Technical data.</strong> Hosting and security services process your IP address
             and browser details to deliver pages and prevent abuse.
           </li>
@@ -136,7 +143,8 @@ export default function PrivacyPage() {
           </li>
           <li>
             <strong>Legitimate interests</strong>: keeping Solara secure, preventing abuse and
-            fixing problems.
+            fixing problems, including the error reports above, which is why they do not depend on
+            the analytics choice.
           </li>
           <li>
             <strong>Legal obligations</strong>: keeping payment records for tax and accounting.
@@ -153,7 +161,9 @@ export default function PrivacyPage() {
           <li>
             <strong>Google Firebase</strong> (Google LLC): sign-in, database, hosting, cloud
             functions, push messaging and App Check, which uses Google reCAPTCHA to check that
-            requests come from the real app.
+            requests come from the real app. reCAPTCHA runs only after you sign in; the Google{' '}
+            <a href="https://policies.google.com/privacy">Privacy Policy</a> and{' '}
+            <a href="https://policies.google.com/terms">Terms of Service</a> apply to it.
           </li>
           <li>
             <strong>Google Calendar API and Google Identity Services</strong>: only when you connect
@@ -173,6 +183,10 @@ export default function PrivacyPage() {
           </li>
           <li>
             <strong>Stripe</strong>: processes payments when subscriptions are enabled.
+          </li>
+          <li>
+            <strong>Sentry</strong> (Functional Software, Inc.): receives the error reports
+            described above, in the United States.
           </li>
         </ul>
         <p>
@@ -198,6 +212,7 @@ export default function PrivacyPage() {
             deletion. Stripe keeps its own records under its privacy policy.
           </li>
           <li>Analytics: for the retention period set in Google Analytics, at most 14 months.</li>
+          <li>Error reports: 30 days in Sentry.</li>
           <li>Hosting and security logs: for the periods set by Google Cloud.</li>
         </ul>
 

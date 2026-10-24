@@ -144,6 +144,7 @@ function buildSite() {
     // Calendar API itself (fake-google-calendar.ts), so scheduling can be tested.
     NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID: 'solara-e2e.apps.googleusercontent.com',
     NEXT_PUBLIC_GA_MEASUREMENT_ID: '',
+    NEXT_PUBLIC_SENTRY_DSN: '',
     NEXT_PUBLIC_UI_HARNESS: '',
     NEXT_TELEMETRY_DISABLED: '1',
   }

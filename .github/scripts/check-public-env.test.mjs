@@ -3,7 +3,8 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
-import { checkEnv, exportContains } from './check-public-env.mjs'
+import { checkEnv, checkExport, exportContains, isSentryDsn } from './check-public-env.mjs'
+import { removeSourceMaps, stripSourceMapComments } from './remove-source-maps.mjs'
 
 const complete = {
   FIREBASE_PROJECT_ID: 'uv-activity-planner',
@@ -67,4 +68,91 @@ test('finds compiled values in nested export files', () => {
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
+})
+
+const DSN = 'https://abc123public@o11.ingest.us.sentry.io/22'
+
+test('accepts only Sentry public DSNs', () => {
+  assert.equal(isSentryDsn(DSN), true)
+  assert.equal(isSentryDsn('http://abc@o1.ingest.sentry.io/2'), false)
+  assert.equal(isSentryDsn('https://o1.ingest.sentry.io/2'), false)
+  assert.equal(isSentryDsn('https://abc:secret@o1.ingest.sentry.io/2'), false)
+  assert.equal(isSentryDsn('https://abc@o1.ingest.sentry.io/'), false)
+  assert.deepEqual(checkEnv({ ...complete, NEXT_PUBLIC_SENTRY_DSN: DSN }).errors, [])
+  assert.match(
+    checkEnv({
+      ...complete,
+      NEXT_PUBLIC_SENTRY_DSN: 'https://abc:secret@o1.ingest.sentry.io/2',
+    }).errors.join('\n'),
+    /not a Sentry public DSN/,
+  )
+})
+
+test('rejects a Sentry auth token in a public value', () => {
+  const { errors } = checkEnv({ ...complete, NEXT_PUBLIC_SENTRY_DSN: 'sntrys_abc' })
+  assert.match(errors.join('\n'), /looks like a Sentry auth token/)
+})
+
+/** Writes `files` into a temporary export and runs `fn` with its path. */
+function withExport(files, fn) {
+  const dir = mkdtempSync(join(tmpdir(), 'check-export-'))
+  try {
+    for (const [name, text] of Object.entries(files)) {
+      mkdirSync(join(dir, name, '..'), { recursive: true })
+      writeFileSync(join(dir, name), text)
+    }
+    return fn(dir)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+}
+
+test('refuses published source maps and their comments', () => {
+  const errors = withExport(
+    {
+      '_next/static/chunks/a.js': 'let a=1\n//# sourceMappingURL=a.js.map',
+      '_next/static/chunks/a.js.map': '{}',
+    },
+    dir => checkExport(dir, {}),
+  )
+  assert.match(errors.join('\n'), /1 source map\(s\)/)
+  assert.match(errors.join('\n'), /still reference a source map/)
+})
+
+test('removes source maps and their comments, leaving the code', () => {
+  assert.equal(
+    stripSourceMapComments('let a=1\n//# sourceMappingURL=a.js.map\n//# debugId=x\n'),
+    'let a=1\n//# debugId=x\n',
+  )
+  assert.equal(stripSourceMapComments('a{}\n/*# sourceMappingURL=a.css.map*/'), 'a{}\n')
+  withExport(
+    {
+      '_next/static/chunks/a.js': 'let a=1\n//# sourceMappingURL=a.js.map',
+      '_next/static/chunks/a.js.map': '{}',
+      '_next/static/chunks/b.css': 'b{}\n/*# sourceMappingURL=b.css.map*/',
+      '_next/static/chunks/b.css.map': '{}',
+    },
+    dir => {
+      assert.deepEqual(removeSourceMaps(dir), { maps: 2, files: 2 })
+      assert.deepEqual(checkExport(dir, {}), [])
+    },
+  )
+})
+
+test('refuses Sentry code in a build without a DSN, and a DSN that was not compiled in', () => {
+  const sentryChunk = { '_next/static/chunks/s.js': 'g.__SENTRY__=g.__SENTRY__||{}' }
+  assert.match(
+    withExport(sentryChunk, dir => checkExport(dir, {})).join('\n'),
+    /contains Sentry SDK code/,
+  )
+  assert.match(
+    withExport(sentryChunk, dir => checkExport(dir, { NEXT_PUBLIC_SENTRY_DSN: DSN })).join('\n'),
+    /NEXT_PUBLIC_SENTRY_DSN is not compiled into/,
+  )
+  assert.deepEqual(
+    withExport({ ...sentryChunk, '_next/static/chunks/c.js': `init({dsn:"${DSN}"})` }, dir =>
+      checkExport(dir, { NEXT_PUBLIC_SENTRY_DSN: DSN }),
+    ),
+    [],
+  )
 })

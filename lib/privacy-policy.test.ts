@@ -15,6 +15,7 @@ describe('privacy policy', () => {
       'Open-Meteo',
       'OpenStreetMap Nominatim',
       'Stripe',
+      'Sentry',
     ]) {
       expect(privacy).toContain(processor)
     }
@@ -52,6 +53,14 @@ describe('privacy policy', () => {
     expect(privacy).not.toContain('does not keep a')
     expect(privacy).toContain('Scheduled activities: until you remove the event')
     expect(privacy).toContain('scheduled activities, calendar')
+  })
+
+  it('says what error reports contain, that they are scrubbed, and how long they are kept', () => {
+    expect(privacy).toContain('<strong>Error reports</strong>')
+    expect(privacy).toContain('removed in your browser before a report')
+    expect(privacy).toContain('no IP address is stored')
+    expect(privacy).toContain('Error reports: 30 days in Sentry.')
+    expect(privacy).toContain('do not depend on')
   })
 
   it('describes calendar access as availability only, matching the requested scope', () => {

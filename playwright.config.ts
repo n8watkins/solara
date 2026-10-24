@@ -66,6 +66,7 @@ export default defineConfig({
       NEXT_PUBLIC_FUNCTIONS_URL: '',
       NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID: '',
       NEXT_PUBLIC_GA_MEASUREMENT_ID: 'G-TEST123',
+      NEXT_PUBLIC_SENTRY_DSN: '',
       NEXT_TELEMETRY_DISABLED: '1',
     },
   },

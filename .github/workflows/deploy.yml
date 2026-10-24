@@ -53,6 +53,10 @@ jobs:
       NEXT_PUBLIC_PRO_PRICE: ${{ vars.NEXT_PUBLIC_PRO_PRICE || secrets.NEXT_PUBLIC_PRO_PRICE }}
       NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID: ${{ vars.NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID || secrets.NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID }}
       NEXT_PUBLIC_GA_MEASUREMENT_ID: ${{ vars.NEXT_PUBLIC_GA_MEASUREMENT_ID || secrets.NEXT_PUBLIC_GA_MEASUREMENT_ID }}
+      # Error reporting (D10) stays off, with no Sentry code in the bundle, until the
+      # DSN variable is set. Each deploy is its own Sentry release.
+      NEXT_PUBLIC_SENTRY_DSN: ${{ vars.NEXT_PUBLIC_SENTRY_DSN }}
+      NEXT_PUBLIC_SENTRY_RELEASE: ${{ vars.NEXT_PUBLIC_SENTRY_DSN && github.sha || '' }}
       # Function-backed surfaces stay off unless Functions are deployed.
       NEXT_PUBLIC_FUNCTIONS_URL: ${{ vars.ENABLE_BLAZE_FUNCTIONS == 'true' && (vars.NEXT_PUBLIC_FUNCTIONS_URL || secrets.NEXT_PUBLIC_FUNCTIONS_URL) || '' }}
       ENABLE_BLAZE_FUNCTIONS: ${{ vars.ENABLE_BLAZE_FUNCTIONS }}
@@ -76,9 +80,43 @@ jobs:
       - name: Check the public build configuration
         run: node .github/scripts/check-public-env.mjs
 
+      # Source maps are built only when they can go to Sentry: a DSN, the
+      # SENTRY_ORG and SENTRY_PROJECT variables and the SENTRY_AUTH_TOKEN secret.
+      - name: Decide whether to upload source maps to Sentry
+        env:
+          HAS_SENTRY_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN != '' }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+        run: |
+          if [ -n "$NEXT_PUBLIC_SENTRY_DSN" ] && [ "$HAS_SENTRY_TOKEN" = "true" ] \
+            && [ -n "$SENTRY_ORG" ] && [ -n "$SENTRY_PROJECT" ]; then
+            echo "BROWSER_SOURCE_MAPS=1" >> "$GITHUB_ENV"
+            echo "Source maps will be uploaded to Sentry and removed from the artifact."
+          else
+            echo "Source maps are off: Sentry upload is not configured."
+          fi
+
       - name: Build the static export
         run: npm run build
 
+      # Debug ids tie each published script to its uploaded map, so Sentry can
+      # show original source without the maps ever being served.
+      - name: Upload source maps to Sentry
+        if: env.BROWSER_SOURCE_MAPS == '1'
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+        run: |
+          node_modules/.bin/sentry-cli sourcemaps inject out/_next/static
+          node_modules/.bin/sentry-cli sourcemaps upload --release "$NEXT_PUBLIC_SENTRY_RELEASE" out/_next/static
+
+      - name: Remove source maps from the artifact
+        if: env.BROWSER_SOURCE_MAPS == '1'
+        run: node .github/scripts/remove-source-maps.mjs out
+
+      # Also fails on any source map left in the export, and on Sentry code in a
+      # build without a DSN.
       - name: Check the configuration compiled into the export
         run: node .github/scripts/check-public-env.mjs --built out
 
