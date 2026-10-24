@@ -1,3 +1,4 @@
+'use client'
 import { useEffect, useRef, useState } from 'react'
 
 /** Measure an element's content width and keep it current (0 until mounted). */

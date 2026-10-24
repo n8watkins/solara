@@ -1,4 +1,4 @@
-import type { CalendarBusyStatus } from '@/lib/use-calendar-busy'
+import type { CalendarBusyStatus } from '@/hooks/useCalendarBusy'
 
 /** Offers to schedule recommendations around Google Calendar free/busy. */
 export default function CalendarConnectBanner({

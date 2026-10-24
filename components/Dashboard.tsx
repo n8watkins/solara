@@ -10,8 +10,8 @@ import type {
   HourlyForecast,
 } from '@/lib/types'
 import { useUnits } from '@/lib/use-units'
-import { useFlashMessage } from '@/lib/use-flash-message'
-import { useCalendarBusy } from '@/lib/use-calendar-busy'
+import { useStatusFlash } from '@/hooks/useStatusFlash'
+import { useCalendarBusy } from '@/hooks/useCalendarBusy'
 import { nowHourOf, planActivityDay, soonestPlan } from '@/lib/next-slot'
 import { busyByDate, dashboardAccess, dayPhrase, uvReadout } from '@/lib/dashboard-view'
 import { buildEventDescription } from '@/lib/gcal'
@@ -48,7 +48,7 @@ export default function Dashboard({
   selectedDay,
   onSelectDay,
 }: Props) {
-  const status = useFlashMessage()
+  const status = useStatusFlash(4500)
   const [showPricing, setShowPricing] = useState(false)
   // The hour being inspected, shared by the sun path and the UV strip so a tap on
   // either keeps both in sync. null falls back to "now" (today) or the day's peak.
@@ -105,7 +105,8 @@ export default function Dashboard({
   }, [scheduledEnabled])
 
   async function bookSlotOn(activity: Activity, rec: SlotRecommendation, dateStr: string) {
-    status.hold('Adding to your Google Calendar…')
+    // Shown until the result replaces it; the minute is only a safety net.
+    status.flash('Adding to your Google Calendar…', 60_000)
     // For a future day the "peak" context belongs to that day, not today's reading.
     const peak = dateStr === activeDateStr ? { peakUV, peakHour } : { peakUV: rec.peakUV }
     try {

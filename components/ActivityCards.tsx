@@ -2,7 +2,7 @@
 import type { Activity, SafeActivityWindow, TierLevel, Location } from '@/lib/types'
 import { gcalLink } from '@/lib/weather'
 import { useUnits } from '@/lib/use-units'
-import { useFlashMessage } from '@/lib/use-flash-message'
+import { useStatusFlash } from '@/hooks/useStatusFlash'
 import { canUseCalendar } from '@/lib/tiers'
 import { buildActivityShareText, buildActivityShareUrl, shareOrCopy } from '@/lib/share'
 import type { SlotRecommendation } from '@/lib/scheduler'
@@ -44,7 +44,7 @@ export default function ActivityCards({
   onOpenScheduled,
 }: Props) {
   const fmt = useUnits()
-  const confirm = useFlashMessage()
+  const confirm = useStatusFlash(4500)
   const calendarAllowed = canUseCalendar(tier)
 
   async function shareWindow(activity: Activity, selectedWindow: SafeActivityWindow) {

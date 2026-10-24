@@ -2,7 +2,7 @@
 import { useId, useRef } from 'react'
 import type { HourlyForecast } from '@/lib/types'
 import { uvColor } from '@/lib/weather'
-import { useElementWidth } from '@/lib/use-element-width'
+import { useElementWidth } from '@/hooks/useElementWidth'
 import { hourSlots } from '@/lib/uv-strip'
 import { FocusMarker, NowSun, PeakMarker } from './dashboard/SunArcMarkers'
 import {

@@ -1,6 +1,7 @@
+'use client'
 import { useState } from 'react'
-import { fetchFreeBusy, requestAccessToken, type BusyPeriod } from './gcal'
-import { freeBusyRange } from './dashboard-view'
+import { fetchFreeBusy, requestAccessToken, type BusyPeriod } from '@/lib/gcal'
+import { freeBusyRange } from '@/lib/dashboard-view'
 
 export type CalendarBusyStatus = 'idle' | 'connecting' | 'connected' | 'error'
 
