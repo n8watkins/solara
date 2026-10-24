@@ -139,11 +139,16 @@ function portIsFree(candidate) {
 }
 
 // A pinned PLAYWRIGHT_PORT can still be held for a moment by the previous run's
-// server while it shuts down. Wait for it instead of failing with EADDRINUSE.
-const portDeadline = Date.now() + 30_000
+// server while it shuts down. Wait for it instead of failing with EADDRINUSE, but
+// give up before Playwright's 30 s webServer timeout so this message is what the
+// run reports.
+const portDeadline = Date.now() + 20_000
 while (!(await portIsFree(port))) {
   if (Date.now() > portDeadline) {
-    console.error(`signed-in server: port ${port} is still in use after 30 s.`)
+    console.error(
+      `signed-in server: port ${port} is still in use after 20 s. If it is inside the ` +
+        "machine's ephemeral port range, an outgoing connection may hold it; pin another port.",
+    )
     process.exit(1)
   }
   await new Promise(resolveDelay => setTimeout(resolveDelay, 250))

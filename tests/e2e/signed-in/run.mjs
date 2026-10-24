@@ -72,6 +72,22 @@ if (!existsSync(firebaseBin)) {
 }
 
 const pinned = Number(process.env.PLAYWRIGHT_PORT)
+
+// Outgoing connections take their local port from the kernel's ephemeral range, and
+// such a socket (open, or for a minute in TIME_WAIT afterwards) keeps the test server
+// from listening on that port. A pinned port inside the range can therefore be taken
+// by any busy process on the machine, and the run then fails to start.
+const EPHEMERAL_RANGE = '/proc/sys/net/ipv4/ip_local_port_range'
+if (pinned && existsSync(EPHEMERAL_RANGE)) {
+  const [low, high] = readFileSync(EPHEMERAL_RANGE, 'utf8').trim().split(/\s+/).map(Number)
+  if (pinned >= low && pinned <= high) {
+    console.warn(
+      `signed-in: PLAYWRIGHT_PORT ${pinned} is inside this machine's ephemeral port range ` +
+        `(${low}-${high}), so an outgoing connection can hold it and the run may fail to ` +
+        'start. Pin a port outside that range.',
+    )
+  }
+}
 const [
   picked,
   authPort,
