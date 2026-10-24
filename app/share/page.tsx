@@ -1,62 +1,58 @@
 'use client'
 import Link from 'next/link'
-import { Suspense } from 'react'
+import { Suspense, type ReactNode } from 'react'
+import clsx from 'clsx'
 import { useSearchParams } from 'next/navigation'
 import DataAttribution from '@/components/DataAttribution'
 import { formatShareDate, parseActivityShareParams, shareDateStatus } from '@/lib/share'
 import { loadLocalPrefs } from '@/lib/prefs'
 import { resolveUnits, unitFormatters } from '@/lib/units'
 
+/** The centered card every share page state uses, with the call to action. */
+function ShareCard({
+  width,
+  children,
+  cta,
+  footer,
+}: {
+  width: 'narrow' | 'wide'
+  children: ReactNode
+  cta: string
+  footer?: ReactNode
+}) {
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-surface p-6">
+      <div
+        className={clsx(
+          'card w-full px-[26px] py-8 text-center',
+          width === 'narrow' ? 'max-w-[520px]' : 'max-w-[560px]',
+        )}
+      >
+        {children}
+        <Link href="/" className="btn btn-primary justify-center px-[18px] py-[11px] no-underline">
+          {cta}
+        </Link>
+        {footer}
+      </div>
+    </main>
+  )
+}
+
 function ShareContent() {
   const sharedPlan = parseActivityShareParams(useSearchParams())
 
   if (!sharedPlan) {
     return (
-      <main
-        style={{
-          minHeight: '100vh',
-          background: 'var(--bg)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '24px',
-        }}
-      >
-        <div
-          className="card"
-          style={{ width: '100%', maxWidth: '520px', textAlign: 'center', padding: '32px 26px' }}
-        >
-          <p style={{ fontSize: '42px', margin: '0 0 12px' }}>☀️</p>
-          <h1
-            style={{ margin: '0 0 10px', fontSize: '26px', fontWeight: 750, color: 'var(--text)' }}
-          >
-            This shared link can&apos;t be shown
-          </h1>
-          <p
-            style={{
-              margin: '0 0 22px',
-              fontSize: '15px',
-              color: 'var(--text-2)',
-              lineHeight: 1.55,
-            }}
-          >
-            The link is incomplete, out of date or contains text Solara doesn&apos;t display. Ask
-            the sender for a new link, or plan your own lower-UV window in Solara.
-          </p>
-          <Link
-            href="/"
-            className="btn btn-primary"
-            style={{
-              display: 'inline-flex',
-              textDecoration: 'none',
-              justifyContent: 'center',
-              padding: '11px 18px',
-            }}
-          >
-            Open Solara
-          </Link>
-        </div>
-      </main>
+      <ShareCard width="narrow" cta="Open Solara">
+        <p className="mb-3 text-[42px]">☀️</p>
+        <h1 className="mb-2.5 text-[26px] font-[750] text-ink">
+          This shared link can&apos;t be shown
+        </h1>
+        <p className="mb-[22px] text-[15px] leading-[1.55] text-ink-2">
+          The link is incomplete, out of date or contains text Solara doesn&apos;t display. Ask the
+          sender for a new link, or plan your own lower-UV window in Solara.
+        </p>
+      </ShareCard>
     )
   }
 
@@ -69,119 +65,53 @@ function ShareContent() {
   const fmt = unitFormatters(resolveUnits(loadLocalPrefs()))
 
   return (
-    <main
-      style={{
-        minHeight: '100vh',
-        background: 'var(--bg)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '24px',
-      }}
+    <ShareCard
+      width="wide"
+      cta="Plan your own lower-UV window"
+      footer={<DataAttribution className="mt-[22px]" />}
     >
-      <div
-        className="card"
-        style={{ width: '100%', maxWidth: '560px', textAlign: 'center', padding: '32px 26px' }}
-      >
-        <p style={{ fontSize: '46px', margin: '0 0 12px' }}>{icon}</p>
+      <p className="mb-3 text-[46px]">{icon}</p>
+      <p className="mb-1.5 text-[13px] font-[750] tracking-[0.08em] text-ink-3 uppercase">
+        Shared Solara plan
+      </p>
+      <h1 className="mb-2.5 text-[28px] leading-[1.15] font-[750] text-ink">{activity}</h1>
+      <p className="mb-[22px] text-[16px] leading-normal text-ink-2">
+        {formatShareDate(date)} · {fmt.time(from)}–{fmt.time(to)} · {place}
+      </p>
+      {isPast && (
         <p
-          style={{
-            margin: '0 0 6px',
-            fontSize: '13px',
-            color: 'var(--text-3)',
-            textTransform: 'uppercase',
-            letterSpacing: '0.08em',
-            fontWeight: 750,
-          }}
+          role="status"
+          className="mb-[18px] rounded-[10px] border-[0.5px] border-line-strong bg-surface-metric px-3 py-2.5 text-[14px] text-ink"
         >
-          Shared Solara plan
+          This plan was for a day that has passed. Open Solara for today&apos;s forecast.
         </p>
-        <h1
-          style={{
-            margin: '0 0 10px',
-            fontSize: '28px',
-            fontWeight: 750,
-            color: 'var(--text)',
-            lineHeight: 1.15,
-          }}
-        >
-          {activity}
-        </h1>
-        <p
-          style={{ margin: '0 0 22px', fontSize: '16px', color: 'var(--text-2)', lineHeight: 1.5 }}
-        >
-          {formatShareDate(date)} · {fmt.time(from)}–{fmt.time(to)} · {place}
-        </p>
-        {isPast && (
-          <p
-            role="status"
-            style={{
-              margin: '0 0 18px',
-              padding: '10px 12px',
-              borderRadius: '10px',
-              fontSize: '14px',
-              color: 'var(--text)',
-              background: 'var(--bg-metric)',
-              border: '0.5px solid var(--border-md)',
-            }}
-          >
-            This plan was for a day that has passed. Open Solara for today&apos;s forecast.
-          </p>
-        )}
-        <div
-          style={{
-            display: 'grid',
-            // Side by side when there is room, stacked on phones.
-            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-            gap: '10px',
-            marginBottom: '24px',
-          }}
-        >
-          <div className="metric-card">
-            <p style={{ margin: '0 0 4px', fontSize: '12px', color: 'var(--text-3)' }}>
-              Recommended window
-            </p>
-            <p style={{ margin: 0, fontSize: '22px', fontWeight: 800, color: 'var(--accent)' }}>
-              {fmt.time(from)}–{fmt.time(to)}
-            </p>
-          </div>
-          {uv && (
-            <div className="metric-card">
-              <p style={{ margin: '0 0 4px', fontSize: '12px', color: 'var(--text-3)' }}>Peak UV</p>
-              <p style={{ margin: 0, fontSize: '22px', fontWeight: 800, color: 'var(--accent)' }}>
-                {uv}
-              </p>
-            </div>
-          )}
-        </div>
-        <p
-          style={{ margin: '0 0 22px', fontSize: '14px', color: 'var(--text-3)', lineHeight: 1.55 }}
-        >
-          This is a forecast-based planning estimate, not medical advice. Recheck current UV and use
-          appropriate sun protection. The activity and place names were written by the person who
-          shared this link.
-        </p>
-        <Link
-          href="/"
-          className="btn btn-primary"
-          style={{
-            display: 'inline-flex',
-            textDecoration: 'none',
-            justifyContent: 'center',
-            padding: '11px 18px',
-          }}
-        >
-          Plan your own lower-UV window
-        </Link>
-        <DataAttribution style={{ marginTop: '22px' }} />
+      )}
+      {/* Side by side when there is room, stacked on phones. */}
+      <div className="mb-6 grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-2.5">
+        <ShareMetric label="Recommended window" value={`${fmt.time(from)}–${fmt.time(to)}`} />
+        {uv && <ShareMetric label="Peak UV" value={uv} />}
       </div>
-    </main>
+      <p className="mb-[22px] text-[14px] leading-[1.55] text-ink-3">
+        This is a forecast-based planning estimate, not medical advice. Recheck current UV and use
+        appropriate sun protection. The activity and place names were written by the person who
+        shared this link.
+      </p>
+    </ShareCard>
+  )
+}
+
+function ShareMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="metric-card">
+      <p className="mb-1 text-[12px] text-ink-3">{label}</p>
+      <p className="text-[22px] font-extrabold text-accent">{value}</p>
+    </div>
   )
 }
 
 export default function SharePage() {
   return (
-    <Suspense fallback={<main style={{ minHeight: '100vh', background: 'var(--bg)' }} />}>
+    <Suspense fallback={<main className="min-h-screen bg-surface" />}>
       <ShareContent />
     </Suspense>
   )

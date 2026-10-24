@@ -11,27 +11,15 @@ export default function LegalPage({
   children: ReactNode
 }) {
   return (
-    <main style={{ minHeight: '100vh', background: 'var(--bg)', padding: '32px 16px 64px' }}>
-      <article
-        className="card"
-        style={{ maxWidth: '760px', margin: '0 auto', padding: 'clamp(20px, 5vw, 48px)' }}
-      >
-        <Link href="/" style={{ color: 'var(--accent)', fontSize: '14px', textDecoration: 'none' }}>
+    <main className="min-h-screen bg-surface px-4 pt-8 pb-16">
+      <article className="card mx-auto max-w-[760px] p-[clamp(20px,5vw,48px)]">
+        <Link href="/" className="text-[14px] text-accent no-underline">
           ← Back to Solara
         </Link>
-        <h1
-          style={{
-            margin: '24px 0 6px',
-            fontSize: 'clamp(28px, 6vw, 42px)',
-            fontWeight: 750,
-            lineHeight: 1.1,
-          }}
-        >
+        <h1 className="mt-6 mb-1.5 text-[clamp(28px,6vw,42px)] leading-[1.1] font-[750]">
           {title}
         </h1>
-        <p style={{ margin: '0 0 32px', color: 'var(--text-3)', fontSize: '13px' }}>
-          Last updated {updated}
-        </p>
+        <p className="mb-8 text-[13px] text-ink-3">Last updated {updated}</p>
         <div className="legal-copy">{children}</div>
       </article>
     </main>

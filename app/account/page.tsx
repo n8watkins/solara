@@ -3,7 +3,8 @@
 import Link from 'next/link'
 import type { User } from 'firebase/auth'
 import { onAuthStateChanged, reauthenticateWithPopup, signOut } from 'firebase/auth'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
+import clsx from 'clsx'
 import { auth, googleProvider } from '@/lib/firebase'
 import { createBillingPortalUrl } from '@/lib/billing'
 import { callFunction, functionsApiConfigured } from '@/lib/functions-api'
@@ -104,15 +105,15 @@ export default function AccountPage() {
   }
 
   return (
-    <main style={{ minHeight: '100vh', background: 'var(--bg)', padding: '32px 16px 64px' }}>
-      <div style={{ maxWidth: '680px', margin: '0 auto' }}>
-        <Link href="/" style={{ color: 'var(--accent)', fontSize: '14px', textDecoration: 'none' }}>
+    <main className="min-h-screen bg-surface px-4 pt-8 pb-16">
+      <div className="mx-auto max-w-[680px]">
+        <Link href="/" className="text-[14px] text-accent no-underline">
           ← Back to Solara
         </Link>
-        <h1 style={{ margin: '24px 0 8px', fontSize: 'clamp(28px, 6vw, 42px)' }}>
+        <h1 className="mt-6 mb-2 text-[clamp(28px,6vw,42px)] leading-[1.1] font-[750]">
           Account controls
         </h1>
-        <p style={{ margin: '0 0 28px', color: 'var(--text-2)', lineHeight: 1.6 }}>
+        <p className="mb-7 leading-[1.6] text-ink-2">
           Manage billing, download a portable copy of your Solara preferences, or permanently delete
           your account.
         </p>
@@ -121,26 +122,24 @@ export default function AccountPage() {
           <div className="card">Loading your account...</div>
         ) : !user ? (
           <div className="card">
-            <h2 style={{ marginTop: 0, fontSize: '18px' }}>
+            <h2 className="mb-2 text-[18px] font-[650]">
               {deletionPending ? 'Account deletion is in progress' : 'Sign in required'}
             </h2>
-            <p role="status" style={{ color: 'var(--text-2)', lineHeight: 1.55 }}>
+            <p role="status" className="mb-[18px] leading-[1.55] text-ink-2">
               {deletionPending
                 ? 'You have been signed out while Solara finishes canceling billing and removing your account data.'
                 : 'Return to Solara and sign in before using these controls.'}
             </p>
-            <Link href="/" className="btn btn-primary" style={{ textDecoration: 'none' }}>
+            <Link href="/" className="btn btn-primary no-underline">
               Go to sign in
             </Link>
           </div>
         ) : (
-          <div style={{ display: 'grid', gap: '18px' }}>
-            <section className="card">
-              <h2 style={{ margin: '0 0 8px', fontSize: '18px' }}>Billing and subscription</h2>
-              <p style={{ margin: '0 0 18px', color: 'var(--text-2)', lineHeight: 1.55 }}>
-                Update your payment method, review invoices, or cancel your subscription securely
-                through Stripe.
-              </p>
+          <div className="grid gap-[18px]">
+            <AccountSection
+              title="Billing and subscription"
+              body="Update your payment method, review invoices, or cancel your subscription securely through Stripe."
+            >
               <button
                 className="btn btn-primary"
                 disabled={busy !== null || !FUNCTIONS_READY}
@@ -148,14 +147,12 @@ export default function AccountPage() {
               >
                 {busy === 'billing' ? 'Opening...' : 'Manage subscription'}
               </button>
-            </section>
+            </AccountSection>
 
-            <section className="card">
-              <h2 style={{ margin: '0 0 8px', fontSize: '18px' }}>Download your data</h2>
-              <p style={{ margin: '0 0 18px', color: 'var(--text-2)', lineHeight: 1.55 }}>
-                The JSON export includes your account preferences and device registration metadata.
-                Capability tokens and payment-provider identifiers are excluded for security.
-              </p>
+            <AccountSection
+              title="Download your data"
+              body="The JSON export includes your account preferences and device registration metadata. Capability tokens and payment-provider identifiers are excluded for security."
+            >
               <button
                 className="btn btn-primary"
                 disabled={busy !== null || !FUNCTIONS_READY}
@@ -163,24 +160,17 @@ export default function AccountPage() {
               >
                 {busy === 'export' ? 'Preparing...' : 'Download account data'}
               </button>
-            </section>
+            </AccountSection>
 
-            <section className="card" style={{ borderColor: '#FCA5A5' }}>
-              <h2 style={{ margin: '0 0 8px', fontSize: '18px', color: '#DC2626' }}>
-                Delete account
-              </h2>
-              <p style={{ margin: '0 0 14px', color: 'var(--text-2)', lineHeight: 1.55 }}>
-                This permanently removes your Solara preferences and notification devices. If you
-                have an active subscription, Solara attempts to cancel it before deleting the
-                account.
-              </p>
-              <label
-                style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: 600 }}
-                htmlFor="delete-confirmation"
-              >
+            <AccountSection
+              danger
+              title="Delete account"
+              body="This permanently removes your Solara preferences and notification devices. If you have an active subscription, Solara attempts to cancel it before deleting the account."
+            >
+              <label className="mb-2 block text-[13px] font-semibold" htmlFor="delete-confirmation">
                 Type DELETE to confirm
               </label>
-              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+              <div className="flex flex-wrap gap-2.5">
                 <input
                   id="delete-confirmation"
                   value={confirmation}
@@ -188,43 +178,60 @@ export default function AccountPage() {
                   autoComplete="off"
                 />
                 <button
-                  className="btn"
-                  style={{ color: '#DC2626', borderColor: '#FCA5A5' }}
+                  className="btn border-danger/40 text-danger"
                   disabled={confirmation !== 'DELETE' || busy !== null || !FUNCTIONS_READY}
                   onClick={() => void removeAccount()}
                 >
                   {busy === 'delete' ? 'Deleting...' : 'Delete permanently'}
                 </button>
               </div>
-            </section>
+            </AccountSection>
           </div>
         )}
 
         {!FUNCTIONS_READY && authReady && (
-          <p
-            style={{
-              marginTop: '18px',
-              padding: '12px',
-              borderRadius: '10px',
-              background: '#FEF3C7',
-              color: '#92400E',
-              fontSize: '13px',
-            }}
-          >
+          <p className="mt-[18px] rounded-[10px] border-[0.5px] border-notice-border bg-notice p-3 text-[13px] text-notice-ink">
             Account controls will become available after the Cloud Functions and App Check are
             configured.
           </p>
         )}
         {message && (
-          <p role="status" style={{ marginTop: '18px', color: 'var(--text-2)' }}>
+          <p role="status" className="mt-[18px] text-ink-2">
             {message}
           </p>
         )}
-        <p style={{ marginTop: '30px', fontSize: '13px', color: 'var(--text-3)' }}>
-          Review the <Link href="/privacy/">Privacy Policy</Link> and{' '}
-          <Link href="/terms/">Terms of Use</Link>.
+        <p className="mt-[30px] text-[13px] text-ink-3">
+          Review the{' '}
+          <Link href="/privacy/" className="underline">
+            Privacy Policy
+          </Link>{' '}
+          and{' '}
+          <Link href="/terms/" className="underline">
+            Terms of Use
+          </Link>
+          .
         </p>
       </div>
     </main>
+  )
+}
+
+function AccountSection({
+  title,
+  body,
+  danger = false,
+  children,
+}: {
+  title: string
+  body: string
+  danger?: boolean
+  children: ReactNode
+}) {
+  return (
+    <section className={clsx('card', danger && 'border-danger/40')}>
+      <h2 className={clsx('mb-2 text-[18px] font-[650]', danger && 'text-danger')}>{title}</h2>
+      <p className={clsx('leading-[1.55] text-ink-2', danger ? 'mb-3.5' : 'mb-[18px]')}>{body}</p>
+      {children}
+    </section>
   )
 }
