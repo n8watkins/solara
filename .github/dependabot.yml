@@ -15,6 +15,11 @@ updates:
     groups:
       web-minor-and-patch:
         update-types: [minor, patch]
+    ignore:
+      # Node type definitions must match the Node 24 runtime (.nvmrc, the root and
+      # Functions engines "24"). Move this when the runtime moves.
+      - dependency-name: '@types/node'
+        versions: ['>=25']
 
   - package-ecosystem: npm
     directory: /functions
@@ -27,6 +32,11 @@ updates:
     groups:
       functions-minor-and-patch:
         update-types: [minor, patch]
+    ignore:
+      # Node type definitions must match the Node 24 runtime (.nvmrc, the root and
+      # Functions engines "24"). Move this when the runtime moves.
+      - dependency-name: '@types/node'
+        versions: ['>=25']
 
   - package-ecosystem: github-actions
     directories:
