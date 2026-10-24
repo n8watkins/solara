@@ -1,9 +1,17 @@
 'use client'
-import { useEffect, useId, useRef, useState } from 'react'
+import { useId, useRef } from 'react'
 import type { HourlyForecast } from '@/lib/types'
 import { uvColor } from '@/lib/weather'
-import { useUnits } from '@/lib/use-units'
-import { UV_BAR_GAP, hourSlots, missingRuns, uvBarCenter } from './UVTimeline'
+import { useElementWidth } from '@/hooks/useElementWidth'
+import { hourSlots } from '@/lib/uv-strip'
+import { FocusMarker, NowSun, PeakMarker } from './dashboard/SunArcMarkers'
+import {
+  SUN_ARC_BASELINE_Y as BASELINE_Y,
+  SUN_ARC_HEIGHT as HEIGHT,
+  hourAtOffset,
+  peakLabelAnchor,
+  sunArcGeometry,
+} from '@/lib/sun-arc'
 
 interface Props {
   hourly: HourlyForecast[]
@@ -15,114 +23,51 @@ interface Props {
   onSelectHour: (h: HourlyForecast) => void
 }
 
-// The SVG is drawn in real pixels (its viewBox tracks its measured width), so text
-// and markers keep their shape at every width. It renders inside the UV strip's
-// column (see UVTimeline `above`), so its width is the bars' width and every hour's
-// x is the center of that hour's bar.
-const HEIGHT = 124
-const BASELINE_Y = 112
-const APEX_Y = 34
-// Quadratic bezier control point that puts the curve's apex (t = 0.5) at APEX_Y.
-const CONTROL_Y = 2 * APEX_Y - BASELINE_Y
-
-function clamp(n: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, n))
-}
-
-/** Measure an element's content width and keep it current. */
-function useWidth<T extends HTMLElement>() {
-  const ref = useRef<T>(null)
-  const [width, setWidth] = useState(0)
-  useEffect(() => {
-    const el = ref.current
-    if (!el) return
-    const update = () => setWidth(el.clientWidth)
-    update()
-    if (typeof ResizeObserver === 'undefined') return
-    const observer = new ResizeObserver(update)
-    observer.observe(el)
-    return () => observer.disconnect()
-  }, [])
-  return [ref, width] as const
-}
-
 /**
  * Decorative sun path over the hourly UV strip. Pointer users can tap or drag it
  * to scrub hours; it is hidden from assistive technology because the strip's
  * bars below are the accessible, keyboard-operable version of the same control.
  */
 export default function SunArc({ hourly, nowHour, focused, onSelectHour }: Props) {
-  const fmt = useUnits()
-  const [wrapRef, width] = useWidth<HTMLDivElement>()
+  const [wrapRef, width] = useElementWidth<HTMLDivElement>()
   const dragging = useRef(false)
 
   const ids = useId()
   const lineId = `${ids}-line`
   const clipId = `${ids}-known`
-  // Positions follow the strip's slots, which include hours with no UV data.
+  const glowId = `${ids}-glow`
+  // Positions follow the strip's slots, which include hours with no UV data. The
+  // SVG is drawn in real pixels at the strip's width (it renders inside the
+  // strip's column, see UVTimeline `above`), so each hour sits over its bar.
   const slots = hourSlots(hourly)
-  const count = slots.length
-  const firstHour = slots[0]?.hour ?? 0
   const first = hourly[0]
   if (!first) return null
-
-  const center = (index: number) => uvBarCenter(index, count, width)
-  const x0 = center(0)
-  const x1 = center(count - 1)
-  // Bar centers are evenly spaced, and so are the bezier's control x-coords, so
-  // x(t) is linear in t and t = index / (count - 1) lands exactly over bar `index`.
-  const tForIndex = (index: number) => (count > 1 ? clamp(index / (count - 1), 0, 1) : 0.5)
-  const pointAt = (t: number) => {
-    const mt = 1 - t
-    return {
-      x: x0 + (x1 - x0) * t,
-      y: mt * mt * BASELINE_Y + 2 * mt * t * CONTROL_Y + t * t * BASELINE_Y,
-    }
-  }
-  const indexOfHour = (hour: number) =>
-    hour >= firstHour && hour < firstHour + count ? hour - firstHour : -1
-  /** Fractional bar index for a fractional hour (10.5 sits halfway from 10am to 11am). */
-  const indexForTime = (time: number) => {
-    const whole = indexOfHour(Math.floor(time))
-    if (whole < 0) return null
-    return whole + (time - Math.floor(time))
-  }
+  const {
+    x0,
+    x1,
+    path,
+    tForIndex,
+    pointAt,
+    indexOfHour,
+    indexForTime,
+    pointForHour,
+    gaps,
+    knownSpans,
+  } = sunArcGeometry(slots, width)
 
   const peak = hourly.reduce((best, h) => (h.uv > best.uv ? h : best), first)
   const hasPeak = peak.uv >= 0.5
-  const peakPoint = pointAt(tForIndex(indexOfHour(peak.hour)))
+  const peakPoint = pointForHour(peak.hour) ?? pointAt(0.5)
   const nowIndex = nowHour !== null ? indexForTime(nowHour) : null
   const nowPoint = nowIndex !== null ? pointAt(tForIndex(nowIndex)) : null
-  const focusedIndex = focused ? indexOfHour(focused.hour) : -1
-  const focusedPoint = focusedIndex >= 0 ? pointAt(tForIndex(focusedIndex)) : null
+  const focusedPoint = focused ? pointForHour(focused.hour) : null
   // Hide the peak callout while the focus marker sits on the peak.
   const showPeakLabel = hasPeak && focused?.hour !== peak.hour
-  const peakAnchor =
-    peakPoint.x < 60 ? 'start' : peakPoint.x > width - 60 ? 'end' : ('middle' as const)
-
-  // x-ranges with data on both sides: everything except each gap's span from the
-  // last known hour before it to the first known hour after it.
-  const gaps = missingRuns(slots)
-  const knownSpans: Array<[number, number]> = []
-  let spanStart = 0
-  for (const [from, to] of gaps) {
-    knownSpans.push([spanStart, center(indexOfHour(from) - 1)])
-    spanStart = center(indexOfHour(to) + 1)
-  }
-  knownSpans.push([spanStart, width])
-
-  const path = `M ${x0} ${BASELINE_Y} Q ${(x0 + x1) / 2} ${CONTROL_Y} ${x1} ${BASELINE_Y}`
 
   // Map a pointer x (client px) to the nearest bar's hour, then report it upward.
   function selectFromClientX(svg: SVGSVGElement, clientX: number) {
     const rect = svg.getBoundingClientRect()
-    if (rect.width === 0 || count === 0) return
-    const pitch = (rect.width + UV_BAR_GAP) / count
-    const index = clamp(Math.floor((clientX - rect.left + UV_BAR_GAP / 2) / pitch), 0, count - 1)
-    // A gap has nothing to inspect: snap to the nearest hour that has data.
-    let h = slots[index]?.data ?? null
-    for (let d = 1; !h && d < count; d++)
-      h = slots[index - d]?.data ?? slots[index + d]?.data ?? null
+    const h = hourAtOffset(slots, clientX - rect.left, rect.width)
     if (h) onSelectHour(h)
   }
 
@@ -130,20 +75,14 @@ export default function SunArc({ hourly, nowHour, focused, onSelectHour }: Props
     <div
       ref={wrapRef}
       aria-hidden="true"
-      style={{
-        height: `${HEIGHT}px`,
-        marginBottom: '6px',
-        borderRadius: '12px',
-        background: 'linear-gradient(180deg, rgba(251,191,36,0.13), rgba(249,115,22,0.05))',
-        overflow: 'hidden',
-      }}
+      className="mb-1.5 h-[124px] overflow-hidden rounded-xl bg-[linear-gradient(180deg,rgba(251,191,36,0.13),rgba(249,115,22,0.05))]"
     >
       {width > 0 && (
         <svg
           width={width}
           height={HEIGHT}
           viewBox={`0 0 ${width} ${HEIGHT}`}
-          style={{ display: 'block', cursor: 'pointer', touchAction: 'pan-x pan-y' }}
+          className="block cursor-pointer touch-pan-x touch-pan-y"
           focusable="false"
           onPointerDown={e => {
             dragging.current = true
@@ -188,7 +127,7 @@ export default function SunArc({ hourly, nowHour, focused, onSelectHour }: Props
                 <rect key={from} x={from} y="0" width={to - from} height={HEIGHT} />
               ))}
             </clipPath>
-            <radialGradient id="sunGlow" cx="50%" cy="50%" r="50%">
+            <radialGradient id={glowId} cx="50%" cy="50%" r="50%">
               <stop offset="0%" stopColor="rgba(251,191,36,0.48)" />
               <stop offset="100%" stopColor="rgba(251,191,36,0)" />
             </radialGradient>
@@ -261,68 +200,16 @@ export default function SunArc({ hourly, nowHour, focused, onSelectHour }: Props
           })}
 
           {hasPeak && (
-            <circle
-              cx={peakPoint.x}
-              cy={peakPoint.y}
-              r="6"
-              fill="rgba(249,115,22,0.18)"
-              stroke="rgba(249,115,22,0.85)"
-              strokeWidth="2"
+            <PeakMarker
+              point={peakPoint}
+              uv={peak.uv}
+              hour={peak.hour}
+              label={showPeakLabel}
+              anchor={peakLabelAnchor(peakPoint.x, width)}
             />
           )}
-          {showPeakLabel && (
-            <text
-              x={peakPoint.x}
-              y={peakPoint.y - 14}
-              textAnchor={peakAnchor}
-              fill="#EA580C"
-              fontSize="11.5"
-              fontWeight="700"
-            >
-              Peak {peak.uv.toFixed(1)}
-              <tspan fontWeight="500" fill="var(--text-3)">
-                {' '}
-                · {fmt.hour(peak.hour)}
-              </tspan>
-            </text>
-          )}
-
-          {nowPoint && (
-            <>
-              <circle cx={nowPoint.x} cy={nowPoint.y} r="18" fill="url(#sunGlow)" />
-              <circle
-                cx={nowPoint.x}
-                cy={nowPoint.y}
-                r="7"
-                fill="#FBBF24"
-                stroke="#F97316"
-                strokeWidth="2"
-              />
-            </>
-          )}
-
-          {focusedPoint && (
-            <>
-              <line
-                x1={focusedPoint.x}
-                y1={focusedPoint.y}
-                x2={focusedPoint.x}
-                y2={BASELINE_Y}
-                stroke="rgba(249,115,22,0.35)"
-                strokeWidth="1.5"
-                strokeDasharray="3 4"
-              />
-              <circle
-                cx={focusedPoint.x}
-                cy={focusedPoint.y}
-                r="9"
-                fill="rgba(255,255,255,0.9)"
-                stroke="#F97316"
-                strokeWidth="2.5"
-              />
-              <circle cx={focusedPoint.x} cy={focusedPoint.y} r="3.5" fill="#F97316" />
-            </>
-          )}
+          {nowPoint && <NowSun point={nowPoint} glowId={glowId} />}
+          {focusedPoint && <FocusMarker point={focusedPoint} />}
         </svg>
       )}
     </div>

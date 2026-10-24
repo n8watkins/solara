@@ -1,94 +1,12 @@
 'use client'
 
-import {
-  useState,
-  useRef,
-  useEffect,
-  useEffectEvent,
-  useId,
-  type ReactNode,
-  type RefObject,
-} from 'react'
+import { useState, useRef, useEffect, useEffectEvent, useId, type ReactNode, type Ref } from 'react'
 import type { HourlyForecast } from '@/lib/types'
-import { uvBandColor, uvColor, uvTextColor, fmtHour, formatUV, uvLabel } from '@/lib/weather'
 import { useUnits } from '@/lib/use-units'
+import { hourSlots, uvDaySummary } from '@/lib/uv-strip'
 import VisuallyHidden from './VisuallyHidden'
-
-/** Space between bars, in px. SunArc uses it to put each hour above its bar. */
-export const UV_BAR_GAP = 4
-/** Narrowest a bar may get; below this the strip scrolls instead of squeezing. */
-export const UV_BAR_MIN_WIDTH = 42
-
-/** Horizontal center (px) of bar `index` of `count` bars spread across `width` px. */
-export function uvBarCenter(index: number, count: number, width: number): number {
-  const barWidth = (width - (count - 1) * UV_BAR_GAP) / count
-  return index * (barWidth + UV_BAR_GAP) + barWidth / 2
-}
-
-/** One hour on the strip: its forecast, or null when the forecast has no UV for it. */
-export interface HourSlot {
-  hour: number
-  data: HourlyForecast | null
-}
-
-/**
- * Every hour from the day's first to its last forecast hour. Hours the forecast
- * omits (unknown UV) come back with `data: null` so the strip and sun path show
- * the gap instead of closing it up.
- */
-export function hourSlots(hourly: HourlyForecast[]): HourSlot[] {
-  const first = hourly[0]
-  const last = hourly.at(-1)
-  if (!first || !last) return []
-  const byHour = new Map(hourly.map(h => [h.hour, h]))
-  const slots: HourSlot[] = []
-  for (let hour = first.hour; hour <= last.hour; hour++)
-    slots.push({ hour, data: byHour.get(hour) ?? null })
-  return slots
-}
-
-/** Contiguous runs of hours with no UV data, as [firstHour, lastHour] pairs. */
-export function missingRuns(slots: HourSlot[]): Array<[number, number]> {
-  const runs: Array<[number, number]> = []
-  for (const s of slots) {
-    if (s.data) continue
-    const run = runs.at(-1)
-    if (run && run[1] === s.hour - 1) run[1] = s.hour
-    else runs.push([s.hour, s.hour])
-  }
-  return runs
-}
-
-/** One-sentence summary of the day for screen readers (the strip's description). */
-export function uvDaySummary(
-  hourly: HourlyForecast[],
-  formatHour: (hour: number) => string = fmtHour,
-): string {
-  const first = hourly[0]
-  if (!first) return 'No UV forecast for this day.'
-  const peak = hourly.reduce((best, h) => (h.uv > best.uv ? h : best), first)
-  const parts = [
-    `UV peaks at ${peak.uv.toFixed(1)}, ${uvLabel(peak.uv)}, at ${formatHour(peak.hour)}.`,
-  ]
-  const high = hourly.filter(h => h.uv > 5)
-  const firstHigh = high[0]
-  const lastHigh = high.at(-1)
-  if (firstHigh && lastHigh) {
-    parts.push(
-      firstHigh === lastHigh
-        ? `High or above at ${formatHour(firstHigh.hour)}.`
-        : `High or above from ${formatHour(firstHigh.hour)} to ${formatHour(lastHigh.hour)}.`,
-    )
-  }
-  for (const [from, to] of missingRuns(hourSlots(hourly))) {
-    parts.push(
-      from === to
-        ? `No UV data at ${formatHour(from)}.`
-        : `No UV data from ${formatHour(from)} to ${formatHour(to)}.`,
-    )
-  }
-  return parts.join(' ')
-}
+import { UVBar, UVGap } from './dashboard/UVBar'
+import UVScaleLegend from './dashboard/UVScaleLegend'
 
 interface Props {
   hourly: HourlyForecast[]
@@ -98,7 +16,7 @@ interface Props {
    * path), so it lines up with the bars and scrolls with them.
    */
   above?: ReactNode
-  /** Notifies parent of the focused hour (current or tapped) — e.g. for a synced sun path. */
+  /** Notifies parent of the focused hour (current or tapped) - e.g. for a synced sun path. */
   onFocusHour?: (h: HourlyForecast | null) => void
   /**
    * Controlled focus. When provided, the highlighted hour is driven by the parent
@@ -112,8 +30,8 @@ interface Props {
 /**
  * Interactive hourly UV strip. Bars are a fixed width and the strip scrolls
  * horizontally on phones (zoomed in, more room per hour) with the current hour
- * auto-centered. Tapping a bar — or scrolling so a bar lands nearest the strip's
- * horizontal center — pins that hour as the shared focus, which drives the card's
+ * auto-centered. Tapping a bar - or scrolling so a bar lands nearest the strip's
+ * horizontal center - pins that hour as the shared focus, which drives the card's
  * big readout and the sun-path marker (no separate readout lives here anymore, so
  * the selected hour's stats appear in exactly one place). Numbers are
  * non-selectable so a tap never triggers the OS text/“search” menu.
@@ -132,13 +50,12 @@ export default function UVTimeline({
   // path); otherwise this local `selected` state drives the highlight on its own.
   const controlled = onSelectHour !== undefined
   const [selected, setSelected] = useState<HourlyForecast | null>(null)
-  const [showLegend, setShowLegend] = useState(false)
   const nowRef = useRef<HTMLElement>(null)
   const stripRef = useRef<HTMLDivElement>(null)
   const rafRef = useRef<number | null>(null)
   // True while WE are programmatically scrolling the strip (centering a tapped /
   // externally-focused hour) so the scroll handler doesn't echo that motion back
-  // up as a fresh selection — which would fight taps and the arc.
+  // up as a fresh selection - which would fight taps and the arc.
   const programmaticScroll = useRef(false)
   const programmaticTimer = useRef<number | null>(null)
 
@@ -160,7 +77,7 @@ export default function UVTimeline({
     const strip = stripRef.current
     if (!el || !strip) return
     programmaticScroll.current = true
-    // Scroll the strip's OWN overflow — not el.scrollIntoView(), which can also
+    // Scroll the strip's OWN overflow - not el.scrollIntoView(), which can also
     // scroll the whole page vertically when the UV card is below the fold on load.
     strip.scrollLeft = el.offsetLeft - (strip.clientWidth - el.offsetWidth) / 2
     if (programmaticTimer.current) window.clearTimeout(programmaticTimer.current)
@@ -195,7 +112,7 @@ export default function UVTimeline({
   }
 
   // When the parent moves the focus (a tap on the arc, or the big readout updating),
-  // bring that hour into view so the strip tracks the shared focus — "move the bar
+  // bring that hour into view so the strip tracks the shared focus - "move the bar
   // along with displaying the new stats." Skipped when the focus is already the
   // bar nearest center (e.g. when WE drove the change via scroll).
   const focusedHour = controlled ? (focused?.hour ?? null) : null
@@ -231,177 +148,56 @@ export default function UVTimeline({
     [],
   )
 
-  // Only fire the legacy onFocusHour callback in uncontrolled mode — in controlled
+  // Only fire the legacy onFocusHour callback in uncontrolled mode - in controlled
   // mode the parent already owns the focus, so echoing it back would loop.
   useEffect(() => {
     if (!controlled) onFocusHour?.(active)
   }, [active, onFocusHour, controlled])
 
   return (
-    <div style={{ userSelect: 'none', WebkitUserSelect: 'none' }}>
+    <div className="select-none">
       <VisuallyHidden id={summaryId}>{uvDaySummary(hourly, fmt.hour)}</VisuallyHidden>
+      {/* Positioned so bar offsetLeft is measured from the strip (used to center bars). */}
       <div
-        className="uv-strip"
+        className="uv-strip relative"
         ref={stripRef}
         onScroll={onScroll}
         role="group"
         aria-label="UV forecast by hour"
         aria-describedby={summaryId}
-        // Positioned so bar offsetLeft is measured from the strip (used to center bars).
-        style={{ position: 'relative' }}
       >
         {/* One column at least as wide as the strip: bars stretch to fill it on wide
             screens and keep their minimum width (scrolling) on phones; `above` shares
             the column, so it always spans exactly the bars. */}
-        <div
-          style={{
-            flex: '1 0 auto',
-            minWidth: '100%',
-            display: 'flex',
-            flexDirection: 'column',
-          }}
-        >
+        <div className="flex min-w-full flex-[1_0_auto] flex-col">
           {above}
-          <div style={{ display: 'flex', gap: `${UV_BAR_GAP}px` }}>
+          {/* gap-1 is UV_BAR_GAP (4px), which SunArc's geometry assumes. */}
+          <div className="flex gap-1">
             {hourSlots(hourly).map(({ hour, data: h }) => {
               const isNow = hour === currentHour
-              if (!h) {
-                // Unknown UV: an explicit, non-interactive gap marker in the bar's place.
-                return (
-                  <div
-                    key={hour}
-                    data-hour={hour}
-                    data-missing="true"
-                    ref={isNow ? (nowRef as RefObject<HTMLDivElement>) : undefined}
-                    style={{
-                      flex: `1 0 ${UV_BAR_MIN_WIDTH}px`,
-                      minWidth: `${UV_BAR_MIN_WIDTH}px`,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '3px',
-                      padding: '12px 0',
-                      borderRadius: '10px',
-                      border: '1.5px dashed var(--border-md)',
-                      color: 'var(--text-3)',
-                      boxShadow: isNow
-                        ? '0 0 0 2px var(--bg-card), 0 0 0 3.5px var(--text)'
-                        : 'none',
-                      scrollSnapAlign: 'center',
-                    }}
-                  >
-                    <span style={{ fontSize: '13px', fontWeight: 700, lineHeight: 1 }}>
-                      <span aria-hidden="true">–</span>
-                      <VisuallyHidden>No UV data at </VisuallyHidden>
-                    </span>
-                    <span style={{ fontSize: '10px', lineHeight: 1 }}>
-                      {fmt.hour(hour)}
-                      {isNow && <VisuallyHidden>, current hour</VisuallyHidden>}
-                    </span>
-                  </div>
-                )
-              }
-              const isSel = active?.hour === h.hour
-              return (
-                <button
-                  key={h.hour}
-                  data-hour={h.hour}
-                  ref={isNow ? (nowRef as RefObject<HTMLButtonElement>) : undefined}
-                  onClick={() => selectHour(h)}
-                  className="uv-bar"
-                  aria-pressed={isSel}
-                  style={{
-                    flex: `1 0 ${UV_BAR_MIN_WIDTH}px`,
-                    minWidth: `${UV_BAR_MIN_WIDTH}px`,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '3px',
-                    padding: '12px 0',
-                    borderRadius: '10px',
-                    cursor: 'pointer',
-                    background: uvColor(h.uv),
-                    color: uvTextColor(h.uv),
-                    border: isSel ? '2px solid var(--text)' : '2px solid transparent',
-                    boxShadow:
-                      isNow && !isSel
-                        ? '0 0 0 2px var(--bg-card), 0 0 0 3.5px var(--text)'
-                        : 'none',
-                    scrollSnapAlign: 'center',
-                    transition: 'border-color 0.12s',
-                  }}
-                >
-                  {/* Read as "UV 6.0, High, at 10am, current hour": hidden words fill in
-                      around the visible number and hour so the name contains both. */}
-                  <span style={{ fontSize: '13px', fontWeight: 700, lineHeight: 1 }}>
-                    <VisuallyHidden>UV </VisuallyHidden>
-                    {formatUV(h.uv, { compact: true })}
-                    <VisuallyHidden>, {uvLabel(h.uv)}, at </VisuallyHidden>
-                  </span>
-                  <span style={{ fontSize: '10px', lineHeight: 1 }}>
-                    {fmt.hour(h.hour)}
-                    {isNow && <VisuallyHidden>, current hour</VisuallyHidden>}
-                  </span>
-                </button>
+              return h ? (
+                <UVBar
+                  key={hour}
+                  hour={h}
+                  isNow={isNow}
+                  selected={active?.hour === h.hour}
+                  onSelect={() => selectHour(h)}
+                  ref={isNow ? (nowRef as Ref<HTMLButtonElement>) : undefined}
+                />
+              ) : (
+                <UVGap
+                  key={hour}
+                  hour={hour}
+                  isNow={isNow}
+                  ref={isNow ? (nowRef as Ref<HTMLDivElement>) : undefined}
+                />
               )
             })}
           </div>
         </div>
       </div>
 
-      <button
-        onClick={() => setShowLegend(s => !s)}
-        style={{
-          background: 'none',
-          border: 'none',
-          cursor: 'pointer',
-          padding: '6px 2px 4px',
-          fontSize: '11px',
-          fontWeight: 600,
-          color: 'var(--text-3)',
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '5px',
-        }}
-        aria-expanded={showLegend}
-      >
-        UV scale {showLegend ? '▲' : '▼'}
-      </button>
-      {showLegend && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 14px', marginTop: '4px' }}>
-          {[
-            [uvBandColor('low'), 'Low (0–2)'],
-            [uvBandColor('moderate'), 'Moderate (3–5)'],
-            [uvBandColor('high'), 'High (6–7)'],
-            [uvBandColor('very-high'), 'Very high (8–10)'],
-            [uvBandColor('extreme'), 'Extreme (11+)'],
-          ].map(([color, label]) => (
-            <span
-              key={label}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '5px',
-                fontSize: '12px',
-                color: 'var(--text-3)',
-              }}
-            >
-              <span
-                style={{
-                  width: '10px',
-                  height: '10px',
-                  borderRadius: '3px',
-                  background: color,
-                  flexShrink: 0,
-                }}
-              />
-              {label}
-            </span>
-          ))}
-        </div>
-      )}
+      <UVScaleLegend />
     </div>
   )
 }
