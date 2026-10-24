@@ -18,6 +18,7 @@ export default defineConfig({
   testDir: '.',
   testMatch: '**/*.e2e.ts',
   outputDir: '../../../test-results/signed-in/artifacts',
+  globalSetup: './warm-up.ts',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   // Flakes must surface, not be retried away.
