@@ -6,7 +6,9 @@ import { durationHours, scheduledSpan, startOptions } from '@/lib/scheduled'
 import { useScheduled } from '@/lib/scheduled-context'
 import { useUnits } from '@/lib/use-units'
 import type { Activity, SafeActivityWindow } from '@/lib/types'
-import styles from './Scheduled.module.css'
+import BottomSheet, { SheetActions, SheetClose, sheetAction } from './BottomSheet'
+import ScheduledPill from './scheduled/ScheduledPill'
+import ScheduledTile from './scheduled/ScheduledTile'
 
 interface Props {
   item: ScheduledActivity
@@ -27,6 +29,9 @@ interface Props {
 }
 
 type Mode = 'view' | 'change' | 'remove'
+
+const bodyText = 'text-[13px] leading-[1.5] text-ink-2'
+const panel = 'mt-3.5 rounded-xl border-[0.5px] border-line-strong bg-surface-subtle p-3'
 
 function problem(error: unknown): string {
   return error instanceof CalendarAuthError
@@ -115,50 +120,30 @@ export default function ScheduledSheet({
   }
 
   return (
-    <div
-      ref={sheetRef}
-      role="dialog"
-      aria-modal="false"
-      aria-labelledby={titleId}
-      tabIndex={-1}
-      data-testid="scheduled-sheet"
-      className={styles.sheet}
-    >
-      <div className={styles.head}>
-        <span aria-hidden="true" className={styles.tile} style={{ background: color }}>
-          {icon}
-          <span className={styles.tileCheck}>✓</span>
-        </span>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <p className={styles.title}>
+    <BottomSheet ref={sheetRef} labelledBy={titleId} testId="scheduled-sheet">
+      <div className="flex items-start gap-3">
+        <ScheduledTile color={color}>{icon}</ScheduledTile>
+        <div className="min-w-0 flex-1">
+          <p className="m-0 flex flex-wrap items-center gap-x-2 gap-y-1 text-[15px] font-semibold text-ink">
             <span id={titleId}>{name}</span>
-            <span className={styles.pill}>✓ Scheduled</span>
+            <ScheduledPill />
           </p>
-          <p className={styles.when}>
+          <p className="mt-0.5 mb-0 text-[13px] text-ink-2 tabular-nums">
             {dayLabel} · {fmt.time(span.from)} – {fmt.time(span.to)}
           </p>
         </div>
-        <button
-          type="button"
-          className="btn btn-ghost"
-          aria-label="Close"
-          onClick={onClose}
-          disabled={busy}
-          style={{ padding: '4px 8px', minWidth: '32px', minHeight: '32px', fontSize: '14px' }}
-        >
-          ✕
-        </button>
+        <SheetClose onClose={onClose} disabled={busy} />
       </div>
 
       {mode === 'view' && (
         <>
-          <p className={styles.body}>
+          <p className={`${bodyText} mt-3`}>
             This activity is on your Google Calendar. Changes you make here update the event there,
             and changes made in Google Calendar show here.
           </p>
-          <div className={styles.actions}>
+          <SheetActions>
             <a
-              className={`btn btn-primary ${styles.action} ${styles.full}`}
+              className={`${sheetAction} btn-primary col-span-full`}
               href={item.htmlLink}
               target="_blank"
               rel="noopener noreferrer"
@@ -167,7 +152,7 @@ export default function ScheduledSheet({
             </a>
             <button
               type="button"
-              className={`btn ${styles.action}`}
+              className={sheetAction}
               onClick={() => {
                 setError(null)
                 setMode('change')
@@ -177,7 +162,7 @@ export default function ScheduledSheet({
             </button>
             <button
               type="button"
-              className={`btn ${styles.action} ${styles.danger}`}
+              className={`${sheetAction} text-danger`}
               aria-label="Remove from calendar"
               onClick={() => {
                 setError(null)
@@ -186,21 +171,24 @@ export default function ScheduledSheet({
             >
               Remove
             </button>
-          </div>
+          </SheetActions>
         </>
       )}
 
       {mode === 'change' && (
-        <div className={styles.panel}>
+        <div className={panel}>
           {options.length > 0 ? (
             <>
-              <label className={styles.panelLabel} htmlFor={`${titleId}-start`}>
+              <label
+                className="mt-0 mb-1.5 block text-[12px] font-semibold text-ink-2"
+                htmlFor={`${titleId}-start`}
+              >
                 New start time, within {dayLabel === 'Today' ? "today's" : "the day's"} lower-UV
                 windows
               </label>
               <select
                 id={`${titleId}-start`}
-                className={styles.select}
+                className="w-full px-2.5 py-2 text-[14px]"
                 value={picked ?? ''}
                 disabled={busy}
                 onChange={e => setChoice(Number(e.target.value))}
@@ -213,14 +201,14 @@ export default function ScheduledSheet({
               </select>
             </>
           ) : (
-            <p className={styles.note} style={{ margin: 0 }}>
+            <p className="m-0 text-[12px] leading-[1.45] text-ink-3">
               No other lower-UV start time is left on this day for this activity.
             </p>
           )}
-          <div className={styles.actions}>
+          <SheetActions>
             <button
               type="button"
-              className={`btn ${styles.action}`}
+              className={sheetAction}
               disabled={busy}
               onClick={() => setMode('view')}
             >
@@ -228,25 +216,25 @@ export default function ScheduledSheet({
             </button>
             <button
               type="button"
-              className={`btn btn-primary ${styles.action}`}
+              className={`${sheetAction} btn-primary`}
               disabled={busy || picked === null || picked === current}
               onClick={saveTime}
             >
               {busy ? 'Saving…' : 'Save time'}
             </button>
-          </div>
+          </SheetActions>
         </div>
       )}
 
       {mode === 'remove' && (
-        <div className={styles.panel}>
-          <p className={styles.body} style={{ margin: 0 }}>
+        <div className={panel}>
+          <p className={bodyText}>
             Remove this event from your Google Calendar? It is deleted there too.
           </p>
-          <div className={styles.actions}>
+          <SheetActions>
             <button
               type="button"
-              className={`btn ${styles.action}`}
+              className={sheetAction}
               disabled={busy}
               onClick={() => setMode('view')}
             >
@@ -254,21 +242,21 @@ export default function ScheduledSheet({
             </button>
             <button
               type="button"
-              className={`btn ${styles.dangerFill}`}
+              className="btn min-h-10 justify-center border-none bg-danger text-white hover:brightness-110 dark:text-[#1a1208]"
               disabled={busy}
               onClick={removeEvent}
             >
               {busy ? 'Removing…' : 'Remove'}
             </button>
-          </div>
+          </SheetActions>
         </div>
       )}
 
       {error && (
-        <p role="alert" className={styles.error}>
+        <p role="alert" className="mt-2.5 mb-0 text-[12px] leading-[1.45] text-danger">
           {error}
         </p>
       )}
-    </div>
+    </BottomSheet>
   )
 }
