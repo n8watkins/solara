@@ -63,7 +63,7 @@ Totals: 71 fixed, 30 open, 1 won't fix (102 IDs; each ID of a combined row such 
 | OPS-9 | Fixed | #28: `firebase-tools` comes from `functions/package-lock.json` |
 | OPS-10 | Fixed | #28: one reusable `quality.yml`; deploy ships the artifact it tested |
 | OPS-12 | Open | Wave 3, W3-D (D9) |
-| OPS-13 | Open | Wave 4, W4-0 and W4-F; Dependabot PRs #31-#41 are open for these majors |
+| OPS-13 | Open | Tailwind 4 done in W4-0; the other majors are Wave 4, W4-F, with Dependabot PRs #31-#40 open |
 | OPS-14 | Fixed | #17 (one firebase-admin version), #44 (backend packages left the web app) |
 | OPS-15 | Open | Structured logging done in #47; error reporting, alerts and uptime checks are Wave 3, W3-D (D10) |
 | OPS-16 | Open | Wave 3, W3-D |

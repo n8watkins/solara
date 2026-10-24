@@ -16,30 +16,54 @@ export function vitDMins(uv: number, skinType: SkinType): number | null {
   return Math.max(1, Math.round((base * 0.3 * 10) / uv))
 }
 
-export function uvLabel(uv: number): string {
-  if (uv < 0.5) return 'None'
-  if (uv <= 2) return 'Low'
-  if (uv <= 5) return 'Moderate'
-  if (uv <= 7) return 'High'
-  if (uv <= 10) return 'Very high'
-  return 'Extreme'
+/** The bands of the UV index scale, lowest first. */
+export const UV_BANDS = ['none', 'low', 'moderate', 'high', 'very-high', 'extreme'] as const
+export type UVBand = (typeof UV_BANDS)[number]
+
+const UV_BAND_LABELS: Record<UVBand, string> = {
+  none: 'None',
+  low: 'Low',
+  moderate: 'Moderate',
+  high: 'High',
+  'very-high': 'Very high',
+  extreme: 'Extreme',
 }
 
-export function uvColorHex(uv: number): string {
-  if (uv < 0.5) return '#D1D5DB'
-  if (uv <= 2) return '#86EFAC'
-  if (uv <= 5) return '#FCD34D'
-  if (uv <= 7) return '#FB923C'
-  if (uv <= 10) return '#F87171'
-  return '#C084FC'
+/** The UV scale band of a UV value; each edge belongs to the lower band. */
+export function uvBand(uv: number): UVBand {
+  if (uv < 0.5) return 'none'
+  if (uv <= 2) return 'low'
+  if (uv <= 5) return 'moderate'
+  if (uv <= 7) return 'high'
+  if (uv <= 10) return 'very-high'
+  return 'extreme'
+}
+
+export function uvLabel(uv: number): string {
+  return UV_BAND_LABELS[uvBand(uv)]
 }
 
 /**
- * Text color on a UV fill (uvColorHex). Every fill is a light tint, so one
- * near-black reads at 4.5:1 or better on all of them, in both themes.
+ * The fill color of a UV value's band, as a CSS value for inline styles and SVG.
+ * The palette itself is defined once, as the --color-uv-* theme variables in
+ * app/globals.css; this only picks the variable.
  */
-export function uvTextHex(_uv: number): string {
-  return '#1a1208'
+export function uvColor(uv: number): string {
+  return uvBandColor(uvBand(uv))
+}
+
+/** The fill color of a UV band, as a CSS value (see uvColor). */
+export function uvBandColor(band: UVBand): string {
+  return `var(--color-uv-${band})`
+}
+
+/**
+ * Text color on a UV fill (uvColor). Every fill is a light tint, so one
+ * near-black (--color-uv-ink) reads at 4.5:1 or better on all of them, in both
+ * themes.
+ */
+export function uvTextColor(_uv: number): string {
+  return 'var(--color-uv-ink)'
 }
 
 // UV values display with one decimal everywhere; `compact` drops the decimal at

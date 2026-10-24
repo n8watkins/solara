@@ -27,7 +27,7 @@ Conditions and individual sensitivity can change quickly.
 - Next.js 16 App Router with static export, React 19 with the React Compiler, TypeScript 5.
 - TanStack Query for forecast data, Zod (`zod/mini`) for every external boundary.
 - Firebase Authentication, Firestore, Hosting, Cloud Messaging and Functions (TypeScript on Node.js 24).
-- Tailwind CSS 3 with CSS custom-property design tokens.
+- Tailwind CSS 4, configured in `app/globals.css` (`@theme`) on CSS custom-property design tokens, which also define the one UV palette.
 - Vitest, Playwright (static export on the Hosting emulator, and a signed-in suite on the Firebase emulators), and an axe-scanned UI harness.
 - GitHub Actions for quality checks and deployment.
 

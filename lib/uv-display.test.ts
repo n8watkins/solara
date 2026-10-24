@@ -1,36 +1,79 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { downloadICS } from '@/lib/ics'
-import { fmtClock, fmtDays, gcalLink, uvColorHex, uvTextHex } from '@/lib/weather'
+import {
+  UV_BANDS,
+  fmtClock,
+  fmtDays,
+  gcalLink,
+  uvBand,
+  uvColor,
+  uvLabel,
+  uvTextColor,
+} from '@/lib/weather'
+
+// The UV palette is defined once, as --color-uv-* theme variables in
+// app/globals.css; lib/weather.ts only picks the variable for a value.
+const css = readFileSync(join(__dirname, '..', 'app', 'globals.css'), 'utf8')
+const palette = Object.fromEntries(
+  [...css.matchAll(/--color-uv-([\w-]+):\s*(#[0-9a-f]{6});/gi)].map(m => [m[1]!, m[2]!]),
+)
+
+/** Resolves a var(--color-uv-*) value from uvColor/uvTextColor to its hex. */
+function hex(value: string): string {
+  const name = /^var\(--color-uv-([\w-]+)\)$/.exec(value)?.[1]
+  expect(name, value).toBeDefined()
+  const color = palette[name!]
+  expect(color, `--color-uv-${name} in app/globals.css`).toBeDefined()
+  return color!
+}
 
 // The UV scale bands drive every UV color in the app; a band edge that drifts
 // shows a high UV hour in a "low" color.
 const BAND_SAMPLES = [0, 1, 4, 6, 9, 11]
 
 describe('UV color bands', () => {
+  it('defines every band once in the theme, plus the text color', () => {
+    expect(Object.keys(palette).sort()).toEqual([...UV_BANDS, 'ink'].sort())
+  })
+
   it('gives each band its own background and AA-contrast text', () => {
-    expect(BAND_SAMPLES.map(uvColorHex)).toEqual([
-      '#D1D5DB',
-      '#86EFAC',
-      '#FCD34D',
-      '#FB923C',
-      '#F87171',
-      '#C084FC',
+    expect(BAND_SAMPLES.map(uvBand)).toEqual(UV_BANDS)
+    expect(BAND_SAMPLES.map(uv => hex(uvColor(uv)))).toEqual([
+      '#d1d5db',
+      '#86efac',
+      '#fcd34d',
+      '#fb923c',
+      '#f87171',
+      '#c084fc',
     ])
     for (const uv of BAND_SAMPLES) {
-      expect(contrastRatio(uvTextHex(uv), uvColorHex(uv))).toBeGreaterThanOrEqual(4.5)
+      expect(contrastRatio(hex(uvTextColor(uv)), hex(uvColor(uv)))).toBeGreaterThanOrEqual(4.5)
     }
   })
 
   it('puts band edges on the low side of each boundary', () => {
-    expect([0.49, 0.5, 2, 2.1, 5, 7, 10, 10.1].map(uvColorHex)).toEqual([
-      '#D1D5DB',
-      '#86EFAC',
-      '#86EFAC',
-      '#FCD34D',
-      '#FCD34D',
-      '#FB923C',
-      '#F87171',
-      '#C084FC',
+    expect([0.49, 0.5, 2, 2.1, 5, 7, 10, 10.1].map(uvBand)).toEqual([
+      'none',
+      'low',
+      'low',
+      'moderate',
+      'moderate',
+      'high',
+      'very-high',
+      'extreme',
+    ])
+  })
+
+  it('labels each band', () => {
+    expect(BAND_SAMPLES.map(uvLabel)).toEqual([
+      'None',
+      'Low',
+      'Moderate',
+      'High',
+      'Very high',
+      'Extreme',
     ])
   })
 })

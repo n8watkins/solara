@@ -1,6 +1,84 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* Tailwind CSS 4, configured here in CSS (there is no tailwind.config file).
+   Layer order: theme, base (Tailwind preflight plus the v3 compatibility rules
+   below), components (every hand-written rule in this file and in the CSS
+   modules), utilities. Utilities therefore override component rules, and
+   inline styles still override everything. */
+@import 'tailwindcss' source(none);
+
+/* Only the app's own UI source is scanned for class names, never docs, tests
+   or build output. */
+@source '../app';
+@source '../components';
+
+/* `dark:` utilities follow the `dark` class on <html> (set by lib/theme.ts),
+   not the media query, so an explicit Light or Dark choice overrides the OS. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Utilities for the design tokens defined below (bg-surface-card, text-ink-2,
+   bg-accent text-accent-on, border-line, ...). `inline` makes each utility use
+   var(--token) directly, so it follows the active theme. */
+@theme inline {
+  --font-sans: var(--font-inter), system-ui, sans-serif;
+
+  --color-surface: var(--bg);
+  --color-surface-card: var(--bg-card);
+  --color-surface-metric: var(--bg-metric);
+  --color-surface-subtle: var(--bg-subtle);
+
+  --color-line: var(--border);
+  --color-line-strong: var(--border-md);
+
+  --color-ink: var(--text);
+  --color-ink-2: var(--text-2);
+  --color-ink-3: var(--text-3);
+
+  --color-brand: var(--brand);
+
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-border: var(--accent-border);
+  --color-accent-on: var(--on-accent);
+
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+
+  --color-notice: var(--notice-bg);
+  --color-notice-border: var(--notice-border);
+  --color-notice-ink: var(--notice-text);
+}
+
+/* The UV index palette, defined once for the whole app and the same in both
+   themes. Components get these through uvColor() and uvTextColor() in
+   lib/weather.ts, which return var(--color-uv-*); utilities such as bg-uv-high
+   work too. `static` emits every variable even when no utility uses it, because
+   the TypeScript references them at runtime. lib/uv-display.test.ts checks that
+   --color-uv-ink reads at 4.5:1 on every band. */
+@theme static {
+  --color-uv-none: #d1d5db;
+  --color-uv-low: #86efac;
+  --color-uv-moderate: #fcd34d;
+  --color-uv-high: #fb923c;
+  --color-uv-very-high: #f87171;
+  --color-uv-extreme: #c084fc;
+  --color-uv-ink: #1a1208;
+}
+
+/* Tailwind 3 preflight behavior the app relies on, which Tailwind 4 changed. */
+@layer base {
+  /* Tailwind 4 uses 50% of the text color for placeholders. */
+  input::placeholder,
+  textarea::placeholder {
+    color: #9ca3af;
+  }
+
+  /* Tailwind 4 leaves buttons with the default cursor. */
+  button:not(:disabled),
+  [role='button']:not(:disabled) {
+    cursor: pointer;
+  }
+}
 
 /* Design tokens. Every text token meets WCAG AA (4.5:1) on every surface token
    in its theme, including the --accent-soft tint; lib/design-tokens.test.ts checks it.
@@ -57,362 +135,368 @@
   --notice-text: #fdba74;
 }
 
-html {
-  font-family: var(--font-inter), system-ui, sans-serif;
-}
+/* Hand-written rules, element and class alike, live in the components layer
+   together with the CSS modules (components/*.module.css), so their cascade
+   against each other is the same as before and Tailwind utilities override
+   them. */
+@layer components {
+  html {
+    font-family: var(--font-inter), system-ui, sans-serif;
+  }
 
-body {
-  background: var(--bg);
-  color: var(--text);
-  min-height: 100vh;
-  transition:
-    background 0.2s,
-    color 0.2s;
-}
+  body {
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    transition:
+      background 0.2s,
+      color 0.2s;
+  }
 
-.card {
-  background: var(--bg-card);
-  border: 0.5px solid var(--border-md);
-  border-radius: 16px;
-  padding: 1.25rem;
-}
+  .card {
+    background: var(--bg-card);
+    border: 0.5px solid var(--border-md);
+    border-radius: 16px;
+    padding: 1.25rem;
+  }
 
-.metric-card {
-  background: var(--bg-metric);
-  border-radius: 12px;
-  padding: 12px 14px;
-}
+  .metric-card {
+    background: var(--bg-metric);
+    border-radius: 12px;
+    padding: 12px 14px;
+  }
 
-.badge {
-  font-size: 11px;
-  font-weight: 500;
-  padding: 2px 8px;
-  border-radius: 8px;
-}
-.badge-safe {
-  background: #d1fae5;
-  color: #065f46;
-}
-.badge-caution {
-  background: #fef3c7;
-  color: #92400e;
-}
-.badge-avoid {
-  background: #fee2e2;
-  color: #991b1b;
-}
+  .badge {
+    font-size: 11px;
+    font-weight: 500;
+    padding: 2px 8px;
+    border-radius: 8px;
+  }
+  .badge-safe {
+    background: #d1fae5;
+    color: #065f46;
+  }
+  .badge-caution {
+    background: #fef3c7;
+    color: #92400e;
+  }
+  .badge-avoid {
+    background: #fee2e2;
+    color: #991b1b;
+  }
 
-.dark .badge-safe {
-  background: #064e3b;
-  color: #6ee7b7;
-}
-.dark .badge-caution {
-  background: #451a03;
-  color: #fcd34d;
-}
-.dark .badge-avoid {
-  background: #450a0a;
-  color: #fca5a5;
-}
+  .dark .badge-safe {
+    background: #064e3b;
+    color: #6ee7b7;
+  }
+  .dark .badge-caution {
+    background: #451a03;
+    color: #fcd34d;
+  }
+  .dark .badge-avoid {
+    background: #450a0a;
+    color: #fca5a5;
+  }
 
-.btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 14px;
-  border-radius: 10px;
-  border: 0.5px solid var(--border-md);
-  background: transparent;
-  color: var(--text);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition:
-    background 0.15s,
-    border-color 0.15s,
-    transform 0.1s;
-}
-.btn:active:not(:disabled) {
-  transform: scale(0.97);
-}
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 10px;
+    border: 0.5px solid var(--border-md);
+    background: transparent;
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition:
+      background 0.15s,
+      border-color 0.15s,
+      transform 0.1s;
+  }
+  .btn:active:not(:disabled) {
+    transform: scale(0.97);
+  }
 
-.btn-primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--on-accent);
-}
+  .btn-primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--on-accent);
+  }
 
-.btn-ghost {
-  border-color: transparent;
-}
+  .btn-ghost {
+    border-color: transparent;
+  }
 
-/* Disabled buttons look inert: faded, no hover or press feedback. */
-.btn:disabled,
-.btn[aria-disabled='true'] {
-  cursor: not-allowed;
-  opacity: 0.45;
-}
+  /* Disabled buttons look inert: faded, no hover or press feedback. */
+  .btn:disabled,
+  .btn[aria-disabled='true'] {
+    cursor: not-allowed;
+    opacity: 0.45;
+  }
 
-/* Hover only where a real pointer can hover, so taps on touch screens do not
-   leave a stuck highlight. */
-@media (hover: hover) {
-  .btn:hover:not(:disabled, [aria-disabled='true']) {
+  /* Hover only where a real pointer can hover, so taps on touch screens do not
+     leave a stuck highlight. */
+  @media (hover: hover) {
+    .btn:hover:not(:disabled, [aria-disabled='true']) {
+      background: var(--bg-metric);
+    }
+    .btn-primary:hover:not(:disabled, [aria-disabled='true']) {
+      background: var(--accent-hover);
+      border-color: var(--accent-hover);
+    }
+  }
+
+  input,
+  select {
+    background: var(--bg-card);
+    color: var(--text);
+    border: 0.5px solid var(--border-md);
+    border-radius: 10px;
+    padding: 8px 12px;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  input:focus,
+  select:focus,
+  textarea:focus {
+    border-color: var(--accent);
+  }
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+  input:disabled,
+  select:disabled,
+  textarea:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+
+  /* Native controls pick up the brand color instead of browser blue */
+  input[type='range'],
+  input[type='checkbox'],
+  input[type='radio'] {
+    accent-color: var(--accent);
+  }
+  input[type='range'] {
+    padding: 0;
+    border: none;
+    box-shadow: none;
+    background: transparent;
+  }
+
+  .legal-copy {
+    color: var(--text-2);
+    font-size: 15px;
+    line-height: 1.7;
+  }
+  .legal-copy h2 {
+    color: var(--text);
+    font-size: 20px;
+    margin: 30px 0 8px;
+  }
+  .legal-copy p {
+    margin: 0 0 12px;
+  }
+  .legal-copy a {
+    color: var(--accent);
+  }
+
+  .analytics-preference {
+    margin: 16px 0 20px;
+    padding: 16px;
+    background: var(--bg-subtle);
+    border: 0.5px solid var(--border-md);
+    border-radius: 12px;
+  }
+  .legal-copy .analytics-preference h3 {
+    margin: 0 0 6px;
+    color: var(--text);
+    font-size: 16px;
+  }
+  .analytics-preference-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  /* Keyboard focus ring on buttons, links and other focusable elements (mouse
+     clicks stay clean). Inputs have their own ring above. */
+  :where(a, button, summary, [tabindex]):focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  /* Segmented control (theme picker): native radios, visually a pill group. */
+  .segmented {
+    display: inline-flex;
+    gap: 2px;
+    margin: 0;
+    padding: 2px;
+    border: 0.5px solid var(--border-md);
+    border-radius: 10px;
     background: var(--bg-metric);
   }
-  .btn-primary:hover:not(:disabled, [aria-disabled='true']) {
-    background: var(--accent-hover);
-    border-color: var(--accent-hover);
+  .segmented-option {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    padding: 0 12px;
+    border-radius: 8px;
+    color: var(--text-2);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
   }
-}
-
-input,
-select {
-  background: var(--bg-card);
-  color: var(--text);
-  border: 0.5px solid var(--border-md);
-  border-radius: 10px;
-  padding: 8px 12px;
-  font-size: 14px;
-  outline: none;
-  transition: border-color 0.15s;
-}
-input:focus,
-select:focus,
-textarea:focus {
-  border-color: var(--accent);
-}
-input:focus-visible,
-select:focus-visible,
-textarea:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
-}
-input:disabled,
-select:disabled,
-textarea:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
-}
-
-/* Native controls pick up the brand color instead of browser blue */
-input[type='range'],
-input[type='checkbox'],
-input[type='radio'] {
-  accent-color: var(--accent);
-}
-input[type='range'] {
-  padding: 0;
-  border: none;
-  box-shadow: none;
-  background: transparent;
-}
-
-.legal-copy {
-  color: var(--text-2);
-  font-size: 15px;
-  line-height: 1.7;
-}
-.legal-copy h2 {
-  color: var(--text);
-  font-size: 20px;
-  margin: 30px 0 8px;
-}
-.legal-copy p {
-  margin: 0 0 12px;
-}
-.legal-copy a {
-  color: var(--accent);
-}
-
-.analytics-preference {
-  margin: 16px 0 20px;
-  padding: 16px;
-  background: var(--bg-subtle);
-  border: 0.5px solid var(--border-md);
-  border-radius: 12px;
-}
-.legal-copy .analytics-preference h3 {
-  margin: 0 0 6px;
-  color: var(--text);
-  font-size: 16px;
-}
-.analytics-preference-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 12px;
-}
-
-/* Keyboard focus ring on buttons, links and other focusable elements (mouse
-   clicks stay clean). Inputs have their own ring above. */
-:where(a, button, summary, [tabindex]):focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-/* Segmented control (theme picker): native radios, visually a pill group. */
-.segmented {
-  display: inline-flex;
-  gap: 2px;
-  margin: 0;
-  padding: 2px;
-  border: 0.5px solid var(--border-md);
-  border-radius: 10px;
-  background: var(--bg-metric);
-}
-.segmented-option {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  min-height: 28px;
-  padding: 0 12px;
-  border-radius: 8px;
-  color: var(--text-2);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-}
-.segmented-option input {
-  position: absolute;
-  inset: 0;
-  margin: 0;
-  opacity: 0;
-  cursor: pointer;
-}
-.segmented-option:has(input:checked) {
-  background: var(--bg-card);
-  color: var(--text);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
-}
-.segmented-option:has(input:focus-visible) {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
-}
-
-.section-label {
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--text-3);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-
-.tooltip-anchor {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  cursor: default;
-}
-
-/* Profile dropdown menu items (Settings / Sign out). */
-.hdr-menu-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 9px 10px;
-  border: none;
-  background: none;
-  cursor: pointer;
-  text-align: left;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text);
-  transition: background 0.12s;
-}
-@media (hover: hover) {
-  .hdr-menu-item:hover {
-    background: var(--bg-metric);
+  .segmented-option input {
+    position: absolute;
+    inset: 0;
+    margin: 0;
+    opacity: 0;
+    cursor: pointer;
   }
-}
+  .segmented-option:has(input:checked) {
+    background: var(--bg-card);
+    color: var(--text);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+  }
+  .segmented-option:has(input:focus-visible) {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
 
-/* Interactive UV strip: fixed-width bars that scroll horizontally (zoomed in on
-   phones) with a subtle edge fade signalling there's more to scroll. */
-.uv-strip {
-  display: flex;
-  gap: 4px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  /* Generous top padding so the current-hour bar's highlight ring (boxShadow) and
-     the "now" label below the number are never clipped by overflow-y: hidden. */
-  padding: 8px 0 8px;
-  scroll-snap-type: x proximity;
-  -webkit-overflow-scrolling: touch;
-  touch-action: pan-x;
-  scrollbar-width: thin;
-}
-.uv-strip::-webkit-scrollbar {
-  height: 5px;
-}
-.uv-strip::-webkit-scrollbar-thumb {
-  background: var(--border-md);
-  border-radius: 3px;
-}
-.uv-bar {
-  -webkit-user-select: none;
-  user-select: none;
-  -webkit-touch-callout: none;
-  -webkit-tap-highlight-color: transparent;
-}
-@media (max-width: 560px) {
+  .section-label {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .tooltip-anchor {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    cursor: default;
+  }
+
+  /* Profile dropdown menu items (Settings / Sign out). */
+  .hdr-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 9px 10px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    text-align: left;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    transition: background 0.12s;
+  }
+  @media (hover: hover) {
+    .hdr-menu-item:hover {
+      background: var(--bg-metric);
+    }
+  }
+
+  /* Interactive UV strip: fixed-width bars that scroll horizontally (zoomed in on
+     phones) with a subtle edge fade signalling there's more to scroll. */
   .uv-strip {
-    -webkit-mask-image: linear-gradient(
-      90deg,
-      transparent 0,
-      #000 16px,
-      #000 calc(100% - 16px),
-      transparent 100%
-    );
-    mask-image: linear-gradient(
-      90deg,
-      transparent 0,
-      #000 16px,
-      #000 calc(100% - 16px),
-      transparent 100%
-    );
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    /* Generous top padding so the current-hour bar's highlight ring (boxShadow) and
+       the "now" label below the number are never clipped by overflow-y: hidden. */
+    padding: 8px 0 8px;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-x;
+    scrollbar-width: thin;
   }
-}
+  .uv-strip::-webkit-scrollbar {
+    height: 5px;
+  }
+  .uv-strip::-webkit-scrollbar-thumb {
+    background: var(--border-md);
+    border-radius: 3px;
+  }
+  .uv-bar {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  @media (max-width: 560px) {
+    .uv-strip {
+      -webkit-mask-image: linear-gradient(
+        90deg,
+        transparent 0,
+        #000 16px,
+        #000 calc(100% - 16px),
+        transparent 100%
+      );
+      mask-image: linear-gradient(
+        90deg,
+        transparent 0,
+        #000 16px,
+        #000 calc(100% - 16px),
+        transparent 100%
+      );
+    }
+  }
 
-/* Compact, swipeable tips track — hide the scrollbar; swipe horizontally on touch. */
-.tip-track::-webkit-scrollbar {
-  display: none;
-  height: 0;
-}
+  /* Compact, swipeable tips track — hide the scrollbar; swipe horizontally on touch. */
+  .tip-track::-webkit-scrollbar {
+    display: none;
+    height: 0;
+  }
 
-.show-mobile {
-  display: none;
-}
-
-/* Dashboard vertical rhythm — tighter on phones so more fits above the fold. */
-.dash-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-}
-
-@media (max-width: 560px) {
-  .hide-mobile {
+  .show-mobile {
     display: none;
   }
-  .show-mobile {
-    display: flex;
-  }
-  .card {
-    padding: 1rem;
-  }
-  .btn {
-    padding-left: 10px;
-    padding-right: 10px;
-  }
-  .dash-stack {
-    gap: 13px;
-  }
-}
 
-@media (prefers-reduced-motion: reduce) {
-  * {
-    transition-duration: 0.001ms !important;
-    animation-duration: 0.001ms !important;
+  /* Dashboard vertical rhythm — tighter on phones so more fits above the fold. */
+  .dash-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  @media (max-width: 560px) {
+    .hide-mobile {
+      display: none;
+    }
+    .show-mobile {
+      display: flex;
+    }
+    .card {
+      padding: 1rem;
+    }
+    .btn {
+      padding-left: 10px;
+      padding-right: 10px;
+    }
+    .dash-stack {
+      gap: 13px;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * {
+      transition-duration: 0.001ms !important;
+      animation-duration: 0.001ms !important;
+    }
   }
 }

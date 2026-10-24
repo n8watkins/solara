@@ -10,7 +10,7 @@ For what is live today read [status.md](status.md); for how lanes are run read [
 ## Order
 
 1. **Wave 3 - launch tracks:** billing, notifications, growth and operations, each with the security work it needs.
-2. **Wave 4 - styling system and upgrades:** Tailwind 4, component restyle and split, major dependency upgrades.
+2. **Wave 4 - styling system and upgrades:** component restyle and split, major dependency upgrades (Tailwind 4 is done).
 3. **Wave 5 - features:** one lane per feature.
 
 A wave starts when the previous wave's lanes are merged and `main` is green.
@@ -75,16 +75,11 @@ The Functions feature folders under `functions/src/` keep the backend lanes apar
 
 ## Wave 4 - Styling system, upgrades and polish
 
-### W4-0 - Tailwind 4 (serial, merges first)
-
-- **Closes:** OPS-13 (Tailwind), the `postcss-selector-parser` advisory in [DEPENDENCY_RISK.md](DEPENDENCY_RISK.md)
-- **Work:** `@tailwindcss/upgrade`, a CSS-first `@theme` built on the W1-E tokens in `app/globals.css`, one UV palette.
-  Supersedes Dependabot PR #41.
-
 ### W4-A..E - Component restyle and split (5 lanes in parallel)
 
 Each lane converts inline styles to Tailwind, splits large components (target under 250 lines), extracts hooks (`useGoogleCalendar`, `useToast`, `useReverseGeocode`, `useTheme`) and adds component tests, for its own file group only.
 Closes CQ-11, CQ-12, UX-10 and the inline-style part of CQ-13.
+Use the theme utilities defined in `app/globals.css` (`bg-surface-card`, `text-ink-2`, `border-line-strong`, `bg-accent text-accent-on`, `bg-uv-high`, ...) rather than raw colors; utilities override the hand-written rules and CSS modules, which live in `@layer components`.
 
 | Lane | Files in `components/` and `app/` |
 | --- | --- |
@@ -121,5 +116,5 @@ Candidates, roughly ranked by impact over effort:
 | Wave | Lanes | Gate to start the next wave |
 | --- | --- | --- |
 | 3 | W3-A, W3-B, W3-C, W3-D | All merged; D9 done |
-| 4 | W4-0, then W4-A to W4-F | All merged |
+| 4 | W4-A to W4-F | All merged |
 | 5 | One lane per feature | - |

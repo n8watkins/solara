@@ -10,7 +10,7 @@ import {
   type RefObject,
 } from 'react'
 import type { HourlyForecast } from '@/lib/types'
-import { uvColorHex, uvTextHex, fmtHour, formatUV, uvLabel } from '@/lib/weather'
+import { uvBandColor, uvColor, uvTextColor, fmtHour, formatUV, uvLabel } from '@/lib/weather'
 import { useUnits } from '@/lib/use-units'
 import VisuallyHidden from './VisuallyHidden'
 
@@ -322,8 +322,8 @@ export default function UVTimeline({
                     padding: '12px 0',
                     borderRadius: '10px',
                     cursor: 'pointer',
-                    background: uvColorHex(h.uv),
-                    color: uvTextHex(h.uv),
+                    background: uvColor(h.uv),
+                    color: uvTextColor(h.uv),
                     border: isSel ? '2px solid var(--text)' : '2px solid transparent',
                     boxShadow:
                       isNow && !isSel
@@ -372,11 +372,11 @@ export default function UVTimeline({
       {showLegend && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 14px', marginTop: '4px' }}>
           {[
-            ['#86EFAC', 'Low (0–2)'],
-            ['#FCD34D', 'Moderate (3–5)'],
-            ['#FB923C', 'High (6–7)'],
-            ['#F87171', 'Very high (8–10)'],
-            ['#C084FC', 'Extreme (11+)'],
+            [uvBandColor('low'), 'Low (0–2)'],
+            [uvBandColor('moderate'), 'Moderate (3–5)'],
+            [uvBandColor('high'), 'High (6–7)'],
+            [uvBandColor('very-high'), 'Very high (8–10)'],
+            [uvBandColor('extreme'), 'Extreme (11+)'],
           ].map(([color, label]) => (
             <span
               key={label}
