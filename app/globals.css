@@ -457,7 +457,7 @@
     }
   }
 
-  /* Compact, swipeable tips track — hide the scrollbar; swipe horizontally on touch. */
+  /* Compact, swipeable tips track - hide the scrollbar; swipe horizontally on touch. */
   .tip-track::-webkit-scrollbar {
     display: none;
     height: 0;
@@ -467,7 +467,7 @@
     display: none;
   }
 
-  /* Dashboard vertical rhythm — tighter on phones so more fits above the fold. */
+  /* Dashboard vertical rhythm - tighter on phones so more fits above the fold. */
   .dash-stack {
     display: flex;
     flex-direction: column;
