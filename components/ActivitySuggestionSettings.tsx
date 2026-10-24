@@ -1,127 +1,68 @@
 'use client'
 import { useId } from 'react'
+import type { ReactNode } from 'react'
 import type { UserPreferences } from '@/lib/types'
 import { ACTIVITY_CATEGORIES } from '@/lib/tiers'
+import { hiddenPresetsFor, toggleInList } from '@/lib/activity-presets'
 
 interface Props {
   prefs: UserPreferences
   onChange: (prefs: UserPreferences) => void
 }
 
+const ROW =
+  'flex items-center justify-between gap-2.5 rounded-[10px] border-[0.5px] border-line-strong bg-surface-card px-2.5 py-[9px]'
+
 export default function ActivitySuggestionSettings({ prefs, onChange }: Props) {
   const hintId = useId()
   const hiddenIds = prefs.hiddenActivitySuggestionIds ?? []
   const collapsed = prefs.collapsedActivityCategories ?? []
-  const allPresets = ACTIVITY_CATEGORIES.flatMap(cat =>
-    cat.activities.map(activity => ({ ...activity, category: cat.name })),
-  )
-  const hiddenPresets = allPresets.filter(activity => hiddenIds.includes(activity.id))
+  const hiddenPresets = hiddenPresetsFor(hiddenIds)
 
-  function restoreSuggestion(id: string) {
-    onChange({
-      ...prefs,
-      hiddenActivitySuggestionIds: hiddenIds.filter(hiddenId => hiddenId !== id),
-    })
-  }
-
-  function restoreAllSuggestions() {
-    onChange({ ...prefs, hiddenActivitySuggestionIds: [] })
-  }
-
-  function toggleCategory(name: string) {
-    onChange({
-      ...prefs,
-      collapsedActivityCategories: collapsed.includes(name)
-        ? collapsed.filter(category => category !== name)
-        : [...collapsed, name],
-    })
-  }
-
-  function expandAllCategories() {
-    onChange({ ...prefs, collapsedActivityCategories: [] })
-  }
+  const setHidden = (ids: string[]) => onChange({ ...prefs, hiddenActivitySuggestionIds: ids })
+  const setCollapsed = (names: string[]) =>
+    onChange({ ...prefs, collapsedActivityCategories: names })
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-      <div className="metric-card" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: 'var(--text)' }}>
-          Activity suggestions
-        </h4>
-        <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-3)', lineHeight: 1.5 }}>
-          Add and edit active activities from the Dashboard. This panel only controls which preset
-          suggestions appear there.
+    <div className="flex flex-col gap-3.5">
+      <div className="metric-card flex flex-col gap-2">
+        <h4 className="text-[14px] font-bold text-ink">Activity suggestions</h4>
+        <p className="text-[13px] leading-normal text-ink-3">
+          Add and edit your activities from the dashboard. These settings control which preset
+          suggestions the Add activity picker shows.
         </p>
       </div>
 
-      <div
-        className="metric-card"
-        style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            gap: '12px',
-            alignItems: 'center',
-          }}
-        >
-          <div>
-            <h4
-              style={{ margin: '0 0 3px', fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}
-            >
-              Hidden suggestions
-            </h4>
-            <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-3)' }}>
-              {hiddenPresets.length} hidden
-            </p>
-          </div>
-          {hiddenPresets.length > 0 && (
-            <button
-              type="button"
-              className="btn"
-              onClick={restoreAllSuggestions}
-              style={{ fontSize: '12px' }}
-            >
+      <SettingsCard
+        title="Hidden suggestions"
+        summary={`${hiddenPresets.length} hidden`}
+        action={
+          hiddenPresets.length > 0 && (
+            <button type="button" className="btn text-[12px]" onClick={() => setHidden([])}>
               Restore all
             </button>
-          )}
-        </div>
-
+          )
+        }
+      >
         {hiddenPresets.length === 0 ? (
-          <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-3)', lineHeight: 1.45 }}>
-            Nothing hidden yet. Use the × on a preset suggestion in the Dashboard activity manager
-            to hide it.
+          <p className="text-[13px] leading-[1.45] text-ink-3">
+            Nothing hidden yet. To hide a preset, select its × in the Add activity picker.
           </p>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
+          <div className="flex flex-col gap-[7px]">
             {hiddenPresets.map(activity => (
-              <div
-                key={activity.id}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: '10px',
-                  padding: '9px 10px',
-                  borderRadius: '10px',
-                  background: 'var(--bg-card)',
-                  border: '0.5px solid var(--border-md)',
-                }}
-              >
-                <div style={{ minWidth: 0 }}>
-                  <p style={{ margin: 0, fontSize: '13px', fontWeight: 650, color: 'var(--text)' }}>
+              <div key={activity.id} className={ROW}>
+                <div className="min-w-0">
+                  <p className="text-[13px] font-[650] text-ink">
                     <span aria-hidden="true">{activity.icon}</span> {activity.name}
                   </p>
-                  <p style={{ margin: '2px 0 0', fontSize: '11px', color: 'var(--text-3)' }}>
-                    {activity.category}
-                  </p>
+                  <p className="mt-0.5 text-[11px] text-ink-3">{activity.category}</p>
                 </div>
                 <button
                   type="button"
                   aria-label={`Restore ${activity.name}`}
-                  className="btn"
-                  onClick={() => restoreSuggestion(activity.id)}
-                  style={{ fontSize: '12px', padding: '5px 9px' }}
+                  className="btn px-[9px] py-[5px] text-[12px]"
+                  onClick={() => setHidden(hiddenIds.filter(id => id !== activity.id))}
                 >
                   Restore
                 </button>
@@ -129,41 +70,19 @@ export default function ActivitySuggestionSettings({ prefs, onChange }: Props) {
             ))}
           </div>
         )}
-      </div>
+      </SettingsCard>
 
-      <div
-        className="metric-card"
-        style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            gap: '12px',
-            alignItems: 'center',
-          }}
-        >
-          <div>
-            <h4
-              style={{ margin: '0 0 3px', fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}
-            >
-              Preset categories
-            </h4>
-            <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-3)' }}>
-              {collapsed.length} collapsed
-            </p>
-          </div>
-          {collapsed.length > 0 && (
-            <button
-              type="button"
-              className="btn"
-              onClick={expandAllCategories}
-              style={{ fontSize: '12px' }}
-            >
+      <SettingsCard
+        title="Preset categories"
+        summary={`${collapsed.length} collapsed`}
+        action={
+          collapsed.length > 0 && (
+            <button type="button" className="btn text-[12px]" onClick={() => setCollapsed([])}>
               Expand all
             </button>
-          )}
-        </div>
+          )
+        }
+      >
         <p className="sr-only" id={hintId}>
           Pressed categories start expanded in the Add activity picker.
         </p>
@@ -171,7 +90,7 @@ export default function ActivitySuggestionSettings({ prefs, onChange }: Props) {
           role="group"
           aria-label="Preset categories"
           aria-describedby={hintId}
-          style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}
+          className="flex flex-col gap-[7px]"
         >
           {ACTIVITY_CATEGORIES.map(category => {
             const isCollapsed = collapsed.includes(category.name)
@@ -180,28 +99,16 @@ export default function ActivitySuggestionSettings({ prefs, onChange }: Props) {
                 key={category.name}
                 type="button"
                 aria-pressed={!isCollapsed}
-                onClick={() => toggleCategory(category.name)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: '10px',
-                  padding: '9px 10px',
-                  borderRadius: '10px',
-                  background: 'var(--bg-card)',
-                  border: '0.5px solid var(--border-md)',
-                  color: 'var(--text)',
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                }}
+                onClick={() => setCollapsed(toggleInList(collapsed, category.name))}
+                className={`${ROW} text-left text-ink`}
               >
-                <span style={{ fontSize: '13px', fontWeight: 650 }}>
+                <span className="text-[13px] font-[650]">
                   <span aria-hidden="true">
                     {isCollapsed ? '▸' : '▾'} {category.emoji}
                   </span>{' '}
                   {category.name}
                 </span>
-                <span style={{ fontSize: '11px', color: 'var(--text-3)' }}>
+                <span className="text-[11px] text-ink-3">
                   {category.activities.length}
                   <span className="sr-only"> presets</span>
                 </span>
@@ -209,7 +116,32 @@ export default function ActivitySuggestionSettings({ prefs, onChange }: Props) {
             )
           })}
         </div>
+      </SettingsCard>
+    </div>
+  )
+}
+
+function SettingsCard({
+  title,
+  summary,
+  action,
+  children,
+}: {
+  title: string
+  summary: string
+  action: ReactNode
+  children: ReactNode
+}) {
+  return (
+    <div className="metric-card flex flex-col gap-2.5">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h4 className="mb-[3px] text-[13px] font-bold text-ink">{title}</h4>
+          <p className="text-[12px] text-ink-3">{summary}</p>
+        </div>
+        {action}
       </div>
+      {children}
     </div>
   )
 }

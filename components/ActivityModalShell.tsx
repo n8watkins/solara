@@ -29,34 +29,13 @@ export default function ActivityModalShell({
       labelledBy={titleId}
       describedBy={description ? descriptionId : undefined}
     >
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'flex-start',
-          gap: '16px',
-          padding: '20px 22px 16px',
-          borderBottom: '0.5px solid var(--border-md)',
-          flexShrink: 0,
-        }}
-      >
+      <div className="flex shrink-0 items-start justify-between gap-4 border-b-[0.5px] border-line-strong px-[22px] pt-5 pb-4">
         <div>
-          <h2
-            id={titleId}
-            style={{ margin: 0, fontSize: '18px', fontWeight: 750, color: 'var(--text)' }}
-          >
+          <h2 id={titleId} className="text-[18px] font-[750] text-ink">
             {title}
           </h2>
           {description && (
-            <p
-              id={descriptionId}
-              style={{
-                margin: '5px 0 0',
-                fontSize: '13px',
-                color: 'var(--text-3)',
-                lineHeight: 1.45,
-              }}
-            >
+            <p id={descriptionId} className="mt-[5px] text-[13px] leading-[1.45] text-ink-3">
               {description}
             </p>
           )}
@@ -64,20 +43,7 @@ export default function ActivityModalShell({
         <button
           type="button"
           onClick={onClose}
-          style={{
-            background: 'var(--bg-metric)',
-            border: 'none',
-            width: '32px',
-            height: '32px',
-            borderRadius: '50%',
-            fontSize: '18px',
-            cursor: 'pointer',
-            color: 'var(--text-2)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0,
-          }}
+          className="flex size-8 shrink-0 items-center justify-center rounded-full bg-surface-metric text-[18px] text-ink-2"
           aria-label="Close"
         >
           <span aria-hidden="true">×</span>
@@ -89,19 +55,13 @@ export default function ActivityModalShell({
         tabIndex={bodyTabIndex}
         role={bodyTabIndex === undefined ? undefined : 'region'}
         aria-labelledby={bodyTabIndex === undefined ? undefined : titleId}
-        style={{ overflowY: 'auto', flex: 1, minHeight: 0, padding: '20px 22px' }}
+        className="min-h-0 flex-1 overflow-y-auto px-[22px] py-5"
       >
         <div>{children}</div>
       </div>
 
       {footer && (
-        <div
-          style={{
-            padding: '15px 22px',
-            borderTop: '0.5px solid var(--border-md)',
-            flexShrink: 0,
-          }}
-        >
+        <div className="shrink-0 border-t-[0.5px] border-line-strong px-[22px] py-[15px]">
           {footer}
         </div>
       )}
