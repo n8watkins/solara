@@ -1,7 +1,6 @@
 import type { ErrorEvent } from '@sentry/nextjs'
 import { describe, expect, it } from 'vitest'
 import { redact } from '@solara/core'
-import { redact as functionsRedact } from '../functions/src/shared/logging'
 import { scrubBreadcrumb, scrubEvent, scrubText, scrubValue, stripUrlQuery } from './sentry-scrub'
 
 const EMAIL = 'ada.lovelace+solara@example.co.uk'
@@ -13,15 +12,15 @@ const FCM = 'fcm_' + 'a1B2c3D4e5F6g7H8i9J0'.repeat(3)
 const FORECAST = 'https://api.open-meteo.com/v1/forecast?latitude=37.77&longitude=-122.42'
 
 describe('redaction rules', () => {
-  it('match the Functions logging rules exactly', () => {
-    const samples = [
-      `user ${EMAIL} failed`,
-      `fetch ${FORECAST} failed`,
-      'at {"lat": 37.7749, "lon":-122.4194}',
-      `token ${JWT} and ${FCM}`,
-      'plain message with an id abc123',
-    ]
-    for (const sample of samples) expect(redact(sample)).toBe(functionsRedact(sample))
+  // Functions import the same redact from #core, so web reports and Function logs agree.
+  it('strip every kind of sensitive value', () => {
+    expect(redact(`user ${EMAIL} failed`)).toBe('user [email] failed')
+    expect(redact(`fetch ${FORECAST} failed`)).toBe(
+      'fetch https://api.open-meteo.com/v1/forecast?[redacted] failed',
+    )
+    expect(redact('at {"lat": 37.7749, "lon":-122.4194}')).not.toMatch(/37\.77|122\.41/)
+    expect(redact(`token ${JWT} and ${FCM}`)).toBe('token [token] and [token]')
+    expect(redact('plain message with an id abc123')).toBe('plain message with an id abc123')
   })
 })
 
