@@ -27,14 +27,15 @@ test('loads analytics only after consent and lets the user revoke it', async ({
     await route.fulfill({ status: 204, body: '' })
   })
 
-  await page.goto('/?session_id=secret123')
+  // The landing page is static and asks nothing; the app shows the banner.
+  await page.goto('/app/?session_id=secret123')
 
   const banner = page.getByRole('region', { name: 'Help improve Solara' })
   await expect(banner).toBeVisible()
   // Non-blocking: nothing is focused or trapped and the page stays usable.
   await expect(page.getByRole('button', { name: 'Allow analytics' })).not.toBeFocused()
-  await expect(page.getByRole('button', { name: /Get started/ })).toBeEnabled()
-  await page.getByRole('button', { name: /Get started/ }).click()
+  await expect(page.getByLabel('City or location')).toBeEditable()
+  await page.getByLabel('City or location').fill('Pasadena')
   await expect(page.getByRole('heading', { name: 'Where are you?' })).toBeVisible()
   await expect(page.locator('script[src*="googletagmanager.com"]')).toHaveCount(0)
   expect(libraryRequests).toHaveLength(0)
@@ -50,7 +51,7 @@ test('loads analytics only after consent and lets the user revoke it', async ({
   await expect(page.locator('script[src*="googletagmanager.com"]')).toHaveCount(1)
   await expect.poll(() => collectRequests.length).toBe(1)
   const hit = new URL(collectRequests[0]!)
-  expect(hit.searchParams.get('dl')).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/$/)
+  expect(hit.searchParams.get('dl')).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/app\/$/)
   expect(hit.searchParams.get('signals')).toBe('false')
   await expect
     .poll(async () => (await context.cookies()).map(c => c.name).sort())

@@ -158,6 +158,8 @@ function buildSite() {
   mkdirSync(resolve(SITE_DIR, '..'), { recursive: true })
   renameSync(resolve('out'), SITE_DIR)
   run('node', ['scripts/check-no-emulators.mjs', SITE_DIR, '--expect-emulators'], buildEnv)
+  // As in production: the landing page ships without the framework scripts.
+  run('node', ['scripts/static-pages.mjs', SITE_DIR], buildEnv)
   // The emulator flag in buildEnv also lets the policy frame the Auth emulator's
   // sign-in helper, which this suite serves on the page's own origin (lib/csp.mts).
   run('node', ['scripts/csp.mjs', SITE_DIR], buildEnv)

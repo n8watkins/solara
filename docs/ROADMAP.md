@@ -10,7 +10,7 @@ For what is live today read [status.md](status.md); for how lanes are run read [
 ## Order
 
 1. **Wave 4 - styling system and upgrades:** finishing (Tailwind 4, the upgrades, and the calendar, settings and activity restyles are merged).
-2. **Wave 3, phase 1 - free launch work (no Blaze):** guest mode with tiers and upsell, the landing page, Sentry, and App Check with reCAPTCHA.
+2. **Wave 3, phase 1 - free launch work (no Blaze):** guest mode with tiers and upsell and the landing page (done), Sentry, and App Check with reCAPTCHA.
 3. **Wave 3, phase 2 - Pro launch (Blaze):** billing, Pro-only morning alerts, staging and the rest of operations.
 4. **Wave 5 - features:** one lane per feature.
 5. **Wave 6 - mobile app:** an Expo (React Native) app for iOS and Android.
@@ -67,7 +67,7 @@ D1, D3 and D8 are done; the current state of every owner action is in [status.md
 ## Wave 3 - Launch tracks (4 lanes)
 
 Wave 3 runs in two phases.
-**Phase 1 (free, now):** W3-C (guest mode with the tiers above, landing page).
+**Phase 1 (free, now):** W3-C (guest mode with the tiers above, landing page; done).
 The Sentry part of W3-D and App Check with reCAPTCHA v3 are built and wait only for the owner's keys (D10, D11).
 **Phase 2 (Pro launch, Blaze):** W3-A (billing), W3-B (Pro-only morning alerts), the rest of W3-D (staging, alerts, backups).
 
@@ -92,12 +92,16 @@ The Functions feature folders under `functions/src/` keep the backend lanes apar
 
 ### W3-C - Growth: guest mode, landing, performance, PWA
 
+Phase 1 is done (branch `feat/guest-landing-pricing`): guest mode on the tiers above (`lib/tiers.ts`), with the guest plan kept in the browser and carried into a new account on first sign-in; the three upsells, dismissible per device; the static landing page at `/` (no framework JavaScript, nothing from Firebase, real harness screenshots) and the app at `/app/`, with `/` sending a signed-in browser to the app; Pro pricing ($2.99 a month or $19.99 a year, 7-day trial) as a waitlist; onboarding that hugs its content, with Back on every step and specific geolocation errors.
+Calendar sync (Google Calendar, the live feed and the .ics export) moved to Pro with the tiers.
+
+Still open:
+
 - **Branch:** `feat/guest-landing-pwa`
-- **Closes:** PROD-1, PROD-5, PROD-6, PROD-3 (remaining upsell wiring), PERF-1, PERF-2, UX-5, UX-6, BE-12 (forecast proxy, with D5)
-- **Owns:** `app/page.tsx`, `app/app/` (new), `components/Welcome.tsx`, `components/Onboarding.tsx`, `scripts/generate-sw.js` (replaced by an app-shell service worker), lazy-loading boundaries
-- **Touch points:** routing in `components/App.tsx`; upsell handlers in `components/Dashboard.tsx`
-- **Work:** a static marketing page at `/` with real screenshots and a direct "Sign in"; the app at `/app`; a read-only guest dashboard (D7); Firebase loaded only on sign-in or an existing session; lazy modals and calendar; an app-shell service worker with an offline forecast, an "updated" stamp and the push handler; onboarding with autocomplete, Back on every step, focus management and specific geolocation errors; every upsell opens pricing.
-- **Acceptance:** landing LCP under 2.5 s on throttled mobile with under 100 KB gzip of JavaScript.
+- **Closes:** PROD-6, PERF-2, UX-5, BE-12 (forecast proxy, with D5)
+- **Owns:** `scripts/generate-sw.js` (replaced by an app-shell service worker), lazy-loading boundaries in `components/`
+- **Work:** load Firebase in the app only on sign-in or an existing session (the landing page already loads none); lazy modals and calendar; an app-shell service worker with an offline forecast, an "updated" stamp and the push handler; place autocomplete in onboarding.
+- **Acceptance:** the guest app's first load under 200 KB gzip of JavaScript.
 
 ### W3-D - Operations
 
@@ -117,7 +121,7 @@ Use the theme utilities defined in `app/globals.css` (`bg-surface-card`, `text-i
 | Lane | Files in `components/` and `app/` |
 | --- | --- |
 | W4-D | `AddActivityModal.tsx`, `EditActivityModal.tsx`, `ManageActivitiesModal.tsx`, `ActivityManager.tsx`, `ActivitySuggestionSettings.tsx`, `EmojiPicker.tsx`, `ActivityModalShell.tsx` |
-| W4-E | `Header.tsx`, `App.tsx`, `AppShell.tsx`, `TipCarousel.tsx`, `InstallPrompt.tsx`, `Welcome.tsx`, `Onboarding.tsx`, `LocationPopover.tsx`, and the pages under `app/` |
+| W4-E | `Header.tsx`, `App.tsx`, `AppShell.tsx`, `TipCarousel.tsx`, `InstallPrompt.tsx`, `Onboarding.tsx`, `LocationPopover.tsx`, and the pages under `app/` |
 
 ### W4-F - Major upgrades (serial within the lane, parallel with W4-A..E)
 

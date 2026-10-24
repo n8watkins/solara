@@ -6,7 +6,7 @@ import { freezeScreen } from './freeze'
 import { HARNESS_MARKER } from './fixtures'
 
 // Dashboard states the default screenshot does not reach: a scrubbed hour with
-// the UV scale open, the day picker dialog (with the free plan's locked days),
+// the UV scale open, the day picker dialog, the free plan's locked-days tab,
 // the free plan's Plan ahead upsell, another day's hero, scheduled rows on the
 // activity cards and the loading skeleton. Each state is asserted and
 // screenshotted so restyles can be compared before and after.
@@ -72,12 +72,11 @@ test('a scrubbed hour drives the readout, and the UV scale opens', async ({ page
   expect(errors).toEqual([])
 })
 
-test('the day picker lists the days and, on Free, the locked ones', async ({ page }, testInfo) => {
-  const errors = await open(page, '&tier=free', scheme(testInfo.project.use.colorScheme))
+test('the day picker lists the days', async ({ page }, testInfo) => {
+  const errors = await open(page, '', scheme(testInfo.project.use.colorScheme))
   await page.getByRole('button', { name: 'More days', exact: true }).click()
   const dialog = page.getByRole('dialog')
   await expect(dialog).toContainText('Choose a day')
-  await expect(dialog).toContainText('available on a higher plan')
   await pauseClock(page)
   await shoot(dialog, 'day-picker', testInfo.project.name)
 
@@ -85,6 +84,18 @@ test('the day picker lists the days and, on Free, the locked ones', async ({ pag
   await expect(dialog).toBeHidden()
   await expect(page.getByTestId('hero-slot')).toContainText('Lower-UV slot · Tomorrow')
   await expect(page.getByRole('button', { name: 'Tomorrow' })).toBeVisible()
+  expect(errors).toEqual([])
+})
+
+test('on Free, the locked days sit behind a Pro tab', async ({ page }, testInfo) => {
+  const errors = await open(page, '&tier=free', scheme(testInfo.project.use.colorScheme))
+  await expect(page.getByRole('button', { name: 'More days', exact: true })).toHaveCount(0)
+  const picker = page.getByTestId('day-picker')
+  await expect(picker.getByRole('button', { name: 'Tomorrow' })).toBeVisible()
+  await pauseClock(page)
+  await shoot(picker, 'day-picker-free', testInfo.project.name)
+  await page.getByRole('button', { name: 'See the next 10 days with Pro' }).click()
+  await expect(page.getByRole('dialog', { name: 'Solara Pro' })).toBeVisible()
   expect(errors).toEqual([])
 })
 

@@ -13,10 +13,15 @@ test('serves the export with the Hosting headers', { tag: '@smoke' }, async ({ p
 
   await expect(page).toHaveTitle(/Solara/)
   await expect(page.getByRole('heading', { name: 'Know when to go outside' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Try it now' }).first()).toHaveAttribute(
+    'href',
+    '/app/',
+  )
 })
 
 test('serves hashed assets as immutable', { tag: '@smoke' }, async ({ page, request }) => {
-  await page.goto('/')
+  // The app; the landing page ships no framework scripts.
+  await page.goto('/app/')
   const script = await page.locator('script[src^="/_next/static/"]').first().getAttribute('src')
   expect(script).toBeTruthy()
 

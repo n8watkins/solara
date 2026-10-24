@@ -12,7 +12,7 @@ Status as of 2026-10-23, after PRs #17-#52.
 Each "Fixed" entry was checked against the merged code, not only the PR description.
 "Open" names the roadmap lane or owner decision that carries the rest of the work; a partial fix is listed as Open with what already landed.
 
-Totals: 71 fixed, 30 open, 1 won't fix (102 IDs; each ID of a combined row such as `OPS-1 / BE-3` or a range such as `UX-4..9` is counted separately, and CQ-2 comes from the old plan).
+Totals: 76 fixed, 25 open, 1 won't fix (102 IDs; each ID of a combined row such as `OPS-1 / BE-3` or a range such as `UX-4..9` is counted separately, and CQ-2 comes from the old plan).
 
 | ID | Status | Where |
 | --- | --- | --- |
@@ -21,7 +21,7 @@ Totals: 71 fixed, 30 open, 1 won't fix (102 IDs; each ID of a combined row such 
 | BE-1 | Fixed | #17: Functions run on Node 24 with firebase-admin 14 |
 | OPS-2 | Fixed | #17, as BE-1 |
 | CQ-1 | Fixed | #23: unknown UV stays `null` in the app, calendar feed and notifier; moved into `@solara/core` in #44 |
-| PROD-1 | Open | Wave 3, W3-C (guest mode, decision D7) |
+| PROD-1 | Fixed | W3-C phase 1 (`feat/guest-landing-pricing`): guest mode on the D7 tiers; the guest plan carries into a new account on first sign-in |
 | A11Y-1 | Fixed | #22: accent and text tokens pass WCAG AA; remaining contrast nodes fixed in #25, #26, #27 |
 | FE-3 | Fixed | #24: `signOutAndClear()` and an account-owner marker; covered by the signed-in e2e suite in #51 |
 | BE-2 | Fixed | #28: `functions/.env` plus a per-project price file; `check-functions-params.js` runs in CI |
@@ -35,12 +35,12 @@ Totals: 71 fixed, 30 open, 1 won't fix (102 IDs; each ID of a combined row such 
 | UX-2 | Fixed | #26: the sun path is drawn in real pixels inside the UV strip's scroller |
 | UX-3 | Fixed | #25: CSS grid week view with clipped lanes and compact chips |
 | PROD-2 | Fixed | #50: "now" and "today" come from the location's time zone (`lib/time.ts`) |
-| PROD-3 | Open | #52 made the dashboard upsell open the plans dialog; pricing content is Wave 3, W3-A, and the remaining upsell wiring is W3-C |
+| PROD-3 | Fixed | #52 made the dashboard upsell open the plans dialog; W3-C phase 1 (`feat/guest-landing-pricing`): pricing from the tiers ($2.99 a month or $19.99 a year, 7-day trial, waitlist) and every upsell opens sign-in or the plans |
 | PROD-4 | Fixed | #50: Celsius storage, unit and 12/24-hour preferences (`lib/units.ts`) |
-| PROD-5 | Open | Wave 3, W3-C (`app/page.tsx` still renders the app client-only) |
+| PROD-5 | Fixed | W3-C phase 1 (`feat/guest-landing-pricing`): `/` is a static, prerendered landing page; the app moved to `/app/` |
 | A11Y-2 | Fixed | #27: one native `<dialog>` component for every modal |
 | A11Y-3 | Fixed | #26 (sun arc and UV strip), #27 (tooltips) |
-| PERF-1 | Open | Wave 3, W3-C; #30 already keeps reCAPTCHA from loading before sign-in |
+| PERF-1 | Fixed | #30 keeps reCAPTCHA from loading before sign-in; W3-C phase 1 (`feat/guest-landing-pricing`): the landing page loads no framework JavaScript and nothing from Firebase |
 | PERF-2 | Open | Wave 3, W3-C |
 | CQ-10 | Fixed | #20 (coverage), #21 (UI harness), #28 (e2e on the static export), #51 (signed-in e2e on emulators) |
 | BE-4 | Fixed | #30: server-minted feed tokens indexed by hash in `calendarFeeds/{hash}` |
@@ -83,7 +83,7 @@ Totals: 71 fixed, 30 open, 1 won't fix (102 IDs; each ID of a combined row such 
 | PROD-8 | Fixed | #29: validated share links with a "has passed" notice and a call to action |
 | UX-4 | Fixed | #22: disabled states look inert |
 | UX-5 | Open | Wave 3, W3-C |
-| UX-6 | Open | Wave 3, W3-C |
+| UX-6 | Fixed | W3-C phase 1 (`feat/guest-landing-pricing`): onboarding cards hug their content at every width |
 | UX-7 | Fixed | #22: hover only under `@media (hover: hover)`, System/Light/Dark theme without a flash |
 | UX-8 | Fixed | #22: self-hosted variable Inter covers every weight |
 | UX-9 | Fixed | #24: one-row mobile header with city and current UV |

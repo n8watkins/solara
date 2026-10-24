@@ -2,7 +2,9 @@
 
 Solara is a personalized UV and outdoor-activity planner, live at https://solara-uv.web.app.
 It combines Open-Meteo forecasts with a user's location, skin profile, sunscreen settings and activities to suggest lower-UV windows for each activity, on a dashboard and in a week calendar.
-Users sign in with Google, and their preferences sync through Firestore.
+Anyone can try it without an account: a guest plan (today's forecast, one activity) stays in the browser.
+Signing in with Google is free and syncs the plan through Firestore; Pro adds 10 days, 20 activities, calendar sync, family profiles and morning alerts, and is a waitlist until billing launches.
+The plans are defined once, in `lib/tiers.ts`.
 Billing (Stripe), the live calendar feed, account export and deletion, and push notifications are built as Firebase Functions but not deployed yet.
 
 Solara is a planning aid, not medical advice or a guarantee that sun exposure is safe.
@@ -45,8 +47,8 @@ cp .env.local.example .env.local
 npm run dev
 ```
 
-The app requires Google sign-in before a user can reach the dashboard.
-Without Firebase configuration in `.env.local`, the welcome and onboarding flow still work, but the final Google sign-in control is unavailable.
+The landing page is at `/` and the app at `/app/`.
+Without Firebase configuration in `.env.local`, the landing page, setup and the guest dashboard still work, but the Google sign-in controls are hidden.
 To set up a Firebase project of your own, follow [Firebase console setup](docs/DEPLOYMENT.md#firebase-console-setup).
 
 ## Code layout
@@ -54,6 +56,8 @@ To set up a Firebase project of your own, follow [Firebase console setup](docs/D
 The repository is an npm workspace.
 
 - The web app (Next.js static export) lives at the root: `app/`, `components/` and `lib/`.
+  `app/page.tsx` is the static landing page: `scripts/static-pages.mjs` strips the framework scripts from it after the build, so it loads no JavaScript of its own beyond two inline scripts and nothing from Firebase.
+  The app is `app/app/page.tsx` (`/app/`); a browser with a signed-in account that opens `/` is sent there.
 - `packages/core` (`@solara/core`) holds the logic every surface shares: the recommendation engine, the preferences schema and migrations, the Zod-validated Open-Meteo parser and weather labels, the iCalendar builder, the calendar feed token policy and the Functions response contracts.
   The web app imports its TypeScript source.
 - `functions/` holds the Cloud Functions in TypeScript (`functions/src/`, one folder per area) and the manual morning notifier (`functions/scripts/send-notifications.js`).
@@ -84,11 +88,12 @@ npm run test:e2e:signed-in
 npm run test:harness
 ```
 
-- `npm run test:e2e` builds the static export with a hermetic public configuration and tests it on the Firebase Hosting emulator without credentials: welcome, onboarding, analytics consent, legal pages, share links and Hosting headers.
+- `npm run test:e2e` builds the static export with a hermetic public configuration and tests it on the Firebase Hosting emulator without credentials: the landing page, onboarding, guest mode and its upsells, analytics consent, legal pages, share links and Hosting headers.
 - `npm run test:e2e:integrations` builds the production export with a fake Sentry DSN and reCAPTCHA site key, answers every third-party request with a fake, and checks that error reports arrive scrubbed and that App Check starts only after sign-in, within the CSP.
   It writes `out/` like `npm run test:e2e`, so run the two one after the other.
-- `npm run test:e2e:signed-in` signs in through the Auth emulator and covers the dashboard, activities, settings, calendar, sharing, Pro gating, account isolation and export against the real rules and Functions.
-- `npm run test:harness` captures screenshots at desktop and phone widths in both themes, with an axe report, into `test-results/ui-harness/`: the signed-in screens and header popovers, and the pages a visitor sees before signing in (welcome, each onboarding step, legal pages, share links, the account page and the 404 page).
+- `npm run test:e2e:signed-in` signs in through the Auth emulator and covers the dashboard, activities, settings, calendar, sharing, Pro gating, guest-to-account carry-over, account isolation and export against the real rules and Functions.
+- `npm run test:harness` captures screenshots at desktop and phone widths in both themes, with an axe report, into `test-results/ui-harness/`: the signed-in screens and header popovers, the guest dashboard with each upsell and the plans dialog, and the pages a visitor sees before signing in (landing, sign-in, each onboarding step, legal pages, share links, the account page and the 404 page).
+  `UPDATE_LANDING_SHOTS=1 npm run test:harness -- landing-shots` regenerates the landing page's screenshots in `public/landing/`.
 - `npm run check:docs` checks that every relative link and backticked repository path in the Markdown docs resolves.
 
 The rules tests and the signed-in suite need Java for the Firestore emulator.

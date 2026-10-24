@@ -154,6 +154,11 @@ const ACTIVITIES: Activity[] = [
 ]
 
 export function buildPrefs(tier: TierLevel = 'paid'): UserPreferences {
+  if (tier === 'anonymous') {
+    // A guest plan as lib/guest.ts keeps it: one activity, no saved places or profiles.
+    const { profiles: _profiles, activeProfileId: _active, ...free } = buildPrefs('free')
+    return { ...free, uid: '', tier, savedLocations: [], activities: ACTIVITIES.slice(0, 1) }
+  }
   return {
     uid: 'harness-user',
     schemaVersion: 2,
