@@ -1,11 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  UV_BAR_GAP,
-  hourSlots,
-  missingRuns,
-  uvBarCenter,
-  uvDaySummary,
-} from '@/components/UVTimeline'
+import { UV_BAR_GAP, hourSlots, missingRuns, uvBarCenter, uvDaySummary } from '@/lib/uv-strip'
 import type { HourlyForecast } from '@/lib/types'
 
 const hour = (h: number, uv: number): HourlyForecast => ({
