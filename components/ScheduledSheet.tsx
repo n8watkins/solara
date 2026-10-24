@@ -178,12 +178,13 @@ export default function ScheduledSheet({
             <button
               type="button"
               className={`btn ${styles.action} ${styles.danger}`}
+              aria-label="Remove from calendar"
               onClick={() => {
                 setError(null)
                 setMode('remove')
               }}
             >
-              Remove from calendar
+              Remove
             </button>
           </div>
         </>
