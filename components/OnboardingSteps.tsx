@@ -1,14 +1,33 @@
 'use client'
-// The four setup steps that components/Onboarding.tsx shows inside its card. Each
-// step fills the card; its primary action sits at the bottom, in the thumb zone.
+// The four setup steps that components/Onboarding.tsx shows inside its card. The
+// card hugs each step: content first, then the primary action right below it, then
+// Back, so no step floats in empty space on a tall phone or a wide screen.
+import { useState } from 'react'
 import clsx from 'clsx'
+import type { User } from 'firebase/auth'
 import { SKIN_OPTIONS } from '@/lib/onboarding'
+import { TIER_LIMITS } from '@/lib/tiers'
+import { firebaseEnabled } from '@/lib/firebase'
 import type { SkinType, UserPreferences } from '@/lib/types'
 import { uvBand, uvLabel, type UVBand } from '@/lib/weather'
 import GoogleSignInButton from './GoogleSignInButton'
 
-const PRIMARY = 'btn btn-primary w-full justify-center p-[13px]'
-const HEADING = 'text-[19px] font-[650] text-ink'
+const PRIMARY = 'btn btn-primary w-full justify-center p-[13px] text-[14px] font-semibold'
+const HEADING = 'text-[20px] leading-tight font-[650] text-ink'
+const LEAD = 'text-[14px] leading-normal text-ink-2'
+
+function BackButton({ onBack }: { onBack?: () => void }) {
+  if (!onBack) return null
+  return (
+    <button
+      type="button"
+      className="btn btn-ghost mt-2 w-full justify-center text-[13px] text-ink-3"
+      onClick={onBack}
+    >
+      ← Back
+    </button>
+  )
+}
 
 /** Fills from the app's one UV palette (--color-uv-* in app/globals.css). */
 const UV_FILL: Record<UVBand, string> = {
@@ -38,37 +57,40 @@ export function LocationStep({
   return (
     <>
       <h1 className={clsx(HEADING, 'mb-1.5')}>Where are you?</h1>
-      <p className="mb-[18px] text-[14px] leading-normal text-ink-2">
-        We&apos;ll show the live UV index for your area.
-      </p>
-      <label htmlFor="onboarding-city" className="mb-1.5 text-[13px] font-semibold text-ink">
+      <p className={clsx(LEAD, 'mb-5')}>We&apos;ll show the live UV index for your area.</p>
+      <label htmlFor="onboarding-city" className="text-[13px] font-semibold text-ink">
         City or location
       </label>
-      <div className="mt-1 mb-3.5 flex items-center gap-2">
+      <div className="mt-1.5 flex items-center gap-2">
         <input
           id="onboarding-city"
           placeholder="Type a city, e.g. Los Angeles"
+          autoComplete="address-level2"
+          enterKeyHint="search"
           value={city}
           onChange={e => onCityChange(e.target.value)}
           onKeyDown={e => {
             if (e.key === 'Enter') onSearch()
           }}
-          className="flex-1"
+          className="min-w-0 flex-1"
         />
-        <button className="btn" onClick={onSearch} disabled={loading}>
+        <button className="btn self-stretch px-4" onClick={onSearch} disabled={loading}>
           Go
         </button>
       </div>
       {error && (
-        <p role="alert" className="mb-2 text-[12px] text-danger">
+        <p role="alert" className="mt-2 text-[12px] leading-normal text-danger">
           {error}
         </p>
       )}
-      <div className="mt-auto">
-        <button className={PRIMARY} onClick={onGeolocate} disabled={loading}>
-          {loading ? 'Detecting…' : '📍 Use my location'}
-        </button>
+      <div className="my-4 flex items-center gap-3 text-[12px] text-ink-3" aria-hidden="true">
+        <span className="h-px flex-1 bg-line-strong" />
+        or
+        <span className="h-px flex-1 bg-line-strong" />
       </div>
+      <button className={PRIMARY} onClick={onGeolocate} disabled={loading}>
+        {loading ? 'Detecting…' : '📍 Use my location'}
+      </button>
     </>
   )
 }
@@ -77,14 +99,16 @@ export function UVPreviewStep({
   uv,
   city,
   onContinue,
+  onBack,
 }: {
   uv: number
   city: string
   onContinue: () => void
+  onBack?: () => void
 }) {
   return (
     <>
-      <div className="flex min-h-0 flex-1 flex-col items-center justify-center text-center">
+      <div className="flex flex-col items-center pt-2 pb-1 text-center">
         <h1>
           <span className="mb-0.5 block text-[13px] font-normal text-ink-3">
             UV index right now in
@@ -101,13 +125,14 @@ export function UVPreviewStep({
         >
           {uvLabel(uv)}
         </p>
-        <p className="text-[14px] leading-[1.55] text-ink-2">
+        <p className="max-w-[320px] text-[14px] leading-[1.55] text-ink-2">
           Next, set your skin type so Solara can personalize its planning estimates.
         </p>
       </div>
-      <button className={clsx(PRIMARY, 'mt-3.5')} onClick={onContinue}>
+      <button className={clsx(PRIMARY, 'mt-5')} onClick={onContinue}>
         Continue →
       </button>
+      <BackButton onBack={onBack} />
     </>
   )
 }
@@ -116,17 +141,17 @@ export function SkinStep({
   value,
   onChange,
   onContinue,
+  onBack,
 }: {
   value: SkinType
   onChange: (skin: SkinType) => void
   onContinue: () => void
+  onBack?: () => void
 }) {
   return (
     <>
-      <h1 className={clsx(HEADING, 'mb-1')}>Your skin type</h1>
-      <p className="mb-3.5 text-[13px] text-ink-2">
-        Personalizes estimated burn time and planning UV limits.
-      </p>
+      <h1 className={clsx(HEADING, 'mb-1.5')}>Your skin type</h1>
+      <p className={clsx(LEAD, 'mb-4')}>Personalizes estimated burn time and planning UV limits.</p>
       <div className="flex flex-col gap-[7px]">
         {SKIN_OPTIONS.map(o => {
           const selected = value === o.value
@@ -153,45 +178,109 @@ export function SkinStep({
           )
         })}
       </div>
-      <button className={clsx(PRIMARY, 'mt-auto')} onClick={onContinue}>
+      <button className={clsx(PRIMARY, 'mt-5')} onClick={onContinue}>
         Continue →
       </button>
+      <BackButton onBack={onBack} />
     </>
   )
 }
 
-export function SignInStep({
-  seedPrefs,
+/**
+ * The last step. A visitor starts right away as a guest (the plan stays on this
+ * device) or signs in free to save it; someone already signed in, whose account has
+ * no plan yet, finishes by creating it.
+ */
+export function FinishStep({
+  user,
+  answers,
+  onStartAsGuest,
+  onCreateAccount,
   onSignedIn,
   onBack,
 }: {
-  seedPrefs: UserPreferences | null
+  user: User | null
+  answers: UserPreferences
+  onStartAsGuest: () => void
+  onCreateAccount: (user: User) => Promise<void>
   onSignedIn: (account: UserPreferences | null) => void
-  onBack: () => void
+  onBack?: () => void
 }) {
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function finish(signedInUser: User) {
+    setSaving(true)
+    setError(null)
+    try {
+      await onCreateAccount(signedInUser)
+    } catch (e) {
+      console.error('Account setup failed:', e)
+      setError('Could not save your setup. Check your connection and try again.')
+      setSaving(false)
+    }
+  }
+
+  if (user) {
+    return (
+      <>
+        <div className="flex flex-col items-center pt-2 pb-1 text-center">
+          <span aria-hidden="true" className="mb-3 text-[34px] leading-none">
+            ☀️
+          </span>
+          <h1 className={clsx(HEADING, 'mb-2')}>Finish setting up</h1>
+          <p className={clsx(LEAD, 'max-w-[320px]')}>
+            Solara saves your setup to your account
+            {user.email ? <> ({user.email})</> : null}, so your sun windows are ready on every
+            device.
+          </p>
+        </div>
+        {error && (
+          <p role="alert" className="mt-3 text-center text-[12px] text-danger">
+            {error}
+          </p>
+        )}
+        <button
+          className={clsx(PRIMARY, 'mt-5')}
+          onClick={() => void finish(user)}
+          disabled={saving}
+        >
+          {saving ? 'Saving…' : 'Finish setup →'}
+        </button>
+        <BackButton onBack={onBack} />
+      </>
+    )
+  }
+
   return (
     <>
-      <div className="flex min-h-0 flex-1 flex-col items-center justify-center text-center">
-        <span className="mb-3 text-[34px]">🔒</span>
-        <h1 className="mb-2 text-[20px] font-[650] text-ink">Sign in to finish</h1>
-        <p className="max-w-[300px] text-[14px] leading-[1.55] text-ink-2">
-          Solara saves your setup to your account so your sun windows are ready on every device.
+      <div className="flex flex-col items-center pt-2 pb-1 text-center">
+        <span aria-hidden="true" className="mb-3 text-[34px] leading-none">
+          🌤️
+        </span>
+        <h1 className={clsx(HEADING, 'mb-2')}>You&apos;re all set</h1>
+        <p className={clsx(LEAD, 'max-w-[330px]')}>
+          See today&apos;s lower-UV windows now. Your plan stays on this device until you sign in.
         </p>
       </div>
-      <div className="mt-3.5">
-        <GoogleSignInButton
-          label="Continue with Google"
-          seedPrefs={seedPrefs}
-          onSignedIn={(_user, account) => onSignedIn(account)}
-          size="lg"
-        />
-        <button
-          className="btn btn-ghost mt-2 w-full justify-center text-[13px] text-ink-3"
-          onClick={onBack}
-        >
-          ← Back
-        </button>
-      </div>
+      <button className={clsx(PRIMARY, 'mt-5')} onClick={onStartAsGuest}>
+        See today&apos;s plan →
+      </button>
+      {firebaseEnabled && (
+        <div className="mt-4 border-t-[0.5px] border-line-strong pt-4">
+          <p className="mb-2.5 text-center text-[13px] leading-normal text-ink-2">
+            Or sign in free to save your plan, see tomorrow too and plan up to{' '}
+            {TIER_LIMITS.free.activities} activities.
+          </p>
+          <GoogleSignInButton
+            label="Continue with Google"
+            seedPrefs={answers}
+            onSignedIn={(_user, account) => onSignedIn(account)}
+            size="lg"
+          />
+        </div>
+      )}
+      <BackButton onBack={onBack} />
     </>
   )
 }

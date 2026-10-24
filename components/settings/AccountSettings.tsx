@@ -5,6 +5,7 @@ import type { User } from 'firebase/auth'
 import type { TierLevel, UserPreferences } from '@/lib/types'
 import { firebaseEnabled } from '@/lib/firebase'
 import { signOutAndClear } from '@/lib/session'
+import { goToLanding } from '@/lib/app-routes'
 import { planLimitRows } from '@/lib/settings'
 import { TIER_LIMITS } from '@/lib/tiers'
 import GoogleSignInButton from '../GoogleSignInButton'
@@ -43,6 +44,7 @@ export default function AccountSettings({
       return
     }
     onSignedOut()
+    goToLanding()
   }
 
   return (
@@ -108,7 +110,7 @@ export default function AccountSettings({
             across devices.
           </SettingsHint>
           {firebaseEnabled ? (
-            <GoogleSignInButton seedPrefs={prefs} />
+            <GoogleSignInButton />
           ) : (
             <p className="text-[12px] text-ink-3 italic">
               Sign-in is not available in this build. Settings stay on this device.

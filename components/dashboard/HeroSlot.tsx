@@ -1,5 +1,6 @@
 import type { ActivityDayPlan } from '@/lib/next-slot'
 import { useUnits } from '@/lib/use-units'
+import { useUpsellDismissal } from '@/lib/upsell'
 
 /**
  * The dashboard's lead: the selected day's best window, or a clear "no
@@ -14,6 +15,7 @@ export default function HeroSlot({
   dayPhrase,
   peakUV,
   peakHour,
+  onMorningAlert,
 }: {
   /** The soonest plan with a slot, or null when no activity has one. */
   plan: ActivityDayPlan | null
@@ -24,8 +26,11 @@ export default function HeroSlot({
   dayPhrase: string
   peakUV: number
   peakHour: number
+  /** Offers this slot as a morning alert (Pro); absent when the plan has alerts. */
+  onMorningAlert?: () => void
 }) {
   const fmt = useUnits()
+  const [alertDismissed, dismissAlert] = useUpsellDismissal('morning-alert')
   if (plan?.slot) {
     const { activity, slot } = plan
     return (
@@ -51,6 +56,33 @@ export default function HeroSlot({
           </div>
           {plan.startsNow && <span className="badge badge-safe shrink-0">Start now</span>}
         </div>
+        {onMorningAlert && !alertDismissed && (
+          <div
+            role="status"
+            className="mt-3 -mb-1 flex items-center justify-between gap-2 border-t-[0.5px] border-brand/20 pt-2"
+          >
+            <button
+              type="button"
+              onClick={onMorningAlert}
+              className="-ml-1 flex min-h-8 items-center gap-1.5 rounded-lg px-1 text-left text-[13px] font-semibold text-accent"
+            >
+              <span aria-hidden="true">🔔</span>
+              Get this as a morning alert
+              <span className="rounded-full bg-accent-soft px-1.5 py-px text-[10px] font-extrabold tracking-[0.05em] uppercase">
+                Pro
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={dismissAlert}
+              aria-label="Not now: morning alerts"
+              title="Not now"
+              className="flex size-8 shrink-0 items-center justify-center rounded-full text-[17px] text-ink-3"
+            >
+              <span aria-hidden="true">×</span>
+            </button>
+          </div>
+        )}
       </div>
     )
   }

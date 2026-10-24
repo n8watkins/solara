@@ -3,14 +3,39 @@ import { OPEN_METEO_FORECAST_URL, SKIN_BURN_BASE, SKIN_TYPES, fetchJson } from '
 import { SKIN_TYPE_LABELS } from './profiles'
 import type { Location, SkinType } from './types'
 
-export type OnboardingStep = 'location' | 'uvpreview' | 'skin' | 'signin'
+export type OnboardingStep = 'location' | 'uvpreview' | 'skin' | 'finish'
 
 /** The 1-3 progress bar position of each step (the UV preview belongs to step 1). */
 export const ONBOARDING_PROGRESS: Readonly<Record<OnboardingStep, 1 | 2 | 3>> = {
   location: 1,
   uvpreview: 1,
   skin: 2,
-  signin: 3,
+  finish: 3,
+}
+
+/** The step "Back" returns to, or null on the first step. */
+export const ONBOARDING_BACK: Readonly<Record<OnboardingStep, OnboardingStep | null>> = {
+  location: null,
+  uvpreview: 'location',
+  skin: 'location',
+  finish: 'skin',
+}
+
+/**
+ * What to tell someone whose "Use my location" failed, by the browser's
+ * GeolocationPositionError code (null: the browser has no geolocation at all).
+ */
+export function geolocationErrorMessage(code: number | null): string {
+  switch (code) {
+    case null:
+      return "This browser can't share your location. Type a city instead."
+    case 1:
+      return 'Location access is turned off for this site. Allow it in your browser, or type a city.'
+    case 3:
+      return 'Finding your location took too long. Try again, or type a city.'
+    default:
+      return "Your location couldn't be found. Try again, or type a city."
+  }
 }
 
 const SKIN_DESCRIPTIONS: Readonly<Record<SkinType, string>> = {

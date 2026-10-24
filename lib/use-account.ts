@@ -5,6 +5,7 @@ import type { User } from 'firebase/auth'
 import { onAuthStateChanged } from 'firebase/auth'
 import { auth } from './firebase'
 import { loadAccountPrefs } from './session'
+import { loadGuestPrefs } from './guest'
 import { FORECAST_QUERY_KEY } from './use-forecast'
 import {
   enableNotifications,
@@ -20,15 +21,24 @@ import {
 import type { UserPreferences } from './types'
 
 /**
- * The signed-in account behind components/App.tsx: follows Firebase Auth, loads
- * (or creates) the account's preferences, and picks the top-level screen.
+ * The account (or guest) behind components/App.tsx: follows Firebase Auth, loads (or
+ * creates) the account's preferences or the guest plan kept in this browser, and
+ * picks the top-level screen.
  *
- * `onAccountReset` runs whenever the account on screen goes away (sign-out or a
- * switch to another account), so the caller can drop per-account view state; the
- * cached forecasts are dropped here. `reload` loads the current account again, using
- * `signedIn` (the account document sign-in from setup just read or created) if given.
+ * `onAccountReset` runs whenever the plan on screen goes away (sign-in from guest
+ * mode, sign-out or a switch to another account), so the caller can drop per-account
+ * view state; the cached forecasts are dropped here. `reload` loads the current
+ * account again, using `signedIn` (the account document that sign-in just read or
+ * created) if given. `signInRequested` shows the sign-in screen to a signed-out
+ * visitor on the first load.
  */
-export function useAccount({ onAccountReset }: { onAccountReset: () => void }) {
+export function useAccount({
+  onAccountReset,
+  signInRequested = false,
+}: {
+  onAccountReset: () => void
+  signInRequested?: boolean
+}) {
   const queryClient = useQueryClient()
   const [user, setUser] = useState<User | null>(null)
   const [prefs, setPrefs] = useState<UserPreferences | null>(null)
@@ -55,6 +65,7 @@ export function useAccount({ onAccountReset }: { onAccountReset: () => void }) {
     // Set when this run is the reload after sign-in from setup.
     let signedIn = signedInAccount.current
     signedInAccount.current = null
+    const requested = signInRequested
 
     async function loadAccount(u: User | null, current: number) {
       const isStale = () => disposed || current !== generation
@@ -63,15 +74,21 @@ export function useAccount({ onAccountReset }: { onAccountReset: () => void }) {
       setUser(u)
       setAccountError(null)
 
-      // Sign-in with Google is required to use Solara - a guest never reaches the
-      // dashboard. No local-prefs fallback into the app for signed-out visitors.
+      // Signed out: the guest plan kept in this browser, if any. It lives apart from
+      // any account's data (lib/guest.ts), so a guest never sees an account's plan.
       if (!u) {
         // Drop the previous account's state so a later sign-in can never show it.
-        resetAccountState()
-        setScreen(screenWhenSignedOut)
+        if (previousUid) resetAccountState()
+        const guest = loadGuestPrefs()
+        setPrefs(guest)
+        setScreen(prev =>
+          screenWhenSignedOut(prev, { hasGuestPlan: !!guest, signInRequested: requested }),
+        )
         return
       }
-      if (previousUid && previousUid !== u.uid) {
+      if (previousUid !== u.uid) {
+        // A different account, or a guest who just signed in: nothing on screen may be
+        // saved to this account until its own plan has loaded.
         resetAccountState()
         setScreen('loading')
       }
@@ -119,6 +136,8 @@ export function useAccount({ onAccountReset }: { onAccountReset: () => void }) {
     return () => {
       disposed = true
     }
+    // signInRequested only matters for the first signed-out load.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reloadKey])
 
   return {
@@ -131,6 +150,12 @@ export function useAccount({ onAccountReset }: { onAccountReset: () => void }) {
     reload: (signedIn: UserPreferences | null = null) => {
       signedInAccount.current = signedIn
       setReloadKey(key => key + 1)
+    },
+    /** Leaves the sign-in screen for the guest plan, or for setup without one. */
+    continueAsGuest: () => {
+      const guest = loadGuestPrefs()
+      setPrefs(guest)
+      setScreen(guest ? 'dashboard' : 'onboarding')
     },
   }
 }

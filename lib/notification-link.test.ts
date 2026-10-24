@@ -11,7 +11,7 @@ describe('safeNotificationUrl', () => {
     )
   })
 
-  it('sends anything else to the home page', () => {
+  it('sends anything else to the app', () => {
     for (const link of [
       'https://evil.example/login',
       '//evil.example/login',
@@ -22,7 +22,7 @@ describe('safeNotificationUrl', () => {
       undefined,
       42,
     ]) {
-      expect(safeNotificationUrl(link, ORIGIN)).toBe('https://solara.test/')
+      expect(safeNotificationUrl(link, ORIGIN)).toBe('https://solara.test/app/')
     }
   })
 })

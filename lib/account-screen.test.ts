@@ -9,35 +9,54 @@ import {
   type AppScreen,
 } from './account-screen'
 
-const ALL: AppScreen[] = ['loading', 'welcome', 'onboarding', 'dashboard']
+const ALL: AppScreen[] = ['loading', 'signin', 'onboarding', 'dashboard']
 
 function table(transition: (prev: AppScreen) => AppScreen) {
   return Object.fromEntries(ALL.map(prev => [prev, transition(prev)]))
 }
 
 describe('account screen transitions', () => {
-  it('signing out shows welcome but never interrupts setup', () => {
-    expect(table(screenWhenSignedOut)).toEqual({
-      loading: 'welcome',
-      welcome: 'welcome',
+  it('signed out without a guest plan starts setup, never interrupting setup or sign-in', () => {
+    expect(
+      table(prev => screenWhenSignedOut(prev, { hasGuestPlan: false, signInRequested: false })),
+    ).toEqual({
+      loading: 'onboarding',
+      signin: 'signin',
       onboarding: 'onboarding',
-      dashboard: 'welcome',
+      dashboard: 'onboarding',
     })
   })
 
-  it('an account without saved data keeps setup or a finished dashboard on screen', () => {
-    expect(table(screenWhenNeedsOnboarding)).toEqual({
-      loading: 'welcome',
-      welcome: 'welcome',
+  it('signed out with a guest plan opens the guest dashboard', () => {
+    expect(
+      table(prev => screenWhenSignedOut(prev, { hasGuestPlan: true, signInRequested: false })),
+    ).toEqual({
+      loading: 'dashboard',
+      signin: 'signin',
       onboarding: 'onboarding',
       dashboard: 'dashboard',
     })
   })
 
-  it('finishing setup loads the saved account unless the dashboard already shows it', () => {
+  it('coming to sign in shows the sign-in screen first', () => {
+    for (const hasGuestPlan of [false, true]) {
+      expect(screenWhenSignedOut('loading', { hasGuestPlan, signInRequested: true })).toBe('signin')
+    }
+  })
+
+  it('an account without saved data goes through setup unless the dashboard is up', () => {
+    expect(table(screenWhenNeedsOnboarding)).toEqual({
+      loading: 'onboarding',
+      signin: 'onboarding',
+      onboarding: 'onboarding',
+      dashboard: 'dashboard',
+    })
+  })
+
+  it('finishing sign-in or setup loads the saved account unless the dashboard shows it', () => {
     expect(table(screenAfterOnboarding)).toEqual({
       loading: 'loading',
-      welcome: 'loading',
+      signin: 'loading',
       onboarding: 'loading',
       dashboard: 'dashboard',
     })

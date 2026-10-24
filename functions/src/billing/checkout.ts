@@ -326,8 +326,8 @@ export async function createCheckout({
         ...customer,
         metadata: { firebaseUid: identity.uid },
         subscription_data: { metadata: { firebaseUid: identity.uid } },
-        success_url: `${appUrl}/?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${appUrl}/?checkout=canceled`,
+        success_url: `${appUrl}/app/?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${appUrl}/app/?checkout=canceled`,
         allow_promotion_codes: true,
       },
       {

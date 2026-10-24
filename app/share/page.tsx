@@ -1,5 +1,4 @@
 'use client'
-import Link from 'next/link'
 import { Suspense, type ReactNode } from 'react'
 import clsx from 'clsx'
 import { useSearchParams } from 'next/navigation'
@@ -29,9 +28,10 @@ function ShareCard({
         )}
       >
         {children}
-        <Link href="/" className="btn btn-primary justify-center px-[18px] py-[11px] no-underline">
+        {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- A full page load, so the landing page sends a signed-in visitor to the app. */}
+        <a href="/" className="btn btn-primary justify-center px-[18px] py-[11px] no-underline">
           {cta}
-        </Link>
+        </a>
         {footer}
       </div>
     </main>

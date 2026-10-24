@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { APP_PATH, SIGN_IN_PATH } from '@/lib/app-routes'
 import type { User } from 'firebase/auth'
 import { onAuthStateChanged, reauthenticateWithPopup, signOut } from 'firebase/auth'
 import { useEffect, useState, type ReactNode } from 'react'
@@ -107,7 +108,7 @@ export default function AccountPage() {
   return (
     <main className="min-h-screen bg-surface px-4 pt-8 pb-16">
       <div className="mx-auto max-w-[680px]">
-        <Link href="/" className="text-[14px] text-accent no-underline">
+        <Link href={APP_PATH} className="text-[14px] text-accent no-underline">
           ← Back to Solara
         </Link>
         <h1 className="mt-6 mb-2 text-[clamp(28px,6vw,42px)] leading-[1.1] font-[750]">
@@ -130,7 +131,7 @@ export default function AccountPage() {
                 ? 'You have been signed out while Solara finishes canceling billing and removing your account data.'
                 : 'Return to Solara and sign in before using these controls.'}
             </p>
-            <Link href="/" className="btn btn-primary no-underline">
+            <Link href={SIGN_IN_PATH} className="btn btn-primary no-underline">
               Go to sign in
             </Link>
           </div>

@@ -2,7 +2,7 @@
   "name": "Solara",
   "short_name": "Solara",
   "description": "Personalized UV and outdoor activity windows.",
-  "start_url": "/",
+  "start_url": "/app/",
   "scope": "/",
   "display": "standalone",
   "background_color": "#FFFBF5",

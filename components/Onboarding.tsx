@@ -2,24 +2,33 @@
 import { useState } from 'react'
 import clsx from 'clsx'
 import type { User } from 'firebase/auth'
-import { defaultPrefs } from '@/lib/prefs'
+import { createAccountPrefs, defaultPrefs } from '@/lib/prefs'
 import type { UserPreferences, Location, SkinType } from '@/lib/types'
-import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
 import { locationFromCoordinates, searchLocation } from '@/lib/geocoding'
-import { ONBOARDING_PROGRESS, fetchCurrentUV, type OnboardingStep } from '@/lib/onboarding'
-import { LocationStep, SignInStep, SkinStep, UVPreviewStep } from './OnboardingSteps'
+import {
+  ONBOARDING_BACK,
+  ONBOARDING_PROGRESS,
+  fetchCurrentUV,
+  geolocationErrorMessage,
+  type OnboardingStep,
+} from '@/lib/onboarding'
+import { FinishStep, LocationStep, SkinStep, UVPreviewStep } from './OnboardingSteps'
 
 interface Props {
+  /** The signed-in account that has no saved plan yet, or null for a visitor. */
+  user: User | null
   /**
-   * Called once sign-in has finished, with the saved account document. The answers
-   * never go to the app directly: they only seed a brand-new account
-   * (GoogleSignInButton's `seedPrefs`), and the app shows whatever the account holds.
+   * Called once sign-in (or, when already signed in, account creation) has finished,
+   * with the saved account document. The app shows whatever the account holds: an
+   * account that already existed keeps its own plan.
    */
-  onComplete: (account: UserPreferences | null) => void
-  user?: User | null
+  onSignedIn: (account: UserPreferences | null) => void
+  /** Called with the setup answers when a visitor starts without an account. */
+  onStartAsGuest: (answers: UserPreferences) => void
 }
 
-export default function Onboarding({ onComplete }: Props) {
+/** Setup: location (with a live UV preview), skin type, then start as a guest or sign in. */
+export default function Onboarding({ user, onSignedIn, onStartAsGuest }: Props) {
   const [step, setStep] = useState<OnboardingStep>('location')
   const [locLoading, setLocLoad] = useState(false)
   const [cityInput, setCityInput] = useState('')
@@ -29,29 +38,35 @@ export default function Onboarding({ onComplete }: Props) {
   const [uvCity, setUvCity] = useState('')
   const [skinType, setSkinType] = useState<SkinType>('fair')
 
-  // Setup never scrolls - lock the page while onboarding is mounted (shared,
-  // ref-counted hook so it composes with any other overlay's lock).
-  useBodyScrollLock()
-
-  const collected: UserPreferences | null = location
-    ? { ...defaultPrefs(location), skinType, tier: 'free', onboardingComplete: true }
+  const answers: UserPreferences | null = location
+    ? { ...defaultPrefs(location), skinType, onboardingComplete: true }
     : null
 
-  async function handleGeolocate() {
-    setLocLoad(true)
+  function handleGeolocate() {
     setGeoError(null)
+    if (!('geolocation' in navigator)) {
+      setGeoError(geolocationErrorMessage(null))
+      return
+    }
+    setLocLoad(true)
     async function resolvePosition(pos: GeolocationPosition) {
-      const loc = await locationFromCoordinates(pos.coords.latitude, pos.coords.longitude)
-      setLocation(loc)
-      setLocLoad(false)
-      await fetchUVPreview(loc)
+      try {
+        const loc = await locationFromCoordinates(pos.coords.latitude, pos.coords.longitude)
+        setLocation(loc)
+        await fetchUVPreview(loc)
+      } catch {
+        setGeoError(geolocationErrorMessage(2))
+      } finally {
+        setLocLoad(false)
+      }
     }
     navigator.geolocation.getCurrentPosition(
       pos => void resolvePosition(pos),
-      () => {
-        setGeoError('Location access denied. Type a city below.')
+      error => {
+        setGeoError(geolocationErrorMessage(error.code))
         setLocLoad(false)
       },
+      { timeout: 15_000, maximumAge: 10 * 60_000 },
     )
   }
 
@@ -83,12 +98,18 @@ export default function Onboarding({ onComplete }: Props) {
   }
 
   const progress = ONBOARDING_PROGRESS[step]
+  const back = ONBOARDING_BACK[step]
+  const goBack = back ? () => setStep(back) : undefined
 
   return (
-    <main className="flex h-dvh flex-col overflow-hidden bg-surface p-4">
-      <div className="mx-auto flex min-h-0 w-full max-w-[460px] flex-1 flex-col">
-        <div className="shrink-0 pt-1.5 pb-3.5 text-center">
-          <span className="text-[26px]">☀️</span>
+    // The card hugs its content and the column sits near the top on phones (where
+    // the keyboard opens) and in the middle on larger screens.
+    <main className="flex min-h-dvh flex-col bg-surface px-4 pt-[max(20px,5vh)] pb-8 sm:justify-center sm:py-10">
+      <div className="mx-auto w-full max-w-[460px]">
+        <div className="pb-4 text-center">
+          <span aria-hidden="true" className="text-[26px]">
+            ☀️
+          </span>
           <div
             role="progressbar"
             aria-label="Setup progress"
@@ -110,32 +131,43 @@ export default function Onboarding({ onComplete }: Props) {
           </div>
         </div>
 
-        <div className="card flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div className="card sm:px-7 sm:py-6">
           {step === 'location' && (
             <LocationStep
               city={cityInput}
               onCityChange={setCityInput}
               onSearch={() => void handleCitySearch()}
-              onGeolocate={() => void handleGeolocate()}
+              onGeolocate={handleGeolocate}
               loading={locLoading}
               error={geoError}
             />
           )}
           {step === 'uvpreview' && uvNow !== null && (
-            <UVPreviewStep uv={uvNow} city={uvCity} onContinue={() => setStep('skin')} />
+            <UVPreviewStep
+              uv={uvNow}
+              city={uvCity}
+              onContinue={() => setStep('skin')}
+              onBack={goBack}
+            />
           )}
           {step === 'skin' && (
             <SkinStep
               value={skinType}
               onChange={setSkinType}
-              onContinue={() => setStep('signin')}
+              onContinue={() => setStep('finish')}
+              onBack={goBack}
             />
           )}
-          {step === 'signin' && (
-            <SignInStep
-              seedPrefs={collected}
-              onSignedIn={onComplete}
-              onBack={() => setStep('skin')}
+          {step === 'finish' && answers && (
+            <FinishStep
+              user={user}
+              answers={answers}
+              onStartAsGuest={() => onStartAsGuest({ ...answers, tier: 'anonymous' })}
+              onCreateAccount={async signedInUser =>
+                onSignedIn(await createAccountPrefs(signedInUser.uid, answers))
+              }
+              onSignedIn={onSignedIn}
+              onBack={goBack}
             />
           )}
         </div>

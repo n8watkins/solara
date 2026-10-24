@@ -69,6 +69,7 @@ vi.mock('@/lib/firebase', () => ({
 
 import { setCachedForecast } from '@/lib/cache'
 import { createAccountPrefs, defaultPrefs, saveLocalPrefs } from '@/lib/prefs'
+import { GUEST_KEY, loadGuestPrefs, saveGuestPrefs } from '@/lib/guest'
 import { SignOutBlockedError, loadAccountPrefs, signOutAndClear } from '@/lib/session'
 import type { ForecastData, Location, UserPreferences } from '@/lib/types'
 
@@ -267,5 +268,85 @@ describe('creating a new account', () => {
     mocks.failWrites = true
     const result = await loadAccountPrefs('user-b')
     expect(result).toMatchObject({ status: 'error', stage: 'create' })
+  })
+})
+
+describe('a guest signing in', () => {
+  const RUN = {
+    id: 'custom_run',
+    name: 'Run',
+    icon: '🏃',
+    durationMins: 30,
+    maxUV: 3,
+    sunscreen: true,
+  }
+  const guestPlan: UserPreferences = {
+    ...defaultPrefs(BOSTON),
+    skinType: 'olive',
+    activities: [RUN],
+    temperatureUnit: 'celsius',
+    onboardingComplete: true,
+  }
+
+  it('carries the guest plan into a brand-new account, then drops it from this browser', async () => {
+    saveGuestPrefs(guestPlan)
+    const result = await loadAccountPrefs('user-b')
+    expect(result).toMatchObject({
+      status: 'ready',
+      prefs: {
+        uid: 'user-b',
+        tier: 'free',
+        skinType: 'olive',
+        location: { city: 'Boston' },
+        activities: [RUN],
+        temperatureUnit: 'celsius',
+      },
+    })
+    expect(mocks.users.get('user-b')).toMatchObject({ activities: [RUN], tier: 'free' })
+    expect(storage.has(GUEST_KEY)).toBe(false)
+  })
+
+  it('never adds the guest plan to an account that already exists', async () => {
+    mocks.users.set('user-a', JSON.parse(JSON.stringify(accountA)) as Record<string, unknown>)
+    saveGuestPrefs(guestPlan)
+
+    // Sign-in's own transaction finds the existing account and writes nothing.
+    const fromSignIn = await createAccountPrefs('user-a', loadGuestPrefs(), 'guest')
+    expect(fromSignIn).toMatchObject({ tier: 'paid', skinType: 'very-fair' })
+
+    const result = await loadAccountPrefs('user-a')
+    expect(result).toMatchObject({
+      status: 'ready',
+      prefs: {
+        uid: 'user-a',
+        tier: 'paid',
+        skinType: 'very-fair',
+        activities: accountA.activities,
+      },
+    })
+    expect(mocks.users.get('user-a')).toMatchObject({
+      location: { city: 'Los Angeles' },
+      activities: accountA.activities,
+    })
+    // Dropped, so no later account on this device can inherit it either.
+    expect(storage.has(GUEST_KEY)).toBe(false)
+  })
+
+  it('keeps the guest plan when the account could not be loaded', async () => {
+    saveGuestPrefs(guestPlan)
+    mocks.failWrites = true
+    await expect(loadAccountPrefs('user-b')).resolves.toMatchObject({ status: 'error' })
+    expect(loadGuestPrefs()).toMatchObject({ activities: [RUN] })
+  })
+
+  it('carries at most the free plan, and nothing an account owns', async () => {
+    const more = [1, 2, 3, 4].map(i => ({ ...RUN, id: `custom_${i}` }))
+    const created = await createAccountPrefs(
+      'user-c',
+      { ...guestPlan, activities: more, tier: 'paid', uid: 'user-a', savedLocations: [LA] },
+      'guest',
+    )
+    expect(created.activities).toHaveLength(3)
+    expect(created).toMatchObject({ uid: 'user-c', tier: 'free', savedLocations: [] })
   })
 })

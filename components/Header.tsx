@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import type { User } from 'firebase/auth'
 import { SignOutBlockedError, signOutAndClear } from '@/lib/session'
+import { goToLanding } from '@/lib/app-routes'
 import type { UserPreferences, TierLevel } from '@/lib/types'
 import { getSavedLocationLimit } from '@/lib/tiers'
 import { headerUV } from '@/lib/header-display'
@@ -54,7 +55,10 @@ export default function Header({
     } catch (error) {
       failure = { error }
     }
-    if (!failure) return
+    if (!failure) {
+      goToLanding()
+      return
+    }
     console.error('Sign-out failed:', failure.error)
     setSignOutError(
       failure.error instanceof SignOutBlockedError
@@ -130,7 +134,7 @@ export default function Header({
                 onSignOut={() => void handleSignOut()}
               />
             ) : (
-              <GoogleSignInButton label="Sign in" seedPrefs={prefs} size="sm" />
+              <GoogleSignInButton label="Sign in" size="sm" />
             )}
           </div>
         </div>

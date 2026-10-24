@@ -62,7 +62,7 @@ export default function Dashboard({
   const nowHour = nowHourOf(weather.now)
 
   const access = dashboardAccess(weather, prefs, displayTier, selectedDay)
-  const { activitiesLocked, accessibleDays, visibleForecast } = access
+  const { accessibleDays, visibleForecast } = access
   const day = access.selectedDay
   const calendar = useCalendarBusy(accessibleDays)
 
@@ -95,7 +95,9 @@ export default function Dashboard({
   )
   const heroPlan = soonestPlan(dayPlans)
   const allElapsed = isToday && dayPlans.some(p => p.elapsed) && !heroPlan
-  const hasActivities = !activitiesLocked && prefs.activities.length > 0
+  const hasActivities = prefs.activities.length > 0
+  // Every upsell opens the same plans dialog.
+  const openPlans = () => setShowPricing(true)
 
   // Scheduled activities are checked against Google when a token is already in memory.
   const scheduledEnabled = scheduled.enabled
@@ -142,7 +144,12 @@ export default function Dashboard({
 
   return (
     <div className="dash-stack">
-      <DayPicker access={access} onSelectDay={onSelectDay} onRefresh={onRefresh} />
+      <DayPicker
+        access={access}
+        onSelectDay={onSelectDay}
+        onRefresh={onRefresh}
+        onUpgrade={openPlans}
+      />
 
       {status.message && (
         <div
@@ -162,6 +169,7 @@ export default function Dashboard({
           dayPhrase={dayPhrase(isToday, dateLabel)}
           peakUV={peakUV}
           peakHour={peakHour}
+          onMorningAlert={access.activityTier === 'paid' ? undefined : openPlans}
         />
       )}
 
@@ -198,7 +206,7 @@ export default function Dashboard({
         onBook={scheduled.enabled ? (a, r, d) => void bookSlotOn(a, r, d) : undefined}
         scheduledItems={scheduled.items}
         onOpenScheduled={item => setOpenEventId(item.eventId)}
-        onUpgrade={() => setShowPricing(true)}
+        onUpgrade={openPlans}
         onPrefsUpdate={onPrefsUpdate}
       />
 
@@ -219,11 +227,17 @@ export default function Dashboard({
           user={user}
           email={user?.email ?? prefs.upgradeInterest?.email}
           alreadyWaitlisted={!!prefs.upgradeInterest}
-          onJoinWaitlist={email =>
-            onPrefsUpdate({
-              ...prefs,
-              upgradeInterest: { email: email || undefined, createdAt: new Date().toISOString() },
-            })
+          onJoinWaitlist={
+            user
+              ? email =>
+                  onPrefsUpdate({
+                    ...prefs,
+                    upgradeInterest: {
+                      email: email || undefined,
+                      createdAt: new Date().toISOString(),
+                    },
+                  })
+              : undefined
           }
           onClose={() => setShowPricing(false)}
         />

@@ -1,28 +1,27 @@
 'use client'
-import { useState } from 'react'
+import { use, useState } from 'react'
 import clsx from 'clsx'
 import type { User } from 'firebase/auth'
 import { signInWithPopup } from 'firebase/auth'
 import { auth, googleProvider, firebaseEnabled } from '@/lib/firebase'
+import { loadGuestPrefs } from '@/lib/guest'
 import { createAccountPrefs } from '@/lib/prefs'
+import { SignedInContext } from '@/lib/signed-in-context'
 import type { UserPreferences } from '@/lib/types'
-
-// Shared between the dashboard activities gate and the onboarding sign-in step
-// so the pitch can't drift between the two.
-export const ACTIVITY_SIGNIN_BLURB =
-  'Tell Solara what you do outside and it estimates lower-UV windows each day.'
 
 interface Props {
   label?: string
   /**
-   * Local prefs to seed a brand-new account with. Existing cloud prefs always win -
-   * a returning user's saved (possibly Pro) profile must never be overwritten by
-   * whatever guest state happens to be on this device.
+   * Setup answers to seed a brand-new account with. Without them, a new account is
+   * seeded from the guest plan kept in this browser (lib/guest.ts), so it carries
+   * over. An existing account always wins: its saved (possibly Pro) plan is never
+   * overwritten by whatever is on this device.
    */
   seedPrefs?: UserPreferences | null
   /**
    * Called after sign-in with the account document as `createAccountPrefs` read or
-   * created it (null without `seedPrefs`).
+   * created it (null when there was nothing to seed it with). Defaults to the app's
+   * SignedInContext, which loads the account.
    */
   onSignedIn?: (user: User, account: UserPreferences | null) => void
   /**
@@ -72,6 +71,7 @@ export default function GoogleSignInButton({
 }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const signedIn = use(SignedInContext)
 
   if (!firebaseEnabled) return null
 
@@ -79,14 +79,23 @@ export default function GoogleSignInButton({
     if (!auth || !googleProvider) return
     setLoading(true)
     setError(null)
+    // Read before the popup: once signed in, the app's own account load may clear the
+    // guest plan from this browser while this is still running.
+    const seed = seedPrefs
+      ? ({ prefs: seedPrefs, source: 'setup' } as const)
+      : (() => {
+          const guest = loadGuestPrefs()
+          return guest ? ({ prefs: guest, source: 'guest' } as const) : null
+        })()
     try {
       const result = await signInWithPopup(auth, googleProvider)
       const u = result.user
       if (!u) return
       // Creates the account only if it does not exist yet, in one transaction, so a
       // returning account's saved document is never written here.
-      const account = seedPrefs ? await createAccountPrefs(u.uid, seedPrefs) : null
-      onSignedIn?.(u, account)
+      const account = seed ? await createAccountPrefs(u.uid, seed.prefs, seed.source) : null
+      if (onSignedIn) onSignedIn(u, account)
+      else signedIn?.(account)
     } catch (e) {
       console.error('Google sign-in failed:', e)
       setError('Could not finish signing in. Check your connection and try again.')

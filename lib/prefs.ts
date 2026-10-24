@@ -9,7 +9,7 @@ import { FirebaseError } from 'firebase/app'
 import { doc, getDoc, runTransaction, updateDoc } from 'firebase/firestore'
 import { db } from './firebase'
 import type { UserPreferences, Location } from './types'
-import { PRESET_ACTIVITIES, ACTIVITY_CATEGORIES } from './tiers'
+import { PRESET_ACTIVITIES, ACTIVITY_CATEGORIES, TIER_LIMITS } from './tiers'
 
 // The document schema, its versions and migrations live in @solara/core
 // (packages/core/src/prefs.ts). This module adds what depends on the app's activity
@@ -118,33 +118,62 @@ export async function loadFirestorePrefs(uid: string): Promise<FirestorePrefsRes
   }
 }
 
+/** Where a new account's starting answers come from. */
+export type AccountSeedSource = 'setup' | 'guest'
+
 /**
  * The preferences a brand-new account starts with: defaults plus the answers the
- * person gave during onboarding (location, skin type, onboarding flag), owned by
- * `uid` on the free tier. Everything else in `seed` is ignored on purpose, so a new
- * account can never inherit another account's activities, profiles, tier or
- * calendar feed token from data left on a shared device.
+ * person gave during setup (location, skin type, onboarding flag), owned by `uid` on
+ * the free tier. Everything else in a `setup` seed is ignored on purpose, so a new
+ * account can never inherit another account's activities, profiles, tier or calendar
+ * feed token from data left on a shared device.
+ *
+ * A `guest` seed is the guest plan this person built in this browser before signing
+ * in (lib/guest.ts, which only ever holds guest data), so their plan carries over:
+ * also the activities (within the free plan), sunscreen, units and display choices.
+ * Saved places, profiles, tier and waitlist state never carry over.
  */
-export function newAccountPrefs(uid: string, seed: unknown): UserPreferences | null {
+export function newAccountPrefs(
+  uid: string,
+  seed: unknown,
+  source: AccountSeedSource = 'setup',
+): UserPreferences | null {
   const answers = normalizePrefs(seed)
   if (!answers) return null
-  return {
+  const fresh: UserPreferences = {
     ...defaultPrefs(answers.location),
     uid,
     tier: 'free',
     skinType: answers.skinType,
     onboardingComplete: answers.onboardingComplete,
   }
+  if (source !== 'guest') return fresh
+  return {
+    ...fresh,
+    activities: answers.activities.slice(0, TIER_LIMITS.free.activities),
+    sunscreen: answers.sunscreen,
+    hiddenActivitySuggestionIds: answers.hiddenActivitySuggestionIds,
+    collapsedActivityCategories: answers.collapsedActivityCategories,
+    ...(answers.temperatureUnit && { temperatureUnit: answers.temperatureUnit }),
+    ...(answers.clockFormat && { clockFormat: answers.clockFormat }),
+    ...(answers.showSunPath !== undefined && { showSunPath: answers.showSunPath }),
+    ...(answers.calendarHours && { calendarHours: answers.calendarHours }),
+  }
 }
 
 /**
- * Creates the account document from onboarding answers (see `newAccountPrefs`).
- * Runs as a transaction so two concurrent seeders never overwrite each other: if
- * the document already exists, it is returned unchanged. Throws if the write fails
- * or the seed has no valid location.
+ * Creates the account document from setup answers or a guest plan (see
+ * `newAccountPrefs`). Runs as a transaction so two concurrent seeders never overwrite
+ * each other: if the document already exists, it is returned unchanged, so an
+ * existing account never takes anything from the seed. Throws if the write fails or
+ * the seed has no valid location.
  */
-export async function createAccountPrefs(uid: string, seed: unknown): Promise<UserPreferences> {
-  const fresh = newAccountPrefs(uid, seed)
+export async function createAccountPrefs(
+  uid: string,
+  seed: unknown,
+  source: AccountSeedSource = 'setup',
+): Promise<UserPreferences> {
+  const fresh = newAccountPrefs(uid, seed, source)
   if (!fresh) throw new Error('Onboarding answers are missing a valid location')
   if (!db) return fresh
   const ref = doc(db, 'users', uid)
