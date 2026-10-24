@@ -1,0 +1,188 @@
+import { describe, expect, it } from 'vitest'
+import type { DayWeather, HourlyForecast, UserPreferences, WeatherResponse } from './types'
+import {
+  UPGRADE_COPY,
+  busyByDate,
+  dashboardAccess,
+  dayChips,
+  dayPhrase,
+  freeBusyRange,
+  uvNumberTone,
+  uvReadout,
+} from './dashboard-view'
+import { burnMins, vitDMins } from './weather'
+
+const hour = (h: number, uv: number, tempC = 20): HourlyForecast => ({
+  hour: h,
+  uv,
+  tempC,
+  condition: `c${h}`,
+})
+
+const day = (i: number): DayWeather =>
+  ({ dateStr: `2026-06-${15 + i}`, label: i === 1 ? 'Tomorrow' : `Day ${i}`, hourly: [] }) as never
+
+function weather(days = 10): WeatherResponse {
+  return {
+    timezone: 'America/Los_Angeles',
+    now: { date: '2026-06-15', hour: 10, minute: 30 } as never,
+    current: { uv: 6.4, tempC: 25, condition: 'Clear' },
+    today: [],
+    tomorrow: [],
+    forecast: Array.from({ length: days }, (_, i) => day(i)),
+  }
+}
+
+const prefs = (tier?: UserPreferences['tier']) => ({ tier }) as UserPreferences
+
+describe('dashboardAccess', () => {
+  it('limits the days by tier and only offers Free the upsell', () => {
+    const free = dashboardAccess(weather(), prefs('free'), undefined, null)
+    expect(free.visibleForecast).toHaveLength(2)
+    expect(free.lockedForecastCount).toBe(8)
+    expect(free.upgradeCopy).toBe(UPGRADE_COPY)
+    expect(free.showDayTabs).toBe(true)
+
+    const paid = dashboardAccess(weather(), prefs('paid'), undefined, null)
+    expect(paid.visibleForecast).toHaveLength(10)
+    expect(paid.upgradeCopy).toBeNull()
+
+    const guest = dashboardAccess(weather(), prefs(), undefined, null)
+    expect(guest.activitiesLocked).toBe(true)
+    expect(guest.upgradeCopy).toBeNull()
+    expect(guest.showDayTabs).toBe(false)
+  })
+
+  it('lets a preview tier widen the days but not unlock activities', () => {
+    const access = dashboardAccess(weather(), prefs(), 'paid', null)
+    expect(access.accessibleDays).toBe(10)
+    expect(access.activitiesLocked).toBe(true)
+  })
+
+  it('drops a selected day the tier cannot see', () => {
+    const fifth = day(5)
+    expect(dashboardAccess(weather(), prefs('free'), undefined, fifth).selectedDay).toBeNull()
+    expect(dashboardAccess(weather(), prefs('paid'), undefined, fifth).selectedDay).toBe(fifth)
+  })
+})
+
+describe('dayChips', () => {
+  const base = { lockedForecastCount: 0, upgradeCopy: null }
+
+  it('shows More days for later days and names a later selection', () => {
+    const days = [day(0), day(1), day(2)]
+    expect(dayChips({ ...base, visibleForecast: days, selectedDay: null })).toEqual({
+      todayActive: true,
+      tomorrow: days[1],
+      tomorrowActive: false,
+      more: { label: 'More days', active: false },
+    })
+    const later = dayChips({ ...base, visibleForecast: days, selectedDay: days[2]! })
+    expect(later.more).toEqual({ label: 'Day 2', active: true })
+    expect(later.todayActive).toBe(false)
+  })
+
+  it('marks Tomorrow active without claiming More days', () => {
+    const days = [day(0), day(1), day(2)]
+    const chips = dayChips({ ...base, visibleForecast: days, selectedDay: days[1]! })
+    expect(chips.tomorrowActive).toBe(true)
+    expect(chips.more).toEqual({ label: 'More days', active: false })
+  })
+
+  it('keeps More days for locked days only when there is an upsell', () => {
+    const days = [day(0), day(1)]
+    expect(dayChips({ ...base, visibleForecast: days, selectedDay: null }).more).toBeNull()
+    expect(
+      dayChips({
+        visibleForecast: days,
+        selectedDay: null,
+        lockedForecastCount: 8,
+        upgradeCopy: UPGRADE_COPY,
+      }).more,
+    ).toEqual({ label: 'More days', active: false })
+  })
+})
+
+describe('dayPhrase', () => {
+  it('reads naturally in a sentence', () => {
+    expect(dayPhrase(true, 'Today')).toBe('today')
+    expect(dayPhrase(false, 'Tomorrow')).toBe('tomorrow')
+    expect(dayPhrase(false, 'Wed 17')).toBe('on Wed 17')
+  })
+})
+
+describe('uvReadout', () => {
+  const hourly = [hour(9, 3), hour(12, 9.5, 30), hour(15, 6)]
+  const fmtHour = (h: number) => `${h}h`
+
+  it('shows the live reading today, with burn and vitamin D at it', () => {
+    const r = uvReadout(weather(), hourly, true, null, 'fair', fmtHour)
+    expect(r).toMatchObject({
+      currentUV: 6.4,
+      headUV: 6.4,
+      headTemp: 25,
+      headCond: 'Clear',
+      headSuffix: ' now',
+      peakUV: 9.5,
+      peakHour: 12,
+    })
+    expect(r.burn).toBe(burnMins(6.4, 'fair'))
+    expect(r.vitD).toBe(vitDMins(6.4, 'fair'))
+  })
+
+  it("shows the day's peak on another day", () => {
+    const r = uvReadout(weather(), hourly, false, null, 'fair', fmtHour)
+    expect(r).toMatchObject({ currentUV: 9.5, headTemp: 30, headCond: 'c12', headSuffix: ' peak' })
+  })
+
+  it('shows a focused hour in the head but keeps the metrics at the current UV', () => {
+    const r = uvReadout(weather(), hourly, true, hourly[2]!, 'fair', fmtHour)
+    expect(r).toMatchObject({ headUV: 6, headSuffix: ' at 15h', currentUV: 6.4 })
+    expect(r.headBurn).toBe(burnMins(6, 'fair'))
+    expect(r.burn).toBe(burnMins(6.4, 'fair'))
+  })
+
+  it('copes with a day without hours', () => {
+    const r = uvReadout(weather(), [], false, null, 'fair', fmtHour)
+    expect(r).toMatchObject({ currentUV: 0, peakUV: 0, peakHour: 12, headTemp: undefined })
+  })
+})
+
+describe('uvNumberTone', () => {
+  it('follows the UV bands', () => {
+    expect([0, 0.5, 2, 2.1, 5, 6, 7, 7.1, 12].map(uvNumberTone)).toEqual([
+      'none',
+      'success',
+      'success',
+      'warning',
+      'warning',
+      'accent',
+      'accent',
+      'danger',
+      'danger',
+    ])
+  })
+})
+
+describe('busyByDate', () => {
+  it('is empty until the calendar is connected', () => {
+    expect(busyByDate(null, [day(0)], 'UTC')).toEqual({})
+  })
+
+  it('splits busy periods into each visible day', () => {
+    const periods = [{ start: '2026-06-15T09:00:00Z', end: '2026-06-16T02:00:00Z' }]
+    expect(busyByDate(periods, [day(0), day(1)], 'UTC')).toEqual({
+      '2026-06-15': [{ start: 9, end: 24 }],
+      '2026-06-16': [{ start: 0, end: 2 }],
+    })
+  })
+})
+
+describe('freeBusyRange', () => {
+  it('runs from now through the visible days, at least one', () => {
+    const now = Date.UTC(2026, 5, 15)
+    expect(freeBusyRange(now, 2).timeMax.getTime() - now).toBe(2 * 86_400_000)
+    expect(freeBusyRange(now, 0).timeMax.getTime() - now).toBe(86_400_000)
+    expect(freeBusyRange(now, 2).timeMin.getTime()).toBe(now)
+  })
+})
