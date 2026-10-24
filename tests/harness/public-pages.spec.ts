@@ -1,15 +1,12 @@
-import { mkdirSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
-import AxeBuilder from '@axe-core/playwright'
 import { expect, test, type Locator, type Page, type Route } from '@playwright/test'
-import { HARNESS_DATE, MAX_SETTLE_MS, pauseClock, startClock } from './clock'
+import { captureScreen, preparePage } from './capture'
+import { HARNESS_DATE } from './clock'
 
 // Screenshots and axe results for the screens a visitor sees before signing in:
 // welcome, each onboarding step, the legal pages, share links, the account page
 // signed out and the 404 page. Same output layout as ui-harness.spec.ts (it lands
 // in test-results/ui-harness/ and in the axe summary), so before/after evidence for
 // the shell covers every page, not only the signed-in ones.
-const OUTPUT_DIR = join('test-results', 'ui-harness')
 
 // The onboarding steps call Open-Meteo for place search and the current UV; these
 // answers stand in for it so the screenshots never depend on the network.
@@ -166,76 +163,15 @@ const SCREENS: Screen[] = [
 
 for (const screen of SCREENS) {
   test(screen.name, async ({ page }, testInfo) => {
-    const colorScheme = testInfo.project.use.colorScheme === 'dark' ? 'dark' : 'light'
-    const pageErrors: string[] = []
-    page.on('pageerror', err => pageErrors.push(err.message))
-
-    const blocked: string[] = []
-    await page.route('**/*', route => {
-      const url = new URL(route.request().url())
+    const capture = await preparePage(page, testInfo, (route, url) => {
       if (GEOCODE.test(url.href)) {
         return json(route, url.searchParams.get('name') === 'Pasadena' ? PLACE : { results: [] })
       }
       if (FORECAST.test(url.href)) return json(route, { current: { uv_index: 6.4 } })
-      if (url.protocol === 'data:' || url.hostname === '127.0.0.1') return route.continue()
-      blocked.push(url.href)
-      return route.abort('blockedbyclient')
+      return false
     })
-    await startClock(page)
-    await page.addInitScript(theme => {
-      try {
-        window.localStorage.setItem('solara_theme', theme)
-      } catch {}
-    }, colorScheme)
-
     await page.goto(screen.path)
     await expect(await screen.reach(page)).toBeVisible()
-    await expect(page.locator('html')).toHaveClass(
-      colorScheme === 'dark' ? /\bdark\b/ : /^(?!.*\bdark\b).*$/,
-    )
-    const elapsed = await pauseClock(page)
-    expect(elapsed, 'fake clock ran too long before pausing').toBeLessThan(MAX_SETTLE_MS)
-    await page.evaluate(async () => {
-      await document.fonts.ready
-    })
-    await page.waitForLoadState('networkidle')
-
-    const shotDir = join(OUTPUT_DIR, 'screenshots')
-    mkdirSync(shotDir, { recursive: true })
-    const shotPath = join(shotDir, `${screen.name}--${testInfo.project.name}.png`)
-    await page.screenshot({
-      path: shotPath,
-      fullPage: screen.fullPage,
-      animations: 'disabled',
-      caret: 'hide',
-    })
-    await testInfo.attach('screenshot', { path: shotPath, contentType: 'image/png' })
-
-    await page.clock.resume()
-    const axe = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice'])
-      .analyze()
-    const axeDir = join(OUTPUT_DIR, 'axe')
-    mkdirSync(axeDir, { recursive: true })
-    const report = {
-      screen: screen.name,
-      project: testInfo.project.name,
-      url: page.url(),
-      blockedRequests: blocked,
-      pageErrors,
-      violations: axe.violations.map(v => ({
-        id: v.id,
-        impact: v.impact,
-        help: v.help,
-        helpUrl: v.helpUrl,
-        tags: v.tags,
-        nodes: v.nodes.map(n => ({ target: n.target, summary: n.failureSummary })),
-      })),
-    }
-    const axePath = join(axeDir, `${screen.name}--${testInfo.project.name}.json`)
-    writeFileSync(axePath, JSON.stringify(report, null, 2) + '\n')
-    await testInfo.attach('axe', { path: axePath, contentType: 'application/json' })
-
-    expect(pageErrors, 'uncaught page errors').toEqual([])
+    await captureScreen(page, testInfo, capture, screen)
   })
 }
