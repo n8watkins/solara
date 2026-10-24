@@ -10,6 +10,7 @@ import {
   isSiteVerificationFile,
   pagePolicy,
   scriptHash,
+  sentryIngestOrigin,
   serializePolicy,
 } from './csp.mjs'
 
@@ -109,6 +110,68 @@ describe('page policy', () => {
     expect(directive(bare, 'frame-src')[0]).toBe('https://accounts.google.com/gsi/')
     expect(httpsOrigin('')).toBeNull()
     expect(httpsOrigin('example.firebaseapp.com')).toBe('https://example.firebaseapp.com')
+  })
+})
+
+describe('App Check reCAPTCHA v3', () => {
+  const policy = serializePolicy(pagePolicy([], ENV))
+  const recaptcha = (name: string) => directive(policy, name).filter(s => s.includes('recaptcha'))
+
+  it('allows exactly the sources reCAPTCHA v3 uses, on no other directive', () => {
+    expect(recaptcha('script-src')).toEqual([
+      'https://www.google.com/recaptcha/',
+      'https://www.gstatic.com/recaptcha/',
+    ])
+    expect(recaptcha('frame-src')).toEqual([
+      'https://www.google.com/recaptcha/',
+      'https://recaptcha.google.com/recaptcha/',
+    ])
+    expect(recaptcha('connect-src')).toEqual(['https://www.google.com/recaptcha/'])
+    for (const name of ['img-src', 'style-src', 'font-src', 'worker-src']) {
+      expect(recaptcha(name)).toEqual([])
+    }
+    // Paths, never whole hosts: www.google.com and www.gstatic.com serve much more.
+    expect(policy).not.toMatch(/https:\/\/www\.(google|gstatic)\.com(?=[ ;]|$)/)
+  })
+
+  it('lets App Check exchange its token', () => {
+    expect(directive(policy, 'connect-src')).toContain(
+      'https://content-firebaseappcheck.googleapis.com',
+    )
+  })
+})
+
+describe('Sentry error reporting', () => {
+  const DSN = 'https://abc123public@o11.ingest.us.sentry.io/22'
+
+  it('allows no Sentry host unless the build has a DSN', () => {
+    const policy = serializePolicy(pagePolicy([], ENV))
+    expect(policy).not.toContain('sentry')
+    expect(cspEnvFrom({}).sentryDsn).toBeUndefined()
+  })
+
+  it("connects to exactly the DSN's ingest host, and nowhere else on sentry.io", () => {
+    const env = cspEnvFrom({ NEXT_PUBLIC_SENTRY_DSN: DSN })
+    const policy = serializePolicy(pagePolicy([], { ...ENV, ...env }))
+    expect(directive(policy, 'connect-src')).toContain('https://o11.ingest.us.sentry.io')
+    // Only connect-src: the SDK is bundled, so no script, frame or image source changes.
+    expect(policy.match(/sentry/g)).toHaveLength(1)
+  })
+
+  it('ignores values that are not Sentry public DSNs', () => {
+    for (const value of [
+      undefined,
+      '',
+      'not a url',
+      'http://abc@o1.ingest.sentry.io/2',
+      'https://o1.ingest.sentry.io/2',
+      'https://abc:secret@o1.ingest.sentry.io/2',
+      'https://abc@o1.ingest.sentry.io/not-a-project',
+    ]) {
+      expect(sentryIngestOrigin(value)).toBeNull()
+      expect(serializePolicy(pagePolicy([], { sentryDsn: value }))).not.toContain('sentry')
+    }
+    expect(sentryIngestOrigin(` ${DSN} `)).toBe('https://o11.ingest.us.sentry.io')
   })
 })
 

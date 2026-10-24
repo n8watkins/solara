@@ -1,6 +1,7 @@
 'use client'
-import type { ReactNode } from 'react'
+import type { ErrorInfo, ReactNode } from 'react'
 import { Component } from 'react'
+import { reportError } from '@/lib/error-reporting'
 
 interface Props {
   children: ReactNode
@@ -25,9 +26,14 @@ export default class ErrorBoundary extends Component<Props, State> {
     return { error }
   }
 
-  override componentDidCatch(error: Error) {
-    // Surface in the console for debugging; analytics hook can attach here later.
+  override componentDidCatch(error: Error, info: ErrorInfo) {
     console.error('Solara caught a render error:', error)
+    // A no-op unless the build has a Sentry DSN (lib/error-reporting.ts).
+    reportError(error, {
+      source: 'error-boundary',
+      label: this.props.label,
+      componentStack: info.componentStack,
+    })
   }
 
   handleReset = () => {
