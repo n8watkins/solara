@@ -52,7 +52,7 @@ The Functions feature folders under `functions/src/` keep the backend lanes apar
 
 - **Branch:** `feat/scheduled-notifications`
 - **Closes:** OPS-4, BE-19, BE-11 (Functions runtime identity)
-- **Owns:** `functions/src/notifications/`, `functions/scripts/send-notifications.js` and `functions/scripts/notification-core.js` (removal), `.github/workflows/notify.yml` (removal), the notification section of `components/PreferencesModal.tsx`, `components/InstallPrompt.tsx`
+- **Owns:** `functions/src/notifications/`, `functions/scripts/send-notifications.js` and `functions/scripts/notification-core.js` (removal), `.github/workflows/notify.yml` (removal), `components/settings/NotificationSettings.tsx` and `lib/use-notification-toggle.ts`, `components/InstallPrompt.tsx`
 - **Touch points:** the notification entries in `lib/billing.ts` and `components/PricingModal.tsx` (owned by W3-A)
 - **Work:** an hourly `onSchedule` dispatcher on a least-privilege service account that reuses the at-most-once claim logic; restore the notification copy removed in #24; iOS Home Screen install guidance; a foundation for threshold alerts.
 - **Acceptance:** an emulator test sends exactly one notification per eligible user per local morning across time zones; then the real-device checks in the [owner checklist](OWNER_CHECKLIST.md#notifications).
@@ -84,7 +84,6 @@ Use the theme utilities defined in `app/globals.css` (`bg-surface-card`, `text-i
 | Lane | Files in `components/` and `app/` |
 | --- | --- |
 | W4-A | `Dashboard.tsx`, `SunArc.tsx`, `UVTimeline.tsx`, `PlanAhead.tsx`, `ActivityCards.tsx` |
-| W4-C | `PreferencesModal.tsx`, `PricingModal.tsx`, `ProfileSwitcher.tsx` |
 | W4-D | `AddActivityModal.tsx`, `EditActivityModal.tsx`, `ManageActivitiesModal.tsx`, `ActivityManager.tsx`, `ActivitySuggestionSettings.tsx`, `EmojiPicker.tsx`, `ActivityModalShell.tsx` |
 | W4-E | `Header.tsx`, `App.tsx`, `AppShell.tsx`, `TipCarousel.tsx`, `InstallPrompt.tsx`, `Welcome.tsx`, `Onboarding.tsx`, `LocationPopover.tsx`, and the pages under `app/` |
 
