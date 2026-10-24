@@ -3,9 +3,10 @@ import type { DayWeather, Activity, SkinType } from '@/lib/types'
 import type { UpcomingSlot } from '@/lib/planner'
 import { planUpcomingSlots } from '@/lib/planner'
 import type { BusyInterval, SlotRecommendation } from '@/lib/scheduler'
-import { uvColor, uvLabel, uvTextColor } from '@/lib/weather'
+import { uvBand, uvLabel } from '@/lib/weather'
 import { useUnits } from '@/lib/use-units'
 import { buildICS, recToIcsEvent, downloadICS } from '@/lib/ics'
+import { UV_BG } from './dashboard/uv-classes'
 
 interface Props {
   forecast: DayWeather[]
@@ -22,7 +23,7 @@ interface Props {
 }
 
 /**
- * "Best day AND time this week" — for each activity, the best upcoming day and a
+ * "Best day AND time this week": for each activity, the best upcoming day and a
  * concrete recommended slot across the forecast horizon, scheduled around the
  * calendar when connected. Hidden when there are no activities or only today is
  * visible (it would just echo the activity cards).
@@ -52,34 +53,23 @@ export default function PlanAhead({
 
   return (
     <div className="card">
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'flex-start',
-          justifyContent: 'space-between',
-          gap: '12px',
-          marginBottom: '12px',
-        }}
-      >
+      <div className="mb-3 flex items-start justify-between gap-3">
         <div>
-          <p style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: 'var(--text)' }}>
-            Best day this week
-          </p>
-          <p style={{ margin: '3px 0 0', fontSize: '13px', color: 'var(--text-3)' }}>
+          <p className="text-[15px] font-bold text-ink">Best day this week</p>
+          <p className="mt-[3px] text-[13px] text-ink-3">
             The best upcoming day and time for each activity.
           </p>
         </div>
         <button
-          className="btn"
+          className="btn shrink-0 text-[12px] whitespace-nowrap"
           onClick={exportIcs}
           title="Download all recommended slots as a calendar file (.ics) for any calendar app"
-          style={{ flexShrink: 0, fontSize: '12px', whiteSpace: 'nowrap' }}
         >
           ⬇ Export .ics
         </button>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+      <div className="flex flex-col gap-2">
         {plan.map(({ activity, label, dateStr, slot }: UpcomingSlot) => (
           <div
             key={activity.id}
@@ -88,63 +78,30 @@ export default function PlanAhead({
             data-date={dateStr}
             data-start={slot.start}
             data-end={slot.end}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px',
-              padding: '10px 12px',
-              borderRadius: '10px',
-              background: 'var(--bg-metric)',
-              border: '0.5px solid var(--border-md)',
-            }}
+            className="flex items-center gap-3 rounded-[10px] border-[0.5px] border-line-strong bg-surface-metric px-3 py-2.5"
           >
-            <span style={{ fontSize: '20px', flexShrink: 0 }}>{activity.icon}</span>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <p
-                style={{
-                  margin: 0,
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  color: 'var(--text)',
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                }}
-              >
-                {activity.name}
-              </p>
-              <p style={{ margin: '2px 0 0', fontSize: '12px', color: 'var(--text-3)' }}>
+            <span className="shrink-0 text-[20px]">{activity.icon}</span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[13px] font-semibold text-ink">{activity.name}</p>
+              <p className="mt-0.5 text-[12px] text-ink-3">
                 {label} · {fmt.time(slot.start)}–{fmt.time(slot.end)}
               </p>
             </div>
             {/* Color means one thing here: the slot's average UV, on the same scale
                 as the hourly strip. The time-of-day label stays neutral. */}
-            <div style={{ textAlign: 'right', flexShrink: 0 }}>
-              <p style={{ margin: 0, fontSize: '12px', fontWeight: 600, color: 'var(--text-2)' }}>
-                {slot.windowLabel}
-              </p>
+            <div className="shrink-0 text-right">
+              <p className="text-[12px] font-semibold text-ink-2">{slot.windowLabel}</p>
               <span
                 title={`Average UV ${slot.avgUV.toFixed(1)}, ${uvLabel(slot.avgUV)}`}
-                style={{
-                  display: 'inline-block',
-                  marginTop: '3px',
-                  padding: '2px 7px',
-                  borderRadius: '999px',
-                  fontSize: '11px',
-                  fontWeight: 650,
-                  whiteSpace: 'nowrap',
-                  background: uvColor(slot.avgUV),
-                  color: uvTextColor(slot.avgUV),
-                }}
+                className={`mt-[3px] inline-block rounded-full px-[7px] py-0.5 text-[11px] font-[650] whitespace-nowrap text-uv-ink ${UV_BG[uvBand(slot.avgUV)]}`}
               >
                 avg UV {slot.avgUV.toFixed(1)}
               </span>
             </div>
             {onBook && (
               <button
-                className="btn"
+                className="btn shrink-0 px-2.5 py-1.5 text-[11px]"
                 onClick={() => onBook(activity, slot, dateStr)}
-                style={{ flexShrink: 0, fontSize: '11px', padding: '6px 10px' }}
               >
                 📅 Book
               </button>
@@ -156,17 +113,9 @@ export default function PlanAhead({
       {upgradeCopy && lockedDays > 0 && (
         <button
           onClick={onUpgrade}
-          className="btn"
-          style={{
-            marginTop: '12px',
-            width: '100%',
-            justifyContent: 'center',
-            fontSize: '12px',
-            color: 'var(--accent)',
-            borderColor: 'rgba(249,115,22,0.4)',
-          }}
+          className="btn mt-3 w-full justify-center border-brand/40 text-[12px] text-accent"
         >
-          🔒 {upgradeCopy} — see {lockedDays} more day{lockedDays === 1 ? '' : 's'} of plans
+          🔒 {upgradeCopy}: see {lockedDays} more day{lockedDays === 1 ? '' : 's'} of plans
         </button>
       )}
     </div>
