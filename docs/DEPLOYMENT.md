@@ -209,6 +209,8 @@ Allow the billing-resource backfill to complete before relying on deletion clean
 
 Register the deployed Stripe webhook URL in Stripe test mode first.
 Subscribe the endpoint to `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `customer.subscription.updated`, and `customer.subscription.deleted`.
+Create the endpoint with API version `2026-09-30.endive`, the version pinned as `STRIPE_API_VERSION` in `functions/src/billing/config.ts`, so event payloads match the types the Functions were built against.
+When a Stripe SDK upgrade moves that pin, update the endpoint's API version in the same release.
 Run the Stripe checks in the [owner checklist](OWNER_CHECKLIST.md#functions-and-stripe) in test mode before using live mode; no local test can replace these Stripe-signed integration checks.
 
 ## App Check
