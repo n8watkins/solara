@@ -25,7 +25,8 @@ import type { UserPreferences } from './types'
  *
  * `onAccountReset` runs whenever the account on screen goes away (sign-out or a
  * switch to another account), so the caller can drop per-account view state; the
- * cached forecasts are dropped here. `reload` loads the current account again.
+ * cached forecasts are dropped here. `reload` loads the current account again, using
+ * `signedIn` (the account document sign-in from setup just read or created) if given.
  */
 export function useAccount({ onAccountReset }: { onAccountReset: () => void }) {
   const queryClient = useQueryClient()
@@ -36,6 +37,8 @@ export function useAccount({ onAccountReset }: { onAccountReset: () => void }) {
   const [reloadKey, setReloadKey] = useState(0)
   // The account whose data is on screen, to detect a switch to a different account.
   const accountUid = useRef<string | null>(null)
+  // The account document that sign-in from setup just read or created, for the next load.
+  const signedInAccount = useRef<UserPreferences | null>(null)
 
   const resetAccountState = useEffectEvent(() => {
     // Drops cached forecasts and aborts any request in flight.
@@ -49,6 +52,9 @@ export function useAccount({ onAccountReset }: { onAccountReset: () => void }) {
     // gets a generation number, and results for an older one are dropped.
     let generation = 0
     let disposed = false
+    // Set when this run is the reload after sign-in from setup.
+    let signedIn = signedInAccount.current
+    signedInAccount.current = null
 
     async function loadAccount(u: User | null, current: number) {
       const isStale = () => disposed || current !== generation
@@ -70,7 +76,9 @@ export function useAccount({ onAccountReset }: { onAccountReset: () => void }) {
         setScreen('loading')
       }
 
-      const result = await loadAccountPrefs(u.uid)
+      const known = signedIn
+      signedIn = null
+      const result = await loadAccountPrefs(u.uid, known)
       if (isStale()) return
       if (result.status === 'error') {
         console.error('Account load failed:', result.error)
@@ -120,6 +128,9 @@ export function useAccount({ onAccountReset }: { onAccountReset: () => void }) {
     screen,
     setScreen,
     accountError,
-    reload: () => setReloadKey(key => key + 1),
+    reload: (signedIn: UserPreferences | null = null) => {
+      signedInAccount.current = signedIn
+      setReloadKey(key => key + 1)
+    },
   }
 }

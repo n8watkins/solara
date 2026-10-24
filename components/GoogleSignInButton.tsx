@@ -20,7 +20,11 @@ interface Props {
    * whatever guest state happens to be on this device.
    */
   seedPrefs?: UserPreferences | null
-  onSignedIn?: (user: User) => void
+  /**
+   * Called after sign-in with the account document as `createAccountPrefs` read or
+   * created it (null without `seedPrefs`).
+   */
+  onSignedIn?: (user: User, account: UserPreferences | null) => void
   /**
    * `sm` for the header, `md` (default) inline, `lg` for a full-width primary
    * action such as the last onboarding step.
@@ -81,8 +85,8 @@ export default function GoogleSignInButton({
       if (!u) return
       // Creates the account only if it does not exist yet, in one transaction, so a
       // returning account's saved document is never written here.
-      if (seedPrefs) await createAccountPrefs(u.uid, seedPrefs)
-      onSignedIn?.(u)
+      const account = seedPrefs ? await createAccountPrefs(u.uid, seedPrefs) : null
+      onSignedIn?.(u, account)
     } catch (e) {
       console.error('Google sign-in failed:', e)
       setError('Could not finish signing in. Check your connection and try again.')

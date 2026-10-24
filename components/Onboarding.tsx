@@ -11,11 +11,11 @@ import { LocationStep, SignInStep, SkinStep, UVPreviewStep } from './OnboardingS
 
 interface Props {
   /**
-   * Called once sign-in has finished. The answers never go to the app directly: they
-   * only seed a brand-new account (GoogleSignInButton's `seedPrefs`), and the app then
-   * loads whatever the account holds.
+   * Called once sign-in has finished, with the saved account document. The answers
+   * never go to the app directly: they only seed a brand-new account
+   * (GoogleSignInButton's `seedPrefs`), and the app shows whatever the account holds.
    */
-  onComplete: () => void
+  onComplete: (account: UserPreferences | null) => void
   user?: User | null
 }
 

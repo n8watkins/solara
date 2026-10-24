@@ -241,6 +241,27 @@ describe('creating a new account', () => {
     expect(mocks.users.get('user-a')).toMatchObject({ calendarFeedToken: A_TOKEN })
   })
 
+  it('shows the account that sign-in from setup created, even if a read still misses it', async () => {
+    await useSolaraAs(accountA)
+    mocks.currentUser = { uid: 'user-b', getIdToken: mocks.getIdToken }
+    const created = await createAccountPrefs('user-b', { ...defaultPrefs(BOSTON), uid: '' })
+    // A Firestore listen opened before that transaction committed still reports the
+    // document as missing.
+    mocks.users.delete('user-b')
+
+    await expect(loadAccountPrefs('user-b', created)).resolves.toEqual({
+      status: 'ready',
+      prefs: created,
+    })
+    expectNothingFromA()
+  })
+
+  it("never shows another account's document from sign-in", async () => {
+    await expect(loadAccountPrefs('user-b', accountA)).resolves.toEqual({
+      status: 'needs-onboarding',
+    })
+  })
+
   it('reports a failed account creation instead of hanging', async () => {
     saveLocalPrefs({ ...defaultPrefs(LA), onboardingComplete: true })
     mocks.failWrites = true

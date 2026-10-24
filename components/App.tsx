@@ -85,18 +85,20 @@ function SignedInApp() {
     }
   }
 
-  function handleOnboardingComplete() {
+  function handleOnboardingComplete(account: UserPreferences | null) {
     // Sign-in from setup has created the account from the setup answers, or found
     // the account that already existed. Either way the saved account is the only
     // source for what is on screen, so load it rather than showing the answers: a
     // returning account must never see (or save over its plan with) setup answers.
+    // The reload uses the document that sign-in's transaction returned instead of
+    // reading it again (see loadAccountPrefs).
     setScreen(screenAfterOnboarding)
-    reload()
+    reload(account)
   }
 
   if (screen === 'loading') {
     return accountError ? (
-      <AccountLoadError message={accountError} onRetry={reload} />
+      <AccountLoadError message={accountError} onRetry={() => reload()} />
     ) : (
       <AccountLoading />
     )
