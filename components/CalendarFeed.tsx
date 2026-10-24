@@ -109,20 +109,25 @@ function CalendarFeedPanel({ uid }: { uid: string }) {
       </span>
       <div className="min-w-0 flex-1">
         {feed.status === 'loading' ? (
-          <p className={hint}>Loading your calendar feed...</p>
+          <p className={hint}>Loading your calendar feed…</p>
         ) : !url ? (
           <>
             <p className={hint}>
               Subscribe your calendar to a live sun-plan feed that updates as the forecast changes.
             </p>
-            <button className={`${small} mt-2`} onClick={create} disabled={busy !== null}>
-              {busy === 'create' ? 'Creating...' : 'Create feed link'}
+            <button
+              type="button"
+              className={`${small} mt-2`}
+              onClick={create}
+              disabled={busy !== null}
+            >
+              {busy === 'create' ? 'Creating…' : 'Create feed link'}
             </button>
           </>
         ) : (
           <>
             <label htmlFor="calendar-feed-url" className={`${hint} block`}>
-              Add this URL in your calendar app as a subscribed calendar (Google/Apple/Outlook):
+              Add this URL in your calendar app as a subscribed calendar (Google, Apple or Outlook):
             </label>
             <input
               id="calendar-feed-url"
@@ -133,18 +138,29 @@ function CalendarFeedPanel({ uid }: { uid: string }) {
               className="mt-2 box-border w-full rounded-lg border-[0.5px] border-line-strong bg-surface px-[9px] py-[7px] text-[12px] text-ink-2"
             />
             <div className="mt-2 flex flex-wrap gap-2">
-              <button className={small} onClick={() => void copy()} disabled={busy !== null}>
+              <button
+                type="button"
+                className={small}
+                onClick={() => void copy()}
+                disabled={busy !== null}
+              >
                 {copied ? '✓ Copied' : 'Copy link'}
               </button>
               <button
+                type="button"
                 className={`${small} text-ink-3`}
                 onClick={regenerate}
                 disabled={busy !== null}
               >
-                {busy === 'regenerate' ? 'Regenerating...' : 'Regenerate'}
+                {busy === 'regenerate' ? 'Regenerating…' : 'Regenerate'}
               </button>
-              <button className={`${small} text-ink-3`} onClick={revoke} disabled={busy !== null}>
-                {busy === 'revoke' ? 'Turning off...' : 'Turn off'}
+              <button
+                type="button"
+                className={`${small} text-ink-3`}
+                onClick={revoke}
+                disabled={busy !== null}
+              >
+                {busy === 'revoke' ? 'Turning off…' : 'Turn off'}
               </button>
             </div>
             <p className="mt-2 text-[11px] text-ink-3">
