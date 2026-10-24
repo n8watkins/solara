@@ -85,7 +85,7 @@ npm run test:harness
 
 - `npm run test:e2e` builds the static export with a hermetic public configuration and tests it on the Firebase Hosting emulator without credentials: welcome, onboarding, analytics consent, legal pages, share links and Hosting headers.
 - `npm run test:e2e:signed-in` signs in through the Auth emulator and covers the dashboard, activities, settings, calendar, sharing, Pro gating, account isolation and export against the real rules and Functions.
-- `npm run test:harness` captures screenshots of the signed-in screens at desktop and phone widths in both themes, with an axe report, into `test-results/ui-harness/`.
+- `npm run test:harness` captures screenshots at desktop and phone widths in both themes, with an axe report, into `test-results/ui-harness/`: the signed-in screens and header popovers, and the pages a visitor sees before signing in (welcome, each onboarding step, legal pages, share links, the account page and the 404 page).
 - `npm run check:docs` checks that every relative link and backticked repository path in the Markdown docs resolves.
 
 The rules tests and the signed-in suite need Java for the Firestore emulator.

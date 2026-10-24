@@ -1,6 +1,6 @@
 'use client'
-import type { CSSProperties } from 'react'
 import { useState } from 'react'
+import clsx from 'clsx'
 import type { User } from 'firebase/auth'
 import { signInWithPopup } from 'firebase/auth'
 import { auth, googleProvider, firebaseEnabled } from '@/lib/firebase'
@@ -15,24 +15,30 @@ export const ACTIVITY_SIGNIN_BLURB =
 interface Props {
   label?: string
   /**
-   * Local prefs to seed a brand-new account with. Existing cloud prefs always win —
+   * Local prefs to seed a brand-new account with. Existing cloud prefs always win -
    * a returning user's saved (possibly Pro) profile must never be overwritten by
    * whatever guest state happens to be on this device.
    */
   seedPrefs?: UserPreferences | null
   onSignedIn?: (user: User) => void
-  style?: CSSProperties
+  /**
+   * `sm` for the header, `md` (default) inline, `lg` for a full-width primary
+   * action such as the last onboarding step.
+   */
+  size?: 'sm' | 'md' | 'lg'
+  /** Layout utilities for the button (margins, min-width); not padding or type. */
+  className?: string
 }
+
+const SIZES = {
+  sm: 'px-3 py-1.5 text-[12px]',
+  md: 'px-3.5 py-[9px] text-[13px]',
+  lg: 'w-full p-[13px] text-[13px]',
+} as const
 
 export function GoogleIcon({ size = 16 }: { size?: number }) {
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 48 48"
-      aria-hidden="true"
-      style={{ flexShrink: 0 }}
-    >
+    <svg width={size} height={size} viewBox="0 0 48 48" aria-hidden="true" className="shrink-0">
       <path
         fill="#EA4335"
         d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"
@@ -57,7 +63,8 @@ export default function GoogleSignInButton({
   label = 'Continue with Google',
   seedPrefs,
   onSignedIn,
-  style,
+  size = 'md',
+  className,
 }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -89,31 +96,17 @@ export default function GoogleSignInButton({
       <button
         onClick={() => void handleClick()}
         disabled={loading}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: '8px',
-          padding: '9px 14px',
-          borderRadius: '10px',
-          cursor: loading ? 'wait' : 'pointer',
-          border: '0.5px solid var(--border-md)',
-          background: 'var(--bg-card)',
-          color: 'var(--text)',
-          fontSize: '13px',
-          fontWeight: 600,
-          transition: 'background 0.12s',
-          opacity: loading ? 0.7 : 1,
-          ...style,
-        }}
+        className={clsx(
+          'flex items-center justify-center gap-2 rounded-[10px] border-[0.5px] border-line-strong bg-surface-card font-semibold text-ink transition-colors duration-[120ms]',
+          loading && 'cursor-wait opacity-70',
+          SIZES[size],
+          className,
+        )}
       >
         <GoogleIcon /> {loading ? 'Signing in...' : label}
       </button>
       {error && (
-        <p
-          role="alert"
-          style={{ margin: '8px 0 0', fontSize: '12px', color: '#DC2626', textAlign: 'center' }}
-        >
+        <p role="alert" className="mt-2 text-center text-[12px] text-danger">
           {error}
         </p>
       )}

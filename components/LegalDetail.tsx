@@ -13,13 +13,7 @@ export default function LegalDetail({ name }: { name: LegalDetailKey }) {
   return (
     <mark
       data-legal-placeholder={name}
-      style={{
-        padding: '0 4px',
-        borderRadius: '4px',
-        color: 'var(--text)',
-        background: 'var(--bg-metric)',
-        border: '1px dashed var(--border-md)',
-      }}
+      className="rounded-sm border border-dashed border-line-strong bg-surface-metric px-1 text-ink"
     >
       [Placeholder: {LEGAL_PLACEHOLDER_LABELS[name]}]
     </mark>

@@ -1,11 +1,13 @@
 'use client'
 import { useState } from 'react'
+import clsx from 'clsx'
 import type { User } from 'firebase/auth'
 import { defaultPrefs } from '@/lib/prefs'
 import type { UserPreferences, Location, SkinType } from '@/lib/types'
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
 import { locationFromCoordinates, searchLocation } from '@/lib/geocoding'
-import GoogleSignInButton from './GoogleSignInButton'
+import { ONBOARDING_PROGRESS, fetchCurrentUV, type OnboardingStep } from '@/lib/onboarding'
+import { LocationStep, SignInStep, SkinStep, UVPreviewStep } from './OnboardingSteps'
 
 interface Props {
   /**
@@ -17,27 +19,8 @@ interface Props {
   user?: User | null
 }
 
-type Step = 'location' | 'uvpreview' | 'skin' | 'signin'
-
-const SKIN_OPTIONS: { value: SkinType; label: string; desc: string; burnTime: string }[] = [
-  { value: 'very-fair', label: 'Very fair', desc: 'Burns easily, rarely tans', burnTime: '~10m' },
-  { value: 'fair', label: 'Fair', desc: 'Burns often, tans lightly', burnTime: '~15m' },
-  { value: 'medium', label: 'Medium', desc: 'Burns sometimes, tans well', burnTime: '~25m' },
-  { value: 'olive', label: 'Olive', desc: 'Rarely burns, tans easily', burnTime: '~35m' },
-  { value: 'dark', label: 'Dark', desc: 'Very rarely burns', burnTime: '~50m' },
-]
-
-function uvLabel(uv: number) {
-  if (uv < 1) return { label: 'None', color: '#9CA3AF' }
-  if (uv <= 2) return { label: 'Low', color: '#16A34A' }
-  if (uv <= 5) return { label: 'Moderate', color: '#D97706' }
-  if (uv <= 7) return { label: 'High', color: '#EA580C' }
-  if (uv <= 10) return { label: 'Very high', color: '#DC2626' }
-  return { label: 'Extreme', color: '#9333EA' }
-}
-
 export default function Onboarding({ onComplete }: Props) {
-  const [step, setStep] = useState<Step>('location')
+  const [step, setStep] = useState<OnboardingStep>('location')
   const [locLoading, setLocLoad] = useState(false)
   const [cityInput, setCityInput] = useState('')
   const [geoError, setGeoError] = useState<string | null>(null)
@@ -46,7 +29,7 @@ export default function Onboarding({ onComplete }: Props) {
   const [uvCity, setUvCity] = useState('')
   const [skinType, setSkinType] = useState<SkinType>('fair')
 
-  // Setup never scrolls — lock the page while onboarding is mounted (shared,
+  // Setup never scrolls - lock the page while onboarding is mounted (shared,
   // ref-counted hook so it composes with any other overlay's lock).
   useBodyScrollLock()
 
@@ -88,13 +71,10 @@ export default function Onboarding({ onComplete }: Props) {
     }
   }
 
+  // The live UV is a preview only: when it cannot load, setup moves on to skin type.
   async function fetchUVPreview(loc: Location) {
     try {
-      const res = await fetch(
-        `https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.lon}&current=uv_index&timezone=auto`,
-      )
-      const data = await res.json()
-      setUvNow(Math.round(data.current.uv_index * 10) / 10)
+      setUvNow(await fetchCurrentUV(loc))
       setUvCity(loc.city)
       setStep('uvpreview')
     } catch {
@@ -102,32 +82,13 @@ export default function Onboarding({ onComplete }: Props) {
     }
   }
 
-  const progress = { location: 1, uvpreview: 1, skin: 2, signin: 3 }[step]
+  const progress = ONBOARDING_PROGRESS[step]
 
   return (
-    <main
-      style={{
-        height: '100dvh',
-        display: 'flex',
-        flexDirection: 'column',
-        overflow: 'hidden',
-        padding: '16px',
-        background: 'var(--bg)',
-      }}
-    >
-      <div
-        style={{
-          width: '100%',
-          maxWidth: '460px',
-          margin: '0 auto',
-          flex: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          minHeight: 0,
-        }}
-      >
-        <div style={{ textAlign: 'center', padding: '6px 0 14px', flexShrink: 0 }}>
-          <span style={{ fontSize: '26px' }}>☀️</span>
+    <main className="flex h-dvh flex-col overflow-hidden bg-surface p-4">
+      <div className="mx-auto flex min-h-0 w-full max-w-[460px] flex-1 flex-col">
+        <div className="shrink-0 pt-1.5 pb-3.5 text-center">
+          <span className="text-[26px]">☀️</span>
           <div
             role="progressbar"
             aria-label="Setup progress"
@@ -135,316 +96,47 @@ export default function Onboarding({ onComplete }: Props) {
             aria-valuemax={3}
             aria-valuenow={progress}
             aria-valuetext={`Step ${progress} of 3`}
-            style={{ display: 'flex', justifyContent: 'center', gap: '6px', marginTop: '10px' }}
+            className="mt-2.5 flex justify-center gap-1.5"
           >
             {[1, 2, 3].map(i => (
               <div
                 key={i}
-                style={{
-                  width: '26px',
-                  height: '4px',
-                  borderRadius: '2px',
-                  background: i <= progress ? 'var(--accent)' : 'var(--border-md)',
-                  opacity: i <= progress ? 1 : 0.4,
-                }}
+                className={clsx(
+                  'h-1 w-[26px] rounded-[2px]',
+                  i <= progress ? 'bg-accent' : 'bg-line-strong opacity-40',
+                )}
               />
             ))}
           </div>
         </div>
 
-        {/* Step body fills the screen; the primary action sits pinned at the bottom (thumb zone). */}
-        <div
-          className="card"
-          style={{
-            flex: 1,
-            display: 'flex',
-            flexDirection: 'column',
-            minHeight: 0,
-            overflow: 'hidden',
-          }}
-        >
+        <div className="card flex min-h-0 flex-1 flex-col overflow-hidden">
           {step === 'location' && (
-            <>
-              <h2
-                style={{
-                  margin: '0 0 6px',
-                  fontSize: '19px',
-                  fontWeight: 650,
-                  color: 'var(--text)',
-                }}
-              >
-                Where are you?
-              </h2>
-              <p
-                style={{
-                  margin: '0 0 18px',
-                  fontSize: '14px',
-                  color: 'var(--text-2)',
-                  lineHeight: 1.5,
-                }}
-              >
-                We&apos;ll show the live UV index for your area.
-              </p>
-              <label
-                htmlFor="onboarding-city"
-                style={{
-                  marginBottom: '6px',
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  color: 'var(--text)',
-                }}
-              >
-                City or location
-              </label>
-              <div
-                style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '4px 0 14px' }}
-              >
-                <input
-                  id="onboarding-city"
-                  placeholder="Type a city, e.g. Los Angeles"
-                  value={cityInput}
-                  onChange={e => setCityInput(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') void handleCitySearch()
-                  }}
-                  style={{ flex: 1 }}
-                />
-                <button
-                  className="btn"
-                  onClick={() => void handleCitySearch()}
-                  disabled={locLoading}
-                >
-                  Go
-                </button>
-              </div>
-              {geoError && (
-                <p role="alert" style={{ margin: '0 0 8px', fontSize: '12px', color: '#DC2626' }}>
-                  {geoError}
-                </p>
-              )}
-              <div style={{ marginTop: 'auto' }}>
-                <button
-                  className="btn btn-primary"
-                  onClick={() => void handleGeolocate()}
-                  disabled={locLoading}
-                  style={{ width: '100%', justifyContent: 'center', padding: '13px' }}
-                >
-                  {locLoading ? 'Detecting…' : '📍 Use my location'}
-                </button>
-              </div>
-            </>
+            <LocationStep
+              city={cityInput}
+              onCityChange={setCityInput}
+              onSearch={() => void handleCitySearch()}
+              onGeolocate={() => void handleGeolocate()}
+              loading={locLoading}
+              error={geoError}
+            />
           )}
-
           {step === 'uvpreview' && uvNow !== null && (
-            <>
-              <div
-                style={{
-                  flex: 1,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  textAlign: 'center',
-                  minHeight: 0,
-                }}
-              >
-                <p style={{ margin: '0 0 2px', fontSize: '13px', color: 'var(--text-3)' }}>
-                  UV index right now in
-                </p>
-                <p
-                  style={{
-                    margin: '0 0 14px',
-                    fontSize: '16px',
-                    fontWeight: 650,
-                    color: 'var(--text)',
-                  }}
-                >
-                  {uvCity}
-                </p>
-                <div
-                  style={{
-                    fontSize: '68px',
-                    fontWeight: 750,
-                    color: uvLabel(uvNow).color,
-                    lineHeight: 1,
-                    marginBottom: '10px',
-                  }}
-                >
-                  {uvNow.toFixed(1)}
-                </div>
-                <div
-                  style={{
-                    display: 'inline-block',
-                    padding: '4px 14px',
-                    borderRadius: '20px',
-                    background: 'var(--bg-metric)',
-                    fontSize: '14px',
-                    fontWeight: 500,
-                    color: uvLabel(uvNow).color,
-                    marginBottom: '18px',
-                  }}
-                >
-                  {uvLabel(uvNow).label}
-                </div>
-                <p
-                  style={{ margin: 0, fontSize: '14px', color: 'var(--text-2)', lineHeight: 1.55 }}
-                >
-                  Next, set your skin type so Solara can personalize its planning estimates.
-                </p>
-              </div>
-              <button
-                className="btn btn-primary"
-                onClick={() => setStep('skin')}
-                style={{
-                  width: '100%',
-                  justifyContent: 'center',
-                  padding: '13px',
-                  marginTop: '14px',
-                }}
-              >
-                Continue →
-              </button>
-            </>
+            <UVPreviewStep uv={uvNow} city={uvCity} onContinue={() => setStep('skin')} />
           )}
-
           {step === 'skin' && (
-            <>
-              <h2
-                style={{
-                  margin: '0 0 4px',
-                  fontSize: '19px',
-                  fontWeight: 650,
-                  color: 'var(--text)',
-                }}
-              >
-                Your skin type
-              </h2>
-              <p style={{ margin: '0 0 14px', fontSize: '13px', color: 'var(--text-2)' }}>
-                Personalizes estimated burn time and planning UV limits.
-              </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
-                {SKIN_OPTIONS.map(o => (
-                  <button
-                    key={o.value}
-                    aria-pressed={skinType === o.value}
-                    onClick={() => setSkinType(o.value)}
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      padding: '10px 13px',
-                      borderRadius: '10px',
-                      textAlign: 'left',
-                      border:
-                        skinType === o.value
-                          ? '1.5px solid var(--accent)'
-                          : '0.5px solid var(--border-md)',
-                      background: skinType === o.value ? 'rgba(249,115,22,0.08)' : 'var(--bg-card)',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    <div>
-                      <p
-                        style={{
-                          margin: 0,
-                          fontSize: '14px',
-                          fontWeight: 600,
-                          color: 'var(--text)',
-                        }}
-                      >
-                        {o.label}
-                      </p>
-                      <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-3)' }}>
-                        {o.desc}
-                      </p>
-                    </div>
-                    <span
-                      style={{
-                        fontSize: '12px',
-                        color: 'var(--text-3)',
-                        whiteSpace: 'nowrap',
-                        marginLeft: '12px',
-                      }}
-                    >
-                      {o.burnTime}
-                    </span>
-                  </button>
-                ))}
-              </div>
-              <button
-                className="btn btn-primary"
-                onClick={() => setStep('signin')}
-                style={{
-                  width: '100%',
-                  justifyContent: 'center',
-                  padding: '13px',
-                  marginTop: 'auto',
-                }}
-              >
-                Continue →
-              </button>
-            </>
+            <SkinStep
+              value={skinType}
+              onChange={setSkinType}
+              onContinue={() => setStep('signin')}
+            />
           )}
-
           {step === 'signin' && (
-            <>
-              <div
-                style={{
-                  flex: 1,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  textAlign: 'center',
-                  minHeight: 0,
-                }}
-              >
-                <span style={{ fontSize: '34px', marginBottom: '12px' }}>🔒</span>
-                <h2
-                  style={{
-                    margin: '0 0 8px',
-                    fontSize: '20px',
-                    fontWeight: 650,
-                    color: 'var(--text)',
-                  }}
-                >
-                  Sign in to finish
-                </h2>
-                <p
-                  style={{
-                    margin: 0,
-                    fontSize: '14px',
-                    color: 'var(--text-2)',
-                    lineHeight: 1.55,
-                    maxWidth: '300px',
-                  }}
-                >
-                  Solara saves your setup to your account so your sun windows are ready on every
-                  device.
-                </p>
-              </div>
-              <div style={{ marginTop: '14px' }}>
-                <GoogleSignInButton
-                  label="Continue with Google"
-                  seedPrefs={collected}
-                  onSignedIn={onComplete}
-                  style={{ width: '100%', justifyContent: 'center', padding: '13px' }}
-                />
-                <button
-                  className="btn btn-ghost"
-                  onClick={() => setStep('skin')}
-                  style={{
-                    width: '100%',
-                    justifyContent: 'center',
-                    marginTop: '8px',
-                    fontSize: '13px',
-                    color: 'var(--text-3)',
-                  }}
-                >
-                  ← Back
-                </button>
-              </div>
-            </>
+            <SignInStep
+              seedPrefs={collected}
+              onSignedIn={onComplete}
+              onBack={() => setStep('skin')}
+            />
           )}
         </div>
       </div>

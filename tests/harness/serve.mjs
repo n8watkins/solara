@@ -72,6 +72,13 @@ function resolveFile(urlPath) {
 createServer((req, res) => {
   const file = resolveFile(req.url || '/')
   if (!file) {
+    // Like Firebase Hosting: unknown paths get the exported 404 page.
+    const notFound = join(root, '404.html')
+    if (existsSync(notFound)) {
+      res.writeHead(404, { 'Content-Type': TYPES['.html'], 'Cache-Control': 'no-store' })
+      createReadStream(notFound).pipe(res)
+      return
+    }
     res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' })
     res.end('Not found')
     return

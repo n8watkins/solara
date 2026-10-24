@@ -22,10 +22,6 @@
     margin: 0 auto;
   }
 
-  .logo {
-    flex-shrink: 0;
-  }
-
   .location {
     flex: 1 1 auto;
     min-width: 0;

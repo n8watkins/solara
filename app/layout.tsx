@@ -75,24 +75,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <AnalyticsConsent measurementId={GA_ID} />
         <ThemeInit />
         {children}
-        <footer
-          style={{
-            padding: '20px 16px',
-            textAlign: 'center',
-            fontSize: '12px',
-            color: 'var(--text-3)',
-            background: 'var(--bg)',
-          }}
-        >
-          <a href="/privacy/" style={{ color: 'inherit' }}>
+        <footer className="bg-surface px-4 py-5 text-center text-[12px] text-ink-3">
+          <a href="/privacy/" className="text-inherit">
             Privacy
           </a>
           <span aria-hidden="true"> · </span>
-          <a href="/terms/" style={{ color: 'inherit' }}>
+          <a href="/terms/" className="text-inherit">
             Terms
           </a>
           <span aria-hidden="true"> · </span>
-          <a href="/account/" style={{ color: 'inherit' }}>
+          <a href="/account/" className="text-inherit">
             Account data
           </a>
         </footer>

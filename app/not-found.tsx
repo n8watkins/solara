@@ -10,42 +10,17 @@ export const metadata: Metadata = {
 // any path that has no page.
 export default function NotFound() {
   return (
-    <main
-      style={{
-        minHeight: '100vh',
-        background: 'var(--bg)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '24px 16px',
-      }}
-    >
-      <div
-        className="card"
-        style={{ width: '100%', maxWidth: '480px', textAlign: 'center', padding: '32px 26px' }}
-      >
-        <p style={{ fontSize: '42px', margin: '0 0 12px' }} aria-hidden="true">
+    <main className="flex min-h-screen items-center justify-center bg-surface px-4 py-6">
+      <div className="card w-full max-w-[480px] px-[26px] py-8 text-center">
+        <p className="mb-3 text-[42px]" aria-hidden="true">
           🌤️
         </p>
-        <h1 style={{ margin: '0 0 10px', fontSize: '26px', fontWeight: 750, color: 'var(--text)' }}>
-          Page not found
-        </h1>
-        <p
-          style={{ margin: '0 0 22px', fontSize: '15px', color: 'var(--text-2)', lineHeight: 1.55 }}
-        >
+        <h1 className="mb-2.5 text-[26px] font-[750] text-ink">Page not found</h1>
+        <p className="mb-[22px] text-[15px] leading-[1.55] text-ink-2">
           This address doesn&apos;t match anything in Solara. Check the link, or head back to your
           forecast.
         </p>
-        <Link
-          href="/"
-          className="btn btn-primary"
-          style={{
-            display: 'inline-flex',
-            textDecoration: 'none',
-            justifyContent: 'center',
-            padding: '11px 18px',
-          }}
-        >
+        <Link href="/" className="btn btn-primary justify-center px-[18px] py-[11px] no-underline">
           Open Solara
         </Link>
       </div>
