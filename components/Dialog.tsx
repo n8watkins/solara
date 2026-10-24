@@ -1,8 +1,8 @@
 'use client'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { KeyboardEvent, MouseEvent, ReactNode, RefObject, SyntheticEvent } from 'react'
+import clsx from 'clsx'
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock'
-import styles from './Dialog.module.css'
 
 interface Props {
   /**
@@ -24,6 +24,21 @@ interface Props {
    */
   variant?: 'card' | 'sheet'
   children: ReactNode
+}
+
+// The <dialog> element is the panel itself; the browser draws ::backdrop
+// behind it in the top layer. Only an open dialog gets a layout, so a closed
+// one keeps the UA `display: none`. The 16 px gutter on every side keeps the
+// page visible around a card.
+const PANEL =
+  'm-auto box-border w-[calc(100%-32px)] overflow-hidden rounded-[20px] border-[0.5px] border-line-strong bg-surface-card p-0 text-ink shadow-[0_24px_80px_rgba(0,0,0,0.24)] backdrop:bg-black/45 focus:outline-none open:flex open:flex-col'
+
+const VARIANTS = {
+  card: 'max-h-[min(88vh,760px)] max-w-[820px]',
+  // Fixed height on desktop so switching sections does not resize the panel;
+  // the whole screen on phones so options are not trapped in a small box.
+  sheet:
+    'h-[min(88vh,720px)] max-h-[calc(100%-32px)] max-w-[860px] max-sm:h-dvh max-sm:max-h-none max-sm:w-full max-sm:max-w-none max-sm:rounded-none max-sm:border-0 max-sm:shadow-none',
 }
 
 /**
@@ -123,7 +138,7 @@ export default function Dialog({
     <dialog
       ref={ref}
       tabIndex={-1}
-      className={`${styles.dialog} ${variant === 'sheet' ? styles.sheet : styles.card}`}
+      className={clsx(PANEL, VARIANTS[variant])}
       aria-labelledby={labelledBy}
       aria-label={labelledBy ? undefined : label}
       aria-describedby={describedBy}

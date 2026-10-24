@@ -14,42 +14,21 @@ interface Props {
 }
 
 function Cell({ value }: { value: string | boolean }) {
-  if (value === true)
-    return (
-      <>
-        <span aria-hidden="true" style={{ color: 'var(--success)', fontWeight: 700 }}>
-          ✓
-        </span>
-        <span className="sr-only">Included</span>
-      </>
-    )
-  if (value === false)
-    return (
-      <>
-        <span aria-hidden="true" style={{ color: 'var(--text-3)' }}>
-          —
-        </span>
-        <span className="sr-only">Not included</span>
-      </>
-    )
-  return <span style={{ color: 'var(--text)', fontWeight: 600 }}>{value}</span>
+  if (typeof value === 'string') return <span className="font-semibold text-ink">{value}</span>
+  return (
+    <>
+      <span aria-hidden="true" className={value ? 'font-bold text-success' : 'text-ink-3'}>
+        {value ? '✓' : '–'}
+      </span>
+      <span className="sr-only">{value ? 'Included' : 'Not included'}</span>
+    </>
+  )
 }
 
-const headerCell = {
-  padding: '10px 8px',
-  textAlign: 'center',
-  fontSize: '13px',
-  fontWeight: 700,
-  color: 'var(--text-2)',
-} as const
-
-const bodyCell = {
-  padding: '11px 8px',
-  textAlign: 'center',
-  fontSize: '13px',
-  fontWeight: 400,
-  borderTop: '0.5px solid var(--border-md)',
-} as const
+const HEADER_CELL = 'px-2 py-2.5 text-center text-[13px]'
+const BODY_CELL = 'border-t-[0.5px] border-line-strong py-[11px] text-[13px] font-normal'
+const NOTICE =
+  'rounded-[10px] border-[0.5px] border-notice-border bg-notice px-3 py-2.5 text-[13px]'
 
 export default function PricingModal({
   user,
@@ -91,33 +70,22 @@ export default function PricingModal({
       onClose={onClose}
       footer={
         checkoutReady ? (
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '12px',
-              flexWrap: 'wrap',
-            }}
-          >
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: 'var(--text)' }}>
-                {PRO_PRICE}
-              </p>
-              <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-3)' }}>Cancel anytime</p>
+              <p className="text-[20px] font-extrabold text-ink">{PRO_PRICE}</p>
+              <p className="text-[12px] text-ink-3">Cancel anytime</p>
             </div>
             <button
               type="button"
-              className="btn btn-primary"
+              className="btn btn-primary px-5.5 py-2.5 text-[14px]"
               onClick={() => void upgrade()}
               disabled={!user || checkoutLoading}
-              style={{ fontSize: '14px', padding: '10px 22px' }}
             >
               {checkoutLoading ? 'Opening checkout...' : 'Upgrade to Pro'}
             </button>
           </div>
         ) : (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          <div className="flex flex-wrap items-center gap-2">
             <input
               type="email"
               autoComplete="email"
@@ -125,14 +93,13 @@ export default function PricingModal({
               placeholder="Email for early access"
               value={waitEmail}
               onChange={e => setWaitEmail(e.target.value)}
-              style={{ flex: 1, minWidth: '180px', fontSize: '13px' }}
+              className="min-w-45 flex-1 text-[13px]"
             />
             <button
               type="button"
-              className="btn btn-primary"
+              className="btn btn-primary text-[13px] whitespace-nowrap"
               onClick={join}
               disabled={!waitEmail.trim()}
-              style={{ fontSize: '13px', whiteSpace: 'nowrap' }}
             >
               {joined || alreadyWaitlisted ? '✓ On the waitlist' : 'Join Pro waitlist'}
             </button>
@@ -140,63 +107,38 @@ export default function PricingModal({
         )
       }
     >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+      <div className="flex flex-col gap-3.5">
         {!checkoutReady && (
-          <div
-            style={{
-              padding: '10px 12px',
-              borderRadius: '10px',
-              background: 'var(--notice-bg)',
-              border: '0.5px solid var(--notice-border)',
-              fontSize: '13px',
-              color: 'var(--text-2)',
-            }}
-          >
+          <div className={`${NOTICE} text-ink-2`}>
             Pro is launching soon. Join the waitlist and you&apos;ll be first to upgrade.
           </div>
         )}
         {checkoutReady && !user && (
-          <div
-            role="alert"
-            style={{
-              padding: '10px 12px',
-              borderRadius: '10px',
-              background: 'var(--notice-bg)',
-              border: '0.5px solid var(--notice-border)',
-              color: 'var(--notice-text)',
-              fontSize: '13px',
-            }}
-          >
+          <div role="alert" className={`${NOTICE} text-notice-ink`}>
             Sign in before starting checkout.
           </div>
         )}
         {checkoutError && (
-          <p role="alert" style={{ margin: 0, fontSize: '13px', color: 'var(--danger)' }}>
+          <p role="alert" className="text-[13px] text-danger">
             {checkoutError}
           </p>
         )}
 
-        <div className="metric-card" style={{ padding: 0, overflow: 'hidden' }}>
-          <table
-            style={{
-              width: '100%',
-              borderCollapse: 'collapse',
-              tableLayout: 'fixed',
-            }}
-          >
+        <div className="metric-card overflow-hidden p-0">
+          <table className="w-full table-fixed border-collapse">
             <caption className="sr-only">Free and Pro plan features</caption>
             <colgroup>
-              <col style={{ width: '44.4%' }} />
-              <col style={{ width: '27.8%' }} />
-              <col style={{ width: '27.8%' }} />
+              <col className="w-[44.4%]" />
+              <col className="w-[27.8%]" />
+              <col className="w-[27.8%]" />
             </colgroup>
             <thead>
               <tr>
-                <td style={{ padding: '10px 14px' }} />
-                <th scope="col" style={headerCell}>
+                <td className="px-3.5 py-2.5" />
+                <th scope="col" className={`${HEADER_CELL} font-bold text-ink-2`}>
                   Free
                 </th>
-                <th scope="col" style={{ ...headerCell, fontWeight: 800, color: 'var(--accent)' }}>
+                <th scope="col" className={`${HEADER_CELL} font-extrabold text-accent`}>
                   Pro
                 </th>
               </tr>
@@ -204,21 +146,13 @@ export default function PricingModal({
             <tbody>
               {PRO_FEATURES.map(f => (
                 <tr key={f.label}>
-                  <th
-                    scope="row"
-                    style={{
-                      ...bodyCell,
-                      padding: '11px 14px',
-                      textAlign: 'left',
-                      color: 'var(--text)',
-                    }}
-                  >
+                  <th scope="row" className={`${BODY_CELL} px-3.5 text-left text-ink`}>
                     {f.label}
                   </th>
-                  <td style={bodyCell}>
+                  <td className={`${BODY_CELL} px-2 text-center`}>
                     <Cell value={f.free} />
                   </td>
-                  <td style={{ ...bodyCell, background: 'var(--accent-soft)' }}>
+                  <td className={`${BODY_CELL} bg-accent-soft px-2 text-center`}>
                     <Cell value={f.pro} />
                   </td>
                 </tr>

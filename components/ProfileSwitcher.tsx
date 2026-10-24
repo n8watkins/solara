@@ -1,8 +1,11 @@
 'use client'
 import { useState, useRef, useEffect, useId } from 'react'
-import type { UserPreferences, Profile, SkinType, TierLevel } from '@/lib/types'
+import clsx from 'clsx'
+import type { UserPreferences, Profile, TierLevel } from '@/lib/types'
 import { activeProfile, defaultProfile, selectProfile, SKIN_TYPE_LABELS } from '@/lib/profiles'
+import { newProfileDraft, removeProfilePatch, saveProfilePatch } from '@/lib/profile-patches'
 import { getProfileLimit } from '@/lib/tiers'
+import ProfileEditor from './ProfileEditor'
 
 interface Props {
   prefs: UserPreferences
@@ -10,13 +13,11 @@ interface Props {
   onApply: (patch: Partial<UserPreferences>) => void
 }
 
-const SKIN_TYPES = Object.keys(SKIN_TYPE_LABELS) as SkinType[]
-const ICON_CHOICES = ['🧑', '👧', '👦', '👩', '👨', '👴', '👵', '🐕', '🐈']
-
-function newId() {
-  return `profile_${Date.now().toString(36)}`
-}
-
+/**
+ * The header's profile picker: switch between the people (and pets) Solara
+ * plans for, and add, edit or remove them. A disclosure panel that closes on
+ * Escape, an outside click or tabbing away.
+ */
 export default function ProfileSwitcher({ prefs, tier, onApply }: Props) {
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Profile | null>(null) // profile being edited, or a blank draft for "add"
@@ -55,38 +56,21 @@ export default function ProfileSwitcher({ prefs, tier, onApply }: Props) {
     close({ returnFocus: true })
   }
 
-  function startAdd() {
-    setEditing({ id: newId(), name: '', skinType: prefs.skinType, icon: '🧑' })
-  }
-
   function saveProfile(p: Profile) {
     if (!p.name.trim()) return
-    // Seed the implicit "Me" into storage the first time a second profile is created.
-    const base = saved.length ? saved : [{ ...defaultProfile(prefs.skinType) }]
-    const exists = base.some(e => e.id === p.id)
-    const profiles = exists ? base.map(e => (e.id === p.id ? p : e)) : [...base, p]
-    const patch: Partial<UserPreferences> = { profiles }
-    // Editing the active profile updates the live skin type too.
-    if (p.id === active.id) patch.skinType = p.skinType
-    onApply(patch)
+    onApply(saveProfilePatch(prefs, p))
     setEditing(null)
   }
 
   function removeProfile(id: string) {
-    const profiles = saved.filter(p => p.id !== id)
-    const patch: Partial<UserPreferences> = { profiles: profiles.length ? profiles : undefined }
-    if (id === active.id) {
-      const fallback = profiles[0]
-      patch.activeProfileId = fallback?.id
-      if (fallback) patch.skinType = fallback.skinType
-    }
-    onApply(patch)
+    onApply(removeProfilePatch(prefs, id))
+    setEditing(null)
   }
 
   return (
     <div
       ref={ref}
-      style={{ position: 'relative', display: 'inline-block' }}
+      className="relative inline-block"
       onKeyDown={event => {
         if (event.key === 'Escape' && open) {
           event.preventDefault()
@@ -110,25 +94,13 @@ export default function ProfileSwitcher({ prefs, tier, onApply }: Props) {
         aria-label={`Profile: ${active.name}`}
         onClick={() => setOpen(o => !o)}
         title="Switch profile"
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '5px',
-          background: 'var(--bg-metric)',
-          border: '0.5px solid var(--border-md)',
-          borderRadius: '999px',
-          cursor: 'pointer',
-          padding: '4px 9px 4px 7px',
-          fontSize: '12px',
-          color: 'var(--text-2)',
-          whiteSpace: 'nowrap',
-        }}
+        className="flex items-center gap-[5px] rounded-full border-[0.5px] border-line-strong bg-surface-metric py-1 pr-[9px] pl-[7px] text-[12px] whitespace-nowrap text-ink-2"
       >
-        <span aria-hidden="true" style={{ fontSize: '13px' }}>
+        <span aria-hidden="true" className="text-[13px]">
           {active.icon ?? '🧑'}
         </span>
-        <span style={{ fontWeight: 600 }}>{active.name}</span>
-        <span aria-hidden="true" style={{ color: 'var(--text-3)' }}>
+        <span className="font-semibold">{active.name}</span>
+        <span aria-hidden="true" className="text-ink-3">
           ▾
         </span>
       </button>
@@ -138,91 +110,54 @@ export default function ProfileSwitcher({ prefs, tier, onApply }: Props) {
           id={panelId}
           role="dialog"
           aria-labelledby={titleId}
-          style={{
-            position: 'absolute',
-            top: 'calc(100% + 6px)',
-            right: 0,
-            zIndex: 100,
-            background: 'var(--bg-card)',
-            border: '0.5px solid var(--border-md)',
-            borderRadius: '14px',
-            padding: '12px',
-            width: '260px',
-            boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
-          }}
+          className="absolute top-[calc(100%+6px)] right-0 z-100 w-65 rounded-[14px] border-[0.5px] border-line-strong bg-surface-card p-3 shadow-[0_8px_24px_rgba(0,0,0,0.15)]"
         >
           <h2
             id={titleId}
-            style={{
-              margin: '0 0 8px',
-              fontSize: '12px',
-              fontWeight: 600,
-              color: 'var(--text)',
-              textTransform: 'uppercase',
-              letterSpacing: '0.06em',
-            }}
+            className="mb-2 text-[12px] font-semibold tracking-[0.06em] text-ink uppercase"
           >
             Profiles
           </h2>
 
-          {!editing && (
+          {editing ? (
+            <ProfileEditor
+              labelPrefix={id}
+              draft={editing}
+              isNew={!saved.some(p => p.id === editing.id)}
+              onChange={setEditing}
+              onSave={() => saveProfile(editing)}
+              onCancel={() => setEditing(null)}
+              onDelete={
+                saved.some(p => p.id === editing.id) ? () => removeProfile(editing.id) : undefined
+              }
+            />
+          ) : (
             <>
-              <div
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '3px',
-                  marginBottom: '8px',
-                }}
-              >
+              <div className="mb-2 flex flex-col gap-[3px]">
                 {list.map(p => {
                   const isActive = p.id === active.id
                   return (
-                    <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <div key={p.id} className="flex items-center gap-1">
                       <button
                         type="button"
                         aria-pressed={isActive}
                         onClick={() => switchTo(p)}
-                        style={{
-                          flex: 1,
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '8px',
-                          textAlign: 'left',
-                          background: isActive ? 'var(--accent-soft)' : 'none',
-                          border: isActive
-                            ? '1px solid var(--accent-border)'
-                            : '1px solid transparent',
-                          borderRadius: '9px',
-                          cursor: 'pointer',
-                          padding: '7px 9px',
-                        }}
+                        className={clsx(
+                          'flex flex-1 items-center gap-2 rounded-[9px] border px-[9px] py-[7px] text-left',
+                          isActive ? 'border-accent-border bg-accent-soft' : 'border-transparent',
+                        )}
                       >
-                        <span aria-hidden="true" style={{ fontSize: '16px' }}>
+                        <span aria-hidden="true" className="text-[16px]">
                           {p.icon ?? '🧑'}
                         </span>
-                        <span style={{ flex: 1, minWidth: 0 }}>
-                          <span
-                            style={{
-                              display: 'block',
-                              fontSize: '13px',
-                              fontWeight: 600,
-                              color: 'var(--text)',
-                            }}
-                          >
-                            {p.name}
-                          </span>
-                          <span
-                            style={{ display: 'block', fontSize: '11px', color: 'var(--text-3)' }}
-                          >
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-[13px] font-semibold text-ink">{p.name}</span>
+                          <span className="block text-[11px] text-ink-3">
                             {SKIN_TYPE_LABELS[p.skinType]} skin
                           </span>
                         </span>
                         {isActive && (
-                          <span
-                            aria-hidden="true"
-                            style={{ fontSize: '11px', color: 'var(--accent)', fontWeight: 700 }}
-                          >
+                          <span aria-hidden="true" className="text-[11px] font-bold text-accent">
                             Active
                           </span>
                         )}
@@ -232,17 +167,7 @@ export default function ProfileSwitcher({ prefs, tier, onApply }: Props) {
                           type="button"
                           onClick={() => setEditing(p)}
                           aria-label={`Edit ${p.name}`}
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            cursor: 'pointer',
-                            color: 'var(--text-3)',
-                            fontSize: '13px',
-                            minWidth: '28px',
-                            minHeight: '28px',
-                            padding: '4px',
-                            borderRadius: '7px',
-                          }}
+                          className="min-h-7 min-w-7 rounded-[7px] p-1 text-[13px] text-ink-3"
                         >
                           <span aria-hidden="true">✎</span>
                         </button>
@@ -255,16 +180,13 @@ export default function ProfileSwitcher({ prefs, tier, onApply }: Props) {
               {canAdd ? (
                 <button
                   type="button"
-                  className="btn"
-                  onClick={startAdd}
-                  style={{ width: '100%', justifyContent: 'center', fontSize: '13px' }}
+                  className="btn w-full justify-center text-[13px]"
+                  onClick={() => setEditing(newProfileDraft(prefs))}
                 >
                   ＋ Add person or pet
                 </button>
               ) : (
-                <p
-                  style={{ margin: 0, fontSize: '12px', color: 'var(--text-3)', lineHeight: 1.45 }}
-                >
+                <p className="text-[12px] leading-[1.45] text-ink-3">
                   {limit === 1
                     ? '🔒 Family & pet profiles are a Pro feature.'
                     : `Profile limit reached (${limit}).`}
@@ -272,124 +194,8 @@ export default function ProfileSwitcher({ prefs, tier, onApply }: Props) {
               )}
             </>
           )}
-
-          {editing && (
-            <ProfileEditor
-              draft={editing}
-              isNew={!saved.some(p => p.id === editing.id)}
-              onChange={setEditing}
-              onSave={() => saveProfile(editing)}
-              onCancel={() => setEditing(null)}
-              labelPrefix={id}
-              onDelete={
-                saved.some(p => p.id === editing.id)
-                  ? () => {
-                      removeProfile(editing.id)
-                      setEditing(null)
-                    }
-                  : undefined
-              }
-            />
-          )}
         </div>
       )}
-    </div>
-  )
-}
-
-function ProfileEditor({
-  draft,
-  isNew,
-  onChange,
-  onSave,
-  onCancel,
-  onDelete,
-  labelPrefix,
-}: {
-  labelPrefix: string
-  draft: Profile
-  isNew: boolean
-  onChange: (p: Profile) => void
-  onSave: () => void
-  onCancel: () => void
-  onDelete?: () => void
-}) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-      <div role="group" aria-label="Icon" style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-        {ICON_CHOICES.map(ic => (
-          <button
-            key={ic}
-            type="button"
-            aria-pressed={draft.icon === ic}
-            onClick={() => onChange({ ...draft, icon: ic })}
-            style={{
-              width: '30px',
-              height: '30px',
-              fontSize: '16px',
-              borderRadius: '8px',
-              cursor: 'pointer',
-              border:
-                draft.icon === ic ? '1.5px solid var(--accent)' : '0.5px solid var(--border-md)',
-              background: draft.icon === ic ? 'var(--accent-soft)' : 'var(--bg-card)',
-            }}
-          >
-            {ic}
-          </button>
-        ))}
-      </div>
-      <label className="sr-only" htmlFor={`${labelPrefix}-name`}>
-        Name
-      </label>
-      <input
-        id={`${labelPrefix}-name`}
-        value={draft.name}
-        onChange={e => onChange({ ...draft, name: e.target.value })}
-        placeholder="Name (e.g. Ava, Rex)"
-        autoFocus
-        style={{ width: '100%', boxSizing: 'border-box', fontSize: '14px', padding: '8px 10px' }}
-      />
-      <label className="sr-only" htmlFor={`${labelPrefix}-skin`}>
-        Skin type
-      </label>
-      <select
-        id={`${labelPrefix}-skin`}
-        value={draft.skinType}
-        onChange={e => onChange({ ...draft, skinType: e.target.value as SkinType })}
-        style={{ fontSize: '13px', padding: '7px' }}
-      >
-        {SKIN_TYPES.map(st => (
-          <option key={st} value={st}>
-            {SKIN_TYPE_LABELS[st]} skin
-          </option>
-        ))}
-      </select>
-      <div style={{ display: 'flex', gap: '8px' }}>
-        {onDelete && (
-          <button
-            type="button"
-            className="btn"
-            onClick={onDelete}
-            style={{ color: 'var(--danger)', borderColor: '#FECACA', fontSize: '12px' }}
-          >
-            Delete
-          </button>
-        )}
-        <div style={{ display: 'flex', gap: '8px', marginLeft: 'auto' }}>
-          <button type="button" className="btn" onClick={onCancel} style={{ fontSize: '12px' }}>
-            Cancel
-          </button>
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={onSave}
-            disabled={!draft.name.trim()}
-            style={{ fontSize: '12px' }}
-          >
-            {isNew ? 'Add' : 'Save'}
-          </button>
-        </div>
-      </div>
     </div>
   )
 }
