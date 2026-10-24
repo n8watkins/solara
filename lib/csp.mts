@@ -139,14 +139,32 @@ export function scriptHash(source: string): string {
   return `'sha256-${createHash('sha256').update(source, 'utf8').digest('base64')}'`
 }
 
-const SCRIPT_TAG = /<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi
+/**
+ * A `<script>` element as browsers tokenize it: the tag name ends at whitespace,
+ * `/` or `>` (so `<scripts>` and `<script-x>` are other elements); quoted attribute
+ * values may contain `>`; the text runs to the first `</script` followed by
+ * whitespace, `/` or `>`, in any case, and that end tag runs to the next `>`
+ * (`</script >` and `</SCRIPT\n foo>` both end it).
+ */
+const SCRIPT_TAG =
+  /<script(?=[\s/>])((?:[^>"']|"[^"]*"|'[^']*')*)>([\s\S]*?)<\/script(?=[\s/>])[^>]*>/gi
+
+/** One attribute in a start tag: its name, then an optional quoted or bare value. */
+const ATTRIBUTE = /([^\s"'/>=]+)(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'=<>`]+))?/g
+
+function hasAttribute(attributes: string, name: string): boolean {
+  for (const [, attribute = ''] of attributes.matchAll(ATTRIBUTE)) {
+    if (attribute.toLowerCase() === name) return true
+  }
+  return false
+}
 
 /** Hashes of every inline (non-`src`) script in an HTML document, in order, deduplicated. */
 export function inlineScriptHashes(html: string): string[] {
   const hashes: string[] = []
   for (const match of html.matchAll(SCRIPT_TAG)) {
     const [, attributes = '', body = ''] = match
-    if (/\bsrc\s*=/i.test(attributes)) continue
+    if (hasAttribute(attributes, 'src')) continue
     const hash = scriptHash(body)
     if (!hashes.includes(hash)) hashes.push(hash)
   }

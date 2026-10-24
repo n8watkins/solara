@@ -6,9 +6,10 @@
 //
 // Usage: node tests/harness/serve.mjs <port>
 import { spawnSync } from 'node:child_process'
-import { createReadStream, existsSync, statSync } from 'node:fs'
+import { existsSync } from 'node:fs'
 import { createServer } from 'node:http'
-import { extname, join, normalize, resolve, sep } from 'node:path'
+import { join, resolve } from 'node:path'
+import { createStaticHandler } from '../static-server.mts'
 
 const port = Number(process.argv[2] || 45679)
 const root = resolve('test-results/ui-harness/site')
@@ -47,48 +48,6 @@ if (!existsSync(join(root, 'harness', 'index.html'))) {
   process.exit(1)
 }
 
-const TYPES = {
-  '.html': 'text/html; charset=utf-8',
-  '.js': 'text/javascript; charset=utf-8',
-  '.css': 'text/css; charset=utf-8',
-  '.json': 'application/json',
-  '.webmanifest': 'application/manifest+json',
-  '.txt': 'text/plain; charset=utf-8',
-  '.svg': 'image/svg+xml',
-  '.png': 'image/png',
-  '.ico': 'image/x-icon',
-  '.woff2': 'font/woff2',
-}
-
-function resolveFile(urlPath) {
-  const decoded = decodeURIComponent(urlPath.split('?')[0])
-  const target = normalize(join(root, decoded))
-  if (target !== root && !target.startsWith(root + sep)) return null
-  if (existsSync(target) && statSync(target).isFile()) return target
-  const index = join(target, 'index.html')
-  if (existsSync(index)) return index
-  return null
-}
-
-createServer((req, res) => {
-  const file = resolveFile(req.url || '/')
-  if (!file) {
-    // Like Firebase Hosting: unknown paths get the exported 404 page.
-    const notFound = join(root, '404.html')
-    if (existsSync(notFound)) {
-      res.writeHead(404, { 'Content-Type': TYPES['.html'], 'Cache-Control': 'no-store' })
-      createReadStream(notFound).pipe(res)
-      return
-    }
-    res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' })
-    res.end('Not found')
-    return
-  }
-  res.writeHead(200, {
-    'Content-Type': TYPES[extname(file)] || 'application/octet-stream',
-    'Cache-Control': 'no-store',
-  })
-  createReadStream(file).pipe(res)
-}).listen(port, '127.0.0.1', () => {
+createServer(createStaticHandler(root)).listen(port, '127.0.0.1', () => {
   console.log(`UI harness serving ${root} on http://127.0.0.1:${port}/harness/`)
 })

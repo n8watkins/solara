@@ -9,7 +9,7 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    include: ['lib/**/*.test.ts', 'packages/*/src/**/*.test.ts'],
+    include: ['lib/**/*.test.ts', 'packages/*/src/**/*.test.ts', 'tests/*.test.ts'],
     coverage: {
       provider: 'v8',
       // Measure all web app source, not just files a test happens to import,

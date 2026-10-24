@@ -74,7 +74,8 @@ describe('page policy', () => {
   it('allows exactly the image Firestore loads to test connectivity, nothing else on google.com', () => {
     const images = directive(policy, 'img-src')
     expect(images).toContain('https://www.google.com/images/cleardot.gif')
-    expect(images.filter(s => s.includes('www.google.com'))).toEqual([
+    const host = (source: string) => (URL.canParse(source) ? new URL(source).hostname : null)
+    expect(images.filter(s => host(s) === 'www.google.com')).toEqual([
       'https://www.google.com/images/cleardot.gif',
     ])
   })
@@ -183,6 +184,35 @@ describe('inline script hashing', () => {
     expect(inlineScriptHashes(html)).toEqual([scriptHash('self.x=1'), scriptHash('\nself.y=2\n')])
     // Known vector: sha256("alert(1)") in base64.
     expect(scriptHash('alert(1)')).toBe("'sha256-bhHHL3z2vDgxUt0W3dWQOrprscmda2Y5pLsLg4GF+pI='")
+  })
+
+  it('ends a script where browsers do, in any case and with any end-tag whitespace', () => {
+    const html =
+      '<SCRIPT>self.a=1</SCRIPT>' +
+      '<script>self.b=2</script >' +
+      '<Script type="module">self.c=3</sCrIpT\t\n bar>' +
+      '<script>self.d="</scriptx>"</script/>'
+    expect(inlineScriptHashes(html)).toEqual([
+      scriptHash('self.a=1'),
+      scriptHash('self.b=2'),
+      scriptHash('self.c=3'),
+      scriptHash('self.d="</scriptx>"'),
+    ])
+  })
+
+  it('reads attributes as browsers do', () => {
+    const html =
+      '<script data-note="a > b">self.a=1</script>' +
+      "<script data-src='/x.js'>self.b=2</script>" +
+      '<script\nSRC = "/c.js"></script>' +
+      '<script async src=/d.js></script>' +
+      '<script defer\tsrc></script>'
+    expect(inlineScriptHashes(html)).toEqual([scriptHash('self.a=1'), scriptHash('self.b=2')])
+  })
+
+  it('ignores elements whose names only start with script', () => {
+    const html = '<scripts>no</scripts><script-x>no</script-x><script>yes</script>'
+    expect(inlineScriptHashes(html)).toEqual([scriptHash('yes')])
   })
 
   it('finds inline event handlers, which the policy would block', () => {
