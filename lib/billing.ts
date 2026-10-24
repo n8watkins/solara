@@ -5,7 +5,9 @@ import { callFunction, functionsApiConfigured } from './functions-api'
 import { normalizePrefs } from './prefs'
 import type { UserPreferences } from './types'
 
-export const PRO_PRICE = process.env.NEXT_PUBLIC_PRO_PRICE || '$3.99/mo'
+// Prices and the plan comparison live in lib/plans.ts (no Firebase), shared with the
+// landing page; they are re-exported here for the billing UI.
+export { PRO_FEATURES, PRO_PLAN, type ProFeature } from './plans'
 
 /** Whether authenticated server-side checkout is deployed and configured. */
 export function isCheckoutConfigured(): boolean {
@@ -77,17 +79,3 @@ export function observeCheckoutResult(
     onError,
   )
 }
-
-export interface ProFeature {
-  label: string
-  free: string | boolean
-  pro: string | boolean
-}
-
-/** Single source of truth for the Free-vs-Pro comparison shown in the pricing modal. */
-export const PRO_FEATURES: ProFeature[] = [
-  { label: 'Outdoor activities', free: '3', pro: 'Up to 20' },
-  { label: 'Forecast horizon', free: '2 days', pro: '10 days' },
-  { label: 'Best-day planning', free: '2 days', pro: 'Full 10-day' },
-  { label: 'Calendar sync', free: true, pro: true },
-]

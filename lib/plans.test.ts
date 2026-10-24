@@ -1,0 +1,40 @@
+import { describe, expect, it } from 'vitest'
+import { PRO_FEATURES, PRO_PLAN } from './plans'
+
+describe('PRO_PLAN', () => {
+  it('prices Pro monthly or yearly with a 7-day free trial', () => {
+    expect(PRO_PLAN).toMatchObject({ monthly: '$2.99', yearly: '$19.99', trialDays: 7 })
+  })
+
+  it('works out the yearly saving from the two prices', () => {
+    // $19.99 against 12 x $2.99 = $35.88.
+    expect(PRO_PLAN.yearlySavingPercent).toBe(44)
+  })
+})
+
+describe('PRO_FEATURES', () => {
+  const row = (label: string) => PRO_FEATURES.find(feature => feature.label === label)
+
+  it('follows the tier rules for each plan', () => {
+    expect(row('Forecast')).toMatchObject({
+      guest: 'Today',
+      free: 'Today and tomorrow',
+      pro: '10 days',
+    })
+    expect(row('Activities')).toMatchObject({ guest: '1', free: '3', pro: '20' })
+    expect(row('Your plan')).toMatchObject({
+      guest: 'This device',
+      free: 'Synced',
+      pro: 'Synced',
+    })
+  })
+
+  it('keeps calendar, family profiles and morning alerts for Pro', () => {
+    for (const label of ['Calendar sync', 'Family profiles', 'Morning alerts']) {
+      expect(row(label)).toMatchObject({ guest: false, free: false })
+      expect(row(label)?.pro).toBeTruthy()
+    }
+    // Alerts relaunch with Pro (D6), so they are listed as coming soon.
+    expect(row('Morning alerts')?.pro).toBe('Coming soon')
+  })
+})

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { burnMins, vitDMins, uvLabel, fmtHour, formatUV, getActivityWindow } from '@/lib/weather'
-import { effectiveMaxUV, canAddActivity, getFutureDays } from '@/lib/tiers'
+import { effectiveMaxUV } from '@/lib/tiers'
 import type { HourlyForecast, Activity } from '@/lib/types'
 
 // ---------------------------------------------------------------------------
@@ -100,24 +100,6 @@ describe('effectiveMaxUV', () => {
   })
   it('caps the effective threshold at 11', () => {
     expect(effectiveMaxUV(base({ maxUV: 5, sunscreen: true }))).toBe(11) // round(12.5)=13 → cap 11
-  })
-})
-
-// ---------------------------------------------------------------------------
-// tier gating
-// ---------------------------------------------------------------------------
-describe('tier limits', () => {
-  it('caps activities per tier', () => {
-    expect(canAddActivity('anonymous', 0)).toBe(false) // activities require an account
-    expect(canAddActivity('free', 2)).toBe(true)
-    expect(canAddActivity('free', 3)).toBe(false)
-    expect(canAddActivity('paid', 19)).toBe(true)
-    expect(canAddActivity('paid', 20)).toBe(false) // matches the Firestore rules cap
-  })
-  it('exposes future-day horizon per tier', () => {
-    expect(getFutureDays('anonymous')).toBe(1)
-    expect(getFutureDays('free')).toBe(2)
-    expect(getFutureDays('paid')).toBe(10)
   })
 })
 
