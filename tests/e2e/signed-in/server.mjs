@@ -11,10 +11,11 @@
 // Reads SIGNED_IN_PORT, SIGNED_IN_SITE_DIR, SIGNED_IN_PROJECT and the emulator ports
 // that run.mjs exports (SIGNED_IN_AUTH_PORT, SIGNED_IN_FIRESTORE_PORT,
 // SIGNED_IN_FUNCTIONS_PORT).
-import { createReadStream, existsSync, statSync } from 'node:fs'
+import { existsSync } from 'node:fs'
 import { createServer, request } from 'node:http'
 import { createServer as createTcpServer } from 'node:net'
-import { extname, join, normalize, resolve, sep } from 'node:path'
+import { join, resolve } from 'node:path'
+import { createStaticHandler } from '../../static-server.mts'
 
 const HOST = '127.0.0.1'
 
@@ -53,51 +54,6 @@ const ROUTES = [
   // Functions: NEXT_PUBLIC_FUNCTIONS_URL is <origin>/<project>/us-central1.
   { prefix: `/${project}/`, port: functionsPort, functions: true },
 ]
-
-const TYPES = {
-  '.html': 'text/html; charset=utf-8',
-  '.js': 'text/javascript; charset=utf-8',
-  '.css': 'text/css; charset=utf-8',
-  '.json': 'application/json',
-  '.webmanifest': 'application/manifest+json',
-  '.txt': 'text/plain; charset=utf-8',
-  '.svg': 'image/svg+xml',
-  '.png': 'image/png',
-  '.ico': 'image/x-icon',
-  '.woff2': 'font/woff2',
-}
-
-/** The export file for a URL path, with the trailing-slash routing Firebase Hosting uses. */
-function resolveFile(urlPath) {
-  let decoded
-  try {
-    decoded = decodeURIComponent(urlPath.split('?')[0] ?? '/')
-  } catch {
-    return null
-  }
-  const target = normalize(join(root, decoded))
-  if (target !== root && !target.startsWith(root + sep)) return null
-  if (existsSync(target) && statSync(target).isFile()) return target
-  const index = join(target, 'index.html')
-  if (existsSync(index)) return index
-  return null
-}
-
-function serveStatic(req, res) {
-  const file = resolveFile(req.url || '/')
-  if (!file) {
-    const notFound = join(root, '404.html')
-    res.writeHead(404, { 'Content-Type': TYPES['.html'], 'Cache-Control': 'no-store' })
-    if (existsSync(notFound)) createReadStream(notFound).pipe(res)
-    else res.end('Not found')
-    return
-  }
-  res.writeHead(200, {
-    'Content-Type': TYPES[extname(file)] || 'application/octet-stream',
-    'Cache-Control': 'no-store',
-  })
-  createReadStream(file).pipe(res)
-}
 
 function forward(req, res, route) {
   const headers = { ...req.headers, host: `${HOST}:${route.port}` }
@@ -153,6 +109,8 @@ while (!(await portIsFree(port))) {
   }
   await new Promise(resolveDelay => setTimeout(resolveDelay, 250))
 }
+
+const serveStatic = createStaticHandler(root)
 
 createServer((req, res) => {
   const route = ROUTES.find(r => (req.url || '/').startsWith(r.prefix))
