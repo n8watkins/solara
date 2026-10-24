@@ -19,11 +19,6 @@ export function activityBadge(
   return { status: 'avoid', label: plan.elapsed ? 'None left' : 'No match' }
 }
 
-/** "45m", "1h", "1.5h". */
-export function durationLabel(mins: number): string {
-  return mins < 60 ? `${mins}m` : `${mins / 60}h`
-}
-
 /** The "Best window" row: the window's range, or why there is none. */
 export function bestWindowLabel(
   plan: Pick<ActivityDayPlan, 'bestWindow' | 'elapsed'>,

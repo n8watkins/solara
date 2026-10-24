@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import {
   activityBadge,
   bestWindowLabel,
-  durationLabel,
   isRecommendationScheduled,
   matchTone,
 } from './activity-card-view'
@@ -24,12 +23,6 @@ describe('activityBadge', () => {
     expect(activityBadge({ startsNow: false, slot: null, elapsed: false }, true).label).toBe(
       'No match',
     )
-  })
-})
-
-describe('durationLabel', () => {
-  it('uses minutes under an hour, else hours', () => {
-    expect([45, 60, 90].map(durationLabel)).toEqual(['45m', '1h', '1.5h'])
   })
 })
 

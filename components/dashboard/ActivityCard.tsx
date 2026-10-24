@@ -8,10 +8,10 @@ import { useUnits } from '@/lib/use-units'
 import {
   activityBadge,
   bestWindowLabel,
-  durationLabel,
   isRecommendationScheduled,
   matchTone,
 } from '@/lib/activity-card-view'
+import { formatActivityDuration } from '@/lib/activity-presets'
 import RecommendedSlot from './RecommendedSlot'
 import ScheduledCardRow from './ScheduledCardRow'
 import WindowRow from './WindowRow'
@@ -103,7 +103,7 @@ export default function ActivityCard({
           label={activity.sunscreen ? 'UV limit w/ SPF' : 'Planning UV limit'}
           val={String(safeUv)}
         />
-        <Stat label="Duration" val={durationLabel(activity.durationMins)} />
+        <Stat label="Duration" val={formatActivityDuration(activity.durationMins)} />
         {activity.preferredHours && (
           <Stat
             label="Preferred"
