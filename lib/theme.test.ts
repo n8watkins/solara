@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  DARK_QUERY,
   THEME_INIT_SCRIPT,
   THEME_STORAGE_KEY,
   getStoredTheme,
@@ -155,6 +156,16 @@ describe('THEME_INIT_SCRIPT (blocking head script)', () => {
     const expected = getStoredTheme()
     expect(browser.root.classList.contains('dark')).toBe(expected === 'dark')
     expect(browser.root.style.colorScheme).toBe(expected)
+  })
+
+  it('reads the same storage key and media query as the React side', () => {
+    // The script is a fixed literal; these keep it in step with the constants.
+    expect(THEME_INIT_SCRIPT).toContain(
+      `localStorage.getItem(${JSON.stringify(THEME_STORAGE_KEY)})`,
+    )
+    expect(THEME_INIT_SCRIPT).toContain(`window.matchMedia(${JSON.stringify(DARK_QUERY)})`)
+    // Inlined into HTML: nothing in it may end the <script> element early.
+    expect(THEME_INIT_SCRIPT).not.toMatch(/<\/|<!--/)
   })
 
   it('never throws when storage is blocked', () => {

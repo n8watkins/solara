@@ -12,7 +12,7 @@ export type Theme = 'light' | 'dark'
 
 export const THEME_STORAGE_KEY = 'solara_theme'
 export const THEME_CHANGE_EVENT = 'solara-theme-change'
-const DARK_QUERY = '(prefers-color-scheme: dark)'
+export const DARK_QUERY = '(prefers-color-scheme: dark)'
 
 export const THEME_PREFERENCES: readonly ThemePreference[] = ['system', 'light', 'dark']
 
@@ -101,9 +101,7 @@ export function subscribeToTheme(onChange: () => void): () => void {
 }
 
 // Runs before first paint. Plain ES5 with no dependencies, wrapped in try/catch
-// so a storage error can never block rendering.
-export const THEME_INIT_SCRIPT = `(function(){try{var p=null;try{p=localStorage.getItem(${JSON.stringify(
-  THEME_STORAGE_KEY,
-)})}catch(e){}var d=p==='dark'||(p!=='light'&&window.matchMedia&&window.matchMedia(${JSON.stringify(
-  DARK_QUERY,
-)}).matches);var r=document.documentElement;if(d)r.classList.add('dark');else r.classList.remove('dark');r.style.colorScheme=d?'dark':'light'}catch(e){}})()`
+// so a storage error can never block rendering. A fixed literal, not built from
+// values, so nothing can change the code that runs (and its CSP hash) except an
+// edit here; theme.test.ts checks it still names THEME_STORAGE_KEY and DARK_QUERY.
+export const THEME_INIT_SCRIPT = `(function(){try{var p=null;try{p=localStorage.getItem("solara_theme")}catch(e){}var d=p==='dark'||(p!=='light'&&window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches);var r=document.documentElement;if(d)r.classList.add('dark');else r.classList.remove('dark');r.style.colorScheme=d?'dark':'light'}catch(e){}})()`
