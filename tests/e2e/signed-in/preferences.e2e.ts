@@ -21,6 +21,33 @@ test('saves settings to the account and restores them on reload', async ({ page,
   await expect(settings.getByRole('combobox', { name: 'Skin type' })).toHaveValue('medium')
 })
 
+test('a full browser storage never stops a settings change from reaching the account', async ({
+  page,
+  emulators,
+}) => {
+  const account = await emulators.createAccount('Ida Lowe')
+  await emulators.seedPrefs(account)
+  await openDashboard(page, account)
+  const errors: string[] = []
+  page.on('pageerror', error => errors.push(error.message))
+  // Storage is full (or blocked): every write throws, as browsers do over quota.
+  await page.evaluate(() => {
+    Storage.prototype.setItem = () => {
+      throw new DOMException('The quota has been exceeded.', 'QuotaExceededError')
+    }
+  })
+
+  await accountMenu(page, 'Settings')
+  const settings = page.getByRole('dialog', { name: 'Settings' })
+  await settings.getByRole('combobox', { name: 'Skin type' }).selectOption({ label: 'Medium' })
+  await settings.getByRole('button', { name: 'Save settings' }).click()
+  await expect(settings).toBeHidden()
+
+  await expect(page.getByText('Now · medium skin, no SPF')).toBeVisible()
+  await expect.poll(async () => (await emulators.readPrefs(account))?.skinType).toBe('medium')
+  expect(errors).toEqual([])
+})
+
 test('discarding unsaved settings leaves the account alone', async ({ page, emulators }) => {
   const account = await emulators.createAccount('Fin Ross')
   await emulators.seedPrefs(account)
