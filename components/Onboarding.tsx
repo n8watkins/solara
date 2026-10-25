@@ -4,7 +4,7 @@ import clsx from 'clsx'
 import type { User } from 'firebase/auth'
 import { createAccountPrefs, defaultPrefs } from '@/lib/prefs'
 import type { UserPreferences, Location, SkinType } from '@/lib/types'
-import { locationFromCoordinates, searchLocation } from '@/lib/geocoding'
+import { locationFromCoordinates } from '@/lib/geocoding'
 import {
   ONBOARDING_BACK,
   ONBOARDING_PROGRESS,
@@ -13,6 +13,7 @@ import {
   type OnboardingStep,
 } from '@/lib/onboarding'
 import { FinishStep, LocationStep, SkinStep, UVPreviewStep } from './OnboardingSteps'
+import type { PlaceSearchMiss } from './PlaceSearch'
 
 interface Props {
   /** The signed-in account that has no saved plan yet, or null for a visitor. */
@@ -70,20 +71,23 @@ export default function Onboarding({ user, onSignedIn, onStartAsGuest }: Props) 
     )
   }
 
-  async function handleCitySearch() {
-    if (!cityInput.trim()) return
-    setLocLoad(true)
+  async function handlePlaceChosen(loc: Location) {
     setGeoError(null)
+    setLocLoad(true)
     try {
-      const loc = await searchLocation(cityInput)
-      if (!loc) throw new Error('Not found')
       setLocation(loc)
       await fetchUVPreview(loc)
-    } catch {
-      setGeoError('City not found. Try a different spelling.')
     } finally {
       setLocLoad(false)
     }
+  }
+
+  function handlePlaceMiss(reason: PlaceSearchMiss) {
+    setGeoError(
+      reason === 'none'
+        ? 'City not found. Try a different spelling.'
+        : "Place search isn't reachable right now. Check your connection and try again.",
+    )
   }
 
   // The live UV is a preview only: when it cannot load, setup moves on to skin type.
@@ -135,8 +139,12 @@ export default function Onboarding({ user, onSignedIn, onStartAsGuest }: Props) 
           {step === 'location' && (
             <LocationStep
               city={cityInput}
-              onCityChange={setCityInput}
-              onSearch={() => void handleCitySearch()}
+              onCityChange={city => {
+                setCityInput(city)
+                setGeoError(null)
+              }}
+              onSelectPlace={loc => void handlePlaceChosen(loc)}
+              onMiss={handlePlaceMiss}
               onGeolocate={handleGeolocate}
               loading={locLoading}
               error={geoError}
