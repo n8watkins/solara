@@ -84,6 +84,15 @@
               "value": "noindex, nofollow"
             }
           ]
+        },
+        {
+          "source": "/@(sw|firebase-messaging-sw).js",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "no-cache"
+            }
+          ]
         }
       ],
       "trailingSlash": true

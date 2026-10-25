@@ -34,6 +34,9 @@ export default defineConfig({
     baseURL: `http://127.0.0.1:${port}`,
     screenshot: 'only-on-failure',
     trace: 'retain-on-failure',
+    // The app registers the app-shell service worker, which would answer the page's
+    // own files from its cache; only tests/e2e/offline.spec.ts lets it run.
+    serviceWorkers: 'block',
   },
   projects: [
     {

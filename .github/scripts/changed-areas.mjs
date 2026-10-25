@@ -164,7 +164,7 @@ export const RULES = [
     match: any(/^public\//),
   },
   {
-    // generate-sw, static-pages, csp and the build checks run around production
+    // build-sw, static-pages, csp and the build checks run around production
     // builds; the harness builds with `next build` directly.
     why: 'build scripts',
     areas: ['unit', 'web', 'signed-in', 'integrations'],

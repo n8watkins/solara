@@ -29,3 +29,18 @@ test('serves hashed assets as immutable', { tag: '@smoke' }, async ({ page, requ
   expect(asset.status()).toBe(200)
   expect(asset.headers()['cache-control']).toContain('immutable')
 })
+
+test('serves the service workers uncached', { tag: '@smoke' }, async ({ request }) => {
+  // A long-cached worker would keep a deploy from reaching anyone (scripts/build-sw.mjs).
+  for (const path of ['/sw.js', '/firebase-messaging-sw.js']) {
+    const worker = await request.get(path)
+    expect(worker.status(), path).toBe(200)
+    expect(worker.headers()['content-type'], path).toContain('javascript')
+    expect(worker.headers()['cache-control'], path).toBe('no-cache')
+  }
+  // The shell worker stays small and free of Firebase; the push worker carries it.
+  const shell = await (await request.get('/sw.js')).text()
+  expect(shell.length).toBeLessThan(16 * 1024)
+  expect(shell).not.toContain('firebase')
+  expect(shell).toContain('solara-shell-')
+})
