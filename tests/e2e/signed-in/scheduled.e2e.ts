@@ -330,3 +330,42 @@ test('closing the Google popup leaves Connect calendar, Scheduled and booking us
   await expect(list.getByText('In sync with Google Calendar')).toBeVisible()
   expect(googleCalendar.solaraEvents()).toHaveLength(1)
 })
+
+test('with more stored records than one read returns, the upcoming ones still show', async ({
+  page,
+  emulators,
+  googleCalendar,
+}) => {
+  const account = await paidRunner(emulators, 'Ari Stone')
+  // A full read's worth of recent history (ended, but kept for 30 days)...
+  const history = Array.from({ length: 100 }, (_, i) => {
+    const day = String(1 + (i % 14)).padStart(2, '0')
+    const hour = String(6 + Math.floor(i / 14)).padStart(2, '0')
+    return {
+      ...recordFor(
+        {
+          id: `past${String(i).padStart(3, '0')}`,
+          status: 'confirmed',
+          htmlLink: `https://www.google.com/calendar/event?eid=past${i}`,
+          summary: '🏃 Running: lower-UV window',
+          start: { dateTime: `2026-06-${day}T${hour}:00:00-07:00` },
+          end: { dateTime: `2026-06-${day}T${hour}:45:00-07:00` },
+        },
+        'run',
+        '🏃',
+      ),
+    }
+  })
+  await Promise.all(history.map(record => emulators.seedScheduled(account, record)))
+  // ...and one upcoming run tonight.
+  const run = solaraEvent(googleCalendar, RUNNING, '2026-06-15T18:00:00', '2026-06-15T18:45:00')
+  await emulators.seedScheduled(account, recordFor(run, 'run', '🏃'))
+
+  await openDashboard(page, account)
+  const main = await openCalendar(page)
+  await expect(
+    main
+      .getByRole('region', { name: 'Scheduled' })
+      .getByRole('button', { name: 'Scheduled: Running Today · 6pm – 6:45pm' }),
+  ).toBeVisible()
+})

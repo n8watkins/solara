@@ -233,13 +233,21 @@ function scheduledCollection(uid: string) {
 /**
  * Live list of the account's scheduled activities, by start time. Invalid records
  * are skipped. Returns the unsubscribe function.
+ *
+ * A read is capped at SCHEDULED_LIMITS.listLimit records (the rules require it), so
+ * it takes the latest-starting ones: upcoming events always make the list, and only
+ * the oldest history can fall outside it until pruning catches up.
  */
 export function subscribeScheduled(
   uid: string,
   onItems: (items: ScheduledActivity[]) => void,
   onError: (error: Error) => void,
 ): () => void {
-  const q = query(scheduledCollection(uid), orderBy('start'), limit(SCHEDULED_LIMITS.listLimit))
+  const q = query(
+    scheduledCollection(uid),
+    orderBy('start', 'desc'),
+    limit(SCHEDULED_LIMITS.listLimit),
+  )
   return onSnapshot(
     q,
     snapshot => {
@@ -248,7 +256,7 @@ export function subscribeScheduled(
         const item = parseScheduledActivity(d.data())
         if (item && item.eventId === d.id) items.push(item)
       }
-      onItems(items)
+      onItems(items.reverse())
     },
     onError,
   )
