@@ -23,7 +23,7 @@ What users get:
   Lighthouse mobile LCP for `/app/` is about 2.1 s (was 4.4-6.3 s), and a guest's first load is about 196 KB gzip of JavaScript (was over 500 KB), with Valibot instead of Zod, a small forecast store instead of TanStack Query and more parts loaded on demand (#83, #93).
 - A returning account's dashboard shows at once from this browser's copy of it while Firebase loads and Auth confirms the session, and accepts no input until then; signed-in start-up LCP went from about 5.5 s to the same as a guest's (#93).
   Auth's sign-in popup helper (an iframe and Google's scripts) starts only when a sign-in or reauthentication is about to happen.
-- The installed app opens offline (#PRNUM): the app-shell service worker (`/sw.js`) precaches `/` and `/app/` with every file they load, and the app shows the last forecast for the place from this browser's cache with an offline notice that says when it was updated.
+- The installed app opens offline (#94): the app-shell service worker (`/sw.js`) precaches `/` and `/app/` with every file they load, and the app shows the last forecast for the place from this browser's cache with an offline notice that says when it was updated.
   A signed-in account opens read-only from this browser's copy and goes live once the browser is back online.
   Pages always come from the network while online, a deploy installs a new worker that takes over at once and deletes the old caches, and the worker never handles or stores anything cross-origin (Open-Meteo, Firestore, Auth, Functions) or account-specific.
   Lighthouse 11's installability and PWA checks pass.
