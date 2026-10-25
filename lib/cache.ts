@@ -6,9 +6,8 @@
 // store carries a version, each entry is checked against a schema, and anything
 // that does not match is dropped instead of being cast into the app.
 import * as v from 'valibot'
-import { finiteNumber as finite, record } from '@solara/core'
+import { finiteNumber as finite, record, roundCoordinate } from '@solara/core'
 import type { ForecastData } from './types'
-import { roundCoordinate } from './geocoding'
 import { isIsoDate, isValidTimeZone } from './time'
 
 export const CACHE_KEY = 'solara_forecast'
