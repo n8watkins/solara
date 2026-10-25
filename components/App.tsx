@@ -162,7 +162,8 @@ function SignedInApp() {
     <AccountContexts
       onSignedIn={handleSignedIn}
       units={units}
-      // Scheduled activities (Google Calendar) are part of Pro.
+      // Scheduled activities (Google Calendar) come with every account, Free included
+      // (canUseCalendar in lib/tiers.ts).
       uid={user && canUseCalendar(prefs.tier) ? user.uid : null}
       activities={prefs.activities}
     >
