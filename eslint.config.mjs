@@ -45,6 +45,35 @@ export default defineConfig([
     },
   },
   {
+    // Firebase is not part of the app's first load (lib/firebase.ts): only
+    // lib/firebase-services.ts imports the SDK statically, and only lib/firebase.ts
+    // loads that module, with a dynamic import. Everything else takes the started
+    // services from loadFirebase() and SDK functions from `await import('firebase/...')`.
+    // Type-only imports cost nothing at runtime and stay allowed.
+    files: ['app/**/*.{ts,tsx}', 'components/**/*.tsx', 'hooks/**/*.ts', 'lib/**/*.{ts,mts}'],
+    ignores: ['lib/firebase-services.ts', '**/*.test.ts'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              regex: '^@?firebase(/|$)',
+              allowTypeImports: true,
+              message:
+                "Firebase loads on demand: use loadFirebase() from lib/firebase.ts and `await import('firebase/...')`.",
+            },
+            {
+              regex: '(^|/)firebase-services$',
+              allowTypeImports: true,
+              message: 'Only lib/firebase.ts loads this module (loadFirebase).',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: ['**/*.js'],
     rules: {
       '@typescript-eslint/no-require-imports': 'off',

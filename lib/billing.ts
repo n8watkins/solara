@@ -1,6 +1,5 @@
 import type { User } from 'firebase/auth'
-import { doc, onSnapshot } from 'firebase/firestore'
-import { db } from './firebase'
+import { lazySubscription, loadFirebase } from './firebase'
 import { callFunction, functionsApiConfigured } from './functions-api'
 import { normalizePrefs } from './prefs'
 import type { UserPreferences } from './types'
@@ -49,33 +48,37 @@ export function observeCheckoutResult(
   onResult: (result: CheckoutResult) => void,
   onError: () => void,
 ): () => void {
-  if (!db) {
-    onError()
-    return () => {}
-  }
-  return onSnapshot(
-    doc(db, 'users', uid),
-    snapshot => {
-      if (!snapshot.exists()) {
-        onResult({ status: 'waiting' })
-        return
-      }
-      const raw = snapshot.data()
-      if (raw.stripeCheckoutSessionId !== sessionId) {
-        onResult({ status: 'waiting' })
-        return
-      }
-      if (raw.stripeCheckoutStatus === 'failed') {
-        onResult({ status: 'failed' })
-        return
-      }
-      const prefs = normalizePrefs(raw)
-      if (raw.stripeCheckoutStatus === 'succeeded' && prefs?.tier === 'paid') {
-        onResult({ status: 'succeeded', prefs })
-        return
-      }
-      onResult({ status: 'pending' })
-    },
-    onError,
-  )
+  return lazySubscription(async () => {
+    const db = (await loadFirebase())?.db
+    if (!db) {
+      onError()
+      return null
+    }
+    const { doc, onSnapshot } = await import('firebase/firestore')
+    return onSnapshot(
+      doc(db, 'users', uid),
+      snapshot => {
+        if (!snapshot.exists()) {
+          onResult({ status: 'waiting' })
+          return
+        }
+        const raw = snapshot.data()
+        if (raw.stripeCheckoutSessionId !== sessionId) {
+          onResult({ status: 'waiting' })
+          return
+        }
+        if (raw.stripeCheckoutStatus === 'failed') {
+          onResult({ status: 'failed' })
+          return
+        }
+        const prefs = normalizePrefs(raw)
+        if (raw.stripeCheckoutStatus === 'succeeded' && prefs?.tier === 'paid') {
+          onResult({ status: 'succeeded', prefs })
+          return
+        }
+        onResult({ status: 'pending' })
+      },
+      onError,
+    )
+  }, onError)
 }

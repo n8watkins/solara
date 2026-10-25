@@ -2,6 +2,7 @@
 // signing out or by its session simply ending, the next account to sign in on the
 // same browser must inherit nothing from it.
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type * as Firebase from '@/lib/firebase'
 
 const mocks = vi.hoisted(() => ({
   // In-memory Firestore `users` collection, keyed by uid.
@@ -54,18 +55,24 @@ vi.mock('firebase/messaging', () => ({
   deleteToken: mocks.deleteToken,
   onMessage: vi.fn(() => () => {}),
 }))
-vi.mock('@/lib/firebase', () => ({
-  app: { kind: 'app' },
-  appCheck: null,
-  appCheckConfigured: () => true,
-  appCheckToken: async () => 'app-check-token',
-  db: { kind: 'db' },
-  auth: {
-    get currentUser() {
-      return mocks.currentUser
+vi.mock('@/lib/firebase', async importOriginal => {
+  const services = {
+    app: { kind: 'app' },
+    db: { kind: 'db' },
+    auth: {
+      get currentUser() {
+        return mocks.currentUser
+      },
     },
-  },
-}))
+  }
+  return {
+    ...(await importOriginal<typeof Firebase>()),
+    appCheckConfigured: () => true,
+    appCheckToken: async () => 'app-check-token',
+    loadFirebase: async () => services,
+    loadedFirebase: () => services,
+  }
+})
 
 import { setCachedForecast } from '@/lib/cache'
 import { createAccountPrefs, defaultPrefs, saveLocalPrefs } from '@/lib/prefs'

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type * as Firebase from '@/lib/firebase'
 
 const mocks = vi.hoisted(() => ({
   getAppCheckToken: vi.fn(),
@@ -14,11 +15,14 @@ vi.mock('firebase/messaging', () => ({
   onMessage: vi.fn(() => () => {}),
 }))
 
-vi.mock('@/lib/firebase', () => ({
-  app: { kind: 'app' },
+vi.mock('@/lib/firebase', async importOriginal => ({
+  ...(await importOriginal<typeof Firebase>()),
   appCheckConfigured: () => !!process.env.NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY,
   appCheckToken: mocks.getAppCheckToken,
-  auth: { currentUser: { uid: 'user-1', getIdToken: mocks.getIdToken } },
+  loadFirebase: async () => ({
+    app: { kind: 'app' },
+    auth: { currentUser: { uid: 'user-1', getIdToken: mocks.getIdToken } },
+  }),
 }))
 
 import {

@@ -3,10 +3,15 @@
 import Link from 'next/link'
 import { APP_PATH, SIGN_IN_PATH } from '@/lib/app-routes'
 import type { User } from 'firebase/auth'
-import { onAuthStateChanged, reauthenticateWithPopup, signOut } from 'firebase/auth'
 import { useEffect, useState, type ReactNode } from 'react'
 import clsx from 'clsx'
-import { auth, googleProvider } from '@/lib/firebase'
+import {
+  firebaseEnabled,
+  loadedFirebase,
+  loadFirebase,
+  storedSessionHint,
+  storedSessionInIndexedDb,
+} from '@/lib/firebase'
 import { createBillingPortalUrl } from '@/lib/billing'
 import { callFunction, functionsApiConfigured } from '@/lib/functions-api'
 import { clearLocalPrefs } from '@/lib/prefs'
@@ -23,15 +28,27 @@ export default function AccountPage() {
   const [deletionPending, setDeletionPending] = useState(false)
 
   useEffect(() => {
-    if (!auth) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- With no Firebase config there is no auth subscription to wait for, so readiness is set after mount like the subscribed path.
-      setAuthReady(true)
-      return
+    // Firebase loads only when this browser holds a session (lib/firebase.ts).
+    let unsubscribe: (() => void) | null = null
+    let disposed = false
+    const signedOut = () => {
+      if (!disposed) setAuthReady(true)
     }
-    return onAuthStateChanged(auth, value => {
-      setUser(value)
-      setAuthReady(true)
-    })
+    void (async () => {
+      const session = firebaseEnabled && (storedSessionHint() || (await storedSessionInIndexedDb()))
+      const auth = session ? (await loadFirebase())?.auth : null
+      if (!auth) return signedOut()
+      const { onAuthStateChanged } = await import('firebase/auth')
+      if (disposed) return
+      unsubscribe = onAuthStateChanged(auth, value => {
+        setUser(value)
+        setAuthReady(true)
+      })
+    })().catch(signedOut)
+    return () => {
+      disposed = true
+      unsubscribe?.()
+    }
   }, [])
 
   useEffect(() => {
@@ -82,7 +99,9 @@ export default function AccountPage() {
     setBusy('delete')
     setMessage('')
     try {
+      const googleProvider = loadedFirebase()?.googleProvider
       if (!googleProvider) throw new Error('Google reauthentication is not configured.')
+      const { reauthenticateWithPopup, signOut } = await import('firebase/auth')
       await reauthenticateWithPopup(user, googleProvider)
       // A limited-use App Check token is consumed by the server, so this request cannot be
       // replayed.
@@ -95,6 +114,7 @@ export default function AccountPage() {
       })
       clearLocalPrefs()
       await clearLocalNotificationState(user.uid)
+      const auth = loadedFirebase()?.auth
       if (auth) await signOut(auth)
       window.location.assign(
         result.deletionPending ? '/account/?deletion=pending' : '/?account=deleted',

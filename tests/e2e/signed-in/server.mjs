@@ -3,7 +3,7 @@
 //
 // Serves the emulator build of the static export and forwards the Firebase emulator
 // APIs on the same origin. The app connects its Auth and Firestore SDKs to
-// `location.origin` (connectEmulators in lib/firebase.ts) and calls Functions at
+// `location.origin` (connectEmulators in lib/firebase-services.ts) and calls Functions at
 // `<origin>/<project>/us-central1`, so every request the app makes stays within the
 // export's real Content-Security-Policy ('self') instead of needing extra hosts.
 //

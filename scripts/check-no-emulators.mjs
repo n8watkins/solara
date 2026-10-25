@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Proves a static export never connects to the Firebase Local Emulator Suite.
 //
-// lib/firebase.ts connects Auth, Firestore and App Check to local emulators only in
+// lib/firebase-services.ts connects Auth, Firestore and App Check to local emulators only in
 // builds made with NEXT_PUBLIC_FIREBASE_EMULATORS=1, which only the signed-in e2e
 // suite makes (tests/e2e/signed-in/run.mjs, into its own directory). This check runs
 // after `npm run build` (postbuild), the only production build, and fails when:
@@ -18,7 +18,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import nextEnv from '@next/env'
 
-// Keep in sync with connectEmulators and emulatorAppCheckProvider in lib/firebase.ts.
+// Keep in sync with connectEmulators and emulatorAppCheckProvider in lib/firebase-services.ts.
 const MARKER = 'solara-firebase-emulators'
 const FLAG = 'NEXT_PUBLIC_FIREBASE_EMULATORS'
 const TEXT_EXTENSIONS = /\.(html|js|mjs|json|txt|css|rsc)$/

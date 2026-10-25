@@ -8,8 +8,7 @@
 
 import { isValidFeedToken } from '@solara/core'
 import type { User } from 'firebase/auth'
-import { doc, onSnapshot } from 'firebase/firestore'
-import { db } from './firebase'
+import { lazySubscription, loadFirebase } from './firebase'
 import { callFunction, functionsApiConfigured, functionsBaseUrl } from './functions-api'
 
 /** Whether the feed functions are deployed and callable from this build. */
@@ -41,21 +40,25 @@ export function watchFeedToken(
   onChange: (state: FeedTokenState) => void,
   onError: (error: Error) => void,
 ): () => void {
-  if (!db) {
-    onError(new Error('Firebase is not configured'))
-    return () => {}
-  }
   onChange({ status: 'loading' })
-  return onSnapshot(
-    doc(db, 'users', uid, 'private', 'calendarFeed'),
-    snapshot => {
-      const token: unknown = snapshot.exists() ? snapshot.get('token') : null
-      onChange({
-        status: 'ready',
-        token: isValidFeedToken(token) ? token : null,
-      })
+  return lazySubscription(
+    async () => {
+      const db = (await loadFirebase())?.db
+      if (!db) throw new Error('Firebase is not configured')
+      const { doc, onSnapshot } = await import('firebase/firestore')
+      return onSnapshot(
+        doc(db, 'users', uid, 'private', 'calendarFeed'),
+        snapshot => {
+          const token: unknown = snapshot.exists() ? snapshot.get('token') : null
+          onChange({
+            status: 'ready',
+            token: isValidFeedToken(token) ? token : null,
+          })
+        },
+        onError,
+      )
     },
-    onError,
+    error => onError(error instanceof Error ? error : new Error(String(error))),
   )
 }
 

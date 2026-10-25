@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type * as Firebase from '@/lib/firebase'
 
 const mocks = vi.hoisted(() => ({
   onSnapshot: vi.fn(),
@@ -10,8 +11,9 @@ vi.mock('firebase/firestore', () => ({
   onSnapshot: mocks.onSnapshot,
 }))
 
-vi.mock('@/lib/firebase', () => ({
-  db: { kind: 'test-db' },
+vi.mock('@/lib/firebase', async importOriginal => ({
+  ...(await importOriginal<typeof Firebase>()),
+  loadFirebase: async () => ({ db: { kind: 'test-db' } }),
   appCheckConfigured: () => !!process.env.NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY,
   appCheckToken: mocks.appCheckToken,
 }))
@@ -92,7 +94,7 @@ describe('server-minted feed tokens', () => {
     )
   })
 
-  it('follows the owner-readable token document', () => {
+  it('follows the owner-readable token document', async () => {
     const states: unknown[] = []
     mocks.onSnapshot.mockImplementation((ref: { path: string }, next: (s: unknown) => void) => {
       expect(ref.path).toBe('users/user-1/private/calendarFeed')
@@ -102,6 +104,9 @@ describe('server-minted feed tokens', () => {
       return () => {}
     })
     watchFeedToken('user-1', state => states.push(state), vi.fn())
+    expect(states).toEqual([{ status: 'loading' }])
+    // Firestore loads on demand, then the listener starts.
+    await vi.waitFor(() => expect(states).toHaveLength(4))
     expect(states).toEqual([
       { status: 'loading' },
       { status: 'ready', token: TOKEN },

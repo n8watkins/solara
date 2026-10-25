@@ -14,7 +14,7 @@ vi.mock('firebase/firestore', () => ({
   runTransaction,
 }))
 
-vi.mock('@/lib/firebase', () => ({ db: { kind: 'test-db' } }))
+vi.mock('@/lib/firebase', () => ({ loadFirebase: async () => ({ db: { kind: 'test-db' } }) }))
 
 import { FirebaseError } from 'firebase/app'
 import {
