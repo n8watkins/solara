@@ -16,8 +16,14 @@ vi.mock('firebase/app', () => ({
 }))
 
 vi.mock('firebase/auth', () => ({
+  browserLocalPersistence: 'local',
+  browserPopupRedirectResolver: 'popup-helper',
+  browserSessionPersistence: 'session',
   connectAuthEmulator: mocks.connectAuthEmulator,
   getAuth: vi.fn(() => ({ kind: 'auth' })),
+  getRedirectResult: vi.fn(async () => null),
+  indexedDBLocalPersistence: 'indexed-db',
+  initializeAuth: vi.fn(() => ({ kind: 'auth' })),
   GoogleAuthProvider: class {},
   onAuthStateChanged: vi.fn(() => () => {}),
 }))

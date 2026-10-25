@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import type { User } from 'firebase/auth'
+import type { AccountIdentity } from './AccountMenu'
 import { goToLanding } from '@/lib/app-routes'
 import type { UserPreferences, TierLevel } from '@/lib/types'
 import { getSavedLocationLimit } from '@/lib/tiers'
@@ -14,6 +15,11 @@ import styles from './Header.module.css'
 
 interface Props {
   user: User | null
+  /**
+   * The account shown in the header: the signed-in user, or the account a stored
+   * session belongs to while Auth confirms it. Defaults to `user`.
+   */
+  account?: AccountIdentity | null
   prefs: UserPreferences
   onPrefsUpdate: (p: UserPreferences) => void
   onGoHome: () => void
@@ -26,6 +32,7 @@ interface Props {
 
 export default function Header({
   user,
+  account = user,
   prefs,
   onPrefsUpdate,
   onGoHome,
@@ -136,9 +143,9 @@ export default function Header({
                 Pro
               </span>
             )}
-            {user ? (
+            {account ? (
               <AccountMenu
-                user={user}
+                user={account}
                 onOpenSettings={() => setShowPrefs(true)}
                 onSignOut={() => void handleSignOut()}
               />

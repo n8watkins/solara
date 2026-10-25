@@ -8,6 +8,7 @@ import { loadGuestPrefs } from '@/lib/guest'
 import { createAccountPrefs } from '@/lib/prefs'
 import { SignedInContext } from '@/lib/signed-in-context'
 import type { UserPreferences } from '@/lib/types'
+import { preloadSignedInParts } from './deferred'
 
 interface Props {
   label?: string
@@ -37,6 +38,12 @@ interface Props {
    * Either way the popup can open within the click's user activation.
    */
   preload?: boolean
+}
+
+/** Loads what sign-in and the signed-in screen need, ahead of the click. */
+function warmUp() {
+  preloadFirebase()
+  void preloadSignedInParts()
 }
 
 const SIZES = {
@@ -81,7 +88,7 @@ export default function GoogleSignInButton({
   const signedIn = use(SignedInContext)
 
   useEffect(() => {
-    if (preload) preloadFirebase()
+    if (preload) warmUp()
   }, [preload])
 
   if (!firebaseEnabled) return null
@@ -105,7 +112,7 @@ export default function GoogleSignInButton({
       const auth = services?.auth
       const provider = services?.googleProvider
       if (!auth || !provider) return
-      const result = await signInWithPopup(auth, provider)
+      const result = await signInWithPopup(auth, provider, services.popupRedirectResolver)
       const u = result.user
       if (!u) return
       // Creates the account only if it does not exist yet, in one transaction, so a
@@ -133,9 +140,9 @@ export default function GoogleSignInButton({
     <div>
       <button
         onClick={() => void handleClick()}
-        onPointerEnter={preloadFirebase}
-        onPointerDown={preloadFirebase}
-        onFocus={preloadFirebase}
+        onPointerEnter={warmUp}
+        onPointerDown={warmUp}
+        onFocus={warmUp}
         disabled={loading}
         className={clsx(
           'flex items-center justify-center gap-2 rounded-[10px] border-[0.5px] border-line-strong bg-surface-card font-semibold text-ink transition-colors duration-[120ms]',

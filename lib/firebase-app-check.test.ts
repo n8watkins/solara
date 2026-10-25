@@ -5,6 +5,8 @@ const mocks = vi.hoisted(() => ({
   initializeAppCheck: vi.fn(() => ({ kind: 'app-check' })),
   getToken: vi.fn(async () => ({ token: 'standard-token' })),
   getLimitedUseToken: vi.fn(async () => ({ token: 'limited-token' })),
+  initializeAuth: vi.fn((_app: unknown, _options: unknown) => ({ kind: 'auth' })),
+  getRedirectResult: vi.fn(async () => null),
 }))
 
 vi.mock('firebase/app', () => ({
@@ -13,8 +15,14 @@ vi.mock('firebase/app', () => ({
 }))
 
 vi.mock('firebase/auth', () => ({
+  browserLocalPersistence: 'local',
+  browserPopupRedirectResolver: 'popup-helper',
+  browserSessionPersistence: 'session',
   getAuth: vi.fn(() => ({ kind: 'auth' })),
+  getRedirectResult: mocks.getRedirectResult,
   GoogleAuthProvider: class {},
+  indexedDBLocalPersistence: 'indexed-db',
+  initializeAuth: mocks.initializeAuth,
   onAuthStateChanged: vi.fn((_auth: unknown, listener: (user: unknown) => void) => {
     mocks.authListener = listener
     return () => {}
@@ -106,5 +114,21 @@ describe('App Check', () => {
   it('treats unknown provider names as v3', async () => {
     const firebase = await loadFirebase()
     expect(firebase.appCheckProviderKind('recaptcha')).toBe('recaptcha-v3')
+  })
+
+  it("starts Auth with getAuth()'s persistence but not its sign-in popup helper", async () => {
+    const firebase = await loadFirebase()
+    expect(mocks.initializeAuth).toHaveBeenCalledWith(
+      { kind: 'app' },
+      { persistence: ['indexed-db', 'local', 'session'] },
+    )
+    expect(mocks.getRedirectResult).not.toHaveBeenCalled()
+
+    // A sign-in about to happen starts the helper, once.
+    firebase.prepareSignInPopup()
+    firebase.prepareSignInPopup()
+    expect(mocks.getRedirectResult).toHaveBeenCalledTimes(1)
+    expect(mocks.getRedirectResult).toHaveBeenCalledWith({ kind: 'auth' }, 'popup-helper')
+    expect(firebase.popupRedirectResolver).toBe('popup-helper')
   })
 })

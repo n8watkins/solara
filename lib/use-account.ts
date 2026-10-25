@@ -1,14 +1,17 @@
 'use client'
 import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import type { User } from 'firebase/auth'
+import { cachedAccount } from './cached-account'
 import {
   loadedFirebase,
   loadFirebase,
   storedSessionHint,
   storedSessionInIndexedDb,
   whenFirebaseLoads,
+  type StoredSessionUser,
 } from './firebase'
 import { loadGuestPrefs } from './guest'
+import { saveLocalPrefs } from './prefs'
 import { useForecastStore } from './use-forecast'
 import {
   ACCOUNT_LOAD_ERROR,
@@ -48,7 +51,11 @@ async function loadSignedInAccount(
  *
  * Firebase loads only for a session this browser already holds, or once someone
  * starts signing in (lib/firebase.ts). Until then the visitor is signed out, so a
- * guest's plan and cached forecast show without waiting for it.
+ * guest's plan and cached forecast show without waiting for it. For a session this
+ * browser holds, the account's dashboard shows at once from this browser's copy of it
+ * (lib/cached-account.ts) while Firebase loads, Auth confirms the session and the saved
+ * account loads; until then `pending` names the account and the app accepts no input.
+ * `prepareSignedIn` loads what the signed-in screen needs before that first paint.
  *
  * `onAccountReset` runs whenever the plan on screen goes away (sign-in from guest
  * mode, sign-out or a switch to another account), so the caller can drop per-account
@@ -60,15 +67,19 @@ async function loadSignedInAccount(
 export function useAccount({
   onAccountReset,
   signInRequested = false,
+  prepareSignedIn,
 }: {
   onAccountReset: () => void
   signInRequested?: boolean
+  prepareSignedIn?: () => Promise<void>
 }) {
   const forecasts = useForecastStore()
   const [user, setUser] = useState<User | null>(null)
   const [prefs, setPrefs] = useState<UserPreferences | null>(null)
   const [screen, setScreen] = useState<AppScreen>('loading')
   const [accountError, setAccountError] = useState<string | null>(null)
+  // The account shown from this browser's copy until its session and plan have loaded.
+  const [pending, setPending] = useState<StoredSessionUser | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
   // The account whose data is on screen, to detect a switch to a different account.
   const accountUid = useRef<string | null>(null)
@@ -92,22 +103,35 @@ export function useAccount({
     signedInAccount.current = null
     const requested = signInRequested
 
+    // Set while the account from this browser's copy is on screen (see cachedAccount).
+    let showingCached = false
+
     async function loadAccount(u: User | null, current: number) {
       const isStale = () => disposed || current !== generation
       const previousUid = accountUid.current
+      const wasCached = showingCached
       accountUid.current = u?.uid ?? null
       setUser(u)
       setAccountError(null)
+      const settle = () => {
+        showingCached = false
+        setPending(null)
+      }
 
       // Signed out: the guest plan kept in this browser, if any. It lives apart from
       // any account's data (lib/guest.ts), so a guest never sees an account's plan.
       if (!u) {
         // Drop the previous account's state so a later sign-in can never show it.
         if (previousUid) resetAccountState()
+        settle()
         const guest = loadGuestPrefs()
         setPrefs(guest)
         setScreen(prev =>
-          screenWhenSignedOut(prev, { hasGuestPlan: !!guest, signInRequested: requested }),
+          // The session shown from this browser's copy has ended: as from a fresh start.
+          screenWhenSignedOut(wasCached ? 'loading' : prev, {
+            hasGuestPlan: !!guest,
+            signInRequested: requested,
+          }),
         )
         return
       }
@@ -115,6 +139,7 @@ export function useAccount({
         // A different account, or a guest who just signed in: nothing on screen may be
         // saved to this account until its own plan has loaded.
         resetAccountState()
+        settle()
         setScreen('loading')
       }
 
@@ -122,6 +147,7 @@ export function useAccount({
       signedIn = null
       const result = await loadSignedInAccount(u.uid, known)
       if (isStale()) return
+      settle()
       if (result.status === 'error') {
         console.error('Account load failed:', result.error)
         setAccountError(accountErrorMessage(result.stage))
@@ -129,13 +155,17 @@ export function useAccount({
         return
       }
       if (result.status === 'needs-onboarding') {
-        setScreen(screenWhenNeedsOnboarding)
+        // The account this browser had a copy of no longer exists: drop the copy too.
+        if (wasCached) resetAccountState()
+        setScreen(prev => screenWhenNeedsOnboarding(wasCached ? 'loading' : prev))
         return
       }
 
       const loaded = result.prefs
       setPrefs(loaded)
       setScreen('dashboard')
+      // This browser's copy, for the next start (lib/cached-account.ts).
+      saveLocalPrefs({ ...loaded, uid: u.uid })
       if (loaded.tier === 'paid') {
         import('./notifications')
           .then(async notifications => {
@@ -166,11 +196,26 @@ export function useAccount({
     if (loadedFirebase()) {
       // Auth's listener, just attached, reports the current user.
     } else if (storedSessionHint()) {
+      let failed = false
       loadFirebase().catch(error => {
         if (disposed) return
         console.error('Account load failed:', error)
+        failed = true
+        showingCached = false
+        setPending(null)
         setAccountError(ACCOUNT_LOAD_ERROR)
         setScreen('loading')
+      })
+      // Meanwhile, the account as this browser last saw it, unless Auth answers first.
+      void cachedAccount().then(async cached => {
+        if (!cached) return
+        await prepareSignedIn?.()
+        if (disposed || failed || generation > 0) return
+        showingCached = true
+        accountUid.current = cached.identity.uid
+        setPrefs(cached.prefs)
+        setPending(cached.identity)
+        setScreen('dashboard')
       })
     } else {
       // Signed out until Auth says otherwise: no waiting for Firebase.
@@ -192,6 +237,7 @@ export function useAccount({
 
   return {
     user,
+    pending,
     prefs,
     setPrefs,
     screen,
