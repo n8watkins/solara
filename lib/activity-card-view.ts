@@ -21,15 +21,19 @@ export function activityBadge(
   return { status: 'avoid', label: 'No match' }
 }
 
-/** The "Best window" row: the window's range, or why there is none. */
+/**
+ * The "Best window" row: the window's range, or why there is none. Null once
+ * today's windows have passed: the "Done for today" badge says so, and the row
+ * is left out rather than saying it again.
+ */
 export function bestWindowLabel(
   plan: Pick<ActivityDayPlan, 'bestWindow' | 'elapsed'>,
   isToday: boolean,
   formatTime: (hour: number) => string,
-): string {
+): string | null {
   const { bestWindow } = plan
   if (bestWindow) return `${formatTime(bestWindow.from)}–${formatTime(bestWindow.to)}`
-  if (plan.elapsed) return 'None left today'
+  if (plan.elapsed) return null
   return isToday ? 'None today' : 'None'
 }
 

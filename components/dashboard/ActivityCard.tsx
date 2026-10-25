@@ -51,12 +51,13 @@ export default function ActivityCard({
   onShare: (win: SafeActivityWindow) => void
   onEdit?: () => void
   onOpenScheduled?: (item: ScheduledActivity) => void
-  /** What to say once today's windows have passed (see windowsPassedNote). */
+  /** What comes next once today's windows have passed (see windowsPassedNote). */
   passedNote?: string
 }) {
   const fmt = useUnits()
   const { activity, bestWindow, windows, slot: rec, pctDaySafe, burnMins } = plan
   const badge = activityBadge(plan, isToday)
+  const bestLabel = bestWindowLabel(plan, isToday, fmt.time)
   const safeUv = effectiveMaxUV(activity)
   const days = fmtDays(activity.daysOfWeek)
   // Once the recommended slot is on the calendar, the Scheduled row replaces it.
@@ -118,11 +119,9 @@ export default function ActivityCard({
         {burnMins !== null && burnMins !== undefined && (
           <Stat label={`Burn time at UV ${safeUv}`} val={`about ${burnMins} min`} />
         )}
-        <Stat
-          label="Best window"
-          val={bestWindowLabel(plan, isToday, fmt.time)}
-          tone={bestWindow ? 'success' : plan.elapsed ? undefined : 'danger'}
-        />
+        {bestLabel !== null && (
+          <Stat label="Best window" val={bestLabel} tone={bestWindow ? 'success' : 'danger'} />
+        )}
       </div>
 
       <div>
@@ -135,43 +134,47 @@ export default function ActivityCard({
         <p className="mt-1 text-[11px] text-ink-3">{pctDaySafe}% of daylight hours fit</p>
       </div>
 
-      <div className="flex flex-col gap-[7px]">
-        <p className="text-[11px] font-bold tracking-[0.055em] text-ink-3 uppercase">
-          {isToday ? 'Lower-UV windows left today' : 'Estimated lower-UV windows'}
-        </p>
-        {windows.length > 0 ? (
-          <div className="flex flex-col gap-1.5">
-            {windows.map(win => (
-              <WindowRow
-                key={`${win.from}-${win.to}`}
-                win={win}
-                isBest={!!bestWindow && win.from === bestWindow.from && win.to === bestWindow.to}
-                cloudNote={!!activity.cloudSensitive && win.peakUV > safeUv}
-                onShare={() => onShare(win)}
-                calendarHref={calendarHref?.(win)}
-                onSchedule={
-                  onBook &&
-                  (() => {
-                    const slot = recommendSlot(
-                      [win],
-                      [],
-                      activity.durationMins,
-                      activity.timePreference ?? 'earliest',
-                    )
-                    if (slot) onBook(slot)
-                  })
-                }
-              />
-            ))}
-          </div>
-        ) : (
-          <p className="text-[12px] leading-[1.45] text-ink-3">
-            {plan.elapsed && passedNote
-              ? passedNote
-              : `No forecast window matches this activity ${isToday ? 'today' : 'this day'}. Try shortening the duration, widening preferred hours, or adjusting the planning UV limit.`}
+      {plan.elapsed ? (
+        // The badge already says today is done; this names what comes next.
+        passedNote && <p className="text-[12px] leading-[1.45] text-ink-3">{passedNote}</p>
+      ) : (
+        <div className="flex flex-col gap-[7px]">
+          <p className="text-[11px] font-bold tracking-[0.055em] text-ink-3 uppercase">
+            {isToday ? 'Lower-UV windows left today' : 'Estimated lower-UV windows'}
           </p>
-        )}
-      </div>
+          {windows.length > 0 ? (
+            <div className="flex flex-col gap-1.5">
+              {windows.map(win => (
+                <WindowRow
+                  key={`${win.from}-${win.to}`}
+                  win={win}
+                  isBest={!!bestWindow && win.from === bestWindow.from && win.to === bestWindow.to}
+                  cloudNote={!!activity.cloudSensitive && win.peakUV > safeUv}
+                  onShare={() => onShare(win)}
+                  calendarHref={calendarHref?.(win)}
+                  onSchedule={
+                    onBook &&
+                    (() => {
+                      const slot = recommendSlot(
+                        [win],
+                        [],
+                        activity.durationMins,
+                        activity.timePreference ?? 'earliest',
+                      )
+                      if (slot) onBook(slot)
+                    })
+                  }
+                />
+              ))}
+            </div>
+          ) : (
+            <p className="text-[12px] leading-[1.45] text-ink-3">
+              No forecast window matches this activity {isToday ? 'today' : 'this day'}. Try
+              shortening the duration, widening preferred hours, or adjusting the planning UV limit.
+            </p>
+          )}
+        </div>
+      )}
     </div>
   )
 }

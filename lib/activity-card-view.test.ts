@@ -28,10 +28,10 @@ describe('activityBadge', () => {
 
 describe('bestWindowLabel', () => {
   const time = (h: number) => `${h}:00`
-  it('shows the range, or why there is none', () => {
+  it('shows the range, why there is none, or nothing once the day is done', () => {
     const win = { from: 16, to: 18 } as never
     expect(bestWindowLabel({ bestWindow: win, elapsed: false }, true, time)).toBe('16:00–18:00')
-    expect(bestWindowLabel({ bestWindow: null, elapsed: true }, true, time)).toBe('None left today')
+    expect(bestWindowLabel({ bestWindow: null, elapsed: true }, true, time)).toBeNull()
     expect(bestWindowLabel({ bestWindow: null, elapsed: false }, true, time)).toBe('None today')
     expect(bestWindowLabel({ bestWindow: null, elapsed: false }, false, time)).toBe('None')
   })

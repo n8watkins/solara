@@ -104,7 +104,6 @@ export default function HeroSlot({
       </div>
     )
   }
-  const passed = "Today's matching windows have passed."
   const nextText = next
     ? `Next: ${next.activity.name} ${phraseForDay(false, next.label)} at ${fmt.time(next.slot.start)}.`
     : null
@@ -113,15 +112,13 @@ export default function HeroSlot({
     `Tomorrow peaks ${night.peakUV.toFixed(1)} at ${fmt.hour(night.peakHour)}${
       night.lowUntil !== null ? `, below UV 3 until ${fmt.hour(night.lowUntil)}` : ''
     }.`
+  // Once today is over the label above already says so, so the body only says
+  // what comes next (on the guest plan, the sign-in button below does).
   const body = !allElapsed
     ? 'Forecast UV stays above your activity limits. Check early morning or evening instead.'
     : night !== undefined
-      ? [tomorrowText, nextText].filter(Boolean).join(' ') || passed
-      : nextText
-        ? `${passed} ${nextText}`
-        : laterDaysVisible
-          ? "Today's matching windows have passed, and none of your other forecast days has one."
-          : passed
+      ? [tomorrowText, nextText].filter(Boolean).join(' ') || null
+      : (nextText ?? (laterDaysVisible ? 'No later forecast day has one either.' : null))
   return (
     <div
       className="card border-[0.5px] border-line-strong bg-surface-metric"
@@ -142,7 +139,7 @@ export default function HeroSlot({
               ? 'Sun is down'
               : `Peak UV ${peakUV.toFixed(1)} at ${fmt.hour(peakHour)}`}
           </p>
-          <p className="mt-[3px] text-[13px] leading-[1.4] text-ink-3">{body}</p>
+          {body && <p className="mt-[3px] text-[13px] leading-[1.4] text-ink-3">{body}</p>}
           {allElapsed && !laterDaysVisible && (
             <button
               type="button"

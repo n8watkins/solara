@@ -200,19 +200,19 @@ export function freeBusyRange(
 }
 
 /**
- * What an activity card says once today's matching windows have passed: when the
- * next one is, or, on the guest plan (today only), that signing in shows tomorrow.
- * It never points at a section the plan does not show.
+ * What an activity card says once today's matching windows have passed. The
+ * card's "Done for today" badge already says the day is over, so this only names
+ * what comes next: the next slot, or, on the guest plan (today only), that signing
+ * in shows tomorrow. It never points at a section the plan does not show.
  */
 export function windowsPassedNote(
   next: Pick<UpcomingSlot, 'label' | 'slot'> | null,
   laterDaysVisible: boolean,
   formatTime: (hour: number) => string,
 ): string {
-  const passed = "Today's matching windows have passed."
-  if (!laterDaysVisible) return `${passed} Sign in free to plan tomorrow too.`
-  if (!next) return `${passed} None of your other forecast days has one either.`
-  return `${passed} Next lower-UV slot: ${dayPhrase(false, next.label)} at ${formatTime(next.slot.start)}.`
+  if (!laterDaysVisible) return 'Sign in free to plan tomorrow.'
+  if (!next) return 'No later forecast day has a lower-UV slot for it.'
+  return `Next lower-UV slot: ${dayPhrase(false, next.label)} at ${formatTime(next.slot.start)}.`
 }
 
 /** An hour on today (tomorrow: false) or tomorrow. */
