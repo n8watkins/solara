@@ -1,7 +1,5 @@
 import type { Activity, TierLevel, UserPreferences } from '@/lib/types'
-import AddActivityModal from '../AddActivityModal'
-import EditActivityModal from '../EditActivityModal'
-import ManageActivitiesModal from '../ManageActivitiesModal'
+import { AddActivityModal, EditActivityModal, ManageActivitiesModal } from '../deferred'
 
 /**
  * The dashboard's activity dialogs, which save through `onPrefsUpdate`. Editing

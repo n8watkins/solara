@@ -24,9 +24,8 @@ import CalendarWeekGrid from './calendar/CalendarWeekGrid'
 import CalendarWindowSheet from './calendar/CalendarWindowSheet'
 import { useGridViewport } from './calendar/useGridViewport'
 import { useWindowSheet } from './calendar/useWindowSheet'
-import EditActivityModal from './EditActivityModal'
 import ScheduledList from './ScheduledList'
-import ScheduledSheet from './ScheduledSheet'
+import { EditActivityModal, ScheduledSheet } from './deferred'
 
 interface Props {
   prefs: UserPreferences

@@ -9,7 +9,7 @@ import { goToLanding } from '@/lib/app-routes'
 import { planLimitRows } from '@/lib/settings'
 import { TIER_LIMITS } from '@/lib/tiers'
 import GoogleSignInButton from '../GoogleSignInButton'
-import PricingModal from '../PricingModal'
+import { PricingModal } from '../deferred'
 import { SettingsCard, SettingsError, SettingsHint } from './SettingsCard'
 
 interface Props {

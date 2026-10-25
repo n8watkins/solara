@@ -21,7 +21,7 @@ import Dashboard from './Dashboard'
 import Header from './Header'
 import Skeleton from './Skeleton'
 import InstallPrompt from './InstallPrompt'
-import CalendarView from './CalendarView'
+import { CalendarView, preloadDeferred } from './deferred'
 import DevPanel from './DevPanel'
 import ErrorBoundary from './ErrorBoundary'
 import AppShell, { type AppView } from './AppShell'
@@ -82,6 +82,10 @@ function SignedInApp() {
   }, [user])
 
   useCheckoutReturn(user, { onNotice: setBillingNotice, onPaid: setPrefs })
+
+  // Once the first screen shows, fetch the dialogs and views it can open (deferred.tsx).
+  const shown = screen !== 'loading'
+  useEffect(() => (shown ? preloadDeferred() : undefined), [shown])
 
   // The forecast for the active location. Switching location aborts the old
   // request; a cached forecast shows at once while a stale one refreshes; "today"
