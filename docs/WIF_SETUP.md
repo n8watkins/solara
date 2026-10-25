@@ -13,7 +13,7 @@ The deploy jobs in `.github/workflows/deploy.yml` call `.github/actions/firebase
 
 `.github/workflows/notify.yml` uses WIF as `GCP_NOTIFIER_SERVICE_ACCOUNT` when that variable is set, and the key secret otherwise.
 
-So merging the workflows changes nothing until the variables exist, and unsetting `GCP_WORKLOAD_IDENTITY_PROVIDER` is a one-step rollback while the key still exists.
+Merging the workflows therefore changes nothing until the variables exist, and unsetting `GCP_WORKLOAD_IDENTITY_PROVIDER` is a one-step rollback while the key still exists.
 
 ## Before you start
 
