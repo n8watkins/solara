@@ -51,7 +51,8 @@ if (firebaseEnabled) {
   // getAuth() without its popup and redirect helper: getAuth() starts that helper (an
   // iframe from the auth domain and Google's scripts) at start-up on phones and in
   // Safari, which a session that is already signed in never needs. Sign-in starts it
-  // instead (prepareSignInPopup) and passes it to signInWithPopup. The persistence
+  // instead (prepareSignInPopup), and every *WithPopup call must pass it
+  // (popupRedirectResolver): without it the call fails. The persistence
   // list is getAuth()'s own, so stored sessions are found exactly as before.
   auth = existing
     ? getAuth(app)
