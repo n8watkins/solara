@@ -5,7 +5,7 @@
 // (functions/src/shared/app-check.ts). There is no App Check emulator, and real tokens, even
 // debug ones, are minted by Google's servers, which the suite never contacts. So
 // emulator builds of the web app mint opaque local tokens (see
-// emulatorAppCheckProvider in lib/firebase.ts) and this file teaches the Admin SDK
+// emulatorAppCheckProvider in lib/firebase-services.ts) and this file teaches the Admin SDK
 // inside the Functions emulator to accept exactly those.
 //
 // Why this cannot weaken production:
@@ -20,7 +20,7 @@
 //   server's replay protection behaves as in production.
 'use strict'
 
-// Keep in sync with emulatorAppCheckProvider in lib/firebase.ts.
+// Keep in sync with emulatorAppCheckProvider in lib/firebase-services.ts.
 const TOKEN_PREFIX = 'solara-firebase-emulators.'
 
 if (process.env.FUNCTIONS_EMULATOR === 'true') {

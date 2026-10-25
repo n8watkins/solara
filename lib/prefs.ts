@@ -5,15 +5,15 @@ import {
   parsePreferences,
   PREFS_SCHEMA_VERSION,
 } from '@solara/core'
-import { FirebaseError } from 'firebase/app'
-import { doc, getDoc, runTransaction, updateDoc } from 'firebase/firestore'
-import { db } from './firebase'
+import { loadFirebase } from './firebase'
 import type { UserPreferences, Location } from './types'
 import { PRESET_ACTIVITIES, ACTIVITY_CATEGORIES, TIER_LIMITS } from './tiers'
 
 // The document schema, its versions and migrations live in @solara/core
 // (packages/core/src/prefs.ts). This module adds what depends on the app's activity
 // catalog and does the storage: the browser copy and the Firestore account document.
+// Firestore loads on demand (lib/firebase.ts), so the browser-copy half costs a guest
+// nothing.
 
 export { NewerPreferencesVersionError, PREFS_SCHEMA_VERSION }
 
@@ -110,8 +110,10 @@ export type FirestorePrefsResult =
   | { status: 'error'; error: Error }
 
 export async function loadFirestorePrefs(uid: string): Promise<FirestorePrefsResult> {
-  if (!db) return { status: 'error', error: new Error('Firebase is not configured') }
   try {
+    const db = (await loadFirebase())?.db
+    if (!db) return { status: 'error', error: new Error('Firebase is not configured') }
+    const { doc, getDoc } = await import('firebase/firestore')
     const snap = await getDoc(doc(db, 'users', uid))
     if (!snap.exists()) return { status: 'missing' }
     const prefs = normalizePrefs(snap.data())
@@ -183,7 +185,9 @@ export async function createAccountPrefs(
 ): Promise<UserPreferences> {
   const fresh = newAccountPrefs(uid, seed, source)
   if (!fresh) throw new Error('Onboarding answers are missing a valid location')
+  const db = (await loadFirebase())?.db
   if (!db) return fresh
+  const { doc, runTransaction } = await import('firebase/firestore')
   const ref = doc(db, 'users', uid)
   return runTransaction(db, async tx => {
     const snap = await tx.get(ref)
@@ -205,10 +209,15 @@ export async function createAccountPrefs(
  * Throws NewerPreferencesVersionError for preferences read from a newer schema version.
  */
 export async function saveFirestorePrefs(uid: string, prefs: UserPreferences): Promise<void> {
+  const db = (await loadFirebase())?.db
   if (!db) return
   if (!isWritablePreferences(prefs)) throw new NewerPreferencesVersionError(prefs.schemaVersion)
   const normalized = normalizePrefs({ ...prefs, uid })
   if (!normalized) throw new Error('Preferences are missing a valid location')
+  const [{ doc, getDoc, updateDoc }, { FirebaseError }] = await Promise.all([
+    import('firebase/firestore'),
+    import('firebase/app'),
+  ])
   const ref = doc(db, 'users', uid)
   try {
     // updateDoc replaces the named top-level fields and never creates the document.

@@ -20,7 +20,7 @@ export default function SignInScreen({ onContinueAsGuest }: { onContinueAsGuest:
           Pick up your saved plan and sun windows on any device.
         </p>
         {firebaseEnabled ? (
-          <GoogleSignInButton label="Continue with Google" size="lg" />
+          <GoogleSignInButton label="Continue with Google" size="lg" preload />
         ) : (
           <p role="status" className="text-[13px] text-ink-3">
             Sign-in is not available in this build.

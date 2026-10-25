@@ -2,8 +2,13 @@
 import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import type { User } from 'firebase/auth'
-import { onAuthStateChanged } from 'firebase/auth'
-import { auth } from './firebase'
+import {
+  loadedFirebase,
+  loadFirebase,
+  storedSessionHint,
+  storedSessionInIndexedDb,
+  whenFirebaseLoads,
+} from './firebase'
 import { loadAccountPrefs } from './session'
 import { loadGuestPrefs } from './guest'
 import { FORECAST_QUERY_KEY } from './use-forecast'
@@ -13,6 +18,7 @@ import {
   notificationsEnabledLocally,
 } from './notifications'
 import {
+  ACCOUNT_LOAD_ERROR,
   accountErrorMessage,
   screenWhenNeedsOnboarding,
   screenWhenSignedOut,
@@ -24,6 +30,10 @@ import type { UserPreferences } from './types'
  * The account (or guest) behind components/App.tsx: follows Firebase Auth, loads (or
  * creates) the account's preferences or the guest plan kept in this browser, and
  * picks the top-level screen.
+ *
+ * Firebase loads only for a session this browser already holds, or once someone
+ * starts signing in (lib/firebase.ts). Until then the visitor is signed out, so a
+ * guest's plan and cached forecast show without waiting for it.
  *
  * `onAccountReset` runs whenever the plan on screen goes away (sign-in from guest
  * mode, sign-out or a switch to another account), so the caller can drop per-account
@@ -125,16 +135,38 @@ export function useAccount({
       void loadAccount(u, generation)
     }
 
-    if (auth) {
-      const unsub = onAuthStateChanged(auth, handleAuth)
-      return () => {
-        disposed = true
-        unsub()
-      }
+    // Follow Auth from whenever Firebase loads: now for a stored session, or later
+    // when a sign-in button loads it.
+    let unsubscribeAuth: (() => void) | null = null
+    const stopWaiting = whenFirebaseLoads(({ auth }) => {
+      if (!auth) return
+      void import('firebase/auth').then(({ onAuthStateChanged }) => {
+        if (!disposed) unsubscribeAuth = onAuthStateChanged(auth, handleAuth)
+      })
+    })
+
+    if (loadedFirebase()) {
+      // Auth's listener, just attached, reports the current user.
+    } else if (storedSessionHint()) {
+      loadFirebase().catch(error => {
+        if (disposed) return
+        console.error('Account load failed:', error)
+        setAccountError(ACCOUNT_LOAD_ERROR)
+        setScreen('loading')
+      })
+    } else {
+      // Signed out until Auth says otherwise: no waiting for Firebase.
+      handleAuth(null)
+      // A session without the account marker (its localStorage was cleared) still
+      // signs in, a moment later.
+      void storedSessionInIndexedDb().then(found => {
+        if (found && !disposed) loadFirebase().catch(() => {})
+      })
     }
-    handleAuth(null)
     return () => {
       disposed = true
+      stopWaiting()
+      unsubscribeAuth?.()
     }
     // signInRequested only matters for the first signed-out load.
     // eslint-disable-next-line react-hooks/exhaustive-deps

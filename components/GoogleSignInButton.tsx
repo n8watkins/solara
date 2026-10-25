@@ -1,10 +1,9 @@
 'use client'
-import { use, useState } from 'react'
+import { use, useEffect, useState } from 'react'
 import clsx from 'clsx'
 import type { User } from 'firebase/auth'
-import { signInWithPopup } from 'firebase/auth'
 import { isSignInCancelled } from '@/lib/auth-errors'
-import { auth, googleProvider, firebaseEnabled } from '@/lib/firebase'
+import { firebaseEnabled, loadFirebase, preloadFirebase } from '@/lib/firebase'
 import { loadGuestPrefs } from '@/lib/guest'
 import { createAccountPrefs } from '@/lib/prefs'
 import { SignedInContext } from '@/lib/signed-in-context'
@@ -32,6 +31,12 @@ interface Props {
   size?: 'sm' | 'md' | 'lg'
   /** Layout utilities for the button (margins, min-width); not padding or type. */
   className?: string
+  /**
+   * Load Firebase as soon as the button shows, for screens whose main action is
+   * signing in. Otherwise it loads when the pointer or focus reaches the button.
+   * Either way the popup can open within the click's user activation.
+   */
+  preload?: boolean
 }
 
 const SIZES = {
@@ -69,15 +74,19 @@ export default function GoogleSignInButton({
   onSignedIn,
   size = 'md',
   className,
+  preload = false,
 }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const signedIn = use(SignedInContext)
 
+  useEffect(() => {
+    if (preload) preloadFirebase()
+  }, [preload])
+
   if (!firebaseEnabled) return null
 
   async function handleClick() {
-    if (!auth || !googleProvider) return
     setLoading(true)
     setError(null)
     // Read before the popup: once signed in, the app's own account load may clear the
@@ -89,7 +98,14 @@ export default function GoogleSignInButton({
           return guest ? ({ prefs: guest, source: 'guest' } as const) : null
         })()
     try {
-      const result = await signInWithPopup(auth, googleProvider)
+      const [services, { signInWithPopup }] = await Promise.all([
+        loadFirebase(),
+        import('firebase/auth'),
+      ])
+      const auth = services?.auth
+      const provider = services?.googleProvider
+      if (!auth || !provider) return
+      const result = await signInWithPopup(auth, provider)
       const u = result.user
       if (!u) return
       // Creates the account only if it does not exist yet, in one transaction, so a
@@ -101,7 +117,13 @@ export default function GoogleSignInButton({
       // Closing the popup is the person's choice; the button simply comes back.
       if (isSignInCancelled(e)) return
       console.error('Google sign-in failed:', e)
-      setError('Could not finish signing in. Check your connection and try again.')
+      setError(
+        // The first sign-in on a slow connection can take longer than the browser
+        // allows a click to open a window; by now everything has loaded.
+        (e as { code?: unknown } | null)?.code === 'auth/popup-blocked'
+          ? 'Your browser blocked the sign-in window. Try again to continue.'
+          : 'Could not finish signing in. Check your connection and try again.',
+      )
     } finally {
       setLoading(false)
     }
@@ -111,6 +133,9 @@ export default function GoogleSignInButton({
     <div>
       <button
         onClick={() => void handleClick()}
+        onPointerEnter={preloadFirebase}
+        onPointerDown={preloadFirebase}
+        onFocus={preloadFirebase}
         disabled={loading}
         className={clsx(
           'flex items-center justify-center gap-2 rounded-[10px] border-[0.5px] border-line-strong bg-surface-card font-semibold text-ink transition-colors duration-[120ms]',

@@ -1,7 +1,7 @@
 import type { FunctionResponse } from '@solara/core'
-import type { Messaging } from 'firebase/messaging'
-import { deleteToken, getMessaging, getToken, onMessage } from 'firebase/messaging'
-import { app, appCheckConfigured, auth } from './firebase'
+import type * as MessagingModule from 'firebase/messaging'
+import type { Messaging, MessagePayload } from 'firebase/messaging'
+import { appCheckConfigured, lazySubscription, loadFirebase } from './firebase'
 import { callFunction, functionsApiConfigured } from './functions-api'
 
 interface LocalDeviceSubscription {
@@ -13,18 +13,25 @@ interface LocalDeviceSubscription {
 
 const REGISTRATION_MIGRATION_ATTEMPTS = 3
 
+type MessagingSdk = typeof MessagingModule
+
 let messaging: Messaging | null = null
 
-function getMessagingInstance(): Messaging | null {
-  if (typeof window === 'undefined' || !app) return null
-  if (!messaging) {
-    try {
-      messaging = getMessaging(app)
-    } catch {
-      return null
-    }
+/**
+ * Firebase Cloud Messaging, loaded on demand; null where it is unavailable, including
+ * when its code cannot be loaded (offline), so sign-out is never blocked by that.
+ */
+async function getMessagingInstance(): Promise<{ sdk: MessagingSdk; m: Messaging } | null> {
+  if (typeof window === 'undefined') return null
+  try {
+    const app = (await loadFirebase())?.app
+    if (!app) return null
+    const sdk = await import('firebase/messaging')
+    messaging ??= sdk.getMessaging(app)
+    return { sdk, m: messaging }
+  } catch {
+    return null
   }
-  return messaging
 }
 
 function storageKey(uid: string): string {
@@ -71,7 +78,7 @@ async function mutateRemoteDevice<
   method: 'POST' | 'DELETE',
   body: Record<string, string>,
 ): Promise<FunctionResponse<Name>> {
-  const user = auth?.currentUser
+  const user = (await loadFirebase())?.auth?.currentUser
   if (!functionsApiConfigured()) throw new Error('Notification registration is not configured')
   if (!user || user.uid !== uid) throw new Error('Sign in again to manage notifications')
 
@@ -103,11 +110,11 @@ export async function requestNotificationPermission(): Promise<string | null> {
   try {
     const vapidKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY
     if (!vapidKey || !appCheckConfigured()) return null
-    const m = getMessagingInstance()
-    if (!m) return null
+    const instance = await getMessagingInstance()
+    if (!instance) return null
     const permission = await Notification.requestPermission()
     if (permission !== 'granted') return null
-    const token = await getToken(m, { vapidKey })
+    const token = await instance.sdk.getToken(instance.m, { vapidKey })
     return token || null
   } catch (err) {
     console.error('FCM token error:', err)
@@ -187,8 +194,10 @@ export async function disableNotifications(uid: string): Promise<void> {
       removalError = error
     }
   }
-  const m = getMessagingInstance()
-  const tokenRemoved = m ? await deleteToken(m).catch(() => false) : !local
+  const instance = await getMessagingInstance()
+  const tokenRemoved = instance
+    ? await instance.sdk.deleteToken(instance.m).catch(() => false)
+    : !local
   try {
     if (!removalError) localStorage.removeItem(storageKey(uid))
     localStorage.removeItem('solara_fcm_token')
@@ -197,8 +206,8 @@ export async function disableNotifications(uid: string): Promise<void> {
 }
 
 export async function clearLocalNotificationState(uid: string): Promise<void> {
-  const m = getMessagingInstance()
-  if (m) await deleteToken(m).catch(() => false)
+  const instance = await getMessagingInstance()
+  if (instance) await instance.sdk.deleteToken(instance.m).catch(() => false)
   try {
     localStorage.removeItem(storageKey(uid))
     localStorage.removeItem('solara_fcm_token')
@@ -206,41 +215,49 @@ export async function clearLocalNotificationState(uid: string): Promise<void> {
 }
 
 export function onForegroundMessage(callback: (payload: unknown) => void): () => void {
-  const m = getMessagingInstance()
-  return m
-    ? onMessage(m, payload => {
-        const data = payload.data
-        const title = data?.title
-        if (
-          data &&
-          title &&
-          data.body &&
-          data.deliveryKey &&
-          data.deliveryScope &&
-          'serviceWorker' in navigator
-        ) {
-          void (async () => {
-            const cache = await caches.open('solara-notification-deliveries-v1')
-            const scopedKey = `${data.deliveryScope}:${data.deliveryKey}`
-            const marker = new Request(`/notification-delivery/${encodeURIComponent(scopedKey)}`)
-            if (await cache.match(marker)) return
-            await cache.put(marker, new Response('shown'))
-            try {
-              const registration = await navigator.serviceWorker.ready
-              await registration.showNotification(title, {
-                body: data.body,
-                icon: '/icon-192.png',
-                badge: '/icon-192.png',
-                tag: scopedKey,
-                data: { link: data.link || '/' },
-              })
-            } catch (error) {
-              await cache.delete(marker)
-              throw error
-            }
-          })().catch(error => console.error('Foreground notification error:', error))
-        }
-        callback(payload)
-      })
-    : () => {}
+  return lazySubscription(
+    async () => {
+      const instance = await getMessagingInstance()
+      return instance
+        ? instance.sdk.onMessage(instance.m, payload => handleForeground(payload, callback))
+        : null
+    },
+    error => console.error('Foreground notification error:', error),
+  )
+}
+
+/** Shows a foreground message once per delivery, then tells the app. */
+function handleForeground(payload: MessagePayload, callback: (payload: unknown) => void): void {
+  const data = payload.data
+  const title = data?.title
+  if (
+    data &&
+    title &&
+    data.body &&
+    data.deliveryKey &&
+    data.deliveryScope &&
+    'serviceWorker' in navigator
+  ) {
+    void (async () => {
+      const cache = await caches.open('solara-notification-deliveries-v1')
+      const scopedKey = `${data.deliveryScope}:${data.deliveryKey}`
+      const marker = new Request(`/notification-delivery/${encodeURIComponent(scopedKey)}`)
+      if (await cache.match(marker)) return
+      await cache.put(marker, new Response('shown'))
+      try {
+        const registration = await navigator.serviceWorker.ready
+        await registration.showNotification(title, {
+          body: data.body,
+          icon: '/icon-192.png',
+          badge: '/icon-192.png',
+          tag: scopedKey,
+          data: { link: data.link || '/' },
+        })
+      } catch (error) {
+        await cache.delete(marker)
+        throw error
+      }
+    })().catch(error => console.error('Foreground notification error:', error))
+  }
+  callback(payload)
 }

@@ -1,95 +1,155 @@
-import type { FirebaseApp } from 'firebase/app'
-import { initializeApp, getApps } from 'firebase/app'
-import type { AppCheck } from 'firebase/app-check'
-import {
-  CustomProvider,
-  getLimitedUseToken,
-  getToken,
-  initializeAppCheck,
-  ReCaptchaEnterpriseProvider,
-  ReCaptchaV3Provider,
-} from 'firebase/app-check'
-import type { Auth } from 'firebase/auth'
-import { connectAuthEmulator, getAuth, GoogleAuthProvider, onAuthStateChanged } from 'firebase/auth'
-import type { Firestore } from 'firebase/firestore'
-import { connectFirestoreEmulator, initializeFirestore } from 'firebase/firestore'
+// The app's only way to Firebase. The SDK (Auth, Firestore, App Check) is about
+// 200 KB gzip of JavaScript and starts a third-party iframe, so it is not part of the
+// app's first load: lib/firebase-services.ts starts it, and loadFirebase() loads that
+// module on demand - when someone signs in, or at start-up when this browser already
+// holds a session (storedSessionHint, storedSessionInIndexedDb). A guest never
+// downloads it. This module itself imports nothing from the SDK at runtime.
+import { ACCOUNT_OWNER_KEY } from './app-routes'
+import type * as Services from './firebase-services'
 
-const hasConfig = !!(
-  process.env.NEXT_PUBLIC_FIREBASE_API_KEY && process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
-)
+export type FirebaseServices = typeof Services
 
-let app: FirebaseApp | null = null
-let auth: Auth | null = null
-let db: Firestore | null = null
-let googleProvider: GoogleAuthProvider | null = null
+const API_KEY = process.env.NEXT_PUBLIC_FIREBASE_API_KEY
 
-if (hasConfig) {
-  const firebaseConfig = {
-    apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-    authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-    appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-  }
+/** Whether this build has a Firebase project, so accounts and sign-in exist at all. */
+export const firebaseEnabled = !!(API_KEY && process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID)
 
-  app = getApps()[0] ?? initializeApp(firebaseConfig)
-  auth = getAuth(app)
-  // ignoreUndefinedProperties: normalizePrefs emits undefined for absent optional fields
-  // (activeProfileId, calendarHours, …); without this, updateDoc/setDoc throw on those
-  // instead of simply omitting them.
-  db = initializeFirestore(app, { ignoreUndefinedProperties: true })
-  googleProvider = new GoogleAuthProvider()
-
-  // Emulator builds only; see connectEmulators. The flag is inlined at build time, so
-  // in every other build this condition is the literal `false` and the minifier
-  // removes the branch together with everything only it references.
-  if (process.env.NEXT_PUBLIC_FIREBASE_EMULATORS === '1' && typeof window !== 'undefined') {
-    connectEmulators(auth, db)
-  }
-
-  // App Check loads reCAPTCHA, a third-party script, so it starts only once someone signs
-  // in. Every App Check-protected request (Cloud Functions, and Firestore if enforcement
-  // is turned on) happens after sign-in.
-  if (typeof window !== 'undefined') {
-    onAuthStateChanged(auth, user => {
-      if (user) ensureAppCheck()
-    })
-  }
-}
-
-// ---- Local Emulator Suite (signed-in e2e only) ------------------------------------
+let pending: Promise<FirebaseServices> | null = null
+let loaded: FirebaseServices | null = null
+const loadListeners = new Set<(services: FirebaseServices) => void>()
 
 /**
- * Points Auth and Firestore at the Firebase Local Emulator Suite. Only the signed-in
- * e2e suite (tests/e2e/signed-in) builds with NEXT_PUBLIC_FIREBASE_EMULATORS=1: its
- * test server serves the export and forwards the emulator APIs on the same origin,
- * so the real Content-Security-Policy ('self') still applies. `npm run build`, the
- * only production build, refuses the flag (scripts/check-no-emulators.mjs), and the
- * page refuses to connect from anywhere but a loopback address.
+ * Loads and starts Firebase, once. Resolves to null in a build without Firebase or
+ * on the server. Rejects if the chunk cannot be loaded (offline, or a deploy in
+ * between); the next call tries again.
  */
-function connectEmulators(authInstance: Auth, firestore: Firestore): void {
-  const { hostname, origin, port } = window.location
-  if (!['127.0.0.1', 'localhost', '[::1]'].includes(hostname)) {
-    // The marker text is what the production leak check looks for.
-    throw new Error('solara-firebase-emulators: emulators are only reachable on loopback')
-  }
-  connectAuthEmulator(authInstance, origin, { disableWarnings: true })
-  connectFirestoreEmulator(firestore, hostname, Number(port))
+export function loadFirebase(): Promise<FirebaseServices | null> {
+  if (!firebaseEnabled || typeof window === 'undefined') return Promise.resolve(null)
+  pending ??= import('./firebase-services').then(
+    services => {
+      loaded = services
+      for (const listener of loadListeners) listener(services)
+      return services
+    },
+    error => {
+      pending = null
+      throw error
+    },
+  )
+  return pending
+}
+
+/** Starts loading Firebase in the background, for a sign-in that is about to happen. */
+export function preloadFirebase(): void {
+  loadFirebase().catch(() => {})
+}
+
+/** The started SDK if it has loaded, else null. Never starts loading it. */
+export function loadedFirebase(): FirebaseServices | null {
+  return loaded
 }
 
 /**
- * App Check for emulator builds. There is no App Check emulator, and a real provider
- * (even the debug one) must reach Google, so the page mints opaque local tokens that
- * only the Functions emulator accepts (tests/e2e/signed-in/emulator-app-check.js).
- * Each call returns a fresh token, so limited-use replay protection still applies.
+ * Calls `listener` once Firebase has loaded (right away if it already has), whoever
+ * loaded it. Returns a function that stops listening.
  */
-function emulatorAppCheckProvider(): CustomProvider {
-  return new CustomProvider({
-    getToken: async () => ({
-      token: `solara-firebase-emulators.${crypto.randomUUID()}`,
-      expireTimeMillis: Date.now() + 60 * 60 * 1000,
-    }),
+export function whenFirebaseLoads(listener: (services: FirebaseServices) => void): () => void {
+  if (loaded) {
+    listener(loaded)
+    return () => {}
+  }
+  loadListeners.add(listener)
+  return () => loadListeners.delete(listener)
+}
+
+/**
+ * Starts a subscription that needs the SDK and returns, right away, the function that
+ * stops it, which also works before the subscription has started. `start` returns
+ * the subscription's own unsubscribe, or null when there is nothing to subscribe to.
+ */
+export function lazySubscription(
+  start: () => Promise<(() => void) | null>,
+  onError: (error: unknown) => void,
+): () => void {
+  let stop: (() => void) | null = null
+  let stopped = false
+  start().then(
+    unsubscribe => {
+      if (stopped) unsubscribe?.()
+      else stop = unsubscribe
+    },
+    error => {
+      if (!stopped) onError(error)
+    },
+  )
+  return () => {
+    stopped = true
+    stop?.()
+    stop = null
+  }
+}
+
+// ---- Is someone signed in? ----------------------------------------------------------
+
+/** Where Firebase Auth persists the signed-in user (key and IndexedDB layout). */
+const AUTH_USER_KEY = `firebase:authUser:${API_KEY}:[DEFAULT]`
+const AUTH_DB = 'firebaseLocalStorageDb'
+const AUTH_STORE = 'firebaseLocalStorage'
+
+/**
+ * Whether this browser holds a Solara session, answered synchronously: the account
+ * marker every sign-in writes (lib/session.ts), or the user Firebase Auth keeps in
+ * localStorage when IndexedDB is unavailable.
+ */
+export function storedSessionHint(): boolean {
+  if (!firebaseEnabled) return false
+  try {
+    return !!(localStorage.getItem(ACCOUNT_OWNER_KEY) || localStorage.getItem(AUTH_USER_KEY))
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Whether Firebase Auth's own IndexedDB store holds a signed-in user: the backstop for a
+ * session without the account marker (its localStorage was cleared). Never creates
+ * the database, and answers false on any error.
+ */
+export function storedSessionInIndexedDb(): Promise<boolean> {
+  if (!firebaseEnabled || typeof indexedDB === 'undefined') return Promise.resolve(false)
+  return new Promise(resolve => {
+    try {
+      const request = indexedDB.open(AUTH_DB)
+      // The database does not exist yet: abort, so it is not created empty.
+      request.onupgradeneeded = () => request.transaction?.abort()
+      request.onerror = () => resolve(false)
+      request.onblocked = () => resolve(false)
+      request.onsuccess = () => {
+        const database = request.result
+        try {
+          if (!database.objectStoreNames.contains(AUTH_STORE)) {
+            database.close()
+            resolve(false)
+            return
+          }
+          const read = database.transaction(AUTH_STORE, 'readonly').objectStore(AUTH_STORE)
+          const get = read.get(AUTH_USER_KEY)
+          get.onsuccess = () => {
+            database.close()
+            resolve((get.result as { value?: unknown } | undefined)?.value != null)
+          }
+          get.onerror = () => {
+            database.close()
+            resolve(false)
+          }
+        } catch {
+          database.close()
+          resolve(false)
+        }
+      }
+    } catch {
+      resolve(false)
+    }
   })
 }
 
@@ -114,45 +174,11 @@ export function appCheckConfigured(): boolean {
   return !!process.env.NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY
 }
 
-let appCheck: AppCheck | null = null
-
-/** Initializes App Check once, on demand. Returns null when unconfigured or server-side. */
-export function ensureAppCheck(): AppCheck | null {
-  if (appCheck) return appCheck
-  if (process.env.NEXT_PUBLIC_FIREBASE_EMULATORS === '1') {
-    if (!app || typeof window === 'undefined') return null
-    appCheck = initializeAppCheck(app, {
-      provider: emulatorAppCheckProvider(),
-      isTokenAutoRefreshEnabled: true,
-    })
-    return appCheck
-  }
-  const siteKey = process.env.NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY
-  if (!app || !siteKey || typeof window === 'undefined') return null
-  const debugToken = process.env.NEXT_PUBLIC_FIREBASE_APP_CHECK_DEBUG_TOKEN
-  if (debugToken) {
-    ;(self as unknown as { FIREBASE_APPCHECK_DEBUG_TOKEN?: string }).FIREBASE_APPCHECK_DEBUG_TOKEN =
-      debugToken
-  }
-  const provider =
-    appCheckProviderKind() === 'recaptcha-enterprise'
-      ? new ReCaptchaEnterpriseProvider(siteKey)
-      : new ReCaptchaV3Provider(siteKey)
-  appCheck = initializeAppCheck(app, { provider, isTokenAutoRefreshEnabled: true })
-  return appCheck
-}
-
 /**
- * The App Check token to send as `X-Firebase-AppCheck`. A limited-use token is minted
- * fresh for one request and consumed by the server, so it cannot be replayed; use it for
- * irreversible or money-moving actions.
+ * The App Check token to send as `X-Firebase-AppCheck` (see appCheckToken in
+ * lib/firebase-services.ts), or null when App Check is not available.
  */
 export async function appCheckToken({ limitedUse = false } = {}): Promise<string | null> {
-  const instance = ensureAppCheck()
-  if (!instance) return null
-  const result = limitedUse ? await getLimitedUseToken(instance) : await getToken(instance)
-  return result.token
+  const services = await loadFirebase()
+  return services ? services.appCheckToken({ limitedUse }) : null
 }
-
-export const firebaseEnabled = hasConfig
-export { app, auth, db, googleProvider }

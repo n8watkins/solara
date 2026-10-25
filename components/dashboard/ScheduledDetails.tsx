@@ -3,7 +3,7 @@ import type { ScheduledActivity } from '@/lib/scheduled'
 import { scheduledSpan } from '@/lib/scheduled'
 import { planActivityDay } from '@/lib/next-slot'
 import { activityColor } from '@/lib/activity-colors'
-import ScheduledSheet from '../ScheduledSheet'
+import { ScheduledSheet } from '../deferred'
 
 /** The open scheduled event's sheet, with that day's windows for changing its time. */
 export default function ScheduledDetails({

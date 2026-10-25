@@ -114,7 +114,7 @@ export default function PricingModal({
         <p className="min-w-45 flex-1 text-[13px] leading-[1.45] text-ink-2">
           Sign in free to save your plan, see tomorrow and join the Pro waitlist.
         </p>
-        <GoogleSignInButton label="Sign in free" />
+        <GoogleSignInButton label="Sign in free" preload />
       </div>
     )
   } else if (checkoutReady) {

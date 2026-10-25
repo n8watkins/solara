@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-// The Local Emulator Suite wiring in lib/firebase.ts, used only by emulator builds
+// The Local Emulator Suite wiring in lib/firebase-services.ts, used only by emulator builds
 // (NEXT_PUBLIC_FIREBASE_EMULATORS=1, made by the signed-in e2e suite).
 // scripts/check-no-emulators.mjs proves production exports compile it out.
 
@@ -49,7 +49,9 @@ async function loadFirebase({ emulators, hostname }: { emulators: boolean; hostn
     location: { hostname, origin: `http://${hostname}:4100`, port: '4100' },
   })
   vi.stubGlobal('self', {})
-  return import('@/lib/firebase')
+  // The started SDK (lib/firebase-services.ts) and the light module's App Check settings.
+  const services = await import('@/lib/firebase-services')
+  return { ...(await import('@/lib/firebase')), ...services }
 }
 
 describe('Firebase emulators', () => {

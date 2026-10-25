@@ -1,5 +1,10 @@
 'use client'
 import { useEffect, useState, type ReactNode } from 'react'
+import {
+  ANALYTICS_CONSENT_EVENT,
+  isAnalyticsMeasurementId,
+  readAnalyticsConsent,
+} from '@/lib/analytics-consent'
 import { INSTALL_DISMISS_KEY, installPromptKind } from '@/lib/install-prompt'
 
 interface BeforeInstallPromptEvent extends Event {
@@ -37,10 +42,16 @@ function ShareIcon() {
  *    programmatically, so surface the manual Share, then Add to Home Screen
  *    instructions instead.
  * Hidden if already installed (standalone), already dismissed, or unsupported.
+ *
+ * It floats over the bottom of the page rather than taking a place in it: it appears
+ * once the browser allows installing, after the page has drawn, and must not push
+ * what is on screen down. It waits while the analytics banner, which sits in the
+ * same place, asks for a choice.
  */
 export default function InstallPrompt() {
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null)
   const [mode, setMode] = useState<'chromium' | 'ios' | null>(null)
+  const consentPending = useAnalyticsBannerOpen()
 
   useEffect(() => {
     let dismissed = false
@@ -95,7 +106,7 @@ export default function InstallPrompt() {
     setDeferred(null)
   }
 
-  if (!mode) return null
+  if (!mode || consentPending) return null
 
   if (mode === 'ios') {
     return (
@@ -122,6 +133,21 @@ export default function InstallPrompt() {
   )
 }
 
+const ANALYTICS_CONFIGURED = isAnalyticsMeasurementId(process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID)
+
+/** Whether the analytics consent banner (components/AnalyticsConsent.tsx) is showing. */
+function useAnalyticsBannerOpen(): boolean {
+  const [open, setOpen] = useState(ANALYTICS_CONFIGURED)
+  useEffect(() => {
+    if (!ANALYTICS_CONFIGURED) return
+    const update = () => setOpen(readAnalyticsConsent(window.localStorage) === 'unset')
+    update()
+    window.addEventListener(ANALYTICS_CONSENT_EVENT, update)
+    return () => window.removeEventListener(ANALYTICS_CONSENT_EVENT, update)
+  }, [])
+  return open
+}
+
 function Banner({
   children,
   action,
@@ -132,7 +158,10 @@ function Banner({
   onDismiss: () => void
 }) {
   return (
-    <div className="mb-4 flex items-center gap-3 rounded-xl border-[0.5px] border-brand/25 bg-brand/8 px-3.5 py-3">
+    <section
+      aria-label="Install Solara"
+      className="fixed inset-x-3 bottom-[max(12px,env(safe-area-inset-bottom))] z-30 mx-auto flex max-w-[520px] items-center gap-3 rounded-2xl border-[0.5px] border-line-strong bg-surface-card px-3.5 py-3 shadow-[0_12px_40px_rgba(0,0,0,0.22)]"
+    >
       <span className="shrink-0 text-[22px]">☀️</span>
       <div className="min-w-0 flex-1">
         <p className="text-[14px] font-[650] text-ink">Add Solara to your home screen</p>
@@ -146,6 +175,6 @@ function Banner({
       >
         ×
       </button>
-    </div>
+    </section>
   )
 }

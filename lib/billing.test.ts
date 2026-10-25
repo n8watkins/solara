@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type * as Firebase from '@/lib/firebase'
 
 const firestore = vi.hoisted(() => ({
   onSnapshot: vi.fn(),
@@ -14,8 +15,9 @@ vi.mock('firebase/firestore', () => ({
 
 const appCheck = vi.hoisted(() => ({ token: vi.fn() }))
 
-vi.mock('@/lib/firebase', () => ({
-  db: { kind: 'test-db' },
+vi.mock('@/lib/firebase', async importOriginal => ({
+  ...(await importOriginal<typeof Firebase>()),
+  loadFirebase: async () => ({ db: { kind: 'test-db' } }),
   appCheckConfigured: () => !!process.env.NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY,
   appCheckToken: appCheck.token,
 }))
@@ -160,6 +162,8 @@ describe('authenticated checkout', () => {
     const { observeCheckoutResult } = await freshBilling()
     const onResult = vi.fn()
     const stop = observeCheckoutResult('user-1', 'cs_returned', onResult, vi.fn())
+    // Firestore loads on demand, then the listener starts.
+    await vi.waitFor(() => expect(snapshots).toHaveLength(1))
     const basePrefs = {
       uid: 'user-1',
       location: { lat: 34.05, lon: -118.24, city: 'Los Angeles', region: 'CA' },

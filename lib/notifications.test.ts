@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type * as Firebase from '@/lib/firebase'
 
 const mocks = vi.hoisted(() => ({
   getAppCheckToken: vi.fn(),
   getToken: vi.fn(),
   deleteToken: vi.fn(),
   getIdToken: vi.fn(),
+  loadFirebase: vi.fn(),
 }))
 
 vi.mock('firebase/messaging', () => ({
@@ -14,11 +16,11 @@ vi.mock('firebase/messaging', () => ({
   onMessage: vi.fn(() => () => {}),
 }))
 
-vi.mock('@/lib/firebase', () => ({
-  app: { kind: 'app' },
+vi.mock('@/lib/firebase', async importOriginal => ({
+  ...(await importOriginal<typeof Firebase>()),
   appCheckConfigured: () => !!process.env.NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY,
   appCheckToken: mocks.getAppCheckToken,
-  auth: { currentUser: { uid: 'user-1', getIdToken: mocks.getIdToken } },
+  loadFirebase: mocks.loadFirebase,
 }))
 
 import {
@@ -52,6 +54,10 @@ describe('device notification subscriptions', () => {
     mocks.getAppCheckToken.mockResolvedValue('firebase-app-check-token')
     mocks.deleteToken.mockResolvedValue(true)
     mocks.getIdToken.mockResolvedValue('firebase-id-token')
+    mocks.loadFirebase.mockResolvedValue({
+      app: { kind: 'app' },
+      auth: { currentUser: { uid: 'user-1', getIdToken: mocks.getIdToken } },
+    })
     vi.stubGlobal(
       'fetch',
       vi.fn(async (url: string) => ({
@@ -213,6 +219,15 @@ describe('device notification subscriptions', () => {
 
     expect(notificationsEnabledLocally('user-1')).toBe(false)
     expect(values.has('solara_notification_device_user-1')).toBe(true)
+  })
+
+  it('never blocks sign-out on a device without notifications when Messaging cannot load', async () => {
+    // Firebase Messaging loads on demand (lib/firebase.ts); offline, it cannot.
+    mocks.loadFirebase.mockRejectedValue(new Error('chunk load failed'))
+
+    await expect(disableNotifications('user-1')).resolves.toBeUndefined()
+    await expect(clearLocalNotificationState('user-1')).resolves.toBeUndefined()
+    expect(mocks.deleteToken).not.toHaveBeenCalled()
   })
 
   it('migrates the legacy token once without requesting another permission', async () => {

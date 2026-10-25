@@ -1,3 +1,4 @@
+import { gzipSync } from 'node:zlib'
 import { expect, test, type Page } from '@playwright/test'
 import { startClock } from '../harness/clock'
 import { buildRawForecast } from '../harness/fixtures'
@@ -105,4 +106,44 @@ test('a guest who comes back on a later day is offered to save the plan', async 
   })
   await page.goto('/app/')
   await expect(page.getByRole('status', { name: 'Save your plan, sign in free' })).toBeVisible()
+})
+
+/**
+ * Gzip size budget for the JavaScript a guest downloads before the dashboard shows,
+ * compressed like Firebase Hosting serves it (gzip level 9; browsers that accept
+ * Brotli get about 15% less). Next.js and React are about 140 KB of it. Firebase and
+ * the dialogs load on demand (lib/firebase.ts, components/deferred.tsx); before that,
+ * this was over 500 KB.
+ */
+const GUEST_FIRST_LOAD_BUDGET_KB = 245
+
+test("a guest's first load stays within the JavaScript budget", async ({ page, baseURL }) => {
+  await page.addInitScript(() => {
+    const prefs = {
+      location: { lat: 34.05, lon: -118.24, city: 'Los Angeles', region: 'California' },
+      skinType: 'fair',
+      activities: [],
+      onboardingComplete: true,
+    }
+    localStorage.setItem('solara_guest', JSON.stringify({ prefs, since: '2026-06-15' }))
+  })
+  const scripts: Promise<{ url: string; gzip: number }>[] = []
+  page.on('response', response => {
+    if (response.request().resourceType() !== 'script') return
+    if (!response.url().startsWith(baseURL!)) return
+    scripts.push(
+      response
+        .body()
+        .then(body => ({ url: response.url(), gzip: gzipSync(body, { level: 9 }).length })),
+    )
+  })
+  await page.goto('/app/')
+  await expect(page.getByRole('group', { name: 'UV forecast by hour' })).toBeVisible()
+
+  const loaded = await Promise.all(scripts)
+  const kb = loaded.reduce((sum, script) => sum + script.gzip, 0) / 1024
+  const list = loaded.map(script => `${(script.gzip / 1024).toFixed(1)} KB ${script.url}`)
+  expect(kb, `guest first load: ${kb.toFixed(1)} KB gzip\n${list.join('\n')}`).toBeLessThan(
+    GUEST_FIRST_LOAD_BUDGET_KB,
+  )
 })

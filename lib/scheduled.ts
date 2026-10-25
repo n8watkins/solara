@@ -3,7 +3,8 @@
 // reconciled with Google when a token is available.
 //
 // The record schema lives in @solara/core (packages/core/src/scheduled.ts). This module
-// holds the pure conversions and reconciliation (unit-tested) and the Firestore storage.
+// holds the pure conversions and reconciliation (unit-tested) and the Firestore storage,
+// which loads Firestore on demand (lib/firebase.ts).
 import {
   capText,
   EVENT_LINK_PATTERN,
@@ -12,17 +13,7 @@ import {
   SOLARA_ACTIVITY_PROPERTY,
   type ScheduledActivity,
 } from '@solara/core'
-import {
-  collection,
-  deleteDoc,
-  doc,
-  limit,
-  onSnapshot,
-  orderBy,
-  query,
-  setDoc,
-} from 'firebase/firestore'
-import { db } from './firebase'
+import { lazySubscription, loadFirebase } from './firebase'
 import type { GoogleEvent } from './gcal'
 import { isIsoDate, isValidTimeZone, zonedInstant, zonedNow } from './time'
 import type { Activity, SafeActivityWindow } from './types'
@@ -225,9 +216,12 @@ export function planReconcile(
 
 // ---- Storage -------------------------------------------------------------------------
 
-function scheduledCollection(uid: string) {
+/** The account's `scheduled` collection and the Firestore functions to use on it. */
+async function scheduledCollection(uid: string) {
+  const db = (await loadFirebase())?.db
   if (!db) throw new Error('Firestore is not configured')
-  return collection(db, 'users', uid, 'scheduled')
+  const firestore = await import('firebase/firestore')
+  return { firestore, scheduled: firestore.collection(db, 'users', uid, 'scheduled') }
 }
 
 /**
@@ -243,29 +237,34 @@ export function subscribeScheduled(
   onItems: (items: ScheduledActivity[]) => void,
   onError: (error: Error) => void,
 ): () => void {
-  const q = query(
-    scheduledCollection(uid),
-    orderBy('start', 'desc'),
-    limit(SCHEDULED_LIMITS.listLimit),
-  )
-  return onSnapshot(
-    q,
-    snapshot => {
-      const items: ScheduledActivity[] = []
-      for (const d of snapshot.docs) {
-        const item = parseScheduledActivity(d.data())
-        if (item && item.eventId === d.id) items.push(item)
-      }
-      onItems(items.reverse())
+  return lazySubscription(
+    async () => {
+      const { firestore, scheduled } = await scheduledCollection(uid)
+      const { limit, onSnapshot, orderBy, query } = firestore
+      const q = query(scheduled, orderBy('start', 'desc'), limit(SCHEDULED_LIMITS.listLimit))
+      return onSnapshot(
+        q,
+        snapshot => {
+          const items: ScheduledActivity[] = []
+          for (const d of snapshot.docs) {
+            const item = parseScheduledActivity(d.data())
+            if (item && item.eventId === d.id) items.push(item)
+          }
+          onItems(items.reverse())
+        },
+        onError,
+      )
     },
-    onError,
+    error => onError(error instanceof Error ? error : new Error(String(error))),
   )
 }
 
 export async function saveScheduled(uid: string, item: ScheduledActivity): Promise<void> {
-  await setDoc(doc(scheduledCollection(uid), item.eventId), item)
+  const { firestore, scheduled } = await scheduledCollection(uid)
+  await firestore.setDoc(firestore.doc(scheduled, item.eventId), item)
 }
 
 export async function deleteScheduled(uid: string, eventId: string): Promise<void> {
-  await deleteDoc(doc(scheduledCollection(uid), eventId))
+  const { firestore, scheduled } = await scheduledCollection(uid)
+  await firestore.deleteDoc(firestore.doc(scheduled, eventId))
 }

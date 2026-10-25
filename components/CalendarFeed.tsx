@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { auth } from '@/lib/firebase'
+import { loadedFirebase } from '@/lib/firebase'
 import type { FeedTokenState } from '@/lib/feed'
 import {
   buildFeedUrl,
@@ -54,7 +54,8 @@ function CalendarFeedPanel({ uid }: { uid: string }) {
   const url = token ? buildFeedUrl(token) : null
 
   function currentUser() {
-    const user = auth?.currentUser
+    // Only a signed-in account sees the feed, so Firebase has loaded.
+    const user = loadedFirebase()?.auth?.currentUser
     if (!user || user.uid !== uid) throw new Error('Sign in again to manage your feed.')
     return user
   }

@@ -43,7 +43,9 @@ async function loadFirebase(provider?: string) {
   vi.stubEnv('NEXT_PUBLIC_FIREBASE_PROJECT_ID', 'demo-project')
   vi.stubEnv('NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY', 'site-key')
   if (provider) vi.stubEnv('NEXT_PUBLIC_FIREBASE_APP_CHECK_PROVIDER', provider)
-  return import('@/lib/firebase')
+  // The started SDK (lib/firebase-services.ts) and the light module's App Check settings.
+  const services = await import('@/lib/firebase-services')
+  return { ...(await import('@/lib/firebase')), ...services }
 }
 
 describe('App Check', () => {

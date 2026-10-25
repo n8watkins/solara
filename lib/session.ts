@@ -3,8 +3,7 @@
 // the weather cache and per-account notification state. None of it may carry over
 // from one account to the next, whether the previous person signed out or their
 // session simply ended.
-import { signOut } from 'firebase/auth'
-import { auth } from './firebase'
+import { loadedFirebase } from './firebase'
 import { clearWeatherCache } from './cache'
 import { clearLocalNotificationState, disableNotifications } from './notifications'
 import { clearGuestData, loadGuestPrefs } from './guest'
@@ -59,7 +58,12 @@ export async function signOutAndClear(uid: string | null | undefined): Promise<v
   }
   clearAccountData()
   clearGuestData()
-  if (auth) await signOut(auth)
+  // Someone signed in has Firebase loaded; with nothing loaded there is no session.
+  const auth = loadedFirebase()?.auth
+  if (auth) {
+    const { signOut } = await import('firebase/auth')
+    await signOut(auth)
+  }
 }
 
 /**
