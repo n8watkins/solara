@@ -267,6 +267,8 @@ Calendar feed links are capability URLs, so the server mints their tokens (32 ra
 Each live token is indexed by its SHA-256 hash in the server-only `calendarFeeds/{hash}` collection, and the feed resolves a token with one document read.
 The owner reads the current link from `users/{uid}/private/calendarFeed`, which clients cannot write.
 Feed responses are `Cache-Control: private, max-age=900` with a weak `ETag`, and both a single feed and an address that keeps requesting unknown tokens are rate limited.
+The per-address limit keys on the `X-Forwarded-For` entry that Google's front end appends, never on the entries a client can send (`TRUSTED_PROXY_HOPS` in `functions/src/shared/http.ts`).
+That count is 1 while the Functions are called on their own URLs; putting an external HTTPS load balancer in front adds a second Google entry, so the count must change to 2 with it.
 Account deletion removes the account's `calendarFeeds` entries along with the user document.
 
 ### Migration from client-minted tokens

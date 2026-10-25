@@ -1602,6 +1602,30 @@ describe('calendar feed security', () => {
     assert.equal(db.reads.length, lookups)
   })
 
+  test('keys the guessing limit on the address Google appended, not one the client sent', async () => {
+    const db = feedDb()
+    const handler = createCalendarFeedHandler({
+      buildICS: () => '',
+      buildSunEvents: () => [],
+      db,
+      days: 7,
+      fetchForecast: async () => [],
+    })
+    // Google's front end appends the real client address to whatever X-Forwarded-For
+    // the client sent, so a guesser controls every entry but the last.
+    const spoofed = i => ({ 'x-forwarded-for': `198.51.100.${i % 250}, 203.0.113.77` })
+    for (let i = 0; i < UNKNOWN_FEED_REQUESTS_PER_MINUTE; i += 1) {
+      const res = responseRecorder()
+      await handler(feedRequest(mintFeedToken(), spoofed(i)), res)
+      assert.equal(res.statusCode, 404)
+    }
+    const lookups = db.reads.length
+    const limited = responseRecorder()
+    await handler(feedRequest(mintFeedToken(), spoofed(UNKNOWN_FEED_REQUESTS_PER_MINUTE)), limited)
+    assert.equal(limited.statusCode, 429)
+    assert.equal(db.reads.length, lookups)
+  })
+
   test('rejects unsupported methods before querying Firestore', async () => {
     const handler = createCalendarFeedHandler({
       buildICS: () => '',

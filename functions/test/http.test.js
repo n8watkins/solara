@@ -3,7 +3,7 @@ const assert = require('node:assert/strict')
 
 const { verifyAppCheck } = require('../lib/shared/app-check')
 const { ERROR_CODES, HttpError, publicError } = require('../lib/shared/errors')
-const { createApiHandler } = require('../lib/shared/http')
+const { clientAddress, createApiHandler, TRUSTED_PROXY_HOPS } = require('../lib/shared/http')
 const { FixedWindowLimiter } = require('../lib/shared/rate-limit')
 const { captureLogs } = require('./support/logs')
 
@@ -306,5 +306,31 @@ describe('fixed-window limiter', () => {
     limiter.take('c', 0)
     assert.equal(limiter.windows.size, 2)
     assert.equal(limiter.windows.has('a'), false)
+  })
+})
+
+describe('clientAddress', () => {
+  const req = (forwarded, remoteAddress = '10.0.0.1') => ({
+    headers: forwarded === undefined ? {} : { 'x-forwarded-for': forwarded },
+    socket: { remoteAddress },
+  })
+
+  test('trusts only the entry Google appended', () => {
+    assert.equal(TRUSTED_PROXY_HOPS, 1)
+    assert.equal(clientAddress(req('203.0.113.9')), '203.0.113.9')
+    assert.equal(clientAddress(req('1.2.3.4, 5.6.7.8,203.0.113.9')), '203.0.113.9')
+    assert.equal(clientAddress(req(['1.2.3.4', '203.0.113.9'])), '203.0.113.9')
+  })
+
+  test('counts hops from the right when a load balancer adds its own entry', () => {
+    assert.equal(clientAddress(req('1.2.3.4, 203.0.113.9, 34.1.1.1'), 2), '203.0.113.9')
+    // Fewer entries than hops: nothing trustworthy in the header.
+    assert.equal(clientAddress(req('203.0.113.9'), 2), '10.0.0.1')
+  })
+
+  test('falls back to the socket address without the header', () => {
+    assert.equal(clientAddress(req(undefined)), '10.0.0.1')
+    assert.equal(clientAddress(req('')), '10.0.0.1')
+    assert.equal(clientAddress({ headers: {} }), 'unknown')
   })
 })
