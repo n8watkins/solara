@@ -13,7 +13,7 @@ import { useCheckoutReturn } from '@/lib/use-checkout-return'
 import { createQueryClient, useWeather } from '@/lib/use-forecast'
 import { resolveUnits, unitFormatters } from '@/lib/units'
 import { UnitsContext } from '@/lib/use-units'
-import { onForegroundMessage } from '@/lib/notifications'
+import { lazySubscription } from '@/lib/firebase'
 import type { Activity, UserPreferences, TierLevel, DayWeather } from '@/lib/types'
 import SignInScreen from './SignInScreen'
 import Onboarding from './Onboarding'
@@ -78,7 +78,14 @@ function SignedInApp() {
 
   useEffect(() => {
     if (!user) return
-    return onForegroundMessage(() => setForegroundNotice(true))
+    // The notifications code loads only for someone signed in.
+    return lazySubscription(
+      async () => {
+        const { onForegroundMessage } = await import('@/lib/notifications')
+        return onForegroundMessage(() => setForegroundNotice(true))
+      },
+      error => console.error('Foreground notification error:', error),
+    )
   }, [user])
 
   useCheckoutReturn(user, { onNotice: setBillingNotice, onPaid: setPrefs })

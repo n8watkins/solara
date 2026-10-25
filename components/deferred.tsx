@@ -1,8 +1,10 @@
 'use client'
 // Parts of the app that are not on screen when it opens: the dialogs and sheets, the
-// calendar view and the calendar feed card. Each loads as its own chunk the first
-// time it renders, so the first load carries only the dashboard (or setup). Soon after
-// the page has loaded, preloadDeferred() fetches them all, so opening one is instant.
+// calendar view and the calendar feed card, and the header's signed-in parts (account
+// menu, profile switcher), which a guest never sees. Each loads as its own chunk the
+// first time it renders, so the first load carries only the dashboard (or setup). Soon
+// after the page has loaded, preloadDeferred() fetches them all, so opening one is
+// instant; preloadSignedInParts() fetches the signed-in header parts at once.
 //
 // Import these instead of the modules themselves; each renders nothing until its
 // chunk has arrived.
@@ -17,7 +19,9 @@ const PRELOAD_DELAY_MS = 1500
 
 // Plain state rather than React.lazy and Suspense: Suspense reveals content on a
 // timer, and a part that has loaded once must render in the same pass, with no gap.
-function deferred<P extends object>(load: Loader<P>): ComponentType<P> {
+function deferred<P extends object>(
+  load: Loader<P>,
+): ComponentType<P> & { preload: () => Promise<unknown> } {
   let loaded: ComponentType<P> | null = null
   let pending: Promise<ComponentType<P>> | null = null
   const preload = () => {
@@ -49,7 +53,7 @@ function deferred<P extends object>(load: Loader<P>): ComponentType<P> {
     }, [Component])
     return Component ? <Component {...props} /> : null
   }
-  return Deferred
+  return Object.assign(Deferred, { preload })
 }
 
 export const PreferencesModal = deferred(() => import('./PreferencesModal'))
@@ -60,6 +64,20 @@ export const ManageActivitiesModal = deferred(() => import('./ManageActivitiesMo
 export const ScheduledSheet = deferred(() => import('./ScheduledSheet'))
 export const CalendarView = deferred(() => import('./CalendarView'))
 export const CalendarFeed = deferred(() => import('./CalendarFeed'))
+export const AccountMenu = deferred(() => import('./AccountMenu'))
+export const ProfileSwitcher = deferred(() => import('./ProfileSwitcher'))
+
+/**
+ * Loads the header's signed-in parts now, for a session about to show (a stored
+ * session at start-up, or a sign-in in progress), so they render with the rest of the
+ * header instead of popping in. Never rejects.
+ */
+export function preloadSignedInParts(): Promise<void> {
+  return Promise.all([AccountMenu.preload(), ProfileSwitcher.preload()]).then(
+    () => {},
+    () => {},
+  )
+}
 
 /**
  * Fetches every deferred part a little after the page has loaded, when the browser is

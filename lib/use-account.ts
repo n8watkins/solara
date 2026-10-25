@@ -9,14 +9,8 @@ import {
   storedSessionInIndexedDb,
   whenFirebaseLoads,
 } from './firebase'
-import { loadAccountPrefs } from './session'
 import { loadGuestPrefs } from './guest'
 import { FORECAST_QUERY_KEY } from './use-forecast'
-import {
-  enableNotifications,
-  migrateLegacyNotificationToken,
-  notificationsEnabledLocally,
-} from './notifications'
 import {
   ACCOUNT_LOAD_ERROR,
   accountErrorMessage,
@@ -24,7 +18,29 @@ import {
   screenWhenSignedOut,
   type AppScreen,
 } from './account-screen'
+import type { AccountLoadResult } from './session'
 import type { UserPreferences } from './types'
+
+/**
+ * Loads the signed-in account (loadAccountPrefs in lib/session.ts). The account code,
+ * and the notifications code it uses, loads only for someone signed in; a failure to
+ * load it is a failed account load.
+ */
+async function loadSignedInAccount(
+  uid: string,
+  known: UserPreferences | null,
+): Promise<AccountLoadResult> {
+  try {
+    const { loadAccountPrefs } = await import('./session')
+    return await loadAccountPrefs(uid, known)
+  } catch (error) {
+    return {
+      status: 'error',
+      stage: 'load',
+      error: error instanceof Error ? error : new Error('Could not load the account'),
+    }
+  }
+}
 
 /**
  * The account (or guest) behind components/App.tsx: follows Firebase Auth, loads (or
@@ -105,7 +121,7 @@ export function useAccount({
 
       const known = signedIn
       signedIn = null
-      const result = await loadAccountPrefs(u.uid, known)
+      const result = await loadSignedInAccount(u.uid, known)
       if (isStale()) return
       if (result.status === 'error') {
         console.error('Account load failed:', result.error)
@@ -122,9 +138,12 @@ export function useAccount({
       setPrefs(loaded)
       setScreen('dashboard')
       if (loaded.tier === 'paid') {
-        migrateLegacyNotificationToken(u.uid)
-          .then(() => {
-            if (notificationsEnabledLocally(u.uid)) return enableNotifications(u.uid)
+        import('./notifications')
+          .then(async notifications => {
+            await notifications.migrateLegacyNotificationToken(u.uid)
+            if (notifications.notificationsEnabledLocally(u.uid)) {
+              await notifications.enableNotifications(u.uid)
+            }
           })
           .catch(err => console.error('Notification refresh failed:', err))
       }
