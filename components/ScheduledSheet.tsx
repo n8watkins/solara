@@ -1,4 +1,5 @@
 'use client'
+import { ExternalLink } from 'lucide-react'
 import { useEffect, useEffectEvent, useId, useRef, useState } from 'react'
 import type { ScheduledActivity } from '@solara/core'
 import { CalendarAuthError } from '@/lib/gcal'
@@ -148,7 +149,7 @@ export default function ScheduledSheet({
               target="_blank"
               rel="noopener noreferrer"
             >
-              Open in Google Calendar ↗
+              Open in Google Calendar <ExternalLink size={14} />
             </a>
             <button
               type="button"

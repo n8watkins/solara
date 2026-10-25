@@ -1,4 +1,5 @@
 'use client'
+import { Lock } from 'lucide-react'
 import { useEffect, useEffectEvent, useState } from 'react'
 import type { Activity, UserPreferences, WeatherResponse } from '@/lib/types'
 import { canUseCalendar, getFutureDays, TIER_LIMITS } from '@/lib/tiers'
@@ -167,7 +168,9 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
       />
 
       {lockedCopy && days.length > 0 && days.length < TIER_LIMITS.paid.futureDays && (
-        <div className={`${notice} py-[9px] text-[13px]`}>🔒 {lockedCopy}</div>
+        <div className={`${notice} flex items-center gap-1.5 py-[9px] text-[13px]`}>
+          <Lock size={14} className="shrink-0" /> {lockedCopy}
+        </div>
       )}
 
       {status.message && (

@@ -1,12 +1,13 @@
 'use client'
+import { CalendarDays, Sun, type LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import clsx from 'clsx'
 
 export type AppView = 'dashboard' | 'calendar'
 
-const VIEWS: { id: AppView; label: string; heading: string }[] = [
-  { id: 'dashboard', label: '☀️ Dashboard', heading: 'UV dashboard' },
-  { id: 'calendar', label: '🗓️ Calendar', heading: 'Activity calendar' },
+const VIEWS: { id: AppView; label: string; heading: string; Icon: LucideIcon }[] = [
+  { id: 'dashboard', label: 'Dashboard', heading: 'UV dashboard', Icon: Sun },
+  { id: 'calendar', label: 'Calendar', heading: 'Activity calendar', Icon: CalendarDays },
 ]
 
 interface Props {
@@ -33,16 +34,17 @@ export default function AppShell({ header, view, onViewChange, children, after }
         {onViewChange && (
           <div className="border-b-[0.5px] border-line-strong bg-surface-card">
             <div className="mx-auto flex max-w-[900px] px-4 lg:max-w-[1240px]">
-              {VIEWS.map(({ id, label }) => (
+              {VIEWS.map(({ id, label, Icon }) => (
                 <button
                   key={id}
                   onClick={() => onViewChange(id)}
                   aria-current={view === id ? 'page' : undefined}
                   className={clsx(
-                    'border-b-2 px-4 py-[11px] text-[13px] font-medium capitalize transition-colors duration-150',
+                    'flex items-center gap-1.5 border-b-2 px-4 py-[11px] text-[13px] font-medium capitalize transition-colors duration-150',
                     view === id ? 'border-accent text-accent' : 'border-transparent text-ink-3',
                   )}
                 >
+                  <Icon size={15} />
                   {label}
                 </button>
               ))}

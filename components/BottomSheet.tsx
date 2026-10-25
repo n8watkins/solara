@@ -1,3 +1,4 @@
+import { X } from 'lucide-react'
 import type { ReactNode, Ref } from 'react'
 import clsx from 'clsx'
 
@@ -35,7 +36,7 @@ export default function BottomSheet({
   )
 }
 
-/** The sheet's ✕ button. */
+/** The sheet's close button. */
 export function SheetClose({ onClose, disabled }: { onClose: () => void; disabled?: boolean }) {
   return (
     <button
@@ -45,7 +46,7 @@ export function SheetClose({ onClose, disabled }: { onClose: () => void; disable
       onClick={onClose}
       disabled={disabled}
     >
-      ✕
+      <X size={16} />
     </button>
   )
 }

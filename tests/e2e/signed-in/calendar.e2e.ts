@@ -8,7 +8,7 @@ test('the calendar shows each activity window and opens its details', async ({
   await emulators.seedPrefs(account, { activities: [RUNNING, HIKING] })
   await openDashboard(page, account)
 
-  await page.getByRole('button', { name: '🗓️ Calendar', exact: true }).click()
+  await page.getByRole('button', { name: 'Calendar', exact: true }).click()
   const main = page.getByRole('main')
   await expect(main.getByRole('group', { name: 'Hours shown' })).toBeVisible()
   await expect(

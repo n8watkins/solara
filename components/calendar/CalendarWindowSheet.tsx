@@ -1,4 +1,5 @@
 'use client'
+import { CalendarPlus, Lock, Share2 } from 'lucide-react'
 import { useState, type Ref } from 'react'
 import { gcalWindowLink } from '@/lib/calendar'
 import { durationText, windowSlot } from '@/lib/calendar-grid'
@@ -130,7 +131,13 @@ export default function CalendarWindowSheet({
             disabled={adding}
             onClick={() => void schedule()}
           >
-            {adding ? 'Adding to Google Calendar…' : '📅 Add to Google Calendar'}
+            {adding ? (
+              'Adding to Google Calendar…'
+            ) : (
+              <>
+                <CalendarPlus size={15} /> Add to Google Calendar
+              </>
+            )}
           </button>
         ) : canUseCalendar ? (
           <a
@@ -140,15 +147,15 @@ export default function CalendarWindowSheet({
             rel="noopener noreferrer"
             onClick={() => status.flash('Opened Google Calendar in a new tab.')}
           >
-            📅 Add to Google Calendar
+            <CalendarPlus size={15} /> Add to Google Calendar
           </a>
         ) : (
-          <span className="col-span-full text-center text-[12px] text-ink-3">
-            🔒 Sign in to add to Calendar
+          <span className="col-span-full inline-flex items-center justify-center gap-1.5 text-[12px] text-ink-3">
+            <Lock size={13} /> Sign in to add to Calendar
           </span>
         )}
         <button type="button" className={sheetAction} onClick={() => void share()}>
-          ↗ Share
+          <Share2 size={15} /> Share
         </button>
         {onEdit && (
           <button type="button" className={sheetAction} onClick={onEdit}>

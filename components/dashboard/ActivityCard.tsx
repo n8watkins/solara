@@ -1,3 +1,4 @@
+import { Pencil } from 'lucide-react'
 import type { SafeActivityWindow } from '@/lib/types'
 import type { ActivityDayPlan } from '@/lib/next-slot'
 import type { ScheduledActivity, ScheduledSpan } from '@/lib/scheduled'
@@ -78,7 +79,7 @@ export default function ActivityCard({
             aria-label={`Edit ${activity.name}`}
             title="Edit activity"
           >
-            ✎
+            <Pencil size={15} />
           </button>
         )}
       </div>

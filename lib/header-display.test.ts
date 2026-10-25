@@ -20,12 +20,12 @@ describe('headerUV', () => {
     expect(headerUV(Number.NaN)).toBeNull()
   })
 
-  it('shows one decimal with the band icon and label, edges in the lower band', () => {
-    expect(headerUV(0)).toEqual({ icon: '⚪', value: '0.0', level: 'None' })
-    expect(headerUV(2)).toEqual({ icon: '🟢', value: '2.0', level: 'Low' })
-    expect(headerUV(4.5)).toEqual({ icon: '🟡', value: '4.5', level: 'Moderate' })
-    expect(headerUV(7)).toMatchObject({ icon: '🟠' })
-    expect(headerUV(10)).toMatchObject({ icon: '🔴' })
-    expect(headerUV(11.2)).toMatchObject({ icon: '🟣', value: '11.2' })
+  it('shows one decimal with the band and label, edges in the lower band', () => {
+    expect(headerUV(0)).toEqual({ band: 'none', value: '0.0', level: 'None' })
+    expect(headerUV(2)).toEqual({ band: 'low', value: '2.0', level: 'Low' })
+    expect(headerUV(4.5)).toEqual({ band: 'moderate', value: '4.5', level: 'Moderate' })
+    expect(headerUV(7)).toMatchObject({ band: 'high' })
+    expect(headerUV(10)).toMatchObject({ band: 'very-high' })
+    expect(headerUV(11.2)).toMatchObject({ band: 'extreme', value: '11.2' })
   })
 })

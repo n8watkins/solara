@@ -1,3 +1,4 @@
+import { Check, Lock, RotateCw } from 'lucide-react'
 import { useState } from 'react'
 import type { DayWeather } from '@/lib/types'
 import { LOCKED_DAYS_UPSELL, dayChips, type DashboardAccess } from '@/lib/dashboard-view'
@@ -64,7 +65,7 @@ export default function DayPicker({
                 title={LOCKED_DAYS_UPSELL}
                 className="flex shrink-0 cursor-pointer items-center gap-[5px] rounded-[10px] border-[0.5px] border-dashed border-accent-border bg-transparent px-3.5 py-2 text-[13px] font-semibold text-accent transition-all duration-[120ms]"
               >
-                <span aria-hidden="true">🔒</span> Next 10 days
+                <Lock size={14} strokeWidth={2.25} /> Next 10 days
               </button>
             )}
           </>
@@ -76,7 +77,7 @@ export default function DayPicker({
         title="Refresh"
         aria-label="Refresh forecast"
       >
-        ↻
+        <RotateCw size={17} />
       </button>
 
       {open && (
@@ -123,7 +124,7 @@ function DayDialog({
               }`}
             >
               <span>{day.label}</span>
-              {active && <span className="text-[13px]">✓</span>}
+              {active && <Check size={16} />}
             </button>
           )
         })}

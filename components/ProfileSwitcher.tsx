@@ -1,4 +1,5 @@
 'use client'
+import { ChevronDown, Pencil } from 'lucide-react'
 import { useState, useRef, useEffect, useId } from 'react'
 import clsx from 'clsx'
 import type { UserPreferences, Profile, TierLevel } from '@/lib/types'
@@ -101,9 +102,7 @@ export default function ProfileSwitcher({ prefs, tier, onApply }: Props) {
           {active.icon ?? '🧑'}
         </span>
         <span className="font-semibold">{active.name}</span>
-        <span aria-hidden="true" className="text-ink-3">
-          ▾
-        </span>
+        <ChevronDown size={14} className="text-ink-3" />
       </button>
 
       {open && (
@@ -170,7 +169,7 @@ export default function ProfileSwitcher({ prefs, tier, onApply }: Props) {
                           aria-label={`Edit ${p.name}`}
                           className="min-h-7 min-w-7 rounded-[7px] p-1 text-[13px] text-ink-3"
                         >
-                          <span aria-hidden="true">✎</span>
+                          <Pencil size={14} />
                         </button>
                       )}
                     </div>

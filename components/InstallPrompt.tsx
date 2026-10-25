@@ -1,4 +1,6 @@
 'use client'
+import { X } from 'lucide-react'
+import SolaraMark from './SolaraMark'
 import { useEffect, useState, type ReactNode } from 'react'
 import {
   ANALYTICS_CONSENT_EVENT,
@@ -162,7 +164,7 @@ function Banner({
       aria-label="Install Solara"
       className="fixed inset-x-3 bottom-[max(12px,env(safe-area-inset-bottom))] z-30 mx-auto flex max-w-[520px] items-center gap-3 rounded-2xl border-[0.5px] border-line-strong bg-surface-card px-3.5 py-3 shadow-[0_12px_40px_rgba(0,0,0,0.22)]"
     >
-      <span className="shrink-0 text-[22px]">☀️</span>
+      <SolaraMark size={24} className="shrink-0" />
       <div className="min-w-0 flex-1">
         <p className="text-[14px] font-[650] text-ink">Add Solara to your home screen</p>
         <p className="mt-0.5 text-[12px] text-ink-3">{children}</p>
@@ -171,9 +173,9 @@ function Banner({
       <button
         onClick={onDismiss}
         aria-label="Dismiss"
-        className="shrink-0 bg-transparent px-1 text-[18px] text-ink-3"
+        className="flex size-8 shrink-0 items-center justify-center rounded-full bg-transparent text-ink-3"
       >
-        ×
+        <X size={17} />
       </button>
     </section>
   )

@@ -1,4 +1,5 @@
 'use client'
+import { LogOut, Settings, UserRound } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import type { User } from 'firebase/auth'
@@ -148,7 +149,7 @@ export default function AccountMenu({ user, onOpenSettings, onSignOut }: Props) 
               }}
               className="hdr-menu-item"
             >
-              ⚙️ Settings
+              <Settings size={16} /> Settings
             </button>
             <a
               role="menuitem"
@@ -156,7 +157,7 @@ export default function AccountMenu({ user, onOpenSettings, onSignOut }: Props) 
               href="/account/"
               className="hdr-menu-item no-underline"
             >
-              👤 Account & billing
+              <UserRound size={16} /> Account & billing
             </a>
             <button
               role="menuitem"
@@ -167,7 +168,7 @@ export default function AccountMenu({ user, onOpenSettings, onSignOut }: Props) 
               }}
               className="hdr-menu-item text-danger"
             >
-              ↪ Sign out
+              <LogOut size={16} /> Sign out
             </button>
           </div>
         </div>

@@ -1,4 +1,5 @@
 'use client'
+import { CalendarPlus, Download, Lock } from 'lucide-react'
 import type { DayWeather, Activity, SkinType } from '@/lib/types'
 import type { UpcomingSlot } from '@/lib/planner'
 import { planUpcomingSlots } from '@/lib/planner'
@@ -69,7 +70,7 @@ export default function PlanAhead({
             onClick={exportIcs}
             title="Download all recommended slots as a calendar file (.ics) for any calendar app"
           >
-            ⬇ Export .ics
+            <Download size={14} /> Export .ics
           </button>
         )}
       </div>
@@ -108,7 +109,7 @@ export default function PlanAhead({
                 className="btn shrink-0 px-2.5 py-1.5 text-[11px]"
                 onClick={() => onBook(activity, slot, dateStr)}
               >
-                📅 Book
+                <CalendarPlus size={14} /> Book
               </button>
             )}
           </div>
@@ -120,7 +121,8 @@ export default function PlanAhead({
           onClick={onUpgrade}
           className="btn mt-3 w-full justify-center border-brand/40 text-[12px] text-accent"
         >
-          🔒 {upgradeCopy}: see {lockedDays} more day{lockedDays === 1 ? '' : 's'} of plans
+          <Lock size={14} /> {upgradeCopy}: see {lockedDays} more day{lockedDays === 1 ? '' : 's'}{' '}
+          of plans
         </button>
       )}
     </div>

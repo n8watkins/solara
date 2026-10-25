@@ -1,4 +1,5 @@
 'use client'
+import { Footprints, MapPin, Palette, Sun, UserRound, type LucideIcon } from 'lucide-react'
 import { useRef } from 'react'
 import type { KeyboardEvent } from 'react'
 import { nextIndex } from '@/lib/roving-focus'
@@ -8,7 +9,7 @@ export type SettingsTab = 'general' | 'appearance' | 'activities' | 'location' |
 export interface SettingsSection {
   id: SettingsTab
   label: string
-  emoji: string
+  Icon: LucideIcon
   desc: string
 }
 
@@ -16,28 +17,33 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   {
     id: 'general',
     label: 'Sun profile',
-    emoji: '☀️',
+    Icon: Sun,
     desc: 'Skin type and the assumptions behind your exposure estimates.',
   },
   {
     id: 'appearance',
     label: 'Appearance',
-    emoji: '🎨',
+    Icon: Palette,
     desc: 'Theme, units and what the dashboard shows.',
   },
   {
     id: 'activities',
     label: 'Activities',
-    emoji: '🏃',
+    Icon: Footprints,
     desc: 'Suggestion and category preferences.',
   },
   {
     id: 'location',
     label: 'Location',
-    emoji: '📍',
+    Icon: MapPin,
     desc: 'Where Solara checks the UV forecast.',
   },
-  { id: 'account', label: 'Account', emoji: '👤', desc: 'Plan, sign-in, and cross-device sync.' },
+  {
+    id: 'account',
+    label: 'Account',
+    Icon: UserRound,
+    desc: 'Plan, sign-in, and cross-device sync.',
+  },
 ]
 
 export function settingsSection(tab: SettingsTab): SettingsSection {
@@ -95,9 +101,7 @@ export default function SettingsTabs({ tab, onTabChange, tabId, panelId }: Props
           onKeyDown={handleKeyDown}
           className="flex min-h-9 items-center gap-[9px] rounded-[9px] px-3 py-[9px] text-left text-[13px] font-semibold text-ink-2 transition-colors duration-120 hover:bg-surface-metric aria-selected:bg-surface-metric aria-selected:text-accent max-sm:min-h-13 max-sm:flex-col max-sm:justify-center max-sm:gap-1 max-sm:px-0.5 max-sm:py-[7px] max-sm:text-center max-sm:text-[length:clamp(10px,2.9vw,11px)] max-sm:whitespace-nowrap"
         >
-          <span aria-hidden="true" className="text-[15px] max-sm:text-[18px] max-sm:leading-none">
-            {s.emoji}
-          </span>
+          <s.Icon size={17} className="shrink-0 max-sm:size-[19px]" />
           {s.label}
         </button>
       ))}

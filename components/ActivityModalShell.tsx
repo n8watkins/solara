@@ -1,4 +1,5 @@
 'use client'
+import { X } from 'lucide-react'
 import { useId, useRef } from 'react'
 import type { ReactNode } from 'react'
 import Dialog, { useKeyboardScrollable } from './Dialog'
@@ -46,7 +47,7 @@ export default function ActivityModalShell({
           className="flex size-8 shrink-0 items-center justify-center rounded-full bg-surface-metric text-[18px] text-ink-2"
           aria-label="Close"
         >
-          <span aria-hidden="true">×</span>
+          <X size={18} />
         </button>
       </div>
 

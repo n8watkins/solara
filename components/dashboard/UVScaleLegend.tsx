@@ -1,3 +1,4 @@
+import { ChevronDown } from 'lucide-react'
 import { useState } from 'react'
 import type { UVBand } from '@/lib/weather'
 import { UV_BG } from './uv-classes'
@@ -20,7 +21,11 @@ export default function UVScaleLegend() {
         className="inline-flex cursor-pointer items-center gap-[5px] border-0 bg-transparent px-0.5 pt-1.5 pb-1 text-[11px] font-semibold text-ink-3"
         aria-expanded={open}
       >
-        UV scale {open ? '▲' : '▼'}
+        UV scale
+        <ChevronDown
+          size={14}
+          className={`transition-transform duration-150 ${open ? 'rotate-180' : ''}`}
+        />
       </button>
       {open && (
         <div className="mt-1 flex flex-wrap gap-x-3.5 gap-y-1.5">

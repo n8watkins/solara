@@ -1,3 +1,4 @@
+import { CalendarPlus } from 'lucide-react'
 import type { SlotRecommendation } from '@/lib/scheduler'
 import { useUnits } from '@/lib/use-units'
 
@@ -48,7 +49,7 @@ export default function RecommendedSlot({
       </p>
       {onBook ? (
         <button className={ACTION} onClick={onBook}>
-          📅 Add to Google Calendar
+          <CalendarPlus size={15} /> Add to Google Calendar
         </button>
       ) : (
         calendarHref && (
@@ -58,7 +59,7 @@ export default function RecommendedSlot({
             target="_blank"
             rel="noopener noreferrer"
           >
-            📅 Add to Calendar
+            <CalendarPlus size={15} /> Add to Calendar
           </a>
         )
       )}

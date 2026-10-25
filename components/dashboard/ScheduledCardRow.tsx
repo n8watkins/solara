@@ -1,3 +1,4 @@
+import { ExternalLink } from 'lucide-react'
 import type { ScheduledActivity, ScheduledSpan } from '@/lib/scheduled'
 import { useUnits } from '@/lib/use-units'
 import ScheduledPill from '../scheduled/ScheduledPill'
@@ -39,7 +40,7 @@ export default function ScheduledCardRow({
           rel="noopener noreferrer"
           aria-label={`Open scheduled ${activityName}, ${range}, in Google Calendar`}
         >
-          Open <span aria-hidden="true">↗</span>
+          Open <ExternalLink size={13} />
         </a>
         {onManage && (
           <button

@@ -1,6 +1,7 @@
 'use client'
 import { firebaseEnabled } from '@/lib/firebase'
 import GoogleSignInButton from './GoogleSignInButton'
+import SolaraMark from './SolaraMark'
 
 /**
  * The landing page's "Sign in": Google sign-in for a returning account, or a way to
@@ -10,9 +11,7 @@ export default function SignInScreen({ onContinueAsGuest }: { onContinueAsGuest:
   return (
     <main className="flex min-h-dvh flex-col bg-surface px-4 pt-[max(20px,8vh)] pb-8 sm:justify-center sm:py-10">
       <div className="card mx-auto w-full max-w-[420px] text-center sm:px-8 sm:py-7">
-        <span aria-hidden="true" className="text-[34px] leading-none">
-          ☀️
-        </span>
+        <SolaraMark size={38} className="mx-auto" />
         <h1 className="mt-3 mb-2 text-[22px] leading-tight font-[650] text-ink">
           Sign in to Solara
         </h1>
