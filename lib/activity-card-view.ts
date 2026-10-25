@@ -4,11 +4,12 @@ import type { ActivityDayPlan } from './next-slot'
 import type { ScheduledSpan } from './scheduled'
 import type { SlotRecommendation } from './scheduler'
 
-export type ActivityStatus = 'safe' | 'caution' | 'avoid'
+export type ActivityStatus = 'safe' | 'caution' | 'avoid' | 'done'
 
 /**
  * The badge describes the recommendation below it, never a window that cannot
- * be finished or has already passed.
+ * be finished or has already passed. A day whose windows have all passed is
+ * simply done: neutral, not a red warning.
  */
 export function activityBadge(
   plan: Pick<ActivityDayPlan, 'startsNow' | 'slot' | 'elapsed'>,
@@ -16,7 +17,8 @@ export function activityBadge(
 ): { status: ActivityStatus; label: string } {
   if (plan.startsNow) return { status: 'safe', label: 'Now' }
   if (plan.slot) return { status: 'caution', label: isToday ? 'Later' : 'Available' }
-  return { status: 'avoid', label: plan.elapsed ? 'None left' : 'No match' }
+  if (plan.elapsed) return { status: 'done', label: 'Done for today' }
+  return { status: 'avoid', label: 'No match' }
 }
 
 /** The "Best window" row: the window's range, or why there is none. */
@@ -31,7 +33,7 @@ export function bestWindowLabel(
   return isToday ? 'None today' : 'None'
 }
 
-/** Tone of the "% of visible day matches" bar. */
+/** Tone of the "% of daylight hours fit" bar. */
 export function matchTone(pctDaySafe: number): 'success' | 'warning' | 'danger' {
   if (pctDaySafe >= 60) return 'success'
   if (pctDaySafe >= 30) return 'warning'

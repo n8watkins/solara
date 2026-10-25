@@ -17,8 +17,8 @@ describe('activityBadge', () => {
     expect(activityBadge({ startsNow: false, slot, elapsed: false }, true).label).toBe('Later')
     expect(activityBadge({ startsNow: false, slot, elapsed: false }, false).label).toBe('Available')
     expect(activityBadge({ startsNow: false, slot: null, elapsed: true }, true)).toEqual({
-      status: 'avoid',
-      label: 'None left',
+      status: 'done',
+      label: 'Done for today',
     })
     expect(activityBadge({ startsNow: false, slot: null, elapsed: false }, true).label).toBe(
       'No match',
