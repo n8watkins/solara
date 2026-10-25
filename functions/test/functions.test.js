@@ -1426,7 +1426,6 @@ describe('calendar feed security', () => {
         buildICS: events => `calendar:${events.length}`,
         buildSunEvents: () => [{ id: 1 }],
         db,
-        days: 7,
         fetchForecast: async () => [],
         ...overrides,
       }),
@@ -1476,6 +1475,36 @@ describe('calendar feed security', () => {
     assert.equal(res.headers['Content-Type'], 'text/calendar; charset=utf-8')
     assert.equal(res.headers['X-Content-Type-Options'], 'nosniff')
     assert.equal(res.headers['X-Robots-Tag'], 'noindex, nofollow, noarchive')
+  })
+
+  test("covers the days the account's plan shows in the app", async () => {
+    const requested = {}
+    for (const tier of ['free', 'paid', undefined]) {
+      clearForecastCache()
+      clearFeedRateLimits()
+      const db = feedDb({
+        feeds: { [feedTokenHash(TOKEN)]: { uid: 'alice' } },
+        users: { alice: { tier, location: { lat: 1, lon: 2 }, activities: [] } },
+      })
+      let built
+      const handler = createCalendarFeedHandler({
+        buildICS: events => `calendar:${events.length}`,
+        buildSunEvents: (_user, forecast) => {
+          built = forecast
+          return []
+        },
+        db,
+        fetchForecast: async (_lat, _lon, days) => {
+          requested[String(tier)] = days
+          return { days }
+        },
+      })
+      const res = responseRecorder()
+      await handler(feedRequest(TOKEN), res)
+      assert.equal(res.statusCode, 200)
+      assert.deepEqual(built, { days: requested[String(tier)] })
+    }
+    assert.deepEqual(requested, { free: 2, paid: 10, undefined: 2 })
   })
 
   test('answers a matching If-None-Match with 304 and no body', async () => {
@@ -1534,7 +1563,6 @@ describe('calendar feed security', () => {
       buildICS: () => 'leak',
       buildSunEvents: () => [],
       db,
-      days: 7,
       fetchForecast: async () => [],
     })
     const res = responseRecorder()
@@ -1557,7 +1585,6 @@ describe('calendar feed security', () => {
         throw new Error('must not build')
       },
       db,
-      days: 7,
       fetchForecast: async () => {
         throw new Error('must not fetch')
       },
@@ -1587,7 +1614,6 @@ describe('calendar feed security', () => {
       buildICS: () => '',
       buildSunEvents: () => [],
       db,
-      days: 7,
       fetchForecast: async () => [],
     })
     for (let i = 0; i < UNKNOWN_FEED_REQUESTS_PER_MINUTE; i += 1) {
@@ -1608,7 +1634,6 @@ describe('calendar feed security', () => {
       buildICS: () => '',
       buildSunEvents: () => [],
       db,
-      days: 7,
       fetchForecast: async () => [],
     })
     // Google's front end appends the real client address to whatever X-Forwarded-For
@@ -1635,7 +1660,6 @@ describe('calendar feed security', () => {
           throw new Error('must not query')
         },
       },
-      days: 7,
       fetchForecast: async () => [],
     })
     const res = responseRecorder()

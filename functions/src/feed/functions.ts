@@ -11,9 +11,6 @@ import { createCalendarFeedHandler } from './calendar-feed'
 import { buildSunEvents, fetchForecast } from './sun'
 import { revokeCalendarFeed as revokeFeed, rotateCalendarFeed as rotateFeed } from './tokens'
 
-/** Days of forecast a feed covers. */
-const FEED_DAYS = 7
-
 export const rotateCalendarFeed = onRequest(
   { timeoutSeconds: 30, maxInstances: 10 },
   browserApi({
@@ -44,5 +41,5 @@ export const revokeCalendarFeed = onRequest(
 
 export const calendarFeed = onRequest(
   { cors: false, timeoutSeconds: 30, maxInstances: 20, concurrency: 20 },
-  createCalendarFeedHandler({ buildICS, buildSunEvents, db, days: FEED_DAYS, fetchForecast }),
+  createCalendarFeedHandler({ buildICS, buildSunEvents, db, fetchForecast }),
 )

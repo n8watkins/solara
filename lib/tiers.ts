@@ -1,3 +1,5 @@
+import { PLAN_FORECAST_DAYS } from '@solara/core'
+
 import type { TierLevel, Activity } from './types'
 import { effectiveMaxUV as sharedEffectiveMaxUV } from './recommendation'
 
@@ -35,7 +37,7 @@ export const TIER_LIMITS: Record<TierLevel, TierLimits> = {
     activities: 1,
     calendar: false,
     notifications: false,
-    futureDays: 1,
+    futureDays: PLAN_FORECAST_DAYS.anonymous,
     savedLocations: 1,
     profiles: 1,
     storage: 'device',
@@ -45,7 +47,7 @@ export const TIER_LIMITS: Record<TierLevel, TierLimits> = {
     // Owner decision 2026-10-24: Google Calendar adding and Scheduled stay free.
     calendar: true,
     notifications: false,
-    futureDays: 2,
+    futureDays: PLAN_FORECAST_DAYS.free,
     savedLocations: 3,
     profiles: 1,
     storage: 'synced',
@@ -54,7 +56,7 @@ export const TIER_LIMITS: Record<TierLevel, TierLimits> = {
     activities: 20,
     calendar: true,
     notifications: true,
-    futureDays: 10,
+    futureDays: PLAN_FORECAST_DAYS.paid,
     savedLocations: 12,
     profiles: 6,
     storage: 'synced',

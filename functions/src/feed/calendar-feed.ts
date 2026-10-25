@@ -2,7 +2,7 @@
 
 import { createHash } from 'node:crypto'
 
-import type { IcsEvent } from '#core'
+import { type IcsEvent, accountForecastDays } from '#core'
 import type { DocumentData, Firestore } from 'firebase-admin/firestore'
 import { logger } from 'firebase-functions/logger'
 import type { Request, Response } from 'firebase-functions/v2/https'
@@ -110,7 +110,6 @@ export interface CalendarFeedOptions<Forecast> {
   buildICS: (events: IcsEvent[]) => string
   buildSunEvents: (user: DocumentData, forecast: Forecast) => IcsEvent[]
   db: Firestore
-  days: number
   fetchForecast: (lat: number, lon: number, days: number) => Promise<Forecast>
   now?: () => number
 }
@@ -119,7 +118,6 @@ export function createCalendarFeedHandler<Forecast>({
   buildICS,
   buildSunEvents,
   db,
-  days,
   fetchForecast,
   now = Date.now,
 }: CalendarFeedOptions<Forecast>): (req: Request, res: Response) => Promise<void> {
@@ -158,6 +156,8 @@ export function createCalendarFeedHandler<Forecast>({
         return
       }
 
+      // The feed covers the days the account's plan shows in the app: Free's two, Pro's ten.
+      const days = accountForecastDays(user.tier)
       const events = validCoordinates(user.location)
         ? buildSunEvents(
             user,
