@@ -10,7 +10,6 @@
 // Import these instead of the modules themselves; each renders nothing (or its
 // fallback) until its chunk has arrived.
 import { useEffect, useState, type ComponentType } from 'react'
-import { DISABLED_SCHEDULED, ScheduledContext } from '@/lib/scheduled-context'
 import { AccountLoading } from './AccountStatus'
 
 type Loader<P> = () => Promise<{ default: ComponentType<P> }>
@@ -79,10 +78,7 @@ export const Onboarding = deferred(() => import('./Onboarding'), AccountLoading)
 export const AccountMenu = deferred(() => import('./AccountMenu'))
 export const ProfileSwitcher = deferred(() => import('./ProfileSwitcher'))
 /** A signed-in account's scheduled activities; until it arrives, the screens show none. */
-export const AccountScheduled = deferred(
-  () => import('./scheduled/AccountScheduled'),
-  ({ children }) => <ScheduledContext value={DISABLED_SCHEDULED}>{children}</ScheduledContext>,
-)
+export const AccountScheduled = deferred(() => import('./scheduled/AccountScheduled'))
 
 /**
  * Loads the header's signed-in parts now, for a session about to show (a stored

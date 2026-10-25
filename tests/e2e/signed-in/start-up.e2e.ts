@@ -50,10 +50,14 @@ test('a returning account sees its dashboard before the session is confirmed', a
   )
   await expect(page.getByRole('button', { name: 'Sign in' })).toHaveCount(0)
   expect(await appInert(page)).toBe(true)
+  // Marks what is on screen, to prove the confirmed app keeps it rather than redrawing it.
+  await uvStrip(page).evaluate(strip => strip.setAttribute('data-shown-early', ''))
 
-  // Once Auth confirms the session and the saved plan loads, it is the live app.
+  // Once Auth confirms the session and the saved plan loads, it is the live app,
+  // on the same page elements.
   await release()
   await expect.poll(() => appInert(page)).toBe(false)
+  await expect(uvStrip(page)).toHaveAttribute('data-shown-early', '')
   await page.getByRole('button', { name: 'Edit Running' }).click()
   await expect(page.getByRole('dialog')).toBeVisible()
 })
