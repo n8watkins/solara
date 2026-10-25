@@ -440,29 +440,26 @@
   }
   @media (max-width: 560px) {
     /* The 16px fade is UV_STRIP_EDGE_FADE (lib/uv-strip.ts); the sun path keeps its
-       peak callout out of it. */
+       peak callout out of it. UVTimeline narrows each side's fade to the distance
+       left to scroll that way, so a strip resting at an end shows that bar whole. */
     .uv-strip {
+      --strip-fade-start: 16px;
+      --strip-fade-end: 16px;
       -webkit-mask-image: linear-gradient(
         90deg,
         transparent 0,
-        #000 16px,
-        #000 calc(100% - 16px),
+        #000 var(--strip-fade-start),
+        #000 calc(100% - var(--strip-fade-end)),
         transparent 100%
       );
       mask-image: linear-gradient(
         90deg,
         transparent 0,
-        #000 16px,
-        #000 calc(100% - 16px),
+        #000 var(--strip-fade-start),
+        #000 calc(100% - var(--strip-fade-end)),
         transparent 100%
       );
     }
-  }
-
-  /* Compact, swipeable tips track - hide the scrollbar; swipe horizontally on touch. */
-  .tip-track::-webkit-scrollbar {
-    display: none;
-    height: 0;
   }
 
   .show-mobile {
