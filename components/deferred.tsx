@@ -1,6 +1,6 @@
 'use client'
 // Parts of the app that are not on screen when it opens: the dialogs and sheets, the
-// calendar view and the calendar feed card, the place search, setup (a returning
+// calendar view and the calendar feed card, the location panel, setup (a returning
 // visitor never sees it), and the header's signed-in parts (account menu, profile
 // switcher) and scheduled activities, which a guest never sees. Each loads as its own chunk the first time it
 // renders, so the first load carries only what the opening screen shows. Soon after
@@ -75,8 +75,9 @@ export const CalendarView = deferred(() => import('./CalendarView'))
 export const CalendarFeed = deferred(() => import('./CalendarFeed'))
 /** Floats over the page once the browser allows installing (lib/install-prompt.ts). */
 export const InstallPrompt = deferred(() => import('./InstallPrompt'))
+export const ActivityModals = deferred(() => import('./dashboard/ActivityModals'))
 export const DayDialog = deferred(() => import('./dashboard/DayDialog'))
-export const PlaceSearch = deferred(() => import('./PlaceSearch'))
+export const LocationPanel = deferred(() => import('./LocationPanel'))
 /** Setup, for a first visit; the loading screen shows until it has arrived. */
 export const Onboarding = deferred(() => import('./Onboarding'), AccountLoading)
 export const AccountMenu = deferred(() => import('./AccountMenu'))
