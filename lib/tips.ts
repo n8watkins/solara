@@ -2,40 +2,42 @@
 // visit, hidden for good on this device once dismissed. It replaced an
 // auto-rotating carousel that competed with the plan and moved on its own.
 
+export type TipIcon = 'trend' | 'sunscreen' | 'layers' | 'cloud' | 'reflection' | 'vitamin'
+
 export interface SunTip {
-  icon: string
+  icon: TipIcon
   title: string
   body: string
 }
 
 export const TIPS: readonly SunTip[] = [
   {
-    icon: '📈',
+    icon: 'trend',
     title: 'Higher UV means more risk',
     body: 'As the UV index rises, skin and eye damage can happen faster.',
   },
   {
-    icon: '🧴',
+    icon: 'sunscreen',
     title: 'Protect at UV 3+',
     body: 'Public-health guidance recommends sun protection when the UV index is 3 or higher.',
   },
   {
-    icon: '👒',
+    icon: 'layers',
     title: 'Use layers of protection',
     body: 'Combine shade, clothing, a hat, sunglasses, and broad-spectrum sunscreen when protection is needed.',
   },
   {
-    icon: '☁️',
+    icon: 'cloud',
     title: 'Clouds are not a shield',
     body: 'UV can remain high under cloud cover, so check the UV index instead of judging by brightness.',
   },
   {
-    icon: '🏖️',
+    icon: 'reflection',
     title: 'Reflections matter',
     body: 'Water, sand, snow, and other bright surfaces can increase UV exposure.',
   },
   {
-    icon: '🌤️',
+    icon: 'vitamin',
     title: 'Vitamin D varies',
     body: 'Sun exposure is not a precise vitamin D dose. Ask a clinician about diet or supplements if you are concerned.',
   },

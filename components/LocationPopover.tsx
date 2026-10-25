@@ -1,4 +1,5 @@
 'use client'
+import { MapPin, Star, X } from 'lucide-react'
 import { useState, useRef, useLayoutEffect } from 'react'
 import type { Location } from '@/lib/types'
 import { locationFromCoordinates } from '@/lib/geocoding'
@@ -115,7 +116,8 @@ export default function LocationPopover({ location, savedLocations, limit, onApp
         className="flex max-w-full items-center gap-1 rounded-md px-[7px] py-[3px] text-[13px] text-ink-3 transition-colors duration-100 hover:bg-surface-metric"
         onClick={() => setOpen(o => !o)}
       >
-        📍 <span className="truncate">{location.city}</span>
+        <MapPin size={14} className="shrink-0" />
+        <span className="truncate">{location.city}</span>
       </button>
 
       {open && (
@@ -131,7 +133,7 @@ export default function LocationPopover({ location, savedLocations, limit, onApp
 
           {/* Active location, pinned. */}
           <div className="mb-2 flex items-center gap-2 rounded-[10px] border border-brand/25 bg-brand/8 px-2.5 py-2">
-            <span className="text-[13px]">📍</span>
+            <MapPin size={15} className="shrink-0 text-accent" />
             <div className="min-w-0 flex-1">
               <p className="truncate text-[13px] font-[650] text-ink">{location.city}</p>
               {location.region && <p className="text-[11px] text-ink-3">{location.region}</p>}
@@ -143,7 +145,7 @@ export default function LocationPopover({ location, savedLocations, limit, onApp
                 disabled={atLimit}
                 title={atLimit ? `Limit reached (${limit})` : 'Save as a shortcut'}
               >
-                ☆ Save
+                <Star size={12} /> Save
               </button>
             )}
           </div>
@@ -163,9 +165,9 @@ export default function LocationPopover({ location, savedLocations, limit, onApp
                   <button
                     onClick={() => removeShortcut(loc)}
                     aria-label={`Remove ${loc.city}`}
-                    className="px-1.5 py-1 text-[14px] text-ink-3"
+                    className="flex size-7 items-center justify-center rounded-lg text-ink-3 hover:bg-surface-metric"
                   >
-                    ✕
+                    <X size={15} />
                   </button>
                 </div>
               ))}
@@ -177,7 +179,7 @@ export default function LocationPopover({ location, savedLocations, limit, onApp
             onClick={() => void geolocate()}
             disabled={loading}
           >
-            📍 {loading ? 'Detecting…' : 'Use my location'}
+            <MapPin size={15} /> {loading ? 'Detecting…' : 'Use my location'}
           </button>
           <PlaceSearch
             ariaLabel="Add a city"

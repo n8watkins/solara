@@ -20,7 +20,7 @@ function expectOnlyOwnEventsRead(calendar: FakeGoogleCalendar) {
 }
 
 async function openCalendar(page: Page) {
-  await page.getByRole('button', { name: '🗓️ Calendar', exact: true }).click()
+  await page.getByRole('button', { name: 'Calendar', exact: true }).click()
   await expect(page.getByRole('main').getByRole('group', { name: 'Hours shown' })).toBeVisible()
   return page.getByRole('main')
 }

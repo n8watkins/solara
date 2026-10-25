@@ -29,7 +29,7 @@ const SCREENS: Screen[] = [
       await expect(
         page.getByRole('button', { name: 'See the next 10 days with Pro' }),
       ).toBeVisible()
-      await expect(page.getByRole('button', { name: '🗓️ Calendar' })).toHaveCount(0)
+      await expect(page.getByRole('button', { name: 'Calendar', exact: true })).toHaveCount(0)
       // No upsell card on a first visit.
       await expect(page.getByTestId('upsell')).toHaveCount(0)
       return page.getByTestId('hero-slot')

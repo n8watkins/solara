@@ -1,3 +1,4 @@
+import { Bell, CloudSun, Moon, X } from 'lucide-react'
 import type { ActivityDayPlan } from '@/lib/next-slot'
 import type { UpcomingSlot } from '@/lib/planner'
 import { dayPhrase as phraseForDay, type DayOutlook } from '@/lib/dashboard-view'
@@ -83,7 +84,7 @@ export default function HeroSlot({
               onClick={onMorningAlert}
               className="-ml-1 flex min-h-8 items-center gap-1.5 rounded-lg px-1 text-left text-[13px] font-semibold text-accent"
             >
-              <span aria-hidden="true">🔔</span>
+              <Bell size={15} />
               Get this as a morning alert
               <span className="rounded-full bg-accent-soft px-1.5 py-px text-[10px] font-extrabold tracking-[0.05em] uppercase">
                 Pro
@@ -96,7 +97,7 @@ export default function HeroSlot({
               title="Not now"
               className="flex size-8 shrink-0 items-center justify-center rounded-full text-[17px] text-ink-3"
             >
-              <span aria-hidden="true">×</span>
+              <X size={17} />
             </button>
           </div>
         )}
@@ -130,7 +131,11 @@ export default function HeroSlot({
         {allElapsed ? 'No lower-UV slot left today' : `No matching lower-UV slot ${dayPhrase}`}
       </p>
       <div className="mt-[9px] flex items-center gap-3.5">
-        <span className="shrink-0 text-[30px]">{night !== undefined ? '🌙' : '🌥️'}</span>
+        {night !== undefined ? (
+          <Moon size={30} strokeWidth={1.75} className="shrink-0 text-ink-3" />
+        ) : (
+          <CloudSun size={30} strokeWidth={1.75} className="shrink-0 text-ink-3" />
+        )}
         <div className="min-w-0 flex-1">
           <p className="text-[18px] leading-[1.15] font-bold text-ink">
             {night !== undefined

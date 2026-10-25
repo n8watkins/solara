@@ -1,4 +1,5 @@
 'use client'
+import { RefreshCw } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { loadedFirebase } from '@/lib/firebase'
 import type { FeedTokenState } from '@/lib/feed'
@@ -105,9 +106,7 @@ function CalendarFeedPanel({ uid }: { uid: string }) {
 
   return (
     <div className="mb-3 flex items-start gap-2.5 rounded-[10px] border-[0.5px] border-line-strong bg-surface-metric px-3 py-2.5">
-      <span aria-hidden="true" className="shrink-0 text-[16px]">
-        🔄
-      </span>
+      <RefreshCw size={16} className="mt-0.5 shrink-0 text-ink-3" />
       <div className="min-w-0 flex-1">
         {feed.status === 'loading' ? (
           <p className={hint}>Loading your calendar feed…</p>

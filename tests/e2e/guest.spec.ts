@@ -45,7 +45,7 @@ test('a guest plans today with one activity, kept on this device', async ({ page
 
   // Today only; later days sit behind the Pro tab. No calendar for guests.
   await expect(page.getByRole('button', { name: 'Tomorrow' })).toHaveCount(0)
-  await expect(page.getByRole('button', { name: '🗓️ Calendar' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Calendar', exact: true })).toHaveCount(0)
   // No upsell on a first visit.
   await expect(page.getByTestId('upsell')).toHaveCount(0)
 

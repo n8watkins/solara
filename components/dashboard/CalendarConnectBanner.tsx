@@ -1,3 +1,4 @@
+import { CalendarDays } from 'lucide-react'
 import type { CalendarBusyStatus } from '@/hooks/useCalendarBusy'
 
 /** Offers to schedule recommendations around Google Calendar free/busy. */
@@ -10,7 +11,7 @@ export default function CalendarConnectBanner({
 }) {
   return (
     <div className="mb-3 flex items-center gap-2.5 rounded-[10px] border-[0.5px] border-line-strong bg-surface-metric px-3 py-2.5">
-      <span className="shrink-0 text-[16px]">🗓️</span>
+      <CalendarDays size={17} className="shrink-0 text-ink-3" />
       {status === 'connected' ? (
         <p className="flex-1 text-[13px] text-ink-2">
           Recommendations now schedule around your calendar.{' '}

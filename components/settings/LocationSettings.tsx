@@ -1,4 +1,5 @@
 'use client'
+import { MapPin } from 'lucide-react'
 import type { Location } from '@/lib/types'
 import { useSettingsLocation } from '@/lib/use-settings-location'
 import { SettingsCard, SettingsError } from './SettingsCard'
@@ -22,7 +23,7 @@ export default function LocationSettings({ location, onChange }: Props) {
         </p>
       </SettingsCard>
       <button type="button" className="btn justify-center" onClick={locate} disabled={loading}>
-        📍 {loading ? 'Detecting…' : 'Use current location'}
+        <MapPin size={15} /> {loading ? 'Detecting…' : 'Use current location'}
       </button>
       <div className="flex gap-2">
         <input

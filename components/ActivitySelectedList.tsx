@@ -1,4 +1,5 @@
 'use client'
+import { X } from 'lucide-react'
 import type { Activity } from '@/lib/types'
 import {
   clampDuration,
@@ -77,9 +78,9 @@ export default function ActivitySelectedList({ activities, onChange, onBrowse }:
               type="button"
               aria-label={`Remove ${a.name}`}
               onClick={() => onChange(removeActivity(activities, a.id))}
-              className="h-6 min-w-6 px-1 text-[16px] text-ink-3"
+              className="flex size-6 items-center justify-center text-ink-3"
             >
-              <span aria-hidden="true">×</span>
+              <X size={15} />
             </button>
           </div>
           <SunscreenChoice

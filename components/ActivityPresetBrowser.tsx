@@ -1,4 +1,5 @@
 'use client'
+import { Check, ChevronDown, Lock, Plus } from 'lucide-react'
 import clsx from 'clsx'
 import { useState } from 'react'
 import { formatActivityDuration, presetCategoriesFor, type Preset } from '@/lib/activity-presets'
@@ -59,8 +60,14 @@ export default function ActivityPresetBrowser({
                   onClick={() => onToggleCategory?.(cat.name)}
                   className="min-h-6 text-[11px] font-semibold tracking-[0.06em] text-ink-3 uppercase disabled:cursor-default"
                 >
-                  <span aria-hidden="true">
-                    {!searching && (collapsed ? '▸' : '▾')} {cat.emoji}
+                  <span aria-hidden="true" className="inline-flex items-center gap-1">
+                    {!searching && (
+                      <ChevronDown
+                        size={13}
+                        className={clsx('transition-transform', collapsed && '-rotate-90')}
+                      />
+                    )}
+                    {cat.emoji}
                   </span>{' '}
                   {cat.name}
                 </button>
@@ -145,18 +152,22 @@ function PresetTile({
         </div>
         {locked ? (
           <span className="shrink-0 text-[11px]">
-            <span aria-hidden="true">🔒</span>
+            <Lock size={14} className="text-ink-3" />
             <span className="sr-only">Locked</span>
           </span>
         ) : (
           <span
             aria-hidden="true"
             className={clsx(
-              'flex size-6 shrink-0 items-center justify-center rounded-full text-[14px] leading-none font-semibold',
+              'flex size-6 shrink-0 items-center justify-center rounded-full',
               selected ? 'bg-accent text-accent-on' : 'bg-surface-metric text-accent',
             )}
           >
-            {selected ? '✓' : '+'}
+            {selected ? (
+              <Check size={14} strokeWidth={2.75} />
+            ) : (
+              <Plus size={14} strokeWidth={2.75} />
+            )}
           </span>
         )}
       </button>

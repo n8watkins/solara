@@ -6,11 +6,13 @@ import { goToLanding } from '@/lib/app-routes'
 import type { UserPreferences, TierLevel } from '@/lib/types'
 import { getSavedLocationLimit } from '@/lib/tiers'
 import { headerUV } from '@/lib/header-display'
+import { uvBandColor } from '@/lib/weather'
 import { PreferencesModal } from './deferred'
 import LocationPopover from './LocationPopover'
 import ProfileSwitcher from './ProfileSwitcher'
 import GoogleSignInButton from './GoogleSignInButton'
 import AccountMenu from './AccountMenu'
+import SolaraMark from './SolaraMark'
 import styles from './Header.module.css'
 
 interface Props {
@@ -84,7 +86,7 @@ export default function Header({
             onClick={onGoHome}
             className="flex shrink-0 items-center gap-1.5 rounded-lg px-1.5 py-1 transition-colors duration-100 hover:bg-surface-metric"
           >
-            <span className="text-[20px]">☀️</span>
+            <SolaraMark size={22} />
             <span className="text-[17px] font-bold text-ink">Solara</span>
           </button>
 
@@ -112,7 +114,11 @@ export default function Header({
             {uv && (
               <span className={styles.uv} title={`Current UV index ${uv.value}, ${uv.level}`}>
                 <span aria-hidden="true">
-                  {uv.icon} UV {uv.value}
+                  <span
+                    className="mr-1.5 inline-block size-2 rounded-full align-[1px] shadow-[inset_0_0_0_0.5px_rgba(0,0,0,0.25)]"
+                    style={{ background: uvBandColor(uv.band) }}
+                  />
+                  UV {uv.value}
                   <span> · {uv.level}</span>
                 </span>
                 <span className="sr-only">

@@ -1,4 +1,5 @@
 'use client'
+import { CircleHelp } from 'lucide-react'
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { shiftIntoView } from '@/lib/roving-focus'
@@ -12,7 +13,7 @@ interface Props {
 const EDGE = 8
 
 /**
- * A "?" toggletip. The trigger is a real button, so it is reachable by
+ * A help-icon toggletip. The trigger is a real button, so it is reachable by
  * keyboard, and the text is its accessible description, so screen readers
  * read it on focus. The bubble shows on hover, focus or tap, stays open while
  * the pointer is over it, and Escape dismisses it (WCAG 1.4.13).
@@ -77,11 +78,8 @@ export default function Tooltip({ text, children }: Props) {
           }
         }}
       >
-        <span
-          aria-hidden="true"
-          className="inline-flex size-[15px] items-center justify-center rounded-full border-[0.5px] border-line-strong bg-surface-metric text-[9px] leading-none font-normal tracking-normal text-ink-3 normal-case"
-        >
-          ?
+        <span aria-hidden="true" className="inline-flex text-ink-3">
+          <CircleHelp size={15} strokeWidth={1.75} />
         </span>
       </button>
       <span

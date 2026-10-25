@@ -1,4 +1,5 @@
 'use client'
+import { ChevronDown } from 'lucide-react'
 import { useId } from 'react'
 import type { ReactNode } from 'react'
 import type { UserPreferences } from '@/lib/types'
@@ -103,8 +104,12 @@ export default function ActivitySuggestionSettings({ prefs, onChange }: Props) {
                 className={`${ROW} text-left text-ink`}
               >
                 <span className="text-[13px] font-[650]">
-                  <span aria-hidden="true">
-                    {isCollapsed ? '▸' : '▾'} {category.emoji}
+                  <span aria-hidden="true" className="inline-flex items-center gap-1 align-middle">
+                    <ChevronDown
+                      size={14}
+                      className={`text-ink-3 transition-transform ${isCollapsed ? '-rotate-90' : ''}`}
+                    />
+                    {category.emoji}
                   </span>{' '}
                   {category.name}
                 </span>

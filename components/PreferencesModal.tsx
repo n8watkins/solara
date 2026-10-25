@@ -1,4 +1,5 @@
 'use client'
+import { X } from 'lucide-react'
 import { useId, useState } from 'react'
 import type { User } from 'firebase/auth'
 import type { UserPreferences } from '@/lib/types'
@@ -71,7 +72,7 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
             className="flex size-8 shrink-0 items-center justify-center rounded-full bg-surface-metric text-[18px] text-ink-2"
             aria-label="Close settings"
           >
-            <span aria-hidden="true">×</span>
+            <X size={18} />
           </button>
         </div>
 
@@ -87,7 +88,8 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
           >
             <div className="mb-4.5">
               <h3 className="text-[16px] font-bold text-ink">
-                <span aria-hidden="true">{section.emoji}</span> {section.label}
+                <section.Icon size={17} className="mr-1.5 inline-block align-[-3px] text-accent" />
+                {section.label}
               </h3>
               <p className="mt-1 text-[13px] text-ink-3">{section.desc}</p>
             </div>
