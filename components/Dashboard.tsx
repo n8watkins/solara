@@ -24,7 +24,7 @@ import {
   sunDown,
   uvReadout,
 } from '@/lib/dashboard-view'
-import { buildEventDescription } from '@/lib/gcal'
+import { buildEventDescription } from '@/lib/gcal-view'
 import type { SlotRecommendation } from '@/lib/scheduler'
 import { useScheduled } from '@/lib/scheduled-context'
 import SunTip from './SunTip'

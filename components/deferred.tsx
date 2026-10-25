@@ -61,6 +61,9 @@ function deferred<P extends object>(
   return Object.assign(Deferred, { preload })
 }
 
+// Code that runs only after a click, fetched with the rest so the click needs no download.
+loaders.add(() => import('@/lib/gcal'))
+
 export const PreferencesModal = deferred(() => import('./PreferencesModal'))
 export const PricingModal = deferred(() => import('./PricingModal'))
 export const AddActivityModal = deferred(() => import('./AddActivityModal'))

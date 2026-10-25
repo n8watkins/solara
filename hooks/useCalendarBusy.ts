@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
-import { fetchFreeBusy, isConsentDismissed, requestAccessToken, type BusyPeriod } from '@/lib/gcal'
+import type * as GoogleCalendar from '@/lib/gcal'
+import type { BusyPeriod } from '@/lib/gcal-view'
 import { freeBusyRange } from '@/lib/dashboard-view'
 
 export type CalendarBusyStatus = 'idle' | 'connecting' | 'connected' | 'error'
@@ -9,7 +10,8 @@ export type CalendarBusyStatus = 'idle' | 'connecting' | 'connected' | 'error'
  * Google Calendar free/busy for the dashboard's recommendations. `connect` asks
  * for a read-only token and loads the busy blocks from now through the
  * account's visible days. Solara sees only when the person is busy, never
- * event details.
+ * event details. The Calendar code (lib/gcal.ts) loads on the first connect; it is
+ * fetched in the background soon after the page loads (components/deferred.tsx).
  */
 export function useCalendarBusy(accessibleDays: number) {
   const [busy, setBusy] = useState<BusyPeriod[] | null>(null)
@@ -17,14 +19,16 @@ export function useCalendarBusy(accessibleDays: number) {
 
   async function connect() {
     setStatus('connecting')
+    let gcal: typeof GoogleCalendar | null = null
     try {
-      const token = await requestAccessToken()
+      gcal = await import('@/lib/gcal')
+      const token = await gcal.requestAccessToken()
       const { timeMin, timeMax } = freeBusyRange(Date.now(), accessibleDays)
-      setBusy(await fetchFreeBusy(token, timeMin, timeMax))
+      setBusy(await gcal.fetchFreeBusy(token, timeMin, timeMax))
       setStatus('connected')
     } catch (error) {
       // Closing the consent popup is the person's choice, not a failure.
-      setStatus(isConsentDismissed(error) ? 'idle' : 'error')
+      setStatus(gcal?.isConsentDismissed(error) ? 'idle' : 'error')
     }
   }
 

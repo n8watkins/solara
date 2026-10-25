@@ -1,7 +1,7 @@
 'use client'
 import type { ReactNode } from 'react'
 import { firebaseEnabled } from '@/lib/firebase'
-import { isCalendarConfigured } from '@/lib/gcal'
+import { isCalendarConfigured } from '@/lib/gcal-view'
 import { DISABLED_SCHEDULED, ScheduledContext } from '@/lib/scheduled-context'
 import type { Activity } from '@/lib/types'
 import { AccountScheduled } from './deferred'
