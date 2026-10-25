@@ -47,6 +47,16 @@ async function shoot(page: Page, name: string, project: string) {
 }
 
 async function expectNoAxeViolations(page: Page, include: Locator) {
+  // Let colour transitions (a toggle that was just pressed) settle, or axe measures
+  // contrast halfway between two colours.
+  await page.evaluate(() =>
+    Promise.all(
+      document
+        .getAnimations()
+        .filter(a => a.effect?.getTiming().iterations !== Infinity)
+        .map(a => a.finished),
+    ),
+  )
   const selector = await include.evaluate(el => {
     el.setAttribute('data-axe-scope', '')
     return '[data-axe-scope]'
