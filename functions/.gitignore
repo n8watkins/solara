@@ -2,3 +2,4 @@ node_modules/
 *.log
 .runtimeconfig.json
 lib/
+.secret.local

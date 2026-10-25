@@ -230,6 +230,53 @@ test('moves and deletions made in Google Calendar are reconciled', async ({
   await expect(list.getByRole('button', { name: 'Reconnect to sync' })).toBeVisible()
 })
 
+test('records that ended over 30 days ago are pruned, even past the newest 100', async ({
+  page,
+  emulators,
+}) => {
+  const account = await paidRunner(emulators, 'Ivy Lund')
+  const record = (eventId: string, start: string, end: string) => ({
+    eventId,
+    calendarId: 'primary',
+    activityId: 'run',
+    title: '🏃 Running: lower-UV window',
+    icon: '🏃',
+    start,
+    end,
+    timeZone: 'America/Los_Angeles',
+    htmlLink: `https://www.google.com/calendar/event?eid=${eventId}`,
+    createdAt: '2026-04-01T17:00:00.000Z',
+    updatedAt: '2026-04-01T17:00:00.000Z',
+  })
+  // The live list reads the newest 100 records; these fill it with kept history
+  // (ended within the last 30 days)...
+  const kept = Array.from({ length: 100 }, (_, i) => {
+    const start = Date.parse('2026-05-20T16:00:00.000Z') + i * 6 * 3_600_000
+    return record(
+      `kept${i}`,
+      new Date(start).toISOString(),
+      new Date(start + 2_700_000).toISOString(),
+    )
+  })
+  // ...so these expired records are older than everything the list returns.
+  const expired = [
+    record('expired0', '2026-04-02T16:00:00.000Z', '2026-04-02T16:45:00.000Z'),
+    record('expired1', '2026-05-01T16:00:00.000Z', '2026-05-01T16:45:00.000Z'),
+  ]
+  for (let i = 0; i < kept.length + expired.length; i += 20) {
+    await Promise.all(
+      [...expired, ...kept].slice(i, i + 20).map(r => emulators.seedScheduled(account, r)),
+    )
+  }
+
+  await openDashboard(page, account)
+  await expect
+    .poll(async () => Object.keys(await emulators.readScheduled(account)).sort(), {
+      timeout: 15_000,
+    })
+    .toEqual(kept.map(r => r.eventId).sort())
+})
+
 test('another device sees scheduled items; another account sees none', async ({
   page,
   browser,

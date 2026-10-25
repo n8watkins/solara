@@ -204,8 +204,9 @@ export default function PrivacyPage() {
             browser data.
           </li>
           <li>
-            Scheduled activities: until you remove the event, it is deleted in Google Calendar, or
-            30 days after it ends, and always when you delete your account.
+            Scheduled activities: until you remove the event or it is deleted in Google Calendar;
+            once an event ended more than 30 days ago, Solara deletes its record the next time you
+            open the app; and always when you delete your account.
           </li>
           <li>
             Calendar availability: only in your browser for the current session; never stored by

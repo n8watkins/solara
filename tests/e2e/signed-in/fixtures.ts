@@ -219,7 +219,7 @@ export class Emulators {
 
   /** The account's scheduled-activity records, by event id. */
   async readScheduled(account: Account): Promise<Record<string, Record<string, unknown>>> {
-    const response = await fetch(`${FIRESTORE_API}/users/${account.uid}/scheduled`, {
+    const response = await fetch(`${FIRESTORE_API}/users/${account.uid}/scheduled?pageSize=1000`, {
       headers: ADMIN,
     })
     if (!response.ok) throw new Error(`Listing scheduled failed: ${response.status}`)

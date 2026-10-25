@@ -131,6 +131,8 @@ Everything in this section waits for the Pro launch (roadmap item 9); see [Fireb
 - [ ] Set `NEXT_PUBLIC_FUNCTIONS_URL` and then `ENABLE_BLAZE_FUNCTIONS=true` as repository variables.
 - [ ] Register the deployed webhook endpoint in Stripe test mode with the events listed in DEPLOYMENT.md.
 - [ ] After the first Functions deploy, run the calendar feed token migration ([Calendar feed tokens](DEPLOYMENT.md#calendar-feed-tokens)).
+- [ ] Before offering the calendar feed, add the Cloud Logging exclusion that keeps feed links out of request logs ([Keep feed tokens out of request logs](DEPLOYMENT.md#keep-feed-tokens-out-of-request-logs)).
+- [ ] On the first Functions deploy, have the agent check how many `X-Forwarded-For` entries a feed request carries ([Check the feed's address limit](DEPLOYMENT.md#check-the-feeds-address-limit-at-the-first-deploy)).
 - [ ] Confirm the three scheduled jobs (`backfillStripeBillingResources`, `cleanupDeletedAccountBilling`, `cleanupFailedCheckouts`) run cleanly and their indexes are `READY` before turning on checkout or deletion.
 - [ ] Verify Stripe in test mode with a controlled account:
   - checkout is bound to the signed-in account, and a second checkout is refused while a subscription is active or reserved;
@@ -144,8 +146,8 @@ Everything in this section waits for the Pro launch (roadmap item 9); see [Fireb
 - [ ] Verify the account lifecycle:
   - the export holds portable preferences and safe device metadata only, without capability tokens, notification tokens or Stripe identifiers;
   - deletion requires a recent Google reauthentication and the exact `DELETE` confirmation;
-  - deleting an account with an active test subscription signs the user out, cancels the subscription, removes notification ownership and feed entries, deletes the user data and the Auth user, and the tombstone reaches `cleanupStatus = completed`.
-- [ ] Verify the calendar feed from a real calendar client: it refreshes after forecast or preference changes, and rotating the link stops the old URL.
+  - deleting an account with an active test subscription signs the user out, confirms the deletion on the account page, leaves no `solara_` entries in the browser's local storage, cancels the subscription, removes notification ownership and feed entries, deletes the user data and the Auth user, and the tombstone reaches `cleanupStatus = completed`.
+- [ ] Verify the calendar feed from a real calendar client: it refreshes after forecast or preference changes, it shows two days on Free and ten on Pro, rotating the link stops the old URL, and the feed's requests do not appear in Logs Explorer.
 
 ## Notifications
 

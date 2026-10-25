@@ -4,11 +4,10 @@ import type { GoogleEvent } from './gcal'
 import {
   SYNC_AHEAD_MS,
   SYNC_PAST_MS,
-  expiredRecords,
   syncWithGoogle,
   type GoogleCalendarReader,
 } from './google-calendar-sync'
-import { SCHEDULED_RETENTION_MS } from './scheduled'
+import { SCHEDULED_RETENTION_MS, scheduledRetentionCutoff } from './scheduled'
 
 const TZ = 'America/Los_Angeles'
 const NOW_MS = Date.parse('2026-06-15T17:30:00.000Z')
@@ -109,11 +108,16 @@ describe('syncWithGoogle', () => {
   })
 })
 
-describe('expiredRecords', () => {
-  it('returns records that ended before the retention cutoff', () => {
-    const cutoff = NOW_MS - SCHEDULED_RETENTION_MS
-    const old = record('old', { end: new Date(cutoff - 1).toISOString() })
-    const recent = record('recent', { end: new Date(cutoff + 1).toISOString() })
-    expect(expiredRecords([old, recent], NOW_MS)).toEqual([old])
+describe('scheduledRetentionCutoff', () => {
+  it('prunes exactly the stored ends before the retention cutoff', () => {
+    const cutoff = scheduledRetentionCutoff(NOW_MS)
+    expect(cutoff).toBe(new Date(NOW_MS - SCHEDULED_RETENTION_MS).toISOString())
+    const old = record('old', { end: new Date(NOW_MS - SCHEDULED_RETENTION_MS - 1).toISOString() })
+    const recent = record('recent', {
+      end: new Date(NOW_MS - SCHEDULED_RETENTION_MS + 1).toISOString(),
+    })
+    // Firestore compares the stored strings, so text order must match time order.
+    expect(old.end < cutoff).toBe(true)
+    expect(recent.end < cutoff).toBe(false)
   })
 })

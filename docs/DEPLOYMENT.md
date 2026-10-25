@@ -266,10 +266,43 @@ Use an organization auth token (Sentry **Settings**, **Developer Settings**, **O
 Calendar feed links are capability URLs, so the server mints their tokens (32 random bytes, base64url) through `rotateCalendarFeed` and revokes them through `revokeCalendarFeed`.
 Each live token is indexed by its SHA-256 hash in the server-only `calendarFeeds/{hash}` collection, and the feed resolves a token with one document read.
 The owner reads the current link from `users/{uid}/private/calendarFeed`, which clients cannot write.
+A feed covers the forecast days the account's plan shows in the app: today and tomorrow on Free, 10 days on Pro (`PLAN_FORECAST_DAYS` in `packages/core/src/plans.ts`, which `lib/tiers.ts` also reads).
+The plan is read from the server-owned `tier` field on every request, so a feed grows when an account upgrades and shrinks when it returns to Free.
 Feed responses are `Cache-Control: private, max-age=900` with a weak `ETag`, and both a single feed and an address that keeps requesting unknown tokens are rate limited.
 The per-address limit keys on the `X-Forwarded-For` entry that Google's front end appends, never on the entries a client can send (`TRUSTED_PROXY_HOPS` in `functions/src/shared/http.ts`).
 That count is 1 while the Functions are called on their own URLs; putting an external HTTPS load balancer in front adds a second Google entry, so the count must change to 2 with it.
 Account deletion removes the account's `calendarFeeds` entries along with the user document.
+
+### Keep feed tokens out of request logs
+
+Calendar apps fetch a bare URL, so the token travels in the query string, and Cloud Run's request log (`run.googleapis.com/requests`) stores the full `httpRequest.requestUrl`.
+Without an exclusion, every feed poll writes a working feed link to Cloud Logging, where anyone with log read access could use it until it is rotated.
+Solara's own code never logs the token (`functions/src/shared/logging.ts`).
+At the Pro launch, before the feed is offered, add an exclusion to the `_Default` sink (Cloud Logging, **Log Router**, `_Default`, **Edit sink**, **Add exclusion**) named `calendar-feed-requests` with this filter:
+
+```text
+resource.type="cloud_run_revision"
+resource.labels.service_name="calendarfeed"
+log_id("run.googleapis.com/requests")
+```
+
+Or with the CLI:
+
+```bash
+gcloud logging sinks update _Default --project <project-id> \
+  --add-exclusion='name=calendar-feed-requests,filter=resource.type="cloud_run_revision" AND resource.labels.service_name="calendarfeed" AND log_id("run.googleapis.com/requests")'
+```
+
+Check the service name in Cloud Run first (Functions v2 lowercases it).
+The exclusion drops only the feed's request log; its application logs (`calendarFeed failed`) and every other service's request logs are kept.
+Excluded entries are never stored, so they are neither billed nor readable later; existing entries age out with the bucket's retention (30 days by default).
+
+### Check the feed's address limit at the first deploy
+
+The per-address limit assumes exactly one Google-appended `X-Forwarded-For` entry (`TRUSTED_PROXY_HOPS` is 1).
+The app calls the feed on its `https://<region>-<project>.cloudfunctions.net/calendarFeed` URL, which may reach Cloud Run through another Google front end and add a second entry.
+If it does, the limit would key on a Google address shared by many calendar apps, and one guesser could get them all answered with 429.
+On the first Blaze deploy (or a staging project), log only the number of `X-Forwarded-For` entries for a few feed requests made through that URL, then remove the log line, and set `TRUSTED_PROXY_HOPS` and the comment in `functions/src/shared/http.ts` to match.
 
 ### Migration from client-minted tokens
 
