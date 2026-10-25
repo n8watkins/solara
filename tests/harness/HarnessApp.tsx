@@ -12,6 +12,7 @@
 //   scheduled = none (default) | synced | reconnect: in-memory scheduled activities
 //            (see scheduled-fixtures.tsx), shown as synced or awaiting reconnect
 //   activities = comma-separated activity ids to keep from the plan (default: all)
+//   (offline: the offline notice shows whenever the browser is offline, as in the app)
 //   data   = fixture (default) | live: load the forecast through the app's real data
 //            layer (lib/use-forecast.ts useWeather); specs answer the Open-Meteo
 //            requests with page.route (see data-layer.spec.ts)
@@ -29,6 +30,8 @@ import { resolveUnits, unitFormatters } from '@/lib/units'
 import { UnitsContext } from '@/lib/use-units'
 import { createForecastStore, ForecastStoreProvider, useWeather } from '@/lib/use-forecast'
 import Skeleton from '@/components/Skeleton'
+import OfflineNotice from '@/components/OfflineNotice'
+import { HARNESS_NOW_MS } from './clock'
 import { HARNESS_MARKER, buildPrefs, buildUser, buildWeather } from './fixtures'
 import { buildGapWeather } from './uv-gap-fixtures'
 import { buildSunPeakWeather, isSunPeakFixture, type SunPeakFixture } from './sun-peak-fixtures'
@@ -142,6 +145,12 @@ function Harness() {
             )
           }
         >
+          {/* Shown only offline (tests/harness/offline.spec.ts). The fixtures were
+              "fetched" 75 minutes before the frozen now. */}
+          <OfflineNotice
+            weather={weather}
+            updatedAt={initial.live ? live.updatedAt : HARNESS_NOW_MS - 75 * 60_000}
+          />
           {initial.live && live.error && (
             <p role="alert" data-testid="weather-error">
               {live.error}
