@@ -13,9 +13,10 @@ import {
   patchCalendarEventTime,
   requestWriteToken,
 } from '@/lib/gcal'
-import { expiredRecords, syncWithGoogle } from '@/lib/google-calendar-sync'
+import { syncWithGoogle } from '@/lib/google-calendar-sync'
 import {
   deleteScheduled,
+  pruneExpiredScheduled,
   recordFromEvent,
   saveScheduled,
   subscribeScheduled,
@@ -43,7 +44,6 @@ export function useGoogleCalendar(
   const itemsRef = useRef<ScheduledActivity[]>([])
   const activitiesRef = useRef(activities)
   const syncing = useRef<Promise<void> | null>(null)
-  const pruned = useRef(false)
 
   useEffect(() => {
     activitiesRef.current = activities
@@ -55,17 +55,13 @@ export function useGoogleCalendar(
       next => {
         itemsRef.current = next
         setItems(next)
-        if (!pruned.current) {
-          pruned.current = true
-          // Long-past records are only history; drop them so the list stays small.
-          for (const item of expiredRecords(next, Date.now())) {
-            deleteScheduled(uid, item.eventId).catch(error =>
-              console.error('Pruning a scheduled activity failed:', error),
-            )
-          }
-        }
       },
       error => console.error('Scheduled activities failed to load:', error),
+    )
+    // Records that ended over 30 days ago are only history, and the privacy policy says
+    // they are deleted; this reaches every one, not only those in the capped live list.
+    pruneExpiredScheduled(uid, Date.now()).catch(error =>
+      console.error('Pruning scheduled activities failed:', error),
     )
     return () => {
       unsubscribe()

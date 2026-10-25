@@ -230,7 +230,8 @@ async function scheduledCollection(uid: string) {
  *
  * A read is capped at SCHEDULED_LIMITS.listLimit records (the rules require it), so
  * it takes the latest-starting ones: upcoming events always make the list, and only
- * the oldest history can fall outside it until pruning catches up.
+ * the oldest history can fall outside it. Expired records are deleted by
+ * pruneExpiredScheduled, which queries for them directly.
  */
 export function subscribeScheduled(
   uid: string,
@@ -267,4 +268,42 @@ export async function saveScheduled(uid: string, item: ScheduledActivity): Promi
 export async function deleteScheduled(uid: string, eventId: string): Promise<void> {
   const { firestore, scheduled } = await scheduledCollection(uid)
   await firestore.deleteDoc(firestore.doc(scheduled, eventId))
+}
+
+/**
+ * PURE. The stored `end` before which a record is pruned, in the stored format (an ISO
+ * instant in UTC, which sorts as text in the same order as time).
+ */
+export function scheduledRetentionCutoff(nowMs: number): string {
+  return new Date(nowMs - SCHEDULED_RETENTION_MS).toISOString()
+}
+
+/** Most pages one pruning pass deletes, so a huge backlog cannot keep a session busy. */
+const MAX_PRUNE_PAGES = 10
+
+/**
+ * Deletes the account's records that ended more than SCHEDULED_RETENTION_MS ago and
+ * returns how many it deleted. It queries for them directly (`end` is an ISO instant in
+ * UTC, so it sorts as text), so it reaches records the capped live list never returns.
+ * A backlog larger than MAX_PRUNE_PAGES pages is finished on the next pass.
+ */
+export async function pruneExpiredScheduled(uid: string, nowMs: number): Promise<number> {
+  const cutoff = scheduledRetentionCutoff(nowMs)
+  let deleted = 0
+  const { firestore, scheduled } = await scheduledCollection(uid)
+  const { deleteDoc, getDocs, limit, orderBy, query, where } = firestore
+  for (let page = 0; page < MAX_PRUNE_PAGES; page += 1) {
+    const snapshot = await getDocs(
+      query(
+        scheduled,
+        where('end', '<', cutoff),
+        orderBy('end'),
+        limit(SCHEDULED_LIMITS.listLimit),
+      ),
+    )
+    await Promise.all(snapshot.docs.map(d => deleteDoc(d.ref)))
+    deleted += snapshot.size
+    if (snapshot.size < SCHEDULED_LIMITS.listLimit) break
+  }
+  return deleted
 }

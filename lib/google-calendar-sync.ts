@@ -4,12 +4,7 @@
 import type { ScheduledActivity } from '@solara/core'
 import type { GoogleEvent } from './gcal'
 import type { SyncChanges } from './scheduled-context'
-import {
-  planReconcile,
-  SCHEDULED_RETENTION_MS,
-  type RecordContext,
-  type ReconcilePlan,
-} from './scheduled'
+import { planReconcile, type RecordContext, type ReconcilePlan } from './scheduled'
 
 /** Google is checked for Solara events from a day ago to past the 10-day forecast. */
 export const SYNC_PAST_MS = 86_400_000
@@ -52,13 +47,4 @@ export async function syncWithGoogle(
   const moved = plan.upserts.filter(u => records.some(r => r.eventId === u.eventId)).length
   const removed = plan.removals.length
   return { ...plan, changes: moved || removed ? { moved, removed } : null }
-}
-
-/** Records that ended before the retention cutoff: only history, so they are pruned. */
-export function expiredRecords(
-  records: readonly ScheduledActivity[],
-  nowMs: number,
-): ScheduledActivity[] {
-  const cutoff = nowMs - SCHEDULED_RETENTION_MS
-  return records.filter(item => Date.parse(item.end) < cutoff)
 }
