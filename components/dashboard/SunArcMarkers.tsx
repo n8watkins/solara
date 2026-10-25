@@ -22,6 +22,7 @@ export function PeakMarker({
   return (
     <>
       <circle
+        data-testid="sun-arc-peak"
         cx={point.x}
         cy={point.y}
         r="6"
@@ -31,6 +32,7 @@ export function PeakMarker({
       />
       {label && (
         <text
+          data-testid="sun-arc-peak-label"
           x={point.x}
           y={point.y - 14}
           textAnchor={anchor}
@@ -55,6 +57,7 @@ export function NowSun({ point, glowId }: { point: Point; glowId: string }) {
     <>
       <circle cx={point.x} cy={point.y} r="18" fill={`url(#${glowId})`} />
       <circle
+        data-testid="sun-arc-now"
         cx={point.x}
         cy={point.y}
         r="7"
@@ -80,6 +83,7 @@ export function FocusMarker({ point }: { point: Point }) {
         strokeDasharray="3 4"
       />
       <circle
+        data-testid="sun-arc-focus"
         cx={point.x}
         cy={point.y}
         r="9"

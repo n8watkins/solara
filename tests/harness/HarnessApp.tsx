@@ -8,6 +8,7 @@
 //   tier   = paid (default) | free | guest (signed out, the guest plan with one activity)
 //   tab    = general (default) | activities | location   (settings only)
 //   fixture = default (default) | uv-gaps   (see uv-gap-fixtures.ts)
+//            | peak-early | peak-late   (see sun-peak-fixtures.ts)
 //   scheduled = none (default) | synced | reconnect: in-memory scheduled activities
 //            (see scheduled-fixtures.tsx), shown as synced or awaiting reconnect
 //   data   = fixture (default) | live: load the forecast through the app's real data
@@ -30,6 +31,7 @@ import { createQueryClient, useWeather } from '@/lib/use-forecast'
 import Skeleton from '@/components/Skeleton'
 import { HARNESS_MARKER, buildPrefs, buildUser, buildWeather } from './fixtures'
 import { buildGapWeather } from './uv-gap-fixtures'
+import { buildSunPeakWeather, isSunPeakFixture, type SunPeakFixture } from './sun-peak-fixtures'
 import { HarnessScheduledProvider } from './scheduled-fixtures'
 
 export type HarnessScreen = 'dashboard' | 'calendar' | 'settings' | 'pricing'
@@ -37,6 +39,11 @@ type SettingsTab = 'general' | 'activities' | 'location'
 
 const SCREENS: HarnessScreen[] = ['dashboard', 'calendar', 'settings', 'pricing']
 const TABS: SettingsTab[] = ['general', 'activities', 'location']
+
+function readFixture(name: string | null): 'default' | 'uv-gaps' | SunPeakFixture {
+  if (name === 'uv-gaps' || isSunPeakFixture(name)) return name
+  return 'default'
+}
 
 function readParams() {
   const params = new URLSearchParams(window.location.search)
@@ -48,7 +55,7 @@ function readParams() {
     screen: screen && SCREENS.includes(screen) ? screen : 'dashboard',
     tier: tier as TierLevel,
     tab: tab && TABS.includes(tab) ? tab : 'general',
-    fixture: params.get('fixture') === 'uv-gaps' ? 'uv-gaps' : 'default',
+    fixture: readFixture(params.get('fixture')),
     live: params.get('data') === 'live',
     scheduled: (['synced', 'reconnect'] as const).find(v => v === params.get('scheduled')) ?? null,
   }
@@ -74,7 +81,12 @@ function Harness() {
   const initial = useMemo(() => readParams(), [])
   const user = useMemo(() => (initial.tier === 'anonymous' ? null : buildUser()), [initial.tier])
   const fixtureWeather = useMemo(
-    () => (initial.fixture === 'uv-gaps' ? buildGapWeather() : buildWeather()),
+    () =>
+      initial.fixture === 'uv-gaps'
+        ? buildGapWeather()
+        : initial.fixture === 'default'
+          ? buildWeather()
+          : buildSunPeakWeather(initial.fixture),
     [initial.fixture],
   )
   const [prefs, setPrefs] = useState<UserPreferences>(() => buildPrefs(initial.tier))
