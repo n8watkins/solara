@@ -452,7 +452,17 @@ export async function processStripeEvent({
       userRef,
       userData => {
         const currentSubscriptionId = userData.stripeSubscriptionId
-        if (currentSubscriptionId && currentSubscriptionId !== stringId(subscription.id))
+        // A different subscription replaces the stored one only when the stored one has ended
+        // and this one has not, as in the checkout branch: Stripe does not order events, so a
+        // returning subscriber's new subscription can report here before its checkout event.
+        // An older subscription that has also ended never replaces the stored one.
+        if (
+          currentSubscriptionId &&
+          currentSubscriptionId !== stringId(subscription.id) &&
+          (!TERMINAL_SUBSCRIPTION_STATUSES.has(userData.subscriptionStatus) ||
+            TERMINAL_SUBSCRIPTION_STATUSES.has(currentSubscription.status) ||
+            event.type === 'customer.subscription.deleted')
+        )
           return null
         return checkoutStatus ? { ...update, stripeCheckoutStatus: checkoutStatus } : update
       },
