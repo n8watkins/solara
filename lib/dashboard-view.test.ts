@@ -9,6 +9,7 @@ import {
   freeBusyRange,
   uvNumberTone,
   uvReadout,
+  windowsPassedNote,
 } from './dashboard-view'
 import { burnMins, vitDMins } from './weather'
 
@@ -155,7 +156,7 @@ describe('uvReadout', () => {
 
 describe('uvNumberTone', () => {
   it('follows the UV bands', () => {
-    expect([0, 0.5, 2, 2.1, 5, 6, 7, 7.1, 12].map(uvNumberTone)).toEqual([
+    expect([0, 0.5, 2.4, 2.5, 5.4, 6, 7.4, 7.5, 12].map(uvNumberTone)).toEqual([
       'none',
       'success',
       'success',
@@ -189,5 +190,29 @@ describe('freeBusyRange', () => {
     expect(freeBusyRange(now, 2).timeMax.getTime() - now).toBe(2 * 86_400_000)
     expect(freeBusyRange(now, 0).timeMax.getTime() - now).toBe(86_400_000)
     expect(freeBusyRange(now, 2).timeMin.getTime()).toBe(now)
+  })
+})
+
+describe('windowsPassedNote', () => {
+  const time = (h: number) => `${h}am`
+  const slot = { start: 6, end: 7 } as never
+
+  it('names the next slot the plan can see', () => {
+    expect(windowsPassedNote({ label: 'Tomorrow', slot }, true, time)).toBe(
+      "Today's matching windows have passed. Next lower-UV slot: tomorrow at 6am.",
+    )
+    expect(windowsPassedNote({ label: 'Wed, Jun 17', slot }, true, time)).toContain(
+      'on Wed, Jun 17 at 6am',
+    )
+  })
+
+  it('offers sign-in on the guest plan instead of pointing at hidden days', () => {
+    const note = windowsPassedNote(null, false, time)
+    expect(note).toContain('Sign in free to plan tomorrow too.')
+    expect(note).not.toMatch(/best day|below/i)
+  })
+
+  it('says so when no later visible day has a slot', () => {
+    expect(windowsPassedNote(null, true, time)).toContain('None of your other forecast days')
   })
 })

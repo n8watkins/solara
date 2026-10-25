@@ -48,12 +48,3 @@ export function gcalWindowLink(
   )
   return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${gcalTimestamp(start)}/${gcalTimestamp(end)}&details=${details}`
 }
-
-export function uvBg(uv: number): string {
-  if (uv < 0.5) return 'rgba(209,213,219,0.3)'
-  if (uv <= 2) return 'rgba(134,239,172,0.35)'
-  if (uv <= 5) return 'rgba(252,211,77,0.35)'
-  if (uv <= 7) return 'rgba(251,146,60,0.35)'
-  if (uv <= 10) return 'rgba(248,113,113,0.35)'
-  return 'rgba(192,132,252,0.35)'
-}

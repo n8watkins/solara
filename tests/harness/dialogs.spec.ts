@@ -224,18 +224,16 @@ test('tooltips are keyboard-reachable and describe their button', async ({ page 
   await expect(tip).toBeHidden()
 })
 
-test('tip carousel: focusable track, 24 px dots and a pause button', async ({ page }) => {
+test('sun safety tip: a 24 px hide button reachable by keyboard', async ({ page }) => {
   await open(page, 'dashboard')
-  const carousel = page.getByRole('region', { name: 'Sun safety tips' })
-  for (const dot of await carousel.getByRole('button', { name: /Show tip/ }).all()) {
-    const box = await dot.boundingBox()
-    expect(box!.width).toBeGreaterThanOrEqual(24)
-    expect(box!.height).toBeGreaterThanOrEqual(24)
-  }
-  const pause = carousel.getByRole('button', { name: 'Pause tips' })
-  await pause.focus()
+  const tip = page.getByRole('note', { name: 'Sun safety tip' })
+  const hide = tip.getByRole('button', { name: 'Hide tips' })
+  const box = await hide.boundingBox()
+  expect(box!.width).toBeGreaterThanOrEqual(24)
+  expect(box!.height).toBeGreaterThanOrEqual(24)
+  await hide.focus()
   await press(page, 'Enter')
-  await expect(carousel.getByRole('button', { name: 'Play tips' })).toBeFocused()
+  await expect(tip).toHaveCount(0)
 })
 
 test('profile switcher: disclosure with Escape and focus return', async ({ page }, testInfo) => {

@@ -7,6 +7,8 @@ import { canUseCalendar } from '@/lib/tiers'
 import { buildActivityShareText, buildActivityShareUrl, shareOrCopy } from '@/lib/share'
 import type { SlotRecommendation } from '@/lib/scheduler'
 import type { ActivityDayPlan } from '@/lib/next-slot'
+import type { UpcomingSlot } from '@/lib/planner'
+import { windowsPassedNote } from '@/lib/dashboard-view'
 import type { ScheduledActivity, ScheduledSpan } from '@/lib/scheduled'
 import ActivityCard from './dashboard/ActivityCard'
 
@@ -28,6 +30,10 @@ interface Props {
   scheduledFor?: (activityId: string) => { item: ScheduledActivity; span: ScheduledSpan }[]
   /** Opens a scheduled event's details (change time, remove). */
   onOpenScheduled?: (item: ScheduledActivity) => void
+  /** The plan shows days after today (false on the guest plan). */
+  laterDaysVisible: boolean
+  /** An activity's soonest slot after today, for a card whose windows have passed. */
+  nextSlotFor: (activity: Activity) => UpcomingSlot | null
 }
 
 export default function ActivityCards({
@@ -42,6 +48,8 @@ export default function ActivityCards({
   onEditActivity,
   scheduledFor,
   onOpenScheduled,
+  laterDaysVisible,
+  nextSlotFor,
 }: Props) {
   const fmt = useUnits()
   const confirm = useStatusFlash(4500)
@@ -107,6 +115,11 @@ export default function ActivityCards({
               onShare={win => void shareWindow(activity, win)}
               onEdit={onEditActivity && (() => onEditActivity(activity))}
               onOpenScheduled={onOpenScheduled}
+              passedNote={
+                plan.elapsed
+                  ? windowsPassedNote(nextSlotFor(activity), laterDaysVisible, fmt.time)
+                  : undefined
+              }
             />
           )
         })}

@@ -5,6 +5,7 @@ import {
   bestUpcomingSlot,
   planUpcomingSlots,
   activityRunsOn,
+  nextSlotAfterToday,
 } from '@/lib/planner'
 import type { DayWeather, Activity, HourlyForecast } from '@/lib/types'
 
@@ -180,5 +181,32 @@ describe('planUpcomingSlots', () => {
     expect(plan).toHaveLength(1)
     expect(plan[0]!.activity.id).toBe('run')
     expect(plan[0]!.slot.start).toBe(6)
+  })
+})
+
+describe('nextSlotAfterToday', () => {
+  const swim: Activity = { ...run, id: 'swim', name: 'Swim', preferredHours: { from: 17, to: 20 } }
+  const forecast = [
+    day('2026-05-29', 'Today', () => 1),
+    day('2026-05-30', 'Tomorrow', h => (h < 9 ? 2 : 8)),
+    day('2026-05-31', 'Sun, May 31', () => 1),
+  ]
+
+  it('never looks at today', () => {
+    expect(nextSlotAfterToday(forecast.slice(0, 1), [run], 'fair', 10)).toBeNull()
+  })
+
+  it('picks the earliest day, then the earliest start across activities', () => {
+    const next = nextSlotAfterToday(forecast, [swim, run], 'fair', 10)!
+    expect(next.activity.id).toBe('run')
+    expect(next.label).toBe('Tomorrow')
+    expect(next.slot.start).toBe(6)
+  })
+
+  it("stays within the plan's visible days", () => {
+    const late = [forecast[0]!, day('2026-05-30', 'Tomorrow', () => 9), forecast[2]!]
+    expect(nextSlotAfterToday(late, [run], 'fair', 2)).toBeNull()
+    expect(nextSlotAfterToday(late, [run], 'fair', 3)!.label).toBe('Sun, May 31')
+    expect(nextSlotAfterToday(late, [run], 'fair', 1)).toBeNull()
   })
 })

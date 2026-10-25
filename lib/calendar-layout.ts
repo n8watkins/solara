@@ -4,6 +4,7 @@
 // equal lane inside it. The number of days side by side is chosen so no lane drops
 // below MIN_LANE_W; the remaining days scroll horizontally.
 import { fmtH, type SafeWindow } from './calendar'
+import { uvBand as weatherUVBand, type UVBand as WeatherUVBand } from './weather'
 
 /** Minimum width of the hour gutter; it also absorbs the sub-column remainder. */
 export const GUTTER_W = 46
@@ -130,19 +131,25 @@ export function rangeLabel(firstDate?: string, lastDate?: string): string {
     : `${monthDay(firstDate)} – ${monthDay(lastDate)}`
 }
 
+/** The calendar's tint and legend for each UV band, lowest first (see lib/weather.ts). */
 export const UV_BANDS = [
-  { max: 0.5, rgb: '156,163,175', label: null, weight: 0.4 },
-  { max: 2, rgb: '74,222,128', label: 'Low', weight: 1 },
-  { max: 5, rgb: '250,204,21', label: 'Moderate', weight: 1 },
-  { max: 7, rgb: '251,146,60', label: 'High', weight: 1 },
-  { max: 10, rgb: '248,113,113', label: 'Very high', weight: 1 },
-  { max: Infinity, rgb: '192,132,252', label: 'Extreme', weight: 1 },
-] as const
+  { band: 'none', rgb: '156,163,175', label: null, weight: 0.4 },
+  { band: 'low', rgb: '74,222,128', label: 'Low', weight: 1 },
+  { band: 'moderate', rgb: '250,204,21', label: 'Moderate', weight: 1 },
+  { band: 'high', rgb: '251,146,60', label: 'High', weight: 1 },
+  { band: 'very-high', rgb: '248,113,113', label: 'Very high', weight: 1 },
+  { band: 'extreme', rgb: '192,132,252', label: 'Extreme', weight: 1 },
+] as const satisfies readonly {
+  band: WeatherUVBand
+  rgb: string
+  label: string | null
+  weight: number
+}[]
 
 export type UVBand = (typeof UV_BANDS)[number]
 
-/** WHO UV band for a reading; below 0.5 counts as no sun. */
+/** WHO UV band for a reading, on the same rounded scale as the rest of the app. */
 export function uvBand(uv: number): UVBand {
-  if (uv < UV_BANDS[0].max) return UV_BANDS[0]
-  return UV_BANDS.find(b => b.label && uv <= b.max) ?? UV_BANDS[5]
+  const band = weatherUVBand(uv)
+  return UV_BANDS.find(b => b.band === band) ?? UV_BANDS[0]
 }

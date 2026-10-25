@@ -1,9 +1,18 @@
 'use client'
 
-import { useState, useRef, useEffect, useEffectEvent, useId, type ReactNode, type Ref } from 'react'
+import {
+  useState,
+  useRef,
+  useEffect,
+  useEffectEvent,
+  useId,
+  useLayoutEffect,
+  type ReactNode,
+  type Ref,
+} from 'react'
 import type { HourlyForecast } from '@/lib/types'
 import { useUnits } from '@/lib/use-units'
-import { hourSlots, uvDaySummary } from '@/lib/uv-strip'
+import { UV_STRIP_EDGE_FADE, hourSlots, uvDaySummary } from '@/lib/uv-strip'
 import VisuallyHidden from './VisuallyHidden'
 import { UVBar, UVGap } from './dashboard/UVBar'
 import UVScaleLegend from './dashboard/UVScaleLegend'
@@ -93,6 +102,26 @@ export default function UVTimeline({
     centerHour(nowRef.current)
   }, [currentHour, hourly.length])
 
+  // The phone strip's edge fade (globals.css) only covers a side with more hours to
+  // scroll to, growing with the distance scrolled, so a strip resting at either end
+  // shows that end's bar whole instead of cut off.
+  function updateEdgeFades() {
+    const strip = stripRef.current
+    if (!strip) return
+    const fade = (px: number) => `${Math.round(Math.min(UV_STRIP_EDGE_FADE, Math.max(0, px)))}px`
+    const rest = strip.scrollWidth - strip.clientWidth - strip.scrollLeft
+    strip.style.setProperty('--strip-fade-start', fade(strip.scrollLeft))
+    strip.style.setProperty('--strip-fade-end', fade(rest))
+  }
+  useLayoutEffect(() => {
+    const strip = stripRef.current
+    if (!strip) return
+    updateEdgeFades()
+    const observer = new ResizeObserver(updateEdgeFades)
+    observer.observe(strip)
+    return () => observer.disconnect()
+  }, [hourly.length])
+
   // The hour of the bar whose center is closest to the strip's horizontal center.
   function nearestHourToCenter(): number | null {
     const strip = stripRef.current
@@ -129,6 +158,7 @@ export default function UVTimeline({
   // debounced to one update per animation frame. No-ops when the motion was
   // programmatic or when the nearest bar is already focused (prevents loops).
   function onScroll() {
+    updateEdgeFades()
     if (!controlled || programmaticScroll.current) return
     if (rafRef.current !== null) return
     rafRef.current = window.requestAnimationFrame(() => {

@@ -128,9 +128,12 @@ describe('paging', () => {
 describe('uvBand', () => {
   it('maps readings to WHO bands', () => {
     expect(uvBand(0).label).toBeNull()
+    expect(uvBand(0.4).label).toBeNull()
     expect(uvBand(0.5).label).toBe('Low')
     expect(uvBand(2).label).toBe('Low')
-    expect(uvBand(2.1).label).toBe('Moderate')
+    expect(uvBand(2.4).label).toBe('Low')
+    expect(uvBand(2.5).label).toBe('Moderate')
+    expect(uvBand(5.4).label).toBe('Moderate')
     expect(uvBand(7).label).toBe('High')
     expect(uvBand(10).label).toBe('Very high')
     expect(uvBand(11.3).label).toBe('Extreme')
