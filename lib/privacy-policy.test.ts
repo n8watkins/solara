@@ -74,6 +74,14 @@ describe('terms of use', () => {
     expect(terms).toContain('<LegalDetail name="jurisdiction" />')
     expect(terms).toContain('CC BY 4.0')
     expect(terms).toContain('Open Database License')
+    expect(terms).toContain('https://www.geonames.org/')
+  })
+})
+
+describe('last updated dates', () => {
+  it('dates each document on its own, so a change to one never re-dates the other', () => {
+    expect(privacy).toContain('updated={PRIVACY_LAST_UPDATED}')
+    expect(terms).toContain('updated={TERMS_LAST_UPDATED}')
   })
 })
 

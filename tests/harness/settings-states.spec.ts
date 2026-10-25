@@ -21,6 +21,8 @@ interface State {
   query: string
   /** Runs before any app code, for example to seed localStorage. */
   init?: () => void
+  /** Open-Meteo's place search answer; without it the search is blocked and fails. */
+  places?: unknown
   desktopOnly?: string
   /** Puts the page into the state; may return a screenshot clip. */
   act: (page: Page) => Promise<Clip | void>
@@ -63,13 +65,59 @@ const STATES: State[] = [
     },
   },
   {
+    name: 'settings-location-suggestions',
+    query: 'screen=settings&tab=location',
+    places: {
+      results: [
+        {
+          name: 'Pasadena',
+          admin1: 'California',
+          country: 'United States',
+          latitude: 34.1478,
+          longitude: -118.1445,
+        },
+        {
+          name: 'Pasadena',
+          admin1: 'Texas',
+          country: 'United States',
+          latitude: 29.6911,
+          longitude: -95.2091,
+        },
+      ],
+    },
+    act: async page => {
+      const field = settings(page).getByRole('combobox', { name: 'Search a city' })
+      await field.fill('Pasadena')
+      await field.press('ArrowDown')
+      await expect(
+        settings(page).getByRole('option', {
+          name: 'Pasadena California, United States',
+          selected: true,
+        }),
+      ).toBeVisible()
+      await expect(settings(page).getByRole('link', { name: 'GeoNames' })).toBeVisible()
+    },
+  },
+  {
+    name: 'settings-location-no-results',
+    query: 'screen=settings&tab=location',
+    places: {},
+    act: async page => {
+      await settings(page).getByRole('combobox', { name: 'Search a city' }).fill('Nowhere')
+      await page.keyboard.press('Enter')
+      await expect(settings(page).getByRole('alert')).toHaveText('City not found.')
+    },
+  },
+  {
     name: 'settings-location-error',
     query: 'screen=settings&tab=location',
     act: async page => {
       // Geocoding is off-origin and blocked, so every search fails.
-      await settings(page).getByRole('searchbox', { name: 'Search a city' }).fill('Nowhere')
+      await settings(page).getByRole('combobox', { name: 'Search a city' }).fill('Nowhere')
       await page.keyboard.press('Enter')
-      await expect(settings(page).getByRole('alert')).toHaveText('City not found.')
+      await expect(settings(page).getByRole('alert')).toHaveText(
+        'Search is unavailable. Try again.',
+      )
     },
   },
   {
@@ -169,9 +217,10 @@ async function open(page: Page, state: State, testInfo: TestInfo) {
   const colorScheme = testInfo.project.use.colorScheme === 'dark' ? 'dark' : 'light'
   await page.route('**/*', route => {
     const url = new URL(route.request().url())
-    return url.hostname === '127.0.0.1' || url.protocol === 'data:'
-      ? route.continue()
-      : route.abort('blockedbyclient')
+    if (url.hostname === '127.0.0.1' || url.protocol === 'data:') return route.continue()
+    if (state.places && url.origin === 'https://geocoding-api.open-meteo.com')
+      return route.fulfill({ contentType: 'application/json', body: JSON.stringify(state.places) })
+    return route.abort('blockedbyclient')
   })
   await startClock(page)
   await page.addInitScript(theme => {
