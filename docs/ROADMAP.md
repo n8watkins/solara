@@ -55,14 +55,9 @@ Done 2026-10-25 in #76: each required check reports on every pull request and ru
 
 Done 2026-10-25 in #78: the peak callout stays inside the arc's box at every width, for early and late peaks.
 
-### 3. Faster app load on phones (PERF-2 part, W3-C remainder) (merged in #83)
+### 3. Faster app load on phones (done, #83, #93)
 
-- **Goal:** `/app/` mobile LCP under 2.5 s (Lighthouse mobile, simulated Slow 4G) from 5.9 s measured in #71, and the guest app's first load under 200 KB gzip of JavaScript (about 175 KB today).
-- **Scope:** load Firebase (Auth, Firestore, App Check) only when the person signs in or an existing session is detected; lazy-load the dialogs (Settings, Pricing, activity dialogs) and the calendar view; render the guest dashboard from the cached forecast without waiting for Firebase.
-- **Owns:** lazy-loading boundaries in `components/`, `lib/firebase.ts` and `lib/use-account.ts` start-up.
-- **Acceptance:** Lighthouse mobile run recorded in the PR before and after; the signed-in e2e, integrations (App Check starts only after sign-in) and harness suites pass; no new CSP entries.
-- **Depends on:** nothing.
-- **Size:** M.
+Done 2026-10-25 in #83 and #93: Lighthouse mobile LCP for `/app/` is about 2.1 s for a guest and the same for a returning account, whose dashboard now shows from this browser's copy while Firebase loads; a guest's first load is about 196 KB gzip of JavaScript, held under 200 KB by `tests/e2e/guest.spec.ts`.
 
 ### 4. App-shell service worker with an offline forecast (PERF-2, PROD-6 part)
 

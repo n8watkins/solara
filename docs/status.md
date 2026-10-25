@@ -20,8 +20,8 @@ What users get:
 - Guest mode: the app works without signing in, on the guest plan (today's forecast, one activity, kept only in this browser).
   Google sign-in is free and syncs to Firestore; a guest plan carries into a brand-new account on its first sign-in and never into an existing one.
 - A guest never downloads Firebase: the dashboard shows from the guest plan and cached forecast at once, and Firebase loads only when someone reaches for "Sign in" or the browser already holds a session (#83).
-  Lighthouse mobile LCP for `/app/` is about 2.1 s (was 4.4-6.3 s), and a guest's first load is about 196 KB gzip of JavaScript (was over 500 KB), with Valibot instead of Zod, a small forecast store instead of TanStack Query and more parts loaded on demand (#83, item 3 follow-up).
-- A returning account's dashboard shows at once from this browser's copy of it while Firebase loads and Auth confirms the session, and accepts no input until then; signed-in start-up LCP went from about 5.5 s to the same as a guest's (item 3 follow-up).
+  Lighthouse mobile LCP for `/app/` is about 2.1 s (was 4.4-6.3 s), and a guest's first load is about 196 KB gzip of JavaScript (was over 500 KB), with Valibot instead of Zod, a small forecast store instead of TanStack Query and more parts loaded on demand (#83, #93).
+- A returning account's dashboard shows at once from this browser's copy of it while Firebase loads and Auth confirms the session, and accepts no input until then; signed-in start-up LCP went from about 5.5 s to the same as a guest's (#93).
   Auth's sign-in popup helper (an iframe and Google's scripts) starts only when a sign-in or reauthentication is about to happen.
 - The confirmed plans from `lib/tiers.ts`: Guest (today, 1 activity, this device), Free (today and tomorrow, 3 activities, synced, calendar sync) and Pro (10 days, 20 activities, calendar sync, family profiles, morning alerts).
   Pro shows $2.99 a month or $19.99 a year with a 7-day free trial, as a waitlist until billing launches.
