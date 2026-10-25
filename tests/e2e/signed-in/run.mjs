@@ -202,6 +202,19 @@ writeFileSync(
   ),
 )
 
+// The Functions read their Stripe key from Secret Manager, which a demo project cannot
+// reach; the emulator takes secrets from functions/.secret.local instead (gitignored).
+// The suite seeds no Stripe resources, so the placeholder key is never sent to Stripe:
+// it only lets deleteAccount build its client for an account that never paid.
+const secretsPath = resolve('functions/.secret.local')
+const ownsSecrets = !existsSync(secretsPath)
+if (ownsSecrets) {
+  writeFileSync(
+    secretsPath,
+    'STRIPE_SECRET_KEY=sk_test_signed_in_emulator\nSTRIPE_WEBHOOK_SECRET=whsec_signed_in_emulator\n',
+  )
+}
+
 const playwrightCli = resolve('node_modules/@playwright/test/cli.js')
 const testArgs = process.argv.slice(2).map(arg => `'${arg.replace(/'/g, `'\\''`)}'`)
 const testCommand = [
@@ -250,6 +263,7 @@ const child = spawn(
 
 function cleanup() {
   rmSync(projectDir, { recursive: true, force: true })
+  if (ownsSecrets) rmSync(secretsPath, { force: true })
 }
 for (const signal of ['SIGINT', 'SIGTERM']) {
   process.on(signal, () => child.kill(signal))

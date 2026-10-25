@@ -145,7 +145,7 @@ Everything in this section waits for the Pro launch (roadmap item 9); see [Fireb
 - [ ] Verify the account lifecycle:
   - the export holds portable preferences and safe device metadata only, without capability tokens, notification tokens or Stripe identifiers;
   - deletion requires a recent Google reauthentication and the exact `DELETE` confirmation;
-  - deleting an account with an active test subscription signs the user out, cancels the subscription, removes notification ownership and feed entries, deletes the user data and the Auth user, and the tombstone reaches `cleanupStatus = completed`.
+  - deleting an account with an active test subscription signs the user out, confirms the deletion on the account page, leaves no `solara_` entries in the browser's local storage, cancels the subscription, removes notification ownership and feed entries, deletes the user data and the Auth user, and the tombstone reaches `cleanupStatus = completed`.
 - [ ] Verify the calendar feed from a real calendar client: it refreshes after forecast or preference changes, it shows two days on Free and ten on Pro, rotating the link stops the old URL, and the feed's requests do not appear in Logs Explorer.
 
 ## Notifications

@@ -14,7 +14,8 @@ import {
 } from '@/lib/firebase'
 import { createBillingPortalUrl } from '@/lib/billing'
 import { callFunction, functionsApiConfigured } from '@/lib/functions-api'
-import { clearLocalPrefs } from '@/lib/prefs'
+import { clearGuestData } from '@/lib/guest'
+import { clearAccountData } from '@/lib/session'
 import { clearLocalNotificationState } from '@/lib/notifications'
 
 const FUNCTIONS_READY = functionsApiConfigured()
@@ -25,7 +26,8 @@ export default function AccountPage() {
   const [confirmation, setConfirmation] = useState('')
   const [busy, setBusy] = useState<'billing' | 'export' | 'delete' | null>(null)
   const [message, setMessage] = useState('')
-  const [deletionPending, setDeletionPending] = useState(false)
+  // After a deletion: 'pending' while the server finishes, 'done' once it has.
+  const [deletion, setDeletion] = useState<'pending' | 'done' | null>(null)
 
   useEffect(() => {
     // Firebase loads only when this browser holds a session (lib/firebase.ts).
@@ -53,7 +55,7 @@ export default function AccountPage() {
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- Browser-only state is read after hydration so the static export's prerendered markup matches the first client render.
-    setDeletionPending(new URLSearchParams(window.location.search).get('deletion') === 'pending')
+    setDeletion(deletionState(new URLSearchParams(window.location.search).get('deletion')))
   }, [])
 
   async function downloadData() {
@@ -112,12 +114,15 @@ export default function AccountPage() {
         freshIdToken: true,
         fallbackMessage: 'Deletion could not be completed.',
       })
-      clearLocalPrefs()
+      // Nothing of the deleted account may stay in this browser: its preferences,
+      // forecast cache (its places), account marker and any guest plan.
+      clearAccountData()
+      clearGuestData()
       await clearLocalNotificationState(user.uid)
       const auth = loadedFirebase()?.auth
       if (auth) await signOut(auth)
       window.location.assign(
-        result.deletionPending ? '/account/?deletion=pending' : '/?account=deleted',
+        result.deletionPending ? '/account/?deletion=pending' : '/account/?deletion=done',
       )
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Deletion failed.')
@@ -144,16 +149,28 @@ export default function AccountPage() {
         ) : !user ? (
           <div className="card">
             <h2 className="mb-2 text-[18px] font-[650]">
-              {deletionPending ? 'Account deletion is in progress' : 'Sign in required'}
+              {deletion === 'done'
+                ? 'Your account was deleted'
+                : deletion === 'pending'
+                  ? 'Your account deletion is in progress'
+                  : 'Sign in required'}
             </h2>
             <p role="status" className="mb-[18px] leading-[1.55] text-ink-2">
-              {deletionPending
-                ? 'You have been signed out while Solara finishes canceling billing and removing your account data.'
-                : 'Return to Solara and sign in before using these controls.'}
+              {deletion === 'done'
+                ? 'Your Solara account and its data have been removed, and nothing of it is left in this browser.'
+                : deletion === 'pending'
+                  ? 'You have been signed out while Solara finishes canceling billing and removing your account data.'
+                  : 'Return to Solara and sign in before using these controls.'}
             </p>
-            <Link href={SIGN_IN_PATH} className="btn btn-primary no-underline">
-              Go to sign in
-            </Link>
+            {deletion ? (
+              <Link href="/" className="btn btn-primary no-underline">
+                Back to Solara
+              </Link>
+            ) : (
+              <Link href={SIGN_IN_PATH} className="btn btn-primary no-underline">
+                Go to sign in
+              </Link>
+            )}
           </div>
         ) : (
           <div className="grid gap-[18px]">
@@ -235,6 +252,10 @@ export default function AccountPage() {
       </div>
     </main>
   )
+}
+
+function deletionState(value: string | null): 'pending' | 'done' | null {
+  return value === 'pending' || value === 'done' ? value : null
 }
 
 function AccountSection({
