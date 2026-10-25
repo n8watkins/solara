@@ -439,6 +439,8 @@
     -webkit-tap-highlight-color: transparent;
   }
   @media (max-width: 560px) {
+    /* The 16px fade is UV_STRIP_EDGE_FADE (lib/uv-strip.ts); the sun path keeps its
+       peak callout out of it. */
     .uv-strip {
       -webkit-mask-image: linear-gradient(
         90deg,

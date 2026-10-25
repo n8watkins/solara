@@ -4,10 +4,11 @@ import { expect, test, type Page } from '@playwright/test'
 import { startClock } from './clock'
 import { HARNESS_MARKER } from './fixtures'
 
-// The sun path's "Peak 10.3 · 1pm" callout must be fully readable wherever the
-// peak marker is on screen: at phone and desktop widths, in both themes, for a
-// peak in the middle of the day and at either end of it, and wherever the phone's
-// strip is scrolled. It also must not sit on the peak, "now" or focus markers.
+// The sun path's "Peak 10.3 · 1pm" callout must be fully readable: at phone and
+// desktop widths, in both themes, for a peak in the middle of the day and near
+// either end of it, and wherever the phone's strip is scrolled (with the peak
+// scrolled out of view it pins to the nearest edge). It also must not sit on the
+// line or on the peak, "now" or focus markers.
 // Before the fix the callout was placed against the full (scrollable) arc, so on a
 // 390 px phone the strip's edge cut it to "Peak 10.3 ·".
 const SHOT_DIR = join('test-results', 'ui-harness', 'screenshots')
@@ -63,12 +64,9 @@ async function labelProblems(page: Page): Promise<string[]> {
       Math.abs((focus.left + focus.right) / 2 - (peak.left + peak.right) / 2) < 1 &&
       Math.abs((focus.top + focus.bottom) / 2 - (peak.top + peak.bottom) / 2) < 1
     if (!label) {
-      if (inside(peak, visible) && !focusOnPeak)
-        problems.push('the peak marker is visible but its callout is missing')
+      if (!focusOnPeak) problems.push('the callout is missing')
       return problems
     }
-    // Only judge the callout while its marker is on screen; scrolled away, both go.
-    if (!inside(peak, visible)) return problems
     if (!inside(label, visible))
       problems.push(`callout ${fmt(label)} leaves the visible arc ${fmt(visible)}`)
     if (overlaps(label, peak)) problems.push('callout overlaps the peak marker')
@@ -91,7 +89,7 @@ async function labelProblems(page: Page): Promise<string[]> {
     }
     // Readable: the full text, not squeezed or hidden.
     const content = text.textContent ?? ''
-    if (!/^Peak \d+\.\d · \d{1,2}(:\d{2})?(am|pm)?$/.test(content.trim()))
+    if (!/^(← )?Peak \d+\.\d · \d{1,2}(:\d{2})?(am|pm)?( →)?$/.test(content.trim()))
       problems.push(`unexpected callout text "${content}"`)
     return problems
   })
