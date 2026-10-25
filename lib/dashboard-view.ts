@@ -13,7 +13,7 @@ import type { BusyPeriod } from './gcal'
 import type { BusyInterval } from './scheduler'
 import { busyIntervalsForDay } from './gcal'
 import { getFutureDays } from './tiers'
-import { burnMins, vitDMins } from './weather'
+import { burnMins, uvBand, vitDMins, type UVBand } from './weather'
 
 /** The planning upsell shown to plans with locked forecast days. */
 export const UPGRADE_COPY = 'Go Pro for 10-day planning'
@@ -161,12 +161,17 @@ export function uvReadout(
 /** Theme tone for the big UV number; the label beside it names the band. */
 export type UVNumberTone = 'none' | 'success' | 'warning' | 'accent' | 'danger'
 
+const NUMBER_TONES: Record<UVBand, UVNumberTone> = {
+  none: 'none',
+  low: 'success',
+  moderate: 'warning',
+  high: 'accent',
+  'very-high': 'danger',
+  extreme: 'danger',
+}
+
 export function uvNumberTone(uv: number): UVNumberTone {
-  if (uv < 0.5) return 'none'
-  if (uv <= 2) return 'success'
-  if (uv <= 5) return 'warning'
-  if (uv <= 7) return 'accent'
-  return 'danger'
+  return NUMBER_TONES[uvBand(uv)]
 }
 
 /** Calendar busy blocks per visible day, in the forecast's zone. */

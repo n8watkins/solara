@@ -29,13 +29,19 @@ const UV_BAND_LABELS: Record<UVBand, string> = {
   extreme: 'Extreme',
 }
 
-/** The UV scale band of a UV value; each edge belongs to the lower band. */
+/**
+ * The UV scale band of a UV value. The WHO bands (Low 0-2, Moderate 3-5, High 6-7,
+ * Very high 8-10, Extreme 11+) are defined on the whole-number index, so the value
+ * is rounded first: 5.4 is Moderate and 5.5 is High, as the scale legend reads.
+ * Every UV color and label in the app goes through this one function.
+ */
 export function uvBand(uv: number): UVBand {
-  if (uv < 0.5) return 'none'
-  if (uv <= 2) return 'low'
-  if (uv <= 5) return 'moderate'
-  if (uv <= 7) return 'high'
-  if (uv <= 10) return 'very-high'
+  const index = Math.round(uv)
+  if (index < 1) return 'none'
+  if (index <= 2) return 'low'
+  if (index <= 5) return 'moderate'
+  if (index <= 7) return 'high'
+  if (index <= 10) return 'very-high'
   return 'extreme'
 }
 

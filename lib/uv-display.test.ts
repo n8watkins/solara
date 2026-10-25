@@ -53,14 +53,16 @@ describe('UV color bands', () => {
     }
   })
 
-  it('puts band edges on the low side of each boundary', () => {
-    expect([0.49, 0.5, 2, 2.1, 5, 7, 10, 10.1].map(uvBand)).toEqual([
+  it('bands the rounded index, as the WHO scale and the legend do', () => {
+    expect([0.49, 0.5, 2.49, 2.5, 5.4, 5.5, 7.49, 7.5, 10.49, 10.5].map(uvBand)).toEqual([
       'none',
       'low',
       'low',
       'moderate',
       'moderate',
       'high',
+      'high',
+      'very-high',
       'very-high',
       'extreme',
     ])

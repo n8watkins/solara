@@ -54,9 +54,14 @@ describe('uvLabel', () => {
   it('maps each band at its boundary', () => {
     expect(uvLabel(0)).toBe('None')
     expect(uvLabel(2)).toBe('Low')
-    expect(uvLabel(2.1)).toBe('Moderate')
+    expect(uvLabel(2.4)).toBe('Low')
+    expect(uvLabel(2.5)).toBe('Moderate')
     expect(uvLabel(5)).toBe('Moderate')
+    // The bands apply to the rounded index: 5.4 reads 5, Moderate; 5.5 reads 6, High.
+    expect(uvLabel(5.4)).toBe('Moderate')
+    expect(uvLabel(5.5)).toBe('High')
     expect(uvLabel(7)).toBe('High')
+    expect(uvLabel(7.4)).toBe('High')
     expect(uvLabel(10)).toBe('Very high')
     expect(uvLabel(11)).toBe('Extreme')
   })
