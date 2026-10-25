@@ -111,11 +111,12 @@ test('a guest who comes back on a later day is offered to save the plan', async 
 /**
  * Gzip size budget for the JavaScript a guest downloads before the dashboard shows,
  * compressed like Firebase Hosting serves it (gzip level 9; browsers that accept
- * Brotli get about 15% less). Next.js and React are about 140 KB of it. Firebase and
- * the dialogs load on demand (lib/firebase.ts, components/deferred.tsx); before that,
- * this was over 500 KB.
+ * Brotli get about 15% less). Next.js and React are about 140 KB of it. Firebase, the
+ * dialogs, setup, the location panel and the signed-in parts load on demand
+ * (lib/firebase.ts, components/deferred.tsx), and the boundaries are validated with
+ * Valibot; about 196 KB today, over 500 KB before #83.
  */
-const GUEST_FIRST_LOAD_BUDGET_KB = 245
+const GUEST_FIRST_LOAD_BUDGET_KB = 200
 
 test("a guest's first load stays within the JavaScript budget", async ({ page, baseURL }) => {
   await page.addInitScript(() => {
