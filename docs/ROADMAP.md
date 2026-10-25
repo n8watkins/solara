@@ -89,7 +89,7 @@ Items 1-8 need no Blaze and can start now; items 9-11 wait for the Pro launch.
 - **Scope:** debounced, rate-limited place search through the existing cached geocode helper, keyboard and screen-reader friendly, coordinates rounded to 2 decimals as everywhere else; reuse it in the location popover.
 - **Owns:** onboarding location step, `components/LocationPopover.tsx` search, the geocode helper, `components/PlaceSearch.tsx`.
 - **Acceptance:** e2e covers typing, choosing with the keyboard and the no-results state with a faked geocoder; axe shows no violations; the Nominatim usage policy (one request per second, attribution) is respected.
-- **State:** built on branch `feat/place-autocomplete`.
+- **State:** in review in #80.
   Suggestions come from Open-Meteo's place search, which the app already used, because Nominatim's usage policy forbids client-side autocomplete; Nominatim stays for "use my location" names only.
   Settings still has the older search box without suggestions.
 - **Depends on:** nothing; a commercial geocoder can replace Open-Meteo's place search later.
