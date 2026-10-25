@@ -1,26 +1,28 @@
+import { Check, Clock, Footprints, MapPin, type LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import Link from 'next/link'
 import DataAttribution from '@/components/DataAttribution'
 import { APP_PATH, LANDING_REDIRECT_SCRIPT, SIGN_IN_PATH } from '@/lib/app-routes'
 import { PRO_FEATURES, PRO_PLAN, type ProFeature } from '@/lib/plans'
+import SolaraMark from '@/components/SolaraMark'
 
 // The landing page: static HTML and CSS only. scripts/static-pages.mjs strips the
 // framework scripts from the exported page, so it loads no JavaScript besides the
 // inline theme and redirect scripts, and nothing from Firebase. The app is at /app/.
 
-const STEPS = [
+const STEPS: { Icon: LucideIcon; title: string; body: string }[] = [
   {
-    icon: '📍',
+    Icon: MapPin,
     title: 'Set your place and skin',
     body: 'Type a city or use your location, then pick your skin type. You see the live UV index right away.',
   },
   {
-    icon: '🏃',
+    Icon: Footprints,
     title: 'Add what you do outside',
     body: 'Running, hiking, swimming, gardening or your own activity, each with how much sun it can take.',
   },
   {
-    icon: '🕒',
+    Icon: Clock,
     title: 'Go at the lower-UV time',
     body: "Solara reads the hourly forecast and shows each activity's lower-UV window, with the best day of the week on Pro.",
   },
@@ -73,9 +75,7 @@ function PlanCard({
       <ul className="mt-4 mb-5 flex flex-col gap-2 text-[14px] text-ink-2">
         {planFeatures(column).map(feature => (
           <li key={feature} className="flex gap-2">
-            <span aria-hidden="true" className="font-bold text-success">
-              ✓
-            </span>
+            <Check size={16} strokeWidth={2.5} className="mt-[3px] shrink-0 text-success" />
             {feature}
           </li>
         ))}
@@ -96,9 +96,7 @@ export default function Landing() {
             href="/"
             className="flex items-center gap-1.5 rounded-lg text-[18px] font-bold text-ink no-underline"
           >
-            <span aria-hidden="true" className="text-[21px]">
-              ☀️
-            </span>
+            <SolaraMark size={24} />
             Solara
           </Link>
           <a href={SIGN_IN_PATH} className="btn px-4 py-2 text-[14px] font-semibold no-underline">
@@ -132,7 +130,7 @@ export default function Landing() {
               </p>
             </div>
 
-            <figure className="mx-auto w-full max-w-[330px]">
+            <figure className="mx-auto w-full max-w-[330px] md:max-w-[380px]">
               <picture>
                 <source
                   srcSet="/landing/dashboard-dark.webp"
@@ -164,8 +162,8 @@ export default function Landing() {
                 {STEPS.map((step, i) => (
                   <li key={step.title} className="card">
                     <p className="flex items-center gap-2.5 text-[13px] font-semibold text-ink-3">
-                      <span aria-hidden="true" className="text-[22px]">
-                        {step.icon}
+                      <span className="flex size-9 items-center justify-center rounded-full bg-accent-soft text-accent">
+                        <step.Icon size={18} />
                       </span>
                       Step {i + 1}
                     </p>
@@ -218,15 +216,20 @@ export default function Landing() {
                       <span className="text-[14px] text-ink-3"> / month</span>
                     </>
                   }
-                  note={`or ${PRO_PLAN.yearly} a year. ${PRO_PLAN.trialDays}-day free trial. Coming soon: join the waitlist in the app.`}
+                  note={`or ${PRO_PLAN.yearly} a year. ${PRO_PLAN.trialDays}-day free trial. Coming soon: sign in to join the waitlist.`}
+                  action={
+                    <a href={SIGN_IN_PATH} className={`${BUTTON} w-full bg-surface-card`}>
+                      Join the waitlist
+                    </a>
+                  }
                 />
               </div>
             </div>
           </section>
 
           <section className="border-t-[0.5px] border-line-strong">
-            <div className="mx-auto flex max-w-[1080px] flex-col gap-2 px-4 py-8 sm:px-6">
-              <p className="text-[13px] leading-[1.6] text-ink-3">
+            <div className="mx-auto flex max-w-[1080px] flex-col items-center gap-2 px-4 py-8 text-center sm:px-6">
+              <p className="max-w-[720px] text-[13px] leading-[1.6] text-ink-3">
                 Solara is a planning aid, not medical advice or a guarantee that sun exposure is
                 safe. Conditions and individual sensitivity can change quickly.
               </p>

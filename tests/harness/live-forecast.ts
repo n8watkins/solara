@@ -55,7 +55,12 @@ export const atNight = (raw: Raw): Raw => ({ ...raw, current: { ...raw.current, 
 export async function prepareLiveDashboard(
   page: Page,
   testInfo: TestInfo,
-  { at = NOW_MS, tier = 'paid', edit }: { at?: number; tier?: string; edit?: (raw: Raw) => Raw },
+  {
+    at = NOW_MS,
+    tier = 'paid',
+    edit,
+    query = '',
+  }: { at?: number; tier?: string; edit?: (raw: Raw) => Raw; query?: string },
 ): Promise<Capture> {
   const raw = JSON.stringify(edit ? edit(buildRawForecast()) : buildRawForecast())
   const capture = await preparePage(
@@ -67,8 +72,16 @@ export async function prepareLiveDashboard(
         : false,
     { at },
   )
-  await page.goto(`/harness/?screen=dashboard&data=live&tier=${tier}`)
+  await page.goto(`/harness/?screen=dashboard&data=live&tier=${tier}${query}`)
   await expect(page.getByTestId(HARNESS_MARKER)).toBeVisible()
   await expect(page.getByRole('group', { name: 'UV forecast by hour' })).toBeVisible()
   return capture
+}
+
+/** The live reading equals the forecast for `hour` on the first day (no in-between value). */
+export function currentFromHour(hour: number) {
+  return (raw: Raw): Raw => {
+    const index = raw.hourly.time.indexOf(`${HARNESS_DATE}T${String(hour).padStart(2, '0')}:00`)
+    return { ...raw, current: { ...raw.current, uv_index: raw.hourly.uv_index[index]! } }
+  }
 }
