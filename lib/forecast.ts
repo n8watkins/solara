@@ -9,10 +9,9 @@ import type {
   Location,
   WeatherResponse,
 } from './types'
-import { roundCoordinate } from './geocoding'
 import { addDays, formatDate, resolveTimeZone, zonedNow, type ZonedNow } from './time'
 
-// The same Zod-validated parser the calendar feed and notifier use, so every
+// The same Valibot-validated parser the calendar feed and notifier use, so every
 // surface reads Open-Meteo identically (including how missing values are handled).
 //
 // A fetched forecast is stored as ForecastData: Celsius, the location's time zone
@@ -191,8 +190,8 @@ export async function fetchForecast(
 ): Promise<ForecastData> {
   const { days = FORECAST_DAYS, signal, timeoutMs = core.FETCH_TIMEOUT_MS } = opts
   const url = core.forecastUrl({
-    lat: roundCoordinate(location.lat),
-    lon: roundCoordinate(location.lon),
+    lat: core.roundCoordinate(location.lat),
+    lon: core.roundCoordinate(location.lon),
     days,
     hourly: ['uv_index', 'temperature_2m', 'weathercode', 'cloudcover'],
     current: ['uv_index', 'temperature_2m', 'weathercode'],

@@ -1,6 +1,5 @@
 'use client'
 import { useEffect, useState, type ReactNode } from 'react'
-import { QueryClientProvider } from '@tanstack/react-query'
 import { saveLocalPrefs, saveFirestorePrefs } from '@/lib/prefs'
 import { syncErrorFor, type SyncError } from '@/lib/sync-error'
 import { SIGN_IN_PARAM } from '@/lib/app-routes'
@@ -10,18 +9,23 @@ import { canUseCalendar } from '@/lib/tiers'
 import { screenAfterOnboarding } from '@/lib/account-screen'
 import { useAccount } from '@/lib/use-account'
 import { useCheckoutReturn } from '@/lib/use-checkout-return'
-import { createQueryClient, useWeather } from '@/lib/use-forecast'
+import { createForecastStore, ForecastStoreProvider, useWeather } from '@/lib/use-forecast'
 import { resolveUnits, unitFormatters } from '@/lib/units'
 import { UnitsContext } from '@/lib/use-units'
-import { onForegroundMessage } from '@/lib/notifications'
+import { lazySubscription, storedSessionHint } from '@/lib/firebase'
+import { watchInstallPrompt } from '@/lib/install-prompt'
 import type { Activity, UserPreferences, TierLevel, DayWeather } from '@/lib/types'
 import SignInScreen from './SignInScreen'
-import Onboarding from './Onboarding'
 import Dashboard from './Dashboard'
 import Header from './Header'
 import Skeleton from './Skeleton'
-import InstallPrompt from './InstallPrompt'
-import { CalendarView, preloadDeferred } from './deferred'
+import {
+  CalendarView,
+  InstallPrompt,
+  Onboarding,
+  preloadDeferred,
+  preloadSignedInParts,
+} from './deferred'
 import DevPanel from './DevPanel'
 import ErrorBoundary from './ErrorBoundary'
 import AppShell, { type AppView } from './AppShell'
@@ -29,12 +33,19 @@ import AppNotice from './AppNotice'
 import { AccountLoadError, AccountLoading } from './AccountStatus'
 import ScheduledProvider from './ScheduledProvider'
 
+// A browser holding a session opens on the signed-in screen, which waits for these
+// parts (lib/use-account.ts): fetch them as soon as this module runs, not after the
+// first render.
+if (typeof window !== 'undefined' && storedSessionHint()) void preloadSignedInParts()
+// The install prompt loads later; the browser's install event is kept from now on.
+watchInstallPrompt()
+
 export default function App() {
-  const [queryClient] = useState(createQueryClient)
+  const [forecasts] = useState(createForecastStore)
   return (
-    <QueryClientProvider client={queryClient}>
+    <ForecastStoreProvider value={forecasts}>
       <SignedInApp />
-    </QueryClientProvider>
+    </ForecastStoreProvider>
   )
 }
 
@@ -55,17 +66,27 @@ function SignedInApp() {
   const [billingNotice, setBillingNotice] = useState<string | null>(null)
   const isDev = process.env.NODE_ENV === 'development'
 
-  const { user, prefs, setPrefs, screen, setScreen, accountError, reload, continueAsGuest } =
-    useAccount({
-      onAccountReset: () => {
-        setSyncError(null)
-        setBillingNotice(null)
-        setForegroundNotice(false)
-        setSelectedDay(null)
-        setView('dashboard')
-      },
-      signInRequested,
-    })
+  const {
+    user,
+    pending,
+    prefs,
+    setPrefs,
+    screen,
+    setScreen,
+    accountError,
+    reload,
+    continueAsGuest,
+  } = useAccount({
+    onAccountReset: () => {
+      setSyncError(null)
+      setBillingNotice(null)
+      setForegroundNotice(false)
+      setSelectedDay(null)
+      setView('dashboard')
+    },
+    signInRequested,
+    prepareSignedIn: preloadSignedInParts,
+  })
 
   // The sign-in flag is read once; drop it so a reload or a later sign-out does not
   // bring the sign-in screen back.
@@ -78,7 +99,14 @@ function SignedInApp() {
 
   useEffect(() => {
     if (!user) return
-    return onForegroundMessage(() => setForegroundNotice(true))
+    // The notifications code loads only for someone signed in.
+    return lazySubscription(
+      async () => {
+        const { onForegroundMessage } = await import('@/lib/notifications')
+        return onForegroundMessage(() => setForegroundNotice(true))
+      },
+      error => console.error('Foreground notification error:', error),
+    )
   }, [user])
 
   useCheckoutReturn(user, { onNotice: setBillingNotice, onPaid: setPrefs })
@@ -171,99 +199,104 @@ function SignedInApp() {
       uid={user && canUseCalendar(prefs.tier) ? user.uid : null}
       activities={prefs.activities}
     >
-      <AppShell
-        header={
-          <Header
-            user={user}
-            prefs={prefs}
-            displayTier={displayTier}
-            onPrefsUpdate={savePrefs}
-            forceOpenTab={prefsOpen ? prefsTab : undefined}
-            onModalClose={() => setPrefsOpen(false)}
-            onGoHome={() => {
-              setView('dashboard')
-              setSelectedDay(null)
-            }}
-            currentUV={weather?.current.uv}
-          />
-        }
-        view={effectiveView}
-        onViewChange={displayTier !== 'anonymous' ? setView : undefined}
-        after={isDev && <DevPanel currentTier={displayTier} onOverride={setTierOverride} />}
-      >
-        <InstallPrompt />
-        {foregroundNotice && (
-          <AppNotice
-            tone="notice"
-            role="status"
-            icon="🔔"
-            action={{ label: 'Dismiss', onClick: () => setForegroundNotice(false) }}
-          >
-            Your latest local-morning planning summary is ready.
-          </AppNotice>
-        )}
-        {billingNotice && (
-          <AppNotice tone="info" role="status">
-            {billingNotice}
-          </AppNotice>
-        )}
-        {error && (
-          <AppNotice tone="error" icon="⚠️" action={{ label: 'Retry', onClick: refreshWeather }}>
-            {error}
-          </AppNotice>
-        )}
-        {syncError && (
-          <AppNotice
-            tone="notice"
-            role="alert"
-            icon="☁️"
-            action={
-              syncError.reload
-                ? { label: 'Reload', onClick: () => window.location.reload() }
-                : { label: 'Retry sync', onClick: () => savePrefs(prefs) }
-            }
-          >
-            {syncError.message}
-          </AppNotice>
-        )}
-        {effectiveView === 'dashboard' && (
-          <>
-            {weatherLoading && <Skeleton />}
-            {weather && (
-              <ErrorBoundary label="the dashboard" onReset={refreshWeather}>
-                <Dashboard
-                  user={user}
-                  weather={weather}
-                  prefs={prefs}
-                  displayTier={displayTier}
-                  onPrefsUpdate={savePrefs}
-                  onRefresh={refreshWeather}
-                  selectedDay={selectedDay}
-                  onSelectDay={setSelectedDay}
-                />
-              </ErrorBoundary>
-            )}
-          </>
-        )}
-        {effectiveView === 'calendar' && (weather || weatherLoading) && (
-          <div className="card">
-            {weather ? (
-              <ErrorBoundary label="the calendar" onReset={refreshWeather}>
-                <CalendarView
-                  prefs={prefs}
-                  displayTier={displayTier}
-                  weather={weather}
-                  onPrefsUpdate={savePrefs}
-                />
-              </ErrorBoundary>
-            ) : (
-              <p role="status" className="m-0 py-12 text-center text-[14px] text-ink-3">
-                Loading forecast…
-              </p>
-            )}
-          </div>
-        )}
-      </AppShell>
+      {/* Until Auth confirms the account shown from this browser's copy and its saved
+          plan has loaded, nothing on screen can be changed (lib/use-account.ts). */}
+      <div className="contents" inert={!!pending} aria-busy={pending ? true : undefined}>
+        <AppShell
+          header={
+            <Header
+              user={user}
+              account={user ?? pending}
+              prefs={prefs}
+              displayTier={displayTier}
+              onPrefsUpdate={savePrefs}
+              forceOpenTab={prefsOpen ? prefsTab : undefined}
+              onModalClose={() => setPrefsOpen(false)}
+              onGoHome={() => {
+                setView('dashboard')
+                setSelectedDay(null)
+              }}
+              currentUV={weather?.current.uv}
+            />
+          }
+          view={effectiveView}
+          onViewChange={displayTier !== 'anonymous' ? setView : undefined}
+          after={isDev && <DevPanel currentTier={displayTier} onOverride={setTierOverride} />}
+        >
+          <InstallPrompt />
+          {foregroundNotice && (
+            <AppNotice
+              tone="notice"
+              role="status"
+              icon="🔔"
+              action={{ label: 'Dismiss', onClick: () => setForegroundNotice(false) }}
+            >
+              Your latest local-morning planning summary is ready.
+            </AppNotice>
+          )}
+          {billingNotice && (
+            <AppNotice tone="info" role="status">
+              {billingNotice}
+            </AppNotice>
+          )}
+          {error && (
+            <AppNotice tone="error" icon="⚠️" action={{ label: 'Retry', onClick: refreshWeather }}>
+              {error}
+            </AppNotice>
+          )}
+          {syncError && (
+            <AppNotice
+              tone="notice"
+              role="alert"
+              icon="☁️"
+              action={
+                syncError.reload
+                  ? { label: 'Reload', onClick: () => window.location.reload() }
+                  : { label: 'Retry sync', onClick: () => savePrefs(prefs) }
+              }
+            >
+              {syncError.message}
+            </AppNotice>
+          )}
+          {effectiveView === 'dashboard' && (
+            <>
+              {weatherLoading && <Skeleton />}
+              {weather && (
+                <ErrorBoundary label="the dashboard" onReset={refreshWeather}>
+                  <Dashboard
+                    user={user}
+                    weather={weather}
+                    prefs={prefs}
+                    displayTier={displayTier}
+                    onPrefsUpdate={savePrefs}
+                    onRefresh={refreshWeather}
+                    selectedDay={selectedDay}
+                    onSelectDay={setSelectedDay}
+                  />
+                </ErrorBoundary>
+              )}
+            </>
+          )}
+          {effectiveView === 'calendar' && (weather || weatherLoading) && (
+            <div className="card">
+              {weather ? (
+                <ErrorBoundary label="the calendar" onReset={refreshWeather}>
+                  <CalendarView
+                    prefs={prefs}
+                    displayTier={displayTier}
+                    weather={weather}
+                    onPrefsUpdate={savePrefs}
+                  />
+                </ErrorBoundary>
+              ) : (
+                <p role="status" className="m-0 py-12 text-center text-[14px] text-ink-3">
+                  Loading forecast…
+                </p>
+              )}
+            </div>
+          )}
+        </AppShell>
+      </div>
     </AccountContexts>
   )
 }

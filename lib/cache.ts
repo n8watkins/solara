@@ -5,9 +5,9 @@
 // localStorage is outside the app's control, so every read is validated: the
 // store carries a version, each entry is checked against a schema, and anything
 // that does not match is dropped instead of being cast into the app.
-import * as z from 'zod/mini'
+import * as v from 'valibot'
+import { finiteNumber as finite, record, roundCoordinate } from '@solara/core'
 import type { ForecastData } from './types'
-import { roundCoordinate } from './geocoding'
 import { isIsoDate, isValidTimeZone } from './time'
 
 export const CACHE_KEY = 'solara_forecast'
@@ -20,34 +20,39 @@ export const MAX_ENTRIES = 8
 /** Entries older than this are dropped: too old to show even while refreshing. */
 export const MAX_AGE_MS = 24 * 60 * 60 * 1000
 
-const finite = z.number()
-const hourSchema = z.object({
-  date: z.optional(z.string()),
-  hour: z.int().check(z.gte(0), z.lte(23)),
-  uv: finite.check(z.gte(0)),
+const hourSchema = record({
+  date: v.optional(v.string()),
+  hour: v.pipe(v.number(), v.safeInteger(), v.minValue(0), v.maxValue(23)),
+  uv: v.pipe(finite, v.minValue(0)),
   tempC: finite,
-  condition: z.string(),
-  cloudCover: z.optional(finite),
+  condition: v.string(),
+  cloudCover: v.optional(finite),
 })
 
-const forecastSchema = z.object({
-  timezone: z.string().check(z.refine(isValidTimeZone)),
+const forecastSchema = record({
+  timezone: v.pipe(
+    v.string(),
+    v.check(value => isValidTimeZone(value)),
+  ),
   fetchedAt: finite,
-  current: z.object({ uv: finite.check(z.gte(0)), tempC: finite, condition: z.string() }),
-  days: z.array(
-    z.object({
-      dateStr: z.string().check(z.refine(isIsoDate)),
-      hourly: z.array(hourSchema).check(z.maxLength(24)),
+  current: record({ uv: v.pipe(finite, v.minValue(0)), tempC: finite, condition: v.string() }),
+  days: v.array(
+    record({
+      dateStr: v.pipe(
+        v.string(),
+        v.check(value => isIsoDate(value)),
+      ),
+      hourly: v.pipe(v.array(hourSchema), v.maxLength(24)),
     }),
   ),
 })
 
-const entrySchema = z.object({ key: z.string(), data: forecastSchema })
-type Entry = z.infer<typeof entrySchema>
+const entrySchema = record({ key: v.string(), data: forecastSchema })
+type Entry = v.InferOutput<typeof entrySchema>
 
-const storeSchema = z.object({
-  version: z.literal(CACHE_VERSION),
-  entries: z.array(z.unknown()),
+const storeSchema = record({
+  version: v.literal(CACHE_VERSION),
+  entries: v.array(v.unknown()),
 })
 
 /** Cache key for a location: coordinates rounded the same way requests round them. */
@@ -71,12 +76,13 @@ function readEntries(now: number): Entry[] {
     for (const key of LEGACY_KEYS) store.removeItem(key)
     const raw = store.getItem(CACHE_KEY)
     if (!raw) return []
-    const parsed = storeSchema.safeParse(JSON.parse(raw))
+    const parsed = v.safeParse(storeSchema, JSON.parse(raw))
     if (!parsed.success) return []
     const entries: Entry[] = []
-    for (const candidate of parsed.data.entries) {
-      const entry = entrySchema.safeParse(candidate)
-      if (entry.success && now - entry.data.data.fetchedAt <= MAX_AGE_MS) entries.push(entry.data)
+    for (const candidate of parsed.output.entries) {
+      const entry = v.safeParse(entrySchema, candidate)
+      if (entry.success && now - entry.output.data.fetchedAt <= MAX_AGE_MS)
+        entries.push(entry.output)
     }
     return entries
   } catch {

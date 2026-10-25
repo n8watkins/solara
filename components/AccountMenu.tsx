@@ -13,8 +13,11 @@ function menuItems(list: HTMLElement | null): HTMLElement[] {
   return Array.from(list?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])
 }
 
+/** What the account menu shows of the account: a Firebase User, or Auth's stored copy. */
+export type AccountIdentity = Pick<User, 'displayName' | 'email' | 'photoURL'>
+
 interface Props {
-  user: User
+  user: AccountIdentity
   onOpenSettings: () => void
   onSignOut: () => void
 }

@@ -175,6 +175,13 @@ describe('storedSessionInIndexedDb', () => {
     expect(fake.closed).toHaveBeenCalled()
   })
 
+  it('gives storedSessionUser the IndexedDB user', async () => {
+    const firebase = await freshFirebase()
+    const user = { uid: 'user-1', displayName: null, email: 'a@b.co', photoURL: 'https://x/p.png' }
+    vi.stubGlobal('indexedDB', fakeIndexedDb({ exists: true, user }).indexedDB)
+    await expect(firebase.storedSessionUser()).resolves.toEqual(user)
+  })
+
   it('is false when the store has no user', async () => {
     const firebase = await freshFirebase()
     vi.stubGlobal('indexedDB', fakeIndexedDb({ exists: true }).indexedDB)
@@ -192,6 +199,43 @@ describe('storedSessionInIndexedDb', () => {
   it('is false where IndexedDB does not exist', async () => {
     const firebase = await freshFirebase()
     await expect(firebase.storedSessionInIndexedDb()).resolves.toBe(false)
+  })
+})
+
+describe('storedSessionUser', () => {
+  const ALICE = {
+    uid: 'user-1',
+    displayName: 'Alice Stone',
+    email: 'alice@example.com',
+    photoURL: null,
+    stsTokenManager: { refreshToken: 'secret' },
+  }
+
+  it('reads the user Auth keeps in localStorage, without its tokens', async () => {
+    const firebase = await freshFirebase({ storage: { [USER_KEY]: JSON.stringify(ALICE) } })
+    await expect(firebase.storedSessionUser()).resolves.toEqual({
+      uid: 'user-1',
+      displayName: 'Alice Stone',
+      email: 'alice@example.com',
+      photoURL: null,
+    })
+  })
+
+  it('is null for nothing stored, a user without a uid, or unreadable data', async () => {
+    for (const stored of [undefined, '{"email":"a@b.co"}', '{"uid":7}', 'not json']) {
+      const firebase = await freshFirebase({
+        storage: stored === undefined ? {} : { [USER_KEY]: stored },
+      })
+      await expect(firebase.storedSessionUser()).resolves.toBeNull()
+    }
+  })
+
+  it('is null without Firebase, whatever is stored', async () => {
+    const firebase = await freshFirebase({
+      configured: false,
+      storage: { [USER_KEY]: JSON.stringify(ALICE) },
+    })
+    await expect(firebase.storedSessionUser()).resolves.toBeNull()
   })
 })
 

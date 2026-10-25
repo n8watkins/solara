@@ -14,8 +14,19 @@ import {
   ReCaptchaEnterpriseProvider,
   ReCaptchaV3Provider,
 } from 'firebase/app-check'
-import type { Auth } from 'firebase/auth'
-import { connectAuthEmulator, getAuth, GoogleAuthProvider, onAuthStateChanged } from 'firebase/auth'
+import type { Auth, PopupRedirectResolver } from 'firebase/auth'
+import {
+  browserLocalPersistence,
+  browserPopupRedirectResolver,
+  browserSessionPersistence,
+  connectAuthEmulator,
+  getAuth,
+  getRedirectResult,
+  GoogleAuthProvider,
+  indexedDBLocalPersistence,
+  initializeAuth,
+  onAuthStateChanged,
+} from 'firebase/auth'
 import type { Firestore } from 'firebase/firestore'
 import { connectFirestoreEmulator, initializeFirestore } from 'firebase/firestore'
 import { appCheckProviderKind, firebaseEnabled } from './firebase'
@@ -35,8 +46,23 @@ if (firebaseEnabled) {
     appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
   }
 
-  app = getApps()[0] ?? initializeApp(firebaseConfig)
-  auth = getAuth(app)
+  const existing = getApps()[0]
+  app = existing ?? initializeApp(firebaseConfig)
+  // getAuth() without its popup and redirect helper: getAuth() starts that helper (an
+  // iframe from the auth domain and Google's scripts) at start-up on phones and in
+  // Safari, which a session that is already signed in never needs. Sign-in starts it
+  // instead (prepareSignInPopup), and every *WithPopup call must pass it
+  // (popupRedirectResolver): without it the call fails. The persistence
+  // list is getAuth()'s own, so stored sessions are found exactly as before.
+  auth = existing
+    ? getAuth(app)
+    : initializeAuth(app, {
+        persistence: [
+          indexedDBLocalPersistence,
+          browserLocalPersistence,
+          browserSessionPersistence,
+        ],
+      })
   // ignoreUndefinedProperties: normalizePrefs emits undefined for absent optional fields
   // (activeProfileId, calendarHours, …); without this, updateDoc/setDoc throw on those
   // instead of simply omitting them.
@@ -58,6 +84,24 @@ if (firebaseEnabled) {
       if (user) ensureAppCheck()
     })
   }
+}
+
+// ---- Sign-in popup ---------------------------------------------------------------
+
+/** What signInWithPopup needs for the Google sign-in popup (Auth's popup helper). */
+export const popupRedirectResolver: PopupRedirectResolver = browserPopupRedirectResolver
+
+let popupReady: Promise<unknown> | null = null
+
+/**
+ * Starts Auth's popup helper ahead of a sign-in (when a sign-in button shows or the
+ * pointer reaches it), as getAuth() would at start-up, so the popup still opens within
+ * the click's user activation. getRedirectResult is the public way to start it; the
+ * app never signs in with a redirect, so there is never a result to take.
+ */
+export function prepareSignInPopup(): void {
+  if (!auth || typeof window === 'undefined') return
+  popupReady ??= getRedirectResult(auth, popupRedirectResolver).catch(() => null)
 }
 
 // ---- Local Emulator Suite (signed-in e2e only) ------------------------------------

@@ -3,8 +3,8 @@ import type { Activity, UserPreferences, WeatherResponse } from '@/lib/types'
 import type { DashboardAccess } from '@/lib/dashboard-view'
 import type { ActivityDayPlan } from '@/lib/next-slot'
 import type { BusyInterval, SlotRecommendation } from '@/lib/scheduler'
-import { scheduledOn, type ScheduledActivity } from '@/lib/scheduled'
-import { isCalendarConfigured } from '@/lib/gcal'
+import { scheduledOn, type ScheduledActivity } from '@/lib/scheduled-view'
+import { isCalendarConfigured } from '@/lib/gcal-view'
 import { nextSlotAfterToday } from '@/lib/planner'
 import { canAddActivity, canUseCalendar, TIER_LIMITS } from '@/lib/tiers'
 import { isReturningGuest } from '@/lib/guest'
@@ -13,11 +13,10 @@ import GoogleSignInButton from '../GoogleSignInButton'
 import Upsell from '../Upsell'
 import type { useCalendarBusy } from '@/hooks/useCalendarBusy'
 import ActivityCards from '../ActivityCards'
-import { CalendarFeed } from '../deferred'
+import { ActivityModals, CalendarFeed } from '../deferred'
 import PlanAhead from '../PlanAhead'
 import ActivitiesIntro from './ActivitiesIntro'
 import ActivityEmptyState from './ActivityEmptyState'
-import ActivityModals from './ActivityModals'
 import CalendarConnectBanner from './CalendarConnectBanner'
 
 /**
@@ -161,15 +160,18 @@ export default function ActivitiesSection({
         <ActivityEmptyState onAdd={() => setModal('add')} />
       )}
 
-      <ActivityModals
-        modal={modal}
-        onModalChange={setModal}
-        editingId={editingId}
-        onEdit={activity => setEditingId(activity?.id ?? null)}
-        prefs={prefs}
-        tier={access.activityTier}
-        onPrefsUpdate={onPrefsUpdate}
-      />
+      {/* Loaded on demand, and mounted only while one of the dialogs is open. */}
+      {(modal || editingId) && (
+        <ActivityModals
+          modal={modal}
+          onModalChange={setModal}
+          editingId={editingId}
+          onEdit={activity => setEditingId(activity?.id ?? null)}
+          prefs={prefs}
+          tier={access.activityTier}
+          onPrefsUpdate={onPrefsUpdate}
+        />
+      )}
     </section>
   )
 }

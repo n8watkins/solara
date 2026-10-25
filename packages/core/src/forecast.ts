@@ -2,14 +2,15 @@
 // notification worker. Keep it free of Firebase, browser and Node-only APIs so
 // every surface reads the provider the same way.
 //
-// The response is validated with Zod at this boundary (zod/mini, whose functional API
-// tree-shakes, so the parser adds little to the client bundle). Missing values are never
+// The response is validated with Valibot at this boundary (./schema.ts; its modular
+// API tree-shakes, so the parser adds little to the client bundle). Missing values are never
 // coerced: a UV or temperature that is not a finite number is `null`, and an hour
 // without a known UV is dropped from the daytime series. The recommendation
 // engine never bridges a dropped hour, so an unknown hour can never become part
 // of a recommended window.
 
-import * as z from 'zod/mini'
+import * as v from 'valibot'
+import { finiteNumber, record } from './schema'
 
 export const OPEN_METEO_FORECAST_URL = 'https://api.open-meteo.com/v1/forecast'
 export const DAY_START_HOUR = 6
@@ -57,21 +58,21 @@ export interface OpenMeteoPayload {
 }
 
 /** A finite number, or null for anything else (missing, null, NaN, Infinity, wrong type). */
-const value = z.catch(z.nullable(z.number()), null)
+const value = v.fallback(v.nullable(finiteNumber), null)
 /** A value series; anything that is not an array counts as missing. */
-const series = z.catch(z.optional(z.array(value)), undefined)
+const series = v.fallback(v.optional(v.array(value)), undefined)
 
 /**
  * The parts of an Open-Meteo response Solara reads. Only the hourly time axis is
  * required; every value is lenient, so a gap stays a gap instead of failing the
  * whole forecast.
  */
-export const OpenMeteoResponseSchema = z.object({
-  timezone: z.catch(z.optional(z.string()), undefined),
-  current: z.catch(
-    z.optional(
-      z.object({
-        time: z.catch(z.optional(z.string()), undefined),
+export const OpenMeteoResponseSchema = record({
+  timezone: v.fallback(v.optional(v.string()), undefined),
+  current: v.fallback(
+    v.optional(
+      record({
+        time: v.fallback(v.optional(v.string()), undefined),
         uv_index: value,
         temperature_2m: value,
         weathercode: value,
@@ -79,9 +80,9 @@ export const OpenMeteoResponseSchema = z.object({
     ),
     undefined,
   ),
-  hourly: z.object({
+  hourly: record({
     // Unreadable timestamps are skipped row by row (see splitTime).
-    time: z.array(z.unknown()),
+    time: v.array(v.unknown()),
     uv_index: series,
     temperature_2m: series,
     weathercode: series,
@@ -89,13 +90,13 @@ export const OpenMeteoResponseSchema = z.object({
   }),
 })
 
-export type OpenMeteoResponse = z.infer<typeof OpenMeteoResponseSchema>
+export type OpenMeteoResponse = v.InferOutput<typeof OpenMeteoResponseSchema>
 
 /** Validate an Open-Meteo response. Throws when it has no hourly time series. */
 export function parseOpenMeteoResponse(raw: unknown): OpenMeteoResponse {
-  const result = OpenMeteoResponseSchema.safeParse(raw)
+  const result = v.safeParse(OpenMeteoResponseSchema, raw)
   if (!result.success) throw new Error('Forecast response was incomplete')
-  return result.data
+  return result.output
 }
 
 function finiteOrNull(input: unknown): number | null {

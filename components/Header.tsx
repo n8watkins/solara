@@ -1,22 +1,25 @@
 'use client'
 import { useState } from 'react'
 import type { User } from 'firebase/auth'
-import { SignOutBlockedError, signOutAndClear } from '@/lib/session'
+import type { AccountIdentity } from './AccountMenu'
 import { goToLanding } from '@/lib/app-routes'
 import type { UserPreferences, TierLevel } from '@/lib/types'
 import { getSavedLocationLimit } from '@/lib/tiers'
 import { headerUV } from '@/lib/header-display'
 import { uvBandColor } from '@/lib/weather'
-import { PreferencesModal } from './deferred'
+import { AccountMenu, PreferencesModal, ProfileSwitcher } from './deferred'
 import LocationPopover from './LocationPopover'
-import ProfileSwitcher from './ProfileSwitcher'
 import GoogleSignInButton from './GoogleSignInButton'
-import AccountMenu from './AccountMenu'
 import SolaraMark from './SolaraMark'
 import styles from './Header.module.css'
 
 interface Props {
   user: User | null
+  /**
+   * The account shown in the header: the signed-in user, or the account a stored
+   * session belongs to while Auth confirms it. Defaults to `user`.
+   */
+  account?: AccountIdentity | null
   prefs: UserPreferences
   onPrefsUpdate: (p: UserPreferences) => void
   onGoHome: () => void
@@ -29,6 +32,7 @@ interface Props {
 
 export default function Header({
   user,
+  account = user,
   prefs,
   onPrefsUpdate,
   onGoHome,
@@ -51,11 +55,17 @@ export default function Header({
   async function handleSignOut() {
     setSignOutError(null)
     const uid = user?.uid
-    let failure: { error: unknown } | null = null
+    let failure: { error: unknown; blocked: boolean } | null = null
     try {
-      await signOutAndClear(uid)
+      // The sign-out code loads only when someone signs out.
+      const { SignOutBlockedError, signOutAndClear } = await import('@/lib/session')
+      try {
+        await signOutAndClear(uid)
+      } catch (error) {
+        failure = { error, blocked: error instanceof SignOutBlockedError }
+      }
     } catch (error) {
-      failure = { error }
+      failure = { error, blocked: false }
     }
     if (!failure) {
       goToLanding()
@@ -63,7 +73,7 @@ export default function Header({
     }
     console.error('Sign-out failed:', failure.error)
     setSignOutError(
-      failure.error instanceof SignOutBlockedError
+      failure.blocked
         ? 'Sign-out paused because notifications could not be disabled. Check your connection and try again.'
         : 'Could not sign out. Check your connection and try again.',
     )
@@ -133,9 +143,9 @@ export default function Header({
                 Pro
               </span>
             )}
-            {user ? (
+            {account ? (
               <AccountMenu
-                user={user}
+                user={account}
                 onOpenSettings={() => setShowPrefs(true)}
                 onSignOut={() => void handleSignOut()}
               />

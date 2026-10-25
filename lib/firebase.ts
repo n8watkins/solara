@@ -39,9 +39,15 @@ export function loadFirebase(): Promise<FirebaseServices | null> {
   return pending
 }
 
-/** Starts loading Firebase in the background, for a sign-in that is about to happen. */
+/**
+ * Starts loading Firebase in the background, for a sign-in that is about to happen,
+ * with Auth's sign-in popup helper (prepareSignInPopup in lib/firebase-services.ts).
+ */
 export function preloadFirebase(): void {
-  loadFirebase().catch(() => {})
+  loadFirebase().then(
+    services => services?.prepareSignInPopup(),
+    () => {},
+  )
 }
 
 /** The started SDK if it has loaded, else null. Never starts loading it. */
@@ -110,47 +116,90 @@ export function storedSessionHint(): boolean {
   }
 }
 
+/** The signed-in user Firebase Auth keeps in this browser, as much of it as the app shows. */
+export interface StoredSessionUser {
+  uid: string
+  displayName: string | null
+  email: string | null
+  photoURL: string | null
+}
+
+function sessionUserFrom(value: unknown): StoredSessionUser | null {
+  if (typeof value !== 'object' || value === null) return null
+  const user = value as Record<string, unknown>
+  if (typeof user.uid !== 'string' || !user.uid) return null
+  const text = (field: unknown) => (typeof field === 'string' ? field : null)
+  return {
+    uid: user.uid,
+    displayName: text(user.displayName),
+    email: text(user.email),
+    photoURL: text(user.photoURL),
+  }
+}
+
 /**
- * Whether Firebase Auth's own IndexedDB store holds a signed-in user: the backstop for a
- * session without the account marker (its localStorage was cleared). Never creates
- * the database, and answers false on any error.
+ * The user Firebase Auth keeps in its own IndexedDB store, or null. Never creates the
+ * database, and answers null on any error.
  */
-export function storedSessionInIndexedDb(): Promise<boolean> {
-  if (!firebaseEnabled || typeof indexedDB === 'undefined') return Promise.resolve(false)
+function indexedDbUser(): Promise<unknown> {
+  if (!firebaseEnabled || typeof indexedDB === 'undefined') return Promise.resolve(null)
   return new Promise(resolve => {
     try {
       const request = indexedDB.open(AUTH_DB)
       // The database does not exist yet: abort, so it is not created empty.
       request.onupgradeneeded = () => request.transaction?.abort()
-      request.onerror = () => resolve(false)
-      request.onblocked = () => resolve(false)
+      request.onerror = () => resolve(null)
+      request.onblocked = () => resolve(null)
       request.onsuccess = () => {
         const database = request.result
         try {
           if (!database.objectStoreNames.contains(AUTH_STORE)) {
             database.close()
-            resolve(false)
+            resolve(null)
             return
           }
           const read = database.transaction(AUTH_STORE, 'readonly').objectStore(AUTH_STORE)
           const get = read.get(AUTH_USER_KEY)
           get.onsuccess = () => {
             database.close()
-            resolve((get.result as { value?: unknown } | undefined)?.value != null)
+            resolve((get.result as { value?: unknown } | undefined)?.value ?? null)
           }
           get.onerror = () => {
             database.close()
-            resolve(false)
+            resolve(null)
           }
         } catch {
           database.close()
-          resolve(false)
+          resolve(null)
         }
       }
     } catch {
-      resolve(false)
+      resolve(null)
     }
   })
+}
+
+/**
+ * Whether Firebase Auth's own IndexedDB store holds a signed-in user: the backstop for a
+ * session without the account marker (its localStorage was cleared). Never creates the
+ * database, and answers false on any error.
+ */
+export async function storedSessionInIndexedDb(): Promise<boolean> {
+  return (await indexedDbUser()) != null
+}
+
+/**
+ * The user of the session Firebase Auth keeps in this browser (in IndexedDB, or in
+ * localStorage where IndexedDB is unavailable), without loading Firebase, or null.
+ * Auth still has to confirm the session: this is what the browser holds, not proof.
+ */
+export async function storedSessionUser(): Promise<StoredSessionUser | null> {
+  if (!firebaseEnabled) return null
+  try {
+    const stored = localStorage.getItem(AUTH_USER_KEY)
+    if (stored) return sessionUserFrom(JSON.parse(stored))
+  } catch {}
+  return sessionUserFrom(await indexedDbUser())
 }
 
 // ---- App Check ------------------------------------------------------------------------

@@ -38,8 +38,12 @@ export default function AccountPage() {
     }
     void (async () => {
       const session = firebaseEnabled && (storedSessionHint() || (await storedSessionInIndexedDb()))
-      const auth = session ? (await loadFirebase())?.auth : null
-      if (!auth) return signedOut()
+      const services = session ? await loadFirebase() : null
+      const auth = services?.auth
+      if (!services || !auth) return signedOut()
+      // Deleting the account confirms it again in Google's popup: start Auth's popup
+      // helper now, so that popup opens within the click.
+      services.prepareSignInPopup()
       const { onAuthStateChanged } = await import('firebase/auth')
       if (disposed) return
       unsubscribe = onAuthStateChanged(auth, value => {
@@ -101,10 +105,13 @@ export default function AccountPage() {
     setBusy('delete')
     setMessage('')
     try {
-      const googleProvider = loadedFirebase()?.googleProvider
-      if (!googleProvider) throw new Error('Google reauthentication is not configured.')
+      const services = loadedFirebase()
+      const googleProvider = services?.googleProvider
+      if (!services || !googleProvider) {
+        throw new Error('Google reauthentication is not configured.')
+      }
       const { reauthenticateWithPopup, signOut } = await import('firebase/auth')
-      await reauthenticateWithPopup(user, googleProvider)
+      await reauthenticateWithPopup(user, googleProvider, services.popupRedirectResolver)
       // A limited-use App Check token is consumed by the server, so this request cannot be
       // replayed.
       const result = await callFunction(user, 'deleteAccount', {

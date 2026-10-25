@@ -1,7 +1,7 @@
 import { windowEventSummary, windowEventUid } from '@solara/core'
 import type { SlotRecommendation } from './scheduler'
 import type { Activity } from './types'
-import { buildEventDescription } from './gcal'
+import { buildEventDescription } from './gcal-view'
 
 // Client-side iCalendar (.ics) export. A static app can't host a live feed without a
 // server, but it CAN hand the user a downloadable file that imports into any calendar

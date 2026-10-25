@@ -43,7 +43,7 @@ The Open-Meteo commercial plan alone ($29 per month) is covered by about 10 subs
 ## Cost levers
 
 - reCAPTCHA is the first cost to grow; keep App Check limited to signed-in users and backend calls.
-- Firestore reads: keep the TanStack Query cache and avoid listeners on large collections.
+- Firestore reads: keep the account load to one document read and avoid listeners on large collections.
 - Hosting: hashed assets are cached for a year; keep first-load JavaScript small.
 - Set a Google Cloud budget alert (for example $5 per month) as soon as Blaze is enabled.
 

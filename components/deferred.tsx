@@ -1,12 +1,16 @@
 'use client'
 // Parts of the app that are not on screen when it opens: the dialogs and sheets, the
-// calendar view and the calendar feed card. Each loads as its own chunk the first
-// time it renders, so the first load carries only the dashboard (or setup). Soon after
-// the page has loaded, preloadDeferred() fetches them all, so opening one is instant.
+// calendar view and the calendar feed card, the location panel, setup (a returning
+// visitor never sees it), and the header's signed-in parts (account menu, profile
+// switcher) and scheduled activities, which a guest never sees. Each loads as its own chunk the first time it
+// renders, so the first load carries only what the opening screen shows. Soon after
+// the page has loaded, preloadDeferred() fetches them all, so opening one is instant;
+// preloadSignedInParts() fetches the signed-in header parts at once.
 //
-// Import these instead of the modules themselves; each renders nothing until its
-// chunk has arrived.
+// Import these instead of the modules themselves; each renders nothing (or its
+// fallback) until its chunk has arrived.
 import { useEffect, useState, type ComponentType } from 'react'
+import { AccountLoading } from './AccountStatus'
 
 type Loader<P> = () => Promise<{ default: ComponentType<P> }>
 
@@ -17,7 +21,10 @@ const PRELOAD_DELAY_MS = 1500
 
 // Plain state rather than React.lazy and Suspense: Suspense reveals content on a
 // timer, and a part that has loaded once must render in the same pass, with no gap.
-function deferred<P extends object>(load: Loader<P>): ComponentType<P> {
+function deferred<P extends object>(
+  load: Loader<P>,
+  Fallback: ComponentType<P> | null = null,
+): ComponentType<P> & { preload: () => Promise<unknown> } {
   let loaded: ComponentType<P> | null = null
   let pending: Promise<ComponentType<P>> | null = null
   const preload = () => {
@@ -47,10 +54,16 @@ function deferred<P extends object>(load: Loader<P>): ComponentType<P> {
         active = false
       }
     }, [Component])
-    return Component ? <Component {...props} /> : null
+    if (Component) return <Component {...props} />
+    return Fallback ? <Fallback {...props} /> : null
   }
-  return Deferred
+  return Object.assign(Deferred, { preload })
 }
+
+// Code that runs only after a click, fetched with the rest so the click needs no download.
+loaders.add(() => import('@/lib/gcal'))
+loaders.add(() => import('@/lib/share'))
+loaders.add(() => import('@/lib/ics'))
 
 export const PreferencesModal = deferred(() => import('./PreferencesModal'))
 export const PricingModal = deferred(() => import('./PricingModal'))
@@ -60,6 +73,33 @@ export const ManageActivitiesModal = deferred(() => import('./ManageActivitiesMo
 export const ScheduledSheet = deferred(() => import('./ScheduledSheet'))
 export const CalendarView = deferred(() => import('./CalendarView'))
 export const CalendarFeed = deferred(() => import('./CalendarFeed'))
+/** Floats over the page once the browser allows installing (lib/install-prompt.ts). */
+export const InstallPrompt = deferred(() => import('./InstallPrompt'))
+export const ActivityModals = deferred(() => import('./dashboard/ActivityModals'))
+export const DayDialog = deferred(() => import('./dashboard/DayDialog'))
+export const LocationPanel = deferred(() => import('./LocationPanel'))
+/** Setup, for a first visit; the loading screen shows until it has arrived. */
+export const Onboarding = deferred(() => import('./Onboarding'), AccountLoading)
+export const AccountMenu = deferred(() => import('./AccountMenu'))
+export const ProfileSwitcher = deferred(() => import('./ProfileSwitcher'))
+/** A signed-in account's scheduled activities; until it arrives, the screens show none. */
+export const AccountScheduled = deferred(() => import('./scheduled/AccountScheduled'))
+
+/**
+ * Loads the header's signed-in parts now, for a session about to show (a stored
+ * session at start-up, or a sign-in in progress), so they render with the rest of the
+ * header instead of popping in. Never rejects.
+ */
+export function preloadSignedInParts(): Promise<void> {
+  return Promise.all([
+    AccountMenu.preload(),
+    ProfileSwitcher.preload(),
+    AccountScheduled.preload(),
+  ]).then(
+    () => {},
+    () => {},
+  )
+}
 
 /**
  * Fetches every deferred part a little after the page has loaded, when the browser is

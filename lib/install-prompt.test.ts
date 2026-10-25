@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { installPromptKind, type InstallEnvironment } from './install-prompt'
 
 const IPHONE_SAFARI =
@@ -42,5 +42,49 @@ describe('installPromptKind', () => {
     expect(
       installPromptKind(env({ userAgent: MAC_SAFARI, platform: 'MacIntel', maxTouchPoints: 0 })),
     ).toBe('chromium')
+  })
+})
+
+describe('watchInstallPrompt', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  async function watchIn({ dismissed = false } = {}) {
+    vi.resetModules()
+    const target = new EventTarget()
+    const navigator = { userAgent: 'Chrome', platform: 'Linux', maxTouchPoints: 0 }
+    vi.stubGlobal(
+      'window',
+      Object.assign(target, { matchMedia: () => ({ matches: false }), navigator }),
+    )
+    vi.stubGlobal('navigator', navigator)
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => (dismissed && key === 'solara_install_dismissed' ? '1' : null),
+    })
+    const prompt = await import('./install-prompt')
+    prompt.watchInstallPrompt()
+    return { target, prompt }
+  }
+
+  it('keeps the install event from start-up until it is used or the app is installed', async () => {
+    const { target, prompt } = await watchIn()
+    const listener = vi.fn()
+    prompt.onInstallPromptChange(listener)
+    const event = new Event('beforeinstallprompt', { cancelable: true })
+    target.dispatchEvent(event)
+    expect(event.defaultPrevented).toBe(true)
+    expect(prompt.pendingInstallPrompt()).toBe(event)
+    expect(listener).toHaveBeenCalledTimes(1)
+    target.dispatchEvent(new Event('appinstalled'))
+    expect(prompt.pendingInstallPrompt()).toBeNull()
+  })
+
+  it('leaves the browser its own install UI after a dismissal', async () => {
+    const { target, prompt } = await watchIn({ dismissed: true })
+    const event = new Event('beforeinstallprompt', { cancelable: true })
+    target.dispatchEvent(event)
+    expect(event.defaultPrevented).toBe(false)
+    expect(prompt.pendingInstallPrompt()).toBeNull()
   })
 })

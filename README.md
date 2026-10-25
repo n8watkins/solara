@@ -28,7 +28,7 @@ Conditions and individual sensitivity can change quickly.
 ## Stack
 
 - Next.js 16 App Router with static export, React 19 with the React Compiler, TypeScript 5.
-- TanStack Query for forecast data, Zod (`zod/mini`) for every external boundary.
+- A small forecast store for forecast data (`lib/forecast-store.ts`: one request per place, background refresh, persisted cache), Valibot for every external boundary (`packages/core/src/schema.ts`).
 - Firebase Authentication, Firestore, Hosting, Cloud Messaging and Functions (TypeScript on Node.js 24).
 - Tailwind CSS 4, configured in `app/globals.css` (`@theme`) on CSS custom-property design tokens, which also define the one UV palette.
 - Vitest, Playwright (static export on the Hosting emulator, and a signed-in suite on the Firebase emulators), and an axe-scanned UI harness.
@@ -58,11 +58,13 @@ The repository is an npm workspace.
 - The web app (Next.js static export) lives at the root: `app/`, `components/` and `lib/`.
   `app/page.tsx` is the static landing page: `scripts/static-pages.mjs` strips the framework scripts from it after the build, so it loads no JavaScript of its own beyond two inline scripts and nothing from Firebase.
   The app is `app/app/page.tsx` (`/app/`); a browser with a signed-in account that opens `/` is sent there.
-- The app's first load carries only the dashboard and setup.
+- The app's first load carries only the dashboard (about 196 KB gzip of JavaScript for a guest; `tests/e2e/guest.spec.ts` holds it under 200 KB).
   Firebase loads on demand: `lib/firebase.ts` is the only way to it, and `loadFirebase()` loads the SDK (`lib/firebase-services.ts`) when someone reaches for "Sign in" or the browser already holds a session, so a guest never downloads it.
   An ESLint rule keeps static Firebase imports out of the app; modules that need the SDK use `await import('firebase/...')`.
-  The dialogs, the calendar view and the calendar feed card load on first use from `components/deferred.tsx`, and are fetched shortly after the page has loaded.
-- `packages/core` (`@solara/core`) holds the logic every surface shares: the recommendation engine, the preferences schema and migrations, the Zod-validated Open-Meteo parser and weather labels, the iCalendar builder, the calendar feed token policy and the Functions response contracts.
+  Auth starts without its sign-in popup helper; sign-in buttons start it (`prepareSignInPopup`), and every `*WithPopup` call passes it.
+  A returning account's dashboard shows at once from this browser's copy of it (`lib/cached-account.ts`), accepting no input until Auth confirms the session; Firebase starts once that dashboard has painted.
+  Setup, the dialogs, the location panel, the calendar view, the calendar feed card, the install prompt and the header's signed-in parts load on first use from `components/deferred.tsx`, and are fetched shortly after the page has loaded.
+- `packages/core` (`@solara/core`) holds the logic every surface shares: the recommendation engine, the preferences schema and migrations, the Valibot-validated Open-Meteo parser and weather labels, the iCalendar builder, the calendar feed token policy and the Functions response contracts.
   The web app imports its TypeScript source.
 - `functions/` holds the Cloud Functions in TypeScript (`functions/src/`, one folder per area) and the manual morning notifier (`functions/scripts/send-notifications.js`).
   It is a separate npm package, because `firebase deploy` uploads only that directory.

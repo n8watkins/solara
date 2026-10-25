@@ -1,15 +1,23 @@
-import * as z from 'zod/mini'
+import * as v from 'valibot'
 import {
   EVENT_ID_PATTERN,
+  isPlainRecord,
+  record,
   SOLARA_ACTIVITY_PROPERTY,
   SOLARA_DATE_PROPERTY,
   SOLARA_EVENT_TAG,
   windowEventSummary,
 } from '@solara/core'
-import type { BusyInterval, SlotRecommendation } from './scheduler'
 import type { Activity } from './types'
-import { fmtClock } from './weather'
-import { addDays, isIsoDate, zonedInstant } from './time'
+import { addDays } from './time'
+import type { BusyPeriod } from './gcal-view'
+
+export {
+  busyIntervalsForDay,
+  buildEventDescription,
+  isCalendarConfigured,
+  type BusyPeriod,
+} from './gcal-view'
 
 // Google Calendar access for a static app: the browser gets a short-lived OAuth
 // access token via Google Identity Services (incremental authorization, decoupled
@@ -31,16 +39,6 @@ const CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID
 export const CALENDAR_FREEBUSY_SCOPE = 'https://www.googleapis.com/auth/calendar.freebusy'
 export const CALENDAR_BOOKING_SCOPE = 'https://www.googleapis.com/auth/calendar.events.owned'
 const GSI_SRC = 'https://accounts.google.com/gsi/client'
-
-/** A busy block from the freeBusy API, as RFC3339 timestamps. */
-export interface BusyPeriod {
-  start: string
-  end: string
-}
-
-export function isCalendarConfigured(): boolean {
-  return !!CLIENT_ID
-}
 
 let gisLoader: Promise<void> | null = null
 function loadGis(): Promise<void> {
@@ -250,39 +248,6 @@ export async function fetchFreeBusy(
   return data?.calendars?.primary?.busy ?? []
 }
 
-/**
- * PURE. Convert absolute busy periods into per-day busy intervals in fractional
- * hours since local midnight of `dateStr` (YYYY-MM-DD) in the forecast location's
- * `timeZone`, clipped to the day. Handles multi-day and midnight-spanning events
- * and 23- or 25-hour DST days; drops periods that miss the day. The engine's
- * subtractBusy sorts and merges, so no need to here.
- */
-export function busyIntervalsForDay(
-  periods: BusyPeriod[],
-  dateStr: string,
-  timeZone: string,
-): BusyInterval[] {
-  if (!isIsoDate(dateStr)) return []
-  const dayStart = zonedInstant(dateStr, 0, timeZone)
-  const dayEnd = zonedInstant(addDays(dateStr, 1), 0, timeZone)
-  if (Number.isNaN(dayStart) || Number.isNaN(dayEnd)) return []
-
-  const out: BusyInterval[] = []
-  for (const p of periods) {
-    const s = new Date(p.start).getTime()
-    const e = new Date(p.end).getTime()
-    if (Number.isNaN(s) || Number.isNaN(e)) continue
-    const overlapStart = Math.max(s, dayStart)
-    const overlapEnd = Math.min(e, dayEnd)
-    if (overlapEnd <= overlapStart) continue
-    out.push({
-      start: (overlapStart - dayStart) / 3_600_000,
-      end: (overlapEnd - dayStart) / 3_600_000,
-    })
-  }
-  return out
-}
-
 export interface EventTime {
   dateTime: string
   timeZone: string
@@ -311,29 +276,6 @@ function localDateTime(dateStr: string, h: number): string {
   const hr = Math.floor(mins / 60)
   const min = mins % 60
   return `${date}T${String(hr).padStart(2, '0')}:${String(min).padStart(2, '0')}:00`
-}
-
-/** PURE. The human-readable event body explaining the pick and its flexibility. */
-export function buildEventDescription(
-  rec: SlotRecommendation,
-  activity: Activity,
-  opts: { peakUV?: number; peakHour?: number } = {},
-): string {
-  const lines: string[] = [
-    `Recommended for ${fmtClock(rec.start)}: ${rec.reason.charAt(0).toLowerCase()}${rec.reason.slice(1)}.`,
-  ]
-  if (rec.latestStart > rec.earliestStart) {
-    lines.push(
-      `Flexible: start anytime ${fmtClock(rec.earliestStart)}–${fmtClock(rec.latestStart)} within the estimated lower-UV window.`,
-    )
-  }
-  if (typeof opts.peakUV === 'number' && typeof opts.peakHour === 'number') {
-    lines.push(`Peak UV ${opts.peakUV.toFixed(1)} around ${fmtClock(opts.peakHour)}.`)
-  }
-  lines.push(activity.sunscreen ? 'Assumes SPF 30+.' : 'Planned for no sunscreen.')
-  lines.push('Forecast-based estimate only. Recheck current UV and use sun protection.')
-  lines.push('Planned by Solara ☀️')
-  return lines.join('\n')
 }
 
 /** PURE. Start and end of an event on `dateStr` at fractional hours, in `timeZone`. */
@@ -379,29 +321,33 @@ export function buildEventBody(
 
 const EVENTS_URL = 'https://www.googleapis.com/calendar/v3/calendars/primary/events'
 
-const eventTimeSchema = z.object({
-  dateTime: z.optional(z.string()),
-  date: z.optional(z.string()),
-  timeZone: z.optional(z.string()),
+const eventTimeSchema = record({
+  dateTime: v.optional(v.string()),
+  date: v.optional(v.string()),
+  timeZone: v.optional(v.string()),
 })
 
 /** The fields Solara reads from a Calendar event resource. */
-export const GoogleEventSchema = z.object({
-  id: z.string().check(z.regex(EVENT_ID_PATTERN)),
-  status: z.optional(z.string()),
-  htmlLink: z.optional(z.string()),
-  summary: z.optional(z.string()),
-  start: z.optional(eventTimeSchema),
-  end: z.optional(eventTimeSchema),
-  extendedProperties: z.optional(
-    z.object({ private: z.optional(z.record(z.string(), z.string())) }),
+export const GoogleEventSchema = record({
+  id: v.pipe(v.string(), v.regex(EVENT_ID_PATTERN)),
+  status: v.optional(v.string()),
+  htmlLink: v.optional(v.string()),
+  summary: v.optional(v.string()),
+  start: v.optional(eventTimeSchema),
+  end: v.optional(eventTimeSchema),
+  extendedProperties: v.optional(
+    record({
+      private: v.optional(
+        v.pipe(v.custom<Record<string, unknown>>(isPlainRecord), v.record(v.string(), v.string())),
+      ),
+    }),
   ),
 })
-export type GoogleEvent = z.infer<typeof GoogleEventSchema>
+export type GoogleEvent = v.InferOutput<typeof GoogleEventSchema>
 
-const eventListSchema = z.object({
-  items: z.optional(z.array(z.unknown())),
-  nextPageToken: z.optional(z.string()),
+const eventListSchema = record({
+  items: v.optional(v.array(v.unknown())),
+  nextPageToken: v.optional(v.string()),
 })
 
 /**
@@ -421,11 +367,11 @@ const NON_AUTH_403_REASONS = new Set([
   'forbiddenForServiceAccounts',
 ])
 
-const googleErrorSchema = z.object({
-  error: z.optional(
-    z.object({
-      errors: z.optional(
-        z.array(z.object({ domain: z.optional(z.string()), reason: z.optional(z.string()) })),
+const googleErrorSchema = record({
+  error: v.optional(
+    record({
+      errors: v.optional(
+        v.array(record({ domain: v.optional(v.string()), reason: v.optional(v.string()) })),
       ),
     }),
   ),
@@ -437,8 +383,8 @@ const googleErrorSchema = z.object({
  */
 async function nonAuthReason(res: Response): Promise<string | null> {
   try {
-    const parsed = googleErrorSchema.safeParse(await res.clone().json())
-    const first = parsed.success ? parsed.data.error?.errors?.[0] : undefined
+    const parsed = v.safeParse(googleErrorSchema, await res.clone().json())
+    const first = parsed.success ? parsed.output.error?.errors?.[0] : undefined
     if (first?.domain === 'usageLimits') return first.reason || 'usageLimits'
     return first?.reason && NON_AUTH_403_REASONS.has(first.reason) ? first.reason : null
   } catch {
@@ -474,9 +420,9 @@ async function calendarFetch(
 }
 
 function parseEvent(raw: unknown): GoogleEvent {
-  const parsed = GoogleEventSchema.safeParse(raw)
+  const parsed = v.safeParse(GoogleEventSchema, raw)
   if (!parsed.success) throw new Error('Unexpected Google Calendar response')
-  return parsed.data
+  return parsed.output
 }
 
 /** True when the event carries Solara's private tag. */
@@ -558,13 +504,13 @@ export async function listSolaraEvents(
     if (pageToken) params.set('pageToken', pageToken)
     const res = await calendarFetch(token, `${EVENTS_URL}?${params}`)
     if (!res.ok) throw new Error(`event list failed: ${res.status}`)
-    const parsed = eventListSchema.safeParse(await res.json())
+    const parsed = v.safeParse(eventListSchema, await res.json())
     if (!parsed.success) throw new Error('Unexpected Google Calendar response')
-    for (const raw of parsed.data.items ?? []) {
-      const event = GoogleEventSchema.safeParse(raw)
-      if (event.success && isSolaraEvent(event.data)) events.push(event.data)
+    for (const raw of parsed.output.items ?? []) {
+      const event = v.safeParse(GoogleEventSchema, raw)
+      if (event.success && isSolaraEvent(event.output)) events.push(event.output)
     }
-    pageToken = parsed.data.nextPageToken
+    pageToken = parsed.output.nextPageToken
     if (!pageToken) break
   }
   return events

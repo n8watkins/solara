@@ -1,22 +1,18 @@
 'use client'
 import { useEffect, useEffectEvent, useRef, useState } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
 import type { User } from 'firebase/auth'
+import { cachedAccount } from './cached-account'
 import {
   loadedFirebase,
   loadFirebase,
   storedSessionHint,
   storedSessionInIndexedDb,
   whenFirebaseLoads,
+  type StoredSessionUser,
 } from './firebase'
-import { loadAccountPrefs } from './session'
 import { loadGuestPrefs } from './guest'
-import { FORECAST_QUERY_KEY } from './use-forecast'
-import {
-  enableNotifications,
-  migrateLegacyNotificationToken,
-  notificationsEnabledLocally,
-} from './notifications'
+import { saveLocalPrefs } from './prefs'
+import { useForecastStore } from './use-forecast'
 import {
   ACCOUNT_LOAD_ERROR,
   accountErrorMessage,
@@ -24,7 +20,32 @@ import {
   screenWhenSignedOut,
   type AppScreen,
 } from './account-screen'
+import type { AccountLoadResult } from './session'
 import type { UserPreferences } from './types'
+
+/** How long a stored session's start-up waits for the signed-in parts before Auth. */
+const SIGNED_IN_PARTS_WAIT_MS = 3000
+
+/**
+ * Loads the signed-in account (loadAccountPrefs in lib/session.ts). The account code,
+ * and the notifications code it uses, loads only for someone signed in; a failure to
+ * load it is a failed account load.
+ */
+async function loadSignedInAccount(
+  uid: string,
+  known: UserPreferences | null,
+): Promise<AccountLoadResult> {
+  try {
+    const { loadAccountPrefs } = await import('./session')
+    return await loadAccountPrefs(uid, known)
+  } catch (error) {
+    return {
+      status: 'error',
+      stage: 'load',
+      error: error instanceof Error ? error : new Error('Could not load the account'),
+    }
+  }
+}
 
 /**
  * The account (or guest) behind components/App.tsx: follows Firebase Auth, loads (or
@@ -33,7 +54,11 @@ import type { UserPreferences } from './types'
  *
  * Firebase loads only for a session this browser already holds, or once someone
  * starts signing in (lib/firebase.ts). Until then the visitor is signed out, so a
- * guest's plan and cached forecast show without waiting for it.
+ * guest's plan and cached forecast show without waiting for it. For a session this
+ * browser holds, the account's dashboard shows at once from this browser's copy of it
+ * (lib/cached-account.ts) while Firebase loads, Auth confirms the session and the saved
+ * account loads; until then `pending` names the account and the app accepts no input.
+ * `prepareSignedIn` loads what the signed-in screen needs before that first paint.
  *
  * `onAccountReset` runs whenever the plan on screen goes away (sign-in from guest
  * mode, sign-out or a switch to another account), so the caller can drop per-account
@@ -45,24 +70,30 @@ import type { UserPreferences } from './types'
 export function useAccount({
   onAccountReset,
   signInRequested = false,
+  prepareSignedIn,
 }: {
   onAccountReset: () => void
   signInRequested?: boolean
+  prepareSignedIn?: () => Promise<void>
 }) {
-  const queryClient = useQueryClient()
+  const forecasts = useForecastStore()
   const [user, setUser] = useState<User | null>(null)
   const [prefs, setPrefs] = useState<UserPreferences | null>(null)
   const [screen, setScreen] = useState<AppScreen>('loading')
   const [accountError, setAccountError] = useState<string | null>(null)
+  // The account shown from this browser's copy until its session and plan have loaded.
+  const [pending, setPending] = useState<StoredSessionUser | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
   // The account whose data is on screen, to detect a switch to a different account.
   const accountUid = useRef<string | null>(null)
   // The account document that sign-in from setup just read or created, for the next load.
   const signedInAccount = useRef<UserPreferences | null>(null)
+  // Starts Firebase once the account shown from this browser's copy has painted.
+  const startFirebaseAfterPaint = useRef<(() => void) | null>(null)
 
   const resetAccountState = useEffectEvent(() => {
     // Drops cached forecasts and aborts any request in flight.
-    queryClient.removeQueries({ queryKey: FORECAST_QUERY_KEY })
+    forecasts.clear()
     setPrefs(null)
     onAccountReset()
   })
@@ -77,22 +108,35 @@ export function useAccount({
     signedInAccount.current = null
     const requested = signInRequested
 
+    // Set while the account from this browser's copy is on screen (see cachedAccount).
+    let showingCached = false
+
     async function loadAccount(u: User | null, current: number) {
       const isStale = () => disposed || current !== generation
       const previousUid = accountUid.current
+      const wasCached = showingCached
       accountUid.current = u?.uid ?? null
       setUser(u)
       setAccountError(null)
+      const settle = () => {
+        showingCached = false
+        setPending(null)
+      }
 
       // Signed out: the guest plan kept in this browser, if any. It lives apart from
       // any account's data (lib/guest.ts), so a guest never sees an account's plan.
       if (!u) {
         // Drop the previous account's state so a later sign-in can never show it.
         if (previousUid) resetAccountState()
+        settle()
         const guest = loadGuestPrefs()
         setPrefs(guest)
         setScreen(prev =>
-          screenWhenSignedOut(prev, { hasGuestPlan: !!guest, signInRequested: requested }),
+          // The session shown from this browser's copy has ended: as from a fresh start.
+          screenWhenSignedOut(wasCached ? 'loading' : prev, {
+            hasGuestPlan: !!guest,
+            signInRequested: requested,
+          }),
         )
         return
       }
@@ -100,13 +144,15 @@ export function useAccount({
         // A different account, or a guest who just signed in: nothing on screen may be
         // saved to this account until its own plan has loaded.
         resetAccountState()
+        settle()
         setScreen('loading')
       }
 
       const known = signedIn
       signedIn = null
-      const result = await loadAccountPrefs(u.uid, known)
+      const result = await loadSignedInAccount(u.uid, known)
       if (isStale()) return
+      settle()
       if (result.status === 'error') {
         console.error('Account load failed:', result.error)
         setAccountError(accountErrorMessage(result.stage))
@@ -114,17 +160,24 @@ export function useAccount({
         return
       }
       if (result.status === 'needs-onboarding') {
-        setScreen(screenWhenNeedsOnboarding)
+        // The account this browser had a copy of no longer exists: drop the copy too.
+        if (wasCached) resetAccountState()
+        setScreen(prev => screenWhenNeedsOnboarding(wasCached ? 'loading' : prev))
         return
       }
 
       const loaded = result.prefs
       setPrefs(loaded)
       setScreen('dashboard')
+      // This browser's copy, for the next start (lib/cached-account.ts).
+      saveLocalPrefs({ ...loaded, uid: u.uid })
       if (loaded.tier === 'paid') {
-        migrateLegacyNotificationToken(u.uid)
-          .then(() => {
-            if (notificationsEnabledLocally(u.uid)) return enableNotifications(u.uid)
+        import('./notifications')
+          .then(async notifications => {
+            await notifications.migrateLegacyNotificationToken(u.uid)
+            if (notifications.notificationsEnabledLocally(u.uid)) {
+              await notifications.enableNotifications(u.uid)
+            }
           })
           .catch(err => console.error('Notification refresh failed:', err))
       }
@@ -148,11 +201,35 @@ export function useAccount({
     if (loadedFirebase()) {
       // Auth's listener, just attached, reports the current user.
     } else if (storedSessionHint()) {
-      loadFirebase().catch(error => {
-        if (disposed) return
-        console.error('Account load failed:', error)
-        setAccountError(ACCOUNT_LOAD_ERROR)
-        setScreen('loading')
+      let started = false
+      const startFirebase = () => {
+        if (started || disposed) return
+        started = true
+        loadFirebase().catch(error => {
+          if (disposed) return
+          console.error('Account load failed:', error)
+          showingCached = false
+          setPending(null)
+          setAccountError(ACCOUNT_LOAD_ERROR)
+          setScreen('loading')
+        })
+      }
+      // The account as this browser last saw it shows first, and Firebase starts once
+      // it has painted (the effect below), so the SDK's download and start-up never
+      // hold up the dashboard. Without one, Firebase starts at once.
+      startFirebaseAfterPaint.current = startFirebase
+      void cachedAccount().then(async cached => {
+        if (!cached) return startFirebase()
+        // Should the signed-in parts be slow to arrive, Auth need not wait for them.
+        const fallback = setTimeout(startFirebase, SIGNED_IN_PARTS_WAIT_MS)
+        await prepareSignedIn?.()
+        clearTimeout(fallback)
+        if (disposed || started) return startFirebase()
+        showingCached = true
+        accountUid.current = cached.identity.uid
+        setPrefs(cached.prefs)
+        setPending(cached.identity)
+        setScreen('dashboard')
       })
     } else {
       // Signed out until Auth says otherwise: no waiting for Firebase.
@@ -165,6 +242,7 @@ export function useAccount({
     }
     return () => {
       disposed = true
+      startFirebaseAfterPaint.current = null
       stopWaiting()
       unsubscribeAuth?.()
     }
@@ -172,8 +250,19 @@ export function useAccount({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reloadKey])
 
+  // The cached dashboard has rendered; Firebase starts once the browser has shown it
+  // (the frame after next), so not even the request for the SDK competes with it.
+  useEffect(() => {
+    if (!pending) return
+    let frame = requestAnimationFrame(() => {
+      frame = requestAnimationFrame(() => startFirebaseAfterPaint.current?.())
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [pending])
+
   return {
     user,
+    pending,
     prefs,
     setPrefs,
     screen,

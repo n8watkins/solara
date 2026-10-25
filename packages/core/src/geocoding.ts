@@ -1,8 +1,9 @@
 // Geocoding responses (Open-Meteo place search and OpenStreetMap Nominatim reverse
-// lookup) validated at the boundary with zod/mini, plus the coordinate rounding every
+// lookup) validated at the boundary with Valibot, plus the coordinate rounding every
 // stored or transmitted position goes through.
 
-import * as z from 'zod/mini'
+import * as v from 'valibot'
+import { finiteNumber, record } from './schema'
 
 /**
  * Coordinates are rounded to 2 decimals (about 1 km) before they leave the
@@ -18,13 +19,13 @@ export function roundCoordinate(value: number): number {
 }
 
 /** An optional text field: anything that is not a string counts as missing. */
-const optionalText = z.catch(z.optional(z.string()), undefined)
+const optionalText = v.fallback(v.optional(v.string()), undefined)
 
 /** One Open-Meteo place search result. Results without a usable position or name are dropped. */
-export const GeocodingResultSchema = z.object({
-  latitude: z.number().check(z.gte(-90), z.lte(90)),
-  longitude: z.number().check(z.gte(-180), z.lte(180)),
-  name: z.string().check(z.trim(), z.minLength(1)),
+export const GeocodingResultSchema = record({
+  latitude: v.pipe(finiteNumber, v.minValue(-90), v.maxValue(90)),
+  longitude: v.pipe(finiteNumber, v.minValue(-180), v.maxValue(180)),
+  name: v.pipe(v.string(), v.trim(), v.minLength(1)),
   admin1: optionalText,
   admin2: optionalText,
   country: optionalText,
@@ -32,11 +33,11 @@ export const GeocodingResultSchema = z.object({
   timezone: optionalText,
 })
 
-export type GeocodingResult = z.infer<typeof GeocodingResultSchema>
+export type GeocodingResult = v.InferOutput<typeof GeocodingResultSchema>
 
 /** Open-Meteo omits `results` when nothing matches. */
-const GeocodingResponseSchema = z.object({
-  results: z.optional(z.array(z.catch(z.nullable(GeocodingResultSchema), null))),
+const GeocodingResponseSchema = record({
+  results: v.optional(v.array(v.fallback(v.nullable(GeocodingResultSchema), null))),
 })
 
 /**
@@ -44,13 +45,13 @@ const GeocodingResponseSchema = z.object({
  * Throws when the response does not have the documented shape.
  */
 export function parseGeocodingResponse(raw: unknown): GeocodingResult[] {
-  const parsed = GeocodingResponseSchema.safeParse(raw)
+  const parsed = v.safeParse(GeocodingResponseSchema, raw)
   if (!parsed.success) throw new Error('Location search returned an unexpected response')
-  return (parsed.data.results ?? []).filter(result => result !== null)
+  return (parsed.output.results ?? []).filter(result => result !== null)
 }
 
 /** The address parts of a Nominatim reverse lookup that Solara reads. */
-const ReverseGeocodeAddressSchema = z.object({
+const ReverseGeocodeAddressSchema = record({
   city: optionalText,
   town: optionalText,
   village: optionalText,
@@ -59,11 +60,11 @@ const ReverseGeocodeAddressSchema = z.object({
   country: optionalText,
 })
 
-export type ReverseGeocodeAddress = z.infer<typeof ReverseGeocodeAddressSchema>
+export type ReverseGeocodeAddress = v.InferOutput<typeof ReverseGeocodeAddressSchema>
 
 /** Nominatim answers `{ error }` without an address for places it cannot name (the open sea). */
-const ReverseGeocodeResponseSchema = z.object({
-  address: z.catch(z.optional(ReverseGeocodeAddressSchema), undefined),
+const ReverseGeocodeResponseSchema = record({
+  address: v.fallback(v.optional(ReverseGeocodeAddressSchema), undefined),
 })
 
 /**
@@ -71,7 +72,7 @@ const ReverseGeocodeResponseSchema = z.object({
  * Throws when the response is not a JSON object.
  */
 export function parseReverseGeocodeResponse(raw: unknown): ReverseGeocodeAddress {
-  const parsed = ReverseGeocodeResponseSchema.safeParse(raw)
+  const parsed = v.safeParse(ReverseGeocodeResponseSchema, raw)
   if (!parsed.success) throw new Error('Reverse geocoding returned an unexpected response')
-  return parsed.data.address ?? {}
+  return parsed.output.address ?? {}
 }

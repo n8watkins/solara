@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useEffectEvent } from 'react'
 import type { User } from 'firebase/auth'
-import { observeCheckoutResult } from './billing'
+import { lazySubscription } from './firebase'
 import { saveLocalPrefs } from './prefs'
 import {
   CHECKOUT_NOTICES,
@@ -41,20 +41,28 @@ export function useCheckoutReturn(
     }
 
     notify(CHECKOUT_NOTICES.confirming)
-    return observeCheckoutResult(
-      user.uid,
-      returned.sessionId,
-      result => {
-        const notice = checkoutResultNotice(result)
-        if (!notice) return
-        if (result.status !== 'pending') {
-          window.history.replaceState({}, '', withoutCheckoutParams(window.location.href))
-        }
-        if (result.status === 'succeeded') {
-          saveLocalPrefs(result.prefs)
-          paid(result.prefs)
-        }
-        notify(notice)
+    const { sessionId } = returned
+    // The billing code loads only on a return from Checkout.
+    return lazySubscription(
+      async () => {
+        const { observeCheckoutResult } = await import('./billing')
+        return observeCheckoutResult(
+          user.uid,
+          sessionId,
+          result => {
+            const notice = checkoutResultNotice(result)
+            if (!notice) return
+            if (result.status !== 'pending') {
+              window.history.replaceState({}, '', withoutCheckoutParams(window.location.href))
+            }
+            if (result.status === 'succeeded') {
+              saveLocalPrefs(result.prefs)
+              paid(result.prefs)
+            }
+            notify(notice)
+          },
+          () => notify(CHECKOUT_NOTICES.unreachable),
+        )
       },
       () => notify(CHECKOUT_NOTICES.unreachable),
     )

@@ -9,10 +9,10 @@ import type {
   UserPreferences,
   WeatherResponse,
 } from './types'
-import type { BusyPeriod } from './gcal'
+import type { BusyPeriod } from './gcal-view'
 import type { BusyInterval } from './scheduler'
 import type { UpcomingSlot } from './planner'
-import { busyIntervalsForDay } from './gcal'
+import { busyIntervalsForDay } from './gcal-view'
 import { getFutureDays } from './tiers'
 import { burnMins, uvBand, vitDMins, type UVBand } from './weather'
 
