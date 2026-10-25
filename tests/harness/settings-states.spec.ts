@@ -88,6 +88,7 @@ const STATES: State[] = [
     act: async page => {
       const field = settings(page).getByRole('combobox', { name: 'Search a city' })
       await field.fill('Pasadena')
+      await expect(settings(page).getByRole('option')).toHaveCount(2)
       await field.press('ArrowDown')
       await expect(
         settings(page).getByRole('option', {
