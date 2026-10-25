@@ -3,6 +3,7 @@ import { use, useState } from 'react'
 import clsx from 'clsx'
 import type { User } from 'firebase/auth'
 import { signInWithPopup } from 'firebase/auth'
+import { isSignInCancelled } from '@/lib/auth-errors'
 import { auth, googleProvider, firebaseEnabled } from '@/lib/firebase'
 import { loadGuestPrefs } from '@/lib/guest'
 import { createAccountPrefs } from '@/lib/prefs'
@@ -97,6 +98,8 @@ export default function GoogleSignInButton({
       if (onSignedIn) onSignedIn(u, account)
       else signedIn?.(account)
     } catch (e) {
+      // Closing the popup is the person's choice; the button simply comes back.
+      if (isSignInCancelled(e)) return
       console.error('Google sign-in failed:', e)
       setError('Could not finish signing in. Check your connection and try again.')
     } finally {
