@@ -136,3 +136,33 @@ export function planUpcomingSlots(
     .map(a => bestUpcomingSlot(forecast, a, skinType, dayLimit, busyByDate, nowHourToday))
     .filter((s): s is UpcomingSlot => s !== null)
 }
+
+/**
+ * The soonest slot after today within the plan's visible days, across `activities`:
+ * the earliest day with any slot, then the earliest start on it. This is what
+ * "today's windows have passed" points to, so it always names a slot the person can see.
+ */
+export function nextSlotAfterToday(
+  forecast: DayWeather[],
+  activities: Activity[],
+  skinType: SkinType,
+  dayLimit: number,
+  busyByDate: Record<string, BusyInterval[]> = {},
+): UpcomingSlot | null {
+  const days = forecast.slice(0, Math.max(0, dayLimit))
+  for (const [i, day] of days.entries()) {
+    if (i === 0 || !day.hourly.length) continue
+    let best: UpcomingSlot | null = null
+    for (const activity of activities) {
+      if (!activityRunsOn(activity, day.dateStr)) continue
+      const { slot } = planActivityDay(day.hourly, activity, skinType, {
+        nowHour: -1,
+        busy: busyByDate[day.dateStr] ?? [],
+      })
+      if (slot && (!best || slot.start < best.slot.start))
+        best = { activity, dateStr: day.dateStr, label: day.label, dayOffset: i, slot }
+    }
+    if (best) return best
+  }
+  return null
+}

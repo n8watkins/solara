@@ -13,11 +13,12 @@ import { useUnits } from '@/lib/use-units'
 import { useStatusFlash } from '@/hooks/useStatusFlash'
 import { useCalendarBusy } from '@/hooks/useCalendarBusy'
 import { nowHourOf, planActivityDay, soonestPlan } from '@/lib/next-slot'
+import { nextSlotAfterToday } from '@/lib/planner'
 import { busyByDate, dashboardAccess, dayPhrase, uvReadout } from '@/lib/dashboard-view'
 import { buildEventDescription } from '@/lib/gcal'
 import type { SlotRecommendation } from '@/lib/scheduler'
 import { useScheduled } from '@/lib/scheduled-context'
-import TipCarousel from './TipCarousel'
+import SunTip from './SunTip'
 import { PricingModal } from './deferred'
 import ActivitiesSection from './dashboard/ActivitiesSection'
 import DayPicker from './dashboard/DayPicker'
@@ -95,6 +96,12 @@ export default function Dashboard({
   )
   const heroPlan = soonestPlan(dayPlans)
   const allElapsed = isToday && dayPlans.some(p => p.elapsed) && !heroPlan
+  // Once today is done, the hero names the next slot the plan can see (never a
+  // section the plan does not show).
+  const laterDaysVisible = accessibleDays > 1
+  const nextSlot = allElapsed
+    ? nextSlotAfterToday(weather.forecast, prefs.activities, prefs.skinType, accessibleDays, busy)
+    : null
   const hasActivities = prefs.activities.length > 0
   // Every upsell opens the same plans dialog.
   const openPlans = () => setShowPricing(true)
@@ -169,6 +176,9 @@ export default function Dashboard({
           dayPhrase={dayPhrase(isToday, dateLabel)}
           peakUV={peakUV}
           peakHour={peakHour}
+          next={nextSlot}
+          laterDaysVisible={laterDaysVisible}
+          onPlanTomorrow={openPlans}
           onMorningAlert={access.activityTier === 'paid' ? undefined : openPlans}
         />
       )}
@@ -190,7 +200,7 @@ export default function Dashboard({
         skinType={prefs.skinType}
       />
 
-      <TipCarousel />
+      <SunTip />
 
       <ActivitiesSection
         prefs={prefs}

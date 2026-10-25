@@ -11,6 +11,7 @@ import type {
 } from './types'
 import type { BusyPeriod } from './gcal'
 import type { BusyInterval } from './scheduler'
+import type { UpcomingSlot } from './planner'
 import { busyIntervalsForDay } from './gcal'
 import { getFutureDays } from './tiers'
 import { burnMins, uvBand, vitDMins, type UVBand } from './weather'
@@ -196,4 +197,20 @@ export function freeBusyRange(
     timeMin: new Date(nowMs),
     timeMax: new Date(nowMs + Math.max(1, accessibleDays) * 86_400_000),
   }
+}
+
+/**
+ * What an activity card says once today's matching windows have passed: when the
+ * next one is, or, on the guest plan (today only), that signing in shows tomorrow.
+ * It never points at a section the plan does not show.
+ */
+export function windowsPassedNote(
+  next: Pick<UpcomingSlot, 'label' | 'slot'> | null,
+  laterDaysVisible: boolean,
+  formatTime: (hour: number) => string,
+): string {
+  const passed = "Today's matching windows have passed."
+  if (!laterDaysVisible) return `${passed} Sign in free to plan tomorrow too.`
+  if (!next) return `${passed} None of your other forecast days has one either.`
+  return `${passed} Next lower-UV slot: ${dayPhrase(false, next.label)} at ${formatTime(next.slot.start)}.`
 }

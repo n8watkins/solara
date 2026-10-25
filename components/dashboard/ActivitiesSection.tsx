@@ -5,6 +5,7 @@ import type { ActivityDayPlan } from '@/lib/next-slot'
 import type { BusyInterval, SlotRecommendation } from '@/lib/scheduler'
 import { scheduledOn, type ScheduledActivity } from '@/lib/scheduled'
 import { isCalendarConfigured } from '@/lib/gcal'
+import { nextSlotAfterToday } from '@/lib/planner'
 import { canAddActivity, canUseCalendar, TIER_LIMITS } from '@/lib/tiers'
 import { isReturningGuest } from '@/lib/guest'
 import { useUpsellDismissal } from '@/lib/upsell'
@@ -141,6 +142,16 @@ export default function ActivitiesSection({
             scheduledOn(scheduledItems, activityId, dateStr, weather.timezone)
           }
           onOpenScheduled={onOpenScheduled}
+          laterDaysVisible={access.accessibleDays > 1}
+          nextSlotFor={activity =>
+            nextSlotAfterToday(
+              weather.forecast,
+              [activity],
+              prefs.skinType,
+              access.accessibleDays,
+              busyByDate,
+            )
+          }
         />
       ) : (
         <ActivityEmptyState onAdd={() => setModal('add')} />

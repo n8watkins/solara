@@ -1,4 +1,6 @@
 import type { ActivityDayPlan } from '@/lib/next-slot'
+import type { UpcomingSlot } from '@/lib/planner'
+import { dayPhrase as phraseForDay } from '@/lib/dashboard-view'
 import { useUnits } from '@/lib/use-units'
 import { useUpsellDismissal } from '@/lib/upsell'
 
@@ -15,6 +17,9 @@ export default function HeroSlot({
   dayPhrase,
   peakUV,
   peakHour,
+  next,
+  laterDaysVisible,
+  onPlanTomorrow,
   onMorningAlert,
 }: {
   /** The soonest plan with a slot, or null when no activity has one. */
@@ -26,6 +31,12 @@ export default function HeroSlot({
   dayPhrase: string
   peakUV: number
   peakHour: number
+  /** Once today's windows have passed: the soonest slot on a later visible day. */
+  next: UpcomingSlot | null
+  /** The plan shows days after today (false on the guest plan, which shows today only). */
+  laterDaysVisible: boolean
+  /** Opens the plans dialog, offered when later days are not part of the plan. */
+  onPlanTomorrow: () => void
   /** Offers this slot as a morning alert (Pro); absent when the plan has alerts. */
   onMorningAlert?: () => void
 }) {
@@ -87,7 +98,10 @@ export default function HeroSlot({
     )
   }
   return (
-    <div className="card border-[0.5px] border-line-strong bg-surface-metric">
+    <div
+      className="card border-[0.5px] border-line-strong bg-surface-metric"
+      data-testid="hero-empty"
+    >
       <p className="section-label">
         {allElapsed ? 'No lower-UV slot left today' : `No matching lower-UV slot ${dayPhrase}`}
       </p>
@@ -98,10 +112,23 @@ export default function HeroSlot({
             Peak UV {peakUV.toFixed(1)} at {fmt.hour(peakHour)}
           </p>
           <p className="mt-[3px] text-[13px] leading-[1.4] text-ink-3">
-            {allElapsed
-              ? "Today's matching windows have passed. See the best day this week below."
-              : 'Forecast UV stays above your activity limits. Check early morning or evening instead.'}
+            {!allElapsed
+              ? 'Forecast UV stays above your activity limits. Check early morning or evening instead.'
+              : next
+                ? `Today's matching windows have passed. Next: ${next.activity.name} ${phraseForDay(false, next.label)} at ${fmt.time(next.slot.start)}.`
+                : laterDaysVisible
+                  ? "Today's matching windows have passed, and none of your other forecast days has one."
+                  : "Today's matching windows have passed."}
           </p>
+          {allElapsed && !laterDaysVisible && (
+            <button
+              type="button"
+              onClick={onPlanTomorrow}
+              className="-ml-1 mt-1 flex min-h-8 items-center rounded-lg px-1 text-left text-[13px] font-semibold text-accent"
+            >
+              Sign in free to plan tomorrow
+            </button>
+          )}
         </div>
       </div>
     </div>

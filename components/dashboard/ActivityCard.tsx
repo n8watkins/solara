@@ -38,6 +38,7 @@ export default function ActivityCard({
   onShare,
   onEdit,
   onOpenScheduled,
+  passedNote,
 }: {
   plan: ActivityDayPlan
   isToday: boolean
@@ -49,6 +50,8 @@ export default function ActivityCard({
   onShare: (win: SafeActivityWindow) => void
   onEdit?: () => void
   onOpenScheduled?: (item: ScheduledActivity) => void
+  /** What to say once today's windows have passed (see windowsPassedNote). */
+  passedNote?: string
 }) {
   const fmt = useUnits()
   const { activity, bestWindow, windows, slot: rec, pctDaySafe, burnMins } = plan
@@ -162,8 +165,8 @@ export default function ActivityCard({
           </div>
         ) : (
           <p className="text-[12px] leading-[1.45] text-ink-3">
-            {plan.elapsed
-              ? "Today's matching windows have passed. See Best day this week for the next one."
+            {plan.elapsed && passedNote
+              ? passedNote
               : `No forecast window matches this activity ${isToday ? 'today' : 'this day'}. Try shortening the duration, widening preferred hours, or adjusting the planning UV limit.`}
           </p>
         )}
