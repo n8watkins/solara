@@ -82,11 +82,19 @@ export function loadLocalPrefs(): UserPreferences | null {
 /**
  * Stores preferences in this browser. Preferences read from a newer schema version
  * are not written back, so this client never downgrades them.
+ *
+ * Never throws: the copy here is only a cache of the account, so full or blocked
+ * storage must not stop the account write that follows.
  */
 export function saveLocalPrefs(prefs: Partial<UserPreferences>): void {
   if (typeof window === 'undefined') return
   if ((prefs.schemaVersion ?? 0) > PREFS_SCHEMA_VERSION) return
-  localStorage.setItem(PREFS_KEY, JSON.stringify({ ...prefs, schemaVersion: PREFS_SCHEMA_VERSION }))
+  try {
+    localStorage.setItem(
+      PREFS_KEY,
+      JSON.stringify({ ...prefs, schemaVersion: PREFS_SCHEMA_VERSION }),
+    )
+  } catch {}
 }
 
 export function clearLocalPrefs(): void {

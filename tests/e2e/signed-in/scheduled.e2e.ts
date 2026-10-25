@@ -281,3 +281,91 @@ test('another device sees scheduled items; another account sees none', async ({
     await context.close()
   }
 })
+
+test('closing the Google popup leaves Connect calendar, Scheduled and booking usable', async ({
+  page,
+  emulators,
+  googleCalendar,
+}) => {
+  const account = await paidRunner(emulators, 'Lena Ford')
+  const run = solaraEvent(googleCalendar, RUNNING, '2026-06-15T18:00:00', '2026-06-15T18:45:00')
+  await emulators.seedScheduled(account, recordFor(run, 'run', '🏃'))
+  await openDashboard(page, account)
+  // Real GIS reports a closed popup only through `error_callback` (fake-google-calendar.ts).
+  await page.evaluate(() => {
+    ;(window as Window & { __solaraCalendarPopup?: string }).__solaraCalendarPopup = 'closed'
+  })
+
+  // Connect calendar: closing the popup is a choice, not an error, and the button is back.
+  const connect = page.getByRole('button', { name: 'Connect calendar' })
+  await connect.click()
+  await expect(connect).toBeEnabled()
+  await expect(page.getByText("Couldn't connect. Try again.")).toHaveCount(0)
+
+  // Booking from the dashboard card reports the failure instead of waiting forever.
+  const card = page.locator('[data-testid="activity-card"][data-activity="hike"]')
+  await card.getByRole('button', { name: /Add to Google Calendar/ }).click()
+  await expect(
+    page.getByRole('status').filter({ hasText: 'Could not add to Google Calendar.' }),
+  ).toBeVisible()
+
+  // Scheduled: the sync goes back to the reconnect hint, and a later try still works.
+  const main = await openCalendar(page)
+  const list = main.getByRole('region', { name: 'Scheduled' })
+  const reconnect = list.getByRole('button', { name: 'Reconnect to sync' })
+  await reconnect.click()
+  await expect(reconnect).toBeVisible()
+  await expect(list.getByText('Checking Google Calendar…')).toHaveCount(0)
+
+  // A blocked popup shows the connection error; once the popup opens, everything works.
+  await page.evaluate(() => {
+    ;(window as Window & { __solaraCalendarPopup?: string }).__solaraCalendarPopup = 'blocked'
+  })
+  await reconnect.click()
+  await expect(reconnect).toBeVisible()
+  await page.evaluate(() => {
+    delete (window as Window & { __solaraCalendarPopup?: string }).__solaraCalendarPopup
+  })
+  await reconnect.click()
+  await expect(list.getByText('In sync with Google Calendar')).toBeVisible()
+  expect(googleCalendar.solaraEvents()).toHaveLength(1)
+})
+
+test('with more stored records than one read returns, the upcoming ones still show', async ({
+  page,
+  emulators,
+  googleCalendar,
+}) => {
+  const account = await paidRunner(emulators, 'Ari Stone')
+  // A full read's worth of recent history (ended, but kept for 30 days)...
+  const history = Array.from({ length: 100 }, (_, i) => {
+    const day = String(1 + (i % 14)).padStart(2, '0')
+    const hour = String(6 + Math.floor(i / 14)).padStart(2, '0')
+    return {
+      ...recordFor(
+        {
+          id: `past${String(i).padStart(3, '0')}`,
+          status: 'confirmed',
+          htmlLink: `https://www.google.com/calendar/event?eid=past${i}`,
+          summary: '🏃 Running: lower-UV window',
+          start: { dateTime: `2026-06-${day}T${hour}:00:00-07:00` },
+          end: { dateTime: `2026-06-${day}T${hour}:45:00-07:00` },
+        },
+        'run',
+        '🏃',
+      ),
+    }
+  })
+  await Promise.all(history.map(record => emulators.seedScheduled(account, record)))
+  // ...and one upcoming run tonight.
+  const run = solaraEvent(googleCalendar, RUNNING, '2026-06-15T18:00:00', '2026-06-15T18:45:00')
+  await emulators.seedScheduled(account, recordFor(run, 'run', '🏃'))
+
+  await openDashboard(page, account)
+  const main = await openCalendar(page)
+  await expect(
+    main
+      .getByRole('region', { name: 'Scheduled' })
+      .getByRole('button', { name: 'Scheduled: Running Today · 6pm – 6:45pm' }),
+  ).toBeVisible()
+})

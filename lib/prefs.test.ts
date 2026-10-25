@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import { defaultPrefs, normalizePrefs } from '@/lib/prefs'
+import { afterEach, describe, it, expect, vi } from 'vitest'
+import { defaultPrefs, normalizePrefs, saveLocalPrefs } from '@/lib/prefs'
 import type { Location } from '@/lib/types'
 
 const LA: Location = { lat: 34.05, lon: -118.24, city: 'Los Angeles', region: 'CA' }
@@ -128,5 +128,19 @@ describe('limits shared with the Firestore rules', () => {
     expect(prefs).not.toHaveProperty('calendarFeedToken')
     expect(prefs?.activities).toHaveLength(20)
     expect(prefs?.activities.every(a => a.name.length === 100)).toBe(true)
+  })
+})
+
+describe('saveLocalPrefs', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('never throws when browser storage is full or blocked', () => {
+    const setItem = vi.fn(() => {
+      throw new Error('QuotaExceededError')
+    })
+    vi.stubGlobal('window', {})
+    vi.stubGlobal('localStorage', { setItem })
+    expect(() => saveLocalPrefs(defaultPrefs(LA))).not.toThrow()
+    expect(setItem).toHaveBeenCalledOnce()
   })
 })

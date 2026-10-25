@@ -1,4 +1,12 @@
-import { expect, RUNNING, signIn, test, uvStrip } from './fixtures'
+import {
+  completeGoogleSignIn,
+  completeSetup,
+  expect,
+  RUNNING,
+  signIn,
+  test,
+  uvStrip,
+} from './fixtures'
 
 test('a new account is created from the setup answers', async ({ page, emulators }) => {
   const account = await emulators.createAccount('Sam Okafor')
@@ -86,4 +94,23 @@ test('a returning Pro account signing in from setup keeps its plan tier', async 
   await expect(page.getByRole('banner').getByText('Pro', { exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: /Go Pro/ })).toHaveCount(0)
   await expect.poll(() => emulators.readPrefs(account)).toMatchObject({ tier: 'paid' })
+})
+
+test('closing the Google sign-in popup is not an error, and signing in still works', async ({
+  page,
+  emulators,
+}) => {
+  const account = await emulators.createAccount('Noor Haddad')
+  await completeSetup(page)
+  const button = page.getByRole('button', { name: 'Continue with Google' })
+
+  const popupOpened = page.waitForEvent('popup')
+  await button.click()
+  await (await popupOpened).close()
+  // Firebase notices the closed popup after a short poll; the button comes back quietly.
+  await expect(button).toBeEnabled({ timeout: 20_000 })
+  await expect(page.getByText(/Could not finish signing in/)).toHaveCount(0)
+
+  await completeGoogleSignIn(page, account, () => button.click())
+  await expect(uvStrip(page)).toBeVisible()
 })

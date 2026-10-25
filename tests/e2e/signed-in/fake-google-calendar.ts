@@ -10,7 +10,14 @@ import type { Route } from '@playwright/test'
 /**
  * Replaces https://accounts.google.com/gsi/client. `initTokenClient` answers each
  * `requestAccessToken` with a fresh token at once, as Google does after consent.
- * Set `window.__solaraDenyCalendar = true` to simulate the person closing the popup.
+ *
+ * Set `window.__solaraCalendarPopup` to simulate what else can happen to the popup,
+ * reported the way real GIS reports it:
+ * - 'denied': the person declines consent; `callback` gets `{ error: 'access_denied' }`.
+ * - 'closed': the person closes the popup; only `error_callback` hears about it
+ *   (`{ type: 'popup_closed' }`), and `callback` is never called.
+ * - 'blocked': the browser blocks the popup; `error_callback` gets
+ *   `{ type: 'popup_failed_to_open' }`.
  */
 export const FAKE_GIS = `;(function () {
   'use strict'
@@ -21,8 +28,14 @@ export const FAKE_GIS = `;(function () {
       return {
         requestAccessToken: function () {
           setTimeout(function () {
-            if (window.__solaraDenyCalendar) {
+            var popup = window.__solaraCalendarPopup
+            if (popup === 'denied') {
               config.callback({ error: 'access_denied' })
+              return
+            }
+            if (popup === 'closed' || popup === 'blocked') {
+              var type = popup === 'closed' ? 'popup_closed' : 'popup_failed_to_open'
+              if (config.error_callback) config.error_callback({ type: type, message: type })
               return
             }
             var token = 'fake-token-' + Math.random().toString(36).slice(2)

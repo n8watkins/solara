@@ -599,7 +599,9 @@ describe('scheduled activities', () => {
     const ref = db.doc('users/alice/scheduled/evt1')
     await assertSucceeds(ref.set(scheduled('evt1')))
     await assertSucceeds(ref.get())
-    await assertSucceeds(db.collection('users/alice/scheduled').orderBy('start').limit(100).get())
+    await assertSucceeds(
+      db.collection('users/alice/scheduled').orderBy('start', 'desc').limit(100).get(),
+    )
     await assertSucceeds(
       ref.set(
         scheduled('evt1', {
