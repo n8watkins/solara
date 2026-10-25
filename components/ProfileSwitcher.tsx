@@ -49,7 +49,8 @@ export default function ProfileSwitcher({ prefs, tier, onApply }: Props) {
   const list: Profile[] = saved.length ? saved : [defaultProfile(prefs.skinType)]
   const active = activeProfile(prefs)
   const limit = getProfileLimit(tier)
-  const canAdd = saved.length < limit
+  // The implicit "Me" counts: adding the first person saves Me and them (saveProfilePatch).
+  const canAdd = list.length < limit
 
   function switchTo(p: Profile) {
     onApply(selectProfile(p))
