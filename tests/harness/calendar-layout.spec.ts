@@ -114,7 +114,9 @@ test('the axis opens at the earliest window, uncut', async ({ page }) => {
     earliestChipBelowHeader: true,
   })
   // The fixtures' first windows open at 6am, so that is the first hour on the axis.
-  await expect(page.getByTestId('calendar-grid').getByText('6am', { exact: true })).toBeVisible()
+  await expect(
+    page.getByTestId('calendar-hour-axis').getByText('6am', { exact: true }),
+  ).toBeVisible()
 })
 
 test('a chip opens a detail sheet with a safe calendar link', async ({ page }, testInfo) => {

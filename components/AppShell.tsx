@@ -32,7 +32,7 @@ export default function AppShell({ header, view, onViewChange, children, after }
         {header}
         {onViewChange && (
           <div className="border-b-[0.5px] border-line-strong bg-surface-card">
-            <div className="mx-auto flex max-w-[900px] px-4">
+            <div className="mx-auto flex max-w-[900px] px-4 lg:max-w-[1240px]">
               {VIEWS.map(({ id, label }) => (
                 <button
                   key={id}
@@ -50,7 +50,7 @@ export default function AppShell({ header, view, onViewChange, children, after }
           </div>
         )}
       </div>
-      <main className="mx-auto max-w-[900px] px-4 py-6">
+      <main className="mx-auto max-w-[900px] px-4 py-6 lg:max-w-[1240px]">
         {/* The page's one h1 names the view for assistive tech; the header and the
             active tab already say where you are visually, so it is not drawn. */}
         <h1 className="sr-only">{VIEWS.find(v => v.id === view)?.heading}</h1>

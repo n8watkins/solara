@@ -46,7 +46,7 @@ export default function ActivitySuggestionSettings({ prefs, onChange }: Props) {
       >
         {hiddenPresets.length === 0 ? (
           <p className="text-[13px] leading-[1.45] text-ink-3">
-            Nothing hidden yet. To hide a preset, select its × in the Add activity picker.
+            Nothing hidden yet. To hide a preset, select Hide next to it in the Add activity picker.
           </p>
         ) : (
           <div className="flex flex-col gap-[7px]">

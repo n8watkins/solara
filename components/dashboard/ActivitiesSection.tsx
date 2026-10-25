@@ -86,7 +86,11 @@ export default function ActivitiesSection({
 
   return (
     <section>
-      <ActivitiesIntro onAdd={add} onManage={() => setModal('manage')} />
+      <ActivitiesIntro
+        onAdd={add}
+        onManage={() => setModal('manage')}
+        hasActivities={hasActivities}
+      />
 
       {showSavePlan && (
         <div className="mb-3.5">

@@ -113,7 +113,7 @@ export default function Header({
               <span className={styles.uv} title={`Current UV index ${uv.value}, ${uv.level}`}>
                 <span aria-hidden="true">
                   {uv.icon} UV {uv.value}
-                  <span className={styles.uvLevel}> · {uv.level}</span>
+                  <span> · {uv.level}</span>
                 </span>
                 <span className="sr-only">
                   Current UV index {uv.value}, {uv.level}
@@ -141,7 +141,10 @@ export default function Header({
       </header>
 
       {signOutError && (
-        <div role="alert" className="mx-auto mt-3 max-w-[900px] px-3.5 text-[13px] text-danger">
+        <div
+          role="alert"
+          className="mx-auto mt-3 max-w-[900px] px-3.5 text-[13px] text-danger lg:max-w-[1240px]"
+        >
           {signOutError}
         </div>
       )}

@@ -74,7 +74,7 @@ export default function ActivityPresetBrowser({
                 )}
               </div>
               {!collapsed && (
-                <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-1.5">
+                <div className="grid grid-cols-[repeat(auto-fill,minmax(210px,1fr))] gap-1.5">
                   {cat.activities.map(preset => (
                     <PresetTile
                       key={preset.id}
@@ -95,6 +95,10 @@ export default function ActivityPresetBrowser({
   )
 }
 
+/**
+ * One preset: the tile toggles it (a + to add, a check once added), and a separate,
+ * plainly labeled Hide removes the suggestion from the picker.
+ */
 function PresetTile({
   preset,
   selected,
@@ -109,27 +113,29 @@ function PresetTile({
   onHide?: () => void
 }) {
   return (
-    <div className="relative">
+    <div
+      className={clsx(
+        'flex min-h-12 items-stretch rounded-[9px] transition-all duration-[120ms]',
+        selected
+          ? 'border-[1.5px] border-accent bg-accent-soft'
+          : 'border-[0.5px] border-line-strong bg-surface-card',
+        locked && 'opacity-40',
+      )}
+    >
       <button
         type="button"
         aria-pressed={selected}
         onClick={onToggle}
         disabled={locked}
-        className={clsx(
-          'flex min-h-12 w-full items-center gap-[7px] rounded-[9px] py-2 pr-8 pl-2.5 text-left transition-all duration-[120ms]',
-          selected
-            ? 'border-[1.5px] border-accent bg-accent-soft'
-            : 'border-[0.5px] border-line-strong bg-surface-card',
-          locked && 'cursor-not-allowed opacity-40',
-        )}
+        className="flex min-w-0 flex-1 items-center gap-[7px] rounded-[8px] py-2 pr-2 pl-2.5 text-left disabled:cursor-not-allowed"
       >
         <span aria-hidden="true" className="shrink-0 text-[16px]">
           {preset.icon}
         </span>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p
             className={clsx(
-              'truncate text-[12px]',
+              'line-clamp-2 text-[12px] leading-[1.3]',
               selected ? 'font-medium text-accent' : 'font-normal text-ink',
             )}
           >
@@ -137,10 +143,20 @@ function PresetTile({
           </p>
           <p className="text-[10px] text-ink-3">{formatActivityDuration(preset.durationMins)}</p>
         </div>
-        {locked && (
-          <span className="ml-auto text-[11px]">
+        {locked ? (
+          <span className="shrink-0 text-[11px]">
             <span aria-hidden="true">🔒</span>
             <span className="sr-only">Locked</span>
+          </span>
+        ) : (
+          <span
+            aria-hidden="true"
+            className={clsx(
+              'flex size-6 shrink-0 items-center justify-center rounded-full text-[14px] leading-none font-semibold',
+              selected ? 'bg-accent text-accent-on' : 'bg-surface-metric text-accent',
+            )}
+          >
+            {selected ? '✓' : '+'}
           </span>
         )}
       </button>
@@ -149,10 +165,10 @@ function PresetTile({
           type="button"
           onClick={onHide}
           aria-label={`Hide ${preset.name} suggestion`}
-          title="Hide suggestion"
-          className="absolute top-1/2 right-1.5 size-6 -translate-y-1/2 rounded-full bg-surface-metric text-[13px] leading-none text-ink-3"
+          title="Hide this suggestion"
+          className="shrink-0 rounded-r-[8px] border-l-[0.5px] border-line-strong px-2.5 text-[11px] font-medium text-ink-3"
         >
-          ×
+          Hide
         </button>
       )}
     </div>

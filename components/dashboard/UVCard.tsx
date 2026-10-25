@@ -1,6 +1,6 @@
 import type { HourlyForecast } from '@/lib/types'
-import { uvNumberTone, type UVReadout } from '@/lib/dashboard-view'
-import { uvLabel } from '@/lib/weather'
+import { dayHourText, uvNumberTone, type SunDown, type UVReadout } from '@/lib/dashboard-view'
+import { formatUV, uvLabel } from '@/lib/weather'
 import { useUnits } from '@/lib/use-units'
 import SunArc from '../SunArc'
 import Tooltip from '../Tooltip'
@@ -17,6 +17,7 @@ export default function UVCard({
   currentHour,
   nowHour,
   focused,
+  sunDown,
   onSelectHour,
   showSunPath,
 }: {
@@ -27,6 +28,8 @@ export default function UVCard({
   /** Fractional "now" for the sun marker on today; null on another day. */
   nowHour: number | null
   focused: HourlyForecast | null
+  /** Today before sunrise or after sunset; null in daylight and on other days. */
+  sunDown: SunDown | null
   onSelectHour: (h: HourlyForecast) => void
   showSunPath: boolean
 }) {
@@ -45,21 +48,42 @@ export default function UVCard({
           a long label ("Very high") never moves the temperature or changes the
           card's height as the focus moves. */}
       <div data-testid="uv-readout" className="mb-3.5">
-        <div className="flex min-h-10 items-baseline gap-2.5">
-          <span
-            className={`shrink-0 text-[40px] leading-none font-bold ${UV_NUMBER_TEXT[uvNumberTone(headUV)]}`}
-          >
-            {headUV.toFixed(1)}
-          </span>
-          <span className="min-w-0 text-[14px] leading-[1.2] font-semibold text-ink-2">
-            {uvLabel(headUV)}
-            <span className="font-medium text-ink-3">{headSuffix}</span>
-          </span>
-        </div>
-        <p className="mt-1.5 min-h-[18px] truncate text-[13.5px] leading-[1.3] text-ink-3">
-          {headTemp === undefined ? '--' : fmt.temp(headTemp)} · {headCond}
-          {headBurn ? ` · burn ~${headBurn}m` : ''}
-        </p>
+        {sunDown && !focused ? (
+          <>
+            <p className="flex min-h-10 items-center text-[28px] leading-none font-bold text-ink-2">
+              {sunDown.phase === 'after-sunset' ? 'Sun is down' : 'Before sunrise'}
+            </p>
+            <p className="mt-1.5 min-h-[18px] truncate text-[13.5px] leading-[1.3] text-ink-3">
+              {[
+                sunDown.uvReturns
+                  ? `UV returns about ${dayHourText(sunDown.uvReturns, fmt.hour)}`
+                  : `UV ${formatUV(headUV)}`,
+                headTemp === undefined ? null : fmt.temp(headTemp),
+                headCond || null,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+            </p>
+          </>
+        ) : (
+          <>
+            <div className="flex min-h-10 items-baseline gap-2.5">
+              <span
+                className={`shrink-0 text-[40px] leading-none font-bold ${UV_NUMBER_TEXT[uvNumberTone(headUV)]}`}
+              >
+                {headUV.toFixed(1)}
+              </span>
+              <span className="min-w-0 text-[14px] leading-[1.2] font-semibold text-ink-2">
+                {uvLabel(headUV)}
+                <span className="font-medium text-ink-3">{headSuffix}</span>
+              </span>
+            </div>
+            <p className="mt-1.5 min-h-[18px] truncate text-[13.5px] leading-[1.3] text-ink-3">
+              {headTemp === undefined ? '--' : fmt.temp(headTemp)} · {headCond}
+              {headBurn ? ` · burn ~${headBurn}m` : ''}
+            </p>
+          </>
+        )}
       </div>
 
       {/* The sun path renders inside the strip's scroller so each hour on the arc
@@ -76,6 +100,7 @@ export default function UVCard({
               nowHour={nowHour}
               focused={focused}
               onSelectHour={onSelectHour}
+              sunDown={sunDown?.phase ?? null}
             />
           ) : null
         }

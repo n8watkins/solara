@@ -103,8 +103,8 @@ export default function ActivityCard({
 
       <div className="flex flex-col gap-[5px]">
         <Stat
-          label={activity.sunscreen ? 'UV limit w/ SPF' : 'Planning UV limit'}
-          val={String(safeUv)}
+          label="Planned for"
+          val={`UV ${safeUv} or lower${activity.sunscreen ? ' with SPF' : ''}`}
         />
         <Stat label="Duration" val={formatActivityDuration(activity.durationMins)} />
         {activity.preferredHours && (
@@ -115,12 +115,12 @@ export default function ActivityCard({
         )}
         {days && <Stat label="Days" val={days} />}
         {burnMins !== null && burnMins !== undefined && (
-          <Stat label="Threshold burn est." val={`~${burnMins}m`} />
+          <Stat label={`Burn time at UV ${safeUv}`} val={`about ${burnMins} min`} />
         )}
         <Stat
           label="Best window"
           val={bestWindowLabel(plan, isToday, fmt.time)}
-          tone={bestWindow ? 'success' : 'danger'}
+          tone={bestWindow ? 'success' : plan.elapsed ? undefined : 'danger'}
         />
       </div>
 
@@ -131,7 +131,7 @@ export default function ActivityCard({
             style={{ width: `${pctDaySafe}%` }}
           />
         </div>
-        <p className="mt-1 text-[11px] text-ink-3">{pctDaySafe}% of visible day matches</p>
+        <p className="mt-1 text-[11px] text-ink-3">{pctDaySafe}% of daylight hours fit</p>
       </div>
 
       <div className="flex flex-col gap-[7px]">

@@ -1,53 +1,16 @@
-import { expect, test, type Page } from '@playwright/test'
-import { HARNESS_DATE, HARNESS_NOW } from './clock'
-import { HARNESS_MARKER, buildRawForecast } from './fixtures'
-import { captureScreen, preparePage } from './capture'
+import { expect, test } from '@playwright/test'
+import { captureScreen } from './capture'
+import {
+  NIGHT_MS,
+  NOW_MS,
+  atNight,
+  openDashboard,
+  prepareLiveDashboard,
+  withUVAt,
+} from './live-forecast'
 
 // Regression checks for the design audit's bugs (handoff/design-audit.md items 1-4),
 // run in the browser against the real dashboard with Open-Meteo played by page.route.
-const FORECAST = /^https:\/\/api\.open-meteo\.com\/v1\/forecast\?/
-const MINUTE = 60_000
-const NOW_MS = new Date(HARNESS_NOW).getTime()
-/** 21:30 in Los Angeles on the first forecast day: the sun is down, every window has passed. */
-const NIGHT_MS = NOW_MS + 11 * 60 * MINUTE
-
-type Raw = ReturnType<typeof buildRawForecast>
-
-/** Answers the forecast with `edit(raw)` and opens the live-data dashboard at `at`. */
-async function openDashboard(
-  page: Page,
-  { at = NOW_MS, tier = 'paid', edit }: { at?: number; tier?: string; edit?: (raw: Raw) => Raw },
-) {
-  const raw = edit ? edit(buildRawForecast()) : buildRawForecast()
-  await page.route('**/*', route => {
-    const url = route.request().url()
-    if (FORECAST.test(url))
-      return route.fulfill({ contentType: 'application/json', body: JSON.stringify(raw) })
-    return new URL(url).hostname === '127.0.0.1' ? route.continue() : route.abort('blockedbyclient')
-  })
-  await page.clock.install({ time: at })
-  await page.goto(`/harness/?screen=dashboard&data=live&tier=${tier}`)
-  await expect(page.getByTestId(HARNESS_MARKER)).toBeVisible()
-  await expect(page.getByRole('group', { name: 'UV forecast by hour' })).toBeVisible()
-}
-
-/** Sets the live reading, and the first forecast day's UV at `hour` (local), to `uv`. */
-function withUVAt(hour: number, uv: number) {
-  return (raw: Raw): Raw => {
-    const at = `${HARNESS_DATE}T${String(hour).padStart(2, '0')}:00`
-    const index = raw.hourly.time.indexOf(at)
-    const values = [...raw.hourly.uv_index]
-    values[index] = uv
-    return {
-      ...raw,
-      current: { ...raw.current, uv_index: uv },
-      hourly: { ...raw.hourly, uv_index: values },
-    }
-  }
-}
-
-/** The live reading after sunset. */
-const atNight = (raw: Raw): Raw => ({ ...raw, current: { ...raw.current, uv_index: 0 } })
 
 test.describe('logic checks', () => {
   test.beforeEach(({}, testInfo) => {
@@ -79,7 +42,7 @@ test.describe('logic checks', () => {
     await openDashboard(page, { at: NIGHT_MS, tier: 'free', edit: atNight })
     const hero = page.getByTestId('hero-empty')
     await expect(hero).toContainText('Next: Running tomorrow at 6am')
-    await expect(hero).not.toContainText('below')
+    await expect(hero).not.toContainText(/best day/i)
     const card = page.getByTestId('activity-card').filter({ hasText: 'Running' })
     await expect(card).toContainText('Next lower-UV slot: tomorrow at 6am')
   })
@@ -180,19 +143,7 @@ const SCREENS = [
 
 for (const screen of SCREENS) {
   test(screen.name, async ({ page }, testInfo) => {
-    const raw = JSON.stringify(screen.edit(buildRawForecast()))
-    const capture = await preparePage(
-      page,
-      testInfo,
-      (route, url) =>
-        url.hostname === 'api.open-meteo.com'
-          ? route.fulfill({ contentType: 'application/json', body: raw })
-          : false,
-      { at: screen.at },
-    )
-    await page.goto(`/harness/?screen=dashboard&data=live&tier=${screen.tier}`)
-    await expect(page.getByTestId(HARNESS_MARKER)).toBeVisible()
-    await expect(page.getByRole('group', { name: 'UV forecast by hour' })).toBeVisible()
+    const capture = await prepareLiveDashboard(page, testInfo, screen)
     await captureScreen(page, testInfo, capture, { name: screen.name, fullPage: true })
   })
 }

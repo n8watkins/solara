@@ -10,6 +10,9 @@ import {
   uvNumberTone,
   uvReadout,
   windowsPassedNote,
+  dayOutlook,
+  nextHourWhere,
+  sunDown,
 } from './dashboard-view'
 import { burnMins, vitDMins } from './weather'
 
@@ -214,5 +217,53 @@ describe('windowsPassedNote', () => {
 
   it('says so when no later visible day has a slot', () => {
     expect(windowsPassedNote(null, true, time)).toContain('None of your other forecast days')
+  })
+})
+
+describe('sunDown and nextHourWhere', () => {
+  const day = (peak: number) =>
+    [6, 7, 8, 12, 18, 19, 20].map(h => hour(h, h === 6 || h === 20 ? 0 : h === 12 ? peak : 1))
+  const weather = (currentUV: number) => ({
+    current: { uv: currentUV, tempC: 20, condition: 'Clear' },
+    today: day(8),
+    tomorrow: day(9),
+  })
+
+  it('is after sunset once the day has no UV left', () => {
+    expect(sunDown(weather(0), 21.5)).toEqual({
+      phase: 'after-sunset',
+      uvReturns: { hour: 7, tomorrow: true },
+    })
+  })
+
+  it('is before sunrise until the first UV', () => {
+    expect(sunDown(weather(0), 5)).toEqual({
+      phase: 'before-sunrise',
+      uvReturns: { hour: 7, tomorrow: false },
+    })
+  })
+
+  it('is null in daylight, even in a dull hour', () => {
+    expect(sunDown(weather(3), 12)).toBeNull()
+    expect(sunDown(weather(0.2), 12)).toBeNull()
+  })
+
+  it('finds the next hour from now, today first', () => {
+    const w = weather(0)
+    expect(nextHourWhere(w, 12.5, uv => uv >= 1)).toEqual({ hour: 12, tomorrow: false })
+    expect(nextHourWhere(w, 19.5, uv => uv >= 5)).toEqual({ hour: 12, tomorrow: true })
+    expect(nextHourWhere(w, 19.5, uv => uv >= 50)).toBeNull()
+  })
+})
+
+describe('dayOutlook', () => {
+  it('gives the peak and how long UV stays below 3 (Moderate starts at 2.5)', () => {
+    const hourly = [hour(7, 1), hour(8, 2.4), hour(9, 2.5), hour(13, 9.1), hour(17, 2)]
+    expect(dayOutlook(hourly)).toEqual({ peakUV: 9.1, peakHour: 13, lowUntil: 9 })
+  })
+
+  it('is null for a day without sun', () => {
+    expect(dayOutlook([hour(7, 0), hour(8, 0.2)])).toBeNull()
+    expect(dayOutlook([])).toBeNull()
   })
 })
