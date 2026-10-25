@@ -19,7 +19,6 @@
 // Only reachable in builds made with NEXT_PUBLIC_UI_HARNESS=1; see
 // app/harness/page.harness.tsx and scripts/check-no-ui-harness.mjs.
 import { useMemo, useState } from 'react'
-import { QueryClientProvider } from '@tanstack/react-query'
 import type { DayWeather, TierLevel, UserPreferences } from '@/lib/types'
 import AppShell, { type AppView } from '@/components/AppShell'
 import Header from '@/components/Header'
@@ -28,7 +27,7 @@ import CalendarView from '@/components/CalendarView'
 import PricingModal from '@/components/PricingModal'
 import { resolveUnits, unitFormatters } from '@/lib/units'
 import { UnitsContext } from '@/lib/use-units'
-import { createQueryClient, useWeather } from '@/lib/use-forecast'
+import { createForecastStore, ForecastStoreProvider, useWeather } from '@/lib/use-forecast'
 import Skeleton from '@/components/Skeleton'
 import { HARNESS_MARKER, buildPrefs, buildUser, buildWeather } from './fixtures'
 import { buildGapWeather } from './uv-gap-fixtures'
@@ -64,10 +63,10 @@ function readParams() {
 }
 
 export default function HarnessApp() {
-  const [queryClient] = useState(createQueryClient)
+  const [forecasts] = useState(createForecastStore)
   const [scheduled] = useState(() => readParams().scheduled)
   return (
-    <QueryClientProvider client={queryClient}>
+    <ForecastStoreProvider value={forecasts}>
       {scheduled ? (
         <HarnessScheduledProvider sync={scheduled}>
           <Harness />
@@ -75,7 +74,7 @@ export default function HarnessApp() {
       ) : (
         <Harness />
       )}
-    </QueryClientProvider>
+    </ForecastStoreProvider>
   )
 }
 

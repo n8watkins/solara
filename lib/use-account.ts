@@ -1,6 +1,5 @@
 'use client'
 import { useEffect, useEffectEvent, useRef, useState } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
 import type { User } from 'firebase/auth'
 import {
   loadedFirebase,
@@ -10,7 +9,7 @@ import {
   whenFirebaseLoads,
 } from './firebase'
 import { loadGuestPrefs } from './guest'
-import { FORECAST_QUERY_KEY } from './use-forecast'
+import { useForecastStore } from './use-forecast'
 import {
   ACCOUNT_LOAD_ERROR,
   accountErrorMessage,
@@ -65,7 +64,7 @@ export function useAccount({
   onAccountReset: () => void
   signInRequested?: boolean
 }) {
-  const queryClient = useQueryClient()
+  const forecasts = useForecastStore()
   const [user, setUser] = useState<User | null>(null)
   const [prefs, setPrefs] = useState<UserPreferences | null>(null)
   const [screen, setScreen] = useState<AppScreen>('loading')
@@ -78,7 +77,7 @@ export function useAccount({
 
   const resetAccountState = useEffectEvent(() => {
     // Drops cached forecasts and aborts any request in flight.
-    queryClient.removeQueries({ queryKey: FORECAST_QUERY_KEY })
+    forecasts.clear()
     setPrefs(null)
     onAccountReset()
   })

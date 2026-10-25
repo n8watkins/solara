@@ -1,57 +1,76 @@
 'use client'
-import { useEffect } from 'react'
-import { QueryClient, useQuery } from '@tanstack/react-query'
+import { createContext, useCallback, useContext, useEffect, useSyncExternalStore } from 'react'
 import { getCachedForecast, locationKey, setCachedForecast } from './cache'
 import { fetchForecast, forecastView } from './forecast'
+import { ForecastStore, type ForecastState } from './forecast-store'
 import { resolveTimeZone, zonedNow } from './time'
 import type { Location, WeatherResponse } from './types'
 import { useZonedNow } from './use-zoned-now'
 
-// The forecast data layer. TanStack Query owns fetching: one request per
-// location at a time (the dashboard and calendar share it), the request is
-// aborted when nobody needs it any more (for example after switching location),
-// and a forecast older than FORECAST_STALE_MS is refreshed in the background
-// while the cached one stays on screen. The persisted per-location cache
-// (lib/cache.ts) seeds the query, so a reload or a location switch paints the
-// last known forecast at once.
+// The forecast data layer. lib/forecast-store.ts owns fetching: one request per
+// location at a time (the dashboard and calendar share it), the request is aborted
+// when nobody needs it any more (for example after switching location), and a
+// forecast older than FORECAST_STALE_MS is refreshed in the background while the
+// cached one stays on screen. The persisted per-location cache (lib/cache.ts) seeds
+// it, so a reload or a location switch paints the last known forecast at once.
 
 /** A forecast younger than this is shown without refetching. */
 export const FORECAST_STALE_MS = 30 * 60 * 1000
 
-/** Query key prefix for every forecast; remove it to drop all cached forecasts. */
-export const FORECAST_QUERY_KEY = ['forecast'] as const
-
-export function forecastQueryKey(lat: number, lon: number) {
-  return [...FORECAST_QUERY_KEY, locationKey(lat, lon)] as const
-}
-
-/** The app's query client: one quick retry, then the error banner offers a manual one. */
-export function createQueryClient(): QueryClient {
-  return new QueryClient({
-    defaultOptions: {
-      queries: { retry: 1, refetchOnWindowFocus: true, gcTime: 30 * 60 * 1000 },
-    },
-  })
-}
-
-export function useForecast(location: Location | null | undefined) {
-  const lat = location?.lat ?? NaN
-  const lon = location?.lon ?? NaN
-  return useQuery({
-    queryKey: forecastQueryKey(lat, lon),
-    enabled: !!location,
-    queryFn: async ({ signal }) => {
-      if (!location) throw new Error('No location')
+/** The app's forecast store, persisting every forecast it fetches. */
+export function createForecastStore(): ForecastStore {
+  return new ForecastStore({
+    fetchForecast: async (location, signal) => {
       const data = await fetchForecast(location, { signal })
       setCachedForecast(location.lat, location.lon, data)
       return data
     },
-    initialData: () => (location ? (getCachedForecast(lat, lon) ?? undefined) : undefined),
-    initialDataUpdatedAt: () => (location ? getCachedForecast(lat, lon)?.fetchedAt : undefined),
-    staleTime: FORECAST_STALE_MS,
-    // Keep "now" current on a screen left open.
-    refetchInterval: FORECAST_STALE_MS,
+    readCache: location => getCachedForecast(location.lat, location.lon),
+    keyOf: location => locationKey(location.lat, location.lon),
+    staleMs: FORECAST_STALE_MS,
   })
+}
+
+const ForecastStoreContext = createContext<ForecastStore | null>(null)
+
+/** Provides the forecast store to the screens below (one per app). */
+export const ForecastStoreProvider = ForecastStoreContext
+
+/** The forecast store from ForecastStoreProvider. */
+export function useForecastStore(): ForecastStore {
+  const store = useContext(ForecastStoreContext)
+  if (!store) throw new Error('useForecastStore needs a ForecastStoreProvider')
+  return store
+}
+
+const NO_LOCATION: ForecastState = Object.freeze({
+  data: undefined,
+  updatedAt: 0,
+  error: false,
+  pending: true,
+})
+const noSubscription = () => () => {}
+
+/** The forecast state for `location`, loading it while shown. Pass null to load nothing. */
+export function useForecast(location: Location | null | undefined) {
+  const store = useForecastStore()
+  const key = location ? locationKey(location.lat, location.lon) : null
+  // Resubscribes only when the place changes, not when the location object does.
+  const subscribe = useCallback(
+    (listener: () => void) => (location ? store.subscribe(location, listener) : noSubscription()),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [store, key],
+  )
+  const state = useSyncExternalStore(
+    subscribe,
+    () => (location ? store.getState(location) : NO_LOCATION),
+    () => NO_LOCATION,
+  )
+  const refetch = useCallback(() => {
+    if (location) store.refetch(location)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [store, key])
+  return { ...state, refetch }
 }
 
 export interface WeatherState {
@@ -79,16 +98,16 @@ export function useWeather(location: Location | null | undefined): WeatherState 
   const fetchedDate = data ? zonedNow(data.timezone, data.fetchedAt).date : null
   const refetch = forecast.refetch
   useEffect(() => {
-    if (fetchedDate && fetchedDate < now.date) void refetch()
+    if (fetchedDate && fetchedDate < now.date) refetch()
   }, [fetchedDate, now.date, refetch])
   return {
     weather,
-    loading: !weather && forecast.isPending && !!location,
-    error: forecast.isError
+    loading: !weather && forecast.pending && !!location,
+    error: forecast.error
       ? weather
         ? 'Could not refresh weather data. Showing the last forecast.'
         : 'Could not load weather data.'
       : null,
-    refresh: () => void refetch(),
+    refresh: refetch,
   }
 }

@@ -34,7 +34,6 @@
     "@fontsource-variable/inter": "^5.3.0",
     "@sentry/nextjs": "^11.8.0",
     "@solara/core": "*",
-    "@tanstack/react-query": "^5.104.5",
     "clsx": "^2.1.1",
     "firebase": "^13.1.0",
     "lucide-react": "^1.58.0",

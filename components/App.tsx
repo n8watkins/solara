@@ -1,6 +1,5 @@
 'use client'
 import { useEffect, useState, type ReactNode } from 'react'
-import { QueryClientProvider } from '@tanstack/react-query'
 import { saveLocalPrefs, saveFirestorePrefs } from '@/lib/prefs'
 import { syncErrorFor, type SyncError } from '@/lib/sync-error'
 import { SIGN_IN_PARAM } from '@/lib/app-routes'
@@ -10,7 +9,7 @@ import { canUseCalendar } from '@/lib/tiers'
 import { screenAfterOnboarding } from '@/lib/account-screen'
 import { useAccount } from '@/lib/use-account'
 import { useCheckoutReturn } from '@/lib/use-checkout-return'
-import { createQueryClient, useWeather } from '@/lib/use-forecast'
+import { createForecastStore, ForecastStoreProvider, useWeather } from '@/lib/use-forecast'
 import { resolveUnits, unitFormatters } from '@/lib/units'
 import { UnitsContext } from '@/lib/use-units'
 import { lazySubscription } from '@/lib/firebase'
@@ -30,11 +29,11 @@ import { AccountLoadError, AccountLoading } from './AccountStatus'
 import ScheduledProvider from './ScheduledProvider'
 
 export default function App() {
-  const [queryClient] = useState(createQueryClient)
+  const [forecasts] = useState(createForecastStore)
   return (
-    <QueryClientProvider client={queryClient}>
+    <ForecastStoreProvider value={forecasts}>
       <SignedInApp />
-    </QueryClientProvider>
+    </ForecastStoreProvider>
   )
 }
 
