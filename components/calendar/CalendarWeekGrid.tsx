@@ -103,7 +103,11 @@ export default function CalendarWeekGrid({
         ))}
 
         {/* Hour gutter */}
-        <div aria-hidden="true" className="sticky left-0 z-2 bg-surface-card">
+        <div
+          aria-hidden="true"
+          data-testid="calendar-hour-axis"
+          className="sticky left-0 z-2 bg-surface-card"
+        >
           {hours.map((h, i) => (
             <span
               key={h}
