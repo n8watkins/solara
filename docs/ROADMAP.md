@@ -67,7 +67,7 @@ A signed-in account opens read-only from this browser's copy until the browser i
 ### 5. Place autocomplete in onboarding (PROD-6, done, #80)
 
 Done 2026-10-25 in #80: setup and the header's location panel suggest places while typing, from Open-Meteo's place search (Nominatim's usage policy forbids client-side autocomplete; it stays for "use my location" names).
-Settings still has the older search box without suggestions.
+Settings' Location tab uses the same search (#95), and the data credits name GeoNames, the source of Open-Meteo's places.
 
 ### 6. Forecast proxy and licensing (BE-12, with D5)
 

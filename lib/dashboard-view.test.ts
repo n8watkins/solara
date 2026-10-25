@@ -202,7 +202,7 @@ describe('windowsPassedNote', () => {
 
   it('names the next slot the plan can see', () => {
     expect(windowsPassedNote({ label: 'Tomorrow', slot }, true, time)).toBe(
-      "Today's matching windows have passed. Next lower-UV slot: tomorrow at 6am.",
+      'Next lower-UV slot: tomorrow at 6am.',
     )
     expect(windowsPassedNote({ label: 'Wed, Jun 17', slot }, true, time)).toContain(
       'on Wed, Jun 17 at 6am',
@@ -211,12 +211,23 @@ describe('windowsPassedNote', () => {
 
   it('offers sign-in on the guest plan instead of pointing at hidden days', () => {
     const note = windowsPassedNote(null, false, time)
-    expect(note).toContain('Sign in free to plan tomorrow too.')
+    expect(note).toBe('Sign in free to plan tomorrow.')
     expect(note).not.toMatch(/best day|below/i)
   })
 
   it('says so when no later visible day has a slot', () => {
-    expect(windowsPassedNote(null, true, time)).toContain('None of your other forecast days')
+    expect(windowsPassedNote(null, true, time)).toBe(
+      'No later forecast day has a lower-UV slot for it.',
+    )
+  })
+
+  it('never repeats that today is over, which the badge says', () => {
+    for (const note of [
+      windowsPassedNote({ label: 'Tomorrow', slot }, true, time),
+      windowsPassedNote(null, false, time),
+      windowsPassedNote(null, true, time),
+    ])
+      expect(note).not.toMatch(/today|passed/i)
   })
 })
 

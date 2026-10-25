@@ -42,6 +42,10 @@ test('offers the app, sign-in, the plans, the legal pages and the data credits',
     'href',
     'https://open-meteo.com/',
   )
+  await expect(page.getByRole('link', { name: 'GeoNames' })).toHaveAttribute(
+    'href',
+    'https://www.geonames.org/',
+  )
   await expect(page.getByRole('link', { name: /OpenStreetMap contributors/ })).toBeVisible()
   await expect(page.getByRole('img', { name: /Solara on a phone/ })).toBeVisible()
 

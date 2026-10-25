@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import LegalPage from '@/components/LegalPage'
 import styles from '@/components/LegalPolicy.module.css'
 import LegalDetail from '@/components/LegalDetail'
-import { LEGAL_LAST_UPDATED } from '@/lib/legal'
+import { TERMS_LAST_UPDATED } from '@/lib/legal'
 
 export const metadata: Metadata = {
   title: 'Terms of Use | Solara',
@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 
 export default function TermsPage() {
   return (
-    <LegalPage title="Terms of Use" updated={LEGAL_LAST_UPDATED}>
+    <LegalPage title="Terms of Use" updated={TERMS_LAST_UPDATED}>
       <div className={styles.policy}>
         <h2>Who provides Solara</h2>
         <p>
@@ -65,6 +65,7 @@ export default function TermsPage() {
         <h2>Data sources and licenses</h2>
         <p>
           Forecasts and place search use data from <a href="https://open-meteo.com/">Open-Meteo</a>,
+          whose place search is based on <a href="https://www.geonames.org/">GeoNames</a>, both
           licensed under <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>.
         </p>
         <p>

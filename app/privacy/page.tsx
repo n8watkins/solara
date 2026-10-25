@@ -4,7 +4,7 @@ import styles from '@/components/LegalPolicy.module.css'
 import LegalDetail from '@/components/LegalDetail'
 import { AnalyticsPreferenceControl } from '@/components/AnalyticsConsent'
 import { isAnalyticsMeasurementId } from '@/lib/analytics-consent'
-import { LEGAL_LAST_UPDATED } from '@/lib/legal'
+import { PRIVACY_LAST_UPDATED } from '@/lib/legal'
 
 export const metadata: Metadata = {
   title: 'Privacy Policy | Solara',
@@ -16,7 +16,7 @@ export default function PrivacyPage() {
   const analyticsEnabled = isAnalyticsMeasurementId(process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID)
 
   return (
-    <LegalPage title="Privacy Policy" updated={LEGAL_LAST_UPDATED}>
+    <LegalPage title="Privacy Policy" updated={PRIVACY_LAST_UPDATED}>
       <div className={styles.policy}>
         <h2>Who runs Solara</h2>
         <p>

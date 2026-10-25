@@ -1,9 +1,10 @@
 const LINK = 'text-inherit underline'
 
 /**
- * Credits for the open data Solara is built on. Open-Meteo forecasts and place
- * search are CC BY 4.0 and OpenStreetMap (used for "use my location" place
- * names) is ODbL; both licenses require visible attribution with a link.
+ * Credits for the open data Solara is built on. Open-Meteo forecasts and its
+ * place search, whose places come from GeoNames, are CC BY 4.0; OpenStreetMap
+ * (used for "use my location" place names) is ODbL. All three licenses require
+ * visible attribution with a link.
  */
 export default function DataAttribution({
   className = '',
@@ -20,6 +21,15 @@ export default function DataAttribution({
       <a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer" className={LINK}>
         Open-Meteo
       </a>{' '}
+      and{' '}
+      <a
+        href="https://www.geonames.org/"
+        target="_blank"
+        rel="noopener noreferrer"
+        className={LINK}
+      >
+        GeoNames
+      </a>{' '}
       (
       <a
         href="https://creativecommons.org/licenses/by/4.0/"
@@ -29,7 +39,7 @@ export default function DataAttribution({
       >
         CC BY 4.0
       </a>
-      ) and{' '}
+      ),{' '}
       <a
         href="https://www.openstreetmap.org/copyright"
         target="_blank"

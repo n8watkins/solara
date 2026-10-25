@@ -97,24 +97,26 @@ export default function UVTimeline({
     }, 250)
   }
 
-  // Center the current hour in the scroller on mount / when the day changes.
-  // After the day's last hour (the sun is down), "now" is past the end, so the strip
-  // rests there instead, beside the sun path's night marker.
-  const lastHour = hourly.at(-1)?.hour
+  // Center the current hour in the scroller on mount / when the day changes. With
+  // no current hour on the strip (before sunrise, after sunset, or another day) it
+  // rests at the start, on the first hours with UV: after dark that is when "UV
+  // returns" in the readout, not the middle of a day that is over.
+  const dayKey = `${hourly[0]?.date}:${hourly[0]?.hour}-${hourly.at(-1)?.hour}`
   useLayoutEffect(() => {
     const strip = stripRef.current
-    if (!nowRef.current && strip && lastHour !== undefined && currentHour > lastHour) {
-      programmaticScroll.current = true
-      strip.scrollLeft = strip.scrollWidth
-      updateEdgeFades()
-      if (programmaticTimer.current) window.clearTimeout(programmaticTimer.current)
-      programmaticTimer.current = window.setTimeout(() => {
-        programmaticScroll.current = false
-      }, 250)
+    if (!strip) return
+    if (nowRef.current) {
+      centerHour(nowRef.current)
       return
     }
-    centerHour(nowRef.current)
-  }, [currentHour, hourly.length, lastHour])
+    programmaticScroll.current = true
+    strip.scrollLeft = 0
+    updateEdgeFades()
+    if (programmaticTimer.current) window.clearTimeout(programmaticTimer.current)
+    programmaticTimer.current = window.setTimeout(() => {
+      programmaticScroll.current = false
+    }, 250)
+  }, [currentHour, dayKey])
 
   // The phone strip's edge fade (globals.css) only covers a side with more hours to
   // scroll to, growing with the distance scrolled, so a strip resting at either end
