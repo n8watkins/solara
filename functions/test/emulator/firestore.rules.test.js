@@ -137,6 +137,9 @@ describe('user preferences', () => {
         location: { lat: 0, lon: 0, city: 123, region: '' },
       }),
     )
+    // A list or map has a size() too, so only the type check rejects these.
+    await assertFails(ref.update({ location: { lat: 0, lon: 0, city: ['Seattle'], region: '' } }))
+    await assertFails(ref.update({ location: { lat: 0, lon: 0, city: 'Seattle', region: ['WA'] } }))
     await assertFails(
       ref.update({
         location: { lat: 0, lon: 0, city: 'Missing region' },
