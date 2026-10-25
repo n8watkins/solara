@@ -17,20 +17,21 @@ type MessagingSdk = typeof MessagingModule
 
 let messaging: Messaging | null = null
 
-/** Firebase Cloud Messaging, loaded on demand; null where it is unavailable. */
+/**
+ * Firebase Cloud Messaging, loaded on demand; null where it is unavailable, including
+ * when its code cannot be loaded (offline), so sign-out is never blocked by that.
+ */
 async function getMessagingInstance(): Promise<{ sdk: MessagingSdk; m: Messaging } | null> {
   if (typeof window === 'undefined') return null
-  const app = (await loadFirebase())?.app
-  if (!app) return null
-  const sdk = await import('firebase/messaging')
-  if (!messaging) {
-    try {
-      messaging = sdk.getMessaging(app)
-    } catch {
-      return null
-    }
+  try {
+    const app = (await loadFirebase())?.app
+    if (!app) return null
+    const sdk = await import('firebase/messaging')
+    messaging ??= sdk.getMessaging(app)
+    return { sdk, m: messaging }
+  } catch {
+    return null
   }
-  return { sdk, m: messaging }
 }
 
 function storageKey(uid: string): string {
