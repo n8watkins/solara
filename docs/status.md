@@ -1,6 +1,6 @@
 # Solara status
 
-_Last reviewed: 2026-10-24_
+_Last reviewed: 2026-10-25_
 
 This is the single page for the current state of Solara: what is live, what is built but switched off, how CI/CD runs, and which owner actions are done or open.
 Facts were checked against the code, the workflows, GitHub (`gh`) and the live site on the date above.
@@ -11,7 +11,8 @@ The plan for the remaining work is in [ROADMAP.md](ROADMAP.md); the owner's step
 
 Solara is served from the Firebase Hosting site `solara-uv` in project `uv-activity-planner`, on the free Spark plan.
 The original address, `https://uv-activity-planner.web.app`, permanently redirects every path to the same path on `solara-uv.web.app`, except Firebase's reserved `/__/` paths (#42, #45).
-Every merge to `main` deploys; the deploy for #71 (run 40103445539) was green, and the deploys for #73 and #74 were running when this page was reviewed.
+Every merge to `main` deploys; the deploys for #76, #78, #80, #79, #81 and #83 were green (the latest is run 40183440542).
+#79 and #81 fixed the findings of the first post-launch code review (Google sign-in popup and quota handling, the Scheduled list query, plan limits in the Firestore rules, the feed limiter's client address).
 
 What users get:
 
@@ -25,7 +26,7 @@ What users get:
   Gentle upsells ("Save your plan, sign in free", "See the next 10 days with Pro", "Get this as a morning alert") open the sign-in or plans dialog and stay dismissed per device.
 - UV and weather forecasts from Open-Meteo, in the location's time zone, with Celsius or Fahrenheit and 12- or 24-hour time chosen from the locale or in Settings.
 - Personalized activity windows on the dashboard and in the week calendar, within each plan's days.
-- Place suggestions while typing a town in setup and in the header's location panel (Open-Meteo place search, at most one request per second, keyboard and screen-reader friendly).
+- Place suggestions while typing a town in setup and in the header's location panel (Open-Meteo place search, at most one request per second, keyboard and screen-reader friendly) (#80).
 - Saved locations, share links (`/share/`), a one-off calendar file download from Plan ahead, and family profiles on Pro.
 - Opt-in Google Analytics 4.
 - The privacy policy and terms with the operator details (#46), the Google user data section (#48) and the Sentry and reCAPTCHA notices (#70).
@@ -58,9 +59,9 @@ The project stays on Spark until Pro launches ([COSTS.md](COSTS.md)).
 
 - **Repository:** public, with the "Protect main" ruleset: pull requests only, squash merges only, no force pushes or deletion, and 8 required checks from `quality.yml` (lint, types and unit tests; browser tests on the static export; signed-in UI harness; signed-in browser tests on emulators; Functions and Firestore rules; workflow and secret scanning; dependency review; browser tests with Sentry and App Check switched on).
   Dependabot alerts and security updates, secret scanning with push protection, and CodeQL are on; CodeQL has no open alerts (#72, #73).
-  There is no `production` environment with a required reviewer.
+  There is no `production` environment yet; the deploy and notifier jobs that receive credentials run only from `main`, even when started by hand on another branch ([owner checklist](OWNER_CHECKLIST.md#repository)).
 - **Testing policy (#74):** agents run the fast checks locally (lint, typecheck, docs check, unit tests, build and the suites their files touch); the full browser and emulator suites run on GitHub Actions.
-  Change-aware selection of CI jobs is in progress ([ROADMAP item 1](ROADMAP.md#1-change-aware-ci-in-progress)).
+  CI runs only the suites a pull request's files can affect (#76); every required check still reports, and the others pass in seconds ([change-aware checks](../README.md#change-aware-checks)).
 - **Pull requests** run `.github/workflows/ci.yml`, which calls the reusable `quality.yml` once per commit (older runs are cancelled).
 - **Pushes to `main`** run `deploy.yml`: the same quality workflow, then one production build that is checked, smoke-tested on the Hosting emulator and packaged with its SHA-256, SBOMs and a provenance record and attestation.
   Separate jobs then deploy Firestore rules, Firestore indexes, Functions (only when `ENABLE_BLAZE_FUNCTIONS` is `true`) and Hosting, which receives exactly the tested artifact.
