@@ -8,8 +8,11 @@ import { startClock } from '../../harness/clock'
 import { buildRawForecast } from '../../harness/fixtures'
 import { expect, restoreSession, test } from './fixtures'
 
-/** Text only the Firebase Auth SDK carries, to recognize its chunk. */
-const FIREBASE_AUTH_MARKER = 'identitytoolkit.googleapis.com'
+/**
+ * Text only the Firebase Auth SDK carries (one of its error codes), to recognize its
+ * chunk among the scripts a page downloaded.
+ */
+const FIREBASE_AUTH_MARKER = 'argument-error'
 
 /** Hosts the Firebase SDK talks to (Auth, Firestore, App Check, the Auth iframe). */
 const FIREBASE_HOSTS =
