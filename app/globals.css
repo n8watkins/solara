@@ -142,6 +142,9 @@
 @layer components {
   html {
     font-family: var(--font-inter), system-ui, sans-serif;
+    /* Keeps a focused or scrolled-to element clear of the app's sticky header and
+       view tabs (AppShell), so it is never hidden underneath (WCAG 2.4.11). */
+    scroll-padding-top: 112px;
   }
 
   body {
