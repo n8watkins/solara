@@ -46,8 +46,16 @@ test('deleting the account leaves none of its data in the browser and confirms i
   const account = await emulators.createAccount('Noor Vale')
   await emulators.seedPrefs(account, { activities: [RUNNING] })
   await openDashboard(page, account)
+  // Device settings (theme, tip rotation, dismissed install prompt) belong to the browser,
+  // not the account, so they may stay.
   const solaraKeys = () =>
-    page.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith('solara_')))
+    page.evaluate(
+      deviceKeys =>
+        Object.keys(localStorage).filter(
+          key => key.startsWith('solara_') && !deviceKeys.includes(key),
+        ),
+      ['solara_theme', 'solara_tip', 'solara_install_dismissed'],
+    )
   // The account's marker and its places' forecast are kept while it is signed in.
   expect(await solaraKeys()).toEqual(
     expect.arrayContaining(['solara_account_owner', 'solara_forecast']),
