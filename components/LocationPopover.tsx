@@ -2,11 +2,11 @@
 import { MapPin, Star, X } from 'lucide-react'
 import { useState, useRef, useLayoutEffect } from 'react'
 import type { Location } from '@/lib/types'
-import { locationFromCoordinates } from '@/lib/geocoding'
 import { useOutsideClick } from '@/lib/use-outside-click'
 import { clampShift } from '@/lib/viewport-clamp'
 import DataAttribution from './DataAttribution'
-import PlaceSearch, { type PlaceSearchMiss } from './PlaceSearch'
+import { PlaceSearch } from './deferred'
+import type { PlaceSearchMiss } from './PlaceSearch'
 
 interface Props {
   location: Location
@@ -92,6 +92,8 @@ export default function LocationPopover({ location, savedLocations, limit, onApp
     setNote(null)
     async function resolvePosition(pos: GeolocationPosition) {
       try {
+        // The geocoding code loads only when someone looks a place up.
+        const { locationFromCoordinates } = await import('@/lib/geocoding')
         const loc = await locationFromCoordinates(pos.coords.latitude, pos.coords.longitude)
         activate(loc, false) // current location switches but isn't auto-saved
         setTimeout(() => setOpen(false), 800)

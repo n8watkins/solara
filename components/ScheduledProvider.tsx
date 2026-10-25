@@ -1,10 +1,10 @@
 'use client'
 import type { ReactNode } from 'react'
-import { useGoogleCalendar } from '@/hooks/useGoogleCalendar'
 import { firebaseEnabled } from '@/lib/firebase'
 import { isCalendarConfigured } from '@/lib/gcal'
 import { DISABLED_SCHEDULED, ScheduledContext } from '@/lib/scheduled-context'
 import type { Activity } from '@/lib/types'
+import { AccountScheduled } from './deferred'
 
 interface Props {
   /** The signed-in account, or null. Switching accounts drops everything in memory. */
@@ -16,7 +16,8 @@ interface Props {
 
 /**
  * Supplies the scheduled-activities controller (lib/scheduled-context.ts): the real
- * one from hooks/useGoogleCalendar.ts for a signed-in account, or the disabled one.
+ * one from hooks/useGoogleCalendar.ts for a signed-in account (loaded with the other
+ * signed-in parts, components/deferred.tsx), or the disabled one.
  */
 export default function ScheduledProvider({ uid, activities, children }: Props) {
   const enabled = !!uid && firebaseEnabled && isCalendarConfigured()
@@ -29,17 +30,4 @@ export default function ScheduledProvider({ uid, activities, children }: Props) 
       {children}
     </AccountScheduled>
   )
-}
-
-function AccountScheduled({
-  uid,
-  activities,
-  children,
-}: {
-  uid: string
-  activities: readonly Activity[]
-  children: ReactNode
-}) {
-  const controller = useGoogleCalendar(uid, activities)
-  return <ScheduledContext value={controller}>{children}</ScheduledContext>
 }
