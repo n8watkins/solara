@@ -30,6 +30,8 @@ It worked for Waves 0-2 (PRs #17-#52) and applies to every later wave.
 5. Before pushing, run the fast checks locally: `npm run lint`, `npm run typecheck`, `npm run check:docs`, `npm test`, `npm run build`, plus any browser, harness or emulator suite whose files you changed (visual work runs `npm run test:harness` for before and after screenshots).
    GitHub Actions then runs every check in the README's [quality checks](../README.md#quality-checks) on the pull request, and the `main` ruleset requires all of them; read the CI results with `gh pr checks` and fix any failure or flake you see, even if unrelated, and mention it.
    This keeps the full browser and emulator suites on CI's runners instead of loading the local machine when several lanes run at once.
+   CI runs only the suites a pull request's files can affect, and the others pass in seconds with "No relevant changes"; the [change-aware checks](../README.md#change-aware-checks) table lists which paths run which suite.
+   A change under `.github/`, to a lockfile or `package.json`, to shared configuration or to `packages/core` runs everything.
 6. Edit only owned files and listed touch points.
    Never edit changelog files or generated files (`next-env.d.ts`, the `AGENTS.md` block that `next dev` writes).
 7. Push the branch and open a PR against `main`.

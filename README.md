@@ -66,7 +66,7 @@ The repository is an npm workspace.
 
 ## Quality checks
 
-CI runs all of these on every pull request (`.github/workflows/quality.yml`).
+CI runs these on every pull request (`.github/workflows/quality.yml`), limited to the suites the change can affect (see [change-aware checks](#change-aware-checks)); pushes to `main` run all of them before deploying.
 The unit tests also exercise the Functions code, so install both packages first.
 
 ```bash
@@ -98,6 +98,36 @@ npm run test:harness
 
 The rules tests and the signed-in suite need Java for the Firestore emulator.
 Real Google OAuth, App Check, FCM delivery, Stripe signatures and calendar clients are outside what CI can prove; they are covered by the [owner checklist](docs/OWNER_CHECKLIST.md#release-verification).
+
+### Change-aware checks
+
+Every required check reports on every pull request, but a suite runs only when the pull request changes a file that can affect it.
+A `changes` job maps the diff against the pull request's base (from the merge base, counting both sides of a rename) with [`.github/scripts/changed-areas.mjs`](.github/scripts/changed-areas.mjs); a suite with nothing relevant passes in seconds with "No relevant changes" and the reason in its job summary.
+Lint, the docs check, the dependency audit, workflow and secret scanning and dependency review always run.
+
+| Changed files | Typecheck and unit | Functions and rules | Static export e2e | Signed-in e2e | UI harness | Sentry and App Check e2e |
+| --- | --- | --- | --- | --- | --- | --- |
+| `.github/**`, `package.json`, lockfiles, `tsconfig*.json`, tool configs (next, postcss, eslint, prettier, vitest, playwright), `.nvmrc`, `.env*`, `firebase.json`, `.firebaserc`, `packages/**`, `scripts/build-core.mjs` | yes | yes | yes | yes | yes | yes |
+| Markdown, `docs/**`, `LICENSE`, `CODEOWNERS`, `.gitignore`, `.gitleaksignore`, `.local-ops.yaml` | - | - | - | - | - | - |
+| `tests/e2e/signed-in/**` | yes | - | - | yes | - | - |
+| `tests/e2e/integrations/**` | yes | - | - | - | - | yes |
+| `tests/e2e/serve-export.mjs` | yes | - | yes | - | - | yes |
+| `tests/e2e/**` | yes | - | yes | - | - | - |
+| `tests/harness/clock.ts`, `tests/harness/fixtures.ts`, `tests/static-server.mts` | yes | - | yes | yes | yes | - |
+| `tests/harness/**` | yes | - | - | - | yes | - |
+| `lib/**/*.test.ts`, `tests/*.test.ts` | yes | - | - | - | - | - |
+| `functions/**`, `firestore.rules` | yes | yes | - | yes | - | - |
+| `firestore.indexes.json` | - | yes | - | - | - | - |
+| `app/**` except CSS, `lib/` Firebase, CSP, error reporting, Sentry, session, account and Functions API modules, `components/` App, ErrorBoundary, SignInScreen and GoogleSignInButton, `instrumentation-client.ts` | yes | - | yes | yes | yes | yes |
+| Other `app/**`, `components/**`, `lib/**`, `hooks/**` | yes | - | yes | yes | yes | - |
+| `public/**` | yes | - | yes | - | yes | - |
+| `scripts/**` | yes | - | yes | yes | - | yes |
+| `hosting-redirect/**` | - | - | yes | - | - | - |
+| Anything else | yes | yes | yes | yes | yes | yes |
+
+Rows are checked top to bottom and the first match decides, so a more specific row wins (for example, `tests/e2e/signed-in/**` before `tests/e2e/**`).
+When in doubt the map runs a suite: an unknown path, an empty diff, a push to `main`, a manual run or a failed `changes` job runs everything.
+Change the rules and their tests in `.github/scripts/changed-areas.test.mjs` together, and keep this table in step.
 
 ## Firestore layout
 

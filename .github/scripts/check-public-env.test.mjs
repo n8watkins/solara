@@ -48,8 +48,8 @@ test('ties the Functions URL to the Functions deployment switch', () => {
 })
 
 test('rejects secrets in public values', () => {
-  const { errors } = checkEnv({ ...complete, NEXT_PUBLIC_PRO_PRICE: 'sk_live_abc123' })
-  assert.match(errors.join('\n'), /NEXT_PUBLIC_PRO_PRICE looks like a Stripe secret/)
+  const { errors } = checkEnv({ ...complete, NEXT_PUBLIC_GA_MEASUREMENT_ID: 'sk_live_abc123' })
+  assert.match(errors.join('\n'), /NEXT_PUBLIC_GA_MEASUREMENT_ID looks like a Stripe secret/)
 })
 
 test('warns, but does not fail, without a site URL', () => {

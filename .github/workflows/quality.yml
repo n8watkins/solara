@@ -1,6 +1,15 @@
 # Every quality gate, in one reusable workflow.
 # ci.yml runs it for pull requests and deploy.yml runs it before every production
 # deploy, so each commit gets exactly one quality run per event.
+#
+# Change-aware: on a pull request, the `changes` job maps the files the pull
+# request changes to the suites they can affect (.github/scripts/changed-areas.mjs).
+# The `main` ruleset requires every job below to report, so no job is skipped at
+# the job level: each one always starts, and a suite with nothing relevant to test
+# skips its steps and passes with "No relevant changes" in its summary. Lint, the
+# docs check, workflow and secret scanning and dependency review always run.
+# Pushes to main and manual runs have no pull request base, so every suite runs,
+# and so does every job if `changes` itself fails (its outputs are then empty).
 name: Quality
 
 on:
@@ -9,13 +18,73 @@ on:
 permissions: {}
 
 jobs:
+  changes:
+    name: Detect changed areas
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      unit: ${{ steps.areas.outputs.unit }}
+      unit_reason: ${{ steps.areas.outputs.unit_reason }}
+      functions: ${{ steps.areas.outputs.functions }}
+      functions_reason: ${{ steps.areas.outputs.functions_reason }}
+      web: ${{ steps.areas.outputs.web }}
+      web_reason: ${{ steps.areas.outputs.web_reason }}
+      signed_in: ${{ steps.areas.outputs.signed_in }}
+      signed_in_reason: ${{ steps.areas.outputs.signed_in_reason }}
+      harness: ${{ steps.areas.outputs.harness }}
+      harness_reason: ${{ steps.areas.outputs.harness_reason }}
+      integrations: ${{ steps.areas.outputs.integrations }}
+      integrations_reason: ${{ steps.areas.outputs.integrations_reason }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # The diff is taken from the merge base, so it needs the history.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+
+      # Without a pull request (a push to main, a manual run) there is no base,
+      # and every area runs.
+      - name: Map changed files to suites
+        id: areas
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ -n "$BASE_SHA" ] && [ -n "$HEAD_SHA" ]; then
+            node .github/scripts/changed-areas.mjs --base "$BASE_SHA" --head "$HEAD_SHA"
+          else
+            node .github/scripts/changed-areas.mjs
+          fi
+
   web:
     name: Lint, types and unit tests
+    needs: changes
+    # Always report (required check), even if `changes` failed.
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: read
+    env:
+      RELEVANT: ${{ needs.changes.outputs.unit != 'false' }}
+      REASON: ${{ needs.changes.outputs.unit_reason }}
     steps:
+      - name: Check for relevant changes
+        run: |
+          if [ "$RELEVANT" = true ]; then
+            echo "Typecheck and unit tests run: $REASON."
+          else
+            echo "No relevant changes for the typecheck and unit tests: $REASON. Lint and the docs check still run." | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -46,23 +115,41 @@ jobs:
         run: npm run check:docs
 
       - name: Typecheck
+        if: env.RELEVANT == 'true'
         run: npm run typecheck
 
       - name: Unit tests
+        if: env.RELEVANT == 'true'
         run: npm test
 
   e2e:
     name: Browser tests on the static export
+    needs: changes
+    # Always report (required check), even if `changes` failed.
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
       contents: read
+    env:
+      RELEVANT: ${{ needs.changes.outputs.web != 'false' }}
+      REASON: ${{ needs.changes.outputs.web_reason }}
     steps:
+      - name: Check for relevant changes
+        run: |
+          if [ "$RELEVANT" = true ]; then
+            echo "The browser tests on the static export run: $REASON."
+          else
+            echo "No relevant changes: $REASON." | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: env.RELEVANT == 'true'
         with:
           persist-credentials: false
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        if: env.RELEVANT == 'true'
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -72,19 +159,22 @@ jobs:
 
       # functions/ provides the locked firebase-tools that runs the Hosting emulator.
       - name: Install dependencies
+        if: env.RELEVANT == 'true'
         run: |
           npm ci --ignore-scripts
           npm ci --prefix functions --ignore-scripts
 
       - name: Install Chromium
+        if: env.RELEVANT == 'true'
         run: npx playwright install --with-deps chromium
 
       # Builds out/ with a hermetic public env, then serves it on the Hosting emulator.
       - name: Browser tests
+        if: env.RELEVANT == 'true'
         run: npm run test:e2e
 
       - name: Upload browser report
-        if: failure()
+        if: failure() && env.RELEVANT == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: playwright-report
@@ -94,16 +184,32 @@ jobs:
 
   e2e-integrations:
     name: Browser tests with Sentry and App Check switched on
+    needs: changes
+    # Always report (required check), even if `changes` failed.
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
       contents: read
+    env:
+      RELEVANT: ${{ needs.changes.outputs.integrations != 'false' }}
+      REASON: ${{ needs.changes.outputs.integrations_reason }}
     steps:
+      - name: Check for relevant changes
+        run: |
+          if [ "$RELEVANT" = true ]; then
+            echo "The Sentry and App Check browser tests run: $REASON."
+          else
+            echo "No relevant changes: $REASON." | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: env.RELEVANT == 'true'
         with:
           persist-credentials: false
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        if: env.RELEVANT == 'true'
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -113,20 +219,23 @@ jobs:
 
       # functions/ provides the locked firebase-tools that runs the Hosting emulator.
       - name: Install dependencies
+        if: env.RELEVANT == 'true'
         run: |
           npm ci --ignore-scripts
           npm ci --prefix functions --ignore-scripts
 
       - name: Install Chromium
+        if: env.RELEVANT == 'true'
         run: npx playwright install --with-deps chromium
 
       # A production build with a fake Sentry DSN and reCAPTCHA site key; fakes in
       # tests/e2e/integrations answer every third-party request.
       - name: Integration browser tests
+        if: env.RELEVANT == 'true'
         run: npm run test:e2e:integrations
 
       - name: Upload traces and report
-        if: failure()
+        if: failure() && env.RELEVANT == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: integrations-traces
@@ -138,16 +247,32 @@ jobs:
 
   e2e-signed-in:
     name: Signed-in browser tests on emulators
+    needs: changes
+    # Always report (required check), even if `changes` failed.
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:
       contents: read
+    env:
+      RELEVANT: ${{ needs.changes.outputs.signed_in != 'false' }}
+      REASON: ${{ needs.changes.outputs.signed_in_reason }}
     steps:
+      - name: Check for relevant changes
+        run: |
+          if [ "$RELEVANT" = true ]; then
+            echo "The signed-in browser tests run: $REASON."
+          else
+            echo "No relevant changes: $REASON." | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: env.RELEVANT == 'true'
         with:
           persist-credentials: false
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        if: env.RELEVANT == 'true'
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -157,26 +282,30 @@ jobs:
 
       # The Firestore emulator runs on Java.
       - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        if: env.RELEVANT == 'true'
         with:
           distribution: temurin
           java-version: 21
 
       # functions/ provides the locked firebase-tools and the Functions under test.
       - name: Install dependencies
+        if: env.RELEVANT == 'true'
         run: |
           npm ci --ignore-scripts
           npm ci --prefix functions --ignore-scripts
 
       - name: Install Chromium
+        if: env.RELEVANT == 'true'
         run: npx playwright install --with-deps chromium
 
       # Builds an emulator-only export, then runs Playwright inside
       # `firebase emulators:exec` with Auth, Firestore and Functions on free ports.
       - name: Signed-in browser tests
+        if: env.RELEVANT == 'true'
         run: npm run test:e2e:signed-in
 
       - name: Upload traces and report
-        if: failure()
+        if: failure() && env.RELEVANT == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: signed-in-traces
@@ -188,33 +317,52 @@ jobs:
 
   ui-harness:
     name: Signed-in UI harness
+    needs: changes
+    # Always report (required check), even if `changes` failed.
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
       contents: read
+    env:
+      RELEVANT: ${{ needs.changes.outputs.harness != 'false' }}
+      REASON: ${{ needs.changes.outputs.harness_reason }}
     steps:
+      - name: Check for relevant changes
+        run: |
+          if [ "$RELEVANT" = true ]; then
+            echo "The UI harness tests run: $REASON."
+          else
+            echo "No relevant changes: $REASON." | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: env.RELEVANT == 'true'
         with:
           persist-credentials: false
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        if: env.RELEVANT == 'true'
         with:
           node-version-file: .nvmrc
           cache: npm
 
       - name: Install dependencies
+        if: env.RELEVANT == 'true'
         run: npm ci --ignore-scripts
 
       - name: Install Chromium
+        if: env.RELEVANT == 'true'
         run: npx playwright install --with-deps chromium
 
       # Writes screenshots and an axe report to test-results/ui-harness/. Axe
       # violations are reported, not failed; a broken screen still fails the job.
       - name: UI harness
+        if: env.RELEVANT == 'true'
         run: npm run test:harness
 
       - name: Upload screenshots and axe report
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && env.RELEVANT == 'true' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ui-harness
@@ -226,16 +374,32 @@ jobs:
 
   functions:
     name: Functions and Firestore rules
+    needs: changes
+    # Always report (required check), even if `changes` failed.
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: read
+    env:
+      RELEVANT: ${{ needs.changes.outputs.functions != 'false' }}
+      REASON: ${{ needs.changes.outputs.functions_reason }}
     steps:
+      - name: Check for relevant changes
+        run: |
+          if [ "$RELEVANT" = true ]; then
+            echo "The Functions and Firestore rules tests run: $REASON."
+          else
+            echo "No relevant changes: $REASON." | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: env.RELEVANT == 'true'
         with:
           persist-credentials: false
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        if: env.RELEVANT == 'true'
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -244,6 +408,7 @@ jobs:
             functions/package-lock.json
 
       - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        if: env.RELEVANT == 'true'
         with:
           distribution: temurin
           java-version: 21
@@ -252,30 +417,37 @@ jobs:
       # Functions scripts build into functions/core (npm run build:core) before
       # compiling the Functions into functions/lib (npm run build).
       - name: Install dependencies
+        if: env.RELEVANT == 'true'
         run: |
           npm ci --ignore-scripts
           npm ci --prefix functions --ignore-scripts
 
       - name: Audit Functions production dependencies
+        if: env.RELEVANT == 'true'
         run: npm audit --prefix functions --omit=dev --audit-level=high
 
       - name: Typecheck Functions
+        if: env.RELEVANT == 'true'
         run: npm run typecheck --prefix functions --if-present
 
       - name: Functions tests
+        if: env.RELEVANT == 'true'
         run: npm test --prefix functions
 
       # Loads the compiled entry point (built by the tests above) and resolves its
       # params exactly as a non-interactive `firebase deploy --only functions` would.
       - name: Functions deploy params
+        if: env.RELEVANT == 'true'
         run: node .github/scripts/check-functions-params.js uv-activity-planner
 
       # Packages functions/ the way `firebase deploy` does and loads it from a
       # clean copy, so the deployed source never depends on the workspace.
       - name: Functions deploy payload
+        if: env.RELEVANT == 'true'
         run: node .github/scripts/check-functions-payload.js
 
       - name: Firestore rules tests
+        if: env.RELEVANT == 'true'
         run: npm run test:rules --prefix functions
 
   supply-chain:
