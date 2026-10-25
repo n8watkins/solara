@@ -13,7 +13,7 @@ test('a returning account sees its saved plan on the forecast', async ({ page, e
   await expect(
     uvStrip(page).getByRole('button', { name: 'UV 6.0 , High, at 10am , current hour' }),
   ).toBeVisible()
-  await expect(page.getByText('UV peaks at 10.3, Extreme, at 1pm.')).toBeVisible()
+  await expect(page.getByText('UV peaks at 10.3, Very high, at 1pm.')).toBeVisible()
 
   // Each saved activity gets today's remaining lower-UV window.
   await expect(page.getByRole('button', { name: 'Edit Running' })).toBeVisible()
