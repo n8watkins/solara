@@ -20,14 +20,15 @@ export interface TierLimits {
 }
 
 /**
- * The three plans (owner decision D7, 2026-10-23; calendar on Free is pending):
+ * The three plans (owner decision D7, 2026-10-23; tiers confirmed 2026-10-24):
  *
  * |                     | Guest (no sign-in) | Free account       | Pro     |
  * | ------------------- | ------------------ | ------------------ | ------- |
  * | Forecast            | Today              | Today and tomorrow | 10 days |
  * | Activities          | 1                  | 3                  | 20      |
  * | Storage             | This device only   | Synced             | Synced  |
- * | Calendar, alerts, family profiles | -    | -                  | Yes     |
+ * | Calendar sync       | -                  | Yes                | Yes     |
+ * | Alerts, family profiles | -              | -                  | Yes     |
  */
 export const TIER_LIMITS: Record<TierLevel, TierLimits> = {
   anonymous: {
@@ -41,8 +42,7 @@ export const TIER_LIMITS: Record<TierLevel, TierLimits> = {
   },
   free: {
     activities: 3,
-    // The D7 table lists calendar under Pro, but whether Google Calendar booking
-    // stays free is still the owner's decision, so Free keeps it until then.
+    // Owner decision 2026-10-24: Google Calendar adding and Scheduled stay free.
     calendar: true,
     notifications: false,
     futureDays: 2,

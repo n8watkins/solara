@@ -233,7 +233,7 @@ The Functions enforce App Check in code, so they reject requests without a valid
 Firestore enforcement is a separate console switch.
 To turn it on:
 
-1. Create a reCAPTCHA v3 key for `solara-uv.web.app` and register it for the web app under App Check in the Firebase console (steps in the [owner checklist](OWNER_CHECKLIST.md#next-steps-in-order-as-of-2026-10-23), step 7).
+1. Create a reCAPTCHA v3 key for `solara-uv.web.app` and register it for the web app under App Check in the Firebase console (steps in the [owner checklist](OWNER_CHECKLIST.md#next-steps-in-order), step 5).
 2. Set the `NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY` repository variable to the site key and deploy.
 3. Watch the App Check metrics for Cloud Firestore until verified requests dominate and unverified ones are only old clients and bots.
 4. Enforce App Check for Cloud Firestore in the console.
