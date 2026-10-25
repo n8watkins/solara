@@ -174,8 +174,8 @@ export default function PrivacyPage() {
             personalization are turned off.
           </li>
           <li>
-            <strong>Open-Meteo</strong>: receives rounded coordinates to return forecasts, and city
-            names you search for.
+            <strong>Open-Meteo</strong>: receives rounded coordinates to return forecasts, and the
+            place names you type into a location search, as you type, to suggest matching places.
           </li>
           <li>
             <strong>OpenStreetMap Nominatim</strong> (OpenStreetMap Foundation): receives rounded
