@@ -118,7 +118,9 @@ Every push to `main` runs `.github/workflows/deploy.yml`:
 5. Hosting verifies the digest and deploys exactly the tested artifact, after rules and, when they deploy, Functions.
 
 Pull requests run the same quality workflow without deploying.
-The repository has no branch protection yet, so nothing enforces review; do not push directly to `main`.
+The "Protect main" ruleset requires a pull request and the required checks for every change to `main`.
+A manual run of `deploy.yml` or `notify.yml` (`workflow_dispatch`) may pick any branch, so every job that receives credentials or a deploy token runs only when the ref is `main`; from another branch only the quality checks run.
+Until Workload Identity Federation replaces the key secret, that job condition is the only thing keeping other branches away from production credentials; a `production` environment limited to `main` would add a second guard ([owner checklist](OWNER_CHECKLIST.md#repository)).
 
 ### Manual deploy
 

@@ -1,6 +1,6 @@
 # Solara roadmap
 
-_Last reviewed: 2026-10-24_
+_Last reviewed: 2026-10-25_
 
 This is the plan for the remaining work, in priority order.
 What is live today is in [status.md](status.md); the owner's steps are in the [owner checklist](OWNER_CHECKLIST.md); how lanes are run by parallel agents is in [CONTRIBUTING-AGENTS.md](CONTRIBUTING-AGENTS.md).
@@ -25,7 +25,7 @@ The full, numbered list with exact console links is [Next steps, in order](OWNER
 
 Steps 12-15 (Blaze, staging and Stripe test mode, the Open-Meteo commercial plan, release checks) come at the Pro launch.
 
-## Where we are (2026-10-24)
+## Where we are (2026-10-25)
 
 | Wave | State | PRs |
 | --- | --- | --- |
@@ -38,7 +38,7 @@ Steps 12-15 (Blaze, staging and Stripe test mode, the Open-Meteo commercial plan
 | 5 - features | Scheduled activities done (#55, #56); the rest not started | - |
 | 6 - mobile app | Not started | - |
 
-Also done: the move to `solara-uv.web.app` (#42, #45), Search Console verification (#43), the legal operator details (#46), the privacy policy's Google user data section (#48), the docs consolidation (#53), the costs page and Wave 3 decisions (#68), the new-user sign-in race and test flake fixes (#69), every CodeQL alert (#72, #73) and the "fast checks locally, full suites on CI" agent contract (#74).
+Also done: the move to `solara-uv.web.app` (#42, #45), Search Console verification (#43), the legal operator details (#46), the privacy policy's Google user data section (#48), the docs consolidation (#53), the costs page and Wave 3 decisions (#68), the new-user sign-in race and test flake fixes (#69), every CodeQL alert (#72, #73), the "fast checks locally, full suites on CI" agent contract (#74), the plan docs refresh (#75), and the fixes from the first post-launch code review (client findings in #79, server and rules findings in #81).
 The Wave 4 lane details were removed now that the lanes are merged; what each lane changed is in PRs #57-#67.
 The repository is public, with the "Protect main" ruleset (pull requests, squash merges only, 8 required checks), Dependabot alerts and security updates, secret scanning with push protection, and CodeQL.
 
@@ -47,25 +47,15 @@ The repository is public, with the "Protect main" ruleset (pull requests, squash
 Each item lists its goal, scope, the files or areas it owns, acceptance criteria, what it depends on and a rough size (S: under a day of agent time, M: one to three days, L: more).
 Items 1-8 need no Blaze and can start now; items 9-11 wait for the Pro launch.
 
-### 1. Change-aware CI (in progress)
+### 1. Change-aware CI (done, #76)
 
-- **Goal:** a pull request runs only the suites its files can affect, so docs-only and small PRs finish in minutes.
-- **Scope:** each required CI job detects whether the PR touches its area and, if not, exits green quickly; a docs-only PR runs only lint and `check:docs`; changes to `.github/`, the lockfiles, configuration files or `packages/core` force every job; a push to `main` always runs everything.
-- **Owns:** `.github/**`, the README's quality-checks section and `docs/CONTRIBUTING-AGENTS.md` (branch `ci/change-aware-checks`).
-- **Acceptance:** all 8 checks in the "Protect main" ruleset still report on every PR (skipped work reports success, never "missing"); a docs-only PR and a force-all PR each behave as described; the deploy workflow is unchanged.
-- **Depends on:** nothing.
-- **Size:** M.
+Done 2026-10-25 in #76: each required check reports on every pull request and runs its suite only when the changed files can affect it; the README's [change-aware checks](../README.md#change-aware-checks) table lists which paths run which suite.
 
-### 2. Sun arc peak label clipped on phones (in progress)
+### 2. Sun arc peak label clipped on phones (done, #78)
 
-- **Goal:** the dashboard's sun arc shows the full "Peak 10.3 · 1pm" label at 390 px.
-- **Scope:** keep the peak callout inside the arc's box at every width, for peaks near either edge.
-- **Owns:** `components/SunArc.tsx`, `components/dashboard/SunArcMarkers.tsx`, `lib/sun-arc.ts`.
-- **Acceptance:** a harness screen at 390 px with an early and a late peak shows the whole label; other harness screens are pixel-identical.
-- **Depends on:** nothing.
-- **Size:** S.
+Done 2026-10-25 in #78: the peak callout stays inside the arc's box at every width, for early and late peaks.
 
-### 3. Faster app load on phones (PERF-2 part, W3-C remainder) (in progress, #83)
+### 3. Faster app load on phones (PERF-2 part, W3-C remainder) (merged in #83)
 
 - **Goal:** `/app/` mobile LCP under 2.5 s (Lighthouse mobile, simulated Slow 4G) from 5.9 s measured in #71, and the guest app's first load under 200 KB gzip of JavaScript (about 175 KB today).
 - **Scope:** load Firebase (Auth, Firestore, App Check) only when the person signs in or an existing session is detected; lazy-load the dialogs (Settings, Pricing, activity dialogs) and the calendar view; render the guest dashboard from the cached forecast without waiting for Firebase.
@@ -83,17 +73,10 @@ Items 1-8 need no Blaze and can start now; items 9-11 wait for the Pro launch.
 - **Depends on:** item 3 (the lazy boundaries decide what goes in the shell).
 - **Size:** M.
 
-### 5. Place autocomplete in onboarding (PROD-6, in review)
+### 5. Place autocomplete in onboarding (PROD-6, done, #80)
 
-- **Goal:** a person who declines location access can type a town and pick it from suggestions.
-- **Scope:** debounced, rate-limited place search through the existing cached geocode helper, keyboard and screen-reader friendly, coordinates rounded to 2 decimals as everywhere else; reuse it in the location popover.
-- **Owns:** onboarding location step, `components/LocationPopover.tsx` search, the geocode helper, `components/PlaceSearch.tsx`.
-- **Acceptance:** e2e covers typing, choosing with the keyboard and the no-results state with a faked geocoder; axe shows no violations; the Nominatim usage policy (one request per second, attribution) is respected.
-- **State:** in review in #80.
-  Suggestions come from Open-Meteo's place search, which the app already used, because Nominatim's usage policy forbids client-side autocomplete; Nominatim stays for "use my location" names only.
-  Settings still has the older search box without suggestions.
-- **Depends on:** nothing; a commercial geocoder can replace Open-Meteo's place search later.
-- **Size:** S-M.
+Done 2026-10-25 in #80: setup and the header's location panel suggest places while typing, from Open-Meteo's place search (Nominatim's usage policy forbids client-side autocomplete; it stays for "use my location" names).
+Settings still has the older search box without suggestions.
 
 ### 6. Forecast proxy and licensing (BE-12, with D5)
 

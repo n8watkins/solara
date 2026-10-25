@@ -20,6 +20,9 @@ concurrency:
 
 jobs:
   notify:
+    # A manual run can pick any branch; only main's notifier may use the
+    # production credentials.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
