@@ -42,7 +42,7 @@ const SCREENS: { name: string; open: (page: Page) => Promise<Locator> }[] = [
       await expect(page.getByRole('option')).toHaveCount(2)
       await field.press('ArrowDown')
       return page.getByRole('option', {
-        name: 'Pasadena, California, United States',
+        name: 'Pasadena California, United States',
         selected: true,
       })
     },

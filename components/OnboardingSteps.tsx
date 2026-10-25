@@ -89,7 +89,7 @@ export function LocationStep({
       <button className={PRIMARY} onClick={onGeolocate} disabled={loading}>
         {loading ? 'Detecting…' : '📍 Use my location'}
       </button>
-      <DataAttribution compact className="mt-4 text-center" />
+      <DataAttribution compact className="mt-4 text-center text-balance" />
     </>
   )
 }

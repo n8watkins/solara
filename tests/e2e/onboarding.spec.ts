@@ -151,10 +151,11 @@ test('suggests places while typing and picks one with the keyboard', async ({ pa
   await field.pressSequentially('Pasa', { delay: 40 })
 
   const list = page.getByRole('listbox', { name: 'Suggested places' })
-  await expect(list.getByRole('option')).toHaveText([
-    'PasadenaCalifornia, United States',
-    'PasadenaTexas, United States',
-  ])
+  await expect(list.getByRole('option')).toHaveCount(2)
+  await expect(
+    list.getByRole('option', { name: 'Pasadena California, United States' }),
+  ).toBeVisible()
+  await expect(list.getByRole('option', { name: 'Pasadena Texas, United States' })).toBeVisible()
   await expect(field).toHaveAttribute('aria-expanded', 'true')
   await expect(page.getByRole('status').filter({ hasText: '2 suggestions' })).toBeAttached()
   // Typing is debounced: one search for the whole word, not one per letter.
@@ -165,7 +166,7 @@ test('suggests places while typing and picks one with the keyboard', async ({ pa
   await field.press('ArrowDown')
   await field.press('ArrowDown')
   await field.press('ArrowUp')
-  const texas = list.getByRole('option', { name: 'Pasadena, Texas, United States' })
+  const texas = list.getByRole('option', { name: 'Pasadena Texas, United States' })
   await expect(texas).toHaveAttribute('aria-selected', 'true')
   await expect(field).toHaveAttribute('aria-activedescendant', (await texas.getAttribute('id'))!)
   await expect(field).toBeFocused()
@@ -196,7 +197,7 @@ test('Escape closes the suggestions and a click picks one', async ({ page }) => 
 
   await field.press('ArrowDown')
   await expect(list).toBeVisible()
-  await list.getByRole('option', { name: 'Pasadena, California, United States' }).click()
+  await list.getByRole('option', { name: 'Pasadena California, United States' }).click()
   await expect(page.getByText('UV index right now in')).toBeVisible()
 })
 

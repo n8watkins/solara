@@ -31,9 +31,9 @@ interface Props {
   autoFocus?: boolean
 }
 
-function suggestionLabel({ location, detail }: PlaceSuggestion): string {
-  return detail ? `${location.city}, ${detail}` : location.city
-}
+/** The floating box under the field that holds the list or a message. */
+const POPUP =
+  'absolute inset-x-0 top-[calc(100%+4px)] z-[110] overflow-hidden rounded-[12px] border-[0.5px] border-line-strong bg-surface-card shadow-[0_8px_24px_rgba(0,0,0,0.15)]'
 
 export default function PlaceSearch({
   id,
@@ -68,13 +68,12 @@ export default function PlaceSearch({
           ? 'Searching…'
           : null
   const activeIndex = showList && active < suggestions.length ? active : -1
-  // What a screen reader hears when the list changes (the visible text says the rest).
-  const announcement =
-    open && status === 'done' && suggestions.length > 0
+  // Screen readers hear how many places the list offers; the messages above are
+  // visible text inside a live region of their own.
+  const countAnnouncement =
+    showList && status === 'done'
       ? `${suggestions.length} ${suggestions.length === 1 ? 'suggestion' : 'suggestions'}. Use the up and down arrow keys to choose.`
-      : open && status !== 'loading'
-        ? (message ?? '')
-        : ''
+      : ''
 
   function choose(suggestion: PlaceSuggestion) {
     setOpen(false)
@@ -180,15 +179,11 @@ export default function PlaceSearch({
         </button>
       </div>
 
-      <div
-        hidden={!showList && !message}
-        className="absolute inset-x-0 top-[calc(100%+4px)] z-[110] overflow-hidden rounded-[12px] border-[0.5px] border-line-strong bg-surface-card shadow-[0_8px_24px_rgba(0,0,0,0.15)]"
-      >
+      <div hidden={!showList} className={POPUP}>
         <ul
           id={listId}
           role="listbox"
           aria-label="Suggested places"
-          hidden={!showList}
           aria-busy={status === 'loading'}
           className="m-0 list-none p-1"
         >
@@ -198,7 +193,6 @@ export default function PlaceSearch({
               id={optionId(index)}
               role="option"
               aria-selected={index === activeIndex}
-              aria-label={suggestionLabel(suggestion)}
               // Keep focus in the field, so the list stays open and the pick lands.
               onMouseDown={event => event.preventDefault()}
               onClick={() => choose(suggestion)}
@@ -229,9 +223,13 @@ export default function PlaceSearch({
             </li>
           ))}
         </ul>
+      </div>
+
+      <div role="status">
         {!showList && message && (
           <p
             className={clsx(
+              POPUP,
               'm-0 text-ink-2',
               small ? 'px-3 py-2 text-[12px]' : 'px-3.5 py-2.5 text-[13px]',
             )}
@@ -240,9 +238,8 @@ export default function PlaceSearch({
           </p>
         )}
       </div>
-
       <span role="status" className="sr-only">
-        {announcement}
+        {countAnnouncement}
       </span>
     </div>
   )

@@ -113,7 +113,7 @@ const SCREENS: Screen[] = [
       await expect(page.getByRole('option')).toHaveCount(3)
       await field.press('ArrowDown')
       await field.press('ArrowDown')
-      return page.getByRole('option', { name: 'Pasadena, Texas, United States', selected: true })
+      return page.getByRole('option', { name: 'Pasadena Texas, United States', selected: true })
     },
   },
   {
