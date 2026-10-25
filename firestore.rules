@@ -9,10 +9,21 @@ rules_version = '2';
 // term costs several), and the emulator enforces the same limit. Each list fits at its cap
 // on its own, and so does a realistic write that changes several lists; one write that
 // changes every list at its cap does not, which is fine because clients save one change at
-// a time. Top-level fields are fully
-// typed; list elements get a key allowlist plus a size cap on their free-text field, which
-// bounds growth without exceeding the budget. Lists are unrolled (rules cannot loop) and nested so that
+// a time. Top-level fields are fully typed. List elements get a key allowlist, number
+// checks on coordinates, and their free text checked as a string of bounded length in one
+// regex match (`matches('(?s).{0,N}')` fails on anything but a short enough string, at
+// the cost of a single call). Lists are unrolled (rules cannot loop) and nested so that
 // evaluation stops at the list's real length.
+//
+// Accepted gap: the other activity fields (durationMins, maxUV, preferredHours, daysOfWeek
+// and the rest) are only allowlisted, not typed. Even one more check per activity breaks
+// the budget at 20 activities in the realistic multi-list write tested in
+// functions/test/emulator/firestore.rules.test.js. A bad value only affects its own
+// account: the client parser falls back to defaults, and the document stays under
+// Firestore's 1 MiB limit.
+//
+// Plan limits: the lists are also held to the account's plan (withinPlan), which the
+// server owns, so a Free account cannot take Pro capacity by writing to Firestore directly.
 service cloud.firestore {
   match /databases/{database}/documents {
     function isOwner(userId) {
@@ -32,7 +43,7 @@ service cloud.firestore {
         && location.keys().hasOnly(['lat', 'lon', 'city', 'region', 'timezone'])
         && location.lat is number && location.lat >= -90 && location.lat <= 90
         && location.lon is number && location.lon >= -180 && location.lon <= 180
-        && location.city is string && location.city.size() <= 120
+        && location.city.size() <= 120
         && location.region is string && location.region.size() <= 120
         && (!('timezone' in location)
           || (location.timezone is string && location.timezone.size() <= 64));
@@ -43,8 +54,8 @@ service cloud.firestore {
       return location.keys().hasOnly(allowedKeys)
         && location.lat is number
         && location.lon is number
-        && location.city.size() <= 120
-        && location.region.size() <= 120;
+        && location.city.matches('(?s).{0,120}')
+        && location.region.matches('(?s).{0,120}');
     }
 
     // At most 12 shortcuts, matching normalizeSavedLocations.
@@ -67,7 +78,7 @@ service cloud.firestore {
     }
 
     function validProfile(profile, allowedKeys) {
-      return profile.keys().hasOnly(allowedKeys) && profile.name.size() <= 40;
+      return profile.keys().hasOnly(allowedKeys) && profile.name.matches('(?s).{0,40}');
     }
 
     // At most 12 profiles, matching normalizeProfiles.
@@ -89,8 +100,10 @@ service cloud.firestore {
           && (n < 12 || (validProfile(list[11], k)))))))))))))))))))))))));
     }
 
+    // Only the name is typed; see "Accepted gap" at the top.
     function validActivity(activity, allowedKeys) {
-      return activity.keys().hasOnly(allowedKeys) && activity.name.size() <= 100;
+      return activity.keys().hasOnly(allowedKeys)
+        && activity.name.matches('(?s).{0,100}');
     }
 
     // Checks list[start] .. list[start + 9], stopping at the list's end. Blocks keep each
@@ -153,6 +166,17 @@ service cloud.firestore {
       ];
     }
 
+    // The plan's cap for a list (lib/tiers.ts TIER_LIMITS, checked by
+    // lib/firestore-rules.test.ts): Pro's on a paid account, Free's on any other. `tier`
+    // is server-owned, so the stored value is the one that counts. A list may also stay
+    // as long as it already is (`prior` is the stored document, or {} on create), so an
+    // account that drops back to Free can still edit and shrink what it saved on Pro.
+    function withinPlan(data, prior, field, freeMax, paidMax) {
+      let n = data[field].size();
+      return n <= (data.get('tier', 'free') == 'paid' ? paidMax : freeMax)
+        || n <= prior.get(field, []).size();
+    }
+
     // ---- Document validators ----------------------------------------------------------
 
     // Client-writable preference fields. Server-owned fields (tier after creation, billing,
@@ -168,20 +192,25 @@ service cloud.firestore {
     }
 
     // Validates every preference field named in `keys` (the written or changed keys).
-    function validPreferences(data, keys) {
+    // `prior` is the stored document on update, or {} on create.
+    function validPreferences(data, keys, prior) {
       return (!('schemaVersion' in keys)
           || (data.schemaVersion is int && data.schemaVersion >= 1 && data.schemaVersion <= 100))
         && (!('location' in keys) || validLocation(data.location))
         && (!('savedLocations' in keys)
-          || (data.savedLocations is list && validSavedLocations(data.savedLocations)))
+          || (data.savedLocations is list && validSavedLocations(data.savedLocations)
+            && withinPlan(data, prior, 'savedLocations', 3, 12)))
         && (!('skinType' in keys)
           || data.skinType in ['very-fair', 'fair', 'medium', 'olive', 'dark'])
-        && (!('profiles' in keys) || (data.profiles is list && validProfiles(data.profiles)))
+        && (!('profiles' in keys)
+          || (data.profiles is list && validProfiles(data.profiles)
+            && withinPlan(data, prior, 'profiles', 1, 6)))
         && (!('activeProfileId' in keys)
           || (data.activeProfileId is string && data.activeProfileId.size() <= 64))
         && (!('sunscreen' in keys) || data.sunscreen is bool)
         && (!('activities' in keys)
-          || (data.activities is list && validActivities(data.activities)))
+          || (data.activities is list && validActivities(data.activities)
+            && withinPlan(data, prior, 'activities', 3, 20)))
         && (!('onboardingComplete' in keys) || data.onboardingComplete is bool)
         && (!('calendarHours' in keys) || validCalendarHours(data.calendarHours))
         && (!('showSunPath' in keys) || data.showSunPath is bool)
@@ -194,8 +223,8 @@ service cloud.firestore {
         && (!('upgradeInterest' in keys) || validUpgradeInterest(data.upgradeInterest))
         && (!('notificationHour' in keys)
           || (data.notificationHour is int
-            && data.notificationHour >= 0
-            && data.notificationHour <= 23))
+            && data.notificationHour >= 5
+            && data.notificationHour <= 10))
         && (!('temperatureUnit' in keys)
           || data.temperatureUnit in ['auto', 'celsius', 'fahrenheit'])
         && (!('clockFormat' in keys) || data.clockFormat in ['auto', '12h', '24h']);
@@ -211,7 +240,7 @@ service cloud.firestore {
         && keys.removeAll(['uid', 'tier']).hasOnly(preferenceKeys())
         && data.uid == userId
         && data.tier in ['anonymous', 'free']
-        && validPreferences(data, keys);
+        && validPreferences(data, keys, {});
     }
 
     function validUserUpdate(userId) {
@@ -224,7 +253,7 @@ service cloud.firestore {
       // document that a newer one migrated.
       return written.hasOnly(preferenceKeys())
         && changed.removedKeys().hasOnly(['calendarFeedToken'])
-        && validPreferences(data, written)
+        && validPreferences(data, written, resource.data)
         && (!('schemaVersion' in resource.data)
           || data.schemaVersion >= resource.data.schemaVersion);
     }

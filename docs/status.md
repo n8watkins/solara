@@ -28,6 +28,7 @@ What users get:
 - Opt-in Google Analytics 4.
 - The privacy policy and terms with the operator details (#46), the Google user data section (#48) and the Sentry and reCAPTCHA notices (#70).
 - Firestore rules and indexes, deployed by every push to `main`.
+  The rules also hold each account's activities, saved places and profiles to its plan (Free 3, 3 and 1; Pro 20, 12 and 6), so the limits do not depend on the client; an account back on Free keeps and can shrink what it saved on Pro.
 
 ## Built but switched off
 

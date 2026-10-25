@@ -56,6 +56,18 @@ function numberIn(source: string, pattern: RegExp): number {
   return Number(match[1])
 }
 
+/** The cap N of a list element's text field, checked as `field.matches('(?s).{0,N}')`. */
+function textCap(source: string, field: string): number {
+  return numberIn(source, new RegExp(`\\.${field}\\.matches\\('\\(\\?s\\)\\.\\{0,(\\d+)\\}'\\)`))
+}
+
+/** The Free and Pro caps that `withinPlan` applies to a list field. */
+function planCaps(source: string, field: string): { free: number; paid: number } {
+  const match = new RegExp(`withinPlan\\(data, prior, '${field}', (\\d+), (\\d+)\\)`).exec(source)
+  if (!match?.[1] || !match[2]) throw new Error(`withinPlan for ${field} not found`)
+  return { free: Number(match[1]), paid: Number(match[2]) }
+}
+
 function rulesList(functionName: string): string[] {
   return listAfter(rulesFunction(functionName), 'return [')
 }
@@ -112,12 +124,8 @@ describe('firestore.rules match the preferences schema', () => {
     expect(numberIn(preferences, /schemaVersion <= (\d+)/)).toBeGreaterThanOrEqual(
       PREFS_SCHEMA_VERSION,
     )
-    expect(numberIn(preferences, /notificationHour >= (\d+)/)).toBeLessThanOrEqual(
-      NOTIFICATION_HOUR.min,
-    )
-    expect(numberIn(preferences, /notificationHour <= (\d+)/)).toBeGreaterThanOrEqual(
-      NOTIFICATION_HOUR.max,
-    )
+    expect(numberIn(preferences, /notificationHour >= (\d+)/)).toBe(NOTIFICATION_HOUR.min)
+    expect(numberIn(preferences, /notificationHour <= (\d+)/)).toBe(NOTIFICATION_HOUR.max)
     const hours = rulesFunction('validCalendarHours')
     expect(numberIn(hours, /hours\.from >= (\d+)/)).toBe(CALENDAR_HOUR_BOUNDS.from.min)
     expect(numberIn(hours, /hours\.from <= (\d+)/)).toBe(CALENDAR_HOUR_BOUNDS.from.max)
@@ -146,8 +154,8 @@ describe('firestore.rules match the preferences schema', () => {
       PREFS_LIMITS.savedLocations,
     )
     const one = rulesFunction('validSavedLocation')
-    expect(numberIn(one, /city\.size\(\) <= (\d+)/)).toBe(PREFS_LIMITS.placeNameLength)
-    expect(numberIn(one, /region\.size\(\) <= (\d+)/)).toBe(PREFS_LIMITS.placeNameLength)
+    expect(textCap(one, 'city')).toBe(PREFS_LIMITS.placeNameLength)
+    expect(textCap(one, 'region')).toBe(PREFS_LIMITS.placeNameLength)
   })
 
   it('checks profiles with the schema keys and caps', () => {
@@ -155,9 +163,7 @@ describe('firestore.rules match the preferences schema', () => {
     expect(sorted(listAfter(profiles, 'let k ='))).toEqual(sorted(Object.keys(PROFILE_SHAPE)))
     expect(numberIn(profiles, /n <= (\d+)/)).toBe(PREFS_LIMITS.profiles)
     expect(profiles.match(/validProfile\(list\[\d+\]/g)).toHaveLength(PREFS_LIMITS.profiles)
-    expect(numberIn(rulesFunction('validProfile'), /name\.size\(\) <= (\d+)/)).toBe(
-      PREFS_LIMITS.profileNameLength,
-    )
+    expect(textCap(rulesFunction('validProfile'), 'name')).toBe(PREFS_LIMITS.profileNameLength)
   })
 
   it('checks activities with the schema keys and caps', () => {
@@ -168,9 +174,7 @@ describe('firestore.rules match the preferences schema', () => {
     const perBlock = block.match(/validActivity\(list\[start/g)?.length ?? 0
     const blocks = activities.match(/validActivityBlock\(list, k, n, \d+\)/g)?.length ?? 0
     expect(perBlock * blocks).toBeGreaterThanOrEqual(PREFS_LIMITS.activities)
-    expect(numberIn(rulesFunction('validActivity'), /name\.size\(\) <= (\d+)/)).toBe(
-      PREFS_LIMITS.activityNameLength,
-    )
+    expect(textCap(rulesFunction('validActivity'), 'name')).toBe(PREFS_LIMITS.activityNameLength)
   })
 
   it('checks the upgrade interest with the schema caps', () => {
@@ -178,6 +182,23 @@ describe('firestore.rules match the preferences schema', () => {
     expect(sorted(listAfter(interest, 'hasOnly('))).toEqual(['createdAt', 'email'])
     expect(numberIn(interest, /createdAt\.size\(\) <= (\d+)/)).toBe(PREFS_LIMITS.timestampLength)
     expect(numberIn(interest, /email\.size\(\) <= (\d+)/)).toBe(PREFS_LIMITS.emailLength)
+  })
+
+  it('holds each list to the Free and Pro plan limits', () => {
+    expect(planCaps(preferences, 'activities')).toEqual({
+      free: TIER_LIMITS.free.activities,
+      paid: TIER_LIMITS.paid.activities,
+    })
+    expect(planCaps(preferences, 'savedLocations')).toEqual({
+      free: TIER_LIMITS.free.savedLocations,
+      paid: TIER_LIMITS.paid.savedLocations,
+    })
+    expect(planCaps(preferences, 'profiles')).toEqual({
+      free: TIER_LIMITS.free.profiles,
+      paid: TIER_LIMITS.paid.profiles,
+    })
+    // Only the paid tier gets Pro caps; every other stored tier gets Free's.
+    expect(rulesFunction('withinPlan')).toContain("data.get('tier', 'free') == 'paid'")
   })
 
   it('caps the tiers no higher than the rules allow', () => {
