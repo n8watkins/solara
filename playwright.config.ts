@@ -18,6 +18,10 @@ function freePort(): number {
 // worker processes, which load this config again, agree on the same port.
 const port = Number(process.env.PLAYWRIGHT_PORT) || freePort()
 process.env.PLAYWRIGHT_PORT = String(port)
+// The old address's redirect-only site (firebase.json's second site), for
+// tests/e2e/hosting-redirect.spec.ts.
+const redirectPort = Number(process.env.PLAYWRIGHT_REDIRECT_PORT) || freePort()
+process.env.PLAYWRIGHT_REDIRECT_PORT = String(redirectPort)
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -41,33 +45,44 @@ export default defineConfig({
       use: { ...devices['Pixel 7'] },
     },
   ],
-  webServer: {
-    command: `node tests/e2e/serve-export.mjs ${port}`,
-    url: `http://127.0.0.1:${port}`,
-    // Never reuse a server: a stale one would serve an old build.
-    reuseExistingServer: false,
-    // The default build runs first (about a minute on a cold CI runner).
-    timeout: 240_000,
-    // SIGTERM lets the emulator shut down cleanly and remove its temporary config.
-    gracefulShutdown: { signal: 'SIGTERM', timeout: 10_000 },
-    stdout: 'pipe',
-    // Hermetic public env for the default build: no Firebase project, so the app
-    // stays signed out, and a fake GA id so the consent flow renders. The process
-    // env wins over .env files, so a developer's .env.local cannot leak in.
-    env: {
-      NEXT_PUBLIC_FIREBASE_API_KEY: '',
-      NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: '',
-      NEXT_PUBLIC_FIREBASE_PROJECT_ID: '',
-      NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: '',
-      NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: '',
-      NEXT_PUBLIC_FIREBASE_APP_ID: '',
-      NEXT_PUBLIC_FIREBASE_VAPID_KEY: '',
-      NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY: '',
-      NEXT_PUBLIC_FUNCTIONS_URL: '',
-      NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID: '',
-      NEXT_PUBLIC_GA_MEASUREMENT_ID: 'G-TEST123',
-      NEXT_PUBLIC_SENTRY_DSN: '',
-      NEXT_TELEMETRY_DISABLED: '1',
+  webServer: [
+    {
+      command: `node tests/e2e/serve-export.mjs ${port}`,
+      url: `http://127.0.0.1:${port}`,
+      // Never reuse a server: a stale one would serve an old build.
+      reuseExistingServer: false,
+      // The default build runs first (about a minute on a cold CI runner).
+      timeout: 240_000,
+      // SIGTERM lets the emulator shut down cleanly and remove its temporary config.
+      gracefulShutdown: { signal: 'SIGTERM', timeout: 10_000 },
+      stdout: 'pipe',
+      // Hermetic public env for the default build: no Firebase project, so the app
+      // stays signed out, and a fake GA id so the consent flow renders. The process
+      // env wins over .env files, so a developer's .env.local cannot leak in.
+      env: {
+        NEXT_PUBLIC_FIREBASE_API_KEY: '',
+        NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: '',
+        NEXT_PUBLIC_FIREBASE_PROJECT_ID: '',
+        NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: '',
+        NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: '',
+        NEXT_PUBLIC_FIREBASE_APP_ID: '',
+        NEXT_PUBLIC_FIREBASE_VAPID_KEY: '',
+        NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY: '',
+        NEXT_PUBLIC_FUNCTIONS_URL: '',
+        NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID: '',
+        NEXT_PUBLIC_GA_MEASUREMENT_ID: 'G-TEST123',
+        NEXT_PUBLIC_SENTRY_DSN: '',
+        NEXT_TELEMETRY_DISABLED: '1',
+      },
     },
-  },
+    {
+      command: `node tests/e2e/serve-export.mjs ${redirectPort} --redirect-site`,
+      // Every path answers with a redirect, so wait for the port rather than a URL.
+      port: redirectPort,
+      reuseExistingServer: false,
+      timeout: 60_000,
+      gracefulShutdown: { signal: 'SIGTERM', timeout: 10_000 },
+      stdout: 'pipe',
+    },
+  ],
 })
