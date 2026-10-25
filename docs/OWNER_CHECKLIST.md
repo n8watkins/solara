@@ -76,7 +76,9 @@ Already done: the domain move to `solara-uv.web.app`, the Firestore index role (
 - [x] Make the repository public (D2, 2026-10-23).
 - [x] "Protect main" ruleset: pull requests, squash merges only, 8 required checks.
 - [x] Secret scanning with push protection, CodeQL default setup, Dependabot alerts and security updates.
-- [ ] Optional: private vulnerability reporting, and a `production` environment with a required reviewer for the deploy jobs.
+- [ ] Optional: private vulnerability reporting.
+- [ ] Recommended: a `production` environment (**Settings**, **Environments**) with **Deployment branches** set to `main` only and optionally a required reviewer; ask the agent to attach the deploy and notifier jobs to it, and once that is merged, move the `FIREBASE_SERVICE_ACCOUNT` and `SENTRY_AUTH_TOKEN` secrets into the environment.
+  The workflows already refuse to deploy or notify from any other branch, so this is a second guard that GitHub enforces.
 
 ## Credentials
 

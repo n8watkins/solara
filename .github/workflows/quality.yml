@@ -495,7 +495,9 @@ jobs:
         uses: zizmorcore/zizmor-action@53290badfa369cb0bf7ad16342cb62c2fa47ac7b # v0.8.0
         with:
           version: 1.31.1
-          # Code scanning needs GitHub Advanced Security, which this private repo lacks.
+          # Findings show as annotations and fail the job. Uploading them to code
+          # scanning (free now that the repository is public) would also need
+          # security-events: write, which this job does not grant.
           advanced-security: false
           annotations: true
 
@@ -540,8 +542,8 @@ jobs:
 
   dependency-review:
     name: Dependency review
-    # Dependency review needs the dependency graph, which GitHub offers only for
-    # public repositories or with Advanced Security. Dependabot covers private.
+    # Dependency review needs the dependency graph, which GitHub offers for public
+    # repositories (this one since 2026-10-23) or with Advanced Security.
     if: github.event_name == 'pull_request' && !github.event.repository.private
     runs-on: ubuntu-latest
     timeout-minutes: 5

@@ -7,6 +7,10 @@
 #
 # Credentials: Workload Identity Federation when the GCP_* repository variables
 # are set (docs/WIF_SETUP.md), otherwise the FIREBASE_SERVICE_ACCOUNT key secret.
+#
+# Only main deploys. A manual run (workflow_dispatch) can pick any branch, so
+# every job that receives credentials or a deploy token also checks the ref;
+# on another branch only the quality checks run.
 name: Deploy
 
 on:
@@ -31,6 +35,7 @@ jobs:
 
   build:
     name: Build production artifact
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -179,7 +184,7 @@ jobs:
     name: Attest build provenance
     # Artifact attestations need a public repository (or GitHub Enterprise Cloud).
     # Until then dist/provenance.json and the job summary record the digest.
-    if: ${{ !github.event.repository.private }}
+    if: ${{ github.ref == 'refs/heads/main' && !github.event.repository.private }}
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -199,6 +204,7 @@ jobs:
 
   firestore-rules:
     name: Firestore rules
+    if: github.ref == 'refs/heads/main'
     needs: [quality, build]
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -221,6 +227,7 @@ jobs:
 
   firestore-indexes:
     name: Firestore indexes
+    if: github.ref == 'refs/heads/main'
     needs: [quality, build]
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -247,7 +254,7 @@ jobs:
 
   functions:
     name: Cloud Functions
-    if: vars.ENABLE_BLAZE_FUNCTIONS == 'true'
+    if: github.ref == 'refs/heads/main' && vars.ENABLE_BLAZE_FUNCTIONS == 'true'
     # Functions query the declared indexes and rely on the final rules.
     needs: [quality, build, firestore-rules, firestore-indexes]
     runs-on: ubuntu-latest
@@ -303,6 +310,7 @@ jobs:
     needs: [quality, build, firestore-rules, functions]
     if: >-
       !cancelled()
+      && github.ref == 'refs/heads/main'
       && needs.quality.result == 'success'
       && needs.build.result == 'success'
       && needs.firestore-rules.result == 'success'
