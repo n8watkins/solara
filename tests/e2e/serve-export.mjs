@@ -4,7 +4,10 @@
 // export with the real firebase.json headers, rewrites and caching rules, not
 // `next dev`.
 //
-// Usage: node tests/e2e/serve-export.mjs <port>
+// Usage: node tests/e2e/serve-export.mjs <port> [--redirect-site]
+//
+// With --redirect-site it serves firebase.json's second site instead: the old
+// address that only redirects to the app (hosting-redirect/), with no build.
 //
 // By default it first runs `npm run build` with the caller's environment (the
 // Playwright config passes a hermetic public env), which also runs the prebuild
@@ -15,20 +18,46 @@
 // functions/package-lock.json), so run `npm ci --prefix functions` first.
 import { spawn, spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { createServer } from 'node:net'
 import { join, relative, resolve } from 'node:path'
 
 const HOST = '127.0.0.1'
 const port = Number(process.argv[2])
+const redirectSite = process.argv.slice(3).includes('--redirect-site')
 if (!Number.isInteger(port) || port <= 0) {
-  console.error('Usage: node tests/e2e/serve-export.mjs <port>')
+  console.error('Usage: node tests/e2e/serve-export.mjs <port> [--redirect-site]')
   process.exit(2)
 }
 
-const prebuilt = process.env.E2E_SITE_DIR
-const siteDir = resolve(prebuilt || 'out')
+// firebase.json lists the app site first; the second site only redirects the old
+// address. Serve one site's headers, rewrites, redirects and caching rules.
+const { site: _site, ...hosting } = JSON.parse(readFileSync('firebase.json', 'utf8')).hosting[
+  redirectSite ? 1 : 0
+]
+// Production Hosting matches `regex` redirects with RE2, and so does the emulator
+// when the optional `re2` native module loaded. CI installs with --ignore-scripts, so
+// the emulator falls back to JavaScript RegExp, which spells a named group `(?<name>`
+// instead of RE2's `(?P<name>` (superstatic's documented fallback). Translate only that
+// spelling, so the rest of the pattern is tested exactly as deployed.
+if (redirectSite && !re2Loads()) {
+  hosting.redirects = hosting.redirects.map(redirect =>
+    redirect.regex ? { ...redirect, regex: redirect.regex.replaceAll('(?P<', '(?<') } : redirect,
+  )
+}
 
-if (!prebuilt) {
+function re2Loads() {
+  try {
+    createRequire(resolve('functions/package.json'))('re2')
+    return true
+  } catch {
+    return false
+  }
+}
+const prebuilt = process.env.E2E_SITE_DIR
+const siteDir = resolve(redirectSite ? hosting.public : prebuilt || 'out')
+
+if (!prebuilt && !redirectSite) {
   const build = spawnSync('npm', ['run', 'build'], { stdio: 'inherit', env: process.env })
   if (build.status !== 0) process.exit(build.status ?? 1)
 }
@@ -78,9 +107,6 @@ while (!(await portIsFree(port))) {
   }
   await new Promise(resolveDelay => setTimeout(resolveDelay, 250))
 }
-// firebase.json lists the app site first; the second site only redirects the
-// old address. Serve the app site's headers, rewrites and caching rules.
-const { site: _appSite, ...hosting } = JSON.parse(readFileSync('firebase.json', 'utf8')).hosting[0]
 // The config lives in the gitignored .firebase/ directory: firebase-tools resolves
 // `public` relative to the config file and serves nothing for a public directory
 // outside an ancestor of the config.

@@ -36,6 +36,14 @@ before(async () => {
 })
 
 afterEach(async () => testEnv.clearFirestore())
+
+/** Stores `users/{uid}` as the server would (tier is server-owned) and returns the owner's ref. */
+async function seededRef(uid, overrides = {}) {
+  await testEnv.withSecurityRulesDisabled(async context => {
+    await context.firestore().doc(`users/${uid}`).set(prefs(uid, overrides))
+  })
+  return testEnv.authenticatedContext(uid).firestore().doc(`users/${uid}`)
+}
 after(async () => testEnv.cleanup())
 
 describe('user preferences', () => {
@@ -92,11 +100,16 @@ describe('user preferences', () => {
     await assertFails(db.doc('users/alice').set(prefs('alice', { notificationsEnabled: true })))
   })
 
-  test('notification delivery hour must be a local hour', async () => {
+  test('notification delivery hour is a morning hour the schema allows (5-10)', async () => {
     const db = testEnv.authenticatedContext('alice').firestore()
     const ref = db.doc('users/alice')
     await assertSucceeds(ref.set(prefs('alice', { notificationHour: 8 })))
+    await assertSucceeds(ref.update({ notificationHour: 5 }))
+    await assertSucceeds(ref.update({ notificationHour: 10 }))
+    await assertFails(ref.update({ notificationHour: 4 }))
+    await assertFails(ref.update({ notificationHour: 11 }))
     await assertFails(ref.update({ notificationHour: 24 }))
+    await assertFails(ref.update({ notificationHour: 7.5 }))
     await assertFails(ref.update({ notificationHour: 'morning' }))
   })
 
@@ -124,6 +137,9 @@ describe('user preferences', () => {
         location: { lat: 0, lon: 0, city: 123, region: '' },
       }),
     )
+    // A list or map has a size() too, so only the type check rejects these.
+    await assertFails(ref.update({ location: { lat: 0, lon: 0, city: ['Seattle'], region: '' } }))
+    await assertFails(ref.update({ location: { lat: 0, lon: 0, city: 'Seattle', region: ['WA'] } }))
     await assertFails(
       ref.update({
         location: { lat: 0, lon: 0, city: 'Missing region' },
@@ -132,8 +148,7 @@ describe('user preferences', () => {
   })
 
   test('saved locations are bounded and each location is valid', async () => {
-    const db = testEnv.authenticatedContext('alice').firestore()
-    const ref = db.doc('users/alice')
+    const ref = await seededRef('alice', { tier: 'paid' })
     const savedLocations = Array.from({ length: 12 }, (_, index) => ({
       lat: index,
       lon: -index,
@@ -141,7 +156,7 @@ describe('user preferences', () => {
       region: 'WA',
     }))
 
-    await assertSucceeds(ref.set(prefs('alice', { savedLocations })))
+    await assertSucceeds(ref.update({ savedLocations }))
     await assertFails(
       ref.update({
         savedLocations: [...savedLocations, { lat: 20, lon: 20, city: 'Extra', region: 'WA' }],
@@ -219,7 +234,7 @@ describe('typed and size-capped preference fields', () => {
           savedLocations: [location, { ...location, lat: 3 }],
           profiles: [{ id: 'profile_0', name: 'Me', skinType: 'fair', icon: '🧑' }],
           activeProfileId: 'profile_0',
-          activities: Array.from({ length: 5 }, (_, i) => fullActivity(i)),
+          activities: Array.from({ length: 3 }, (_, i) => fullActivity(i)),
           calendarHours: { from: 6, to: 20 },
           showSunPath: true,
           hiddenActivitySuggestionIds: ['run', 'dog'],
@@ -235,26 +250,35 @@ describe('typed and size-capped preference fields', () => {
   // at its cap on its own (the client saves one change at a time), and a realistic Pro
   // account changing several lists in one write must also fit.
   test('each list can be saved at its cap within the expression budget', async () => {
-    const ref = await ownerRef()
+    // The caps are Pro's; a downgraded account keeps its lists, so the absolute caps
+    // must fit too (profiles: 12 is above Pro's 6).
+    const ref = await seededRef('alice', { tier: 'paid' })
     const location = { lat: 1, lon: 2, city: 'C'.repeat(120), region: 'R'.repeat(120) }
     await assertSucceeds(
       ref.update({ activities: Array.from({ length: 20 }, (_, i) => fullActivity(i)) }),
     )
     await assertSucceeds(ref.update({ savedLocations: Array.from({ length: 12 }, () => location) }))
+    const profiles = i => ({
+      id: `profile_${i}`,
+      name: 'N'.repeat(40),
+      skinType: 'dark',
+      icon: '👶',
+    })
+    await assertSucceeds(ref.update({ profiles: Array.from({ length: 6 }, (_, i) => profiles(i)) }))
+    const downgraded = await seededRef('bob', {
+      tier: 'free',
+      profiles: Array.from({ length: 12 }, (_, i) => profiles(i)),
+    })
+    // An edit (not a no-op) so the whole list is checked.
     await assertSucceeds(
-      ref.update({
-        profiles: Array.from({ length: 12 }, (_, i) => ({
-          id: `profile_${i}`,
-          name: 'N'.repeat(40),
-          skinType: 'dark',
-          icon: '👶',
-        })),
+      downgraded.update({
+        profiles: Array.from({ length: 12 }, (_, i) => ({ ...profiles(i), name: 'M'.repeat(40) })),
       }),
     )
   })
 
   test('a realistic multi-list write fits the expression budget', async () => {
-    const ref = await ownerRef()
+    const ref = await seededRef('alice', { tier: 'paid' })
     const location = { lat: 1, lon: 2, city: 'Seattle', region: 'WA', timezone: 'UTC' }
     await assertSucceeds(
       ref.update({
@@ -326,11 +350,14 @@ describe('typed and size-capped preference fields', () => {
     await assertFails(ref.update({ location: { ...base, lat: '1' } }))
   })
 
-  test('saved locations reject oversized or extra fields', async () => {
+  test('saved locations reject oversized, mistyped or extra fields', async () => {
     const ref = await ownerRef()
     const base = { lat: 1, lon: 2, city: 'Seattle', region: 'WA' }
     await assertSucceeds(ref.update({ savedLocations: [] }))
+    await assertSucceeds(ref.update({ savedLocations: [base] }))
     await assertFails(ref.update({ savedLocations: [{ ...base, city: 'C'.repeat(121) }] }))
+    await assertFails(ref.update({ savedLocations: [{ ...base, city: ['Seattle'] }] }))
+    await assertFails(ref.update({ savedLocations: [{ ...base, region: { state: 'WA' } }] }))
     await assertFails(ref.update({ savedLocations: [{ ...base, payload: 'x' }] }))
     await assertFails(ref.update({ savedLocations: Array.from({ length: 13 }, () => base) }))
   })
@@ -343,7 +370,7 @@ describe('typed and size-capped preference fields', () => {
   })
 
   test('profiles are a capped list of typed profiles', async () => {
-    const ref = await ownerRef()
+    const ref = await seededRef('alice', { tier: 'paid' })
     const profile = { id: 'kid', name: 'Kid', skinType: 'fair' }
     await assertSucceeds(ref.update({ profiles: [profile, { ...profile, id: 'me', icon: '🧑' }] }))
     await assertFails(ref.update({ profiles: Array.from({ length: 13 }, () => profile) }))
@@ -375,6 +402,18 @@ describe('typed and size-capped preference fields', () => {
     await assertFails(ref.update({ activities: [activity({ name: 'N'.repeat(101) })] }))
     await assertFails(ref.update({ activities: [activity({ notes: 'x'.repeat(1000) })] }))
     await assertFails(ref.update({ activities: [{ id: 'walk' }] }))
+  })
+
+  test('free text in lists must be a string, not a list or map of the same size', async () => {
+    const ref = await seededRef('alice', { tier: 'paid' })
+    await assertSucceeds(ref.update({ activities: [activity({ name: 'N'.repeat(100) })] }))
+    await assertFails(ref.update({ activities: [activity({ name: ['N'] })] }))
+    await assertFails(ref.update({ activities: [activity({ name: { text: 'N' } })] }))
+    const profile = { id: 'kid', name: 'Kid', skinType: 'fair' }
+    await assertSucceeds(ref.update({ profiles: [{ ...profile, name: 'N'.repeat(40) }] }))
+    await assertFails(ref.update({ profiles: [{ ...profile, name: ['Kid'] }] }))
+    // Multi-line and non-Latin text is still text.
+    await assertSucceeds(ref.update({ activities: [activity({ name: 'Läufe\n🏃' })] }))
   })
 
   test('onboardingComplete is a boolean', async () => {
@@ -440,6 +479,72 @@ describe('typed and size-capped preference fields', () => {
         location: { lat: 1, lon: 2, city: 'c', region: 'r', timezone: 'Europe/Berlin' },
       }),
     )
+  })
+})
+
+describe('plan limits (lib/tiers.ts TIER_LIMITS)', () => {
+  const activities = n => Array.from({ length: n }, (_, i) => fullActivity(i))
+  const places = n =>
+    Array.from({ length: n }, (_, i) => ({ lat: i, lon: i, city: `City ${i}`, region: 'WA' }))
+  const people = n =>
+    Array.from({ length: n }, (_, i) => ({ id: `p${i}`, name: `P${i}`, skinType: 'fair' }))
+
+  test('a Free account is held to Free capacity', async () => {
+    const ref = await seededRef('alice', { tier: 'free' })
+    await assertSucceeds(ref.update({ activities: activities(3) }))
+    await assertFails(ref.update({ activities: activities(4) }))
+    await assertSucceeds(ref.update({ savedLocations: places(3) }))
+    await assertFails(ref.update({ savedLocations: places(4) }))
+    await assertSucceeds(ref.update({ profiles: people(1) }))
+    await assertFails(ref.update({ profiles: people(2) }))
+  })
+
+  test('an account with no stored tier, or the legacy anonymous one, counts as Free', async () => {
+    const legacy = await seededRef('alice', { tier: 'anonymous' })
+    await assertSucceeds(legacy.update({ activities: activities(3) }))
+    await assertFails(legacy.update({ activities: activities(4) }))
+    const untiered = await seededRef('bob')
+    await testEnv.withSecurityRulesDisabled(async context => {
+      const firestore = context.firestore()
+      await firestore.doc('users/bob').update({ tier: firebase.firestore.FieldValue.delete() })
+    })
+    await assertFails(untiered.update({ activities: activities(4) }))
+  })
+
+  test('a new account starts within Free capacity', async () => {
+    const ref = testEnv.authenticatedContext('alice').firestore().doc('users/alice')
+    await assertFails(ref.set(prefs('alice', { activities: activities(4) })))
+    await assertFails(ref.set(prefs('alice', { tier: 'anonymous', savedLocations: places(4) })))
+    await assertSucceeds(
+      ref.set(prefs('alice', { activities: activities(3), savedLocations: places(3) })),
+    )
+  })
+
+  test('a Pro account gets Pro capacity', async () => {
+    const ref = await seededRef('alice', { tier: 'paid' })
+    await assertSucceeds(ref.update({ activities: activities(20) }))
+    await assertSucceeds(ref.update({ savedLocations: places(12) }))
+    await assertSucceeds(ref.update({ profiles: people(6) }))
+    await assertFails(ref.update({ profiles: people(7) }))
+  })
+
+  test('an account back on Free can edit and shrink its Pro lists, but not grow them', async () => {
+    const ref = await seededRef('alice', {
+      tier: 'free',
+      activities: activities(10),
+      savedLocations: places(6),
+      profiles: people(4),
+    })
+    const edited = activities(10).map((a, i) => (i === 0 ? { ...a, name: 'Renamed' } : a))
+    await assertSucceeds(ref.update({ activities: edited }))
+    await assertSucceeds(ref.update({ activities: activities(9) }))
+    await assertFails(ref.update({ activities: activities(10) }))
+    await assertSucceeds(ref.update({ savedLocations: places(5) }))
+    await assertFails(ref.update({ savedLocations: places(7) }))
+    await assertSucceeds(ref.update({ profiles: people(4) }))
+    await assertFails(ref.update({ profiles: people(5) }))
+    // Unrelated fields still save while the lists are above the Free caps.
+    await assertSucceeds(ref.update({ skinType: 'olive' }))
   })
 })
 

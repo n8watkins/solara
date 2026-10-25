@@ -171,7 +171,7 @@ export const RULES = [
     match: any(/^scripts\//),
   },
   {
-    // Deployed through firebase.json; the Hosting emulator suite is the closest check.
+    // tests/e2e/hosting-redirect.spec.ts serves it through the Hosting emulator.
     why: 'Hosting redirect site',
     areas: ['web'],
     match: any(/^hosting-redirect\//),

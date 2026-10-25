@@ -101,3 +101,17 @@ test('an upgrade recorded by the server applies on the next load', async ({ page
   await expect(proBadge(page)).toBeVisible()
   await expect(page.getByRole('button', { name: /Go Pro/ })).toHaveCount(0)
 })
+
+test('family profiles are Pro: a free account cannot add a second person', async ({
+  page,
+  emulators,
+}) => {
+  const account = await emulators.createAccount('Kit Free')
+  await emulators.seedPrefs(account, { tier: 'free', activities: [RUNNING] })
+  await openDashboard(page, account)
+
+  await page.getByRole('button', { name: 'Profile: Me' }).click()
+  const panel = page.getByRole('dialog', { name: 'Profiles' })
+  await expect(panel.getByText('🔒 Family & pet profiles are a Pro feature.')).toBeVisible()
+  await expect(panel.getByRole('button', { name: /Add person or pet/ })).toHaveCount(0)
+})

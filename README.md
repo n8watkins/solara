@@ -89,6 +89,7 @@ npm run test:harness
 ```
 
 - `npm run test:e2e` builds the static export with a hermetic public configuration and tests it on the Firebase Hosting emulator without credentials: the landing page, onboarding, guest mode and its upsells, analytics consent, legal pages, share links and Hosting headers.
+  It also serves the old address's redirect-only site (`hosting-redirect/`) and checks that every path and query string moves to the same place on `solara-uv.web.app`, except Firebase's reserved `/__/` paths.
 - `npm run test:e2e:integrations` builds the production export with a fake Sentry DSN and reCAPTCHA site key, answers every third-party request with a fake, and checks that error reports arrive scrubbed and that App Check starts only after sign-in, within the CSP.
   It writes `out/` like `npm run test:e2e`, so run the two one after the other.
 - `npm run test:e2e:signed-in` signs in through the Auth emulator and covers the dashboard, activities, settings, calendar, sharing, Pro gating, guest-to-account carry-over, account isolation and export against the real rules and Functions.

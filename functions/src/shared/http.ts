@@ -117,11 +117,25 @@ export function createApiHandler<T>({
 }
 
 /**
- * The client address for coarse abuse limits. Cloud Run sets X-Forwarded-For; the first
- * entry is the original client.
+ * How many X-Forwarded-For entries, counted from the right, Google's own proxies add.
+ * The Functions are called on their Cloud Run URLs with no load balancer or Hosting
+ * rewrite in front, and Google's front end appends exactly one entry: the address the
+ * connection came from. Everything to its left was sent by the client and can be forged.
+ * An external HTTPS load balancer in front would append `<client>,<load balancer>`,
+ * making this 2; change it together with any such change to how the Functions are served.
  */
-export function clientAddress(req: Request): string {
-  const forwarded = req.headers['x-forwarded-for']
-  const first = (Array.isArray(forwarded) ? forwarded[0] : forwarded)?.split(',')[0]?.trim()
-  return first || req.ip || 'unknown'
+export const TRUSTED_PROXY_HOPS = 1
+
+/**
+ * The client address for coarse abuse limits: the X-Forwarded-For entry Google
+ * appended (see TRUSTED_PROXY_HOPS), never one the client could have sent.
+ * Without the header (local runs and tests), the socket's peer address.
+ */
+export function clientAddress(req: Request, trustedHops = TRUSTED_PROXY_HOPS): string {
+  const header = req.headers['x-forwarded-for']
+  const entries = (Array.isArray(header) ? header.join(',') : (header ?? ''))
+    .split(',')
+    .map(entry => entry.trim())
+  const appended = entries.length >= trustedHops ? entries[entries.length - trustedHops] : ''
+  return appended || req.socket?.remoteAddress || 'unknown'
 }
