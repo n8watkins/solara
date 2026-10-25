@@ -135,6 +135,7 @@ Everything in this section waits for the Pro launch (roadmap item 9); see [Fireb
 - [ ] Verify Stripe in test mode with a controlled account:
   - checkout is bound to the signed-in account, and a second checkout is refused while a subscription is active or reserved;
   - a paid event grants Pro once, a replayed event changes nothing, and out-of-order events cannot restore cancelled access;
+  - a returning subscriber whose earlier subscription ended can subscribe again and keeps Pro whichever of the subscription update and the checkout event Stripe delivers first;
   - asynchronous payment success grants access and failure does not;
   - changing the subscription away from the Pro price, cancelling, or a failed payment revokes or restricts Pro as designed;
   - a failed post-creation checkout cleanup is eventually neutralized by `cleanupFailedCheckouts`;

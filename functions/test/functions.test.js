@@ -2983,6 +2983,110 @@ describe('Stripe fulfillment security', () => {
     assert.equal(result.accountDeleted, true)
     assert.deepEqual(canceled, ['sub_deleted'])
   })
+
+  test('keeps a resubscription whose update arrives before its checkout event', async () => {
+    const canceled = []
+    const db = fakeDb({
+      tier: 'free',
+      stripeCustomerId: 'cus_123',
+      stripeSubscriptionId: 'sub_old',
+      subscriptionStatus: 'canceled',
+      stripeEventCreated: 100,
+      stripeEventPriority: 4,
+    })
+    const resubscription = {
+      id: 'sub_123',
+      customer: 'cus_123',
+      status: 'active',
+      metadata: { firebaseUid: 'alice' },
+      items: { data: [{ price: { id: 'price_pro' } }] },
+    }
+    const resubscribeStripe = {
+      ...stripe,
+      subscriptions: {
+        retrieve: async () => resubscription,
+        cancel: async id => {
+          canceled.push(id)
+        },
+      },
+    }
+    const update = await processStripeEvent({
+      db,
+      event: {
+        id: 'evt_resubscribe_update',
+        created: 500,
+        type: 'customer.subscription.updated',
+        data: { object: resubscription },
+      },
+      expectedPriceId: 'price_pro',
+      serverTimestamp: () => 'SERVER_TIME',
+      stripe: resubscribeStripe,
+    })
+    assert.equal(update.rejected, false)
+    assert.equal(update.applied, true)
+    assert.equal(db.userData.tier, 'paid')
+    assert.equal(db.userData.stripeSubscriptionId, 'sub_123')
+    assert.equal(db.userData.subscriptionStatus, 'active')
+
+    const checkout = await processStripeEvent({
+      db,
+      event: {
+        id: 'evt_resubscribe_checkout',
+        created: 500,
+        type: 'checkout.session.completed',
+        data: { object: session },
+      },
+      expectedPriceId: 'price_pro',
+      serverTimestamp: () => 'SERVER_TIME',
+      stripe: resubscribeStripe,
+    })
+    assert.equal(checkout.rejected, false)
+    assert.equal(db.userData.tier, 'paid')
+    assert.equal(db.userData.stripeSubscriptionId, 'sub_123')
+    assert.deepEqual(canceled, [])
+  })
+
+  test('does not let a late event for an older ended subscription replace the stored one', async () => {
+    const canceled = []
+    const db = fakeDb({
+      tier: 'free',
+      stripeCustomerId: 'cus_123',
+      stripeSubscriptionId: 'sub_old',
+      subscriptionStatus: 'canceled',
+      stripeEventCreated: 100,
+      stripeEventPriority: 4,
+    })
+    const older = {
+      id: 'sub_older',
+      customer: 'cus_123',
+      status: 'canceled',
+      metadata: { firebaseUid: 'alice' },
+      items: { data: [{ price: { id: 'price_pro' } }] },
+    }
+    const result = await processStripeEvent({
+      db,
+      event: {
+        id: 'evt_older_deleted',
+        created: 500,
+        type: 'customer.subscription.deleted',
+        data: { object: older },
+      },
+      expectedPriceId: 'price_pro',
+      serverTimestamp: () => 'SERVER_TIME',
+      stripe: {
+        ...stripe,
+        subscriptions: {
+          retrieve: async () => older,
+          cancel: async id => {
+            canceled.push(id)
+          },
+        },
+      },
+    })
+    assert.equal(result.rejected, true)
+    assert.equal(db.userData.stripeSubscriptionId, 'sub_old')
+    assert.deepEqual(canceled, [])
+  })
 })
 
 describe('Stripe client configuration', () => {
