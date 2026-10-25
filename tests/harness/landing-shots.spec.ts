@@ -1,9 +1,8 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { expect, test } from '@playwright/test'
-import { preparePage } from './capture'
 import { freezeScreen } from './freeze'
-import { HARNESS_MARKER } from './fixtures'
+import { currentFromHour, prepareLiveDashboard } from './live-forecast'
 
 // Regenerates the landing page's screenshots (public/landing/) from the harness, so
 // the landing page always shows the real app. Skipped unless asked for:
@@ -11,14 +10,15 @@ import { HARNESS_MARKER } from './fixtures'
 //   UPDATE_LANDING_SHOTS=1 npm run test:harness -- landing-shots --project=mobile-light --project=mobile-dark
 //
 // A Free account's dashboard on a 390 px phone, the top of the page only, as WebP.
-// Keep the size in sync with the <img> in app/page.tsx.
+// Keep the size in sync with the <img> in app/page.tsx. One coherent sample day: the
+// readout shows the 10am forecast that the highlighted bar shows, and the plan is a
+// run and tennis, so the lead slot (a 6pm run, peak UV 3.1) is plainly lower-UV.
 export const LANDING_SHOT = { width: 390, height: 676 }
 
 test.skip(!process.env.UPDATE_LANDING_SHOTS, 'Set UPDATE_LANDING_SHOTS=1 to regenerate.')
 
 test('landing page screenshot', async ({ page }, testInfo) => {
   test.skip(!testInfo.project.name.startsWith('mobile'), 'Phone screenshots only.')
-  const capture = await preparePage(page, testInfo)
   // The upsells are for real visitors, not the marketing shot.
   await page.addInitScript(() => {
     localStorage.setItem(
@@ -26,10 +26,14 @@ test('landing page screenshot', async ({ page }, testInfo) => {
       JSON.stringify({ 'morning-alert': '2026-06-15T00:00:00.000Z' }),
     )
   })
-  await page.goto('/harness/?screen=dashboard&tier=free')
-  await expect(page.getByTestId(HARNESS_MARKER)).toHaveAttribute('data-screen', 'dashboard')
-  await expect(page.getByTestId('hero-slot')).toBeVisible()
-  await freezeScreen(page)
+  const capture = await prepareLiveDashboard(page, testInfo, {
+    tier: 'free',
+    edit: currentFromHour(10),
+    query: '&activities=run,tennis',
+  })
+  await expect(page.getByTestId('hero-slot')).toHaveAttribute('data-activity', 'run')
+  await expect(page.getByTestId('uv-readout')).toContainText('6.0')
+  await freezeScreen(page, capture.startedAt)
   await page.evaluate(async () => {
     await document.fonts.ready
   })

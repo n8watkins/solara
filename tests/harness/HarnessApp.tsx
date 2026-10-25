@@ -11,6 +11,7 @@
 //            | peak-early | peak-late   (see sun-peak-fixtures.ts)
 //   scheduled = none (default) | synced | reconnect: in-memory scheduled activities
 //            (see scheduled-fixtures.tsx), shown as synced or awaiting reconnect
+//   activities = comma-separated activity ids to keep from the plan (default: all)
 //   data   = fixture (default) | live: load the forecast through the app's real data
 //            layer (lib/use-forecast.ts useWeather); specs answer the Open-Meteo
 //            requests with page.route (see data-layer.spec.ts)
@@ -58,6 +59,7 @@ function readParams() {
     fixture: readFixture(params.get('fixture')),
     live: params.get('data') === 'live',
     scheduled: (['synced', 'reconnect'] as const).find(v => v === params.get('scheduled')) ?? null,
+    activities: params.get('activities')?.split(',') ?? null,
   }
 }
 
@@ -89,7 +91,13 @@ function Harness() {
           : buildSunPeakWeather(initial.fixture),
     [initial.fixture],
   )
-  const [prefs, setPrefs] = useState<UserPreferences>(() => buildPrefs(initial.tier))
+  const [prefs, setPrefs] = useState<UserPreferences>(() => {
+    const built = buildPrefs(initial.tier)
+    const keep = initial.activities
+    return keep
+      ? { ...built, activities: built.activities.filter(a => keep.includes(a.id)) }
+      : built
+  })
   const live = useWeather(initial.live ? prefs.location : null)
   const weather = initial.live ? live.weather : fixtureWeather
   const [view, setView] = useState<AppView>(
