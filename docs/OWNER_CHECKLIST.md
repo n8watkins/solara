@@ -1,32 +1,34 @@
 # Solara owner checklist
 
-_Last reviewed: 2026-10-23_
+_Last reviewed: 2026-10-24_
 
 This checklist holds what only the owner can do: decisions, credentials, provider consoles, legal facts and real-device evidence, plus the manual checks for each release.
-Which items are already done is tracked in [status.md](status.md#owner-actions); the decisions still open, and the roadmap lane that needs each one, are in [ROADMAP.md](ROADMAP.md#owner-decisions).
+Which items are already done is tracked in [status.md](status.md#owner-actions); the decisions and the roadmap items that need them are in [ROADMAP.md](ROADMAP.md#decisions).
 How deploys and configuration work is in [DEPLOYMENT.md](DEPLOYMENT.md).
 
 Never paste a secret into an issue, pull request, repository file or chat message.
 When an item is done, tell the repository agent which section changed, without the secret values; the agent can then redeploy, inspect logs and run the automated checks.
 
-## Next steps, in order (as of 2026-10-23)
+## Next steps, in order
 
-Each step says what to send the repository agent.
+_As of 2026-10-24._
+Do these from the top; each step says what to send the repository agent.
 Everything sent here is a public identifier, not a secret.
+
+Already done: the domain move to `solara-uv.web.app`, the Firestore index role (D3), the operator details (D8), making the repository public with its ruleset (D2), Search Console verification, the second authorized domain, the OAuth scopes, Dependabot alerts, and confirming the price and tiers.
 
 ### Now: free, no Blaze
 
-1. **Turn on Google Calendar for the Scheduled feature (about 10 minutes).**
+1. **Turn on Google Calendar for adding events and Scheduled (about 10 minutes).**
    1. Enable the Google Calendar API: https://console.cloud.google.com/apis/library/calendar-json.googleapis.com?project=uv-activity-planner (click **Enable**; "Manage" means it is already on).
    2. Open https://console.cloud.google.com/auth/clients?project=uv-activity-planner and open the **Web application** client (or **Create client**, type **Web application**, name "Solara web").
    3. Under **Authorized JavaScript origins**, make sure `https://solara-uv.web.app` is listed; save.
-   4. Send the agent the **Client ID** (it ends in apps.googleusercontent.com).
-2. **Check the OAuth scopes (2 minutes).** At https://console.cloud.google.com/auth/scopes?project=uv-activity-planner the list should be exactly `openid`, `userinfo.email`, `userinfo.profile`, `calendar.freebusy`, `calendar.events.owned`. Send a screenshot.
-3. **Add the second authorized domain (1 minute).** At https://console.cloud.google.com/auth/branding?project=uv-activity-planner add `uv-activity-planner.firebaseapp.com` next to `solara-uv.web.app` under **Authorized domains**; save.
-4. **Resubmit branding (2 minutes, at least 24 hours after Search Console verification).** Confirm https://solara-uv.web.app/privacy/ shows the operator and the "How Solara uses Google user data" section, then on the Branding page choose **View issues**, **I have fixed the issues**, **Proceed**.
-5. **Publish sign-in (1 minute).** At https://console.cloud.google.com/auth/audience?project=uv-activity-planner, if the status is **Testing**, click **Publish app** and confirm. Send a screenshot of the result.
-6. **Request calendar scope verification (15 minutes, after step 4 passes).** In Google Auth Platform, **Verification Center**, start verification for `calendar.freebusy` and `calendar.events.owned` using the justification text in [Google sign-in and Calendar](#google-sign-in-and-calendar). The agent can script a short demo video.
-7. **Turn on App Check with reCAPTCHA v3 (about 15 minutes, then a week of watching).**
+   4. Send the agent the **Client ID** (it ends in apps.googleusercontent.com), or set it yourself: `gh variable set NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID --repo n8watkins/solara --body "<client id>"`.
+      The next deploy shows Google Calendar to Free and Pro accounts.
+2. **Resubmit branding (2 minutes).** Confirm https://solara-uv.web.app/privacy/ shows the operator and the "How Solara uses Google user data" section, then at https://console.cloud.google.com/auth/branding?project=uv-activity-planner choose **View issues**, **I have fixed the issues**, **Proceed**.
+3. **Publish sign-in (1 minute).** At https://console.cloud.google.com/auth/audience?project=uv-activity-planner, if the status is **Testing**, click **Publish app** and confirm. Send a screenshot of the result.
+4. **Request calendar scope verification (15 minutes, after step 2 passes).** In Google Auth Platform, **Verification Center**, start verification for `calendar.freebusy` and `calendar.events.owned` using the justification text in [Google sign-in and Calendar](#google-sign-in-and-calendar). The agent can script a short demo video.
+5. **Turn on App Check with reCAPTCHA v3 (about 15 minutes, then a week of watching).**
    Cost: free up to 10,000 reCAPTCHA assessments a month, then a flat $8 up to 100,000 ([COSTS.md](COSTS.md)).
    App Check starts only after sign-in and its token lasts an hour, so assessments are roughly signed-in session-hours: about 3,000 a month at 100 daily users, about 30,000 ($8) at 1,000.
    1. Create the key at https://www.google.com/recaptcha/admin/create while signed in as the owner: label `Solara web`, type **Score based (v3)**, domain `solara-uv.web.app` (only that one; local development uses App Check debug tokens instead of `localhost`), Google Cloud project `uv-activity-planner`. Submit, then copy the **site key** and the **secret key**.
@@ -40,7 +42,7 @@ Everything sent here is a public identifier, not a secret.
       Then enforce **Cloud Firestore** only.
       Never enforce **Authentication**: App Check starts after sign-in, so enforcing it there would block sign-in itself.
       Cloud Functions enforce App Check in their code already.
-8. **Create a Sentry project (about 10 minutes).**
+6. **Create a Sentry project (about 10 minutes).**
    Sentry's free Developer plan covers 5,000 errors a month and keeps events for 30 days.
    1. Sign up at https://sentry.io/signup/ and choose the **United States** data storage location (the privacy policy says providers process data in the United States).
    2. Create a project: platform **Next.js**, name `solara-web`, alert on every new issue.
@@ -52,16 +54,18 @@ Everything sent here is a public identifier, not a secret.
       `gh variable set SENTRY_ORG --repo n8watkins/solara --body "<organization slug>"` and
       `gh variable set SENTRY_PROJECT --repo n8watkins/solara --body solara-web`.
       With all four set, each deploy uploads source maps to Sentry and removes them from the published site.
-9. **Confirm the price and tiers.** Pro at $2.99 per month or $19.99 per year with a 7-day trial, and the guest, free and Pro tiers in [ROADMAP.md](ROADMAP.md#tiers-proposed-owner-to-confirm). Reply "confirmed" or give changes.
-10. **Keyless deploys, then delete the old key (about 15 minutes with the agent).** Follow [WIF_SETUP.md](WIF_SETUP.md) together, then delete the `FIREBASE_SERVICE_ACCOUNT` key (D4).
-11. **Move public build values to GitHub variables (about 5 minutes).** The agent will provide exact `gh variable set` commands; you fill in the values.
+7. **Keyless deploys, then delete the old key (about 15 minutes with the agent).** Follow [WIF_SETUP.md](WIF_SETUP.md) together, then delete the `FIREBASE_SERVICE_ACCOUNT` key and secret (D4).
+8. **Move public build values to GitHub variables (about 5 minutes).** The agent provides exact `gh variable set` commands; you fill in the values, then delete each matching secret, including the leftover `NEXT_PUBLIC_SITE_URL` secret ([steps](WIF_SETUP.md#move-public-build-values-from-secrets-to-variables)).
+9. **Delete the unused `NEXT_PUBLIC_PRO_PRICE` secret (1 minute).** Prices live in `lib/plans.ts` since #71, so nothing reads it: `gh secret delete NEXT_PUBLIC_PRO_PRICE --repo n8watkins/solara` (and `gh variable delete NEXT_PUBLIC_PRO_PRICE --repo n8watkins/solara` if a variable exists).
+10. **Have counsel review the governing-law language** in the terms ([Legal](#legal)).
+11. **Clean up local branches and worktrees (D12).** The merged worktrees under `projects/polish/` on your machine can go; ask the agent for the exact commands.
 
 ### At Pro launch: Blaze
 
 12. Upgrade the Firebase project to **Blaze** and create a **$5 per month budget alert** in Google Cloud Billing.
 13. Create a staging Firebase project and a Stripe account in **test mode** (D9); the agent guides both.
 14. Buy the Open-Meteo **Standard** commercial plan (about $29 per month) once the first subscription is live (D5).
-15. Run the release checks in [Release verification](#release-verification).
+15. Run the release checks in [Release verification](#release-verification), plus [Functions and Stripe](#functions-and-stripe) and [Notifications](#notifications).
 
 ### Later: mobile app (Wave 6)
 
@@ -69,28 +73,23 @@ Everything sent here is a public identifier, not a secret.
 
 ## Repository
 
-- [ ] Turn on Dependabot alerts and Dependabot security updates (Settings, Code security).
-  They work on private repositories too.
-- [ ] Decide D2: make the repository public, or buy GitHub Pro.
-  CI already scans every pull request with gitleaks and every push to `main` over the full history.
-- [ ] Once it is public (or on Pro), turn on:
-  - a ruleset for `main` that requires pull requests and the CI checks to pass;
-  - a `production` environment with a required reviewer for the deploy jobs;
-  - secret scanning with push protection, and private vulnerability reporting;
-  - CodeQL default setup for JavaScript and TypeScript.
-
-  Dependency review and build provenance attestation turn on by themselves when the repository is public.
+- [x] Make the repository public (D2, 2026-10-23).
+- [x] "Protect main" ruleset: pull requests, squash merges only, 8 required checks.
+- [x] Secret scanning with push protection, CodeQL default setup, Dependabot alerts and security updates.
+- [ ] Optional: private vulnerability reporting, and a `production` environment with a required reviewer for the deploy jobs.
 
 ## Credentials
 
 - [ ] Run [WIF_SETUP.md](WIF_SETUP.md) so deploys and the notifier use short-lived credentials with separate identities.
 - [ ] Delete the `FIREBASE_SERVICE_ACCOUNT` key and secret once both workflows run on WIF (D4).
 - [ ] Move every `NEXT_PUBLIC_*` secret to a repository variable, then delete the secret, including the leftover `NEXT_PUBLIC_SITE_URL` secret ([steps](WIF_SETUP.md#move-public-build-values-from-secrets-to-variables)).
+- [ ] Delete the unused `NEXT_PUBLIC_PRO_PRICE` variable or secret ([step 9](#now-free-no-blaze)).
 
 ## Google sign-in and Calendar
 
-The sign-in domain `solara-uv.web.app` is an authorized Firebase Auth domain, and Search Console verifies the site for the OAuth branding review.
-
+- [x] `solara-uv.web.app` and `uv-activity-planner.firebaseapp.com` are authorized domains (owner reported).
+- [x] Search Console verifies `https://solara-uv.web.app/` for the OAuth branding review (2026-10-23, owner reported).
+- [x] The OAuth scopes are added: `openid`, `userinfo.email`, `userinfo.profile`, `calendar.freebusy`, `calendar.events.owned` (owner reported).
 - [ ] Finish the OAuth consent screen: data access lists only `https://www.googleapis.com/auth/calendar.freebusy` and `https://www.googleapis.com/auth/calendar.events.owned`, the privacy policy link points at `https://solara-uv.web.app/privacy/`, and the app is published.
 - [ ] Submit the two Calendar scopes for verification and answer Google's review.
   For `calendar.events.owned`, the justification is: Solara creates an event for a lower-UV window the person picks, stores its id, time, title and link to show it as Scheduled, and later reads, moves or deletes only events it created (found by a private extended property).
@@ -105,7 +104,7 @@ The sign-in domain `solara-uv.web.app` is an authorized Firebase Auth domain, an
 
 ## App Check
 
-Decision D11 is reCAPTCHA v3; the steps are [step 7](#now-free-no-blaze) above, and how it works is in [App Check](DEPLOYMENT.md#app-check).
+Decision D11 is reCAPTCHA v3; the steps are [step 5](#now-free-no-blaze) above, and how it works is in [App Check](DEPLOYMENT.md#app-check).
 The code also supports reCAPTCHA Enterprise through `NEXT_PUBLIC_FIREBASE_APP_CHECK_PROVIDER=recaptcha-enterprise`, if that is ever needed.
 Functions require App Check in code, so the site key is needed before any Function-backed surface is turned on.
 
@@ -115,7 +114,7 @@ Functions require App Check in code, so the site key is needed before any Functi
 
 ## Error reporting
 
-Decision D10 is Sentry; the steps are [step 8](#now-free-no-blaze) above, and how it works is in [Error reporting](DEPLOYMENT.md#error-reporting-sentry).
+Decision D10 is Sentry; the steps are [step 6](#now-free-no-blaze) above, and how it works is in [Error reporting](DEPLOYMENT.md#error-reporting-sentry).
 
 - [ ] Create the Sentry project, with IP storage off and allowed domains set, and store its DSN as the `NEXT_PUBLIC_SENTRY_DSN` variable.
 - [ ] Optionally add `SENTRY_AUTH_TOKEN` (secret), `SENTRY_ORG` and `SENTRY_PROJECT` (variables) for source maps.
@@ -123,7 +122,7 @@ Decision D10 is Sentry; the steps are [step 8](#now-free-no-blaze) above, and ho
 
 ## Functions and Stripe
 
-Everything in this section waits for Wave 3 (W3-A); see [Firebase Functions and Stripe](DEPLOYMENT.md#firebase-functions-and-stripe) for the commands.
+Everything in this section waits for the Pro launch (roadmap item 9); see [Firebase Functions and Stripe](DEPLOYMENT.md#firebase-functions-and-stripe) for the commands.
 
 - [ ] Upgrade `uv-activity-planner` to Blaze, attach the billing account, and create a budget alert first.
 - [ ] Decide D9: create a staging Firebase project and use Stripe test mode there first.
@@ -149,7 +148,7 @@ Everything in this section waits for Wave 3 (W3-A); see [Firebase Functions and 
 
 ## Notifications
 
-Notifications stay off until Wave 3 (W3-B) relaunches them on a scheduled Function (D6) and this real-device evidence is recorded.
+Morning alerts are Pro-only and stay off until they launch with Pro on a scheduled Function (D6, roadmap item 10) and this real-device evidence is recorded.
 
 - [ ] Provide a real phone that can receive web push and a controlled paid test account.
 - [ ] Run the dispatcher as a dry run and confirm it selects the expected user, activity, device, local date and time zone.
