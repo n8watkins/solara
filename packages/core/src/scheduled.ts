@@ -6,7 +6,8 @@
 // else on the calendar. firestore.rules repeats the field list and caps below;
 // lib/firestore-rules.test.ts fails when the two drift.
 
-import * as z from 'zod/mini'
+import * as v from 'valibot'
+import { record } from './schema'
 
 /** Storage caps, mirrored by firestore.rules. */
 export const SCHEDULED_LIMITS = Object.freeze({
@@ -55,38 +56,47 @@ export const EVENT_LINK_PATTERN = /^https:\/\/(?:www\.google\.com|calendar\.goog
 const TIMEZONE_PATTERN = /^(?:UTC|[A-Za-z_]+(?:\/[A-Za-z0-9_+.-]+)+)$/
 
 /** An instant written by `Date.prototype.toISOString`. */
-const isoInstant = z.string().check(
-  z.maxLength(SCHEDULED_LIMITS.timestampLength),
-  z.refine(value => !Number.isNaN(Date.parse(value))),
+const isoInstant = v.pipe(
+  v.string(),
+  v.maxLength(SCHEDULED_LIMITS.timestampLength),
+  v.check(value => !Number.isNaN(Date.parse(value))),
 )
 
 export const SCHEDULED_SHAPE = {
-  eventId: z.string().check(z.regex(EVENT_ID_PATTERN)),
-  calendarId: z.enum(SCHEDULED_CALENDAR_IDS),
-  activityId: z.string().check(z.minLength(1), z.maxLength(SCHEDULED_LIMITS.activityIdLength)),
-  title: z.string().check(z.maxLength(SCHEDULED_LIMITS.titleLength)),
-  icon: z.string().check(z.maxLength(SCHEDULED_LIMITS.iconLength)),
+  eventId: v.pipe(v.string(), v.regex(EVENT_ID_PATTERN)),
+  calendarId: v.picklist(SCHEDULED_CALENDAR_IDS),
+  activityId: v.pipe(v.string(), v.minLength(1), v.maxLength(SCHEDULED_LIMITS.activityIdLength)),
+  title: v.pipe(v.string(), v.maxLength(SCHEDULED_LIMITS.titleLength)),
+  icon: v.pipe(v.string(), v.maxLength(SCHEDULED_LIMITS.iconLength)),
   start: isoInstant,
   end: isoInstant,
-  timeZone: z
-    .string()
-    .check(z.maxLength(SCHEDULED_LIMITS.timezoneLength), z.regex(TIMEZONE_PATTERN)),
-  htmlLink: z.string().check(z.maxLength(SCHEDULED_LIMITS.linkLength), z.regex(EVENT_LINK_PATTERN)),
+  timeZone: v.pipe(
+    v.string(),
+    v.maxLength(SCHEDULED_LIMITS.timezoneLength),
+    v.regex(TIMEZONE_PATTERN),
+  ),
+  htmlLink: v.pipe(
+    v.string(),
+    v.maxLength(SCHEDULED_LIMITS.linkLength),
+    v.regex(EVENT_LINK_PATTERN),
+  ),
   createdAt: isoInstant,
   updatedAt: isoInstant,
 }
 
-export const ScheduledActivitySchema = z.object(SCHEDULED_SHAPE).check(
-  z.refine(record => Date.parse(record.end) > Date.parse(record.start), {
-    message: 'end must be after start',
-  }),
+export const ScheduledActivitySchema = v.pipe(
+  record(SCHEDULED_SHAPE),
+  v.check(
+    scheduled => Date.parse(scheduled.end) > Date.parse(scheduled.start),
+    'end must be after start',
+  ),
 )
-export type ScheduledActivity = z.output<typeof ScheduledActivitySchema>
+export type ScheduledActivity = v.InferOutput<typeof ScheduledActivitySchema>
 
 /** A stored record, or null when it does not match the schema (it is then ignored). */
 export function parseScheduledActivity(raw: unknown): ScheduledActivity | null {
-  const parsed = ScheduledActivitySchema.safeParse(raw)
-  return parsed.success ? parsed.data : null
+  const parsed = v.safeParse(ScheduledActivitySchema, raw)
+  return parsed.success ? parsed.output : null
 }
 
 /** Cut text to a cap without splitting a surrogate pair (emoji). */

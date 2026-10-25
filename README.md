@@ -28,7 +28,7 @@ Conditions and individual sensitivity can change quickly.
 ## Stack
 
 - Next.js 16 App Router with static export, React 19 with the React Compiler, TypeScript 5.
-- TanStack Query for forecast data, Zod (`zod/mini`) for every external boundary.
+- TanStack Query for forecast data, Valibot for every external boundary (`packages/core/src/schema.ts`).
 - Firebase Authentication, Firestore, Hosting, Cloud Messaging and Functions (TypeScript on Node.js 24).
 - Tailwind CSS 4, configured in `app/globals.css` (`@theme`) on CSS custom-property design tokens, which also define the one UV palette.
 - Vitest, Playwright (static export on the Hosting emulator, and a signed-in suite on the Firebase emulators), and an axe-scanned UI harness.
@@ -62,7 +62,7 @@ The repository is an npm workspace.
   Firebase loads on demand: `lib/firebase.ts` is the only way to it, and `loadFirebase()` loads the SDK (`lib/firebase-services.ts`) when someone reaches for "Sign in" or the browser already holds a session, so a guest never downloads it.
   An ESLint rule keeps static Firebase imports out of the app; modules that need the SDK use `await import('firebase/...')`.
   The dialogs, the calendar view and the calendar feed card load on first use from `components/deferred.tsx`, and are fetched shortly after the page has loaded.
-- `packages/core` (`@solara/core`) holds the logic every surface shares: the recommendation engine, the preferences schema and migrations, the Zod-validated Open-Meteo parser and weather labels, the iCalendar builder, the calendar feed token policy and the Functions response contracts.
+- `packages/core` (`@solara/core`) holds the logic every surface shares: the recommendation engine, the preferences schema and migrations, the Valibot-validated Open-Meteo parser and weather labels, the iCalendar builder, the calendar feed token policy and the Functions response contracts.
   The web app imports its TypeScript source.
 - `functions/` holds the Cloud Functions in TypeScript (`functions/src/`, one folder per area) and the manual morning notifier (`functions/scripts/send-notifications.js`).
   It is a separate npm package, because `firebase deploy` uploads only that directory.

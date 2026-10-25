@@ -1,7 +1,7 @@
 import type { Activity, RecommendationWindow } from '@solara/core'
 import type { ZonedNow } from './time'
 
-// Preference types are inferred from the zod schema in @solara/core (packages/core/src/prefs.ts),
+// Preference types are inferred from the Valibot schema in @solara/core (packages/core/src/prefs.ts),
 // the single source of truth for the stored document.
 export type {
   Activity,

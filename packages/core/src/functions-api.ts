@@ -3,8 +3,9 @@
 // error instead of an undefined field deep in the UI. Functions can type their
 // handlers against the same schemas.
 
-import * as z from 'zod/mini'
+import * as v from 'valibot'
 import { isValidFeedToken } from './feed-token'
+import { finiteNumber, isPlainRecord, looseRecord, record } from './schema'
 
 function isUrl(value: string, check: (url: URL) => boolean): boolean {
   try {
@@ -16,41 +17,50 @@ function isUrl(value: string, check: (url: URL) => boolean): boolean {
 
 /** Successful response bodies, by endpoint name. */
 export const FUNCTION_RESPONSES = {
-  createCheckoutSession: z.object({
-    url: z.string().check(z.refine(url => url.startsWith('https://checkout.stripe.com/'))),
+  createCheckoutSession: record({
+    url: v.pipe(
+      v.string(),
+      v.check(url => url.startsWith('https://checkout.stripe.com/')),
+    ),
   }),
-  createBillingPortalSession: z.object({
-    url: z
-      .string()
-      .check(
-        z.refine(url =>
-          isUrl(
-            url,
-            ({ protocol, hostname }) => protocol === 'https:' && hostname === 'billing.stripe.com',
-          ),
+  createBillingPortalSession: record({
+    url: v.pipe(
+      v.string(),
+      v.check(url =>
+        isUrl(
+          url,
+          ({ protocol, hostname }) => protocol === 'https:' && hostname === 'billing.stripe.com',
         ),
       ),
+    ),
   }),
   /** A portable copy of the account; extra fields are kept for the download. */
-  exportAccountData: z.looseObject({
-    formatVersion: z.number(),
-    exportedAt: z.string(),
-    account: z.nullable(z.record(z.string(), z.unknown())),
-    notificationDevices: z.array(z.unknown()),
+  exportAccountData: looseRecord({
+    formatVersion: finiteNumber,
+    exportedAt: v.string(),
+    account: v.nullable(
+      v.pipe(v.custom<Record<string, unknown>>(isPlainRecord), v.record(v.string(), v.unknown())),
+    ),
+    notificationDevices: v.array(v.unknown()),
   }),
-  deleteAccount: z.object({ deleted: z.boolean(), deletionPending: z.boolean() }),
-  registerNotificationDevice: z.object({
-    deviceId: z.string(),
-    registered: z.literal(true),
-    migrationPending: z.optional(z.boolean()),
+  deleteAccount: record({ deleted: v.boolean(), deletionPending: v.boolean() }),
+  registerNotificationDevice: record({
+    deviceId: v.string(),
+    registered: v.literal(true),
+    migrationPending: v.optional(v.boolean()),
   }),
-  removeNotificationDevice: z.object({ deviceId: z.string(), removed: z.literal(true) }),
-  rotateCalendarFeed: z.object({ token: z.string().check(z.refine(isValidFeedToken)) }),
-  revokeCalendarFeed: z.object({ revoked: z.boolean() }),
+  removeNotificationDevice: record({ deviceId: v.string(), removed: v.literal(true) }),
+  rotateCalendarFeed: record({
+    token: v.pipe(
+      v.string(),
+      v.check(token => isValidFeedToken(token)),
+    ),
+  }),
+  revokeCalendarFeed: record({ revoked: v.boolean() }),
 }
 
 export type FunctionName = keyof typeof FUNCTION_RESPONSES
-export type FunctionResponse<Name extends FunctionName> = z.output<
+export type FunctionResponse<Name extends FunctionName> = v.InferOutput<
   (typeof FUNCTION_RESPONSES)[Name]
 >
 
@@ -59,19 +69,19 @@ export function parseFunctionResponse<Name extends FunctionName>(
   name: Name,
   body: unknown,
 ): FunctionResponse<Name> | null {
-  const parsed = FUNCTION_RESPONSES[name].safeParse(body)
-  return parsed.success ? (parsed.data as FunctionResponse<Name>) : null
+  const parsed = v.safeParse(FUNCTION_RESPONSES[name], body)
+  return parsed.success ? (parsed.output as FunctionResponse<Name>) : null
 }
 
-const FunctionErrorSchema = z.object({
-  error: z.catch(z.optional(z.string().check(z.minLength(1))), undefined),
-  code: z.catch(z.optional(z.string()), undefined),
+const FunctionErrorSchema = record({
+  error: v.fallback(v.optional(v.pipe(v.string(), v.minLength(1))), undefined),
+  code: v.fallback(v.optional(v.string()), undefined),
 })
 
-export type FunctionError = z.output<typeof FunctionErrorSchema>
+export type FunctionError = v.InferOutput<typeof FunctionErrorSchema>
 
 /** The `{ error, code }` body of a failed call; empty when the body has neither. */
 export function parseFunctionError(body: unknown): FunctionError {
-  const parsed = FunctionErrorSchema.safeParse(body)
-  return parsed.success ? parsed.data : {}
+  const parsed = v.safeParse(FunctionErrorSchema, body)
+  return parsed.success ? parsed.output : {}
 }

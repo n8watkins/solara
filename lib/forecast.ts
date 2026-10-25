@@ -12,7 +12,7 @@ import type {
 import { roundCoordinate } from './geocoding'
 import { addDays, formatDate, resolveTimeZone, zonedNow, type ZonedNow } from './time'
 
-// The same Zod-validated parser the calendar feed and notifier use, so every
+// The same Valibot-validated parser the calendar feed and notifier use, so every
 // surface reads Open-Meteo identically (including how missing values are handled).
 //
 // A fetched forecast is stored as ForecastData: Celsius, the location's time zone

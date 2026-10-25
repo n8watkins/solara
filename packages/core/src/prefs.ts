@@ -1,5 +1,5 @@
 // The user preferences document (Firestore `users/{uid}` and the browser copy) as one
-// zod/mini schema. The schema is the single source of truth: the TypeScript types are
+// Valibot schema. The schema is the single source of truth: the TypeScript types are
 // inferred from it, it normalizes whatever a past client version stored, and the key
 // lists and caps in firestore.rules are checked against it (lib/firestore-rules.test.ts).
 //
@@ -12,9 +12,10 @@
 // best-effort but keeps its version, and `isWritablePreferences` refuses to write it,
 // so an old client never downgrades data it does not understand.
 
-import * as z from 'zod/mini'
+import * as v from 'valibot'
 import { roundCoordinate } from './geocoding'
 import { SKIN_TYPES, type PreferredHours } from './recommendation'
+import { finiteNumber, isPlainRecord, record } from './schema'
 
 /** The document shape this code reads and writes. Bump it with a new MIGRATIONS entry. */
 export const PREFS_SCHEMA_VERSION = 2
@@ -76,9 +77,7 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
+const isRecord = isPlainRecord
 
 function isNonBlank(value: string): boolean {
   return value.trim().length > 0
@@ -86,29 +85,32 @@ function isNonBlank(value: string): boolean {
 
 /** Trimmed text cut to `max` characters. */
 function text(max: number) {
-  return z.pipe(
-    z.string(),
-    z.transform(value => value.trim().slice(0, max)),
+  return v.pipe(
+    v.string(),
+    v.transform(value => value.trim().slice(0, max)),
   )
 }
 
 /**
  * A list that keeps the elements matching `item` and drops the rest. Anything that is
- * not an array reads as an empty list. `prepare` sees each raw element with its index
- * first, to fill in values that depend on the position.
+ * not an array, a missing field included, reads as an empty list. `prepare` sees each
+ * raw element with its index first, to fill in values that depend on the position.
  */
-function listOf<S extends z.ZodMiniType>(
+function listOf<S extends v.GenericSchema>(
   item: S,
   prepare: (raw: unknown, index: number) => unknown = raw => raw,
 ) {
-  return z.pipe(
-    z.catch(z.array(z.unknown()), []),
-    z.transform(raws =>
-      raws.flatMap((raw, index): z.output<S>[] => {
-        const parsed = item.safeParse(prepare(raw, index))
-        return parsed.success ? [parsed.data] : []
-      }),
+  return v.optional(
+    v.pipe(
+      v.fallback(v.array(v.unknown()), () => []),
+      v.transform(raws =>
+        raws.flatMap((raw, index): v.InferOutput<S>[] => {
+          const parsed = v.safeParse(item, prepare(raw, index))
+          return parsed.success ? [parsed.output] : []
+        }),
+      ),
     ),
+    () => [],
   )
 }
 
@@ -127,29 +129,29 @@ function uniqueBy<T>(items: readonly T[], same: (a: T, b: T) => boolean): T[] {
 }
 
 /** A deduplicated list of non-blank, trimmed strings. */
-const stringSet = z.pipe(
-  listOf(z.string().check(z.trim(), z.minLength(1))),
-  z.transform(values => Array.from(new Set(values))),
+const stringSet = v.pipe(
+  listOf(v.pipe(v.string(), v.trim(), v.minLength(1))),
+  v.transform(values => Array.from(new Set(values))),
 )
 
 // ---- Location ---------------------------------------------------------------------
 
 export const LOCATION_SHAPE = {
-  lat: z.pipe(z.number().check(z.gte(-90), z.lte(90)), z.transform(roundCoordinate)),
-  lon: z.pipe(z.number().check(z.gte(-180), z.lte(180)), z.transform(roundCoordinate)),
+  lat: v.pipe(finiteNumber, v.minValue(-90), v.maxValue(90), v.transform(roundCoordinate)),
+  lon: v.pipe(finiteNumber, v.minValue(-180), v.maxValue(180), v.transform(roundCoordinate)),
   city: text(PREFS_LIMITS.placeNameLength),
-  region: z.catch(text(PREFS_LIMITS.placeNameLength), ''),
-  timezone: z.catch(
-    z.optional(
-      z.string().check(z.maxLength(PREFS_LIMITS.timezoneLength), z.regex(TIMEZONE_PATTERN)),
+  region: v.fallback(text(PREFS_LIMITS.placeNameLength), ''),
+  timezone: v.fallback(
+    v.optional(
+      v.pipe(v.string(), v.maxLength(PREFS_LIMITS.timezoneLength), v.regex(TIMEZONE_PATTERN)),
     ),
     undefined,
   ),
 }
 
 /** A place: coordinates rounded to 2 decimals, names trimmed and capped. */
-export const LocationSchema = z.object(LOCATION_SHAPE)
-export type Location = z.output<typeof LocationSchema>
+export const LocationSchema = record(LOCATION_SHAPE)
+export type Location = v.InferOutput<typeof LocationSchema>
 
 /** Two places closer than the rounding grid are the same place. */
 export function sameLocation(a: Location, b: Location): boolean {
@@ -159,34 +161,36 @@ export function sameLocation(a: Location, b: Location): boolean {
 // ---- Profiles ---------------------------------------------------------------------
 
 export const PROFILE_SHAPE = {
-  id: z.string().check(z.refine(isNonBlank)),
-  name: z.pipe(
-    z.string().check(z.trim(), z.minLength(1)),
-    z.transform(name => name.slice(0, PREFS_LIMITS.profileNameLength)),
+  id: v.pipe(v.string(), v.check(isNonBlank)),
+  name: v.pipe(
+    v.string(),
+    v.trim(),
+    v.minLength(1),
+    v.transform(name => name.slice(0, PREFS_LIMITS.profileNameLength)),
   ),
-  skinType: z.enum(SKIN_TYPES),
-  icon: z.catch(z.optional(z.string().check(z.refine(isNonBlank))), undefined),
+  skinType: v.picklist(SKIN_TYPES),
+  icon: v.fallback(v.optional(v.pipe(v.string(), v.check(isNonBlank))), undefined),
 }
 
 /** A person or pet whose skin type drives the safety math when selected. */
-export const ProfileSchema = z.object(PROFILE_SHAPE)
-export type Profile = z.output<typeof ProfileSchema>
+export const ProfileSchema = record(PROFILE_SHAPE)
+export type Profile = v.InferOutput<typeof ProfileSchema>
 
 // ---- Activities -------------------------------------------------------------------
 
 /** Whole hours: `from` 0-23, `to` after `from` and at most 24. */
-const preferredHours = z.pipe(
-  z.object({ from: z.number(), to: z.number() }),
-  z.transform(({ from, to }): PreferredHours => {
+const preferredHours = v.pipe(
+  record({ from: finiteNumber, to: finiteNumber }),
+  v.transform(({ from, to }): PreferredHours => {
     const start = clamp(Math.round(from), 0, 23)
     return { from: start, to: Math.max(start + 1, Math.min(24, Math.round(to))) }
   }),
 )
 
 /** A sorted subset of 0-6 (0 = Sunday). Empty or all seven means every day: undefined. */
-const daysOfWeek = z.pipe(
-  z.array(z.unknown()),
-  z.transform(raw => {
+const daysOfWeek = v.pipe(
+  v.array(v.unknown()),
+  v.transform(raw => {
     const days = Array.from(
       new Set(
         raw.filter(
@@ -200,153 +204,159 @@ const daysOfWeek = z.pipe(
 )
 
 /** `true`, or undefined so the stored document stays clean. */
-const flag = z.pipe(
-  z.unknown(),
-  z.transform((value): boolean | undefined => (value === true ? true : undefined)),
+const flag = v.pipe(
+  v.unknown(),
+  v.transform((value): boolean | undefined => (value === true ? true : undefined)),
 )
 
 export const ACTIVITY_SHAPE = {
-  id: z.string().check(z.refine(isNonBlank)),
-  name: z.pipe(
-    z.string(),
-    z.transform(name =>
+  id: v.pipe(v.string(), v.check(isNonBlank)),
+  name: v.pipe(
+    v.string(),
+    v.transform(name =>
       (name.trim() || ACTIVITY_DEFAULTS.name).slice(0, PREFS_LIMITS.activityNameLength),
     ),
   ),
-  icon: z.catch(z.string().check(z.refine(isNonBlank)), ACTIVITY_DEFAULTS.icon),
-  durationMins: z.catch(
-    z.pipe(
-      z.number(),
-      z.transform(mins => Math.max(5, Math.round(mins))),
+  icon: v.fallback(v.pipe(v.string(), v.check(isNonBlank)), ACTIVITY_DEFAULTS.icon),
+  durationMins: v.fallback(
+    v.pipe(
+      finiteNumber,
+      v.transform(mins => Math.max(5, Math.round(mins))),
     ),
     ACTIVITY_DEFAULTS.durationMins,
   ),
   /** Base max UV assuming no sunscreen. */
-  maxUV: z.catch(
-    z.pipe(
-      z.number(),
-      z.transform(uv => clamp(uv, 0, 11)),
+  maxUV: v.fallback(
+    v.pipe(
+      finiteNumber,
+      v.transform(uv => clamp(uv, 0, 11)),
     ),
     ACTIVITY_DEFAULTS.maxUV,
   ),
   /** Whether the recommendation assumes SPF protection. */
-  sunscreen: z.catch(z.boolean(), false),
-  custom: z.optional(flag),
-  preferredHours: z.catch(z.optional(preferredHours), undefined),
+  sunscreen: v.fallback(v.boolean(), false),
+  custom: v.optional(flag),
+  preferredHours: v.fallback(v.optional(preferredHours), undefined),
   /** Default 'earliest', stored as undefined. */
-  timePreference: z.catch(
-    z.optional(
-      z.pipe(
-        z.enum(TIME_PREFERENCES),
-        z.transform((value): TimePreference | undefined =>
+  timePreference: v.fallback(
+    v.optional(
+      v.pipe(
+        v.picklist(TIME_PREFERENCES),
+        v.transform((value): TimePreference | undefined =>
           value === 'earliest' ? undefined : value,
         ),
       ),
     ),
     undefined,
   ),
-  daysOfWeek: z.catch(z.optional(daysOfWeek), undefined),
+  daysOfWeek: v.fallback(v.optional(daysOfWeek), undefined),
   /** Discount effective UV by cloud cover when planning. */
-  cloudSensitive: z.optional(flag),
+  cloudSensitive: v.optional(flag),
 }
 
-export const ActivitySchema = z.pipe(
-  z.object(ACTIVITY_SHAPE),
-  z.transform(activity => {
+export const ActivitySchema = v.pipe(
+  record(ACTIVITY_SHAPE),
+  v.transform(activity => {
     // Custom activities predate the `custom` flag; their ids carry the marker.
     if (activity.id.startsWith('custom_')) activity.custom = true
     return activity
   }),
 )
-export type Activity = z.output<typeof ActivitySchema>
+export type Activity = v.InferOutput<typeof ActivitySchema>
 
 // ---- The document -----------------------------------------------------------------
 
-const calendarHours = z.pipe(
-  z.object({ from: z.number(), to: z.number() }),
-  z.transform(({ from, to }) => ({
+const calendarHours = v.pipe(
+  record({ from: finiteNumber, to: finiteNumber }),
+  v.transform(({ from, to }) => ({
     from: clamp(from, CALENDAR_HOUR_BOUNDS.from.min, CALENDAR_HOUR_BOUNDS.from.max),
     to: clamp(to, CALENDAR_HOUR_BOUNDS.to.min, CALENDAR_HOUR_BOUNDS.to.max),
   })),
 )
 
-const upgradeInterest = z.object({
-  email: z.catch(
-    z.optional(
-      z.pipe(
-        z.string().check(z.trim(), z.minLength(1)),
-        z.transform(email => email.slice(0, PREFS_LIMITS.emailLength)),
+const upgradeInterest = record({
+  email: v.fallback(
+    v.optional(
+      v.pipe(
+        v.string(),
+        v.trim(),
+        v.minLength(1),
+        v.transform(email => email.slice(0, PREFS_LIMITS.emailLength)),
       ),
     ),
     undefined,
   ),
-  createdAt: z.string().check(
-    z.maxLength(PREFS_LIMITS.timestampLength),
-    z.refine(value => Number.isFinite(Date.parse(value))),
+  createdAt: v.pipe(
+    v.string(),
+    v.maxLength(PREFS_LIMITS.timestampLength),
+    v.check(value => Number.isFinite(Date.parse(value))),
   ),
 })
 
 export const PREFERENCES_SHAPE = {
-  uid: z.catch(z.string(), ''),
+  uid: v.fallback(v.string(), ''),
   /** Set by `parsePreferences`; see the versioning note at the top of this file. */
-  schemaVersion: z.catch(z.int().check(z.gte(1)), PREFS_SCHEMA_VERSION),
+  schemaVersion: v.fallback(
+    v.pipe(v.number(), v.safeInteger(), v.minValue(1)),
+    PREFS_SCHEMA_VERSION,
+  ),
   /** The active location. */
   location: LocationSchema,
   /**
    * Quick-switch shortcuts, deduplicated by position and capped. The active location is
    * pinned separately in the UI, so changing it is never gated; only saving extras is.
    */
-  savedLocations: z.pipe(
+  savedLocations: v.pipe(
     listOf(LocationSchema),
-    z.transform(list => uniqueBy(list, sameLocation).slice(0, PREFS_LIMITS.savedLocations)),
+    v.transform(list => uniqueBy(list, sameLocation).slice(0, PREFS_LIMITS.savedLocations)),
   ),
   /** The live skin type used for all safety math (the active profile's). */
-  skinType: z.catch(z.enum(SKIN_TYPES), 'fair'),
+  skinType: v.fallback(v.picklist(SKIN_TYPES), 'fair'),
   /** Saved people and pets, unique by id; undefined when there are none. */
-  profiles: z.optional(
-    z.pipe(
+  profiles: v.optional(
+    v.pipe(
       listOf(ProfileSchema, withDefaultId('profile_')),
-      z.transform(list => {
+      v.transform(list => {
         const unique = uniqueBy(list, (a, b) => a.id === b.id).slice(0, PREFS_LIMITS.profiles)
         return unique.length ? unique : undefined
       }),
     ),
   ),
   /** Kept only while it names one of `profiles`. */
-  activeProfileId: z.catch(z.optional(z.string()), undefined),
+  activeProfileId: v.fallback(v.optional(v.string()), undefined),
   /** Legacy global sunscreen flag; activities carry their own since version 2. */
-  sunscreen: z.catch(z.boolean(), false),
-  activities: z.pipe(
+  sunscreen: v.fallback(v.boolean(), false),
+  activities: v.pipe(
     listOf(ActivitySchema, withDefaultId('migrated_')),
-    z.transform(list => list.slice(0, PREFS_LIMITS.activities)),
+    v.transform(list => list.slice(0, PREFS_LIMITS.activities)),
   ),
   /** Written by the server after account creation. */
-  tier: z.catch(z.enum(TIER_LEVELS), 'anonymous'),
-  onboardingComplete: z.catch(z.boolean(), false),
-  calendarHours: z.catch(z.optional(calendarHours), undefined),
+  tier: v.fallback(v.picklist(TIER_LEVELS), 'anonymous'),
+  onboardingComplete: v.fallback(v.boolean(), false),
+  calendarHours: v.fallback(v.optional(calendarHours), undefined),
   /** Sun-path arc on the dashboard; default on. */
-  showSunPath: z.catch(z.optional(z.boolean()), undefined),
+  showSunPath: v.fallback(v.optional(v.boolean()), undefined),
   hiddenActivitySuggestionIds: stringSet,
   collapsedActivityCategories: stringSet,
-  upgradeInterest: z.catch(z.optional(upgradeInterest), undefined),
-  notificationHour: z.catch(
-    z.pipe(
-      z.number(),
-      z.transform(hour => clamp(Math.round(hour), NOTIFICATION_HOUR.min, NOTIFICATION_HOUR.max)),
+  upgradeInterest: v.fallback(v.optional(upgradeInterest), undefined),
+  notificationHour: v.fallback(
+    v.pipe(
+      finiteNumber,
+      v.transform(hour => clamp(Math.round(hour), NOTIFICATION_HOUR.min, NOTIFICATION_HOUR.max)),
     ),
     NOTIFICATION_HOUR.default,
   ),
   /** Temperature display unit; see TEMPERATURE_UNIT_PREFERENCES. */
-  temperatureUnit: z.catch(z.optional(z.enum(TEMPERATURE_UNIT_PREFERENCES)), undefined),
+  temperatureUnit: v.fallback(v.optional(v.picklist(TEMPERATURE_UNIT_PREFERENCES)), undefined),
   /** 12- or 24-hour clock; see CLOCK_FORMAT_PREFERENCES. */
-  clockFormat: z.catch(z.optional(z.enum(CLOCK_FORMAT_PREFERENCES)), undefined),
+  clockFormat: v.fallback(v.optional(v.picklist(CLOCK_FORMAT_PREFERENCES)), undefined),
 }
 
-const DocumentSchema = z.object(PREFERENCES_SHAPE)
+const DocumentSchema = record(PREFERENCES_SHAPE)
 
-export const PreferencesSchema = z.pipe(
+export const PreferencesSchema = v.pipe(
   DocumentSchema,
-  z.transform((prefs: z.output<typeof DocumentSchema>) => {
+  v.transform((prefs: v.InferOutput<typeof DocumentSchema>) => {
     if (!prefs.profiles?.some(profile => profile.id === prefs.activeProfileId)) {
       delete prefs.activeProfileId
     }
@@ -354,7 +364,7 @@ export const PreferencesSchema = z.pipe(
   }),
 )
 
-export type UserPreferences = z.output<typeof PreferencesSchema>
+export type UserPreferences = v.InferOutput<typeof PreferencesSchema>
 export type CalendarHours = NonNullable<UserPreferences['calendarHours']>
 
 /** Every field the document schema knows. */
@@ -434,11 +444,11 @@ export function parsePreferences(
   if (!isRecord(raw)) return null
   const stored = storedSchemaVersion(raw)
   const doc = migratePreferences(raw)
-  const location = LocationSchema.safeParse(doc.location).success ? doc.location : fallbackLocation
-  const parsed = PreferencesSchema.safeParse({ ...doc, location })
+  const location = v.is(LocationSchema, doc.location) ? doc.location : fallbackLocation
+  const parsed = v.safeParse(PreferencesSchema, { ...doc, location })
   if (!parsed.success) return null
-  parsed.data.schemaVersion = Math.max(stored, PREFS_SCHEMA_VERSION)
-  return parsed.data
+  parsed.output.schemaVersion = Math.max(stored, PREFS_SCHEMA_VERSION)
+  return parsed.output
 }
 
 /** False for preferences read from a newer schema version: writing them would lose data. */
