@@ -187,6 +187,11 @@
     background: #fee2e2;
     color: #991b1b;
   }
+  /* Neutral, in both themes: nothing is wrong, the day is just over. */
+  .badge-done {
+    background: var(--bg-metric);
+    color: var(--text-2);
+  }
 
   .dark .badge-safe {
     background: #064e3b;
@@ -267,11 +272,12 @@
   textarea:focus {
     border-color: var(--accent);
   }
+  /* Flush against the accent border, so the two read as one ring, not a double one. */
   input:focus-visible,
   select:focus-visible,
   textarea:focus-visible {
     outline: 2px solid var(--accent);
-    outline-offset: 1px;
+    outline-offset: 0;
   }
   input:disabled,
   select:disabled,
@@ -474,6 +480,24 @@
     display: flex;
     flex-direction: column;
     gap: 18px;
+  }
+  /* The dashboard's two columns: stacked into .dash-stack's rhythm below 1024 px. */
+  .dash-columns,
+  .dash-col {
+    display: contents;
+  }
+  @media (min-width: 1024px) {
+    .dash-columns {
+      display: grid;
+      grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr);
+      gap: 20px;
+      align-items: start;
+    }
+    .dash-col {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
   }
 
   @media (max-width: 560px) {

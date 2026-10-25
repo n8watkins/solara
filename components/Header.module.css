@@ -5,8 +5,7 @@
 
 @layer components {
   /* Header layout. One row at every width: on phones the location shrinks (and
-     truncates) instead of wrapping, so the city and current UV stay visible without
-     a second row. */
+     truncates) instead of wrapping, so the city stays visible without a second row. */
   .header {
     background: var(--bg-card);
     border-bottom: 0.5px solid var(--border-md);
@@ -20,6 +19,13 @@
     max-width: 900px;
     min-height: 52px;
     margin: 0 auto;
+  }
+
+  /* Matches the app column (AppShell), which widens for two columns from 1024 px. */
+  @media (min-width: 1024px) {
+    .row {
+      max-width: 1240px;
+    }
   }
 
   .location {
@@ -57,8 +63,10 @@
       gap: 4px;
       min-height: 50px;
     }
-    /* The plan badge gives way so the city fits; the plan stays visible in Settings. */
-    .uvLevel,
+    /* The plan badge and the current-UV chip give way so the city fits: the
+       dashboard's big readout shows the same UV right below, and the plan stays
+       visible in Settings. */
+    .uv,
     .pro {
       display: none;
     }

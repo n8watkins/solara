@@ -14,7 +14,16 @@ import { useStatusFlash } from '@/hooks/useStatusFlash'
 import { useCalendarBusy } from '@/hooks/useCalendarBusy'
 import { nowHourOf, planActivityDay, soonestPlan } from '@/lib/next-slot'
 import { nextSlotAfterToday } from '@/lib/planner'
-import { busyByDate, dashboardAccess, dayPhrase, uvReadout } from '@/lib/dashboard-view'
+import {
+  busyByDate,
+  dashboardAccess,
+  dayHourText,
+  dayOutlook,
+  dayPhrase,
+  nextHourWhere,
+  sunDown,
+  uvReadout,
+} from '@/lib/dashboard-view'
 import { buildEventDescription } from '@/lib/gcal'
 import type { SlotRecommendation } from '@/lib/scheduler'
 import { useScheduled } from '@/lib/scheduled-context'
@@ -102,6 +111,19 @@ export default function Dashboard({
   const nextSlot = allElapsed
     ? nextSlotAfterToday(weather.forecast, prefs.activities, prefs.skinType, accessibleDays, busy)
     : null
+  // After dark (or before sunrise) today: the readout, hero and metrics say so and
+  // when UV comes back, instead of a bare "0.0 None" and dashes.
+  const down = isToday ? sunDown(weather, nowHour) : null
+  const night =
+    allElapsed && down?.phase === 'after-sunset'
+      ? laterDaysVisible
+        ? dayOutlook(weather.tomorrow)
+        : null
+      : undefined
+  const fromHour = (test: (uv: number) => boolean) => {
+    const at = isToday ? nextHourWhere(weather, nowHour, test) : null
+    return at ? dayHourText(at, fmt.hour) : null
+  }
   const hasActivities = prefs.activities.length > 0
   // Every upsell opens the same plans dialog.
   const openPlans = () => setShowPricing(true)
@@ -167,58 +189,72 @@ export default function Dashboard({
         </div>
       )}
 
-      {hasActivities && (
-        <HeroSlot
-          plan={heroPlan}
-          isToday={isToday}
-          dateLabel={dateLabel}
-          allElapsed={allElapsed}
-          dayPhrase={dayPhrase(isToday, dateLabel)}
-          peakUV={peakUV}
-          peakHour={peakHour}
-          next={nextSlot}
-          laterDaysVisible={laterDaysVisible}
-          onPlanTomorrow={openPlans}
-          onMorningAlert={access.activityTier === 'paid' ? undefined : openPlans}
-        />
-      )}
+      {/* From 1024 px the conditions (left) and the activity plan (right) sit side by
+          side; narrower, both columns stack in this order. */}
+      <div className="dash-columns">
+        <div className="dash-col">
+          {hasActivities && (
+            <HeroSlot
+              plan={heroPlan}
+              isToday={isToday}
+              dateLabel={dateLabel}
+              allElapsed={allElapsed}
+              dayPhrase={dayPhrase(isToday, dateLabel)}
+              peakUV={peakUV}
+              peakHour={peakHour}
+              next={nextSlot}
+              laterDaysVisible={laterDaysVisible}
+              night={night}
+              onPlanTomorrow={openPlans}
+              onMorningAlert={access.activityTier === 'paid' ? undefined : openPlans}
+            />
+          )}
 
-      <UVCard
-        hourly={hourly}
-        readout={readout}
-        currentHour={isToday ? weather.now.hour : -1}
-        nowHour={isToday ? nowHour : null}
-        focused={focused}
-        onSelectHour={setFocusedHour}
-        showSunPath={process.env.NEXT_PUBLIC_HIDE_SUNPATH !== '1' && prefs.showSunPath !== false}
-      />
+          <UVCard
+            hourly={hourly}
+            readout={readout}
+            currentHour={isToday ? weather.now.hour : -1}
+            nowHour={isToday ? nowHour : null}
+            focused={focused}
+            sunDown={down}
+            onSelectHour={setFocusedHour}
+            showSunPath={
+              process.env.NEXT_PUBLIC_HIDE_SUNPATH !== '1' && prefs.showSunPath !== false
+            }
+          />
 
-      <ExposureMetrics
-        burn={readout.burn}
-        vitD={readout.vitD}
-        isToday={isToday}
-        skinType={prefs.skinType}
-      />
+          <ExposureMetrics
+            burn={readout.burn}
+            vitD={readout.vitD}
+            isToday={isToday}
+            skinType={prefs.skinType}
+            burnFrom={readout.burn === null ? fromHour(uv => uv >= 0.5) : null}
+            vitDFrom={readout.vitD === null ? fromHour(uv => uv >= 1) : null}
+          />
 
-      <SunTip />
+          <SunTip />
+        </div>
 
-      <ActivitiesSection
-        prefs={prefs}
-        weather={weather}
-        access={access}
-        plans={dayPlans}
-        isToday={isToday}
-        dateStr={activeDateStr}
-        dateLabel={dateLabel}
-        nowHour={nowHour}
-        busyByDate={busy}
-        calendar={calendar}
-        onBook={scheduled.enabled ? (a, r, d) => void bookSlotOn(a, r, d) : undefined}
-        scheduledItems={scheduled.items}
-        onOpenScheduled={item => setOpenEventId(item.eventId)}
-        onUpgrade={openPlans}
-        onPrefsUpdate={onPrefsUpdate}
-      />
+        <div className="dash-col">
+          <ActivitiesSection
+            prefs={prefs}
+            weather={weather}
+            access={access}
+            plans={dayPlans}
+            isToday={isToday}
+            dateStr={activeDateStr}
+            dateLabel={dateLabel}
+            nowHour={nowHour}
+            busyByDate={busy}
+            calendar={calendar}
+            onBook={scheduled.enabled ? (a, r, d) => void bookSlotOn(a, r, d) : undefined}
+            scheduledItems={scheduled.items}
+            onOpenScheduled={item => setOpenEventId(item.eventId)}
+            onUpgrade={openPlans}
+            onPrefsUpdate={onPrefsUpdate}
+          />
+        </div>
+      </div>
 
       {openItem && (
         <ScheduledDetails
@@ -231,6 +267,12 @@ export default function Dashboard({
           onDone={message => status.flash(message)}
         />
       )}
+
+      {/* The one caveat on the dashboard (the metric tooltips carry their own). */}
+      <p className="mx-0.5 text-[11px] leading-normal text-ink-3">
+        Forecast-based planning estimates, not medical advice. Conditions can change; use sun
+        protection.
+      </p>
 
       {showPricing && (
         <PricingModal

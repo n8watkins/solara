@@ -124,10 +124,6 @@ export default function ActivityCards({
           )
         })}
       </div>
-      <p className="mx-0.5 mt-2.5 text-[11px] leading-normal text-ink-3">
-        Forecast-based planning estimate only. Conditions can change; use appropriate sun
-        protection.
-      </p>
     </div>
   )
 }

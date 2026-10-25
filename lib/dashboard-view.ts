@@ -214,3 +214,72 @@ export function windowsPassedNote(
   if (!next) return `${passed} None of your other forecast days has one either.`
   return `${passed} Next lower-UV slot: ${dayPhrase(false, next.label)} at ${formatTime(next.slot.start)}.`
 }
+
+/** An hour on today (tomorrow: false) or tomorrow. */
+export interface DayHour {
+  hour: number
+  tomorrow: boolean
+}
+
+/**
+ * The first hour from `nowHour` on, today or else tomorrow, whose UV passes
+ * `test`; null when neither day has one.
+ */
+export function nextHourWhere(
+  weather: Pick<WeatherResponse, 'today' | 'tomorrow'>,
+  nowHour: number,
+  test: (uv: number) => boolean,
+): DayHour | null {
+  const today = weather.today.find(h => h.hour + 1 > nowHour && test(h.uv))
+  if (today) return { hour: today.hour, tomorrow: false }
+  const tomorrow = weather.tomorrow.find(h => test(h.uv))
+  return tomorrow ? { hour: tomorrow.hour, tomorrow: true } : null
+}
+
+/** "7am" today, "7am tomorrow". */
+export function dayHourText(at: DayHour, formatHour: (hour: number) => string): string {
+  return at.tomorrow ? `${formatHour(at.hour)} tomorrow` : formatHour(at.hour)
+}
+
+export interface SunDown {
+  /** Before the day's first UV, or after its last. */
+  phase: 'before-sunrise' | 'after-sunset'
+  /** When UV comes back (UV 0.5 or more). */
+  uvReturns: DayHour | null
+}
+
+/**
+ * Today's sun-down state: the live UV reads none, and either no UV is left today
+ * or it has not started yet. Null in daylight, including a heavily clouded hour
+ * between two sunny ones.
+ */
+export function sunDown(
+  weather: Pick<WeatherResponse, 'today' | 'tomorrow' | 'current'>,
+  nowHour: number,
+): SunDown | null {
+  if (weather.current.uv >= 0.5) return null
+  const sunny = weather.today.filter(h => h.uv >= 0.5)
+  const first = sunny[0]
+  const last = sunny.at(-1)
+  const uvReturns = nextHourWhere(weather, nowHour, uv => uv >= 0.5)
+  if (first && nowHour < first.hour) return { phase: 'before-sunrise', uvReturns }
+  if (!last || nowHour >= last.hour + 1) return { phase: 'after-sunset', uvReturns }
+  return null
+}
+
+export interface DayOutlook {
+  peakUV: number
+  peakHour: number
+  /** The first hour at UV 3 (Moderate) or more, if any: lower UV lasts until then. */
+  lowUntil: number | null
+}
+
+/** A day's peak and how long its morning stays below UV 3, for the after-dark hero. */
+export function dayOutlook(hourly: HourlyForecast[]): DayOutlook | null {
+  const first = hourly[0]
+  if (!first) return null
+  const peak = hourly.reduce((best, h) => (h.uv > best.uv ? h : best), first)
+  if (peak.uv < 0.5) return null
+  const moderate = hourly.find(h => uvBand(h.uv) !== 'none' && uvBand(h.uv) !== 'low')
+  return { peakUV: peak.uv, peakHour: peak.hour, lowUntil: moderate?.hour ?? null }
+}

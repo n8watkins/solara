@@ -31,39 +31,43 @@ function Metric({
   )
 }
 
-/** Burn time and vitamin D estimates at the current (or peak) UV, with the caveat. */
+/** Burn time and vitamin D estimates at the current (or peak) UV. */
 export default function ExposureMetrics({
   burn,
   vitD,
   isToday,
   skinType,
+  burnFrom,
+  vitDFrom,
 }: {
   burn: number | null
   vitD: number | null
   isToday: boolean
   skinType: SkinType
+  /** With no burn estimate now: when UV is next high enough for one ("9am tomorrow"). */
+  burnFrom: string | null
+  /** With no vitamin D estimate now: when UV is next high enough for one. */
+  vitDFrom: string | null
 }) {
   return (
-    <>
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(130px,1fr))] gap-2.5">
-        <Metric
-          testId="burn-metric"
-          label="Estimated burn time"
-          help={`A rough estimate for ${skinType} skin without sunscreen at this UV level. Do not use it as a timer for unprotected exposure.`}
-          value={burn ? `${burn}m` : '--'}
-          detail={`${isToday ? 'Now' : 'At peak'} · ${skinType} skin, no SPF`}
-        />
-        <Metric
-          label="Vitamin D estimate"
-          help="A rough model, not a recommended exposure target. Vitamin D needs and production vary widely; ask a clinician if you are concerned."
-          value={vitD ? `${vitD}m` : '--'}
-          detail="Arms + legs"
-        />
-      </div>
-      <p className="mx-0.5 -mt-1.5 text-[11px] leading-normal text-ink-3">
-        Forecasts and exposure estimates can change. Use sun protection and do not treat these
-        planning estimates as medical advice.
-      </p>
-    </>
+    <div className="grid grid-cols-[repeat(auto-fit,minmax(130px,1fr))] gap-2.5">
+      <Metric
+        testId="burn-metric"
+        label="Estimated burn time"
+        help={`A rough estimate for ${skinType} skin without sunscreen at this UV level. Do not use it as a timer for unprotected exposure.`}
+        value={burn ? `${burn}m` : 'None'}
+        detail={
+          burn || !burnFrom
+            ? `${isToday ? 'Now' : 'At peak'} · ${skinType} skin, no SPF`
+            : `No burn risk until ${burnFrom}`
+        }
+      />
+      <Metric
+        label="Vitamin D estimate"
+        help="A rough model, not a recommended exposure target. Vitamin D needs and production vary widely; ask a clinician if you are concerned."
+        value={vitD ? `${vitD}m` : 'None'}
+        detail={vitD || !vitDFrom ? 'Arms + legs' : `UV too low until ${vitDFrom}`}
+      />
+    </div>
   )
 }

@@ -1,6 +1,6 @@
 import type { ActivityDayPlan } from '@/lib/next-slot'
 import type { UpcomingSlot } from '@/lib/planner'
-import { dayPhrase as phraseForDay } from '@/lib/dashboard-view'
+import { dayPhrase as phraseForDay, type DayOutlook } from '@/lib/dashboard-view'
 import { useUnits } from '@/lib/use-units'
 import { useUpsellDismissal } from '@/lib/upsell'
 
@@ -19,6 +19,7 @@ export default function HeroSlot({
   peakHour,
   next,
   laterDaysVisible,
+  night,
   onPlanTomorrow,
   onMorningAlert,
 }: {
@@ -35,6 +36,11 @@ export default function HeroSlot({
   next: UpcomingSlot | null
   /** The plan shows days after today (false on the guest plan, which shows today only). */
   laterDaysVisible: boolean
+  /**
+   * After sunset with nothing left today: tomorrow's outlook when the plan shows
+   * tomorrow, else null; undefined in daylight.
+   */
+  night?: DayOutlook | null
   /** Opens the plans dialog, offered when later days are not part of the plan. */
   onPlanTomorrow: () => void
   /** Offers this slot as a morning alert (Pro); absent when the plan has alerts. */
@@ -97,6 +103,24 @@ export default function HeroSlot({
       </div>
     )
   }
+  const passed = "Today's matching windows have passed."
+  const nextText = next
+    ? `Next: ${next.activity.name} ${phraseForDay(false, next.label)} at ${fmt.time(next.slot.start)}.`
+    : null
+  const tomorrowText =
+    night &&
+    `Tomorrow peaks ${night.peakUV.toFixed(1)} at ${fmt.hour(night.peakHour)}${
+      night.lowUntil !== null ? `, below UV 3 until ${fmt.hour(night.lowUntil)}` : ''
+    }.`
+  const body = !allElapsed
+    ? 'Forecast UV stays above your activity limits. Check early morning or evening instead.'
+    : night !== undefined
+      ? [tomorrowText, nextText].filter(Boolean).join(' ') || passed
+      : nextText
+        ? `${passed} ${nextText}`
+        : laterDaysVisible
+          ? "Today's matching windows have passed, and none of your other forecast days has one."
+          : passed
   return (
     <div
       className="card border-[0.5px] border-line-strong bg-surface-metric"
@@ -106,25 +130,19 @@ export default function HeroSlot({
         {allElapsed ? 'No lower-UV slot left today' : `No matching lower-UV slot ${dayPhrase}`}
       </p>
       <div className="mt-[9px] flex items-center gap-3.5">
-        <span className="shrink-0 text-[30px]">🌥️</span>
+        <span className="shrink-0 text-[30px]">{night !== undefined ? '🌙' : '🌥️'}</span>
         <div className="min-w-0 flex-1">
           <p className="text-[18px] leading-[1.15] font-bold text-ink">
-            Peak UV {peakUV.toFixed(1)} at {fmt.hour(peakHour)}
+            {night !== undefined
+              ? 'Sun is down'
+              : `Peak UV ${peakUV.toFixed(1)} at ${fmt.hour(peakHour)}`}
           </p>
-          <p className="mt-[3px] text-[13px] leading-[1.4] text-ink-3">
-            {!allElapsed
-              ? 'Forecast UV stays above your activity limits. Check early morning or evening instead.'
-              : next
-                ? `Today's matching windows have passed. Next: ${next.activity.name} ${phraseForDay(false, next.label)} at ${fmt.time(next.slot.start)}.`
-                : laterDaysVisible
-                  ? "Today's matching windows have passed, and none of your other forecast days has one."
-                  : "Today's matching windows have passed."}
-          </p>
+          <p className="mt-[3px] text-[13px] leading-[1.4] text-ink-3">{body}</p>
           {allElapsed && !laterDaysVisible && (
             <button
               type="button"
               onClick={onPlanTomorrow}
-              className="-ml-1 mt-1 flex min-h-8 items-center rounded-lg px-1 text-left text-[13px] font-semibold text-accent"
+              className="mt-1 -ml-1 flex min-h-8 items-center rounded-lg px-1 text-left text-[13px] font-semibold text-accent"
             >
               Sign in free to plan tomorrow
             </button>

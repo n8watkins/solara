@@ -113,3 +113,25 @@ export function FocusMarker({ point }: { point: Point }) {
     </>
   )
 }
+
+/** Outer radius of the night marker's moon (the peak callout avoids it). */
+export const NIGHT_MOON_RADIUS = 7
+
+/**
+ * "Now" while the sun is down: a crescent moon at the end of the day it sits
+ * past (after sunset on the right, before sunrise on the left).
+ */
+export function NightMarker({ point, maskId }: { point: Point; maskId: string }) {
+  const r = NIGHT_MOON_RADIUS
+  return (
+    <g data-testid="sun-arc-night">
+      {/* A card-colored halo lifts the moon off the end of the line. */}
+      <circle cx={point.x} cy={point.y} r={r + 3} fill="var(--bg-card)" />
+      <mask id={maskId}>
+        <circle cx={point.x} cy={point.y} r={r} fill="white" />
+        <circle cx={point.x + r * 0.55} cy={point.y - r * 0.4} r={r * 0.8} fill="black" />
+      </mask>
+      <circle cx={point.x} cy={point.y} r={r} fill="var(--text-3)" mask={`url(#${maskId})`} />
+    </g>
+  )
+}

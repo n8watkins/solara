@@ -9,6 +9,8 @@ import { UV_STRIP_EDGE_FADE, hourSlots } from '@/lib/uv-strip'
 import {
   FOCUS_MARKER_RADIUS,
   FocusMarker,
+  NIGHT_MOON_RADIUS,
+  NightMarker,
   NOW_SUN_RADIUS,
   NowSun,
   PeakMarker,
@@ -36,6 +38,8 @@ interface Props {
   focused: HourlyForecast | null
   /** Select an hour by tapping/dragging the arc; drives the shared focus. */
   onSelectHour: (h: HourlyForecast) => void
+  /** Today with the sun down: "now" is a moon past that end of the day. */
+  sunDown?: 'before-sunrise' | 'after-sunset' | null
 }
 
 /**
@@ -43,7 +47,7 @@ interface Props {
  * to scrub hours; it is hidden from assistive technology because the strip's
  * bars below are the accessible, keyboard-operable version of the same control.
  */
-export default function SunArc({ hourly, nowHour, focused, onSelectHour }: Props) {
+export default function SunArc({ hourly, nowHour, focused, onSelectHour, sunDown }: Props) {
   const [wrapRef, width] = useElementWidth<HTMLDivElement>()
   const visibleSpan = useVisibleSpan(wrapRef)
   const dragging = useRef(false)
@@ -55,6 +59,7 @@ export default function SunArc({ hourly, nowHour, focused, onSelectHour }: Props
   const lineId = `${ids}-line`
   const clipId = `${ids}-known`
   const glowId = `${ids}-glow`
+  const moonId = `${ids}-moon`
   // Positions follow the strip's slots, which include hours with no UV data. The
   // SVG is drawn in real pixels at the strip's width (it renders inside the
   // strip's column, see UVTimeline `above`), so each hour sits over its bar.
@@ -84,6 +89,8 @@ export default function SunArc({ hourly, nowHour, focused, onSelectHour }: Props
   const nowIndex = nowHour !== null ? indexForTime(nowHour) : null
   const nowPoint = nowIndex !== null ? pointAt(tForIndex(nowIndex)) : null
   const focusedPoint = focused ? pointForHour(focused.hour) : null
+  // The moon sits where the sun path meets the horizon at that end of the day.
+  const moonPoint = sunDown ? { x: sunDown === 'after-sunset' ? x1 : x0, y: BASELINE_Y } : null
 
   // On a phone the strip scrolls, so only part of the arc is on screen, and its ends
   // fade out; the callout must fit in what is left. A peak scrolled out of that
@@ -148,6 +155,7 @@ export default function SunArc({ hourly, nowHour, focused, onSelectHour }: Props
     obstacles: [
       ...(nowPoint ? [{ ...nowPoint, r: NOW_SUN_RADIUS }] : []),
       ...(focusedPoint ? [{ ...focusedPoint, r: FOCUS_MARKER_RADIUS }] : []),
+      ...(moonPoint ? [{ ...moonPoint, r: NIGHT_MOON_RADIUS }] : []),
     ],
   })
   const labelCenter = label.x + labelBox.width / 2
@@ -298,6 +306,7 @@ export default function SunArc({ hourly, nowHour, focused, onSelectHour }: Props
             />
           )}
           {nowPoint && <NowSun point={nowPoint} glowId={glowId} />}
+          {moonPoint && <NightMarker point={moonPoint} maskId={moonId} />}
           {focusedPoint && <FocusMarker point={focusedPoint} />}
         </svg>
       )}
