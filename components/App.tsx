@@ -13,13 +13,19 @@ import { createForecastStore, ForecastStoreProvider, useWeather } from '@/lib/us
 import { resolveUnits, unitFormatters } from '@/lib/units'
 import { UnitsContext } from '@/lib/use-units'
 import { lazySubscription, storedSessionHint } from '@/lib/firebase'
+import { watchInstallPrompt } from '@/lib/install-prompt'
 import type { Activity, UserPreferences, TierLevel, DayWeather } from '@/lib/types'
 import SignInScreen from './SignInScreen'
 import Dashboard from './Dashboard'
 import Header from './Header'
 import Skeleton from './Skeleton'
-import InstallPrompt from './InstallPrompt'
-import { CalendarView, Onboarding, preloadDeferred, preloadSignedInParts } from './deferred'
+import {
+  CalendarView,
+  InstallPrompt,
+  Onboarding,
+  preloadDeferred,
+  preloadSignedInParts,
+} from './deferred'
 import DevPanel from './DevPanel'
 import ErrorBoundary from './ErrorBoundary'
 import AppShell, { type AppView } from './AppShell'
@@ -31,6 +37,8 @@ import ScheduledProvider from './ScheduledProvider'
 // parts (lib/use-account.ts): fetch them as soon as this module runs, not after the
 // first render.
 if (typeof window !== 'undefined' && storedSessionHint()) void preloadSignedInParts()
+// The install prompt loads later; the browser's install event is kept from now on.
+watchInstallPrompt()
 
 export default function App() {
   const [forecasts] = useState(createForecastStore)

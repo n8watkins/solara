@@ -5,8 +5,8 @@ import type { UpcomingSlot } from '@/lib/planner'
 import { planUpcomingSlots } from '@/lib/planner'
 import type { BusyInterval, SlotRecommendation } from '@/lib/scheduler'
 import { uvBand, uvLabel } from '@/lib/weather'
+import type * as IcsCode from '@/lib/ics'
 import { useUnits } from '@/lib/use-units'
-import { buildICS, recToIcsEvent, downloadICS } from '@/lib/ics'
 import { UV_BG } from './dashboard/uv-classes'
 
 interface Props {
@@ -50,7 +50,17 @@ export default function PlanAhead({
   const plan = planUpcomingSlots(forecast, activities, skinType, dayLimit, busyByDate, nowHourToday)
   if (!plan.length) return null
 
-  function exportIcs() {
+  async function exportIcs() {
+    // The calendar file code loads on the first export (and in the background soon
+    // after the page loads, components/deferred.tsx).
+    let ics: typeof IcsCode
+    try {
+      ics = await import('@/lib/ics')
+    } catch (error) {
+      console.error('Could not load the calendar export:', error)
+      return
+    }
+    const { buildICS, recToIcsEvent, downloadICS } = ics
     const events = plan.map(({ activity, dateStr, slot }) => recToIcsEvent(activity, dateStr, slot))
     downloadICS('solara-sun-plan.ics', buildICS(events))
   }
@@ -67,7 +77,7 @@ export default function PlanAhead({
         {canExport && (
           <button
             className="btn shrink-0 text-[12px] whitespace-nowrap"
-            onClick={exportIcs}
+            onClick={() => void exportIcs()}
             title="Download all recommended slots as a calendar file (.ics) for any calendar app"
           >
             <Download size={14} /> Export .ics

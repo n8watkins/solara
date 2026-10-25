@@ -62,6 +62,8 @@ function deferred<P extends object>(
 
 // Code that runs only after a click, fetched with the rest so the click needs no download.
 loaders.add(() => import('@/lib/gcal'))
+loaders.add(() => import('@/lib/share'))
+loaders.add(() => import('@/lib/ics'))
 
 export const PreferencesModal = deferred(() => import('./PreferencesModal'))
 export const PricingModal = deferred(() => import('./PricingModal'))
@@ -71,6 +73,8 @@ export const ManageActivitiesModal = deferred(() => import('./ManageActivitiesMo
 export const ScheduledSheet = deferred(() => import('./ScheduledSheet'))
 export const CalendarView = deferred(() => import('./CalendarView'))
 export const CalendarFeed = deferred(() => import('./CalendarFeed'))
+/** Floats over the page once the browser allows installing (lib/install-prompt.ts). */
+export const InstallPrompt = deferred(() => import('./InstallPrompt'))
 export const DayDialog = deferred(() => import('./dashboard/DayDialog'))
 export const PlaceSearch = deferred(() => import('./PlaceSearch'))
 /** Setup, for a first visit; the loading screen shows until it has arrived. */

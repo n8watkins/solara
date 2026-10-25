@@ -1,18 +1,20 @@
 'use client'
 import { X } from 'lucide-react'
 import SolaraMark from './SolaraMark'
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useState, useSyncExternalStore, type ReactNode } from 'react'
 import {
   ANALYTICS_CONSENT_EVENT,
   isAnalyticsMeasurementId,
   readAnalyticsConsent,
 } from '@/lib/analytics-consent'
-import { INSTALL_DISMISS_KEY, installPromptKind } from '@/lib/install-prompt'
-
-interface BeforeInstallPromptEvent extends Event {
-  prompt: () => Promise<void>
-  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
-}
+import {
+  clearInstallPrompt,
+  INSTALL_DISMISS_KEY,
+  installEnvironment,
+  installPromptKind,
+  onInstallPromptChange,
+  pendingInstallPrompt,
+} from '@/lib/install-prompt'
 
 /** The iOS share glyph (box with an up-arrow) so the instruction reads at a glance. */
 function ShareIcon() {
@@ -51,50 +53,23 @@ function ShareIcon() {
  * same place, asks for a choice.
  */
 export default function InstallPrompt() {
-  const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null)
-  const [mode, setMode] = useState<'chromium' | 'ios' | null>(null)
+  // Chromium's install event, kept from start-up by watchInstallPrompt (lib/install-prompt.ts).
+  const deferred = useSyncExternalStore(onInstallPromptChange, pendingInstallPrompt, () => null)
+  // Only ever rendered in the browser: it loads on demand (components/deferred.tsx).
+  const [kind] = useState(() => installPromptKind(installEnvironment()))
+  const [dismissed, setDismissed] = useState(false)
   const consentPending = useAnalyticsBannerOpen()
 
-  useEffect(() => {
-    let dismissed = false
-    try {
-      dismissed = Boolean(localStorage.getItem(INSTALL_DISMISS_KEY))
-    } catch {}
-    const kind = installPromptKind({
-      standalone:
-        window.matchMedia?.('(display-mode: standalone)').matches ||
-        Boolean((window.navigator as { standalone?: boolean }).standalone),
-      dismissed,
-      userAgent: navigator.userAgent,
-      platform: navigator.platform,
-      maxTouchPoints: navigator.maxTouchPoints,
-    })
-    if (kind === 'ios') {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- Browser-only state is read after hydration so the static export's prerendered markup matches the first client render.
-      setMode('ios')
-      return
-    }
-    if (kind !== 'chromium') return
-
-    const onBeforeInstall = (e: Event) => {
-      e.preventDefault()
-      setDeferred(e as BeforeInstallPromptEvent)
-      setMode('chromium')
-    }
-    const onInstalled = () => {
-      setMode(null)
-      setDeferred(null)
-    }
-    window.addEventListener('beforeinstallprompt', onBeforeInstall)
-    window.addEventListener('appinstalled', onInstalled)
-    return () => {
-      window.removeEventListener('beforeinstallprompt', onBeforeInstall)
-      window.removeEventListener('appinstalled', onInstalled)
-    }
-  }, [])
+  const mode = dismissed
+    ? null
+    : kind === 'ios'
+      ? 'ios'
+      : kind === 'chromium' && deferred
+        ? 'chromium'
+        : null
 
   function dismiss() {
-    setMode(null)
+    setDismissed(true)
     try {
       localStorage.setItem(INSTALL_DISMISS_KEY, '1')
     } catch {}
@@ -104,8 +79,7 @@ export default function InstallPrompt() {
     if (!deferred) return
     await deferred.prompt()
     await deferred.userChoice
-    setMode(null)
-    setDeferred(null)
+    clearInstallPrompt()
   }
 
   if (!mode || consentPending) return null

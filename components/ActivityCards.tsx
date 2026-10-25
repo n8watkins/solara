@@ -4,7 +4,7 @@ import { gcalLink } from '@/lib/weather'
 import { useUnits } from '@/lib/use-units'
 import { useStatusFlash } from '@/hooks/useStatusFlash'
 import { canUseCalendar } from '@/lib/tiers'
-import { buildActivityShareText, buildActivityShareUrl, shareOrCopy } from '@/lib/share'
+import type * as ShareCode from '@/lib/share'
 import type { SlotRecommendation } from '@/lib/scheduler'
 import type { ActivityDayPlan } from '@/lib/next-slot'
 import type { UpcomingSlot } from '@/lib/planner'
@@ -56,6 +56,17 @@ export default function ActivityCards({
   const calendarAllowed = canUseCalendar(tier)
 
   async function shareWindow(activity: Activity, selectedWindow: SafeActivityWindow) {
+    // The share code loads in the background soon after the page loads
+    // (components/deferred.tsx), so this is normally instant and the share sheet
+    // still opens within the tap's user activation.
+    let share: typeof ShareCode
+    try {
+      share = await import('@/lib/share')
+    } catch {
+      confirm.flash('Could not share. Check your connection and try again.')
+      return
+    }
+    const { buildActivityShareText, buildActivityShareUrl, shareOrCopy } = share
     const payload = {
       activity,
       window: selectedWindow,
