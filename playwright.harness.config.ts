@@ -12,6 +12,9 @@ const shared: Partial<PlaywrightTestOptions> = {
   timezoneId: HARNESS_TIMEZONE,
   // Permission prompts and geolocation stay deterministic: never granted.
   permissions: [],
+  // The harness build has no app-shell service worker (scripts/build-sw.mjs runs after
+  // production builds only), and the screenshots must come from the page itself.
+  serviceWorkers: 'block',
 }
 
 const desktop = {

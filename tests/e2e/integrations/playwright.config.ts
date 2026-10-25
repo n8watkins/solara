@@ -45,6 +45,8 @@ export default defineConfig({
     baseURL: `http://127.0.0.1:${port}`,
     screenshot: 'only-on-failure',
     trace: 'retain-on-failure',
+    // As in playwright.config.ts: the app-shell service worker stays out of the way.
+    serviceWorkers: 'block',
   },
   webServer: {
     command: `node tests/e2e/serve-export.mjs ${port}`,

@@ -59,14 +59,10 @@ Done 2026-10-25 in #78: the peak callout stays inside the arc's box at every wid
 
 Done 2026-10-25 in #83 and #93: Lighthouse mobile LCP for `/app/` is about 2.1 s for a guest and the same for a returning account, whose dashboard now shows from this browser's copy while Firebase loads; a guest's first load is about 196 KB gzip of JavaScript, held under 200 KB by `tests/e2e/guest.spec.ts`.
 
-### 4. App-shell service worker with an offline forecast (PERF-2, PROD-6 part)
+### 4. App-shell service worker with an offline forecast (PERF-2, PROD-6 part) (done, #94)
 
-- **Goal:** an installed Solara opens offline and shows the last forecast with an "Updated at" stamp.
-- **Scope:** replace `scripts/generate-sw.js` with an app-shell service worker that precaches the shell, serves the last forecast for each saved place, shows an offline notice, and keeps the existing push handler.
-- **Owns:** `scripts/generate-sw.js` (replaced), the service worker, the offline notice component.
-- **Acceptance:** an e2e test loads the app, goes offline, reloads and sees the cached forecast and stamp; a new deploy replaces the old worker without a stuck version; the Lighthouse PWA checks pass.
-- **Depends on:** item 3 (the lazy boundaries decide what goes in the shell).
-- **Size:** M.
+Done 2026-10-25 in #94: an installed Solara opens offline from the app-shell service worker (`scripts/sw/shell.ts`, built after each build by `scripts/build-sw.mjs`) and shows the last forecast for the place with an offline notice and an "updated at" stamp.
+A signed-in account opens read-only from this browser's copy until the browser is back online, and a deploy replaces the worker and its caches at once.
 
 ### 5. Place autocomplete in onboarding (PROD-6, done, #80)
 

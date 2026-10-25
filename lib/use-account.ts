@@ -47,6 +47,12 @@ async function loadSignedInAccount(
   }
 }
 
+/** Resolves once the browser reports a network connection (at once if it does). */
+function whenOnline(): Promise<void> {
+  if (navigator.onLine !== false) return Promise.resolve()
+  return new Promise(resolve => window.addEventListener('online', () => resolve(), { once: true }))
+}
+
 /**
  * The account (or guest) behind components/App.tsx: follows Firebase Auth, loads (or
  * creates) the account's preferences or the guest plan kept in this browser, and
@@ -148,6 +154,14 @@ export function useAccount({
         setScreen('loading')
       }
 
+      // Offline, the account shown from this browser's copy stays on screen, read-only
+      // with its cached forecast (components/OfflineNotice.tsx), and its saved plan
+      // loads once the browser is back online instead of failing.
+      if (wasCached && previousUid === u.uid) {
+        await whenOnline()
+        if (isStale()) return
+      }
+
       const known = signedIn
       signedIn = null
       const result = await loadSignedInAccount(u.uid, known)
@@ -188,6 +202,8 @@ export function useAccount({
       void loadAccount(u, generation)
     }
 
+    let stopWaitingForNetwork: (() => void) | null = null
+
     // Follow Auth from whenever Firebase loads: now for a stored session, or later
     // when a sign-in button loads it.
     let unsubscribeAuth: (() => void) | null = null
@@ -204,6 +220,13 @@ export function useAccount({
       let started = false
       const startFirebase = () => {
         if (started || disposed) return
+        // Offline, Firebase loads once the browser is back online, so the account shown
+        // from this browser's copy is never replaced by a failed download.
+        if (showingCached && navigator.onLine === false) {
+          window.addEventListener('online', startFirebase, { once: true })
+          stopWaitingForNetwork = () => window.removeEventListener('online', startFirebase)
+          return
+        }
         started = true
         loadFirebase().catch(error => {
           if (disposed) return
@@ -243,6 +266,7 @@ export function useAccount({
     return () => {
       disposed = true
       startFirebaseAfterPaint.current = null
+      stopWaitingForNetwork?.()
       stopWaiting()
       unsubscribeAuth?.()
     }

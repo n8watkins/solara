@@ -152,7 +152,6 @@ function buildSite() {
   // `next build` directly, not `npm run build`: the production postbuild refuses the
   // emulator flag (scripts/check-no-emulators.mjs). The export is moved out of out/
   // right away, so out/ never keeps an emulator build.
-  run('node', ['scripts/generate-sw.js'], buildEnv)
   run(process.execPath, [join('node_modules', 'next', 'dist', 'bin', 'next'), 'build'], buildEnv)
   rmSync(SITE_DIR, { recursive: true, force: true })
   mkdirSync(resolve(SITE_DIR, '..'), { recursive: true })
@@ -163,6 +162,7 @@ function buildSite() {
   // The emulator flag in buildEnv also lets the policy frame the Auth emulator's
   // sign-in helper, which this suite serves on the page's own origin (lib/csp.mts).
   run('node', ['scripts/csp.mjs', SITE_DIR], buildEnv)
+  run('node', ['scripts/build-sw.mjs', SITE_DIR], buildEnv)
 
   writeFileSync(SITE_INFO, JSON.stringify({ origin }))
 }

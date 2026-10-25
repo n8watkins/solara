@@ -20,7 +20,8 @@ export default function AppNotice({
   children,
 }: {
   tone: keyof typeof TONES
-  icon?: string
+  /** An emoji or an icon element, shown before the text. */
+  icon?: ReactNode
   role?: 'status' | 'alert'
   /** A small button at the end of the banner (Retry, Dismiss, ...). */
   action?: { label: string; onClick: () => void }
@@ -34,7 +35,7 @@ export default function AppNotice({
         TONES[tone],
       )}
     >
-      {icon && <span>{icon}</span>}
+      {icon && <span className="flex shrink-0 items-center">{icon}</span>}
       <span className="flex-1">{children}</span>
       {action && (
         <button className="btn text-[12px]" onClick={action.onClick}>

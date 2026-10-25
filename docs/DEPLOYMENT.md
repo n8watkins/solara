@@ -142,13 +142,23 @@ FIREBASE=functions/node_modules/.bin/firebase
 For a manual Functions deploy, put `STRIPE_PRICE_ID=<price-id>` in `functions/.env.<project-id>`; `APP_URL` comes from `functions/.env`.
 Deploy Hosting only from the `out/` of a production build (`npm run build`), because the CSP and public configuration are baked in at build time.
 
-## Service worker generation
+## Service workers
 
-`public/firebase-messaging-sw.js` is a generated, ignored artifact.
-Both `npm run dev` and `npm run build` run `scripts/generate-sw.js` first, which bundles `scripts/sw/firebase-messaging-sw.ts` with the app's npm Firebase SDK and the Firebase values that Next itself resolves: the deployment environment first, then the `.env*` files (for example `.env.local`).
-The worker loads no script from a CDN, and notification clicks open only same-origin links, focusing an open Solara window when there is one.
-Do not commit or hand-edit the generated worker.
-Re-run the generator through either command after changing Firebase client configuration.
+Both workers are generated, ignored artifacts; do not commit or hand-edit them.
+`npm run build` ends with `scripts/build-sw.mjs` (after `scripts/csp.mjs`, so the pages are final), which writes two workers into `out/`:
+
+- `/sw.js`, the app shell (`scripts/sw/shell.ts`, rules in `lib/sw-shell.mts`).
+  It precaches `/` and `/app/` and every file they load, listed from the exported pages, their stylesheets and the web app manifest, and checked against `.next/build-manifest.json`, so the build fails rather than ship a shell that misses a script.
+  Its version is a hash of every precached file: any change to the site installs a new worker, which takes over at once and deletes the previous version's caches, and an unchanged rebuild does not.
+  Pages are fetched network first (the precached copy answers only when the network fails or takes over 4 seconds), so an old worker never pins anyone to an old page.
+  It handles nothing cross-origin, nothing under `/__/` and no account data; the forecast offline comes from the app's own cache in localStorage (`lib/cache.ts`).
+- `/firebase-messaging-sw.js`, the push worker (`scripts/sw/firebase-messaging-sw.ts`), bundled with the app's npm Firebase SDK and the Firebase values that Next itself resolves: the deployment environment first, then the `.env*` files (for example `.env.local`).
+  Firebase Messaging registers it under its own scope when someone turns on notifications.
+  It loads no script from a CDN, and notification clicks open only same-origin links, focusing an open Solara window when there is one.
+  `npm run dev` bundles it into `public/` instead, for `next dev`; the shell worker exists only in production builds.
+
+`firebase.json` serves both workers with `Cache-Control: no-cache`, so browsers check for a new one on every visit; never give them a long cache lifetime.
+Re-run `npm run build` after changing Firebase client configuration.
 
 ## Content Security Policy
 

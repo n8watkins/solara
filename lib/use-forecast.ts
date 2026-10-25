@@ -80,6 +80,8 @@ export interface WeatherState {
   loading: boolean
   /** A message when the last fetch failed (the last forecast, if any, stays on screen). */
   error: string | null
+  /** When the forecast on screen was fetched (ms since the epoch); 0 without one. */
+  updatedAt: number
   /** Fetch a fresh forecast now. */
   refresh: () => void
 }
@@ -108,6 +110,7 @@ export function useWeather(location: Location | null | undefined): WeatherState 
         ? 'Could not refresh weather data. Showing the last forecast.'
         : 'Could not load weather data.'
       : null,
+    updatedAt: forecast.updatedAt,
     refresh: refetch,
   }
 }

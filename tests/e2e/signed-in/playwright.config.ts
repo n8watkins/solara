@@ -38,6 +38,8 @@ export default defineConfig({
     // The frozen clock (tests/harness/clock.ts) is 10:30 in this zone.
     timezoneId: HARNESS_TIMEZONE,
     permissions: [],
+    // As in playwright.config.ts: the app-shell service worker stays out of the way.
+    serviceWorkers: 'block',
     screenshot: 'only-on-failure',
     trace: 'retain-on-failure',
   },

@@ -10,11 +10,10 @@
     "@grpc/grpc-js": "^1.14.6"
   },
   "scripts": {
-    "predev": "node scripts/generate-sw.js --dev",
+    "predev": "node scripts/build-sw.mjs --dev",
     "dev": "next dev",
-    "prebuild": "node scripts/generate-sw.js",
     "build": "next build",
-    "postbuild": "node scripts/check-no-ui-harness.mjs && node scripts/check-no-emulators.mjs && node scripts/static-pages.mjs && node scripts/csp.mjs",
+    "postbuild": "node scripts/static-pages.mjs && node scripts/csp.mjs && node scripts/build-sw.mjs && node scripts/check-no-ui-harness.mjs && node scripts/check-no-emulators.mjs",
     "build:core": "node scripts/build-core.mjs",
     "start": "next start",
     "lint": "eslint . --max-warnings=0 && npm run format:check",

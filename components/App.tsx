@@ -30,6 +30,7 @@ import DevPanel from './DevPanel'
 import ErrorBoundary from './ErrorBoundary'
 import AppShell, { type AppView } from './AppShell'
 import AppNotice from './AppNotice'
+import OfflineNotice from './OfflineNotice'
 import { AccountLoadError, AccountLoading } from './AccountStatus'
 import ScheduledProvider from './ScheduledProvider'
 
@@ -122,6 +123,7 @@ function SignedInApp() {
     weather,
     loading: weatherLoading,
     error,
+    updatedAt: weatherUpdatedAt,
     refresh: refreshWeather,
   } = useWeather(screen === 'dashboard' ? prefs?.location : null)
   const units = unitFormatters(resolveUnits(prefs))
@@ -224,6 +226,7 @@ function SignedInApp() {
           after={isDev && <DevPanel currentTier={displayTier} onOverride={setTierOverride} />}
         >
           <InstallPrompt />
+          <OfflineNotice weather={weather} updatedAt={weatherUpdatedAt} readOnly={!!pending} />
           {foregroundNotice && (
             <AppNotice
               tone="notice"

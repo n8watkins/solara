@@ -1,6 +1,9 @@
-// Source for public/firebase-messaging-sw.js. scripts/generate-sw.js bundles it
-// with the app's own npm Firebase version, so the worker loads no third-party
-// script and stays on the same SDK release as the page.
+// Source for the push worker, firebase-messaging-sw.js. scripts/build-sw.mjs bundles
+// it with the app's own npm Firebase version, so the worker loads no third-party
+// script and stays on the same SDK release as the page. Firebase Messaging registers
+// it under its own scope (/firebase-cloud-messaging-push-scope) when someone turns on
+// notifications, apart from the app-shell worker (scripts/sw/shell.ts), so a guest
+// never downloads Firebase for it and existing push subscriptions keep working.
 import type { FirebaseOptions } from 'firebase/app'
 import { initializeApp } from 'firebase/app'
 import type { MessagePayload } from 'firebase/messaging/sw'
