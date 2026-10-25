@@ -12,7 +12,7 @@ import { useCheckoutReturn } from '@/lib/use-checkout-return'
 import { createForecastStore, ForecastStoreProvider, useWeather } from '@/lib/use-forecast'
 import { resolveUnits, unitFormatters } from '@/lib/units'
 import { UnitsContext } from '@/lib/use-units'
-import { lazySubscription } from '@/lib/firebase'
+import { lazySubscription, storedSessionHint } from '@/lib/firebase'
 import type { Activity, UserPreferences, TierLevel, DayWeather } from '@/lib/types'
 import SignInScreen from './SignInScreen'
 import Dashboard from './Dashboard'
@@ -26,6 +26,11 @@ import AppShell, { type AppView } from './AppShell'
 import AppNotice from './AppNotice'
 import { AccountLoadError, AccountLoading } from './AccountStatus'
 import ScheduledProvider from './ScheduledProvider'
+
+// A browser holding a session opens on the signed-in screen, which waits for these
+// parts (lib/use-account.ts): fetch them as soon as this module runs, not after the
+// first render.
+if (typeof window !== 'undefined' && storedSessionHint()) void preloadSignedInParts()
 
 export default function App() {
   const [forecasts] = useState(createForecastStore)

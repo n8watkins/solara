@@ -23,6 +23,9 @@ import {
 import type { AccountLoadResult } from './session'
 import type { UserPreferences } from './types'
 
+/** How long a stored session's start-up waits for the signed-in parts before Auth. */
+const SIGNED_IN_PARTS_WAIT_MS = 3000
+
 /**
  * Loads the signed-in account (loadAccountPrefs in lib/session.ts). The account code,
  * and the notifications code it uses, loads only for someone signed in; a failure to
@@ -85,6 +88,8 @@ export function useAccount({
   const accountUid = useRef<string | null>(null)
   // The account document that sign-in from setup just read or created, for the next load.
   const signedInAccount = useRef<UserPreferences | null>(null)
+  // Starts Firebase once the account shown from this browser's copy has painted.
+  const startFirebaseAfterPaint = useRef<(() => void) | null>(null)
 
   const resetAccountState = useEffectEvent(() => {
     // Drops cached forecasts and aborts any request in flight.
@@ -196,21 +201,30 @@ export function useAccount({
     if (loadedFirebase()) {
       // Auth's listener, just attached, reports the current user.
     } else if (storedSessionHint()) {
-      let failed = false
-      loadFirebase().catch(error => {
-        if (disposed) return
-        console.error('Account load failed:', error)
-        failed = true
-        showingCached = false
-        setPending(null)
-        setAccountError(ACCOUNT_LOAD_ERROR)
-        setScreen('loading')
-      })
-      // Meanwhile, the account as this browser last saw it, unless Auth answers first.
+      let started = false
+      const startFirebase = () => {
+        if (started || disposed) return
+        started = true
+        loadFirebase().catch(error => {
+          if (disposed) return
+          console.error('Account load failed:', error)
+          showingCached = false
+          setPending(null)
+          setAccountError(ACCOUNT_LOAD_ERROR)
+          setScreen('loading')
+        })
+      }
+      // The account as this browser last saw it shows first, and Firebase starts once
+      // it has painted (the effect below), so the SDK's download and start-up never
+      // hold up the dashboard. Without one, Firebase starts at once.
+      startFirebaseAfterPaint.current = startFirebase
       void cachedAccount().then(async cached => {
-        if (!cached) return
+        if (!cached) return startFirebase()
+        // Should the signed-in parts be slow to arrive, Auth need not wait for them.
+        const fallback = setTimeout(startFirebase, SIGNED_IN_PARTS_WAIT_MS)
         await prepareSignedIn?.()
-        if (disposed || failed || generation > 0) return
+        clearTimeout(fallback)
+        if (disposed || started) return startFirebase()
         showingCached = true
         accountUid.current = cached.identity.uid
         setPrefs(cached.prefs)
@@ -228,12 +242,23 @@ export function useAccount({
     }
     return () => {
       disposed = true
+      startFirebaseAfterPaint.current = null
       stopWaiting()
       unsubscribeAuth?.()
     }
     // signInRequested only matters for the first signed-out load.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reloadKey])
+
+  // The cached dashboard has rendered; Firebase starts once the browser has shown it
+  // (the frame after next), so not even the request for the SDK competes with it.
+  useEffect(() => {
+    if (!pending) return
+    let frame = requestAnimationFrame(() => {
+      frame = requestAnimationFrame(() => startFirebaseAfterPaint.current?.())
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [pending])
 
   return {
     user,
