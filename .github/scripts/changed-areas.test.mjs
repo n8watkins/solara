@@ -24,6 +24,13 @@ test('a docs-only change runs no suite', () => {
   )
 })
 
+test('a single unrelated file is named in the reason', () => {
+  assert.equal(
+    classify(['docs/WIF_SETUP.md']).reasons.functions,
+    'the one changed file (docs/WIF_SETUP.md) does not affect the Functions and Firestore rules tests',
+  )
+})
+
 test('repository metadata runs no suite', () => {
   assert.deepEqual(running(['.gitleaksignore', 'CODEOWNERS', '.gitignore', 'LICENSE']), [])
 })

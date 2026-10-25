@@ -219,8 +219,9 @@ export function classify(paths) {
     areas[area] = hits.length > 0
     reasons[area] = areas[area]
       ? `${describe(hits.map(file => file.path))} changed`
-      : `none of the ${files.length} changed file${files.length === 1 ? '' : 's'} ` +
-        `(${describe(unique)}) affect the ${AREA_LABELS[area]}`
+      : files.length === 1
+        ? `the one changed file (${describe(unique)}) does not affect the ${AREA_LABELS[area]}`
+        : `none of the ${files.length} changed files (${describe(unique)}) affect the ${AREA_LABELS[area]}`
   }
   const docsOnly = files.every(file => file.areas.length === 0)
   return { areas, reasons, docsOnly, files }
