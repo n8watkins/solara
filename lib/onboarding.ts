@@ -46,6 +46,18 @@ const SKIN_DESCRIPTIONS: Readonly<Record<SkinType, string>> = {
   dark: 'Very rarely burns',
 }
 
+/**
+ * A representative tone for each skin type, shown as a swatch beside its name so
+ * the choice is quicker to make (roughly Fitzpatrick types I-V).
+ */
+export const SKIN_SWATCHES: Readonly<Record<SkinType, string>> = {
+  'very-fair': '#f7e2d4',
+  fair: '#eac3a3',
+  medium: '#cf9c6e',
+  olive: '#a7774c',
+  dark: '#6a442b',
+}
+
 export interface SkinOption {
   value: SkinType
   label: string

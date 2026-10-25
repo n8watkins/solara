@@ -14,6 +14,7 @@ import {
 } from '@/lib/onboarding'
 import { FinishStep, LocationStep, SkinStep, UVPreviewStep } from './OnboardingSteps'
 import type { PlaceSearchMiss } from './PlaceSearch'
+import SolaraMark from './SolaraMark'
 
 interface Props {
   /** The signed-in account that has no saved plan yet, or null for a visitor. */
@@ -106,14 +107,26 @@ export default function Onboarding({ user, onSignedIn, onStartAsGuest }: Props) 
   const goBack = back ? () => setStep(back) : undefined
 
   return (
-    // The card hugs its content and the column sits near the top on phones (where
-    // the keyboard opens) and in the middle on larger screens.
-    <main className="flex min-h-dvh flex-col bg-surface px-4 pt-[max(20px,5vh)] pb-8 sm:justify-center sm:py-10">
+    // The card hugs its content and sits in the middle of the screen, except for the
+    // location step on phones, which stays near the top where the keyboard opens.
+    <main
+      className={clsx(
+        'flex min-h-dvh flex-col bg-surface px-4 py-8 sm:justify-center sm:py-10',
+        step === 'location' ? 'pt-[max(20px,5vh)]' : 'justify-center',
+      )}
+    >
       <div className="mx-auto w-full max-w-[460px]">
-        <div className="pb-4 text-center">
-          <span aria-hidden="true" className="text-[26px]">
-            ☀️
-          </span>
+        <div className="flex flex-col items-center pb-4">
+          {/* A full page load on purpose: the landing page is static HTML with no app
+              code, and next/link would add its router to every guest's first load. */}
+          {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+          <a
+            href="/"
+            className="flex items-center gap-1.5 rounded-lg px-1.5 py-1 text-[17px] font-bold text-ink no-underline"
+          >
+            <SolaraMark size={22} />
+            Solara
+          </a>
           <div
             role="progressbar"
             aria-label="Setup progress"
@@ -128,7 +141,7 @@ export default function Onboarding({ user, onSignedIn, onStartAsGuest }: Props) 
                 key={i}
                 className={clsx(
                   'h-1 w-[26px] rounded-[2px]',
-                  i <= progress ? 'bg-accent' : 'bg-line-strong opacity-40',
+                  i <= progress ? 'bg-accent' : 'bg-ink-3/35',
                 )}
               />
             ))}

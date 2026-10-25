@@ -3,6 +3,7 @@ import { useId, useState } from 'react'
 import type { User } from 'firebase/auth'
 import type { SkinType, TierLevel } from '@/lib/types'
 import type { SettingsDraft } from '@/lib/settings'
+import SkinSwatch from '../SkinSwatch'
 import NotificationSettings from './NotificationSettings'
 import {
   FIELD_CONTROL,
@@ -65,7 +66,8 @@ export default function SunProfileSettings({ draft, onChange, tier, user }: Prop
           </select>
         </SettingsField>
         <div className="flex items-center justify-between gap-2.5 rounded-[10px] border-[0.5px] border-line-strong bg-surface-card px-3 py-2.5">
-          <div>
+          <SkinSwatch skin={selected.value} />
+          <div className="min-w-0 flex-1">
             <p className="text-[14px] font-[650] text-ink">{selected.label}</p>
             <p className="mt-0.5 text-[12px] text-ink-3">{selected.desc}</p>
           </div>
