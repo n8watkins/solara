@@ -53,7 +53,12 @@ function loadGis(): Promise<void> {
     s.async = true
     s.defer = true
     s.onload = () => resolve()
-    s.onerror = () => reject(new Error('Failed to load Google Identity Services'))
+    s.onerror = () => {
+      // Let the next click try again (the person may have been offline).
+      gisLoader = null
+      s.remove()
+      reject(new Error('Failed to load Google Identity Services'))
+    }
     document.head.appendChild(s)
   })
   return gisLoader
@@ -66,22 +71,58 @@ interface TokenResponse {
   error?: string
 }
 
+/** The GIS token client's non-OAuth failure, reported to `error_callback`. */
+interface TokenClientError {
+  type?: string
+  message?: string
+}
+
 /**
- * Google refused the request for lack of a valid token (none yet, expired or revoked).
+ * Why no valid token is available:
+ * - `no_token`: none yet, expired, or Google refused the one Solara had.
+ * - `popup_closed`: the person closed the consent popup.
+ * - `popup_failed_to_open`: the browser blocked the popup.
+ * - `timeout`: neither callback fired in time (a safety net, see TOKEN_TIMEOUT_MS).
+ * - Any other value is the OAuth error code or GIS error type, such as `access_denied`.
+ */
+export type CalendarAuthReason =
+  'no_token' | 'popup_closed' | 'popup_failed_to_open' | 'timeout' | (string & {})
+
+/**
+ * Google refused the request for lack of a valid token (none yet, expired or revoked),
+ * or the person did not finish the consent popup.
  * The caller asks the person to reconnect; a token is never requested without a click,
  * because the consent popup needs a user gesture.
  */
 export class CalendarAuthError extends Error {
-  constructor(message = 'Google Calendar needs to be reconnected') {
-    super(message)
+  readonly reason: CalendarAuthReason
+  constructor(reason: CalendarAuthReason = 'no_token') {
+    super(
+      reason === 'no_token'
+        ? 'Google Calendar needs to be reconnected'
+        : `Google Calendar was not connected (${reason})`,
+    )
     this.name = 'CalendarAuthError'
+    this.reason = reason
   }
+}
+
+/** True when the person dismissed the consent popup themselves, which is not an error. */
+export function isConsentDismissed(error: unknown): boolean {
+  return error instanceof CalendarAuthError && error.reason === 'popup_closed'
 }
 
 /** Tokens live in memory only, per scope, until shortly before they expire. */
 const tokens = new Map<string, { token: string; expiresAt: number }>()
 /** Treat a token as expired this long before Google does. */
 const EXPIRY_MARGIN_MS = 60_000
+/**
+ * Give up on a token request after this long. GIS reports every outcome through
+ * `callback` or `error_callback`, so this only guards against a popup that never
+ * reports back; it is long enough to read the consent screen. A token that still
+ * arrives later is cached, so the next try needs no popup.
+ */
+export const TOKEN_TIMEOUT_MS = 3 * 60_000
 
 /** Drop every cached token (sign-out, account switch, or a 401 from Google). */
 export function forgetCalendarTokens(): void {
@@ -120,6 +161,7 @@ async function getToken(scope: string, { interactive = true } = {}): Promise<str
               client_id: string
               scope: string
               callback: (resp: TokenResponse) => void
+              error_callback: (err: TokenClientError) => void
             }) => { requestAccessToken: (opts?: { prompt?: string }) => void }
           }
         }
@@ -128,12 +170,20 @@ async function getToken(scope: string, { interactive = true } = {}): Promise<str
   ).google.accounts.oauth2
 
   return new Promise<string>((resolve, reject) => {
+    let settled = false
+    const timer = setTimeout(() => fail(new CalendarAuthError('timeout')), TOKEN_TIMEOUT_MS)
+    function fail(error: Error) {
+      clearTimeout(timer)
+      if (settled) return
+      settled = true
+      reject(error)
+    }
     const client = oauth2.initTokenClient({
       client_id: CLIENT_ID,
       scope,
       callback: resp => {
         if (resp.error || !resp.access_token) {
-          reject(new Error(resp.error || 'No access token'))
+          fail(new CalendarAuthError(resp.error || 'no_token'))
           return
         }
         const seconds = Number(resp.expires_in)
@@ -141,10 +191,20 @@ async function getToken(scope: string, { interactive = true } = {}): Promise<str
           token: resp.access_token,
           expiresAt: Date.now() + (Number.isFinite(seconds) && seconds > 0 ? seconds : 3600) * 1000,
         })
+        clearTimeout(timer)
+        if (settled) return
+        settled = true
         resolve(resp.access_token)
       },
+      // Closing or blocking the popup never reaches `callback`; without this the
+      // promise would never settle and every caller would wait for good.
+      error_callback: err => fail(new CalendarAuthError(err?.type || 'unknown')),
     })
-    client.requestAccessToken({ prompt: '' })
+    try {
+      client.requestAccessToken({ prompt: '' })
+    } catch (error) {
+      fail(error instanceof Error ? error : new Error(String(error)))
+    }
   })
 }
 
@@ -172,15 +232,19 @@ export async function fetchFreeBusy(
   timeMin: Date,
   timeMax: Date,
 ): Promise<BusyPeriod[]> {
-  const res = await fetch('https://www.googleapis.com/calendar/v3/freeBusy', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      timeMin: timeMin.toISOString(),
-      timeMax: timeMax.toISOString(),
-      items: [{ id: 'primary' }],
-    }),
-  })
+  const res = await calendarFetch(
+    token,
+    'https://www.googleapis.com/calendar/v3/freeBusy',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        timeMin: timeMin.toISOString(),
+        timeMax: timeMax.toISOString(),
+        items: [{ id: 'primary' }],
+      }),
+    },
+    CALENDAR_FREEBUSY_SCOPE,
+  )
   if (!res.ok) throw new Error(`freeBusy request failed: ${res.status}`)
   const data = await res.json()
   return data?.calendars?.primary?.busy ?? []
@@ -233,15 +297,20 @@ export interface CalendarEventBody {
   extendedProperties: { private: Record<string, string> }
 }
 
-/** A local, offset-free RFC3339 timestamp ("2026-05-29T17:30:00") from a date + fractional hour. */
+/**
+ * A local, offset-free RFC3339 timestamp ("2026-05-29T17:30:00") from a date + fractional
+ * hour. An hour of 24 or more rolls over to the next day, because Google rejects
+ * "T24:00:00". Recommended slots end by the day's last hourly sample (23 at most, see
+ * findWindows in @solara/core), so this is only a guard for callers that pass midnight.
+ */
 function localDateTime(dateStr: string, h: number): string {
-  let hr = Math.floor(h)
-  let min = Math.round((h - hr) * 60)
-  if (min === 60) {
-    hr += 1
-    min = 0
-  }
-  return `${dateStr}T${String(hr).padStart(2, '0')}:${String(min).padStart(2, '0')}:00`
+  const totalMins = Math.round(h * 60)
+  const days = Math.floor(totalMins / (24 * 60))
+  const mins = totalMins - days * 24 * 60
+  const date = days ? addDays(dateStr, days) : dateStr
+  const hr = Math.floor(mins / 60)
+  const min = mins % 60
+  return `${date}T${String(hr).padStart(2, '0')}:${String(min).padStart(2, '0')}:00`
 }
 
 /** PURE. The human-readable event body explaining the pick and its flexibility. */
@@ -335,8 +404,59 @@ const eventListSchema = z.object({
   nextPageToken: z.optional(z.string()),
 })
 
-/** Throws CalendarAuthError for 401/403 (and forgets the token), Error otherwise. */
-async function calendarFetch(token: string, url: string, init: RequestInit = {}) {
+/**
+ * 403 reasons that are not about the token: rate limits, quotas, and rules on the
+ * event itself (Google lists them in the Calendar API's "Handle API errors" guide).
+ * Another token would not help, so the token is kept and the person is not asked to
+ * reconnect. Any other 403 (such as `insufficientPermissions`) counts as a token problem,
+ * because asking to reconnect is the only way out of a refused token.
+ */
+const NON_AUTH_403_REASONS = new Set([
+  'rateLimitExceeded',
+  'userRateLimitExceeded',
+  'dailyLimitExceeded',
+  'quotaExceeded',
+  'variableTermLimitExceeded',
+  'forbiddenForNonOrganizer',
+  'forbiddenForServiceAccounts',
+])
+
+const googleErrorSchema = z.object({
+  error: z.optional(
+    z.object({
+      errors: z.optional(
+        z.array(z.object({ domain: z.optional(z.string()), reason: z.optional(z.string()) })),
+      ),
+    }),
+  ),
+})
+
+/**
+ * The reason of a 403 that another token would not fix (a rate limit, a quota, or
+ * anything in Google's `usageLimits` domain), or null for a token problem.
+ */
+async function nonAuthReason(res: Response): Promise<string | null> {
+  try {
+    const parsed = googleErrorSchema.safeParse(await res.clone().json())
+    const first = parsed.success ? parsed.data.error?.errors?.[0] : undefined
+    if (first?.domain === 'usageLimits') return first.reason || 'usageLimits'
+    return first?.reason && NON_AUTH_403_REASONS.has(first.reason) ? first.reason : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Throws CalendarAuthError (and forgets the `scope` token) when Google refuses the
+ * token: a 401, or a 403 for a reason another token could fix. A 403 for rate limits
+ * or quotas throws a plain Error and keeps the token, so the person can try again.
+ */
+async function calendarFetch(
+  token: string,
+  url: string,
+  init: RequestInit = {},
+  scope: string = CALENDAR_BOOKING_SCOPE,
+) {
   const res = await fetch(url, {
     ...init,
     headers: {
@@ -345,7 +465,9 @@ async function calendarFetch(token: string, url: string, init: RequestInit = {})
     },
   })
   if (res.status === 401 || res.status === 403) {
-    tokens.delete(CALENDAR_BOOKING_SCOPE)
+    const reason = res.status === 403 ? await nonAuthReason(res) : null
+    if (reason) throw new Error(`Google Calendar refused the request: ${reason}`)
+    tokens.delete(scope)
     throw new CalendarAuthError()
   }
   return res

@@ -8,6 +8,7 @@ import {
   CALENDAR_FREEBUSY_SCOPE,
   CalendarAuthError,
   deleteCalendarEvent,
+  eventTimes,
   getCalendarEvent,
   listSolaraEvents,
   patchCalendarEventTime,
@@ -158,6 +159,13 @@ describe('buildEventBody', () => {
     const body = buildEventBody(run, '2026-05-29', 9.5, 10.25, 'desc', 'UTC')
     expect(body.start.dateTime).toBe('2026-05-29T09:30:00')
     expect(body.end.dateTime).toBe('2026-05-29T10:15:00')
+  })
+
+  it('ends at midnight on the next day, never at T24:00:00', () => {
+    expect(eventTimes('2026-05-31', 23, 24, 'UTC').end.dateTime).toBe('2026-06-01T00:00:00')
+    // A minute that rounds up to the hour carries into the hour, and on past midnight.
+    expect(eventTimes('2026-05-29', 9, 23.9999, 'UTC').end.dateTime).toBe('2026-05-30T00:00:00')
+    expect(eventTimes('2026-05-29', 9.9999, 11, 'UTC').start.dateTime).toBe('2026-05-29T10:00:00')
   })
 })
 

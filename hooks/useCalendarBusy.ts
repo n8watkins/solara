@@ -1,6 +1,6 @@
 'use client'
 import { useState } from 'react'
-import { fetchFreeBusy, requestAccessToken, type BusyPeriod } from '@/lib/gcal'
+import { fetchFreeBusy, isConsentDismissed, requestAccessToken, type BusyPeriod } from '@/lib/gcal'
 import { freeBusyRange } from '@/lib/dashboard-view'
 
 export type CalendarBusyStatus = 'idle' | 'connecting' | 'connected' | 'error'
@@ -22,8 +22,9 @@ export function useCalendarBusy(accessibleDays: number) {
       const { timeMin, timeMax } = freeBusyRange(Date.now(), accessibleDays)
       setBusy(await fetchFreeBusy(token, timeMin, timeMax))
       setStatus('connected')
-    } catch {
-      setStatus('error')
+    } catch (error) {
+      // Closing the consent popup is the person's choice, not a failure.
+      setStatus(isConsentDismissed(error) ? 'idle' : 'error')
     }
   }
 
