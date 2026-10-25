@@ -65,7 +65,7 @@ Items 1-8 need no Blaze and can start now; items 9-11 wait for the Pro launch.
 - **Depends on:** nothing.
 - **Size:** S.
 
-### 3. Faster app load on phones (PERF-2 part, W3-C remainder) (in progress)
+### 3. Faster app load on phones (PERF-2 part, W3-C remainder) (in progress, #83)
 
 - **Goal:** `/app/` mobile LCP under 2.5 s (Lighthouse mobile, simulated Slow 4G) from 5.9 s measured in #71, and the guest app's first load under 200 KB gzip of JavaScript (about 175 KB today).
 - **Scope:** load Firebase (Auth, Firestore, App Check) only when the person signs in or an existing session is detected; lazy-load the dialogs (Settings, Pricing, activity dialogs) and the calendar view; render the guest dashboard from the cached forecast without waiting for Firebase.
