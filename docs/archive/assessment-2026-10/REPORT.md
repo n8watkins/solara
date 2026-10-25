@@ -41,7 +41,7 @@ Totals: 84 fixed, 17 open, 1 won't fix (102 IDs; each ID of a combined row such 
 | A11Y-2 | Fixed | #27: one native `<dialog>` component for every modal |
 | A11Y-3 | Fixed | #26 (sun arc and UV strip), #27 (tooltips) |
 | PERF-1 | Fixed | #30 keeps reCAPTCHA from loading before sign-in; #71: the landing page loads no framework JavaScript and nothing from Firebase |
-| PERF-2 | Open | Lazy Firebase and dialogs (roadmap item 3) and the app-shell service worker with an offline forecast (roadmap item 4) |
+| PERF-2 | Fixed | #83 and #93: lazy Firebase and dialogs; #PRNUM: the app-shell service worker with an offline forecast |
 | CQ-10 | Fixed | #20 (coverage), #21 (UI harness), #28 (e2e on the static export), #51 (signed-in e2e on emulators) |
 | BE-4 | Fixed | #30: server-minted feed tokens indexed by hash in `calendarFeeds/{hash}` |
 | BE-5 | Fixed | #30: every client-writable field typed and size-capped, with a rules test per field |
@@ -78,7 +78,7 @@ Totals: 84 fixed, 17 open, 1 won't fix (102 IDs; each ID of a combined row such 
 | CQ-11 | Fixed | #63, #64, #65, #66, #67: components split into focused pieces with hooks and tested `lib/` modules (`App.tsx` and `OnboardingSteps.tsx` are 292 and 286 lines after #71, slightly over the 250-line target) |
 | CQ-12 | Fixed | #60 (Tailwind 4, one UV palette), #63-#67 (inline styles to theme utilities; 17 data-driven `style` props remain) |
 | CQ-13 | Fixed | React Compiler on in #50; `app/global-error.tsx` and error-boundary reporting in #70; the inline-style part in #63-#67 |
-| PROD-6 | Open | #71 added Back on every step, specific geolocation errors and a guest start; place autocomplete (roadmap item 5) is in review (#80); the offline app shell (item 4) remains |
+| PROD-6 | Fixed | #71 added Back on every step, specific geolocation errors and a guest start; #80: place autocomplete; #PRNUM: the offline app shell |
 | PROD-7 | Fixed | #29: non-blocking consent banner with equal-weight buttons |
 | PROD-8 | Fixed | #29: validated share links with a "has passed" notice and a call to action |
 | UX-4 | Fixed | #22: disabled states look inert |

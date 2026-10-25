@@ -58,6 +58,9 @@ The repository is an npm workspace.
 - The web app (Next.js static export) lives at the root: `app/`, `components/` and `lib/`.
   `app/page.tsx` is the static landing page: `scripts/static-pages.mjs` strips the framework scripts from it after the build, so it loads no JavaScript of its own beyond two inline scripts and nothing from Firebase.
   The app is `app/app/page.tsx` (`/app/`); a browser with a signed-in account that opens `/` is sent there.
+- Two service workers are built into the export after `next build` by `scripts/build-sw.mjs`.
+  `/sw.js` (`scripts/sw/shell.ts`, rules in `lib/sw-shell.mts`) is the app shell: `app/app/layout.tsx` registers it after the page loads, it precaches `/` and `/app/` with every file they load, and the app opens offline with the last forecast from `lib/cache.ts` and an offline notice (`components/OfflineNotice.tsx`).
+  `/firebase-messaging-sw.js` (`scripts/sw/firebase-messaging-sw.ts`) handles push and is registered by Firebase Messaging, under its own scope, only when someone turns on notifications.
 - The app's first load carries only the dashboard (about 196 KB gzip of JavaScript for a guest; `tests/e2e/guest.spec.ts` holds it under 200 KB).
   Firebase loads on demand: `lib/firebase.ts` is the only way to it, and `loadFirebase()` loads the SDK (`lib/firebase-services.ts`) when someone reaches for "Sign in" or the browser already holds a session, so a guest never downloads it.
   An ESLint rule keeps static Firebase imports out of the app; modules that need the SDK use `await import('firebase/...')`.
@@ -94,7 +97,7 @@ npm run test:e2e:signed-in
 npm run test:harness
 ```
 
-- `npm run test:e2e` builds the static export with a hermetic public configuration and tests it on the Firebase Hosting emulator without credentials: the landing page, onboarding, guest mode and its upsells, analytics consent, legal pages, share links and Hosting headers.
+- `npm run test:e2e` builds the static export with a hermetic public configuration and tests it on the Firebase Hosting emulator without credentials: the landing page, onboarding, guest mode and its upsells, analytics consent, legal pages, share links, Hosting headers and the app offline (`tests/e2e/offline.spec.ts`, the only spec that lets the service worker run).
   It also serves the old address's redirect-only site (`hosting-redirect/`) and checks that every path and query string moves to the same place on `solara-uv.web.app`, except Firebase's reserved `/__/` paths.
 - `npm run test:e2e:integrations` builds the production export with a fake Sentry DSN and reCAPTCHA site key, answers every third-party request with a fake, and checks that error reports arrive scrubbed and that App Check starts only after sign-in, within the CSP.
   It writes `out/` like `npm run test:e2e`, so run the two one after the other.
