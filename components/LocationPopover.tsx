@@ -1,10 +1,11 @@
 'use client'
 import { useState, useRef, useLayoutEffect } from 'react'
 import type { Location } from '@/lib/types'
-import { locationFromCoordinates, searchLocation } from '@/lib/geocoding'
+import { locationFromCoordinates } from '@/lib/geocoding'
 import { useOutsideClick } from '@/lib/use-outside-click'
 import { clampShift } from '@/lib/viewport-clamp'
 import DataAttribution from './DataAttribution'
+import PlaceSearch, { type PlaceSearchMiss } from './PlaceSearch'
 
 interface Props {
   location: Location
@@ -70,22 +71,18 @@ export default function LocationPopover({ location, savedLocations, limit, onApp
     onApply({ location, savedLocations: savedLocations.filter(l => !sameLoc(l, loc)) })
   }
 
-  async function search() {
-    if (!query.trim()) return
-    setLoading(true)
+  /** A place picked from the search: switch to it and save it as a shortcut when there's room. */
+  function choosePlace(loc: Location) {
     setError(null)
     setNote(null)
-    try {
-      const loc = await searchLocation(query)
-      if (!loc) throw new Error('Not found')
-      activate(loc, true) // searching a new city saves it as a shortcut when there's room
-      setQuery('')
-      if (!atLimit) setTimeout(() => setOpen(false), 800)
-    } catch {
-      setError('City not found.')
-    } finally {
-      setLoading(false)
-    }
+    activate(loc, true)
+    setQuery('')
+    if (!atLimit) setTimeout(() => setOpen(false), 800)
+  }
+
+  function placeMissed(reason: PlaceSearchMiss) {
+    setNote(null)
+    setError(reason === 'none' ? 'City not found.' : 'Search is unavailable. Try again.')
   }
 
   async function geolocate() {
@@ -182,26 +179,20 @@ export default function LocationPopover({ location, savedLocations, limit, onApp
           >
             📍 {loading ? 'Detecting…' : 'Use my location'}
           </button>
-          <div className="flex gap-1.5">
-            <input
-              placeholder="Add a city…"
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Enter') void search()
-              }}
-              aria-label="Add a city"
-              className="min-w-0 flex-1 px-2.5 py-[7px] text-[13px]"
-              autoFocus
-            />
-            <button
-              className="btn shrink-0 px-3 py-[7px] text-[13px]"
-              onClick={() => void search()}
-              disabled={loading}
-            >
-              {loading ? '…' : 'Go'}
-            </button>
-          </div>
+          <PlaceSearch
+            ariaLabel="Add a city"
+            placeholder="Add a city…"
+            value={query}
+            onValueChange={value => {
+              setQuery(value)
+              setError(null)
+            }}
+            onSelect={choosePlace}
+            onMiss={placeMissed}
+            busy={loading}
+            size="sm"
+            autoFocus
+          />
           <p className="mt-2 text-[11px] text-ink-3">
             {savedLocations.length}/{limit} saved
           </p>

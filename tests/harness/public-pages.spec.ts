@@ -12,7 +12,7 @@ import { HARNESS_DATE } from './clock'
 // answers stand in for it so the screenshots never depend on the network.
 const GEOCODE = /^https:\/\/geocoding-api\.open-meteo\.com\//
 const FORECAST = /^https:\/\/api\.open-meteo\.com\//
-const PLACE = {
+const PLACES = {
   results: [
     {
       name: 'Pasadena',
@@ -20,6 +20,20 @@ const PLACE = {
       country: 'United States',
       latitude: 34.1478,
       longitude: -118.1445,
+    },
+    {
+      name: 'Pasadena',
+      admin1: 'Texas',
+      country: 'United States',
+      latitude: 29.6911,
+      longitude: -95.2091,
+    },
+    {
+      name: 'Pasadena Hills',
+      admin1: 'Missouri',
+      country: 'United States',
+      latitude: 38.7084,
+      longitude: -90.2948,
     },
   ],
 }
@@ -86,6 +100,30 @@ const SCREENS: Screen[] = [
     reach: async page => {
       await startOnboarding(page)
       return page.getByRole('button', { name: /Use my location/ })
+    },
+  },
+  {
+    name: 'onboarding-location-suggestions',
+    path: '/app/',
+    fullPage: false,
+    reach: async page => {
+      await startOnboarding(page)
+      const field = page.getByRole('combobox', { name: 'City or location' })
+      await field.fill('Pasadena')
+      await expect(page.getByRole('option')).toHaveCount(3)
+      await field.press('ArrowDown')
+      await field.press('ArrowDown')
+      return page.getByRole('option', { name: 'Pasadena, Texas, United States', selected: true })
+    },
+  },
+  {
+    name: 'onboarding-location-no-results',
+    path: '/app/',
+    fullPage: false,
+    reach: async page => {
+      await startOnboarding(page)
+      await page.getByRole('combobox', { name: 'City or location' }).fill('Nowhere')
+      return page.getByText('No places match “Nowhere”.')
     },
   },
   {
@@ -175,7 +213,8 @@ for (const screen of SCREENS) {
   test(screen.name, async ({ page }, testInfo) => {
     const capture = await preparePage(page, testInfo, (route, url) => {
       if (GEOCODE.test(url.href)) {
-        return json(route, url.searchParams.get('name') === 'Pasadena' ? PLACE : { results: [] })
+        const name = url.searchParams.get('name') ?? ''
+        return json(route, name.toLowerCase().startsWith('pas') ? PLACES : { results: [] })
       }
       if (FORECAST.test(url.href)) return json(route, { current: { uv_index: 6.4 } })
       return false

@@ -8,9 +8,11 @@ import type { User } from 'firebase/auth'
 import { SKIN_OPTIONS } from '@/lib/onboarding'
 import { TIER_LIMITS } from '@/lib/tiers'
 import { firebaseEnabled } from '@/lib/firebase'
-import type { SkinType, UserPreferences } from '@/lib/types'
+import type { Location, SkinType, UserPreferences } from '@/lib/types'
 import { uvBand, uvLabel, type UVBand } from '@/lib/weather'
+import DataAttribution from './DataAttribution'
 import GoogleSignInButton from './GoogleSignInButton'
+import PlaceSearch, { type PlaceSearchMiss } from './PlaceSearch'
 
 const PRIMARY = 'btn btn-primary w-full justify-center p-[13px] text-[14px] font-semibold'
 const HEADING = 'text-[20px] leading-tight font-[650] text-ink'
@@ -42,14 +44,16 @@ const UV_FILL: Record<UVBand, string> = {
 export function LocationStep({
   city,
   onCityChange,
-  onSearch,
+  onSelectPlace,
+  onMiss,
   onGeolocate,
   loading,
   error,
 }: {
   city: string
   onCityChange: (city: string) => void
-  onSearch: () => void
+  onSelectPlace: (location: Location) => void
+  onMiss: (reason: PlaceSearchMiss) => void
   onGeolocate: () => void
   loading: boolean
   error: string | null
@@ -61,22 +65,16 @@ export function LocationStep({
       <label htmlFor="onboarding-city" className="text-[13px] font-semibold text-ink">
         City or location
       </label>
-      <div className="mt-1.5 flex items-center gap-2">
-        <input
+      <div className="mt-1.5">
+        <PlaceSearch
           id="onboarding-city"
           placeholder="Type a city, e.g. Los Angeles"
-          autoComplete="address-level2"
-          enterKeyHint="search"
           value={city}
-          onChange={e => onCityChange(e.target.value)}
-          onKeyDown={e => {
-            if (e.key === 'Enter') onSearch()
-          }}
-          className="min-w-0 flex-1"
+          onValueChange={onCityChange}
+          onSelect={onSelectPlace}
+          onMiss={onMiss}
+          busy={loading}
         />
-        <button className="btn self-stretch px-4" onClick={onSearch} disabled={loading}>
-          Go
-        </button>
       </div>
       {error && (
         <p role="alert" className="mt-2 text-[12px] leading-normal text-danger">
@@ -91,6 +89,7 @@ export function LocationStep({
       <button className={PRIMARY} onClick={onGeolocate} disabled={loading}>
         {loading ? 'Detecting…' : '📍 Use my location'}
       </button>
+      <DataAttribution compact className="mt-4 text-center" />
     </>
   )
 }
