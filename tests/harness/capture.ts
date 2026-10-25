@@ -6,7 +6,7 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import AxeBuilder from '@axe-core/playwright'
 import { expect, type Page, type Route, type TestInfo } from '@playwright/test'
-import { startClock } from './clock'
+import { HARNESS_NOW_MS, startClock } from './clock'
 import { freezeScreen } from './freeze'
 
 const OUTPUT_DIR = join('test-results', 'ui-harness')
@@ -16,6 +16,8 @@ export interface Capture {
   /** Off-origin requests that were blocked. */
   blocked: string[]
   pageErrors: string[]
+  /** When the fake clock started (epoch ms). */
+  startedAt: number
 }
 
 /**
@@ -27,11 +29,13 @@ export async function preparePage(
   page: Page,
   testInfo: TestInfo,
   answer?: (route: Route, url: URL) => Promise<void> | void | false,
+  { at = HARNESS_NOW_MS }: { at?: number } = {},
 ): Promise<Capture> {
   const capture: Capture = {
     colorScheme: testInfo.project.use.colorScheme === 'dark' ? 'dark' : 'light',
     blocked: [],
     pageErrors: [],
+    startedAt: at,
   }
   page.on('pageerror', err => capture.pageErrors.push(err.message))
   await page.route('**/*', async route => {
@@ -41,7 +45,7 @@ export async function preparePage(
     capture.blocked.push(url.href)
     return route.abort('blockedbyclient')
   })
-  await startClock(page)
+  await startClock(page, at)
   await page.addInitScript(theme => {
     try {
       window.localStorage.setItem('solara_theme', theme)
@@ -60,7 +64,7 @@ export async function captureScreen(
   await expect(page.locator('html')).toHaveClass(
     capture.colorScheme === 'dark' ? /\bdark\b/ : /^(?!.*\bdark\b).*$/,
   )
-  await freezeScreen(page)
+  await freezeScreen(page, capture.startedAt)
   await page.evaluate(async () => {
     await document.fonts.ready
   })

@@ -20,7 +20,7 @@ export const HARNESS_DATE = '2026-06-15'
 export const HARNESS_NOW = `${HARNESS_DATE}T10:30:00-07:00`
 
 /**
- * Start the page clock at HARNESS_NOW before any app code runs. Call before
+ * Start the page clock at `at` (default HARNESS_NOW) before any app code runs. Call before
  * `page.goto`.
  *
  * `install` replaces Date, timers and requestAnimationFrame with a fake clock that
@@ -29,21 +29,25 @@ export const HARNESS_NOW = `${HARNESS_DATE}T10:30:00-07:00`
  * rendered, call `freezeScreen` (freeze.ts) or `pauseClock` so intervals (for example
  * the tip carousel) stop.
  */
-export async function startClock(page: Page): Promise<void> {
-  await page.clock.install({ time: new Date(HARNESS_NOW).getTime() })
+export async function startClock(page: Page, at = HARNESS_NOW_MS): Promise<void> {
+  await page.clock.install({ time: at })
 }
 
+/** HARNESS_NOW in epoch milliseconds. */
+export const HARNESS_NOW_MS = new Date(HARNESS_NOW).getTime()
+
 /**
- * Pause the fake clock where it is and return how far it ran past HARNESS_NOW.
+ * Pause the fake clock where it is and return how far it ran past `startedAt`
+ * (the time startClock installed).
  * Screenshot specs pause through `freezeScreen` (freeze.ts), which checks that the
  * pixels that depend on time still show the frozen state.
  */
-export async function pauseClock(page: Page): Promise<number> {
+export async function pauseClock(page: Page, startedAt = HARNESS_NOW_MS): Promise<number> {
   // pauseAt only moves forward, and the clock keeps running during this round trip,
   // so aim a little ahead of the reading.
   const target = (await page.evaluate(() => Date.now())) + PAUSE_LEAD_MS
   await page.clock.pauseAt(target)
-  return target - new Date(HARNESS_NOW).getTime()
+  return target - startedAt
 }
 
 const PAUSE_LEAD_MS = 500

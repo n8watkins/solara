@@ -9,12 +9,13 @@
 import { expect, type Page } from '@playwright/test'
 import { pauseClock } from './clock'
 
-/** The fake clock starts at 10:30:00, so every reading shows 10:30 for one minute. */
+/** The fake clock starts on a whole minute, so every reading shows it for one minute. */
 const SAME_MINUTE_MS = 60_000
 
-export async function freezeScreen(page: Page): Promise<void> {
-  const elapsed = await pauseClock(page)
-  expect(elapsed, 'the fake clock left 10:30 before the screen was frozen').toBeLessThan(
+/** `startedAt` is the time the spec started the clock at (default HARNESS_NOW). */
+export async function freezeScreen(page: Page, startedAt?: number): Promise<void> {
+  const elapsed = await pauseClock(page, startedAt)
+  expect(elapsed, 'the fake clock left its first minute before the screen was frozen').toBeLessThan(
     SAME_MINUTE_MS,
   )
 }

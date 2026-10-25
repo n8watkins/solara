@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 import { HARNESS_DATE, HARNESS_NOW } from './clock'
 import { HARNESS_MARKER, buildRawForecast } from './fixtures'
+import { captureScreen, preparePage } from './capture'
 
 // Regression checks for the design audit's bugs (handoff/design-audit.md items 1-4),
 // run in the browser against the real dashboard with Open-Meteo played by page.route.
@@ -168,3 +169,30 @@ test.describe('phone strip', () => {
     expect((await edges()).opaqueFrom).toBeGreaterThan(0)
   })
 })
+
+// Screens for review: the dashboard after dark (every window passed) on the guest
+// and Free plans, and a 5.4 reading. Same output as the other harness specs.
+const SCREENS = [
+  { name: 'dashboard-night-guest', at: NIGHT_MS, tier: 'guest', edit: atNight },
+  { name: 'dashboard-night-free', at: NIGHT_MS, tier: 'free', edit: atNight },
+  { name: 'dashboard-uv-5-4', at: NOW_MS, tier: 'paid', edit: withUVAt(10, 5.4) },
+]
+
+for (const screen of SCREENS) {
+  test(screen.name, async ({ page }, testInfo) => {
+    const raw = JSON.stringify(screen.edit(buildRawForecast()))
+    const capture = await preparePage(
+      page,
+      testInfo,
+      (route, url) =>
+        url.hostname === 'api.open-meteo.com'
+          ? route.fulfill({ contentType: 'application/json', body: raw })
+          : false,
+      { at: screen.at },
+    )
+    await page.goto(`/harness/?screen=dashboard&data=live&tier=${screen.tier}`)
+    await expect(page.getByTestId(HARNESS_MARKER)).toBeVisible()
+    await expect(page.getByRole('group', { name: 'UV forecast by hour' })).toBeVisible()
+    await captureScreen(page, testInfo, capture, { name: screen.name, fullPage: true })
+  })
+}
