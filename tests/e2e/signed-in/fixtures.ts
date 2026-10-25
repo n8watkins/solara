@@ -316,6 +316,17 @@ async function stubNetwork(
         await calendar.handle(route)
         return
       }
+      if (url.href.startsWith('https://www.google.com/images/cleardot.gif')) {
+        // Firestore's connection checks this image when the browser comes back online.
+        await route.fulfill({
+          contentType: 'image/gif',
+          body: Buffer.from(
+            'R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==',
+            'base64',
+          ),
+        })
+        return
+      }
       if (url.origin === 'https://nominatim.openstreetmap.org') {
         await route.fulfill({
           json: { address: { city: 'Los Angeles', state: 'California', country_code: 'us' } },
