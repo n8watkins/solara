@@ -7,6 +7,12 @@ import { fmtHour, uvLabel } from './weather'
 export const UV_BAR_GAP = 4
 /** Narrowest a bar may get; below this the strip scrolls instead of squeezing. */
 export const UV_BAR_MIN_WIDTH = 42
+/**
+ * Width (px) of the fade at each end of a scrolling strip (the `.uv-strip` mask in
+ * app/globals.css). Content inside it is half hidden, so SunArc keeps its peak
+ * callout out of it.
+ */
+export const UV_STRIP_EDGE_FADE = 16
 
 /** Horizontal center (px) of bar `index` of `count` bars spread across `width` px. */
 export function uvBarCenter(index: number, count: number, width: number): number {

@@ -1,27 +1,40 @@
-import type { Point } from '@/lib/sun-arc'
+import type { Ref } from 'react'
+import type { LabelPlacement, Point } from '@/lib/sun-arc'
 import { SUN_ARC_BASELINE_Y } from '@/lib/sun-arc'
 import { useUnits } from '@/lib/use-units'
 
 // Markers drawn on the sun path (components/SunArc.tsx), in SVG user space.
 
-/** The day's peak: a ring, plus a "Peak 10.3 · 1pm" callout when `label` is set. */
+/** Outer radius of the "now" sun's disc, stroke included (the peak callout avoids it). */
+export const NOW_SUN_RADIUS = 8
+/** Outer radius of the focus ring, stroke included (the peak callout avoids it). */
+export const FOCUS_MARKER_RADIUS = 10.25
+
+/**
+ * The day's peak: a ring, plus a "Peak 10.3 · 1pm" callout at `label` (its left
+ * edge and baseline, from placePeakLabel) when set. `pointer` adds an arrow toward
+ * a ring scrolled out of view on that side.
+ */
 export function PeakMarker({
   point,
   uv,
   hour,
   label,
-  anchor,
+  pointer = null,
+  labelRef,
 }: {
   point: Point
   uv: number
   hour: number
-  label: boolean
-  anchor: 'start' | 'middle' | 'end'
+  label: LabelPlacement | null
+  pointer?: 'left' | 'right' | null
+  labelRef?: Ref<SVGTextElement>
 }) {
   const fmt = useUnits()
   return (
     <>
       <circle
+        data-testid="sun-arc-peak"
         cx={point.x}
         cy={point.y}
         r="6"
@@ -31,17 +44,24 @@ export function PeakMarker({
       />
       {label && (
         <text
-          x={point.x}
-          y={point.y - 14}
-          textAnchor={anchor}
+          ref={labelRef}
+          data-testid="sun-arc-peak-label"
+          x={label.x}
+          y={label.y}
           fill="var(--accent)"
           fontSize="11.5"
           fontWeight="700"
         >
+          {pointer === 'left' && (
+            <tspan fontWeight="500" fill="var(--text-3)">
+              {'← '}
+            </tspan>
+          )}
           Peak {uv.toFixed(1)}
           <tspan fontWeight="500" fill="var(--text-3)">
             {' '}
             · {fmt.hour(hour)}
+            {pointer === 'right' && ' →'}
           </tspan>
         </text>
       )}
@@ -55,9 +75,10 @@ export function NowSun({ point, glowId }: { point: Point; glowId: string }) {
     <>
       <circle cx={point.x} cy={point.y} r="18" fill={`url(#${glowId})`} />
       <circle
+        data-testid="sun-arc-now"
         cx={point.x}
         cy={point.y}
-        r="7"
+        r={NOW_SUN_RADIUS - 1}
         fill="#FBBF24"
         stroke="var(--brand)"
         strokeWidth="2"
@@ -80,9 +101,10 @@ export function FocusMarker({ point }: { point: Point }) {
         strokeDasharray="3 4"
       />
       <circle
+        data-testid="sun-arc-focus"
         cx={point.x}
         cy={point.y}
-        r="9"
+        r={FOCUS_MARKER_RADIUS - 1.25}
         fill="rgba(255,255,255,0.9)"
         stroke="var(--brand)"
         strokeWidth="2.5"

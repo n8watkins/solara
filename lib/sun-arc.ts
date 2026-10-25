@@ -27,6 +27,8 @@ export interface SunArcGeometry {
   /** Curve parameter t (0..1) over bar `index`; may be fractional. */
   tForIndex: (index: number) => number
   pointAt: (t: number) => Point
+  /** The arc's y over `x`, clamped to the arc's ends. */
+  yAtX: (x: number) => number
   /** Bar index of a whole hour, or -1 when the strip does not show it. */
   indexOfHour: (hour: number) => number
   /** Fractional bar index for a fractional hour (10.5 is halfway from 10am to 11am). */
@@ -55,6 +57,7 @@ export function sunArcGeometry(slots: HourSlot[], width: number): SunArcGeometry
       y: mt * mt * SUN_ARC_BASELINE_Y + 2 * mt * t * SUN_ARC_CONTROL_Y + t * t * SUN_ARC_BASELINE_Y,
     }
   }
+  const yAtX = (x: number) => pointAt(x1 > x0 ? clamp((x - x0) / (x1 - x0), 0, 1) : 0.5).y
   const indexOfHour = (hour: number) =>
     hour >= firstHour && hour < firstHour + count ? hour - firstHour : -1
   const indexForTime = (time: number) => {
@@ -82,6 +85,7 @@ export function sunArcGeometry(slots: HourSlot[], width: number): SunArcGeometry
     path: `M ${x0} ${SUN_ARC_BASELINE_Y} Q ${(x0 + x1) / 2} ${SUN_ARC_CONTROL_Y} ${x1} ${SUN_ARC_BASELINE_Y}`,
     tForIndex,
     pointAt,
+    yAtX,
     indexOfHour,
     indexForTime,
     pointForHour,
@@ -109,9 +113,110 @@ export function hourAtOffset(
   return h
 }
 
-/** Keeps the peak callout inside the arc near either edge. */
-export function peakLabelAnchor(x: number, width: number): 'start' | 'middle' | 'end' {
-  if (x < 60) return 'start'
-  if (x > width - 60) return 'end'
-  return 'middle'
+/** The callout text's measured box: its width and its extent above and below the baseline. */
+export interface LabelSize {
+  width: number
+  ascent: number
+  descent: number
+}
+
+/** A round marker on the arc, as the callout must avoid it: center and outer radius. */
+export interface Circle {
+  x: number
+  y: number
+  r: number
+}
+
+/** Where to draw the callout: `x` is its left edge (text-anchor start), `y` its baseline. */
+export interface LabelPlacement {
+  x: number
+  y: number
+}
+
+/**
+ * Which side of the shown part of the arc (`view`: what is not cut off or faded out)
+ * the peak lies past, if any: the callout is then pinned to that edge and points
+ * the way. A ring whose center is still in view needs no arrow.
+ */
+export function peakOffView(
+  peakX: number,
+  view: { left: number; right: number },
+): 'left' | 'right' | null {
+  if (peakX < view.left) return 'left'
+  if (peakX > view.right) return 'right'
+  return null
+}
+
+/** The callout's baseline sits this far above the peak marker's center when nothing is in the way. */
+export const PEAK_LABEL_RISE = 14
+/** Clear space kept between the callout and the line, the markers and the arc's edges. */
+const LABEL_GAP = 4
+/** Half the colored line's stroke (4 px wide). */
+const LINE_HALF_WIDTH = 2
+/** Half the peak ring's outer size (r 6, stroke 2): a sliding callout keeps spanning it. */
+const RING_EXTENT = 7
+
+/**
+ * Place the peak callout ("Peak 10.3 · 1pm") so it can be read in full.
+ *
+ * It sits centered above the peak marker unless that would cut it off at the edge of
+ * the visible part of the arc (`visible`, in arc px: on a phone the strip scrolls, so
+ * this is the strip's viewport, not the whole arc); then it slides sideways, as far as
+ * it can while still spanning the marker. A marker scrolled to or past an edge of the
+ * view leaves the callout pinned to that edge. It is lifted clear of the line (which
+ * climbs steeply near either end of the day) and of `obstacles` (the "now" sun and
+ * the focus ring), sliding to whichever side keeps it closest to the marker.
+ */
+export function placePeakLabel({
+  peak,
+  size,
+  visible,
+  arcTop,
+  obstacles,
+}: {
+  peak: Point
+  size: LabelSize
+  visible: { left: number; right: number }
+  /** The arc's highest point (smallest y) over [left, right]. */
+  arcTop: (left: number, right: number) => number
+  obstacles: Circle[]
+}): LabelPlacement {
+  const { width, ascent, descent } = size
+  // Left edges that keep the ring under the text, and that keep the text on screen.
+  const ringLo = peak.x + RING_EXTENT - width
+  const ringHi = peak.x - RING_EXTENT
+  const lo = Math.max(ringLo, visible.left)
+  const hi = Math.min(ringHi, visible.right - width)
+  // Marker at (or past) an edge of the view: pin the callout to that edge, so the
+  // peak stays readable and points the way while the strip is scrolled.
+  const range: [number, number] =
+    lo <= hi
+      ? [lo, hi]
+      : visible.left > ringHi
+        ? [visible.left, visible.left]
+        : [visible.right - width, visible.right - width]
+  const ideal = peak.x - width / 2
+  const idealY = peak.y - PEAK_LABEL_RISE
+
+  const candidates = [clamp(ideal, ...range), range[0], range[1]]
+  const avoid = [{ ...peak, r: RING_EXTENT }, ...obstacles]
+  let best: { at: LabelPlacement; cost: number; fits: boolean } | null = null
+  for (const left of candidates) {
+    const right = left + width
+    // Above the line across the callout's whole width, never lower than ideal.
+    let y = Math.min(idealY, arcTop(left, right) - LINE_HALF_WIDTH - LABEL_GAP - descent)
+    // Lift it over any marker it would cover. Markers are visited top-down from the
+    // callout, so one pass settles it.
+    for (const c of [...avoid].sort((a, b) => b.y - a.y)) {
+      const overlapsX = left < c.x + c.r + LABEL_GAP && c.x - c.r - LABEL_GAP < right
+      const overlapsY = y - ascent < c.y + c.r + LABEL_GAP && c.y - c.r - LABEL_GAP < y + descent
+      if (overlapsX && overlapsY) y = c.y - c.r - LABEL_GAP - descent
+    }
+    const fits = y - ascent >= LABEL_GAP
+    // Prefer centered over the marker and close above it.
+    const cost = Math.abs(left + width / 2 - peak.x) + 2 * (idealY - y)
+    if (!best || (fits && !best.fits) || (fits === best.fits && cost < best.cost))
+      best = { at: { x: left, y: Math.max(y, ascent + LABEL_GAP) }, cost, fits }
+  }
+  return best!.at
 }

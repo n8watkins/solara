@@ -1,17 +1,32 @@
 'use client'
-import { useId, useRef } from 'react'
+import { useId, useLayoutEffect, useRef, useState } from 'react'
 import type { HourlyForecast } from '@/lib/types'
 import { uvColor } from '@/lib/weather'
 import { useElementWidth } from '@/hooks/useElementWidth'
-import { hourSlots } from '@/lib/uv-strip'
-import { FocusMarker, NowSun, PeakMarker } from './dashboard/SunArcMarkers'
+import { useVisibleSpan } from '@/hooks/useVisibleSpan'
+import { useUnits } from '@/lib/use-units'
+import { UV_STRIP_EDGE_FADE, hourSlots } from '@/lib/uv-strip'
+import {
+  FOCUS_MARKER_RADIUS,
+  FocusMarker,
+  NOW_SUN_RADIUS,
+  NowSun,
+  PeakMarker,
+} from './dashboard/SunArcMarkers'
 import {
   SUN_ARC_BASELINE_Y as BASELINE_Y,
   SUN_ARC_HEIGHT as HEIGHT,
   hourAtOffset,
-  peakLabelAnchor,
+  peakOffView,
+  placePeakLabel,
   sunArcGeometry,
+  type LabelSize,
 } from '@/lib/sun-arc'
+
+/** Inset (px) that keeps the peak callout off the arc's rounded border. */
+const BORDER_INSET = 8
+/** Clear space (px) between the callout and a scrolling strip's edge fade. */
+const FADE_INSET = 4
 
 interface Props {
   hourly: HourlyForecast[]
@@ -30,7 +45,11 @@ interface Props {
  */
 export default function SunArc({ hourly, nowHour, focused, onSelectHour }: Props) {
   const [wrapRef, width] = useElementWidth<HTMLDivElement>()
+  const visibleSpan = useVisibleSpan(wrapRef)
   const dragging = useRef(false)
+  const fmt = useUnits()
+  const labelRef = useRef<SVGTextElement>(null)
+  const [labelSize, setLabelSize] = useState<LabelSize | null>(null)
 
   const ids = useId()
   const lineId = `${ids}-line`
@@ -40,14 +59,13 @@ export default function SunArc({ hourly, nowHour, focused, onSelectHour }: Props
   // SVG is drawn in real pixels at the strip's width (it renders inside the
   // strip's column, see UVTimeline `above`), so each hour sits over its bar.
   const slots = hourSlots(hourly)
-  const first = hourly[0]
-  if (!first) return null
   const {
     x0,
     x1,
     path,
     tForIndex,
     pointAt,
+    yAtX,
     indexOfHour,
     indexForTime,
     pointForHour,
@@ -55,14 +73,84 @@ export default function SunArc({ hourly, nowHour, focused, onSelectHour }: Props
     knownSpans,
   } = sunArcGeometry(slots, width)
 
-  const peak = hourly.reduce((best, h) => (h.uv > best.uv ? h : best), first)
-  const hasPeak = peak.uv >= 0.5
-  const peakPoint = pointForHour(peak.hour) ?? pointAt(0.5)
+  const peak = hourly.reduce<HourlyForecast | null>(
+    (best, h) => (!best || h.uv > best.uv ? h : best),
+    null,
+  )
+  const hasPeak = peak !== null && peak.uv >= 0.5
+  // Hide the peak callout while the focus marker sits on the peak.
+  const showPeakLabel = hasPeak && focused?.hour !== peak.hour
+  const peakPoint = (peak && pointForHour(peak.hour)) ?? pointAt(0.5)
   const nowIndex = nowHour !== null ? indexForTime(nowHour) : null
   const nowPoint = nowIndex !== null ? pointAt(tForIndex(nowIndex)) : null
   const focusedPoint = focused ? pointForHour(focused.hour) : null
-  // Hide the peak callout while the focus marker sits on the peak.
-  const showPeakLabel = hasPeak && focused?.hour !== peak.hour
+
+  // On a phone the strip scrolls, so only part of the arc is on screen, and its ends
+  // fade out; the callout must fit in what is left. A peak scrolled out of that
+  // leaves the callout pinned to the nearer edge with an arrow toward it.
+  const edgeFade = visibleSpan?.clipped ? UV_STRIP_EDGE_FADE : 0
+  const view = {
+    left: (visibleSpan?.left ?? 0) + edgeFade,
+    right: (visibleSpan?.right ?? width) - edgeFade,
+  }
+  const inset = edgeFade ? FADE_INSET : 0
+  const visible = {
+    left: Math.max(BORDER_INSET, view.left + inset),
+    right: Math.min(width - BORDER_INSET, view.right - inset),
+  }
+  const pointer = peakOffView(peakPoint.x, view)
+  const labelText = peak
+    ? `${pointer === 'left' ? '← ' : ''}Peak ${peak.uv.toFixed(1)} · ${fmt.hour(peak.hour)}${pointer === 'right' ? ' →' : ''}`
+    : ''
+
+  // The callout is placed from its rendered size, so measure it whenever its text
+  // changes (and again once the web font has loaded, which changes its width).
+  useLayoutEffect(() => {
+    const el = labelRef.current
+    if (!showPeakLabel || !el) return
+    let cancelled = false
+    const measure = () => {
+      if (cancelled) return
+      const box = el.getBBox()
+      const baseline = el.y.baseVal[0]?.value ?? 0
+      const next = {
+        width: box.width,
+        ascent: baseline - box.y,
+        descent: box.y + box.height - baseline,
+      }
+      setLabelSize(prev =>
+        prev &&
+        Math.abs(prev.width - next.width) < 0.25 &&
+        Math.abs(prev.ascent - next.ascent) < 0.25 &&
+        Math.abs(prev.descent - next.descent) < 0.25
+          ? prev
+          : next,
+      )
+    }
+    measure()
+    document.fonts?.ready.then(measure, () => {})
+    return () => {
+      cancelled = true
+    }
+  }, [showPeakLabel, labelText, width])
+
+  if (!peak) return null
+
+  // Until it is measured, a close estimate of 11.5 px Inter.
+  const labelBox = labelSize ?? { width: labelText.length * 6.5, ascent: 11, descent: 3 }
+  const label = placePeakLabel({
+    peak: peakPoint,
+    size: labelBox,
+    visible,
+    // The arc is highest at its middle, so over any stretch it peaks at the point
+    // nearest the middle.
+    arcTop: (left, right) => yAtX(Math.min(Math.max((x0 + x1) / 2, left), right)),
+    obstacles: [
+      ...(nowPoint ? [{ ...nowPoint, r: NOW_SUN_RADIUS }] : []),
+      ...(focusedPoint ? [{ ...focusedPoint, r: FOCUS_MARKER_RADIUS }] : []),
+    ],
+  })
+  const labelCenter = label.x + labelBox.width / 2
 
   // Map a pointer x (client px) to the nearest bar's hour, then report it upward.
   function selectFromClientX(svg: SVGSVGElement, clientX: number) {
@@ -183,7 +271,7 @@ export default function SunArc({ hourly, nowHour, focused, onSelectHour }: Props
             const mid = pointAt(tForIndex((indexOfHour(from) + indexOfHour(to)) / 2))
             // The dashed guide and bars already mark the gap; drop its label rather
             // than let it collide with the peak callout.
-            if (showPeakLabel && Math.abs(mid.x - peakPoint.x) < 72) return null
+            if (showPeakLabel && Math.abs(mid.x - labelCenter) < 72) return null
             return (
               <text
                 key={from}
@@ -204,8 +292,9 @@ export default function SunArc({ hourly, nowHour, focused, onSelectHour }: Props
               point={peakPoint}
               uv={peak.uv}
               hour={peak.hour}
-              label={showPeakLabel}
-              anchor={peakLabelAnchor(peakPoint.x, width)}
+              label={showPeakLabel ? label : null}
+              pointer={pointer}
+              labelRef={labelRef}
             />
           )}
           {nowPoint && <NowSun point={nowPoint} glowId={glowId} />}
