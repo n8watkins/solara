@@ -1,4 +1,4 @@
-import { Check, Lock, RotateCw } from 'lucide-react'
+import { Check } from 'lucide-react'
 import type { DayWeather } from '@/lib/types'
 import type { DashboardAccess } from '@/lib/dashboard-view'
 import ActivityModalShell from '../ActivityModalShell'

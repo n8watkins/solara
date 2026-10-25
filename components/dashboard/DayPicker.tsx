@@ -1,4 +1,4 @@
-import { Check, Lock, RotateCw } from 'lucide-react'
+import { Lock, RotateCw } from 'lucide-react'
 import { useState } from 'react'
 import type { DayWeather } from '@/lib/types'
 import { LOCKED_DAYS_UPSELL, dayChips, type DashboardAccess } from '@/lib/dashboard-view'
