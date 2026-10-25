@@ -144,7 +144,7 @@ Candidates, roughly ranked by impact over effort:
 3. A daily briefing card, optionally AI-written, reused by push and share.
 4. Family profiles as a headline Pro feature with a "most sensitive person" mode.
 5. Cloud-aware forecasts with confidence that decays after day 3.
-6. Better skin typing: named Fitzpatrick types, swatches and a short quiz.
+6. Better skin typing: named Fitzpatrick types and a short quiz (the swatches are done, in setup and Settings).
 7. City landing pages for search traffic (builds on the static landing page).
 8. Shade and surface reflection factors.
 9. Linking with live events from Strava, Meetup and similar services, so Solara can plan around them (owner's idea, not yet scoped).

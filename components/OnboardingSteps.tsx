@@ -2,10 +2,12 @@
 // The four setup steps that components/Onboarding.tsx shows inside its card. The
 // card hugs each step: content first, then the primary action right below it, then
 // Back, so no step floats in empty space on a tall phone or a wide screen.
+import { ArrowLeft, ArrowRight, MapPin, Moon } from 'lucide-react'
 import { useState } from 'react'
 import clsx from 'clsx'
 import type { User } from 'firebase/auth'
 import { SKIN_OPTIONS } from '@/lib/onboarding'
+import SkinSwatch from './SkinSwatch'
 import { TIER_LIMITS } from '@/lib/tiers'
 import { firebaseEnabled } from '@/lib/firebase'
 import type { Location, SkinType, UserPreferences } from '@/lib/types'
@@ -26,7 +28,7 @@ function BackButton({ onBack }: { onBack?: () => void }) {
       className="btn btn-ghost mt-2 w-full justify-center text-[13px] text-ink-3"
       onClick={onBack}
     >
-      ← Back
+      <ArrowLeft size={15} /> Back
     </button>
   )
 }
@@ -87,7 +89,13 @@ export function LocationStep({
         <span className="h-px flex-1 bg-line-strong" />
       </div>
       <button className={PRIMARY} onClick={onGeolocate} disabled={loading}>
-        {loading ? 'Detecting…' : '📍 Use my location'}
+        {loading ? (
+          'Detecting…'
+        ) : (
+          <>
+            <MapPin size={16} /> Use my location
+          </>
+        )}
       </button>
       <DataAttribution compact className="mt-4 text-center text-balance" />
     </>
@@ -114,22 +122,35 @@ export function UVPreviewStep({
           </span>
           <span className="mb-3.5 block text-[16px] font-[650] text-ink">{city}</span>
         </h1>
-        <p className="mb-2.5 text-[68px] leading-none font-[750] text-ink">{uv.toFixed(1)}</p>
-        {/* The band in the app's one UV palette, as on the dashboard. */}
-        <p
-          className={clsx(
-            'mb-[18px] inline-block rounded-[20px] px-3.5 py-1 text-[14px] font-medium text-uv-ink',
-            UV_FILL[uvBand(uv)],
-          )}
-        >
-          {uvLabel(uv)}
-        </p>
+        {uv < 0.5 ? (
+          // After dark (or before sunrise) a giant "0.0 None" says nothing useful.
+          <>
+            <Moon size={44} strokeWidth={1.75} className="mb-2.5 text-ink-3" />
+            <p className="mb-2 text-[30px] leading-none font-[750] text-ink">Sun is down</p>
+            <p className="mb-[18px] text-[14px] text-ink-3">UV {uv.toFixed(1)} right now</p>
+          </>
+        ) : (
+          <>
+            <p className="mb-2.5 text-[68px] leading-none font-[750] text-ink">{uv.toFixed(1)}</p>
+            {/* The band in the app's one UV palette, as on the dashboard. */}
+            <p
+              className={clsx(
+                'mb-[18px] inline-block rounded-[20px] px-3.5 py-1 text-[14px] font-medium text-uv-ink',
+                UV_FILL[uvBand(uv)],
+              )}
+            >
+              {uvLabel(uv)}
+            </p>
+          </>
+        )}
         <p className="max-w-[320px] text-[14px] leading-[1.55] text-ink-2">
-          Next, set your skin type so Solara can personalize its planning estimates.
+          {uv < 0.5
+            ? 'Solara plans around the hours when the sun is up. Next, set your skin type so it can personalize its estimates.'
+            : 'Next, set your skin type so Solara can personalize its planning estimates.'}
         </p>
       </div>
       <button className={clsx(PRIMARY, 'mt-5')} onClick={onContinue}>
-        Continue →
+        Continue <ArrowRight size={16} />
       </button>
       <BackButton onBack={onBack} />
     </>
@@ -168,7 +189,8 @@ export function SkinStep({
                   : 'border-line-strong bg-surface-card',
               )}
             >
-              <div>
+              <SkinSwatch skin={o.value} size={26} />
+              <div className="ml-3 min-w-0 flex-1">
                 <p className="text-[14px] font-semibold text-ink">{o.label}</p>
                 <p className="text-[12px] text-ink-3">{o.desc}</p>
               </div>
@@ -178,7 +200,7 @@ export function SkinStep({
         })}
       </div>
       <button className={clsx(PRIMARY, 'mt-5')} onClick={onContinue}>
-        Continue →
+        Continue <ArrowRight size={16} />
       </button>
       <BackButton onBack={onBack} />
     </>
@@ -224,9 +246,6 @@ export function FinishStep({
     return (
       <>
         <div className="flex flex-col items-center pt-2 pb-1 text-center">
-          <span aria-hidden="true" className="mb-3 text-[34px] leading-none">
-            ☀️
-          </span>
           <h1 className={clsx(HEADING, 'mb-2')}>Finish setting up</h1>
           <p className={clsx(LEAD, 'max-w-[320px]')}>
             Solara saves your setup to your account
@@ -244,7 +263,13 @@ export function FinishStep({
           onClick={() => void finish(user)}
           disabled={saving}
         >
-          {saving ? 'Saving…' : 'Finish setup →'}
+          {saving ? (
+            'Saving…'
+          ) : (
+            <>
+              Finish setup <ArrowRight size={16} />
+            </>
+          )}
         </button>
         <BackButton onBack={onBack} />
       </>
@@ -254,16 +279,13 @@ export function FinishStep({
   return (
     <>
       <div className="flex flex-col items-center pt-2 pb-1 text-center">
-        <span aria-hidden="true" className="mb-3 text-[34px] leading-none">
-          🌤️
-        </span>
         <h1 className={clsx(HEADING, 'mb-2')}>You&apos;re all set</h1>
         <p className={clsx(LEAD, 'max-w-[330px]')}>
           See today&apos;s lower-UV windows now. Your plan stays on this device until you sign in.
         </p>
       </div>
       <button className={clsx(PRIMARY, 'mt-5')} onClick={onStartAsGuest}>
-        See today&apos;s plan →
+        See today&apos;s plan <ArrowRight size={16} />
       </button>
       {firebaseEnabled && (
         <div className="mt-4 border-t-[0.5px] border-line-strong pt-4">

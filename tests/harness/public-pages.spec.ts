@@ -71,6 +71,8 @@ interface Screen {
   name: string
   path: string
   fullPage: boolean
+  /** The live UV the forecast answers with (default 6.4). */
+  uv?: number
   /** Brings the page to the state to capture and returns an element that proves it. */
   reach: (page: Page) => Promise<Locator> | Locator
 }
@@ -147,6 +149,18 @@ const SCREENS: Screen[] = [
     },
   },
   {
+    // After dark the preview says so instead of a giant "0.0 None".
+    name: 'onboarding-uv-night',
+    path: '/app/',
+    fullPage: false,
+    uv: 0,
+    reach: async page => {
+      await searchCity(page)
+      await expect(page.getByText('None', { exact: true })).toHaveCount(0)
+      return page.getByText('Sun is down')
+    },
+  },
+  {
     name: 'onboarding-skin',
     path: '/app/',
     fullPage: false,
@@ -216,7 +230,7 @@ for (const screen of SCREENS) {
         const name = url.searchParams.get('name') ?? ''
         return json(route, name.toLowerCase().startsWith('pas') ? PLACES : { results: [] })
       }
-      if (FORECAST.test(url.href)) return json(route, { current: { uv_index: 6.4 } })
+      if (FORECAST.test(url.href)) return json(route, { current: { uv_index: screen.uv ?? 6.4 } })
       return false
     })
     await page.goto(screen.path)
@@ -224,3 +238,30 @@ for (const screen of SCREENS) {
     await captureScreen(page, testInfo, capture, screen)
   })
 }
+
+// Design audit items 15-18 and 22: setup has the wordmark back to the landing page,
+// visible progress, one illustration at the end, swatches and centered steps.
+test('setup shows the wordmark, visible progress and skin swatches', async ({ page }, testInfo) => {
+  await preparePage(page, testInfo, (route, url) => {
+    if (GEOCODE.test(url.href)) return json(route, PLACES)
+    if (FORECAST.test(url.href)) return json(route, { current: { uv_index: 6.4 } })
+    return false
+  })
+  await page.goto('/app/')
+  await startOnboarding(page)
+  await expect(page.getByRole('link', { name: 'Solara' })).toHaveAttribute('href', '/')
+  await chooseSkin(page)
+  // Every skin option carries a swatch.
+  await expect(
+    page.locator('button[aria-pressed] span[aria-hidden="true"][style*="background"]'),
+  ).toHaveCount(5)
+  // Steps after the location sit in the middle of a phone screen, not at the top.
+  const card = await page.locator('.card').first().boundingBox()
+  const viewport = page.viewportSize()!
+  const above = card!.y
+  const below = viewport.height - (card!.y + card!.height)
+  if (testInfo.project.name.startsWith('mobile')) expect(Math.abs(above - below)).toBeLessThan(80)
+  // Inactive progress segments stay visible in both themes.
+  const inactive = page.getByRole('progressbar').locator('div').last()
+  expect(Number(await inactive.evaluate(el => getComputedStyle(el).opacity))).toBeGreaterThan(0.9)
+})
