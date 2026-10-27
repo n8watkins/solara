@@ -76,7 +76,8 @@ The project stays on Spark until Pro launches ([COSTS.md](COSTS.md)).
   The `NEXT_PUBLIC_PRO_PRICE` secret is unused since #71 (prices live in `lib/plans.ts`).
 - **Dependencies:** Dependabot version updates run weekly with a 7-day cooldown.
   Development and CI run Node 24.22.1, the newest Node 24 LTS (`.nvmrc`); Functions run on the Node 24 runtime (`engines` "24").
-  Wave 4 upgraded Vitest 5, Firebase 13, Stripe 23 (API version pinned) and Tailwind 4, kept `@types/node` on the Node 24 line and removed dotenv (#57-#62); ESLint 10 (#35) and TypeScript 7 (#40, #31) wait for upstream support.
+  Wave 4 upgraded Vitest 5, Firebase 13, Stripe 23 (API version pinned) and Tailwind 4, kept `@types/node` on the Node 24 line and removed dotenv (#57-#62).
+  Every npm dependency is on its newest release (2026-10-27), including TypeScript 6.0.3 and ESLint 10, which needs peer overrides for three plugins that `eslint-config-next` bundles ([roadmap item 7](ROADMAP.md#7-eslint-10-done)); TypeScript 7 waits for `typescript-eslint` and Next.js ([item 8](ROADMAP.md#8-typescript-7-deferred)).
   Production dependency audits report zero advisories; accepted development advisories are in [DEPENDENCY_RISK.md](DEPENDENCY_RISK.md).
 
 How deploys work and how to configure them is in [DEPLOYMENT.md](DEPLOYMENT.md).

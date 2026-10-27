@@ -37,7 +37,7 @@
     "@types/node": "^24.19.2",
     "firebase": "^13.1.0",
     "firebase-tools": "^15.34.1",
-    "typescript": "^5.9.3"
+    "typescript": "^6.0.3"
   },
   "overrides": {
     "@grpc/grpc-js": "^1.14.6",

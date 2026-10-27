@@ -27,7 +27,7 @@ Conditions and individual sensitivity can change quickly.
 
 ## Stack
 
-- Next.js 16 App Router with static export, React 19 with the React Compiler, TypeScript 5.
+- Next.js 16 App Router with static export, React 19 with the React Compiler, TypeScript 6.
 - A small forecast store for forecast data (`lib/forecast-store.ts`: one request per place, background refresh, persisted cache), Valibot for every external boundary (`packages/core/src/schema.ts`).
 - Firebase Authentication, Firestore, Hosting, Cloud Messaging and Functions (TypeScript on Node.js 24).
 - Tailwind CSS 4, configured in `app/globals.css` (`@theme`) on CSS custom-property design tokens, which also define the one UV palette.
