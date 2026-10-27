@@ -227,7 +227,7 @@ export default function AccountPage() {
 
             <AccountSection
               title="Download your data"
-              body="The JSON export includes your account preferences and device registration metadata. Capability tokens and payment-provider identifiers are excluded for security."
+              body="The JSON export includes your account preferences, a summary of your plan and billing dates, your scheduled activities and device registration metadata. Capability tokens and payment-provider identifiers are excluded for security."
             >
               <button
                 className="btn btn-primary"
@@ -241,7 +241,7 @@ export default function AccountPage() {
             <AccountSection
               danger
               title="Delete account"
-              body="This permanently removes your Solara preferences and notification devices. If you have an active subscription, Solara attempts to cancel it before deleting the account."
+              body="This permanently removes your Solara preferences, scheduled activities and notification devices. A subscription is canceled at once, without a refund for the current period, and your billing details are deleted at Stripe."
             >
               <label className="mb-2 block text-[13px] font-semibold" htmlFor="delete-confirmation">
                 Type DELETE to confirm

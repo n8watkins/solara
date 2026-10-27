@@ -262,10 +262,12 @@ service cloud.firestore {
 
     // Google Calendar events Solara created, users/{uid}/scheduled/{eventId}. The fields and
     // caps come from packages/core/src/scheduled.ts (checked by lib/firestore-rules.test.ts).
+    // `expireAt` is required and at most SCHEDULED_MAX_TTL_DAYS ahead, so Firestore's TTL
+    // policy removes every record, even an account's that never comes back.
     function scheduledKeys() {
       return [
         'eventId', 'calendarId', 'activityId', 'title', 'icon', 'start', 'end', 'timeZone',
-        'htmlLink', 'createdAt', 'updatedAt'
+        'htmlLink', 'createdAt', 'updatedAt', 'expireAt'
       ];
     }
 
@@ -287,7 +289,9 @@ service cloud.firestore {
         && data.htmlLink is string && data.htmlLink.size() <= 2048
         && data.htmlLink.matches('^https://(www[.]google[.]com|calendar[.]google[.]com)/.*')
         && data.createdAt is string && data.createdAt.size() <= 40
-        && data.updatedAt is string && data.updatedAt.size() <= 40;
+        && data.updatedAt is string && data.updatedAt.size() <= 40
+        && data.expireAt is timestamp
+        && data.expireAt <= request.time + duration.value(400, 'd');
     }
 
     match /users/{userId} {

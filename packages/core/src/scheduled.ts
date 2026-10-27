@@ -38,6 +38,26 @@ export const SCHEDULED_FIELDS = Object.freeze([
   'updatedAt',
 ] as const)
 
+/**
+ * Days a record is kept after its event ends. The app prunes older records when the
+ * account opens, and Firestore's TTL policy on SCHEDULED_TTL_FIELD deletes them even if
+ * the account never comes back (infra/firestore-ttl.sh).
+ */
+export const SCHEDULED_RETENTION_DAYS = 30
+/**
+ * The Firestore Timestamp a stored record expires at: its end plus the retention. It is
+ * storage bookkeeping, written on save and checked by firestore.rules, and not part of
+ * the parsed record.
+ */
+export const SCHEDULED_TTL_FIELD = 'expireAt'
+/** The latest expiry the rules accept, in days from the write, so every record expires. */
+export const SCHEDULED_MAX_TTL_DAYS = 400
+
+/** When a stored record expires: its event's end plus SCHEDULED_RETENTION_DAYS. */
+export function scheduledExpiry(scheduled: { end: string }): Date {
+  return new Date(Date.parse(scheduled.end) + SCHEDULED_RETENTION_DAYS * 86_400_000)
+}
+
 /** Only the primary calendar is used today; the field leaves room for others. */
 export const SCHEDULED_CALENDAR_IDS = Object.freeze(['primary'] as const)
 

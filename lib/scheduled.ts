@@ -10,6 +10,9 @@ import {
   EVENT_LINK_PATTERN,
   parseScheduledActivity,
   SCHEDULED_LIMITS,
+  SCHEDULED_RETENTION_DAYS,
+  SCHEDULED_TTL_FIELD,
+  scheduledExpiry,
   SOLARA_ACTIVITY_PROPERTY,
   type ScheduledActivity,
 } from '@solara/core'
@@ -29,8 +32,8 @@ export {
   type ScheduledSpan,
 } from './scheduled-view'
 
-/** Records that ended longer ago than this are pruned. */
-export const SCHEDULED_RETENTION_MS = 30 * 86_400_000
+/** Records that ended longer ago than this are pruned (and expire in Firestore). */
+export const SCHEDULED_RETENTION_MS = SCHEDULED_RETENTION_DAYS * 86_400_000
 
 // ---- Google events -> records ---------------------------------------------------------
 
@@ -193,9 +196,17 @@ export function subscribeScheduled(
   )
 }
 
+/**
+ * PURE. The document stored for a record: the record plus its expiry, so Firestore's TTL
+ * policy deletes it even if the account never opens Solara again.
+ */
+export function scheduledDocument(item: ScheduledActivity) {
+  return { ...item, [SCHEDULED_TTL_FIELD]: scheduledExpiry(item) }
+}
+
 export async function saveScheduled(uid: string, item: ScheduledActivity): Promise<void> {
   const { firestore, scheduled } = await scheduledCollection(uid)
-  await firestore.setDoc(firestore.doc(scheduled, item.eventId), item)
+  await firestore.setDoc(firestore.doc(scheduled, item.eventId), scheduledDocument(item))
 }
 
 export async function deleteScheduled(uid: string, eventId: string): Promise<void> {

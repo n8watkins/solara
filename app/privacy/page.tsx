@@ -257,8 +257,9 @@ export default function PrivacyPage() {
         </p>
         <p>
           Deleting your account removes your Solara preferences, scheduled activities, calendar feed
-          and notification registrations, and cancels an active Solara subscription. Events already
-          in your Google Calendar stay there until you delete them.
+          and notification registrations, cancels an active Solara subscription and deletes your
+          customer record at Stripe (Stripe keeps the payment records the law requires it to keep).
+          Events already in your Google Calendar stay there until you delete them.
         </p>
         <p>You also have the right to complain to your local data protection authority.</p>
 

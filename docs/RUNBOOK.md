@@ -55,3 +55,35 @@ When billing was detached:
 - Google warns that resources which need billing can be deleted if billing stays off; re-attach the same day.
 - Re-attach at https://console.cloud.google.com/billing/linkedaccount?project=uv-activity-planner (**Link a billing account**), then redeploy the Functions (`firebase deploy --only functions --project uv-activity-planner`) and check that `maintenance` and `stripeWebhook` run again.
 - Stripe retries webhook deliveries for up to three days, so subscription changes made while the webhook was down are applied once it is back.
+
+## Account deletion alerts
+
+Account deletion never stalls on Stripe ([Account export and deletion](DEPLOYMENT.md#account-export-and-deletion)), but two ERROR logs ask for a person.
+
+`account deletion gave up on a Stripe resource` (fields `uid`, `resource`, `type`):
+
+1. Open `accountDeletionTombstones/<uid>/billingCleanupResources/<resource>` in the Firestore console; `lastError` says what Stripe answered.
+2. In the Stripe dashboard, search the customer by the `firebaseUid` metadata or the session or subscription id in the record, and cancel the subscription or expire the session by hand.
+   The account's data is already deleted; only Stripe needs fixing.
+3. Set the record's `needsAttention` to `false` so the next review knows it is handled.
+
+`account deletion is stalled` (fields `uid`, `attemptCount`):
+
+1. The tombstone `accountDeletionTombstones/<uid>` shows `cleanupLastError`.
+2. Fix the cause (for example a revoked Stripe key, or the Auth user that cannot be deleted), then set `cleanupNextAttemptAt` to now; the next `maintenance` run resumes.
+3. Never delete a tombstone or set `cleanupStatus` to `completed` by hand while a cleanup resource is `pending`.
+
+## Record retention
+
+Firestore deletes these records some time after their `expireAt` passes, once `infra/firestore-ttl.sh` has turned the policies on (after Blaze):
+
+| Collection group | Kept for |
+| --- | --- |
+| `stripeWebhookEvents` | 90 days after processing, longer than any Stripe retry |
+| `stripeCheckoutCleanupTasks` | 30 days after the cleanup finished |
+| `accountDeletionTombstones`, `billingCleanupResources`, `stripeSubscriptionOwners` | 90 days after the account's deletion finished |
+| `notificationRegistrationLimits` | 1 day after the rate-limit window |
+| `users/{uid}/scheduled` | 30 days after the scheduled event ends |
+
+Check the policies with `gcloud firestore fields ttls list --project uv-activity-planner`.
+A finished tombstone that has expired no longer blocks a new account with the same Google sign-in, which is intended.

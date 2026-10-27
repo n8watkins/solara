@@ -109,6 +109,8 @@ test('add a window to Google Calendar, then open, move and remove it', async ({
         start: '2026-06-16T01:00:00.000Z',
         end: '2026-06-16T01:45:00.000Z',
         htmlLink: event!.htmlLink,
+        // Firestore's TTL policy deletes it 30 days after it ends.
+        expireAt: '2026-07-16T01:45:00Z',
       }),
     })
   await expect(
