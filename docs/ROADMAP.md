@@ -78,18 +78,22 @@ Settings' Location tab uses the same search (#95), and the data credits name Geo
 - **Depends on:** D5 and, for a proxy, Blaze; lands with item 9 at the latest.
 - **Size:** M.
 
-### 7. ESLint 10 (deferred)
+### 7. ESLint 10 (done)
 
-- **Goal:** move to ESLint 10 (Dependabot #35).
-- **Blocked by:** `eslint-config-next` does not support ESLint 10 yet; reasons on #35.
-- **Scope:** `package.json`, the lockfile and `eslint.config.mjs` only.
-- **Acceptance:** `npm run lint` passes with the same rules and no new disables.
-- **Size:** S once unblocked.
+Done 2026-10-27: ESLint 10.13.0 lints with the same 91 rules and no new disables.
+`eslint-config-next` 16.4.3 allows ESLint 10, but three plugins it bundles still declare peer ranges that stop at ESLint 9: `eslint-plugin-react` 7.37.5, `eslint-plugin-import` 2.32.0 and `eslint-plugin-jsx-a11y` 6.10.2.
+The root `package.json` therefore overrides their `eslint` peer to the installed version (`"$eslint"`), so `npm ci` and `npm ls` stay clean.
+A probe file that breaks one rule of every bundled plugin gives the same findings under ESLint 9 and 10, and the resolved rule set is identical.
+Remove the three overrides once those plugins declare ESLint 10 support.
 
 ### 8. TypeScript 7 (deferred)
 
 - **Goal:** move to TypeScript 7 (Dependabot #40, #31).
-- **Blocked by:** `typescript-eslint` and Next.js do not support TypeScript 7 yet; reasons on #40 and #31.
+  TypeScript 6.0.3, the last JavaScript-based release, is in use since 2026-10-27.
+- **Blocked by:** TypeScript 7.0.2 ships the native compiler and no JavaScript compiler API: `require('typescript')` returns only the version, the rest is under `typescript/unstable/*`.
+  `typescript-eslint` 8.72 (peer `typescript` below 6.1) and `next build`, which type checks through that API, both need it.
+  TypeScript 7's `tsc` itself type checks both packages cleanly (checked 2026-10-27), but running it beside 6.0 would add a second compiler with the same semantics for no gain beyond speed, so it is not adopted.
+- **Unblocks when:** `typescript-eslint` and Next.js support TypeScript 7.
 - **Scope:** `package.json`, the lockfiles and any type fixes.
 - **Acceptance:** typecheck, lint, tests and build pass in both packages.
 - **Size:** S-M once unblocked.
