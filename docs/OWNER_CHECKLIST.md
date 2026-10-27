@@ -137,7 +137,10 @@ Everything in this section waits for the Pro launch (roadmap item 9); see [Fireb
 - [ ] Upgrade `uv-activity-planner` to Blaze, attach the billing account, and create a budget alert first.
 - [ ] Decide D9: create a staging Firebase project and use Stripe test mode there first.
 - [ ] Grant the deploy identity the extra Functions roles ([WIF_SETUP.md](WIF_SETUP.md#extra-roles-when-functions-are-enabled)).
-- [ ] Create or choose the Stripe Pro price, store `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` in Firebase Secret Manager, and set the `STRIPE_PRICE_ID` repository variable.
+- [ ] In Stripe (test mode first), create the product **Solara Pro** with two recurring prices, **$2.99 per month** and **$19.99 per year** (no trial on the prices; checkout adds the 7-day trial), and set their ids as the `STRIPE_PRICE_ID` (monthly) and `STRIPE_YEARLY_PRICE_ID` (yearly) repository variables.
+- [ ] Store `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` in Firebase Secret Manager.
+- [ ] Configure the customer portal (Stripe **Settings**, **Billing**, **Customer portal**): allow updating payment methods and viewing invoices; allow cancellations **at the end of the billing period**; allow switching plans between the two Pro prices only; set the default return link to `https://solara-uv.web.app/account/`.
+- [ ] Switch billing on last: set the `BILLING_ENABLED` repository variable to `true` and let the next deploy run; the plans dialog then shows checkout instead of the waitlist. Set it to anything else to go back to the waitlist.
 - [ ] Set `NEXT_PUBLIC_FUNCTIONS_URL` and then `ENABLE_BLAZE_FUNCTIONS=true` as repository variables.
 - [ ] Register the deployed webhook endpoint in Stripe test mode with the events listed in DEPLOYMENT.md.
 - [ ] After the first Functions deploy, run the calendar feed token migration ([Calendar feed tokens](DEPLOYMENT.md#calendar-feed-tokens)).

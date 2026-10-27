@@ -13,7 +13,13 @@ import { clientAddress, requestBodyBytes, setApiHeaders } from '../shared/http'
 import { httpOptions } from '../shared/options'
 import { FixedWindowLimiter } from '../shared/rate-limit'
 import { createBillingPortal, createCheckout } from './checkout'
-import { STRIPE_PRICE_ID, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, stripeClient } from './config'
+import {
+  BILLING_ENABLED,
+  STRIPE_SECRET_KEY,
+  STRIPE_WEBHOOK_SECRET,
+  billingPrices,
+  stripeClient,
+} from './config'
 import { processStripeEvent } from './webhook'
 
 export const createCheckoutSession = onRequest(
@@ -27,8 +33,9 @@ export const createCheckoutSession = onRequest(
       const session = await createCheckout({
         appUrl: appOrigin(),
         auth: getAuth(),
+        billingEnabled: BILLING_ENABLED.value(),
         db,
-        expectedPriceId: STRIPE_PRICE_ID.value(),
+        prices: billingPrices(),
         req,
         stripe: stripeClient(),
       })
@@ -107,7 +114,7 @@ export const stripeWebhook = onRequest(
       const result = await processStripeEvent({
         db,
         event,
-        expectedPriceId: STRIPE_PRICE_ID.value(),
+        prices: billingPrices(),
         serverTimestamp,
         stripe,
       })

@@ -12,7 +12,12 @@ import {
   storedSessionHint,
   storedSessionInIndexedDb,
 } from '@/lib/firebase'
-import { createBillingPortalUrl } from '@/lib/billing'
+import {
+  billingStatusText,
+  createBillingPortalUrl,
+  loadBillingSummary,
+  type BillingSummary,
+} from '@/lib/billing'
 import { callFunction, functionsApiConfigured } from '@/lib/functions-api'
 import { clearGuestData } from '@/lib/guest'
 import { clearAccountData } from '@/lib/session'
@@ -28,6 +33,19 @@ export default function AccountPage() {
   const [message, setMessage] = useState('')
   // After a deletion: 'pending' while the server finishes, 'done' once it has.
   const [deletion, setDeletion] = useState<'pending' | 'done' | null>(null)
+  // The subscription as the server last recorded it; undefined while it loads.
+  const [billing, setBilling] = useState<BillingSummary | null | undefined>(undefined)
+
+  useEffect(() => {
+    if (!user) return
+    let current = true
+    loadBillingSummary(user.uid)
+      .then(summary => current && setBilling(summary))
+      .catch(() => current && setBilling(null))
+    return () => {
+      current = false
+    }
+  }, [user])
 
   useEffect(() => {
     // Firebase loads only when this browser holds a session (lib/firebase.ts).
@@ -182,16 +200,29 @@ export default function AccountPage() {
         ) : (
           <div className="grid gap-[18px]">
             <AccountSection
-              title="Billing and subscription"
-              body="Update your payment method, review invoices, or cancel your subscription securely through Stripe."
+              title="Plan and billing"
+              note={
+                billing?.hasBillingAccount
+                  ? 'Change plans, update your payment method, see invoices or cancel securely through Stripe.'
+                  : undefined
+              }
+              body={
+                billing === undefined
+                  ? 'Loading your plan...'
+                  : billing === null
+                    ? 'Your plan could not be loaded. Check your connection and reload.'
+                    : billingStatusText(billing, formatDay)
+              }
             >
-              <button
-                className="btn btn-primary"
-                disabled={busy !== null || !FUNCTIONS_READY}
-                onClick={() => void manageBilling()}
-              >
-                {busy === 'billing' ? 'Opening...' : 'Manage subscription'}
-              </button>
+              {billing?.hasBillingAccount ? (
+                <button
+                  className="btn btn-primary"
+                  disabled={busy !== null || !FUNCTIONS_READY}
+                  onClick={() => void manageBilling()}
+                >
+                  {busy === 'billing' ? 'Opening...' : 'Manage subscription'}
+                </button>
+              ) : null}
             </AccountSection>
 
             <AccountSection
@@ -261,6 +292,11 @@ export default function AccountPage() {
   )
 }
 
+/** A date as "Nov 3, 2026" in the reader's locale. */
+function formatDay(date: Date): string {
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
 function deletionState(value: string | null): 'pending' | 'done' | null {
   return value === 'pending' || value === 'done' ? value : null
 }
@@ -268,18 +304,23 @@ function deletionState(value: string | null): 'pending' | 'done' | null {
 function AccountSection({
   title,
   body,
+  note,
   danger = false,
   children,
 }: {
   title: string
   body: string
+  /** A smaller second line under the body. */
+  note?: string
   danger?: boolean
-  children: ReactNode
+  children?: ReactNode
 }) {
+  const gap = !children ? 'mb-0' : danger ? 'mb-3.5' : 'mb-[18px]'
   return (
     <section className={clsx('card', danger && 'border-danger/40')}>
       <h2 className={clsx('mb-2 text-[18px] font-[650]', danger && 'text-danger')}>{title}</h2>
-      <p className={clsx('leading-[1.55] text-ink-2', danger ? 'mb-3.5' : 'mb-[18px]')}>{body}</p>
+      <p className={clsx('leading-[1.55] text-ink-2', note ? 'mb-1.5' : gap)}>{body}</p>
+      {note && <p className={clsx('text-[13px] leading-[1.55] text-ink-3', gap)}>{note}</p>}
       {children}
     </section>
   )

@@ -32,6 +32,7 @@ describe('authenticated checkout', () => {
 
   beforeEach(() => {
     vi.stubEnv('NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY', 'site-key')
+    vi.stubEnv('NEXT_PUBLIC_BILLING_ENABLED', '1')
     appCheck.token.mockImplementation(async ({ limitedUse = false } = {}) =>
       limitedUse ? 'limited-use-app-check' : 'app-check',
     )
@@ -80,10 +81,38 @@ describe('authenticated checkout', () => {
           Authorization: 'Bearer firebase-id-token',
           'X-Firebase-AppCheck': 'limited-use-app-check',
         }),
-        body: JSON.stringify({ attemptId: '12345678-1234-1234-1234-123456789abc' }),
+        body: JSON.stringify({
+          attemptId: '12345678-1234-1234-1234-123456789abc',
+          plan: 'monthly',
+        }),
       }),
     )
     expect(appCheck.token).toHaveBeenCalledWith({ limitedUse: true })
+  })
+
+  it('sends the chosen plan', async () => {
+    process.env.NEXT_PUBLIC_FUNCTIONS_URL = 'https://functions.example.test'
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ url: 'https://checkout.stripe.com/c/pay_test' }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    vi.stubGlobal('crypto', { randomUUID: vi.fn(() => '12345678-1234-1234-1234-123456789abc') })
+    const { createCheckoutUrl } = await freshBilling()
+    await createCheckoutUrl({ getIdToken: vi.fn().mockResolvedValue('token') } as never, 'yearly')
+    expect(JSON.parse(fetchMock.mock.calls[0]?.[1].body)).toEqual({
+      attemptId: '12345678-1234-1234-1234-123456789abc',
+      plan: 'yearly',
+    })
+  })
+
+  it('keeps the waitlist until billing is switched on', async () => {
+    process.env.NEXT_PUBLIC_FUNCTIONS_URL = 'https://functions.example.test'
+    vi.stubEnv('NEXT_PUBLIC_BILLING_ENABLED', '')
+    const { isBillingManagementConfigured, isCheckoutConfigured } = await freshBilling()
+    expect(isCheckoutConfigured()).toBe(false)
+    // An account that already pays can still manage its subscription.
+    expect(isBillingManagementConfigured()).toBe(true)
   })
 
   it('reports unconfigured without an App Check site key', async () => {
@@ -202,5 +231,73 @@ describe('authenticated checkout', () => {
 
     stop()
     expect(unsubscribe).toHaveBeenCalledOnce()
+  })
+})
+
+describe('billing summary', () => {
+  const day = (date: Date) => date.toISOString().slice(0, 10)
+  const at = (iso: string) => ({ toDate: () => new Date(iso) })
+
+  it('reads the server-owned fields and never exposes Stripe ids', async () => {
+    const { billingSummary } = await freshBilling()
+    const summary = billingSummary({
+      tier: 'paid',
+      subscriptionPlan: 'yearly',
+      subscriptionStatus: 'trialing',
+      subscriptionTrialEnd: at('2026-11-03T12:00:00Z'),
+      subscriptionCurrentPeriodEnd: at('2026-11-03T12:00:00Z'),
+      subscriptionCancelAtPeriodEnd: false,
+      stripeCustomerId: 'cus_123',
+      stripeSubscriptionId: 'sub_123',
+    })
+    expect(summary).toEqual({
+      pro: true,
+      plan: 'yearly',
+      status: 'trialing',
+      trialEndsAt: new Date('2026-11-03T12:00:00Z'),
+      periodEndsAt: new Date('2026-11-03T12:00:00Z'),
+      cancelAtPeriodEnd: false,
+      hasBillingAccount: true,
+    })
+    expect(JSON.stringify(summary)).not.toMatch(/cus_|sub_/)
+    expect(billingSummary(undefined)).toMatchObject({ pro: false, hasBillingAccount: false })
+    expect(billingSummary({ subscriptionPlan: 'lifetime' }).plan).toBeNull()
+  })
+
+  it('says what happens next in one sentence', async () => {
+    const { billingStatusText, billingSummary } = await freshBilling()
+    const text = (raw: Record<string, unknown>) => billingStatusText(billingSummary(raw), day)
+    expect(text({ tier: 'free' })).toBe('You are on the Free plan.')
+    expect(text({ tier: 'free', subscriptionStatus: 'canceled' })).toBe(
+      'Your Pro subscription has ended. You are on the Free plan.',
+    )
+    expect(
+      text({
+        tier: 'paid',
+        subscriptionPlan: 'monthly',
+        subscriptionStatus: 'trialing',
+        subscriptionTrialEnd: at('2026-11-03T12:00:00Z'),
+      }),
+    ).toBe('Pro, monthly. Your free trial ends on 2026-11-03; the first payment is taken then.')
+    expect(
+      text({
+        tier: 'paid',
+        subscriptionPlan: 'yearly',
+        subscriptionStatus: 'active',
+        subscriptionCurrentPeriodEnd: at('2027-10-27T12:00:00Z'),
+      }),
+    ).toBe('Pro, yearly. Renews on 2027-10-27.')
+    expect(
+      text({
+        tier: 'paid',
+        subscriptionPlan: 'yearly',
+        subscriptionStatus: 'active',
+        subscriptionCancelAtPeriodEnd: true,
+        subscriptionCurrentPeriodEnd: at('2027-10-27T12:00:00Z'),
+      }),
+    ).toBe('Pro, yearly. Canceled: Pro stays until 2027-10-27.')
+    expect(
+      text({ tier: 'paid', subscriptionPlan: 'monthly', subscriptionStatus: 'past_due' }),
+    ).toBe('Pro, monthly. Your last payment failed: update your payment method to keep Pro.')
   })
 })

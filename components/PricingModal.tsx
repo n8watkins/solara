@@ -4,7 +4,13 @@ import clsx from 'clsx'
 import type { User } from 'firebase/auth'
 import ActivityModalShell from './ActivityModalShell'
 import GoogleSignInButton from './GoogleSignInButton'
-import { PRO_FEATURES, PRO_PLAN, isCheckoutConfigured, createCheckoutUrl } from '@/lib/billing'
+import {
+  PRO_FEATURES,
+  PRO_PLAN,
+  isCheckoutConfigured,
+  createCheckoutUrl,
+  type BillingPlan,
+} from '@/lib/billing'
 
 interface Props {
   /** The signed-in account; null or absent for a guest, who is offered sign-in first. */
@@ -14,6 +20,8 @@ interface Props {
   onJoinWaitlist?: (email: string) => void
   alreadyWaitlisted?: boolean
   onClose: () => void
+  /** Overrides whether checkout is offered (the UI harness shows both states). */
+  checkoutAvailable?: boolean
 }
 
 function Cell({ value }: { value: string | boolean }) {
@@ -37,40 +45,90 @@ const NOTICE =
 type Column = 'guest' | 'free' | 'pro'
 const COLUMN_NAMES: Record<Column, string> = { guest: 'Guest', free: 'Free', pro: 'Pro' }
 
-/** One way to pay for Pro, as a card. */
-function PriceCard({
-  period,
-  price,
-  per,
-  badge,
-}: {
+interface PlanOption {
+  plan: BillingPlan
   period: string
   price: string
   per: string
   badge?: string
-}) {
+}
+
+const PLAN_OPTIONS: PlanOption[] = [
+  { plan: 'monthly', period: 'Monthly', price: PRO_PLAN.monthly, per: 'month' },
+  {
+    plan: 'yearly',
+    period: 'Yearly',
+    price: PRO_PLAN.yearly,
+    per: 'year',
+    badge: `Save ${PRO_PLAN.yearlySavingPercent}%`,
+  },
+]
+
+function PriceCardBody({ period, price, per, badge }: PlanOption) {
   return (
-    <div className="metric-card flex flex-col gap-1 px-3.5 py-3">
-      <p className="flex h-[22px] items-center justify-between gap-2 text-[12px] font-semibold text-ink-2">
+    <>
+      <span className="flex h-[22px] items-center justify-between gap-2 text-[12px] font-semibold text-ink-2">
         {period}
         {badge && (
           <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[11px] leading-[16px] font-bold text-accent">
             {badge}
           </span>
         )}
-      </p>
-      <p className="text-ink">
+      </span>
+      <span className="text-ink">
         <span className="text-[22px] font-extrabold">{price}</span>
         <span className="text-[13px] text-ink-3"> / {per}</span>
+      </span>
+    </>
+  )
+}
+
+const CARD = 'metric-card flex flex-col gap-1 px-3.5 py-3'
+
+/** One way to pay for Pro, as a card; a choice between the two once checkout is open. */
+function PriceCard({
+  option,
+  selected,
+  onSelect,
+}: {
+  option: PlanOption
+  /** Absent while Pro is a waitlist: the card only shows the price. */
+  selected?: boolean
+  onSelect?: (plan: BillingPlan) => void
+}) {
+  if (!onSelect) {
+    return (
+      <p className={CARD}>
+        <PriceCardBody {...option} />
       </p>
-    </div>
+    )
+  }
+  return (
+    <label
+      className={clsx(
+        CARD,
+        'cursor-pointer ring-inset outline-offset-2 has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-accent',
+        selected ? 'ring-2 ring-accent' : 'ring-1 ring-transparent hover:ring-accent-border',
+      )}
+    >
+      <input
+        type="radio"
+        name="pro-plan"
+        value={option.plan}
+        checked={selected}
+        onChange={() => onSelect(option.plan)}
+        className="sr-only"
+      />
+      <PriceCardBody {...option} />
+    </label>
   )
 }
 
 /**
- * The plans dialog that every upsell opens. Pro is a waitlist until billing
- * launches (checkout runs only once the Functions are deployed); a guest is
- * offered free sign-in first, since the waitlist belongs to an account.
+ * The plans dialog that every upsell opens. Pro is a waitlist until the owner
+ * switches billing on (isCheckoutConfigured); then the account picks monthly or
+ * yearly and starts the free trial in Stripe Checkout. A guest is offered free
+ * sign-in first, since a subscription or the waitlist belongs to an account.
  */
 export default function PricingModal({
   user,
@@ -78,9 +136,11 @@ export default function PricingModal({
   onJoinWaitlist,
   alreadyWaitlisted,
   onClose,
+  checkoutAvailable,
 }: Props) {
-  const checkoutReady = isCheckoutConfigured()
+  const checkoutReady = checkoutAvailable ?? isCheckoutConfigured()
   const guest = !user
+  const [plan, setPlan] = useState<BillingPlan>('monthly')
   const [waitEmail, setWaitEmail] = useState(email ?? '')
   const [joined, setJoined] = useState(false)
   const [checkoutLoading, setCheckoutLoading] = useState(false)
@@ -92,7 +152,7 @@ export default function PricingModal({
     setCheckoutLoading(true)
     setCheckoutError(null)
     try {
-      const url = await createCheckoutUrl(user)
+      const url = await createCheckoutUrl(user, plan)
       window.location.assign(url)
     } catch (error) {
       setCheckoutError(
@@ -112,25 +172,32 @@ export default function PricingModal({
     footer = (
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2.5">
         <p className="min-w-45 flex-1 text-[13px] leading-[1.45] text-ink-2">
-          Sign in free to save your plan, see tomorrow and join the Pro waitlist.
+          {checkoutReady
+            ? 'Sign in free to save your plan, see tomorrow and start a Pro trial.'
+            : 'Sign in free to save your plan, see tomorrow and join the Pro waitlist.'}
         </p>
         <GoogleSignInButton label="Sign in free" preload />
       </div>
     )
   } else if (checkoutReady) {
+    const chosen = PLAN_OPTIONS.find(option => option.plan === plan) ?? PLAN_OPTIONS[0]!
     footer = (
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-[20px] font-extrabold text-ink">{PRO_PLAN.monthly} / month</p>
-          <p className="text-[12px] text-ink-3">Cancel anytime</p>
+          <p className="text-[20px] font-extrabold text-ink">
+            {chosen.price} / {chosen.per}
+          </p>
+          <p className="text-[12px] text-ink-3">
+            After the {PRO_PLAN.trialDays}-day free trial. Cancel anytime.
+          </p>
         </div>
         <button
           type="button"
-          className="btn btn-primary px-5.5 py-2.5 text-[14px]"
+          className="btn btn-primary w-full justify-center px-5.5 py-2.5 text-[14px] sm:w-auto"
           onClick={() => void upgrade()}
           disabled={checkoutLoading}
         >
-          {checkoutLoading ? 'Opening checkout...' : 'Upgrade to Pro'}
+          {checkoutLoading ? 'Opening checkout...' : 'Start free trial'}
         </button>
       </div>
     )
@@ -179,17 +246,31 @@ export default function PricingModal({
         )}
 
         <div>
-          <div className="grid grid-cols-2 gap-2.5">
-            <PriceCard period="Monthly" price={PRO_PLAN.monthly} per="month" />
-            <PriceCard
-              period="Yearly"
-              price={PRO_PLAN.yearly}
-              per="year"
-              badge={`Save ${PRO_PLAN.yearlySavingPercent}%`}
-            />
-          </div>
+          {checkoutReady && !guest ? (
+            <fieldset>
+              <legend className="sr-only">Choose how to pay</legend>
+              <div className="grid grid-cols-2 gap-2.5">
+                {PLAN_OPTIONS.map(option => (
+                  <PriceCard
+                    key={option.plan}
+                    option={option}
+                    selected={plan === option.plan}
+                    onSelect={setPlan}
+                  />
+                ))}
+              </div>
+            </fieldset>
+          ) : (
+            <div className="grid grid-cols-2 gap-2.5">
+              {PLAN_OPTIONS.map(option => (
+                <PriceCard key={option.plan} option={option} />
+              ))}
+            </div>
+          )}
           <p className="mt-2 text-[12px] text-ink-3">
-            Both start with a {PRO_PLAN.trialDays}-day free trial. Cancel anytime.
+            {checkoutReady
+              ? `New subscribers start with a ${PRO_PLAN.trialDays}-day free trial. Stripe asks for a card and charges nothing until it ends.`
+              : `Both start with a ${PRO_PLAN.trialDays}-day free trial. Cancel anytime.`}
           </p>
         </div>
 

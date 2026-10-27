@@ -35,22 +35,68 @@ const EVENT_PRIORITY: Record<string, number> = {
 
 /** The subscription fields this module reads, so tests can pass partial objects. */
 type SubscriptionLike = Pick<Stripe.Subscription, 'id' | 'customer' | 'status' | 'metadata'> & {
-  items?: { data?: Array<{ price?: unknown } | null | undefined> } | null
+  items?: {
+    data?: Array<{ price?: unknown; current_period_end?: unknown } | null | undefined>
+  } | null
+  trial_start?: number | null
+  trial_end?: number | null
+  cancel_at_period_end?: boolean | null
 }
 
+/** Whether the subscription is for one of the Pro prices. */
 export function subscriptionHasPrice(
   subscription: SubscriptionLike | null | undefined,
-  expectedPriceId: string,
+  priceIds: readonly string[],
 ): boolean {
-  if (!expectedPriceId) return false
   const items = subscription?.items?.data
-  return Array.isArray(items) && items.some(item => stringId(item?.price) === expectedPriceId)
+  return (
+    Array.isArray(items) &&
+    items.some(item => {
+      const price = stringId(item?.price)
+      return !!price && priceIds.includes(price)
+    })
+  )
+}
+
+function epochSecondsToDate(value: unknown): Date | null {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0
+    ? new Date(value * 1000)
+    : null
+}
+
+/**
+ * The subscription facts the account page shows and the export includes, without any
+ * Stripe identifier: the plan, when the current period or the trial ends, and whether
+ * it is set to end. `stripeTrialUsed` makes the trial once per account.
+ */
+export function billingSummaryFields(
+  subscription: SubscriptionLike,
+  prices: { monthly: string; yearly: string },
+): DocumentData {
+  const priceIds = (subscription.items?.data ?? []).map(item => stringId(item?.price))
+  const plan = priceIds.includes(prices.yearly)
+    ? 'yearly'
+    : priceIds.includes(prices.monthly)
+      ? 'monthly'
+      : null
+  const periodEnds = (subscription.items?.data ?? [])
+    .map(item => epochSecondsToDate(item?.current_period_end))
+    .filter((date): date is Date => date !== null)
+  return {
+    subscriptionPlan: plan,
+    subscriptionCurrentPeriodEnd: periodEnds.length
+      ? new Date(Math.max(...periodEnds.map(date => date.getTime())))
+      : null,
+    subscriptionTrialEnd: epochSecondsToDate(subscription.trial_end),
+    subscriptionCancelAtPeriodEnd: subscription.cancel_at_period_end === true,
+    ...(subscription.trial_start ? { stripeTrialUsed: true } : {}),
+  }
 }
 
 export async function validateCheckoutSession(
   stripe: Stripe,
   session: Stripe.Checkout.Session,
-  expectedPriceId: string,
+  priceIds: readonly string[],
   { requirePaid = true }: { requirePaid?: boolean } = {},
 ): Promise<{ uid: string; customerId: string; subscriptionId: string; paid: boolean }> {
   const uid = session?.client_reference_id
@@ -63,10 +109,15 @@ export async function validateCheckoutSession(
   if (requirePaid && !paid) {
     throw new Error('Checkout session is not paid')
   }
-  if (!expectedPriceId) throw new Error('STRIPE_PRICE_ID is not configured')
+  if (priceIds.length === 0) throw new Error('STRIPE_PRICE_ID is not configured')
 
   const lineItems = await stripe.checkout.sessions.listLineItems(session.id, { limit: 100 })
-  if (!lineItems.data.some(item => stringId(item.price) === expectedPriceId)) {
+  if (
+    !lineItems.data.some(item => {
+      const price = stringId(item.price)
+      return !!price && priceIds.includes(price)
+    })
+  ) {
     throw new Error('Checkout session does not contain the configured price')
   }
 
@@ -334,16 +385,18 @@ export type StripeEventResult = CommitResult | { ignored: true }
 export async function processStripeEvent({
   db,
   event,
-  expectedPriceId,
+  prices,
   serverTimestamp,
   stripe,
 }: {
   db: Firestore
   event: Stripe.Event
-  expectedPriceId: string
+  /** The Pro price of each plan; a subscription to either is Pro. */
+  prices: { monthly: string; yearly: string }
   serverTimestamp: ServerTimestamp
   stripe: Stripe
 }): Promise<StripeEventResult> {
+  const priceIds = [prices.monthly, prices.yearly].filter(Boolean)
   if (
     event.type === 'checkout.session.completed' ||
     event.type === 'checkout.session.async_payment_succeeded' ||
@@ -354,14 +407,14 @@ export async function processStripeEvent({
     const { uid, customerId, subscriptionId, paid } = await validateCheckoutSession(
       stripe,
       session,
-      expectedPriceId,
+      priceIds,
       { requirePaid },
     )
     const userRef = db.collection('users').doc(uid)
     const subscription = await stripe.subscriptions.retrieve(subscriptionId)
     const active =
       ACTIVE_SUBSCRIPTION_STATUSES.has(subscription.status) &&
-      subscriptionHasPrice(subscription, expectedPriceId)
+      subscriptionHasPrice(subscription, priceIds)
     const checkoutStatus =
       event.type === 'checkout.session.async_payment_failed'
         ? 'failed'
@@ -390,6 +443,7 @@ export async function processStripeEvent({
           stripeCheckoutUpdatedAt: serverTimestamp(),
           subscriptionStatus: subscription.status,
           subscriptionUpdatedAt: serverTimestamp(),
+          ...billingSummaryFields(subscription, prices),
         }
       },
       serverTimestamp,
@@ -425,7 +479,7 @@ export async function processStripeEvent({
     const active =
       event.type !== 'customer.subscription.deleted' &&
       ACTIVE_SUBSCRIPTION_STATUSES.has(currentSubscription.status) &&
-      subscriptionHasPrice(currentSubscription, expectedPriceId)
+      subscriptionHasPrice(currentSubscription, priceIds)
     const checkoutStatus = active
       ? 'succeeded'
       : TERMINAL_SUBSCRIPTION_STATUSES.has(currentSubscription.status) ||
@@ -439,6 +493,7 @@ export async function processStripeEvent({
       subscriptionStatus:
         event.type === 'customer.subscription.deleted' ? 'canceled' : currentSubscription.status,
       subscriptionUpdatedAt: serverTimestamp(),
+      ...billingSummaryFields(currentSubscription, prices),
     }
     if (!active) update.proSince = null
     const cancellationSubscriptionId = !TERMINAL_SUBSCRIPTION_STATUSES.has(

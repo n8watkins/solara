@@ -64,6 +64,9 @@ jobs:
       # Function-backed surfaces stay off unless Functions are deployed.
       NEXT_PUBLIC_FUNCTIONS_URL: ${{ vars.ENABLE_BLAZE_FUNCTIONS == 'true' && (vars.NEXT_PUBLIC_FUNCTIONS_URL || secrets.NEXT_PUBLIC_FUNCTIONS_URL) || '' }}
       ENABLE_BLAZE_FUNCTIONS: ${{ vars.ENABLE_BLAZE_FUNCTIONS }}
+      # Pro checkout replaces the waitlist only when the owner switches billing on, and
+      # only together with the Functions.
+      NEXT_PUBLIC_BILLING_ENABLED: ${{ vars.ENABLE_BLAZE_FUNCTIONS == 'true' && vars.BILLING_ENABLED == 'true' && '1' || '' }}
       NEXT_TELEMETRY_DISABLED: '1'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -273,19 +276,24 @@ jobs:
           service-account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
           credentials-json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
 
-      # functions/.env holds the committed defaults; the price id is per project, and the
-      # budget kill switch's last resort (detaching billing) is opt-in per project.
+      # functions/.env holds the committed defaults. The Pro prices and the billing switch
+      # are per project, and the budget kill switch's last resort (detaching billing) is
+      # opt-in per project.
       - name: Write project-specific Functions params
         env:
           STRIPE_PRICE_ID: ${{ vars.STRIPE_PRICE_ID || secrets.STRIPE_PRICE_ID }}
+          STRIPE_YEARLY_PRICE_ID: ${{ vars.STRIPE_YEARLY_PRICE_ID }}
+          BILLING_ENABLED: ${{ vars.BILLING_ENABLED == 'true' && 'true' || 'false' }}
           COST_GUARD_DETACH_BILLING: ${{ vars.COST_GUARD_DETACH_BILLING == 'true' && 'true' || 'false' }}
         run: |
-          if [ -z "$STRIPE_PRICE_ID" ]; then
-            echo "::error::Set the STRIPE_PRICE_ID repository variable before deploying Functions."
+          if [ "$BILLING_ENABLED" = true ] && { [ -z "$STRIPE_PRICE_ID" ] || [ -z "$STRIPE_YEARLY_PRICE_ID" ]; }; then
+            echo "::error::Set the STRIPE_PRICE_ID and STRIPE_YEARLY_PRICE_ID repository variables before switching billing on."
             exit 1
           fi
           {
             printf 'STRIPE_PRICE_ID=%s\n' "$STRIPE_PRICE_ID"
+            printf 'STRIPE_YEARLY_PRICE_ID=%s\n' "$STRIPE_YEARLY_PRICE_ID"
+            printf 'BILLING_ENABLED=%s\n' "$BILLING_ENABLED"
             printf 'COST_GUARD_DETACH_BILLING=%s\n' "$COST_GUARD_DETACH_BILLING"
           } > "functions/.env.$FIREBASE_PROJECT_ID"
 

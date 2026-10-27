@@ -56,7 +56,7 @@ The signed-in suite covers Scheduled with a faked Google Calendar.
 
 - **Cloud Functions are not deployed.**
   The `ENABLE_BLAZE_FUNCTIONS` variable is not set and the build ships an empty `NEXT_PUBLIC_FUNCTIONS_URL`, so the client hides everything that needs Functions: checkout and the billing portal, account export and deletion, the live calendar feed, notification device registration, and the scheduled billing and deletion jobs.
-- **Billing:** no `STRIPE_PRICE_ID` variable; the pricing dialog offers a waitlist.
+- **Billing:** built and switched off: monthly and yearly checkout with a 7-day trial, the billing portal and an account billing summary are in the code and tested against a fake Stripe; the pricing dialog offers the waitlist until the `BILLING_ENABLED`, `STRIPE_PRICE_ID` and `STRIPE_YEARLY_PRICE_ID` variables are set.
 - **Morning alerts** are Pro-only and launch with Pro on a scheduled Function; nothing has been sent since 2026-07-15 and the manual `notify.yml` workflow has no schedule.
 
 The project stays on Spark until Pro launches ([COSTS.md](COSTS.md)).

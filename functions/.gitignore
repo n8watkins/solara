@@ -3,3 +3,4 @@ node_modules/
 .runtimeconfig.json
 lib/
 .secret.local
+.env.demo-*

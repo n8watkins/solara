@@ -54,6 +54,7 @@ Optional feature activation:
 - `NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID` enables Google Calendar access.
 - The Pro price is not configurable: `lib/plans.ts` holds it ($2.99 a month or $19.99 a year, 7-day trial), shared by the landing page and the pricing dialog. The old `NEXT_PUBLIC_PRO_PRICE` value is ignored.
 - `NEXT_PUBLIC_FUNCTIONS_URL` enables Function-backed product surfaces.
+- `NEXT_PUBLIC_BILLING_ENABLED=1` replaces the Pro waitlist with Stripe Checkout; the deploy sets it from the `BILLING_ENABLED` repository variable, and only together with the Functions ([Pro billing](#pro-billing)).
 - `NEXT_PUBLIC_GA_MEASUREMENT_ID` offers an explicit analytics choice and loads GA4 only after the visitor opts in.
 - `NEXT_PUBLIC_SENTRY_DSN` turns on error reporting to Sentry ([Error reporting](#error-reporting-sentry)); without it the build contains no Sentry code.
   The deploy also sets `NEXT_PUBLIC_SENTRY_RELEASE` to the commit SHA.
@@ -71,7 +72,8 @@ After the build it also fails when `out/` contains a source map, or Sentry code 
 Repository variables:
 
 - `ENABLE_BLAZE_FUNCTIONS`: `true` makes `main` deploy Functions and compile `NEXT_PUBLIC_FUNCTIONS_URL` into the client; anything else keeps Function-backed surfaces off.
-- `STRIPE_PRICE_ID`: the Stripe Pro price, written into `functions/.env.<project-id>` by the Functions deploy job, which fails without it.
+- `BILLING_ENABLED`: `true` opens Pro checkout: the build compiles `NEXT_PUBLIC_BILLING_ENABLED=1` and the Functions deploy writes `BILLING_ENABLED=true`; anything else keeps the waitlist and makes `createCheckoutSession` refuse with `unavailable`.
+- `STRIPE_PRICE_ID` and `STRIPE_YEARLY_PRICE_ID`: the monthly ($2.99) and yearly ($19.99) Stripe prices of the Pro product, written into `functions/.env.<project-id>` by the Functions deploy job, which fails without them while `BILLING_ENABLED` is `true`.
 - `COST_GUARD_DETACH_BILLING` (optional): `true` lets the budget kill switch detach billing as a last resort ([Cost guard and budget kill switch](#cost-guard-and-budget-kill-switch)); anything else keeps it off.
 - `GCP_WORKLOAD_IDENTITY_PROVIDER`, `GCP_DEPLOY_SERVICE_ACCOUNT` and `GCP_NOTIFIER_SERVICE_ACCOUNT`: Workload Identity Federation ([WIF_SETUP.md](WIF_SETUP.md)).
 - `FIREBASE_PROJECT_ID` (optional): the deploy target, `uv-activity-planner` by default.
@@ -115,7 +117,7 @@ Every push to `main` runs `.github/workflows/deploy.yml`:
 1. The reusable quality workflow (`.github/workflows/quality.yml`) runs the README's [quality checks](../README.md#quality-checks) plus workflow and secret scanning.
 2. One job builds the static export with the checked public configuration, uploads its source maps to Sentry and deletes them when that is configured, smoke-tests that `out/` on the Hosting emulator, and packages it with its SHA-256 digest, CycloneDX SBOMs and a provenance record.
 3. Firestore rules and Firestore indexes deploy as separate jobs, so an index failure is visible on its own and does not hide whether Hosting published.
-4. When `ENABLE_BLAZE_FUNCTIONS` is `true`, the Functions job writes the project's `STRIPE_PRICE_ID`, builds `@solara/core` and the Functions, re-runs the params and payload checks, and deploys after rules and indexes.
+4. When `ENABLE_BLAZE_FUNCTIONS` is `true`, the Functions job writes the project's prices and switches (`STRIPE_PRICE_ID`, `STRIPE_YEARLY_PRICE_ID`, `BILLING_ENABLED`, `COST_GUARD_DETACH_BILLING`), builds `@solara/core` and the Functions, re-runs the params and payload checks, and deploys after rules and indexes.
 5. Hosting verifies the digest and deploys exactly the tested artifact, after rules and, when they deploy, Functions.
 
 Pull requests run the same quality workflow without deploying.
@@ -140,7 +142,7 @@ FIREBASE=functions/node_modules/.bin/firebase
 "$FIREBASE" deploy --only hosting --project "$PROJECT_ID"
 ```
 
-For a manual Functions deploy, put `STRIPE_PRICE_ID=<price-id>` in `functions/.env.<project-id>`; `APP_URL` comes from `functions/.env`.
+For a manual Functions deploy, put `STRIPE_PRICE_ID=<monthly price id>`, `STRIPE_YEARLY_PRICE_ID=<yearly price id>` and `BILLING_ENABLED=true` in `functions/.env.<project-id>`; `APP_URL` comes from `functions/.env`.
 Deploy Hosting only from the `out/` of a production build (`npm run build`), because the CSP and public configuration are baked in at build time.
 
 ## Service workers
@@ -252,6 +254,19 @@ Paths whose cost grows with traffic (the calendar feed, new feed links, notifica
 The `budgetAlert` Function engages it when the Cloud Billing budget, which publishes to the `budget-alerts` Pub/Sub topic, passes `COST_GUARD_THRESHOLD_PERCENT` of its amount, and releases it when a new budget period starts.
 Detaching billing is an opt-in last resort: set the `COST_GUARD_DETACH_BILLING` repository variable to `true` and grant the role in `infra/budget.sh`.
 The budget, the topic and the role are created by `infra/budget.sh`; what to do when the switch fires is in the [runbook](RUNBOOK.md#budget-kill-switch).
+
+### Pro billing
+
+Pro is sold through Stripe Checkout once the owner switches billing on (`BILLING_ENABLED`); until then the plans dialog keeps the waitlist and `createCheckoutSession` refuses.
+
+- The plans dialog (`components/PricingModal.tsx`) offers the monthly and yearly plans; `createCheckoutSession` (`functions/src/billing/checkout.ts`) maps the chosen plan to its price and binds the session to the signed-in account.
+- An account that never had a trial gets `PRO_TRIAL_DAYS` (7, in `packages/core/src/plans.ts`) free: Checkout asks for a card up front (`payment_method_collection: always`), and a trial that ends without a payment method cancels itself. `stripeTrialUsed` on the account, and any earlier trial on the same Stripe customer, rule out a second trial.
+- An open checkout for the other plan is expired before a new one is created, so only one can ever be paid.
+- The webhook treats a subscription to either price as Pro and records a billing summary on the account (`subscriptionPlan`, `subscriptionCurrentPeriodEnd`, `subscriptionTrialEnd`, `subscriptionCancelAtPeriodEnd`), which the account page shows without any Stripe identifier.
+- The customer portal (`createBillingPortalSession`) changes plans, payment methods and cancels; configure it in Stripe as in the [owner checklist](OWNER_CHECKLIST.md#functions-and-stripe).
+
+The signed-in e2e suite runs all of this against a local fake Stripe (`tests/e2e/signed-in/fake-stripe.mjs`) that delivers signed webhook events: checkout with the trial, the webhook, the return to the app, the account page, the portal and a cancellation (`tests/e2e/signed-in/billing.e2e.ts`).
+The Functions emulator alone may point Stripe at that fake (`STRIPE_API_BASE`); a deployed function always calls api.stripe.com.
 
 Register the deployed Stripe webhook URL in Stripe test mode first.
 Subscribe the endpoint to `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `customer.subscription.updated`, and `customer.subscription.deleted`.

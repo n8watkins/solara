@@ -15,3 +15,17 @@ export const PLAN_FORECAST_DAYS = Object.freeze({
 export function accountForecastDays(tier: unknown): number {
   return tier === 'paid' ? PLAN_FORECAST_DAYS.paid : PLAN_FORECAST_DAYS.free
 }
+
+/**
+ * Pro's free trial, in days: shown by the plans dialog (lib/plans.ts) and given by
+ * checkout (functions/src/billing/checkout.ts) to an account that never had one.
+ */
+export const PRO_TRIAL_DAYS = 7
+
+/** The ways to pay for Pro; checkout maps each to its Stripe price. */
+export const BILLING_PLANS = Object.freeze(['monthly', 'yearly'] as const)
+export type BillingPlan = (typeof BILLING_PLANS)[number]
+
+export function isBillingPlan(value: unknown): value is BillingPlan {
+  return (BILLING_PLANS as readonly unknown[]).includes(value)
+}

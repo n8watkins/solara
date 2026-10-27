@@ -40,6 +40,14 @@ test('ties the Functions URL to the Functions deployment switch', () => {
     /NEXT_PUBLIC_FUNCTIONS_URL is empty/,
   )
   assert.match(
+    checkEnv({ ...complete, NEXT_PUBLIC_BILLING_ENABLED: '1' }).errors.join('\n'),
+    /NEXT_PUBLIC_BILLING_ENABLED is set but Functions are not deployed/,
+  )
+  assert.match(
+    checkEnv({ ...complete, NEXT_PUBLIC_BILLING_ENABLED: 'true' }).errors.join('\n'),
+    /must be '1' or empty/,
+  )
+  assert.match(
     checkEnv({ ...complete, NEXT_PUBLIC_FUNCTIONS_URL: 'https://fn.example.com' }).errors.join(
       '\n',
     ),

@@ -13,6 +13,7 @@ const {
   createBillingPortal,
   createCheckout,
   processPendingCheckoutCleanups,
+  trialAvailable,
 } = require('../lib/billing/checkout')
 const { validAttemptId, validUid } = require('../lib/billing/ids')
 const { queueBillingCleanup, subscriptionOwnerRef } = require('../lib/billing/resources')
@@ -38,6 +39,9 @@ const { handleCors } = require('../lib/shared/http')
 const { captureLogs } = require('./support/logs')
 
 const logs = captureLogs()
+
+/** The monthly and yearly Pro prices the tests configure. */
+const PRICES = { monthly: 'price_pro', yearly: 'price_pro_yearly' }
 
 function responseRecorder() {
   return {
@@ -1961,29 +1965,27 @@ describe('Stripe fulfillment security', () => {
     assert.equal(validUid('../users/admin'), false)
     assert.equal(validAttemptId('12345678-1234-1234-1234-123456789abc'), true)
     assert.equal(validAttemptId('short'), false)
-    await assert.doesNotReject(validateCheckoutSession(stripe, session, 'price_pro'))
+    await assert.doesNotReject(validateCheckoutSession(stripe, session, ['price_pro']))
     await assert.doesNotReject(
-      validateCheckoutSession(stripe, { ...session, metadata: {} }, 'price_pro'),
+      validateCheckoutSession(stripe, { ...session, metadata: {} }, ['price_pro']),
     )
     await assert.rejects(
-      validateCheckoutSession(
-        stripe,
-        { ...session, metadata: { firebaseUid: 'mallory' } },
+      validateCheckoutSession(stripe, { ...session, metadata: { firebaseUid: 'mallory' } }, [
         'price_pro',
-      ),
+      ]),
       /not bound/,
     )
     await assert.rejects(
-      validateCheckoutSession(stripe, session, 'price_other'),
+      validateCheckoutSession(stripe, session, ['price_other']),
       /configured price/,
     )
   })
 
   test('recognizes only the configured subscription price', () => {
     const subscription = { items: { data: [{ price: { id: 'price_pro' } }] } }
-    assert.equal(subscriptionHasPrice(subscription, 'price_pro'), true)
-    assert.equal(subscriptionHasPrice(subscription, 'price_other'), false)
-    assert.equal(subscriptionHasPrice(subscription, ''), false)
+    assert.equal(subscriptionHasPrice(subscription, ['price_pro']), true)
+    assert.equal(subscriptionHasPrice(subscription, ['price_other']), false)
+    assert.equal(subscriptionHasPrice(subscription, []), false)
   })
 
   test('creates checkout from verified identity rather than request body identity', async () => {
@@ -1993,7 +1995,7 @@ describe('Stripe fulfillment security', () => {
       appUrl: 'https://example.com',
       auth: { verifyIdToken: async () => ({ uid: 'alice', email: 'alice@example.com' }) },
       db: fakeDb({ tier: 'free' }),
-      expectedPriceId: 'price_pro',
+      prices: PRICES,
       req: {
         headers: { authorization: 'Bearer valid-token' },
         body: { uid: 'mallory', attemptId: '12345678-1234-1234-1234-123456789abc' },
@@ -2012,9 +2014,75 @@ describe('Stripe fulfillment security', () => {
     })
     assert.equal(checkout.url, 'https://checkout.stripe.com/session')
     assert.equal(params.client_reference_id, 'alice')
-    assert.deepEqual(params.metadata, { firebaseUid: 'alice' })
+    assert.deepEqual(params.metadata, { firebaseUid: 'alice', plan: 'monthly' })
     assert.equal(params.line_items[0].price, 'price_pro')
+    assert.equal(params.payment_method_collection, 'always')
+    assert.deepEqual(params.subscription_data, {
+      metadata: { firebaseUid: 'alice', plan: 'monthly' },
+      trial_period_days: 7,
+      trial_settings: { end_behavior: { missing_payment_method: 'cancel' } },
+    })
     assert.match(requestOptions.idempotencyKey, /^checkout:[a-f0-9]{64}$/)
+  })
+
+  /** A checkout for a new account; returns the params Stripe received, or the error. */
+  async function checkoutParams({ body = {}, user = { tier: 'free' }, ...options } = {}) {
+    let params
+    await createCheckout({
+      appUrl: 'https://example.com',
+      auth: { verifyIdToken: async () => ({ uid: 'alice', email: 'alice@example.com' }) },
+      db: fakeDb(user),
+      prices: PRICES,
+      req: {
+        headers: { authorization: 'Bearer valid-token' },
+        body: { attemptId: '12345678-1234-1234-1234-123456789abc', ...body },
+      },
+      stripe: {
+        checkout: {
+          sessions: {
+            create: async value => {
+              params = value
+              return { id: 'cs_new', url: 'https://checkout.stripe.com/session' }
+            },
+          },
+        },
+      },
+      ...options,
+    })
+    return params
+  }
+
+  test('sells the yearly plan at its own price', async () => {
+    const params = await checkoutParams({ body: { plan: 'yearly' } })
+    assert.equal(params.line_items[0].price, 'price_pro_yearly')
+    assert.equal(params.subscription_data.metadata.plan, 'yearly')
+    await assert.rejects(checkoutParams({ body: { plan: 'lifetime' } }), {
+      code: 'invalid-argument',
+    })
+    await assert.rejects(
+      checkoutParams({ body: { plan: 'yearly' }, prices: { ...PRICES, yearly: '' } }),
+      /yearly price is not configured/,
+    )
+  })
+
+  test('gives the free trial once per account', async () => {
+    const params = await checkoutParams({ user: { tier: 'free', stripeTrialUsed: true } })
+    assert.equal(params.subscription_data.trial_period_days, undefined)
+    assert.equal(params.subscription_data.trial_settings, undefined)
+  })
+
+  test('never gives a second trial to an account or a returning customer', () => {
+    assert.equal(trialAvailable({}, []), true)
+    assert.equal(trialAvailable({ stripeTrialUsed: true }, []), false)
+    assert.equal(trialAvailable({}, [{ status: 'canceled', trial_start: null }]), true)
+    assert.equal(trialAvailable({}, [{ status: 'canceled', trial_start: 1_790_000_000 }]), false)
+  })
+
+  test('refuses to sell until billing is switched on', async () => {
+    await assert.rejects(checkoutParams({ billingEnabled: false }), {
+      code: 'unavailable',
+      message: 'Pro checkout is not open yet',
+    })
   })
 
   test('creates a billing portal only for the authenticated customer', async () => {
@@ -2094,7 +2162,7 @@ describe('Stripe fulfillment security', () => {
           stripeSubscriptionId: 'sub_old',
           subscriptionStatus: 'canceled',
         }),
-        expectedPriceId: 'price_pro',
+        prices: PRICES,
         req: {
           headers: { authorization: 'Bearer valid-token' },
           body: { attemptId: '12345678-1234-1234-1234-123456789abc' },
@@ -2127,7 +2195,7 @@ describe('Stripe fulfillment security', () => {
     const options = {
       appUrl: 'https://example.com',
       auth: { verifyIdToken: async () => ({ uid: 'alice', email: 'alice@example.com' }) },
-      expectedPriceId: 'price_pro',
+      prices: PRICES,
       req: {
         headers: { authorization: 'Bearer valid-token' },
         body: { attemptId: '12345678-1234-1234-1234-123456789abc' },
@@ -2176,7 +2244,7 @@ describe('Stripe fulfillment security', () => {
       appUrl: 'https://example.com',
       auth: { verifyIdToken: async () => ({ uid: 'alice', email: 'alice@example.com' }) },
       db,
-      expectedPriceId: 'price_pro',
+      prices: PRICES,
       stripe: {
         checkout: {
           sessions: {
@@ -2229,7 +2297,7 @@ describe('Stripe fulfillment security', () => {
         stripeCheckoutStatus: 'pending',
         stripeCheckoutReservedUntil: new Date(Date.now() + 60_000),
       }),
-      expectedPriceId: 'price_pro',
+      prices: PRICES,
       req: {
         headers: { authorization: 'Bearer valid-token' },
         body: { attemptId: 'abcdefab-1234-1234-1234-123456789abc' },
@@ -2252,6 +2320,49 @@ describe('Stripe fulfillment security', () => {
     assert.equal(created, false)
   })
 
+  test('closes an open checkout for the other plan and starts a new one', async () => {
+    const expired = []
+    let created
+    const existing = {
+      id: 'cs_existing',
+      status: 'open',
+      url: 'https://checkout.stripe.com/existing',
+      client_reference_id: 'alice',
+      metadata: { firebaseUid: 'alice', plan: 'monthly' },
+    }
+    const checkout = await createCheckout({
+      appUrl: 'https://example.com',
+      auth: { verifyIdToken: async () => ({ uid: 'alice', email: 'alice@example.com' }) },
+      db: fakeDb({
+        tier: 'free',
+        stripeCheckoutAttemptId: '12345678-1234-1234-1234-123456789abc',
+        stripeCheckoutSessionId: existing.id,
+        stripeCheckoutStatus: 'pending',
+        stripeCheckoutReservedUntil: new Date(Date.now() + 60_000),
+      }),
+      prices: PRICES,
+      req: {
+        headers: { authorization: 'Bearer valid-token' },
+        body: { attemptId: 'abcdefab-1234-1234-1234-123456789abc', plan: 'yearly' },
+      },
+      stripe: {
+        checkout: {
+          sessions: {
+            retrieve: async () => existing,
+            expire: async id => expired.push(id),
+            create: async value => {
+              created = value
+              return { id: 'cs_yearly', url: 'https://checkout.stripe.com/yearly' }
+            },
+          },
+        },
+      },
+    })
+    assert.deepEqual(expired, ['cs_existing'])
+    assert.equal(created.line_items[0].price, 'price_pro_yearly')
+    assert.equal(checkout.id, 'cs_yearly')
+  })
+
   test('does not reuse a pending checkout owned by another account', async () => {
     const checkout = await createCheckout({
       appUrl: 'https://example.com',
@@ -2261,7 +2372,7 @@ describe('Stripe fulfillment security', () => {
         stripeCheckoutSessionId: 'cs_foreign',
         stripeCheckoutStatus: 'pending',
       }),
-      expectedPriceId: 'price_pro',
+      prices: PRICES,
       req: {
         headers: { authorization: 'Bearer valid-token' },
         body: { attemptId: 'abcdefab-1234-1234-1234-123456789abc' },
@@ -2294,7 +2405,7 @@ describe('Stripe fulfillment security', () => {
         appUrl: 'https://example.com',
         auth: { verifyIdToken: async () => ({ uid: 'alice', email: 'alice@example.com' }) },
         db: fakeDb({ tier: 'free', accountDeletionStartedAt: new Date() }),
-        expectedPriceId: 'price_pro',
+        prices: PRICES,
         req: {
           headers: { authorization: 'Bearer valid-token' },
           body: { attemptId: '12345678-1234-1234-1234-123456789abc' },
@@ -2321,7 +2432,7 @@ describe('Stripe fulfillment security', () => {
         appUrl: 'https://example.com',
         auth: { verifyIdToken: async () => ({ uid: 'alice', email: 'alice@example.com' }) },
         db,
-        expectedPriceId: 'price_pro',
+        prices: PRICES,
         req: {
           headers: { authorization: 'Bearer valid-token' },
           body: { attemptId: '12345678-1234-1234-1234-123456789abc' },
@@ -2365,7 +2476,7 @@ describe('Stripe fulfillment security', () => {
         appUrl: 'https://example.com',
         auth: { verifyIdToken: async () => ({ uid: 'alice', email: 'alice@example.com' }) },
         db,
-        expectedPriceId: 'price_pro',
+        prices: PRICES,
         req: {
           headers: { authorization: 'Bearer valid-token' },
           body: { attemptId: '12345678-1234-1234-1234-123456789abc' },
@@ -2402,7 +2513,7 @@ describe('Stripe fulfillment security', () => {
         appUrl: 'https://example.com',
         auth: { verifyIdToken: async () => ({ uid: 'alice', email: 'alice@example.com' }) },
         db,
-        expectedPriceId: 'price_pro',
+        prices: PRICES,
         req: {
           headers: { authorization: 'Bearer valid-token' },
           body: { attemptId: '12345678-1234-1234-1234-123456789abc' },
@@ -2465,7 +2576,7 @@ describe('Stripe fulfillment security', () => {
         appUrl: 'https://example.com',
         auth: { verifyIdToken: async () => ({ uid: 'alice', email: 'alice@example.com' }) },
         db,
-        expectedPriceId: 'price_pro',
+        prices: PRICES,
         req: {
           headers: { authorization: 'Bearer valid-token' },
           body: { attemptId: '12345678-1234-1234-1234-123456789abc' },
@@ -2498,7 +2609,7 @@ describe('Stripe fulfillment security', () => {
         appUrl: 'https://example.com',
         auth: { verifyIdToken: async () => ({ uid: 'alice', email: 'alice@example.com' }) },
         db: fakeDb({ stripeCustomerId: 'cus_legacy', tier: 'free' }),
-        expectedPriceId: 'price_pro',
+        prices: PRICES,
         req: {
           headers: { authorization: 'Bearer valid-token' },
           body: { attemptId: '12345678-1234-1234-1234-123456789abc' },
@@ -2536,7 +2647,7 @@ describe('Stripe fulfillment security', () => {
     const options = {
       db,
       event,
-      expectedPriceId: 'price_pro',
+      prices: PRICES,
       serverTimestamp: () => 'SERVER_TIME',
       stripe,
     }
@@ -2560,6 +2671,51 @@ describe('Stripe fulfillment security', () => {
         .sort(),
       ['sub_123:alice'],
     )
+  })
+
+  test('records a trialing yearly subscription with its billing summary', async () => {
+    const db = fakeDb({ tier: 'free' })
+    const trialing = {
+      ...stripe,
+      checkout: {
+        sessions: {
+          ...stripe.checkout.sessions,
+          listLineItems: async () => ({ data: [{ price: { id: 'price_pro_yearly' } }] }),
+        },
+      },
+      subscriptions: {
+        retrieve: async id => ({
+          id,
+          customer: 'cus_123',
+          status: 'trialing',
+          trial_start: 1_790_000_000,
+          trial_end: 1_790_604_800,
+          cancel_at_period_end: false,
+          items: {
+            data: [{ price: { id: 'price_pro_yearly' }, current_period_end: 1_790_604_800 }],
+          },
+        }),
+      },
+    }
+    await processStripeEvent({
+      db,
+      event: {
+        id: 'evt_trial',
+        created: 100,
+        type: 'checkout.session.completed',
+        data: { object: { ...session, payment_status: 'no_payment_required' } },
+      },
+      prices: PRICES,
+      serverTimestamp: () => 'SERVER_TIME',
+      stripe: trialing,
+    })
+    assert.equal(db.userData.tier, 'paid')
+    assert.equal(db.userData.subscriptionStatus, 'trialing')
+    assert.equal(db.userData.subscriptionPlan, 'yearly')
+    assert.equal(db.userData.stripeTrialUsed, true)
+    assert.equal(db.userData.subscriptionTrialEnd.getTime(), 1_790_604_800_000)
+    assert.equal(db.userData.subscriptionCurrentPeriodEnd.getTime(), 1_790_604_800_000)
+    assert.equal(db.userData.subscriptionCancelAtPeriodEnd, false)
   })
 
   test('leaves a subscription unresolved when indexed ownership is ambiguous', async () => {
@@ -2617,7 +2773,7 @@ describe('Stripe fulfillment security', () => {
         type: 'checkout.session.completed',
         data: { object: session },
       },
-      expectedPriceId: 'price_pro',
+      prices: PRICES,
       serverTimestamp: () => 'SERVER_TIME',
       stripe: deletedAccountStripe,
     })
@@ -2631,7 +2787,7 @@ describe('Stripe fulfillment security', () => {
         type: 'checkout.session.completed',
         data: { object: session },
       },
-      expectedPriceId: 'price_pro',
+      prices: PRICES,
       serverTimestamp: () => 'SERVER_TIME',
       stripe: deletedAccountStripe,
     })
@@ -2653,7 +2809,7 @@ describe('Stripe fulfillment security', () => {
         type: 'checkout.session.completed',
         data: { object: session },
       },
-      expectedPriceId: 'price_pro',
+      prices: PRICES,
       serverTimestamp: () => 'SERVER_TIME',
       stripe: {
         ...stripe,
@@ -2682,7 +2838,7 @@ describe('Stripe fulfillment security', () => {
         type: 'checkout.session.completed',
         data: { object: session },
       },
-      expectedPriceId: 'price_pro',
+      prices: PRICES,
       serverTimestamp: () => 'SERVER_TIME',
       stripe: {
         ...stripe,
@@ -2708,7 +2864,7 @@ describe('Stripe fulfillment security', () => {
         type: 'checkout.session.completed',
         data: { object: session },
       },
-      expectedPriceId: 'price_pro',
+      prices: PRICES,
       serverTimestamp: () => 'SERVER_TIME',
       stripe: {
         ...stripe,
@@ -2740,7 +2896,7 @@ describe('Stripe fulfillment security', () => {
         type: 'checkout.session.completed',
         data: { object: unpaidSession },
       },
-      expectedPriceId: 'price_pro',
+      prices: PRICES,
       serverTimestamp: () => 'SERVER_TIME',
       stripe,
     })
@@ -2755,7 +2911,7 @@ describe('Stripe fulfillment security', () => {
         appUrl: 'https://example.com',
         auth: { verifyIdToken: async () => ({ uid: 'alice', email: 'alice@example.com' }) },
         db,
-        expectedPriceId: 'price_pro',
+        prices: PRICES,
         req: {
           headers: { authorization: 'Bearer valid-token' },
           body: { attemptId: '12345678-1234-1234-1234-123456789abc' },
@@ -2776,7 +2932,7 @@ describe('Stripe fulfillment security', () => {
         type: 'checkout.session.async_payment_succeeded',
         data: { object: session },
       },
-      expectedPriceId: 'price_pro',
+      prices: PRICES,
       serverTimestamp: () => 'SERVER_TIME',
       stripe,
     })
@@ -2795,7 +2951,7 @@ describe('Stripe fulfillment security', () => {
         type: 'checkout.session.async_payment_failed',
         data: { object: { ...session, payment_status: 'unpaid' } },
       },
-      expectedPriceId: 'price_pro',
+      prices: PRICES,
       serverTimestamp: () => 'SERVER_TIME',
       stripe,
     }
@@ -2818,7 +2974,7 @@ describe('Stripe fulfillment security', () => {
         type: 'checkout.session.async_payment_succeeded',
         data: { object: session },
       },
-      expectedPriceId: 'price_pro',
+      prices: PRICES,
       serverTimestamp: () => 'SERVER_TIME',
       stripe,
     })
@@ -2830,7 +2986,7 @@ describe('Stripe fulfillment security', () => {
         type: 'checkout.session.async_payment_failed',
         data: { object: { ...session, payment_status: 'unpaid' } },
       },
-      expectedPriceId: 'price_pro',
+      prices: PRICES,
       serverTimestamp: () => 'SERVER_TIME',
       stripe,
     })
@@ -2861,7 +3017,7 @@ describe('Stripe fulfillment security', () => {
     await processStripeEvent({
       db,
       event,
-      expectedPriceId: 'price_pro',
+      prices: PRICES,
       serverTimestamp: () => 'SERVER_TIME',
       stripe,
     })
@@ -2903,7 +3059,7 @@ describe('Stripe fulfillment security', () => {
           },
         },
       },
-      expectedPriceId: 'price_pro',
+      prices: PRICES,
       serverTimestamp: () => 'SERVER_TIME',
       stripe: wrongPriceStripe,
     })
@@ -2938,7 +3094,7 @@ describe('Stripe fulfillment security', () => {
     const result = await processStripeEvent({
       db,
       event,
-      expectedPriceId: 'price_pro',
+      prices: PRICES,
       serverTimestamp: () => 'SERVER_TIME',
       stripe,
     })
@@ -2964,7 +3120,7 @@ describe('Stripe fulfillment security', () => {
           },
         },
       },
-      expectedPriceId: 'price_pro',
+      prices: PRICES,
       serverTimestamp: () => 'SERVER_TIME',
       stripe,
     })
@@ -2994,7 +3150,7 @@ describe('Stripe fulfillment security', () => {
         type: 'customer.subscription.updated',
         data: { object: deletedSubscription },
       },
-      expectedPriceId: 'price_pro',
+      prices: PRICES,
       serverTimestamp: () => 'SERVER_TIME',
       stripe: {
         checkout: stripe.checkout,
@@ -3045,7 +3201,7 @@ describe('Stripe fulfillment security', () => {
         type: 'customer.subscription.updated',
         data: { object: resubscription },
       },
-      expectedPriceId: 'price_pro',
+      prices: PRICES,
       serverTimestamp: () => 'SERVER_TIME',
       stripe: resubscribeStripe,
     })
@@ -3063,7 +3219,7 @@ describe('Stripe fulfillment security', () => {
         type: 'checkout.session.completed',
         data: { object: session },
       },
-      expectedPriceId: 'price_pro',
+      prices: PRICES,
       serverTimestamp: () => 'SERVER_TIME',
       stripe: resubscribeStripe,
     })
@@ -3098,7 +3254,7 @@ describe('Stripe fulfillment security', () => {
         type: 'customer.subscription.deleted',
         data: { object: older },
       },
-      expectedPriceId: 'price_pro',
+      prices: PRICES,
       serverTimestamp: () => 'SERVER_TIME',
       stripe: {
         ...stripe,

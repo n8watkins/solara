@@ -2,6 +2,8 @@
 
 import { createHash, randomUUID } from 'node:crypto'
 
+import { PRO_TRIAL_DAYS, isBillingPlan } from '#core'
+
 import type { Auth } from 'firebase-admin/auth'
 import type { DocumentData, Firestore } from 'firebase-admin/firestore'
 import type { Request } from 'firebase-functions/v2/https'
@@ -10,6 +12,7 @@ import type Stripe from 'stripe'
 import { authenticate, uidLimiter } from '../shared/auth'
 import { HttpError, errorCode, errorMessage } from '../shared/errors'
 import { toMillis } from '../shared/time'
+import type { BillingPrices } from './config'
 import {
   TERMINAL_SUBSCRIPTION_STATUSES,
   listCustomerSubscriptions,
@@ -186,22 +189,44 @@ type Reservation =
   | { reuseSessionId: string; userData?: undefined }
   | { reuseSessionId?: undefined; userData: DocumentData }
 
+/** Whether an account may still get the free trial: never once per account or customer. */
+export function trialAvailable(
+  userData: DocumentData,
+  pastSubscriptions: Stripe.Subscription[],
+): boolean {
+  if (userData.stripeTrialUsed === true) return false
+  return !pastSubscriptions.some(subscription => subscription.trial_start !== null)
+}
+
+/**
+ * A Stripe Checkout Session for Pro on the chosen plan (`monthly` unless the body says
+ * `yearly`), bound to the signed-in account, with the free trial when the account has
+ * never had one. A trial asks for a payment method up front and cancels itself if none
+ * is left at its end.
+ */
 export async function createCheckout({
   appUrl,
   auth,
+  billingEnabled = true,
   db,
-  expectedPriceId,
+  prices,
   req,
   stripe,
 }: {
   appUrl: string
   auth: Auth
+  /** False until the owner opens billing (BILLING_ENABLED). */
+  billingEnabled?: boolean
   db: Firestore
-  expectedPriceId: string
+  prices: BillingPrices
   req: Request
   stripe: Stripe
 }): Promise<Stripe.Checkout.Session> {
-  if (!expectedPriceId) throw new Error('STRIPE_PRICE_ID is not configured')
+  if (!billingEnabled) throw new HttpError('unavailable', 'Pro checkout is not open yet')
+  const plan: unknown = req.body?.plan ?? 'monthly'
+  if (!isBillingPlan(plan)) throw new HttpError('invalid-argument', 'Invalid plan')
+  const priceId = prices[plan]
+  if (!priceId) throw new Error(`The ${plan} price is not configured`)
   const identity = await authenticate(auth, req.headers.authorization, {
     limiter: checkoutLimiter,
   })
@@ -272,7 +297,11 @@ export async function createCheckout({
       if (errorCode(error) !== 'resource_missing') throw error
     }
     if (existing && stripeSessionBelongsToUser(existing, identity.uid)) {
-      if (existing.status === 'open' && existing.url) return existing
+      if (existing.status === 'open' && existing.url) {
+        // An open checkout for the other plan is closed, so it cannot also be paid.
+        if ((existing.metadata?.plan ?? 'monthly') === plan) return existing
+        await stripe.checkout.sessions.expire(existing.id)
+      }
       if (existing.status === 'complete') {
         throw new HttpError('conflict', 'Checkout payment is being processed')
       }
@@ -306,6 +335,7 @@ export async function createCheckout({
   let createdSessionId: string | null = null
   let cleanupQueued = false
   try {
+    let pastSubscriptions: Stripe.Subscription[] = []
     if (existingCustomerId) {
       const customerRef = billingResourceRef(userRef, 'customer', existingCustomerId)
       if (!customerRef) throw new Error('Invalid billing customer identifier')
@@ -316,28 +346,40 @@ export async function createCheckout({
       ) {
         throw new HttpError('conflict', 'Billing account ownership could not be verified')
       }
-      const subscriptions = await listCustomerSubscriptions(stripe, existingCustomerId)
+      pastSubscriptions = await listCustomerSubscriptions(stripe, existingCustomerId)
       if (
-        subscriptions.some(subscription => !TERMINAL_SUBSCRIPTION_STATUSES.has(subscription.status))
+        pastSubscriptions.some(
+          subscription => !TERMINAL_SUBSCRIPTION_STATUSES.has(subscription.status),
+        )
       ) {
         throw new HttpError('conflict', 'Account already has a subscription')
       }
     }
+    const trial = trialAvailable(userData, pastSubscriptions)
     const session = await stripe.checkout.sessions.create(
       {
         mode: 'subscription',
-        line_items: [{ price: expectedPriceId, quantity: 1 }],
+        line_items: [{ price: priceId, quantity: 1 }],
         client_reference_id: identity.uid,
         ...customer,
-        metadata: { firebaseUid: identity.uid },
-        subscription_data: { metadata: { firebaseUid: identity.uid } },
+        metadata: { firebaseUid: identity.uid, plan },
+        payment_method_collection: 'always',
+        subscription_data: {
+          metadata: { firebaseUid: identity.uid, plan },
+          ...(trial
+            ? {
+                trial_period_days: PRO_TRIAL_DAYS,
+                trial_settings: { end_behavior: { missing_payment_method: 'cancel' } },
+              }
+            : {}),
+        },
         success_url: `${appUrl}/app/?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${appUrl}/app/?checkout=canceled`,
         allow_promotion_codes: true,
       },
       {
         idempotencyKey: `checkout:${createHash('sha256')
-          .update(`${identity.uid}\0${expectedPriceId}\0${attemptId}`)
+          .update(`${identity.uid}\0${priceId}\0${attemptId}`)
           .digest('hex')}`,
       },
     )
