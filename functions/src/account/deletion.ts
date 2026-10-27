@@ -20,7 +20,7 @@ import {
   stripeSessionBelongsToUser,
 } from '../billing/resources'
 import { deleteCalendarFeedsForUser } from '../feed/tokens'
-import { authenticate } from '../shared/auth'
+import { authenticate, uidLimiter } from '../shared/auth'
 import { HttpError, errorCode, errorMessage, loggableError } from '../shared/errors'
 import { toMillis } from '../shared/time'
 
@@ -29,6 +29,7 @@ const BILLING_CLEANUP_PAGE_SIZE = 10
 const BILLING_CLEANUP_LEASE_MS = 5 * 60 * 1000
 const BILLING_CLEANUP_RETRY_BASE_MS = 5 * 60 * 1000
 const BILLING_CLEANUP_RETRY_MAX_MS = 24 * 60 * 60 * 1000
+const deletionLimiter = uidLimiter(3)
 
 /** A cleanup resource claimed under a processing lease. */
 interface ClaimedResource {
@@ -605,7 +606,10 @@ export async function deleteAccount({
   req: Request
   stripe: Stripe
 }): Promise<DeletionPageResult> {
-  const identity = await authenticate(auth, req.headers.authorization, { maxAgeSeconds: 300 })
+  const identity = await authenticate(auth, req.headers.authorization, {
+    maxAgeSeconds: 300,
+    limiter: deletionLimiter,
+  })
   if (req.body?.confirmation !== 'DELETE') {
     throw new HttpError('invalid-argument', 'Type DELETE to confirm')
   }

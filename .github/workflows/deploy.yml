@@ -273,16 +273,21 @@ jobs:
           service-account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
           credentials-json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
 
-      # functions/.env holds the committed defaults; the price id is per project.
+      # functions/.env holds the committed defaults; the price id is per project, and the
+      # budget kill switch's last resort (detaching billing) is opt-in per project.
       - name: Write project-specific Functions params
         env:
           STRIPE_PRICE_ID: ${{ vars.STRIPE_PRICE_ID || secrets.STRIPE_PRICE_ID }}
+          COST_GUARD_DETACH_BILLING: ${{ vars.COST_GUARD_DETACH_BILLING == 'true' && 'true' || 'false' }}
         run: |
           if [ -z "$STRIPE_PRICE_ID" ]; then
             echo "::error::Set the STRIPE_PRICE_ID repository variable before deploying Functions."
             exit 1
           fi
-          printf 'STRIPE_PRICE_ID=%s\n' "$STRIPE_PRICE_ID" > "functions/.env.$FIREBASE_PROJECT_ID"
+          {
+            printf 'STRIPE_PRICE_ID=%s\n' "$STRIPE_PRICE_ID"
+            printf 'COST_GUARD_DETACH_BILLING=%s\n' "$COST_GUARD_DETACH_BILLING"
+          } > "functions/.env.$FIREBASE_PROJECT_ID"
 
       # The deploy uploads compiled code: @solara/core in functions/core and the
       # Functions TypeScript in functions/lib, both inside the uploaded source.

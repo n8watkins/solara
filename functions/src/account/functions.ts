@@ -1,19 +1,18 @@
-// Account Cloud Functions: data export, account deletion and the scheduled deletion cleanup.
+// Account Cloud Functions: data export and account deletion. The scheduled deletion
+// cleanup runs in the maintenance job (ops/functions.ts).
 
 import { getAuth } from 'firebase-admin/auth'
-import { logger } from 'firebase-functions/logger'
 import { onRequest } from 'firebase-functions/v2/https'
-import { onSchedule } from 'firebase-functions/v2/scheduler'
 
 import { STRIPE_SECRET_KEY, stripeClient } from '../billing/config'
 import { browserApi } from '../shared/browser-api'
-import { loggableError } from '../shared/errors'
 import { db } from '../shared/firebase'
-import { deleteAccount as deleteAccountData, processPendingAccountDeletions } from './deletion'
+import { httpOptions } from '../shared/options'
+import { deleteAccount as deleteAccountData } from './deletion'
 import { exportAccountData as exportAccount } from './export'
 
 export const exportAccountData = onRequest(
-  { timeoutSeconds: 30, maxInstances: 10 },
+  httpOptions({ maxInstances: 3, timeoutSeconds: 30 }),
   browserApi({
     name: 'exportAccountData',
     method: 'GET',
@@ -24,7 +23,7 @@ export const exportAccountData = onRequest(
 )
 
 export const deleteAccount = onRequest(
-  { secrets: [STRIPE_SECRET_KEY], timeoutSeconds: 60, maxInstances: 5 },
+  httpOptions({ maxInstances: 3, timeoutSeconds: 60, secrets: [STRIPE_SECRET_KEY] }),
   browserApi({
     name: 'deleteAccount',
     method: 'DELETE',
@@ -38,29 +37,4 @@ export const deleteAccount = onRequest(
       }
     },
   }),
-)
-
-export const cleanupDeletedAccountBilling = onSchedule(
-  { schedule: 'every 5 minutes', secrets: [STRIPE_SECRET_KEY], timeoutSeconds: 300 },
-  async () => {
-    let results
-    try {
-      results = await processPendingAccountDeletions({
-        auth: getAuth(),
-        db,
-        stripe: stripeClient(),
-      })
-    } catch (error) {
-      const failures = error instanceof AggregateError ? error.errors : [error]
-      logger.error('Deleted account billing cleanup failed', {
-        failed: failures.length,
-        errors: failures.map(failure => ({
-          ...loggableError(failure),
-          cause: loggableError((failure as { cause?: unknown } | null)?.cause),
-        })),
-      })
-      throw error
-    }
-    logger.info('Deleted account billing cleanup pages processed', { results })
-  },
 )

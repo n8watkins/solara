@@ -1,26 +1,23 @@
-// Billing Cloud Functions: checkout, the billing portal, the Stripe webhook and the
-// scheduled billing maintenance jobs.
+// Billing Cloud Functions: checkout, the billing portal and the Stripe webhook. The
+// scheduled billing work runs in the maintenance job (ops/functions.ts).
 
 import { getAuth } from 'firebase-admin/auth'
 import { logger } from 'firebase-functions/logger'
 import { onRequest } from 'firebase-functions/v2/https'
-import { onSchedule } from 'firebase-functions/v2/scheduler'
 import type Stripe from 'stripe'
 
 import { appOrigin, browserApi } from '../shared/browser-api'
 import { loggableError } from '../shared/errors'
 import { db, serverTimestamp } from '../shared/firebase'
-import { setApiHeaders } from '../shared/http'
-import { type BackfillResult, backfillBillingResourcePage } from './backfill'
-import { createBillingPortal, createCheckout, processPendingCheckoutCleanups } from './checkout'
+import { clientAddress, requestBodyBytes, setApiHeaders } from '../shared/http'
+import { httpOptions } from '../shared/options'
+import { FixedWindowLimiter } from '../shared/rate-limit'
+import { createBillingPortal, createCheckout } from './checkout'
 import { STRIPE_PRICE_ID, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, stripeClient } from './config'
 import { processStripeEvent } from './webhook'
 
-/** Each scheduled run walks at most this many backfill pages. */
-const BACKFILL_PAGES_PER_RUN = 20
-
 export const createCheckoutSession = onRequest(
-  { secrets: [STRIPE_SECRET_KEY], timeoutSeconds: 30, maxInstances: 10 },
+  httpOptions({ maxInstances: 3, timeoutSeconds: 30, secrets: [STRIPE_SECRET_KEY] }),
   browserApi({
     name: 'createCheckoutSession',
     method: 'POST',
@@ -43,7 +40,7 @@ export const createCheckoutSession = onRequest(
 )
 
 export const createBillingPortalSession = onRequest(
-  { secrets: [STRIPE_SECRET_KEY], timeoutSeconds: 30, maxInstances: 10 },
+  httpOptions({ maxInstances: 3, timeoutSeconds: 30, secrets: [STRIPE_SECRET_KEY] }),
   browserApi({
     name: 'createBillingPortalSession',
     method: 'POST',
@@ -62,13 +59,35 @@ export const createBillingPortalSession = onRequest(
   }),
 )
 
+/** Stripe's event payloads are a few KiB; anything far larger is not from Stripe. */
+const WEBHOOK_MAX_BODY_BYTES = 256 * 1024
+/**
+ * Stripe sends from a few addresses and retries with backoff, so this only stops a
+ * flood of forged requests, each of which would otherwise cost a signature check.
+ */
+const webhookLimiter = new FixedWindowLimiter({ limit: 300, windowMs: 60_000 })
+
+// Not App Check: Stripe calls it, and every request must carry a valid Stripe signature.
 export const stripeWebhook = onRequest(
-  { secrets: [STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET], timeoutSeconds: 60, maxInstances: 10 },
+  httpOptions({
+    maxInstances: 3,
+    timeoutSeconds: 60,
+    secrets: [STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET],
+  }),
   async (req, res) => {
     setApiHeaders(res)
     if (req.method !== 'POST') {
       res.set('Allow', 'POST')
       res.status(405).json({ error: 'Method Not Allowed' })
+      return
+    }
+    if (!webhookLimiter.take(clientAddress(req)).allowed) {
+      res.set('Retry-After', '60')
+      res.status(429).json({ error: 'Too many requests' })
+      return
+    }
+    if (requestBodyBytes(req) > WEBHOOK_MAX_BODY_BYTES) {
+      res.status(413).json({ error: 'Request too large' })
       return
     }
 
@@ -103,29 +122,5 @@ export const stripeWebhook = onRequest(
       })
       res.status(500).json({ error: 'Webhook processing failed' })
     }
-  },
-)
-
-export const backfillStripeBillingResources = onSchedule(
-  { schedule: 'every 60 minutes', secrets: [STRIPE_SECRET_KEY], timeoutSeconds: 300 },
-  async () => {
-    const stripe = stripeClient()
-    let result: BackfillResult | undefined
-    for (let page = 0; page < BACKFILL_PAGES_PER_RUN; page += 1) {
-      result = await backfillBillingResourcePage({ db, serverTimestamp, stripe })
-      if (result.completed) break
-    }
-    logger.info('Stripe billing resource backfill run completed', { result })
-  },
-)
-
-export const cleanupFailedCheckouts = onSchedule(
-  { schedule: 'every 5 minutes', secrets: [STRIPE_SECRET_KEY], timeoutSeconds: 300 },
-  async () => {
-    const results = await processPendingCheckoutCleanups({ db, stripe: stripeClient() })
-    const failed = results.filter(result => !result.completed).length
-    const fields = { processed: results.length, failed, results }
-    if (failed > 0) logger.warn('Failed checkout cleanup tasks processed with failures', fields)
-    else logger.info('Failed checkout cleanup tasks processed', fields)
   },
 )

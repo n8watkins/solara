@@ -1,11 +1,31 @@
 import type { Auth, DecodedIdToken } from 'firebase-admin/auth'
 
 import { HttpError } from './errors'
+import { FixedWindowLimiter } from './rate-limit'
 
 export interface AuthenticateOptions {
   /** Require a sign-in no older than this (for destructive actions). */
   maxAgeSeconds?: number
   nowSeconds?: number
+  /** Counts the request against the account's budget for this endpoint (uidLimiter). */
+  limiter?: FixedWindowLimiter
+}
+
+/**
+ * A per-account budget for one endpoint, held in instance memory: with each endpoint's
+ * maxInstances it bounds what one signed-in account can make the backend do.
+ */
+export function uidLimiter(perMinute: number): FixedWindowLimiter {
+  const limiter = new FixedWindowLimiter({ limit: perMinute, windowMs: 60_000 })
+  uidLimiters.add(limiter)
+  return limiter
+}
+
+const uidLimiters = new Set<FixedWindowLimiter>()
+
+/** Empties every per-account budget (tests). */
+export function clearUidLimiters(): void {
+  for (const limiter of uidLimiters) limiter.clear()
 }
 
 /**
@@ -31,6 +51,9 @@ export async function authenticate(
     if (!Number.isFinite(authenticatedAt) || nowSeconds - authenticatedAt > options.maxAgeSeconds) {
       throw new HttpError('reauth-required', 'Recent authentication required')
     }
+  }
+  if (options.limiter && !options.limiter.take(identity.uid).allowed) {
+    throw new HttpError('rate-limited', 'Too many requests. Try again shortly.')
   }
   return identity
 }

@@ -72,6 +72,7 @@ Repository variables:
 
 - `ENABLE_BLAZE_FUNCTIONS`: `true` makes `main` deploy Functions and compile `NEXT_PUBLIC_FUNCTIONS_URL` into the client; anything else keeps Function-backed surfaces off.
 - `STRIPE_PRICE_ID`: the Stripe Pro price, written into `functions/.env.<project-id>` by the Functions deploy job, which fails without it.
+- `COST_GUARD_DETACH_BILLING` (optional): `true` lets the budget kill switch detach billing as a last resort ([Cost guard and budget kill switch](#cost-guard-and-budget-kill-switch)); anything else keeps it off.
 - `GCP_WORKLOAD_IDENTITY_PROVIDER`, `GCP_DEPLOY_SERVICE_ACCOUNT` and `GCP_NOTIFIER_SERVICE_ACCOUNT`: Workload Identity Federation ([WIF_SETUP.md](WIF_SETUP.md)).
 - `FIREBASE_PROJECT_ID` (optional): the deploy target, `uv-activity-planner` by default.
 - `NEXT_PUBLIC_SENTRY_DSN` (optional): the Sentry public DSN; read from variables only.
@@ -86,7 +87,7 @@ Repository secrets:
 
 Server configuration for Functions:
 
-- `functions/.env` holds the non-secret params (`APP_URL`, and an empty `STRIPE_PRICE_ID` default), because non-interactive deploys resolve `defineString` params only from `functions/.env*` files.
+- `functions/.env` holds the non-secret params (`APP_URL`, an empty `STRIPE_PRICE_ID` default, and the kill switch thresholds), because non-interactive deploys resolve params only from `functions/.env*` files.
   `.github/scripts/check-functions-params.js` resolves them exactly as a deploy does, and runs in CI.
 - Firebase Secret Manager stores `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET`.
 
@@ -216,15 +217,41 @@ npx firebase deploy --only functions --project <project-id>
 
 The `firebase.json` predeploy hook builds `@solara/core` and the TypeScript Functions before the upload.
 
-The Functions deployment includes three scheduled maintenance jobs:
+The Functions deployment includes one scheduled job, `maintenance` (`functions/src/ops/functions.ts`), which runs every five minutes.
+Cloud Scheduler gives each billing account three free jobs, so the background work shares one job and leaves room for the morning alerts job (roadmap item 10).
+Each run does three tasks, each isolated so one failing never stops the others:
 
-- `backfillStripeBillingResources` runs hourly and builds durable ownership records for existing Stripe resources.
-- `cleanupDeletedAccountBilling` runs every five minutes and resumes account deletion, Stripe cancellation, and data cleanup with bounded retries.
-- `cleanupFailedCheckouts` runs every five minutes and neutralizes Stripe Checkout Sessions that could not be cleaned up during the original request.
+- `accountDeletions` resumes account deletion, Stripe cancellation, and data cleanup with bounded retries.
+- `failedCheckouts` neutralizes Stripe Checkout Sessions that could not be cleaned up during the original request.
+- `billingResourceBackfill` builds durable ownership records for existing Stripe resources; once complete it costs one read.
 
-The scheduled jobs depend on the `accountDeletionTombstones`, `billingCleanupResources`, and `stripeCheckoutCleanupTasks` indexes in `firestore.indexes.json`.
-Confirm those indexes are ready and all three jobs run successfully before enabling checkout or account deletion.
+A failed task logs the ERROR `maintenance task <name> failed` and fails the run.
+The tasks depend on the `accountDeletionTombstones`, `billingCleanupResources`, and `stripeCheckoutCleanupTasks` indexes in `firestore.indexes.json`.
+Confirm those indexes are ready and `maintenance` runs successfully before enabling checkout or account deletion.
 Allow the billing-resource backfill to complete before relying on deletion cleanup for legacy Stripe customers and subscriptions.
+
+### Cost and abuse limits
+
+Every Function declares its own ceiling in `functions/src/shared/options.ts` instead of the platform defaults: 256 MiB of memory, a timeout of 30-300 seconds, and at most 1-5 instances (`maxInstances`).
+HTTP functions run on one vCPU and serve up to 20 requests per instance at once (40 for the calendar feed); `maintenance` and `budgetAlert` run one instance with a fractional CPU (`gcf_gen1`) and are not retried, because the next run or notification resumes the work.
+`functions/test/hardening.test.js` loads the deploy entry point and fails when a function lacks a ceiling.
+
+Every browser-called endpoint also:
+
+- turns away more than 60 requests a minute from one client address before App Check is verified (`perAddressPerMinute` in `functions/src/shared/http.ts`);
+- refuses a body over 8 KiB with `413 payload-too-large`;
+- holds each account to a per-endpoint budget after verifying its ID token (`uidLimiter` in `functions/src/shared/auth.ts`): 5 a minute for checkout, the billing portal and feed links, 3 for export and deletion;
+- verifies App Check; the same test fails when an HTTP function other than `stripeWebhook` (Stripe signature) and `calendarFeed` (feed token, rate limited) skips it.
+
+The Stripe webhook refuses bodies over 256 KiB and more than 300 requests a minute from one address before checking the signature.
+These limits live in instance memory, so each instance enforces its own; with the instance caps above they bound the total.
+
+### Cost guard and budget kill switch
+
+Paths whose cost grows with traffic (the calendar feed, new feed links, notification registration, and the forecast proxy when it is on) stop while the Firestore switch `systemFlags/costGuard` is engaged (`functions/src/shared/cost-guard.ts`).
+The `budgetAlert` Function engages it when the Cloud Billing budget, which publishes to the `budget-alerts` Pub/Sub topic, passes `COST_GUARD_THRESHOLD_PERCENT` of its amount, and releases it when a new budget period starts.
+Detaching billing is an opt-in last resort: set the `COST_GUARD_DETACH_BILLING` repository variable to `true` and grant the role in `infra/budget.sh`.
+The budget, the topic and the role are created by `infra/budget.sh`; what to do when the switch fires is in the [runbook](RUNBOOK.md#budget-kill-switch).
 
 Register the deployed Stripe webhook URL in Stripe test mode first.
 Subscribe the endpoint to `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `customer.subscription.updated`, and `customer.subscription.deleted`.
@@ -341,7 +368,7 @@ Deletion may return HTTP 202 and sign the user out while cleanup continues.
 The backend creates `accountDeletionTombstones/{uid}`, blocks further account access, revokes Firebase sessions, cancels owned Stripe resources, removes notification ownership records and calendar feed index entries, recursively deletes the user document, and deletes the Firebase Authentication user.
 The scheduled cleanup job resumes incomplete work with leases and retry backoff until `cleanupStatus` becomes `completed`.
 
-Monitor `cleanupStatus`, `cleanupLastError`, `cleanupNextAttemptAt`, and the `cleanupDeletedAccountBilling` logs for pending deletions.
+Monitor `cleanupStatus`, `cleanupLastError`, `cleanupNextAttemptAt`, and the `maintenance` logs for pending deletions.
 Do not manually remove a tombstone or mark it complete while billing cleanup resources remain pending.
 The account lifecycle checks to run before production activation are in the [owner checklist](OWNER_CHECKLIST.md#functions-and-stripe).
 

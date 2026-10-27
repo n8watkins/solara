@@ -295,8 +295,11 @@ service cloud.firestore {
       allow create: if isOwner(userId) && isActiveAccount(userId) && validNewUser(userId);
       allow update: if isOwner(userId) && isActiveAccount(userId) && validUserUpdate(userId);
 
+      // At most five devices exist (MAX_NOTIFICATION_DEVICES); a list must say so, so no
+      // query can read an unbounded collection.
       match /notificationDevices/{deviceId} {
-        allow read: if isOwner(userId) && isActiveAccount(userId);
+        allow get: if isOwner(userId) && isActiveAccount(userId);
+        allow list: if isOwner(userId) && isActiveAccount(userId) && request.query.limit <= 10;
         allow write: if false;
       }
 
@@ -317,6 +320,11 @@ service cloud.firestore {
 
     // Feed token hash index: server-only.
     match /calendarFeeds/{tokenHash} {
+      allow read, write: if false;
+    }
+
+    // Server switches such as the cost guard (functions/src/shared/cost-guard.ts): server-only.
+    match /systemFlags/{flag} {
       allow read, write: if false;
     }
 

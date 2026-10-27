@@ -5,17 +5,19 @@ import { onRequest } from 'firebase-functions/v2/https'
 
 import { browserApi } from '../shared/browser-api'
 import { db, serverTimestamp } from '../shared/firebase'
+import { httpOptions } from '../shared/options'
 import {
   registerNotificationDevice as registerDevice,
   removeNotificationDevice as removeDevice,
 } from './devices'
 
 export const registerNotificationDevice = onRequest(
-  { timeoutSeconds: 30, maxInstances: 20 },
+  httpOptions({ maxInstances: 3, timeoutSeconds: 30 }),
   browserApi({
     name: 'registerNotificationDevice',
     method: 'POST',
     appCheckMode: 'standard',
+    costFeature: 'notifications',
     fallbackMessage: 'Registration unavailable',
     handler: async req => ({
       body: await registerDevice({ auth: getAuth(), db, req, serverTimestamp }),
@@ -24,7 +26,7 @@ export const registerNotificationDevice = onRequest(
 )
 
 export const removeNotificationDevice = onRequest(
-  { timeoutSeconds: 30, maxInstances: 20 },
+  httpOptions({ maxInstances: 3, timeoutSeconds: 30 }),
   browserApi({
     name: 'removeNotificationDevice',
     method: 'DELETE',

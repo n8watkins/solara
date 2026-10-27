@@ -33,7 +33,7 @@ const {
   validFeedToken,
 } = require('../lib/feed/calendar-feed')
 const { feedTokenHash, mintFeedToken } = require('../lib/feed/tokens')
-const { authenticate } = require('../lib/shared/auth')
+const { authenticate, clearUidLimiters } = require('../lib/shared/auth')
 const { handleCors } = require('../lib/shared/http')
 const { captureLogs } = require('./support/logs')
 
@@ -469,7 +469,10 @@ function deletionAuth(db) {
   }
 }
 
-afterEach(clearForecastCache)
+afterEach(() => {
+  clearForecastCache()
+  clearUidLimiters()
+})
 
 describe('account data security', () => {
   test('preserves completed cleanup and verified ownership on rediscovery', async () => {

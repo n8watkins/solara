@@ -646,6 +646,16 @@ describe('notification devices', () => {
     await assertFails(ref.delete())
   })
 
+  test('a device list must be bounded', async () => {
+    const devices = testEnv
+      .authenticatedContext('alice')
+      .firestore()
+      .collection('users/alice/notificationDevices')
+    await assertFails(devices.get())
+    await assertFails(devices.limit(11).get())
+    await assertSucceeds(devices.limit(10).get())
+  })
+
   test('clients cannot write delivery state', async () => {
     const ref = testEnv
       .authenticatedContext('alice')
@@ -678,6 +688,21 @@ describe('notification devices', () => {
 
     await assertFails(ref.set(registration))
     await assertFails(ref.get())
+  })
+})
+
+describe('server switches', () => {
+  test('no client can read or change the cost guard', async () => {
+    await testEnv.withSecurityRulesDisabled(async context => {
+      await context.firestore().doc('systemFlags/costGuard').set({ engaged: false })
+    })
+    const alice = testEnv.authenticatedContext('alice').firestore()
+    const anonymous = testEnv.unauthenticatedContext().firestore()
+    for (const db of [alice, anonymous]) {
+      await assertFails(db.doc('systemFlags/costGuard').get())
+      await assertFails(db.doc('systemFlags/costGuard').set({ engaged: false }))
+      await assertFails(db.collection('systemFlags').limit(1).get())
+    }
   })
 })
 
