@@ -1,0 +1,24 @@
+{
+  "displayName": "Solara: errors in Functions or scheduled jobs",
+  "documentation": {
+    "content": "An ERROR was logged by a Solara Cloud Function or Cloud Scheduler job: a failed request or webhook, a failed maintenance task, a stalled or given-up account deletion, the cost guard engaging, or billing detached. Open the log entry, then follow docs/RUNBOOK.md (Alerts).",
+    "mimeType": "text/markdown"
+  },
+  "combiner": "OR",
+  "conditions": [
+    {
+      "displayName": "ERROR log from Functions or Cloud Scheduler",
+      "conditionMatchedLog": {
+        "filter": "severity>=ERROR AND (resource.type=\"cloud_run_revision\" OR resource.type=\"cloud_function\" OR resource.type=\"cloud_scheduler_job\")",
+        "labelExtractors": {
+          "service": "EXTRACT(resource.labels.service_name)"
+        }
+      }
+    }
+  ],
+  "alertStrategy": {
+    "notificationRateLimit": { "period": "300s" },
+    "autoClose": "86400s"
+  },
+  "notificationChannels": ["CHANNEL"]
+}

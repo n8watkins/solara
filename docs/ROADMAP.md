@@ -1,6 +1,6 @@
 # Solara roadmap
 
-_Last reviewed: 2026-10-25_
+_Last reviewed: 2026-10-27_
 
 This is the plan for the remaining work, in priority order.
 What is live today is in [status.md](status.md); the owner's steps are in the [owner checklist](OWNER_CHECKLIST.md); how lanes are run by parallel agents is in [CONTRIBUTING-AGENTS.md](CONTRIBUTING-AGENTS.md).
@@ -23,7 +23,7 @@ The full, numbered list with exact console links is [Next steps, in order](OWNER
 10. Counsel review of the governing-law language.
 11. Local branch and worktree cleanup.
 
-Steps 12-15 (Blaze, staging and Stripe test mode, the Open-Meteo commercial plan, release checks) come at the Pro launch.
+Steps 12-18 (Blaze with the budget kill switch, staging and Stripe test mode, the first Functions deploy, monitoring and backups, switching billing on, the Open-Meteo commercial plan, release checks) come at the Pro launch.
 
 ## Where we are (2026-10-25)
 
@@ -34,7 +34,7 @@ Steps 12-15 (Blaze, staging and Stripe test mode, the Open-Meteo commercial plan
 | 2 - shared core, data layer, signed-in e2e | Done 2026-10-23 | #44, #47, #49-#52 |
 | 4 - Tailwind 4, restyle and split, upgrades | Done 2026-10-24 (ESLint 10 and TypeScript 7 deferred, see Next up) | #57-#67 |
 | 3 phase 1 - free launch (no Blaze) | Done 2026-10-24; Sentry and App Check wait for the owner's keys | #70, #71 |
-| 3 phase 2 - Pro launch (Blaze) | Not started; waits for the Pro launch | - |
+| 3 phase 2 - Pro launch (Blaze) | Built and switched off (items 6, 9, 11); waits for the owner's Pro launch steps; morning alerts (item 10) not started | #99, #102, #104, #106, OPS_PR |
 | 5 - features | Scheduled activities done (#55, #56); the rest not started | - |
 | 6 - mobile app | Not started | - |
 
@@ -69,14 +69,10 @@ A signed-in account opens read-only from this browser's copy until the browser i
 Done 2026-10-25 in #80: setup and the header's location panel suggest places while typing, from Open-Meteo's place search (Nominatim's usage policy forbids client-side autocomplete; it stays for "use my location" names).
 Settings' Location tab uses the same search (#95), and the data credits name GeoNames, the source of Open-Meteo's places.
 
-### 6. Forecast proxy and licensing (BE-12, with D5)
+### 6. Forecast proxy and licensing (BE-12, with D5) (built, #106)
 
-- **Goal:** forecasts are fetched under a commercial licence before any paid feature launches.
-- **Scope:** decide between the Open-Meteo commercial plan (D5, bought at Pro launch) and a free commercial provider ([COSTS.md](COSTS.md#forecast-providers)); if the paid plan's API key must stay secret, add a cached forecast proxy Function, which needs Blaze.
-- **Owns:** `lib/forecast.ts` provider adapter, a new forecast proxy Function under `functions/src/` if needed.
-- **Acceptance:** one provider adapter behind the existing validated parser; the proxy, if built, caches per rounded location and hour and has a timeout and a last-good fallback.
-- **Depends on:** D5 and, for a proxy, Blaze; lands with item 9 at the latest.
-- **Size:** M.
+Built 2026-10-27 in #106 and switched off: one provider adapter (`packages/core/src/forecast.ts`) behind the shared validated parser, and the `forecast` Function, which keeps the Open-Meteo commercial key on the server and caches per place (0.01 degree) and hour, with a 5 s timeout and a 6-hour last-good fallback ([DEPLOYMENT.md](DEPLOYMENT.md#forecast-proxy)).
+The browser keeps calling Open-Meteo directly until the owner buys the plan (D5) and sets `FORECAST_PROXY_ENABLED` ([owner checklist step 17](OWNER_CHECKLIST.md#at-pro-launch-blaze)).
 
 ### 7. ESLint 10 (done)
 
@@ -98,16 +94,14 @@ Remove the three overrides once those plugins declare ESLint 10 support.
 - **Acceptance:** typecheck, lint, tests and build pass in both packages.
 - **Size:** S-M once unblocked.
 
-### 9. Wave 3 phase 2: billing and account lifecycle (W3-A, at Pro launch)
+### 9. Wave 3 phase 2: billing and account lifecycle (W3-A) (built, #102, #104)
 
-- **Goal:** Pro can be bought, managed, cancelled and deleted safely.
-- **Closes:** BE-9, BE-10, BE-14.
-- **Owns:** `functions/src/billing/`, `functions/src/account/`, `components/PricingModal.tsx`, `lib/billing.ts`, `lib/plans.ts`, `app/account/`.
-- **Scope:** checkout with the confirmed prices ($2.99 a month or $19.99 a year, 7-day free trial) replacing the waitlist; delete the Stripe customer after its subscriptions end; TTLs on server-owned records; a billing summary in the account export; deletion never stalls (a missing Stripe resource counts as done, a retry cap and an alert); refunds for server-initiated cancellations; a `past_due` grace period.
-  The Stripe API version is already pinned (#58).
-- **Acceptance:** an end-to-end run in Stripe test mode on the staging project covers checkout with trial, webhooks, portal, cancellation and account deletion with an active subscription; then the owner's [Functions and Stripe](OWNER_CHECKLIST.md#functions-and-stripe) checks.
-- **Depends on:** Blaze, the staging project and Stripe test mode (D9), item 6.
-- **Size:** L.
+Built 2026-10-27 and switched off behind `BILLING_ENABLED`; closes BE-9, BE-10 and BE-14 in code.
+
+- #102: checkout for $2.99 a month or $19.99 a year with a once-per-account 7-day trial, the plans dialog's plan choice, the account page's billing summary and portal, tested end to end against a fake Stripe that delivers signed webhooks.
+- #104: refunds for server-initiated cancellations, refunds and disputes ending Pro, a 7-day `past_due` grace period, deleting the Stripe customer, deletion that never stalls (missing resources count as done, a retry cap with an ERROR alert), TTLs on server-owned records and on Scheduled records, and a billing summary in the export.
+
+Left for the owner: the Stripe test-mode run on the staging project, then the [Functions and Stripe](OWNER_CHECKLIST.md#functions-and-stripe) checks and switching billing on ([steps 13-16](OWNER_CHECKLIST.md#at-pro-launch-blaze)).
 
 ### 10. Wave 3 phase 2: Pro-only morning alerts (W3-B, at Pro launch)
 
@@ -117,17 +111,14 @@ Remove the three overrides once those plugins declare ESLint 10 support.
 - **Scope:** one scheduled Function every 15 minutes serving every time zone (D6) on a least-privilege service account, reusing the at-most-once claim logic; gated on `TIER_LIMITS.paid.notifications`; restore the notification copy; iOS Home Screen install guidance; a base for threshold alerts.
 - **Acceptance:** an emulator test sends exactly one notification per eligible Pro user per local morning across time zones and none to Free users; then the real-device checks in the [owner checklist](OWNER_CHECKLIST.md#notifications).
 - **Depends on:** Blaze, item 9 (Pro must be purchasable).
+- **Hooks in place:** the `maintenance` job leaves room for this job within Cloud Scheduler's 3 free jobs; `functions/src/shared/options.ts` sizes scheduled functions; the cost guard already covers notification registration.
 - **Size:** M-L.
 
-### 11. Wave 3 phase 2: operations (rest of W3-D, at Pro launch)
+### 11. Wave 3 phase 2: operations (rest of W3-D, at Pro launch) (code built, #99, OPS_PR)
 
-- **Goal:** problems are noticed and recoverable once money is involved.
-- **Closes:** OPS-12, OPS-15 (alerts and uptime; error reporting is built), OPS-16, OPS-17.
-- **Owns:** `.firebaserc`, `infra/` (new), `docs/RUNBOOK.md` (new), deploy workflow changes coordinated with the CI owner.
-- **Scope:** uptime checks; alerts on Function errors, scheduled-job failures, webhook 5xx and stalled deletions; PITR, delete protection, daily backups and a restore drill; budget alerts; PR preview channels and staging promotion (D9); a runbook with rollback per component and a secret rotation table.
-- **Acceptance:** each alert fires once in staging from a forced failure; a restore drill is recorded in the runbook.
-- **Depends on:** Blaze, D9.
-- **Size:** M.
+- **Built:** cost and abuse limits on every Function, the cost guard and the budget kill switch (#99); uptime checks and alert policies as code (`infra/monitoring.sh`, `infra/alerts/`), PITR, delete protection, daily backups and the image cleanup policy (`infra/backups.sh`), TTL policies (`infra/firestore-ttl.sh`), and [RUNBOOK.md](RUNBOOK.md) with alerts, rollback per component, restore steps and the secret rotation table (OPS_PR).
+- **Left:** the owner applies the scripts ([steps 12-15](OWNER_CHECKLIST.md#at-pro-launch-blaze)); each alert fired once in staging from a forced failure, and a restore drill recorded in the runbook; PR preview channels and staging promotion in the deploy workflow (D9), with the CI owner.
+- **Closes:** OPS-15 (alerts and uptime) and OPS-17 in code; OPS-16 once the backups are on; OPS-12 with the staging project.
 
 ### 12. Wave 5: features
 
