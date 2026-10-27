@@ -15,6 +15,7 @@ import { uvBand, uvLabel, type UVBand } from '@/lib/weather'
 import DataAttribution from './DataAttribution'
 import GoogleSignInButton from './GoogleSignInButton'
 import PlaceSearch, { type PlaceSearchMiss } from './PlaceSearch'
+import { SkinTypeQuiz } from './deferred'
 
 const PRIMARY = 'btn btn-primary w-full justify-center p-[13px] text-[14px] font-semibold'
 const HEADING = 'text-[20px] leading-tight font-[650] text-ink'
@@ -168,10 +169,13 @@ export function SkinStep({
   onContinue: () => void
   onBack?: () => void
 }) {
+  const [quizOpen, setQuizOpen] = useState(false)
   return (
     <>
       <h1 className={clsx(HEADING, 'mb-1.5')}>Your skin type</h1>
-      <p className={clsx(LEAD, 'mb-4')}>Personalizes estimated burn time and planning UV limits.</p>
+      <p className={clsx(LEAD, 'mb-4')}>
+        Personalizes your estimated burn time. The types follow the Fitzpatrick scale.
+      </p>
       <div className="flex flex-col gap-[7px]">
         {SKIN_OPTIONS.map(o => {
           const selected = value === o.value
@@ -191,7 +195,9 @@ export function SkinStep({
             >
               <SkinSwatch skin={o.value} size={26} />
               <div className="ml-3 min-w-0 flex-1">
-                <p className="text-[14px] font-semibold text-ink">{o.label}</p>
+                <p className="text-[14px] font-semibold text-ink">
+                  {o.label} <span className="font-normal text-ink-3">· {o.fitzpatrick}</span>
+                </p>
                 <p className="text-[12px] text-ink-3">{o.desc}</p>
               </div>
               <span className="ml-3 text-[12px] whitespace-nowrap text-ink-3">{o.burnTime}</span>
@@ -199,7 +205,23 @@ export function SkinStep({
           )
         })}
       </div>
-      <button className={clsx(PRIMARY, 'mt-5')} onClick={onContinue}>
+      <button
+        type="button"
+        className="btn btn-ghost mt-2.5 w-full justify-center text-[13px] text-accent"
+        onClick={() => setQuizOpen(true)}
+      >
+        Not sure? Answer 5 quick questions
+      </button>
+      {quizOpen && (
+        <SkinTypeQuiz
+          onClose={() => setQuizOpen(false)}
+          onUse={skin => {
+            onChange(skin)
+            setQuizOpen(false)
+          }}
+        />
+      )}
+      <button className={clsx(PRIMARY, 'mt-3')} onClick={onContinue}>
         Continue <ArrowRight size={16} />
       </button>
       <BackButton onBack={onBack} />

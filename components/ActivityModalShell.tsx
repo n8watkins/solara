@@ -10,6 +10,8 @@ interface Props {
   children: ReactNode
   footer?: ReactNode
   onClose: () => void
+  /** Dialog width; see Dialog's variants. */
+  variant?: 'card' | 'narrow'
 }
 
 export default function ActivityModalShell({
@@ -18,6 +20,7 @@ export default function ActivityModalShell({
   children,
   footer,
   onClose,
+  variant = 'card',
 }: Props) {
   const titleId = useId()
   const descriptionId = useId()
@@ -27,6 +30,7 @@ export default function ActivityModalShell({
   return (
     <Dialog
       onClose={onClose}
+      variant={variant}
       labelledBy={titleId}
       describedBy={description ? descriptionId : undefined}
     >

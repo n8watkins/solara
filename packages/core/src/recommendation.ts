@@ -22,6 +22,24 @@ export const SKIN_TYPES: readonly SkinType[] = Object.freeze([
   'dark',
 ])
 
+/** A Fitzpatrick skin phototype, as Solara groups them. */
+export type FitzpatrickType = 'I' | 'II' | 'III' | 'IV' | 'V-VI'
+
+/**
+ * The Fitzpatrick phototype each skin type stands for (Fitzpatrick TB, "The validity
+ * and practicality of sun-reactive skin types I through VI", Arch Dermatol 1988;
+ * 124:869-871). Types V and VI share one skin type and its burn estimate, the more
+ * cautious type V one; the standard questionnaire's scoring groups them the same way
+ * (lib/skin-quiz.ts).
+ */
+export const FITZPATRICK_TYPES: Readonly<Record<SkinType, FitzpatrickType>> = Object.freeze({
+  'very-fair': 'I',
+  fair: 'II',
+  medium: 'III',
+  olive: 'IV',
+  dark: 'V-VI',
+})
+
 export function isSkinType(value: unknown): value is SkinType {
   return typeof value === 'string' && (SKIN_TYPES as readonly string[]).includes(value)
 }

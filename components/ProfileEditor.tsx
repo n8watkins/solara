@@ -1,6 +1,7 @@
 'use client'
 import clsx from 'clsx'
 import type { Profile, SkinType } from '@/lib/types'
+import { FITZPATRICK_TYPES } from '@solara/core'
 import { SKIN_TYPE_LABELS } from '@/lib/profiles'
 
 const SKIN_TYPES = Object.keys(SKIN_TYPE_LABELS) as SkinType[]
@@ -73,7 +74,7 @@ export default function ProfileEditor({
       >
         {SKIN_TYPES.map(skinType => (
           <option key={skinType} value={skinType}>
-            {SKIN_TYPE_LABELS[skinType]} skin
+            {SKIN_TYPE_LABELS[skinType]} skin (Type {FITZPATRICK_TYPES[skinType]})
           </option>
         ))}
       </select>

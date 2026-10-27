@@ -72,6 +72,60 @@ test('completes setup up to the start choice', async ({ page }) => {
   await expect(page.locator('[data-nextjs-dialog]')).toHaveCount(0)
 })
 
+test('the optional skin type quiz suggests a type, and setup never needs it', async ({ page }) => {
+  await page.goto('/app/')
+  await page.getByRole('button', { name: 'Not now' }).click()
+  await page.getByLabel('City or location').fill('Pasadena')
+  await page.getByRole('button', { name: 'Go' }).click()
+  await page.getByRole('button', { name: /Continue/ }).click()
+  await expect(page.getByRole('heading', { name: 'Your skin type' })).toBeVisible()
+  await expect(page.getByRole('button', { name: /^Fair · Type II/ })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
+
+  // Closing the quiz changes nothing.
+  await page.getByRole('button', { name: 'Not sure? Answer 5 quick questions' }).click()
+  let quiz = page.getByRole('dialog', { name: 'Find your skin type' })
+  await expect(quiz).toBeVisible()
+  await quiz.getByRole('button', { name: 'Cancel' }).click()
+  await expect(quiz).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /^Fair/ })).toHaveAttribute('aria-pressed', 'true')
+
+  await page.getByRole('button', { name: 'Not sure? Answer 5 quick questions' }).click()
+  quiz = page.getByRole('dialog', { name: 'Find your skin type' })
+  await expect(quiz.getByRole('button', { name: 'Use this type' })).toBeDisabled()
+  await quiz
+    .getByRole('group', { name: /What color is your skin/ })
+    .getByLabel('Light brown')
+    .check()
+  await quiz
+    .getByRole('group', { name: /freckles/ })
+    .getByLabel('None')
+    .check()
+  await quiz
+    .getByRole('group', { name: /too long/ })
+    .getByLabel('Rarely a burn')
+    .check()
+  await expect(quiz.getByRole('status')).toHaveText('3 of 5 answered.')
+  await quiz
+    .getByRole('group', { name: /How much do you tan/ })
+    .getByLabel('I tan very easily')
+    .check()
+  await quiz
+    .getByRole('group', { name: /your face/ })
+    .getByLabel('Very resistant')
+    .check()
+  // 3 + 4 + 3 + 3 + 3 = 16 of 20, 32 on the full questionnaire: types V-VI.
+  await expect(quiz.getByRole('status')).toHaveText('Your answers suggest Type V-VI, Dark.')
+  await quiz.getByRole('button', { name: 'Use Dark' }).click()
+  await expect(quiz).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /^Dark · Type V-VI/ })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
+})
+
 test('announces location errors and exposes utility landmarks', async ({ page }) => {
   await page.unroute('https://geocoding-api.open-meteo.com/**')
   await page.route('https://geocoding-api.open-meteo.com/**', async route => {

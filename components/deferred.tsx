@@ -67,6 +67,8 @@ loaders.add(() => import('@/lib/ics'))
 
 export const PreferencesModal = deferred(() => import('./PreferencesModal'))
 export const PricingModal = deferred(() => import('./PricingModal'))
+/** The optional Fitzpatrick skin type quiz, from setup and Settings. */
+export const SkinTypeQuiz = deferred(() => import('./SkinTypeQuiz'))
 export const AddActivityModal = deferred(() => import('./AddActivityModal'))
 export const EditActivityModal = deferred(() => import('./EditActivityModal'))
 export const ManageActivitiesModal = deferred(() => import('./ManageActivitiesModal'))

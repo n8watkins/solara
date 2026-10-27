@@ -31,6 +31,7 @@ What users get:
 - The confirmed plans from `lib/tiers.ts`: Guest (today, 1 activity, this device), Free (today and tomorrow, 3 activities, synced, calendar sync) and Pro (10 days, 20 activities, calendar sync, family profiles, morning alerts).
   Pro shows $2.99 a month or $19.99 a year with a 7-day free trial, as a waitlist until billing launches.
   Gentle upsells ("Save your plan, sign in free", "See the next 10 days with Pro", "Get this as a morning alert") open the sign-in or plans dialog and stay dismissed per device.
+- Skin types named by the Fitzpatrick scale (types I to V-VI) in setup, Settings and profiles, with an optional five-question quiz from the standard Fitzpatrick questionnaire that suggests one and says it is an estimate, not medical advice.
 - UV and weather forecasts from Open-Meteo, in the location's time zone, with Celsius or Fahrenheit and 12- or 24-hour time chosen from the locale or in Settings.
 - Personalized activity windows on the dashboard and in the week calendar, within each plan's days.
 - Place suggestions while typing a town in setup, the header's location panel and Settings (Open-Meteo place search based on GeoNames, at most one request per second, keyboard and screen-reader friendly) (#80, #95).
