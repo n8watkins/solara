@@ -1,3 +1,4 @@
+import { planningSkinType } from '@/lib/profiles'
 import { useState } from 'react'
 import type { Activity, UserPreferences, WeatherResponse } from '@/lib/types'
 import type { DashboardAccess } from '@/lib/dashboard-view'
@@ -65,6 +66,7 @@ export default function ActivitiesSection({
   const [modal, setModal] = useState<'add' | 'manage' | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const hasActivities = prefs.activities.length > 0
+  const skinType = planningSkinType(prefs)
   const guest = access.activityTier === 'anonymous'
   const [savePlanDismissed, dismissSavePlan] = useUpsellDismissal('save-plan')
   const [returningGuest] = useState(() => guest && isReturningGuest())
@@ -111,7 +113,7 @@ export default function ActivitiesSection({
           <PlanAhead
             forecast={weather.forecast}
             activities={prefs.activities}
-            skinType={prefs.skinType}
+            skinType={skinType}
             dayLimit={access.accessibleDays}
             busyByDate={busyByDate}
             nowHourToday={nowHour}
@@ -150,7 +152,7 @@ export default function ActivitiesSection({
             nextSlotAfterToday(
               weather.forecast,
               [activity],
-              prefs.skinType,
+              skinType,
               access.accessibleDays,
               busyByDate,
             )

@@ -112,6 +112,47 @@ test('family profiles are Pro: a free account cannot add a second person', async
 
   await page.getByRole('button', { name: 'Profile: Me' }).click()
   const panel = page.getByRole('dialog', { name: 'Profiles' })
-  await expect(panel.getByText('🔒 Family & pet profiles are a Pro feature.')).toBeVisible()
+  await expect(panel.getByText('Family profiles come with Pro')).toBeVisible()
+  // This build has checkout switched on, so the offer opens the plans; without it the
+  // offer says Pro is a waitlist (tests/harness/family-profiles.spec.ts).
+  await expect(panel.getByText(/Pro is not on sale yet/)).toHaveCount(0)
   await expect(panel.getByRole('button', { name: /Add person or pet/ })).toHaveCount(0)
+  await expect(panel.getByRole('button', { name: 'Plan for a group' })).toHaveCount(0)
+  await panel.getByRole('button', { name: 'See Pro' }).click()
+  await expect(page.getByRole('dialog', { name: 'Solara Pro' })).toBeVisible()
+})
+
+test('a Pro family plans by its most sensitive person', async ({ page, emulators }) => {
+  const account = await emulators.createAccount('Fay Family')
+  await emulators.seedPrefs(account, {
+    tier: 'paid',
+    activities: [RUNNING],
+    profiles: [
+      { id: 'me', name: 'Me', skinType: 'olive', icon: '🧑' },
+      { id: 'maya', name: 'Maya', skinType: 'very-fair', icon: '🧒' },
+      { id: 'leo', name: 'Leo', skinType: 'medium', icon: '👦' },
+    ],
+    activeProfileId: 'me',
+  })
+  await openDashboard(page, account)
+  // The seeded live skin type (fair) until the group plans.
+  await expect(page.getByText('Now · fair skin, no SPF')).toBeVisible()
+
+  await page.getByRole('banner').getByRole('button', { name: 'Profile: Me' }).click()
+  const panel = page.getByRole('dialog', { name: 'Profiles' })
+  await panel.getByRole('button', { name: 'Plan for a group' }).click()
+  await expect(page.getByText('Now · Maya (most sensitive), no SPF')).toBeVisible()
+  await expect(
+    page.getByRole('banner').getByRole('button', { name: 'Profile: group of 3, planned for Maya' }),
+  ).toBeVisible()
+
+  // Leaving Maya out hands the plan to the next most sensitive person.
+  await panel.getByRole('checkbox', { name: /Maya/ }).click()
+  await expect(page.getByText('Now · Leo (most sensitive), no SPF')).toBeVisible()
+  await expect
+    .poll(() => emulators.readPrefs(account))
+    .toMatchObject({ groupMode: true, groupProfileIds: ['me', 'leo'], skinType: 'fair' })
+
+  await page.reload()
+  await expect(page.getByText('Now · Leo (most sensitive), no SPF')).toBeVisible()
 })

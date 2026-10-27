@@ -1,4 +1,5 @@
 'use client'
+import { planningSkinType } from '@/lib/profiles'
 import { Lock } from 'lucide-react'
 import { useEffect, useEffectEvent, useState } from 'react'
 import type { Activity, UserPreferences, WeatherResponse } from '@/lib/types'
@@ -88,7 +89,7 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
   const nowFrac = fractionalHour(weather.now)
   // The earliest start offered today (now, rounded up to 5 minutes).
   const todayNowHour = nowHourOf(weather.now)
-  const planning = { skinType: prefs.skinType, timeZone: weather.timezone, todayNowHour }
+  const planning = { skinType: planningSkinType(prefs), timeZone: weather.timezone, todayNowHour }
   const plans = planCalendarDays(days, visibleActivities, {
     ...planning,
     colorFor,

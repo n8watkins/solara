@@ -32,6 +32,7 @@ import { PricingModal } from './deferred'
 import ActivitiesSection from './dashboard/ActivitiesSection'
 import DayPicker from './dashboard/DayPicker'
 import ExposureMetrics from './dashboard/ExposureMetrics'
+import { planningFor } from '@/lib/profiles'
 import HeroSlot from './dashboard/HeroSlot'
 import ScheduledDetails from './dashboard/ScheduledDetails'
 import UVCard from './dashboard/UVCard'
@@ -89,7 +90,9 @@ export default function Dashboard({
   }
   // Guard against a focus left over from another day's array identity.
   const focused = focusedHour && hourly.includes(focusedHour) ? focusedHour : null
-  const readout = uvReadout(weather, hourly, isToday, focused, prefs.skinType, fmt.hour)
+  // One person's skin type, or a group's most sensitive (lib/profiles.ts planningFor).
+  const planning = planningFor(prefs)
+  const readout = uvReadout(weather, hourly, isToday, focused, planning.skinType, fmt.hour)
   const { peakUV, peakHour } = readout
 
   const dateLabel = day?.label ?? 'Today'
@@ -98,7 +101,7 @@ export default function Dashboard({
   // One plan per activity for the selected day; the hero, the cards and their share
   // and calendar buttons all read from it, and PlanAhead runs the same function.
   const dayPlans = prefs.activities.map(a =>
-    planActivityDay(hourly, a, prefs.skinType, {
+    planActivityDay(hourly, a, planning.skinType, {
       nowHour: isToday ? nowHour : -1,
       busy: busy[activeDateStr] ?? [],
     }),
@@ -109,7 +112,13 @@ export default function Dashboard({
   // section the plan does not show).
   const laterDaysVisible = accessibleDays > 1
   const nextSlot = allElapsed
-    ? nextSlotAfterToday(weather.forecast, prefs.activities, prefs.skinType, accessibleDays, busy)
+    ? nextSlotAfterToday(
+        weather.forecast,
+        prefs.activities,
+        planning.skinType,
+        accessibleDays,
+        busy,
+      )
     : null
   // After dark (or before sunrise) today: the readout, hero and metrics say so and
   // when UV comes back, instead of a bare "0.0 None" and dashes.
@@ -227,7 +236,8 @@ export default function Dashboard({
             burn={readout.burn}
             vitD={readout.vitD}
             isToday={isToday}
-            skinType={prefs.skinType}
+            skinType={planning.skinType}
+            mostSensitive={planning.mostSensitive?.name}
             burnFrom={readout.burn === null ? fromHour(uv => uv >= 0.5) : null}
             vitDFrom={readout.vitD === null ? fromHour(uv => uv >= 1) : null}
           />

@@ -22,6 +22,9 @@ rules_version = '2';
 // account: the client parser falls back to defaults, and the document stays under
 // Firestore's 1 MiB limit.
 //
+// The group selection (`groupProfileIds`) is a list of profile ids checked only as a list
+// of at most 12 entries, for the same reason; the client parser drops anything else.
+//
 // Plan limits: the lists are also held to the account's plan (withinPlan), which the
 // server owns, so a Free account cannot take Pro capacity by writing to Firestore directly.
 service cloud.firestore {
@@ -187,7 +190,7 @@ service cloud.firestore {
         'schemaVersion', 'location', 'savedLocations', 'skinType', 'profiles', 'activeProfileId',
         'sunscreen', 'activities', 'onboardingComplete', 'calendarHours', 'showSunPath',
         'hiddenActivitySuggestionIds', 'collapsedActivityCategories', 'upgradeInterest',
-        'notificationHour', 'temperatureUnit', 'clockFormat'
+        'notificationHour', 'temperatureUnit', 'clockFormat', 'groupMode', 'groupProfileIds'
       ];
     }
 
@@ -227,7 +230,10 @@ service cloud.firestore {
             && data.notificationHour <= 10))
         && (!('temperatureUnit' in keys)
           || data.temperatureUnit in ['auto', 'celsius', 'fahrenheit'])
-        && (!('clockFormat' in keys) || data.clockFormat in ['auto', '12h', '24h']);
+        && (!('clockFormat' in keys) || data.clockFormat in ['auto', '12h', '24h'])
+        && (!('groupMode' in keys) || data.groupMode is bool)
+        && (!('groupProfileIds' in keys)
+          || (data.groupProfileIds is list && data.groupProfileIds.size() <= 12));
     }
 
     function validNewUser(userId) {

@@ -294,6 +294,8 @@ describe('typed and size-capped preference fields', () => {
         calendarHours: { from: 6, to: 20 },
         notificationHour: 7,
         skinType: 'dark',
+        groupMode: true,
+        groupProfileIds: ['profile_0', 'profile_2'],
       }),
     )
   })
@@ -429,6 +431,21 @@ describe('typed and size-capped preference fields', () => {
     await assertFails(ref.update({ calendarHours: { from: 6, to: 25 } }))
     await assertFails(ref.update({ calendarHours: { from: 6 } }))
     await assertFails(ref.update({ calendarHours: { from: 6, to: 20, extra: 1 } }))
+  })
+
+  test('group planning is a boolean and a short list of profile ids', async () => {
+    const ref = await ownerRef()
+    await assertSucceeds(ref.update({ groupMode: true }))
+    await assertSucceeds(ref.update({ groupMode: false }))
+    await assertFails(ref.update({ groupMode: 'yes' }))
+    await assertSucceeds(ref.update({ groupProfileIds: [] }))
+    await assertSucceeds(
+      ref.update({ groupProfileIds: Array.from({ length: 12 }, (_, i) => `profile_${i}`) }),
+    )
+    await assertFails(
+      ref.update({ groupProfileIds: Array.from({ length: 13 }, (_, i) => `profile_${i}`) }),
+    )
+    await assertFails(ref.update({ groupProfileIds: 'profile_0' }))
   })
 
   test('showSunPath is a boolean', async () => {
