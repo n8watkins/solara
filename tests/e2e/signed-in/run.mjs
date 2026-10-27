@@ -26,6 +26,7 @@ import {
 } from 'node:fs'
 import { createServer } from 'node:net'
 import { join, resolve } from 'node:path'
+import { startFakeStripe } from './fake-stripe.mjs'
 
 const HOST = '127.0.0.1'
 // A demo- project needs no credentials, and the emulators never let it reach a
@@ -98,7 +99,8 @@ const [
   tasksPort,
   hubPort,
   loggingPort,
-] = await freePorts(9, pinned)
+  stripePort,
+] = await freePorts(10, pinned)
 const port = pinned || picked
 const origin = `http://${HOST}:${port}`
 
@@ -140,6 +142,8 @@ function buildSite() {
     NEXT_PUBLIC_FIREBASE_VAPID_KEY: '',
     NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY: '',
     NEXT_PUBLIC_FUNCTIONS_URL: `${origin}/${PROJECT}/us-central1`,
+    // Pro checkout is on, against the fake Stripe below.
+    NEXT_PUBLIC_BILLING_ENABLED: '1',
     // A placeholder client: the suite answers Google Identity Services and the
     // Calendar API itself (fake-google-calendar.ts), so scheduling can be tested.
     NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID: 'solara-e2e.apps.googleusercontent.com',
@@ -204,16 +208,43 @@ writeFileSync(
 
 // The Functions read their Stripe key from Secret Manager, which a demo project cannot
 // reach; the emulator takes secrets from functions/.secret.local instead (gitignored).
-// The suite seeds no Stripe resources, so the placeholder key is never sent to Stripe:
-// it only lets deleteAccount build its client for an account that never paid.
+// The placeholder key only ever reaches the local fake Stripe below.
+const WEBHOOK_SECRET = 'whsec_signed_in_emulator'
 const secretsPath = resolve('functions/.secret.local')
 const ownsSecrets = !existsSync(secretsPath)
+if (!ownsSecrets) {
+  console.warn(
+    'signed-in: using the existing functions/.secret.local; billing tests need its ' +
+      `STRIPE_WEBHOOK_SECRET to be ${WEBHOOK_SECRET}.`,
+  )
+}
 if (ownsSecrets) {
   writeFileSync(
     secretsPath,
-    'STRIPE_SECRET_KEY=sk_test_signed_in_emulator\nSTRIPE_WEBHOOK_SECRET=whsec_signed_in_emulator\n',
+    `STRIPE_SECRET_KEY=sk_test_signed_in_emulator\nSTRIPE_WEBHOOK_SECRET=${WEBHOOK_SECRET}\n`,
   )
 }
+
+// Stripe: the Functions emulator talks to a local fake (fake-stripe.mjs), which delivers
+// signed webhook events back to the stripeWebhook Function. The demo project's own
+// params file switches billing on with two fake prices and points the return URLs at
+// the test server. It is named for the demo project, so it never touches a real one.
+const { server: fakeStripe } = await startFakeStripe({
+  port: stripePort,
+  webhookUrl: `http://${HOST}:${functionsPort}/${PROJECT}/us-central1/stripeWebhook`,
+  webhookSecret: WEBHOOK_SECRET,
+})
+const paramsPath = resolve(`functions/.env.${PROJECT}`)
+writeFileSync(
+  paramsPath,
+  [
+    `APP_URL=${origin}`,
+    'STRIPE_PRICE_ID=price_e2e_monthly',
+    'STRIPE_YEARLY_PRICE_ID=price_e2e_yearly',
+    'BILLING_ENABLED=true',
+    '',
+  ].join('\n'),
+)
 
 const playwrightCli = resolve('node_modules/@playwright/test/cli.js')
 const testArgs = process.argv.slice(2).map(arg => `'${arg.replace(/'/g, `'\\''`)}'`)
@@ -257,13 +288,18 @@ const child = spawn(
       SIGNED_IN_AUTH_PORT: String(authPort),
       SIGNED_IN_FIRESTORE_PORT: String(firestorePort),
       SIGNED_IN_FUNCTIONS_PORT: String(functionsPort),
+      // Read by the Functions emulator only (functions/src/billing/config.ts) and by the
+      // tests, which act as the customer on Stripe's pages.
+      STRIPE_API_BASE: `http://${HOST}:${stripePort}`,
     },
   },
 )
 
 function cleanup() {
   rmSync(projectDir, { recursive: true, force: true })
+  rmSync(paramsPath, { force: true })
   if (ownsSecrets) rmSync(secretsPath, { force: true })
+  fakeStripe.close()
 }
 for (const signal of ['SIGINT', 'SIGTERM']) {
   process.on(signal, () => child.kill(signal))

@@ -244,6 +244,49 @@ export class Emulators {
   }
 }
 
+/**
+ * The customer's side of Stripe (fake-stripe.mjs): what a person does on Stripe's own
+ * Checkout and portal pages, which the suite cannot load.
+ */
+export class FakeStripe {
+  private readonly base = emulatorEnv('STRIPE_API_BASE')
+
+  private async post(path: string, body: Record<string, unknown>): Promise<unknown> {
+    const response = await fetch(`${this.base}/__test/${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    const result: unknown = await response.json()
+    if (!response.ok) throw new Error(`fake Stripe ${path} failed: ${JSON.stringify(result)}`)
+    return result
+  }
+
+  /** Pays for (or starts the trial of) a checkout and delivers checkout.session.completed. */
+  async completeCheckout(sessionId: string): Promise<{ status: number }> {
+    return (await this.post('complete-checkout', { sessionId })) as { status: number }
+  }
+
+  /** Cancels at the period end, as the portal does, and delivers the update. */
+  async cancelAtPeriodEnd(subscriptionId: string): Promise<{ status: number }> {
+    return (await this.post('cancel-at-period-end', { subscriptionId })) as { status: number }
+  }
+
+  async state(): Promise<{
+    sessions: Array<Record<string, unknown> & { id: string; metadata: Record<string, string> }>
+    subscriptions: Array<Record<string, unknown> & { id: string; status: string }>
+    customers: Array<{ id: string }>
+    deletedCustomers: string[]
+    refunds: Array<Record<string, unknown>>
+  }> {
+    const response = await fetch(`${this.base}/__test/state`)
+    return (await response.json()) as Awaited<ReturnType<FakeStripe['state']>>
+  }
+}
+
+/** Stripe's hosted pages, which the browser opens and the suite answers with a stub. */
+const STRIPE_PAGES = ['https://checkout.stripe.com', 'https://billing.stripe.com']
+
 const EMULATOR_WIDGET_ASSETS = [
   'https://unpkg.com/material-components-web@',
   'https://fonts.googleapis.com/',
@@ -327,6 +370,13 @@ async function stubNetwork(
         })
         return
       }
+      if (STRIPE_PAGES.includes(url.origin) && route.request().resourceType() === 'document') {
+        await route.fulfill({
+          contentType: 'text/html',
+          body: `<!doctype html><title>Stripe test page</title><h1>Stripe test page</h1><p>${url.pathname}</p>`,
+        })
+        return
+      }
       if (url.origin === 'https://nominatim.openstreetmap.org') {
         await route.fulfill({
           json: { address: { city: 'Los Angeles', state: 'California', country_code: 'us' } },
@@ -359,11 +409,15 @@ export async function preparePage(
 
 export const test = base.extend<{
   emulators: Emulators
+  stripe: FakeStripe
   googleCalendar: FakeGoogleCalendar
   blockedRequests: string[]
 }>({
   emulators: async ({}, provide) => {
     await provide(new Emulators())
+  },
+  stripe: async ({}, provide) => {
+    await provide(new FakeStripe())
   },
   // The test's Google Calendar (see fake-google-calendar.ts), shared by its pages.
   googleCalendar: async ({}, provide) => {

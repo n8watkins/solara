@@ -1,9 +1,16 @@
+import { PRO_TRIAL_DAYS } from '@solara/core'
 import { describe, expect, it } from 'vitest'
 import { PRO_FEATURES, PRO_PLAN } from './plans'
 
 describe('PRO_PLAN', () => {
   it('prices Pro monthly or yearly with a 7-day free trial', () => {
     expect(PRO_PLAN).toMatchObject({ monthly: '$2.99', yearly: '$19.99', trialDays: 7 })
+  })
+
+  it('shows the trial checkout gives', () => {
+    // functions/src/billing/checkout.ts grants PRO_TRIAL_DAYS; lib/plans.ts stays free of
+    // @solara/core for the landing page, so the two are held equal here.
+    expect(PRO_PLAN.trialDays).toBe(PRO_TRIAL_DAYS)
   })
 
   it('works out the yearly saving from the two prices', () => {

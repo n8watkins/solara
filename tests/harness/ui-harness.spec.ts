@@ -34,6 +34,11 @@ const SCREENS = [
     ready: (page: Page) => page.getByText('Solara Pro', { exact: true }),
     fullPage: false,
   },
+  {
+    name: 'pricing-checkout',
+    ready: (page: Page) => page.getByRole('button', { name: 'Start free trial' }),
+    fullPage: false,
+  },
 ] as const
 
 // Only same-origin requests may load (Inter is self-hosted through next/font).

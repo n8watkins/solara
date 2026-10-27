@@ -5,8 +5,9 @@ import { TIER_LIMITS, forecastLabel } from './tiers'
 import type { TierLevel } from './types'
 
 /**
- * Pro pricing (proposed 2026-10-23, owner to confirm). Shown as a waitlist until
- * billing launches; checkout only runs once the Functions are deployed.
+ * Pro pricing (confirmed 2026-10-24). Shown as a waitlist until the owner switches
+ * billing on (lib/billing.ts isCheckoutConfigured); Stripe holds the real prices, and
+ * `trialDays` matches the trial checkout gives (PRO_TRIAL_DAYS in @solara/core).
  */
 export const PRO_PLAN = Object.freeze({
   monthly: '$2.99',

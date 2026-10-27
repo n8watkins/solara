@@ -37,10 +37,16 @@ import { buildGapWeather } from './uv-gap-fixtures'
 import { buildSunPeakWeather, isSunPeakFixture, type SunPeakFixture } from './sun-peak-fixtures'
 import { HarnessScheduledProvider } from './scheduled-fixtures'
 
-export type HarnessScreen = 'dashboard' | 'calendar' | 'settings' | 'pricing'
+export type HarnessScreen = 'dashboard' | 'calendar' | 'settings' | 'pricing' | 'pricing-checkout'
 type SettingsTab = 'general' | 'activities' | 'location'
 
-const SCREENS: HarnessScreen[] = ['dashboard', 'calendar', 'settings', 'pricing']
+const SCREENS: HarnessScreen[] = [
+  'dashboard',
+  'calendar',
+  'settings',
+  'pricing',
+  'pricing-checkout',
+]
 const TABS: SettingsTab[] = ['general', 'activities', 'location']
 
 function readFixture(name: string | null): 'default' | 'uv-gaps' | SunPeakFixture {
@@ -107,7 +113,9 @@ function Harness() {
   )
   const [selectedDay, setSelectedDay] = useState<DayWeather | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(initial.screen === 'settings')
-  const [pricingOpen, setPricingOpen] = useState(initial.screen === 'pricing')
+  const [pricingOpen, setPricingOpen] = useState(
+    initial.screen === 'pricing' || initial.screen === 'pricing-checkout',
+  )
 
   const displayTier = prefs.tier
   // Display units from the account, else the browser locale, as in components/App.tsx.
@@ -141,6 +149,8 @@ function Harness() {
                 email={user?.email ?? undefined}
                 onJoinWaitlist={() => {}}
                 onClose={() => setPricingOpen(false)}
+                // The harness build has no Functions; this screen shows Pro once billing is on.
+                checkoutAvailable={initial.screen === 'pricing-checkout' || undefined}
               />
             )
           }

@@ -132,6 +132,31 @@ test('pricing: named dialog with a real comparison table', async ({ page }) => {
   await expect(dialog).toHaveCount(0)
 })
 
+test('pricing with checkout open: a keyboard choice between monthly and yearly', async ({
+  page,
+}) => {
+  await open(page, 'pricing-checkout')
+  const dialog = page.getByRole('dialog', { name: 'Solara Pro' })
+  const plans = dialog.getByRole('group', { name: 'Choose how to pay' })
+  const monthly = plans.getByRole('radio', { name: /Monthly/ })
+  const yearly = plans.getByRole('radio', { name: /Yearly/ })
+  await expect(monthly).toBeChecked()
+  await expect(
+    dialog.getByRole('paragraph').filter({ hasText: /^\$2\.99 \/ month$/ }),
+  ).toBeVisible()
+  await expect(dialog.getByRole('textbox', { name: 'Email for early access' })).toHaveCount(0)
+
+  await monthly.focus()
+  await press(page, 'ArrowRight')
+  await expect(yearly).toBeChecked()
+  await expect(yearly).toBeFocused()
+  await expect(
+    dialog.getByRole('paragraph').filter({ hasText: /^\$19\.99 \/ year$/ }),
+  ).toBeVisible()
+  await expect(dialog.getByRole('button', { name: 'Start free trial' })).toBeEnabled()
+  await expectNoSeriousAxeViolations(page)
+})
+
 test('manage and edit activity: nested dialogs, emoji picker, focus return', async ({ page }) => {
   await open(page, 'dashboard')
   const manageTrigger = page.getByRole('button', { name: 'Manage', exact: true })
