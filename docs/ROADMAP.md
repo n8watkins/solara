@@ -34,7 +34,7 @@ Steps 12-18 (Blaze with the budget kill switch, staging and Stripe test mode, th
 | 2 - shared core, data layer, signed-in e2e | Done 2026-10-23 | #44, #47, #49-#52 |
 | 4 - Tailwind 4, restyle and split, upgrades | Done 2026-10-24 (ESLint 10 and TypeScript 7 deferred, see Next up) | #57-#67 |
 | 3 phase 1 - free launch (no Blaze) | Done 2026-10-24; Sentry and App Check wait for the owner's keys | #70, #71 |
-| 3 phase 2 - Pro launch (Blaze) | Built and switched off (items 6, 9, 11); waits for the owner's Pro launch steps; morning alerts (item 10) not started | #99, #102, #104, #106, OPS_PR |
+| 3 phase 2 - Pro launch (Blaze) | Built and switched off (items 6, 9, 11); waits for the owner's Pro launch steps; morning alerts (item 10) not started | #99, #102, #104, #106, #107 |
 | 5 - features | Scheduled activities done (#55, #56); the rest not started | - |
 | 6 - mobile app | Not started | - |
 
@@ -114,9 +114,9 @@ Left for the owner: the Stripe test-mode run on the staging project, then the [F
 - **Hooks in place:** the `maintenance` job leaves room for this job within Cloud Scheduler's 3 free jobs; `functions/src/shared/options.ts` sizes scheduled functions; the cost guard already covers notification registration.
 - **Size:** M-L.
 
-### 11. Wave 3 phase 2: operations (rest of W3-D, at Pro launch) (code built, #99, OPS_PR)
+### 11. Wave 3 phase 2: operations (rest of W3-D, at Pro launch) (code built, #99, #107)
 
-- **Built:** cost and abuse limits on every Function, the cost guard and the budget kill switch (#99); uptime checks and alert policies as code (`infra/monitoring.sh`, `infra/alerts/`), PITR, delete protection, daily backups and the image cleanup policy (`infra/backups.sh`), TTL policies (`infra/firestore-ttl.sh`), and [RUNBOOK.md](RUNBOOK.md) with alerts, rollback per component, restore steps and the secret rotation table (OPS_PR).
+- **Built:** cost and abuse limits on every Function, the cost guard and the budget kill switch (#99); uptime checks and alert policies as code (`infra/monitoring.sh`, `infra/alerts/`), PITR, delete protection, daily backups and the image cleanup policy (`infra/backups.sh`), TTL policies (`infra/firestore-ttl.sh`), and [RUNBOOK.md](RUNBOOK.md) with alerts, rollback per component, restore steps and the secret rotation table (#107).
 - **Left:** the owner applies the scripts ([steps 12-15](OWNER_CHECKLIST.md#at-pro-launch-blaze)); each alert fired once in staging from a forced failure, and a restore drill recorded in the runbook; PR preview channels and staging promotion in the deploy workflow (D9), with the CI owner.
 - **Closes:** OPS-15 (alerts and uptime) and OPS-17 in code; OPS-16 once the backups are on; OPS-12 with the staging project.
 
