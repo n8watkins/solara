@@ -8,7 +8,7 @@ test('saves settings to the account and restores them on reload', async ({ page,
 
   await accountMenu(page, 'Settings')
   const settings = page.getByRole('dialog', { name: 'Settings' })
-  await settings.getByRole('combobox', { name: 'Skin type' }).selectOption({ label: 'Medium' })
+  await settings.getByRole('combobox', { name: 'Skin type' }).selectOption({ label: 'Medium (Type III)' })
   await settings.getByRole('button', { name: 'Save settings' }).click()
   await expect(settings).toBeHidden()
 
@@ -39,7 +39,7 @@ test('a full browser storage never stops a settings change from reaching the acc
 
   await accountMenu(page, 'Settings')
   const settings = page.getByRole('dialog', { name: 'Settings' })
-  await settings.getByRole('combobox', { name: 'Skin type' }).selectOption({ label: 'Medium' })
+  await settings.getByRole('combobox', { name: 'Skin type' }).selectOption({ label: 'Medium (Type III)' })
   await settings.getByRole('button', { name: 'Save settings' }).click()
   await expect(settings).toBeHidden()
 
@@ -55,7 +55,7 @@ test('discarding unsaved settings leaves the account alone', async ({ page, emul
 
   await accountMenu(page, 'Settings')
   const settings = page.getByRole('dialog', { name: 'Settings' })
-  await settings.getByRole('combobox', { name: 'Skin type' }).selectOption({ label: 'Dark' })
+  await settings.getByRole('combobox', { name: 'Skin type' }).selectOption({ label: 'Dark (Type V-VI)' })
   // With unsaved changes, Cancel becomes Discard and asks first.
   page.once('dialog', confirm => {
     expect(confirm.message()).toBe('Discard unsaved settings changes?')
@@ -112,7 +112,7 @@ test('settings still save after the server changes the plan in an open tab', asy
   // Regression (W2-A): every later save used to fail the rules with permission-denied.
   await accountMenu(page, 'Settings')
   const settings = page.getByRole('dialog', { name: 'Settings' })
-  await settings.getByRole('combobox', { name: 'Skin type' }).selectOption({ label: 'Medium' })
+  await settings.getByRole('combobox', { name: 'Skin type' }).selectOption({ label: 'Medium (Type III)' })
   await settings.getByRole('button', { name: 'Save settings' }).click()
   await expect(settings).toBeHidden()
   await expect(page.getByText('Now · medium skin, no SPF')).toBeVisible()
@@ -143,7 +143,7 @@ test('a document from a newer Solara is never overwritten by this one', async ({
 
   await accountMenu(page, 'Settings')
   const settings = page.getByRole('dialog', { name: 'Settings' })
-  await settings.getByRole('combobox', { name: 'Skin type' }).selectOption({ label: 'Medium' })
+  await settings.getByRole('combobox', { name: 'Skin type' }).selectOption({ label: 'Medium (Type III)' })
   await settings.getByRole('button', { name: 'Save settings' }).click()
   await expect(settings).toBeHidden()
 
