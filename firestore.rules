@@ -15,8 +15,8 @@ rules_version = '2';
 // the cost of a single call). Lists are unrolled (rules cannot loop) and nested so that
 // evaluation stops at the list's real length.
 //
-// Accepted gap: the other activity fields (durationMins, maxUV, preferredHours, daysOfWeek
-// and the rest) are only allowlisted, not typed. Even one more check per activity breaks
+// Accepted gap: the other activity fields (durationMins, maxUV, preferredHours, daysOfWeek,
+// shade, surface and the rest) are only allowlisted, not typed. Even one more check per activity breaks
 // the budget at 20 activities in the realistic multi-list write tested in
 // functions/test/emulator/firestore.rules.test.js. A bad value only affects its own
 // account: the client parser falls back to defaults, and the document stays under
@@ -130,7 +130,7 @@ service cloud.firestore {
       let n = list.size();
       let k = [
         'id', 'name', 'icon', 'durationMins', 'maxUV', 'sunscreen', 'custom',
-        'preferredHours', 'timePreference', 'daysOfWeek', 'cloudSensitive'
+        'preferredHours', 'timePreference', 'daysOfWeek', 'cloudSensitive', 'shade', 'surface'
       ];
       return n <= 20
         && validActivityBlock(list, k, n, 0)

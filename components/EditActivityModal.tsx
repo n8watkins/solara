@@ -7,6 +7,7 @@ import { clampDuration, MIN_DURATION_MINS } from '@/lib/activity-presets'
 import { effectiveMaxUV } from '@/lib/tiers'
 import { SunscreenChoice } from './ActivityChoice'
 import { ActivityEditSection, SectionToggle } from './ActivityEditSection'
+import { ActivityExposureSection } from './ActivityExposureSection'
 import ActivityIconButton from './ActivityIconButton'
 import ActivityModalShell from './ActivityModalShell'
 import { DaysSection, PreferredHoursSection, PreferredTimeSection } from './ActivityScheduleFields'
@@ -30,6 +31,7 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
     days: `${id}-days`,
     spf: `${id}-spf`,
     cloud: `${id}-cloud`,
+    exposure: `${id}-exposure`,
     uv: `${id}-uv`,
   }
 
@@ -96,7 +98,7 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
 
         <ActivityEditSection
           id={ids.duration}
-          title="Duration"
+          title={<label htmlFor={`${ids.duration}-input`}>Duration</label>}
           description="How long you usually need for this activity."
         >
           <div className="flex flex-wrap items-center gap-2">
@@ -112,7 +114,7 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
               min={MIN_DURATION_MINS}
               step="5"
               value={form.durationMins}
-              aria-labelledby={ids.duration}
+              id={`${ids.duration}-input`}
               aria-describedby={`${ids.duration}-desc`}
               onChange={e => update({ durationMins: clampDuration(parseInt(e.target.value)) })}
               className="w-24 text-[14px]"
@@ -172,6 +174,13 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
               {form.cloudSensitive ? 'On' : 'Off'}
             </SectionToggle>
           }
+        />
+
+        <ActivityExposureSection
+          id={ids.exposure}
+          shade={form.shade}
+          surface={form.surface}
+          onChange={update}
         />
 
         <ActivityEditSection

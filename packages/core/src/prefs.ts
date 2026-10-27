@@ -14,6 +14,7 @@
 
 import * as v from 'valibot'
 import { roundCoordinate } from './geocoding'
+import { SHADE_LEVELS, SURFACES } from './exposure'
 import { SKIN_TYPES, type PreferredHours } from './recommendation'
 import { finiteNumber, isPlainRecord, record } from './schema'
 
@@ -252,6 +253,10 @@ export const ACTIVITY_SHAPE = {
   daysOfWeek: v.fallback(v.optional(daysOfWeek), undefined),
   /** Discount effective UV by cloud cover when planning. */
   cloudSensitive: v.optional(flag),
+  /** Typical shade while doing it (exposure.ts); undefined is open sun. */
+  shade: v.fallback(v.optional(v.picklist(SHADE_LEVELS)), undefined),
+  /** The ground around it, for reflected UV (exposure.ts); undefined adds nothing. */
+  surface: v.fallback(v.optional(v.picklist(SURFACES)), undefined),
 }
 
 export const ActivitySchema = v.pipe(

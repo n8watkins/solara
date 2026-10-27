@@ -1,4 +1,4 @@
-import { hourAllowed, lowestUVWindow, windowEventTitle } from '@solara/core'
+import { exposedUV, hourAllowed, lowestUVWindow, windowEventTitle } from '@solara/core'
 import type { HourlyForecast, Activity, ActivityWindow, SkinType } from './types'
 import { burnMins, effectiveMaxUV, findRecommendationWindows } from './recommendation'
 import { cloudAdjustedUV } from './exposure'
@@ -130,10 +130,11 @@ export function getActivityWindow(
   skinType: SkinType = 'fair',
 ): ActivityWindow {
   const maxUV = effectiveMaxUV(activity)
-  // Cloud-sensitive activities judge safety against UV discounted by cloud cover; the
-  // reported window UV (summarizeSafeWindow) stays the true forecast value.
+  // Planning judges each hour by the UV the activity's skin is expected to get: cloud
+  // cover (when the activity accounts for it), then its shade and surface reflection
+  // (@solara/core exposure.ts). The reported window UV stays the forecast value.
   const exposureUV = (h: HourlyForecast) =>
-    activity.cloudSensitive ? cloudAdjustedUV(h.uv, h.cloudCover) : h.uv
+    exposedUV(activity.cloudSensitive ? cloudAdjustedUV(h.uv, h.cloudCover) : h.uv, activity)
   const planningHours = hourly.map(hour => ({
     ...hour,
     planningUV: exposureUV(hour),

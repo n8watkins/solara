@@ -6,8 +6,11 @@ import {
   type IcsEvent,
   type PreferredHours,
   type RecommendationHour,
+  type ShadeLevel,
+  type Surface,
   bestWindow,
   effectiveMaxUV,
+  exposedUV,
   fetchProviderForecast,
   findWindows,
   forecastDates,
@@ -37,6 +40,8 @@ export interface FeedActivity {
   durationMins?: number | null
   preferredHours?: PreferredHours | null
   daysOfWeek?: number[] | null
+  shade?: ShadeLevel | null
+  surface?: Surface | null
 }
 
 export { bestWindow, effectiveMaxUV, runsOn }
@@ -137,8 +142,10 @@ export function buildSunEvents(
   for (const day of forecast) {
     for (const act of activities) {
       if (!runsOn(act, day.dateStr)) continue
+      // Each hour is judged by the UV the activity's shade and surface pass on, as in the app.
+      const hourly = day.hourly.map(hour => ({ ...hour, planningUV: exposedUV(hour.uv, act) }))
       const win = bestWindow(
-        day.hourly,
+        hourly,
         effectiveMaxUV(act),
         act.durationMins ?? 30,
         act.preferredHours,
