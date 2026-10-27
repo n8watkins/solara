@@ -49,6 +49,7 @@ interface Row {
   date: string
   hour: number
   uv: number | null
+  clearSkyUV: number | null
   tempC: number | null
   weatherCode: number | null
   cloudCover: number | null
@@ -64,6 +65,7 @@ function rowsOf({ hourly }: OpenMeteoResponse): Row[] {
       date: at.date,
       hour: at.hour,
       uv: core.roundUV(hourly.uv_index?.[index]),
+      clearSkyUV: core.roundUV(hourly.uv_index_clear_sky?.[index]),
       tempC: roundCelsius(hourly.temperature_2m?.[index]),
       weatherCode: hourly.weathercode?.[index] ?? null,
       cloudCover: cloud == null ? null : Math.round(cloud),
@@ -89,6 +91,8 @@ function daytimeHours(rows: Row[], dateStr: string): HourlyForecast[] {
       tempC: row.tempC,
       condition: core.weatherLabel(row.weatherCode),
       cloudCover: row.cloudCover ?? undefined,
+      // Never below the cloud-aware value, so a provider rounding gap reads as no effect.
+      clearSkyUV: row.clearSkyUV === null ? undefined : Math.max(row.clearSkyUV, row.uv),
     })
   }
   return hours
@@ -209,8 +213,9 @@ async function forecastProvider(): Promise<core.ForecastProvider> {
 
 /**
  * Single source of truth for fetching the forecast: the app's request
- * (core.appForecastRequest; `cloudcover` is included so cloud sensitivity needs no
- * fetch change) from the configured provider, through the shared validated parser.
+ * (core.appForecastRequest: `uv_index` already includes the forecast clouds,
+ * `uv_index_clear_sky` shows how much they take off and `cloudcover` feeds
+ * cloud-sensitive activities) from the configured provider, through the shared validated parser.
  * The request is abandoned after 5 s so a slow provider surfaces as an error instead
  * of a hang.
  */

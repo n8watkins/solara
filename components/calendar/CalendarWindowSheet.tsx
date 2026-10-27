@@ -1,5 +1,6 @@
 'use client'
-import { CalendarPlus, Lock, Share2 } from 'lucide-react'
+import { CalendarPlus, Cloud, Gauge, Lock, Share2 } from 'lucide-react'
+import { cloudNote, confidenceNote } from '@solara/core'
 import { useState, type Ref } from 'react'
 import { gcalWindowLink } from '@/lib/calendar'
 import { durationText, windowSlot } from '@/lib/calendar-grid'
@@ -123,6 +124,10 @@ export default function CalendarWindowSheet({
         <strong className="text-ink">{durationText(act.durationMins)}</strong> session anywhere in
         this range.
       </p>
+      <ForecastNotes
+        cloud={day.cloud ? cloudNote(day.cloud) : null}
+        confidence={confidenceNote(day.confidence)}
+      />
       <SheetActions single={!onEdit}>
         {canUseCalendar && scheduled.enabled ? (
           <button
@@ -164,5 +169,26 @@ export default function CalendarWindowSheet({
         )}
       </SheetActions>
     </BottomSheet>
+  )
+}
+
+/** How sure the day's forecast is, and how much its clouds lower UV. */
+function ForecastNotes({ cloud, confidence }: { cloud: string | null; confidence: string | null }) {
+  if (!cloud && !confidence) return null
+  return (
+    <ul data-testid="calendar-sheet-notes" className="mt-2.5 grid gap-1.5">
+      {cloud && (
+        <li className="flex items-start gap-2 text-[12.5px] leading-[1.45] text-ink-2">
+          <Cloud size={15} aria-hidden className="mt-px shrink-0 text-ink-3" />
+          {cloud}. Windows assume those clouds; a clearer sky means higher UV.
+        </li>
+      )}
+      {confidence && (
+        <li className="flex items-start gap-2 text-[12.5px] leading-[1.45] text-ink-2">
+          <Gauge size={15} aria-hidden className="mt-px shrink-0 text-ink-3" />
+          {confidence}.
+        </li>
+      )}
+    </ul>
   )
 }

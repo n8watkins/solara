@@ -130,7 +130,9 @@ Candidates, roughly ranked by impact over effort:
    The words come from `dailyBriefing` in `packages/core/src/briefing.ts`, and the Pro morning alert (item 10, `morningAlertMessage`) sends the same text, titled with its best window.
    An AI-written version stays a future option: it needs an LLM API key, which must stay secret behind a Function, so Blaze, and a cost line in [COSTS.md](COSTS.md).
 4. **Family profiles as a headline Pro feature** - done (#105): "Plan for a group" uses the most sensitive person among those ticked for plans and burn estimates, the switcher works on phones, Free sees an honest Pro offer (a waitlist while checkout is off), and the plan comparison names the mode.
-5. Cloud-aware forecasts with confidence that decays after day 3.
+5. **Cloud-aware forecasts with confidence** - done (#PRNUM): the forecast now also requests Open-Meteo's `uv_index_clear_sky`, and the dashboard and week view say when clouds lower UV ("Clouds may cut UV to 4 from a clear-sky 6") and how sure a day is (high for three days, fair for days 4-6, low from day 7), in whole UV numbers (`packages/core/src/forecast-quality.ts`).
+   Open-Meteo's `uv_index` already includes the forecast clouds, so the activity option "Account for cloud cover" (`lib/exposure.ts`) discounts clouds a second time.
+   It needs a product decision before it changes: make the option plan on the clear-sky UV when off (the cautious reading of its label, but stricter plans for everyone on cloudy days, and the calendar feed would need the same), or remove the option.
 6. **Better skin typing** - done (#103): named Fitzpatrick types in setup, Settings and profiles, and an optional five-question quiz with the questionnaire's standard scoring.
 7. City landing pages for search traffic (builds on the static landing page).
 8. **Shade and surface reflection factors** - done (#109): each activity can set its typical shade and the surface around it, which scale the UV it is planned against (cited, cautious factors in `packages/core/src/exposure.ts`), in the app and the calendar feed.

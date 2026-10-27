@@ -8,6 +8,12 @@ import type {
   UserPreferences,
   WeatherResponse,
 } from './types'
+import {
+  cloudEffect,
+  forecastConfidence,
+  type CloudEffect,
+  type ForecastConfidence,
+} from '@solara/core'
 import { planActivityDay } from './next-slot'
 import { activityRunsOnDate } from './recommendation'
 import { recommendSlot, type SlotRecommendation } from './scheduler'
@@ -19,8 +25,8 @@ import { uvBand } from './calendar-layout'
 export const ROW_H = 44
 /** Room above the first and below the last hour line so their labels are not cut. */
 export const AXIS_PAD = 10
-/** Height of the sticky day header row in px. */
-export const HEADER_H = 52
+/** Height of the sticky day header row in px: weekday, date, peak UV and confidence. */
+export const HEADER_H = 74
 
 const UV_ROW_ALPHA = 0.11
 
@@ -44,15 +50,26 @@ export interface CalendarDay extends DayWeather {
   /** Column header: "Today", or the weekday ("Tue"). */
   shortLabel: string
   isToday: boolean
+  /** The day's peak forecast UV as a whole number (no false precision); null without data. */
+  peakUV: number | null
+  /** How much the forecast clouds lower the peak, when it is worth telling. */
+  cloud: CloudEffect | null
+  /** Forecast confidence by how far ahead the day is. */
+  confidence: ForecastConfidence
 }
 
 /** The first `limit` forecast days, labelled for the column headers. */
 export function calendarDays(weather: WeatherResponse, limit: number): CalendarDay[] {
-  return weather.forecast.slice(0, limit).map(day => {
+  return weather.forecast.slice(0, limit).map((day, daysAhead) => {
     const isToday = day.dateStr === weather.now.date
+    const peak = day.hourly.length ? Math.max(...day.hourly.map(h => h.uv)) : null
     return {
       ...day,
       isToday,
+      peakUV: peak === null ? null : Math.round(peak),
+      cloud: cloudEffect(day.hourly),
+      // The forecast starts today, so a day's index is how far ahead it is.
+      confidence: forecastConfidence(daysAhead),
       shortLabel: isToday ? 'Today' : formatDate(day.dateStr, { weekday: 'short' }),
     }
   })

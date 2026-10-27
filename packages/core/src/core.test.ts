@@ -81,6 +81,7 @@ describe('Open-Meteo parsing', () => {
         date: '2026-06-15',
         hour: 10,
         uv: null,
+        clearSkyUV: null,
         tempF: null,
         weatherCode: 1.5,
         cloudCover: null,

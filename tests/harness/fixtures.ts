@@ -30,7 +30,10 @@ const SAN_DIEGO: Location = {
   timezone: 'America/Los_Angeles',
 }
 
-/** Per-day shape: clear-sky UV peak, cloud cover %, WMO code and max temperature in C. */
+/**
+ * Per-day shape: forecast UV peak (with the day's clouds, like Open-Meteo's
+ * uv_index), cloud cover %, WMO code and max temperature in C.
+ */
 const DAYS: { peakUV: number; cloud: number; code: number; maxC: number }[] = [
   { peakUV: 10.4, cloud: 8, code: 0, maxC: 29 },
   { peakUV: 9.8, cloud: 22, code: 2, maxC: 27 },
@@ -76,6 +79,7 @@ export function buildRawForecast(): RawForecast {
   const temp: number[] = []
   const codes: number[] = []
   const cloud: number[] = []
+  const clearSky: number[] = []
 
   DAYS.forEach((day, idx) => {
     const date = dateOffset(idx)
@@ -85,6 +89,8 @@ export function buildRawForecast(): RawForecast {
       temp.push(tempAt(h, day.maxC))
       codes.push(day.code)
       cloud.push(day.cloud)
+      // A cloudless sky lets more UV through: up to 60% more under full overcast.
+      clearSky.push(uvAt(h, day.peakUV * (1 + (0.6 * day.cloud) / 100)))
     }
   })
 
@@ -101,6 +107,7 @@ export function buildRawForecast(): RawForecast {
     hourly: {
       time,
       uv_index: uv,
+      uv_index_clear_sky: clearSky,
       temperature_2m: temp,
       weathercode: codes,
       cloudcover: cloud,
