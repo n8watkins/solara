@@ -2,16 +2,17 @@
 // each activity's best window. The calculations come from @solara/core.
 
 import {
+  type ForecastProvider,
   type IcsEvent,
   type PreferredHours,
   type RecommendationHour,
   bestWindow,
   effectiveMaxUV,
-  fetchJson,
+  fetchProviderForecast,
   findWindows,
   forecastDates,
-  forecastUrl,
   isPlannableHour,
+  openMeteoFree,
   parseHourlyRows,
   runsOn,
   validActivityId,
@@ -81,7 +82,8 @@ function rememberLastGood(key: string, forecast: SunForecastDay[], now: number):
 }
 
 /**
- * Fetch daytime (06-20) hourly UV per day for `days` days. The request times out
+ * Fetch daytime (06-20) hourly UV per day for `days` days from `provider` (the
+ * commercial API once its key is set; see forecast/config.ts). The request times out
  * after 5 s. When the provider fails, the last good forecast for the same place
  * (at most 6 hours old) is returned instead; otherwise the error is thrown.
  */
@@ -89,13 +91,19 @@ export async function fetchForecast(
   lat: number,
   lon: number,
   days: number,
-  { fetchImpl, now = Date.now() }: { fetchImpl?: typeof fetch; now?: number } = {},
+  {
+    fetchImpl,
+    now = Date.now(),
+    provider = openMeteoFree,
+  }: { fetchImpl?: typeof fetch; now?: number; provider?: ForecastProvider } = {},
 ): Promise<SunForecastDay[]> {
   const key = lastGoodKey(lat, lon, days)
   try {
-    const raw = await fetchJson(forecastUrl({ lat, lon, days, hourly: ['uv_index'] }), {
-      fetchImpl,
-    })
+    const raw = await fetchProviderForecast(
+      provider,
+      { lat, lon, days, hourly: ['uv_index'] },
+      { fetchImpl },
+    )
     const forecast = parseSunForecast(raw, days)
     rememberLastGood(key, forecast, now)
     return forecast

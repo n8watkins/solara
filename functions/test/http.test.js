@@ -244,6 +244,7 @@ describe('deployed entry point', () => {
       'createCheckoutSession',
       'deleteAccount',
       'exportAccountData',
+      'forecast',
       'maintenance',
       'registerNotificationDevice',
       'removeNotificationDevice',
@@ -260,6 +261,7 @@ describe('deployed entry point', () => {
       removeNotificationDevice: 'DELETE',
       rotateCalendarFeed: 'POST',
       revokeCalendarFeed: 'DELETE',
+      forecast: 'GET',
     }
     for (const [name, method] of Object.entries(browserEndpoints)) {
       const res = responseRecorder()

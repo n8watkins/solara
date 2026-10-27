@@ -8,6 +8,7 @@ import { authenticate, uidLimiter } from '../shared/auth'
 import { browserApi, costGuard } from '../shared/browser-api'
 import { db } from '../shared/firebase'
 import { httpOptions } from '../shared/options'
+import { OPEN_METEO_API_KEY, commercialProvider } from '../forecast/config'
 import { createCalendarFeedHandler } from './calendar-feed'
 import { buildSunEvents, fetchForecast } from './sun'
 import { revokeCalendarFeed as revokeFeed, rotateCalendarFeed as rotateFeed } from './tokens'
@@ -53,6 +54,22 @@ export const revokeCalendarFeed = onRequest(
 // Token-authorized (calendar apps cannot send App Check tokens) and rate limited per
 // feed and per address; see calendar-feed.ts.
 export const calendarFeed = onRequest(
-  { ...httpOptions({ maxInstances: 5, concurrency: 40, timeoutSeconds: 30 }), cors: false },
-  createCalendarFeedHandler({ buildICS, buildSunEvents, costGuard, db, fetchForecast }),
+  {
+    ...httpOptions({
+      maxInstances: 5,
+      concurrency: 40,
+      timeoutSeconds: 30,
+      secrets: [OPEN_METEO_API_KEY],
+    }),
+    cors: false,
+  },
+  createCalendarFeedHandler({
+    buildICS,
+    buildSunEvents,
+    costGuard,
+    db,
+    // The commercial API once its key is set (decision D5).
+    fetchForecast: (lat, lon, days) =>
+      fetchForecast(lat, lon, days, { provider: commercialProvider() ?? undefined }),
+  }),
 )
