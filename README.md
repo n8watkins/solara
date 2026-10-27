@@ -68,7 +68,7 @@ The repository is an npm workspace.
   Auth starts without its sign-in popup helper; sign-in buttons start it (`prepareSignInPopup`), and every `*WithPopup` call passes it.
   A returning account's dashboard shows at once from this browser's copy of it (`lib/cached-account.ts`), accepting no input until Auth confirms the session; Firebase starts once that dashboard has painted.
   Setup, the dialogs, the location panel, the calendar view, the calendar feed card, the install prompt and the header's signed-in parts load on first use from `components/deferred.tsx`, and are fetched shortly after the page has loaded.
-- `packages/core` (`@solara/core`) holds the logic every surface shares: the recommendation engine, the preferences schema and migrations, the Valibot-validated Open-Meteo parser and weather labels, the iCalendar builder, the calendar feed token policy and the Functions response contracts.
+- `packages/core` (`@solara/core`) holds the logic every surface shares: the recommendation engine, the daily briefing text, the WHO UV scale, the preferences schema and migrations, the Valibot-validated Open-Meteo parser and weather labels, the iCalendar builder, the calendar feed token policy and the Functions response contracts.
   The web app imports its TypeScript source.
 - `functions/` holds the Cloud Functions in TypeScript (`functions/src/`, one folder per area), including the scheduled Pro alerts (`functions/src/notifications/`).
   It is a separate npm package, because `firebase deploy` uploads only that directory.

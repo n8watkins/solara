@@ -3,6 +3,7 @@
 // CommonJS build in functions/core (npm run build:core).
 
 export * from './alerts'
+export * from './briefing'
 export * from './exposure'
 export * from './feed-token'
 export * from './forecast'
@@ -15,3 +16,4 @@ export * from './recommendation'
 export * from './redact'
 export * from './schema'
 export * from './scheduled'
+export * from './uv-scale'

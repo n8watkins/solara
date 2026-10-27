@@ -1,7 +1,7 @@
-import { Bell, CloudSun, Moon, X } from 'lucide-react'
+import { Bell, CloudSun, X } from 'lucide-react'
 import type { ActivityDayPlan } from '@/lib/next-slot'
 import type { UpcomingSlot } from '@/lib/planner'
-import { dayPhrase as phraseForDay, type DayOutlook } from '@/lib/dashboard-view'
+import { dayPhrase as phraseForDay } from '@/lib/dashboard-view'
 import { useUnits } from '@/lib/use-units'
 import { useUpsellDismissal } from '@/lib/upsell'
 
@@ -16,11 +16,8 @@ export default function HeroSlot({
   dateLabel,
   allElapsed,
   dayPhrase,
-  peakUV,
-  peakHour,
   next,
   laterDaysVisible,
-  night,
   onPlanTomorrow,
   onMorningAlert,
 }: {
@@ -31,17 +28,10 @@ export default function HeroSlot({
   /** Today had matching windows, but every one has passed. */
   allElapsed: boolean
   dayPhrase: string
-  peakUV: number
-  peakHour: number
   /** Once today's windows have passed: the soonest slot on a later visible day. */
   next: UpcomingSlot | null
   /** The plan shows days after today (false on the guest plan, which shows today only). */
   laterDaysVisible: boolean
-  /**
-   * After sunset with nothing left today: tomorrow's outlook when the plan shows
-   * tomorrow, else null; undefined in daylight.
-   */
-  night?: DayOutlook | null
   /** Opens the plans dialog, offered when later days are not part of the plan. */
   onPlanTomorrow: () => void
   /** Offers this slot as a morning alert (Pro); absent when the plan has alerts. */
@@ -104,21 +94,16 @@ export default function HeroSlot({
       </div>
     )
   }
-  const nextText = next
-    ? `Next: ${next.activity.name} ${phraseForDay(false, next.label)} at ${fmt.time(next.slot.start)}.`
-    : null
-  const tomorrowText =
-    night &&
-    `Tomorrow peaks ${night.peakUV.toFixed(1)} at ${fmt.hour(night.peakHour)}${
-      night.lowUntil !== null ? `, below UV 3 until ${fmt.hour(night.lowUntil)}` : ''
-    }.`
-  // Once today is over the label above already says so, so the body only says
-  // what comes next (on the guest plan, the sign-in button below does).
-  const body = !allElapsed
-    ? 'Forecast UV stays above your activity limits. Check early morning or evening instead.'
-    : night !== undefined
-      ? [tomorrowText, nextText].filter(Boolean).join(' ') || null
-      : (nextText ?? (laterDaysVisible ? 'No later forecast day has one either.' : null))
+  // The briefing above names the day's peak, so this card only says what to do:
+  // once today is over (the label says so), what comes next.
+  const title = !allElapsed
+    ? 'UV stays above your limits'
+    : next
+      ? `Next: ${next.activity.name} ${phraseForDay(false, next.label)} at ${fmt.time(next.slot.start)}`
+      : laterDaysVisible
+        ? 'No later forecast day has one either'
+        : 'Done for today'
+  const body = allElapsed ? null : 'Check early morning or evening instead.'
   return (
     <div
       className="card border-[0.5px] border-line-strong bg-surface-metric"
@@ -128,17 +113,9 @@ export default function HeroSlot({
         {allElapsed ? 'No lower-UV slot left today' : `No matching lower-UV slot ${dayPhrase}`}
       </p>
       <div className="mt-[9px] flex items-center gap-3.5">
-        {night !== undefined ? (
-          <Moon size={30} strokeWidth={1.75} className="shrink-0 text-ink-3" />
-        ) : (
-          <CloudSun size={30} strokeWidth={1.75} className="shrink-0 text-ink-3" />
-        )}
+        <CloudSun size={30} strokeWidth={1.75} className="shrink-0 text-ink-3" />
         <div className="min-w-0 flex-1">
-          <p className="text-[18px] leading-[1.15] font-bold text-ink">
-            {night !== undefined
-              ? 'Sun is down'
-              : `Peak UV ${peakUV.toFixed(1)} at ${fmt.hour(peakHour)}`}
-          </p>
+          <p className="text-[18px] leading-[1.15] font-bold text-ink">{title}</p>
           {body && <p className="mt-[3px] text-[13px] leading-[1.4] text-ink-3">{body}</p>}
           {allElapsed && !laterDaysVisible && (
             <button

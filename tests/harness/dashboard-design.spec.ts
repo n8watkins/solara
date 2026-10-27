@@ -18,10 +18,13 @@ test.describe('logic checks', () => {
     const readout = page.getByTestId('uv-readout')
     await expect(readout).toContainText('Sun is down')
     await expect(readout).toContainText('UV returns about 7am tomorrow')
-    const hero = page.getByTestId('hero-empty')
-    await expect(hero).toContainText('Sun is down')
-    await expect(hero).toContainText('Tomorrow peaks 9.7 at 1pm, below UV 3 until 9am.')
-    await expect(hero).toContainText('Next: Running tomorrow at 6am.')
+    // The briefing leads with tomorrow, so "Sun is down" heads one card only.
+    const briefing = page.getByTestId('daily-briefing')
+    await expect(briefing).toContainText('Tomorrow at a glance')
+    await expect(briefing).toContainText('UV peaks at 9.7 (Very high) around 1pm')
+    await expect(briefing).toContainText('Best lower-UV window: Running 6am–10am')
+    await expect(page.getByTestId('hero-empty')).toHaveCount(0)
+    await expect(page.getByText('Sun is down')).toHaveCount(1)
     await expect(page.getByTestId('burn-metric')).toContainText('No burn risk until 7am tomorrow')
     await expect(page.getByText('--', { exact: true })).toHaveCount(0)
     // Item 6: "now" is marked on the sun path, at the end of the day it is past.
@@ -30,10 +33,12 @@ test.describe('logic checks', () => {
 
   test('a guest after dark is not shown tomorrow, only offered it', async ({ page }) => {
     await openDashboard(page, { at: NIGHT_MS, tier: 'guest', edit: atNight })
-    const hero = page.getByTestId('hero-empty')
-    await expect(hero).toContainText('Sun is down')
-    await expect(hero).not.toContainText('Tomorrow peaks')
-    await expect(hero.getByRole('button', { name: 'Sign in free to plan tomorrow' })).toBeVisible()
+    const briefing = page.getByTestId('daily-briefing')
+    await expect(briefing).toContainText('Tomorrow at a glance')
+    await expect(briefing).not.toContainText(/UV peaks|window:|can burn/)
+    await expect(
+      briefing.getByRole('button', { name: 'Sign in free to plan tomorrow' }),
+    ).toBeVisible()
   })
 
   test('before sunrise the readout says when UV starts', async ({ page }) => {

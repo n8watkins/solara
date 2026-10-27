@@ -18,18 +18,19 @@ import {
   busyByDate,
   dashboardAccess,
   dayHourText,
-  dayOutlook,
   dayPhrase,
   nextHourWhere,
   sunDown,
   uvReadout,
 } from '@/lib/dashboard-view'
+import { briefingView } from '@/lib/briefing-view'
 import { buildEventDescription } from '@/lib/gcal-view'
 import type { SlotRecommendation } from '@/lib/scheduler'
 import { useScheduled } from '@/lib/scheduled-context'
 import SunTip from './SunTip'
 import { PricingModal, SunscreenTimer } from './deferred'
 import ActivitiesSection from './dashboard/ActivitiesSection'
+import DailyBriefing from './dashboard/DailyBriefing'
 import DayPicker from './dashboard/DayPicker'
 import ExposureMetrics from './dashboard/ExposureMetrics'
 import { planningFor } from '@/lib/profiles'
@@ -111,6 +112,7 @@ export default function Dashboard({
   // Once today is done, the hero names the next slot the plan can see (never a
   // section the plan does not show).
   const laterDaysVisible = accessibleDays > 1
+  const hasActivities = prefs.activities.length > 0
   const nextSlot = allElapsed
     ? nextSlotAfterToday(
         weather.forecast,
@@ -120,20 +122,26 @@ export default function Dashboard({
         busy,
       )
     : null
-  // After dark (or before sunrise) today: the readout, hero and metrics say so and
-  // when UV comes back, instead of a bare "0.0 None" and dashes.
+  // After dark (or before sunrise) today: the readout and metrics say so and when UV
+  // comes back, instead of a bare "0.0 None" and dashes.
   const down = isToday ? sunDown(weather, nowHour) : null
-  const night =
-    allElapsed && down?.phase === 'after-sunset'
-      ? laterDaysVisible
-        ? dayOutlook(weather.tomorrow)
-        : null
-      : undefined
+  // The briefing names the day's peak and best window; after dark it briefs
+  // tomorrow and leads the dashboard in place of the hero, which has nothing left today.
+  const briefing = briefingView({
+    weather,
+    selectedDay: day,
+    nowHour,
+    activities: prefs.activities,
+    skinType: prefs.skinType,
+    laterDaysVisible,
+    city: prefs.location?.city ?? '',
+    formatTime: fmt.time,
+  })
+  const showHero = hasActivities && down?.phase !== 'after-sunset'
   const fromHour = (test: (uv: number) => boolean) => {
     const at = isToday ? nextHourWhere(weather, nowHour, test) : null
     return at ? dayHourText(at, fmt.hour) : null
   }
-  const hasActivities = prefs.activities.length > 0
   // Every upsell opens the same plans dialog.
   const openPlans = () => setShowPricing(true)
 
@@ -198,22 +206,21 @@ export default function Dashboard({
         </div>
       )}
 
+      <DailyBriefing view={briefing} onSignIn={openPlans} />
+
       {/* From 1024 px the conditions (left) and the activity plan (right) sit side by
           side; narrower, both columns stack in this order. */}
       <div className="dash-columns">
         <div className="dash-col">
-          {hasActivities && (
+          {showHero && (
             <HeroSlot
               plan={heroPlan}
               isToday={isToday}
               dateLabel={dateLabel}
               allElapsed={allElapsed}
               dayPhrase={dayPhrase(isToday, dateLabel)}
-              peakUV={peakUV}
-              peakHour={peakHour}
               next={nextSlot}
               laterDaysVisible={laterDaysVisible}
-              night={night}
               onPlanTomorrow={openPlans}
               onMorningAlert={access.activityTier === 'paid' ? undefined : openPlans}
             />
