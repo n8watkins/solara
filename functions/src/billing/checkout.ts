@@ -12,7 +12,9 @@ import type Stripe from 'stripe'
 import { authenticate, uidLimiter } from '../shared/auth'
 import { HttpError, errorCode, errorMessage } from '../shared/errors'
 import { toMillis } from '../shared/time'
+import { RETENTION_DAYS, expiresAfter } from '../shared/ttl'
 import type { BillingPrices } from './config'
+import { cancelAndRefund } from './refunds'
 import {
   TERMINAL_SUBSCRIPTION_STATUSES,
   listCustomerSubscriptions,
@@ -55,11 +57,8 @@ export async function neutralizeCheckoutSession(stripe: Stripe, sessionId: strin
   if (session.status === 'complete') {
     const subscriptionId = stringId(session.subscription)
     if (!subscriptionId) throw new Error('Completed checkout session is missing its subscription')
-    try {
-      await stripe.subscriptions.cancel(subscriptionId)
-    } catch (error) {
-      if (errorCode(error) !== 'resource_missing') throw error
-    }
+    // The account never got Pro for this payment, so it is refunded (billing/refunds.ts).
+    await cancelAndRefund(stripe, subscriptionId, 'checkout-not-recorded')
     return
   }
   throw new Error('Checkout session has an unexpected status')
@@ -150,6 +149,7 @@ export async function processPendingCheckoutCleanups({
           task.ref,
           {
             completedAt: new Date(),
+            expireAt: expiresAfter(RETENTION_DAYS.stripeCheckoutCleanupTasks),
             nextAttemptAt: null,
             processingToken: null,
             status: 'completed',

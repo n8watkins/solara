@@ -10,14 +10,16 @@ import type {
 } from 'firebase-admin/firestore'
 import type Stripe from 'stripe'
 
-import { errorCode } from '../shared/errors'
 import type { ServerTimestamp } from '../shared/time'
+import { RETENTION_DAYS, expiresAfter } from '../shared/ttl'
 import {
   ACTIVE_SUBSCRIPTION_STATUSES,
   TERMINAL_SUBSCRIPTION_STATUSES,
   stringId,
   validUid,
 } from './ids'
+import { pastDueSince, withinGrace } from './grace'
+import { cancelAndRefund, endSubscriptionForReversedPayment } from './refunds'
 import {
   type BillingResource,
   customerBelongsToUser,
@@ -331,6 +333,7 @@ async function commitEvent(
         type: event.type,
         created: event.created,
         processedAt: serverTimestamp(),
+        expireAt: expiresAfter(RETENTION_DAYS.stripeWebhookEvents),
         ...(cancellationPending
           ? {
               cancellationSubscriptionId,
@@ -365,21 +368,25 @@ async function completePendingCancellation({
 }): Promise<void> {
   if (!result.cancellationPending || !result.cancellationSubscriptionId) return
   const eventRef = db.collection('stripeWebhookEvents').doc(event.id)
-  try {
-    await stripe.subscriptions.cancel(result.cancellationSubscriptionId)
-  } catch (error) {
-    if (errorCode(error) !== 'resource_missing') throw error
-  }
+  // The customer did not mean to keep this subscription, so it is refunded in full
+  // (billing/refunds.ts). A failure throws, and Stripe's retry repeats both steps safely.
+  const { refunded } = await cancelAndRefund(
+    stripe,
+    result.cancellationSubscriptionId,
+    result.accountDeleted ? 'account-deleted' : 'duplicate-checkout',
+  )
   await eventRef.set(
     {
       cancellationStatus: 'completed',
       cancellationCompletedAt: serverTimestamp(),
+      cancellationRefunds: refunded,
     },
     { merge: true },
   )
 }
 
-export type StripeEventResult = CommitResult | { ignored: true }
+export type StripeEventResult =
+  CommitResult | (CommitResult & { endedSubscriptionId: string | null }) | { ignored: true }
 
 /** Applies one signature-verified Stripe event. Throwing makes Stripe retry it. */
 export async function processStripeEvent({
@@ -443,6 +450,7 @@ export async function processStripeEvent({
           stripeCheckoutUpdatedAt: serverTimestamp(),
           subscriptionStatus: subscription.status,
           subscriptionUpdatedAt: serverTimestamp(),
+          pastDueSince: null,
           ...billingSummaryFields(subscription, prices),
         }
       },
@@ -476,10 +484,11 @@ export async function processStripeEvent({
       event.type === 'customer.subscription.updated'
         ? await stripe.subscriptions.retrieve(subscription.id)
         : subscription
-    const active =
-      event.type !== 'customer.subscription.deleted' &&
-      ACTIVE_SUBSCRIPTION_STATUSES.has(currentSubscription.status) &&
-      subscriptionHasPrice(currentSubscription, priceIds)
+    const live = event.type !== 'customer.subscription.deleted'
+    const proPrice = subscriptionHasPrice(currentSubscription, priceIds)
+    const active = live && ACTIVE_SUBSCRIPTION_STATUSES.has(currentSubscription.status) && proPrice
+    // A failed renewal keeps Pro for the grace period (billing/grace.ts).
+    const pastDue = live && currentSubscription.status === 'past_due' && proPrice
     const checkoutStatus = active
       ? 'succeeded'
       : TERMINAL_SUBSCRIPTION_STATUSES.has(currentSubscription.status) ||
@@ -487,7 +496,6 @@ export async function processStripeEvent({
         ? 'failed'
         : null
     const update: DocumentData = {
-      tier: active ? 'paid' : 'free',
       stripeCustomerId: stringId(currentSubscription.customer),
       stripeSubscriptionId: stringId(currentSubscription.id),
       subscriptionStatus:
@@ -495,7 +503,6 @@ export async function processStripeEvent({
       subscriptionUpdatedAt: serverTimestamp(),
       ...billingSummaryFields(currentSubscription, prices),
     }
-    if (!active) update.proSince = null
     const cancellationSubscriptionId = !TERMINAL_SUBSCRIPTION_STATUSES.has(
       currentSubscription.status,
     )
@@ -519,7 +526,15 @@ export async function processStripeEvent({
             event.type === 'customer.subscription.deleted')
         )
           return null
-        return checkoutStatus ? { ...update, stripeCheckoutStatus: checkoutStatus } : update
+        const since = pastDue ? pastDueSince(userData, event.created) : null
+        const pro = active || (since !== null && withinGrace(since))
+        return {
+          ...update,
+          tier: pro ? 'paid' : 'free',
+          pastDueSince: since,
+          ...(pro ? {} : { proSince: null }),
+          ...(checkoutStatus ? { stripeCheckoutStatus: checkoutStatus } : {}),
+        }
       },
       serverTimestamp,
       cancellationSubscriptionId,
@@ -530,6 +545,14 @@ export async function processStripeEvent({
     )
     await completePendingCancellation({ db, event, result, serverTimestamp, stripe })
     return result
+  }
+
+  if (event.type === 'charge.refunded' || event.type === 'charge.dispute.created') {
+    // A full refund or a dispute ends the subscription it paid for; the
+    // customer.subscription.deleted event that follows takes Pro away.
+    const endedSubscriptionId = await endSubscriptionForReversedPayment(stripe, event)
+    const result = await commitEvent(db, event, null, null, serverTimestamp)
+    return { ...result, endedSubscriptionId }
   }
 
   return { ignored: true }

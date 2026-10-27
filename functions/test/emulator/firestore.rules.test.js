@@ -720,6 +720,8 @@ describe('scheduled activities', () => {
       htmlLink: `https://www.google.com/calendar/event?eid=${eventId}`,
       createdAt: '2026-06-15T17:30:00.000Z',
       updatedAt: '2026-06-15T17:30:00.000Z',
+      // Firestore's TTL policy deletes the record after this (30 days after it ends).
+      expireAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
       ...overrides,
     }
   }
@@ -784,6 +786,13 @@ describe('scheduled activities', () => {
       ref.set(scheduled('evt1', { htmlLink: `https://www.google.com/${'x'.repeat(2048)}` })),
     )
     await assertFails(ref.set(scheduled('evt1', { createdAt: 'x'.repeat(41) })))
+    // Every record must expire, and within the cap.
+    const { expireAt: _expireAt, ...forever } = scheduled('evt1')
+    await assertFails(ref.set(forever))
+    await assertFails(ref.set(scheduled('evt1', { expireAt: '2026-07-16T01:45:00.000Z' })))
+    await assertFails(
+      ref.set(scheduled('evt1', { expireAt: new Date(Date.now() + 401 * 24 * 60 * 60 * 1000) })),
+    )
     await assertFails(db.doc('users/alice/scheduled/bad.id').set(scheduled('bad.id')))
     await assertSucceeds(
       ref.set(scheduled('evt1', { htmlLink: 'https://calendar.google.com/calendar/event?eid=1' })),

@@ -16,6 +16,7 @@ import type { Request } from 'firebase-functions/v2/https'
 import { authenticate, uidLimiter } from '../shared/auth'
 import { HttpError, loggableError } from '../shared/errors'
 import { type ServerTimestamp, toMillis } from '../shared/time'
+import { RETENTION_DAYS, expiresAfter } from '../shared/ttl'
 
 export const MAX_NOTIFICATION_DEVICES = 5
 export const MAX_REGISTRATIONS_PER_MINUTE = 10
@@ -324,6 +325,7 @@ export async function registerNotificationDevice({
       count: registrationCount + 1,
       windowStartedAt: withinWindow ? windowStartedAt : nowMs,
       updatedAt: serverTimestamp(),
+      expireAt: expiresAfter(RETENTION_DAYS.notificationRegistrationLimits, new Date(nowMs)),
     })
   })
 

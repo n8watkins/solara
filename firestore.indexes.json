@@ -31,6 +31,15 @@
         { "fieldPath": "notificationsEnabled", "order": "ASCENDING" },
         { "fieldPath": "fcmToken", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "subscriptionStatus", "order": "ASCENDING" },
+        { "fieldPath": "tier", "order": "ASCENDING" },
+        { "fieldPath": "pastDueSince", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": [
@@ -53,6 +62,41 @@
         { "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" },
         { "order": "DESCENDING", "queryScope": "COLLECTION_GROUP" }
       ]
+    },
+    {
+      "collectionGroup": "accountDeletionTombstones",
+      "fieldPath": "expireAt",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "billingCleanupResources",
+      "fieldPath": "expireAt",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "notificationRegistrationLimits",
+      "fieldPath": "expireAt",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "scheduled",
+      "fieldPath": "expireAt",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "stripeCheckoutCleanupTasks",
+      "fieldPath": "expireAt",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "stripeSubscriptionOwners",
+      "fieldPath": "expireAt",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "stripeWebhookEvents",
+      "fieldPath": "expireAt",
+      "indexes": []
     }
   ]
 }

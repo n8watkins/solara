@@ -294,6 +294,8 @@ describe('notification device mutations', () => {
       count: 1,
       windowStartedAt: 61_000,
       updatedAt: 'server-time',
+      // The window is useless after a minute; Firestore's TTL removes it a day later.
+      expireAt: new Date(61_000 + 24 * 60 * 60 * 1000),
     })
   })
 
