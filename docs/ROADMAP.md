@@ -128,7 +128,7 @@ Candidates, roughly ranked by impact over effort:
 1. **Scheduled activities** - done (#55, #56); hidden in production until the Google OAuth client ID is set.
 2. Threshold UV alerts and a sunscreen reapply timer (builds on item 10).
 3. A daily briefing card, optionally AI-written, reused by push and share.
-4. **Family profiles as a headline Pro feature** - done (#PR): "Plan for a group" uses the most sensitive person among those ticked for plans and burn estimates, the switcher works on phones, and Free sees an honest Pro offer (a waitlist while checkout is off).
+4. **Family profiles as a headline Pro feature** - done (#105): "Plan for a group" uses the most sensitive person among those ticked for plans and burn estimates, the switcher works on phones, and Free sees an honest Pro offer (a waitlist while checkout is off).
 5. Cloud-aware forecasts with confidence that decays after day 3.
 6. **Better skin typing** - done (#103): named Fitzpatrick types in setup, Settings and profiles, and an optional five-question quiz with the questionnaire's standard scoring.
 7. City landing pages for search traffic (builds on the static landing page).
