@@ -62,7 +62,15 @@ Already done: the domain move to `solara-uv.web.app`, the Firestore index role (
 
 ### At Pro launch: Blaze
 
-12. Upgrade the Firebase project to **Blaze** and create a **$5 per month budget alert** in Google Cloud Billing.
+12. **Upgrade to Blaze with a budget and the kill switch (about 20 minutes).**
+    1. Upgrade the Firebase project to **Blaze** at https://console.firebase.google.com/project/uv-activity-planner/usage/details and attach the billing account.
+    2. Create the budget and its Pub/Sub topic, which the `budgetAlert` Function listens to.
+       From a shell signed in as the owner (`gcloud auth login`), print the commands first, read them, then run them:
+       `BILLING_ACCOUNT=<billing account id> infra/budget.sh`, then the same with `--apply`.
+       The billing account id is on https://console.cloud.google.com/billing.
+       Or in the console: **Billing**, **Budgets & alerts**, **Create budget**; scope the project `uv-activity-planner`; amount **$5** monthly; thresholds 50%, 90% and 100% of actual spend and 100% of forecasted spend; under **Manage notifications** tick **Connect a Pub/Sub topic to this budget** and choose (or create) `projects/uv-activity-planner/topics/budget-alerts`.
+    3. Leave the last resort (detaching billing) off unless you want the site to go down rather than spend more than twice the budget; to turn it on, run the script again with `DETACH_BILLING=true` and set the `COST_GUARD_DETACH_BILLING` repository variable to `true` ([runbook](RUNBOOK.md#budget-kill-switch)).
+    4. App Check order: Functions enforce App Check in their code from their first deploy, so the site key from step 5 must be live first; Firestore enforcement stays the console switch from step 5, after a week of metrics; never enforce **Authentication**.
 13. Create a staging Firebase project and a Stripe account in **test mode** (D9); the agent guides both.
 14. Buy the Open-Meteo **Standard** commercial plan (about $29 per month) once the first subscription is live (D5).
 15. Run the release checks in [Release verification](#release-verification), plus [Functions and Stripe](#functions-and-stripe) and [Notifications](#notifications).
@@ -135,14 +143,14 @@ Everything in this section waits for the Pro launch (roadmap item 9); see [Fireb
 - [ ] After the first Functions deploy, run the calendar feed token migration ([Calendar feed tokens](DEPLOYMENT.md#calendar-feed-tokens)).
 - [ ] Before offering the calendar feed, add the Cloud Logging exclusion that keeps feed links out of request logs ([Keep feed tokens out of request logs](DEPLOYMENT.md#keep-feed-tokens-out-of-request-logs)).
 - [ ] On the first Functions deploy, have the agent check how many `X-Forwarded-For` entries a feed request carries ([Check the feed's address limit](DEPLOYMENT.md#check-the-feeds-address-limit-at-the-first-deploy)).
-- [ ] Confirm the three scheduled jobs (`backfillStripeBillingResources`, `cleanupDeletedAccountBilling`, `cleanupFailedCheckouts`) run cleanly and their indexes are `READY` before turning on checkout or deletion.
+- [ ] Confirm the `maintenance` job runs cleanly (no `maintenance task ... failed` errors) and its indexes are `READY` before turning on checkout or deletion.
 - [ ] Verify Stripe in test mode with a controlled account:
   - checkout is bound to the signed-in account, and a second checkout is refused while a subscription is active or reserved;
   - a paid event grants Pro once, a replayed event changes nothing, and out-of-order events cannot restore cancelled access;
   - a returning subscriber whose earlier subscription ended can subscribe again and keeps Pro whichever of the subscription update and the checkout event Stripe delivers first;
   - asynchronous payment success grants access and failure does not;
   - changing the subscription away from the Pro price, cancelling, or a failed payment revokes or restricts Pro as designed;
-  - a failed post-creation checkout cleanup is eventually neutralized by `cleanupFailedCheckouts`;
+  - a failed post-creation checkout cleanup is eventually neutralized by the `maintenance` job;
   - the customer portal updates payment details, shows invoices and cancels;
   - an invalid webhook signature changes nothing in Firestore.
 - [ ] Verify the account lifecycle:
