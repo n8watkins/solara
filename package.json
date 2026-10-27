@@ -7,7 +7,16 @@
   ],
   "overrides": {
     "postcss": "^8.5.32",
-    "@grpc/grpc-js": "^1.14.6"
+    "@grpc/grpc-js": "^1.14.6",
+    "eslint-plugin-import": {
+      "eslint": "$eslint"
+    },
+    "eslint-plugin-jsx-a11y": {
+      "eslint": "$eslint"
+    },
+    "eslint-plugin-react": {
+      "eslint": "$eslint"
+    }
   },
   "scripts": {
     "predev": "node scripts/build-sw.mjs --dev",
@@ -52,7 +61,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitest/coverage-v8": "^5.0.5",
     "babel-plugin-react-compiler": "^1.0.0",
-    "eslint": "^9.39.5",
+    "eslint": "^10.13.0",
     "eslint-config-next": "^16.4.3",
     "eslint-config-prettier": "^10.1.8",
     "postcss": "^8.5.32",
