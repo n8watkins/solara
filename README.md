@@ -36,7 +36,7 @@ Conditions and individual sensitivity can change quickly.
 
 ## Local setup
 
-Use Node.js 24.16.0 (`.nvmrc`) to match CI.
+Use Node.js 24.22.1 (`.nvmrc`, the newest Node 24 LTS) to match CI.
 
 ```bash
 git clone https://github.com/n8watkins/solara.git

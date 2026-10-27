@@ -75,6 +75,7 @@ The project stays on Spark until Pro launches ([COSTS.md](COSTS.md)).
 - **Configuration:** `NEXT_PUBLIC_SITE_URL` is a repository variable; the other public `NEXT_PUBLIC_*` values are still repository secrets, which the build reads as a fallback.
   The `NEXT_PUBLIC_PRO_PRICE` secret is unused since #71 (prices live in `lib/plans.ts`).
 - **Dependencies:** Dependabot version updates run weekly with a 7-day cooldown.
+  Development and CI run Node 24.22.1, the newest Node 24 LTS (`.nvmrc`); Functions run on the Node 24 runtime (`engines` "24").
   Wave 4 upgraded Vitest 5, Firebase 13, Stripe 23 (API version pinned) and Tailwind 4, kept `@types/node` on the Node 24 line and removed dotenv (#57-#62); ESLint 10 (#35) and TypeScript 7 (#40, #31) wait for upstream support.
   Production dependency audits report zero advisories; accepted development advisories are in [DEPENDENCY_RISK.md](DEPENDENCY_RISK.md).
 
