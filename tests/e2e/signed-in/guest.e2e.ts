@@ -54,6 +54,8 @@ test('a guest plan carries into a new account on first sign-in', async ({ page, 
       activities: [{ id: 'run', name: 'Running' }],
     })
   expect(await guestPlan(page)).toBeNull()
+  // The guest plan became the account: nothing was left behind, so there is no notice.
+  await expect(page.getByText('Welcome back')).toHaveCount(0)
 
   await page.reload()
   await expect(page.getByRole('button', { name: 'Edit Running' })).toBeVisible()
@@ -86,6 +88,19 @@ test('a returning account keeps its own plan, and no later account inherits the 
     activities: [{ id: 'hike', name: 'Hiking' }],
   })
   expect(await guestPlan(page)).toBeNull()
+
+  // The person is told, once, that the account kept its own plan and what the guest
+  // plan held that was not added to it.
+  const notice = page.getByRole('status').filter({ hasText: 'Welcome back' })
+  await expect(notice).toBeVisible()
+  await expect(notice).toContainText('kept its own plan')
+  await expect(notice).toContainText('Running')
+  await expect(notice).toContainText('Skin type: Olive')
+  await notice.getByRole('button', { name: 'Got it' }).click()
+  await expect(notice).toHaveCount(0)
+  await page.reload()
+  await expect(page.getByRole('button', { name: 'Edit Hiking' })).toBeVisible()
+  await expect(page.getByText('Welcome back')).toHaveCount(0)
 
   // After sign-out, the next new account on this browser starts from its own setup.
   await accountMenu(page, 'Sign out')

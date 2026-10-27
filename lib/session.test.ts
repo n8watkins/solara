@@ -77,6 +77,7 @@ vi.mock('@/lib/firebase', async importOriginal => {
 import { setCachedForecast } from '@/lib/cache'
 import { createAccountPrefs, defaultPrefs, saveLocalPrefs } from '@/lib/prefs'
 import { GUEST_KEY, loadGuestPrefs, saveGuestPrefs } from '@/lib/guest'
+import { GUEST_REPLACED_KEY, readReplacedGuestPlan } from '@/lib/guest-replaced'
 import { SignOutBlockedError, loadAccountPrefs, signOutAndClear } from '@/lib/session'
 import type { ForecastData, Location, UserPreferences } from '@/lib/types'
 
@@ -311,6 +312,8 @@ describe('a guest signing in', () => {
     })
     expect(mocks.users.get('user-b')).toMatchObject({ activities: [RUN], tier: 'free' })
     expect(storage.has(GUEST_KEY)).toBe(false)
+    // Nothing was left behind, so there is nothing to tell.
+    expect(storage.has(GUEST_REPLACED_KEY)).toBe(false)
   })
 
   it('never adds the guest plan to an account that already exists', async () => {
@@ -337,6 +340,33 @@ describe('a guest signing in', () => {
     })
     // Dropped, so no later account on this device can inherit it either.
     expect(storage.has(GUEST_KEY)).toBe(false)
+    // What it held that the account does not is kept for the account's one-time notice.
+    expect(readReplacedGuestPlan('user-a')).toEqual({
+      activities: [],
+      place: 'Boston',
+      skinType: 'olive',
+    })
+    expect(readReplacedGuestPlan('user-b')).toBeNull()
+  })
+
+  it('keeps the record when a second load follows sign-in', async () => {
+    // The auth listener's load drops the guest plan; the reload after sign-in finds none
+    // and must leave the record for the notice.
+    mocks.users.set('user-a', JSON.parse(JSON.stringify(accountA)) as Record<string, unknown>)
+    saveGuestPrefs({ ...guestPlan, activities: [{ ...RUN, id: 'walk', name: 'Walking' }] })
+    const first = await loadAccountPrefs('user-a')
+    const again = await loadAccountPrefs('user-a', first.status === 'ready' ? first.prefs : null)
+    expect(again.status).toBe('ready')
+    expect(readReplacedGuestPlan('user-a')).toMatchObject({ activities: ['Walking'] })
+  })
+
+  it('forgets the notice when the account leaves this browser', async () => {
+    mocks.users.set('user-a', JSON.parse(JSON.stringify(accountA)) as Record<string, unknown>)
+    saveGuestPrefs(guestPlan)
+    await loadAccountPrefs('user-a')
+    expect(storage.has(GUEST_REPLACED_KEY)).toBe(true)
+    await signOutAndClear(null)
+    expect(storage.has(GUEST_REPLACED_KEY)).toBe(false)
   })
 
   it('keeps the guest plan when the account could not be loaded', async () => {
