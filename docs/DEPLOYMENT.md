@@ -54,6 +54,7 @@ Optional feature activation:
 - `NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID` enables Google Calendar access.
 - The Pro price is not configurable: `lib/plans.ts` holds it ($2.99 a month or $19.99 a year, 7-day trial), shared by the landing page and the pricing dialog. The old `NEXT_PUBLIC_PRO_PRICE` value is ignored.
 - `NEXT_PUBLIC_FUNCTIONS_URL` enables Function-backed product surfaces.
+- `NEXT_PUBLIC_FORECAST_PROXY=1` sends forecasts through the forecast proxy Function instead of straight to Open-Meteo; the deploy sets it from the `FORECAST_PROXY_ENABLED` repository variable, only together with the Functions ([Forecast proxy](#forecast-proxy)).
 - `NEXT_PUBLIC_BILLING_ENABLED=1` replaces the Pro waitlist with Stripe Checkout; the deploy sets it from the `BILLING_ENABLED` repository variable, and only together with the Functions ([Pro billing](#pro-billing)).
 - `NEXT_PUBLIC_GA_MEASUREMENT_ID` offers an explicit analytics choice and loads GA4 only after the visitor opts in.
 - `NEXT_PUBLIC_SENTRY_DSN` turns on error reporting to Sentry ([Error reporting](#error-reporting-sentry)); without it the build contains no Sentry code.
@@ -74,6 +75,7 @@ Repository variables:
 - `ENABLE_BLAZE_FUNCTIONS`: `true` makes `main` deploy Functions and compile `NEXT_PUBLIC_FUNCTIONS_URL` into the client; anything else keeps Function-backed surfaces off.
 - `BILLING_ENABLED`: `true` opens Pro checkout: the build compiles `NEXT_PUBLIC_BILLING_ENABLED=1` and the Functions deploy writes `BILLING_ENABLED=true`; anything else keeps the waitlist and makes `createCheckoutSession` refuse with `unavailable`.
 - `STRIPE_PRICE_ID` and `STRIPE_YEARLY_PRICE_ID`: the monthly ($2.99) and yearly ($19.99) Stripe prices of the Pro product, written into `functions/.env.<project-id>` by the Functions deploy job, which fails without them while `BILLING_ENABLED` is `true`.
+- `FORECAST_PROXY_ENABLED`: `true` turns the forecast proxy on in both the build and the Functions; anything else keeps the browser calling Open-Meteo directly and makes the `forecast` Function answer `unavailable`.
 - `COST_GUARD_DETACH_BILLING` (optional): `true` lets the budget kill switch detach billing as a last resort ([Cost guard and budget kill switch](#cost-guard-and-budget-kill-switch)); anything else keeps it off.
 - `GCP_WORKLOAD_IDENTITY_PROVIDER`, `GCP_DEPLOY_SERVICE_ACCOUNT` and `GCP_NOTIFIER_SERVICE_ACCOUNT`: Workload Identity Federation ([WIF_SETUP.md](WIF_SETUP.md)).
 - `FIREBASE_PROJECT_ID` (optional): the deploy target, `uv-activity-planner` by default.
@@ -91,7 +93,7 @@ Server configuration for Functions:
 
 - `functions/.env` holds the non-secret params (`APP_URL`, an empty `STRIPE_PRICE_ID` default, and the kill switch thresholds), because non-interactive deploys resolve params only from `functions/.env*` files.
   `.github/scripts/check-functions-params.js` resolves them exactly as a deploy does, and runs in CI.
-- Firebase Secret Manager stores `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET`.
+- Firebase Secret Manager stores `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` and `OPEN_METEO_API_KEY` (the value `unset` until the commercial plan is bought); a Functions deploy fails while any of them is missing.
 
 ## Firebase console setup
 
@@ -280,6 +282,20 @@ Subscribe the endpoint to `checkout.session.completed`, `checkout.session.async_
 Create the endpoint with API version `2026-09-30.endive`, the version pinned as `STRIPE_API_VERSION` in `functions/src/billing/config.ts`, so event payloads match the types the Functions were built against.
 When a Stripe SDK upgrade moves that pin, update the endpoint's API version in the same release.
 Run the Stripe checks in the [owner checklist](OWNER_CHECKLIST.md#functions-and-stripe) in test mode before using live mode; no local test can replace these Stripe-signed integration checks.
+
+## Forecast proxy
+
+Open-Meteo's free API is for non-commercial use, so once Pro is sold, forecasts come from its commercial API (decision D5) through the `forecast` Function, which keeps the API key on the server (`functions/src/forecast/`).
+
+- **One provider adapter**: `packages/core/src/forecast.ts` defines the providers (`openMeteoFree`, `openMeteoCommercial`, `solaraForecastProxy`), and every caller, the browser, the proxy and the calendar feed, reads the answer with the same validated parser (`fetchProviderForecast`).
+- **Cache**: one forecast per place, rounded to 0.01 degree (about 1 km), and UTC hour; each instance keeps a copy in memory and all instances share `forecastCache/{place}` in Firestore, so a place costs at most one upstream call an hour. Concurrent requests for a place share one call.
+- **Timeout and fallback**: the upstream call times out after 5 seconds; then the last good forecast for the place, at most 6 hours old, is served instead.
+- **Limits**: App Check (standard), 120 requests a minute per address, five instances, and only the app's own request (the coordinates are the only input); while the cost guard is engaged, only cached forecasts are served.
+- **Switch**: the `FORECAST_PROXY_ENABLED` repository variable turns it on in the build and the Functions together; until then the browser calls Open-Meteo directly, as today. The calendar feed uses the commercial API as soon as `OPEN_METEO_API_KEY` holds a real key.
+
+With the proxy on, a guest's first forecast also loads App Check (Firebase and reCAPTCHA) on demand, because the proxy requires App Check; that adds reCAPTCHA assessments for guests ([COSTS.md](COSTS.md)) and some start-up time on a first visit without a cached forecast.
+
+The signed-in e2e suite runs the Function against a local stand-in for the commercial API (`tests/e2e/signed-in/forecast-proxy.e2e.ts`).
 
 ## App Check
 

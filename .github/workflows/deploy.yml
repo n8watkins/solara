@@ -67,6 +67,9 @@ jobs:
       # Pro checkout replaces the waitlist only when the owner switches billing on, and
       # only together with the Functions.
       NEXT_PUBLIC_BILLING_ENABLED: ${{ vars.ENABLE_BLAZE_FUNCTIONS == 'true' && vars.BILLING_ENABLED == 'true' && '1' || '' }}
+      # Forecasts come through the commercial-licence proxy only once the owner switches
+      # it on; until then the browser calls Open-Meteo directly.
+      NEXT_PUBLIC_FORECAST_PROXY: ${{ vars.ENABLE_BLAZE_FUNCTIONS == 'true' && vars.FORECAST_PROXY_ENABLED == 'true' && '1' || '' }}
       NEXT_TELEMETRY_DISABLED: '1'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -284,6 +287,7 @@ jobs:
           STRIPE_PRICE_ID: ${{ vars.STRIPE_PRICE_ID || secrets.STRIPE_PRICE_ID }}
           STRIPE_YEARLY_PRICE_ID: ${{ vars.STRIPE_YEARLY_PRICE_ID }}
           BILLING_ENABLED: ${{ vars.BILLING_ENABLED == 'true' && 'true' || 'false' }}
+          FORECAST_PROXY_ENABLED: ${{ vars.FORECAST_PROXY_ENABLED == 'true' && 'true' || 'false' }}
           COST_GUARD_DETACH_BILLING: ${{ vars.COST_GUARD_DETACH_BILLING == 'true' && 'true' || 'false' }}
         run: |
           if [ "$BILLING_ENABLED" = true ] && { [ -z "$STRIPE_PRICE_ID" ] || [ -z "$STRIPE_YEARLY_PRICE_ID" ]; }; then
@@ -294,6 +298,7 @@ jobs:
             printf 'STRIPE_PRICE_ID=%s\n' "$STRIPE_PRICE_ID"
             printf 'STRIPE_YEARLY_PRICE_ID=%s\n' "$STRIPE_YEARLY_PRICE_ID"
             printf 'BILLING_ENABLED=%s\n' "$BILLING_ENABLED"
+            printf 'FORECAST_PROXY_ENABLED=%s\n' "$FORECAST_PROXY_ENABLED"
             printf 'COST_GUARD_DETACH_BILLING=%s\n' "$COST_GUARD_DETACH_BILLING"
           } > "functions/.env.$FIREBASE_PROJECT_ID"
 
