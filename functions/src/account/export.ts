@@ -6,8 +6,11 @@ import type { Auth } from 'firebase-admin/auth'
 import type { DocumentData, Firestore, QuerySnapshot } from 'firebase-admin/firestore'
 import type { Request } from 'firebase-functions/v2/https'
 
-import { authenticate } from '../shared/auth'
+import { authenticate, uidLimiter } from '../shared/auth'
 import { HttpError } from '../shared/errors'
+
+/** An export reads every account document, so it is held to a few a minute. */
+const exportLimiter = uidLimiter(3)
 
 // The preferences schema's fields; never billing ids, tokens or internal bookkeeping.
 const PORTABLE_ACCOUNT_FIELDS: ReadonlySet<string> = new Set(PREFERENCE_FIELDS)
@@ -50,7 +53,9 @@ export async function exportAccountData({
   db: Firestore
   req: Request
 }) {
-  const identity = await authenticate(auth, req.headers.authorization)
+  const identity = await authenticate(auth, req.headers.authorization, {
+    limiter: exportLimiter,
+  })
   const userRef = db.collection('users').doc(identity.uid)
   const tombstoneRef = db.collection('accountDeletionTombstones').doc(identity.uid)
   const devicesQuery = userRef.collection('notificationDevices')

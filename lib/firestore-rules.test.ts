@@ -263,6 +263,8 @@ describe('firestore.rules scheduled activities match the schema', () => {
   })
 
   it('caps list queries at the client limit', () => {
-    expect(numberIn(rules, /request\.query\.limit <= (\d+)/)).toBe(SCHEDULED_LIMITS.listLimit)
+    expect(
+      numberIn(rules, /match \/scheduled\/\{eventId\}[^}]*?request\.query\.limit <= (\d+)/),
+    ).toBe(SCHEDULED_LIMITS.listLimit)
   })
 })

@@ -7,7 +7,7 @@ import type { DocumentData, Firestore } from 'firebase-admin/firestore'
 import type { Request } from 'firebase-functions/v2/https'
 import type Stripe from 'stripe'
 
-import { authenticate } from '../shared/auth'
+import { authenticate, uidLimiter } from '../shared/auth'
 import { HttpError, errorCode, errorMessage } from '../shared/errors'
 import { toMillis } from '../shared/time'
 import {
@@ -31,6 +31,9 @@ const CHECKOUT_RESERVATION_MS = 24 * 60 * 60 * 1000
 const CHECKOUT_CLEANUP_LEASE_MS = 5 * 60 * 1000
 const CHECKOUT_CLEANUP_LIMIT = 10
 const CHECKOUT_CLEANUP_MAX_RETRY_MS = 24 * 60 * 60 * 1000
+/** Per-account budgets: a person opens checkout or the portal a few times at most. */
+const checkoutLimiter = uidLimiter(5)
+const portalLimiter = uidLimiter(5)
 
 /** Makes a checkout session unable to charge: expire it, or cancel what it created. */
 export async function neutralizeCheckoutSession(stripe: Stripe, sessionId: string): Promise<void> {
@@ -199,7 +202,9 @@ export async function createCheckout({
   stripe: Stripe
 }): Promise<Stripe.Checkout.Session> {
   if (!expectedPriceId) throw new Error('STRIPE_PRICE_ID is not configured')
-  const identity = await authenticate(auth, req.headers.authorization)
+  const identity = await authenticate(auth, req.headers.authorization, {
+    limiter: checkoutLimiter,
+  })
   if (!validUid(identity.uid)) {
     throw new HttpError('unauthenticated', 'Invalid account')
   }
@@ -429,7 +434,9 @@ export async function createBillingPortal({
   req: Request
   stripe: Stripe
 }): Promise<Stripe.BillingPortal.Session> {
-  const identity = await authenticate(auth, req.headers.authorization)
+  const identity = await authenticate(auth, req.headers.authorization, {
+    limiter: portalLimiter,
+  })
   if (!validUid(identity.uid)) {
     throw new HttpError('unauthenticated', 'Invalid account')
   }

@@ -238,14 +238,13 @@ describe('deployed entry point', () => {
     const functions = require('..')
     assert.equal(require.resolve('..'), require.resolve('../lib/index.js'))
     assert.deepEqual(Object.keys(functions).sort(), [
-      'backfillStripeBillingResources',
+      'budgetAlert',
       'calendarFeed',
-      'cleanupDeletedAccountBilling',
-      'cleanupFailedCheckouts',
       'createBillingPortalSession',
       'createCheckoutSession',
       'deleteAccount',
       'exportAccountData',
+      'maintenance',
       'registerNotificationDevice',
       'removeNotificationDevice',
       'revokeCalendarFeed',

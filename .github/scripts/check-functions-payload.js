@@ -24,12 +24,7 @@ const functionsDir = path.join(root, 'functions')
 const fromFunctions = request => require(require.resolve(request, { paths: [functionsDir] }))
 
 /** Exports a deploy must find: a sample of HTTP, scheduled and feed functions. */
-const EXPECTED_EXPORTS = [
-  'calendarFeed',
-  'cleanupFailedCheckouts',
-  'deleteAccount',
-  'stripeWebhook',
-]
+const EXPECTED_EXPORTS = ['calendarFeed', 'deleteAccount', 'maintenance', 'stripeWebhook']
 
 async function main() {
   const firebaseJson = JSON.parse(fs.readFileSync(path.join(root, 'firebase.json'), 'utf8'))

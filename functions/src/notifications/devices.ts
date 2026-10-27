@@ -13,13 +13,15 @@ import type { DocumentData, Firestore } from 'firebase-admin/firestore'
 import { logger } from 'firebase-functions/logger'
 import type { Request } from 'firebase-functions/v2/https'
 
-import { authenticate } from '../shared/auth'
+import { authenticate, uidLimiter } from '../shared/auth'
 import { HttpError, loggableError } from '../shared/errors'
 import { type ServerTimestamp, toMillis } from '../shared/time'
 
 export const MAX_NOTIFICATION_DEVICES = 5
 export const MAX_REGISTRATIONS_PER_MINUTE = 10
 const LEGACY_MIGRATION_PAGE_SIZE = 100
+/** Removal has no Firestore-backed budget, so it gets an in-memory one. */
+const removalLimiter = uidLimiter(MAX_REGISTRATIONS_PER_MINUTE)
 const NOTIFICATION_CLAIM_LEASE_MS = 12 * 60 * 1000
 const DEVICE_ID_PATTERN = /^[a-f0-9]{36}$/
 const PLATFORMS: ReadonlySet<unknown> = new Set(['web', 'ios', 'android'])
@@ -408,7 +410,9 @@ export async function removeNotificationDevice({
   req: Request
   nowMs?: number
 }): Promise<{ deviceId: string; removed: true }> {
-  const identity = await authenticate(auth, req.headers.authorization)
+  const identity = await authenticate(auth, req.headers.authorization, {
+    limiter: removalLimiter,
+  })
   const { deviceId } = parseDevice(req.body, { requireToken: false })
   const deviceRef = db
     .collection('users')

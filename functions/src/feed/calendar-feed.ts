@@ -109,6 +109,8 @@ function tooManyRequests(res: Response, retryAfterSeconds: number): void {
 export interface CalendarFeedOptions<Forecast> {
   buildICS: (events: IcsEvent[]) => string
   buildSunEvents: (user: DocumentData, forecast: Forecast) => IcsEvent[]
+  /** While engaged, the feed answers 503 instead of building (shared/cost-guard.ts). */
+  costGuard?: { engaged: () => Promise<boolean> }
   db: Firestore
   fetchForecast: (lat: number, lon: number, days: number) => Promise<Forecast>
   now?: () => number
@@ -117,6 +119,7 @@ export interface CalendarFeedOptions<Forecast> {
 export function createCalendarFeedHandler<Forecast>({
   buildICS,
   buildSunEvents,
+  costGuard,
   db,
   fetchForecast,
   now = Date.now,
@@ -148,6 +151,12 @@ export function createCalendarFeedHandler<Forecast>({
     }
 
     try {
+      if (await costGuard?.engaged()) {
+        // Calendar apps keep their last copy and try again later.
+        res.set('Retry-After', '3600')
+        res.status(503).send('Feed paused')
+        return
+      }
       const uid = await resolveFeedOwner(db, token)
       const user = uid ? (await db.collection('users').doc(uid).get()).data() : undefined
       if (!user || user.accountDeletionStartedAt) {

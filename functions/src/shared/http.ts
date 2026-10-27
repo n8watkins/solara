@@ -16,7 +16,9 @@ import { logger } from 'firebase-functions/logger'
 import type { Request, Response } from 'firebase-functions/v2/https'
 
 import { type AppCheckMode, verifyAppCheck } from './app-check'
+import type { CostFeature, CostGuard } from './cost-guard'
 import { HttpError, loggableError, publicError } from './errors'
+import { FixedWindowLimiter } from './rate-limit'
 
 export type ApiMethod = 'GET' | 'POST' | 'DELETE'
 
@@ -32,6 +34,16 @@ export interface ApiHandlerOptions<T> {
   allowedOrigin: () => string
   appCheck: () => AppCheck
   appCheckMode: AppCheckMode
+  /**
+   * Requests one client address may make per minute to this endpoint, counted before
+   * App Check so floods are turned away at the cheapest point. Default 60.
+   */
+  perAddressPerMinute?: number
+  /** The largest request body accepted, in bytes. Default 8 KiB (every body is tiny JSON). */
+  maxBodyBytes?: number
+  /** Turns the endpoint off while the cost guard is engaged (shared/cost-guard.ts). */
+  costFeature?: CostFeature
+  costGuard?: () => CostGuard
   /** Public message for any failure that is not an HttpError. */
   fallbackMessage: string
   handler: (req: Request) => Promise<ApiResult<T>>
@@ -76,10 +88,21 @@ export function setApiHeaders(res: Response): void {
   res.set('X-Content-Type-Options', 'nosniff')
 }
 
+export const DEFAULT_PER_ADDRESS_PER_MINUTE = 60
+export const DEFAULT_MAX_BODY_BYTES = 8 * 1024
+
+/** The size of a request body: the bytes received, or the declared length. */
+export function requestBodyBytes(req: Request): number {
+  if (req.rawBody) return req.rawBody.length
+  const declared = Number(req.headers['content-length'])
+  return Number.isFinite(declared) && declared > 0 ? declared : 0
+}
+
 /**
  * One request pipeline for every browser-called endpoint: security headers, an exact-origin
- * CORS check, a single method, App Check (with replay protection where requested), then the
- * handler. Errors become an allowlisted `{ error, code }` body; nothing else is echoed.
+ * CORS check, a single method, a per-address rate limit and a body size limit, App Check
+ * (with replay protection where requested), the cost guard, then the handler. Errors become
+ * an allowlisted `{ error, code }` body; nothing else is echoed.
  */
 export function createApiHandler<T>({
   name,
@@ -87,9 +110,15 @@ export function createApiHandler<T>({
   allowedOrigin,
   appCheck,
   appCheckMode,
+  perAddressPerMinute = DEFAULT_PER_ADDRESS_PER_MINUTE,
+  maxBodyBytes = DEFAULT_MAX_BODY_BYTES,
+  costFeature,
+  costGuard,
   fallbackMessage,
   handler,
 }: ApiHandlerOptions<T>): HttpHandler {
+  if (costFeature && !costGuard) throw new TypeError(`${name}: costFeature needs a costGuard`)
+  const addressLimiter = new FixedWindowLimiter({ limit: perAddressPerMinute, windowMs: 60_000 })
   return async (req, res) => {
     setApiHeaders(res)
     if (handleCors(req, res, allowedOrigin(), [method])) return
@@ -103,7 +132,16 @@ export function createApiHandler<T>({
       return
     }
     try {
+      const budget = addressLimiter.take(clientAddress(req))
+      if (!budget.allowed) {
+        res.set('Retry-After', String(budget.retryAfterSeconds))
+        throw new HttpError('rate-limited', 'Too many requests. Try again shortly.')
+      }
+      if (requestBodyBytes(req) > maxBodyBytes) {
+        throw new HttpError('payload-too-large', 'Request too large')
+      }
       await verifyAppCheck(appCheck(), req.headers['x-firebase-appcheck'], appCheckMode)
+      if (costFeature) await costGuard?.().assertAllowed(costFeature)
       const result = await handler(req)
       res.status(result.status ?? 200).json(result.body)
     } catch (error) {
