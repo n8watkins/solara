@@ -29,6 +29,8 @@
 //   data   = fixture (default) | live: load the forecast through the app's real data
 //            layer (lib/use-forecast.ts useWeather); specs answer the Open-Meteo
 //            requests with page.route (see data-layer.spec.ts)
+//   place  = los-angeles (default) | sydney: the account's place (HARNESS_PLACES in
+//            fixtures.ts); with data=live, for screens in another zone (sun-phase.spec.ts)
 //
 // Only reachable in builds made with NEXT_PUBLIC_UI_HARNESS=1; see
 // app/harness/page.harness.tsx and scripts/check-no-ui-harness.mjs.
@@ -46,7 +48,7 @@ import Skeleton from '@/components/Skeleton'
 import ForecastNotice from '@/components/ForecastNotice'
 import GuestPlanNotice from '@/components/GuestPlanNotice'
 import { HARNESS_NOW_MS } from './clock'
-import { HARNESS_MARKER, buildPrefs, buildUser, buildWeather } from './fixtures'
+import { HARNESS_MARKER, HARNESS_PLACES, buildPrefs, buildUser, buildWeather } from './fixtures'
 import { buildGapWeather } from './uv-gap-fixtures'
 import { buildSunPeakWeather, isSunPeakFixture, type SunPeakFixture } from './sun-peak-fixtures'
 import { HarnessScheduledProvider } from './scheduled-fixtures'
@@ -100,6 +102,7 @@ function readParams() {
     events: (['sample', 'full'] as const).find(v => v === params.get('events')) ?? null,
     links: params.get('links') === 'sample',
     google: params.get('google') === 'connected',
+    place: HARNESS_PLACES[params.get('place') ?? ''] ?? null,
   }
 }
 
@@ -161,10 +164,11 @@ function Harness() {
   )
   const [prefs, setPrefs] = useState<UserPreferences>(() => {
     const built = buildPrefs(initial.tier)
+    const placed = initial.place ? { ...built, location: initial.place } : built
     const keep = initial.activities
     return keep
-      ? { ...built, activities: built.activities.filter(a => keep.includes(a.id)) }
-      : built
+      ? { ...placed, activities: placed.activities.filter(a => keep.includes(a.id)) }
+      : placed
   })
   const live = useWeather(initial.live ? prefs.location : null)
   const weather = initial.live ? live.weather : fixtureWeather

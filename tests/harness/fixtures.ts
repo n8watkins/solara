@@ -24,6 +24,20 @@ export const HARNESS_LOCATION: Location = {
   timezone: 'America/Los_Angeles',
 }
 
+const SYDNEY: Location = {
+  lat: -33.87,
+  lon: 151.21,
+  city: 'Sydney',
+  region: 'New South Wales',
+  timezone: 'Australia/Sydney',
+}
+
+/** The places a harness screen can open in (HarnessApp's `place` parameter). */
+export const HARNESS_PLACES: Record<string, Location> = {
+  'los-angeles': HARNESS_LOCATION,
+  sydney: SYDNEY,
+}
+
 const SAN_DIEGO: Location = {
   lat: 32.72,
   lon: -117.16,

@@ -14,6 +14,7 @@ import { useStatusFlash } from '@/hooks/useStatusFlash'
 import { useCalendarBusy } from '@/hooks/useCalendarBusy'
 import { nowHourOf, planActivityDay, soonestPlan } from '@/lib/next-slot'
 import { nextSlotAfterToday } from '@/lib/planner'
+import { sunPhaseAt } from '@/lib/sun-times'
 import {
   busyByDate,
   dashboardAccess,
@@ -141,8 +142,12 @@ function DashboardView({
       )
     : null
   // After dark (or before sunrise) today: the readout and metrics say so and when UV
-  // comes back, instead of a bare "0.0 None" and dashes.
-  const down = isToday ? sunDown(weather, nowHour) : null
+  // comes back, instead of a bare "0.0 None" and dashes. Whether the sun is up comes
+  // from the place's sunrise and sunset, not from the UV (REVIEW6 L7).
+  const sun = prefs.location
+    ? sunPhaseAt(prefs.location, weather.timezone, weather.now.epochMs)
+    : null
+  const down = isToday ? sunDown(weather, nowHour, sun) : null
   // The briefing names the day's peak and best window; after dark it briefs
   // tomorrow and leads the dashboard in place of the hero, which has nothing left today.
   const briefing = briefingView({

@@ -6,6 +6,8 @@ import { createAccountPrefs, defaultPrefs } from '@/lib/prefs'
 import type { UserPreferences, Location, SkinType } from '@/lib/types'
 import { CITY_PARAM, cityParam, loadCityLocation } from '@/lib/city-preset'
 import { locationFromCoordinates } from '@/lib/geocoding'
+import { sunPhaseAt } from '@/lib/sun-times'
+import { isValidTimeZone } from '@/lib/time'
 import {
   ONBOARDING_BACK,
   ONBOARDING_PROGRESS,
@@ -42,6 +44,7 @@ export default function Onboarding({ user, onSignedIn, onStartAsGuest }: Props) 
   const [location, setLocation] = useState<Location | null>(null)
   const [uvNow, setUvNow] = useState<number | null>(null)
   const [uvCity, setUvCity] = useState('')
+  const [uvSunUp, setUvSunUp] = useState(false)
   const [skinType, setSkinType] = useState<SkinType>('fair')
 
   const answers: UserPreferences | null = location
@@ -125,6 +128,10 @@ export default function Onboarding({ user, onSignedIn, onStartAsGuest }: Props) 
     try {
       setUvNow(await fetchCurrentUV(loc))
       setUvCity(loc.city)
+      // Whether the sun is up there now; a place without a known zone falls back to the UV.
+      setUvSunUp(
+        isValidTimeZone(loc.timezone) && sunPhaseAt(loc, loc.timezone, Date.now()) === 'up',
+      )
       setStep('uvpreview')
     } catch {
       setStep('skin')
@@ -196,6 +203,7 @@ export default function Onboarding({ user, onSignedIn, onStartAsGuest }: Props) 
             <UVPreviewStep
               uv={uvNow}
               city={uvCity}
+              sunUp={uvSunUp}
               onContinue={() => setStep('skin')}
               onBack={goBack}
             />

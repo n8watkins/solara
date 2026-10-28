@@ -258,6 +258,27 @@ describe('sunDown and nextHourWhere', () => {
     expect(sunDown(weather(0.2), 12)).toBeNull()
   })
 
+  it("follows the place's sun when it is known, not the UV (REVIEW6 L7)", () => {
+    // 8:05am with the sun up for an hour and UV still 0.4: daylight, not "Before sunrise".
+    const lowMorning = { ...weather(0.4), today: [hour(8, 0.4), hour(9, 1.2), hour(12, 8)] }
+    expect(sunDown(lowMorning, 8.1)).toEqual({
+      phase: 'before-sunrise',
+      uvReturns: { hour: 9, tomorrow: false },
+    })
+    expect(sunDown(lowMorning, 8.1, 'up')).toBeNull()
+    // The sun's phase decides before or after, and when UV returns still comes from the forecast.
+    expect(sunDown(weather(0), 5, 'before-sunrise')).toEqual({
+      phase: 'before-sunrise',
+      uvReturns: { hour: 7, tomorrow: false },
+    })
+    expect(sunDown(weather(0), 19.9, 'after-sunset')).toEqual({
+      phase: 'after-sunset',
+      uvReturns: { hour: 7, tomorrow: true },
+    })
+    // A live reading of 0.5 or more is daylight whatever the sun's times say.
+    expect(sunDown(weather(0.6), 5, 'before-sunrise')).toBeNull()
+  })
+
   it('finds the next hour from now, today first', () => {
     const w = weather(0)
     expect(nextHourWhere(w, 12.5, uv => uv >= 1)).toEqual({ hour: 12, tomorrow: false })

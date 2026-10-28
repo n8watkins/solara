@@ -106,14 +106,20 @@ export function LocationStep({
 export function UVPreviewStep({
   uv,
   city,
+  sunUp = false,
   onContinue,
   onBack,
 }: {
   uv: number
   city: string
+  /** The sun is above the horizon at the place now (lib/sun-times.ts). */
+  sunUp?: boolean
   onContinue: () => void
   onBack?: () => void
 }) {
+  // Down only when UV is negligible and the sun has not risen or has set: a low morning
+  // or evening sun still shows its reading (REVIEW6 L7).
+  const sunDown = uv < 0.5 && !sunUp
   return (
     <>
       <div className="flex flex-col items-center pt-2 pb-1 text-center">
@@ -123,7 +129,7 @@ export function UVPreviewStep({
           </span>
           <span className="mb-3.5 block text-[16px] font-[650] text-ink">{city}</span>
         </h1>
-        {uv < 0.5 ? (
+        {sunDown ? (
           // After dark (or before sunrise) a giant "0.0 None" says nothing useful.
           <>
             <Moon size={44} strokeWidth={1.75} className="mb-2.5 text-ink-3" />
@@ -145,7 +151,7 @@ export function UVPreviewStep({
           </>
         )}
         <p className="max-w-[320px] text-[14px] leading-[1.55] text-ink-2">
-          {uv < 0.5
+          {sunDown
             ? 'Solara plans around the hours when the sun is up. Next, set your skin type so it can personalize its estimates.'
             : 'Next, set your skin type so Solara can personalize its planning estimates.'}
         </p>

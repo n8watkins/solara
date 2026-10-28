@@ -12,6 +12,7 @@ import type {
 import type { BusyPeriod } from './gcal-view'
 import type { BusyInterval } from './scheduler'
 import type { UpcomingSlot } from './planner'
+import type { SunPhase } from './sun-times'
 import { busyIntervalsForDay } from './gcal-view'
 import { getFutureDays } from './tiers'
 import { burnMins, uvBand, vitDMins, type UVBand } from './weather'
@@ -242,26 +243,32 @@ export function dayHourText(at: DayHour, formatHour: (hour: number) => string): 
 }
 
 export interface SunDown {
-  /** Before the day's first UV, or after its last. */
+  /** Before today's sunrise, or after today's sunset. */
   phase: 'before-sunrise' | 'after-sunset'
   /** When UV comes back (UV 0.5 or more). */
   uvReturns: DayHour | null
 }
 
 /**
- * Today's sun-down state: the live UV reads none, and either no UV is left today
- * or it has not started yet. Null in daylight, including a heavily clouded hour
- * between two sunny ones.
+ * Today's sun-down state: the live UV reads none and the sun is below the horizon,
+ * before today's sunrise or after today's sunset at the place (`sun`, from
+ * lib/sun-times.ts). Null while the sun is up, even when its UV is still under 0.5 (a
+ * low morning or evening sun, or heavy cloud; REVIEW6 L7). Without the sun's times (no
+ * place) it falls back to the forecast: before the day's first UV, or after its last.
  */
 export function sunDown(
   weather: Pick<WeatherResponse, 'today' | 'tomorrow' | 'current'>,
   nowHour: number,
+  sun: SunPhase | null = null,
 ): SunDown | null {
-  if (weather.current.uv >= 0.5) return null
+  if (weather.current.uv >= 0.5 || sun === 'up') return null
+  const returns = (from: number) => nextHourWhere(weather, from, uv => uv >= 0.5)
+  // After today's sunset, UV can only come back tomorrow.
+  if (sun) return { phase: sun, uvReturns: returns(sun === 'after-sunset' ? 24 : nowHour) }
+  const uvReturns = returns(nowHour)
   const sunny = weather.today.filter(h => h.uv >= 0.5)
   const first = sunny[0]
   const last = sunny.at(-1)
-  const uvReturns = nextHourWhere(weather, nowHour, uv => uv >= 0.5)
   if (first && nowHour < first.hour) return { phase: 'before-sunrise', uvReturns }
   if (!last || nowHour >= last.hour + 1) return { phase: 'after-sunset', uvReturns }
   return null
