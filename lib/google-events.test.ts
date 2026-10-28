@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   GOOGLE_EVENT_LIMITS,
+  IMPORTED_EVENT_LIMITS,
   importedEventKey,
   newGoogleCalendarLink,
   parseGoogleCalendarLink,
@@ -26,7 +27,7 @@ import {
   type SyncContext,
   type SyncOutcome,
 } from './google-events'
-import type { PlaceLookups } from './events'
+import type { EventsStore, PlaceLookups } from './events'
 import type { Location } from './types'
 
 const NOW = Date.parse('2026-06-15T17:30:00Z')
@@ -334,10 +335,13 @@ function memoryStore(initial: ImportedEvent[] = [], cap = 1000) {
       async sourceEvents(_uid: string, source: string) {
         return [...items.values()].filter(e => e.source === source)
       },
+      async upcoming(_uid: string, nowMs: number) {
+        return [...items.values()].filter(e => Date.parse(e.end) > nowMs)
+      },
       async storedKeys() {
         return new Set(items.keys())
       },
-    } satisfies SyncContext['store'],
+    } satisfies SyncContext['store'] & Pick<EventsStore, 'sourceEvents'>,
   }
 }
 
@@ -396,7 +400,6 @@ function context(
     token: 'tok',
     home: HOME,
     activities: ACTIVITIES,
-    existing: [],
     nowMs: NOW,
     store,
     lookups,
@@ -472,13 +475,41 @@ describe('syncGoogleEvents', () => {
       start: '2026-06-17T14:00:00.000Z',
       end: '2026-06-17T15:00:00.000Z',
     } as ImportedEvent
-    const { store, items } = memoryStore([imported])
+    const { store, items } = memoryStore([imported, linked])
     const outcome = await syncOrFail(
-      context(store, fakeApi({ primary: [{ items: [PICNIC, RUN] }], 'club@group': [] }), {
-        existing: [linked],
-      }),
+      context(store, fakeApi({ primary: [{ items: [PICNIC, RUN] }], 'club@group': [] })),
     )
     expect(outcome).toMatchObject({ shown: 0, duplicates: 2 })
+    expect([...items.values()].filter(e => e.source === 'google')).toEqual([])
+  })
+
+  it('finds a duplicate among every stored event, not only the soonest loaded ones (REVIEW6 L5)', async () => {
+    const HOUR = 3_600_000
+    // 200 imported events end before the picnic, so the Events section's list (the soonest
+    // 200) does not hold the linked calendar's copy of it.
+    const soon = Array.from(
+      { length: IMPORTED_EVENT_LIMITS.listLimit },
+      (_, i) =>
+        ({
+          key: i.toString(16).padStart(32, '0'),
+          source: 'file',
+          title: `Class ${i}`,
+          start: new Date(NOW + HOUR + i * 60_000).toISOString(),
+          end: new Date(NOW + 2 * HOUR + i * 60_000).toISOString(),
+        }) as ImportedEvent,
+    )
+    const linked = {
+      key: 'f'.repeat(32),
+      source: 'feed',
+      title: 'Picnic',
+      start: '2026-06-16T19:00:00.000Z',
+      end: '2026-06-16T21:00:00.000Z',
+    } as ImportedEvent
+    const { store, items } = memoryStore([...soon, linked])
+    const outcome = await syncOrFail(
+      context(store, fakeApi({ primary: [{ items: [PICNIC] }], 'club@group': [] })),
+    )
+    expect(outcome).toMatchObject({ shown: 0, duplicates: 1 })
     expect([...items.values()].filter(e => e.source === 'google')).toEqual([])
   })
 
@@ -664,10 +695,10 @@ describe('a disconnect on another device wins (REVIEW6 L4)', () => {
     const account = connectedAccount()
     const store = {
       ...account.store,
-      async sourceEvents(uid: string, source: string) {
+      async upcoming(uid: string, nowMs: number) {
         // The phone disconnects after the laptop checked the connection.
         account.setLink(null)
-        return account.store.sourceEvents(uid, source)
+        return account.store.upcoming(uid, nowMs)
       },
     }
     const outcome = await refreshGoogleEvents({

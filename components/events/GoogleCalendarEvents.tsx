@@ -35,10 +35,12 @@ interface Props {
   uid: string
   home: Location
   activities: readonly Activity[]
-  /** The events the section has loaded, to show each event once. */
+  /** The events the section has loaded (the soonest upcoming ones). */
   items: readonly ImportedEvent[]
   /** Upcoming events from Google Calendar among them. */
   upcomingCount: number
+  /** Whether `items` holds every upcoming event (fewer than the section loads at most). */
+  allLoaded: boolean
   /** Now, as the dashboard shows it. */
   nowMs: number
 }
@@ -54,6 +56,7 @@ export default function GoogleCalendarEvents({
   activities,
   items,
   upcomingCount,
+  allLoaded,
   nowMs,
 }: Props) {
   const api = useContext(GoogleCalendarApiContext) ?? googleCalendarApi
@@ -70,11 +73,8 @@ export default function GoogleCalendarEvents({
     picked: string[]
   } | null>(null)
   const [confirming, setConfirming] = useState(false)
-  // The loaded events change while a refresh saves; it reads the latest.
-  const itemsRef = useRef(items)
-  useEffect(() => {
-    itemsRef.current = items
-  }, [items])
+  // Counted on the server when the section loaded only the soonest events (REVIEW6 L5).
+  const [counted, setCounted] = useState<number | null>(null)
   const busyRef = useRef<Busy>(null)
 
   useEffect(
@@ -103,7 +103,6 @@ export default function GoogleCalendarEvents({
       token,
       home,
       activities,
-      existing: itemsRef.current,
       nowMs: Date.now(),
       store: events,
       linkStore,
@@ -168,6 +167,22 @@ export default function GoogleCalendarEvents({
       return null
     })
   }, [orphaned, uid, events, linkStore])
+
+  // With more upcoming events than the section loads, the panel's count comes from an
+  // aggregate count of every stored Google event, after each change.
+  const syncedAt = link?.syncedAt
+  useEffect(() => {
+    if (allLoaded || !syncedAt || busy) return
+    let current = true
+    events.countUpcoming(uid, 'google', Date.now()).then(
+      count => current && setCounted(count),
+      () => {},
+    )
+    return () => {
+      current = false
+    }
+  }, [allLoaded, syncedAt, busy, upcomingCount, uid, events])
+  const shownCount = allLoaded ? upcomingCount : Math.max(upcomingCount, counted ?? 0)
 
   function connect() {
     void run('connect', async () => {
@@ -265,7 +280,7 @@ export default function GoogleCalendarEvents({
                 <p className="mt-0.5 text-[12px] leading-normal break-words text-ink-3">
                   {syncedText(link.syncedAt, nowMs)}
                   {link.syncedAt &&
-                    ` · ${upcomingCount.toLocaleString('en-US')} upcoming ${upcomingCount === 1 ? 'event' : 'events'}`}
+                    ` · ${shownCount.toLocaleString('en-US')} upcoming ${shownCount === 1 ? 'event' : 'events'}`}
                 </p>
               </div>
             </div>

@@ -592,6 +592,13 @@ export interface EventsStore {
   seriesEvents(uid: string, seriesIds: readonly string[]): Promise<ImportedEvent[]>
   /** Every stored event from one source (the Google Calendar refresh replaces its own). */
   sourceEvents(uid: string, source: ImportedEventSource): Promise<ImportedEvent[]>
+  /**
+   * Every stored event that ends after `nowMs`, of any source, however many (the Google
+   * Calendar refresh compares with all of them, not only the loaded ones, REVIEW6 L5).
+   */
+  upcoming(uid: string, nowMs: number): Promise<ImportedEvent[]>
+  /** How many stored events of one source end after `nowMs` (an aggregate count). */
+  countUpcoming(uid: string, source: ImportedEventSource, nowMs: number): Promise<number>
   /** The key of every stored event (the account's key list), to skip events stored already. */
   storedKeys(uid: string): Promise<Set<string>>
   /** Deletes events that ended more than IMPORTED_EVENT_RETENTION_DAYS ago. */
@@ -752,6 +759,44 @@ export const firestoreEventsStore: EventsStore = {
       last = snapshot.docs[snapshot.size - 1]?.id ?? null
     }
     return out
+  },
+  async upcoming(uid, nowMs) {
+    const { firestore, events } = await eventsCollection(uid)
+    const { documentId, getDocs, limit, orderBy, query, startAfter, where } = firestore
+    const pageSize = IMPORTED_EVENT_LIMITS.listLimit
+    const out: ImportedEvent[] = []
+    let last: [string, string] | null = null
+    // The account holds at most IMPORTED_EVENT_LIMITS.maxStored events, so this ends.
+    for (;;) {
+      const snapshot: QuerySnapshot = await getDocs(
+        query(
+          events,
+          where('end', '>', new Date(nowMs).toISOString()),
+          orderBy('end'),
+          orderBy(documentId()),
+          ...(last === null ? [] : [startAfter(...last)]),
+          limit(pageSize),
+        ),
+      )
+      out.push(...recordsOf(snapshot.docs))
+      if (snapshot.size < pageSize) break
+      const tail = snapshot.docs[snapshot.size - 1]
+      last = tail ? [String(tail.get('end')), tail.id] : null
+    }
+    return out
+  },
+  async countUpcoming(uid, source, nowMs) {
+    // One read per 1,000 events counted (firestore.indexes.json: source, end).
+    const { firestore, events } = await eventsCollection(uid)
+    const { getCountFromServer, query, where } = firestore
+    const snapshot = await getCountFromServer(
+      query(
+        events,
+        where('source', '==', source),
+        where('end', '>', new Date(nowMs).toISOString()),
+      ),
+    )
+    return snapshot.data().count
   },
   async storedKeys(uid) {
     // One read of the key list (users/{uid}/meta/events), not of every record.

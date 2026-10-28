@@ -469,10 +469,8 @@ export interface SyncContext {
   token: string
   home: Location
   activities: readonly Pick<Activity, 'id' | 'name'>[]
-  /** Events the section has loaded (the soonest upcoming ones), to skip duplicates. */
-  existing: readonly ImportedEvent[]
   nowMs: number
-  store: Pick<EventsStore, 'save' | 'remove' | 'sourceEvents' | 'storedKeys'>
+  store: Pick<EventsStore, 'save' | 'remove' | 'upcoming' | 'storedKeys'>
   lookups: () => Promise<PlaceLookups>
   onProgress?: (message: string) => void
   /**
@@ -532,7 +530,7 @@ function unchanged(a: ImportedEvent, b: ImportedEvent | undefined): boolean {
  * authProblem).
  */
 export async function syncGoogleEvents(context: SyncContext): Promise<SyncOutcome | null> {
-  const { uid, link, api, token, home, activities, existing, nowMs, store } = context
+  const { uid, link, api, token, home, activities, nowMs, store } = context
   const timeMin = new Date(nowMs)
   const timeMax = new Date(nowMs + GOOGLE_EVENT_LIMITS.windowDays * 86_400_000)
   const fallbackTimeZone = resolveTimeZone(home.timezone)
@@ -580,10 +578,14 @@ export async function syncGoogleEvents(context: SyncContext): Promise<SyncOutcom
 
   if (context.connected && !(await context.connected())) return null
 
+  // Every stored event that has not ended, not only the ones the Events section loaded
+  // (REVIEW6 L5): the duplicates below and the Google events this refresh replaces.
+  const upcoming = await store.upcoming(uid, nowMs)
+
   // Events already in Solara from a file (same UID) or another source (same title and
   // times) are shown once, from there.
   const listed = await store.storedKeys(uid)
-  const others = new Set(existing.filter(e => e.source !== 'google').map(signature))
+  const others = new Set(upcoming.filter(e => e.source !== 'google').map(signature))
   let duplicates = 0
   const fresh: [string, ParsedIcsEvent][] = []
   for (const [key, event] of found) {
@@ -598,11 +600,9 @@ export async function syncGoogleEvents(context: SyncContext): Promise<SyncOutcom
 
   // Stored Google events that have not ended and are no longer there go first, so they
   // make room under the cap. Past ones stay until they expire, like imported events.
-  const stored = await store.sourceEvents(uid, 'google')
+  const stored = upcoming.filter(item => item.source === 'google')
   const previous = new Map(stored.map(item => [item.key, item] as const))
-  const gone = stored
-    .filter(item => Date.parse(item.end) > nowMs && !keptKeys.has(item.key))
-    .map(item => item.key)
+  const gone = stored.filter(item => !keptKeys.has(item.key)).map(item => item.key)
   if (gone.length) await store.remove(uid, gone)
 
   const events = kept.map(([, event]) => event)
@@ -613,7 +613,7 @@ export async function syncGoogleEvents(context: SyncContext): Promise<SyncOutcom
   if (toPlace.length) context.onProgress?.('Finding the places…')
   const places = toPlace.length
     ? await resolvePlaces(toPlace, home, await context.lookups(), {
-        known: knownPlaces([...existing, ...stored]),
+        known: knownPlaces(upcoming),
         onProgress: (done, total) =>
           total > 1 && context.onProgress?.(`Finding the places… ${done} of ${total}`),
         queriesFor: googleLocationQueries,

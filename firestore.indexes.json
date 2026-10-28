@@ -17,6 +17,14 @@
       ]
     },
     {
+      "collectionGroup": "events",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "source", "order": "ASCENDING" },
+        { "fieldPath": "end", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "stripeCheckoutCleanupTasks",
       "queryScope": "COLLECTION",
       "fields": [

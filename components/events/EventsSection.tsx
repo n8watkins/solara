@@ -309,6 +309,7 @@ export default function EventsSection({ uid, prefs, weather, displayTier, onUpgr
             activities={prefs.activities}
             items={items ?? []}
             upcomingCount={upcoming.filter(item => item.source === 'google').length}
+            allLoaded={(items?.length ?? 0) < IMPORTED_EVENT_LIMITS.listLimit}
             nowMs={nowMs}
           />
         </Suspense>
