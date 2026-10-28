@@ -1,10 +1,14 @@
 // Setup flow data and the live UV preview (components/Onboarding.tsx).
 import {
   FITZPATRICK_TYPES,
+  type ForecastProvider,
   OPEN_METEO_FORECAST_URL,
   SKIN_BURN_BASE,
   SKIN_TYPES,
+  appForecastRequest,
   fetchJson,
+  fetchProviderForecast,
+  roundCoordinate,
 } from '@solara/core'
 import { SKIN_TYPE_LABELS } from './profiles'
 import type { Location, SkinType } from './types'
@@ -84,15 +88,38 @@ export const SKIN_OPTIONS: readonly SkinOption[] = SKIN_TYPES.map(value => ({
 }))
 
 /**
+ * The forecast proxy, when this build uses it (NEXT_PUBLIC_FORECAST_PROXY, fixed at build
+ * time): the same provider as the dashboard (lib/forecast.ts), loaded on demand so a
+ * build without the proxy carries none of it.
+ */
+const proxyProvider: (() => Promise<ForecastProvider>) | null =
+  process.env.NEXT_PUBLIC_FORECAST_PROXY === '1' && process.env.NEXT_PUBLIC_FUNCTIONS_URL
+    ? async () => (await import('./forecast')).forecastProvider()
+    : null
+
+/**
  * The UV index right now at `location`, rounded to one decimal. Rejects when
- * Open-Meteo fails or answers without a usable value.
+ * the provider fails or answers without a usable value.
+ *
+ * With the forecast proxy on, it asks the proxy for the app's forecast (the commercial
+ * API, decision D5; the proxy serves only that request), which also warms the cache
+ * the dashboard reads next. Otherwise Open-Meteo's free API, for the current UV only.
  */
 export async function fetchCurrentUV(
   location: Pick<Location, 'lat' | 'lon'>,
   fetchImpl?: typeof fetch,
+  provider: (() => Promise<ForecastProvider>) | null = proxyProvider,
 ): Promise<number> {
-  const url = `${OPEN_METEO_FORECAST_URL}?latitude=${location.lat}&longitude=${location.lon}&current=uv_index&timezone=auto`
-  const data = (await fetchJson(url, { fetchImpl })) as { current?: { uv_index?: unknown } }
+  const data = provider
+    ? await fetchProviderForecast(
+        await provider(),
+        appForecastRequest(roundCoordinate(location.lat), roundCoordinate(location.lon)),
+        { fetchImpl },
+      )
+    : ((await fetchJson(
+        `${OPEN_METEO_FORECAST_URL}?latitude=${location.lat}&longitude=${location.lon}&current=uv_index&timezone=auto`,
+        { fetchImpl },
+      )) as { current?: { uv_index?: unknown } })
   const uv = data?.current?.uv_index
   if (typeof uv !== 'number' || !Number.isFinite(uv) || uv < 0) {
     throw new Error('Open-Meteo returned no current UV index')
