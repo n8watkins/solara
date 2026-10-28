@@ -2,7 +2,7 @@
 import { useSyncExternalStore } from 'react'
 import { addDays, formatDate, zonedNow, type ZonedNow } from './time'
 
-// Offline state for components/OfflineNotice.tsx: whether the browser says it is
+// Offline state for components/ForecastNotice.tsx: whether the browser says it is
 // online, and when the forecast on screen was fetched, said in the location's own
 // clock like every other time in the app.
 

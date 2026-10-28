@@ -22,6 +22,9 @@ export function createForecastStore(): ForecastStore {
   return new ForecastStore({
     fetchForecast: async (location, signal) => {
       const data = await fetchForecast(location, { signal })
+      // The proxy's earlier copy (data.stale) never replaces a newer forecast.
+      const kept = getCachedForecast(location.lat, location.lon)
+      if (kept && kept.fetchedAt > data.fetchedAt) return kept
       setCachedForecast(location.lat, location.lon, data)
       return data
     },
@@ -82,6 +85,11 @@ export interface WeatherState {
   error: string | null
   /** When the forecast on screen was fetched (ms since the epoch); 0 without one. */
   updatedAt: number
+  /**
+   * The forecast on screen is the proxy's earlier copy (ForecastData.stale), served
+   * while its upstream budget is spent; `updatedAt` says from when.
+   */
+  stale: boolean
   /** Fetch a fresh forecast now. */
   refresh: () => void
 }
@@ -111,6 +119,7 @@ export function useWeather(location: Location | null | undefined): WeatherState 
         : 'Could not load weather data.'
       : null,
     updatedAt: forecast.updatedAt,
+    stale: !!data?.stale,
     refresh: refetch,
   }
 }

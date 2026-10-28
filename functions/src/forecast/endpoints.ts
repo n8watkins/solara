@@ -1,7 +1,7 @@
 // The request handlers behind the `forecast` and `placeSearch` Functions, apart from the
 // deployment wiring in functions.ts so tests can drive the real pipeline.
 
-import type { GeocodingResult, OpenMeteoResponse } from '#core'
+import type { GeocodingResult, ServedForecast } from '#core'
 import type { Request } from 'firebase-functions/v2/https'
 
 import { clientScopes } from '../shared/client-address'
@@ -19,9 +19,10 @@ export interface Share {
 /**
  * The proxy's answer: Open-Meteo's shape, plus `stale: true` and `fetchedAt` when it is
  * the last good copy from an earlier hour because the budget or the caller's share is
- * spent (REVIEW4 H1). The app's parser ignores keys it does not know.
+ * spent (REVIEW4 H1). The app reads both through the same contract (#core
+ * ServedForecastSchema) and says how old the forecast is (components/ForecastNotice.tsx).
  */
-export type ForecastBody = OpenMeteoResponse & { stale?: true; fetchedAt?: string }
+export type ForecastBody = ServedForecast
 
 export function forecastHandler({
   enabled,

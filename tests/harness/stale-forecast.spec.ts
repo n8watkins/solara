@@ -13,7 +13,7 @@ import { NOW_MS, prepareLiveDashboard, type Raw } from './live-forecast'
 
 /** 9:40am in Los Angeles on the harness day, 50 minutes before the frozen now. */
 const SERVED_AT = new Date(NOW_MS - 50 * 60_000).toISOString()
-const served = (raw: Raw) => ({ ...raw, stale: true, fetchedAt: SERVED_AT })
+const served = (raw: Raw): Raw => ({ ...raw, stale: true, fetchedAt: SERVED_AT })
 
 const STALE_TEXT = 'Showing the forecast updated at 9:40am. A newer one will load by itself.'
 const OFFLINE = "Object.defineProperty(Navigator.prototype, 'onLine', { get: () => false })"
@@ -30,7 +30,10 @@ for (const tier of ['guest', 'paid']) {
     await desktopAt1280(page)
     const capture = await prepareLiveDashboard(page, testInfo, { tier, edit: served })
     await expect(notices(page)).toHaveText(STALE_TEXT)
-    await captureScreen(page, testInfo, capture, { name: `stale-forecast-${tier}`, fullPage: false })
+    await captureScreen(page, testInfo, capture, {
+      name: `stale-forecast-${tier}`,
+      fullPage: false,
+    })
   })
 }
 
@@ -46,13 +49,11 @@ test('offline, only the offline note shows, with the earlier forecast time', asy
   await prepareLiveDashboard(page, testInfo, { tier: 'guest', edit: served })
   await expect(notices(page)).toHaveText(STALE_TEXT)
   await page.context().setOffline(true)
-  await expect(notices(page)).toHaveText(
-    "You're offline. Showing the forecast updated at 9:40am.",
-  )
+  await expect(notices(page)).toHaveText("You're offline. Showing the forecast updated at 9:40am.")
   await expect(notices(page)).toHaveCount(1)
 })
 
-test('a reload shows the stale copy from the browser cache with the same note', async ({
+test("reopened offline, the browser's copy keeps the earlier forecast's time", async ({
   page,
 }, testInfo) => {
   await prepareLiveDashboard(page, testInfo, { tier: 'guest', edit: served })
@@ -61,7 +62,5 @@ test('a reload shows the stale copy from the browser cache with the same note', 
   await page.addInitScript(OFFLINE)
   await page.reload()
   await expect(page.getByRole('group', { name: 'UV forecast by hour' })).toBeVisible()
-  await expect(notices(page)).toHaveText(
-    "You're offline. Showing the forecast updated at 9:40am.",
-  )
+  await expect(notices(page)).toHaveText("You're offline. Showing the forecast updated at 9:40am.")
 })

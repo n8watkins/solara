@@ -52,8 +52,14 @@ export interface CurrentConditions {
 export interface ForecastData {
   /** IANA zone of the forecast location; every date and hour here is local to it. */
   timezone: string
-  /** When the forecast was fetched (epoch ms). */
+  /** When the forecast was fetched from the weather provider (epoch ms). */
   fetchedAt: number
+  /**
+   * The forecast proxy answered with its last good copy from an earlier hour (its
+   * upstream budget was spent), so `fetchedAt` is when that copy was fetched, not when
+   * it arrived. Absent for a current forecast.
+   */
+  stale?: true
   current: CurrentConditions
   days: ForecastDay[]
 }

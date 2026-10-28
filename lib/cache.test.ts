@@ -59,6 +59,16 @@ describe('forecast cache', () => {
     expect(getCachedForecast(34.05, -118.24, NOW + 5 * 3_600_000)).not.toBeNull()
   })
 
+  it("keeps the stale flag of the proxy's earlier copy, and adds none to a fresh one", () => {
+    setCachedForecast(34.05, -118.24, forecast({ stale: true, fetchedAt: NOW - 3_600_000 }))
+    setCachedForecast(51.5, -0.12, forecast({ timezone: 'Europe/London' }))
+    expect(getCachedForecast(34.05, -118.24)).toMatchObject({
+      stale: true,
+      fetchedAt: NOW - 3_600_000,
+    })
+    expect(getCachedForecast(51.5, -0.12)).toEqual(forecast({ timezone: 'Europe/London' }))
+  })
+
   it('drops entries past the maximum age', () => {
     setCachedForecast(34.05, -118.24, forecast())
     expect(getCachedForecast(34.05, -118.24, NOW + MAX_AGE_MS + 1)).toBeNull()
