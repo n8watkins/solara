@@ -22,6 +22,14 @@ import {
   TIER_LEVELS,
   UV_ALERT_THRESHOLD,
 } from '@solara/core'
+import {
+  IMPORTED_EVENT_FIELDS,
+  IMPORTED_EVENT_LIMITS,
+  IMPORTED_EVENT_MAX_TTL_DAYS,
+  IMPORTED_EVENT_SHAPE,
+  IMPORTED_EVENT_SOURCES,
+  IMPORTED_EVENT_TTL_FIELD,
+} from '@solara/core'
 import { describe, expect, it } from 'vitest'
 import { defaultPrefs, newAccountPrefs, normalizePrefs } from './prefs'
 import { ACTIVITY_CATEGORIES, PRESET_ACTIVITIES, TIER_LIMITS } from './tiers'
@@ -293,5 +301,49 @@ describe('firestore.rules scheduled activities match the schema', () => {
     expect(
       numberIn(rules, /match \/scheduled\/\{eventId\}[^}]*?request\.query\.limit <= (\d+)/),
     ).toBe(SCHEDULED_LIMITS.listLimit)
+  })
+})
+
+describe('firestore.rules imported events match the schema', () => {
+  const rule = () => rulesFunction('validImportedEvent')
+
+  it('allows exactly the schema fields', () => {
+    expect(sorted(rulesList('importedEventKeys'))).toEqual(
+      sorted([...IMPORTED_EVENT_FIELDS, IMPORTED_EVENT_TTL_FIELD]),
+    )
+    expect(sorted(IMPORTED_EVENT_FIELDS)).toEqual(sorted(Object.keys(IMPORTED_EVENT_SHAPE)))
+  })
+
+  it('requires an expiry no later than the schema allows', () => {
+    expect(rule()).toContain(`data.${IMPORTED_EVENT_TTL_FIELD} is timestamp`)
+    expect(numberIn(rule(), /expireAt <= request\.time \+ duration\.value\((\d+), 'd'\)/)).toBe(
+      IMPORTED_EVENT_MAX_TTL_DAYS,
+    )
+  })
+
+  it('caps every text field at the schema limit', () => {
+    const caps: [string, number][] = [
+      ['title', IMPORTED_EVENT_LIMITS.titleLength],
+      ['start', IMPORTED_EVENT_LIMITS.timestampLength],
+      ['end', IMPORTED_EVENT_LIMITS.timestampLength],
+      ['timeZone', IMPORTED_EVENT_LIMITS.timezoneLength],
+      ['where', IMPORTED_EVENT_LIMITS.whereLength],
+      ['placeLabel', IMPORTED_EVENT_LIMITS.placeLabelLength],
+      ['activityId', IMPORTED_EVENT_LIMITS.activityIdLength],
+      ['url', IMPORTED_EVENT_LIMITS.urlLength],
+      ['createdAt', IMPORTED_EVENT_LIMITS.timestampLength],
+      ['updatedAt', IMPORTED_EVENT_LIMITS.timestampLength],
+    ]
+    for (const [field, cap] of caps) {
+      expect(numberIn(rule(), new RegExp(`data\\.${field}\\.size\\(\\) <= (\\d+)`))).toBe(cap)
+    }
+    expect(rule()).toContain(`'^[0-9a-f]{${IMPORTED_EVENT_LIMITS.keyLength}}$'`)
+    expect(listAfter(rule(), 'source in')).toEqual([...IMPORTED_EVENT_SOURCES])
+  })
+
+  it('caps list queries at the client limit', () => {
+    expect(
+      numberIn(rules, /match \/events\/\{eventKey\}[^}]*?request\.query\.limit <= (\d+)/),
+    ).toBe(IMPORTED_EVENT_LIMITS.listLimit)
   })
 })

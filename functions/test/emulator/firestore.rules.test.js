@@ -898,3 +898,115 @@ describe('scheduled activities', () => {
     await assertFails(alice.doc('users/alice/scheduled/evt2').set(scheduled('evt2')))
   })
 })
+
+describe('imported events', () => {
+  const KEY = 'a'.repeat(32)
+  const OTHER = 'fedcba9876543210fedcba9876543210'
+  function importedEvent(key, overrides = {}) {
+    return {
+      key,
+      source: 'file',
+      seriesId: OTHER,
+      title: 'Saturday 10K',
+      start: '2026-06-20T15:00:00.000Z',
+      end: '2026-06-20T16:30:00.000Z',
+      timeZone: 'America/Los_Angeles',
+      where: 'Griffith Park, Los Angeles',
+      lat: 34.14,
+      lon: -118.29,
+      placeLabel: 'Los Angeles, California',
+      placeGuessed: false,
+      activityId: 'run',
+      url: 'https://example.com/run',
+      createdAt: '2026-06-15T17:30:00.000Z',
+      updatedAt: '2026-06-15T17:30:00.000Z',
+      // Firestore's TTL policy deletes the record after this (30 days after it ends).
+      expireAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      ...overrides,
+    }
+  }
+
+  test('an owner can create, read, list, update and delete their events', async () => {
+    const db = testEnv.authenticatedContext('alice').firestore()
+    const ref = db.doc(`users/alice/events/${KEY}`)
+    await assertSucceeds(ref.set(importedEvent(KEY)))
+    await assertSucceeds(ref.get())
+    await assertSucceeds(
+      db.collection('users/alice/events').orderBy('start', 'desc').limit(200).get(),
+    )
+    await assertSucceeds(
+      ref.set(importedEvent(KEY, { placeGuessed: true, activityId: '', url: '' })),
+    )
+    await assertSucceeds(ref.delete())
+  })
+
+  test('another user cannot read, list or write them', async () => {
+    await testEnv.withSecurityRulesDisabled(async context => {
+      await context.firestore().doc(`users/alice/events/${KEY}`).set(importedEvent(KEY))
+    })
+    const mallory = testEnv.authenticatedContext('mallory').firestore()
+    await assertFails(mallory.doc(`users/alice/events/${KEY}`).get())
+    await assertFails(mallory.collection('users/alice/events').limit(10).get())
+    await assertFails(mallory.doc(`users/alice/events/${OTHER}`).set(importedEvent(OTHER)))
+    await assertFails(mallory.doc(`users/alice/events/${KEY}`).delete())
+    const anonymous = testEnv.unauthenticatedContext().firestore()
+    await assertFails(anonymous.doc(`users/alice/events/${KEY}`).get())
+  })
+
+  test('list queries must be capped', async () => {
+    const db = testEnv.authenticatedContext('alice').firestore()
+    await assertFails(db.collection('users/alice/events').get())
+    await assertFails(db.collection('users/alice/events').limit(201).get())
+    await assertSucceeds(db.collection('users/alice/events').limit(200).get())
+  })
+
+  test('events are typed and size-capped', async () => {
+    const db = testEnv.authenticatedContext('alice').firestore()
+    const ref = db.doc(`users/alice/events/${KEY}`)
+    await assertFails(ref.set(importedEvent(OTHER)))
+    await assertFails(ref.set(importedEvent(KEY, { extra: true })))
+    const { where: _where, ...missing } = importedEvent(KEY)
+    await assertFails(ref.set(missing))
+    await assertFails(ref.set(importedEvent(KEY, { source: 'strava' })))
+    await assertFails(ref.set(importedEvent(KEY, { seriesId: 'not-a-hash' })))
+    await assertFails(ref.set(importedEvent(KEY, { title: 'x'.repeat(201) })))
+    await assertFails(ref.set(importedEvent(KEY, { start: 5 })))
+    await assertFails(ref.set(importedEvent(KEY, { end: '2026-06-20T14:00:00.000Z' })))
+    await assertFails(ref.set(importedEvent(KEY, { timeZone: 'x'.repeat(65) })))
+    await assertFails(ref.set(importedEvent(KEY, { where: 'x'.repeat(201) })))
+    await assertFails(ref.set(importedEvent(KEY, { lat: 91 })))
+    await assertFails(ref.set(importedEvent(KEY, { lon: '-118' })))
+    await assertFails(ref.set(importedEvent(KEY, { placeLabel: 'x'.repeat(121) })))
+    await assertFails(ref.set(importedEvent(KEY, { placeGuessed: 'yes' })))
+    await assertFails(ref.set(importedEvent(KEY, { activityId: 'a'.repeat(65) })))
+    await assertFails(ref.set(importedEvent(KEY, { url: 'javascript:alert(1)' })))
+    await assertFails(ref.set(importedEvent(KEY, { url: 'http://example.com' })))
+    await assertFails(
+      ref.set(importedEvent(KEY, { url: `https://example.com/${'x'.repeat(2048)}` })),
+    )
+    await assertFails(ref.set(importedEvent(KEY, { createdAt: 'x'.repeat(41) })))
+    // Every event must expire, and within the cap.
+    const { expireAt: _expireAt, ...forever } = importedEvent(KEY)
+    await assertFails(ref.set(forever))
+    await assertFails(ref.set(importedEvent(KEY, { expireAt: '2026-07-20T16:30:00.000Z' })))
+    await assertFails(
+      ref.set(importedEvent(KEY, { expireAt: new Date(Date.now() + 401 * 24 * 60 * 60 * 1000) })),
+    )
+    // Keys are SHA-256 prefixes: lowercase hex, 32 characters.
+    await assertFails(db.doc('users/alice/events/evt1').set(importedEvent('evt1')))
+    const upper = KEY.toUpperCase()
+    await assertFails(db.doc(`users/alice/events/${upper}`).set(importedEvent(upper)))
+    await assertSucceeds(ref.set(importedEvent(KEY)))
+  })
+
+  test('a tombstoned account cannot read or write its events', async () => {
+    await testEnv.withSecurityRulesDisabled(async context => {
+      const db = context.firestore()
+      await db.doc(`users/alice/events/${KEY}`).set(importedEvent(KEY))
+      await db.doc('accountDeletionTombstones/alice').set({ revokedBefore: 200 })
+    })
+    const alice = testEnv.authenticatedContext('alice').firestore()
+    await assertFails(alice.doc(`users/alice/events/${KEY}`).get())
+    await assertFails(alice.doc(`users/alice/events/${OTHER}`).set(importedEvent(OTHER)))
+  })
+})

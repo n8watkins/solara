@@ -69,6 +69,11 @@
       "indexes": []
     },
     {
+      "collectionGroup": "events",
+      "fieldPath": "expireAt",
+      "indexes": []
+    },
+    {
       "collectionGroup": "forecastCache",
       "fieldPath": "expireAt",
       "indexes": []
