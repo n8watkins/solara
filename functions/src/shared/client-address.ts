@@ -10,15 +10,21 @@
 //   whole /64 (2^64 addresses), so keying on the full address would give an attacker a
 //   fresh budget per request.
 // - IPv4-mapped IPv6 addresses (`::ffff:203.0.113.9`) count as the IPv4 address.
+// - An IPv6 client also counts against its /48 at IPV6_SITE_WEIGHT times the limit
+//   (`clientScopes`, REVIEW4 M1): a /48 is one site (free from tunnel brokers, common on
+//   servers) and holds 65,536 /64s, which would otherwise be 65,536 separate budgets.
 //
 // Every limiter that uses this key lives in one instance's memory, so the effective
 // limit across a function is `limit x maxInstances` (shared/options.ts). Paths whose
-// cost must be bounded globally use a shared counter instead (forecast/upstream-budget.ts).
+// cost must be bounded globally use shared counters instead (forecast/upstream-budget.ts
+// and each caller's share of it, forecast/caller-share.ts).
 
 import { isIP } from 'node:net'
 
 import { logger } from 'firebase-functions/logger'
 import type { Request } from 'firebase-functions/v2/https'
+
+import type { LimitScope } from './rate-limit'
 
 /**
  * How many X-Forwarded-For entries, counted from the right, Google's own proxies add.
@@ -34,6 +40,13 @@ export const TRUSTED_PROXY_HOPS = 1
 
 /** The prefix length IPv6 clients are bucketed by. */
 export const IPV6_BUCKET_PREFIX = 64
+/** The wider IPv6 prefix every client also counts against: one site. */
+export const IPV6_SITE_PREFIX = 48
+/**
+ * How many times the per-address limit one IPv6 /48 may use in all (default, owner may
+ * change): a household or small office has a few /64s in use, never thousands.
+ */
+export const IPV6_SITE_WEIGHT = 4
 
 /** The eight 16-bit groups of an IPv6 address, or null when it is not one. */
 function ipv6Groups(address: string): number[] | null {
@@ -67,8 +80,29 @@ export function addressKey(address: string): string {
     const [high = 0, low = 0] = groups.slice(6)
     return `${high >> 8}.${high & 0xff}.${low >> 8}.${low & 0xff}`
   }
-  const prefix = groups.slice(0, IPV6_BUCKET_PREFIX / 16).map(group => group.toString(16))
-  return `${prefix.join(':')}::/${IPV6_BUCKET_PREFIX}`
+  return ipv6Prefix(groups, IPV6_BUCKET_PREFIX)
+}
+
+/** An IPv6 prefix (a multiple of 16 bits) written like `2001:db8:1::/48`. */
+function ipv6Prefix(groups: number[], bits: number): string {
+  const prefix = groups.slice(0, bits / 16).map(group => group.toString(16))
+  return `${prefix.join(':')}::/${bits}`
+}
+
+/**
+ * The keys per-address limits count a request against: the addressKey at the full
+ * limit, and for an IPv6 client (not an IPv4-mapped one) also its /48 at
+ * IPV6_SITE_WEIGHT times the limit (REVIEW4 M1).
+ */
+export function addressScopes(address: string): LimitScope[] {
+  const key = addressKey(address)
+  const groups = key.endsWith(`::/${IPV6_BUCKET_PREFIX}`) ? ipv6Groups(address) : null
+  return groups
+    ? [
+        { key, weight: 1 },
+        { key: ipv6Prefix(groups, IPV6_SITE_PREFIX), weight: IPV6_SITE_WEIGHT },
+      ]
+    : [{ key, weight: 1 }]
 }
 
 /** The X-Forwarded-For entries of a request, left to right. */
@@ -92,8 +126,21 @@ export function clientAddress(
   req: Pick<Request, 'headers' | 'socket'>,
   trustedHops = TRUSTED_PROXY_HOPS,
 ): string {
-  const address = appendedEntry(forwardedEntries(req), trustedHops) || req.socket?.remoteAddress
+  const address = clientIp(req, trustedHops)
   return address ? addressKey(address) : 'unknown'
+}
+
+/** The scopes (addressScopes) a request counts against in per-address limits. */
+export function clientScopes(
+  req: Pick<Request, 'headers' | 'socket'>,
+  trustedHops = TRUSTED_PROXY_HOPS,
+): LimitScope[] {
+  const address = clientIp(req, trustedHops)
+  return address ? addressScopes(address) : [{ key: 'unknown', weight: 1 }]
+}
+
+function clientIp(req: Pick<Request, 'headers' | 'socket'>, trustedHops: number): string {
+  return appendedEntry(forwardedEntries(req), trustedHops) || req.socket?.remoteAddress || ''
 }
 
 // ---- Proxy hop self-check ---------------------------------------------------------

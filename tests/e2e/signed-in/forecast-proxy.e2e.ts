@@ -55,8 +55,12 @@ test('serves the commercial forecast once per place and hour, behind App Check',
     headers: { Authorization: 'Bearer owner' },
   })
   expect(cached.status).toBe(200)
-  const { fields } = (await cached.json()) as { fields: Record<string, unknown> }
-  expect(Object.keys(fields).sort()).toEqual(['expireAt', 'fetchedAt', 'hour', 'payload'])
+  const { fields } = (await cached.json()) as { fields: Record<string, { stringValue?: string }> }
+  expect(Object.keys(fields).sort()).toEqual(['expireAt', 'fetchedAt', 'hour', 'payload', 'source'])
+  // Tagged with its source, so only commercial forecasts are ever served (REVIEW4 L7).
+  expect(fields.source?.stringValue).toBe('open-meteo-commercial')
+  // A fresh forecast carries no stale flag (REVIEW4 H1).
+  expect(body).not.toHaveProperty('stale')
 
   // The call was counted in the global upstream budget.
   const day = new Date().toISOString().slice(0, 10)

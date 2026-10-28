@@ -55,6 +55,35 @@ export function upstreamLimits(): UpstreamLimits {
 }
 
 /**
+ * Place search's own budget (REVIEW4 H1), apart from the forecasts', so typing cannot
+ * starve forecasts or the other way round. Defaults, owner may change: answers are cached
+ * a day and the app debounces typing, so 200 new searches an hour and 2,000 a day (6% of
+ * the Standard plan) is far above launch traffic.
+ */
+export const PLACE_SEARCH_UPSTREAM_PER_HOUR = defineInt('PLACE_SEARCH_UPSTREAM_PER_HOUR', {
+  default: 200,
+})
+export const PLACE_SEARCH_UPSTREAM_PER_DAY = defineInt('PLACE_SEARCH_UPSTREAM_PER_DAY', {
+  default: 2000,
+})
+
+export function placeSearchLimits(): UpstreamLimits {
+  return {
+    perHour: PLACE_SEARCH_UPSTREAM_PER_HOUR.value(),
+    perDay: PLACE_SEARCH_UPSTREAM_PER_DAY.value(),
+  }
+}
+
+/**
+ * Upstream calls one caller (an IPv4 address or IPv6 /64; an IPv6 /48 gets 4 times as
+ * many) may cause per UTC hour, in each of the forecast and place search budgets
+ * (REVIEW4 H1, caller-share.ts). Default, owner may change: 20 is a sliver of the
+ * forecasts' 1,500 an hour, and one person rarely looks at more than a few new places an
+ * hour; past it they get cached forecasts, up to 12 hours old.
+ */
+export const UPSTREAM_SHARE_PER_CALLER = defineInt('UPSTREAM_SHARE_PER_CALLER', { default: 20 })
+
+/**
  * The provider for the calendar feed: the commercial API once its key is set; until
  * then Open-Meteo's free API, but only while billing is off (no Pro is sold, so the use
  * is non-commercial). Once billing is on without a key, null: the feed serves what is

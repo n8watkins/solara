@@ -58,6 +58,9 @@ export const revokeCalendarFeed = onRequest(
 // alerts (one upstream call per place and hour across the app), within the same global
 // upstream budget, and each feed may cause only a few upstream calls an hour (finding M3).
 // The feed answers 503 while the cost guard is engaged, so no upstream call then either.
+// Until the commercial key is set (billing off), its provider is Open-Meteo's free API,
+// whose forecasts the cache keeps in this instance's memory and never writes to the
+// shared cache, so the proxy can never serve them (REVIEW4 L7, forecast/proxy.ts).
 const feedForecasts = new ForecastCache({
   db,
   provider: () => feedForecastProvider(BILLING_ENABLED.value()),

@@ -1,4 +1,4 @@
-// A global budget for calls to the paid forecast API (finding M1).
+// A global budget for calls to the paid Open-Meteo API (finding M1).
 //
 // The forecast cache bounds upstream calls to one per place and hour, but the number of
 // places is huge (every 0.02 degree cell on Earth), so a script walking new places could
@@ -7,6 +7,10 @@
 // upstream calls the traffic-driven paths (the forecast proxy and the calendar feed) may
 // make per UTC hour and per UTC day, across every instance, through two counters in
 // Firestore (`forecastUpstream/hour-<hour>` and `forecastUpstream/day-<day>`).
+//
+// Place search has its own budget (`prefix: 'places-'`, REVIEW4 H1), so typing place
+// names cannot spend the forecasts' calls, nor forecasts the searches'. Within each
+// budget, a per-caller share (caller-share.ts) keeps one caller from taking the hour.
 //
 // Each instance leases a few calls at a time in one transaction, so a counter costs one
 // read and two writes per LEASE_SIZE upstream calls, not per call. When the budget is
@@ -37,6 +41,10 @@ export interface UpstreamLimits {
 
 export interface UpstreamBudgetOptions {
   db: Firestore
+  /** What the budget pays for, in its log lines. Default `forecast`. */
+  label?: string
+  /** Prepended to the counter document ids, so budgets do not share counters. Default ''. */
+  prefix?: string
   /** Read on each refill, so params resolve at run time, not at deploy analysis. */
   limits: () => UpstreamLimits
   leaseSize?: number
@@ -57,6 +65,17 @@ export class UpstreamBudget {
 
   private now(): number {
     return (this.options.now ?? Date.now)()
+  }
+
+  /**
+   * False while this instance knows the budget is spent (or its counters failed), so a
+   * caller can skip other work, such as charging a caller's share, that would be wasted.
+   */
+  available(): boolean {
+    const hour = new Date(this.now()).toISOString().slice(0, 13)
+    return this.lease.hour === hour && this.lease.remaining > 0
+      ? true
+      : this.now() >= this.pausedUntil
   }
 
   /** Takes one upstream call from the budget; false when none is left this hour or day. */
@@ -89,12 +108,12 @@ export class UpstreamBudget {
   }
 
   private async refill(hour: string): Promise<void> {
-    const { db, leaseSize = LEASE_SIZE } = this.options
+    const { db, leaseSize = LEASE_SIZE, label = 'forecast', prefix = '' } = this.options
     const { perHour, perDay } = this.options.limits()
     const day = hour.slice(0, 10)
     const collection = db.collection(FORECAST_UPSTREAM_COLLECTION)
-    const hourRef = collection.doc(`hour-${hour}`)
-    const dayRef = collection.doc(`day-${day}`)
+    const hourRef = collection.doc(`${prefix}hour-${hour}`)
+    const dayRef = collection.doc(`${prefix}day-${day}`)
     const at = new Date(this.now())
     try {
       const granted = await db.runTransaction(async transaction => {
@@ -114,7 +133,7 @@ export class UpstreamBudget {
         this.pausedUntil = this.now() + EXHAUSTED_RETRY_MS
         // An ERROR reaches the owner through the error-log alert: forecasts are being
         // served from cache because someone (or real growth) used the whole budget.
-        this.logs.log('error', 'exhausted', 'forecast upstream budget exhausted', {
+        this.logs.log('error', 'exhausted', `${label} upstream budget exhausted`, {
           perHour,
           perDay,
         })
@@ -122,7 +141,7 @@ export class UpstreamBudget {
     } catch (error) {
       this.lease = { hour, remaining: 0 }
       this.pausedUntil = this.now() + FAILED_RETRY_MS
-      this.logs.log('warn', 'failed', 'forecast upstream budget could not be read', {
+      this.logs.log('warn', 'failed', `${label} upstream budget could not be read`, {
         error: loggableError(error),
       })
     }

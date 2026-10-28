@@ -4,30 +4,35 @@
 import { onRequest } from 'firebase-functions/v2/https'
 
 import { browserApi, costGuard } from '../shared/browser-api'
-import { HttpError } from '../shared/errors'
 import { db } from '../shared/firebase'
 import { httpOptions } from '../shared/options'
+import { CallerShare } from './caller-share'
 import {
   FORECAST_PROXY_ENABLED,
   OPEN_METEO_API_KEY,
+  UPSTREAM_SHARE_PER_CALLER,
   commercialProvider,
+  placeSearchLimits,
   upstreamLimits,
 } from './config'
-import { PlaceSearchCache, requestedSearch } from './place-search'
-import { ForecastCache, requestedPlace } from './proxy'
+import { forecastHandler, placeSearchHandler } from './endpoints'
+import { PlaceSearchCache } from './place-search'
+import { ForecastCache } from './proxy'
 import { UpstreamBudget } from './upstream-budget'
 
-const upstreamBudget = new UpstreamBudget({ db, limits: upstreamLimits })
+const enabled = () => FORECAST_PROXY_ENABLED.value()
+const sharePerCaller = () => UPSTREAM_SHARE_PER_CALLER.value()
+
 const cache = new ForecastCache({
   db,
   provider: () => commercialProvider(),
   upstreamAllowed: async () => !(await costGuard.engaged()),
-  upstreamBudget,
+  upstreamBudget: new UpstreamBudget({ db, limits: upstreamLimits }),
 })
 
 // Guests call it too, so there is no ID token: App Check and the per-address limit
-// guard it, and the cache and the global upstream budget bound what any number of
-// callers can cost upstream.
+// guard it, and the cache, each caller's share and the global upstream budget bound
+// what any number of callers can cost upstream (REVIEW4 H1).
 export const forecast = onRequest(
   httpOptions({
     name: 'forecast',
@@ -42,12 +47,11 @@ export const forecast = onRequest(
     // Mobile carriers put many people behind one address; the cache absorbs the load.
     perAddressPerMinute: 120,
     fallbackMessage: 'Forecast unavailable',
-    handler: async req => {
-      if (!FORECAST_PROXY_ENABLED.value()) {
-        throw new HttpError('unavailable', 'Forecast proxy is not enabled')
-      }
-      return { body: await cache.get(requestedPlace(req.query)) }
-    },
+    handler: forecastHandler({
+      enabled,
+      cache,
+      share: new CallerShare({ db, scope: 'forecast', perHour: sharePerCaller }),
+    }),
   }),
 )
 
@@ -60,11 +64,17 @@ function planKey(): string | null {
 const places = new PlaceSearchCache({
   apiKey: planKey,
   upstreamAllowed: async () => !(await costGuard.engaged()),
-  upstreamBudget,
+  upstreamBudget: new UpstreamBudget({
+    db,
+    label: 'place search',
+    prefix: 'places-',
+    limits: placeSearchLimits,
+  }),
 })
 
 // The app's place search once the forecast proxy is on (finding L3): Open-Meteo's
-// geocoding on the commercial plan, behind the same App Check, limits and budget.
+// geocoding on the commercial plan, behind the same App Check and limits, with its own
+// budget and caller shares, so searches and forecasts cannot starve each other (H1).
 export const placeSearch = onRequest(
   httpOptions({
     name: 'placeSearch',
@@ -76,11 +86,10 @@ export const placeSearch = onRequest(
     method: 'GET',
     appCheckMode: 'standard',
     fallbackMessage: 'Place search unavailable',
-    handler: async req => {
-      if (!FORECAST_PROXY_ENABLED.value()) {
-        throw new HttpError('unavailable', 'Place search proxy is not enabled')
-      }
-      return { body: await places.search(requestedSearch(req.query)) }
-    },
+    handler: placeSearchHandler({
+      enabled,
+      places,
+      share: new CallerShare({ db, scope: 'places', perHour: sharePerCaller }),
+    }),
   }),
 )

@@ -258,8 +258,10 @@ The Stripe webhook refuses bodies over 256 KiB and more than 300 requests a minu
 
 The client address is the `X-Forwarded-For` entry Google's front end appends (`clientAddress` in `functions/src/shared/client-address.ts`).
 IPv6 addresses are counted by their /64 prefix, because one ordinary connection is given a whole /64 and could otherwise use a new address for every request; an IPv4-mapped IPv6 address counts as its IPv4 address.
+Each IPv6 request also counts against its /48 at 4 times the limit (`IPV6_SITE_WEIGHT`, default, owner may change), because a /48 is one site (free from tunnel brokers, common on servers) and holds 65,536 /64s (REVIEW4 M1).
+A request a prefix has already refused is turned away without opening a window for its /64, and the limiter never forgets a live window: it drops expired windows, and when its 10,000 windows are all live it refuses new keys for the rest of the minute instead of handing a throttled client a fresh budget.
 These limits live in instance memory, so each instance enforces its own: the effective limit for one address is the per-minute limit times the function's instance cap (for example 60 x 1 for checkout, 120 x 3 for the forecast proxy).
-That is the right shape for a first line against one noisy client; the costs that must be bounded globally use shared counters instead (the forecast proxy's upstream budget).
+That is the right shape for a first line against one noisy client; the costs that must be bounded globally use shared counters instead (the forecast proxy's upstream budget and each caller's share of it).
 
 ### Cost guard and budget kill switch
 
@@ -306,7 +308,16 @@ Open-Meteo's free API is for non-commercial use, so once Pro is sold, forecasts 
   In a sample of 32 cities (2026-10-27, three days of hourly forecasts, comparing each city with the corner points the grid could snap it to), 0.02 degree changed the whole-number UV of 0.8% of daylight hours (99th percentile difference 0.25 UV), 0.05 degree 5.2% (1.55 UV) and 0.1 degree 8.4% (1.9 UV), with temperature differences up to 12 C in mountain cities.
   So 0.02 degree is as coarse as the grid can go without visibly changing forecasts; it has a quarter of the 0.01 degree grid's cells, and the upstream budget below, not the grid, is what bounds cost.
 - **Upstream budget** (finding M1): the proxy and the feed together may call the paid API at most `FORECAST_UPSTREAM_PER_HOUR` (1,500) times an hour and `FORECAST_UPSTREAM_PER_DAY` (20,000) times a day (defaults, owner may change, in `functions/.env`), counted across instances in `forecastUpstream/hour-<hour>` and `day-<day>` (`functions/src/forecast/upstream-budget.ts`); each instance leases 10 calls at a time. 20,000 a day is 60% of the Standard plan's 1 million calls a month (about 33,000 a day; each app forecast is one call: 8 variables, 10 days), leaving the rest for the Pro alerts, which are bounded by their own per-run caps and not counted.
-  When the budget is spent, or the counters cannot be read, it fails closed: cached forecasts (up to 6 hours old) are still served, a place with none gets 503, and the ERROR `forecast upstream budget exhausted` reaches the owner.
+  When the budget is spent, or the counters cannot be read, it fails closed: cached forecasts (up to 12 hours old) are still served, a place with none gets 503, and the ERROR `forecast upstream budget exhausted` reaches the owner.
+- **Fair shares** (REVIEW4 H1): on its own, the budget is first come, first served, so one caller with one App Check token could spend the hour on new places and leave everyone else with cached forecasts.
+  So each caller may cause at most `UPSTREAM_SHARE_PER_CALLER` (20, default, owner may change) upstream calls per UTC hour, counted across instances in `forecastUpstream/caller-<budget>-<hour>-<hash>` (`functions/src/forecast/caller-share.ts`).
+  A caller is keyed like the per-address limits: an IPv4 address, or an IPv6 /64 with its /48 allowed 4 times the share, so a /48 cannot hold 65,536 shares.
+  The counter ids hold a hash of the key, not the address, and expire with the budget's counters.
+  Only a cache miss is charged, so looking at places someone else already fetched this hour costs nothing; an instance remembers callers whose share is spent, runs one caller's counter transactions one at a time, and skips the share entirely while it knows the global budget is spent.
+  It fails closed like the budget.
+  One person rarely looks at more than a few new places an hour; a page that shows many new places at once (the Events section with many venues) gets cached forecasts or 503 for the places past the share.
+- **Stale copies while the budget is spent** (REVIEW4 H1): when Solara itself declines the upstream call (the cost guard, the budget or the caller's share), the last good forecast for the place is served up to 12 hours old (`BUDGET_LAST_GOOD_MAX_AGE_MS`, default, owner may change) instead of a 503, and the proxy's answer then carries `stale: true` and the copy's `fetchedAt`.
+  The app's parser ignores these two fields today; a 12-hour-old forecast still holds the day's hourly UV curve.
 - **Timeout and fallback**: the upstream call times out after 5 seconds; then the last good forecast for the place, at most 6 hours old, is served instead.
   A fallback is remembered in memory for 5 minutes, so repeated requests cost no Firestore read, and fallbacks are logged once a minute per reason.
 - **Limits**: App Check (standard), 120 requests a minute per address, three instances, and only the app's own request (the coordinates are the only input); while the cost guard is engaged, only cached forecasts are served.
@@ -314,10 +325,12 @@ Open-Meteo's free API is for non-commercial use, so once Pro is sold, forecasts 
 - **Switch**: the `FORECAST_PROXY_ENABLED` repository variable turns it on in the build and the Functions together; until then the browser calls Open-Meteo directly, as today, and setup's current-UV check goes through the proxy too once it is on.
 - **Place search** (finding L3): Open-Meteo's terms make its free API non-commercial for every API, geocoding included, and its paid plans include the Geocoding API on the customer host.
   So once the proxy is on, the app's place search (setup, the location panel, Settings) calls the `placeSearch` Function instead of `geocoding-api.open-meteo.com` (`functions/src/forecast/place-search.ts`, `lib/geocoding.ts`).
-  It checks the search (2-80 characters, at most 10 results), asks `customer-geocoding-api.open-meteo.com` with the key, returns only the validated fields, caches answers in memory for a day, and counts misses against the same upstream budget; App Check, 60 requests a minute per address, one instance.
+  It checks the search (2-80 characters, at most 10 results), asks `customer-geocoding-api.open-meteo.com` with the key, returns only the validated fields, caches answers in memory for a day, and counts misses against its own budget, `PLACE_SEARCH_UPSTREAM_PER_HOUR` (200) and `PLACE_SEARCH_UPSTREAM_PER_DAY` (2,000) (defaults, owner may change; counters `forecastUpstream/places-hour-<hour>` and `places-day-<day>`), and the caller's share of it (REVIEW4 H1), so searches cannot spend the forecasts' calls or the other way round; App Check, 60 requests a minute per address, one instance.
+  When it is spent, the ERROR `place search upstream budget exhausted` reaches the owner.
   "Use my location" names still come from Nominatim, whose usage policy allows that use.
 - **The feed's provider** (finding L3): the commercial API as soon as `OPEN_METEO_API_KEY` holds a real key; before that, Open-Meteo's free API only while billing is off (no Pro is sold, so the use is non-commercial).
   Once `BILLING_ENABLED` is on without a key, the feed serves what is cached and otherwise answers 503 instead of using the free API commercially.
+  Forecasts from the free API stay in the feed instance's memory and are never written to the shared cache, and every cached entry records its source, so the proxy and the alerts never serve a free-API (or untagged) forecast (REVIEW4 L7).
 
 With the proxy on, a guest's first forecast also loads App Check (Firebase and reCAPTCHA) on demand, because the proxy requires App Check; that adds reCAPTCHA assessments for guests ([COSTS.md](COSTS.md)) and some start-up time on a first visit without a cached forecast.
 

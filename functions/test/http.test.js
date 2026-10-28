@@ -382,13 +382,17 @@ describe('fixed-window limiter', () => {
     assert.equal(limiter.take('a', 1000).allowed, true)
   })
 
-  test('keeps memory bounded by evicting the oldest key', () => {
+  test('keeps memory bounded without forgetting a live window (REVIEW4 M1)', () => {
     const limiter = new FixedWindowLimiter({ limit: 1, windowMs: 1000, maxKeys: 2 })
     limiter.take('a', 0)
     limiter.take('b', 0)
-    limiter.take('c', 0)
+    // Full of live windows: the newcomer waits, and 'a' keeps its spent window.
+    assert.deepEqual(limiter.take('c', 0), { allowed: false, retryAfterSeconds: 1 })
     assert.equal(limiter.windows.size, 2)
-    assert.equal(limiter.windows.has('a'), false)
+    assert.equal(limiter.take('a', 1).allowed, false)
+    // Expired windows make room.
+    assert.equal(limiter.take('c', 1000).allowed, true)
+    assert.deepEqual([...limiter.windows.keys()], ['c'])
   })
 })
 

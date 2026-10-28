@@ -15,7 +15,7 @@ import type { AppCheck } from 'firebase-admin/app-check'
 import type { Request, Response } from 'firebase-functions/v2/https'
 
 import { type AppCheckMode, verifyAppCheck } from './app-check'
-import { ProxyHopMonitor, clientAddress } from './client-address'
+import { ProxyHopMonitor, clientScopes } from './client-address'
 import type { CostFeature } from './cost-guard'
 import { HttpError, loggableError, publicError } from './errors'
 import { ThrottledLog } from './log-throttle'
@@ -143,7 +143,7 @@ export function createApiHandler<T>({
     }
     proxyHops.observe(req)
     try {
-      const budget = addressLimiter.take(clientAddress(req))
+      const budget = addressLimiter.take(clientScopes(req))
       if (!budget.allowed) {
         res.set('Retry-After', String(budget.retryAfterSeconds))
         throw new HttpError('rate-limited', 'Too many requests. Try again shortly.')
@@ -179,4 +179,4 @@ export function createApiHandler<T>({
   }
 }
 
-export { TRUSTED_PROXY_HOPS, clientAddress } from './client-address'
+export { TRUSTED_PROXY_HOPS, clientAddress, clientScopes } from './client-address'

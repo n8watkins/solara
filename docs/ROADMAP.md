@@ -167,6 +167,15 @@ The third review's findings M4, M5, L4 and L5, all in switched-off Pro features:
 - **One planning skin type everywhere (M5) and validated server reads (L4):** the morning alert plans for a group's most sensitive person like the dashboard, and the alerts and the calendar feed read activities and profiles through the app's schemas (#122).
 - **The alert history in the export (L5):** #123.
 
+### 16. Fair forecast budget from the fourth review (FIX4A, built)
+
+The fourth security review (2026-10-28, `handoff/review4.md`) found that the global upstream budget from item 14 was first come, first served: one caller with one App Check token could spend the hour's forecast calls, and place search shared the same pool (H1); an IPv6 /48 gave an attacker 65,536 per-address budgets, and the limiter evicted live windows under pressure (M1); and the feed's free-API forecasts could reach the proxy through the shared cache (L7).
+
+- **Fair shares (H1):** each caller (an IPv4 address, or an IPv6 /64 with its /48 at 4 times as much) may cause 20 upstream calls an hour per budget, counted across instances; place search has its own budget (200 an hour, 2,000 a day); while a budget or share is spent, the last good forecast up to 12 hours old is served and flagged `stale` instead of a 503 ([DEPLOYMENT.md](DEPLOYMENT.md#forecast-proxy)).
+- **Per-address limits per site (M1):** every IPv6 request also counts against its /48 at 4 times the limit, and the limiter never forgets a live window ([DEPLOYMENT.md](DEPLOYMENT.md#cost-and-abuse-limits)).
+- **No free-API forecasts in the paid cache (L7):** the free API's forecasts stay in the feed instance's memory, and cached entries record their source.
+- **Not done, for later if real traffic needs it:** reserved shares for signed-in or returning users, serving the nearest cached cell, limited-use App Check tokens for cache misses, a /32 tier, and showing the `stale` flag in the app.
+
 ## Decisions
 
 Agents never make owner decisions; they follow the recorded decision or the default.
@@ -196,6 +205,7 @@ The steps behind each one are in the [owner checklist](OWNER_CHECKLIST.md).
 | Group planning | Whom alerts and estimates plan for | Default, owner may change (2026-10-27, item 15): every estimate, the morning alert included, uses one core `planningFor`: in group mode, the group's most sensitive person |
 | Server reads | Stored plans on the server | Default, owner may change (2026-10-27, item 15): the alerts and the calendar feed parse activities and profiles with the app's schemas and skip invalid entries |
 | Export | Alert history in the export | Default, owner may change (2026-10-27, item 15): the export includes the last 7 days' alert history (kind, day, status, attempts, devices reached, times, error code) |
+| Fair forecast budget | How the paid forecast calls are shared | Default, owner may change (2026-10-28): 20 upstream calls per caller per UTC hour in each budget (`UPSTREAM_SHARE_PER_CALLER`), keyed like the per-address limits, with an IPv6 /48 allowed 4 times the per-address limit and share; place search has its own budget of 200 an hour and 2,000 a day (`PLACE_SEARCH_UPSTREAM_PER_HOUR`, `PLACE_SEARCH_UPSTREAM_PER_DAY`); while a budget or share is spent, the last good forecast up to 12 hours old is served, flagged `stale`, instead of a 503 |
 | Instance caps | HTTP Functions' `maxInstances` | Default, owner may change (2026-10-27, item 14): 3 for the forecast proxy, 2 for the calendar feed, 1 for the rest (the Stripe webhook and place search included), 15 in all (`INSTANCE_CAPS` in `functions/src/shared/options.ts`) |
 
 ### Tiers
