@@ -230,6 +230,34 @@ It asks for `calendar.events.readonly` when the person turns it on, and `calenda
    - [ ] **Disconnect** removes the events, and Solara disappears from https://myaccount.google.com/connections (Google ends all of Solara's calendar access at once, so Scheduled asks to connect again).
    - [ ] No CSP violation shows in the console while disconnecting.
 
+## Events from Outlook (only for the Outlook connection)
+
+Needed only for the planned Outlook connection ([ROADMAP item 23](ROADMAP.md#23-events-already-in-outlook-planned), design in [integrations/OUTLOOK.md](integrations/OUTLOOK.md#owner-steps-in-azure)); nothing else in Solara uses Microsoft, so skip this section unless you want Outlook events.
+Everything here is free: the Azure free account charges nothing at sign-up (a temporary one-dollar card hold verifies identity), the app registration costs nothing, and Microsoft Graph calendar reads are not metered.
+No Microsoft review is needed for the one permission Solara asks for.
+The steps can be done before the feature is built; the agent needs only the client ID.
+
+1. Create a free Azure account at https://azure.microsoft.com/en-us/pricing/purchase-options/azure-account (a phone number and a non-prepaid card for verification), or sign in if you have one; its **Default Directory** is the tenant the app lives in.
+2. At https://entra.microsoft.com, open **Entra ID**, **App registrations**, **New registration**:
+   - **Name:** `Solara`.
+   - **Supported account types:** **Any Entra ID Tenant + Personal Microsoft accounts**.
+   - **Redirect URI:** platform **Single-page application (SPA)**, `https://solara-uv.web.app/auth/microsoft/` (exactly, with the trailing slash).
+3. In the new app, **API permissions**: remove `User.Read`, then **Add a permission**, **Microsoft Graph**, **Delegated permissions**, tick `Calendars.ReadBasic`, **Add permissions**.
+   Do not press **Grant admin consent**.
+4. **Authentication:** leave the implicit grant boxes (**Access tokens**, **ID tokens**) unticked and **Allow public client flows** set to **No**.
+5. **Branding & properties:** home page `https://solara-uv.web.app/`, terms of service `https://solara-uv.web.app/terms/`, privacy statement `https://solara-uv.web.app/privacy/`, and the Solara logo; the consent prompt shows them.
+6. Optional, for local development: register a second app, `Solara (dev)`, the same way with the SPA redirect URI `http://localhost/auth/microsoft/` (Microsoft ignores the port for localhost), and give its client ID to the agent for `.env.local` only.
+7. Send the agent the **Application (client) ID** from the app's **Overview** (public, not a secret), or set it yourself: `gh variable set MICROSOFT_CLIENT_ID --repo n8watkins/solara --body <client id>`.
+8. Leave publisher verification alone: it needs a Microsoft AI Cloud Partner Program account and a custom domain, which Solara does not have; without it the consent prompt shows the publisher as unverified, and some work or school accounts will need their IT admin's approval.
+9. Once the feature is built and the agent has checked it in a preview: `gh variable set OUTLOOK_CALENDAR_EVENTS_ENABLED --repo n8watkins/solara --body true`, and let the next deploy run.
+10. With a controlled Outlook.com account on production:
+    - [ ] The Events section shows **Outlook** with **Show my Outlook events**; the Microsoft popup asks only for "Read basic details of user calendars".
+    - [ ] Events with a place (and ones whose title matches an activity) appear, marked "From Outlook"; Teams meetings without a place, all-day and declined events do not.
+    - [ ] **Choose calendars** lists your own calendars without asking for anything new.
+    - [ ] Move an event in Outlook, then press **Refresh**: Solara follows.
+    - [ ] **Disconnect** removes the events; Solara can then be removed at https://account.live.com/consent/Manage.
+    - [ ] No CSP violation shows in the console.
+
 ## Linked calendars
 
 Linked calendars and Pro event heads-ups are built and switched off (`EVENTS_SUBSCRIPTIONS_ENABLED`, [Linked calendars and event heads-ups](DEPLOYMENT.md#linked-calendars-and-event-heads-ups)); check them in staging before switching them on in production.
