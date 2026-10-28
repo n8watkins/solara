@@ -28,7 +28,7 @@ import { buildEventDescription } from '@/lib/gcal-view'
 import type { SlotRecommendation } from '@/lib/scheduler'
 import { useScheduled } from '@/lib/scheduled-context'
 import SunTip from './SunTip'
-import { PricingModal } from './deferred'
+import { PricingModal, SunscreenTimer } from './deferred'
 import ActivitiesSection from './dashboard/ActivitiesSection'
 import DayPicker from './dashboard/DayPicker'
 import ExposureMetrics from './dashboard/ExposureMetrics'
@@ -241,6 +241,8 @@ export default function Dashboard({
             burnFrom={readout.burn === null ? fromHour(uv => uv >= 0.5) : null}
             vitDFrom={readout.vitD === null ? fromHour(uv => uv >= 1) : null}
           />
+
+          {isToday && down?.phase !== 'after-sunset' && <SunscreenTimer />}
 
           <SunTip />
         </div>

@@ -16,6 +16,7 @@ import {
   staleCaches,
   type ShellRoute,
 } from '../../lib/sw-shell.mts'
+import { chooseWindowClient, safeNotificationUrl } from '../../lib/notification-link'
 
 // Replaced at bundle time.
 declare const __SHELL__: { version: string; pages: string[]; assets: string[] }
@@ -29,15 +30,31 @@ interface FetchEventLike extends ExtendableEventLike {
   request: Request
   respondWith(response: Promise<Response>): void
 }
+interface WindowClientLike {
+  url: string
+  focus(): Promise<unknown>
+  navigate(url: string): Promise<unknown>
+}
+interface NotificationClickEventLike extends ExtendableEventLike {
+  notification: Notification
+}
 interface ShellScope {
   location: Location
   skipWaiting(): Promise<void>
-  clients: { claim(): Promise<void> }
+  clients: {
+    claim(): Promise<void>
+    matchAll(options: { type: 'window'; includeUncontrolled: boolean }): Promise<WindowClientLike[]>
+    openWindow(url: string): Promise<unknown>
+  }
   addEventListener(
     type: 'install' | 'activate',
     listener: (event: ExtendableEventLike) => void,
   ): void
   addEventListener(type: 'fetch', listener: (event: FetchEventLike) => void): void
+  addEventListener(
+    type: 'notificationclick',
+    listener: (event: NotificationClickEventLike) => void,
+  ): void
 }
 
 const sw = self as unknown as ShellScope
@@ -137,4 +154,31 @@ function answer(event: FetchEventLike, route: NonNullable<ShellRoute>): Promise<
 sw.addEventListener('fetch', event => {
   const route = routeRequest(event.request, sw.location.origin, precached)
   if (route) event.respondWith(answer(event, route))
+})
+
+/** Focuses an open Solara window on the link (or the app), or opens one. */
+async function openOrFocus(link: unknown): Promise<void> {
+  const origin = sw.location.origin
+  const target = safeNotificationUrl(link, origin)
+  const windows = await sw.clients.matchAll({ type: 'window', includeUncontrolled: true })
+  const index = chooseWindowClient(
+    windows.map(client => client.url),
+    target,
+    origin,
+  )
+  const existing = index === -1 ? undefined : windows[index]
+  if (!existing) {
+    await sw.clients.openWindow(target)
+    return
+  }
+  if (existing.url !== target) await existing.navigate(target)
+  await existing.focus()
+}
+
+// Reminders the app shows through this worker (the sunscreen timer,
+// components/dashboard/ReapplyTimer.tsx): a tap brings Solara back.
+sw.addEventListener('notificationclick', event => {
+  const data = event.notification.data as { link?: unknown } | null
+  event.notification.close()
+  event.waitUntil(openOrFocus(data?.link))
 })

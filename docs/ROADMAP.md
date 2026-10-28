@@ -125,7 +125,7 @@ Each feature is its own lane that owns new files plus touch points agreed at kic
 Candidates, roughly ranked by impact over effort:
 
 1. **Scheduled activities** - done (#55, #56); hidden in production until the Google OAuth client ID is set.
-2. Threshold UV alerts and a sunscreen reapply timer: the UV alert is built with item 10 (Pro, once a day when the forecast UV reaches the chosen level, outside quiet hours).
+2. **Threshold UV alerts and a sunscreen reapply timer** - done: the reapply timer (#115) is free for every plan and runs in the browser; the UV alert (#112) is Pro, once a day when the forecast UV reaches the chosen level, outside quiet hours.
 3. A daily briefing card, optionally AI-written, reused by push and share.
 4. **Family profiles as a headline Pro feature** - done (#105): "Plan for a group" uses the most sensitive person among those ticked for plans and burn estimates, the switcher works on phones, Free sees an honest Pro offer (a waitlist while checkout is off), and the plan comparison names the mode.
 5. Cloud-aware forecasts with confidence that decays after day 3.

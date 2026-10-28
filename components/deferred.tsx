@@ -80,6 +80,23 @@ export const InstallPrompt = deferred(() => import('./InstallPrompt'))
 export const ActivityModals = deferred(() => import('./dashboard/ActivityModals'))
 export const DayDialog = deferred(() => import('./dashboard/DayDialog'))
 export const LocationPanel = deferred(() => import('./LocationPanel'))
+
+/** Keeps the sunscreen timer's place until it shows, so nothing below it moves. */
+function ReapplyTimerSpace() {
+  return <div aria-hidden="true" className="min-h-16" />
+}
+const ReapplyTimer = deferred(() => import('./dashboard/ReapplyTimer'), ReapplyTimerSpace)
+
+/**
+ * The sunscreen reapply timer on today's dashboard (components/dashboard/ReapplyTimer.tsx).
+ * It appears once the page has loaded and the browser is idle, like the preloads below,
+ * so none of it is part of a guest's first load.
+ */
+export function SunscreenTimer() {
+  const [ready, setReady] = useState(false)
+  useEffect(() => afterPageLoad(() => setReady(true)), [])
+  return ready ? <ReapplyTimer /> : <ReapplyTimerSpace />
+}
 /** Setup, for a first visit; the loading screen shows until it has arrived. */
 export const Onboarding = deferred(() => import('./Onboarding'), AccountLoading)
 export const AccountMenu = deferred(() => import('./AccountMenu'))
@@ -116,18 +133,27 @@ export function preloadDeferred(): () => void {
     navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }
   ).connection
   if (connection?.saveData || /(^|-)2g$/.test(connection?.effectiveType ?? '')) return () => {}
+  return afterPageLoad(() => {
+    for (const preload of loaders) preload().catch(() => {})
+  })
+}
+
+/**
+ * Runs `run` PRELOAD_DELAY_MS after the page's load event, when the browser is idle.
+ * Returns a function that cancels it.
+ */
+function afterPageLoad(run: () => void): () => void {
   let cancelled = false
   let timer: ReturnType<typeof setTimeout> | undefined
   let idle: number | undefined
-  const run = () => {
-    if (cancelled) return
-    for (const preload of loaders) preload().catch(() => {})
+  const go = () => {
+    if (!cancelled) run()
   }
   const schedule = () => {
     timer = setTimeout(() => {
       if (typeof requestIdleCallback === 'function')
-        idle = requestIdleCallback(run, { timeout: 3000 })
-      else run()
+        idle = requestIdleCallback(go, { timeout: 3000 })
+      else go()
     }, PRELOAD_DELAY_MS)
   }
   if (document.readyState === 'complete') schedule()
