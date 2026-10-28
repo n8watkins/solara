@@ -46,7 +46,9 @@ describe('fetchCurrentUV', () => {
     expect(init?.headers).toEqual({ 'X-Firebase-AppCheck': 'app-check-token' })
     // Never the free API once the proxy is on.
     const hosts = fetchImpl.mock.calls.map(([u]) => new URL(String(u)).hostname)
-    expect(hosts.some(host => host === 'open-meteo.com' || host.endsWith('.open-meteo.com'))).toBe(false)
+    expect(hosts.some(host => host === 'open-meteo.com' || host.endsWith('.open-meteo.com'))).toBe(
+      false,
+    )
   })
 
   it('accepts a UV of zero at night', async () => {
