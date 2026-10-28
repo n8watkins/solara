@@ -258,14 +258,18 @@ export default function Dashboard({
 
           {isToday && down?.phase !== 'after-sunset' && <SunscreenTimer />}
 
+          {/* Imported events: under the conditions from 1024 px; after the activities on
+              narrower screens, where the columns stack. */}
           {user && (
-            <EventsSection
-              uid={user.uid}
-              prefs={prefs}
-              weather={weather}
-              displayTier={access.accessTier}
-              onUpgrade={openPlans}
-            />
+            <div className="max-lg:order-1">
+              <EventsSection
+                uid={user.uid}
+                prefs={prefs}
+                weather={weather}
+                displayTier={access.accessTier}
+                onUpgrade={openPlans}
+              />
+            </div>
           )}
         </div>
 
@@ -303,7 +307,7 @@ export default function Dashboard({
       )}
 
       {/* The one caveat on the dashboard (the metric tooltips carry their own). */}
-      <p className="mx-0.5 text-[11px] leading-normal text-ink-3">
+      <p className="mx-0.5 text-[11px] leading-normal text-ink-3 max-lg:order-2">
         Forecast-based planning estimates, not medical advice. Conditions can change; use sun
         protection.
       </p>
