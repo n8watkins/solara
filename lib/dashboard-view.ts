@@ -127,9 +127,14 @@ export interface UVReadout {
  * The UV card's readout. With no focused hour it shows the live reading (today)
  * or the day's peak, matching the header and the burn card; a scrubbed hour
  * shows that hour's forecast.
+ *
+ * Today's current hour is "now": its chip on the strip shows the live reading (the
+ * provider's value at the clock's instant, which drifts from the hour's forecast as the
+ * hour goes on), so focusing it keeps the live reading here too. Before, at 5:20pm the
+ * readout said "0.1 Low now" beside a ringed 5pm chip reading 0.3 (REVIEW7 L7.3).
  */
 export function uvReadout(
-  weather: Pick<WeatherResponse, 'current'>,
+  weather: Pick<WeatherResponse, 'current' | 'now'>,
   hourly: HourlyForecast[],
   isToday: boolean,
   focused: HourlyForecast | null,
@@ -145,15 +150,16 @@ export function uvReadout(
   const currentCond = isToday ? weather.current.condition : (peakEntry?.condition ?? '')
   const peakUV = hourly.length ? Math.max(...hourly.map(h => h.uv)) : 0
   const peakHour = hourly.find(h => h.uv === peakUV)?.hour ?? 12
-  const headUV = focused ? focused.uv : currentUV
+  const shown = focused && !(isToday && focused.hour === weather.now.hour) ? focused : null
+  const headUV = shown ? shown.uv : currentUV
   return {
     currentUV,
     peakUV,
     peakHour,
     headUV,
-    headTemp: focused ? focused.tempC : currentTemp,
-    headCond: focused ? focused.condition : currentCond,
-    headSuffix: focused ? ` at ${formatHour(focused.hour)}` : isToday ? ' now' : ' peak',
+    headTemp: shown ? shown.tempC : currentTemp,
+    headCond: shown ? shown.condition : currentCond,
+    headSuffix: shown ? ` at ${formatHour(shown.hour)}` : isToday ? ' now' : ' peak',
     headBurn: burnMins(headUV, skinType),
     burn: burnMins(currentUV, skinType),
     vitD: vitDMins(currentUV, skinType),

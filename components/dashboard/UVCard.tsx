@@ -1,3 +1,4 @@
+import { Fragment } from 'react'
 import { cloudEffect, forecastConfidence } from '@solara/core'
 import type { HourlyForecast } from '@/lib/types'
 import { dayHourText, uvNumberTone, type SunDown, type UVReadout } from '@/lib/dashboard-view'
@@ -63,17 +64,15 @@ export default function UVCard({
             <p className="flex min-h-10 items-center text-[28px] leading-none font-bold text-ink-2">
               {sunDown.phase === 'after-sunset' ? 'Sun is down' : 'Before sunrise'}
             </p>
-            <p className="mt-1.5 min-h-[18px] truncate text-[13.5px] leading-[1.3] text-ink-3">
-              {[
+            <DetailLine
+              parts={[
                 sunDown.uvReturns
                   ? `UV returns about ${dayHourText(sunDown.uvReturns, fmt.hour)}`
                   : `UV ${formatUV(headUV)}`,
                 headTemp === undefined ? null : fmt.temp(headTemp),
                 headCond || null,
-              ]
-                .filter(Boolean)
-                .join(' · ')}
-            </p>
+              ]}
+            />
           </>
         ) : (
           <>
@@ -88,10 +87,13 @@ export default function UVCard({
                 <span className="font-medium text-ink-3">{headSuffix}</span>
               </span>
             </div>
-            <p className="mt-1.5 min-h-[18px] truncate text-[13.5px] leading-[1.3] text-ink-3">
-              {headTemp === undefined ? '--' : fmt.temp(headTemp)} · {headCond}
-              {headBurn ? ` · burn ~${headBurn}m` : ''}
-            </p>
+            <DetailLine
+              parts={[
+                headTemp === undefined ? '--' : fmt.temp(headTemp),
+                headCond || null,
+                headBurn ? `burn ~${headBurn}m` : null,
+              ]}
+            />
           </>
         )}
       </div>
@@ -101,6 +103,7 @@ export default function UVCard({
       <UVTimeline
         hourly={hourly}
         currentHour={currentHour}
+        nowUV={currentHour >= 0 ? readout.currentUV : undefined}
         focused={focused}
         onSelectHour={onSelectHour}
         restAtStart={sunDown?.phase === 'after-sunset'}
@@ -119,5 +122,29 @@ export default function UVCard({
       {/* Only on a cloudy or far-off day; the wording loads with it (deferred.tsx). */}
       {(cloud || confidence !== 'high') && <ForecastNotes cloud={cloud} confidence={confidence} />}
     </div>
+  )
+}
+
+/**
+ * The readout's second line ("66°F · Clear · burn ~40m"). Each part stays whole and a line
+ * can break only after a dot, like the hero's detail line, so a narrow phone wraps it
+ * instead of cutting the weather off ("UV returns about 9am tomorrow · 66°...", REVIEW7
+ * L7.1).
+ */
+function DetailLine({ parts }: { parts: (string | null)[] }) {
+  return (
+    <p
+      data-testid="uv-readout-detail"
+      className="mt-1.5 min-h-[18px] text-[13.5px] leading-[1.3] text-ink-3"
+    >
+      {parts
+        .filter((part): part is string => !!part)
+        .map((part, i) => (
+          <Fragment key={i}>
+            {i > 0 && '\u00a0· '}
+            <span className="whitespace-nowrap">{part}</span>
+          </Fragment>
+        ))}
+    </p>
   )
 }

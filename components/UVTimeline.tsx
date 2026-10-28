@@ -21,6 +21,11 @@ interface Props {
   hourly: HourlyForecast[]
   currentHour: number
   /**
+   * The live reading, shown by the current hour's bar as "Now" (the card's readout shows
+   * the same value, REVIEW7 L7.3). Omitted, that bar shows its hour's forecast.
+   */
+  nowUV?: number
+  /**
    * Rendered inside the scroller, above the bars and at the same width (the sun
    * path), so it lines up with the bars and scrolls with them.
    */
@@ -54,6 +59,7 @@ interface Props {
 export default function UVTimeline({
   hourly,
   currentHour,
+  nowUV,
   onFocusHour,
   focused,
   onSelectHour,
@@ -234,6 +240,7 @@ export default function UVTimeline({
                   key={hour}
                   hour={h}
                   isNow={isNow}
+                  liveUV={isNow ? nowUV : undefined}
                   selected={active?.hour === h.hour}
                   onSelect={() => selectHour(h)}
                   ref={isNow ? (nowRef as Ref<HTMLButtonElement>) : undefined}
