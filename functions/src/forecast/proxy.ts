@@ -9,17 +9,28 @@
 // one place share one upstream call. The upstream call times out after 5 seconds.
 //
 // A cache miss calls upstream only when the provider is configured, the cost guard
-// allows it, the caller's own limit allows it (`mayFetch`, the feed's per-feed budget)
-// and the global upstream budget has a call left (upstream-budget.ts, finding M1).
-// Otherwise, or when the call fails, the last good forecast (at most 6 hours old) is
-// served, and that fallback is remembered in memory for a few minutes, so a flood does
-// not turn into one Firestore read and one log line per request (finding L1).
+// allows it, the global upstream budget is not known to be spent, the caller's own
+// limit allows it (`mayFetch`: the proxy's per-caller share, caller-share.ts, or the
+// feed's per-feed budget) and the global upstream budget has a call left
+// (upstream-budget.ts, finding M1). Otherwise, or when the call fails, the last good
+// forecast is served: up to 12 hours old when Solara itself declined to call upstream
+// (cost guard, budget, caller share; REVIEW4 H1), up to 6 hours old when the call
+// failed. `lookup` says when a forecast is such a stale copy, and the proxy tells the
+// browser. A fallback is remembered in memory for a few minutes, so a flood does not
+// turn into one Firestore read and one log line per request (finding L1).
+//
+// Every entry records the API it came from (REVIEW4 L7). Forecasts from Open-Meteo's
+// free API (the calendar feed's provider until the commercial key is set, while billing
+// is off) are never written to the shared Firestore cache, and a cache whose provider is
+// not the free API never serves a free or untagged entry, so the free tier cannot end up
+// in a commercial answer.
 
 import {
   type ForecastProvider,
   type OpenMeteoResponse,
   appForecastRequest,
   fetchProviderForecast,
+  openMeteoFree,
   parseOpenMeteoResponse,
   roundCoordinate,
 } from '#core'
@@ -34,6 +45,15 @@ import { RETENTION_DAYS, expiresAfter } from '../shared/ttl'
 export const FORECAST_CACHE_COLLECTION = 'forecastCache'
 /** A forecast older than this is no longer served when the provider fails. */
 export const LAST_GOOD_MAX_AGE_MS = 6 * 60 * 60 * 1000
+/**
+ * A forecast older than this is no longer served when Solara declined to call upstream:
+ * the cost guard, the global budget or the caller's share (REVIEW4 H1; default, owner
+ * may change). A 12-hour-old forecast still holds the day's hourly UV curve, which is
+ * better than no forecast; `forecastCache` keeps entries a day.
+ */
+export const BUDGET_LAST_GOOD_MAX_AGE_MS = 12 * 60 * 60 * 1000
+/** Fallback reasons where Solara, not the provider, declined the upstream call. */
+const DECLINED = new Set(['cost guard', 'upstream budget', 'caller limit'])
 export const UPSTREAM_TIMEOUT_MS = 5000
 /** How long a served fallback (or a place with none) is remembered before trying again. */
 export const FALLBACK_RETRY_MS = 5 * 60 * 1000
@@ -54,6 +74,8 @@ export interface Place {
 interface CachedForecast {
   hour: string
   fetchedAt: number
+  /** The provider's name (`ForecastProvider.name`), or '' for an untagged entry. */
+  source: string
   forecast: OpenMeteoResponse
 }
 
@@ -62,9 +84,19 @@ interface Remembered {
   /** The forecast's hour, or '' when nothing could be served. */
   hour: string
   fetchedAt: number
+  source: string
   forecast: OpenMeteoResponse | null
   /** Set for a fallback: serve this without asking again until then. */
   retryAt?: number
+}
+
+/** A served forecast, and whether it is a stale copy from an earlier hour. */
+export interface ServedForecast {
+  forecast: OpenMeteoResponse
+  /** When the forecast was fetched from upstream. */
+  fetchedAt: number
+  /** True when it is a last good copy from an earlier hour, not this hour's. */
+  stale: boolean
 }
 
 /** A place snapped to the cache grid. */
@@ -110,25 +142,33 @@ export interface ForecastCacheOptions {
   /** Whether the cost guard allows calls upstream (shared/cost-guard.ts). */
   upstreamAllowed: () => Promise<boolean>
   /** The global budget for upstream calls; omitted only for the bounded Pro alerts. */
-  upstreamBudget?: { take: () => Promise<boolean> }
+  upstreamBudget?: { take: () => Promise<boolean>; available?: () => boolean }
   now?: () => number
   fetchImpl?: typeof fetch
 }
 
 export interface ForecastLookup {
-  /** The caller's own limit on cache misses, asked only when a miss would call upstream. */
-  mayFetch?: () => boolean
+  /**
+   * The caller's own limit on cache misses, asked only when a miss would call upstream
+   * and the global budget is not known to be spent.
+   */
+  mayFetch?: () => boolean | Promise<boolean>
 }
 
 export class ForecastCache {
   private readonly memory = new Map<string, Remembered>()
-  private readonly inFlight = new Map<string, Promise<OpenMeteoResponse>>()
+  private readonly inFlight = new Map<string, Promise<ServedForecast>>()
   private readonly logs = new ThrottledLog()
 
   constructor(private readonly options: ForecastCacheOptions) {}
 
   /** The forecast for a place: cached for this hour, fetched, or the last good one. */
   async get(asked: Place, lookup: ForecastLookup = {}): Promise<OpenMeteoResponse> {
+    return (await this.lookup(asked, lookup)).forecast
+  }
+
+  /** Like `get`, and says whether the forecast is a stale copy from an earlier hour. */
+  async lookup(asked: Place, lookup: ForecastLookup = {}): Promise<ServedForecast> {
     const place = gridPlace(asked)
     const key = placeKey(place)
     const pending = this.inFlight.get(key)
@@ -148,28 +188,45 @@ export class ForecastCache {
     key: string,
     place: Place,
     lookup: ForecastLookup,
-  ): Promise<OpenMeteoResponse> {
+  ): Promise<ServedForecast> {
     const now = (this.options.now ?? Date.now)()
     const hour = forecastHour(now)
-    const remembered = this.memory.get(key)
-    if (remembered?.forecast && remembered.hour === hour) return remembered.forecast
+    const provider = this.options.provider()
+    // Free-API forecasts serve only a cache that itself uses the free API (REVIEW4 L7).
+    const acceptable = (entry: { source: string } | null | undefined) =>
+      !!entry &&
+      (entry.source === openMeteoFree.name
+        ? provider?.name === openMeteoFree.name
+        : entry.source !== '')
+    const served = (entry: { hour: string; fetchedAt: number; forecast: OpenMeteoResponse }) => ({
+      forecast: entry.forecast,
+      fetchedAt: entry.fetchedAt,
+      stale: entry.hour !== hour,
+    })
+    const inMemory = this.memory.get(key)
+    const remembered = acceptable(inMemory) ? inMemory : undefined
+    if (remembered?.forecast && remembered.hour === hour) {
+      return served({ ...remembered, forecast: remembered.forecast })
+    }
     if (remembered?.retryAt !== undefined && now < remembered.retryAt) {
-      if (remembered.forecast) return remembered.forecast
+      if (remembered.forecast) return served({ ...remembered, forecast: remembered.forecast })
       throw new HttpError('unavailable', 'Forecast unavailable. Try again shortly.')
     }
 
     const ref = this.options.db.collection(FORECAST_CACHE_COLLECTION).doc(key)
-    const stored = await this.readStored(ref)
+    const read = await this.readStored(ref)
+    const stored = acceptable(read) ? read : null
     if (stored?.hour === hour) {
       this.remember(key, stored)
-      return stored.forecast
+      return served(stored)
     }
 
     const lastGood = [remembered, stored]
       .filter((entry): entry is CachedForecast => !!entry?.forecast)
       .sort((a, b) => b.fetchedAt - a.fetchedAt)[0]
     const serveLastGood = (reason: string, error?: unknown) => {
-      const usable = lastGood && now - lastGood.fetchedAt <= LAST_GOOD_MAX_AGE_MS
+      const maxAge = DECLINED.has(reason) ? BUDGET_LAST_GOOD_MAX_AGE_MS : LAST_GOOD_MAX_AGE_MS
+      const usable = lastGood && now - lastGood.fetchedAt <= maxAge
       // Remembered for a few minutes, so the next requests for this place cost no
       // Firestore read, no upstream attempt and no log line. Not when only this caller's
       // own limit said no: another caller may still fetch the place.
@@ -177,6 +234,7 @@ export class ForecastCache {
         this.remember(key, {
           hour: usable ? lastGood.hour : '',
           fetchedAt: usable ? lastGood.fetchedAt : now,
+          source: usable ? lastGood.source : (provider?.name ?? 'none'),
           forecast: usable ? lastGood.forecast : null,
           retryAt: now + FALLBACK_RETRY_MS,
         })
@@ -192,19 +250,19 @@ export class ForecastCache {
           ...(error ? { error: loggableError(error) } : {}),
         },
       )
-      if (usable) return lastGood.forecast
+      if (usable) return served(lastGood)
       throw new HttpError('unavailable', 'Forecast unavailable. Try again shortly.', {
         cause: error ?? new Error(reason),
       })
     }
 
-    const provider = this.options.provider()
     if (!provider) return serveLastGood('no provider')
     if (!(await this.options.upstreamAllowed())) return serveLastGood('cost guard')
-    if (lookup.mayFetch && !lookup.mayFetch()) return serveLastGood('caller limit')
-    if (this.options.upstreamBudget && !(await this.options.upstreamBudget.take())) {
-      return serveLastGood('upstream budget')
-    }
+    const budget = this.options.upstreamBudget
+    // A spent budget is known in memory; asking the caller's share then would only waste it.
+    if (budget?.available && !budget.available()) return serveLastGood('upstream budget')
+    if (lookup.mayFetch && !(await lookup.mayFetch())) return serveLastGood('caller limit')
+    if (budget && !(await budget.take())) return serveLastGood('upstream budget')
 
     let forecast: OpenMeteoResponse
     try {
@@ -215,12 +273,15 @@ export class ForecastCache {
     } catch (error) {
       return serveLastGood('upstream failed', error)
     }
-    const entry = { hour, fetchedAt: now, forecast }
+    const entry = { hour, fetchedAt: now, source: provider.name, forecast }
     this.remember(key, entry)
+    // The free API's forecasts stay in this instance's memory (REVIEW4 L7).
+    if (provider.name === openMeteoFree.name) return served(entry)
     try {
       await ref.set({
         hour,
         fetchedAt: new Date(now),
+        source: provider.name,
         payload: JSON.stringify(forecast),
         expireAt: expiresAfter(RETENTION_DAYS.forecastCache, new Date(now)),
       })
@@ -230,7 +291,7 @@ export class ForecastCache {
         error: loggableError(error),
       })
     }
-    return forecast
+    return served(entry)
   }
 
   private async readStored(ref: DocumentReference): Promise<CachedForecast | null> {
@@ -242,6 +303,7 @@ export class ForecastCache {
       return {
         hour: data.hour,
         fetchedAt,
+        source: typeof data.source === 'string' ? data.source : '',
         forecast: parseOpenMeteoResponse(JSON.parse(data.payload)),
       }
     } catch (error) {

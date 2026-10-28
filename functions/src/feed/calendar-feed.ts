@@ -7,7 +7,7 @@ import type { DocumentData, Firestore } from 'firebase-admin/firestore'
 import type { Request, Response } from 'firebase-functions/v2/https'
 
 import { HttpError, loggableError } from '../shared/errors'
-import { clientAddress } from '../shared/http'
+import { clientScopes } from '../shared/http'
 import { ThrottledLog } from '../shared/log-throttle'
 import { FixedWindowLimiter } from '../shared/rate-limit'
 import { feedTokenHash, resolveFeedOwner, validFeedToken } from './tokens'
@@ -132,7 +132,7 @@ export function createCalendarFeedHandler<Forecast>({
       return
     }
 
-    const address = clientAddress(req)
+    const address = clientScopes(req)
     const timestamp = now()
     if (unknownFeedLimiter.exhausted(address, timestamp)) {
       tooManyRequests(res, 60)

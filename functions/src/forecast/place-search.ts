@@ -7,9 +7,10 @@
 // comes here instead of calling the free API from the browser.
 //
 // Answers are cached in memory per instance (a place name's matches rarely change), and
-// cache misses count against the same global upstream budget as the forecasts
-// (upstream-budget.ts), because they spend the same plan's calls. While the cost guard is
-// engaged, only cached answers are served.
+// cache misses count against place search's own global upstream budget (upstream-budget.ts
+// with the `places-` prefix) and the caller's share of it (caller-share.ts), so random
+// searches cannot spend the forecasts' calls, and one caller cannot spend everyone's
+// searches (REVIEW4 H1). While the cost guard is engaged, only cached answers are served.
 
 import { type GeocodingResult, parseGeocodingResponse } from '#core'
 import type { Request } from 'firebase-functions/v2/https'
@@ -60,8 +61,8 @@ export interface PlaceSearchCacheOptions {
   apiKey: () => string | null
   /** Whether the cost guard allows calls upstream (shared/cost-guard.ts). */
   upstreamAllowed: () => Promise<boolean>
-  /** The global budget for upstream calls (upstream-budget.ts). */
-  upstreamBudget: { take: () => Promise<boolean> }
+  /** Place search's global budget for upstream calls (upstream-budget.ts). */
+  upstreamBudget: { take: () => Promise<boolean>; available?: () => boolean }
   base?: string
   now?: () => number
   fetchImpl?: typeof fetch
@@ -74,15 +75,21 @@ export class PlaceSearchCache {
 
   constructor(private readonly options: PlaceSearchCacheOptions) {}
 
-  /** The matches for a search: cached, or fetched within the budget, or a 503. */
-  async search({ name, count }: PlaceSearch): Promise<{ results: GeocodingResult[] }> {
+  /**
+   * The matches for a search: cached, or fetched within the budget, or a 503. `mayFetch`
+   * is the caller's share, asked only when a miss would call upstream.
+   */
+  async search(
+    { name, count }: PlaceSearch,
+    { mayFetch }: { mayFetch?: () => boolean | Promise<boolean> } = {},
+  ): Promise<{ results: GeocodingResult[] }> {
     const key = `${count}:${name.toLowerCase()}`
     const now = (this.options.now ?? Date.now)()
     const cached = this.memory.get(key)
     if (cached && cached.expiresAt > now) return { results: cached.results }
     let pending = this.inFlight.get(key)
     if (!pending) {
-      pending = this.fetch(name, count, key, now).finally(() => this.inFlight.delete(key))
+      pending = this.fetch(name, count, key, now, mayFetch).finally(() => this.inFlight.delete(key))
       this.inFlight.set(key, pending)
     }
     return { results: await pending }
@@ -99,6 +106,7 @@ export class PlaceSearchCache {
     count: number,
     key: string,
     now: number,
+    mayFetch?: () => boolean | Promise<boolean>,
   ): Promise<GeocodingResult[]> {
     const unavailable = (reason: string, error?: unknown): never => {
       this.logs.log('warn', reason, 'place search unavailable', {
@@ -112,7 +120,10 @@ export class PlaceSearchCache {
     const apiKey = this.options.apiKey()
     if (!apiKey) return unavailable('no provider')
     if (!(await this.options.upstreamAllowed())) return unavailable('cost guard')
-    if (!(await this.options.upstreamBudget.take())) return unavailable('upstream budget')
+    const budget = this.options.upstreamBudget
+    if (budget.available && !budget.available()) return unavailable('upstream budget')
+    if (mayFetch && !(await mayFetch())) return unavailable('caller limit')
+    if (!(await budget.take())) return unavailable('upstream budget')
 
     const params = new URLSearchParams({
       name,
