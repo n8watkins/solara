@@ -263,7 +263,13 @@ No Microsoft review is needed for the one permission Solara asks for.
    - [ ] Move an event in Outlook, then press **Refresh**: Solara follows.
    - [ ] **Disconnect** removes the events, and the link to your Microsoft account's app permissions (https://account.live.com/consent/Manage) lists Solara and removes it; for a work account, My Apps (https://myapplications.microsoft.com/) does.
    - [ ] No CSP violation shows in the browser console.
-10. Switch it on: `gh variable set OUTLOOK_CALENDAR_EVENTS_ENABLED --repo n8watkins/solara --body true`, and let the next deploy run (it also turns on Pro event heads-ups with `ALERTS_ENABLED`, as the Google switch does); repeat the first and last checks on production.
+   - [ ] **Refresh** after a reload goes through without Microsoft's account picker (only "Show my Outlook events" shows it).
+   - [ ] The token answer carries no `refresh_token` (DevTools, **Network**, the `token` request's **Response**): this confirms the privacy policy's "Solara keeps no refresh token" with Microsoft's own answer.
+10. After the REVIEW7 sign-in fix (FIX7A) is merged, and before switching on: one sign-in with production's headers, the cache cleared and the network throttled, because `npm run dev` sends none of production's headers and the bug REVIEW7 M1 found appears only with them.
+    Production itself shows the Outlook panel only once it is switched on, so build production's way with the dev registration from step 6: `npm run build` with the `.env.local` of step 6, then `E2E_SITE_DIR=out node tests/e2e/serve-export.mjs 5050`, which serves the build on the Hosting emulator with firebase.json's headers.
+    - [ ] Open `http://localhost:5050/app/` in Chrome, sign in to Solara, open DevTools, and on **Network** tick **Disable cache** and pick **Slow 4G** (or **3G**).
+    - [ ] Press **Show my Outlook events** and sign in to Microsoft: the popup closes and the events appear. If the popup closes and nothing happens, with no message, do not switch on; tell the agent.
+11. Switch it on: `gh variable set OUTLOOK_CALENDAR_EVENTS_ENABLED --repo n8watkins/solara --body true`, and let the next deploy run (it also turns on Pro event heads-ups with `ALERTS_ENABLED`, as the Google switch does); repeat the first and last checks on production.
 
 ## Linked calendars
 

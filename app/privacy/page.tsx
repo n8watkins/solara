@@ -88,9 +88,10 @@ export default function PrivacyPage() {
             that matches one of your activities, its title, start and end time, time zone, location
             text, the place Solara forecasts it for and which activity it counts as, stored like
             imported events. Other events, notes, attendees, organizers, meeting links, dial-in
-            numbers and passcodes, office rooms and home addresses are never stored; Solara never
-            learns which Microsoft account you signed in with; and no Microsoft access or refresh
-            token is stored anywhere.
+            numbers and passcodes, and office rooms and homes that Outlook marks as such, are never
+            stored; the Microsoft account you signed in with is never stored (your browser reads the
+            address each calendar belongs to, in memory, only to leave out calendars other people
+            share with you); and no Microsoft access or refresh token is stored anywhere.
           </li>
           <li>
             <strong>Calendar feed and notifications</strong>, if you turn them on: a private feed
@@ -207,10 +208,10 @@ export default function PrivacyPage() {
           <strong>Read basic details of user calendars</strong> (<code>Calendars.ReadBasic</code>),
           which lets it read your calendars and their events except for their notes, attachments and
           extensions. You sign in to Microsoft in a window of its own, so Solara never sees your
-          Microsoft password. Solara does not ask to know who you are at Microsoft, and does not ask
-          for offline access, so Microsoft gives it no refresh token: the access lasts about an
-          hour, in your browser&apos;s memory only, and Solara can read your calendar again only
-          while it is open and after you sign in again.
+          Microsoft password. Solara does not ask to know who you are at Microsoft, does not ask for
+          offline access, and keeps no refresh token: it holds the access for up to an hour, in your
+          browser&apos;s memory only, and can read your calendar again only while it is open and
+          after you sign in again.
         </p>
         <ul>
           <li>
@@ -225,8 +226,8 @@ export default function PrivacyPage() {
             Places are found as for Google Calendar events: only the town part of a location written
             as an address is searched, and for a place you picked from Outlook&apos;s place search,
             its coordinates are used as they are (rounded to two decimal places), with its name.
-            Meeting links, dial-in details, office rooms and homes are never searched or sent
-            anywhere.
+            Meeting links, dial-in details, and office rooms and homes that Outlook marks as such
+            are never searched or sent anywhere.
           </li>
           <li>
             Disconnecting in the Events section removes the stored events and the list of calendars
@@ -359,7 +360,7 @@ export default function PrivacyPage() {
             Events from your Outlook calendar: until they are gone from your calendar or you
             disconnect, which removes them and the list of calendars; Firestore deletes each event
             automatically 30 days after it ends, and always when you delete your account. The
-            Microsoft access is kept only in your browser&apos;s memory, for about an hour.
+            Microsoft access is kept only in your browser&apos;s memory, for up to an hour.
           </li>
           <li>
             Calendar availability: only in your browser for the current session; never stored by
