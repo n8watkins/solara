@@ -127,7 +127,7 @@ Candidates, roughly ranked by impact over effort:
 1. **Scheduled activities** - done (#55, #56); hidden in production until the Google OAuth client ID is set.
 2. **Threshold UV alerts and a sunscreen reapply timer** - done: the reapply timer (#115) is free for every plan and runs in the browser; the UV alert (#112) is Pro, once a day when the forecast UV reaches the chosen level, outside quiet hours.
 3. **Daily briefing card** - done (#108): "Today at a glance" on the dashboard (peak UV and time, the best lower-UV window for the plan, burn time at the peak, one line of advice), tomorrow's after dark, with a share.
-   The words come from `dailyBriefing` in `packages/core/src/briefing.ts`, so a Pro morning push (item 10) can send the same text.
+   The words come from `dailyBriefing` in `packages/core/src/briefing.ts`, and the Pro morning alert (item 10, `morningAlertMessage`) sends the same text, titled with its best window.
    An AI-written version stays a future option: it needs an LLM API key, which must stay secret behind a Function, so Blaze, and a cost line in [COSTS.md](COSTS.md).
 4. **Family profiles as a headline Pro feature** - done (#105): "Plan for a group" uses the most sensitive person among those ticked for plans and burn estimates, the switcher works on phones, Free sees an honest Pro offer (a waitlist while checkout is off), and the plan comparison names the mode.
 5. Cloud-aware forecasts with confidence that decays after day 3.

@@ -8,15 +8,8 @@
 // - The UV alert goes out at most once per local day, when today's forecast UV index
 //   reaches the person's threshold: from an hour before the first such hour until the
 //   last one ends, outside quiet hours.
-import {
-  bestWindow,
-  burnMins,
-  effectiveMaxUV,
-  isSkinType,
-  runsOn,
-  type PreferredHours,
-  type SkinType,
-} from './recommendation'
+import { dailyBriefing } from './briefing'
+import { isSkinType, type PreferredHours, type SkinType } from './recommendation'
 import { NOTIFICATION_HOUR, QUIET_HOURS, UV_ALERT_THRESHOLD } from './prefs'
 
 /** The kinds of alert, each sent at most once per local day. */
@@ -184,52 +177,27 @@ export interface MorningAlertInput {
 const oneDecimal = (uv: number) => String(Math.round(uv * 10) / 10)
 
 /**
- * The morning alert: the first of the day's activities with a lower-UV window, the
- * day's peak and the burn estimate at it.
- *
- * The body is written to be replaced by the daily briefing's text (`dailyBriefing`,
- * built in the FEAT2 lane) once that lands in this package, so the dashboard card, a
- * share and this push say the same; the inputs here are the briefing's inputs.
+ * The morning alert, from the daily briefing (`dailyBriefing`, briefing.ts): the title
+ * names its best lower-UV window and the activity it suits, and the body is its text,
+ * so the dashboard card, a share and this push say the same.
  */
 export function morningAlertMessage(input: MorningAlertInput): AlertMessage {
   const time = (hours: number) => formatAlertTime(hours, input.clock)
   const skinType: SkinType = isSkinType(input.skinType) ? input.skinType : 'fair'
   const city = input.city.trim() || 'your area'
-  const peak = input.hourly.reduce<AlertHour | null>(
-    (max, h) => (max === null || h.uv > max.uv ? h : max),
-    null,
-  )
-  const peakText = peak
-    ? `Peak UV ${oneDecimal(peak.uv)} around ${time(peak.hour)} in ${city}.`
-    : `No UV forecast for ${city} yet.`
-  const burn = peak ? burnMins(peak.uv, skinType) : null
-  const burnText = burn ? ` About ${burn} min to a burn at the peak, as an estimate.` : ''
-
-  for (const activity of input.activities) {
-    if (!runsOn(activity, input.date)) continue
-    const limit = effectiveMaxUV(activity)
-    const window = bestWindow(
-      input.hourly,
-      limit,
-      activity.durationMins ?? 30,
-      activity.preferredHours,
-    )
-    if (!window) continue
-    return {
-      title: `${activity.icon || '☀️'} ${activity.name}: ${time(window.from)} to ${time(window.to)}`,
-      body:
-        `Estimated lower-UV window: UV at or below ${limit}` +
-        `${activity.sunscreen ? ' with SPF 30+' : ''}. ${peakText}${burnText}` +
-        ' Recheck current conditions.',
-    }
-  }
-
-  return {
-    title: `☀️ UV today in ${city}`,
-    body:
-      `${peakText} No lower-UV window fits your activities today.${burnText}` +
-      ' Recheck current conditions.',
-  }
+  const briefing = dailyBriefing({
+    day: { date: input.date, hourly: input.hourly },
+    dayLabel: `Today in ${city}`,
+    activities: input.activities,
+    skinType,
+    formatTime: time,
+  })
+  const body = `${briefing.text} Recheck current conditions.`
+  const span = briefing.window?.spans[0]
+  const name = briefing.window?.activity
+  if (!span || !name) return { title: `☀️ UV today in ${city}`, body }
+  const icon = input.activities.find(activity => activity.name === name)?.icon || '☀️'
+  return { title: `${icon} ${name}: ${time(span.from)} to ${time(span.to)}`, body }
 }
 
 export interface UvAlertInput {

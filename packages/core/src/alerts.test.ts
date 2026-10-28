@@ -139,7 +139,7 @@ describe('morning alert message', () => {
   const hourly = day({ 6: 1, 7: 2, 8: 3, 9: 5, 10: 7, 11: 8, 12: 8, 13: 7, 14: 5, 15: 3 })
   const run = { name: 'Run', icon: '🏃', maxUV: 3, durationMins: 60 }
 
-  it('names the first activity with a lower-UV window, then the peak and burn estimate', () => {
+  it('sends the daily briefing, titled with its best window', () => {
     expect(
       morningAlertMessage({
         date: '2026-06-15',
@@ -150,7 +150,10 @@ describe('morning alert message', () => {
       }),
     ).toEqual({
       title: '🏃 Run: 6am to 9am',
-      body: 'Estimated lower-UV window: UV at or below 3. Peak UV 8 around 11am in Austin. About 19 min to a burn at the peak, as an estimate. Recheck current conditions.',
+      body:
+        'Today in Austin: UV peaks at 8.0 (Very high) around 11am. Best lower-UV window: Run 6am–9am. ' +
+        'At the peak, unprotected skin like yours can burn in about 19 min. ' +
+        'Seek shade from 11am to 1pm, when UV is 8 or more. Recheck current conditions.',
     })
   })
 
@@ -164,8 +167,9 @@ describe('morning alert message', () => {
       clock: '24h',
     })
     expect(message.title).toBe('☀️ UV today in Austin')
-    expect(message.body).toContain('Peak UV 8 around 11:00 in Austin.')
-    expect(message.body).toContain('No lower-UV window fits your activities today.')
+    // No activity runs on a Monday: the briefing gives the low-UV hours instead.
+    expect(message.body).toContain('Today in Austin: UV peaks at 8.0 (Very high) around 11:00.')
+    expect(message.body).toContain('UV is under 3 from 06:00 to 08:00.')
   })
 
   it('never calls a window safe', () => {
