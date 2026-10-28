@@ -1,4 +1,6 @@
 import { expect, test } from '@playwright/test'
+import { startClock } from '../harness/clock'
+import { buildRawForecast } from '../harness/fixtures'
 
 test('loads analytics only after consent and lets the user revoke it', async ({
   page,
@@ -67,4 +69,58 @@ test('loads analytics only after consent and lets the user revoke it', async ({
   await expect(page.getByRole('heading', { name: 'Help improve Solara' })).toHaveCount(0)
   await expect(page.locator('script[src*="googletagmanager.com"]')).toHaveCount(0)
   await expect.poll(async () => (await context.cookies()).map(c => c.name)).toEqual([])
+})
+
+test.describe('on the dashboard', () => {
+  test.use({ timezoneId: 'America/Los_Angeles' })
+
+  test('the banner sits in the page flow and covers nothing, at every width', async ({ page }) => {
+    // REVIEW4: the floating card covered the sunscreen timer's Start button at 1280 px.
+    await page.route('https://api.open-meteo.com/**', route =>
+      route.fulfill({ json: buildRawForecast() }),
+    )
+    await startClock(page)
+    await page.addInitScript(() => {
+      const prefs = {
+        location: {
+          lat: 34.05,
+          lon: -118.24,
+          city: 'Los Angeles',
+          region: 'California',
+          timezone: 'America/Los_Angeles',
+        },
+        skinType: 'fair',
+        activities: [],
+        onboardingComplete: true,
+      }
+      localStorage.setItem('solara_guest', JSON.stringify({ prefs, since: '2026-06-15' }))
+    })
+    for (const width of [320, 390, 768, 1024, 1280, 1440]) {
+      await page.setViewportSize({ width, height: 800 })
+      await page.goto('/app/')
+      const banner = page.getByRole('region', { name: 'Help improve Solara' })
+      await expect(banner).toBeVisible()
+      expect(await banner.evaluate(el => getComputedStyle(el).position)).toBe('static')
+      // It is laid out before the page, so nothing after it moves when it appears.
+      const box = (await banner.boundingBox())!
+      expect(box.y).toBe(0)
+      const start = page.getByRole('button', { name: 'Start', exact: true })
+      await start.scrollIntoViewIfNeeded()
+      // The button is the topmost element at its own center: nothing lies over it.
+      expect(
+        await start.evaluate(el => {
+          const r = el.getBoundingClientRect()
+          const top = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)
+          return !!top && el.contains(top)
+        }),
+        `Start is uncovered at ${width} px`,
+      ).toBe(true)
+      // No horizontal overflow from the banner on a narrow phone.
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+        width,
+      )
+    }
+    await page.getByRole('button', { name: 'Not now' }).click()
+    await expect(page.getByRole('region', { name: 'Help improve Solara' })).toHaveCount(0)
+  })
 })

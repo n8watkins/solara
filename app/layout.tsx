@@ -3,7 +3,7 @@ import './globals.css'
 import { inter } from './fonts'
 import AnalyticsConsent from '@/components/AnalyticsConsent'
 import ThemeInit from '@/components/ThemeInit'
-import { isAnalyticsMeasurementId } from '@/lib/analytics-consent'
+import { ANALYTICS_CONSENT_INIT_SCRIPT, isAnalyticsMeasurementId } from '@/lib/analytics-consent'
 import { SITE_URL } from '@/lib/site'
 import { THEME_INIT_SCRIPT } from '@/lib/theme'
 
@@ -55,6 +55,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         {/* Blocking on purpose: applies the theme before first paint (no flash). */}
         <script data-static="" dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        {/* Blocking too: lays out the in-flow consent banner from the first frame. */}
+        {GA_ID && (
+          <script
+            data-static=""
+            dangerouslySetInnerHTML={{ __html: ANALYTICS_CONSENT_INIT_SCRIPT }}
+          />
+        )}
       </head>
       <body>
         <AnalyticsConsent measurementId={GA_ID} />

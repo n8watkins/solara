@@ -4,25 +4,35 @@
 @layer theme, base, components, utilities;
 
 @layer components {
-  /* Non-blocking analytics consent banner, pinned to the bottom of the viewport. */
+  /* Non-blocking analytics consent banner at the top of the page, in the page flow,
+     so it never covers the page at any width. Shown only while the head script has
+     marked <html> as not yet decided, so it is laid out from the first frame. */
   .banner {
-    position: fixed;
-    z-index: 90;
-    right: 16px;
-    bottom: max(16px, env(safe-area-inset-bottom));
-    left: 16px;
+    display: none;
+    color: var(--text);
+    background: var(--bg-card);
+    border-bottom: 0.5px solid var(--border-md);
+  }
+
+  :global(html[data-analytics-consent='unset']) .banner {
+    display: block;
+  }
+
+  .inner {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 20px;
-    max-width: 720px;
+    /* The app's content column (components/AppShell.tsx). */
+    max-width: 900px;
     margin: 0 auto;
-    padding: 14px 16px;
-    color: var(--text);
-    background: var(--bg-card);
-    border: 0.5px solid var(--border-md);
-    border-radius: 14px;
-    box-shadow: 0 10px 32px rgba(0, 0, 0, 0.16);
+    padding: 12px 16px;
+  }
+
+  @media (min-width: 1024px) {
+    .inner {
+      max-width: 1240px;
+    }
   }
 
   .copy {
@@ -62,10 +72,7 @@
   }
 
   @media (max-width: 640px) {
-    .banner {
-      right: 12px;
-      bottom: max(12px, env(safe-area-inset-bottom));
-      left: 12px;
+    .inner {
       flex-direction: column;
       align-items: stretch;
       gap: 12px;
