@@ -161,6 +161,7 @@ export default function EventsSection({ uid, prefs, weather, displayTier, onUpgr
 
       {(progress || status || loadError) && (
         <p
+          data-testid="events-status"
           role={status?.error || (loadError && !progress && !status) ? 'alert' : 'status'}
           className={`mt-3 rounded-[10px] px-3 py-2 text-[13px] leading-normal ${
             status?.error || (loadError && !progress && !status)

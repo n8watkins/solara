@@ -219,10 +219,22 @@ export class Emulators {
 
   /** The account's scheduled-activity records, by event id. */
   async readScheduled(account: Account): Promise<Record<string, Record<string, unknown>>> {
-    const response = await fetch(`${FIRESTORE_API}/users/${account.uid}/scheduled?pageSize=1000`, {
+    return this.readCollection(account, 'scheduled')
+  }
+
+  /** The account's imported events, by key. */
+  async readEvents(account: Account): Promise<Record<string, Record<string, unknown>>> {
+    return this.readCollection(account, 'events')
+  }
+
+  private async readCollection(
+    account: Account,
+    name: string,
+  ): Promise<Record<string, Record<string, unknown>>> {
+    const response = await fetch(`${FIRESTORE_API}/users/${account.uid}/${name}?pageSize=1000`, {
       headers: ADMIN,
     })
-    if (!response.ok) throw new Error(`Listing scheduled failed: ${response.status}`)
+    if (!response.ok) throw new Error(`Listing ${name} failed: ${response.status}`)
     const { documents = [] } = (await response.json()) as {
       documents?: { name: string; fields?: Record<string, FirestoreValue> }[]
     }

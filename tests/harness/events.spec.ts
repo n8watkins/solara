@@ -85,7 +85,7 @@ test('sample events on Pro: UV, burn, sunscreen and the place fix', async ({ pag
     .getByRole('combobox', { name: 'Place for Beach volleyball with the office' })
     .fill('San Diego')
   await page.getByRole('option', { name: /San Diego/ }).click()
-  await expect(section.getByRole('status')).toHaveText('Place set to San Diego.')
+  await expect(page.getByTestId('events-status')).toHaveText('Place set to San Diego.')
   await expect(volleyball.getByText('San Diego, California')).toBeVisible()
   await expect(volleyball.getByRole('button', { name: 'Set the place' })).toHaveCount(0)
 
@@ -138,7 +138,9 @@ test('import an .ics file', async ({ page }, testInfo) => {
     mimeType: 'text/calendar',
     buffer: Buffer.from(ICS),
   })
-  await expect(section.getByRole('status')).toHaveText('Imported 1 event. Skipped 1 all-day event.')
+  await expect(page.getByTestId('events-status')).toHaveText(
+    'Imported 1 event. Skipped 1 all-day event.',
+  )
   const paddle = section.getByRole('listitem', { name: 'Mission Bay paddle' })
   await expect(paddle.getByText('San Diego, California')).toBeVisible()
   await expect(paddle.getByText('Tomorrow · 9am – 10:30am')).toBeVisible()
@@ -150,5 +152,5 @@ test('import an .ics file', async ({ page }, testInfo) => {
     mimeType: 'text/calendar',
     buffer: Buffer.from('<html>Not found</html>'),
   })
-  await expect(section.getByRole('alert')).toContainText('not a calendar')
+  await expect(page.getByTestId('events-status')).toContainText('not a calendar')
 })
