@@ -106,6 +106,9 @@ test('the Google panel keeps its actions together on a phone (REVIEW6 L7)', asyn
   const choose = google.getByRole('button', { name: 'Choose calendars' })
   const disconnect = google.getByRole('button', { name: 'Disconnect' })
   await expect(disconnect).toHaveCount(1)
+  // Scrolled, the sticky header would sit over the event card above the panel, which axe
+  // counts as a covered target; the panel is what this screen is about.
+  await page.addStyleTag({ content: '.sticky { position: static !important; }' })
   await google.scrollIntoViewIfNeeded()
   const [r, c, d] = await Promise.all([refresh, choose, disconnect].map(b => b.boundingBox()))
   // Refresh and Choose calendars share a row, and Disconnect never sits alone below them.
@@ -115,8 +118,8 @@ test('the Google panel keeps its actions together on a phone (REVIEW6 L7)', asyn
     // A quiet text button beside the calendar's name.
     expect(d!.y).toBeLessThan(r!.y - 20)
   }
-  await captureScreen(page, testInfo, capture, { name: 'events-google-connected', fullPage: false })
-  await panelShot(page, testInfo, 'events-section-google-connected')
+  await captureScreen(page, testInfo, capture, { name: 'events-google-actions', fullPage: false })
+  await panelShot(page, testInfo, 'events-section-google-actions')
 
   // The confirmation still reads in one place.
   await disconnect.click()
