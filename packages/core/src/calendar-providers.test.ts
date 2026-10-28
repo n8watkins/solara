@@ -11,6 +11,8 @@ import {
   type CalendarProvider,
 } from './calendar-providers'
 
+const EM_DASH = String.fromCharCode(0x2014)
+
 // Real-shaped links with made-up tokens (docs/integrations/CALENDAR_LINKS.md, "Recognising
 // links"). None of these tokens has ever been a real calendar's.
 // Spelled out as a pattern, so secret scanners do not mistake it for a real token.
@@ -260,7 +262,7 @@ describe('calendarLinkHint', () => {
 
   it('writes every message without an em dash', () => {
     for (const text of Object.values(CALENDAR_LINK_PROBLEMS)) {
-      expect(text).not.toContain('—')
+      expect(text).not.toContain(EM_DASH)
       expect(text).toMatch(/\.$/)
     }
   })

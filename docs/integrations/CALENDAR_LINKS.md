@@ -1,12 +1,12 @@
-# Add a calendar from... (plan)
+# Add a calendar from...
 
-_Scoped 2026-10-28 by lane CALSCOPE, planned and owner approved 2026-10-28 ([ROADMAP item 24](../ROADMAP.md#24-add-a-calendar-from-helper-planned))._
+_Scoped 2026-10-28 by lane CALSCOPE, planned and owner approved 2026-10-28 ([ROADMAP item 24](../ROADMAP.md#24-add-a-calendar-from-helper-built-and-switched-off))._
 _Every provider step below was checked against the cited page on 2026-10-28; steps that only third-party pages describe are marked "unconfirmed" and listed in [Open questions](#open-questions)._
 
 This is the spec for a helper in the Events section that shows people how to get a calendar link from Apple iCloud, Google, Outlook.com and Yahoo, and recognises and checks the link they paste before it reaches [linked calendars](EVENTS.md#phase-2-as-built) (#131, ROADMAP item 19).
 It changes nothing on the server: the link goes through the same `eventSubscriptions` Function, guards and limits as any pasted link.
 It ships with linked calendars, so it is switched off with them behind `EVENTS_SUBSCRIPTIONS_ENABLED`.
-Files marked "(new)" are planned.
+Files marked "(new)" were planned here and are now built; what differs from the plan is in [As built](#as-built).
 
 ## What the person sees
 
@@ -142,6 +142,27 @@ A link it does not recognise is still accepted and checked by the server as toda
 - Unit: every row of the table with made-up tokens, `webcal` and `webcals` forms, upper-case hosts, look-alike hosts, a trailing fragment, and an unrecognised but valid https link (accepted, no name).
 - UI harness: the panel for each provider at 390 and 1440 px, light and dark, with 0 axe violations; the recognised-provider hint and one mistake message.
 - The copy test: one sentence per step, no em dash, under 120 characters.
+
+## As built
+
+_Built 2026-10-28 by lane LINKGUIDE; switched off with linked calendars (`EVENTS_SUBSCRIPTIONS_ENABLED`)._
+
+- `packages/core/src/calendar-providers.ts` (exported from `@solara/core/event-import`): `recogniseCalendarLink(text)` returns `{ provider, kind, problem }` with `kind` `'calendar'` (the provider's calendar link), `'mistake'` or null, and never any part of the link; `calendarLinkHint` gives the words, `calendarLinkRefused` says whether a mistake stops the link being sent, and `calendarProviderForHost` names a card's provider.
+- Rules as in [Recognising links](#recognising-links), with these details:
+  - Google's public address is a warning, not a refusal, because a club's public Google calendar does work there: "That is Google's public address, which works only for a public calendar. For your own, copy the Secret address in iCal format."
+  - Every other mistake (the iCloud website, a Google Calendar page, Outlook's HTML link or website, a Yahoo page) is refused in the browser with its message, without a request; the button turns to its outline style while such a link is in the field.
+  - Paths are matched after the URL parser has resolved them, so dot segments and encoded slashes cannot dress one shape as another; Yahoo pages are any `yahoo.com` host or subdomain (a whole-label match).
+- `lib/calendar-guide.ts`: the words, one object per provider, plus the shared notes; `lib/calendar-guide.test.ts` checks each step and note is one sentence under 120 characters without an em dash, and that every provider says how to stop sharing or reset.
+- `components/events/AddCalendarGuide.tsx`: loaded by `EventSubscriptions` only when "Add a calendar from..." is opened, so no first load grows (the linked calendars panel is itself loaded only when switched on).
+  - The button is a disclosure (`aria-expanded`, `aria-controls`); the providers are native radio buttons in a `radiogroup` named "Where is the calendar?" (arrow keys move and choose); each way's steps are an ordered list named by its heading.
+  - Choosing a provider shows its steps, its notes and the two shared notes: the link works like a password (with the tip to use a separate calendar, which also stays under the 1 MB limit), and "Solara checks the link about every 6 hours, so changes can take a few hours to show."
+  - Yahoo has no numbered steps, as the open questions required: "On a computer, open the calendar's Share settings in Yahoo Calendar, copy its ICS link and paste it below.", with a note that Yahoo's menus may differ.
+  - With events from Google Calendar switched on, the Google choice adds "Or show events from Google Calendar above, with no link."
+- Under the link field, a polite live hint names a recognised link ("Looks like a Google Calendar secret address.") or the mistake; the field is described by it.
+- A card whose calendar sends no name shows the provider ("Google Calendar", "iCloud", "Outlook", "Yahoo Calendar") with the host beside it (`subscriptionTitle` in `lib/event-subscriptions.ts`), and so does the "Linked ..." message.
+- The Function is unchanged: it does not yet add the provider hint to its error messages.
+- Tests: `packages/core/src/calendar-providers.test.ts` (every rule, webcal and webcals, upper case, fragments, look-alike and punycode hosts, backslashes, dot segments, credentials, ports, overlong and control-character input, and that no result or hint carries the link), `tests/harness/add-calendar-guide.spec.ts` (each provider at 1440 and 1280 px, 390 and 320 px, light and dark, 0 axe violations; keyboard; recognised and refused links), and `tests/e2e/signed-in/linked-calendars.e2e.ts`, which links a recognised Google secret address through the real `eventSubscriptions` Function on the emulators, with Google's server faked inside the Functions emulator (`tests/e2e/signed-in/emulator-calendars.js`), and checks the link never reaches the page, the console or the stored events.
+- Not checked in real accounts: every step the sections above mark unconfirmed, so the [open questions](#open-questions) stay open.
 
 ## Open questions
 

@@ -35,7 +35,7 @@ Steps 12-18 (Blaze with the budget kill switch, staging and Stripe test mode, th
 | 4 - Tailwind 4, restyle and split, upgrades | Done 2026-10-24 (ESLint 10 and TypeScript 7 deferred, see Next up) | #57-#67 |
 | 3 phase 1 - free launch (no Blaze) | Done 2026-10-24; Sentry and App Check wait for the owner's keys | #70, #71 |
 | 3 phase 2 - Pro launch (Blaze) | Built and switched off (items 6, 9, 10, 11), hardened after the third, fourth and fifth reviews (items 14-18, 21, 22) and the sixth (items 25, 26); waits for the owner's Pro launch steps | #99, #102, #104, #106, #107, #118-#124, #126, #128-#130, #133, #134, #136 |
-| 5 - features | Done: scheduled activities, the reapply timer and UV alert, the daily briefing, family profiles, cloud-aware forecasts, skin typing, city pages, shade and surface, and .ics event import (events phase 1). Built and switched off: linked calendars with Pro event heads-ups (events phase 2, item 19) and events already in Google Calendar (phase 2b, item 20). Planned: events from Outlook and the "Add a calendar from..." helper (items 23, 24) | #55, #56, #103, #105, #108-#112, #114, #115, #117, #131, #132, #135 |
+| 5 - features | Done: scheduled activities, the reapply timer and UV alert, the daily briefing, family profiles, cloud-aware forecasts, skin typing, city pages, shade and surface, and .ics event import (events phase 1). Built and switched off: linked calendars with Pro event heads-ups (events phase 2, item 19) and events already in Google Calendar (phase 2b, item 20). Built and switched off with linked calendars: the "Add a calendar from..." helper (item 24). Planned: events from Outlook (item 23) | #55, #56, #103, #105, #108-#112, #114, #115, #117, #131, #132, #135 |
 | 6 - mobile app | Not started | - |
 
 Also done: the move to `solara-uv.web.app` (#42, #45), Search Console verification (#43), the legal operator details (#46), the privacy policy's Google user data section (#48), the docs consolidation (#53), the costs page and Wave 3 decisions (#68), the new-user sign-in race and test flake fixes (#69), every CodeQL alert (#72, #73), the "fast checks locally, full suites on CI" agent contract (#74), the plan docs refresh (#75), and the fixes from the first post-launch code review (client findings in #79, server and rules findings in #81).
@@ -266,15 +266,15 @@ Planned, owner approved 2026-10-28; scoped in [integrations/OUTLOOK.md](integrat
 - **Cost:** $0; no Microsoft review is needed, and publisher verification is optional and not possible without a custom domain.
 - **Size:** M.
 
-### 24. "Add a calendar from..." helper (planned)
+### 24. "Add a calendar from..." helper (built and switched off)
 
-Planned, owner approved 2026-10-28; specified in [integrations/CALENDAR_LINKS.md](integrations/CALENDAR_LINKS.md) by lane CALSCOPE.
+Built by lane LINKGUIDE as specified in [integrations/CALENDAR_LINKS.md](integrations/CALENDAR_LINKS.md#as-built), and switched off with linked calendars (`EVENTS_SUBSCRIPTIONS_ENABLED`).
 
 - **Goal:** make linked calendars (item 19) easy to use: step-by-step instructions for getting a calendar link from Apple iCloud (public calendar), Google (secret address in iCal format), Outlook.com (published ICS link) and Yahoo (shareable ICS link), on a computer and on a phone where they differ.
-- **Scope:** a panel under "Linked calendars" with one short sentence per step, privacy notes (a calendar link is a key; how to reset each), the refresh lag ("a few hours"), and a pure `recogniseCalendarLink` in `@solara/core` that names the provider and catches common mistakes (Google's public address, Outlook's HTML link, the iCloud website) before anything is sent; no server change.
-- **Acceptance:** unit tests for every recognition rule, harness screens for each provider at 390 and 1440 px in light and dark with 0 axe violations, and the copy checked in real accounts for the steps the document marks unconfirmed.
+- **Built:** "Add a calendar from..." under "Linked calendars" opens, on demand, a panel with the four providers, one short sentence per step (iCloud on a computer and on iPhone or iPad), each provider's reset or stop-sharing note, and the shared notes (the link is a key, changes take a few hours); `recogniseCalendarLink` in `@solara/core` names the provider of a pasted link and catches the common mistakes before anything is sent, and a card whose calendar sends no name shows the provider's name.
+- **Tests:** unit tests for every recognition rule and hostile input, a copy test, harness screens for each provider at 390 and 1440 px (and 320 and 1280 px) in light and dark with 0 axe violations, and a signed-in test that adds a recognised Google link through the real Function.
+- **Still open:** the steps marked unconfirmed in the document could not be checked in real accounts, so Yahoo ships with one sentence instead of numbered steps; the owner (or a later lane with test accounts) should confirm the open questions there.
 - **Depends on:** item 19's linked calendars; it ships switched off with them (`EVENTS_SUBSCRIPTIONS_ENABLED`).
-- **Size:** S.
 
 ### 25. Heads-up fairness from the sixth review (FIX6A, built)
 

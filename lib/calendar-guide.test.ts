@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest'
 import { CALENDAR_PROVIDERS } from '@solara/core/event-import'
 import { CALENDAR_GUIDES, GOOGLE_EVENTS_NOTE, SHARED_NOTES } from './calendar-guide'
 
+const EM_DASH = String.fromCharCode(0x2014)
+
 // docs/integrations/CALENDAR_LINKS.md, "Tests": one sentence per step, no em dash, under
 // 120 characters, so each step reads at a glance on a phone.
 const oneSentence = (text: string) => {
   expect(text.length, text).toBeLessThan(120)
-  expect(text, text).not.toContain('—')
+  expect(text, text).not.toContain(EM_DASH)
   expect(text, text).toMatch(/^[A-Z].*[.]$/)
   // A full stop followed by a capital would start a second sentence ("icloud.com/calendar"
   // and "Outlook.com" have no space after the dot).
