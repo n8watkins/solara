@@ -6,6 +6,7 @@ _Every external fact below was checked against the cited page on 2026-10-27._
 This is the design for [ROADMAP item 12.9](../ROADMAP.md#12-wave-5-features): linking events from Strava, Meetup and similar services so Solara can plan around them.
 Phase 1 is built (see [Phase 1 as built](#phase-1-as-built)), phases 2 and 2b are built and switched off (see [Phase 2 as built](#phase-2-as-built) and [Phase 2b as built](#phase-2b-as-built)); phase 3 is still a plan.
 Files marked "(new)" are planned.
+Two planned follow-ups have their own documents: [events from Outlook](OUTLOOK.md) (ROADMAP item 23), the Microsoft counterpart of phase 2b, and the [Add a calendar from... helper](CALENDAR_LINKS.md) (ROADMAP item 24) for linking iCloud, Google, Outlook.com and Yahoo calendars in phase 2.
 
 ## Phase 1 as built
 

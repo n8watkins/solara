@@ -144,6 +144,7 @@ Candidates, roughly ranked by impact over effort:
 9. Linking with live events from Strava, Meetup and similar services, so Solara can plan around them (owner's idea) - scoped in [integrations/EVENTS.md](integrations/EVENTS.md); **phase 1 built**: .ics file import with the UV, burn time and sunscreen timing per event, for every signed-in account.
    **Phase 2 built and switched off** (item 19): linked calendars refreshed on the server and Pro heads-ups before high-UV events.
    **Phase 2b built and switched off** (item 20): events already in Google Calendar, read in the browser.
+   **Planned:** events from Outlook (item 23) and the "Add a calendar from..." helper for linked calendars (item 24).
    Next: Strava last (no future events in its API, a developer subscription and a 10-athlete cap); the Meetup, Eventbrite, Komoot and Garmin APIs are not needed.
 
 ### 13. Wave 6: mobile app (owner's learning project)
@@ -252,6 +253,29 @@ The fifth security review's findings M3, M5, L1, L4, L5, L6 and L7, and its UI i
 - **Harness (L7):** the fixture's live reading follows the clock, so evening and night screens show that time's UV.
 - **Not done, for later if real traffic needs it:** serving the nearest cached cell before a 503, and limited-use App Check tokens for cache misses.
 
+### 23. Events already in Outlook (planned)
+
+Planned, owner approved 2026-10-28; scoped in [integrations/OUTLOOK.md](integrations/OUTLOOK.md) by lane CALSCOPE.
+
+- **Goal:** the Microsoft counterpart of item 20: show the UV at events already in a person's Outlook.com, Hotmail, Live or Microsoft 365 calendar.
+- **Scope:** read only, in the browser, with Microsoft Graph's `Calendars.ReadBasic` (the least privileged permission for reading events and listing calendars, no admin consent); a hand-rolled authorization code flow with PKCE in a popup (about 3 KB, loaded only with the Outlook panel) instead of MSAL.js (about 77 KB gzip, and it always asks for refresh tokens); no `offline_access`, no stored tokens; the `common` authority for personal and work or school accounts; the default calendar plus up to 10 chosen own calendars, the next 30 days, at most 200 events a refresh within the 1,000-event key list; stored as `source: 'outlook'` with the same place, duplicate and heads-up rules as Google events.
+- **Owns:** the new files listed in the document's build plan, plus touch points in `packages/core/src/events.ts`, `firestore.rules`, `lib/csp.mts` (`login.microsoftonline.com` and `graph.microsoft.com` in `connect-src`), the privacy policy, the export list, the deploy workflow and `.github/scripts/check-public-env.mjs`.
+- **Acceptance:** a controlled personal account (and a work account if available) connects, sees its events with their UV, chooses calendars, refreshes and disconnects in staging; unit, rules, signed-in browser (fake Microsoft endpoints), harness and CSP tests pass; the guest first load is unchanged.
+- **Depends on:** REVIEW6 and its FIX6 lanes landing in the events code first; the owner's free Azure app registration ([owner checklist](OWNER_CHECKLIST.md#events-from-outlook-only-for-the-outlook-connection)) before switching on, not before building.
+- **Switch:** `MICROSOFT_CLIENT_ID` and `OUTLOOK_CALENDAR_EVENTS_ENABLED` repository variables.
+- **Cost:** $0; no Microsoft review is needed, and publisher verification is optional and not possible without a custom domain.
+- **Size:** M.
+
+### 24. "Add a calendar from..." helper (planned)
+
+Planned, owner approved 2026-10-28; specified in [integrations/CALENDAR_LINKS.md](integrations/CALENDAR_LINKS.md) by lane CALSCOPE.
+
+- **Goal:** make linked calendars (item 19) easy to use: step-by-step instructions for getting a calendar link from Apple iCloud (public calendar), Google (secret address in iCal format), Outlook.com (published ICS link) and Yahoo (shareable ICS link), on a computer and on a phone where they differ.
+- **Scope:** a panel under "Linked calendars" with one short sentence per step, privacy notes (a calendar link is a key; how to reset each), the refresh lag ("a few hours"), and a pure `recogniseCalendarLink` in `@solara/core` that names the provider and catches common mistakes (Google's public address, Outlook's HTML link, the iCloud website) before anything is sent; no server change.
+- **Acceptance:** unit tests for every recognition rule, harness screens for each provider at 390 and 1440 px in light and dark with 0 axe violations, and the copy checked in real accounts for the steps the document marks unconfirmed.
+- **Depends on:** item 19's linked calendars; it ships switched off with them (`EVENTS_SUBSCRIPTIONS_ENABLED`).
+- **Size:** S.
+
 ## Decisions
 
 Agents never make owner decisions; they follow the recorded decision or the default.
@@ -292,6 +316,8 @@ The steps behind each one are in the [owner checklist](OWNER_CHECKLIST.md).
 | Limiter overflow | What the per-address limiter does when full | Default, owner may change (2026-10-28, item 22): past 10,000 live windows, new keys are counted in a 2 MB count-min sketch per limiter instead of being refused |
 | Forecast shares by network | IPv4 networks and the browser's part of the forecast budget | Default, owner may change (2026-10-28, item 22): an IPv4 /24 may use 4 caller shares (`IPV4_NETWORK_WEIGHT`), like an IPv6 /48; the browser's forecasts may spend two thirds of the global budget (`BROWSER_SHARE_OF_UPSTREAM`), the rest is kept for the calendar feed and event heads-ups |
 | UV threshold wording | How copy names the UV 3 and 8 thresholds | Default, owner may change (2026-10-28, item 22): the WHO bands stay on the rounded index; copy that sits beside one-decimal values names the band ("moderate or higher", "low", "very high or extreme") instead of "3 or more" |
+| Outlook events | Scope, auth and limits for events already in Outlook | Default, owner may change (2026-10-28, item 23): Microsoft Graph `Calendars.ReadBasic` only (`Calendars.Read` only if the build gate finds that ReadBasic hides titles or locations); a hand-rolled PKCE popup without `offline_access` instead of MSAL.js, tokens in memory only; the `common` authority; the default calendar plus up to 10 of the person's own calendars, the next 30 days, at most 200 events a refresh in the 1,000-event key list; disconnect removes the events and links to Microsoft's consent pages (a public client cannot revoke its own grant); shipped without publisher verification; behind `OUTLOOK_CALENDAR_EVENTS_ENABLED` and `MICROSOFT_CLIENT_ID` |
+| Calendar link helper | Which providers the "Add a calendar from..." helper covers | Default, owner may change (2026-10-28, item 24): Apple iCloud, Google, Outlook.com and Yahoo, computer steps first and phone steps where the provider offers them; it recommends a separate calendar for outdoor plans; Yahoo ships without numbered steps if they cannot be confirmed in a real account |
 
 ### Tiers
 
