@@ -192,7 +192,7 @@ export default function EventsSection({ uid, prefs, weather, displayTier, onUpgr
         />
       </div>
       <p className="mt-1 text-[13px] leading-normal text-ink-3">
-        The UV during events you plan to go to, from a calendar (.ics) file.
+        The UV during events you plan to go to, {eventSources()}.
       </p>
 
       {(progress || status || loadError) && (
@@ -326,9 +326,20 @@ export default function EventsSection({ uid, prefs, weather, displayTier, onUpgr
       )}
 
       <p className="mt-3 text-[11px] leading-normal text-ink-3">
-        Only each event’s title, time, place and link are kept, and only until 30 days after it
-        ends.
+        {googleCalendarEventsLaunched()
+          ? 'Only each event’s title, time and place, and the link a calendar file or linked calendar gives, are kept, and only until 30 days after it ends.'
+          : 'Only each event’s title, time, place and link are kept, and only until 30 days after it ends.'}
       </p>
     </section>
   )
+}
+
+/** Where events come from, as switched on: "from a calendar (.ics) file, a calendar link or Google Calendar". */
+function eventSources(): string {
+  const sources = [
+    'a calendar (.ics) file',
+    ...(eventSubscriptionsLaunched() ? ['a calendar link'] : []),
+    ...(googleCalendarEventsLaunched() ? ['Google Calendar'] : []),
+  ]
+  return `from ${sources.length > 1 ? `${sources.slice(0, -1).join(', ')} or ${sources.at(-1)}` : sources[0]}`
 }

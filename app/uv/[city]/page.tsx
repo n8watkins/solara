@@ -108,7 +108,9 @@ export default async function CityUVPage({ params }: Props) {
         </h2>
         <p className="mt-1.5 text-[14px] leading-[1.6] text-ink-3">
           The highest UV index of a typical day, with clouds and under a clear sky, and the hours UV
-          is usually 3 or more, from {CLIMATOLOGY_SOURCE.first} to {CLIMATOLOGY_SOURCE.last}.
+          is usually moderate or higher, from {CLIMATOLOGY_SOURCE.first} to{' '}
+          {CLIMATOLOGY_SOURCE.last}. The categories follow the WHO scale, which rounds to whole
+          numbers, so a typical peak of 2.5 already counts as Moderate.
         </p>
 
         {/* The bars repeat the table below for sighted readers. */}
@@ -153,7 +155,7 @@ export default async function CityUVPage({ params }: Props) {
                   Clear sky
                 </th>
                 <th scope="col" className="px-2.5 py-2.5 sm:px-4 font-semibold">
-                  UV 3 or more
+                  Moderate or higher
                 </th>
               </tr>
             </thead>

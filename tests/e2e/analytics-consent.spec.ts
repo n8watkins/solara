@@ -119,6 +119,22 @@ test.describe('on the dashboard', () => {
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
         width,
       )
+      // REVIEW5: on a phone it took 160 px, a fifth of the first screen. It now stays about
+      // two rows tall, with both choices side by side and the same size.
+      const allow = banner.getByRole('button', { name: 'Allow analytics' })
+      const decline = banner.getByRole('button', { name: 'Not now' })
+      const [a, d] = [(await allow.boundingBox())!, (await decline.boundingBox())!]
+      expect(a.y).toBe(d.y)
+      expect(a.height).toBeGreaterThanOrEqual(36)
+      if (width <= 640) {
+        // One sentence line and the buttons; at 320 px the sentence takes two lines.
+        expect(box.height, `banner height at ${width} px`).toBeLessThanOrEqual(
+          width >= 360 ? 90 : 110,
+        )
+        expect(Math.abs(a.width - d.width)).toBeLessThanOrEqual(1)
+        await expect(banner.getByRole('link', { name: 'Privacy details' })).toBeVisible()
+        await expect(banner.getByText('Optional analytics, off unless you allow it.')).toBeVisible()
+      }
     }
     await page.getByRole('button', { name: 'Not now' }).click()
     await expect(page.getByRole('region', { name: 'Help improve Solara' })).toHaveCount(0)

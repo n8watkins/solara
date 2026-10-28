@@ -20,7 +20,7 @@ export async function openDashboard(
   page: Page,
   { at = NOW_MS, tier = 'paid', edit }: { at?: number; tier?: string; edit?: (raw: Raw) => Raw },
 ) {
-  const raw = edit ? edit(buildRawForecast()) : buildRawForecast()
+  const raw = edit ? edit(buildRawForecast(at)) : buildRawForecast(at)
   await page.route('**/*', route => {
     const url = route.request().url()
     if (FORECAST.test(url))
@@ -62,7 +62,7 @@ export async function prepareLiveDashboard(
     query = '',
   }: { at?: number; tier?: string; edit?: (raw: Raw) => Raw; query?: string },
 ): Promise<Capture> {
-  const raw = JSON.stringify(edit ? edit(buildRawForecast()) : buildRawForecast())
+  const raw = JSON.stringify(edit ? edit(buildRawForecast(at)) : buildRawForecast(at))
   const capture = await preparePage(
     page,
     testInfo,

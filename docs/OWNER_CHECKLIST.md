@@ -239,7 +239,7 @@ Linked calendars and Pro event heads-ups are built and switched off (`EVENTS_SUB
 - [ ] In the Firestore console, `users/<uid>/private/eventSubscriptions` shows the host and label but no address; `eventSubscriptions/<id>` holds the address.
 - [ ] Press **Refresh**, then again at once: the second is refused for 10 minutes.
 - [ ] Wait for the `eventSubscriptionsRefresh` job after the next refresh time (6 hours): its log line `linked calendar refresh completed` counts the link.
-- [ ] With a Pro test account with alerts on a phone, add an event with high UV starting in about 4 hours: one heads-up arrives about 3 hours before it.
+- [ ] With a Pro test account with alerts on a phone, add an event with high UV starting in about 4 hours and set its activity (for example Running): one heads-up arrives about 3 hours before it; an event left on "No activity" gets none.
 - [ ] **Remove** the link: it and its events disappear on every device.
 
 ## Legal

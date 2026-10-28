@@ -77,7 +77,9 @@ test('settings: tabs, labels, focus trap and Escape', async ({ page }) => {
   await expect(sunProfile).toBeFocused()
   await expect(sunProfile).toHaveAttribute('aria-selected', 'true')
   await press(page, 'ArrowRight')
-  const appearance = dialog.getByRole('tab', { name: 'Appearance' })
+  await expect(dialog.getByRole('tab', { name: 'Alerts' })).toBeFocused()
+  await press(page, 'ArrowRight')
+  const appearance = dialog.getByRole('tab', { name: 'Display' })
   await expect(appearance).toBeFocused()
   await expect(appearance).toHaveAttribute('aria-selected', 'true')
   await expect(dialog.getByRole('tabpanel')).toContainText('Sun path animation')
@@ -91,8 +93,23 @@ test('settings: tabs, labels, focus trap and Escape', async ({ page }) => {
   await expect(sunProfile).toBeFocused()
 
   // Every tab is on screen, including on a phone.
-  for (const name of ['Sun profile', 'Appearance', 'Activities', 'Location', 'Account']) {
+  const names = ['Sun profile', 'Alerts', 'Display', 'Activities', 'Location', 'Account']
+  for (const name of names) {
     await expect(dialog.getByRole('tab', { name })).toBeInViewport({ ratio: 1 })
+  }
+  // Six tabs on a phone: no label spills out of its column (a two-word one may wrap), down to 320 px.
+  if (page.viewportSize()!.width < 640) {
+    for (const width of [390, 320]) {
+      await page.setViewportSize({ width, height: 800 })
+      for (const name of names) {
+        const tab = dialog.getByRole('tab', { name })
+        expect(
+          await tab.evaluate(el => el.scrollWidth <= el.clientWidth),
+          `${name} fits at ${width} px`,
+        ).toBe(true)
+      }
+    }
+    await page.setViewportSize({ width: 390, height: 844 })
   }
 
   await expectFocusTrapped(page, dialog)

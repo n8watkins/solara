@@ -11,6 +11,7 @@ import {
   monthSpan,
   relatedCities,
 } from './city-pages'
+import { formatUV } from './weather'
 import climatology from './cities/uv-climatology.json'
 import { STATIC_PAGES } from './static-pages.mts'
 
@@ -59,17 +60,17 @@ describe('cityPage', () => {
       'UV in London is highest in June, when a typical day peaks around 4.9 (Moderate).',
     )
     expect(page.facts).toContain(
-      'The typical midday UV reaches 3 or more from April to September, when public-health guidance recommends sun protection.',
+      'The typical midday UV is moderate or higher from April to September, when public-health guidance recommends sun protection.',
     )
-    expect(page.facts).toContain('UV usually stays under 3 from October to March.')
+    expect(page.facts).toContain('UV usually stays low from October to March.')
   })
 
   it('tells the southern hemisphere its own seasons, and high places their altitude', () => {
     expect(cityPage('sydney')!.top.month).toBe('December')
-    expect(cityPage('sydney')!.facts).toContain('UV usually stays under 3 in June and July.')
+    expect(cityPage('sydney')!.facts).toContain('UV usually stays low in June and July.')
     expect(cityPage('denver')!.facts.at(-1)).toMatch(/^At about 1,600 m above sea level/)
     expect(cityPage('singapore')!.facts).toContain(
-      'The typical midday UV reaches 3 or more in every month, so sun protection is a year-round habit here.',
+      'The typical midday UV is moderate or higher in every month, so sun protection is a year-round habit here.',
     )
   })
 
@@ -77,6 +78,18 @@ describe('cityPage', () => {
     const descriptions = CITIES.map(c => cityDescription(cityPage(c.slug)!))
     expect(new Set(descriptions).size).toBe(CITIES.length)
     for (const d of descriptions) expect(d.length).toBeLessThanOrEqual(160)
+  })
+
+  it('never quotes a decimal under 3 beside "3 or more" (REVIEW5 L5)', () => {
+    // Los Angeles: January's typical peak reads 2.5, which the WHO scale rounds to 3
+    // (Moderate); the words name the band, as the table does, instead of the number.
+    const page = cityPage('los-angeles')!
+    expect(formatUV(page.months[0]!.peak)).toBe('2.5')
+    expect(page.months[0]!.label).toBe('Moderate')
+    for (const c of CITIES) {
+      const city = cityPage(c.slug)!
+      expect([...city.facts, cityDescription(city)].join(' ')).not.toMatch(/\b3 or more|under 3\b/)
+    }
   })
 
   it('returns null for an unknown city', () => {

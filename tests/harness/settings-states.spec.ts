@@ -56,7 +56,13 @@ const STATES: State[] = [
     name: 'settings-alerts',
     query: 'screen=settings&alerts=on',
     act: async page => {
+      // The alerts have their own tab, selected while they show (REVIEW5).
+      await openTab(page, 'Alerts')
       const dialog = settings(page)
+      await expect(dialog.getByRole('tab', { name: 'Sun profile' })).toHaveAttribute(
+        'aria-selected',
+        'false',
+      )
       await dialog.getByRole('combobox', { name: 'UV alert' }).selectOption('6')
       await expect(dialog.getByRole('combobox', { name: 'Quiet from' })).toHaveValue('21')
       const card = dialog
@@ -73,13 +79,17 @@ const STATES: State[] = [
     name: 'settings-alerts-events',
     query: 'screen=settings&alerts=on&subscriptions=on',
     act: async page => {
+      await openTab(page, 'Alerts')
       const dialog = settings(page)
       const headsUp = dialog.getByRole('combobox', { name: 'Event heads-up' })
       await expect(headsUp).toHaveValue('on')
       await headsUp.selectOption('off')
+      // REVIEW5 L6: heads-ups move earlier, not later, around quiet hours, and are only
+      // for outdoor events.
       await expect(
-        dialog.getByText('The UV alert and event heads-ups wait until they end.'),
+        dialog.getByText('An event heads-up that would fall in them comes the evening before.'),
       ).toBeVisible()
+      await expect(dialog.getByText(/About 3 hours before an outdoor event/)).toBeVisible()
       const card = dialog
         .getByRole('heading', { name: 'Morning and UV alerts' })
         .locator('..')
@@ -172,6 +182,7 @@ const STATES: State[] = [
     name: 'settings-free',
     query: 'screen=settings&tier=free',
     act: async page => {
+      await openTab(page, 'Alerts')
       await expect(settings(page).getByText(/Coming soon with Pro\./)).toBeVisible()
     },
   },
@@ -180,7 +191,20 @@ const STATES: State[] = [
     name: 'settings-alerts-free',
     query: 'screen=settings&tier=free&alerts=on',
     act: async page => {
+      await openTab(page, 'Alerts')
       await expect(settings(page).getByText(/Included with Pro\./)).toBeVisible()
+    },
+  },
+  {
+    // ...and with linked calendars on, the event heads-ups the Events section sells
+    // (REVIEW5 L6).
+    name: 'settings-alerts-free-events',
+    query: 'screen=settings&tier=free&alerts=on&subscriptions=on',
+    act: async page => {
+      await openTab(page, 'Alerts')
+      await expect(
+        settings(page).getByText(/before your outdoor events\. Included with Pro\./),
+      ).toBeVisible()
     },
   },
   {

@@ -153,7 +153,7 @@ describe('morning alert message', () => {
       body:
         'Today in Austin: UV peaks at 8.0 (Very high) around 11am. Lowest-UV window: Run 6am–9am. ' +
         'At the peak, unprotected skin like yours can burn in about 19 min. ' +
-        'Seek shade from 11am to 1pm, when UV is 8 or more. Recheck current conditions.',
+        'Seek shade from 11am to 1pm, when UV is very high or extreme. Recheck current conditions.',
     })
   })
 
@@ -183,7 +183,7 @@ describe('morning alert message', () => {
     expect(message.title).toBe('☀️ UV today in Austin')
     // No activity runs on a Monday: the briefing gives the low-UV hours instead.
     expect(message.body).toContain('Today in Austin: UV peaks at 8.0 (Very high) around 11:00.')
-    expect(message.body).toContain('UV is under 3 from 06:00 to 08:00.')
+    expect(message.body).toContain('UV is low from 06:00 to 08:00.')
   })
 
   it('counts the forecast clouds once, like the app', () => {

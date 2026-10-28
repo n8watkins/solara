@@ -8,6 +8,7 @@ import { getSavedLocationLimit } from '@/lib/tiers'
 import { headerUV } from '@/lib/header-display'
 import { uvBandColor } from '@/lib/weather'
 import { AccountMenu, PreferencesModal, ProfileSwitcher } from './deferred'
+import type { SettingsTab } from './settings/SettingsTabs'
 import LocationPopover from './LocationPopover'
 import GoogleSignInButton from './GoogleSignInButton'
 import SolaraMark from './SolaraMark'
@@ -23,7 +24,7 @@ interface Props {
   prefs: UserPreferences
   onPrefsUpdate: (p: UserPreferences) => void
   onGoHome: () => void
-  forceOpenTab?: 'general' | 'activities' | 'location'
+  forceOpenTab?: SettingsTab
   onModalClose?: () => void
   /** Current UV index at the active location; hidden when unknown. */
   currentUV?: number | null

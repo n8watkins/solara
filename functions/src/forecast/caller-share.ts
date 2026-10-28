@@ -14,6 +14,15 @@
 // the id holds a hash of the key, never the address. A cache hit never reaches here, so
 // people looking at places others already fetched spend nothing.
 //
+// An IPv4 caller also counts against its /24 at IPV4_NETWORK_WEIGHT times the share
+// (REVIEW5 L1), like an IPv6 /64 against its /48: a /24 is one network (a hosting
+// provider's block, an office), and without it 75 addresses from one block could spend
+// the hour. No per-address scheme stops an attacker with addresses in many networks, so
+// the browser's forecasts may also spend only BROWSER_SHARE_OF_UPSTREAM of the global
+// budget (`browserUpstreamLimits`): the rest stays for the server's own work for
+// signed-in and Pro accounts (the calendar feed and event heads-ups), which a flood of
+// anonymous callers therefore cannot starve.
+//
 // It fails closed like the budget: when the counters cannot be read, the caller gets the
 // cached forecast. An instance remembers which callers spent their share this hour, so a
 // caller past its share costs no further Firestore transaction on that instance. An
@@ -22,6 +31,7 @@
 // (a page opening many new places at once would otherwise lose most of its share).
 
 import { createHash } from 'node:crypto'
+import { isIP } from 'node:net'
 
 import type { Firestore } from 'firebase-admin/firestore'
 
@@ -29,7 +39,50 @@ import { loggableError } from '../shared/errors'
 import { ThrottledLog } from '../shared/log-throttle'
 import type { LimitScope } from '../shared/rate-limit'
 import { RETENTION_DAYS, expiresAfter } from '../shared/ttl'
-import { FORECAST_UPSTREAM_COLLECTION } from './upstream-budget'
+import { FORECAST_UPSTREAM_COLLECTION, type UpstreamLimits } from './upstream-budget'
+
+/** The IPv4 prefix every IPv4 caller also counts against: one network. */
+export const IPV4_NETWORK_PREFIX = 24
+/**
+ * How many times the per-caller share one IPv4 /24 may use in all (default, owner may
+ * change): the same as an IPv6 /48 (shared/client-address.ts IPV6_SITE_WEIGHT). A
+ * carrier's NAT block behind one /24 still gets 80 new places an hour; places anyone
+ * looked at in the last hour are cache hits and cost no share.
+ */
+export const IPV4_NETWORK_WEIGHT = 4
+
+/**
+ * The part of the global forecast budget the browser's forecasts (guests and signed-in
+ * people alike, through the `forecast` Function) may spend (default, owner may change):
+ * two thirds, 1,000 of the 1,500 an hour; the last third is kept for the calendar feed
+ * and event heads-ups, which serve signed-in and Pro accounts (REVIEW5 L1).
+ */
+export const BROWSER_SHARE_OF_UPSTREAM = 2 / 3
+
+/** The global budget's limits as the browser's forecasts see them (BROWSER_SHARE_OF_UPSTREAM). */
+export function browserUpstreamLimits({ perHour, perDay }: UpstreamLimits): UpstreamLimits {
+  return {
+    perHour: Math.floor(perHour * BROWSER_SHARE_OF_UPSTREAM),
+    perDay: Math.floor(perDay * BROWSER_SHARE_OF_UPSTREAM),
+  }
+}
+
+/**
+ * The scopes a caller's share is counted against: its limit scopes
+ * (shared/client-address.ts addressScopes), plus the /24 of an IPv4 address at
+ * IPV4_NETWORK_WEIGHT. Other keys (an IPv6 /64 and /48, `uid:` accounts) are unchanged.
+ */
+export function shareScopes(caller: readonly LimitScope[]): LimitScope[] {
+  const scopes = [...caller]
+  for (const { key } of caller) {
+    if (isIP(key) !== 4) continue
+    const network = `${key.split('.').slice(0, 3).join('.')}.0/${IPV4_NETWORK_PREFIX}`
+    if (!scopes.some(scope => scope.key === network)) {
+      scopes.push({ key: network, weight: IPV4_NETWORK_WEIGHT })
+    }
+  }
+  return scopes
+}
 
 /** The most callers one instance remembers as spent; forgetting one costs one read. */
 const MAX_REMEMBERED = 10_000
@@ -57,9 +110,11 @@ export class CallerShare {
 
   /**
    * Takes one upstream call from the caller's share, counted against every scope (an IPv6
-   * /64 and its /48); false when any scope has spent its share this hour.
+   * /64 and its /48, an IPv4 address and its /24); false when any scope has spent its
+   * share this hour.
    */
-  take(caller: readonly LimitScope[]): Promise<boolean> {
+  take(callerScopes: readonly LimitScope[]): Promise<boolean> {
+    const caller = shareScopes(callerScopes)
     const lane = caller.at(-1)?.key
     if (lane === undefined) return Promise.resolve(false)
     const previous = this.lanes.get(lane)

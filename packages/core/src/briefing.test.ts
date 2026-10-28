@@ -53,12 +53,12 @@ describe('dailyBriefing', () => {
       peak: 'UV peaks at 9.3 (Very high) around 1pm',
       window: 'Lowest-UV window: Running 6am–10am',
       burn: 'At the peak, unprotected skin like yours can burn in about 16 min',
-      tip: 'Seek shade from 12pm to 4pm, when UV is 8 or more',
+      tip: 'Seek shade from 12pm\u00a0to\u00a04pm, when UV is very high or extreme',
     })
     expect(briefing.text).toBe(
       'Tomorrow: UV peaks at 9.3 (Very high) around 1pm. Lowest-UV window: Running 6am–10am. ' +
         'At the peak, unprotected skin like yours can burn in about 16 min. ' +
-        'Seek shade from 12pm to 4pm, when UV is 8 or more.',
+        'Seek shade from 12pm to 4pm, when UV is very high or extreme.',
     )
   })
 
@@ -74,7 +74,9 @@ describe('dailyBriefing', () => {
     // The morning window has passed; the evening one is next.
     expect(briefing.window?.spans).toEqual([{ from: 18, to: 20 }])
     // 4pm's 7.7 already reads as 8 (Very high) on the whole-number scale.
-    expect(briefing.lines.tip).toBe('Seek shade from 11am to 5pm, when UV is 8 or more')
+    expect(briefing.lines.tip).toBe(
+      'Seek shade from 11am\u00a0to\u00a05pm, when UV is very high or extreme',
+    )
   })
 
   it('tells a passed peak in the past tense, without its burn time', () => {
@@ -88,7 +90,9 @@ describe('dailyBriefing', () => {
     expect(briefing.lines.peak).toBe('UV peaked at 10.3 (Very high) around 1pm')
     expect(briefing.burnMins).toBeNull()
     expect(briefing.lines.burn).toBeNull()
-    expect(briefing.lines.tip).toBe('Use sun protection until 7pm, when UV is 3 or more')
+    expect(briefing.lines.tip).toBe(
+      'Use sun protection until\u00a07pm, when UV is moderate or higher',
+    )
   })
 
   it('picks the activity with the lowest-UV window', () => {
@@ -134,7 +138,12 @@ describe('dailyBriefing', () => {
         { from: 19, to: 20 },
       ],
     })
-    expect(briefing.lines.window).toBe('UV is under 3 from 6am to 9am and 7pm to 8pm')
+    // A time range never breaks inside on a narrow screen (REVIEW5: "8pm" alone on a line);
+    // the shared text has plain spaces.
+    expect(briefing.lines.window).toBe(
+      'UV is low from 6am\u00a0to\u00a09am and 7pm\u00a0to\u00a08pm',
+    )
+    expect(briefing.text).toContain('UV is low from 6am to 9am and 7pm to 8pm.')
   })
 
   it('briefs a mild day without advice to hide', () => {
@@ -146,8 +155,8 @@ describe('dailyBriefing', () => {
     })
     // 2.4 is still Low on the whole-number scale.
     expect(briefing.lines.peak).toBe('UV peaks at 2.4 (Low) around 12pm')
-    expect(briefing.lines.window).toBe('UV stays under 3 all day')
-    expect(briefing.lines.tip).toBe('UV stays low, so most people need little protection')
+    expect(briefing.lines.window).toBe('UV stays low all day')
+    expect(briefing.lines.tip).toBe('Most people need little sun protection today')
   })
 
   it('handles a day with no UV at all', () => {
@@ -160,7 +169,7 @@ describe('dailyBriefing', () => {
     expect(briefing.peak).toBeNull()
     expect(briefing.burnMins).toBeNull()
     expect(briefing.text).toBe(
-      'Today: UV stays near zero. UV stays under 3 all day. UV stays low, so most people need little protection.',
+      'Today: UV stays near zero. UV stays low all day. Most people need little sun protection today.',
     )
   })
 

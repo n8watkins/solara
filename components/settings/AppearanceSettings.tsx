@@ -16,7 +16,7 @@ interface Props {
   onChange: (patch: Partial<SettingsDraft>) => void
 }
 
-/** The "Appearance" section: theme, units and the sun path animation. */
+/** The "Display" section: theme, units and the sun path animation. */
 export default function AppearanceSettings({ draft, onChange }: Props) {
   const id = useId()
   const unitsDescId = `${id}-units-desc`

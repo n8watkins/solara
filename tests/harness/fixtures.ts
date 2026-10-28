@@ -2,12 +2,14 @@
 // and a 10-day Open-Meteo response anchored to the frozen clock (see clock.ts).
 //
 // The forecast is built as a raw Open-Meteo payload and passed through the real
-// `parseForecast`, so the harness exercises the same parsing the live app uses.
+// `parseForecast`, so the harness exercises the same parsing the live app uses. Its
+// live reading (`current`) is the one at the clock's instant, so a screen opened in the
+// evening or at night shows that time's UV, as the app would (REVIEW5 L7).
 // Everything here is pure: no Date.now, no randomness, no network.
 import type { User } from 'firebase/auth'
 import { forecastView, parseForecast } from '@/lib/forecast'
 import type { Activity, Location, TierLevel, UserPreferences, WeatherResponse } from '@/lib/types'
-import { HARNESS_DATE, HARNESS_TIMEZONE } from './clock'
+import { HARNESS_DATE, HARNESS_NOW_MS, HARNESS_TIMEZONE } from './clock'
 
 /** Unique string the production leak check looks for (scripts/check-no-ui-harness.mjs). */
 export const HARNESS_MARKER = 'solara-ui-harness'
@@ -73,7 +75,15 @@ function tempAt(hour: number, maxC: number): number {
   return round1(minC + ((maxC - minC) * (x + 1)) / 2)
 }
 
-export function buildRawForecast(): RawForecast {
+/** HARNESS_DATE's midnight in HARNESS_TIMEZONE (PDT, UTC-7), as epoch ms. */
+const DAY_ZERO_MS = Date.parse(`${HARNESS_DATE}T00:00:00-07:00`)
+
+/**
+ * The forecast as Open-Meteo would answer it at `at` (epoch ms, default the harness's
+ * frozen 10:30): the hourly days are fixed, and the live reading is the UV and
+ * temperature at that instant.
+ */
+export function buildRawForecast(at: number = HARNESS_NOW_MS): RawForecast {
   const time: string[] = []
   const uv: number[] = []
   const temp: number[] = []
@@ -94,15 +104,18 @@ export function buildRawForecast(): RawForecast {
     }
   })
 
-  const [today] = DAYS
-  if (!today) throw new Error('Harness fixtures need at least one day')
+  const hours = (at - DAY_ZERO_MS) / 3_600_000
+  const dayIndex = Math.min(DAYS.length - 1, Math.max(0, Math.floor(hours / 24)))
+  const day = DAYS[dayIndex]
+  if (!day) throw new Error('Harness fixtures need at least one day')
+  const hour = Math.min(24, Math.max(0, hours - dayIndex * 24))
 
   return {
     timezone: HARNESS_TIMEZONE,
     current: {
-      uv_index: uvAt(10.5, today.peakUV),
-      temperature_2m: tempAt(10.5, today.maxC),
-      weathercode: today.code,
+      uv_index: uvAt(hour, day.peakUV),
+      temperature_2m: tempAt(hour, day.maxC),
+      weathercode: day.code,
     },
     hourly: {
       time,
@@ -115,9 +128,9 @@ export function buildRawForecast(): RawForecast {
   }
 }
 
-/** The parsed forecast as seen now. Call in the browser after the clock is frozen. */
-export function buildWeather(): WeatherResponse {
-  return forecastView(parseForecast(buildRawForecast(), { days: DAYS.length }))
+/** The parsed forecast as seen at `at`. Call in the browser with the clock's time. */
+export function buildWeather(at: number = HARNESS_NOW_MS): WeatherResponse {
+  return forecastView(parseForecast(buildRawForecast(at), { days: DAYS.length }))
 }
 
 const ACTIVITIES: Activity[] = [

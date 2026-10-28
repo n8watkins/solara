@@ -40,7 +40,12 @@ interface Props {
 }
 
 const TITLE = 'Morning and UV alerts'
-const WHAT = 'A morning summary of your UV day, and a heads-up when the UV gets high.'
+/** What the alerts are; with linked calendars on, the event heads-ups too (REVIEW5 L6). */
+function what(): string {
+  return eventSubscriptionsLaunched()
+    ? 'A morning summary of your UV day, and a heads-up when the UV gets high and before your outdoor events.'
+    : 'A morning summary of your UV day, and a heads-up when the UV gets high.'
+}
 
 /** Pro's push alerts: the account's alert settings and this device's subscription. */
 export default function NotificationSettings({ tier, user, draft, onChange }: Props) {
@@ -57,7 +62,7 @@ export default function NotificationSettings({ tier, user, draft, onChange }: Pr
           )}
         </div>
         <SettingsHint className="leading-[1.45]">
-          {WHAT} {alertsLaunched() ? 'Included with Pro.' : 'Coming soon with Pro.'}
+          {what()} {alertsLaunched() ? 'Included with Pro.' : 'Coming soon with Pro.'}
         </SettingsHint>
       </SettingsCard>
     )
@@ -75,7 +80,7 @@ function AlertControls({ user, draft, onChange }: Omit<Props, 'tier'>) {
       <div>
         <SettingsTitle className="mb-1">{TITLE}</SettingsTitle>
         <SettingsHint className="leading-[1.45]">
-          {WHAT} They reach the devices you turn them on for.
+          {what()} They reach the devices you turn them on for.
         </SettingsHint>
       </div>
 
@@ -137,7 +142,8 @@ function AlertControls({ user, draft, onChange }: Omit<Props, 'tier'>) {
               <label htmlFor={`${id}-events`}>Event heads-up</label>
             </SettingsTitle>
             <SettingsHint id={`${id}-events-desc`} className="leading-[1.45]">
-              About 3 hours before an imported or linked event with UV 6 or higher.
+              About 3 hours before an outdoor event with UV 6 or higher: an imported or linked event
+              with an activity set. At most one every 3 hours.
             </SettingsHint>
           </div>
           <select
@@ -159,9 +165,9 @@ function AlertControls({ user, draft, onChange }: Omit<Props, 'tier'>) {
             Quiet hours
           </SettingsTitle>
           <SettingsHint className="leading-[1.45]">
-            {eventSubscriptionsLaunched()
-              ? 'The UV alert and event heads-ups wait until they end.'
-              : 'The UV alert waits until they end.'}{' '}
+            The UV alert waits until they end.{' '}
+            {eventSubscriptionsLaunched() &&
+              'An event heads-up that would fall in them comes the evening before. '}
             The morning alert comes at its own hour.
           </SettingsHint>
         </div>

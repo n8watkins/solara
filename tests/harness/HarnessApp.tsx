@@ -6,7 +6,7 @@
 // Query parameters:
 //   screen = dashboard (default) | calendar | settings | pricing
 //   tier   = paid (default) | free | guest (signed out, the guest plan with one activity)
-//   tab    = general (default) | activities | location   (settings only)
+//   tab    = general (default) | alerts | activities | location   (settings only)
 //   fixture = default (default) | uv-gaps   (see uv-gap-fixtures.ts)
 //            | peak-early | peak-late   (see sun-peak-fixtures.ts)
 //   scheduled = none (default) | synced | reconnect: in-memory scheduled activities
@@ -67,7 +67,7 @@ import {
 } from './google-calendar-fixtures'
 
 export type HarnessScreen = 'dashboard' | 'calendar' | 'settings' | 'pricing' | 'pricing-checkout'
-type SettingsTab = 'general' | 'activities' | 'location'
+type SettingsTab = 'general' | 'alerts' | 'activities' | 'location'
 
 const SCREENS: HarnessScreen[] = [
   'dashboard',
@@ -148,14 +148,16 @@ export default function HarnessApp() {
 function Harness() {
   const initial = useMemo(() => readParams(), [])
   const user = useMemo(() => (initial.tier === 'anonymous' ? null : buildUser()), [initial.tier])
+  // The page clock is the harness's (clock.ts), so the live reading matches it.
+  const [openedAt] = useState(() => Date.now())
   const fixtureWeather = useMemo(
     () =>
       initial.fixture === 'uv-gaps'
         ? buildGapWeather()
         : initial.fixture === 'default'
-          ? buildWeather()
+          ? buildWeather(openedAt)
           : buildSunPeakWeather(initial.fixture),
-    [initial.fixture],
+    [initial.fixture, openedAt],
   )
   const [prefs, setPrefs] = useState<UserPreferences>(() => {
     const built = buildPrefs(initial.tier)
