@@ -111,6 +111,8 @@ export const ProfileSwitcher = deferred(() => import('./ProfileSwitcher'))
 export const GuestPlanNotice = deferred(() => import('./GuestPlanNotice'))
 /** A signed-in account's scheduled activities; until it arrives, the screens show none. */
 export const AccountScheduled = deferred(() => import('./scheduled/AccountScheduled'))
+/** Imported .ics events with the UV during each (signed-in accounts only). */
+export const EventsSection = deferred(() => import('./events/EventsSection'))
 
 /**
  * Loads the header's signed-in parts now, for a session about to show (a stored

@@ -713,6 +713,25 @@ describe('account data security', () => {
     const devicesQuery = { kind: 'devices' }
     const scheduledQuery = { kind: 'scheduled' }
     const alertStateRef = { kind: 'alertState' }
+    const eventsQuery = { kind: 'events' }
+    const importedEvent = {
+      key: 'a'.repeat(32),
+      source: 'file',
+      seriesId: 'fedcba9876543210fedcba9876543210',
+      title: 'Saturday 10K',
+      start: '2026-06-20T15:00:00.000Z',
+      end: '2026-06-20T16:30:00.000Z',
+      timeZone: 'America/Los_Angeles',
+      where: 'Griffith Park',
+      lat: 34.14,
+      lon: -118.29,
+      placeLabel: 'Los Angeles, California',
+      placeGuessed: false,
+      activityId: 'run',
+      url: 'https://example.com/run',
+      createdAt: '2026-06-15T17:30:00.000Z',
+      updatedAt: '2026-06-15T17:30:00.000Z',
+    }
     const scheduledItem = {
       eventId: 'evt1',
       calendarId: 'primary',
@@ -733,6 +752,7 @@ describe('account data security', () => {
         if (name === 'alertState') {
           return { doc: id => (assert.equal(id, 'daily'), alertStateRef) }
         }
+        if (name === 'events') return eventsQuery
         assert.equal(name, 'scheduled')
         return scheduledQuery
       },
@@ -788,6 +808,23 @@ describe('account data security', () => {
                 ],
               }
             }
+            if (ref === eventsQuery) {
+              return {
+                docs: [
+                  // Bookkeeping (the TTL field) is not exported.
+                  {
+                    id: importedEvent.key,
+                    data: () => ({ ...importedEvent, expireAt: new Date() }),
+                  },
+                  // Malformed or mismatched records are left out.
+                  { id: 'x', data: () => importedEvent },
+                  {
+                    id: importedEvent.key,
+                    data: () => ({ ...importedEvent, url: 'javascript:x' }),
+                  },
+                ],
+              }
+            }
             throw new Error('Unexpected transaction read')
           },
         })
@@ -800,10 +837,11 @@ describe('account data security', () => {
       req: { headers: { authorization: 'Bearer valid' } },
     })
 
-    assert.deepEqual(reads, ['tombstone', 'user', 'devices', 'scheduled', 'alertState'])
+    assert.deepEqual(reads, ['tombstone', 'user', 'devices', 'scheduled', 'alertState', 'events'])
     assert.deepEqual(result.account, { location: { city: 'Seattle' } })
     assert.deepEqual(result.notificationDevices, [])
     assert.deepEqual(result.scheduledActivities, [scheduledItem])
+    assert.deepEqual(result.importedEvents, [importedEvent])
     // The alert history (REVIEW3 L5): what was sent on which day, never internal ids.
     assert.deepEqual(result.alerts, [
       {

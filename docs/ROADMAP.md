@@ -138,8 +138,8 @@ Candidates, roughly ranked by impact over effort:
    The data is checked in (`lib/cities/`): daily UV and clear-sky UV for 2023-2025 from the CAMS global model via the Open-Meteo Air Quality API, averaged by month in local time by `scripts/city-climatology.mjs`, which is run by hand to add cities.
    Later: structured data (JSON-LD) needs a CSP hash for the inline script; a returning visitor's own plan wins over the city link (setup only).
 8. **Shade and surface reflection factors** - done (#109): each activity can set its typical shade and the surface around it, which scale the UV it is planned against (cited, cautious factors in `packages/core/src/exposure.ts`), in the app and the calendar feed.
-9. Linking with live events from Strava, Meetup and similar services, so Solara can plan around them (owner's idea) - scoped in [integrations/EVENTS.md](integrations/EVENTS.md).
-   Recommended: .ics import first (phase 1, no Blaze and no partner approval), then link subscriptions and Pro heads-ups on Blaze, optionally events already in Google Calendar, and Strava last (no future events in its API, a developer subscription and a 10-athlete cap); the Meetup, Eventbrite, Komoot and Garmin APIs are not needed.
+9. Linking with live events from Strava, Meetup and similar services, so Solara can plan around them (owner's idea) - scoped in [integrations/EVENTS.md](integrations/EVENTS.md); **phase 1 built**: .ics file import with the UV, burn time and sunscreen timing per event, for every signed-in account.
+   Next: link subscriptions and Pro heads-ups on Blaze (phase 2), optionally events already in Google Calendar, and Strava last (no future events in its API, a developer subscription and a 10-athlete cap); the Meetup, Eventbrite, Komoot and Garmin APIs are not needed.
 
 ### 13. Wave 6: mobile app (owner's learning project)
 

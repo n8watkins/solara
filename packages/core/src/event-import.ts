@@ -1,0 +1,9 @@
+// @solara/core/event-import: imported events (docs/integrations/EVENTS.md) and the
+// iCalendar reader they come from. A separate entry point from the main barrel
+// (index.ts) so code that never imports events never downloads it; Functions load it
+// as `#core/event-import`.
+
+export * from './events'
+export * from './ics-parse'
+export * from './rrule'
+export * from './zoned-time'

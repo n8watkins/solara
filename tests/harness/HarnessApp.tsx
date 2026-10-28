@@ -12,6 +12,8 @@
 //   scheduled = none (default) | synced | reconnect: in-memory scheduled activities
 //            (see scheduled-fixtures.tsx), shown as synced or awaiting reconnect
 //   activities = comma-separated activity ids to keep from the plan (default: all)
+//   events = none (default) | sample: in-memory imported events (see event-fixtures.ts);
+//            signed-in screens always get the in-memory store, empty by default
 //   (offline: the offline notice shows whenever the browser is offline, as in the app)
 //   (guest plan notice: shows when localStorage holds a record for harness-user, as in
 //   the app after a guest signs in to an existing account; guest-plan-notice.spec.ts)
@@ -39,6 +41,8 @@ import { HARNESS_MARKER, buildPrefs, buildUser, buildWeather } from './fixtures'
 import { buildGapWeather } from './uv-gap-fixtures'
 import { buildSunPeakWeather, isSunPeakFixture, type SunPeakFixture } from './sun-peak-fixtures'
 import { HarnessScheduledProvider } from './scheduled-fixtures'
+import { EventsStoreContext } from '@/lib/events-context'
+import { buildEvents, createMemoryEventsStore } from './event-fixtures'
 
 export type HarnessScreen = 'dashboard' | 'calendar' | 'settings' | 'pricing' | 'pricing-checkout'
 type SettingsTab = 'general' | 'activities' | 'location'
@@ -71,21 +75,25 @@ function readParams() {
     live: params.get('data') === 'live',
     scheduled: (['synced', 'reconnect'] as const).find(v => v === params.get('scheduled')) ?? null,
     activities: params.get('activities')?.split(',') ?? null,
+    events: params.get('events') === 'sample',
   }
 }
 
 export default function HarnessApp() {
   const [forecasts] = useState(createForecastStore)
   const [scheduled] = useState(() => readParams().scheduled)
+  const [events] = useState(() => createMemoryEventsStore(readParams().events ? buildEvents() : []))
   return (
     <ForecastStoreProvider value={forecasts}>
-      {scheduled ? (
-        <HarnessScheduledProvider sync={scheduled}>
+      <EventsStoreContext value={events}>
+        {scheduled ? (
+          <HarnessScheduledProvider sync={scheduled}>
+            <Harness />
+          </HarnessScheduledProvider>
+        ) : (
           <Harness />
-        </HarnessScheduledProvider>
-      ) : (
-        <Harness />
-      )}
+        )}
+      </EventsStoreContext>
     </ForecastStoreProvider>
   )
 }

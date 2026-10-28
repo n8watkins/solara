@@ -1,8 +1,9 @@
 // Data export: the portable account fields, a billing summary, notification devices,
-// scheduled activities and the Pro alert history, never billing ids, tokens or internal
-// bookkeeping.
+// scheduled activities, imported events and the Pro alert history, never billing ids,
+// tokens or internal bookkeeping.
 
 import { parseScheduledActivity, PREFERENCE_FIELDS } from '#core'
+import { parseImportedEvent } from '#core/event-import'
 import type { Auth } from 'firebase-admin/auth'
 import type { DocumentData, Firestore, QuerySnapshot } from 'firebase-admin/firestore'
 import type { Request } from 'firebase-functions/v2/https'
@@ -96,6 +97,14 @@ export function alertHistory(data: DocumentData | null | undefined) {
   })
 }
 
+/** Events imported from .ics files, as stored (docs/integrations/EVENTS.md). */
+export function safeImportedEventData(snapshot: QuerySnapshot) {
+  return snapshot.docs.flatMap(doc => {
+    const event = parseImportedEvent(doc.data())
+    return event && event.key === doc.id ? [event] : []
+  })
+}
+
 export async function exportAccountData({
   auth,
   db,
@@ -113,23 +122,26 @@ export async function exportAccountData({
   const devicesQuery = userRef.collection('notificationDevices')
   const scheduledQuery = userRef.collection('scheduled')
   const alertStateRef = userRef.collection(ALERT_STATE_COLLECTION).doc(ALERT_STATE_DOC)
-  const { userSnapshot, devicesSnapshot, scheduledSnapshot, alertSnapshot } =
+  const eventsQuery = userRef.collection('events')
+  const { userSnapshot, devicesSnapshot, scheduledSnapshot, alertSnapshot, eventsSnapshot } =
     await db.runTransaction(async transaction => {
       const tombstone = await transaction.get(tombstoneRef)
       if (tombstone.exists) {
         throw new HttpError('deletion-in-progress', 'Account deletion is in progress')
       }
-      const [account, devices, scheduled, alerts] = await Promise.all([
+      const [account, devices, scheduled, alerts, events] = await Promise.all([
         transaction.get(userRef),
         transaction.get(devicesQuery),
         transaction.get(scheduledQuery),
         transaction.get(alertStateRef),
+        transaction.get(eventsQuery),
       ])
       return {
         userSnapshot: account,
         devicesSnapshot: devices,
         scheduledSnapshot: scheduled,
         alertSnapshot: alerts,
+        eventsSnapshot: events,
       }
     })
   return {
@@ -140,5 +152,6 @@ export async function exportAccountData({
     notificationDevices: safeDeviceData(devicesSnapshot),
     scheduledActivities: safeScheduledData(scheduledSnapshot),
     alerts: alertHistory(alertSnapshot.exists ? alertSnapshot.data() : null),
+    importedEvents: safeImportedEventData(eventsSnapshot),
   }
 }

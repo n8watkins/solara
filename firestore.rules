@@ -321,6 +321,47 @@ service cloud.firestore {
         && data.expireAt <= request.time + duration.value(400, 'd');
     }
 
+    // ---- Imported events -------------------------------------------------------------
+
+    // Events imported from an .ics file, users/{uid}/events/{key} (docs/integrations/EVENTS.md).
+    // The fields and caps come from packages/core/src/events.ts (checked by
+    // lib/firestore-rules.test.ts). The key is a SHA-256 prefix of the source and the event's
+    // UID, so a re-import overwrites instead of adding copies. `expireAt` works as for
+    // scheduled activities: required, and at most IMPORTED_EVENT_MAX_TTL_DAYS ahead.
+    function importedEventKeys() {
+      return [
+        'key', 'source', 'seriesId', 'title', 'start', 'end', 'timeZone', 'where', 'lat', 'lon',
+        'placeLabel', 'placeGuessed', 'activityId', 'url', 'createdAt', 'updatedAt', 'expireAt'
+      ];
+    }
+
+    function validImportedEvent(eventKey) {
+      let data = request.resource.data;
+      return data.keys().hasAll(importedEventKeys())
+        && data.keys().hasOnly(importedEventKeys())
+        && data.key == eventKey
+        && eventKey.matches('^[0-9a-f]{32}$')
+        && data.source in ['file']
+        && data.seriesId is string && data.seriesId.matches('^[0-9a-f]{32}$')
+        && data.title is string && data.title.size() <= 200
+        && data.start is string && data.start.size() <= 40
+        && data.end is string && data.end.size() <= 40
+        && data.end > data.start
+        && data.timeZone is string && data.timeZone.size() <= 64
+        && data.where is string && data.where.size() <= 200
+        && data.lat is number && data.lat >= -90 && data.lat <= 90
+        && data.lon is number && data.lon >= -180 && data.lon <= 180
+        && data.placeLabel is string && data.placeLabel.size() <= 120
+        && data.placeGuessed is bool
+        && data.activityId is string && data.activityId.size() <= 64
+        && data.url is string && data.url.size() <= 2048
+        && (data.url == '' || data.url.matches('^https://[^/]+.*'))
+        && data.createdAt is string && data.createdAt.size() <= 40
+        && data.updatedAt is string && data.updatedAt.size() <= 40
+        && data.expireAt is timestamp
+        && data.expireAt <= request.time + duration.value(400, 'd');
+    }
+
     match /users/{userId} {
       allow read: if isOwner(userId) && isActiveAccount(userId);
       allow create: if isOwner(userId) && isActiveAccount(userId) && validNewUser(userId);
@@ -340,6 +381,14 @@ service cloud.firestore {
         allow list: if isOwner(userId) && isActiveAccount(userId) && request.query.limit <= 100;
         allow create, update: if isOwner(userId) && isActiveAccount(userId)
           && validScheduled(eventId);
+      }
+
+      // Imported events: list queries are capped (IMPORTED_EVENT_LIMITS.listLimit).
+      match /events/{eventKey} {
+        allow get, delete: if isOwner(userId) && isActiveAccount(userId);
+        allow list: if isOwner(userId) && isActiveAccount(userId) && request.query.limit <= 200;
+        allow create, update: if isOwner(userId) && isActiveAccount(userId)
+          && validImportedEvent(eventKey);
       }
 
       // Server-written secrets the owner may read, such as the calendar feed token.

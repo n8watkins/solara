@@ -27,7 +27,7 @@ import { briefingView } from '@/lib/briefing-view'
 import { buildEventDescription } from '@/lib/gcal-view'
 import type { SlotRecommendation } from '@/lib/scheduler'
 import { useScheduled } from '@/lib/scheduled-context'
-import { PricingModal, SunscreenTimer } from './deferred'
+import { EventsSection, PricingModal, SunscreenTimer } from './deferred'
 import ActivitiesSection from './dashboard/ActivitiesSection'
 import DailyBriefing from './dashboard/DailyBriefing'
 import DayPicker from './dashboard/DayPicker'
@@ -257,6 +257,20 @@ export default function Dashboard({
           />
 
           {isToday && down?.phase !== 'after-sunset' && <SunscreenTimer />}
+
+          {/* Imported events: under the conditions from 1024 px; after the activities on
+              narrower screens, where the columns stack. */}
+          {user && (
+            <div className="max-lg:order-1">
+              <EventsSection
+                uid={user.uid}
+                prefs={prefs}
+                weather={weather}
+                displayTier={access.accessTier}
+                onUpgrade={openPlans}
+              />
+            </div>
+          )}
         </div>
 
         <div className="dash-col">
@@ -293,7 +307,7 @@ export default function Dashboard({
       )}
 
       {/* The one caveat on the dashboard (the metric tooltips carry their own). */}
-      <p className="mx-0.5 text-[11px] leading-normal text-ink-3">
+      <p className="mx-0.5 text-[11px] leading-normal text-ink-3 max-lg:order-2">
         Forecast-based planning estimates, not medical advice. Conditions can change; use sun
         protection.
       </p>

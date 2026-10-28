@@ -69,9 +69,10 @@ The repository is an npm workspace.
   An ESLint rule keeps static Firebase imports out of the app; modules that need the SDK use `await import('firebase/...')`.
   Auth starts without its sign-in popup helper; sign-in buttons start it (`prepareSignInPopup`), and every `*WithPopup` call passes it.
   A returning account's dashboard shows at once from this browser's copy of it (`lib/cached-account.ts`), accepting no input until Auth confirms the session; Firebase starts once that dashboard has painted.
-  Setup, the dialogs, the location panel, the calendar view, the calendar feed card, the install prompt and the header's signed-in parts load on first use from `components/deferred.tsx`, and are fetched shortly after the page has loaded.
+  Setup, the dialogs, the location panel, the calendar view, the calendar feed card, the install prompt, the header's signed-in parts and the Events section load on first use from `components/deferred.tsx`, and are fetched shortly after the page has loaded.
 - `packages/core` (`@solara/core`) holds the logic every surface shares: the recommendation engine, the daily briefing text, the WHO UV scale, the preferences schema and migrations, the Valibot-validated Open-Meteo parser and weather labels, the iCalendar builder, the calendar feed token policy and the Functions response contracts.
   The web app imports its TypeScript source.
+  The .ics reader and imported events (`packages/core/src/ics-parse.ts`, `packages/core/src/events.ts`) are a separate entry point, `@solara/core/event-import`, so they never enter a guest's first load.
 - `functions/` holds the Cloud Functions in TypeScript (`functions/src/`, one folder per area), including the scheduled Pro alerts (`functions/src/notifications/`).
   It is a separate npm package, because `firebase deploy` uploads only that directory.
   `npm run build --prefix functions` compiles `@solara/core` into `functions/core/` and the Functions into `functions/lib/` (both gitignored); the Functions test scripts and the predeploy hook run it.
@@ -144,7 +145,7 @@ Change the rules and their tests in `.github/scripts/changed-areas.test.mjs` tog
 
 ## Firestore layout
 
-The primary account document is `users/{uid}`, with notification registrations in `users/{uid}/notificationDevices/{deviceId}`, the Pro alerts' delivery state in `users/{uid}/alertState/daily`, Stripe resource history in `users/{uid}/billingResources/{resourceId}`, and the owner's calendar feed link in `users/{uid}/private/calendarFeed`.
+The primary account document is `users/{uid}`, with scheduled activities in `users/{uid}/scheduled/{eventId}`, events imported from .ics files in `users/{uid}/events/{key}`, notification registrations in `users/{uid}/notificationDevices/{deviceId}`, the Pro alerts' delivery state in `users/{uid}/alertState/daily`, Stripe resource history in `users/{uid}/billingResources/{resourceId}`, and the owner's calendar feed link in `users/{uid}/private/calendarFeed`.
 Trusted backend code owns the calendar feed token index, the notification-token ownership index, the Stripe subscription ownership index, account-deletion tombstones, billing cleanup resources, checkout cleanup tasks, the alerts' run cursor (`alertDispatch/state`), entitlements and delivery state.
 Firestore rules deny client access to those server-owned collections and prevent clients from writing notification-device or billing state.
 

@@ -52,7 +52,13 @@ describe('privacy policy', () => {
     )
     expect(privacy).not.toContain('does not keep a')
     expect(privacy).toContain('Scheduled activities: until you remove the event')
-    expect(privacy).toContain('scheduled activities, calendar')
+    expect(privacy).toContain('scheduled activities, imported')
+  })
+
+  it('says what Solara keeps about imported events, and for how long', () => {
+    expect(privacy).toContain('<strong>Imported events</strong>')
+    expect(privacy).toContain('The file is read in your')
+    expect(privacy).toContain('Imported events: until you remove them')
   })
 
   it('says what error reports contain, that they are scrubbed, and how long they are kept', () => {

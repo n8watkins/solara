@@ -38,6 +38,7 @@ describe('PRO_FEATURES', () => {
 
   it('keeps calendar sync on Free for now, and family profiles and alerts for Pro', () => {
     expect(row('Calendar sync')).toMatchObject({ guest: false, free: true, pro: true })
+    expect(row('UV at your events (.ics)')).toMatchObject({ guest: false, free: true, pro: true })
     for (const label of [FAMILY_PROFILES_LABEL, 'Morning and UV alerts']) {
       expect(row(label)).toMatchObject({ guest: false, free: false })
       expect(row(label)?.pro).toBeTruthy()
