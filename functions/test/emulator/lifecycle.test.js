@@ -504,7 +504,10 @@ describe('the account export pages large collections (REVIEW4 M4)', () => {
     assert.equal(exported.scheduledActivities.length, 230)
     assert.deepEqual(exported.truncated, [])
     // No query reads more than a page: 7 for the events, 2 for scheduled, 1 for devices.
-    assert.ok(queries.every(size => size <= 200), `page sizes ${queries}`)
+    assert.ok(
+      queries.every(size => size <= 200),
+      `page sizes ${queries}`,
+    )
     assert.equal(queries.length, 10)
   })
 
