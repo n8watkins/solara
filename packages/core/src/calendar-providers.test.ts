@@ -33,6 +33,9 @@ const LINKS = {
   yahoo: `https://calendar.yahoo.com/ola_reyes/${TOKEN}/ycal.ics?id=1234`,
   yahooPage: 'https://mail.yahoo.com/d/calendar',
   icloudWebsite: 'https://www.icloud.com/calendar/',
+  // Shapes the helper does not know on a provider's host: they may work (REVIEW7 L5).
+  outlookCaps: `https://outlook.office365.com/OWA/calendar/${TOKEN}@contoso.com/${TOKEN}/calendar.ics`,
+  yahooExport: `https://export.calendar.yahoo.com/${TOKEN}/ycal.ics`,
 }
 
 const feed = (provider: CalendarProvider) => ({ provider, kind: 'calendar', problem: null })
@@ -220,6 +223,89 @@ describe('recogniseCalendarLink', () => {
   })
 })
 
+describe('links that may work on a provider’s host (REVIEW7 L5)', () => {
+  it('lets Outlook’s published path in capitals through with a warning', () => {
+    expect(recogniseCalendarLink(LINKS.outlookCaps)).toEqual(mistake('outlook', 'outlook-unusual'))
+    expect(
+      recogniseCalendarLink(LINKS.outlook.replace('/owa/calendar/', '/Owa/Calendar/')),
+    ).toEqual(mistake('outlook', 'outlook-unusual'))
+    // Its HTML link in capitals is still the HTML link.
+    expect(
+      recogniseCalendarLink(LINKS.outlookHtml.replace('/owa/calendar/', '/OWA/CALENDAR/')),
+    ).toEqual(mistake('outlook', 'outlook-html'))
+    // An ICS file anywhere else on Outlook's hosts may be a calendar too.
+    expect(recogniseCalendarLink(`https://outlook.live.com/calendar/${TOKEN}/feed.ics`)).toEqual(
+      mistake('outlook', 'outlook-unusual'),
+    )
+    expect(recogniseCalendarLink(`https://outlook.live.com/owa/published/${TOKEN}`)).toEqual(
+      mistake('outlook', 'outlook-unusual'),
+    )
+  })
+
+  it('lets Yahoo’s other hosts through with a warning', () => {
+    expect(recogniseCalendarLink(LINKS.yahooExport)).toEqual(mistake('yahoo', 'yahoo-unusual'))
+    expect(recogniseCalendarLink(`https://calendar.yahoo.com/${TOKEN}/feed`)).toEqual(
+      mistake('yahoo', 'yahoo-unusual'),
+    )
+    expect(recogniseCalendarLink(`https://mail.yahoo.com/${TOKEN}/calendar.ics`)).toEqual(
+      mistake('yahoo', 'yahoo-unusual'),
+    )
+  })
+
+  it('lets other ICS links on Google and iCloud through with a warning', () => {
+    expect(recogniseCalendarLink(`https://calendar.google.com/${TOKEN}/basic.ics`)).toEqual(
+      mistake('google', 'google-unusual'),
+    )
+    expect(recogniseCalendarLink(`https://calendar.google.com/feeds/${TOKEN}/basic`)).toEqual(
+      mistake('google', 'google-unusual'),
+    )
+    expect(recogniseCalendarLink(`https://www.icloud.com/${TOKEN}.ics`)).toEqual(
+      mistake('icloud', 'icloud-unusual'),
+    )
+  })
+
+  it('still holds back every link that certainly is not a calendar', () => {
+    const pages: [string, CalendarProvider, CalendarLinkProblem][] = [
+      ['https://calendar.google.com/', 'google', 'google-page'],
+      ['https://calendar.google.com/calendar', 'google', 'google-page'],
+      ['https://calendar.google.com/calendar/r/settings/calendar', 'google', 'google-page'],
+      ['https://calendar.google.com/calendar/u/1/embed?src=a', 'google', 'google-page'],
+      ['https://calendar.google.com/calendar/render?action=TEMPLATE', 'google', 'google-page'],
+      ['https://calendar.google.com/calendar/event?eid=abc', 'google', 'google-page'],
+      ['https://calendar.google.com/calendar/b/0/embed', 'google', 'google-page'],
+      [`https://calendar.google.com/${TOKEN}/page.html`, 'google', 'google-page'],
+      ['https://outlook.live.com/', 'outlook', 'outlook-website'],
+      ['https://outlook.live.com/mail/0/inbox', 'outlook', 'outlook-website'],
+      ['https://outlook.office.com/calendar/view/week', 'outlook', 'outlook-website'],
+      ['https://outlook.office365.com/OWA/', 'outlook', 'outlook-website'],
+      [`https://outlook.live.com/${TOKEN}/page.htm`, 'outlook', 'outlook-website'],
+      ['https://www.yahoo.com/', 'yahoo', 'yahoo-page'],
+      ['https://yahoo.com/news', 'yahoo', 'yahoo-page'],
+      [`https://export.calendar.yahoo.com/${TOKEN}/page.html`, 'yahoo', 'yahoo-page'],
+      ['https://icloud.com/calendar', 'icloud', 'icloud-website'],
+    ]
+    for (const [link, provider, problem] of pages) {
+      const result = recogniseCalendarLink(link)
+      expect(result, link).toEqual(mistake(provider, problem))
+      expect(calendarLinkRefused(result), link).toBe(true)
+    }
+  })
+
+  it('compares hosts case-insensitively and nothing else, like the server', () => {
+    expect(recogniseCalendarLink(LINKS.yahooExport.replace('export.', 'EXPORT.'))).toEqual(
+      mistake('yahoo', 'yahoo-unusual'),
+    )
+    expect(
+      recogniseCalendarLink(LINKS.outlook.replace('outlook.live.com', 'Outlook.Live.COM')),
+    ).toEqual(feed('outlook'))
+    // Whole labels only: a host that merely ends in "yahoo.com" is not Yahoo's.
+    expect(recogniseCalendarLink(`https://evilyahoo.com/${TOKEN}/ycal.ics`)).toEqual(UNKNOWN)
+    expect(recogniseCalendarLink(`https://export.calendar.yahoo.com.evil.org/x.ics`)).toEqual(
+      UNKNOWN,
+    )
+  })
+})
+
 describe('calendarLinkRefused', () => {
   it('refuses links that cannot be a calendar, and only warns about Google’s public address', () => {
     expect(calendarLinkRefused(recogniseCalendarLink(LINKS.googlePublic))).toBe(false)
@@ -232,7 +318,15 @@ describe('calendarLinkRefused', () => {
     ]) {
       expect(calendarLinkRefused(recogniseCalendarLink(link)), link).toBe(true)
     }
-    for (const link of [LINKS.google, LINKS.icloud, LINKS.outlook, LINKS.yahoo, 'x']) {
+    for (const link of [
+      LINKS.google,
+      LINKS.icloud,
+      LINKS.outlook,
+      LINKS.yahoo,
+      LINKS.outlookCaps,
+      LINKS.yahooExport,
+      'x',
+    ]) {
       expect(calendarLinkRefused(recogniseCalendarLink(link)), link).toBe(false)
     }
   })
@@ -258,6 +352,16 @@ describe('calendarLinkHint', () => {
       tone: 'warning',
     })
     expect(calendarLinkHint(recogniseCalendarLink('https://example.org/a.ics'))).toBeNull()
+  })
+
+  it('warns about a shape it does not know without naming any part of the link', () => {
+    expect(calendarLinkHint(recogniseCalendarLink(LINKS.outlookCaps))).toEqual({
+      text: 'This is not the usual published Outlook calendar link. If linking fails, publish the calendar and copy its ICS link.',
+      tone: 'warning',
+    })
+    expect(calendarLinkHint(recogniseCalendarLink(LINKS.yahooExport))?.text).toBe(
+      'This is not the usual Yahoo Calendar link. If linking fails, copy the link under To import into a Calendar app (ICS).',
+    )
   })
 
   it('writes every message without an em dash', () => {
