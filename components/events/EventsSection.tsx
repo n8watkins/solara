@@ -14,7 +14,7 @@ import {
   type ImportedEvent,
 } from '@/lib/events'
 import { EventsStoreContext } from '@/lib/events-context'
-import { planningFor } from '@/lib/profiles'
+import { planningFor } from '@solara/core'
 import { getFutureDays } from '@/lib/tiers'
 import type { Location, TierLevel, UserPreferences, WeatherResponse } from '@/lib/types'
 import EventCard from './EventCard'
