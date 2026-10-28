@@ -44,10 +44,20 @@ export const HARNESS_NOW_MS = new Date(HARNESS_NOW).getTime()
  */
 export async function pauseClock(page: Page, startedAt = HARNESS_NOW_MS): Promise<number> {
   // pauseAt only moves forward, and the clock keeps running during this round trip,
-  // so aim a little ahead of the reading.
-  const target = (await page.evaluate(() => Date.now())) + PAUSE_LEAD_MS
-  await page.clock.pauseAt(target)
-  return target - startedAt
+  // so aim a little ahead of the reading. On a busy machine the round trip can take
+  // longer than the lead ("Cannot fast-forward to the past"): aim further ahead and try
+  // again.
+  for (let lead = PAUSE_LEAD_MS; ; lead *= 2) {
+    const target = (await page.evaluate(() => Date.now())) + lead
+    try {
+      await page.clock.pauseAt(target)
+      return target - startedAt
+    } catch (error) {
+      if (lead >= PAUSE_LEAD_MAX_MS || !String(error).includes('fast-forward to the past'))
+        throw error
+    }
+  }
 }
 
 const PAUSE_LEAD_MS = 500
+const PAUSE_LEAD_MAX_MS = 8_000
