@@ -42,8 +42,8 @@ Read that folder's `HANDOFF.md` before launching lanes; it holds the live merge 
    The backlog item is: audit and finish functionality, polish the UX, and prepare a Google Play release.
    Much was built in parallel lanes this week, so walk the real app (guest and signed in, 390 px and 1280 px, light and dark) after the merge queue lands, and list what is unfinished.
    This matches step 2 of the coordinating session's next steps (REVIEW4 plus a FIX4 lane).
-2. **Guest first-load JavaScript is at the budget.**
-   `tests/e2e/guest.spec.ts` holds a guest's first load under 200 KB gzip and main is about 199 KB, so new dashboard code must be lazy-loaded or space won back first.
+2. **Guest first-load JavaScript has a tight budget.**
+   `tests/e2e/guest.spec.ts` holds a guest's first load under 193 KB gzip and main is about 189 KB (#126 won back about 10 KB), so new dashboard code that a new guest does not see should load on demand (`components/deferred.tsx`).
    Reproduce with the guest e2e suite after `npm run build`.
 3. **Google Play release path is not started.**
    [ROADMAP.md](ROADMAP.md) item 13 (Wave 6) plans an Expo app reusing `packages/core`, Android first, with a Google Play internal test track.
@@ -66,7 +66,7 @@ Details and console links are in [OWNER_CHECKLIST.md](OWNER_CHECKLIST.md).
 
 1. Let the coordinating session finish the merge queue (#120, #121, #122, #123, #124, #117); confirm `main` is green and deployed.
 2. Run the end-to-end audit of functionality and UX (REVIEW4), then fix what it finds in a FIX4 lane.
-3. Win back guest first-load headroom (at least 10 KB under the 200 KB budget) before more dashboard work.
+3. Done in #126: guest first-load headroom won back (about 189 KB, budget 193 KB).
 4. Prepare the Google Play release: decide with the owner between the planned Expo app (Wave 6) and a smaller first step, then set up the Play listing, privacy and data-safety answers, and an internal test track once the owner has the Play account.
 5. Adopt release-kit (`github:n8watkins/release-kit`) so versions, changelog and tags are cut the same way as the owner's other repos; this matters once there is a mobile build to version.
    Not adopted yet by decision; do it as its own change.

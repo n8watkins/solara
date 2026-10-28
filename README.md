@@ -64,12 +64,13 @@ The repository is an npm workspace.
 - Two service workers are built into the export after `next build` by `scripts/build-sw.mjs`.
   `/sw.js` (`scripts/sw/shell.ts`, rules in `lib/sw-shell.mts`) is the app shell: `app/app/layout.tsx` registers it after the page loads, it precaches `/` and `/app/` with every file they load, and the app opens offline with the last forecast from `lib/cache.ts` and an offline notice (`components/OfflineNotice.tsx`).
   `/firebase-messaging-sw.js` (`scripts/sw/firebase-messaging-sw.ts`) handles push and is registered by Firebase Messaging, under its own scope, only when someone turns on notifications.
-- The app's first load carries only the dashboard (about 196 KB gzip of JavaScript for a guest; `tests/e2e/guest.spec.ts` holds it under 200 KB).
+- The app's first load carries only the dashboard (about 189 KB gzip of JavaScript for a guest; `tests/e2e/guest.spec.ts` holds it under 193 KB).
   Firebase loads on demand: `lib/firebase.ts` is the only way to it, and `loadFirebase()` loads the SDK (`lib/firebase-services.ts`) when someone reaches for "Sign in" or the browser already holds a session, so a guest never downloads it.
   An ESLint rule keeps static Firebase imports out of the app; modules that need the SDK use `await import('firebase/...')`.
   Auth starts without its sign-in popup helper; sign-in buttons start it (`prepareSignInPopup`), and every `*WithPopup` call passes it.
   A returning account's dashboard shows at once from this browser's copy of it (`lib/cached-account.ts`), accepting no input until Auth confirms the session; Firebase starts once that dashboard has painted.
   Setup, the dialogs, the location panel, the calendar view, the calendar feed card, the install prompt, the header's signed-in parts and the Events section load on first use from `components/deferred.tsx`, and are fetched shortly after the page has loaded.
+  The dashboard's activity plan (the hero slot, Plan ahead and the activity cards, `components/dashboard/activity-plan.ts`) is one more such chunk, since setup creates no activities: start-up fetches it as soon as the stored plan or session has activities, and the dashboard waits for it before its first paint, so the cards never pop in.
 - `packages/core` (`@solara/core`) holds the logic every surface shares: the recommendation engine, the daily briefing text, the WHO UV scale, the preferences schema and migrations, the Valibot-validated Open-Meteo parser and weather labels, the iCalendar builder, the calendar feed token policy and the Functions response contracts.
   The web app imports its TypeScript source.
   The .ics reader and imported events (`packages/core/src/ics-parse.ts`, `packages/core/src/events.ts`) are a separate entry point, `@solara/core/event-import`, so they never enter a guest's first load.
