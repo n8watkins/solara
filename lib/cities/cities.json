@@ -1,0 +1,452 @@
+[
+  {
+    "slug": "new-york",
+    "name": "New York",
+    "region": "New York",
+    "country": "United States",
+    "lat": 40.7128,
+    "lon": -74.006,
+    "timezone": "America/New_York"
+  },
+  {
+    "slug": "los-angeles",
+    "name": "Los Angeles",
+    "region": "California",
+    "country": "United States",
+    "lat": 34.0522,
+    "lon": -118.2437,
+    "timezone": "America/Los_Angeles"
+  },
+  {
+    "slug": "chicago",
+    "name": "Chicago",
+    "region": "Illinois",
+    "country": "United States",
+    "lat": 41.8781,
+    "lon": -87.6298,
+    "timezone": "America/Chicago"
+  },
+  {
+    "slug": "houston",
+    "name": "Houston",
+    "region": "Texas",
+    "country": "United States",
+    "lat": 29.7604,
+    "lon": -95.3698,
+    "timezone": "America/Chicago"
+  },
+  {
+    "slug": "phoenix",
+    "name": "Phoenix",
+    "region": "Arizona",
+    "country": "United States",
+    "lat": 33.4484,
+    "lon": -112.074,
+    "timezone": "America/Phoenix"
+  },
+  {
+    "slug": "philadelphia",
+    "name": "Philadelphia",
+    "region": "Pennsylvania",
+    "country": "United States",
+    "lat": 39.9526,
+    "lon": -75.1652,
+    "timezone": "America/New_York"
+  },
+  {
+    "slug": "san-diego",
+    "name": "San Diego",
+    "region": "California",
+    "country": "United States",
+    "lat": 32.7157,
+    "lon": -117.1611,
+    "timezone": "America/Los_Angeles"
+  },
+  {
+    "slug": "dallas",
+    "name": "Dallas",
+    "region": "Texas",
+    "country": "United States",
+    "lat": 32.7767,
+    "lon": -96.797,
+    "timezone": "America/Chicago"
+  },
+  {
+    "slug": "austin",
+    "name": "Austin",
+    "region": "Texas",
+    "country": "United States",
+    "lat": 30.2672,
+    "lon": -97.7431,
+    "timezone": "America/Chicago"
+  },
+  {
+    "slug": "san-francisco",
+    "name": "San Francisco",
+    "region": "California",
+    "country": "United States",
+    "lat": 37.7749,
+    "lon": -122.4194,
+    "timezone": "America/Los_Angeles"
+  },
+  {
+    "slug": "seattle",
+    "name": "Seattle",
+    "region": "Washington",
+    "country": "United States",
+    "lat": 47.6062,
+    "lon": -122.3321,
+    "timezone": "America/Los_Angeles"
+  },
+  {
+    "slug": "denver",
+    "name": "Denver",
+    "region": "Colorado",
+    "country": "United States",
+    "lat": 39.7392,
+    "lon": -104.9903,
+    "timezone": "America/Denver"
+  },
+  {
+    "slug": "washington-dc",
+    "name": "Washington",
+    "region": "District of Columbia",
+    "country": "United States",
+    "lat": 38.9072,
+    "lon": -77.0369,
+    "timezone": "America/New_York"
+  },
+  {
+    "slug": "boston",
+    "name": "Boston",
+    "region": "Massachusetts",
+    "country": "United States",
+    "lat": 42.3601,
+    "lon": -71.0589,
+    "timezone": "America/New_York"
+  },
+  {
+    "slug": "nashville",
+    "name": "Nashville",
+    "region": "Tennessee",
+    "country": "United States",
+    "lat": 36.1627,
+    "lon": -86.7816,
+    "timezone": "America/Chicago"
+  },
+  {
+    "slug": "las-vegas",
+    "name": "Las Vegas",
+    "region": "Nevada",
+    "country": "United States",
+    "lat": 36.1699,
+    "lon": -115.1398,
+    "timezone": "America/Los_Angeles"
+  },
+  {
+    "slug": "atlanta",
+    "name": "Atlanta",
+    "region": "Georgia",
+    "country": "United States",
+    "lat": 33.749,
+    "lon": -84.388,
+    "timezone": "America/New_York"
+  },
+  {
+    "slug": "miami",
+    "name": "Miami",
+    "region": "Florida",
+    "country": "United States",
+    "lat": 25.7617,
+    "lon": -80.1918,
+    "timezone": "America/New_York"
+  },
+  {
+    "slug": "orlando",
+    "name": "Orlando",
+    "region": "Florida",
+    "country": "United States",
+    "lat": 28.5383,
+    "lon": -81.3792,
+    "timezone": "America/New_York"
+  },
+  {
+    "slug": "tampa",
+    "name": "Tampa",
+    "region": "Florida",
+    "country": "United States",
+    "lat": 27.9506,
+    "lon": -82.4572,
+    "timezone": "America/New_York"
+  },
+  {
+    "slug": "honolulu",
+    "name": "Honolulu",
+    "region": "Hawaii",
+    "country": "United States",
+    "lat": 21.3069,
+    "lon": -157.8583,
+    "timezone": "Pacific/Honolulu"
+  },
+  {
+    "slug": "salt-lake-city",
+    "name": "Salt Lake City",
+    "region": "Utah",
+    "country": "United States",
+    "lat": 40.7608,
+    "lon": -111.891,
+    "timezone": "America/Denver"
+  },
+  {
+    "slug": "portland",
+    "name": "Portland",
+    "region": "Oregon",
+    "country": "United States",
+    "lat": 45.5152,
+    "lon": -122.6784,
+    "timezone": "America/Los_Angeles"
+  },
+  {
+    "slug": "minneapolis",
+    "name": "Minneapolis",
+    "region": "Minnesota",
+    "country": "United States",
+    "lat": 44.9778,
+    "lon": -93.265,
+    "timezone": "America/Chicago"
+  },
+  {
+    "slug": "new-orleans",
+    "name": "New Orleans",
+    "region": "Louisiana",
+    "country": "United States",
+    "lat": 29.9511,
+    "lon": -90.0715,
+    "timezone": "America/Chicago"
+  },
+  {
+    "slug": "toronto",
+    "name": "Toronto",
+    "region": "Ontario",
+    "country": "Canada",
+    "lat": 43.6532,
+    "lon": -79.3832,
+    "timezone": "America/Toronto"
+  },
+  {
+    "slug": "vancouver",
+    "name": "Vancouver",
+    "region": "British Columbia",
+    "country": "Canada",
+    "lat": 49.2827,
+    "lon": -123.1207,
+    "timezone": "America/Vancouver"
+  },
+  {
+    "slug": "mexico-city",
+    "name": "Mexico City",
+    "region": "Mexico City",
+    "country": "Mexico",
+    "lat": 19.4326,
+    "lon": -99.1332,
+    "timezone": "America/Mexico_City"
+  },
+  {
+    "slug": "london",
+    "name": "London",
+    "region": "England",
+    "country": "United Kingdom",
+    "lat": 51.5074,
+    "lon": -0.1278,
+    "timezone": "Europe/London"
+  },
+  {
+    "slug": "paris",
+    "name": "Paris",
+    "region": "Île-de-France",
+    "country": "France",
+    "lat": 48.8566,
+    "lon": 2.3522,
+    "timezone": "Europe/Paris"
+  },
+  {
+    "slug": "berlin",
+    "name": "Berlin",
+    "region": "Berlin",
+    "country": "Germany",
+    "lat": 52.52,
+    "lon": 13.405,
+    "timezone": "Europe/Berlin"
+  },
+  {
+    "slug": "madrid",
+    "name": "Madrid",
+    "region": "Community of Madrid",
+    "country": "Spain",
+    "lat": 40.4168,
+    "lon": -3.7038,
+    "timezone": "Europe/Madrid"
+  },
+  {
+    "slug": "barcelona",
+    "name": "Barcelona",
+    "region": "Catalonia",
+    "country": "Spain",
+    "lat": 41.3874,
+    "lon": 2.1686,
+    "timezone": "Europe/Madrid"
+  },
+  {
+    "slug": "rome",
+    "name": "Rome",
+    "region": "Lazio",
+    "country": "Italy",
+    "lat": 41.9028,
+    "lon": 12.4964,
+    "timezone": "Europe/Rome"
+  },
+  {
+    "slug": "amsterdam",
+    "name": "Amsterdam",
+    "region": "North Holland",
+    "country": "Netherlands",
+    "lat": 52.3676,
+    "lon": 4.9041,
+    "timezone": "Europe/Amsterdam"
+  },
+  {
+    "slug": "athens",
+    "name": "Athens",
+    "region": "Attica",
+    "country": "Greece",
+    "lat": 37.9838,
+    "lon": 23.7275,
+    "timezone": "Europe/Athens"
+  },
+  {
+    "slug": "lisbon",
+    "name": "Lisbon",
+    "region": "Lisbon",
+    "country": "Portugal",
+    "lat": 38.7223,
+    "lon": -9.1393,
+    "timezone": "Europe/Lisbon"
+  },
+  {
+    "slug": "dubai",
+    "name": "Dubai",
+    "region": "Dubai",
+    "country": "United Arab Emirates",
+    "lat": 25.2048,
+    "lon": 55.2708,
+    "timezone": "Asia/Dubai"
+  },
+  {
+    "slug": "mumbai",
+    "name": "Mumbai",
+    "region": "Maharashtra",
+    "country": "India",
+    "lat": 19.076,
+    "lon": 72.8777,
+    "timezone": "Asia/Kolkata"
+  },
+  {
+    "slug": "delhi",
+    "name": "Delhi",
+    "region": "Delhi",
+    "country": "India",
+    "lat": 28.7041,
+    "lon": 77.1025,
+    "timezone": "Asia/Kolkata"
+  },
+  {
+    "slug": "singapore",
+    "name": "Singapore",
+    "region": "Singapore",
+    "country": "Singapore",
+    "lat": 1.3521,
+    "lon": 103.8198,
+    "timezone": "Asia/Singapore"
+  },
+  {
+    "slug": "bangkok",
+    "name": "Bangkok",
+    "region": "Bangkok",
+    "country": "Thailand",
+    "lat": 13.7563,
+    "lon": 100.5018,
+    "timezone": "Asia/Bangkok"
+  },
+  {
+    "slug": "tokyo",
+    "name": "Tokyo",
+    "region": "Tokyo",
+    "country": "Japan",
+    "lat": 35.6762,
+    "lon": 139.6503,
+    "timezone": "Asia/Tokyo"
+  },
+  {
+    "slug": "seoul",
+    "name": "Seoul",
+    "region": "Seoul",
+    "country": "South Korea",
+    "lat": 37.5665,
+    "lon": 126.978,
+    "timezone": "Asia/Seoul"
+  },
+  {
+    "slug": "hong-kong",
+    "name": "Hong Kong",
+    "region": "Hong Kong",
+    "country": "China",
+    "lat": 22.3193,
+    "lon": 114.1694,
+    "timezone": "Asia/Hong_Kong"
+  },
+  {
+    "slug": "sydney",
+    "name": "Sydney",
+    "region": "New South Wales",
+    "country": "Australia",
+    "lat": -33.8688,
+    "lon": 151.2093,
+    "timezone": "Australia/Sydney"
+  },
+  {
+    "slug": "melbourne",
+    "name": "Melbourne",
+    "region": "Victoria",
+    "country": "Australia",
+    "lat": -37.8136,
+    "lon": 144.9631,
+    "timezone": "Australia/Melbourne"
+  },
+  {
+    "slug": "auckland",
+    "name": "Auckland",
+    "region": "Auckland",
+    "country": "New Zealand",
+    "lat": -36.8485,
+    "lon": 174.7633,
+    "timezone": "Pacific/Auckland"
+  },
+  {
+    "slug": "rio-de-janeiro",
+    "name": "Rio de Janeiro",
+    "region": "Rio de Janeiro",
+    "country": "Brazil",
+    "lat": -22.9068,
+    "lon": -43.1729,
+    "timezone": "America/Sao_Paulo"
+  },
+  {
+    "slug": "cape-town",
+    "name": "Cape Town",
+    "region": "Western Cape",
+    "country": "South Africa",
+    "lat": -33.9249,
+    "lon": 18.4241,
+    "timezone": "Africa/Johannesburg"
+  }
+]

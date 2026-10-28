@@ -6,9 +6,17 @@
  * tokenize them.
  */
 import { SCRIPT_TAG, hasAttribute } from './csp.mts'
+import cities from './cities/cities.json' with { type: 'json' }
 
-/** Pages served without the framework, relative to the export directory. */
-export const STATIC_PAGES = ['index.html']
+/**
+ * Pages served without the framework, relative to the export directory: the landing
+ * page and the city pages (app/uv/).
+ */
+export const STATIC_PAGES = [
+  'index.html',
+  'uv/index.html',
+  ...cities.map(city => `uv/${city.slug}/index.html`),
+]
 
 /** Inline scripts Next.js writes: the RSC payload, the chunk list and their bootstrap. */
 const FRAMEWORK_INLINE =
