@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   GOOGLE_EVENT_LIMITS,
+  IMPORTED_EVENT_LIMITS,
   importedEventKey,
   newGoogleCalendarLink,
   parseGoogleCalendarLink,
@@ -11,17 +12,22 @@ import {
   authProblem,
   calendarChoices,
   calendarsText,
-  isLinkLocation,
+  googleLocationQueries,
+  isMeetingLocation,
   parseGoogleEvent,
+  disconnectGoogleCalendar,
   refreshDue,
+  refreshGoogleEvents,
+  removeGoogleEvents,
   syncGoogleEvents,
   syncSummary,
   syncedText,
   type GoogleCalendarApi,
+  type GoogleCalendarLink,
   type SyncContext,
   type SyncOutcome,
 } from './google-events'
-import type { PlaceLookups } from './events'
+import type { EventsStore, PlaceLookups } from './events'
 import type { Location } from './types'
 
 const NOW = Date.parse('2026-06-15T17:30:00Z')
@@ -149,24 +155,87 @@ describe('parseGoogleEvent', () => {
   it('removes invisible formatting and caps text', () => {
     const read = parseGoogleEvent(
       timed('b', `Run\u202e${'x'.repeat(300)}`, '2026-06-16T12:00:00Z', '2026-06-16T13:00:00Z', {
-        location: 'Balboa\u200b Park, San Diego',
+        location: 'Balboa\u200b Park, San Diego, CA',
       }),
       CONTEXT,
     )
     const title = 'event' in read ? read.event.title : ''
     expect(title).not.toContain('\u202e')
     expect(title.length).toBe(200)
-    expect('event' in read && read.event.location).toBe('Balboa Park, San Diego')
+    expect('event' in read && read.event.location).toBe('Balboa Park, San Diego, CA')
   })
 })
 
-describe('isLinkLocation', () => {
-  it('tells links from places', () => {
-    expect(isLinkLocation('https://teams.microsoft.com/l/meetup')).toBe(true)
-    expect(isLinkLocation('www.example.org')).toBe(true)
-    expect(isLinkLocation('zoom.us/j/123')).toBe(true)
-    expect(isLinkLocation('Griffith Park, Los Angeles, CA')).toBe(false)
-    expect(isLinkLocation('St. Mary’s Field, 12 Oak St.')).toBe(false)
+describe('isMeetingLocation', () => {
+  it('tells links and dial-ins from places', () => {
+    expect(isMeetingLocation('https://teams.microsoft.com/l/meetup')).toBe(true)
+    expect(isMeetingLocation('www.example.org')).toBe(true)
+    expect(isMeetingLocation('zoom.us/j/123')).toBe(true)
+    expect(isMeetingLocation('+1 415 555 0100 PIN 4411#')).toBe(true)
+    expect(isMeetingLocation('(415) 555-0100')).toBe(true)
+    expect(isMeetingLocation('415.555.0100')).toBe(true)
+    expect(isMeetingLocation('Meeting ID 812 3456 7890')).toBe(true)
+    expect(isMeetingLocation('Dial-in: see invite')).toBe(true)
+    expect(isMeetingLocation('Passcode abc123')).toBe(true)
+    expect(isMeetingLocation('Griffith Park, Los Angeles, CA')).toBe(false)
+    expect(isMeetingLocation('St. Mary’s Field, 12 Oak St.')).toBe(false)
+    expect(
+      isMeetingLocation('Griffith Park, 4730 Crystal Springs Dr, Los Angeles, CA 90027, USA'),
+    ).toBe(false)
+    expect(isMeetingLocation('Pinewood Park, Pinecrest, FL')).toBe(false)
+  })
+})
+
+describe('googleLocationQueries (REVIEW6 M2)', () => {
+  it('searches only the town of text written as an address', () => {
+    const cases: [string, string[]][] = [
+      ['Balboa Park, San Diego, CA', ['San Diego, CA', 'San Diego']],
+      [
+        'Griffith Park, 4730 Crystal Springs Dr, Los Angeles, CA 90027, USA',
+        ['Los Angeles, CA', 'Los Angeles'],
+      ],
+      ['Rose Bowl, 1001 Rose Bowl Dr, Pasadena, CA 91103', ['Pasadena, CA', 'Pasadena']],
+      ['Opera House, Bennelong Point, Sydney NSW 2000, Australia', ['Sydney NSW']],
+      ['Tiergarten, Berlin, Germany', ['Berlin']],
+      ['Stanley Park, Vancouver, BC V6G 1Z4, Canada', ['Vancouver']],
+      ['Portland, OR', ['Portland, OR', 'Portland']],
+      ['Boston, MA 02116', ['Boston, MA', 'Boston']],
+    ]
+    for (const [where, queries] of cases)
+      expect(googleLocationQueries(where), where).toEqual(queries)
+  })
+
+  it('never searches people, rooms, meetings, homes or bare phrases', () => {
+    for (const where of [
+      '',
+      'Dr Patel',
+      'Therapy Room 2',
+      'Client HQ',
+      'Boston',
+      'Lake Merritt',
+      'Starbucks',
+      'Zoom',
+      'Coach Lee',
+      'Sarah’s house, upstairs',
+      'Starbucks, 123 Main St',
+      'Dr Patel, Boston, MA',
+      'Dr. Lee, Suite 400, Austin, TX 78701',
+      'Mrs Lee, London, UK',
+      '+1 415 555 0100 PIN 4411#',
+      'https://zoom.us/j/1, San Jose, CA',
+      'Room 4, HQ, Springfield',
+      'Conference Room B, Office, CA',
+      'Mom’s home, Home, CA',
+    ]) {
+      expect(googleLocationQueries(where), where).toEqual([])
+    }
+  })
+
+  it('keeps only the town when the text also names a room', () => {
+    expect(googleLocationQueries('Room 4, 1 Main St, Springfield, IL 62701')).toEqual([
+      'Springfield, IL',
+      'Springfield',
+    ])
   })
 })
 
@@ -266,10 +335,13 @@ function memoryStore(initial: ImportedEvent[] = [], cap = 1000) {
       async sourceEvents(_uid: string, source: string) {
         return [...items.values()].filter(e => e.source === source)
       },
+      async upcoming(_uid: string, nowMs: number) {
+        return [...items.values()].filter(e => Date.parse(e.end) > nowMs)
+      },
       async storedKeys() {
         return new Set(items.keys())
       },
-    } satisfies SyncContext['store'],
+    } satisfies SyncContext['store'] & Pick<EventsStore, 'sourceEvents'>,
   }
 }
 
@@ -328,7 +400,6 @@ function context(
     token: 'tok',
     home: HOME,
     activities: ACTIVITIES,
-    existing: [],
     nowMs: NOW,
     store,
     lookups,
@@ -342,6 +413,13 @@ const PICNIC = timed('picnic', 'Picnic', '2026-06-16T12:00:00-07:00', '2026-06-1
 const RUN = timed('run', 'Morning run', '2026-06-17T07:00:00-07:00', '2026-06-17T08:00:00-07:00')
 const MEETING = timed('m', '1:1', '2026-06-16T09:00:00-07:00', '2026-06-16T09:30:00-07:00')
 
+/** A refresh with no connection check, which always finishes. */
+async function syncOrFail(sync: SyncContext): Promise<SyncOutcome> {
+  const outcome = await syncGoogleEvents(sync)
+  if (!outcome) throw new Error('the refresh stopped')
+  return outcome
+}
+
 describe('syncGoogleEvents', () => {
   it('stores events with a place or an activity, once across calendars', async () => {
     const { store, items } = memoryStore()
@@ -353,7 +431,7 @@ describe('syncGoogleEvents', () => {
       // The same invitation on a second calendar is one event.
       'club@group': [{ items: [PICNIC] }],
     })
-    const outcome = await syncGoogleEvents(context(store, api))
+    const outcome = await syncOrFail(context(store, api))
     expect(outcome).toMatchObject({ shown: 2, refused: 0, removed: 0, duplicates: 0 })
     expect(outcome.skipped.noPlace).toBe(1)
     const stored = [...items.values()]
@@ -376,7 +454,7 @@ describe('syncGoogleEvents', () => {
 
   it('reports a calendar that is no longer shared, and keeps reading the others', async () => {
     const { store } = memoryStore()
-    const outcome = await syncGoogleEvents(
+    const outcome = await syncOrFail(
       context(store, fakeApi({ primary: [{ items: [PICNIC] }], 'club@group': null })),
     )
     expect(outcome.shown).toBe(1)
@@ -397,13 +475,41 @@ describe('syncGoogleEvents', () => {
       start: '2026-06-17T14:00:00.000Z',
       end: '2026-06-17T15:00:00.000Z',
     } as ImportedEvent
-    const { store, items } = memoryStore([imported])
-    const outcome = await syncGoogleEvents(
-      context(store, fakeApi({ primary: [{ items: [PICNIC, RUN] }], 'club@group': [] }), {
-        existing: [linked],
-      }),
+    const { store, items } = memoryStore([imported, linked])
+    const outcome = await syncOrFail(
+      context(store, fakeApi({ primary: [{ items: [PICNIC, RUN] }], 'club@group': [] })),
     )
     expect(outcome).toMatchObject({ shown: 0, duplicates: 2 })
+    expect([...items.values()].filter(e => e.source === 'google')).toEqual([])
+  })
+
+  it('finds a duplicate among every stored event, not only the soonest loaded ones (REVIEW6 L5)', async () => {
+    const HOUR = 3_600_000
+    // 200 imported events end before the picnic, so the Events section's list (the soonest
+    // 200) does not hold the linked calendar's copy of it.
+    const soon = Array.from(
+      { length: IMPORTED_EVENT_LIMITS.listLimit },
+      (_, i) =>
+        ({
+          key: i.toString(16).padStart(32, '0'),
+          source: 'file',
+          title: `Class ${i}`,
+          start: new Date(NOW + HOUR + i * 60_000).toISOString(),
+          end: new Date(NOW + 2 * HOUR + i * 60_000).toISOString(),
+        }) as ImportedEvent,
+    )
+    const linked = {
+      key: 'f'.repeat(32),
+      source: 'feed',
+      title: 'Picnic',
+      start: '2026-06-16T19:00:00.000Z',
+      end: '2026-06-16T21:00:00.000Z',
+    } as ImportedEvent
+    const { store, items } = memoryStore([...soon, linked])
+    const outcome = await syncOrFail(
+      context(store, fakeApi({ primary: [{ items: [PICNIC] }], 'club@group': [] })),
+    )
+    expect(outcome).toMatchObject({ shown: 0, duplicates: 1 })
     expect([...items.values()].filter(e => e.source === 'google')).toEqual([])
   })
 
@@ -423,7 +529,7 @@ describe('syncGoogleEvents', () => {
     saved.length = 0
 
     // The picnic is deleted in Google; the run is unchanged.
-    const outcome = await syncGoogleEvents(
+    const outcome = await syncOrFail(
       context(store, fakeApi({ primary: [{ items: [RUN] }], 'club@group': [] })),
     )
     expect(outcome).toMatchObject({ shown: 1, removed: 1 })
@@ -442,12 +548,43 @@ describe('syncGoogleEvents', () => {
       ),
     )
     const { store } = memoryStore([], 150)
-    const outcome = await syncGoogleEvents(
+    const outcome = await syncOrFail(
       context(store, fakeApi({ primary: [{ items: many }], 'club@group': [] })),
     )
     expect(outcome.overLimit).toBe(3)
     expect(outcome.refused).toBe(GOOGLE_EVENT_LIMITS.maxEventsPerSync - 150)
     expect(outcome.shown).toBe(150)
+  })
+
+  it('sends a location to the place search only when it reads as a town (REVIEW6 M2)', async () => {
+    const queries: string[] = []
+    const recording: () => Promise<PlaceLookups> = async () => {
+      const real = await lookups()
+      return { ...real, search: query => (queries.push(query), real.search(query)) }
+    }
+    const at = ['2026-06-16T12:00:00-07:00', '2026-06-16T13:00:00-07:00'] as const
+    const items = [
+      timed('dr', 'Checkup', ...at, { location: 'Dr Patel' }),
+      timed('room', 'Session', ...at, { location: 'Therapy Room 2' }),
+      timed('hq', 'Review', ...at, { location: 'Client HQ' }),
+      timed('dial', 'Call', ...at, { location: '+1 415 555 0100 PIN 4411#' }),
+      timed('drtown', 'Visit', ...at, { location: 'Dr Patel, Boston, MA' }),
+      // A run with a location that is not a town: kept for the activity, never searched.
+      timed('track', 'Track run', ...at, { location: 'Coach Lee' }),
+      PICNIC,
+    ]
+    const { store, items: stored } = memoryStore()
+    const outcome = await syncOrFail(
+      context(store, fakeApi({ primary: [{ items }], 'club@group': [] }), {
+        lookups: recording,
+      }),
+    )
+    expect(queries).toEqual(['San Diego, CA'])
+    expect(outcome.shown).toBe(2)
+    expect(outcome.skipped.noPlace).toBe(5)
+    const run = [...stored.values()].find(e => e.title === 'Track run')!
+    expect(run).toMatchObject({ where: 'Coach Lee', placeGuessed: true, activityId: 'run' })
+    expect(JSON.stringify([...stored.values()])).not.toMatch(/Patel|Therapy|Client|4411/)
   })
 
   it('stops at the page limit for each calendar', async () => {
@@ -466,6 +603,150 @@ describe('syncGoogleEvents', () => {
   })
 })
 
+describe('a disconnect on another device wins (REVIEW6 L4)', () => {
+  /** The stored connection, and an events store that refuses Google events without it, as the rules do. */
+  function connectedAccount() {
+    const memory = memoryStore()
+    let link: GoogleCalendarLink | null = context(memory.store, fakeApi({})).link
+    const order: string[] = []
+    const linkStore = {
+      async read() {
+        return link
+      },
+      async update(_uid: string, patch: Partial<GoogleCalendarLink>) {
+        if (!link) return false
+        link = { ...link, ...patch }
+        return true
+      },
+      async remove() {
+        order.push('link')
+        link = null
+      },
+    }
+    const store = {
+      ...memory.store,
+      async save(uid: string, records: readonly ImportedEvent[]) {
+        if (!link && records.some(r => r.source === 'google')) {
+          throw Object.assign(new Error('Missing or insufficient permissions.'), {
+            code: 'permission-denied',
+          })
+        }
+        return memory.store.save(uid, records)
+      },
+      async remove(uid: string, keys: readonly string[]) {
+        order.push('events')
+        return memory.store.remove(uid, keys)
+      },
+    }
+    return {
+      ...memory,
+      store,
+      linkStore,
+      order,
+      link: () => link,
+      setLink: (next: GoogleCalendarLink | null) => (link = next),
+    }
+  }
+
+  /** Google answers only once `release` is called. */
+  function heldApi(pages: Record<string, CalendarEventsPage[] | null>) {
+    const api = fakeApi(pages)
+    let release!: () => void
+    const gate = new Promise<void>(resolve => (release = resolve))
+    const listEvents: GoogleCalendarApi['listEvents'] = async (...args) => {
+      await gate
+      return api.listEvents(...args)
+    }
+    return { api: { ...api, listEvents }, release }
+  }
+
+  it('a refresh that was running when the phone disconnected writes nothing back', async () => {
+    const account = connectedAccount()
+    await refreshGoogleEvents({
+      ...context(account.store, fakeApi({ primary: [{ items: [RUN] }], 'club@group': [] })),
+      linkStore: account.linkStore,
+    })
+    expect(account.items.size).toBe(1)
+    const started = account.link()!
+
+    // The laptop's refresh is waiting on Google when the phone disconnects.
+    const { api, release } = heldApi({ primary: [{ items: [PICNIC, RUN] }], 'club@group': [] })
+    const laptop = refreshGoogleEvents({
+      ...context(account.store, api, { link: started }),
+      linkStore: account.linkStore,
+    })
+    const revoked = await disconnectGoogleCalendar({
+      uid: 'u1',
+      linkStore: account.linkStore,
+      store: account.store,
+      api,
+    })
+    expect(revoked).toBe(true)
+    // The connection goes first, so nothing can be stored after the events are removed.
+    expect(account.order).toEqual(['link', 'events'])
+    release()
+
+    expect(await laptop).toBeNull()
+    expect(account.link()).toBeNull()
+    expect([...account.items.values()].filter(e => e.source === 'google')).toEqual([])
+  })
+
+  it('stops when the rules refuse a write because the connection just went', async () => {
+    const account = connectedAccount()
+    const store = {
+      ...account.store,
+      async upcoming(uid: string, nowMs: number) {
+        // The phone disconnects after the laptop checked the connection.
+        account.setLink(null)
+        return account.store.upcoming(uid, nowMs)
+      },
+    }
+    const outcome = await refreshGoogleEvents({
+      ...context(store, fakeApi({ primary: [{ items: [PICNIC] }], 'club@group': [] })),
+      linkStore: account.linkStore,
+    })
+    expect(outcome).toBeNull()
+    expect(account.items.size).toBe(0)
+    expect(account.link()).toBeNull()
+  })
+
+  it('leaves a calendar choice made on another device during the refresh alone', async () => {
+    const account = connectedAccount()
+    const started = account.link()!
+    const { api, release } = heldApi({ primary: [{ items: [PICNIC] }], 'club@group': [] })
+    const laptop = refreshGoogleEvents({
+      ...context(account.store, api, { link: started }),
+      linkStore: account.linkStore,
+    })
+    // The phone picks only the main calendar.
+    await account.linkStore.update('u1', { calendars: [{ id: 'primary', name: '' }] })
+    release()
+    expect(await laptop).toBeNull()
+    expect(account.items.size).toBe(0)
+    expect(account.link()).toMatchObject({ calendars: [{ id: 'primary', name: '' }], syncedAt: '' })
+  })
+
+  it('records the refresh time without rewriting the connection', async () => {
+    const account = connectedAccount()
+    const outcome = await refreshGoogleEvents({
+      ...context(account.store, fakeApi({ primary: [{ items: [PICNIC] }], 'club@group': [] })),
+      linkStore: account.linkStore,
+    })
+    expect(outcome?.shown).toBe(1)
+    expect(account.link()?.syncedAt).not.toBe('')
+    expect(account.link()?.calendars).toHaveLength(2)
+  })
+
+  it('removes Google events left without a connection, and nothing else', async () => {
+    const google = { key: 'g'.repeat(32), source: 'google', title: 'Picnic' } as ImportedEvent
+    const file = { key: 'f'.repeat(32), source: 'file', title: 'Race' } as ImportedEvent
+    const { store, items } = memoryStore([google, file])
+    expect(await removeGoogleEvents('u1', store)).toBe(1)
+    expect([...items.keys()]).toEqual([file.key])
+    expect(await removeGoogleEvents('u1', store)).toBe(0)
+  })
+})
+
 describe('syncSummary', () => {
   const base: SyncOutcome = {
     shown: 0,
@@ -481,7 +762,7 @@ describe('syncSummary', () => {
       'Showing 1 upcoming event from Google Calendar.',
     )
     expect(syncSummary(base)).toBe(
-      'No events in the next 30 days have a place or match one of your activities.',
+      'No events in the next 30 days have an address or match one of your activities.',
     )
     expect(
       syncSummary({

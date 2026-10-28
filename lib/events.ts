@@ -95,13 +95,17 @@ export async function geocodingLookups(): Promise<PlaceLookups> {
   return { search: query => searchPlaces(query, { limit: 5 }), reverse: reverseGeocode }
 }
 
-/** The place a LOCATION text names, nearest the person among same-named towns, or null. */
+/**
+ * The place a LOCATION text names, nearest the person among same-named towns, or null.
+ * `queries` are the searches to try (locationQueries by default); none means no search.
+ */
 export async function findPlace(
   where: string,
   home: Location,
   search: PlaceLookups['search'],
+  queries: readonly string[] = locationQueries(where),
 ): Promise<EventPlace | null> {
-  for (const query of locationQueries(where)) {
+  for (const query of queries) {
     let results: PlaceSuggestion[]
     try {
       results = await search(query)
@@ -129,8 +133,10 @@ export function placeKey(event: Pick<ParsedIcsEvent, 'geo' | 'location'>): strin
  * searched at city level. Lookups (searches and reverse lookups together) stop at
  * MAX_PLACE_LOOKUPS, soonest events first; a GEO point past the cap takes the name of a
  * found place within NEARBY_PLACE_KM, else "Event location". `known` holds places from
- * earlier imports, reused without a lookup. Events with neither, or whose place is not
- * found, get the person's place, marked as guessed (by the caller).
+ * earlier imports, reused without a lookup. `queriesFor` decides which searches a
+ * LOCATION text may make (locationQueries by default); text it gives none for is never
+ * sent anywhere and takes no lookup. Events with neither, or whose place is not found,
+ * get the person's place, marked as guessed (by the caller).
  */
 export async function resolvePlaces(
   events: readonly ParsedIcsEvent[],
@@ -139,9 +145,11 @@ export async function resolvePlaces(
   {
     known = new Map(),
     onProgress,
+    queriesFor = locationQueries,
   }: {
     known?: ReadonlyMap<string, EventPlace>
     onProgress?: (done: number, total: number) => void
+    queriesFor?: (where: string) => string[]
   } = {},
 ): Promise<Map<string, EventPlace>> {
   const places = new Map<string, EventPlace>(known)
@@ -150,7 +158,8 @@ export async function resolvePlaces(
     const key = placeKey(event)
     if (key && !places.has(key) && !pending.has(key)) pending.set(key, event)
   }
-  const needsLookup = (event: ParsedIcsEvent) => !event.geo || !geoLabel(event)
+  const needsLookup = (event: ParsedIcsEvent) =>
+    event.geo ? !geoLabel(event) : !!event.location && queriesFor(event.location).length > 0
   const total = Math.min(MAX_PLACE_LOOKUPS, [...pending.values()].filter(needsLookup).length)
   let lookupsMade = 0
   const unnamed: [string, { lat: number; lon: number }][] = []
@@ -172,9 +181,11 @@ export async function resolvePlaces(
       }
       places.set(key, { lat, lon, label: label || 'Event location', guessed: false })
     } else if (event.location && lookupsMade < MAX_PLACE_LOOKUPS) {
+      const queries = queriesFor(event.location)
+      if (!queries.length) continue
       onProgress?.(lookupsMade, total)
       lookupsMade += 1
-      const found = await findPlace(event.location, home, lookups.search)
+      const found = await findPlace(event.location, home, lookups.search, queries)
       if (found) places.set(key, found)
     }
   }
@@ -581,6 +592,13 @@ export interface EventsStore {
   seriesEvents(uid: string, seriesIds: readonly string[]): Promise<ImportedEvent[]>
   /** Every stored event from one source (the Google Calendar refresh replaces its own). */
   sourceEvents(uid: string, source: ImportedEventSource): Promise<ImportedEvent[]>
+  /**
+   * Every stored event that ends after `nowMs`, of any source, however many (the Google
+   * Calendar refresh compares with all of them, not only the loaded ones, REVIEW6 L5).
+   */
+  upcoming(uid: string, nowMs: number): Promise<ImportedEvent[]>
+  /** How many stored events of one source end after `nowMs` (an aggregate count). */
+  countUpcoming(uid: string, source: ImportedEventSource, nowMs: number): Promise<number>
   /** The key of every stored event (the account's key list), to skip events stored already. */
   storedKeys(uid: string): Promise<Set<string>>
   /** Deletes events that ended more than IMPORTED_EVENT_RETENTION_DAYS ago. */
@@ -741,6 +759,44 @@ export const firestoreEventsStore: EventsStore = {
       last = snapshot.docs[snapshot.size - 1]?.id ?? null
     }
     return out
+  },
+  async upcoming(uid, nowMs) {
+    const { firestore, events } = await eventsCollection(uid)
+    const { documentId, getDocs, limit, orderBy, query, startAfter, where } = firestore
+    const pageSize = IMPORTED_EVENT_LIMITS.listLimit
+    const out: ImportedEvent[] = []
+    let last: [string, string] | null = null
+    // The account holds at most IMPORTED_EVENT_LIMITS.maxStored events, so this ends.
+    for (;;) {
+      const snapshot: QuerySnapshot = await getDocs(
+        query(
+          events,
+          where('end', '>', new Date(nowMs).toISOString()),
+          orderBy('end'),
+          orderBy(documentId()),
+          ...(last === null ? [] : [startAfter(...last)]),
+          limit(pageSize),
+        ),
+      )
+      out.push(...recordsOf(snapshot.docs))
+      if (snapshot.size < pageSize) break
+      const tail = snapshot.docs[snapshot.size - 1]
+      last = tail ? [String(tail.get('end')), tail.id] : null
+    }
+    return out
+  },
+  async countUpcoming(uid, source, nowMs) {
+    // One read per 1,000 events counted (firestore.indexes.json: source, end).
+    const { firestore, events } = await eventsCollection(uid)
+    const { getCountFromServer, query, where } = firestore
+    const snapshot = await getCountFromServer(
+      query(
+        events,
+        where('source', '==', source),
+        where('end', '>', new Date(nowMs).toISOString()),
+      ),
+    )
+    return snapshot.data().count
   },
   async storedKeys(uid) {
     // One read of the key list (users/{uid}/meta/events), not of every record.

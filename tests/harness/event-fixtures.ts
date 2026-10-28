@@ -152,6 +152,14 @@ export function createMemoryEventsStore(
     async sourceEvents(_uid, source) {
       return [...items.values()].filter(item => item.source === source)
     },
+    async upcoming(_uid, nowMs) {
+      return [...items.values()].filter(item => Date.parse(item.end) > nowMs)
+    },
+    async countUpcoming(_uid, source, nowMs) {
+      return [...items.values()].filter(
+        item => item.source === source && Date.parse(item.end) > nowMs,
+      ).length
+    },
     async storedKeys() {
       return listed()
     },

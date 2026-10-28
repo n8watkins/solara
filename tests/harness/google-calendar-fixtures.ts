@@ -5,6 +5,8 @@
 // GoogleLinkStore stands in for users/{uid}/meta/googleCalendar.
 //   google = none (default) | connected: the account already shows its main calendar,
 //            refreshed 2 hours ago, with two of its events stored
+//          | many: connected, with GOOGLE_MANY_EVENTS upcoming events stored, more than
+//            the Events section loads (REVIEW6 L5)
 import type { ImportedEvent } from '@solara/core/event-import'
 import type { CalendarEventsPage, CalendarListEntry } from '@/lib/gcal'
 import type { GoogleCalendarApi, GoogleCalendarLink, GoogleLinkStore } from '@/lib/google-events'
@@ -117,6 +119,26 @@ export function buildGoogleEvents(): ImportedEvent[] {
   ]
 }
 
+/** How many upcoming Google events ?google=many stores: more than the section loads (200). */
+export const GOOGLE_MANY_EVENTS = 250
+
+/** ?google=many: the two events above and 248 evening runs, every 2 hours for 3 weeks. */
+export function buildManyGoogleEvents(): ImportedEvent[] {
+  const [picnic, run] = buildGoogleEvents()
+  const runs = Array.from({ length: GOOGLE_MANY_EVENTS - 2 }, (_, i): ImportedEvent => {
+    const start = HARNESS_NOW_MS + (i + 1) * 2 * HOUR
+    return {
+      ...run!,
+      key: `c${i.toString(16).padStart(31, '0')}`,
+      seriesId: `d${i.toString(16).padStart(31, '0')}`,
+      title: `Club run ${i + 1}`,
+      start: iso(start),
+      end: iso(start + HOUR),
+    }
+  })
+  return [picnic!, run!, ...runs]
+}
+
 export function buildGoogleLink(): GoogleCalendarLink {
   return {
     calendars: [{ id: 'primary', name: '' }],
@@ -191,9 +213,18 @@ export function createMemoryGoogleLinkStore(
       queueMicrotask(() => onChange(link))
       return () => listeners.delete(onChange)
     },
+    async read() {
+      return link
+    },
     async save(_uid, next) {
       link = next
       emit()
+    },
+    async update(_uid, patch) {
+      if (!link) return false
+      link = { ...link, ...patch }
+      emit()
+      return true
     },
     async remove() {
       link = null

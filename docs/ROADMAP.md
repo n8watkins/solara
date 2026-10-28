@@ -298,6 +298,17 @@ The sixth review's findings L3, L6 and L7 item 1 (`handoff/review6.md`):
   Harness screens (`tests/harness/sun-phase.spec.ts`) cover dawn, morning, evening and night in Los Angeles and Sydney.
 - **Docs drift (L6):** the status table through #136, [COSTS.md](COSTS.md) (the two sides, the IPv4 /24 tier, linked calendars' place lookups in the worst case), [DEPLOYMENT.md](DEPLOYMENT.md#forecast-proxy) and the [runbook](RUNBOOK.md) (a side's exhausted budget, and why the place lookup ERROR can email a dozen times in a busy hour).
 
+### 27. Google Calendar events and Settings from the sixth review (FIX6B, built)
+
+The sixth review's findings M2, L4, L5, the app's copy for L1, and UI items 2-5 of L7 (`handoff/review6.md`), all in features that stay switched off:
+
+- **Only towns of addresses are searched (M2):** a Google event's location goes to the place search only when it is written as an address (two or more parts with a state or province code, a postal code or a country, no person, room, office or meeting words), and then only its town (`googleLocationQueries` in `lib/google-events.ts`); dial-in numbers and passcodes are dropped like meeting links; other events are kept only when they match an activity, at the person's place, which they can set by hand.
+  The privacy policy names what goes where for every event source: Open-Meteo's place search for files, linked calendars and Google Calendar, the forecasts at event places, the heads-up push through Firebase Cloud Messaging, and the proxy.
+- **A disconnect wins (L4):** the rules accept Google events only while `users/{uid}/meta/googleCalendar` exists; a disconnect deletes it before the events; a refresh checks it (and its calendars) on the server before writing and records `syncedAt` with an update that never recreates it; a device that finds Google events without a connection removes them.
+- **Every stored event counts (L5):** a refresh compares Google events with every stored event that has not ended, and the panel counts with an aggregate query (new `events` index on `source`, `end`) when the section holds only the soonest 200.
+- **One heads-up rule (L1, app copy):** Settings' switch and the Events section's note use one sentence from the shared constants (outdoor events with an activity set, UV 6 or higher, from a file, a linked calendar or Google Calendar, at most one every 3 hours), shown when either outside source is on.
+- **UI (L7 items 2-5):** the Free Alerts tab has the "See Pro plans" button; the Google panel's Disconnect is a quiet text button beside the calendar's name in a narrow card; the first Settings tab reads "Sun" on phones (still named "Sun profile"); the UI harness opens any Settings tab by URL.
+
 ## Decisions
 
 Agents never make owner decisions; they follow the recorded decision or the default.

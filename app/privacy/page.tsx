@@ -45,9 +45,9 @@ export default function PrivacyPage() {
           </li>
           <li>
             <strong>Google Calendar availability</strong>, only if you connect it: the times you are
-            busy, read in your browser for planning and not stored by Solara. Solara never sees
-            event titles, descriptions, locations or attendees. If you add a planned activity to
-            your calendar, Solara creates that one event on a calendar you own.
+            busy, read in your browser for planning and not stored by Solara. For availability,
+            Solara never sees event titles, descriptions, locations or attendees. If you add a
+            planned activity to your calendar, Solara creates that one event on a calendar you own.
           </li>
           <li>
             <strong>Scheduled activities</strong>, for events Solara added to your calendar: the
@@ -72,11 +72,12 @@ export default function PrivacyPage() {
             <strong>Events from your Google Calendar</strong>, where offered, if you turn this on:
             which of your calendars you chose (each calendar&apos;s identifier and name; your main
             calendar is recorded only as &ldquo;primary&rdquo;) and when they were last read; and,
-            for each upcoming event in the next 30 days that has a place or matches one of your
-            activities, its title, start and end time, time zone, location text, the place Solara
-            forecasts it for and which activity it counts as, stored like imported events. Other
-            events, descriptions, attendees, organizers, meeting links and event links are never
-            stored, and no Google access token is stored anywhere.
+            for each upcoming event in the next 30 days whose location is written as an address or
+            that matches one of your activities, its title, start and end time, time zone, location
+            text, the place Solara forecasts it for and which activity it counts as, stored like
+            imported events. Other events, descriptions, attendees, organizers, meeting links,
+            dial-in numbers and passcodes, and event links are never stored, and no Google access
+            token is stored anywhere.
           </li>
           <li>
             <strong>Calendar feed and notifications</strong>, if you turn them on: a private feed
@@ -142,12 +143,26 @@ export default function PrivacyPage() {
             only if you choose which calendars to use), where offered and only after you turn on
             &ldquo;Show my Google Calendar events&rdquo;: your browser reads the next 30 days of
             events on the calendars you chose (your main calendar unless you choose others) to show
-            the UV during each one. Solara keeps only the events with a place or that match one of
-            your activities, and only the fields listed under &ldquo;Events from your Google
-            Calendar&rdquo; above; it never changes or deletes any of them. The events are read
-            again only while Solara is open. Disconnecting removes the stored events and the list of
-            calendars, and ends Solara&apos;s access with Google, which also ends the free/busy and
-            event permissions above until you connect again.
+            the UV during each one. Solara keeps only the events whose location is written as an
+            address or that match one of your activities, and only the fields listed under
+            &ldquo;Events from your Google Calendar&rdquo; above; it never changes or deletes any of
+            them. The events are read again only while Solara is open. Disconnecting removes the
+            stored events and the list of calendars, and ends Solara&apos;s access with Google,
+            which also ends the free/busy and event permissions above until you connect again.
+          </li>
+          <li>
+            <strong>Where data from these events goes.</strong> To find where an event is, your
+            browser searches Open-Meteo&apos;s place search for the town part of its location (for
+            &ldquo;Griffith Park, Los Angeles, CA 90027, USA&rdquo;, only &ldquo;Los Angeles,
+            CA&rdquo;), and only when the location is written as an address: a town with its state
+            or province, postal code or country. Other location text, such as a person&apos;s name,
+            a room, an office or a meeting link, is never searched or sent anywhere; the event is
+            shown at your own place and you can set its place by hand. To show the UV during an
+            event, your browser asks Open-Meteo for the forecast at the event&apos;s place, as
+            coordinates rounded to two decimal places. If you have Pro with event heads-ups on,
+            Solara&apos;s servers look up that forecast too, and a heads-up names the event (its
+            title, cleaned and cut to 40 characters) and its town in a push notification sent
+            through Firebase Cloud Messaging to the devices you turned alerts on for.
           </li>
         </ul>
         <p>
@@ -210,18 +225,24 @@ export default function PrivacyPage() {
           </li>
           <li>
             <strong>Google Calendar API and Google Identity Services</strong>: only when you connect
-            a calendar.
+            a calendar or turn on events from your Google Calendar, to ask for your permission and
+            to read or create the calendar data described above.
           </li>
           <li>
             <strong>Google Analytics</strong>: only after you allow analytics. Google signals and ad
             personalization are turned off.
           </li>
           <li>
-            <strong>Open-Meteo</strong>: receives rounded coordinates to return forecasts, and the
-            place names you type into a location search, as you type, to suggest matching places.
-            When you import events, the town part of each event&apos;s location (such as &quot;Los
-            Angeles, CA&quot;) is searched the same way to find where the event is; for a linked
-            calendar, Solara&apos;s servers make that search.
+            <strong>Open-Meteo</strong>: receives rounded coordinates to return forecasts, for your
+            place and for the place of each event, and the place names you type into a location
+            search, as you type, to suggest matching places. It also receives the town part of an
+            event&apos;s location (such as &quot;Los Angeles, CA&quot;), searched the same way to
+            find where the event is: from your browser for a calendar (.ics) file you import; from
+            Solara&apos;s servers for a linked calendar; and from your browser for events from your
+            Google Calendar, only when the location is written as an address, as described above.
+            When Solara runs its own forecast and place search service, these requests from your
+            browser pass through Solara&apos;s servers (Google Cloud) on their way to Open-Meteo,
+            which then sees Solara&apos;s address instead of yours.
           </li>
           <li>
             <strong>OpenStreetMap Nominatim</strong> (OpenStreetMap Foundation): receives rounded

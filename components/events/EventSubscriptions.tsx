@@ -13,22 +13,17 @@ import {
   type SubscriptionSummary,
 } from '@/lib/event-subscriptions'
 import { SubscriptionsStoreContext } from '@/lib/events-context'
-import { EVENT_HEADS_UP } from '@solara/core/event-import'
 
 interface Props {
   uid: string
   nowMs: number
-  /** Pro accounts get heads-ups before high-UV events. */
-  pro: boolean
-  /** Opens the plans dialog (Free). */
-  onUpgrade?: () => void
 }
 
 type Busy = { kind: 'add' } | { kind: 'refresh' | 'remove'; id: string } | null
 
 const SMALL_BUTTON = 'btn px-2.5 py-[5px] text-[12px]'
 
-export default function EventSubscriptions({ uid, nowMs, pro, onUpgrade }: Props) {
+export default function EventSubscriptions({ uid, nowMs }: Props) {
   const store = useContext(SubscriptionsStoreContext) ?? serverSubscriptionsStore
   const id = useId()
   const [items, setItems] = useState<SubscriptionSummary[] | null>(null)
@@ -271,31 +266,6 @@ export default function EventSubscriptions({ uid, nowMs, pro, onUpgrade }: Props
       <p className="mt-2.5 text-[11px] leading-normal text-ink-3">
         The link stays private on Solara&rsquo;s server; only its site is shown here. Removing a
         calendar removes its events.
-      </p>
-      <p
-        className="mt-2 rounded-[10px] bg-surface-metric px-3 py-2 text-[12px] leading-normal text-ink-2"
-        data-testid="event-heads-up-note"
-      >
-        {pro ? (
-          <>
-            Pro sends a heads-up about {EVENT_HEADS_UP.leadHours} hours before an event with UV{' '}
-            {EVENT_HEADS_UP.uv} or higher, to the devices you turned alerts on for. Change it in
-            Settings.
-          </>
-        ) : (
-          <>
-            With Pro, get a heads-up a few hours before an event with high UV.{' '}
-            {onUpgrade && (
-              <button
-                type="button"
-                className="font-semibold text-accent underline underline-offset-2"
-                onClick={onUpgrade}
-              >
-                See Pro
-              </button>
-            )}
-          </>
-        )}
       </p>
     </div>
   )

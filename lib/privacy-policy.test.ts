@@ -69,9 +69,27 @@ describe('privacy policy', () => {
 
   it('says what Solara keeps about events from Google Calendar, and for how long', () => {
     expect(privacy).toContain('<strong>Events from your Google Calendar</strong>')
-    expect(privacy).toContain('no Google access token is stored anywhere')
+    expect(privacy.replace(/\s+/g, ' ')).toContain('no Google access token is stored anywhere')
     expect(privacy).toContain('Events from your Google Calendar: until they are gone')
     expect(privacy).toContain('events from your Google Calendar and the calendars you chose')
+  })
+
+  it('names where data from every event source is sent (REVIEW6 M2)', () => {
+    const text = privacy.replace(/\s+/g, ' ')
+    // Open-Meteo's place search, for each source, and only addresses from Google Calendar.
+    expect(text).toContain(
+      'from your browser for a calendar (.ics) file you import; from Solara&apos;s servers for a linked calendar; and from your browser for events from your Google Calendar, only when the location is written as an address',
+    )
+    expect(text).toContain(
+      'Other location text, such as a person&apos;s name, a room, an office or a meeting link, is never searched or sent anywhere',
+    )
+    // Forecasts at event places, the heads-up push, and the proxy.
+    expect(text).toContain('for your place and for the place of each event')
+    expect(text).toContain('through Firebase Cloud Messaging')
+    expect(text).toContain(
+      'pass through Solara&apos;s servers (Google Cloud) on their way to Open-Meteo',
+    )
+    expect(text).toContain('dial-in numbers and passcodes')
   })
 
   it('says what error reports contain, that they are scrubbed, and how long they are kept', () => {

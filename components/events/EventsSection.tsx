@@ -18,7 +18,12 @@ import { EventsStoreContext } from '@/lib/events-context'
 import { capMessage } from '@/lib/record-cap'
 import { planningFor } from '@solara/core'
 import { IMPORTED_EVENT_LIMITS } from '@solara/core/event-import'
-import { eventSubscriptionsLaunched, googleCalendarEventsLaunched } from '@/lib/plans'
+import {
+  eventHeadsUpsLaunched,
+  eventSubscriptionsLaunched,
+  googleCalendarEventsLaunched,
+} from '@/lib/plans'
+import { eventHeadsUpRule } from '@/lib/event-heads-up-copy'
 import { getFutureDays } from '@/lib/tiers'
 import type { Location, TierLevel, UserPreferences, WeatherResponse } from '@/lib/types'
 import EventCard from './EventCard'
@@ -309,6 +314,7 @@ export default function EventsSection({ uid, prefs, weather, displayTier, onUpgr
             activities={prefs.activities}
             items={items ?? []}
             upcomingCount={upcoming.filter(item => item.source === 'google').length}
+            allLoaded={(items?.length ?? 0) < IMPORTED_EVENT_LIMITS.listLimit}
             nowMs={nowMs}
           />
         </Suspense>
@@ -316,13 +322,33 @@ export default function EventsSection({ uid, prefs, weather, displayTier, onUpgr
 
       {eventSubscriptionsLaunched() && (
         <Suspense fallback={null}>
-          <EventSubscriptions
-            uid={uid}
-            nowMs={nowMs}
-            pro={displayTier === 'paid'}
-            onUpgrade={displayTier === 'paid' ? undefined : onUpgrade}
-          />
+          <EventSubscriptions uid={uid} nowMs={nowMs} />
         </Suspense>
+      )}
+
+      {eventHeadsUpsLaunched() && (
+        <p
+          className="mt-3 rounded-[10px] bg-surface-metric px-3 py-2 text-[12px] leading-normal text-ink-2"
+          data-testid="event-heads-up-note"
+        >
+          {displayTier === 'paid' ? (
+            <>
+              Pro sends a heads-up {eventHeadsUpRule()}, to the devices you turned alerts on for.
+              Change it in Settings.
+            </>
+          ) : (
+            <>
+              With Pro, get a heads-up a few hours before an outdoor event with high UV.{' '}
+              <button
+                type="button"
+                className="font-semibold text-accent underline underline-offset-2"
+                onClick={onUpgrade}
+              >
+                See Pro
+              </button>
+            </>
+          )}
+        </p>
       )}
 
       <p className="mt-3 text-[11px] leading-normal text-ink-3">

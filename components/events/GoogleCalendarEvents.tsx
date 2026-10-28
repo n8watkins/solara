@@ -18,10 +18,12 @@ import {
   authProblem,
   calendarChoices,
   calendarsText,
+  disconnectGoogleCalendar,
   firestoreGoogleLinkStore,
   googleCalendarApi,
   refreshDue,
-  syncGoogleEvents,
+  refreshGoogleEvents,
+  removeGoogleEvents,
   syncSummary,
   syncedText,
   type GoogleCalendarChoice,
@@ -33,10 +35,12 @@ interface Props {
   uid: string
   home: Location
   activities: readonly Activity[]
-  /** The events the section has loaded, to show each event once. */
+  /** The events the section has loaded (the soonest upcoming ones). */
   items: readonly ImportedEvent[]
   /** Upcoming events from Google Calendar among them. */
   upcomingCount: number
+  /** Whether `items` holds every upcoming event (fewer than the section loads at most). */
+  allLoaded: boolean
   /** Now, as the dashboard shows it. */
   nowMs: number
 }
@@ -52,6 +56,7 @@ export default function GoogleCalendarEvents({
   activities,
   items,
   upcomingCount,
+  allLoaded,
   nowMs,
 }: Props) {
   const api = useContext(GoogleCalendarApiContext) ?? googleCalendarApi
@@ -68,11 +73,8 @@ export default function GoogleCalendarEvents({
     picked: string[]
   } | null>(null)
   const [confirming, setConfirming] = useState(false)
-  // The loaded events change while a refresh saves; it reads the latest.
-  const itemsRef = useRef(items)
-  useEffect(() => {
-    itemsRef.current = items
-  }, [items])
+  // Counted on the server when the section loaded only the soonest events (REVIEW6 L5).
+  const [counted, setCounted] = useState<number | null>(null)
   const busyRef = useRef<Busy>(null)
 
   useEffect(
@@ -88,24 +90,26 @@ export default function GoogleCalendarEvents({
     [linkStore, uid],
   )
 
-  /** Reads the chosen calendars and stores their events; returns what it did. */
-  async function sync(current: GoogleCalendarLink, interactive: boolean): Promise<string> {
+  /**
+   * Reads the chosen calendars and stores their events; returns what it did, or nothing
+   * when the connection was removed or changed meanwhile, on another device (REVIEW6 L4).
+   */
+  async function sync(current: GoogleCalendarLink, interactive: boolean): Promise<string | null> {
     const token = await api.requestToken(GOOGLE_EVENTS_SCOPE, { interactive })
-    const outcome = await syncGoogleEvents({
+    const outcome = await refreshGoogleEvents({
       uid,
       link: current,
       api,
       token,
       home,
       activities,
-      existing: itemsRef.current,
       nowMs: Date.now(),
       store: events,
+      linkStore,
       lookups: geocodingLookups,
       onProgress: setProgress,
     })
-    await linkStore.save(uid, { ...current, syncedAt: new Date().toISOString() })
-    return syncSummary(outcome)
+    return outcome && syncSummary(outcome)
   }
 
   async function run(kind: Exclude<Busy, null>, action: () => Promise<string | null>) {
@@ -151,6 +155,35 @@ export default function GoogleCalendarEvents({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [link, api])
 
+  // Google events with no connection: a disconnect (here or on another device) whose
+  // removal stopped halfway. They are removed, as the disconnect meant.
+  const orphaned = link === null && items.some(item => item.source === 'google')
+  useEffect(() => {
+    if (!orphaned || busyRef.current) return
+    void run('disconnect', async () => {
+      // Only when the server agrees the connection is gone (not a cache that has not
+      // heard of it yet).
+      if (!(await linkStore.read(uid))) await removeGoogleEvents(uid, events)
+      return null
+    })
+  }, [orphaned, uid, events, linkStore])
+
+  // With more upcoming events than the section loads, the panel's count comes from an
+  // aggregate count of every stored Google event, after each change, at the section's now.
+  const syncedAt = link?.syncedAt
+  useEffect(() => {
+    if (allLoaded || !syncedAt || busy) return
+    let current = true
+    events.countUpcoming(uid, 'google', nowMs).then(
+      count => current && setCounted(count),
+      () => {},
+    )
+    return () => {
+      current = false
+    }
+  }, [allLoaded, syncedAt, busy, upcomingCount, uid, events, nowMs])
+  const shownCount = allLoaded ? upcomingCount : Math.max(upcomingCount, counted ?? 0)
+
   function connect() {
     void run('connect', async () => {
       await api.requestToken(GOOGLE_EVENTS_SCOPE, { interactive: true })
@@ -180,27 +213,26 @@ export default function GoogleCalendarEvents({
     const calendars = choosing.options.filter(o => choosing.picked.includes(o.id)).slice(0, MAX)
     if (!calendars.length) return
     void run('choose', async () => {
-      const next = { ...current, calendars }
-      await linkStore.save(uid, next)
       setChoosing(null)
-      return sync(next, true)
+      // Disconnected on another device meanwhile: nothing to change.
+      if (!(await linkStore.update(uid, { calendars }))) return null
+      return sync({ ...current, calendars }, true)
     })
   }
 
   function disconnect() {
     setConfirming(false)
     void run('disconnect', async () => {
-      const stored = await events.sourceEvents(uid, 'google')
-      await events.remove(
-        uid,
-        stored.map(e => e.key),
-      )
-      await linkStore.remove(uid)
-      const revoked = await api.revoke().catch(() => false)
+      const revoked = await disconnectGoogleCalendar({ uid, linkStore, store: events, api })
       return revoked
         ? 'Disconnected Google Calendar and removed its events.'
         : 'Removed the events from Google Calendar. To also end Solara’s access, remove Solara at myaccount.google.com/connections.'
     })
+  }
+
+  function askToDisconnect() {
+    setStatus(null)
+    setConfirming(true)
   }
 
   const headingId = `${id}-heading`
@@ -222,7 +254,8 @@ export default function GoogleCalendarEvents({
           <p id={hintId} className="mt-1 text-[12px] leading-normal text-ink-3">
             See the UV at events already in your Google Calendar. Solara reads the next{' '}
             {GOOGLE_EVENT_LIMITS.windowDays} days in this browser, with read-only access, and keeps
-            only events with a place or that match one of your activities.
+            only events with an address or that match one of your activities. Only an
+            address&rsquo;s town is searched to find the place.
           </p>
           <button
             type="button"
@@ -246,13 +279,27 @@ export default function GoogleCalendarEvents({
             <div className="flex min-w-0 flex-1 items-start gap-2.5">
               <CalendarDays size={16} className="mt-0.5 shrink-0 text-ink-3" aria-hidden="true" />
               <div className="min-w-0 flex-1">
-                <p className="text-[13px] leading-snug font-semibold break-words text-ink">
-                  {calendarsText(link.calendars)}
-                </p>
+                <div className="flex items-start justify-between gap-2">
+                  <p className="min-w-0 text-[13px] leading-snug font-semibold break-words text-ink">
+                    {calendarsText(link.calendars)}
+                  </p>
+                  {/* In a narrow card, a quiet text button here, so the three actions never
+                      leave Disconnect alone on a second row (REVIEW6 L7). */}
+                  {!confirming && (
+                    <button
+                      type="button"
+                      className="-my-1 -mr-1.5 shrink-0 rounded-[8px] px-1.5 py-1 text-[12px] font-semibold text-ink-3 hover:text-danger focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-50 @lg:hidden"
+                      disabled={working}
+                      onClick={askToDisconnect}
+                    >
+                      Disconnect
+                    </button>
+                  )}
+                </div>
                 <p className="mt-0.5 text-[12px] leading-normal break-words text-ink-3">
                   {syncedText(link.syncedAt, nowMs)}
                   {link.syncedAt &&
-                    ` · ${upcomingCount.toLocaleString('en-US')} upcoming ${upcomingCount === 1 ? 'event' : 'events'}`}
+                    ` · ${shownCount.toLocaleString('en-US')} upcoming ${shownCount === 1 ? 'event' : 'events'}`}
                 </p>
               </div>
             </div>
@@ -304,12 +351,9 @@ export default function GoogleCalendarEvents({
                   </button>
                   <button
                     type="button"
-                    className={SMALL_BUTTON}
+                    className={`${SMALL_BUTTON} hidden @lg:inline-flex`}
                     disabled={working}
-                    onClick={() => {
-                      setStatus(null)
-                      setConfirming(true)
-                    }}
+                    onClick={askToDisconnect}
                   >
                     Disconnect
                   </button>
