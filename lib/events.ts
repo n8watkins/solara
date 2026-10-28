@@ -80,7 +80,8 @@ export function locationQueries(where: string): string[] {
     .map(part => part.replace(/\b\d{4,6}(-\d{4})?\b/g, '').trim())
     .filter(Boolean)
   if (parts.length > 1 && COUNTRY_PART.test(parts[parts.length - 1]!)) parts.pop()
-  const named = parts.filter(part => !/\d/.test(part) && part.length <= 60)
+  // Town names only: no house numbers, and within the place search's 2-80 characters.
+  const named = parts.filter(part => !/\d/.test(part) && part.length >= 2 && part.length <= 60)
   if (parts.length <= 1) {
     const only = named[0]
     return only && only.split(/\s+/).length <= 4 ? [only] : []

@@ -81,6 +81,7 @@ describe('locationQueries', () => {
     ['San Diego', ['San Diego']],
     ['Mission Bay Park, San Diego, California, United States', ['California']],
     ['123 Main St', []],
+    ['Track 2, X', []],
     ['The big field behind the old school next to the river', []],
     ['', []],
   ])('%j -> %j', (where, queries) => {
