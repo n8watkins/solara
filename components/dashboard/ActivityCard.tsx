@@ -1,3 +1,4 @@
+import { exposureSummary } from '@/lib/activity-exposure'
 import { Pencil } from 'lucide-react'
 import type { SafeActivityWindow } from '@/lib/types'
 import type { ActivityDayPlan } from '@/lib/next-slot'
@@ -60,6 +61,7 @@ export default function ActivityCard({
   const bestLabel = bestWindowLabel(plan, isToday, fmt.time)
   const safeUv = effectiveMaxUV(activity)
   const days = fmtDays(activity.daysOfWeek)
+  const exposure = exposureSummary(activity)
   // Once the recommended slot is on the calendar, the Scheduled row replaces it.
   const recScheduled = isRecommendationScheduled(rec, scheduled)
 
@@ -116,6 +118,7 @@ export default function ActivityCard({
           />
         )}
         {days && <Stat label="Days" val={days} />}
+        {exposure && <Stat label="Setting" val={exposure} />}
         {burnMins !== null && burnMins !== undefined && (
           <Stat label={`Burn time at UV ${safeUv}`} val={`about ${burnMins} min`} />
         )}

@@ -1,3 +1,4 @@
+import type { ShadeLevel, Surface } from '@solara/core'
 import type { Activity, TimePreference } from './types'
 import { clampDuration } from './activity-presets'
 
@@ -14,6 +15,10 @@ export interface ActivityForm {
   timePreference: TimePreference
   days: number[]
   cloudSensitive: boolean
+  /** null: open sun. */
+  shade: ShadeLevel | null
+  /** null: not set. */
+  surface: Surface | null
 }
 
 /** The form for editing `activity`, with defaults for the fields it leaves out. */
@@ -30,6 +35,8 @@ export function activityForm(activity: Activity): ActivityForm {
     timePreference: activity.timePreference ?? 'earliest',
     days: activity.daysOfWeek ?? [],
     cloudSensitive: activity.cloudSensitive ?? false,
+    shade: activity.shade ?? null,
+    surface: activity.surface ?? null,
   }
 }
 
@@ -52,7 +59,8 @@ export function normalizedDays(days: readonly number[]): number[] | undefined {
 
 /**
  * `activity` with the form applied. Defaults are stored as absent ('earliest'
- * time, no cloud adjustment, every day), matching the preferences normalizer.
+ * time, no cloud adjustment, every day, open sun, no surface), matching the
+ * preferences normalizer.
  */
 export function activityFromForm(activity: Activity, form: ActivityForm): Activity {
   return {
@@ -68,6 +76,8 @@ export function activityFromForm(activity: Activity, form: ActivityForm): Activi
     timePreference: form.timePreference === 'earliest' ? undefined : form.timePreference,
     daysOfWeek: normalizedDays(form.days),
     cloudSensitive: form.cloudSensitive || undefined,
+    shade: form.shade ?? undefined,
+    surface: form.surface ?? undefined,
   }
 }
 

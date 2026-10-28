@@ -214,6 +214,8 @@ function fullActivity(index) {
     timePreference: 'latest',
     daysOfWeek: [0, 1, 2, 3, 4, 5],
     cloudSensitive: true,
+    shade: 'partial',
+    surface: 'sand',
   })
 }
 

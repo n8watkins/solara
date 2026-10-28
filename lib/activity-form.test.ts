@@ -33,6 +33,8 @@ describe('activityForm', () => {
       timePreference: 'earliest',
       days: [],
       cloudSensitive: false,
+      shade: null,
+      surface: null,
     })
   })
 
@@ -43,6 +45,8 @@ describe('activityForm', () => {
       timePreference: 'sunniest',
       daysOfWeek: [6, 0],
       cloudSensitive: true,
+      shade: 'partial',
+      surface: 'sand',
     }
     for (const activity of [run, full]) {
       expect(activityEdited(activity, activityFromForm(activity, activityForm(activity)))).toBe(

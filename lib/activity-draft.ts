@@ -19,6 +19,8 @@ export function editableActivityFields(a: Activity) {
     daysOfWeek:
       !days || days.length === 0 || days.length === 7 ? null : [...days].sort((x, y) => x - y),
     cloudSensitive: !!a.cloudSensitive,
+    shade: a.shade ?? null,
+    surface: a.surface ?? null,
   }
 }
 
