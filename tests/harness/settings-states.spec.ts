@@ -51,10 +51,10 @@ const STATES: State[] = [
     },
   },
   {
-    // Pro's alerts once switched on (the harness builds with NEXT_PUBLIC_ALERTS_ENABLED):
-    // the account's alert settings, with a UV alert chosen.
+    // Pro's alerts once switched on (?alerts=on stands in for NEXT_PUBLIC_ALERTS_ENABLED
+    // in the harness): the account's alert settings, with a UV alert chosen.
     name: 'settings-alerts',
-    query: 'screen=settings',
+    query: 'screen=settings&alerts=on',
     act: async page => {
       const dialog = settings(page)
       await dialog.getByRole('combobox', { name: 'UV alert' }).selectOption('6')
@@ -150,6 +150,14 @@ const STATES: State[] = [
   {
     name: 'settings-free',
     query: 'screen=settings&tier=free',
+    act: async page => {
+      await expect(settings(page).getByText(/Coming soon with Pro\./)).toBeVisible()
+    },
+  },
+  {
+    // Free once alerts are switched on: what Pro adds.
+    name: 'settings-alerts-free',
+    query: 'screen=settings&tier=free&alerts=on',
     act: async page => {
       await expect(settings(page).getByText(/Included with Pro\./)).toBeVisible()
     },

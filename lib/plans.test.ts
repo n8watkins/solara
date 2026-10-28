@@ -48,6 +48,20 @@ describe('PRO_FEATURES', () => {
     expect(row('Morning and UV alerts')?.pro).toBe('Coming soon')
   })
 
+  it('lets only a UI harness build switch the alerts on per screen', async () => {
+    vi.stubGlobal('window', { location: { search: '?screen=settings&alerts=on' } })
+    try {
+      vi.resetModules()
+      expect((await import('./plans')).alertsLaunched()).toBe(false)
+      vi.stubEnv('NEXT_PUBLIC_UI_HARNESS', '1')
+      vi.resetModules()
+      expect((await import('./plans')).alertsLaunched()).toBe(true)
+    } finally {
+      vi.unstubAllEnvs()
+      vi.unstubAllGlobals()
+    }
+  })
+
   it('lists the alerts as included once they are switched on', async () => {
     vi.stubEnv('NEXT_PUBLIC_ALERTS_ENABLED', '1')
     try {
