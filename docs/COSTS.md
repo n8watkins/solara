@@ -32,7 +32,7 @@ Quotas marked "per billing account" are shared by every project on that billing 
 | Hosting | 10 GB storage; 360 MB a day transfer | About 0.35 MB a day per active user (first visits download about 0.5 MB, repeat visits are mostly cached) | 1,000 DAU | $0.15 per GB |
 | Cloud Firestore | 50,000 reads, 20,000 writes and 20,000 deletes a day; 1 GiB stored; 10 GiB a month egress | About 22 reads and 4 writes per active user a day, plus about 1,200 reads a day for the maintenance job; the forecast proxy adds one read per cache miss and one write per place and hour | 2,200 DAU (reads run out first) | $0.03 per 100,000 reads, $0.09 per 100,000 writes (us-central1) |
 | Cloud Functions (Cloud Run functions) | 2 million requests, 180,000 vCPU-seconds and 360,000 GiB-seconds a month, per billing account | About 6 requests per active user a day with the forecast proxy on (3 without), at about 0.2 vCPU-seconds each; the maintenance job uses about 3,000 vCPU-seconds a month | 5,000 DAU (CPU runs out first) | Tier 1 rates per vCPU-second and GiB-second |
-| Cloud Scheduler | 3 jobs a month, per billing account | 2 jobs (`maintenance` and `alerts`) | Never | $0.10 per job a month |
+| Cloud Scheduler | 3 jobs a month, per billing account | 3 jobs (`maintenance`, `alerts` and `eventSubscriptionsRefresh`) | Never | $0.10 per job a month |
 | Pub/Sub | 10 GiB of message delivery a month, per billing account | A few budget notifications a day for the kill switch | Never | Per GiB |
 | Artifact Registry (Functions container images) | 0.5 GB of storage, per billing account | One image per function; the cleanup policy keeps 1 day of images (set by the deploy, or `infra/backups.sh`) | Usually within it; at most about $0.10 a month | About $0.10 per GB a month |
 | Cloud Messaging (push) | No charge | Pro morning and UV alerts | Never | - |
@@ -51,6 +51,9 @@ The Open-Meteo commercial plan ($29 a month, below) is a fixed cost on top, paid
 - A first visit downloads about 0.5 MB; repeat visits are mostly cached.
 - Morning and UV alerts run as one scheduled job every 15 minutes that serves every time zone (about 2,900 runs per month), not one job per user.
   Each run reads every Pro account once (96 reads per Pro account a day), plus the alert state, devices and a cached forecast only for accounts with an alert due; at 300 Pro accounts that is about 30,000 reads a day, and the forecasts come from the forecast proxy's shared cache.
+- Linked calendars (switched off until `EVENTS_SUBSCRIPTIONS_ENABLED`): each link is fetched every 6 hours, so 4 refreshes a day, each about 0.5 vCPU-seconds (fetch and parse), 5-15 Firestore reads and up to 2 writes per changed event; the refresh job's own cap is 4,800 fetches a day.
+  At 1,000 links that is about 4,000 fetches, 2,000 vCPU-seconds (about 60,000 a month, a third of the free tier) and about 40,000 reads a day, well within the free quotas; event places' place searches and forecasts come out of the existing paid budgets (place search's 2,000 a day and the forecasts' 20,000 a day) through each account's share of them.
+  Pro event heads-ups add one events query per Pro account per alerts run (96 reads a day per Pro account) and a cached forecast per event place.
 - App Check tokens are cached for about an hour, and App Check starts only after sign-in (or, with the forecast proxy on, at a guest's first forecast fetch), so reCAPTCHA assessments roughly equal session-hours.
 - Function requests are small (under 300 ms of CPU each) and share instances (concurrency 20-40); background jobs run on a fractional CPU.
 
@@ -71,12 +74,13 @@ The Open-Meteo commercial plan alone ($29 per month) is covered by about 10 subs
 
 Free quotas protect nothing once billing is attached, so the Functions are built to bound what any burst or attacker can cost ([Cost and abuse limits](DEPLOYMENT.md#cost-and-abuse-limits)):
 
-- every function has a small fixed size and a launch-sized instance cap (15 HTTP instances in all), so CPU-seconds and billed requests cannot grow without limit;
+- every function has a small fixed size and a launch-sized instance cap (16 HTTP instances in all), so CPU-seconds and billed requests cannot grow without limit;
 - every browser endpoint needs App Check and has per-address and per-account rate limits and a body size cap, and turns a request away before any Firestore read or upstream call;
 - rejections are logged once a minute, not once per request, and `infra/logging.sh` drops 99% of Cloud Run's request logs for rejected requests;
 - the forecast proxy, the calendar feed and the alerts share one cache per place and hour, so traffic does not multiply upstream calls, and a global budget caps the proxy's and the feed's paid forecast calls at 1,500 an hour and 20,000 a day (about 60% of the Standard plan), so a script walking new places cannot spend the plan's quota;
 - within that budget each caller (an IPv4 address, or an IPv6 /64 and its /48 at 4 times as much) may cause only 20 paid calls an hour, so one caller cannot spend everyone's hour, and place search has its own budget (200 an hour, 2,000 a day, about 6% of the plan), so searches and forecasts cannot starve each other; while a budget is spent, people get the last good forecast up to 12 hours old instead of an error (REVIEW4 H1);
-- the Firestore rules cap list sizes, and every server-owned record and scheduled activity expires.
+- the Firestore rules cap list sizes, and every server-owned record and scheduled activity expires;
+- linked calendars are bounded by count, not traffic: at most 5 links per account, and the refresh job fetches at most 100 links a run every 30 minutes (4,800 fetches a day however many links exist), each within 10 seconds and 1 MB; adding or refreshing by hand is limited to 20 fetches an hour per account.
 
 The budget kill switch is the last line ([runbook](RUNBOOK.md#budget-kill-switch)), with three tiers (defaults, owner may change):
 
@@ -94,16 +98,16 @@ What an attacker can make Solara spend by flooding the Functions from many addre
 These are planning estimates from public list prices, not measurements on a deployed project.
 
 - Rejecting a request costs about 10 microseconds of the handler's CPU (measured locally), so the instances' throughput, not their CPU bill, is the ceiling.
-  Assuming a conservative 1,000 requests a second per instance, the 15 HTTP instances serve at most about 15,000 a second, or 1.3 billion a day.
-- Cloud Run bills $0.40 per million requests beyond the free 2 million a month, so that is about $520 a day in request fees, plus about $30 a day of vCPU time and $1 of memory.
+  Assuming a conservative 1,000 requests a second per instance, the 16 HTTP instances serve at most about 16,000 a second, or 1.4 billion a day.
+- Cloud Run bills $0.40 per million requests beyond the free 2 million a month, so that is about $550 a day in request fees, plus about $32 a day of vCPU time and $1 of memory.
   Requests Cloud Run turns away because every instance is busy are not billed.
 - Logs: about 1 KB per request log line.
-  Without `infra/logging.sh`, Cloud Run's request logs alone would be about 1.3 TB a day (about $650 a day at $0.50 per GiB); with it, 1% are kept (about $6 a day), and the Functions' own rejection logs are a few lines a minute.
+  Without `infra/logging.sh`, Cloud Run's request logs alone would be about 1.4 TB a day (about $690 a day at $0.50 per GiB); with it, 1% are kept (about $7 a day), and the Functions' own rejection logs are a few lines a minute.
 - Firestore, Stripe and the forecast provider: nothing, because no rejected request reaches them.
 - Accepted cache misses: each one charges a caller's share in one Firestore transaction (one or two reads and writes), and the misses are bounded by the forecast and place search budgets (at most 1,700 an hour), so a few cents a day; a caller past its share costs one more transaction per instance and hour, then nothing.
 
-So a sustained, distributed flood costs at most about $550 a day, about $23 an hour, against $1,900 a day or more before these limits (37 instances and a log line per request).
-The budget kill switch is what ends it ([above](#abuse-and-the-kill-switch)): billing is detached once the month's spend reaches $75, and since Cloud Billing reports spend hours late (often 6-24 hours), the worst month is roughly $75 plus that lag at $23 an hour, about $200-$630, before nothing more can be billed.
+So a sustained, distributed flood costs at most about $590 a day, about $25 an hour, against $1,900 a day or more before these limits (37 instances and a log line per request).
+The budget kill switch is what ends it ([above](#abuse-and-the-kill-switch)): billing is detached once the month's spend reaches $75, and since Cloud Billing reports spend hours late (often 6-24 hours), the worst month is roughly $75 plus that lag at $25 an hour, about $225-$675, before nothing more can be billed.
 A cheaper first line in front of the Functions (Cloud Armor rate limiting on an external HTTPS load balancer, from about $18 a month plus per-request fees, or API Gateway quotas) is the next step if a real attack ever happens, and needs `TRUSTED_PROXY_HOPS` changed with it ([DEPLOYMENT.md](DEPLOYMENT.md#check-the-client-address-at-the-first-deploy)).
 
 ## Cost levers

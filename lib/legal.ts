@@ -23,7 +23,7 @@ export const LEGAL_DETAILS: Readonly<{
  * When each document's text last changed. They are dated separately, so a change
  * to one never re-dates the other; update the date in the same change as the text.
  */
-export const PRIVACY_LAST_UPDATED = 'October 27, 2026'
+export const PRIVACY_LAST_UPDATED = 'October 28, 2026'
 export const TERMS_LAST_UPDATED = 'October 25, 2026'
 
 export type LegalDetail = keyof typeof LEGAL_DETAILS

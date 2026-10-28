@@ -23,6 +23,7 @@ import {
   UV_ALERT_THRESHOLD,
 } from '@solara/core'
 import {
+  FEED_EVENT_CLIENT_FIELDS,
   IMPORTED_EVENT_FIELDS,
   IMPORTED_EVENT_LIMITS,
   IMPORTED_EVENT_MAX_TTL_DAYS,
@@ -341,6 +342,12 @@ describe('firestore.rules imported events match the schema', () => {
     }
     expect(rule()).toContain(`'^[0-9a-f]{${IMPORTED_EVENT_LIMITS.keyLength}}$'`)
     expect(listAfter(rule(), 'source in')).toEqual([...IMPORTED_EVENT_SOURCES])
+  })
+
+  it('lets the app change only the place and activity of a linked calendar event', () => {
+    expect(sorted(rulesList('feedEventClientKeys'))).toEqual(sorted(FEED_EVENT_CLIENT_FIELDS))
+    expect(rules).toMatch(/allow create:[^;]*request\.resource\.data\.source == 'file'/)
+    expect(rules).toContain('match /eventSubscriptions/{subscriptionId}')
   })
 
   it('caps list queries at the client limit', () => {

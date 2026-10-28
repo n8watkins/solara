@@ -7,8 +7,16 @@ import { logger } from 'firebase-functions/logger'
 import { onRequest } from 'firebase-functions/v2/https'
 import { onSchedule } from 'firebase-functions/v2/scheduler'
 
-import { OPEN_METEO_API_KEY, commercialProvider } from '../forecast/config'
+import { EVENTS_SUBSCRIPTIONS_ENABLED } from '../events/config'
+import { CallerShare } from '../forecast/caller-share'
+import {
+  OPEN_METEO_API_KEY,
+  UPSTREAM_SHARE_PER_CALLER,
+  commercialProvider,
+  upstreamLimits,
+} from '../forecast/config'
 import { ForecastCache } from '../forecast/proxy'
+import { UpstreamBudget } from '../forecast/upstream-budget'
 import { appOrigin, browserApi, costGuard } from '../shared/browser-api'
 import { db, serverTimestamp } from '../shared/firebase'
 import { httpOptions, scheduleOptions } from '../shared/options'
@@ -55,6 +63,24 @@ const forecasts = new ForecastCache({
   upstreamAllowed: async () => true,
 })
 
+// Event heads-ups look up forecasts at places people chose (imported and linked events),
+// so unlike the home forecasts above they count against the global upstream budget, and
+// each account has a share of it like a caller of the proxy (REVIEW4 H1): no account's
+// events can spend the hour's paid calls. The cache itself is the same forecastCache.
+const eventForecasts = new ForecastCache({
+  db,
+  provider: () => commercialProvider(),
+  // Like the home forecasts, never paused by a budget-engaged guard (finding H2); the
+  // upstream budget and the account's share bound these calls instead.
+  upstreamAllowed: async () => true,
+  upstreamBudget: new UpstreamBudget({ db, limits: upstreamLimits }),
+})
+const eventShare = new CallerShare({
+  db,
+  scope: 'events',
+  perHour: () => UPSTREAM_SHARE_PER_CALLER.value(),
+})
+
 /**
  * The second of Cloud Scheduler's three free jobs (`maintenance` is the first). Every
  * 15 minutes, so every time zone, including the half- and quarter-hour ones, gets its
@@ -85,6 +111,14 @@ export const alerts = onSchedule(
       db,
       messaging: getMessaging(),
       forecast: place => forecasts.get(place),
+      ...(EVENTS_SUBSCRIPTIONS_ENABLED.value()
+        ? {
+            eventForecast: (place: { lat: number; lon: number }, uid: string) =>
+              eventForecasts.get(place, {
+                mayFetch: () => eventShare.take([{ key: `uid:${uid}`, weight: 1 }]),
+              }),
+          }
+        : {}),
       appUrl: appOrigin(),
     })
   },

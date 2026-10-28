@@ -75,3 +75,20 @@ export function alertsLaunched(): boolean {
     new URLSearchParams(window.location.search).get('alerts') === 'on'
   )
 }
+
+/**
+ * Whether linked calendars and Pro event heads-ups (docs/integrations/EVENTS.md, phase 2)
+ * are switched on: the deploy sets NEXT_PUBLIC_EVENTS_SUBSCRIPTIONS_ENABLED with the
+ * EVENTS_SUBSCRIPTIONS_ENABLED repository variable, and only together with the Functions
+ * behind them.
+ */
+export function eventSubscriptionsLaunched(): boolean {
+  if (process.env.NEXT_PUBLIC_EVENTS_SUBSCRIPTIONS_ENABLED === '1') return true
+  // The UI harness shows the production default and opts in per screen with
+  // ?subscriptions=on; outside a harness build this is compiled away.
+  return (
+    process.env.NEXT_PUBLIC_UI_HARNESS === '1' &&
+    typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).get('subscriptions') === 'on'
+  )
+}

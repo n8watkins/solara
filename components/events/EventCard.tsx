@@ -1,6 +1,6 @@
 'use client'
 import { useId, useState } from 'react'
-import { ExternalLink, MapPin, X } from 'lucide-react'
+import { CalendarSync, ExternalLink, MapPin, X } from 'lucide-react'
 import clsx from 'clsx'
 import { stripInvisibleFormatting, type ImportedEvent } from '@solara/core/event-import'
 import { eventCardView } from '@/lib/event-view'
@@ -138,15 +138,25 @@ export default function EventCard({
               {item.placeGuessed ? `Using ${placeName}` : placeName}
             </span>
           </p>
+          {item.source === 'feed' && (
+            <p className="mt-0.5 flex min-w-0 items-center gap-1 text-[12px] text-ink-3">
+              <CalendarSync size={12} className="shrink-0" aria-hidden="true" />
+              From a linked calendar
+            </p>
+          )}
         </div>
-        <button
-          type="button"
-          className="btn btn-ghost -mt-1 -mr-1.5 shrink-0 p-1.5 text-ink-3"
-          aria-label={`Remove ${title}`}
-          onClick={() => onRemove(item)}
-        >
-          <X size={16} aria-hidden="true" />
-        </button>
+        {/* A linked calendar's event would come back at its next refresh, so it goes
+            with its calendar (Linked calendars, below the list). */}
+        {item.source === 'file' && (
+          <button
+            type="button"
+            className="btn btn-ghost -mt-1 -mr-1.5 shrink-0 p-1.5 text-ink-3"
+            aria-label={`Remove ${title}`}
+            onClick={() => onRemove(item)}
+          >
+            <X size={16} aria-hidden="true" />
+          </button>
+        )}
       </div>
 
       {(view.later || view.peak || view.burn || view.sunscreen || !weather) && (

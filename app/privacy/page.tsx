@@ -62,6 +62,13 @@ export default function PrivacyPage() {
             attendees in it are never stored or sent anywhere.
           </li>
           <li>
+            <strong>Linked calendars</strong>, where offered, if you link a calendar address
+            (https:// or webcal://): the address, kept on Solara&apos;s servers and never shown back
+            to the app because it can contain a private token; its site name and label; and when it
+            was last checked and how that went. Solara&apos;s servers fetch the address every few
+            hours from Google Cloud and store its upcoming events like imported ones.
+          </li>
+          <li>
             <strong>Calendar feed and notifications</strong>, if you turn them on: a private feed
             token and your device&apos;s push notification registration.
           </li>
@@ -190,7 +197,8 @@ export default function PrivacyPage() {
             <strong>Open-Meteo</strong>: receives rounded coordinates to return forecasts, and the
             place names you type into a location search, as you type, to suggest matching places.
             When you import events, the town part of each event&apos;s location (such as &quot;Los
-            Angeles, CA&quot;) is searched the same way to find where the event is.
+            Angeles, CA&quot;) is searched the same way to find where the event is; for a linked
+            calendar, Solara&apos;s servers make that search.
           </li>
           <li>
             <strong>OpenStreetMap Nominatim</strong> (OpenStreetMap Foundation): receives rounded
@@ -227,6 +235,10 @@ export default function PrivacyPage() {
           <li>
             Imported events: until you remove them; Firestore deletes each one automatically 30 days
             after it ends, and always when you delete your account.
+          </li>
+          <li>
+            Linked calendars: until you remove the calendar, which also removes its events, and
+            always when you delete your account.
           </li>
           <li>
             Calendar availability: only in your browser for the current session; never stored by
@@ -285,11 +297,11 @@ export default function PrivacyPage() {
         </p>
         <p>
           Deleting your account removes your Solara preferences, scheduled activities, imported
-          events, calendar feed and notification registrations, cancels an active Solara
-          subscription and deletes your customer record at Stripe (Stripe keeps the payment records
-          the law requires it to keep). If you had the free trial, its hashed record is kept for 2
-          years to prevent repeated free trials. Events already in your Google Calendar stay there
-          until you delete them.
+          events, linked calendars, calendar feed and notification registrations, cancels an active
+          Solara subscription and deletes your customer record at Stripe (Stripe keeps the payment
+          records the law requires it to keep). If you had the free trial, its hashed record is kept
+          for 2 years to prevent repeated free trials. Events already in your Google Calendar stay
+          there until you delete them.
         </p>
         <p>You also have the right to complain to your local data protection authority.</p>
 

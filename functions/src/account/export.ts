@@ -1,6 +1,6 @@
 // Data export: the portable account fields, a billing summary, notification devices,
-// scheduled activities, imported events and the Pro alert history, never billing ids,
-// tokens or internal bookkeeping.
+// scheduled activities, imported events, linked calendars (their host and label, never
+// the link) and the Pro alert history, never billing ids, tokens or internal bookkeeping.
 //
 // The collections a person can fill from the browser (imported events, scheduled
 // activities) are read in pages of EXPORT_PAGE_SIZE documents and turned into plain
@@ -9,7 +9,7 @@
 // the cut-short sections named in `truncated` (REVIEW4 M4).
 
 import { parseScheduledActivity, PREFERENCE_FIELDS } from '#core'
-import { parseImportedEvent } from '#core/event-import'
+import { parseImportedEvent, parseSubscriptionSummaries } from '#core/event-import'
 import type { Auth } from 'firebase-admin/auth'
 import {
   type CollectionReference,
@@ -23,7 +23,12 @@ import {
 import type { Request } from 'firebase-functions/v2/https'
 
 import { authenticate, uidLimiter } from '../shared/auth'
-import { ALERT_STATE_COLLECTION, ALERT_STATE_DOC } from '../notifications/alerts'
+import { SUMMARY_DOC as EVENT_SUBSCRIPTIONS_DOC } from '../events/subscriptions'
+import {
+  ALERT_STATE_COLLECTION,
+  ALERT_STATE_DOC,
+  EVENT_ALERT_STATE_DOC,
+} from '../notifications/alerts'
 import { HttpError } from '../shared/errors'
 import { toMillis } from '../shared/time'
 
@@ -166,6 +171,26 @@ export function alertHistory(data: DocumentData | null | undefined) {
   })
 }
 
+/**
+ * The Pro heads-ups sent before events (`alertState/events`, kept 7 days): the event's
+ * key and how the delivery went.
+ */
+export function eventHeadsUpHistory(data: DocumentData | null | undefined) {
+  return Object.entries(data ?? {}).flatMap(([field, entry]) => {
+    if (!/^[0-9a-f]{32}$/.test(field) || !entry || typeof entry !== 'object') return []
+    return [
+      {
+        eventKey: field,
+        status: typeof entry.status === 'string' ? entry.status : null,
+        attempts: typeof entry.attempts === 'number' ? entry.attempts : null,
+        devicesReached: typeof entry.devices === 'number' ? entry.devices : null,
+        sentAt: isoDate(entry.claimedAt),
+        finishedAt: isoDate(entry.finishedAt),
+      },
+    ]
+  })
+}
+
 /** Events imported from .ics files, as stored (docs/integrations/EVENTS.md). */
 export function safeImportedEventData(docs: Docs) {
   return docs.flatMap(doc => {
@@ -191,6 +216,8 @@ export async function exportAccountData({
   const userRef = db.collection('users').doc(identity.uid)
   const tombstoneRef = db.collection('accountDeletionTombstones').doc(identity.uid)
   const alertStateRef = userRef.collection(ALERT_STATE_COLLECTION).doc(ALERT_STATE_DOC)
+  const eventAlertsRef = userRef.collection(ALERT_STATE_COLLECTION).doc(EVENT_ALERT_STATE_DOC)
+  const linksRef = userRef.collection('private').doc(EVENT_SUBSCRIPTIONS_DOC)
   // A read-only transaction: every page comes from the same snapshot, and nothing is locked.
   const sections = await db.runTransaction(
     async transaction => {
@@ -198,9 +225,11 @@ export async function exportAccountData({
       if (tombstone.exists) {
         throw new HttpError('deletion-in-progress', 'Account deletion is in progress')
       }
-      const [account, alerts, devices, scheduled, events] = await Promise.all([
+      const [account, alerts, eventAlerts, links, devices, scheduled, events] = await Promise.all([
         transaction.get(userRef),
         transaction.get(alertStateRef),
+        transaction.get(eventAlertsRef),
+        transaction.get(linksRef),
         readPaged(transaction, userRef.collection('notificationDevices'), safeDeviceData, limits),
         readPaged(transaction, userRef.collection('scheduled'), safeScheduledData, limits),
         readPaged(transaction, userRef.collection('events'), safeImportedEventData, limits),
@@ -208,6 +237,8 @@ export async function exportAccountData({
       return {
         account: account.exists ? (account.data() ?? {}) : null,
         alerts: alerts.exists ? (alerts.data() ?? null) : null,
+        eventAlerts: eventAlerts.exists ? (eventAlerts.data() ?? null) : null,
+        links: links.exists ? (links.data() ?? null) : null,
         devices,
         scheduled,
         events,
@@ -229,6 +260,9 @@ export async function exportAccountData({
     scheduledActivities: sections.scheduled.records,
     alerts: alertHistory(sections.alerts),
     importedEvents: sections.events.records,
+    eventHeadsUps: eventHeadsUpHistory(sections.eventAlerts),
+    // Linked calendars without their links, which may hold private tokens.
+    linkedCalendars: parseSubscriptionSummaries(sections.links),
     truncated,
   }
 }

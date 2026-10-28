@@ -33,6 +33,7 @@ const env = {
   NEXT_PUBLIC_FUNCTIONS_URL: '',
   // Alerts stay "coming soon", as in production; a screen opts in with ?alerts=on.
   NEXT_PUBLIC_ALERTS_ENABLED: '',
+  NEXT_PUBLIC_EVENTS_SUBSCRIPTIONS_ENABLED: '',
   NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID: '',
   NEXT_PUBLIC_SENTRY_DSN: '',
   NEXT_TELEMETRY_DISABLED: '1',

@@ -63,6 +63,15 @@ export const FUNCTION_RESPONSES = {
   forecast: OpenMeteoResponseSchema,
   /** The place search proxy answers in Open-Meteo's geocoding shape. */
   placeSearch: GeocodingResponseSchema,
+  /**
+   * A linked calendar was added, refreshed or removed. The summary is read with
+   * SubscriptionSummarySchema (@solara/core/event-import) by the lazily loaded Events
+   * section, so that schema stays out of the main bundle.
+   */
+  eventSubscriptions: record({
+    action: v.picklist(['add', 'refresh', 'remove']),
+    subscription: v.nullable(looseRecord({ id: v.string() })),
+  }),
 }
 
 export type FunctionName = keyof typeof FUNCTION_RESPONSES

@@ -15,6 +15,9 @@
 //   events = none (default) | sample | full: in-memory imported events (see
 //            event-fixtures.ts; full is the sample in an account at the per-account cap);
 //            signed-in screens always get the in-memory store, empty by default
+//   links  = none (default) | sample: in-memory linked calendars (subscription-fixtures.ts)
+//            and one event from a linked calendar; shown with ?subscriptions=on, which
+//            stands in for NEXT_PUBLIC_EVENTS_SUBSCRIPTIONS_ENABLED
 //   (offline: the offline notice shows whenever the browser is offline, as in the app)
 //   (stale: with data=live, a forecast answer marked `stale` shows its note, as in the
 //   app; stale-forecast.spec.ts)
@@ -44,9 +47,10 @@ import { HARNESS_MARKER, buildPrefs, buildUser, buildWeather } from './fixtures'
 import { buildGapWeather } from './uv-gap-fixtures'
 import { buildSunPeakWeather, isSunPeakFixture, type SunPeakFixture } from './sun-peak-fixtures'
 import { HarnessScheduledProvider } from './scheduled-fixtures'
-import { EventsStoreContext } from '@/lib/events-context'
+import { EventsStoreContext, SubscriptionsStoreContext } from '@/lib/events-context'
 import { IMPORTED_EVENT_LIMITS } from '@solara/core/event-import'
-import { buildEvents, createMemoryEventsStore } from './event-fixtures'
+import { buildEvents, buildFeedEvent, createMemoryEventsStore } from './event-fixtures'
+import { buildSubscriptions, createMemorySubscriptionsStore } from './subscription-fixtures'
 
 export type HarnessScreen = 'dashboard' | 'calendar' | 'settings' | 'pricing' | 'pricing-checkout'
 type SettingsTab = 'general' | 'activities' | 'location'
@@ -80,15 +84,19 @@ function readParams() {
     scheduled: (['synced', 'reconnect'] as const).find(v => v === params.get('scheduled')) ?? null,
     activities: params.get('activities')?.split(',') ?? null,
     events: (['sample', 'full'] as const).find(v => v === params.get('events')) ?? null,
+    links: params.get('links') === 'sample',
   }
 }
 
 export default function HarnessApp() {
   const [forecasts] = useState(createForecastStore)
   const [scheduled] = useState(() => readParams().scheduled)
+  const [links] = useState(() =>
+    createMemorySubscriptionsStore(readParams().links ? buildSubscriptions() : []),
+  )
   const [events] = useState(() => {
-    const kind = readParams().events
-    const sample = kind ? buildEvents() : []
+    const { events: kind, links: withLinks } = readParams()
+    const sample = [...(kind ? buildEvents() : []), ...(withLinks ? [buildFeedEvent()] : [])]
     // "full": the sample plus enough past events to reach the per-account cap.
     const pastStored = kind === 'full' ? IMPORTED_EVENT_LIMITS.maxStored - sample.length : 0
     return createMemoryEventsStore(sample, { pastStored })
@@ -96,13 +104,15 @@ export default function HarnessApp() {
   return (
     <ForecastStoreProvider value={forecasts}>
       <EventsStoreContext value={events}>
-        {scheduled ? (
-          <HarnessScheduledProvider sync={scheduled}>
+        <SubscriptionsStoreContext value={links}>
+          {scheduled ? (
+            <HarnessScheduledProvider sync={scheduled}>
+              <Harness />
+            </HarnessScheduledProvider>
+          ) : (
             <Harness />
-          </HarnessScheduledProvider>
-        ) : (
-          <Harness />
-        )}
+          )}
+        </SubscriptionsStoreContext>
       </EventsStoreContext>
     </ForecastStoreProvider>
   )

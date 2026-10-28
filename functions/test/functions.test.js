@@ -438,6 +438,15 @@ function fakeDeletionDb({ cleanup = [], resources = [], tombstone = {}, user = {
           },
         }
       }
+      if (name === 'eventSubscriptions') {
+        return {
+          where: (field, op, value) => {
+            assert.deepEqual([field, op, value], ['uid', '==', 'alice'])
+            const link = { ref: { delete: async () => deleted.push('linked calendar') } }
+            return { get: async () => ({ docs: [link], size: 1 }) }
+          },
+        }
+      }
       if (name === 'stripeSubscriptionOwners') {
         const ownerRef = id => ({
           async get() {
@@ -723,6 +732,21 @@ describe('account data security', () => {
     const devicesQuery = pagedCollection('devices')
     const scheduledQuery = pagedCollection('scheduled')
     const alertStateRef = { kind: 'alertState' }
+    const eventAlertsRef = { kind: 'eventAlerts' }
+    const linksRef = { kind: 'links' }
+    const link = {
+      id: 'b'.repeat(32),
+      host: 'www.meetup.com',
+      label: 'Club runs',
+      status: 'active',
+      createdAt: '2026-06-01T00:00:00.000Z',
+      lastAttemptAt: '',
+      lastSuccessAt: '',
+      nextRefreshAt: '',
+      error: '',
+      eventCount: 3,
+      refused: 0,
+    }
     const eventsQuery = pagedCollection('events')
     const importedEvent = {
       key: 'a'.repeat(32),
@@ -760,7 +784,13 @@ describe('account data security', () => {
       collection(name) {
         if (name === 'notificationDevices') return devicesQuery
         if (name === 'alertState') {
-          return { doc: id => (assert.equal(id, 'daily'), alertStateRef) }
+          return {
+            doc: id =>
+              id === 'events' ? eventAlertsRef : (assert.equal(id, 'daily'), alertStateRef),
+          }
+        }
+        if (name === 'private') {
+          return { doc: id => (assert.equal(id, 'eventSubscriptions'), linksRef) }
         }
         if (name === 'events') return eventsQuery
         assert.equal(name, 'scheduled')
@@ -784,6 +814,30 @@ describe('account data security', () => {
               return { exists: true, data: () => ({ location: { city: 'Seattle' } }) }
             }
             if (ref.kind === 'devices') return { docs: [] }
+            if (ref === eventAlertsRef) {
+              return {
+                exists: true,
+                data: () => ({
+                  ['c'.repeat(32)]: {
+                    day: 'c'.repeat(32),
+                    status: 'delivered',
+                    attemptId: 'internal-attempt-id',
+                    attempts: 1,
+                    devices: 1,
+                    claimedAt: new Date('2026-06-15T15:00:00Z'),
+                  },
+                  expireAt: new Date('2026-06-22T15:00:00Z'),
+                }),
+              }
+            }
+            if (ref === linksRef) {
+              return {
+                exists: true,
+                data: () => ({
+                  items: { [link.id]: { ...link, url: 'https://secret.example/t' } },
+                }),
+              }
+            }
             if (ref === alertStateRef) {
               return {
                 exists: true,
@@ -848,7 +902,29 @@ describe('account data security', () => {
       req: { headers: { authorization: 'Bearer valid' } },
     })
 
-    assert.deepEqual(reads, ['tombstone', 'user', 'alertState', 'devices', 'scheduled', 'events'])
+    assert.deepEqual(reads, [
+      'tombstone',
+      'user',
+      'alertState',
+      'eventAlerts',
+      'links',
+      'devices',
+      'scheduled',
+      'events',
+    ])
+    // Linked calendars without their links; heads-ups without internal ids.
+    assert.deepEqual(result.linkedCalendars, [link])
+    assert.deepEqual(result.eventHeadsUps, [
+      {
+        eventKey: 'c'.repeat(32),
+        status: 'delivered',
+        attempts: 1,
+        devicesReached: 1,
+        sentAt: '2026-06-15T15:00:00.000Z',
+        finishedAt: null,
+      },
+    ])
+    assert.doesNotMatch(JSON.stringify(result), /secret\.example/)
     assert.deepEqual(result.truncated, [])
     assert.deepEqual(result.account, { location: { city: 'Seattle' } })
     assert.deepEqual(result.notificationDevices, [])
@@ -1002,6 +1078,7 @@ describe('account data security', () => {
       'stripe:sub_retry',
       'limit',
       'feed',
+      'linked calendar',
       'user',
       'auth:alice',
     ])

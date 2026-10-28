@@ -96,6 +96,8 @@ Already done: the domain move to `solara-uv.web.app`, the Firestore index role (
     4. Switch Pro's morning and UV alerts on (they need the key), staging first with the [Notifications](#notifications) checks:
        optionally give them their own least-privilege identity with `DEPLOY_SA=<deploy service account email> infra/alerts-identity.sh` (print, read, then `--apply`) and `gh variable set ALERTS_SERVICE_ACCOUNT --repo n8watkins/solara --body solara-alerts@uv-activity-planner.iam.gserviceaccount.com`;
        then `gh variable set ALERTS_ENABLED --repo n8watkins/solara --body true` and let the next deploy run ([Pro alerts](DEPLOYMENT.md#pro-alerts)).
+    5. Optional, once alerts work: switch on linked calendars and Pro event heads-ups, staging first with the [Linked calendars](#linked-calendars) checks: `gh variable set EVENTS_SUBSCRIPTIONS_ENABLED --repo n8watkins/solara --body true` and let the next deploy run ([Linked calendars and event heads-ups](DEPLOYMENT.md#linked-calendars-and-event-heads-ups)).
+       The refresh job is the third free Cloud Scheduler job; nothing else needs setting up.
 18. Run the release checks in [Release verification](#release-verification), plus [Functions and Stripe](#functions-and-stripe) and [Notifications](#notifications).
 
 ### Later: mobile app (Wave 6)
@@ -204,6 +206,18 @@ Pro's morning and UV alerts are built and switched off (`ALERTS_ENABLED`, [Pro a
 - [ ] Register the same phone to a second controlled account; ownership moves instead of producing two deliveries.
 - [ ] Move the test account to Free (or cancel its test subscription): no alert arrives the next morning.
 - [ ] Turn alerts off on the phone, then sign out; the device record is gone either time.
+
+## Linked calendars
+
+Linked calendars and Pro event heads-ups are built and switched off (`EVENTS_SUBSCRIPTIONS_ENABLED`, [Linked calendars and event heads-ups](DEPLOYMENT.md#linked-calendars-and-event-heads-ups)); check them in staging before switching them on in production.
+
+- [ ] In the Events section, link a public Meetup group feed (for example `https://www.meetup.com/<group>/events/ical/`, or the `webcal://` form): its upcoming events appear, marked "From a linked calendar", and the link shows its site and "Updated just now".
+- [ ] Link the same address again: refused as already linked; link `http://` or a private address such as `https://10.0.0.1/a.ics`: refused with a clear message.
+- [ ] In the Firestore console, `users/<uid>/private/eventSubscriptions` shows the host and label but no address; `eventSubscriptions/<id>` holds the address.
+- [ ] Press **Refresh**, then again at once: the second is refused for 10 minutes.
+- [ ] Wait for the `eventSubscriptionsRefresh` job after the next refresh time (6 hours): its log line `linked calendar refresh completed` counts the link.
+- [ ] With a Pro test account with alerts on a phone, add an event with high UV starting in about 4 hours: one heads-up arrives about 3 hours before it.
+- [ ] **Remove** the link: it and its events disappear on every device.
 
 ## Legal
 

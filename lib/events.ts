@@ -6,6 +6,8 @@
 // lazily loaded Events section (components/events/), never by the guest's first load.
 import { capText, roundCoordinate } from '@solara/core'
 import {
+  distanceKm,
+  eventLocationQueries,
   ICS_IMPORT_LIMITS,
   IcsImportError,
   IMPORTED_EVENT_LIMITS,
@@ -74,47 +76,11 @@ export function samePlace(
   )
 }
 
-const COUNTRY_PART =
-  /^(usa|u\.s\.a\.|us|united states( of america)?|uk|united kingdom|canada|australia|new zealand)$/i
-
 /**
- * City-level searches to try for an event's LOCATION text, best first. Street
- * addresses and postal codes are dropped ("Griffith Park, 4730 Crystal Springs Dr,
- * Los Angeles, CA 90027, USA" tries "Los Angeles, CA", then "Los Angeles"), because the
- * place search knows towns, not addresses. Text with no commas is tried as it is only
- * when it is short enough to be a town name.
+ * City-level searches to try for an event's LOCATION text, best first (shared with the
+ * linked-calendar Function, so it lives in core).
  */
-export function locationQueries(where: string): string[] {
-  const parts = where
-    .split(',')
-    .map(part => part.replace(/\b\d{4,6}(-\d{4})?\b/g, '').trim())
-    .filter(Boolean)
-  if (parts.length > 1 && COUNTRY_PART.test(parts[parts.length - 1]!)) parts.pop()
-  // Town names only: no house numbers, and within the place search's 2-80 characters.
-  const named = parts.filter(part => !/\d/.test(part) && part.length >= 2 && part.length <= 60)
-  if (parts.length <= 1) {
-    const only = named[0]
-    return only && only.split(/\s+/).length <= 4 ? [only] : []
-  }
-  const last = named[named.length - 1]
-  const beforeLast = named[named.length - 2]
-  const queries: string[] = []
-  // "City, ST": a short last part is a region qualifier for the part before it.
-  if (last && beforeLast && last.length <= 3) queries.push(`${beforeLast}, ${last}`, beforeLast)
-  else if (last) queries.push(last)
-  return [...new Set(queries)].slice(0, 2)
-}
-
-/** Great-circle distance in km, to pick the right one of several same-named towns. */
-function distanceKm(a: Pick<Location, 'lat' | 'lon'>, b: Pick<Location, 'lat' | 'lon'>): number {
-  const rad = Math.PI / 180
-  const dLat = (b.lat - a.lat) * rad
-  const dLon = (b.lon - a.lon) * rad
-  const h =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLon / 2) ** 2
-  return 12_742 * Math.asin(Math.min(1, Math.sqrt(h)))
-}
+export const locationQueries = eventLocationQueries
 
 export interface PlaceLookups {
   search: (query: string) => Promise<PlaceSuggestion[]>

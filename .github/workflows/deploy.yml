@@ -73,6 +73,9 @@ jobs:
       # Settings offers Pro morning and UV alerts only once the owner switches them on,
       # and only together with the Functions that send them.
       NEXT_PUBLIC_ALERTS_ENABLED: ${{ vars.ENABLE_BLAZE_FUNCTIONS == 'true' && vars.ALERTS_ENABLED == 'true' && '1' || '' }}
+      # The Events section offers linked calendars (and Settings the Pro event heads-up)
+      # only once the owner switches them on, and only together with the Functions.
+      NEXT_PUBLIC_EVENTS_SUBSCRIPTIONS_ENABLED: ${{ vars.ENABLE_BLAZE_FUNCTIONS == 'true' && vars.EVENTS_SUBSCRIPTIONS_ENABLED == 'true' && '1' || '' }}
       NEXT_TELEMETRY_DISABLED: '1'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -297,6 +300,7 @@ jobs:
           BUDGET_SERVICE_ACCOUNT: ${{ vars.BUDGET_SERVICE_ACCOUNT }}
           ALERTS_ENABLED: ${{ vars.ALERTS_ENABLED == 'true' && 'true' || 'false' }}
           ALERTS_SERVICE_ACCOUNT: ${{ vars.ALERTS_SERVICE_ACCOUNT }}
+          EVENTS_SUBSCRIPTIONS_ENABLED: ${{ vars.EVENTS_SUBSCRIPTIONS_ENABLED == 'true' && 'true' || 'false' }}
         run: |
           if [ "$BILLING_ENABLED" = true ] && { [ -z "$STRIPE_PRICE_ID" ] || [ -z "$STRIPE_YEARLY_PRICE_ID" ]; }; then
             echo "::error::Set the STRIPE_PRICE_ID and STRIPE_YEARLY_PRICE_ID repository variables before switching billing on."
@@ -318,6 +322,7 @@ jobs:
             printf 'BUDGET_SERVICE_ACCOUNT=%s\n' "$BUDGET_SERVICE_ACCOUNT"
             printf 'ALERTS_ENABLED=%s\n' "$ALERTS_ENABLED"
             printf 'ALERTS_SERVICE_ACCOUNT=%s\n' "$ALERTS_SERVICE_ACCOUNT"
+            printf 'EVENTS_SUBSCRIPTIONS_ENABLED=%s\n' "$EVENTS_SUBSCRIPTIONS_ENABLED"
           } > "functions/.env.$FIREBASE_PROJECT_ID"
 
       # The deploy uploads compiled code: @solara/core in functions/core and the

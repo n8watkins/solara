@@ -36,8 +36,12 @@ export const IMPORTED_EVENT_LIMITS = Object.freeze({
   maxStored: 1000,
 })
 
-/** Where events come from. Phase 1 has files only; later phases add `feed` and `strava`. */
-export const IMPORTED_EVENT_SOURCES = Object.freeze(['file'] as const)
+/**
+ * Where events come from: `file` for an .ics file the person imports (phase 1, written
+ * by the app), `feed` for a linked calendar Solara refreshes (phase 2, written only by
+ * the server; packages/core/src/event-subscriptions.ts). A later phase may add `strava`.
+ */
+export const IMPORTED_EVENT_SOURCES = Object.freeze(['file', 'feed'] as const)
 export type ImportedEventSource = (typeof IMPORTED_EVENT_SOURCES)[number]
 
 /** Fields of a stored imported event, in the order firestore.rules lists them. */
@@ -58,6 +62,21 @@ export const IMPORTED_EVENT_FIELDS = Object.freeze([
   'url',
   'createdAt',
   'updatedAt',
+  'feedId',
+] as const)
+
+/**
+ * The fields the person may change on an event from a linked calendar (its place and
+ * what it counts as); the server owns the rest. firestore.rules repeats the list.
+ */
+export const FEED_EVENT_CLIENT_FIELDS = Object.freeze([
+  'lat',
+  'lon',
+  'placeLabel',
+  'placeGuessed',
+  'activityId',
+  'updatedAt',
+  'expireAt',
 ] as const)
 
 /** Days a record is kept after its event ends (the app prunes, Firestore's TTL deletes). */
@@ -115,11 +134,17 @@ export const IMPORTED_EVENT_SHAPE = {
   ]),
   createdAt: isoInstant,
   updatedAt: isoInstant,
+  /** The linked calendar (event-subscriptions.ts) a `feed` event comes from; absent for files. */
+  feedId: v.optional(v.pipe(v.string(), v.regex(IMPORTED_EVENT_KEY_PATTERN))),
 }
 
 export const ImportedEventSchema = v.pipe(
   record(IMPORTED_EVENT_SHAPE),
   v.check(event => Date.parse(event.end) > Date.parse(event.start), 'end must be after start'),
+  v.check(
+    event => (event.source === 'feed') === (event.feedId !== undefined),
+    'a linked calendar event names its calendar, and only such an event does',
+  ),
 )
 export type ImportedEvent = v.InferOutput<typeof ImportedEventSchema>
 
@@ -149,6 +174,72 @@ export async function importedEventKey(
 ): Promise<string> {
   const text = `${source}\n${uid}\n${recurrenceId ?? ''}`
   return (await sha256Hex(text)).slice(0, IMPORTED_EVENT_LIMITS.keyLength)
+}
+
+/**
+ * The id shared by every occurrence of one event from one linked calendar. The calendar
+ * is part of it, so the same event in two linked calendars (or in a file) never shares
+ * stored records.
+ */
+export async function feedSeriesId(feedId: string, uid: string): Promise<string> {
+  return (await sha256Hex(`feed\n${feedId}\n${uid}`)).slice(0, IMPORTED_EVENT_LIMITS.keyLength)
+}
+
+/** The document key of one event (or occurrence) from a linked calendar. */
+export async function feedEventKey(
+  feedId: string,
+  uid: string,
+  recurrenceId: string | null,
+): Promise<string> {
+  const text = `feed\n${feedId}\n${uid}\n${recurrenceId ?? ''}`
+  return (await sha256Hex(text)).slice(0, IMPORTED_EVENT_LIMITS.keyLength)
+}
+
+// ---- Places --------------------------------------------------------------------------
+
+const COUNTRY_PART =
+  /^(usa|u\.s\.a\.|us|united states( of america)?|uk|united kingdom|canada|australia|new zealand)$/i
+
+/**
+ * City-level searches to try for an event's LOCATION text, best first. Street
+ * addresses and postal codes are dropped ("Griffith Park, 4730 Crystal Springs Dr,
+ * Los Angeles, CA 90027, USA" tries "Los Angeles, CA", then "Los Angeles"), because the
+ * place search knows towns, not addresses. Text with no commas is tried as it is only
+ * when it is short enough to be a town name.
+ */
+export function eventLocationQueries(where: string): string[] {
+  const parts = where
+    .split(',')
+    .map(part => part.replace(/\b\d{4,6}(-\d{4})?\b/g, '').trim())
+    .filter(Boolean)
+  if (parts.length > 1 && COUNTRY_PART.test(parts[parts.length - 1]!)) parts.pop()
+  // Town names only: no house numbers, and within the place search's 2-80 characters.
+  const named = parts.filter(part => !/\d/.test(part) && part.length >= 2 && part.length <= 60)
+  if (parts.length <= 1) {
+    const only = named[0]
+    return only && only.split(/\s+/).length <= 4 ? [only] : []
+  }
+  const last = named[named.length - 1]
+  const beforeLast = named[named.length - 2]
+  const queries: string[] = []
+  // "City, ST": a short last part is a region qualifier for the part before it.
+  if (last && beforeLast && last.length <= 3) queries.push(`${beforeLast}, ${last}`, beforeLast)
+  else if (last) queries.push(last)
+  return [...new Set(queries)].slice(0, 2)
+}
+
+/** Great-circle distance in km, to pick the right one of several same-named towns. */
+export function distanceKm(
+  a: { lat: number; lon: number },
+  b: { lat: number; lon: number },
+): number {
+  const rad = Math.PI / 180
+  const dLat = (b.lat - a.lat) * rad
+  const dLon = (b.lon - a.lon) * rad
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLon / 2) ** 2
+  return 12_742 * Math.asin(Math.min(1, Math.sqrt(h)))
 }
 
 // ---- Matching an event to an activity ------------------------------------------------

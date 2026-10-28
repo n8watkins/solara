@@ -142,7 +142,8 @@ Candidates, roughly ranked by impact over effort:
    Later: a returning visitor's own plan wins over the city link (setup only).
 8. **Shade and surface reflection factors** - done (#109): each activity can set its typical shade and the surface around it, which scale the UV it is planned against (cited, cautious factors in `packages/core/src/exposure.ts`), in the app and the calendar feed.
 9. Linking with live events from Strava, Meetup and similar services, so Solara can plan around them (owner's idea) - scoped in [integrations/EVENTS.md](integrations/EVENTS.md); **phase 1 built**: .ics file import with the UV, burn time and sunscreen timing per event, for every signed-in account.
-   Next: link subscriptions and Pro heads-ups on Blaze (phase 2), optionally events already in Google Calendar, and Strava last (no future events in its API, a developer subscription and a 10-athlete cap); the Meetup, Eventbrite, Komoot and Garmin APIs are not needed.
+   **Phase 2 built and switched off** (item 19): linked calendars refreshed on the server and Pro heads-ups before high-UV events.
+   Next: optionally events already in Google Calendar (phase 2b), and Strava last (no future events in its API, a developer subscription and a 10-athlete cap); the Meetup, Eventbrite, Komoot and Garmin APIs are not needed.
 
 ### 13. Wave 6: mobile app (owner's learning project)
 
@@ -201,6 +202,19 @@ The fourth security review's findings M4 (the export part), L4, L5 and L6, and i
 - **Replaying Stripe webhooks after a detach (L6):** the [runbook](RUNBOOK.md#budget-kill-switch) has the steps to finish within 3 days of a billing detach, and the [owner checklist](OWNER_CHECKLIST.md#at-pro-launch-blaze) step 12 states what a detach at 300% stops; detaching stays on by default.
 - **UI:** the briefing gives the clear-sky peak when clouds lower it ("UV peaks at 6.2 (High) around 1pm, or 10.8 if the sky clears", also in the morning alert) and the UV card no longer repeats that note; the briefing names the "lowest-UV window" while the hero names the next slot, so the two never contradict each other; at night "UV returns about 7am" is said once; after sunset the hour strip opens where UV returns even while the last hour is on it; the analytics consent banner sits at the top of the page flow and covers nothing at any width; the landing and city pages follow an OS theme change while open; city pages carry JSON-LD, hashed into their CSP at build time.
 
+### 19. Linked calendars and Pro event heads-ups (Wave 5 item 9, phase 2, built and switched off)
+
+Built 2026-10-28 by lane EVENTS2 and switched off behind `EVENTS_SUBSCRIPTIONS_ENABLED` (with `ENABLE_BLAZE_FUNCTIONS`; heads-ups also need `ALERTS_ENABLED`), as scoped in [integrations/EVENTS.md](integrations/EVENTS.md#phase-2-as-built).
+
+- **Linked calendars:** a signed-in account links up to 5 https or webcal addresses in the Events section (loaded only when switched on); the `eventSubscriptions` Function fetches each and the `eventSubscriptionsRefresh` job (the third free Cloud Scheduler job) refreshes it every 6 hours, replacing its upcoming events and keeping the place and activity the person set.
+- **Security:** https on port 443 only, public addresses only, checked after DNS resolution and on every redirect (at most 3) with the connection pinned to the checked address; 10 seconds, 1 MB after decompression, calendar content only; the address is a credential, kept in the server-only `eventSubscriptions/{id}` and never sent back to the app; the rules refuse client-created linked events and let the app change only their place and activity.
+- **Cost:** per-account cap, per-account and per-address limits, the cost guard on the endpoint and the job, at most 100 links a run (4,800 fetches a day whatever the number of links), backoff and a pause after 7 days of failures; the Function keeps the per-account key list (1,000 events) itself; place searches and event forecasts come out of the existing paid budgets through each account's share ([COSTS.md](COSTS.md)).
+- **Heads-ups:** the `alerts` job sends Pro a push about 3 hours before an imported or linked event with UV 6 or higher, outside quiet hours, once per event; Settings has an "Event heads-up" switch.
+- **Removal and accounts:** removing a link deletes its events and their keys; account deletion removes the account's links; the export lists linked calendars without their addresses and the heads-ups sent.
+- **Tests:** unit tests for the URL rules, backoff, heads-up timing and wording, and the fetcher's SSRF, redirect, size, time and content checks; emulator tests for adding, refreshing, backoff and pause, the caps, removal, the rules, and a day of heads-ups; harness screens at 390 and 1440 px, light and dark.
+- **Left for the owner:** the [Linked calendars](OWNER_CHECKLIST.md#linked-calendars) checks in staging, then `EVENTS_SUBSCRIPTIONS_ENABLED` (step 17).
+- **Not done:** events already in Google Calendar (phase 2b) and Strava (phase 3); reverse lookups of unnamed `GEO` points on the server; showing which linked calendar an event came from by name.
+
 ## Decisions
 
 Agents never make owner decisions; they follow the recorded decision or the default.
@@ -232,7 +246,9 @@ The steps behind each one are in the [owner checklist](OWNER_CHECKLIST.md).
 | Export | Alert history in the export | Default, owner may change (2026-10-27, item 15): the export includes the last 7 days' alert history (kind, day, status, attempts, devices reached, times, error code) |
 | Fair forecast budget | How the paid forecast calls are shared | Default, owner may change (2026-10-28): 20 upstream calls per caller per UTC hour in each budget (`UPSTREAM_SHARE_PER_CALLER`), keyed like the per-address limits, with an IPv6 /48 allowed 4 times the per-address limit and share; place search has its own budget of 200 an hour and 2,000 a day (`PLACE_SEARCH_UPSTREAM_PER_HOUR`, `PLACE_SEARCH_UPSTREAM_PER_DAY`); while a budget or share is spent, the last good forecast up to 12 hours old is served, flagged `stale`, instead of a 503 |
 | Record caps | Imported events and scheduled activities per account | Default, owner may change (2026-10-28): 1,000 imported events and 500 scheduled activities, enforced by `firestore.rules` through a key list per collection (`lib/key-index.ts`, REVIEW4 M4) |
-| Instance caps | HTTP Functions' `maxInstances` | Default, owner may change (2026-10-27, item 14): 3 for the forecast proxy, 2 for the calendar feed, 1 for the rest (the Stripe webhook and place search included), 15 in all (`INSTANCE_CAPS` in `functions/src/shared/options.ts`) |
+| Instance caps | HTTP Functions' `maxInstances` | Default, owner may change (2026-10-27, item 14; 2026-10-28, item 19): 3 for the forecast proxy, 2 for the calendar feed, 1 for the rest (the Stripe webhook, place search and linked calendars included), 16 in all (`INSTANCE_CAPS` in `functions/src/shared/options.ts`) |
+| Linked calendars | Caps, refresh and backoff for linked calendars | Default, owner may change (2026-10-28): at most 5 links per account; each refreshed every 6 hours by the third free Cloud Scheduler job (`eventSubscriptionsRefresh`, every 30 minutes, at most 100 links a run, 4 at a time); a failing link waits 6, 12, 24, then 48 hours and is paused after 7 days; a manual refresh at most once per 10 minutes per link and 20 fetches an hour per account; 10 seconds, 1 MB and 3 redirects per fetch, https on port 443 to public addresses only; for every signed-in account, like the file import |
+| Event heads-ups | When Pro hears about a high-UV event | Default, owner may change (2026-10-28): one push per event whose peak UV at its place reaches 6, about 3 hours before the start (the evening before when that falls in quiet hours, never later than 15 minutes before), on by default for Pro (Settings turns it off), for imported and linked events alike; event forecasts count against the global upstream budget with a per-account share, at most 200 a run |
 
 ### Tiers
 

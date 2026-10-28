@@ -4,7 +4,7 @@ _Scoped 2026-10-27 by lane INTEG._
 _Every external fact below was checked against the cited page on 2026-10-27._
 
 This is the design for [ROADMAP item 12.9](../ROADMAP.md#12-wave-5-features): linking events from Strava, Meetup and similar services so Solara can plan around them.
-Phase 1 is built (see [Phase 1 as built](#phase-1-as-built)); the later phases are still a plan.
+Phase 1 is built (see [Phase 1 as built](#phase-1-as-built)), phase 2 is built and switched off (see [Phase 2 as built](#phase-2-as-built)); the later phases are still a plan.
 Files marked "(new)" are planned.
 
 ## Phase 1 as built
@@ -38,6 +38,30 @@ _Built 2026-10-27 by lane EVENTS._
   A phase 2 Function writes with the Admin SDK, which skips the rules, so it must keep the list the same way.
 - **List and "Remove all" (REVIEW4 M3):** the section reads the 200 soonest-ending events that have not ended, however many later ones are stored, and "Remove all" deletes every stored event, page by page.
 - **Not in phase 1:** sharing a file to the installed app (Web Share Target), the "better window" suggestion for events the person controls, and keeping recurring events current beyond 10 days without importing again (phase 2's subscriptions do that).
+
+## Phase 2 as built
+
+_Built 2026-10-28 by lane EVENTS2, switched off behind `EVENTS_SUBSCRIPTIONS_ENABLED` ([DEPLOYMENT.md](../DEPLOYMENT.md#linked-calendars-and-event-heads-ups))._
+
+- **Who:** every signed-in account can link calendars, like the file import (the plan's default for who gets event linking); heads-ups are Pro, with the morning and UV alerts.
+- **Where it shows:** "Linked calendars" at the bottom of the Events section (`components/events/EventSubscriptions.tsx`), loaded only when the feature is on, so neither the guest's nor the signed-in first load grows (the guest first load measured 189.1 KB, as on `main`).
+  Each link shows its label (the person's, else the calendar's `X-WR-CALNAME`, else its host), its host, when it was last updated and how many upcoming events it holds, and what went wrong if a check failed.
+  Events from a link say "From a linked calendar" and have no remove button of their own, because the next refresh would bring them back; removing the link removes them.
+  Settings, **Morning and UV alerts**, gains an "Event heads-up" switch for Pro.
+- **Fetcher** (`functions/src/events/safe-fetch.ts`): as the plan's guards, with these choices: port 443 only; the connection is pinned to the address that was checked (a custom DNS `lookup`), so DNS rebinding cannot swap it; one private answer among several blocks the host; IPv6 must be global unicast outside its special blocks, which also refuses IPv4-mapped, NAT64 and 6to4 forms; `localhost` and names under the `local` and `internal` domains, metadata host names included, are refused before any lookup; the 10-second deadline covers redirects too; gzip, deflate and brotli bodies are limited after decompression; the content type must be a calendar or a generic type and the body must start with `BEGIN:VCALENDAR`; `ETag` and `Last-Modified` make later fetches conditional.
+- **Storage:** as planned the address is a credential, but instead of `users/{uid}/private/eventSources` (which the owner can read) it lives in the top-level, server-only `eventSubscriptions/{id}` with its refresh state, and the app reads a summary without the address from `users/{uid}/private/eventSubscriptions`.
+  A top-level collection also lets the refresh job find due links with one single-field query (`due`).
+  Events go in `users/{uid}/events` with `source: 'feed'` and `feedId`; their keys hash the link's id with the UID, so the same event in a file or another link never shares a record.
+  The rules refuse client-created `feed` events and allow the app to change only their place and activity (`FEED_EVENT_CLIENT_FIELDS`); the Function keeps the per-account key list itself, in the same transaction as the events, and takes off keys of records the TTL policy deleted when a refresh would otherwise not fit.
+- **Refresh:** every 6 hours, by the `eventSubscriptionsRefresh` job every 30 minutes (at most 100 links a run, 4 at a time), oldest due first; a refresh replaces the link's upcoming events (so cancelled and deleted events go, which phase 1 cannot do for one-off events) and keeps the place and activity the person set while the event's location text is unchanged.
+  Failing links back off 6, 12, 24 and 48 hours and are paused after 7 days until the person presses Refresh; the job and the endpoint stop while the cost guard is engaged.
+- **Places:** `GEO` as given, named by the `LOCATION` text's first part or a found place within 10 km; `LOCATION` text searched at town level with the commercial place search (at most 10 a refresh, within place search's budget and the account's share); otherwise the person's place, marked as guessed.
+  Unnamed `GEO` points are not reverse-geocoded on the server (Nominatim's policy forbids bulk use from a server); they read "Event location".
+- **Heads-ups:** in the `alerts` job (`functions/src/notifications/alerts.ts`, timing and words in `packages/core/src/event-heads-up.ts`): for each entitled Pro account with no morning or UV alert in that run, its next events in 20 hours are checked, and an event whose peak UV at its place reaches 6 (WHO "high", after the activity's shade and surface, with clouds counted as the app does) gets one push about 3 hours before the start.
+  When that falls in quiet hours the heads-up moves to the last hour before they began (the evening before an early start), and it never goes out later than 15 minutes before the start.
+  Event forecasts come from the shared cache within the global upstream budget and the account's share of it (FIX4A), at most 200 lookups a run.
+- **Account data:** removing a link deletes it, its summary entry, its events and their keys; account deletion deletes the account's links; the export lists the links' summaries (never the addresses) and the heads-ups of the last week; the privacy policy describes linked calendars.
+- **Not in phase 2:** a label field in the form (the calendar's own name is used); naming the link on each event; reverse lookups of unnamed points on the server.
 
 ## Recommendation in short
 
@@ -220,7 +244,7 @@ Actions, only when the matching phase starts:
 | Phase | Action | Cost |
 | --- | --- | --- |
 | 1 | None | $0 |
-| 2 | Blaze, already planned for the Pro launch ([COSTS.md](../COSTS.md)); the fetcher is a few thousand Function calls a month at small scale | Within the free tier at launch scale |
+| 2 | Blaze, already planned for the Pro launch ([COSTS.md](../COSTS.md)); then the [Linked calendars](../OWNER_CHECKLIST.md#linked-calendars) checks and `EVENTS_SUBSCRIPTIONS_ENABLED` ([step 17](../OWNER_CHECKLIST.md#at-pro-launch-blaze)); the refresh job fetches at most 4,800 links a day | Within the free tier at launch scale |
 | 2b | Add `https://www.googleapis.com/auth/calendar.events.readonly` on the Data Access page, record a demo video (an agent can script it), submit it in the Verification Center | $0; Google's review time |
 | 3 | Subscribe to Strava on the developer account; create the API application at <https://www.strava.com/settings/api> (name, website `https://solara-uv.web.app`, callback domain); give the client id and secret to the Functions secrets; self-upgrade to 10 athletes for a beta; later submit the Developer Program review form with screenshots | A Strava subscription at Strava's current price; the API itself is free |
 | Never | A Meetup Pro subscription, Eventbrite, Komoot or Garmin developer accounts | Not needed |

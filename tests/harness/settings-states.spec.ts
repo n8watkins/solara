@@ -69,6 +69,27 @@ const STATES: State[] = [
     },
   },
   {
+    // With linked calendars switched on too (?subscriptions=on): the event heads-up.
+    name: 'settings-alerts-events',
+    query: 'screen=settings&alerts=on&subscriptions=on',
+    act: async page => {
+      const dialog = settings(page)
+      const headsUp = dialog.getByRole('combobox', { name: 'Event heads-up' })
+      await expect(headsUp).toHaveValue('on')
+      await headsUp.selectOption('off')
+      await expect(
+        dialog.getByText('The UV alert and event heads-ups wait until they end.'),
+      ).toBeVisible()
+      const card = dialog
+        .getByRole('heading', { name: 'Morning and UV alerts' })
+        .locator('..')
+        .locator('..')
+      await card.scrollIntoViewIfNeeded()
+      const box = (await card.boundingBox())!
+      return { x: box.x - 16, y: box.y - 16, width: box.width + 32, height: box.height + 32 }
+    },
+  },
+  {
     name: 'settings-activities',
     query: 'screen=settings&tab=activities',
     act: async page => {

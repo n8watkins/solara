@@ -487,6 +487,14 @@ describe('typed and size-capped preference fields', () => {
     await assertFails(ref.update({ uvAlertThreshold: '6' }))
   })
 
+  test('event heads-ups are on or off', async () => {
+    const ref = await ownerRef()
+    await assertSucceeds(ref.update({ eventHeadsUp: false }))
+    await assertSucceeds(ref.update({ eventHeadsUp: true }))
+    await assertFails(ref.update({ eventHeadsUp: 'off' }))
+    await assertFails(ref.update({ eventHeadsUp: 0 }))
+  })
+
   test('quiet hours are a from/to pair of whole hours', async () => {
     const ref = await ownerRef()
     await assertSucceeds(ref.update({ quietHours: { from: 21, to: 7 } }))
@@ -663,6 +671,25 @@ describe('calendar feed tokens', () => {
     await assertFails(alice.doc('users/alice/private/calendarFeed').delete())
     await assertFails(mallory.doc('users/alice/private/calendarFeed').get())
     await assertFails(mallory.doc('users/mallory/private/calendarFeed').set({ token: TOKEN }))
+  })
+
+  test('linked calendar links are server-only; their summary is owner-readable only', async () => {
+    await testEnv.withSecurityRulesDisabled(async context => {
+      const db = context.firestore()
+      await db
+        .doc('eventSubscriptions/link1')
+        .set({ uid: 'alice', url: 'https://secret.example/t' })
+      await db.doc('users/alice/private/eventSubscriptions').set({ items: {} })
+    })
+    const alice = testEnv.authenticatedContext('alice').firestore()
+    await assertFails(alice.doc('eventSubscriptions/link1').get())
+    await assertFails(alice.collection('eventSubscriptions').where('uid', '==', 'alice').get())
+    await assertFails(alice.doc('eventSubscriptions/link2').set({ uid: 'alice', url: 'https://x' }))
+    await assertFails(alice.doc('eventSubscriptions/link1').delete())
+    await assertSucceeds(alice.doc('users/alice/private/eventSubscriptions').get())
+    await assertFails(alice.doc('users/alice/private/eventSubscriptions').set({ items: {} }))
+    const mallory = testEnv.authenticatedContext('mallory').firestore()
+    await assertFails(mallory.doc('users/alice/private/eventSubscriptions').get())
   })
 
   test('a tombstoned account cannot read its private feed token', async () => {
@@ -1012,6 +1039,59 @@ describe('imported events', () => {
     await assertFails(db.doc('users/alice/events/evt1').set(importedEvent('evt1')))
     await assertFails(db.doc(`users/alice/events/${upper}`).set(importedEvent(upper)))
     await assertSucceeds(ref.set(importedEvent(KEY)))
+  })
+
+  test('the app never creates linked calendar events, and changes only their place and activity', async () => {
+    const FEED = 'c'.repeat(32)
+    const feedEvent = importedEvent(KEY, { source: 'feed', feedId: FEED })
+    const db = testEnv.authenticatedContext('alice').firestore()
+    const ref = db.doc(`users/alice/events/${KEY}`)
+    await assertFails(ref.set(feedEvent))
+    // A file event cannot name a linked calendar or become one.
+    await assertFails(ref.set(importedEvent(KEY, { feedId: FEED })))
+    await assertSucceeds(ref.set(importedEvent(KEY)))
+    await assertFails(ref.set(feedEvent))
+    await assertSucceeds(ref.delete())
+
+    await testEnv.withSecurityRulesDisabled(async context => {
+      await context.firestore().doc(`users/alice/events/${KEY}`).set(feedEvent)
+    })
+    await assertSucceeds(ref.get())
+    // Set the place and what it counts as, as the Events section does (a full rewrite).
+    await assertSucceeds(
+      ref.set({
+        ...feedEvent,
+        lat: 33.77,
+        lon: -118.19,
+        placeLabel: 'Long Beach, California',
+        placeGuessed: true,
+        activityId: '',
+        updatedAt: '2026-06-16T10:00:00.000Z',
+      }),
+    )
+    const current = {
+      ...feedEvent,
+      lat: 33.77,
+      lon: -118.19,
+      placeLabel: 'Long Beach, California',
+      placeGuessed: true,
+      activityId: '',
+      updatedAt: '2026-06-16T10:00:00.000Z',
+    }
+    for (const change of [
+      { title: 'Renamed' },
+      { start: '2026-06-20T14:00:00.000Z' },
+      { url: 'https://phish.example.com' },
+      { source: 'file' },
+      { feedId: 'd'.repeat(32) },
+      { where: 'Somewhere else' },
+    ]) {
+      await assertFails(ref.set({ ...current, ...change }))
+    }
+    const { feedId: _feedId, ...withoutFeed } = current
+    await assertFails(ref.set({ ...withoutFeed, source: 'file' }))
+    // The person may still delete one (it comes back with the next refresh).
+    await assertSucceeds(ref.delete())
   })
 
   test('a tombstoned account cannot read or write its events', async () => {

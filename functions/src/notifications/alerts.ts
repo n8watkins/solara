@@ -24,11 +24,21 @@
 // forecast lookups per run, ALERTS_CONCURRENCY at a time, within a time budget. A run
 // that stops early saves its place (`alertDispatch/state`), and the next run carries on
 // from there. Tokens FCM reports as invalid are removed with their device.
+//
+// Event heads-ups (docs/integrations/EVENTS.md, phase 2; with EVENTS_SUBSCRIPTIONS_ENABLED):
+// when no morning or UV alert goes out for an account in a run, its imported and linked
+// events starting in the next hours are checked, and one whose peak UV at its place is
+// high gets a heads-up a few hours before it (packages/core/src/event-heads-up.ts), once
+// per event, claimed in `users/{uid}/alertState/events`. Their forecasts come through the
+// shared cache within the global upstream budget and the account's own share of it, and
+// a run looks up at most ALERTS_MAX_EVENT_FORECASTS_PER_RUN event places.
 
 import {
+  APP_FORECAST_DAYS,
   type AlertKind,
   type AlertMessage,
   type OpenMeteoResponse,
+  type QuietHours,
   hourlyRows,
   inQuietHours,
   isPlannableHour,
@@ -43,12 +53,21 @@ import {
   uvAlertMessage,
   uvAlertThreshold,
 } from '#core'
+import {
+  EVENT_HEADS_UP,
+  eventHeadsUpDue,
+  eventHeadsUpMessage,
+  eventHeadsUpWorthy,
+  eventUV,
+  parseImportedEvent,
+} from '#core/event-import'
 import { createHash, randomUUID } from 'node:crypto'
 
 import {
   type DocumentData,
   type DocumentReference,
   FieldPath,
+  FieldValue,
   type Firestore,
   type QueryDocumentSnapshot,
 } from 'firebase-admin/firestore'
@@ -63,6 +82,12 @@ import { MAX_NOTIFICATION_DEVICES, tokenOwnerId } from './devices'
 export const ALERTS_PAGE_SIZE = 100
 export const ALERTS_MAX_USERS_PER_RUN = 2000
 export const ALERTS_MAX_FORECASTS_PER_RUN = 400
+/** Most event places one run looks up a forecast for (each may cost an upstream call). */
+export const ALERTS_MAX_EVENT_FORECASTS_PER_RUN = 200
+/** Most upcoming events read per account and run for heads-ups. */
+export const EVENT_HEADS_UP_EVENTS_PER_ACCOUNT = 5
+/** Heads-ups an account keeps a record of; older ones are dropped from its state. */
+const EVENT_STATE_MAX_ENTRIES = 50
 export const ALERTS_CONCURRENCY = 10
 /** A run stops starting new accounts after this long (the Function's timeout is 300 s). */
 export const ALERTS_RUN_BUDGET_MS = 240_000
@@ -71,6 +96,8 @@ export const ALERT_MAX_ATTEMPTS = 3
 
 export const ALERT_STATE_COLLECTION = 'alertState'
 export const ALERT_STATE_DOC = 'daily'
+/** users/{uid}/alertState/{EVENT_ALERT_STATE_DOC}: one field per event's heads-up. */
+export const EVENT_ALERT_STATE_DOC = 'events'
 export const ALERT_DISPATCH_COLLECTION = 'alertDispatch'
 export const ALERT_DISPATCH_DOC = 'state'
 
@@ -103,6 +130,12 @@ export interface AlertsDependencies {
   forecast: (place: { lat: number; lon: number }) => Promise<OpenMeteoResponse>
   /** The app's address, opened by a tap on the alert. */
   appUrl: string
+  /**
+   * Event heads-ups (EVENTS_SUBSCRIPTIONS_ENABLED): the forecast at an event's place for
+   * an account, through the shared cache within the upstream budget and the account's
+   * share. Absent: no heads-ups are sent.
+   */
+  eventForecast?: (place: { lat: number; lon: number }, uid: string) => Promise<OpenMeteoResponse>
   now?: () => number
   limits?: Partial<AlertLimits>
 }
@@ -111,6 +144,7 @@ export interface AlertLimits {
   pageSize: number
   maxUsers: number
   maxForecasts: number
+  maxEventForecasts: number
   concurrency: number
   budgetMs: number
 }
@@ -119,9 +153,13 @@ const DEFAULT_LIMITS: AlertLimits = {
   pageSize: ALERTS_PAGE_SIZE,
   maxUsers: ALERTS_MAX_USERS_PER_RUN,
   maxForecasts: ALERTS_MAX_FORECASTS_PER_RUN,
+  maxEventForecasts: ALERTS_MAX_EVENT_FORECASTS_PER_RUN,
   concurrency: ALERTS_CONCURRENCY,
   budgetMs: ALERTS_RUN_BUDGET_MS,
 }
+
+/** What is sent: a morning or UV alert, or an event heads-up. */
+export type SentKind = AlertKind | 'event'
 
 /** What happened for one account in one run. */
 export type AlertOutcome =
@@ -142,7 +180,7 @@ export interface AlertsRunResult {
   scanned: number
   completed: boolean
   outcomes: Partial<Record<AlertOutcome, number>>
-  sent: Partial<Record<AlertKind, number>>
+  sent: Partial<Record<SentKind, number>>
   removedDevices: number
 }
 
@@ -197,10 +235,12 @@ class Run {
   readonly now: () => number
   readonly startedAt: number
   readonly outcomes: Partial<Record<AlertOutcome, number>> = {}
-  readonly sent: Partial<Record<AlertKind, number>> = {}
+  readonly sent: Partial<Record<SentKind, number>> = {}
   removedDevices = 0
   forecastLookups = 0
+  eventForecastLookups = 0
   private readonly forecasts = new Map<string, Promise<OpenMeteoResponse | null>>()
+  private readonly eventForecasts = new Map<string, Promise<OpenMeteoResponse | null>>()
 
   constructor(readonly deps: AlertsDependencies) {
     this.limits = { ...DEFAULT_LIMITS, ...deps.limits }
@@ -228,6 +268,30 @@ class Run {
       return null
     })
     this.forecasts.set(key, lookup)
+    return lookup
+  }
+
+  /**
+   * The forecast at an event's place for an account, once per run and place; 'limit'
+   * past the run's event forecast cap, null when it cannot be had.
+   */
+  eventForecast(
+    lat: number,
+    lon: number,
+    uid: string,
+  ): Promise<OpenMeteoResponse | null> | 'limit' | null {
+    const lookupFor = this.deps.eventForecast
+    if (!lookupFor) return null
+    const key = `${lat.toFixed(2)},${lon.toFixed(2)}`
+    const known = this.eventForecasts.get(key) ?? this.forecasts.get(key)
+    if (known) return known
+    if (this.eventForecastLookups >= this.limits.maxEventForecasts) return 'limit'
+    this.eventForecastLookups += 1
+    const lookup = lookupFor({ lat, lon }, uid).catch(error => {
+      logger.warn('event forecast unavailable', { error: loggableError(error) })
+      return null
+    })
+    this.eventForecasts.set(key, lookup)
     return lookup
   }
 }
@@ -303,34 +367,56 @@ function clockOf(user: DocumentData): '12h' | '24h' {
 async function claim(
   db: Firestore,
   stateRef: DocumentReference,
-  kind: AlertKind,
+  kind: string,
   day: string,
   now: number,
+  { maxEntries }: { maxEntries?: number } = {},
 ): Promise<{ attemptId: string } | null> {
   return db.runTransaction(async transaction => {
     const snapshot = await transaction.get(stateRef)
     const state = snapshot.data()
-    if (!canSend(state, kind, day)) return null
+    if (!canSend(state, kind as AlertKind, day)) return null
     const prior = state?.[kind] as KindState | undefined
     const attempts =
       prior?.day === day && typeof prior.attempts === 'number' ? prior.attempts + 1 : 1
     const attemptId = randomUUID()
+    // A state with one field per item (event heads-ups) drops its oldest entries.
+    const dropped = maxEntries ? oldestEntries(state, maxEntries - 1) : []
     transaction.set(
       stateRef,
       {
         [kind]: { day, status: 'claimed', attemptId, attempts, claimedAt: new Date(now) },
         expireAt: expiresAfter(RETENTION_DAYS.alertState, new Date(now)),
+        ...Object.fromEntries(dropped.map(field => [field, FieldValue.delete()])),
       },
-      { mergeFields: [kind, 'expireAt'] },
+      { mergeFields: [kind, 'expireAt', ...dropped] },
     )
     return { attemptId }
   })
 }
 
+/** The fields of a per-item state beyond the newest `keep`, oldest first. */
+function oldestEntries(state: DocumentData | undefined, keep: number): string[] {
+  const entries = Object.entries(state ?? {})
+    .filter(([field, value]) => field !== 'expireAt' && value && typeof value === 'object')
+    .map(([field, value]) => {
+      const claimedAt = (value as { claimedAt?: { toMillis?: () => number } | Date }).claimedAt
+      const at =
+        claimedAt instanceof Date
+          ? claimedAt.getTime()
+          : typeof claimedAt?.toMillis === 'function'
+            ? claimedAt.toMillis()
+            : 0
+      return { field, at }
+    })
+    .sort((a, b) => b.at - a.at)
+  return entries.slice(Math.max(0, keep)).map(entry => entry.field)
+}
+
 async function finish(
   db: Firestore,
   stateRef: DocumentReference,
-  kind: AlertKind,
+  kind: string,
   attemptId: string,
   outcome: { status: 'delivered' | 'failed' | 'unknown'; delivered: number; error?: string },
   now: number,
@@ -355,15 +441,24 @@ async function finish(
   })
 }
 
+/** What one delivery is: its kind, its state field and day, and its delivery key. */
+interface Delivery {
+  kind: SentKind
+  /** The field of the state document that records it. */
+  field: string
+  /** The value that marks it sent: a local day, or the event's key. */
+  day: string
+  key: string
+}
+
 function messageFor(
-  kind: AlertKind,
-  day: string,
+  delivery: Delivery,
   uid: string,
   token: string,
   alert: AlertMessage,
   appUrl: string,
 ): Message {
-  const key = deliveryKey(kind, day)
+  const { kind, key } = delivery
   // Data only: the push worker (scripts/sw/firebase-messaging-sw.ts) shows it once per
   // account and key, so a resent message never shows twice on one device.
   return {
@@ -375,7 +470,7 @@ function messageFor(
       deliveryScope: deliveryScope(uid),
       link: `${appUrl}/app/`,
     },
-    webpush: { headers: { Urgency: kind === 'uv' ? 'high' : 'normal', TTL: '3600' } },
+    webpush: { headers: { Urgency: kind === 'morning' ? 'normal' : 'high', TTL: '3600' } },
     android: { collapseKey: key, ttl: 3_600_000 },
     apns: { headers: { 'apns-collapse-id': key } },
   }
@@ -387,18 +482,20 @@ async function deliver(
   stateRef: DocumentReference,
   uid: string,
   devices: Device[],
-  kind: AlertKind,
-  day: string,
+  delivery: Delivery,
   alert: AlertMessage,
 ): Promise<AlertOutcome> {
   const { db, messaging, appUrl } = run.deps
-  const claimed = await claim(db, stateRef, kind, day, run.now())
+  const { kind, field, day } = delivery
+  const claimed = await claim(db, stateRef, field, day, run.now(), {
+    ...(kind === 'event' ? { maxEntries: EVENT_STATE_MAX_ENTRIES } : {}),
+  })
   if (!claimed) return 'claim-lost'
 
   let response: BatchResponse
   try {
     response = await messaging.sendEach(
-      devices.map(device => messageFor(kind, day, uid, device.token, alert, appUrl)),
+      devices.map(device => messageFor(delivery, uid, device.token, alert, appUrl)),
     )
   } catch (error) {
     // Some messages may have gone out: the alert is not tried again today.
@@ -406,7 +503,7 @@ async function deliver(
     await finish(
       db,
       stateRef,
-      kind,
+      field,
       claimed.attemptId,
       { status: 'unknown', delivered: 0, error: String((error as Error)?.message ?? error) },
       run.now(),
@@ -441,7 +538,7 @@ async function deliver(
   await finish(
     db,
     stateRef,
-    kind,
+    field,
     claimed.attemptId,
     {
       status,
@@ -458,6 +555,12 @@ async function deliver(
     logger.error('alert delivery outcome unknown', { kind, codes: codes.map(String) })
   }
   return status
+}
+
+/** The devices of an account, read once per run however many alerts look for them. */
+function devicesOnce(run: Run, userRef: DocumentReference): () => Promise<Device[]> {
+  let pending: Promise<Device[]> | null = null
+  return () => (pending ??= alertDevices(run.deps.db, userRef))
 }
 
 /** Everything one account needs in one run. */
@@ -480,8 +583,35 @@ async function processAccount(run: Run, doc: QueryDocumentSnapshot): Promise<Ale
   const local = localTime(new Date(now), timeZone)
   if (!local) return forecast === null ? 'no-forecast' : 'no-location'
 
-  const threshold = uvAlertThreshold(user.uvAlertThreshold)
   const quiet = quietHours(user.quietHours)
+  const devices = devicesOnce(run, doc.ref)
+  const daily = await dailyAlert(run, doc, { forecast, local, quiet, devices })
+  // At most one alert per account and run: a heads-up only when nothing else went out.
+  if (daily !== 'not-due' && daily !== 'already-sent') return daily
+  const headsUp = await eventHeadsUp(run, doc, { timeZone, quiet, devices })
+  return headsUp ?? daily
+}
+
+/** The morning or UV alert, when one is due. */
+async function dailyAlert(
+  run: Run,
+  doc: QueryDocumentSnapshot,
+  {
+    forecast: known,
+    local,
+    quiet,
+    devices: readDevices,
+  }: {
+    forecast: OpenMeteoResponse | null | undefined
+    local: { date: string; hour: number }
+    quiet: QuietHours
+    devices: () => Promise<Device[]>
+  },
+): Promise<AlertOutcome> {
+  const user = doc.data()
+  const { lat, lon } = user.location as { lat: number; lon: number }
+  let forecast = known
+  const threshold = uvAlertThreshold(user.uvAlertThreshold)
   const wants: AlertKind[] = []
   if (morningAlertDue(local.hour, user.notificationHour)) wants.push('morning')
   // The UV alert needs daylight; the exact hours come from the forecast below.
@@ -494,7 +624,7 @@ async function processAccount(run: Run, doc: QueryDocumentSnapshot): Promise<Ale
   const open = wants.filter(kind => canSend(state, kind, local.date))
   if (open.length === 0) return 'already-sent'
 
-  const devices = await alertDevices(run.deps.db, doc.ref)
+  const devices = await readDevices()
   if (devices.length === 0) return 'no-devices'
 
   if (forecast === undefined) {
@@ -507,6 +637,12 @@ async function processAccount(run: Run, doc: QueryDocumentSnapshot): Promise<Ale
 
   const city = typeof user.location.city === 'string' ? user.location.city : ''
   const clock = clockOf(user)
+  const daily = (kind: AlertKind): Delivery => ({
+    kind,
+    field: kind,
+    day: local.date,
+    key: deliveryKey(kind, local.date),
+  })
   if (open.includes('morning')) {
     // Read as the app reads them, and planned for whom the dashboard plans for: one
     // person, or a group's most sensitive member (packages/core/src/planning.ts).
@@ -520,12 +656,113 @@ async function processAccount(run: Run, doc: QueryDocumentSnapshot): Promise<Ale
       skinType: planningFor(planning).skinType,
       clock,
     })
-    return deliver(run, stateRef, doc.id, devices, 'morning', local.date, alert)
+    return deliver(run, stateRef, doc.id, devices, daily('morning'), alert)
   }
   const plan = threshold === null ? null : planUvAlert(hourly, threshold)
   if (!plan || !uvAlertDue(plan, local.hour, quiet)) return 'not-due'
   const alert = uvAlertMessage({ plan, city, localHour: local.hour, clock })
-  return deliver(run, stateRef, doc.id, devices, 'uv', local.date, alert)
+  return deliver(run, stateRef, doc.id, devices, daily('uv'), alert)
+}
+
+/** The delivery key of an event's heads-up: one per event (occurrence). */
+export function eventDeliveryKey(eventKey: string): string {
+  return `event-v1:${eventKey}`
+}
+
+/**
+ * A heads-up before the account's next high-UV event, when one is due; null when none
+ * is (so the account's outcome stays what the daily alerts said).
+ */
+async function eventHeadsUp(
+  run: Run,
+  doc: QueryDocumentSnapshot,
+  {
+    timeZone,
+    quiet,
+    devices: readDevices,
+  }: { timeZone: string; quiet: QuietHours; devices: () => Promise<Device[]> },
+): Promise<AlertOutcome | null> {
+  const user = doc.data()
+  if (!run.deps.eventForecast || user.eventHeadsUp === false) return null
+  const now = run.now()
+  const local = localTime(new Date(now), timeZone)
+  if (!local || inQuietHours(local.hour, quiet)) return null
+
+  const from = new Date(now + EVENT_HEADS_UP.latestMinutes * 60_000).toISOString()
+  const to = new Date(now + EVENT_HEADS_UP.lookaheadHours * 3_600_000).toISOString()
+  const snapshot = await doc.ref
+    .collection('events')
+    .where('start', '>', from)
+    .where('start', '<=', to)
+    .orderBy('start')
+    .limit(EVENT_HEADS_UP_EVENTS_PER_ACCOUNT)
+    .get()
+  const due = snapshot.docs.flatMap(event => {
+    const item = parseImportedEvent(event.data())
+    if (!item || item.key !== event.id) return []
+    const startMs = Date.parse(item.start)
+    return eventHeadsUpDue({ startMs, nowMs: now, timeZone, quiet }) ? [item] : []
+  })
+  if (due.length === 0) return null
+
+  const stateRef = doc.ref.collection(ALERT_STATE_COLLECTION).doc(EVENT_ALERT_STATE_DOC)
+  const state = (await stateRef.get()).data()
+  const open = due.filter(item => canSend(state, item.key as AlertKind, item.key))
+  if (open.length === 0) return null
+
+  const devices = await readDevices()
+  if (devices.length === 0) return 'no-devices'
+
+  const { activities } = parsePlanningPreferences(user)
+  for (const item of open) {
+    const lookup = run.eventForecast(item.lat, item.lon, doc.id)
+    if (lookup === 'limit') return 'forecast-limit'
+    const forecast = lookup ? await lookup : null
+    if (!forecast) continue
+    const zone = forecast.timezone || item.timeZone
+    const today = localTime(new Date(now), zone)?.date
+    if (!today) continue
+    const activity = activities.find(entry => entry.id === item.activityId)
+    const startMs = Date.parse(item.start)
+    const uv = eventUV({
+      start: startMs,
+      end: Date.parse(item.end),
+      timeZone: zone,
+      hoursOn: date => {
+        const hours = alertDayHours(forecast, date)
+        return hours.length ? hours : undefined
+      },
+      planDays: APP_FORECAST_DAYS,
+      today,
+      activity: activity
+        ? {
+            cloudSensitive: activity.cloudSensitive,
+            shade: activity.shade,
+            surface: activity.surface,
+          }
+        : {},
+    })
+    if (uv.kind !== 'forecast' || !eventHeadsUpWorthy(uv.peakUV)) continue
+    const alert = eventHeadsUpMessage({
+      title: item.title,
+      placeLabel: item.placeLabel,
+      startMs,
+      timeZone: zone,
+      peakUV: uv.peakUV,
+      peakAtMs: uv.peakAt,
+      nowMs: now,
+      clock: clockOf(user),
+    })
+    return deliver(
+      run,
+      stateRef,
+      doc.id,
+      devices,
+      { kind: 'event', field: item.key, day: item.key, key: eventDeliveryKey(item.key) },
+      alert,
+    )
+  }
+  return null
 }
 
 async function mapLimit<T>(
@@ -589,6 +826,11 @@ export async function runAlerts(deps: AlertsDependencies): Promise<AlertsRunResu
   if (run.forecastLookups >= run.limits.maxForecasts) {
     logger.warn('alerts run reached its forecast lookup limit', {
       maxForecasts: run.limits.maxForecasts,
+    })
+  }
+  if (run.eventForecastLookups >= run.limits.maxEventForecasts) {
+    logger.warn('alerts run reached its event forecast lookup limit', {
+      maxEventForecasts: run.limits.maxEventForecasts,
     })
   }
   const result = {

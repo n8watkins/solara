@@ -25,6 +25,7 @@ import {
   queueBillingCleanup,
   stripeSessionBelongsToUser,
 } from '../billing/resources'
+import { deleteEventSubscriptionsForUser } from '../events/subscriptions'
 import { deleteCalendarFeedsForUser } from '../feed/tokens'
 import { authenticate, uidLimiter } from '../shared/auth'
 import { HttpError, errorCode, errorMessage, loggableError } from '../shared/errors'
@@ -550,6 +551,9 @@ async function finalizeAccountDeletion({
   await Promise.all(tokenOwners.docs.map(owner => owner.ref.delete()))
   await db.collection('notificationRegistrationLimits').doc(uid).delete()
   await deleteCalendarFeedsForUser(db, uid)
+  // Linked calendar links live at the top level (they hold the link, a credential); their
+  // events and summary go with users/{uid}.
+  await deleteEventSubscriptionsForUser(db, uid)
   await db.recursiveDelete(userRef)
   try {
     await auth.deleteUser(uid)
