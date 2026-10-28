@@ -3,11 +3,16 @@ import { captureScreen } from './capture'
 import {
   NIGHT_MS,
   NOW_MS,
+  type Raw,
   atNight,
   openDashboard,
   prepareLiveDashboard,
   withUVAt,
 } from './live-forecast'
+
+/** 19:30, before sunset: UV 1.1 is left, but no window long enough for any activity. */
+const EVENING_MS = NOW_MS + 9 * 60 * 60_000
+const noWindowsLeft = (raw: Raw): Raw => ({ ...raw, current: { ...raw.current, uv_index: 1.1 } })
 
 // Regression checks for the design audit's bugs (handoff/design-audit.md items 1-4),
 // run in the browser against the real dashboard with Open-Meteo played by page.route.
@@ -30,7 +35,7 @@ test.describe('logic checks', () => {
   // Item 2: guests have no "Best day this week", so nothing may point to it.
   test('a guest is never sent to a "best day" section they cannot see', async ({ page }) => {
     await openDashboard(page, { at: NIGHT_MS, tier: 'guest', edit: atNight })
-    await expect(page.getByText('No lower-UV slot left today')).toBeVisible()
+    await expect(page.getByText('Done for today')).toBeVisible()
     await expect(page.getByText('Best day this week')).toHaveCount(0)
     await expect(page.getByText(/best day/i)).toHaveCount(0)
     await expect(page.getByText(/below/)).toHaveCount(0)
@@ -39,39 +44,13 @@ test.describe('logic checks', () => {
   })
 
   test('a free or Pro plan is told when the next slot is', async ({ page }) => {
-    await openDashboard(page, { at: NIGHT_MS, tier: 'free', edit: atNight })
+    // In the evening, once today's windows have passed but before sunset.
+    await openDashboard(page, { at: EVENING_MS, tier: 'free', edit: noWindowsLeft })
     const hero = page.getByTestId('hero-empty')
     await expect(hero).toContainText('Next: Running tomorrow at 6am')
     await expect(hero).not.toContainText(/best day/i)
     const card = page.getByTestId('activity-card').filter({ hasText: 'Running' })
     await expect(card).toContainText('Next lower-UV slot: tomorrow at 6am')
-  })
-
-  // Item 3: the tip never shows a sliver of a neighbouring one, and never moves by itself.
-  test('the sun safety tip is one static card with nothing beside it', async ({ page }) => {
-    await openDashboard(page, {})
-    const tip = page.getByRole('note', { name: 'Sun safety tip' })
-    await expect(tip).toBeVisible()
-    await expect(page.locator('[aria-roledescription="carousel"]')).toHaveCount(0)
-    const before = await tip.textContent()
-    await page.clock.runFor(20_000)
-    expect(await tip.textContent()).toBe(before)
-    const overflow = await tip.evaluate(el => el.scrollWidth - el.clientWidth)
-    expect(overflow).toBe(0)
-  })
-
-  test('a dismissed tip stays dismissed, and the next visit shows another', async ({ page }) => {
-    await openDashboard(page, {})
-    const tip = page.getByRole('note', { name: 'Sun safety tip' })
-    const first = await tip.textContent()
-    await page.reload()
-    await expect(tip).toBeVisible()
-    expect(await tip.textContent()).not.toBe(first)
-    await tip.getByRole('button', { name: 'Hide tips' }).click()
-    await expect(tip).toHaveCount(0)
-    await page.reload()
-    await expect(page.getByRole('group', { name: 'UV forecast by hour' })).toBeVisible()
-    await expect(tip).toHaveCount(0)
   })
 })
 

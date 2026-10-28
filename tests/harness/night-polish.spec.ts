@@ -34,10 +34,9 @@ test.describe('logic checks', () => {
     await expect(card).toContainText('Sign in free to plan tomorrow.')
     await expect(card).not.toContainText(/Best window|left today|have passed/)
     expect((await card.innerText()).match(/today/gi)).toHaveLength(1)
-    // The hero's label says it; its body only offers what comes next.
-    const hero = page.getByTestId('hero-empty')
-    await expect(hero).toContainText('No lower-UV slot left today')
-    await expect(hero).not.toContainText('have passed')
+    // After sunset the briefing leads with tomorrow in place of the hero.
+    await expect(page.getByTestId('hero-empty')).toHaveCount(0)
+    await expect(page.getByTestId('daily-briefing')).toContainText('Tomorrow at a glance')
   })
 
   test('a signed-in card names the next slot instead', async ({ page }) => {

@@ -37,6 +37,7 @@ What users get:
 - UV and weather forecasts from Open-Meteo, in the location's time zone, with Celsius or Fahrenheit and 12- or 24-hour time chosen from the locale or in Settings.
 - Personalized activity windows on the dashboard and in the week calendar, within each plan's days.
   Each activity can account for its typical shade and the surface around it (grass, pavement, water, sand, snow), which scale the UV it is planned against with cited, cautious factors; the card says so ("Sand, some shade · 90% of forecast UV").
+- A daily briefing at the top of the dashboard (#108): the day's peak UV and time, the best lower-UV window for the plan, the burn time at the peak and one line of advice, shareable; after dark it briefs tomorrow (on the guest plan it offers sign-in instead).
 - Place suggestions while typing a town in setup, the header's location panel and Settings (Open-Meteo place search based on GeoNames, at most one request per second, keyboard and screen-reader friendly) (#80, #95).
 - Saved locations, share links (`/share/`), a one-off calendar file download from Plan ahead, and family profiles on Pro.
   On Pro, "Plan for a group" makes plans and burn estimates use the most sensitive of the people ticked; the profile switcher is in the header on phones too, and on Free it explains family profiles and offers the Pro waitlist.

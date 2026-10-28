@@ -266,20 +266,3 @@ export function sunDown(
   if (!last || nowHour >= last.hour + 1) return { phase: 'after-sunset', uvReturns }
   return null
 }
-
-export interface DayOutlook {
-  peakUV: number
-  peakHour: number
-  /** The first hour at UV 3 (Moderate) or more, if any: lower UV lasts until then. */
-  lowUntil: number | null
-}
-
-/** A day's peak and how long its morning stays below UV 3, for the after-dark hero. */
-export function dayOutlook(hourly: HourlyForecast[]): DayOutlook | null {
-  const first = hourly[0]
-  if (!first) return null
-  const peak = hourly.reduce((best, h) => (h.uv > best.uv ? h : best), first)
-  if (peak.uv < 0.5) return null
-  const moderate = hourly.find(h => uvBand(h.uv) !== 'none' && uvBand(h.uv) !== 'low')
-  return { peakUV: peak.uv, peakHour: peak.hour, lowUntil: moderate?.hour ?? null }
-}

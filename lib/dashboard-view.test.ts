@@ -10,7 +10,6 @@ import {
   uvNumberTone,
   uvReadout,
   windowsPassedNote,
-  dayOutlook,
   nextHourWhere,
   sunDown,
 } from './dashboard-view'
@@ -264,17 +263,5 @@ describe('sunDown and nextHourWhere', () => {
     expect(nextHourWhere(w, 12.5, uv => uv >= 1)).toEqual({ hour: 12, tomorrow: false })
     expect(nextHourWhere(w, 19.5, uv => uv >= 5)).toEqual({ hour: 12, tomorrow: true })
     expect(nextHourWhere(w, 19.5, uv => uv >= 50)).toBeNull()
-  })
-})
-
-describe('dayOutlook', () => {
-  it('gives the peak and how long UV stays below 3 (Moderate starts at 2.5)', () => {
-    const hourly = [hour(7, 1), hour(8, 2.4), hour(9, 2.5), hour(13, 9.1), hour(17, 2)]
-    expect(dayOutlook(hourly)).toEqual({ peakUV: 9.1, peakHour: 13, lowUntil: 9 })
-  })
-
-  it('is null for a day without sun', () => {
-    expect(dayOutlook([hour(7, 0), hour(8, 0.2)])).toBeNull()
-    expect(dayOutlook([])).toBeNull()
   })
 })

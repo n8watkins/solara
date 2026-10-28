@@ -214,6 +214,12 @@ describe('morning alerts', () => {
         const local = localTime(new Date(send.at), zone)
         assert.ok(local.hour >= hour && local.hour < hour + 2, `${uid} at ${local.hour}`)
         assert.equal(send.messages[0].data.title, title)
+        // The body is the daily briefing, as the dashboard card says it.
+        assert.match(
+          send.messages[0].data.body,
+          /^Today in .+: UV peaks at .+ Recheck current conditions\.$/,
+        )
+        assert.match(send.messages[0].data.body, /Best lower-UV window: Run /)
         assert.equal(send.messages[0].data.link, 'https://solara.example/app/')
       }
     }
