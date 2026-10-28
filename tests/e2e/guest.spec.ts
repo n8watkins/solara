@@ -115,7 +115,7 @@ test('a guest who comes back on a later day is offered to save the plan', async 
  * dialogs, setup, the location panel, the install prompt, the signed-in parts and the
  * activity plan (which a plan without activities, like a new guest's, never shows)
  * load on demand (lib/firebase.ts, components/deferred.tsx), and the boundaries are
- * validated with Valibot; about 189 KB today, 199 KB before #126 and over 500 KB
+ * validated with Valibot; about 189 KB today, 199 KB before #127 and over 500 KB
  * before #83. The budget leaves a few KB for growth: raise it only with a reason.
  */
 const GUEST_FIRST_LOAD_BUDGET_KB = 193
