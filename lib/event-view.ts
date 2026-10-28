@@ -119,7 +119,7 @@ export function eventCardView({
   const burnInfo = eventBurn(uv, start, end, skinType)
   const who = mostSensitive
     ? `${mostSensitive.name} (${SKIN_TYPE_LABELS[skinType].toLowerCase()} skin, the most sensitive)`
-    : `${SKIN_TYPE_LABELS[skinType]} skin`
+    : `${SKIN_TYPE_LABELS[skinType].toLowerCase()} skin`
   const burn =
     burnInfo.minutes === null
       ? null
@@ -127,7 +127,7 @@ export function eventCardView({
         (burnInfo.outlasts ? `; the event lasts ${durationText(end - start)}.` : '.')
   const timing = sunscreenTiming(start, end, uv.peakUV)
   const sunscreen = timing
-    ? `Sunscreen: put it on ${time(timing.applyFrom)} – ${time(timing.applyBy)}` +
+    ? `Sunscreen: apply ${time(timing.applyFrom)} – ${time(timing.applyBy)}` +
       (timing.reapplyAt.length
         ? `, reapply at ${list(timing.reapplyAt.map(time))}, and after swimming or heavy sweating.`
         : `; reapply after swimming or heavy sweating.`)

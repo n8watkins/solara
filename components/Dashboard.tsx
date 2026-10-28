@@ -27,7 +27,7 @@ import { briefingView } from '@/lib/briefing-view'
 import { buildEventDescription } from '@/lib/gcal-view'
 import type { SlotRecommendation } from '@/lib/scheduler'
 import { useScheduled } from '@/lib/scheduled-context'
-import { PricingModal, SunscreenTimer } from './deferred'
+import { EventsSection, PricingModal, SunscreenTimer } from './deferred'
 import ActivitiesSection from './dashboard/ActivitiesSection'
 import DailyBriefing from './dashboard/DailyBriefing'
 import DayPicker from './dashboard/DayPicker'
@@ -257,6 +257,16 @@ export default function Dashboard({
           />
 
           {isToday && down?.phase !== 'after-sunset' && <SunscreenTimer />}
+
+          {user && (
+            <EventsSection
+              uid={user.uid}
+              prefs={prefs}
+              weather={weather}
+              displayTier={access.accessTier}
+              onUpgrade={openPlans}
+            />
+          )}
         </div>
 
         <div className="dash-col">

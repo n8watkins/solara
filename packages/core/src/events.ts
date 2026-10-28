@@ -287,7 +287,7 @@ function addDaysIso(dateStr: string, days: number): string {
  * The UV during an event at its place: each forecast hour it overlaps counts for the
  * minutes it overlaps. Hours outside the forecast's daytime span (06-20) count as UV 0;
  * a missing daytime hour is left out rather than guessed. An event on a day past the
- * person's plan (or past the forecast) reports when it will be covered instead.
+ * person's plan reports when it will be covered instead.
  */
 export function eventUV({
   start,
@@ -312,9 +312,8 @@ export function eventUV({
     const next = Math.min(end, t + (60 - local.minute) * 60_000 - local.second * 1000)
     if (date > lastPlanDate) return { kind: 'later', fromDate: addDaysIso(date, -(planDays - 1)) }
     const hours = date >= today ? hoursOn(date) : undefined
-    if (date >= today && !hours) {
-      return { kind: 'later', fromDate: addDaysIso(date, -(planDays - 1)) }
-    }
+    // A day within the plan that the forecast does not have is not guessed.
+    if (date >= today && !hours) return { kind: 'unknown' }
     const daytime = local.hour >= DAY_START_HOUR && local.hour <= DAY_END_HOUR
     const found = hours?.find(h => h.hour === local.hour)
     const forecast = found ? found.uv : daytime ? null : 0

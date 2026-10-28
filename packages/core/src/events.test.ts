@@ -195,7 +195,7 @@ describe('eventUV', () => {
     expect(
       eventUV({ ...base, start: at('2026-06-20T08:00'), end: at('2026-06-20T09:00') }),
     ).toEqual({ kind: 'later', fromDate: '2026-06-19' })
-    // On Pro the whole forecast shows; a date it does not have is not live yet either.
+    // On Pro the plan reaches it, but a date the forecast does not have is not guessed.
     expect(
       eventUV({
         ...base,
@@ -203,7 +203,15 @@ describe('eventUV', () => {
         start: at('2026-06-20T08:00'),
         end: at('2026-06-20T09:00'),
       }),
-    ).toEqual({ kind: 'later', fromDate: '2026-06-11' })
+    ).toEqual({ kind: 'unknown' })
+    expect(
+      eventUV({
+        ...base,
+        planDays: 10,
+        start: at('2026-06-30T08:00'),
+        end: at('2026-06-30T09:00'),
+      }),
+    ).toEqual({ kind: 'later', fromDate: '2026-06-21' })
   })
 
   it('reports unknown when every daytime hour is missing', () => {

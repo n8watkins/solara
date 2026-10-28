@@ -63,9 +63,9 @@ describe('eventCardView', () => {
       when: 'Tomorrow · 9am – 2pm',
       badge: { value: '9.4', label: 'Very high', band: 'very-high' },
       peak: 'Peak UV 9.4 at 12pm · average 7.5',
-      burn: 'Unprotected, Fair skin could burn in about 16 min at the peak; the event lasts 5 h.',
+      burn: 'Unprotected, fair skin could burn in about 16 min at the peak; the event lasts 5 h.',
       sunscreen:
-        'Sunscreen: put it on 8:30am – 8:45am, reapply at 11am and 1pm, and after swimming or heavy sweating.',
+        'Sunscreen: apply 8:30am – 8:45am, reapply at 11am and 1pm, and after swimming or heavy sweating.',
       later: null,
     })
   })
@@ -92,7 +92,7 @@ describe('eventCardView', () => {
       'Unprotected, Mia (very fair skin, the most sensitive) could burn in about 21 min at the peak; the event lasts 30 min.',
     )
     expect(view.sunscreen).toBe(
-      'Sunscreen: put it on 11:30am – 11:45am; reapply after swimming or heavy sweating.',
+      'Sunscreen: apply 11:30am – 11:45am; reapply after swimming or heavy sweating.',
     )
   })
 
