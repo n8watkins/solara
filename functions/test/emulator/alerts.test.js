@@ -406,7 +406,8 @@ describe('event heads-ups', () => {
         lon: -118.24,
         placeLabel: 'Griffith Park',
         placeGuessed: false,
-        activityId: '',
+        // Running: an outdoor activity of the account's (addUser), so it gets heads-ups.
+        activityId: 'run',
         url: '',
         createdAt: '2026-06-01T00:00:00.000Z',
         updatedAt: '2026-06-01T00:00:00.000Z',
@@ -463,9 +464,12 @@ describe('event heads-ups', () => {
     const [heads] = eventSends(sends, 'pro')
     assert.equal(eventSends(sends, 'pro').length, 1)
     assert.equal(localTime(new Date(heads.at), 'America/Los_Angeles').hour, 10)
-    assert.equal(heads.messages[0].data.title, '🗓️ Saturday 10K at 1pm: UV up to 8.0')
+    assert.equal(heads.messages[0].data.title, '🗓️ UV up to 8.0 during your 1pm event')
     assert.equal(heads.messages[0].data.deliveryKey, `event-v1:${run}`)
-    assert.match(heads.messages[0].data.body, /Forecast for Griffith Park: UV peaks at 8\.0/)
+    assert.match(
+      heads.messages[0].data.body,
+      /^Event: “Saturday 10K”\. Forecast for Griffith Park: UV peaks at 8\.0/,
+    )
     // The morning alert still came, in another run.
     const morning = sends.filter(
       send =>
@@ -498,7 +502,7 @@ describe('event heads-ups', () => {
     const local = localTime(new Date(heads.at), 'America/Los_Angeles')
     assert.equal(local.date, '2026-06-14')
     assert.equal(local.hour, 20)
-    assert.match(heads.messages[0].data.title, /^🗓️ Dawn run tomorrow at 7am/)
+    assert.equal(heads.messages[0].data.title, '🗓️ UV up to 6.5 during your event tomorrow at 7am')
   })
 
   test('nothing is sent while event heads-ups are switched off', async () => {
@@ -508,5 +512,137 @@ describe('event heads-ups', () => {
     const sends = recording(messaging)
     await runDay(messaging, false)
     assert.equal(eventSends(sends, 'pro').length, 0)
+  })
+
+  const key = n => n.toString(16).padStart(32, '0')
+  const titlesOf = (sends, uid) =>
+    eventSends(sends, uid).map(
+      send =>
+        `${localTime(new Date(send.at), 'America/Los_Angeles').hour}h ${send.messages[0].data.title}`,
+    )
+
+  test('meetings and other events without an outdoor activity get none (REVIEW5 M3)', async () => {
+    await addUser('pro')
+    // The review's probe: four midday meetings from a linked work calendar.
+    for (const [n, hour] of [11, 12, 13, 14].entries()) {
+      await addEvent('pro', key(n + 1), {
+        title: `Team sync ${hour}`,
+        start: at('2026-06-15', hour),
+        hours: 0.5,
+        activityId: '',
+        source: 'feed',
+        feedId: 'c'.repeat(32),
+      })
+    }
+    // An activity the person has since removed counts as none, too.
+    await addEvent('pro', key(9), {
+      title: 'Golf',
+      start: at('2026-06-15', 13),
+      activityId: 'golf',
+    })
+    const messaging = new FakeMessaging()
+    const sends = recording(messaging)
+    await runDay(messaging)
+    assert.deepEqual(titlesOf(sends, 'pro'), [])
+  })
+
+  test('the same event from a file and a linked calendar gets one heads-up (REVIEW5 M3)', async () => {
+    await addUser('pro')
+    await addEvent('pro', key(1), { title: 'Saturday 10K', start: at('2026-06-15', 13) })
+    await addEvent('pro', key(2), {
+      title: 'SATURDAY 10K!',
+      start: new Date(at('2026-06-15', 13).getTime() + 15 * 60_000),
+      source: 'feed',
+      feedId: 'c'.repeat(32),
+    })
+    const messaging = new FakeMessaging()
+    const sends = recording(messaging)
+    await runDay(messaging)
+    assert.deepEqual(titlesOf(sends, 'pro'), ['10h 🗓️ UV up to 8.0 during your 1pm event'])
+
+    // Linking the calendar again stores the event under a new key: still no second push,
+    // even with the 3-hour gap long past (the first heads-up moved a day back).
+    await db.collection('users').doc('pro').collection('events').doc(key(2)).delete()
+    const stateRef = db.collection('users').doc('pro').collection('alertState').doc('events')
+    await stateRef.update({ [`${key(1)}.claimedAt`]: new Date(DAY_START - 86_400_000) })
+    await addEvent('pro', key(3), {
+      title: 'Saturday 10K',
+      start: at('2026-06-15', 13),
+      source: 'feed',
+      feedId: 'd'.repeat(32),
+    })
+    const again = new FakeMessaging()
+    const later = recording(again)
+    await runDay(again)
+    assert.deepEqual(titlesOf(later, 'pro'), [])
+  })
+
+  test('at most one heads-up every 3 hours, standing for the other events due (REVIEW5 M3)', async () => {
+    await addUser('pro')
+    // Runs at 12, 1, 2 and 3pm (UV 6.5, 8, 6.5 and 5): due from 9, 10, 11am and noon.
+    for (const [n, hour] of [12, 13, 14, 15].entries()) {
+      await addEvent('pro', key(n + 1), {
+        title: `Club run ${hour}`,
+        start: at('2026-06-15', hour),
+      })
+    }
+    const messaging = new FakeMessaging()
+    const sends = recording(messaging)
+    await runDay(messaging)
+    const titles = titlesOf(sends, 'pro')
+    // 9am: the noon run, the only one due. The 1pm run's heads-up is held back at 10 and
+    // 11; at noon, three hours on, it is still due (until 12:45) and named, and the 2pm
+    // run (due from 11) is counted with it. The 3pm run peaks at 5: no heads-up.
+    assert.equal(titles.length, 2)
+    assert.equal(titles[0], '9h 🗓️ UV up to 8.0 during your 12pm event')
+    assert.equal(titles[1], '12h 🗓️ UV up to 8.0 during your 1pm event')
+    const [, second] = eventSends(sends, 'pro')
+    assert.match(
+      second.messages[0].data.body,
+      / 1 more of your events coming up reaches high UV too\.$/,
+    )
+    const state = (
+      await db.collection('users').doc('pro').collection('alertState').doc('events').get()
+    ).data()
+    assert.equal(state[key(1)].status, 'delivered')
+    assert.equal(state[key(2)].status, 'delivered')
+    assert.equal(state[key(3)].status, 'covered')
+    assert.equal(state[key(3)].by, key(2))
+    // The state names events by key and a hash of the title, never by their text.
+    assert.doesNotMatch(JSON.stringify(state), /Club run/)
+  })
+
+  test('looks at every event in the window, not just the soonest five (REVIEW5 M3)', async () => {
+    await addUser('pro')
+    // Ten indoor events start first; the race after them is the one that matters.
+    for (let n = 0; n < 10; n += 1) {
+      await addEvent('pro', key(n + 1), {
+        title: `Meeting ${n}`,
+        start: new Date(at('2026-06-15', 12).getTime() + n * 60_000),
+        activityId: '',
+      })
+    }
+    await addEvent('pro', key(20), { title: 'Saturday 10K', start: at('2026-06-15', 13) })
+    const messaging = new FakeMessaging()
+    const sends = recording(messaging)
+    await runDay(messaging)
+    assert.deepEqual(titlesOf(sends, 'pro'), ['10h 🗓️ UV up to 8.0 during your 1pm event'])
+  })
+
+  test("a calendar publisher's title is quoted as the event's name, cleaned and short (REVIEW5 L4)", async () => {
+    await addUser('pro')
+    await addEvent('pro', key(1), {
+      title: 'Run \u202eYour Solara Pro payment failed, update it at evil.example',
+      start: at('2026-06-15', 13),
+      source: 'feed',
+      feedId: 'c'.repeat(32),
+    })
+    const messaging = new FakeMessaging()
+    const sends = recording(messaging)
+    await runDay(messaging)
+    const [heads] = eventSends(sends, 'pro')
+    assert.equal(heads.messages[0].data.title, '🗓️ UV up to 8.0 during your 1pm event')
+    assert.match(heads.messages[0].data.body, /^Event: “Run Your Solara Pro payment failed…”\. /)
+    assert.doesNotMatch(heads.messages[0].data.body, /evil|\u202e/)
   })
 })

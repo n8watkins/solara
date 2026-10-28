@@ -26,12 +26,15 @@
 // from there. Tokens FCM reports as invalid are removed with their device.
 //
 // Event heads-ups (docs/integrations/EVENTS.md, phase 2; with EVENTS_SUBSCRIPTIONS_ENABLED):
-// when no morning or UV alert goes out for an account in a run, its imported and linked
-// events starting in the next hours are checked, and one whose peak UV at its place is
-// high gets a heads-up a few hours before it (packages/core/src/event-heads-up.ts), once
-// per event, claimed in `users/{uid}/alertState/events`. Their forecasts come through the
-// shared cache within the global upstream budget and the account's own share of it, and
-// a run looks up at most ALERTS_MAX_EVENT_FORECASTS_PER_RUN event places.
+// when no morning or UV alert goes out for an account in a run, every imported and
+// linked event whose heads-up can be due now is checked (packages/core/src/
+// event-heads-up.ts): only events that count as an outdoor activity, each event once
+// however many sources hold a copy, and at most one push per account every 3 hours,
+// naming the soonest high-UV event and counting the others it stands for (REVIEW5 M3).
+// A push is claimed in `users/{uid}/alertState/events` with the events it covers. Their
+// forecasts come through the shared cache within the global upstream budget and the
+// account's own share of it, and a run looks up at most ALERTS_MAX_EVENT_FORECASTS_PER_RUN
+// event places.
 
 import {
   APP_FORECAST_DAYS,
@@ -55,11 +58,18 @@ import {
 } from '#core'
 import {
   EVENT_HEADS_UP,
+  IMPORTED_EVENT_LIMITS,
+  type ImportedEvent,
+  countsAsOutdoorActivity,
   eventHeadsUpDue,
   eventHeadsUpMessage,
+  eventHeadsUpThrottled,
+  eventHeadsUpWindowEnd,
   eventHeadsUpWorthy,
+  eventTitleIdentity,
   eventUV,
   parseImportedEvent,
+  withoutDuplicates,
 } from '#core/event-import'
 import { createHash, randomUUID } from 'node:crypto'
 
@@ -84,8 +94,12 @@ export const ALERTS_MAX_USERS_PER_RUN = 2000
 export const ALERTS_MAX_FORECASTS_PER_RUN = 400
 /** Most event places one run looks up a forecast for (each may cost an upstream call). */
 export const ALERTS_MAX_EVENT_FORECASTS_PER_RUN = 200
-/** Most upcoming events read per account and run for heads-ups. */
-export const EVENT_HEADS_UP_EVENTS_PER_ACCOUNT = 5
+/**
+ * Most upcoming events read per account and run for heads-ups: every event an account
+ * can hold (REVIEW5 M3), though a run reads only those whose heads-up can be due now
+ * (usually the next 3 hours, `eventHeadsUpWindowEnd`).
+ */
+export const EVENT_HEADS_UP_EVENTS_PER_ACCOUNT = IMPORTED_EVENT_LIMITS.maxStored
 /** Heads-ups an account keeps a record of; older ones are dropped from its state. */
 const EVENT_STATE_MAX_ENTRIES = 50
 export const ALERTS_CONCURRENCY = 10
@@ -370,7 +384,6 @@ async function claim(
   kind: string,
   day: string,
   now: number,
-  { maxEntries }: { maxEntries?: number } = {},
 ): Promise<{ attemptId: string } | null> {
   return db.runTransaction(async transaction => {
     const snapshot = await transaction.get(stateRef)
@@ -380,16 +393,13 @@ async function claim(
     const attempts =
       prior?.day === day && typeof prior.attempts === 'number' ? prior.attempts + 1 : 1
     const attemptId = randomUUID()
-    // A state with one field per item (event heads-ups) drops its oldest entries.
-    const dropped = maxEntries ? oldestEntries(state, maxEntries - 1) : []
     transaction.set(
       stateRef,
       {
         [kind]: { day, status: 'claimed', attemptId, attempts, claimedAt: new Date(now) },
         expireAt: expiresAfter(RETENTION_DAYS.alertState, new Date(now)),
-        ...Object.fromEntries(dropped.map(field => [field, FieldValue.delete()])),
       },
-      { mergeFields: [kind, 'expireAt', ...dropped] },
+      { mergeFields: [kind, 'expireAt'] },
     )
     return { attemptId }
   })
@@ -400,14 +410,7 @@ function oldestEntries(state: DocumentData | undefined, keep: number): string[] 
   const entries = Object.entries(state ?? {})
     .filter(([field, value]) => field !== 'expireAt' && value && typeof value === 'object')
     .map(([field, value]) => {
-      const claimedAt = (value as { claimedAt?: { toMillis?: () => number } | Date }).claimedAt
-      const at =
-        claimedAt instanceof Date
-          ? claimedAt.getTime()
-          : typeof claimedAt?.toMillis === 'function'
-            ? claimedAt.toMillis()
-            : 0
-      return { field, at }
+      return { field, at: millis((value as EventEntry).claimedAt) ?? 0 }
     })
     .sort((a, b) => b.at - a.at)
   return entries.slice(Math.max(0, keep)).map(entry => entry.field)
@@ -420,11 +423,18 @@ async function finish(
   attemptId: string,
   outcome: { status: 'delivered' | 'failed' | 'unknown'; delivered: number; error?: string },
   now: number,
+  covered: readonly string[] = [],
 ): Promise<void> {
   await db.runTransaction(async transaction => {
     const snapshot = await transaction.get(stateRef)
-    const current = snapshot.data()?.[kind] as (KindState & { attemptId?: unknown }) | undefined
+    const state = snapshot.data()
+    const current = state?.[kind] as (KindState & { attemptId?: unknown }) | undefined
     if (current?.attemptId !== attemptId) return
+    // Nothing reached the person: the events this push stood for may get their own.
+    const released =
+      outcome.status === 'failed'
+        ? covered.filter(field => (state?.[field] as { by?: unknown } | undefined)?.by === kind)
+        : []
     transaction.set(
       stateRef,
       {
@@ -435,8 +445,9 @@ async function finish(
           finishedAt: new Date(now),
           ...(outcome.error ? { error: outcome.error.slice(0, 200) } : {}),
         },
+        ...Object.fromEntries(released.map(field => [field, FieldValue.delete()])),
       },
-      { mergeFields: [kind] },
+      { mergeFields: [kind, ...released] },
     )
   })
 }
@@ -476,7 +487,11 @@ function messageFor(
   }
 }
 
-/** Sends one alert to every device and records the outcome. */
+/**
+ * Sends one alert to every device and records the outcome. `claimWith` replaces the
+ * daily claim (event heads-ups claim with the events they cover); `covered` are those
+ * events' fields, released again when the send failed for certain.
+ */
 async function deliver(
   run: Run,
   stateRef: DocumentReference,
@@ -484,12 +499,12 @@ async function deliver(
   devices: Device[],
   delivery: Delivery,
   alert: AlertMessage,
+  claimWith?: () => Promise<{ attemptId: string } | null>,
+  covered: readonly string[] = [],
 ): Promise<AlertOutcome> {
   const { db, messaging, appUrl } = run.deps
   const { kind, field, day } = delivery
-  const claimed = await claim(db, stateRef, field, day, run.now(), {
-    ...(kind === 'event' ? { maxEntries: EVENT_STATE_MAX_ENTRIES } : {}),
-  })
+  const claimed = await (claimWith ?? (() => claim(db, stateRef, field, day, run.now())))()
   if (!claimed) return 'claim-lost'
 
   let response: BatchResponse
@@ -507,6 +522,7 @@ async function deliver(
       claimed.attemptId,
       { status: 'unknown', delivered: 0, error: String((error as Error)?.message ?? error) },
       run.now(),
+      covered,
     )
     return 'unknown'
   }
@@ -546,6 +562,7 @@ async function deliver(
       ...(codes.length ? { error: codes.map(String).join(',') } : {}),
     },
     run.now(),
+    covered,
   )
   if (status === 'delivered') {
     run.sent[kind] = (run.sent[kind] ?? 0) + 1
@@ -669,9 +686,131 @@ export function eventDeliveryKey(eventKey: string): string {
   return `event-v1:${eventKey}`
 }
 
+/** What the events state records of each heads-up, beyond `claim`'s fields. */
+interface EventEntry extends KindState {
+  claimedAt?: { toMillis?: () => number } | Date
+  /** A hash of the title as people read it (`eventTitleIdentity`), never the title. */
+  same?: unknown
+  startMs?: unknown
+}
+
+function millis(value: EventEntry['claimedAt']): number | null {
+  if (value instanceof Date) return value.getTime()
+  return typeof value?.toMillis === 'function' ? value.toMillis() : null
+}
+
+/** A short hash of an event's title identity, so the state holds no event text. */
+function titleHash(title: string): string {
+  return createHash('sha256').update(eventTitleIdentity(title)).digest('base64url').slice(0, 16)
+}
+
+function eventEntries(state: DocumentData | undefined): [string, EventEntry][] {
+  return Object.entries(state ?? {}).filter(
+    (entry): entry is [string, EventEntry] =>
+      entry[0] !== 'expireAt' && !!entry[1] && typeof entry[1] === 'object',
+  )
+}
+
+/** When the account's last heads-up went out (or may have): a push not known to have failed. */
+function lastHeadsUpAt(state: DocumentData | undefined): number | null {
+  let last: number | null = null
+  for (const [, entry] of eventEntries(state)) {
+    if (entry.status === 'failed' || entry.status === 'covered') continue
+    const at = millis(entry.claimedAt)
+    if (at !== null && (last === null || at > last)) last = at
+  }
+  return last
+}
+
 /**
- * A heads-up before the account's next high-UV event, when one is due; null when none
- * is (so the account's outcome stays what the daily alerts said).
+ * Whether the state already has a heads-up (sent, being sent, or covered by another)
+ * for this event or a copy of it under another key: another source, or a calendar
+ * linked again (REVIEW5 M3).
+ */
+function alreadyHeard(
+  state: DocumentData | undefined,
+  item: { key: string; title: string; startMs: number },
+): boolean {
+  const same = titleHash(item.title)
+  return eventEntries(state).some(([field, entry]) => {
+    if (field === item.key) return !canSend(state, field as AlertKind, field)
+    return (
+      entry.status !== 'failed' &&
+      entry.same === same &&
+      typeof entry.startMs === 'number' &&
+      Math.abs(entry.startMs - item.startMs) <= EVENT_HEADS_UP.duplicateMinutes * 60_000
+    )
+  })
+}
+
+/**
+ * Claims one heads-up for `primary` and marks the other due events it stands for as
+ * covered, unless the account's state shows a heads-up in the last few hours or one for
+ * the same event (two overlapping runs, or a copy). Null when the claim is lost.
+ */
+async function claimHeadsUp(
+  db: Firestore,
+  stateRef: DocumentReference,
+  primary: DueEvent,
+  covered: readonly DueEvent[],
+  now: number,
+): Promise<{ attemptId: string } | null> {
+  return db.runTransaction(async transaction => {
+    const state = (await transaction.get(stateRef)).data()
+    if (eventHeadsUpThrottled(lastHeadsUpAt(state), now) || alreadyHeard(state, primary)) {
+      return null
+    }
+    const prior = state?.[primary.key] as KindState | undefined
+    const attempts =
+      prior?.day === primary.key && typeof prior.attempts === 'number' ? prior.attempts + 1 : 1
+    const attemptId = randomUUID()
+    const claimedAt = new Date(now)
+    const record = (item: DueEvent) => ({ same: titleHash(item.title), startMs: item.startMs })
+    const fields: Record<string, unknown> = {
+      [primary.key]: {
+        day: primary.key,
+        status: 'claimed',
+        attemptId,
+        attempts,
+        claimedAt,
+        ...record(primary),
+      },
+    }
+    for (const item of covered) {
+      fields[item.key] = {
+        day: item.key,
+        status: 'covered',
+        by: primary.key,
+        claimedAt,
+        ...record(item),
+      }
+    }
+    // One field per event: the oldest entries beyond EVENT_STATE_MAX_ENTRIES are dropped.
+    const written = Object.keys(fields)
+    const dropped = oldestEntries(state, EVENT_STATE_MAX_ENTRIES - written.length).filter(
+      field => !written.includes(field),
+    )
+    transaction.set(
+      stateRef,
+      {
+        ...fields,
+        expireAt: expiresAfter(RETENTION_DAYS.alertState, claimedAt),
+        ...Object.fromEntries(dropped.map(field => [field, FieldValue.delete()])),
+      },
+      { mergeFields: [...written, 'expireAt', ...dropped] },
+    )
+    return { attemptId }
+  })
+}
+
+/** An upcoming event whose heads-up is due now. */
+interface DueEvent extends ImportedEvent {
+  startMs: number
+}
+
+/**
+ * A heads-up before the account's soonest high-UV outdoor event, when one is due; null
+ * when none is (so the account's outcome stays what the daily alerts said).
  */
 async function eventHeadsUp(
   run: Run,
@@ -687,9 +826,18 @@ async function eventHeadsUp(
   const now = run.now()
   const local = localTime(new Date(now), timeZone)
   if (!local || inQuietHours(local.hour, quiet)) return null
+  // Only events that count as one of the person's (outdoor) activities get one.
+  const { activities } = parsePlanningPreferences(user)
+  if (activities.length === 0) return null
 
+  // The state first: an account that had a heads-up in the last few hours reads nothing more.
+  const stateRef = doc.ref.collection(ALERT_STATE_COLLECTION).doc(EVENT_ALERT_STATE_DOC)
+  const state = (await stateRef.get()).data()
+  if (eventHeadsUpThrottled(lastHeadsUpAt(state), now)) return null
+
+  // Every event whose heads-up can be due now, not just the soonest few.
   const from = new Date(now + EVENT_HEADS_UP.latestMinutes * 60_000).toISOString()
-  const to = new Date(now + EVENT_HEADS_UP.lookaheadHours * 3_600_000).toISOString()
+  const to = new Date(eventHeadsUpWindowEnd(now, timeZone, quiet)).toISOString()
   const snapshot = await doc.ref
     .collection('events')
     .where('start', '>', from)
@@ -697,35 +845,37 @@ async function eventHeadsUp(
     .orderBy('start')
     .limit(EVENT_HEADS_UP_EVENTS_PER_ACCOUNT)
     .get()
-  const due = snapshot.docs.flatMap(event => {
-    const item = parseImportedEvent(event.data())
-    if (!item || item.key !== event.id) return []
-    const startMs = Date.parse(item.start)
-    return eventHeadsUpDue({ startMs, nowMs: now, timeZone, quiet }) ? [item] : []
-  })
-  if (due.length === 0) return null
-
-  const stateRef = doc.ref.collection(ALERT_STATE_COLLECTION).doc(EVENT_ALERT_STATE_DOC)
-  const state = (await stateRef.get()).data()
-  const open = due.filter(item => canSend(state, item.key as AlertKind, item.key))
+  const due = withoutDuplicates(
+    snapshot.docs.flatMap(event => {
+      const item = parseImportedEvent(event.data())
+      if (!item || item.key !== event.id || !countsAsOutdoorActivity(item, activities)) return []
+      const startMs = Date.parse(item.start)
+      return eventHeadsUpDue({ startMs, nowMs: now, timeZone, quiet }) ? [{ ...item, startMs }] : []
+    }),
+  )
+  const open = due.filter(item => !alreadyHeard(state, item))
   if (open.length === 0) return null
 
   const devices = await readDevices()
   if (devices.length === 0) return 'no-devices'
 
-  const { activities } = parsePlanningPreferences(user)
+  // The UV at each one, soonest first; the push names the soonest high one.
+  const worthy: { item: DueEvent; zone: string; peakUV: number; peakAt: number }[] = []
+  let limited = false
   for (const item of open) {
     const lookup = run.eventForecast(item.lat, item.lon, doc.id)
-    if (lookup === 'limit') return 'forecast-limit'
+    if (lookup === 'limit') {
+      limited = true
+      break
+    }
     const forecast = lookup ? await lookup : null
     if (!forecast) continue
     const zone = forecast.timezone || item.timeZone
     const today = localTime(new Date(now), zone)?.date
     if (!today) continue
     const activity = activities.find(entry => entry.id === item.activityId)
-    const startMs = Date.parse(item.start)
     const uv = eventUV({
-      start: startMs,
+      start: item.startMs,
       end: Date.parse(item.end),
       timeZone: zone,
       hoursOn: date => {
@@ -742,27 +892,40 @@ async function eventHeadsUp(
           }
         : {},
     })
-    if (uv.kind !== 'forecast' || !eventHeadsUpWorthy(uv.peakUV)) continue
-    const alert = eventHeadsUpMessage({
-      title: item.title,
-      placeLabel: item.placeLabel,
-      startMs,
-      timeZone: zone,
-      peakUV: uv.peakUV,
-      peakAtMs: uv.peakAt,
-      nowMs: now,
-      clock: clockOf(user),
-    })
-    return deliver(
-      run,
-      stateRef,
-      doc.id,
-      devices,
-      { kind: 'event', field: item.key, day: item.key, key: eventDeliveryKey(item.key) },
-      alert,
-    )
+    if (uv.kind === 'forecast' && eventHeadsUpWorthy(uv.peakUV)) {
+      worthy.push({ item, zone, peakUV: uv.peakUV, peakAt: uv.peakAt })
+    }
   }
-  return null
+  const [first, ...others] = worthy
+  if (!first) return limited ? 'forecast-limit' : null
+
+  const alert = eventHeadsUpMessage({
+    title: first.item.title,
+    placeLabel: first.item.placeLabel,
+    startMs: first.item.startMs,
+    timeZone: first.zone,
+    peakUV: first.peakUV,
+    peakAtMs: first.peakAt,
+    nowMs: now,
+    clock: clockOf(user),
+    more: others.length,
+  })
+  const covered = others.map(other => other.item)
+  return deliver(
+    run,
+    stateRef,
+    doc.id,
+    devices,
+    {
+      kind: 'event',
+      field: first.item.key,
+      day: first.item.key,
+      key: eventDeliveryKey(first.item.key),
+    },
+    alert,
+    () => claimHeadsUp(run.deps.db, stateRef, first.item, covered, run.now()),
+    covered.map(item => item.key),
+  )
 }
 
 async function mapLimit<T>(
