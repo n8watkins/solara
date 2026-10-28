@@ -6,7 +6,12 @@ const { beforeEach, describe, test } = require('node:test')
 const assert = require('node:assert/strict')
 
 const { openMeteoFree } = require('../core/index.js')
-const { CallerShare } = require('../lib/forecast/caller-share')
+const {
+  BROWSER_SHARE_OF_UPSTREAM,
+  CallerShare,
+  browserUpstreamLimits,
+  shareScopes,
+} = require('../lib/forecast/caller-share')
 const { commercialProvider, feedForecastProvider } = require('../lib/forecast/config')
 const { forecastHandler, placeSearchHandler } = require('../lib/forecast/endpoints')
 const { PlaceSearchCache } = require('../lib/forecast/place-search')
@@ -51,8 +56,14 @@ function upstream() {
 }
 
 /** The deployed forecast stack (functions/src/forecast/functions.ts) on a fake Firestore. */
-function forecastStack({ db = fakeFirestore(), clock, net = upstream(), perHour = 1500 } = {}) {
-  const budget = new UpstreamBudget({ db, limits: () => ({ perHour, perDay: 20000 }), now: clock })
+function forecastStack({
+  db = fakeFirestore(),
+  clock,
+  net = upstream(),
+  perHour = 1500,
+  limits = () => ({ perHour, perDay: 20000 }),
+} = {}) {
+  const budget = new UpstreamBudget({ db, limits, now: clock })
   const cache = new ForecastCache({
     db,
     provider: () => commercialProvider('k'),
@@ -163,12 +174,15 @@ describe('fair forecast budget (REVIEW4 H1)', () => {
       if ((await call(endpoint(stack), '203.0.113.66', cell(i))).code === 200) ok += 1
     }
     assert.equal(ok, 20)
+    // One counter for the address and one for its /24 (REVIEW5 L1).
     const ids = [...db.docs.keys()].filter(id => id.includes('caller-'))
-    assert.equal(ids.length, 1)
-    assert.match(ids[0], /^forecastUpstream\/caller-forecast-2026-10-27T14-[0-9a-f]{32}$/)
+    assert.equal(ids.length, 2)
+    for (const id of ids) {
+      assert.match(id, /^forecastUpstream\/caller-forecast-2026-10-27T14-[0-9a-f]{32}$/)
+      assert.equal(db.docs.get(id).count, 20)
+      assert.ok(db.docs.get(id).expireAt instanceof Date)
+    }
     assert.doesNotMatch(ids.join(), /203/)
-    assert.equal(db.docs.get(ids[0]).count, 20)
-    assert.ok(db.docs.get(ids[0]).expireAt instanceof Date)
   })
 
   test('an IPv6 /48 gets four shares in all, however many /64s it uses', async () => {
@@ -230,6 +244,70 @@ describe('fair forecast budget (REVIEW4 H1)', () => {
     const share = new CallerShare({ db, scope: 'forecast', perHour: () => 20, now: clock })
     assert.equal(await share.take(addressScopes('203.0.113.66')), false)
     assert.ok(logs.entries.some(entry => entry.message === 'caller share could not be read'))
+  })
+})
+
+describe('networks and the reserve (REVIEW5 L1)', () => {
+  let t
+  const clock = () => t
+  beforeEach(() => {
+    t = T0
+  })
+
+  test('an IPv4 address also counts against its /24 at four shares', () => {
+    assert.deepEqual(shareScopes(addressScopes('203.0.113.9')), [
+      { key: '203.0.113.9', weight: 1 },
+      { key: '203.0.113.0/24', weight: 4 },
+    ])
+    assert.deepEqual(shareScopes(addressScopes('::ffff:203.0.113.9')).at(-1), {
+      key: '203.0.113.0/24',
+      weight: 4,
+    })
+    // IPv6 (already /64 and /48) and accounts are unchanged.
+    assert.deepEqual(shareScopes(addressScopes('2001:db8:1:2::9')), addressScopes('2001:db8:1:2::9'))
+    assert.deepEqual(shareScopes([{ key: 'uid:abc', weight: 1 }]), [{ key: 'uid:abc', weight: 1 }])
+  })
+
+  test('75 addresses of one network get 80 upstream calls, not the hour', async () => {
+    // The review's probe: 75 IPv4 addresses x 20 new cells spent all 1,500 calls.
+    const stack = forecastStack({ clock })
+    let fresh = 0
+    let n = 0
+    for (let a = 0; a < 75; a += 1) {
+      const handler = endpoint(stack)
+      for (let i = 0; i < 20; i += 1, n += 1) {
+        if ((await call(handler, `192.0.2.${a}`, cell(n))).code === 200) fresh += 1
+      }
+    }
+    assert.equal(fresh, 80)
+    assert.equal(stack.net.calls, 80)
+    const res = await call(endpoint(stack), '198.51.100.20', LOS_ANGELES)
+    assert.equal(res.code, 200)
+    assert.equal(res.body.stale, undefined)
+  })
+
+  test('callers in many networks spend only the browser part; the feed and heads-ups keep the rest', async () => {
+    const db = fakeFirestore()
+    const limits = () => ({ perHour: 1500, perDay: 20000 })
+    const stack = forecastStack({ db, clock, limits: () => browserUpstreamLimits(limits()) })
+    assert.deepEqual(browserUpstreamLimits(limits()), { perHour: 1000, perDay: 13333 })
+    assert.equal(BROWSER_SHARE_OF_UPSTREAM, 2 / 3)
+    let fresh = 0
+    let n = 0
+    // 100 addresses, each in its own /24, 20 new cells each: 2,000 asks.
+    for (let a = 0; a < 100; a += 1) {
+      const handler = endpoint(stack)
+      for (let i = 0; i < 20; i += 1, n += 1) {
+        if ((await call(handler, `10.${a}.7.1`, cell(n))).code === 200) fresh += 1
+      }
+    }
+    assert.equal(fresh, 1000)
+    // The server's own budget (the feed's and the heads-ups', the same counters at the
+    // full limits) still has the last 500 calls of the hour.
+    const server = new UpstreamBudget({ db, limits, now: clock })
+    let granted = 0
+    for (let i = 0; i < 600; i += 1) if (await server.take()) granted += 1
+    assert.equal(granted, 500)
   })
 })
 

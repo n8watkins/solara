@@ -6,7 +6,7 @@ import { onRequest } from 'firebase-functions/v2/https'
 import { browserApi, costGuard } from '../shared/browser-api'
 import { db } from '../shared/firebase'
 import { httpOptions } from '../shared/options'
-import { CallerShare } from './caller-share'
+import { CallerShare, browserUpstreamLimits } from './caller-share'
 import {
   FORECAST_PROXY_ENABLED,
   OPEN_METEO_API_KEY,
@@ -27,7 +27,9 @@ const cache = new ForecastCache({
   db,
   provider: () => commercialProvider(),
   upstreamAllowed: async () => !(await costGuard.engaged()),
-  upstreamBudget: new UpstreamBudget({ db, limits: upstreamLimits }),
+  // The same counters as the feed's and the heads-ups' budget, but only two thirds of
+  // them: a flood of browser callers cannot take the rest (REVIEW5 L1, caller-share.ts).
+  upstreamBudget: new UpstreamBudget({ db, limits: () => browserUpstreamLimits(upstreamLimits()) }),
 })
 
 // Guests call it too, so there is no ID token: App Check and the per-address limit
