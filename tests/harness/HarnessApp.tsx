@@ -13,6 +13,8 @@
 //            (see scheduled-fixtures.tsx), shown as synced or awaiting reconnect
 //   activities = comma-separated activity ids to keep from the plan (default: all)
 //   (offline: the offline notice shows whenever the browser is offline, as in the app)
+//   (guest plan notice: shows when localStorage holds a record for harness-user, as in
+//   the app after a guest signs in to an existing account; guest-plan-notice.spec.ts)
 //   data   = fixture (default) | live: load the forecast through the app's real data
 //            layer (lib/use-forecast.ts useWeather); specs answer the Open-Meteo
 //            requests with page.route (see data-layer.spec.ts)
@@ -31,6 +33,7 @@ import { UnitsContext } from '@/lib/use-units'
 import { createForecastStore, ForecastStoreProvider, useWeather } from '@/lib/use-forecast'
 import Skeleton from '@/components/Skeleton'
 import OfflineNotice from '@/components/OfflineNotice'
+import GuestPlanNotice from '@/components/GuestPlanNotice'
 import { HARNESS_NOW_MS } from './clock'
 import { HARNESS_MARKER, buildPrefs, buildUser, buildWeather } from './fixtures'
 import { buildGapWeather } from './uv-gap-fixtures'
@@ -161,6 +164,7 @@ function Harness() {
             weather={weather}
             updatedAt={initial.live ? live.updatedAt : HARNESS_NOW_MS - 75 * 60_000}
           />
+          {user && <GuestPlanNotice uid={user.uid} />}
           {initial.live && live.error && (
             <p role="alert" data-testid="weather-error">
               {live.error}

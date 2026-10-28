@@ -21,6 +21,7 @@ import Header from './Header'
 import Skeleton from './Skeleton'
 import {
   CalendarView,
+  GuestPlanNotice,
   InstallPrompt,
   Onboarding,
   preloadDeferred,
@@ -237,6 +238,8 @@ function SignedInApp() {
               Your latest local-morning planning summary is ready.
             </AppNotice>
           )}
+          {/* Keyed by account so a later account never sees the previous one's notice. */}
+          {user && !pending && <GuestPlanNotice key={user.uid} uid={user.uid} />}
           {billingNotice && (
             <AppNotice tone="info" role="status">
               {billingNotice}

@@ -7,6 +7,7 @@ import { loadedFirebase } from './firebase'
 import { clearWeatherCache } from './cache'
 import { clearLocalNotificationState, disableNotifications } from './notifications'
 import { clearGuestData, loadGuestPrefs } from './guest'
+import { clearReplacedGuestPlan, replacedGuestPlan, saveReplacedGuestPlan } from './guest-replaced'
 import { clearLocalPrefs, createAccountPrefs, loadFirestorePrefs, loadLocalPrefs } from './prefs'
 import { ACCOUNT_OWNER_KEY } from './app-routes'
 import type { UserPreferences } from './types'
@@ -37,6 +38,7 @@ function writeOwner(uid: string): void {
 export function clearAccountData(): void {
   clearLocalPrefs()
   clearWeatherCache()
+  clearReplacedGuestPlan()
   try {
     localStorage.removeItem(ACCOUNT_OWNER_KEY)
   } catch {}
@@ -97,7 +99,10 @@ export type AccountLoadResult =
  *
  * Once an account is ready, the guest plan is removed from this browser: it carried
  * over into a new account or gave way to an existing one, and either way no later
- * account on this device may inherit it.
+ * account on this device may inherit it. When it gave way, what it held that the
+ * account does not is recorded for a one-time notice (lib/guest-replaced.ts). The
+ * plan is read, recorded and removed in one synchronous step, so of two loads that
+ * race (the auth listener's and the reload after sign-in) only one records it.
  *
  * `signedIn` is the account document as sign-in read or created it in its
  * `createAccountPrefs` transaction. When it belongs to `uid` it is used as is: reading
@@ -110,7 +115,11 @@ export async function loadAccountPrefs(
   signedIn?: UserPreferences | null,
 ): Promise<AccountLoadResult> {
   const result = await loadOrCreateAccount(uid, signedIn)
-  if (result.status === 'ready') clearGuestData()
+  if (result.status === 'ready') {
+    const replaced = replacedGuestPlan(loadGuestPrefs(), result.prefs)
+    if (replaced) saveReplacedGuestPlan(uid, replaced)
+    clearGuestData()
+  }
   return result
 }
 

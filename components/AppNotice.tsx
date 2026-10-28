@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react'
 import clsx from 'clsx'
 
-const TONES = {
+/** The banner tones, also used by notices with their own layout (GuestPlanNotice). */
+export const NOTICE_TONES = {
   /** Warm notice: sync problems, the morning summary. */
   notice: 'border-notice-border bg-notice text-notice-ink',
   /** Neutral progress: checkout confirmation. */
@@ -19,7 +20,7 @@ export default function AppNotice({
   action,
   children,
 }: {
-  tone: keyof typeof TONES
+  tone: keyof typeof NOTICE_TONES
   /** An emoji or an icon element, shown before the text. */
   icon?: ReactNode
   role?: 'status' | 'alert'
@@ -32,7 +33,7 @@ export default function AppNotice({
       role={role}
       className={clsx(
         'mb-4 flex items-center gap-2.5 rounded-xl border-[0.5px] px-4 py-3 text-[14px]',
-        TONES[tone],
+        NOTICE_TONES[tone],
       )}
     >
       {icon && <span className="flex shrink-0 items-center">{icon}</span>}

@@ -82,6 +82,8 @@ export const LocationPanel = deferred(() => import('./LocationPanel'))
 export const Onboarding = deferred(() => import('./Onboarding'), AccountLoading)
 export const AccountMenu = deferred(() => import('./AccountMenu'))
 export const ProfileSwitcher = deferred(() => import('./ProfileSwitcher'))
+/** After a guest signs in to an existing account: what the guest plan held that was not kept. */
+export const GuestPlanNotice = deferred(() => import('./GuestPlanNotice'))
 /** A signed-in account's scheduled activities; until it arrives, the screens show none. */
 export const AccountScheduled = deferred(() => import('./scheduled/AccountScheduled'))
 
