@@ -25,10 +25,9 @@ const {
 } = require('../lib/billing/webhook')
 const {
   FEED_REQUESTS_PER_MINUTE,
+  FEED_UPSTREAM_PER_HOUR,
   UNKNOWN_FEED_REQUESTS_PER_MINUTE,
-  cachedForecast,
   clearFeedRateLimits,
-  clearForecastCache,
   createCalendarFeedHandler,
   validCoordinates,
   validFeedToken,
@@ -496,7 +495,6 @@ function deletionAuth(db) {
 }
 
 afterEach(() => {
-  clearForecastCache()
   clearUidLimiters()
 })
 
@@ -1441,7 +1439,6 @@ describe('calendar feed security', () => {
 
   afterEach(() => {
     clearFeedRateLimits()
-    clearForecastCache()
   })
 
   function liveFeed(overrides = {}) {
@@ -1481,15 +1478,61 @@ describe('calendar feed security', () => {
     )
   })
 
-  test('caches identical rounded-location forecast requests', async () => {
-    let calls = 0
-    const fetcher = async () => {
-      calls += 1
-      return [{ dateStr: '2026-07-14' }]
+  test('an account that keeps moving gets only a few upstream calls an hour (M3)', async () => {
+    // The review's probe F6: 30 feed requests, each after the account moved, used to
+    // make 30 calls to the paid forecast API. Now the feed reads through the shared
+    // forecast cache, and each feed may cause FEED_UPSTREAM_PER_HOUR calls an hour.
+    const { ForecastCache } = require('../lib/forecast/proxy')
+    const { commercialProvider } = require('../lib/forecast/config')
+    const user = { tier: 'free', activities: [], location: { lat: 10, lon: 20 } }
+    const db = feedDb({
+      feeds: { [feedTokenHash(TOKEN)]: { uid: 'alice' } },
+      users: { alice: user },
+    })
+    const cacheDocs = new Map()
+    const cacheDb = {
+      collection: () => ({
+        doc: id => ({
+          get: async () => ({ data: () => cacheDocs.get(id) }),
+          set: async data => cacheDocs.set(id, data),
+        }),
+      }),
     }
-    await cachedForecast(fetcher, { lat: 47.611, lon: -122.331 }, 7, 1000)
-    await cachedForecast(fetcher, { lat: 47.612, lon: -122.332 }, 7, 1001)
-    assert.equal(calls, 1)
+    let upstream = 0
+    const forecasts = new ForecastCache({
+      db: cacheDb,
+      provider: () => commercialProvider('key'),
+      upstreamAllowed: async () => true,
+      fetchImpl: async () => {
+        upstream += 1
+        return {
+          ok: true,
+          json: async () => ({ hourly: { time: ['2026-10-27T12:00'], uv_index: [3] } }),
+        }
+      },
+    })
+    const handler = createCalendarFeedHandler({
+      buildICS: () => 'ICS',
+      buildSunEvents: () => [],
+      db,
+      fetchForecast: (location, _days, lookup) => forecasts.get(location, lookup),
+    })
+    const statuses = []
+    for (let i = 0; i < 30; i += 1) {
+      user.location = { lat: 10 + i / 10, lon: 20 }
+      const res = responseRecorder()
+      await handler(feedRequest(TOKEN), res)
+      statuses.push(res.statusCode)
+      if (res.statusCode === 503) assert.equal(res.headers['Retry-After'], '900')
+    }
+    assert.equal(upstream, FEED_UPSTREAM_PER_HOUR)
+    assert.deepEqual(statuses.slice(0, FEED_UPSTREAM_PER_HOUR), [200, 200, 200, 200])
+    assert.ok(statuses.slice(FEED_UPSTREAM_PER_HOUR).every(status => status === 503))
+    // One throttled WARNING, not one line per refused request.
+    assert.equal(
+      logs.entries.filter(entry => entry.message === 'calendarFeed forecast unavailable').length,
+      1,
+    )
   })
 
   test('resolves a feed by hashed document id and returns cacheable private ICS', async () => {
@@ -1509,7 +1552,6 @@ describe('calendar feed security', () => {
   test("covers the days the account's plan shows in the app", async () => {
     const requested = {}
     for (const tier of ['free', 'paid', undefined]) {
-      clearForecastCache()
       clearFeedRateLimits()
       const db = feedDb({
         feeds: { [feedTokenHash(TOKEN)]: { uid: 'alice' } },
@@ -1523,7 +1565,7 @@ describe('calendar feed security', () => {
           return []
         },
         db,
-        fetchForecast: async (_lat, _lon, days) => {
+        fetchForecast: async (_location, days) => {
           requested[String(tier)] = days
           return { days }
         },

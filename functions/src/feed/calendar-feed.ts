@@ -4,11 +4,11 @@ import { createHash } from 'node:crypto'
 
 import { type IcsEvent, accountForecastDays } from '#core'
 import type { DocumentData, Firestore } from 'firebase-admin/firestore'
-import { logger } from 'firebase-functions/logger'
 import type { Request, Response } from 'firebase-functions/v2/https'
 
-import { loggableError } from '../shared/errors'
+import { HttpError, loggableError } from '../shared/errors'
 import { clientAddress } from '../shared/http'
+import { ThrottledLog } from '../shared/log-throttle'
 import { FixedWindowLimiter } from '../shared/rate-limit'
 import { feedTokenHash, resolveFeedOwner, validFeedToken } from './tokens'
 
@@ -19,18 +19,26 @@ export interface Coordinates {
   lon: number
 }
 
-export type FetchForecast = (lat: number, lon: number, days: number) => Promise<unknown>
-
-const CACHE_TTL_MS = 10 * 60 * 1000
-const MAX_CACHE_ENTRIES = 100
 /** Calendar apps poll; 15 minutes of client caching matches the forecast cache. */
 const FEED_MAX_AGE_SECONDS = 900
 /** Per-feed budget: generous for calendar apps, tight enough to stop a hammering client. */
 export const FEED_REQUESTS_PER_MINUTE = 30
 /** Per-address budget for tokens that do not resolve, to make enumeration expensive. */
 export const UNKNOWN_FEED_REQUESTS_PER_MINUTE = 20
+/**
+ * Upstream forecast calls one feed may cause per hour per instance (finding M3): enough
+ * for an account that moves a few times, not for one that keeps moving to make the
+ * feed call the paid API on every request. Calls past it serve the cached forecast.
+ */
+export const FEED_UPSTREAM_PER_HOUR = 4
+/** Calendar apps keep their last copy; this is when to ask again after a 503. */
+const UNAVAILABLE_RETRY_SECONDS = 900
 
-const forecastCache = new Map<string, { expiresAt: number; value: unknown }>()
+const feedUpstreamLimiter = new FixedWindowLimiter({
+  limit: FEED_UPSTREAM_PER_HOUR,
+  windowMs: 60 * 60 * 1000,
+})
+const feedLogs = new ThrottledLog()
 const feedLimiter = new FixedWindowLimiter({ limit: FEED_REQUESTS_PER_MINUTE, windowMs: 60_000 })
 const unknownFeedLimiter = new FixedWindowLimiter({
   limit: UNKNOWN_FEED_REQUESTS_PER_MINUTE,
@@ -50,29 +58,6 @@ export function validCoordinates(location: unknown): location is Coordinates {
     value.lon >= -180 &&
     value.lon <= 180
   )
-}
-
-function forecastKey(location: Coordinates, days: number): string {
-  return `${location.lat.toFixed(2)}:${location.lon.toFixed(2)}:${days}`
-}
-
-export async function cachedForecast(
-  fetchForecast: FetchForecast,
-  location: Coordinates,
-  days: number,
-  now = Date.now(),
-): Promise<unknown> {
-  const key = forecastKey(location, days)
-  const cached = forecastCache.get(key)
-  if (cached && cached.expiresAt > now) return cached.value
-
-  const value = await fetchForecast(location.lat, location.lon, days)
-  if (forecastCache.size >= MAX_CACHE_ENTRIES) {
-    const oldest = forecastCache.keys().next()
-    if (!oldest.done) forecastCache.delete(oldest.value)
-  }
-  forecastCache.set(key, { expiresAt: now + CACHE_TTL_MS, value })
-  return value
 }
 
 function setFeedHeaders(res: Response): void {
@@ -112,7 +97,16 @@ export interface CalendarFeedOptions<Forecast> {
   /** While engaged, the feed answers 503 instead of building (shared/cost-guard.ts). */
   costGuard?: { engaged: () => Promise<boolean> }
   db: Firestore
-  fetchForecast: (lat: number, lon: number, days: number) => Promise<Forecast>
+  /**
+   * The account's forecast for `days` days, from the shared forecast cache
+   * (forecast/proxy.ts). `mayFetch` is this feed's own budget for upstream calls; the
+   * cache asks it only when a miss would call upstream.
+   */
+  fetchForecast: (
+    location: Coordinates,
+    days: number,
+    lookup: { mayFetch: () => boolean },
+  ) => Promise<Forecast>
   now?: () => number
 }
 
@@ -157,6 +151,7 @@ export function createCalendarFeedHandler<Forecast>({
         res.status(503).send('Feed paused')
         return
       }
+      const feedKey = feedTokenHash(token)
       const uid = await resolveFeedOwner(db, token)
       const user = uid ? (await db.collection('users').doc(uid).get()).data() : undefined
       if (!user || user.accountDeletionStartedAt) {
@@ -167,11 +162,9 @@ export function createCalendarFeedHandler<Forecast>({
 
       // The feed covers the days the account's plan shows in the app: Free's two, Pro's ten.
       const days = accountForecastDays(user.tier)
+      const mayFetch = () => feedUpstreamLimiter.take(feedKey, now()).allowed
       const events = validCoordinates(user.location)
-        ? buildSunEvents(
-            user,
-            (await cachedForecast(fetchForecast, user.location, days, timestamp)) as Forecast,
-          )
+        ? buildSunEvents(user, await fetchForecast(user.location, days, { mayFetch }))
         : []
       const etag = feedEtag(events)
       res.set('Cache-Control', `private, max-age=${FEED_MAX_AGE_SECONDS}`)
@@ -184,17 +177,25 @@ export function createCalendarFeedHandler<Forecast>({
       else res.status(200).send(buildICS(events))
     } catch (error) {
       // Never log the token or the account's location.
-      logger.error('calendarFeed failed', { error: loggableError(error) })
+      if (error instanceof HttpError && error.code === 'unavailable') {
+        // No forecast could be served (upstream budget or provider); calendar apps keep
+        // their last copy. Expected under abuse, so a throttled WARNING.
+        feedLogs.log('warn', 'unavailable', 'calendarFeed forecast unavailable', {
+          error: loggableError(error),
+        })
+        res.set('Retry-After', String(UNAVAILABLE_RETRY_SECONDS))
+        res.status(503).send('Feed temporarily unavailable')
+        return
+      }
+      feedLogs.log('error', 'failed', 'calendarFeed failed', { error: loggableError(error) })
       res.status(502).send('Could not build feed')
     }
   }
 }
 
-export function clearForecastCache(): void {
-  forecastCache.clear()
-}
-
 export function clearFeedRateLimits(): void {
   feedLimiter.clear()
   unknownFeedLimiter.clear()
+  feedUpstreamLimiter.clear()
+  feedLogs.clear()
 }

@@ -2,12 +2,8 @@ const { describe, test } = require('node:test')
 const assert = require('node:assert/strict')
 
 // The tests run against the compiled output in lib/ (npm test builds it first).
-const {
-  buildSunEvents,
-  clearLastGoodForecasts,
-  fetchForecast,
-  parseSunForecast,
-} = require('../lib/feed/sun')
+const { buildSunEvents, parseSunForecast } = require('../lib/feed/sun')
+const core = require('../core/index.js')
 
 describe('calendar feed windows', () => {
   // UV under 4 until 9am, then high all day.
@@ -66,20 +62,20 @@ describe('calendar feed windows', () => {
     ])
   })
 
-  test('ask the provider for the clear-sky UV too', async () => {
-    clearLastGoodForecasts()
-    let url = ''
-    const fetchImpl = async requested => {
-      url = String(requested)
-      return new Response(
-        JSON.stringify({
-          hourly: { time: ['2026-06-15T09:00'], uv_index: [3], uv_index_clear_sky: [5] },
-        }),
-        { status: 200, headers: { 'content-type': 'application/json' } },
-      )
-    }
-    const days = await fetchForecast(34.05, -118.24, 1, { fetchImpl })
-    assert.equal(new URL(url).searchParams.get('hourly'), 'uv_index,uv_index_clear_sky')
-    assert.deepEqual(days[0].hourly, [{ hour: 9, uv: 3, clearSkyUV: 5 }])
+  test('read the shared app forecast, which carries the clear-sky UV too', () => {
+    // The feed reads the same cached forecast as the app (core.appForecastRequest).
+    assert.ok(core.appForecastRequest(34.05, -118.24).hourly.includes('uv_index_clear_sky'))
+    const response = core.parseOpenMeteoResponse({
+      timezone: 'America/Los_Angeles',
+      current: { uv_index: 3 },
+      hourly: {
+        time: ['2026-06-15T09:00', '2026-06-16T09:00'],
+        uv_index: [3, 4],
+        uv_index_clear_sky: [5, 6],
+        temperature_2m: [20, 21],
+      },
+    })
+    const days = parseSunForecast(response, 1)
+    assert.deepEqual(days, [{ dateStr: '2026-06-15', hourly: [{ hour: 9, uv: 3, clearSkyUV: 5 }] }])
   })
 })

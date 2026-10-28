@@ -53,10 +53,6 @@ function touchesUnknownHours(window: { from: number; to: number }) {
   return window.from < UNKNOWN_TO && window.to > UNKNOWN_FROM
 }
 
-function okJson(body: unknown) {
-  return { ok: true, status: 200, json: async () => body } as unknown as Response
-}
-
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(NOW)
@@ -65,7 +61,6 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers()
   vi.restoreAllMocks()
-  sun.clearLastGoodForecasts()
 })
 
 describe('null UV gaps never produce a recommendation', () => {
@@ -107,9 +102,9 @@ describe('null UV gaps never produce a recommendation', () => {
     expect(parseForecast(raw, { days: 1 }).current.uv).toBe(1)
   })
 
-  it('feed: the calendar feed has no event in the gap', async () => {
-    const fetchImpl = vi.fn(async () => okJson(rawWithGap()))
-    const forecast = await sun.fetchForecast(34, -118, 1, { fetchImpl })
+  it('feed: the calendar feed has no event in the gap', () => {
+    // The feed reads the shared app forecast (functions/src/forecast/proxy.ts).
+    const forecast = sun.parseSunForecast(engine.parseOpenMeteoResponse(rawWithGap()), 1)
     expect(forecast[0].hourly.map((h: { hour: number }) => h.hour)).toEqual([
       6, 7, 8, 9, 15, 16, 17, 18, 19, 20,
     ])

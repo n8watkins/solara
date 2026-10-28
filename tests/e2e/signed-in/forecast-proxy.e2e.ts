@@ -19,10 +19,11 @@ async function upstreamCalls(longitude: string): Promise<Array<Record<string, st
 test('serves the commercial forecast once per place and hour, behind App Check', async ({
   request,
 }) => {
-  // A place no other test asks for, so the cache starts empty.
-  const lat = (Math.floor(Math.random() * 8000) / 100 - 40).toFixed(2)
+  // A place no other test asks for, so the cache starts empty, on the proxy's 0.02
+  // degree grid (even hundredths), so the place it asks upstream for is this one.
+  const lat = ((Math.floor(Math.random() * 4000) * 2) / 100 - 40).toFixed(2)
   const lon = '12.34'
-  // A third decimal the proxy rounds away to its 0.01 degree grid.
+  // A third decimal the proxy rounds away.
   const path = `${FUNCTIONS_PATH}/forecast?lat=${lat}1&lon=${lon}`
 
   const refused = await request.get(path)
@@ -56,6 +57,15 @@ test('serves the commercial forecast once per place and hour, behind App Check',
   expect(cached.status).toBe(200)
   const { fields } = (await cached.json()) as { fields: Record<string, unknown> }
   expect(Object.keys(fields).sort()).toEqual(['expireAt', 'fetchedAt', 'hour', 'payload'])
+
+  // The call was counted in the global upstream budget.
+  const day = new Date().toISOString().slice(0, 10)
+  const budget = await fetch(`${FIRESTORE_API}/forecastUpstream/day-${day}`, {
+    headers: { Authorization: 'Bearer owner' },
+  })
+  expect(budget.status).toBe(200)
+  const counter = (await budget.json()) as { fields: { count: { integerValue: string } } }
+  expect(Number(counter.fields.count.integerValue)).toBeGreaterThanOrEqual(1)
 })
 
 test('refuses a malformed place before calling anyone', async ({ request }) => {
