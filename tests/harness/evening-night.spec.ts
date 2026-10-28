@@ -24,6 +24,8 @@ for (const screen of SCREENS) {
     const readout = page.getByTestId('uv-readout')
     await expect(readout).toContainText(screen.readout)
     await expect(readout).not.toContainText('7.0')
+    // The sunscreen timer arrives once the page is idle; wait so its space is not empty.
+    await expect(page.getByRole('heading', { name: 'Sunscreen timer' })).toBeVisible()
     await captureScreen(page, testInfo, capture, { name: screen.name, fullPage: true })
   })
 }
