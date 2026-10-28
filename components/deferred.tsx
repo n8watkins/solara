@@ -1,15 +1,17 @@
 'use client'
 // Parts of the app that are not on screen when it opens: the dialogs and sheets, the
 // calendar view and the calendar feed card, the location panel, setup and the sign-in
-// screen (a returning visitor never sees them), the UV scale's bands (until opened), and the header's signed-in parts (account menu, profile
-// switcher) and scheduled activities, which a guest never sees. Each loads as its own chunk the first time it
-// renders, so the first load carries only what the opening screen shows. Soon after
-// the page has loaded, preloadDeferred() fetches them all, so opening one is instant;
-// preloadSignedInParts() fetches the signed-in header parts at once.
+// screen (a returning visitor never sees them), the UV scale's bands (until opened), the
+// install prompt, and the header's signed-in parts (account menu, profile switcher)
+// and scheduled activities, which a guest never sees. Each loads as its own
+// chunk the first time it renders, so the first load carries only what the opening
+// screen shows. Soon after the page has loaded, preloadDeferred() fetches them all, so
+// opening one is instant; preloadSignedInParts() fetches the signed-in header parts at once.
 //
 // Import these instead of the modules themselves; each renders nothing (or its
 // fallback) until its chunk has arrived.
 import { useEffect, useState, type ComponentType } from 'react'
+import { installEnvironment, installPromptKind } from '@/lib/install-prompt'
 import { AccountLoading } from './AccountStatus'
 
 type Loader<P> = () => Promise<{ default: ComponentType<P> }>
@@ -77,13 +79,31 @@ export const CalendarView = deferred(() => import('./CalendarView'))
 export const CalendarFeed = deferred(() => import('./CalendarFeed'))
 /** The UV card's cloud and confidence notes, shown on cloudy or far-off days. */
 export const ForecastNotes = deferred(() => import('./dashboard/ForecastNotes'))
-/** Floats over the page once the browser allows installing (lib/install-prompt.ts). */
-export const InstallPrompt = deferred(() => import('./InstallPrompt'))
+const InstallPromptPart = deferred(() => import('./InstallPrompt'))
 export const ActivityModals = deferred(() => import('./dashboard/ActivityModals'))
+/** A scheduled activity's details (change the time, remove it), opened from its card. */
+export const ScheduledDetails = deferred(() => import('./dashboard/ScheduledDetails'))
 export const DayDialog = deferred(() => import('./dashboard/DayDialog'))
 /** The "UV scale" disclosure's bands, once it is opened. */
 export const UVScaleBands = deferred(() => import('./dashboard/UVScaleBands'))
 export const LocationPanel = deferred(() => import('./LocationPanel'))
+
+/**
+ * The "Add to home screen" prompt (components/InstallPrompt.tsx), which floats over the
+ * page once the browser allows installing. It loads once the page has loaded and the
+ * browser is idle, like the preloads below, and only where a prompt can show (not once
+ * installed or dismissed), so none of it is part of the first load. The browser's
+ * install event is kept from start-up (lib/install-prompt.ts), so it is never missed.
+ */
+export function InstallPrompt() {
+  const [ready, setReady] = useState(false)
+  useEffect(
+    () =>
+      installPromptKind(installEnvironment()) ? afterPageLoad(() => setReady(true)) : undefined,
+    [],
+  )
+  return ready ? <InstallPromptPart /> : null
+}
 
 /** Keeps the sunscreen timer's place until it shows, so nothing below it moves. */
 function ReapplyTimerSpace() {
