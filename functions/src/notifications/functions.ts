@@ -47,11 +47,12 @@ export const removeNotificationDevice = onRequest(
 )
 
 // Shares forecastCache/{place} with the forecast proxy, so a place costs at most one
-// upstream call an hour across the app and the alerts.
+// upstream call an hour across the app and the alerts. Not cost-guarded: the alerts'
+// lookups are bounded by the per-run caps (alerts.ts), not by anyone's traffic.
 const forecasts = new ForecastCache({
   db,
   provider: () => commercialProvider(),
-  upstreamAllowed: async () => !(await costGuard.engaged()),
+  upstreamAllowed: async () => true,
 })
 
 /**
@@ -69,9 +70,10 @@ export const alerts = onSchedule(
   },
   async () => {
     if (!ALERTS_ENABLED.value()) return
-    // Alerts are a traffic-driven cost: the cost guard pauses them like the other paths.
-    if (await costGuard.engaged()) {
-      logger.warn('alerts paused by the cost guard')
+    // A guard the budget engaged does not pause the alerts (finding H2): paying customers
+    // keep them while a flood is turned away. Only the owner's pin stops them at once.
+    if (await costGuard.pinnedByOwner()) {
+      logger.warn('alerts paused by the owner (cost guard override)')
       return
     }
     if (!commercialProvider()) {

@@ -7,7 +7,13 @@ const assert = require('node:assert/strict')
 const { authenticate, clearUidLimiters, uidLimiter } = require('../lib/shared/auth')
 const { CostGuard, guardEngaged } = require('../lib/shared/cost-guard')
 const { createApiHandler } = require('../lib/shared/http')
-const { cloudBillingDisabler, parseBudgetNotification } = require('../lib/ops/budget')
+const {
+  budgetServiceAccount,
+  cloudBillingDisabler,
+  fromExpectedBudget,
+  nextBudgetPeriodStart,
+  parseBudgetNotification,
+} = require('../lib/ops/budget')
 const { runMaintenance } = require('../lib/ops/maintenance')
 const { createCalendarFeedHandler, clearFeedRateLimits } = require('../lib/feed/calendar-feed')
 const { captureLogs } = require('./support/logs')
@@ -104,6 +110,8 @@ describe('deployed runtime ceilings', () => {
     assert.equal(budgetAlert.__endpoint.maxInstances, 1)
     assert.equal(budgetAlert.__endpoint.eventTrigger.retry, false)
     assert.equal(budgetAlert.__endpoint.eventTrigger.eventFilters.topic, 'budget-alerts')
+    // The default identity until BUDGET_SERVICE_ACCOUNT names one.
+    assert.notEqual(typeof budgetAlert.__endpoint.serviceAccountEmail, 'string')
   })
 
   test("stays within Cloud Scheduler's three free jobs: maintenance and alerts", () => {
@@ -239,6 +247,37 @@ describe('cost guard', () => {
     assert.equal(guardEngaged({ engaged: true, override: 'auto' }), true)
   })
 
+  test('a guard the budget engaged ends at the next budget period (H2)', () => {
+    const until = new Date('2026-12-01T07:00:00Z')
+    const state = { engaged: true, reason: 'budget', engagedUntil: until }
+    assert.equal(guardEngaged(state, until.getTime() - 1), true)
+    assert.equal(guardEngaged(state, until.getTime()), false)
+    // A Firestore Timestamp works the same.
+    const stamp = { ...state, engagedUntil: { toMillis: () => until.getTime() } }
+    assert.equal(guardEngaged(stamp, until.getTime()), false)
+    // The owner's pin and a guard engaged by hand do not expire.
+    assert.equal(guardEngaged({ ...state, override: 'engaged' }, until.getTime() + 1), true)
+    assert.equal(guardEngaged({ ...state, reason: 'manual' }, until.getTime() + 1), true)
+    assert.equal(nextBudgetPeriodStart('2026-11-01T07:00:00Z').toISOString(), until.toISOString())
+    assert.equal(nextBudgetPeriodStart('not a date'), null)
+  })
+
+  test('only the owner pin, never the budget, pauses the scheduled Pro alerts (H2)', async () => {
+    const { pinnedByOwner } = require('../lib/shared/cost-guard')
+    assert.equal(pinnedByOwner({ engaged: true, reason: 'budget' }), false)
+    assert.equal(pinnedByOwner({ override: 'engaged' }), true)
+    assert.equal(pinnedByOwner(undefined), false)
+    const guard = new CostGuard(fakeDb({ engaged: true, reason: 'budget' }))
+    assert.equal(await guard.engaged(), true)
+    assert.equal(await guard.pinnedByOwner(), false)
+    const source = require('node:fs').readFileSync(
+      require.resolve('../lib/notifications/functions.js'),
+      'utf8',
+    )
+    assert.doesNotMatch(source, /costGuard\.engaged/)
+    assert.match(source, /costGuard\.pinnedByOwner/)
+  })
+
   test('reads the switch at most once a minute per instance', async () => {
     let now = 0
     const db = fakeDb({ engaged: true })
@@ -303,6 +342,28 @@ describe('budget kill switch', () => {
     assert.equal(parseBudgetNotification({ ...sample, budgetAmount: 0 }), null)
     assert.equal(parseBudgetNotification({ ...sample, costAmount: '5' }), null)
     assert.equal(parseBudgetNotification({ ...sample, costIntervalStart: undefined }), null)
+  })
+
+  test('acts only on the budget BUDGET_ID names (L2)', () => {
+    const attributes = { billingAccountId: '01D4EE-079462-DFD6EC', budgetId: 'de72f49d-779b' }
+    assert.equal(fromExpectedBudget(attributes, 'de72f49d-779b'), true)
+    assert.equal(
+      fromExpectedBudget(attributes, 'billingAccounts/01D4EE-079462-DFD6EC/budgets/de72f49d-779b'),
+      true,
+    )
+    assert.equal(fromExpectedBudget({ ...attributes, budgetId: 'other' }, 'de72f49d-779b'), false)
+    assert.equal(fromExpectedBudget(undefined, 'de72f49d-779b'), false)
+    // Unset: every budget, as before the param existed.
+    assert.equal(fromExpectedBudget(undefined, ''), true)
+  })
+
+  test('runs as its own identity when BUDGET_SERVICE_ACCOUNT names one (L2)', () => {
+    assert.equal(budgetServiceAccount({}), undefined)
+    assert.equal(budgetServiceAccount({ BUDGET_SERVICE_ACCOUNT: '  ' }), undefined)
+    assert.equal(
+      budgetServiceAccount({ BUDGET_SERVICE_ACCOUNT: 'solara-budget@p.iam.gserviceaccount.com' }),
+      'solara-budget@p.iam.gserviceaccount.com',
+    )
   })
 
   test('detaches billing with one PUT that removes the billing account', async () => {
