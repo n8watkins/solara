@@ -212,6 +212,11 @@ export function cityPage(slug: string): CityPage | null {
   }
 }
 
+/** The page's title. */
+export function cityTitle(page: CityPage): string {
+  return `UV index in ${page.city.name} by month | Solara`
+}
+
 /** The page's meta description: unique per city, under about 160 characters. */
 export function cityDescription(page: CityPage): string {
   return `Typical UV index in ${page.place} by month: UV peaks around ${formatUV(page.top.peak)} in ${page.top.month}. See when UV is 3 or more and today's forecast.`

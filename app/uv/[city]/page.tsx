@@ -9,13 +9,16 @@ import {
   cityDescription,
   cityPage,
   cityPath,
+  cityTitle,
   hourText,
 } from '@/lib/city-pages'
+import { cityStructuredData, jsonLd } from '@/lib/structured-data'
 import { formatUV, uvBandColor } from '@/lib/weather'
 
 // One city's typical UV by month, built at export time from the checked-in data in
 // lib/cities/. Static HTML and CSS only: scripts/static-pages.mjs strips the
-// framework scripts, so a visitor from search downloads no JavaScript here.
+// framework scripts, so a visitor from search downloads no JavaScript here; the only
+// inline script is the page's structured data (JSON-LD), which is not code.
 
 export const dynamicParams = false
 
@@ -28,11 +31,7 @@ type Props = { params: Promise<{ city: string }> }
 export async function generateMetadata({ params }: Props) {
   const page = cityPage((await params).city)
   if (!page) return {}
-  return cityMetadata(
-    `UV index in ${page.city.name} by month | Solara`,
-    cityDescription(page),
-    cityPath(page.city.slug),
-  )
+  return cityMetadata(cityTitle(page), cityDescription(page), cityPath(page.city.slug))
 }
 
 /** The chart's scale: UV 12 fills the bar area (Extreme starts at 11). */
@@ -48,6 +47,12 @@ export default async function CityUVPage({ params }: Props) {
 
   return (
     <CityShell appHref={appHref}>
+      {/* Kept by scripts/static-pages.mjs (data-static) and hashed by scripts/csp.mjs. */}
+      <script
+        type="application/ld+json"
+        data-static=""
+        dangerouslySetInnerHTML={{ __html: jsonLd(cityStructuredData(page)) }}
+      />
       <nav aria-label="Breadcrumb" className="text-[13px] text-ink-3">
         <Link href="/uv/" className="text-inherit underline">
           UV by city

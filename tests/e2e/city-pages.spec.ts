@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { expect, test } from '@playwright/test'
 
 // The city pages (app/uv/) on the export that ships: static HTML with no framework
@@ -86,4 +87,24 @@ test('a city page follows an OS theme change while open', async ({ page }) => {
   await expect(root).toHaveClass(/\bdark\b/)
   await page.emulateMedia({ colorScheme: 'light' })
   await expect(root).not.toHaveClass(/\bdark\b/)
+})
+
+test('a city page carries structured data that its CSP allows', async ({ page }) => {
+  const violations: string[] = []
+  page.on('console', message => {
+    if (/Content Security Policy/i.test(message.text())) violations.push(message.text())
+  })
+  const response = await page.goto('/uv/los-angeles/')
+  const html = (await response?.text()) ?? ''
+  const body = /<script type="application\/ld\+json"[^>]*>([^<]*)<\/script>/.exec(html)?.[1]
+  expect(body, 'the page has a JSON-LD script').toBeTruthy()
+  const data = JSON.parse(body!) as { '@graph': { '@type': string; about?: { name: string } }[] }
+  expect(data['@graph'].map(node => node['@type'])).toEqual(['WebPage', 'BreadcrumbList'])
+  expect(data['@graph'][0]?.about?.name).toBe('Los Angeles, California')
+  // The build hashed it into the page's policy (scripts/csp.mjs), nothing by hand.
+  const policy = /http-equiv="Content-Security-Policy" content="([^"]*)"/.exec(html)?.[1] ?? ''
+  const hash = createHash('sha256').update(body!).digest('base64')
+  expect(policy).toContain(`'sha256-${hash}'`)
+  await page.waitForLoadState('networkidle')
+  expect(violations).toEqual([])
 })
