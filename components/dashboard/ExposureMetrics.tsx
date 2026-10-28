@@ -5,15 +5,19 @@ import Tooltip from '../Tooltip'
 function Metric({
   label,
   help,
-  value,
+  minutes,
+  empty,
   detail,
   testId,
 }: {
   label: string
   help: string
-  value: ReactNode
+  /** The estimate in minutes, or null when the UV is too low for one. */
+  minutes: number | null
+  /** What the card says instead of a number ("No burn risk"). */
+  empty: string
   detail: ReactNode
-  testId?: string
+  testId: string
 }) {
   return (
     <div className="metric-card px-3 py-2.5" data-testid={testId}>
@@ -25,8 +29,31 @@ function Metric({
           </Tooltip>
         </span>
       </p>
-      <p className="text-[23px] leading-[1.05] font-bold text-ink">{value}</p>
-      <p className="mt-[3px] text-[11px] text-ink-3">{detail}</p>
+      {/* The line keeps a number's height either way, so a card with words lines up
+          with one showing minutes; the words sit on the number's baseline, sized like
+          the dashboard's other words (they used to read "None" at 23 px). */}
+      <p className="text-[23px] leading-[1.05] font-bold text-ink">
+        {minutes === null ? (
+          <span
+            className="text-[15px] leading-[1.2] font-semibold text-ink-2"
+            data-testid="metric-value"
+          >
+            {empty}
+          </span>
+        ) : (
+          <>
+            <span aria-hidden="true" data-testid="metric-value">
+              {minutes}m
+            </span>
+            <span className="sr-only" data-testid="metric-value-spoken">
+              {minutes} minutes
+            </span>
+          </>
+        )}
+      </p>
+      <p className="mt-[3px] text-[11px] text-ink-3" data-testid="metric-detail">
+        {detail}
+      </p>
     </div>
   )
 }
@@ -58,23 +85,29 @@ export default function ExposureMetrics({
     : `${skinType} skin`
   const who = mostSensitive ? `${mostSensitive} (most sensitive)` : `${skinType} skin`
   return (
-    <div className="grid grid-cols-[repeat(auto-fit,minmax(130px,1fr))] gap-2.5">
+    <div
+      className="grid grid-cols-[repeat(auto-fit,minmax(130px,1fr))] gap-2.5"
+      data-testid="exposure-metrics"
+    >
       <Metric
         testId="burn-metric"
         label="Estimated burn time"
         help={`A rough estimate for ${whose} without sunscreen at this UV level. Do not use it as a timer for unprotected exposure.`}
-        value={burn ? `${burn}m` : 'None'}
+        minutes={burn}
+        empty="No burn risk"
         detail={
           burn || !burnFrom
             ? `${isToday ? 'Now' : 'At peak'} · ${who}, no SPF`
-            : `No burn risk until ${burnFrom}`
+            : `Until ${burnFrom}`
         }
       />
       <Metric
+        testId="vitd-metric"
         label="Vitamin D estimate"
         help="A rough model, not a recommended exposure target. Vitamin D needs and production vary widely; ask a clinician if you are concerned."
-        value={vitD ? `${vitD}m` : 'None'}
-        detail={vitD || !vitDFrom ? 'Arms + legs' : `UV too low until ${vitDFrom}`}
+        minutes={vitD}
+        empty="UV too low"
+        detail={vitD ? 'Arms + legs' : vitDFrom ? `Until ${vitDFrom}` : 'Needs UV 1 or more'}
       />
     </div>
   )

@@ -13,7 +13,7 @@ function Chip({ label, active, onClick }: { label: string; active: boolean; onCl
   return (
     <button
       onClick={onClick}
-      className={`flex shrink-0 cursor-pointer items-center gap-[5px] rounded-[10px] border-0 px-3.5 py-2 text-[13px] font-semibold transition-all duration-[120ms] ${
+      className={`flex shrink-0 cursor-pointer items-center gap-[5px] rounded-[10px] border-0 px-3.5 py-2 text-[13px] max-[359px]:px-2.5 font-semibold transition-all duration-[120ms] ${
         active ? 'bg-accent text-accent-on' : 'bg-surface-metric text-ink'
       }`}
     >
@@ -27,7 +27,8 @@ function Chip({ label, active, onClick }: { label: string; active: boolean; onCl
  * chips, every later day is in a dialog behind "More days", and a plan with
  * locked days gets a locked "Next 10 days" tab that opens the Pro plans. The
  * refresh button always renders, so it stays reachable when only one day is
- * visible.
+ * visible. Under 360 px the chips are a little narrower, so Today, Tomorrow and
+ * More days still share one row with it.
  */
 export default function DayPicker({
   access,
@@ -63,7 +64,7 @@ export default function DayPicker({
                 onClick={onUpgrade}
                 aria-label={LOCKED_DAYS_UPSELL}
                 title={LOCKED_DAYS_UPSELL}
-                className="flex shrink-0 cursor-pointer items-center gap-[5px] rounded-[10px] border-[0.5px] border-dashed border-accent-border bg-transparent px-3.5 py-2 text-[13px] font-semibold text-accent transition-all duration-[120ms]"
+                className="flex shrink-0 cursor-pointer items-center gap-[5px] rounded-[10px] border-[0.5px] border-dashed border-accent-border bg-transparent px-3.5 py-2 text-[13px] max-[359px]:px-2.5 font-semibold text-accent transition-all duration-[120ms]"
               >
                 <Lock size={14} strokeWidth={2.25} /> Next 10 days
               </button>

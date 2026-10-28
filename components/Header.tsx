@@ -98,7 +98,9 @@ export default function Header({
             className="flex shrink-0 items-center gap-1.5 rounded-lg px-1.5 py-1 transition-colors duration-100 hover:bg-surface-metric"
           >
             <SolaraMark size={22} />
-            <span className="text-[17px] font-bold text-ink">Solara</span>
+            {/* Under 360 px only the mark shows, which leaves the place its room; the
+                name stays the button's accessible name. */}
+            <span className="text-[17px] font-bold text-ink max-[359px]:sr-only">Solara</span>
           </button>
 
           <div className={styles.location}>
@@ -112,7 +114,7 @@ export default function Header({
             />
           </div>
 
-          <div className={styles.right}>
+          <div className={styles.right} data-header-controls>
             {tier !== 'anonymous' && (
               <ProfileSwitcher
                 prefs={prefs}

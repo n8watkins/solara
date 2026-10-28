@@ -32,10 +32,31 @@ const SYDNEY: Location = {
   timezone: 'Australia/Sydney',
 }
 
+// The header's longest and shortest names in the same zone as Los Angeles, so the
+// fixture forecast still fits (dashboard-polish.spec.ts). A typed or reverse-geocoded
+// place can carry its region in the name, as here.
+const SAN_LUIS_OBISPO: Location = {
+  lat: 35.28,
+  lon: -120.66,
+  city: 'San Luis Obispo, California',
+  region: 'California',
+  timezone: 'America/Los_Angeles',
+}
+
+const OJAI: Location = {
+  lat: 34.45,
+  lon: -119.24,
+  city: 'Ojai',
+  region: 'California',
+  timezone: 'America/Los_Angeles',
+}
+
 /** The places a harness screen can open in (HarnessApp's `place` parameter). */
 export const HARNESS_PLACES: Record<string, Location> = {
   'los-angeles': HARNESS_LOCATION,
   sydney: SYDNEY,
+  'san-luis-obispo': SAN_LUIS_OBISPO,
+  ojai: OJAI,
 }
 
 const SAN_DIEGO: Location = {
