@@ -131,7 +131,7 @@ export default function Dashboard({
     selectedDay: day,
     nowHour,
     activities: prefs.activities,
-    skinType: prefs.skinType,
+    skinType: planning.skinType,
     laterDaysVisible,
     city: prefs.location?.city ?? '',
     formatTime: fmt.time,
