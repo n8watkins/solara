@@ -6,14 +6,13 @@ import {
   type IcsEvent,
   type PreferredHours,
   type RecommendationHour,
-  type ShadeLevel,
-  type Surface,
   bestWindow,
   effectiveMaxUV,
   findWindows,
   forecastDates,
   isPlannableHour,
   parseHourlyRows,
+  parsePlanningPreferences,
   planningUV,
   runsOn,
   validActivityId,
@@ -25,20 +24,6 @@ export interface SunForecastDay {
   dateStr: string
   /** UV with the forecast clouds, and under a clear sky when the provider gave it. */
   hourly: (RecommendationHour & { clearSkyUV?: number })[]
-}
-
-export interface FeedActivity {
-  id?: unknown
-  name: string
-  icon?: string | null
-  maxUV?: number | null
-  sunscreen?: boolean | null
-  durationMins?: number | null
-  preferredHours?: PreferredHours | null
-  daysOfWeek?: number[] | null
-  shade?: ShadeLevel | null
-  surface?: Surface | null
-  cloudSensitive?: boolean | null
 }
 
 export { bestWindow, effectiveMaxUV, runsOn }
@@ -72,13 +57,14 @@ export function parseSunForecast(raw: unknown, days: number): SunForecastDay[] {
     }))
 }
 
-/** Build ICS events for each activity's best window on each eligible day. */
-export function buildSunEvents(
-  user: { activities?: FeedActivity[] | null },
-  forecast: SunForecastDay[],
-): IcsEvent[] {
-  const activities = (user.activities || []).flatMap(act =>
-    validActivityId(act?.id) ? [{ ...act, id: act.id }] : [],
+/**
+ * Build ICS events for each activity's best window on each eligible day. The account's
+ * activities are read as the app reads them (packages/core/src/planning.ts): invalid
+ * ones are skipped and bad fields fall back to the app's defaults.
+ */
+export function buildSunEvents(user: unknown, forecast: SunForecastDay[]): IcsEvent[] {
+  const activities = parsePlanningPreferences(user).activities.filter(act =>
+    validActivityId(act.id),
   )
   const events: IcsEvent[] = []
   for (const day of forecast) {

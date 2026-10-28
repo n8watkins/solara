@@ -35,6 +35,8 @@ import {
   localTime,
   morningAlertDue,
   morningAlertMessage,
+  parsePlanningPreferences,
+  planningFor,
   planUvAlert,
   quietHours,
   uvAlertDue,
@@ -506,13 +508,16 @@ async function processAccount(run: Run, doc: QueryDocumentSnapshot): Promise<Ale
   const city = typeof user.location.city === 'string' ? user.location.city : ''
   const clock = clockOf(user)
   if (open.includes('morning')) {
+    // Read as the app reads them, and planned for whom the dashboard plans for: one
+    // person, or a group's most sensitive member (packages/core/src/planning.ts).
+    const planning = parsePlanningPreferences(user)
     const alert = morningAlertMessage({
       date: local.date,
       city,
       // The rest of the day: a window that has already started is offered from now.
       hourly: hourly.filter(h => h.hour >= Math.floor(local.hour)),
-      activities: Array.isArray(user.activities) ? user.activities : [],
-      skinType: user.skinType,
+      activities: planning.activities,
+      skinType: planningFor(planning).skinType,
       clock,
     })
     return deliver(run, stateRef, doc.id, devices, 'morning', local.date, alert)

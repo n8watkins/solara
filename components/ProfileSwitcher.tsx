@@ -7,12 +7,11 @@ import type { UserPreferences, Profile, TierLevel } from '@/lib/types'
 import {
   activeProfile,
   defaultProfile,
-  groupMembers,
-  planningFor,
   selectProfile,
   SKIN_TYPE_LABELS,
   toggleGroupMemberPatch,
 } from '@/lib/profiles'
+import { groupMembers, planningFor } from '@solara/core'
 import { newProfileDraft, removeProfilePatch, saveProfilePatch } from '@/lib/profile-patches'
 import { isCheckoutConfigured } from '@/lib/billing'
 import { TIER_LIMITS, canUseFamilyProfiles, getProfileLimit } from '@/lib/tiers'
@@ -32,7 +31,7 @@ const ROW = 'flex flex-1 items-center gap-2 rounded-[9px] border px-[9px] py-[7p
 /**
  * The header's profile picker: switch between the people (and pets) Solara plans for,
  * add, edit or remove them, and, on Pro, plan for a group by the most sensitive person
- * in it (lib/profiles.ts planningFor). A disclosure panel that closes on Escape, an
+ * in it (planningFor in packages/core/src/prefs.ts). A disclosure panel that closes on Escape, an
  * outside click or tabbing away. On Free it says what family profiles are and offers
  * Pro honestly: a waitlist until checkout is switched on.
  */

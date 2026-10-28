@@ -45,6 +45,32 @@ describe('calendar feed windows', () => {
     assert.equal(counted.length, 1)
   })
 
+  test('read activities through the app schema and skip invalid ones (REVIEW3 L4)', () => {
+    const events = buildSunEvents(
+      {
+        activities: [
+          // An inherited key as the shade gave a NaN UV and no window.
+          { ...walk, shade: 'toString', surface: 'constructor' },
+          { ...walk, id: 'swim', name: 'Swim', maxUV: 'high', durationMins: null },
+          'not an activity',
+          null,
+          { ...walk, id: '', name: 'Hike' },
+        ],
+      },
+      forecast,
+    )
+    // Open sun for the walk; the swim gets the app's defaults (UV 4, 30 minutes); the
+    // hike without an id gets the one the app gives it from its position.
+    assert.deepEqual(
+      events.map(event => [event.uid, event.summary, event.start, event.end]),
+      [
+        ['2026-06-15-walk-360@solara', '☀️ Walk: lower-UV window', 6, 7],
+        ['2026-06-15-swim-360@solara', '☀️ Swim: lower-UV window', 6, 6.5],
+        ['2026-06-15-migrated_4-360@solara', '☀️ Hike: lower-UV window', 6, 7],
+      ],
+    )
+  })
+
   test('read the clear-sky UV from the forecast', () => {
     const days = parseSunForecast(
       {

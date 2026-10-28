@@ -1,4 +1,4 @@
-import { planningSkinType } from '@/lib/profiles'
+import { planningFor } from '@solara/core'
 import { useState } from 'react'
 import type { Activity, UserPreferences, WeatherResponse } from '@/lib/types'
 import type { DashboardAccess } from '@/lib/dashboard-view'
@@ -66,7 +66,7 @@ export default function ActivitiesSection({
   const [modal, setModal] = useState<'add' | 'manage' | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const hasActivities = prefs.activities.length > 0
-  const skinType = planningSkinType(prefs)
+  const skinType = planningFor(prefs).skinType
   const guest = access.activityTier === 'anonymous'
   const [savePlanDismissed, dismissSavePlan] = useUpsellDismissal('save-plan')
   const [returningGuest] = useState(() => guest && isReturningGuest())

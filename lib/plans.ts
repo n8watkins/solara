@@ -46,7 +46,7 @@ export const PRO_FEATURES: ProFeature[] = [
   { label: 'Calendar sync', ...perTier(tier => TIER_LIMITS[tier].calendar) },
   {
     // Group planning by the most sensitive person comes with family profiles
-    // (lib/profiles.ts planningFor).
+    // (planningFor in packages/core/src/prefs.ts).
     label: FAMILY_PROFILES_LABEL,
     ...perTier(tier => TIER_LIMITS[tier].profiles > 1),
   },
