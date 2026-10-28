@@ -10,6 +10,11 @@ export type SettingsTab =
 export interface SettingsSection {
   id: SettingsTab
   label: string
+  /**
+   * The label in the six-column bar on phones, when `label` is too long for it; the tab's
+   * name stays `label`, which starts with it.
+   */
+  phoneLabel?: string
   Icon: LucideIcon
   desc: string
 }
@@ -18,6 +23,9 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   {
     id: 'general',
     label: 'Sun profile',
+    // "Sun profile" filled its sixth of a 390 px bar, leaving the selected pill no side
+    // padding (REVIEW6 L7).
+    phoneLabel: 'Sun',
     Icon: Sun,
     desc: 'Skin type and the assumptions behind your exposure estimates.',
   },
@@ -106,13 +114,21 @@ export default function SettingsTabs({ tab, onTabChange, tabId, panelId }: Props
           id={tabId(s.id)}
           aria-selected={tab === s.id}
           aria-controls={panelId}
+          aria-label={s.phoneLabel ? s.label : undefined}
           tabIndex={tab === s.id ? 0 : -1}
           onClick={() => onTabChange(s.id)}
           onKeyDown={handleKeyDown}
           className="flex min-h-9 items-center gap-[9px] rounded-[9px] px-3 py-[9px] text-left text-[13px] font-semibold text-ink-2 transition-colors duration-120 hover:bg-surface-metric aria-selected:bg-surface-metric aria-selected:text-accent max-sm:min-h-13 max-sm:flex-col max-sm:justify-center max-sm:gap-1 max-sm:px-0 max-sm:py-[7px] max-sm:text-center max-sm:text-[length:clamp(9.5px,2.75vw,11px)] max-sm:leading-[1.15]"
         >
           <s.Icon size={17} className="shrink-0 max-sm:size-[19px]" />
-          {s.label}
+          {s.phoneLabel ? (
+            <>
+              <span className="max-sm:hidden">{s.label}</span>
+              <span className="sm:hidden">{s.phoneLabel}</span>
+            </>
+          ) : (
+            s.label
+          )}
         </button>
       ))}
     </div>

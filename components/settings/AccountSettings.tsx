@@ -9,7 +9,6 @@ import { goToLanding } from '@/lib/app-routes'
 import { planLimitRows } from '@/lib/settings'
 import { TIER_LIMITS } from '@/lib/tiers'
 import GoogleSignInButton from '../GoogleSignInButton'
-import { PricingModal } from '../deferred'
 import { SettingsCard, SettingsError, SettingsHint } from './SettingsCard'
 
 interface Props {
@@ -18,7 +17,8 @@ interface Props {
   /** The preferences as they would be saved now, used to seed a new account. */
   prefs: UserPreferences
   waitlisted: boolean
-  onJoinWaitlist: (email: string) => void
+  /** Opens the plans dialog. */
+  onSeePlans: () => void
   onSignedOut: () => void
 }
 
@@ -28,10 +28,9 @@ export default function AccountSettings({
   user,
   prefs,
   waitlisted,
-  onJoinWaitlist,
+  onSeePlans,
   onSignedOut,
 }: Props) {
-  const [showPricing, setShowPricing] = useState(false)
   const [signOutError, setSignOutError] = useState<string | null>(null)
 
   async function signOut() {
@@ -62,7 +61,7 @@ export default function AccountSettings({
           <button
             type="button"
             className="btn btn-primary text-[12px] whitespace-nowrap"
-            onClick={() => setShowPricing(true)}
+            onClick={onSeePlans}
           >
             {waitlisted ? '✓ On waitlist' : 'See Pro plans'}
           </button>
@@ -117,16 +116,6 @@ export default function AccountSettings({
             </p>
           )}
         </div>
-      )}
-
-      {showPricing && (
-        <PricingModal
-          user={user}
-          email={user?.email ?? prefs.upgradeInterest?.email ?? ''}
-          alreadyWaitlisted={waitlisted}
-          onJoinWaitlist={onJoinWaitlist}
-          onClose={() => setShowPricing(false)}
-        />
       )}
     </div>
   )

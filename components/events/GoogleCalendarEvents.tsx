@@ -169,19 +169,19 @@ export default function GoogleCalendarEvents({
   }, [orphaned, uid, events, linkStore])
 
   // With more upcoming events than the section loads, the panel's count comes from an
-  // aggregate count of every stored Google event, after each change.
+  // aggregate count of every stored Google event, after each change, at the section's now.
   const syncedAt = link?.syncedAt
   useEffect(() => {
     if (allLoaded || !syncedAt || busy) return
     let current = true
-    events.countUpcoming(uid, 'google', Date.now()).then(
+    events.countUpcoming(uid, 'google', nowMs).then(
       count => current && setCounted(count),
       () => {},
     )
     return () => {
       current = false
     }
-  }, [allLoaded, syncedAt, busy, upcomingCount, uid, events])
+  }, [allLoaded, syncedAt, busy, upcomingCount, uid, events, nowMs])
   const shownCount = allLoaded ? upcomingCount : Math.max(upcomingCount, counted ?? 0)
 
   function connect() {
@@ -230,6 +230,11 @@ export default function GoogleCalendarEvents({
     })
   }
 
+  function askToDisconnect() {
+    setStatus(null)
+    setConfirming(true)
+  }
+
   const headingId = `${id}-heading`
   const hintId = `${id}-hint`
   const working = busy !== null
@@ -274,9 +279,23 @@ export default function GoogleCalendarEvents({
             <div className="flex min-w-0 flex-1 items-start gap-2.5">
               <CalendarDays size={16} className="mt-0.5 shrink-0 text-ink-3" aria-hidden="true" />
               <div className="min-w-0 flex-1">
-                <p className="text-[13px] leading-snug font-semibold break-words text-ink">
-                  {calendarsText(link.calendars)}
-                </p>
+                <div className="flex items-start justify-between gap-2">
+                  <p className="min-w-0 text-[13px] leading-snug font-semibold break-words text-ink">
+                    {calendarsText(link.calendars)}
+                  </p>
+                  {/* In a narrow card, a quiet text button here, so the three actions never
+                      leave Disconnect alone on a second row (REVIEW6 L7). */}
+                  {!confirming && (
+                    <button
+                      type="button"
+                      className="-my-1 -mr-1.5 shrink-0 rounded-[8px] px-1.5 py-1 text-[12px] font-semibold text-ink-3 hover:text-danger focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-50 @lg:hidden"
+                      disabled={working}
+                      onClick={askToDisconnect}
+                    >
+                      Disconnect
+                    </button>
+                  )}
+                </div>
                 <p className="mt-0.5 text-[12px] leading-normal break-words text-ink-3">
                   {syncedText(link.syncedAt, nowMs)}
                   {link.syncedAt &&
@@ -332,12 +351,9 @@ export default function GoogleCalendarEvents({
                   </button>
                   <button
                     type="button"
-                    className={SMALL_BUTTON}
+                    className={`${SMALL_BUTTON} hidden @lg:inline-flex`}
                     disabled={working}
-                    onClick={() => {
-                      setStatus(null)
-                      setConfirming(true)
-                    }}
+                    onClick={askToDisconnect}
                   >
                     Disconnect
                   </button>

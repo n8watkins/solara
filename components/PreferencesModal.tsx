@@ -11,6 +11,7 @@ import {
 } from '@/lib/settings'
 import ActivitySuggestionSettings from './ActivitySuggestionSettings'
 import Dialog from './Dialog'
+import { PricingModal } from './deferred'
 import AccountSettings from './settings/AccountSettings'
 import AppearanceSettings from './settings/AppearanceSettings'
 import LocationSettings from './settings/LocationSettings'
@@ -35,6 +36,9 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
   const [tab, setTab] = useState<SettingsTab>(initialTab || 'general')
   const [draft, setDraft] = useState(() => settingsDraftFrom(prefs))
   const [joinedWaitlist, setJoinedWaitlist] = useState(false)
+  // The plans dialog, from any Pro offer in Settings (Alerts and Account).
+  const [showPricing, setShowPricing] = useState(false)
+  const waitlisted = joinedWaitlist || !!prefs.upgradeInterest
   const tier = prefs.tier || 'anonymous'
   const updated = applySettingsDraft(prefs, draft)
   const dirty = isSettingsDraftDirty(prefs, draft)
@@ -97,7 +101,14 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
 
             {tab === 'general' && <SunProfileSettings draft={draft} onChange={update} />}
             {tab === 'alerts' && (
-              <NotificationSettings tier={tier} user={user} draft={draft} onChange={update} />
+              <NotificationSettings
+                tier={tier}
+                user={user}
+                draft={draft}
+                onChange={update}
+                waitlisted={waitlisted}
+                onSeePlans={() => setShowPricing(true)}
+              />
             )}
             {tab === 'appearance' && <AppearanceSettings draft={draft} onChange={update} />}
             {tab === 'activities' && (
@@ -122,8 +133,8 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
                 tier={tier}
                 user={user}
                 prefs={updated}
-                waitlisted={joinedWaitlist || !!prefs.upgradeInterest}
-                onJoinWaitlist={joinWaitlist}
+                waitlisted={waitlisted}
+                onSeePlans={() => setShowPricing(true)}
                 onSignedOut={onClose}
               />
             )}
@@ -143,6 +154,15 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
           </button>
         </div>
       </div>
+      {showPricing && (
+        <PricingModal
+          user={user}
+          email={user?.email ?? updated.upgradeInterest?.email ?? ''}
+          alreadyWaitlisted={waitlisted}
+          onJoinWaitlist={joinWaitlist}
+          onClose={() => setShowPricing(false)}
+        />
+      )}
     </Dialog>
   )
 }

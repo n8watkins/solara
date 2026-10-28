@@ -65,7 +65,7 @@ These are in the code and tested in CI; each waits for an owner step, not engine
 | Feature | Switched on by | Owner step |
 | --- | --- | --- |
 | Google Calendar connect, adding events and **Scheduled** activities (#55, #56) | `NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID` (not set; no client ID in the live bundle) | [Steps 1-4](OWNER_CHECKLIST.md#next-steps-in-order) |
-| **Events from Google Calendar** (events phase 2b): the Events section reads the next 30 days of chosen calendars in the browser with a read-only scope and shows the UV at events with a place | `NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_CALENDAR_EVENTS_ENABLED` (neither set) | [Events from Google Calendar](OWNER_CHECKLIST.md#events-from-google-calendar), after steps 1-4 |
+| **Events from Google Calendar** (events phase 2b): the Events section reads the next 30 days of chosen calendars in the browser with a read-only scope and shows the UV at events with an address (only its town is searched, never names, rooms or dial-ins) or an activity; a disconnect on one device wins over a refresh on another (the rules refuse Google events without the connection), and counts and duplicates cover every stored event (REVIEW6 M2, L4, L5) | `NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_CALENDAR_EVENTS_ENABLED` (neither set) | [Events from Google Calendar](OWNER_CHECKLIST.md#events-from-google-calendar), after steps 1-4 |
 | **App Check** with reCAPTCHA v3, for signed-in users only | `NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY` (not set) | [Step 5](OWNER_CHECKLIST.md#next-steps-in-order) |
 | **Sentry** error reporting, scrubbed in the browser (#70) | `NEXT_PUBLIC_SENTRY_DSN` (not set; the bundle then contains no Sentry code) | [Step 6](OWNER_CHECKLIST.md#next-steps-in-order) |
 

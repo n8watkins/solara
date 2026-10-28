@@ -6,7 +6,8 @@
 // Query parameters:
 //   screen = dashboard (default) | calendar | settings | pricing
 //   tier   = paid (default) | free | guest (signed out, the guest plan with one activity)
-//   tab    = general (default) | alerts | activities | location   (settings only)
+//   tab    = general (default) | alerts | appearance | activities | location | account
+//            (settings only; REVIEW6 L7 added alerts, appearance and account)
 //   fixture = default (default) | uv-gaps   (see uv-gap-fixtures.ts)
 //            | peak-early | peak-late   (see sun-peak-fixtures.ts)
 //   scheduled = none (default) | synced | reconnect: in-memory scheduled activities
@@ -18,7 +19,7 @@
 //   links  = none (default) | sample: in-memory linked calendars (subscription-fixtures.ts)
 //            and one event from a linked calendar; shown with ?subscriptions=on, which
 //            stands in for NEXT_PUBLIC_EVENTS_SUBSCRIPTIONS_ENABLED
-//   google = none (default) | connected: events already in Google Calendar, with a fake
+//   google = none (default) | connected | many: events already in Google Calendar, with a fake
 //            Google (google-calendar-fixtures.ts); shown with ?gcal=on, which stands in for
 //            NEXT_PUBLIC_GOOGLE_CALENDAR_EVENTS_ENABLED with the OAuth client ID
 //   (offline: the offline notice shows whenever the browser is offline, as in the app)
@@ -47,6 +48,7 @@ import { createForecastStore, ForecastStoreProvider, useWeather } from '@/lib/us
 import Skeleton from '@/components/Skeleton'
 import ForecastNotice from '@/components/ForecastNotice'
 import GuestPlanNotice from '@/components/GuestPlanNotice'
+import { SETTINGS_SECTIONS, type SettingsTab } from '@/components/settings/SettingsTabs'
 import { HARNESS_NOW_MS } from './clock'
 import { HARNESS_MARKER, HARNESS_PLACES, buildPrefs, buildUser, buildWeather } from './fixtures'
 import { buildGapWeather } from './uv-gap-fixtures'
@@ -64,12 +66,12 @@ import { buildSubscriptions, createMemorySubscriptionsStore } from './subscripti
 import {
   buildGoogleEvents,
   buildGoogleLink,
+  buildManyGoogleEvents,
   createFakeGoogleCalendarApi,
   createMemoryGoogleLinkStore,
 } from './google-calendar-fixtures'
 
 export type HarnessScreen = 'dashboard' | 'calendar' | 'settings' | 'pricing' | 'pricing-checkout'
-type SettingsTab = 'general' | 'alerts' | 'activities' | 'location'
 
 const SCREENS: HarnessScreen[] = [
   'dashboard',
@@ -78,7 +80,7 @@ const SCREENS: HarnessScreen[] = [
   'pricing',
   'pricing-checkout',
 ]
-const TABS: SettingsTab[] = ['general', 'activities', 'location']
+const TABS: readonly SettingsTab[] = SETTINGS_SECTIONS.map(section => section.id)
 
 function readFixture(name: string | null): 'default' | 'uv-gaps' | SunPeakFixture {
   if (name === 'uv-gaps' || isSunPeakFixture(name)) return name
@@ -101,7 +103,7 @@ function readParams() {
     activities: params.get('activities')?.split(',') ?? null,
     events: (['sample', 'full'] as const).find(v => v === params.get('events')) ?? null,
     links: params.get('links') === 'sample',
-    google: params.get('google') === 'connected',
+    google: (['connected', 'many'] as const).find(v => v === params.get('google')) ?? null,
     place: HARNESS_PLACES[params.get('place') ?? ''] ?? null,
   }
 }
@@ -121,7 +123,7 @@ export default function HarnessApp() {
     const sample = [
       ...(kind ? buildEvents() : []),
       ...(withLinks ? [buildFeedEvent()] : []),
-      ...(google ? buildGoogleEvents() : []),
+      ...(google === 'many' ? buildManyGoogleEvents() : google ? buildGoogleEvents() : []),
     ]
     // "full": the sample plus enough past events to reach the per-account cap.
     const pastStored = kind === 'full' ? IMPORTED_EVENT_LIMITS.maxStored - sample.length : 0

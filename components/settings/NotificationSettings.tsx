@@ -38,6 +38,10 @@ interface Props {
   user?: User | null
   draft: AlertDraft
   onChange: (patch: Partial<AlertDraft>) => void
+  /** Whether the account joined the Pro waitlist (the plans button says so). */
+  waitlisted?: boolean
+  /** Opens the plans dialog, from the offer Free sees. */
+  onSeePlans?: () => void
 }
 
 const TITLE = 'Morning and UV alerts'
@@ -52,7 +56,14 @@ function what(): string {
 }
 
 /** Pro's push alerts: the account's alert settings and this device's subscription. */
-export default function NotificationSettings({ tier, user, draft, onChange }: Props) {
+export default function NotificationSettings({
+  tier,
+  user,
+  draft,
+  onChange,
+  waitlisted = false,
+  onSeePlans,
+}: Props) {
   const included = TIER_LIMITS[tier].notifications
   if (!alertsLaunched() || !included) {
     return (
@@ -68,6 +79,16 @@ export default function NotificationSettings({ tier, user, draft, onChange }: Pr
         <SettingsHint className="leading-[1.45]">
           {what()} {alertsLaunched() ? 'Included with Pro.' : 'Coming soon with Pro.'}
         </SettingsHint>
+        {/* Like every other Pro offer, it has a way to Pro (REVIEW6 L7). */}
+        {!included && onSeePlans && (
+          <button
+            type="button"
+            className="btn btn-primary mt-1.5 self-start text-[12px] whitespace-nowrap"
+            onClick={onSeePlans}
+          >
+            {waitlisted ? '✓ On waitlist' : 'See Pro plans'}
+          </button>
+        )}
       </SettingsCard>
     )
   }

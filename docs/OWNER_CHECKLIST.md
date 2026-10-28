@@ -215,20 +215,21 @@ It runs in the browser, needs no Blaze and stores no Google token.
 It asks for `calendar.events.readonly` when the person turns it on, and `calendar.calendarlist.readonly` only if they choose calendars other than their main one; both are sensitive scopes that need their own verification, so keep them out of the step 4 request (default, owner may change).
 
 1. Wait until step 4's verification of `calendar.freebusy` and `calendar.events.owned` has passed, so this request cannot delay Scheduled.
-2. Wait until REVIEW5 M3's rule (heads-ups only for outdoor events, de-duplicated across sources; lane FIX5B) is on `main`, so events from a work calendar never send Pro heads-ups.
+2. Wait until REVIEW5 M3's rule (heads-ups only for outdoor events, de-duplicated across sources; lane FIX5B) is on `main`, so events from a work calendar never send Pro heads-ups, and until REVIEW6's lane FIX6B is too: only the town of a location written as an address is searched, and the privacy policy names every place event data goes, which is what the verification compares with the video.
 3. At https://console.cloud.google.com/auth/scopes?project=uv-activity-planner (**Data Access**), click **Add or remove scopes** and add `https://www.googleapis.com/auth/calendar.events.readonly` and `https://www.googleapis.com/auth/calendar.calendarlist.readonly`; save.
    The page lists both under **Your sensitive scopes**.
 4. Switch it on in staging only, or ask the agent for a preview build, and record the demo video (the agent can script it): turning it on and the consent screen, the events with their UV, choosing calendars, and Disconnect.
-5. In the **Verification Center**, request verification for the two scopes with the video and this justification: "Solara shows the UV index during the person's upcoming events. With calendar.events.readonly, the browser reads the next 30 days of events on the calendars the person chose and keeps only events with a place or that match one of their outdoor activities: each one's title, time, time zone and location text, to forecast the UV there. calendar.calendarlist.readonly lists the person's calendars so they can choose which to use. Nothing is read on a server, no token is stored, and Disconnect deletes the stored events and revokes access."
+5. In the **Verification Center**, request verification for the two scopes with the video and this justification: "Solara shows the UV index during the person's upcoming events. With calendar.events.readonly, the browser reads the next 30 days of events on the calendars the person chose and keeps only events whose location is written as an address or that match one of their outdoor activities: each one's title, time, time zone and location text, to forecast the UV there. To find the place, only the town of an address (such as Los Angeles, CA) is sent to Open-Meteo's place search; other location text, such as a person's name or a room, is never sent. calendar.calendarlist.readonly lists the person's calendars so they can choose which to use. Nothing is read on a server, no token is stored, and Disconnect deletes the stored events and revokes access."
    Google's review of sensitive scopes takes from a few days to a few weeks.
 6. Once approved: `gh variable set GOOGLE_CALENDAR_EVENTS_ENABLED --repo n8watkins/solara --body true`, and let the next deploy run.
    With `ALERTS_ENABLED` on, this also turns on Pro event heads-ups, even while linked calendars stay off (REVIEW6 L1).
 7. With a controlled Google account on production:
    - [ ] The Events section shows **Google Calendar** with **Show my Google Calendar events**; pressing it asks only for "View events on all your calendars".
-   - [ ] Events with a place (and ones whose title matches an activity) appear, marked "From Google Calendar"; meetings with only a video link, all-day events and declined events do not.
+   - [ ] Events with an address (and ones whose title matches an activity) appear, marked "From Google Calendar"; meetings with only a video link or dial-in, events whose location is only a name or a room ("Dr Patel", "Room 2"), all-day events and declined events do not.
    - [ ] **Choose calendars** asks for "See the list of Google calendars you're subscribed to" and lists your calendars; ticking another one adds its events.
    - [ ] Move an event in Google Calendar, then press **Refresh**: Solara follows; a second signed-in device shows the same events and calendars.
    - [ ] **Disconnect** removes the events, and Solara disappears from https://myaccount.google.com/connections (Google ends all of Solara's calendar access at once, so Scheduled asks to connect again).
+   - [ ] Press **Refresh** on one device and **Disconnect** on another at the same moment: both end disconnected, with no Google events.
    - [ ] No CSP violation shows in the console while disconnecting.
 
 ## Events from Outlook (only for the Outlook connection)
