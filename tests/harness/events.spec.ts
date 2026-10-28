@@ -197,3 +197,101 @@ test('an account at the cap says so, and "Remove all" clears every stored event'
   await expect(cards(page)).toHaveCount(0)
   await expect(section.getByTestId('events-cap')).toHaveCount(0)
 })
+
+// Linked calendars (phase 2), switched on with ?subscriptions=on as the deploy's
+// NEXT_PUBLIC_EVENTS_SUBSCRIPTIONS_ENABLED would; ?links=sample adds three links in
+// every state and one event from a linked calendar.
+test('linked calendars are hidden until switched on', async ({ page }, testInfo) => {
+  await preparePage(page, testInfo, answerOpenMeteo)
+  await page.goto('/harness/?screen=dashboard&events=sample&links=sample')
+  await expect(page.getByTestId(HARNESS_MARKER)).toBeVisible()
+  await expect(cards(page)).toHaveCount(5)
+  await expect(page.getByTestId('event-subscriptions')).toHaveCount(0)
+})
+
+test('linked calendars on Pro: every state, link, refresh and remove', async ({
+  page,
+}, testInfo) => {
+  const capture = await preparePage(page, testInfo, answerOpenMeteo)
+  await page.goto('/harness/?screen=dashboard&events=sample&links=sample&subscriptions=on')
+  await expect(page.getByTestId(HARNESS_MARKER)).toBeVisible()
+  const panel = page.getByTestId('event-subscriptions')
+  await expect(panel.getByTestId('event-subscription')).toHaveCount(3)
+  await expect(panel.getByText('3 of 5')).toBeVisible()
+
+  const club = panel.getByRole('listitem', { name: 'LA Trail Runners' })
+  await expect(
+    club.getByText('www.meetup.com · Updated 2 hours ago · 12 upcoming events'),
+  ).toBeVisible()
+  const races = panel.getByRole('listitem', { name: 'SoCal race calendar 2026' })
+  await expect(
+    races.getByText(/^The last check failed\. The calendar site took too long/),
+  ).toBeVisible()
+  const paused = panel.getByRole('listitem', { name: 'calendar.example.com' })
+  await expect(paused.getByText(/^Paused after a week of failed checks/)).toBeVisible()
+  await expect(panel.getByTestId('event-heads-up-note')).toContainText(
+    'Pro sends a heads-up about 3 hours before an event with UV 6 or higher',
+  )
+
+  // The linked calendar's event says where it comes from and has no single remove.
+  const ride = page.getByRole('listitem', { name: 'Saturday club ride' })
+  await expect(ride.getByText('From a linked calendar')).toBeVisible()
+  await expect(ride.getByRole('button', { name: /^Remove/ })).toHaveCount(0)
+
+  await panel.evaluate(element => element.scrollIntoView({ block: 'center' }))
+  await captureScreen(page, testInfo, capture, { name: 'events-links-pro', fullPage: false })
+  await sectionShot(page, testInfo, 'events-section-links-pro')
+  if (!testInfo.project.name.startsWith('mobile')) {
+    await page.setViewportSize({ width: 1280, height: 900 })
+    await sectionShot(page, testInfo, 'events-section-links-pro-1280')
+  }
+
+  // A link that cannot work is explained before anything is sent.
+  const input = panel.getByRole('textbox', { name: 'Calendar link' })
+  await input.fill('http://example.com/club.ics')
+  await panel.getByRole('button', { name: 'Link calendar' }).click()
+  await expect(page.getByTestId('event-subscriptions-status')).toHaveText(
+    'Only https:// and webcal:// calendar links can be linked.',
+  )
+  await input.fill('webcal://rides.example.org/club.ics')
+  await panel.getByRole('button', { name: 'Link calendar' }).click()
+  await expect(page.getByTestId('event-subscriptions-status')).toHaveText(
+    'Linked Club rides: 3 upcoming events.',
+  )
+  await expect(panel.getByText('4 of 5')).toBeVisible()
+
+  await paused.getByRole('button', { name: 'Refresh calendar.example.com' }).click()
+  await expect(page.getByTestId('event-subscriptions-status')).toHaveText(
+    'Refreshed calendar.example.com.',
+  )
+  await expect(paused.getByText(/^Paused/)).toHaveCount(0)
+
+  await races.getByRole('button', { name: 'Remove SoCal race calendar 2026' }).click()
+  await expect(races.getByText('Remove it and its events?')).toBeVisible()
+  await races.getByRole('button', { name: 'Remove', exact: true }).click()
+  await expect(page.getByTestId('event-subscriptions-status')).toHaveText(
+    'Removed SoCal race calendar 2026 and its events.',
+  )
+  await expect(panel.getByTestId('event-subscription')).toHaveCount(3)
+})
+
+test('linked calendars on Free offer Pro heads-ups', async ({ page }, testInfo) => {
+  const capture = await preparePage(page, testInfo, answerOpenMeteo)
+  await page.goto('/harness/?screen=dashboard&tier=free&subscriptions=on')
+  await expect(page.getByTestId(HARNESS_MARKER)).toBeVisible()
+  const panel = page.getByTestId('event-subscriptions')
+  await expect(panel.getByText('0 of 5')).toBeVisible()
+  await expect(panel.getByRole('button', { name: 'Link calendar' })).toBeDisabled()
+  await expect(panel.getByTestId('event-heads-up-note')).toContainText(
+    'With Pro, get a heads-up a few hours before an event with high UV.',
+  )
+  await expect(panel.getByRole('button', { name: 'See Pro' })).toBeVisible()
+  // Centred, so the sticky header covers none of the dashboard's buttons (axe target-size).
+  await panel.evaluate(element => element.scrollIntoView({ block: 'center' }))
+  await captureScreen(page, testInfo, capture, { name: 'events-links-free', fullPage: false })
+  await sectionShot(page, testInfo, 'events-section-links-free')
+  if (!testInfo.project.name.startsWith('mobile')) {
+    await page.setViewportSize({ width: 1280, height: 900 })
+    await sectionShot(page, testInfo, 'events-section-links-free-1280')
+  }
+})

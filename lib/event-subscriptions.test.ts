@@ -56,7 +56,7 @@ describe('subscriptionView', () => {
       NOW,
     )
     expect(paused.title).toBe('www.meetup.com')
-    expect(paused.meta).toBe('www.meetup.com · Not updated yet')
+    expect(paused.meta).toBe('Not updated yet')
     expect(paused.problem).toMatch(
       /^Paused after a week of failed checks\..*Refresh to try again\.$/,
     )

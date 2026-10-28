@@ -161,98 +161,103 @@ export default function EventSubscriptions({ uid, nowMs, pro, onUpgrade }: Props
                 key={item.id}
                 aria-labelledby={titleId}
                 data-testid="event-subscription"
-                className="rounded-[12px] border-[0.5px] border-line-strong bg-surface-card px-3 py-2.5"
+                className="@container rounded-[12px] border-[0.5px] border-line-strong bg-surface-card px-3 py-2.5"
               >
-                <div className="flex items-start gap-2.5">
-                  <CalendarSync
-                    size={16}
-                    className="mt-0.5 shrink-0 text-ink-3"
-                    aria-hidden="true"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <p
-                      id={titleId}
-                      className="text-[13px] leading-snug font-semibold break-words text-ink"
-                    >
-                      {view.title}
-                    </p>
-                    <p className="mt-0.5 text-[12px] leading-normal break-words text-ink-3">
-                      {view.meta}
-                    </p>
-                    {view.problem && (
-                      <p className="mt-1 text-[12px] leading-normal text-danger">{view.problem}</p>
-                    )}
-                    {view.refused && (
-                      <p className="mt-1 text-[12px] leading-normal text-ink-2">{view.refused}</p>
+                {/* On a wide row the buttons sit beside the text; on a narrow one, below it. */}
+                <div className="flex flex-col gap-2 @lg:flex-row @lg:items-start @lg:gap-3">
+                  <div className="flex min-w-0 flex-1 items-start gap-2.5">
+                    <CalendarSync
+                      size={16}
+                      className="mt-0.5 shrink-0 text-ink-3"
+                      aria-hidden="true"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p
+                        id={titleId}
+                        className="text-[13px] leading-snug font-semibold break-words text-ink"
+                      >
+                        {view.title}
+                      </p>
+                      <p className="mt-0.5 text-[12px] leading-normal break-words text-ink-3">
+                        {view.meta}
+                      </p>
+                      {view.problem && (
+                        <p className="mt-1 text-[12px] leading-normal text-danger">
+                          {view.problem}
+                        </p>
+                      )}
+                      {view.refused && (
+                        <p className="mt-1 text-[12px] leading-normal text-ink-2">{view.refused}</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                    {confirming === item.id ? (
+                      <>
+                        <span className="mr-auto text-[12px] text-ink-2">
+                          Remove it and its events?
+                        </span>
+                        <button
+                          type="button"
+                          className={`${SMALL_BUTTON} text-danger`}
+                          disabled={rowBusy}
+                          onClick={() => {
+                            setConfirming(null)
+                            void run({ kind: 'remove', id: item.id }, async () => {
+                              await store.remove(uid, item.id)
+                              return `Removed ${view.title} and its events.`
+                            })
+                          }}
+                        >
+                          Remove
+                        </button>
+                        <button
+                          type="button"
+                          className={SMALL_BUTTON}
+                          onClick={() => setConfirming(null)}
+                        >
+                          Keep
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          className={SMALL_BUTTON}
+                          disabled={rowBusy}
+                          aria-label={`Refresh ${view.title}`}
+                          onClick={() =>
+                            void run({ kind: 'refresh', id: item.id }, async () => {
+                              const next = await store.refresh(uid, item.id)
+                              return next.error
+                                ? `${view.title} could not be read.`
+                                : `Refreshed ${view.title}.`
+                            })
+                          }
+                        >
+                          <RefreshCw
+                            size={12}
+                            aria-hidden="true"
+                            className={
+                              busy?.kind === 'refresh' && busy.id === item.id
+                                ? 'motion-safe:animate-spin'
+                                : undefined
+                            }
+                          />
+                          Refresh
+                        </button>
+                        <button
+                          type="button"
+                          className={SMALL_BUTTON}
+                          disabled={rowBusy}
+                          aria-label={`Remove ${view.title}`}
+                          onClick={() => setConfirming(item.id)}
+                        >
+                          Remove
+                        </button>
+                      </>
                     )}
                   </div>
-                </div>
-                <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
-                  {confirming === item.id ? (
-                    <>
-                      <span className="mr-auto text-[12px] text-ink-2">
-                        Remove it and its events?
-                      </span>
-                      <button
-                        type="button"
-                        className={`${SMALL_BUTTON} text-danger`}
-                        disabled={rowBusy}
-                        onClick={() => {
-                          setConfirming(null)
-                          void run({ kind: 'remove', id: item.id }, async () => {
-                            await store.remove(uid, item.id)
-                            return `Removed ${view.title} and its events.`
-                          })
-                        }}
-                      >
-                        Remove
-                      </button>
-                      <button
-                        type="button"
-                        className={SMALL_BUTTON}
-                        onClick={() => setConfirming(null)}
-                      >
-                        Keep
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        type="button"
-                        className={SMALL_BUTTON}
-                        disabled={rowBusy}
-                        aria-label={`Refresh ${view.title}`}
-                        onClick={() =>
-                          void run({ kind: 'refresh', id: item.id }, async () => {
-                            const next = await store.refresh(uid, item.id)
-                            return next.error
-                              ? `${view.title} could not be read.`
-                              : `Refreshed ${view.title}.`
-                          })
-                        }
-                      >
-                        <RefreshCw
-                          size={12}
-                          aria-hidden="true"
-                          className={
-                            busy?.kind === 'refresh' && busy.id === item.id
-                              ? 'motion-safe:animate-spin'
-                              : undefined
-                          }
-                        />
-                        Refresh
-                      </button>
-                      <button
-                        type="button"
-                        className={SMALL_BUTTON}
-                        disabled={rowBusy}
-                        aria-label={`Remove ${view.title}`}
-                        onClick={() => setConfirming(item.id)}
-                      >
-                        Remove
-                      </button>
-                    </>
-                  )}
                 </div>
               </li>
             )

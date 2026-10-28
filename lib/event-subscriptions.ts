@@ -122,7 +122,8 @@ export interface SubscriptionView {
 /** PURE. What one linked calendar's row says. */
 export function subscriptionView(item: SubscriptionSummary, nowMs: number): SubscriptionView {
   const title = item.label || item.host
-  const parts = [item.host, updatedText(item.lastSuccessAt, nowMs)]
+  // The host names a link without a label already, so it is not repeated.
+  const parts = [...(item.label ? [item.host] : []), updatedText(item.lastSuccessAt, nowMs)]
   if (item.lastSuccessAt) parts.push(plural(item.eventCount, 'upcoming event'))
   const reason = subscriptionErrorMessage(item.error)
   let problem: string | null = null

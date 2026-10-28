@@ -669,6 +669,8 @@ describe('calendar feed tokens', () => {
     await assertSucceeds(alice.doc('users/alice/private/calendarFeed').get())
     await assertFails(alice.doc('users/alice/private/calendarFeed').set({ token: TOKEN }))
     await assertFails(alice.doc('users/alice/private/calendarFeed').delete())
+    await assertFails(mallory.doc('users/alice/private/calendarFeed').get())
+    await assertFails(mallory.doc('users/mallory/private/calendarFeed').set({ token: TOKEN }))
   })
 
   test('linked calendar links are server-only; their summary is owner-readable only', async () => {
@@ -688,8 +690,6 @@ describe('calendar feed tokens', () => {
     await assertFails(alice.doc('users/alice/private/eventSubscriptions').set({ items: {} }))
     const mallory = testEnv.authenticatedContext('mallory').firestore()
     await assertFails(mallory.doc('users/alice/private/eventSubscriptions').get())
-    await assertFails(mallory.doc('users/alice/private/calendarFeed').get())
-    await assertFails(mallory.doc('users/mallory/private/calendarFeed').set({ token: TOKEN }))
   })
 
   test('a tombstoned account cannot read its private feed token', async () => {
