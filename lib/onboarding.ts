@@ -1,5 +1,11 @@
 // Setup flow data and the live UV preview (components/Onboarding.tsx).
-import { OPEN_METEO_FORECAST_URL, SKIN_BURN_BASE, SKIN_TYPES, fetchJson } from '@solara/core'
+import {
+  FITZPATRICK_TYPES,
+  OPEN_METEO_FORECAST_URL,
+  SKIN_BURN_BASE,
+  SKIN_TYPES,
+  fetchJson,
+} from '@solara/core'
 import { SKIN_TYPE_LABELS } from './profiles'
 import type { Location, SkinType } from './types'
 
@@ -48,7 +54,7 @@ const SKIN_DESCRIPTIONS: Readonly<Record<SkinType, string>> = {
 
 /**
  * A representative tone for each skin type, shown as a swatch beside its name so
- * the choice is quicker to make (roughly Fitzpatrick types I-V).
+ * the choice is quicker to make (Fitzpatrick types I to V-VI, see FITZPATRICK_TYPES).
  */
 export const SKIN_SWATCHES: Readonly<Record<SkinType, string>> = {
   'very-fair': '#f7e2d4',
@@ -62,15 +68,18 @@ export interface SkinOption {
   value: SkinType
   label: string
   desc: string
+  /** The Fitzpatrick type, as "Type II". */
+  fitzpatrick: string
   /** Rough minutes to a burn at UV 10, from the recommendation engine's table. */
   burnTime: string
 }
 
-/** The skin type choices, lightest first. */
+/** The skin type choices, lightest first (setup and Settings). */
 export const SKIN_OPTIONS: readonly SkinOption[] = SKIN_TYPES.map(value => ({
   value,
   label: SKIN_TYPE_LABELS[value],
   desc: SKIN_DESCRIPTIONS[value],
+  fitzpatrick: `Type ${FITZPATRICK_TYPES[value]}`,
   burnTime: `~${SKIN_BURN_BASE[value]}m`,
 }))
 

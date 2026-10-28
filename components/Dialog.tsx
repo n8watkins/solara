@@ -20,9 +20,9 @@ interface Props {
   /**
    * `card` is a centered panel sized to its content. `sheet` has a fixed height
    * on desktop and fills the whole screen on phones, for long multi-section
-   * content such as Settings.
+   * content such as Settings. `narrow` is a card for a single column of choices.
    */
-  variant?: 'card' | 'sheet'
+  variant?: 'card' | 'narrow' | 'sheet'
   children: ReactNode
 }
 
@@ -35,6 +35,7 @@ const PANEL =
 
 const VARIANTS = {
   card: 'max-h-[min(88vh,760px)] max-w-[820px]',
+  narrow: 'max-h-[min(88vh,760px)] max-w-[560px]',
   // Fixed height on desktop so switching sections does not resize the panel;
   // the whole screen on phones so options are not trapped in a small box.
   sheet:
