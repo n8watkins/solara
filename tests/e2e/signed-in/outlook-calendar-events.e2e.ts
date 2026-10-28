@@ -244,8 +244,9 @@ test('the redirect page carries no script but its own', async ({ page }) => {
   expect(scripts.every(attributes => !/\bsrc=/.test(attributes))).toBe(true)
   expect(scripts).toHaveLength(2)
   expect(html).toContain('solara-microsoft-auth:')
-  // No framework chunk either (scripts/static-pages.mjs), so no analytics or Firebase.
-  expect(html).not.toMatch(/_next\/static\/chunks\//)
+  // No framework JavaScript either (scripts/static-pages.mjs), so no analytics or Firebase;
+  // only the stylesheets.
+  expect(html).not.toMatch(/_next\/static\/[^"]+\.js/)
 })
 
 test('a cancelled sign-in is not an error, and an organization’s refusal says what to do', async ({
