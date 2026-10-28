@@ -1,6 +1,6 @@
 # Solara status
 
-_Last reviewed: 2026-10-25_
+_Last reviewed: 2026-10-27_
 
 This is the single page for the current state of Solara: what is live, what is built but switched off, how CI/CD runs, and which owner actions are done or open.
 Facts were checked against the code, the workflows, GitHub (`gh`) and the live site on the date above.
@@ -58,6 +58,9 @@ The signed-in suite covers Scheduled with a faked Google Calendar.
   The `ENABLE_BLAZE_FUNCTIONS` variable is not set and the build ships an empty `NEXT_PUBLIC_FUNCTIONS_URL`, so the client hides everything that needs Functions: checkout and the billing portal, account export and deletion, the live calendar feed, notification device registration, and the scheduled billing and deletion jobs.
 - **Billing:** built and switched off: monthly and yearly checkout with a 7-day trial, the billing portal and an account billing summary are in the code and tested against a fake Stripe; the pricing dialog offers the waitlist until the `BILLING_ENABLED`, `STRIPE_PRICE_ID` and `STRIPE_YEARLY_PRICE_ID` variables are set.
 - **Morning alerts** are Pro-only and launch with Pro on a scheduled Function; nothing has been sent since 2026-07-15 and the manual `notify.yml` workflow has no schedule.
+
+- **Forecast licensing (D5):** the forecast proxy for the Open-Meteo commercial API is built and switched off; the browser calls Open-Meteo's free API until `FORECAST_PROXY_ENABLED` is set.
+- **Operations:** every Function has instance, memory and timeout caps, rate limits and App Check; a budget kill switch and cost guard, alerts, uptime checks, backups and TTL policies are in code and `infra/` scripts, applied by the owner at the Pro launch ([RUNBOOK.md](RUNBOOK.md)).
 
 The project stays on Spark until Pro launches ([COSTS.md](COSTS.md)).
 

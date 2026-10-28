@@ -71,16 +71,29 @@ Already done: the domain move to `solara-uv.web.app`, the Firestore index role (
        Or in the console: **Billing**, **Budgets & alerts**, **Create budget**; scope the project `uv-activity-planner`; amount **$5** monthly; thresholds 50%, 90% and 100% of actual spend and 100% of forecasted spend; under **Manage notifications** tick **Connect a Pub/Sub topic to this budget** and choose (or create) `projects/uv-activity-planner/topics/budget-alerts`.
     3. Leave the last resort (detaching billing) off unless you want the site to go down rather than spend more than twice the budget; to turn it on, run the script again with `DETACH_BILLING=true` and set the `COST_GUARD_DETACH_BILLING` repository variable to `true` ([runbook](RUNBOOK.md#budget-kill-switch)).
     4. App Check order: Functions enforce App Check in their code from their first deploy, so the site key from step 5 must be live first; Firestore enforcement stays the console switch from step 5, after a week of metrics; never enforce **Authentication**.
-13. Create a staging Firebase project and a Stripe account in **test mode** (D9); the agent guides both.
-14. **Buy the Open-Meteo Standard commercial plan** (about $29 per month) once the first subscription is live (D5), then switch forecasts to it:
+13. **Staging and Stripe test mode first (D9, about an hour with the agent).** Create a staging Firebase project (Blaze, with its own budget from step 12) and use Stripe in **test mode**; do steps 14-16 there first, run the checks in [Functions and Stripe](#functions-and-stripe), then repeat them for `uv-activity-planner` with live Stripe keys.
+14. **First Functions deploy (about 20 minutes).**
+    1. Grant the deploy identity the extra Functions roles ([WIF_SETUP.md](WIF_SETUP.md#extra-roles-when-functions-are-enabled)).
+    2. Create the three secrets: `npx firebase functions:secrets:set STRIPE_SECRET_KEY --project uv-activity-planner`, the same for `STRIPE_WEBHOOK_SECRET`, and `OPEN_METEO_API_KEY` with the value `unset` for now.
+    3. Set the repository variables `NEXT_PUBLIC_FUNCTIONS_URL` (`https://us-central1-uv-activity-planner.cloudfunctions.net`) and then `ENABLE_BLAZE_FUNCTIONS=true`; leave `BILLING_ENABLED` and `FORECAST_PROXY_ENABLED` unset.
+       The next deploy publishes the Functions (it sets the Artifact Registry cleanup policy itself); checkout still shows the waitlist and forecasts still come straight from Open-Meteo.
+    4. Then the follow-ups in [Functions and Stripe](#functions-and-stripe): the feed token migration, the feed log exclusion and the `X-Forwarded-For` check.
+15. **Monitoring, backups and record expiry (about 15 minutes).** From a shell signed in as the owner, print each script's commands, read them, then run it again with `--apply`:
+    1. `ALERT_EMAIL=<your email> infra/monitoring.sh`: two uptime checks and the two alert policies ([runbook](RUNBOOK.md#alerts)).
+    2. `infra/backups.sh`: point-in-time recovery, delete protection, daily backups and the image cleanup policy.
+    3. `infra/firestore-ttl.sh`: the TTL policies that delete expired records ([runbook](RUNBOOK.md#record-retention)).
+    4. With the agent, run a restore drill in staging and record it in the [runbook](RUNBOOK.md#backups-and-restore).
+16. **Switch Pro billing on.** With the Stripe product, prices, portal settings and webhook from [Functions and Stripe](#functions-and-stripe) in place: `gh variable set STRIPE_PRICE_ID --repo n8watkins/solara --body <monthly price id>`, the same for `STRIPE_YEARLY_PRICE_ID`, then `gh variable set BILLING_ENABLED --repo n8watkins/solara --body true`, and let the next deploy run.
+    The plans dialog then offers the 7-day trial instead of the waitlist; setting `BILLING_ENABLED` to anything else brings the waitlist back.
+17. **Buy the Open-Meteo Standard commercial plan** (about $29 per month) once the first subscription is live (D5), then switch forecasts to it:
     1. Set the key: `npx firebase functions:secrets:set OPEN_METEO_API_KEY --project uv-activity-planner` and paste the API key from the Open-Meteo dashboard.
     2. Set the `FORECAST_PROXY_ENABLED` repository variable to `true`: `gh variable set FORECAST_PROXY_ENABLED --repo n8watkins/solara --body true`.
     3. The next deploy redeploys the Functions with the key and builds the app to fetch through the proxy; check that the dashboard still loads a forecast in a private window, and that the `forecast` Function's logs show no `forecast served from the last good copy` warnings.
-15. Run the release checks in [Release verification](#release-verification), plus [Functions and Stripe](#functions-and-stripe) and [Notifications](#notifications).
+18. Run the release checks in [Release verification](#release-verification), plus [Functions and Stripe](#functions-and-stripe) and [Notifications](#notifications).
 
 ### Later: mobile app (Wave 6)
 
-16. Create an Apple Developer account ($99 per year) and a Google Play developer account ($25 once).
+19. Create an Apple Developer account ($99 per year) and a Google Play developer account ($25 once).
 
 ## Repository
 

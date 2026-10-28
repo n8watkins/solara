@@ -317,8 +317,11 @@ jobs:
       - name: Check the Functions deploy payload
         run: node .github/scripts/check-functions-payload.js
 
+      # --force: the committed source is the truth, so functions removed from it are
+      # deleted, and a missing Artifact Registry cleanup policy for the Functions' images
+      # is created (keep 1 day; infra/backups.sh) instead of failing the deploy.
       - name: Deploy Functions
-        run: functions/node_modules/.bin/firebase deploy --only functions --project "$FIREBASE_PROJECT_ID" --non-interactive
+        run: functions/node_modules/.bin/firebase deploy --only functions --project "$FIREBASE_PROJECT_ID" --non-interactive --force
 
   hosting:
     name: Hosting

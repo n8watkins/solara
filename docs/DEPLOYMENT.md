@@ -13,7 +13,7 @@ What is actually deployed and configured today is in [status.md](status.md), and
 
 Firebase Hosting, Authentication, Firestore, and Cloud Messaging can operate on the Spark plan within their quotas.
 Deploying Firebase Functions requires the Blaze plan and an attached billing account.
-Set a budget alert before enabling Blaze.
+Set up the budget and its kill switch (`infra/budget.sh`) the day Blaze is enabled; the `infra/` scripts print their gcloud commands and change nothing without `--apply` ([owner checklist steps 12-15](OWNER_CHECKLIST.md#at-pro-launch-blaze)).
 
 ## Local environment
 
@@ -119,7 +119,7 @@ Every push to `main` runs `.github/workflows/deploy.yml`:
 1. The reusable quality workflow (`.github/workflows/quality.yml`) runs the README's [quality checks](../README.md#quality-checks) plus workflow and secret scanning.
 2. One job builds the static export with the checked public configuration, uploads its source maps to Sentry and deletes them when that is configured, smoke-tests that `out/` on the Hosting emulator, and packages it with its SHA-256 digest, CycloneDX SBOMs and a provenance record.
 3. Firestore rules and Firestore indexes deploy as separate jobs, so an index failure is visible on its own and does not hide whether Hosting published.
-4. When `ENABLE_BLAZE_FUNCTIONS` is `true`, the Functions job writes the project's prices and switches (`STRIPE_PRICE_ID`, `STRIPE_YEARLY_PRICE_ID`, `BILLING_ENABLED`, `COST_GUARD_DETACH_BILLING`), builds `@solara/core` and the Functions, re-runs the params and payload checks, and deploys after rules and indexes.
+4. When `ENABLE_BLAZE_FUNCTIONS` is `true`, the Functions job (which deploys with `--force`, so functions removed from the source are deleted and the Artifact Registry cleanup policy is set when missing) writes the project's prices and switches (`STRIPE_PRICE_ID`, `STRIPE_YEARLY_PRICE_ID`, `BILLING_ENABLED`, `COST_GUARD_DETACH_BILLING`), builds `@solara/core` and the Functions, re-runs the params and payload checks, and deploys after rules and indexes.
 5. Hosting verifies the digest and deploys exactly the tested artifact, after rules and, when they deploy, Functions.
 
 Pull requests run the same quality workflow without deploying.
@@ -438,6 +438,7 @@ The consent and booking checks are in the [owner checklist](OWNER_CHECKLIST.md#g
 
 ## Operational rollback
 
+Rollback per component, restores, alerts and secret rotation are in the [runbook](RUNBOOK.md).
 Use the Firebase Hosting release history to roll Hosting back.
 Disable the notification workflow before investigating any duplicate or incorrectly timed delivery incident.
 Rotate a compromised service account, calendar-feed token, FCM token, or Stripe webhook secret immediately.
