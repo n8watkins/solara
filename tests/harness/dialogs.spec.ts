@@ -77,6 +77,8 @@ test('settings: tabs, labels, focus trap and Escape', async ({ page }) => {
   await expect(sunProfile).toBeFocused()
   await expect(sunProfile).toHaveAttribute('aria-selected', 'true')
   await press(page, 'ArrowRight')
+  await expect(dialog.getByRole('tab', { name: 'Alerts' })).toBeFocused()
+  await press(page, 'ArrowRight')
   const appearance = dialog.getByRole('tab', { name: 'Appearance' })
   await expect(appearance).toBeFocused()
   await expect(appearance).toHaveAttribute('aria-selected', 'true')
@@ -91,7 +93,7 @@ test('settings: tabs, labels, focus trap and Escape', async ({ page }) => {
   await expect(sunProfile).toBeFocused()
 
   // Every tab is on screen, including on a phone.
-  for (const name of ['Sun profile', 'Appearance', 'Activities', 'Location', 'Account']) {
+  for (const name of ['Sun profile', 'Alerts', 'Appearance', 'Activities', 'Location', 'Account']) {
     await expect(dialog.getByRole('tab', { name })).toBeInViewport({ ratio: 1 })
   }
 

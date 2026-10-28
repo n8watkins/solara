@@ -14,6 +14,7 @@ import Dialog from './Dialog'
 import AccountSettings from './settings/AccountSettings'
 import AppearanceSettings from './settings/AppearanceSettings'
 import LocationSettings from './settings/LocationSettings'
+import NotificationSettings from './settings/NotificationSettings'
 import SettingsTabs, { settingsSection, type SettingsTab } from './settings/SettingsTabs'
 import SunProfileSettings from './settings/SunProfileSettings'
 
@@ -21,7 +22,7 @@ interface Props {
   prefs: UserPreferences
   onSave: (updated: UserPreferences) => void
   onClose: () => void
-  initialTab?: 'general' | 'activities' | 'location'
+  initialTab?: SettingsTab
   user?: User | null
 }
 
@@ -94,8 +95,9 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
               <p className="mt-1 text-[13px] text-ink-3">{section.desc}</p>
             </div>
 
-            {tab === 'general' && (
-              <SunProfileSettings draft={draft} onChange={update} tier={tier} user={user} />
+            {tab === 'general' && <SunProfileSettings draft={draft} onChange={update} />}
+            {tab === 'alerts' && (
+              <NotificationSettings tier={tier} user={user} draft={draft} onChange={update} />
             )}
             {tab === 'appearance' && <AppearanceSettings draft={draft} onChange={update} />}
             {tab === 'activities' && (

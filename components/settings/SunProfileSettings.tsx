@@ -1,12 +1,10 @@
 'use client'
 import { useId, useState } from 'react'
-import type { User } from 'firebase/auth'
-import type { SkinType, TierLevel } from '@/lib/types'
+import type { SkinType } from '@/lib/types'
 import type { SettingsDraft } from '@/lib/settings'
 import { SKIN_OPTIONS } from '@/lib/onboarding'
 import SkinSwatch from '../SkinSwatch'
 import { SkinTypeQuiz } from '../deferred'
-import NotificationSettings from './NotificationSettings'
 import {
   FIELD_CONTROL,
   SettingsCard,
@@ -18,12 +16,10 @@ import {
 interface Props {
   draft: SettingsDraft
   onChange: (patch: Partial<SettingsDraft>) => void
-  tier: TierLevel
-  user?: User | null
 }
 
-/** The "Sun profile" section: skin type, sunscreen, and morning and UV alerts. */
-export default function SunProfileSettings({ draft, onChange, tier, user }: Props) {
+/** The "Sun profile" section: skin type and sunscreen (the alerts have their own tab). */
+export default function SunProfileSettings({ draft, onChange }: Props) {
   const id = useId()
   const [showHelp, setShowHelp] = useState(false)
   const [quizOpen, setQuizOpen] = useState(false)
@@ -111,8 +107,6 @@ export default function SunProfileSettings({ draft, onChange, tier, user }: Prop
           swim, walk, and quick coffee break can each use different protection settings.
         </SettingsHint>
       </SettingsCard>
-
-      <NotificationSettings tier={tier} user={user} draft={draft} onChange={onChange} />
     </div>
   )
 }
