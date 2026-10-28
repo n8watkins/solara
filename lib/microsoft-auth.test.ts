@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   MICROSOFT_AUTH_CHANNEL_PREFIX,
+  MICROSOFT_CLOSED_GRACE_MS,
   MICROSOFT_TOKEN_URL,
   MicrosoftAuthError,
   authorizeUrl,
@@ -39,6 +40,7 @@ describe('authorizeUrl', () => {
         scope: SCOPE,
         state: 'st',
         codeChallenge: 'ch',
+        selectAccount: true,
       }),
     )
     expect(url.origin + url.pathname).toBe(
@@ -57,6 +59,19 @@ describe('authorizeUrl', () => {
     })
     // Never a refresh token, and nothing about who the person is.
     expect(url.searchParams.get('scope')).not.toMatch(/offline_access|openid|profile|email/)
+  })
+
+  it('reuses the signed-in Microsoft account unless asked to pick one (REVIEW7 L3)', () => {
+    const url = new URL(
+      authorizeUrl({
+        clientId: CLIENT_ID,
+        redirectUri: REDIRECT,
+        scope: SCOPE,
+        state: 'st',
+        codeChallenge: 'ch',
+      }),
+    )
+    expect(url.searchParams.has('prompt')).toBe(false)
   })
 })
 
@@ -194,7 +209,7 @@ describe('createMicrosoftAuth', () => {
 
   it('opens the popup at once, redeems the code with the verifier, and keeps the token in memory', async () => {
     const { auth, popups, posts, redirect } = harness()
-    const pending = auth.requestToken(SCOPE, { interactive: true })
+    const pending = auth.requestToken(SCOPE, { interactive: true, selectAccount: true })
     // Opened before anything is awaited, so the click's user activation still counts.
     expect(popups).toHaveLength(1)
     await redirect({ code: 'the-code' })
@@ -215,6 +230,7 @@ describe('createMicrosoftAuth', () => {
     expect(await codeChallengeFor(body.code_verifier!)).toBe(
       authorize.searchParams.get('code_challenge'),
     )
+    expect(authorize.searchParams.get('prompt')).toBe('select_account')
     // The next request needs no popup until the token is about to expire.
     expect(auth.hasToken(SCOPE)).toBe(true)
     expect(await auth.requestToken(SCOPE, { interactive: false })).toBe('test-access-token')
@@ -252,11 +268,31 @@ describe('createMicrosoftAuth', () => {
 
   it('reports a popup closed without an answer, after a grace for a late message', async () => {
     const { auth, popups } = harness()
-    const pending = failure(auth.requestToken(SCOPE, { interactive: true }))
+    let settled = false
+    const pending = failure(auth.requestToken(SCOPE, { interactive: true })).finally(
+      () => (settled = true),
+    )
     await vi.waitFor(() => expect(popups[0]!.location.href).toMatch(/^https:/))
     popups[0]!.closed = true
-    await vi.advanceTimersByTimeAsync(3_000)
+    await vi.advanceTimersByTimeAsync(MICROSOFT_CLOSED_GRACE_MS - 1_000)
+    expect(settled).toBe(false)
+    await vi.advanceTimersByTimeAsync(2_000)
     expect(await pending).toMatchObject({ reason: 'popup_closed' })
+  })
+
+  it('takes an answer that arrives seconds after the popup reads as closed (REVIEW7 M1)', async () => {
+    // Solara's opener policy makes the popup read as closed the moment the redirect page
+    // arrives, before its script posts the code.
+    const { auth, popups, channels } = harness()
+    const pending = auth.requestToken(SCOPE, { interactive: true })
+    await vi.waitFor(() => expect(popups[0]!.location.href).toMatch(/^https:/))
+    const state = new URL(popups[0]!.location.href).searchParams.get('state')!
+    popups[0]!.closed = true
+    await vi.advanceTimersByTimeAsync(4_000)
+    channels.get(`${MICROSOFT_AUTH_CHANNEL_PREFIX}${state}`)!.onmessage?.({
+      data: { state, code: 'late-code', error: '', errorDescription: '', errorSubcode: '' },
+    } as MessageEvent)
+    expect(await pending).toBe('test-access-token')
   })
 
   it('gives up after the timeout and closes the popup', async () => {
@@ -328,6 +364,83 @@ describe('createMicrosoftAuth', () => {
     await pending
     auth.forget()
     expect(auth.hasToken(SCOPE)).toBe(false)
+  })
+
+  it('keeps a token for at most an hour, whatever Microsoft says', async () => {
+    const { auth, redirect, answerToken } = harness()
+    answerToken(() =>
+      Response.json({ token_type: 'Bearer', access_token: 'long-lived', expires_in: 5400 }),
+    )
+    const pending = auth.requestToken(SCOPE, { interactive: true })
+    await redirect({ code: 'c' })
+    await pending
+    vi.advanceTimersByTime(3600_000 - 60_000)
+    expect(auth.hasToken(SCOPE)).toBe(false)
+  })
+
+  it('ends a sign-in still open when the token is forgotten, closing its popup (REVIEW7 L1)', async () => {
+    const { auth, popups, channels, posts } = harness()
+    const pending = failure(auth.requestToken(SCOPE, { interactive: true }))
+    await vi.waitFor(() => expect(popups[0]!.location.href).toMatch(/^https:/))
+    const state = new URL(popups[0]!.location.href).searchParams.get('state')!
+    // Person A signs out of Solara while the popup is still open.
+    auth.forget()
+    expect(await pending).toMatchObject({ reason: 'popup_closed' })
+    expect(popups[0]!.closed).toBe(true)
+    expect(channels.size).toBe(0)
+    // A finishes in the popup later: nobody listens, nothing is redeemed or kept.
+    expect(channels.get(`${MICROSOFT_AUTH_CHANNEL_PREFIX}${state}`)).toBeUndefined()
+    expect(posts).toEqual([])
+    expect(auth.hasToken(SCOPE)).toBe(false)
+  })
+
+  it('drops a token whose redemption was under way when forgotten (REVIEW7 L1)', async () => {
+    let release!: () => void
+    const answered = new Promise<void>(resolve => (release = resolve))
+    const { auth, redirect } = harness({
+      fetch: async () => {
+        await answered
+        return Response.json({ token_type: 'Bearer', access_token: 'a-token', expires_in: 3599 })
+      },
+    })
+    const pending = failure(auth.requestToken(SCOPE, { interactive: true }))
+    await redirect({ code: 'c' })
+    auth.forget()
+    release()
+    expect(await pending).toMatchObject({ reason: 'popup_closed' })
+    expect(auth.hasToken(SCOPE)).toBe(false)
+    // The next account's own sign-in starts afresh, and the old one's end leaves it alone.
+    const next = auth.requestToken(SCOPE, { interactive: true })
+    await redirect({ code: 'd' })
+    expect(await next).toBe('a-token')
+    expect(auth.hasToken(SCOPE)).toBe(true)
+  })
+
+  it('says a page without Web Crypto needs a secure connection, opening nothing (REVIEW7 L6)', async () => {
+    const { auth, popups } = harness()
+    vi.stubGlobal('crypto', { getRandomValues: crypto.getRandomValues.bind(crypto) })
+    try {
+      const error = await failure(auth.requestToken(SCOPE, { interactive: true }))
+      expect(error).toMatchObject({ name: 'CalendarAuthError', reason: 'insecure_context' })
+      expect(error.message).toMatch(/secure \(https\)/)
+      expect(popups).toHaveLength(0)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('closes the popup and reports nothing else when the challenge cannot be made', async () => {
+    const { auth, popups, channels } = harness()
+    const digest = vi.spyOn(crypto.subtle, 'digest').mockRejectedValueOnce(new Error('no digest'))
+    try {
+      await expect(auth.requestToken(SCOPE, { interactive: true })).rejects.toThrow('no digest')
+      expect(popups[0]!.closed).toBe(true)
+      expect(channels.size).toBe(0)
+      // No stray popup_closed rejection follows (vitest fails the run on one).
+      await vi.advanceTimersByTimeAsync(MICROSOFT_CLOSED_GRACE_MS * 2)
+    } finally {
+      digest.mockRestore()
+    }
   })
 
   it('needs a client ID', async () => {

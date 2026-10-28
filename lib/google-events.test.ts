@@ -776,4 +776,13 @@ describe('syncSummary', () => {
       'Showing 12 upcoming events from Google Calendar. 2 events already in Solara are shown once. 1 event did not fit. You have 1,000 imported events, the most an account can keep. Remove some to import more. Club is no longer shared with you.',
     )
   })
+
+  it('says when every event is already in Solara from another source (REVIEW7 L2)', () => {
+    expect(syncSummary({ ...base, duplicates: 1 })).toBe(
+      'Your 1 event from Google Calendar is already in Solara, so it is shown once.',
+    )
+    expect(syncSummary({ ...base, duplicates: 3, missing: [{ id: 'c', name: 'Club' }] })).toBe(
+      'Your 3 events from Google Calendar are already in Solara, so they are shown once. Club is no longer shared with you.',
+    )
+  })
 })

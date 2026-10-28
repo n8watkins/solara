@@ -525,12 +525,18 @@ export function calendarSyncSummary(
   outcome: SyncOutcome,
   { service, windowDays }: { service: string; windowDays: number },
 ): string {
+  const one = outcome.duplicates === 1
+  // Every event worth showing is already in Solara from another source: say so, rather
+  // than that none has an address (REVIEW7 L2).
+  const allDuplicates = !outcome.shown && outcome.duplicates > 0
   const head = outcome.shown
     ? `Showing ${plural(outcome.shown, 'upcoming event')} from ${service}.`
-    : `No events in the next ${windowDays} days have an address or match one of your activities.`
+    : allDuplicates
+      ? `Your ${plural(outcome.duplicates, 'event')} from ${service} ${one ? 'is' : 'are'} already in Solara, so ${one ? 'it is' : 'they are'} shown once.`
+      : `No events in the next ${windowDays} days have an address or match one of your activities.`
   const notes = [
-    outcome.duplicates
-      ? `${plural(outcome.duplicates, 'event')} already in Solara ${outcome.duplicates === 1 ? 'is' : 'are'} shown once.`
+    outcome.duplicates && !allDuplicates
+      ? `${plural(outcome.duplicates, 'event')} already in Solara ${one ? 'is' : 'are'} shown once.`
       : '',
     outcome.overLimit
       ? `${plural(outcome.overLimit, 'later event')} will show once sooner ones have passed.`

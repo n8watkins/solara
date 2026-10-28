@@ -24,6 +24,7 @@ import {
   parseOutlookEvent,
   refreshOutlookEvents,
   removeOutlookEvents,
+  retryAfterMs,
   setRetryPause,
   syncOutlookEvents,
   type OutlookCalendarApi,
@@ -491,6 +492,29 @@ describe('outlookCalendarApi', () => {
     expect(waits).toEqual([2_000, 30_000])
   })
 
+  it('waits 5 seconds when a 429 names no wait (REVIEW7 L4)', async () => {
+    const waits: number[] = []
+    setRetryPause(async ms => void waits.push(ms))
+    stubFetch(new Response('', { status: 429 }), Response.json({ value: [] }))
+    await outlookCalendarApi.listEvents('t', 'default', new Date(), new Date())
+    expect(waits).toEqual([5_000])
+  })
+
+  it('reads Retry-After as seconds or a date, never retrying at once', () => {
+    const now = Date.parse('2026-06-15T17:30:00Z')
+    expect(retryAfterMs(null, now)).toBe(5_000)
+    expect(retryAfterMs('', now)).toBe(5_000)
+    expect(retryAfterMs('  ', now)).toBe(5_000)
+    expect(retryAfterMs('soon', now)).toBe(5_000)
+    expect(retryAfterMs('-3', now)).toBe(5_000)
+    expect(retryAfterMs('1.5', now)).toBe(5_000)
+    expect(retryAfterMs('0', now)).toBe(1_000)
+    expect(retryAfterMs('7', now)).toBe(7_000)
+    expect(retryAfterMs('3600', now)).toBe(30_000)
+    expect(retryAfterMs('Mon, 15 Jun 2026 17:30:12 GMT', now)).toBe(12_000)
+    expect(retryAfterMs('Mon, 15 Jun 2026 17:29:00 GMT', now)).toBe(1_000)
+  })
+
   it('lists calendars with the owner only to compare it, across pages', async () => {
     const calls = stubFetch(
       Response.json({
@@ -718,8 +742,9 @@ describe('syncOutlookEvents', () => {
     )
     expect(outcome).toMatchObject({ shown: 0, duplicates: 2 })
     expect([...items.values()].filter(e => e.source === 'outlook')).toEqual([])
+    // Not "no events have an address" while both are shown (REVIEW7 L2).
     expect(outlookSyncSummary(outcome)).toBe(
-      'No events in the next 30 days have an address or match one of your activities. 2 events already in Solara are shown once.',
+      'Your 2 events from Outlook are already in Solara, so they are shown once.',
     )
   })
 
