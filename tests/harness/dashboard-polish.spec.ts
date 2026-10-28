@@ -31,6 +31,10 @@ async function atEachWidth(
   shot: Locator,
   check: (width: number) => Promise<void>,
 ) {
+  // Widths depend on the web font: measure once it has loaded, not in the fallback.
+  await page.evaluate(async () => {
+    await document.fonts.ready
+  })
   for (const width of widths(t)) {
     await page.setViewportSize({ width, height: mobile(t) ? 844 : 900 })
     if (SHOTS) {
