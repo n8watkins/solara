@@ -1,14 +1,15 @@
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
+import AxeBuilder from '@axe-core/playwright'
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { pauseClock, startClock } from './clock'
+import { HARNESS_NOW_MS, pauseClock, startClock } from './clock'
 import { freezeScreen } from './freeze'
 import { HARNESS_MARKER } from './fixtures'
 
 // Dashboard states the default screenshot does not reach: a scrubbed hour with
 // the UV scale open, the day picker dialog, the free plan's locked-days tab,
 // the free plan's Plan ahead upsell, another day's hero, scheduled rows on the
-// activity cards and the loading skeleton. Each state is asserted and
+// activity cards, the sunscreen timer running and due, and the loading skeleton. Each state is asserted and
 // screenshotted so restyles can be compared before and after.
 const SHOT_DIR = join('test-results', 'ui-harness', 'screenshots')
 
@@ -141,3 +142,32 @@ test('the skeleton holds the layout while the forecast loads', async ({ page }, 
   await shoot(page, 'skeleton', testInfo.project.name)
   expect(errors).toEqual([])
 })
+
+for (const [state, minutesAgo, heading] of [
+  ['idle', null, 'Sunscreen timer'],
+  ['running', 30, 'Reapply sunscreen at 12pm'],
+  ['due', 125, 'Time to reapply sunscreen'],
+] as const) {
+  test(`the sunscreen timer, ${state}`, async ({ page }, testInfo) => {
+    await page.addInitScript(
+      appliedAt => {
+        if (appliedAt === null) return
+        window.localStorage.setItem(
+          'solara_reapply',
+          JSON.stringify({ startedAt: appliedAt, appliedAt, mode: 'standard' }),
+        )
+      },
+      minutesAgo === null ? null : HARNESS_NOW_MS - minutesAgo * 60_000,
+    )
+    const errors = await open(page, '', scheme(testInfo.project.use.colorScheme))
+    const timer = page.getByRole('region', { name: heading })
+    await expect(timer).toBeVisible()
+    await pauseClock(page)
+    await shoot(timer, `reapply-${state}`, testInfo.project.name)
+    // axe-core schedules work with timers; let the (still frozen-date) clock run.
+    await page.clock.resume()
+    const axe = await new AxeBuilder({ page }).include('section[aria-labelledby]').analyze()
+    expect(axe.violations.map(v => v.id)).toEqual([])
+    expect(errors).toEqual([])
+  })
+}

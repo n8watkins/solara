@@ -32,6 +32,8 @@ What users get:
   Pro shows $2.99 a month or $19.99 a year with a 7-day free trial, as a waitlist until billing launches.
   Gentle upsells ("Save your plan, sign in free", "See the next 10 days with Pro", "Get this as a morning alert") open the sign-in or plans dialog and stay dismissed per device.
 - Skin types named by the Fitzpatrick scale (types I to V-VI) in setup, Settings and profiles, with an optional five-question quiz from the standard Fitzpatrick questionnaire that suggests one and says it is an estimate, not medical advice.
+- A sunscreen reapply timer on today's dashboard, free on every plan including guests (`components/dashboard/ReapplyTimer.tsx`, `lib/reapply.ts`): started when heading out, it reminds every 2 hours, or every 80 minutes while swimming or sweating.
+  It lives in this browser; the reminder is the card itself, which turns into an alert, plus a system notification while Solara is open in the background where the browser allows one (no push, so nothing arrives once every Solara tab is closed).
 - UV and weather forecasts from Open-Meteo, in the location's time zone, with Celsius or Fahrenheit and 12- or 24-hour time chosen from the locale or in Settings.
 - Personalized activity windows on the dashboard and in the week calendar, within each plan's days.
   Each activity can account for its typical shade and the surface around it (grass, pavement, water, sand, snow), which scale the UV it is planned against with cited, cautious factors; the card says so ("Sand, some shade · 90% of forecast UV").
