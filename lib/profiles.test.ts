@@ -2,13 +2,10 @@ import { describe, it, expect } from 'vitest'
 import {
   defaultProfile,
   activeProfile,
-  groupMembers,
-  planningFor,
-  planningSkinType,
   selectProfile,
   toggleGroupMemberPatch,
 } from '@/lib/profiles'
-import { mostSensitiveSkinType } from '@solara/core'
+import { groupMembers, mostSensitiveSkinType, planningFor } from '@solara/core'
 import { normalizePrefs } from '@/lib/prefs'
 import type { Location, Profile } from '@/lib/types'
 
@@ -71,7 +68,7 @@ describe('planning for a group', () => {
 
   it('uses the live skin type when group mode is off', () => {
     expect(planningFor(base)).toEqual({ skinType: 'medium', group: null, mostSensitive: null })
-    expect(planningSkinType({ ...base, groupMode: false })).toBe('medium')
+    expect(planningFor({ ...base, groupMode: false }).skinType).toBe('medium')
   })
 
   it('uses the most sensitive person among everyone by default', () => {
@@ -91,8 +88,10 @@ describe('planning for a group', () => {
   })
 
   it('needs two people in the group', () => {
-    expect(planningSkinType({ ...base, groupMode: true, groupProfileIds: ['rex'] })).toBe('medium')
-    expect(planningSkinType({ ...base, profiles: undefined, groupMode: true })).toBe('medium')
+    expect(planningFor({ ...base, groupMode: true, groupProfileIds: ['rex'] }).skinType).toBe(
+      'medium',
+    )
+    expect(planningFor({ ...base, profiles: undefined, groupMode: true }).skinType).toBe('medium')
   })
 
   it('ties go to the first person listed', () => {

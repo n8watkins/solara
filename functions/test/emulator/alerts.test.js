@@ -294,6 +294,56 @@ describe('morning alerts', () => {
     assert.deepEqual([third.scanned, third.completed], [0, true])
     assert.equal((await db.doc('alertDispatch/state').get()).data().cursor, null)
   })
+
+  test('plans a group by its most sensitive person, as the dashboard does', async () => {
+    // A family in group mode: the dark-skinned parent is the active profile (so the live
+    // skinType is theirs), and the very fair child is in the group.
+    const family = {
+      skinType: 'dark',
+      activeProfileId: 'me',
+      profiles: [
+        { id: 'me', name: 'Me', skinType: 'dark' },
+        { id: 'kid', name: 'Kid', skinType: 'very-fair' },
+      ],
+    }
+    await addUser('group', { ...family, groupMode: true })
+    await addUser('single', family)
+    const messaging = new FakeMessaging()
+    await run(messaging, Date.parse('2026-06-15T14:30:00Z')) // 7:30 in Los Angeles
+    const body = uid => messaging.sentTo(uid)[0][0].data.body
+    // UV peaks at 8: about 13 minutes for very fair skin, 63 for dark.
+    assert.match(body('group'), /burn in about 13 min/)
+    assert.match(body('single'), /burn in about 63 min/)
+  })
+
+  test('reads activities and profiles through the app schema and skips invalid ones', async () => {
+    await addUser('odd', {
+      skinType: 'purple',
+      profiles: 'everyone',
+      groupMode: true,
+      activities: [
+        {
+          id: 'run',
+          name: 'Run',
+          icon: '🏃'.repeat(2000),
+          maxUV: 3,
+          durationMins: 60,
+          shade: 'toString',
+        },
+        'not an activity',
+        { id: 7, name: 'Bad id' },
+      ],
+    })
+    const messaging = new FakeMessaging()
+    const result = await run(messaging, Date.parse('2026-06-15T14:30:00Z'))
+    assert.equal(result.sent.morning, 1)
+    const [message] = messaging.sentTo('odd')[0]
+    // The over-long icon falls back to the default, the unknown shade to open sun, and an
+    // unknown skin type to fair (about 19 minutes at UV 8).
+    assert.equal(message.data.title, '☀️ Run: 7am to 10am')
+    assert.match(message.data.body, /burn in about 19 min/)
+    assert.doesNotMatch(message.data.body, /NaN/)
+  })
 })
 
 describe('UV alerts', () => {

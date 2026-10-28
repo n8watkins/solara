@@ -1,4 +1,4 @@
-import { planningSkinType } from '@/lib/profiles'
+import { planningFor } from '@solara/core'
 import type { UserPreferences, WeatherResponse } from '@/lib/types'
 import type { ScheduledActivity } from '@/lib/scheduled'
 import { scheduledSpan } from '@/lib/scheduled-view'
@@ -36,8 +36,9 @@ export default function ScheduledDetails({
       dayLabel={day?.label ?? date}
       windows={
         activity && day
-          ? planActivityDay(day.hourly, activity, planningSkinType(prefs), { nowHour: dayNowHour })
-              .windows
+          ? planActivityDay(day.hourly, activity, planningFor(prefs).skinType, {
+              nowHour: dayNowHour,
+            }).windows
           : []
       }
       nowHour={dayNowHour}

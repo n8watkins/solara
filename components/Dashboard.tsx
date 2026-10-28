@@ -32,7 +32,7 @@ import ActivitiesSection from './dashboard/ActivitiesSection'
 import DailyBriefing from './dashboard/DailyBriefing'
 import DayPicker from './dashboard/DayPicker'
 import ExposureMetrics from './dashboard/ExposureMetrics'
-import { planningFor } from '@/lib/profiles'
+import { planningFor } from '@solara/core'
 import HeroSlot from './dashboard/HeroSlot'
 import ScheduledDetails from './dashboard/ScheduledDetails'
 import UVCard from './dashboard/UVCard'
@@ -90,7 +90,7 @@ export default function Dashboard({
   }
   // Guard against a focus left over from another day's array identity.
   const focused = focusedHour && hourly.includes(focusedHour) ? focusedHour : null
-  // One person's skin type, or a group's most sensitive (lib/profiles.ts planningFor).
+  // One person's skin type, or a group's most sensitive (planningFor in packages/core/src/prefs.ts).
   const planning = planningFor(prefs)
   const readout = uvReadout(weather, hourly, isToday, focused, planning.skinType, fmt.hour)
   const { peakUV, peakHour } = readout

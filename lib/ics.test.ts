@@ -121,7 +121,7 @@ describe('calendar feed events', () => {
     expect(event.summary).toBe('🚶 Walk: lower-UV window')
   })
 
-  it('skips activities whose id is not a plain identifier', () => {
+  it('skips activities whose id is not a plain identifier, and names id-less ones as the app does', () => {
     const activities = [
       { ...base, id: 'custom_1717000000000' },
       { ...base, id: 'bad\r\nATTENDEE:x' },
@@ -130,8 +130,12 @@ describe('calendar feed events', () => {
       { ...base, id: 'x'.repeat(65) },
     ]
     const events = sun.buildSunEvents({ activities }, [day])
+    // A missing or blank id gets the app's position id (packages/core/src/prefs.ts), so
+    // the feed shows the same activities as the app.
     expect(events.map((e: { uid: string }) => e.uid)).toEqual([
       '2026-05-30-custom_1717000000000-360@solara',
+      '2026-05-30-migrated_2-360@solara',
+      '2026-05-30-migrated_3-360@solara',
     ])
   })
 

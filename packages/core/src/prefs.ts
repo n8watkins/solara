@@ -15,7 +15,12 @@
 import * as v from 'valibot'
 import { roundCoordinate } from './geocoding'
 import { SHADE_LEVELS, SURFACES } from './exposure'
-import { SKIN_TYPES, type PreferredHours } from './recommendation'
+import {
+  mostSensitiveSkinType,
+  SKIN_TYPES,
+  type PreferredHours,
+  type SkinType,
+} from './recommendation'
 import { finiteNumber, isPlainRecord, record } from './schema'
 
 /** The document shape this code reads and writes. Bump it with a new MIGRATIONS entry. */
@@ -33,6 +38,8 @@ export const PREFS_LIMITS = Object.freeze({
   activeProfileIdLength: 64,
   emailLength: 254,
   timestampLength: 40,
+  /** An emoji, as scheduled records cap it; longer icons fall back to the default. */
+  iconLength: 16,
 })
 
 export const TIER_LEVELS = Object.freeze(['anonymous', 'free', 'paid'] as const)
@@ -153,6 +160,9 @@ const stringSet = v.pipe(
   v.transform(values => Array.from(new Set(values))),
 )
 
+/** A non-blank icon of at most PREFS_LIMITS.iconLength characters. */
+const icon = v.pipe(v.string(), v.check(isNonBlank), v.maxLength(PREFS_LIMITS.iconLength))
+
 // ---- Location ---------------------------------------------------------------------
 
 export const LOCATION_SHAPE = {
@@ -188,7 +198,7 @@ export const PROFILE_SHAPE = {
     v.transform(name => name.slice(0, PREFS_LIMITS.profileNameLength)),
   ),
   skinType: v.picklist(SKIN_TYPES),
-  icon: v.fallback(v.optional(v.pipe(v.string(), v.check(isNonBlank))), undefined),
+  icon: v.fallback(v.optional(icon), undefined),
 }
 
 /** A person or pet whose skin type drives the safety math when selected. */
@@ -236,7 +246,7 @@ export const ACTIVITY_SHAPE = {
       (name.trim() || ACTIVITY_DEFAULTS.name).slice(0, PREFS_LIMITS.activityNameLength),
     ),
   ),
-  icon: v.fallback(v.pipe(v.string(), v.check(isNonBlank)), ACTIVITY_DEFAULTS.icon),
+  icon: v.fallback(icon, ACTIVITY_DEFAULTS.icon),
   durationMins: v.fallback(
     v.pipe(
       finiteNumber,
@@ -355,7 +365,7 @@ export const PREFERENCES_SHAPE = {
   activeProfileId: v.fallback(v.optional(v.string()), undefined),
   /**
    * Planning for a group (Pro): when true, plans and burn estimates use the most
-   * sensitive of the profiles in `groupProfileIds` (lib/profiles.ts planningFor).
+   * sensitive of the profiles in `groupProfileIds` (planningFor in packages/core/src/prefs.ts).
    * Optional and added without a version bump, like the display units.
    */
   groupMode: v.fallback(v.optional(v.boolean()), undefined),
@@ -554,4 +564,53 @@ export function clientPreferencesUpdate(prefs: UserPreferences): Record<string, 
   }
   update.profiles ??= []
   return update
+}
+
+// ---- Whom plans are for -----------------------------------------------------------
+//
+// Shared by the dashboard, the Pro alerts and the calendar feed so they never disagree:
+// one person, or a group led by its most sensitive member ("Plan for a group", Pro).
+
+/** The preferences that decide whom a plan is for. */
+export type GroupPreferences = Pick<
+  UserPreferences,
+  'profiles' | 'skinType' | 'groupMode' | 'groupProfileIds'
+>
+
+/** Who plans and burn estimates are for: one person, or a group led by its most sensitive. */
+export interface PlanningFor {
+  /** The skin type every estimate uses. */
+  skinType: SkinType
+  /** In group mode, the people in the group (two or more); otherwise null. */
+  group: Profile[] | null
+  /** In group mode, the person whose skin type is used. */
+  mostSensitive: Profile | null
+}
+
+/** The saved profiles in the group: those named in `groupProfileIds`, or all when unset. */
+export function groupMembers(
+  prefs: Pick<GroupPreferences, 'profiles' | 'groupProfileIds'>,
+): Profile[] {
+  const saved = prefs.profiles ?? []
+  if (!prefs.groupProfileIds) return saved
+  const ids = new Set(prefs.groupProfileIds)
+  return saved.filter(p => ids.has(p.id))
+}
+
+/**
+ * Whom the plans are for. In group mode with two or more people in the group, the most
+ * sensitive of them (lightest skin type, see mostSensitiveSkinType) sets the skin type,
+ * so a plan that suits them suits everyone; ties go to the first in the list. Otherwise
+ * the live skin type (the active profile's) is used.
+ *
+ * Group mode is turned on only on Pro (components/ProfileSwitcher.tsx), but it keeps
+ * applying if the account goes back to Free with its profiles: it only ever makes the
+ * estimates more cautious.
+ */
+export function planningFor(prefs: GroupPreferences): PlanningFor {
+  const members = prefs.groupMode ? groupMembers(prefs) : []
+  if (members.length < 2) return { skinType: prefs.skinType, group: null, mostSensitive: null }
+  const skinType = mostSensitiveSkinType(members.map(p => p.skinType))!
+  const mostSensitive = members.find(p => p.skinType === skinType)!
+  return { skinType, group: members, mostSensitive }
 }
