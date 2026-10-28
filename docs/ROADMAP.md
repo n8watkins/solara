@@ -170,14 +170,15 @@ The third review's findings M4, M5, L4 and L5, all in switched-off Pro features:
 - **One planning skin type everywhere (M5) and validated server reads (L4):** the morning alert plans for a group's most sensitive person like the dashboard, and the alerts and the calendar feed read activities and profiles through the app's schemas (#122).
 - **The alert history in the export (L5):** #123.
 
-### 16. Fair forecast budget from the fourth review (FIX4A, built)
+### 16. Fair forecast budget from the fourth review (FIX4A, done)
 
 The fourth security review (2026-10-28, `handoff/review4.md`) found that the global upstream budget from item 14 was first come, first served: one caller with one App Check token could spend the hour's forecast calls, and place search shared the same pool (H1); an IPv6 /48 gave an attacker 65,536 per-address budgets, and the limiter evicted live windows under pressure (M1); and the feed's free-API forecasts could reach the proxy through the shared cache (L7).
 
 - **Fair shares (H1):** each caller (an IPv4 address, or an IPv6 /64 with its /48 at 4 times as much) may cause 20 upstream calls an hour per budget, counted across instances; place search has its own budget (200 an hour, 2,000 a day); while a budget or share is spent, the last good forecast up to 12 hours old is served and flagged `stale` instead of a 503 ([DEPLOYMENT.md](DEPLOYMENT.md#forecast-proxy)).
 - **Per-address limits per site (M1):** every IPv6 request also counts against its /48 at 4 times the limit, and the limiter never forgets a live window ([DEPLOYMENT.md](DEPLOYMENT.md#cost-and-abuse-limits)).
 - **No free-API forecasts in the paid cache (L7):** the free API's forecasts stay in the feed instance's memory, and cached entries record their source.
-- **Not done, for later if real traffic needs it:** reserved shares for signed-in or returning users, serving the nearest cached cell, limited-use App Check tokens for cache misses, a /32 tier, and showing the `stale` flag in the app.
+- **The `stale` flag in the app:** the app parses `stale` and `fetchedAt` (`ServedForecastSchema` in `packages/core`), keeps the copy's real age in the forecast and the browser cache, never replaces a newer forecast with an earlier copy, and says on the dashboard when the forecast was updated (`components/ForecastNotice.tsx`, one note with the offline notice).
+- **Not done, for later if real traffic needs it:** reserved shares for signed-in or returning users, serving the nearest cached cell, limited-use App Check tokens for cache misses, and a /32 tier.
 
 ### 17. Imported events hardening from the fourth review (FIX4B, built)
 
