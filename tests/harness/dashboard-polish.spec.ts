@@ -37,6 +37,15 @@ async function atEachWidth(
   })
   for (const width of widths(t)) {
     await page.setViewportSize({ width, height: mobile(t) ? 844 : 900 })
+    // Let anything the new width set off settle before measuring.
+    await page.evaluate(() =>
+      Promise.all(
+        document
+          .getAnimations()
+          .filter(a => a.effect?.getTiming().iterations !== Infinity)
+          .map(a => a.finished.catch(() => undefined)),
+      ),
+    )
     if (SHOTS) {
       await shot.scrollIntoViewIfNeeded()
       await shot.screenshot({
