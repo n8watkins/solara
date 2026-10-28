@@ -205,16 +205,22 @@ test('the day chips share one row, and a best-day time never splits', async ({ p
       `day picker rows at ${width} px`,
     ).toBeLessThanOrEqual(2)
     for (const row of await rows.all()) {
-      for (const part of await row.locator('span').all())
-        expect(await part.evaluate(el => el.getClientRects().length)).toBe(1)
+      // Each part on one line (an element with several text nodes reports a rect per
+      // node, so count lines by height).
+      for (const part of await row.locator('span').all()) {
+        // One line is at most about 1.6 em tall, two at least 2.4 em.
+        const ems = await part.evaluate(
+          el => el.getBoundingClientRect().height / parseFloat(getComputedStyle(el).fontSize),
+        )
+        expect(ems, await part.innerText()).toBeLessThan(2)
+      }
+    }
+    if (SHOTS) {
+      const plan = page.getByTestId('plan-ahead')
+      await plan.scrollIntoViewIfNeeded()
+      await plan.screenshot({ path: `${SHOTS}/plan-ahead-${width}-${scheme(t)}.png` })
     }
   })
-  if (SHOTS) {
-    await page.getByTestId('plan-ahead').scrollIntoViewIfNeeded()
-    await page.getByTestId('plan-ahead').screenshot({
-      path: `${SHOTS}/plan-ahead-${page.viewportSize()!.width}-${scheme(t)}.png`,
-    })
-  }
   if (mobile(t)) await page.setViewportSize({ width: 320, height: 844 })
   await captureScreen(page, t, capture, { name: 'day-picker-320', fullPage: false })
 })
