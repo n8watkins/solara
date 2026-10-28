@@ -162,7 +162,7 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
         <ActivityEditSection
           id={ids.cloud}
           title="Account for cloud cover"
-          description="Heavy cloud lowers UV, so a borderline hour can become workable. Conservative: thin cloud still counts as full sun."
+          description="On: plans with the forecast's clouds, so a cloudy hour can fit. Off: plans as if the sky stays clear, the safer choice when clouds may break."
           aside={
             <SectionToggle
               on={form.cloudSensitive}

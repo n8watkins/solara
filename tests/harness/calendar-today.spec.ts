@@ -42,7 +42,7 @@ test('today shows no elapsed window and fades the past', async ({ page }, testIn
   expect(spans.length).toBeGreaterThan(0)
   // HARNESS_NOW is 10:30, so nothing on today may start earlier.
   for (const span of spans) expect(span.from).toBeGreaterThanOrEqual(10.5)
-  // The 6am-10am run and the 6am-noon hike (too short once trimmed) are gone.
+  // The 6am-9am run and the 6am-noon hike (too short once trimmed) are gone.
   await expect(todayColumn(page).getByRole('button', { name: /^Running, Today, 6am/ })).toHaveCount(
     0,
   )
@@ -51,7 +51,7 @@ test('today shows no elapsed window and fades the past', async ({ page }, testIn
   ).toHaveCount(0)
   // Later days keep their morning windows.
   await expect(
-    page.getByRole('button', { name: /^Running, Tomorrow, 6am – 10am/ }).first(),
+    page.getByRole('button', { name: /^Running, Tomorrow, 6am – 9am/ }).first(),
   ).toBeVisible()
 
   // The faded past ends exactly at the now line.
@@ -62,10 +62,10 @@ test('today shows no elapsed window and fades the past', async ({ page }, testIn
 
 test('a window under way starts now and links to the right moment', async ({ page }, testInfo) => {
   test.skip(!testInfo.project.name.startsWith('desktop'), 'logic check, desktop only')
-  // 7:00 in Los Angeles: the 6am-10am run is under way.
+  // 7:00 in Los Angeles: the 6am-9am run is under way (9am's clear-sky UV is over 4).
   const at = HARNESS_NOW.replace('T10:30', 'T07:00')
   await openCalendar(page, at)
-  const chip = todayColumn(page).getByRole('button', { name: /^Running, Today, 7am – 10am/ })
+  const chip = todayColumn(page).getByRole('button', { name: /^Running, Today, 7am – 9am/ })
   await expect(chip).toBeVisible()
   await expect(chip).toHaveAttribute('data-from', '7')
   // The visible start of a window under way is "now", which fits the narrowest chip.
@@ -74,8 +74,8 @@ test('a window under way starts now and links to the right moment', async ({ pag
   const link = page.getByRole('dialog', { name: /Running/ }).getByRole('link', {
     name: /Add to Google Calendar/,
   })
-  // 07:00-10:00 PDT is 14:00-17:00 UTC.
-  await expect(link).toHaveAttribute('href', /dates=20260615T140000Z\/20260615T170000Z&/)
+  // 07:00-09:00 PDT is 14:00-16:00 UTC.
+  await expect(link).toHaveAttribute('href', /dates=20260615T140000Z\/20260615T160000Z&/)
 })
 
 test('labels of windows under way fit their chips', async ({ page }, testInfo) => {

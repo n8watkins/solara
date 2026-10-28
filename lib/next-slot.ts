@@ -8,7 +8,7 @@
 //   - ends inside the forecast day the UV strip shows (the last hourly sample;
 //     the engine in @solara/core already ends every window there),
 //   - is long enough for the activity.
-import { lowestUVWindow, summarizeWindow } from '@solara/core'
+import { effectiveMaxUV, lowestUVWindow, planningUV, summarizeWindow } from '@solara/core'
 import type { Activity, HourlyForecast, SafeActivityWindow, SkinType } from './types'
 import { getActivityWindow } from './weather'
 import type { BusyInterval, SlotRecommendation } from './scheduler'
@@ -66,6 +66,28 @@ export interface ActivityDayPlan {
   pctDaySafe: number
   /** Burn estimate at the activity's planning UV limit. */
   burnMins: number | null
+  /**
+   * For each of `windows`: it holds only if the forecast clouds do (the activity
+   * accounts for cloud cover and a clear sky would put an hour over its limit).
+   */
+  cloudDependent: boolean[]
+}
+
+/**
+ * Whether a window for a cloud-sensitive activity holds only under the forecast's
+ * clouds: some hour in it would be over the limit under a clear sky.
+ */
+export function needsClouds(
+  win: { from: number; to: number },
+  hourly: HourlyForecast[],
+  activity: Activity,
+): boolean {
+  if (!activity.cloudSensitive) return false
+  const clearSky = { ...activity, cloudSensitive: false }
+  const limit = effectiveMaxUV(activity)
+  return hourly.some(
+    h => h.hour >= Math.floor(win.from) && h.hour < win.to && planningUV(h, clearSky) > limit,
+  )
 }
 
 export interface PlanOptions {
@@ -105,6 +127,7 @@ export function planActivityDay(
     elapsed,
     pctDaySafe,
     burnMins,
+    cloudDependent: windows.map(w => needsClouds(w, hourly, activity)),
   }
 }
 

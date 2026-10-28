@@ -15,7 +15,8 @@ test('the calendar shows each activity window and opens its details', async ({
     main.getByRole('button', { name: 'Running, Today, 6pm – 8pm, peak UV 3.1' }),
   ).toBeVisible()
   await expect(
-    main.getByRole('button', { name: 'Hiking, Tomorrow, 4pm – 8pm, peak UV 7.2' }),
+    // Planned for a clear sky: 4pm would be over the limit if tomorrow's thin clouds break.
+    main.getByRole('button', { name: 'Hiking, Tomorrow, 5pm – 8pm, peak UV 5.1' }),
   ).toBeVisible()
 
   // Filtering to one activity hides the others.

@@ -52,7 +52,7 @@ export default function WindowRow({
         </div>
         <span className="block truncate text-[11px] text-ink-3">
           {win.label} · Peak UV {win.peakUV.toFixed(1)}
-          {cloudNote ? ' · with cloud estimate' : ''}
+          {cloudNote ? ' · if the clouds hold' : ''}
         </span>
       </div>
       <div className="flex shrink-0 gap-[5px]">

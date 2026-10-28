@@ -10,13 +10,13 @@ import {
   type Surface,
   bestWindow,
   effectiveMaxUV,
-  exposedUV,
   fetchProviderForecast,
   findWindows,
   forecastDates,
   isPlannableHour,
   openMeteoFree,
   parseHourlyRows,
+  planningUV,
   runsOn,
   validActivityId,
   windowEventSummary,
@@ -28,7 +28,8 @@ import { loggableError } from '../shared/errors'
 
 export interface SunForecastDay {
   dateStr: string
-  hourly: RecommendationHour[]
+  /** UV with the forecast clouds, and under a clear sky when the provider gave it. */
+  hourly: (RecommendationHour & { clearSkyUV?: number })[]
 }
 
 export interface FeedActivity {
@@ -42,6 +43,7 @@ export interface FeedActivity {
   daysOfWeek?: number[] | null
   shade?: ShadeLevel | null
   surface?: Surface | null
+  cloudSensitive?: boolean | null
 }
 
 export { bestWindow, effectiveMaxUV, runsOn }
@@ -69,7 +71,14 @@ export function parseSunForecast(raw: unknown, days: number): SunForecastDay[] {
       dateStr,
       hourly: rows
         .filter(row => row.date === dateStr && isPlannableHour(row))
-        .map(row => ({ hour: row.hour, uv: row.uv as number })),
+        .map(row => ({
+          hour: row.hour,
+          uv: row.uv as number,
+          // Never below the cloud-aware value, as in the app (lib/forecast.ts).
+          ...(row.clearSkyUV === null
+            ? {}
+            : { clearSkyUV: Math.max(row.clearSkyUV, row.uv as number) }),
+        })),
     }))
 }
 
@@ -106,7 +115,7 @@ export async function fetchForecast(
   try {
     const raw = await fetchProviderForecast(
       provider,
-      { lat, lon, days, hourly: ['uv_index'] },
+      { lat, lon, days, hourly: ['uv_index', 'uv_index_clear_sky'] },
       { fetchImpl },
     )
     const forecast = parseSunForecast(raw, days)
@@ -142,8 +151,8 @@ export function buildSunEvents(
   for (const day of forecast) {
     for (const act of activities) {
       if (!runsOn(act, day.dateStr)) continue
-      // Each hour is judged by the UV the activity's shade and surface pass on, as in the app.
-      const hourly = day.hourly.map(hour => ({ ...hour, planningUV: exposedUV(hour.uv, act) }))
+      // Each hour is judged as in the app: clouds counted once, then shade and surface.
+      const hourly = day.hourly.map(hour => ({ ...hour, planningUV: planningUV(hour, act) }))
       const win = bestWindow(
         hourly,
         effectiveMaxUV(act),

@@ -125,7 +125,15 @@ export default function CalendarWindowSheet({
         this range.
       </p>
       <ForecastNotes
-        cloud={day.cloud ? cloudNote(day.cloud) : null}
+        cloud={
+          day.cloud
+            ? `${cloudNote(day.cloud)}. ${
+                act.cloudSensitive
+                  ? 'This activity plans with those clouds, so a clearer sky means higher UV.'
+                  : 'Planned for a clear sky, so the window holds if the clouds break.'
+              }`
+            : null
+        }
         confidence={confidenceNote(day.confidence)}
       />
       <SheetActions single={!onEdit}>
@@ -180,7 +188,7 @@ function ForecastNotes({ cloud, confidence }: { cloud: string | null; confidence
       {cloud && (
         <li className="flex items-start gap-2 text-[12.5px] leading-[1.45] text-ink-2">
           <Cloud size={15} aria-hidden className="mt-px shrink-0 text-ink-3" />
-          {cloud}. Windows assume those clouds; a clearer sky means higher UV.
+          {cloud}
         </li>
       )}
       {confidence && (

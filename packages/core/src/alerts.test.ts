@@ -172,6 +172,21 @@ describe('morning alert message', () => {
     expect(message.body).toContain('UV is under 3 from 06:00 to 08:00.')
   })
 
+  it('counts the forecast clouds once, like the app', () => {
+    // 2 with heavy cloud all morning, 6 under a clear sky.
+    const cloudy = hourly.map(h => (h.hour < 10 ? { ...h, uv: 2, clearSkyUV: 6 } : h))
+    const title = (cloudSensitive: boolean) =>
+      morningAlertMessage({
+        date: '2026-06-15',
+        city: 'Austin',
+        hourly: cloudy,
+        activities: [{ ...run, cloudSensitive }],
+        skinType: 'fair',
+      }).title
+    expect(title(false)).toBe('☀️ UV today in Austin')
+    expect(title(true)).toBe('🏃 Run: 6am to 10am')
+  })
+
   it('never calls a window safe', () => {
     const { title, body } = morningAlertMessage({
       date: '2026-06-15',

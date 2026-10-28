@@ -197,3 +197,27 @@ describe('formatBriefingTime', () => {
     expect(formatBriefingTime(20)).toBe('8pm')
   })
 })
+
+describe('dailyBriefing and clouds', () => {
+  // 3.5 with heavy cloud all morning, 6 under a clear sky; high UV after 10am.
+  const cloudy = {
+    date: '2026-06-18',
+    hourly: [6, 7, 8, 9, 10, 11].map(hour => ({
+      hour,
+      uv: hour < 10 ? 3.5 : 8,
+      clearSkyUV: hour < 10 ? 6 : 10,
+    })),
+  }
+
+  it('plans windows like the app: a clear sky unless the activity counts the clouds', () => {
+    const plan = (cloudSensitive: boolean) =>
+      dailyBriefing({
+        day: cloudy,
+        dayLabel: 'Thu',
+        activities: [{ ...run, cloudSensitive }],
+        skinType: 'fair',
+      }).lines.window
+    expect(plan(false)).toBe('No lower-UV window for Running')
+    expect(plan(true)).toBe('Best lower-UV window: Running 6am–10am')
+  })
+})

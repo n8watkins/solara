@@ -5,6 +5,8 @@ import {
   confidenceNote,
   forecastConfidence,
   parseHourlyRows,
+  planningUV,
+  skyUV,
 } from '@solara/core'
 
 describe('forecastConfidence', () => {
@@ -68,5 +70,27 @@ describe('parseHourlyRows', () => {
       },
     })
     expect(rows.map(r => r.clearSkyUV)).toEqual([7.3, null])
+  })
+})
+
+describe('skyUV and planningUV', () => {
+  const cloudy = { uv: 3.5, clearSkyUV: 6 }
+
+  it('plans for a clear sky unless the activity accounts for cloud cover', () => {
+    expect(skyUV(cloudy)).toBe(6)
+    expect(skyUV(cloudy, false)).toBe(6)
+    // uv_index already includes the clouds: counted once, not discounted again.
+    expect(skyUV(cloudy, true)).toBe(3.5)
+  })
+
+  it('never plans below the forecast, and falls back to it without a clear-sky value', () => {
+    expect(skyUV({ uv: 5, clearSkyUV: 4.8 })).toBe(5)
+    expect(skyUV({ uv: 5 })).toBe(5)
+    expect(skyUV({ uv: 5, clearSkyUV: null })).toBe(5)
+  })
+
+  it('applies shade and surface after the clouds', () => {
+    expect(planningUV(cloudy, { shade: 'full' })).toBe(3)
+    expect(planningUV(cloudy, { cloudSensitive: true, surface: 'sand' })).toBe(4.1)
   })
 })

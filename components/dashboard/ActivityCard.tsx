@@ -147,12 +147,12 @@ export default function ActivityCard({
           </p>
           {windows.length > 0 ? (
             <div className="flex flex-col gap-1.5">
-              {windows.map(win => (
+              {windows.map((win, i) => (
                 <WindowRow
                   key={`${win.from}-${win.to}`}
                   win={win}
                   isBest={!!bestWindow && win.from === bestWindow.from && win.to === bestWindow.to}
-                  cloudNote={!!activity.cloudSensitive && win.peakUV > safeUv}
+                  cloudNote={!!plan.cloudDependent[i]}
                   onShare={() => onShare(win)}
                   calendarHref={calendarHref?.(win)}
                   onSchedule={

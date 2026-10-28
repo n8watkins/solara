@@ -7,6 +7,7 @@ const assert = require('node:assert/strict')
 const { hasProEntitlement } = require('../lib/billing/entitlement')
 const {
   ALERT_MAX_ATTEMPTS,
+  alertDayHours,
   canSend,
   deliveryKey,
   deliveryScope,
@@ -93,5 +94,24 @@ describe('alerts runtime identity', () => {
       alertsServiceAccount({ ALERTS_SERVICE_ACCOUNT: 'solara-alerts@p.iam.gserviceaccount.com' }),
       'solara-alerts@p.iam.gserviceaccount.com',
     )
+  })
+})
+
+describe('morning alert forecast', () => {
+  test('carries the clear-sky UV, so the alert plans like the app', () => {
+    const hours = alertDayHours(
+      {
+        hourly: {
+          time: ['2026-06-15T05:00', '2026-06-15T09:00', '2026-06-15T10:00'],
+          uv_index: [0, 3.5, 5],
+          uv_index_clear_sky: [0, 6, null],
+        },
+      },
+      '2026-06-15',
+    )
+    assert.deepEqual(hours, [
+      { hour: 9, uv: 3.5, clearSkyUV: 6 },
+      { hour: 10, uv: 5 },
+    ])
   })
 })

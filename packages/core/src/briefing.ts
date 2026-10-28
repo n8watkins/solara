@@ -13,12 +13,16 @@ import {
   type RecommendationWindow,
   type SkinType,
 } from './recommendation'
+import type { ExposureSetting } from './exposure'
+import { planningUV } from './forecast-quality'
 import { uvLabel } from './uv-scale'
 
 /** One forecast hour of the briefed day (local hour, forecast UV). */
 export interface BriefingHour {
   hour: number
   uv: number
+  /** UV under a clear sky, when the forecast has it (see skyUV). */
+  clearSkyUV?: number | null
 }
 
 /** A forecast day: its local date and daytime hours in order. */
@@ -35,6 +39,10 @@ export interface BriefingActivity {
   durationMins?: number | null
   preferredHours?: PreferredHours | null
   daysOfWeek?: readonly number[] | null
+  /** Plan with the forecast's clouds instead of a clear sky (see skyUV). */
+  cloudSensitive?: boolean | null
+  shade?: ExposureSetting['shade']
+  surface?: ExposureSetting['surface']
 }
 
 /** UV at which public-health guidance recommends sun protection (WHO). */
@@ -119,8 +127,10 @@ function activityWindow(
   for (const activity of activities) {
     if (!runsOn(activity, date)) continue
     const duration = activity.durationMins ?? 0
+    // Judged like the app's plans (planningUV): clouds counted once, shade and surface.
+    const planned = hourly.map(h => ({ ...h, planningUV: planningUV(h, activity) }))
     const windows = findWindows(
-      hourly,
+      planned,
       effectiveMaxUV(activity),
       duration,
       activity.preferredHours,

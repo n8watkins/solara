@@ -33,7 +33,7 @@ test.describe('logic checks', () => {
     const briefing = page.getByTestId('daily-briefing')
     await expect(briefing.getByRole('heading', { name: 'Tomorrow at a glance' })).toBeVisible()
     await expect(briefing).toHaveAttribute('data-day', '2026-06-16')
-    await expect(briefing).toContainText('Best lower-UV window: Running 6am–10am')
+    await expect(briefing).toContainText('Best lower-UV window: Running 6am–9am')
     await expect(page.getByTestId('hero-empty')).toHaveCount(0)
     await expect(page.getByText('Sun is down')).toHaveCount(1)
   })

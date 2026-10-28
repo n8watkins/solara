@@ -272,14 +272,22 @@ async function removeDeadDevice(db: Firestore, device: Device): Promise<boolean>
   })
 }
 
-/** A day's daytime hours with a known UV, in the place's local time. */
+/**
+ * A day's daytime hours with a known UV, in the place's local time, with the clear-sky
+ * UV (never below the forecast's) so the morning alert plans like the app.
+ */
 export function alertDayHours(
   forecast: OpenMeteoResponse,
   date: string,
-): { hour: number; uv: number }[] {
+): { hour: number; uv: number; clearSkyUV?: number }[] {
   return hourlyRows(forecast)
     .filter(row => row.date === date && isPlannableHour(row))
-    .map(row => ({ hour: row.hour, uv: row.uv as number }))
+    .map(row => {
+      const uv = row.uv as number
+      return row.clearSkyUV === null
+        ? { hour: row.hour, uv }
+        : { hour: row.hour, uv, clearSkyUV: Math.max(row.clearSkyUV, uv) }
+    })
 }
 
 function clockOf(user: DocumentData): '12h' | '24h' {
