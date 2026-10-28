@@ -110,7 +110,9 @@ export default function CalendarWeekGrid({
               >
                 {day.cloud && <Cloud size={12} aria-hidden className="shrink-0 text-ink-3" />}
                 UV {formatUV(day.peakUV)}
-                {day.cloud && <span className="text-ink-3">· clear {day.cloud.clearSky}</span>}
+                {day.cloud && (
+                  <span className="text-ink-3">· clear {formatUV(day.cloud.clearSky)}</span>
+                )}
               </span>
             )}
             {day.confidence !== 'high' && (

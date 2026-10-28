@@ -105,10 +105,13 @@ test.describe('consistency checks (REVIEW4)', () => {
       .getByRole('group', { name: 'UV forecast by hour' })
       .locator('[data-hour="13"]')
     await expect(chip).toContainText('10.3')
-    // Double digits keep their decimal too: 2pm is 10.0, not 10.
-    await expect(
-      page.getByRole('group', { name: 'UV forecast by hour' }).locator('[data-hour="14"]'),
-    ).toContainText('10.0')
+    // Every chip keeps its decimal, double digits too (no "10" beside "9.5").
+    const values = await page
+      .getByRole('group', { name: 'UV forecast by hour' })
+      .locator('button[data-hour] > span:first-child')
+      .allInnerTexts()
+    expect(values.length).toBeGreaterThan(10)
+    for (const value of values) expect(value.replace(/^UV\s*/, '')).toMatch(/^\d+\.\d\b/)
   })
 
   test('the briefing says what a clear sky would bring, and the UV card does not repeat it', async ({

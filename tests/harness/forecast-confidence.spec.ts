@@ -3,8 +3,8 @@ import { captureScreen, preparePage } from './capture'
 import { HARNESS_MARKER } from './fixtures'
 
 // Cloud-aware forecasts with a confidence that decays after day 3 (ROADMAP item
-// 12.5). The fixture's fourth day (Thu Jun 18) is 92% overcast: UV 4 with its
-// clouds, 6 under a clear sky.
+// 12.5). The fixture's fourth day (Thu Jun 18) is 92% overcast: UV 4.1 with its
+// clouds, 6.3 under a clear sky.
 
 const OVERCAST = '2026-06-18'
 
@@ -26,14 +26,14 @@ test.describe('logic checks', () => {
     await preparePage(page, info)
     await openCalendar(page)
     const headers = page.getByTestId('calendar-day-header')
-    await expect(headers.nth(0).getByTestId('calendar-day-uv')).toHaveText('UV 10')
+    await expect(headers.nth(0).getByTestId('calendar-day-uv')).toHaveText('UV 10.3')
     await expect(headers.nth(0).getByTestId('calendar-day-confidence')).toHaveCount(0)
     await expect(headers.nth(2).getByTestId('calendar-day-confidence')).toHaveCount(0)
     const overcast = header(page, OVERCAST)
-    await expect(overcast.getByTestId('calendar-day-uv')).toHaveText(/^UV 4\s*· clear 6$/)
+    await expect(overcast.getByTestId('calendar-day-uv')).toHaveText(/^UV 4\.1\s*· clear 6\.3$/)
     await expect(overcast.getByTestId('calendar-day-uv')).toHaveAttribute(
       'title',
-      'Clouds may cut UV to 4 from a clear-sky 6',
+      'Clouds may cut UV to 4.1 from a clear-sky 6.3',
     )
     await expect(overcast.getByTestId('calendar-day-confidence')).toHaveText('Fair confidence')
     await expect(headers.nth(6).getByTestId('calendar-day-confidence')).toHaveText('Low confidence')
@@ -48,7 +48,7 @@ test.describe('logic checks', () => {
       .first()
       .click()
     const notes = page.getByTestId('calendar-sheet-notes')
-    await expect(notes).toContainText('Clouds may cut UV to 4 from a clear-sky 6.')
+    await expect(notes).toContainText('Clouds may cut UV to 4.1 from a clear-sky 6.3.')
     await expect(notes).toContainText('Fair confidence: UV and the best times can still change.')
   })
 
@@ -63,8 +63,12 @@ test.describe('logic checks', () => {
       .getByRole('dialog')
       .getByRole('button', { name: /Jun 18/ })
       .click()
+    // The briefing above says what the clouds take off, so the UV card says it no more.
+    await expect(page.getByTestId('daily-briefing')).toContainText(
+      'UV peaks at 4.1 (Moderate) around 1pm, or 6.3 if the sky clears',
+    )
     const notes = page.getByTestId('uv-forecast-notes')
-    await expect(notes).toContainText('Clouds may cut UV to 4 from a clear-sky 6.')
+    await expect(notes).not.toContainText('Clouds may cut UV')
     await expect(notes).toContainText('Fair confidence')
   })
 })
