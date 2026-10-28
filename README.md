@@ -3,9 +3,9 @@
 Solara is a personalized UV and outdoor-activity planner, live at https://solara-uv.web.app.
 It combines Open-Meteo forecasts with a user's location, skin profile, sunscreen settings and activities to suggest lower-UV windows for each activity, on a dashboard and in a week calendar.
 Anyone can try it without an account: a guest plan (today's forecast, one activity) stays in the browser.
-Signing in with Google is free and syncs the plan through Firestore; Pro adds 10 days, 20 activities, family profiles and morning alerts, and is a waitlist until billing launches.
+Signing in with Google is free and syncs the plan through Firestore; Pro adds 10 days, 20 activities, family profiles, and morning and UV alerts, and is a waitlist until billing launches.
 The plans are defined once, in `lib/tiers.ts`.
-Billing (Stripe), the live calendar feed, account export and deletion, and push notifications are built as Firebase Functions but not deployed yet.
+Billing (Stripe), the live calendar feed, account export and deletion, and Pro's push alerts are built as Firebase Functions but not deployed yet.
 
 Solara is a planning aid, not medical advice or a guarantee that sun exposure is safe.
 Conditions and individual sensitivity can change quickly.
@@ -70,7 +70,7 @@ The repository is an npm workspace.
   Setup, the dialogs, the location panel, the calendar view, the calendar feed card, the install prompt and the header's signed-in parts load on first use from `components/deferred.tsx`, and are fetched shortly after the page has loaded.
 - `packages/core` (`@solara/core`) holds the logic every surface shares: the recommendation engine, the preferences schema and migrations, the Valibot-validated Open-Meteo parser and weather labels, the iCalendar builder, the calendar feed token policy and the Functions response contracts.
   The web app imports its TypeScript source.
-- `functions/` holds the Cloud Functions in TypeScript (`functions/src/`, one folder per area) and the manual morning notifier (`functions/scripts/send-notifications.js`).
+- `functions/` holds the Cloud Functions in TypeScript (`functions/src/`, one folder per area), including the scheduled Pro alerts (`functions/src/notifications/`).
   It is a separate npm package, because `firebase deploy` uploads only that directory.
   `npm run build --prefix functions` compiles `@solara/core` into `functions/core/` and the Functions into `functions/lib/` (both gitignored); the Functions test scripts and the predeploy hook run it.
 
@@ -142,8 +142,8 @@ Change the rules and their tests in `.github/scripts/changed-areas.test.mjs` tog
 
 ## Firestore layout
 
-The primary account document is `users/{uid}`, with notification registrations in `users/{uid}/notificationDevices/{deviceId}`, Stripe resource history in `users/{uid}/billingResources/{resourceId}`, and the owner's calendar feed link in `users/{uid}/private/calendarFeed`.
-Trusted backend code owns the calendar feed token index, the notification-token ownership index, the Stripe subscription ownership index, account-deletion tombstones, billing cleanup resources, checkout cleanup tasks, entitlements and delivery state.
+The primary account document is `users/{uid}`, with notification registrations in `users/{uid}/notificationDevices/{deviceId}`, the Pro alerts' delivery state in `users/{uid}/alertState/daily`, Stripe resource history in `users/{uid}/billingResources/{resourceId}`, and the owner's calendar feed link in `users/{uid}/private/calendarFeed`.
+Trusted backend code owns the calendar feed token index, the notification-token ownership index, the Stripe subscription ownership index, account-deletion tombstones, billing cleanup resources, checkout cleanup tasks, the alerts' run cursor (`alertDispatch/state`), entitlements and delivery state.
 Firestore rules deny client access to those server-owned collections and prevent clients from writing notification-device or billing state.
 
 ## License

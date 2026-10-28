@@ -1,7 +1,7 @@
 # Workload Identity Federation setup
 
 This guide replaces the long-lived `FIREBASE_SERVICE_ACCOUNT` JSON key with short-lived credentials that GitHub Actions gets through Workload Identity Federation (WIF).
-It also splits the one shared Admin SDK identity into a deploy identity and a notifier identity (findings OPS-5 and BE-11).
+It also gives deploys their own identity instead of the shared Admin SDK one (finding OPS-5); the scheduled Pro alerts get their own runtime identity from `infra/alerts-identity.sh` (BE-11, [Pro alerts](DEPLOYMENT.md#pro-alerts)).
 The owner runs every command here; repository agents never change Google Cloud or GitHub settings.
 
 ## How the workflows choose credentials
@@ -10,8 +10,6 @@ The deploy jobs in `.github/workflows/deploy.yml` call `.github/actions/firebase
 
 - When the repository variable `GCP_WORKLOAD_IDENTITY_PROVIDER` is set, they authenticate through WIF as `GCP_DEPLOY_SERVICE_ACCOUNT`.
 - Otherwise they fall back to the `FIREBASE_SERVICE_ACCOUNT` key secret and log a warning.
-
-`.github/workflows/notify.yml` uses WIF as `GCP_NOTIFIER_SERVICE_ACCOUNT` when that variable is set, and the key secret otherwise.
 
 So merging the workflows changes nothing until the variables exist, and unsetting `GCP_WORKLOAD_IDENTITY_PROVIDER` is a one-step rollback while the key still exists.
 
@@ -31,7 +29,6 @@ OWNER_ID=8055935
 POOL=github
 PROVIDER=solara
 DEPLOY_SA="solara-deploy@${PROJECT_ID}.iam.gserviceaccount.com"
-NOTIFIER_SA="solara-notifier@${PROJECT_ID}.iam.gserviceaccount.com"
 ```
 
 Until WIF is live, deploys use the existing key.
@@ -47,7 +44,7 @@ gcloud services enable iam.googleapis.com iamcredentials.googleapis.com sts.goog
 ## 2. Create the identity pool and the GitHub provider
 
 The attribute condition admits only tokens from this repository's `main` branch, so pull requests and other branches can never obtain Google credentials.
-The `workflow` attribute holds the workflow file name (`deploy.yml` or `notify.yml`), which step 4 uses to give each workflow its own identity.
+The `workflow` attribute holds the workflow file name (`deploy.yml`), which step 4 uses so only that workflow can use the deploy identity.
 
 ```bash
 gcloud iam workload-identity-pools create "$POOL" \
@@ -82,18 +79,6 @@ for role in \
 done
 ```
 
-The notifier identity can read and write Firestore and send FCM messages, and cannot deploy anything:
-
-```bash
-gcloud iam service-accounts create solara-notifier \
-  --project "$PROJECT_ID" --display-name "Solara notifier (GitHub Actions)"
-
-for role in roles/datastore.user roles/firebasecloudmessaging.admin; do
-  gcloud projects add-iam-policy-binding "$PROJECT_ID" \
-    --member "serviceAccount:${NOTIFIER_SA}" --role "$role" --condition None
-done
-```
-
 ### Extra roles when Functions are enabled
 
 Skip this until the project is on Blaze and `ENABLE_BLAZE_FUNCTIONS` is about to be set to `true`.
@@ -110,14 +95,14 @@ for role in \
 done
 
 # Let the deploy identity attach the Functions runtime identity, and nothing broader.
-# Replace RUNTIME_SA if Functions get a dedicated runtime service account (BE-11).
+# infra/alerts-identity.sh grants the same for the alerts' own identity (BE-11).
 RUNTIME_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
 gcloud iam service-accounts add-iam-policy-binding "$RUNTIME_SA" \
   --project "$PROJECT_ID" \
   --member "serviceAccount:${DEPLOY_SA}" --role roles/iam.serviceAccountUser
 ```
 
-## 4. Let each workflow impersonate only its own identity
+## 4. Let only the deploy workflow impersonate the deploy identity
 
 ```bash
 PRINCIPALS="principalSet://iam.googleapis.com/projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/${POOL}"
@@ -125,10 +110,6 @@ PRINCIPALS="principalSet://iam.googleapis.com/projects/${PROJECT_NUMBER}/locatio
 gcloud iam service-accounts add-iam-policy-binding "$DEPLOY_SA" \
   --project "$PROJECT_ID" --role roles/iam.workloadIdentityUser \
   --member "${PRINCIPALS}/attribute.workflow/deploy.yml"
-
-gcloud iam service-accounts add-iam-policy-binding "$NOTIFIER_SA" \
-  --project "$PROJECT_ID" --role roles/iam.workloadIdentityUser \
-  --member "${PRINCIPALS}/attribute.workflow/notify.yml"
 ```
 
 ## 5. Point the workflows at WIF
@@ -142,17 +123,9 @@ gh variable set GCP_DEPLOY_SERVICE_ACCOUNT -R "$REPO" --body "$DEPLOY_SA"
 Then run the Deploy workflow from the Actions tab (Run workflow on `main`).
 Each deploy job should log "Authenticating with Workload Identity Federation as solara-deploy@...".
 
-`functions/scripts/send-notifications.js` uses Application Default Credentials when no JSON key is passed, so the notifier can move to its own identity too:
-
-```bash
-gh variable set GCP_NOTIFIER_SERVICE_ACCOUNT -R "$REPO" --body "$NOTIFIER_SA"
-```
-
-Then run "Send morning notifications" with dry run on, and check that it authenticates and lists the devices it would notify.
-
 ## 6. Retire the key (D4)
 
-Once both workflows run on WIF, delete the key so nothing long-lived remains:
+Once deploys run on WIF, delete the key so nothing long-lived remains:
 
 ```bash
 gcloud iam service-accounts keys list \

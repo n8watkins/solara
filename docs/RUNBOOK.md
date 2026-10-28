@@ -21,6 +21,7 @@ ERROR messages and where they are handled:
 | --- | --- |
 | `cost guard engaged by the budget`, `billing detached by the budget kill switch` | [Budget kill switch](#budget-kill-switch) |
 | `account deletion gave up on a Stripe resource`, `account deletion is stalled` | [Account deletion alerts](#account-deletion-alerts) |
+| `alerts need the Open-Meteo commercial key (OPEN_METEO_API_KEY)`, `alert delivery outcome unknown`, `alert for an account failed` | [Pro alerts](#pro-alerts) |
 | `maintenance task <name> failed` | The task's own errors are in the same log entry; the next run (5 minutes) retries; if it keeps failing, see [Rollback](#rollback) |
 | `stripeWebhook failed` | Stripe retries for 3 days; fix the cause, then resend the event from the Stripe dashboard (**Developers**, **Webhooks**, the event, **Resend**) |
 | `<function> failed` (a 5xx answer) | The function's recent logs in Cloud Run; roll the Function back if a deploy caused it |
@@ -37,6 +38,7 @@ While it is engaged:
 | Calendar feed (`calendarFeed`) | 503 with `Retry-After: 3600`; calendar apps keep their last copy |
 | New feed links (`rotateCalendarFeed`) | 503 `unavailable`; revoking a link still works |
 | Notification device registration (`registerNotificationDevice`) | 503 `unavailable`; removal still works |
+| Pro alerts (the `alerts` job) | Each run logs the WARNING `alerts paused by the cost guard` and sends nothing; alerts due meanwhile are skipped for the day once their window passes |
 | Forecast proxy (`forecast`, when switched on) | Serves cached forecasts (up to 6 hours old) and makes no upstream call; a place with no cached forecast gets 503 |
 | Checkout, billing portal, Stripe webhook | Unchanged: they bring in money and keep subscriptions correct |
 | Account export and deletion, the `maintenance` job | Unchanged: people are owed these |
@@ -94,6 +96,20 @@ Account deletion never stalls on Stripe ([Account export and deletion](DEPLOYMEN
 2. Fix the cause (for example a revoked Stripe key, or the Auth user that cannot be deleted), then set `cleanupNextAttemptAt` to now; the next `maintenance` run resumes.
 3. Never delete a tombstone or set `cleanupStatus` to `completed` by hand while a cleanup resource is `pending`.
 
+## Pro alerts
+
+The `alerts` job sends Pro's morning and UV alerts every 15 minutes ([Pro alerts](DEPLOYMENT.md#pro-alerts)).
+To stop it at once, engage the cost guard; to switch it off, set the `ALERTS_ENABLED` repository variable to `false` and rerun the deploy.
+
+- `alerts need the Open-Meteo commercial key (OPEN_METEO_API_KEY)`: alerts are on but the secret still holds `unset`; set the key ([owner checklist](OWNER_CHECKLIST.md#at-pro-launch-blaze), step 17) or switch alerts off.
+- `alert delivery outcome unknown` (field `kind`, and `codes` or `error`): FCM answered with something other than a success or a definite failure, or did not answer.
+  The alert is not sent again that day, so nobody gets it twice; if it repeats for many accounts, check the FCM status page and the Functions' service account roles.
+- `alert for an account failed`: an unexpected error for one account; the run carries on with the others and the next run tries that account again.
+- The WARNING `alerts run stopped before the last account` means a run reached its account cap or time budget; the next run carries on from where it stopped.
+  If it appears in every run, Pro has outgrown the per-run caps in `functions/src/notifications/alerts.ts`.
+
+An account's alert state is `users/<uid>/alertState/daily`: `morning` and `uv` each hold the local `day`, the `status` (`claimed`, `delivered`, `failed` or `unknown`), the `attempts` and how many devices it reached.
+
 ## Record retention
 
 Firestore deletes these records some time after their `expireAt` passes, once `infra/firestore-ttl.sh` has turned the policies on (after Blaze):
@@ -106,6 +122,7 @@ Firestore deletes these records some time after their `expireAt` passes, once `i
 | `notificationRegistrationLimits` | 1 day after the rate-limit window |
 | `users/{uid}/scheduled` | 30 days after the scheduled event ends |
 | `forecastCache` | 1 day after the forecast was fetched (each place is refreshed hourly while in use) |
+| `alertState` | 7 days after the account's last alert was claimed |
 
 Check the policies with `gcloud firestore fields ttls list --project uv-activity-planner`.
 A finished tombstone that has expired no longer blocks a new account with the same Google sign-in, which is intended.
@@ -118,9 +135,10 @@ Every component can be put back to its last good state without a new build.
 | --- | --- |
 | Hosting (the site) | Firebase console, **Hosting**, the `solara-uv` release history, **Roll back** on the last good release; or redeploy an older commit's artifact by reverting the change on `main` |
 | Functions | Each function is a Cloud Run service: Cloud Run console, the service (its name is the function's in lower case), **Revisions**, **Manage traffic**, send 100% to the previous revision; or `gcloud run services update-traffic <service> --to-revisions <revision>=100 --region us-central1 --project uv-activity-planner`. Then revert the change on `main`, because the next deploy rolls forward again |
-| A single paid path | Without a deploy: the cost guard (`systemFlags/costGuard`, `override: engaged`) pauses the feed, feed links, notification registration and the forecast proxy within a minute |
+| A single paid path | Without a deploy: the cost guard (`systemFlags/costGuard`, `override: engaged`) pauses the feed, feed links, notification registration, Pro alerts and the forecast proxy within a minute |
 | Pro checkout | Set the `BILLING_ENABLED` repository variable to `false` and rerun the deploy: the plans dialog goes back to the waitlist and checkout refuses; subscriptions, the webhook and the portal keep working |
 | Forecast proxy | Set `FORECAST_PROXY_ENABLED` to `false` and rerun the deploy: the app calls Open-Meteo directly again |
+| Pro alerts | Set `ALERTS_ENABLED` to `false` and rerun the deploy: the `alerts` job sends nothing and Settings says alerts are coming; registered devices stay registered |
 | Firestore rules | Firebase console, **Firestore**, **Rules**, the history, restore the previous version; then revert on `main` |
 | Firestore indexes | Revert the change on `main`; a removed index is not deleted by the deploy (it would need `--force`) |
 | Stripe webhook | In Stripe, **Developers**, **Webhooks**, disable the endpoint; Stripe keeps the events and retries them for 3 days once it is enabled again |

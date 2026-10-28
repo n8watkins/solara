@@ -464,6 +464,31 @@ describe('typed and size-capped preference fields', () => {
     await assertFails(ref.update({ clockFormat: 24 }))
   })
 
+  test('the UV alert threshold is a whole UV index from 1 to 11, or 0 for off', async () => {
+    const ref = await ownerRef()
+    await assertSucceeds(ref.update({ uvAlertThreshold: 6 }))
+    await assertSucceeds(ref.update({ uvAlertThreshold: 1 }))
+    await assertSucceeds(ref.update({ uvAlertThreshold: 11 }))
+    await assertSucceeds(ref.update({ uvAlertThreshold: 0 }))
+    await assertFails(ref.update({ uvAlertThreshold: -1 }))
+    await assertFails(ref.update({ uvAlertThreshold: 12 }))
+    await assertFails(ref.update({ uvAlertThreshold: 5.5 }))
+    await assertFails(ref.update({ uvAlertThreshold: '6' }))
+  })
+
+  test('quiet hours are a from/to pair of whole hours', async () => {
+    const ref = await ownerRef()
+    await assertSucceeds(ref.update({ quietHours: { from: 21, to: 7 } }))
+    await assertSucceeds(ref.update({ quietHours: { from: 0, to: 0 } }))
+    await assertSucceeds(ref.update({ quietHours: { from: 23, to: 23 } }))
+    await assertFails(ref.update({ quietHours: { from: 24, to: 7 } }))
+    await assertFails(ref.update({ quietHours: { from: 21, to: -1 } }))
+    await assertFails(ref.update({ quietHours: { from: 21.5, to: 7 } }))
+    await assertFails(ref.update({ quietHours: { from: 21 } }))
+    await assertFails(ref.update({ quietHours: { from: 21, to: 7, extra: 1 } }))
+    await assertFails(ref.update({ quietHours: [21, 7] }))
+  })
+
   test('hidden suggestions may only name preset activities', async () => {
     const ref = await ownerRef()
     await assertSucceeds(ref.update({ hiddenActivitySuggestionIds: ['run', 'coffee'] }))
@@ -707,6 +732,22 @@ describe('notification devices', () => {
 
     await assertFails(ref.set(registration))
     await assertFails(ref.get())
+  })
+})
+
+describe('alert bookkeeping', () => {
+  test('no client can read or write alert state or the alerts cursor', async () => {
+    await testEnv.withSecurityRulesDisabled(async context => {
+      await context.firestore().doc('users/alice').set(prefs('alice'))
+      await context.firestore().doc('users/alice/alertState/daily').set({ morning: {} })
+      await context.firestore().doc('alertDispatch/state').set({ cursor: null })
+    })
+    const alice = testEnv.authenticatedContext('alice').firestore()
+    await assertFails(alice.doc('users/alice/alertState/daily').get())
+    await assertFails(alice.doc('users/alice/alertState/daily').set({ morning: {} }))
+    await assertFails(alice.doc('users/alice/alertState/daily').delete())
+    await assertFails(alice.doc('alertDispatch/state').get())
+    await assertFails(alice.doc('alertDispatch/state').set({ cursor: 'alice' }))
   })
 })
 

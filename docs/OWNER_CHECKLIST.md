@@ -1,6 +1,6 @@
 # Solara owner checklist
 
-_Last reviewed: 2026-10-24_
+_Last reviewed: 2026-10-27_
 
 This checklist holds what only the owner can do: decisions, credentials, provider consoles, legal facts and real-device evidence, plus the manual checks for each release.
 Which items are already done is tracked in [status.md](status.md#owner-actions); the decisions and the roadmap items that need them are in [ROADMAP.md](ROADMAP.md#decisions).
@@ -89,6 +89,9 @@ Already done: the domain move to `solara-uv.web.app`, the Firestore index role (
     1. Set the key: `npx firebase functions:secrets:set OPEN_METEO_API_KEY --project uv-activity-planner` and paste the API key from the Open-Meteo dashboard.
     2. Set the `FORECAST_PROXY_ENABLED` repository variable to `true`: `gh variable set FORECAST_PROXY_ENABLED --repo n8watkins/solara --body true`.
     3. The next deploy redeploys the Functions with the key and builds the app to fetch through the proxy; check that the dashboard still loads a forecast in a private window, and that the `forecast` Function's logs show no `forecast served from the last good copy` warnings.
+    4. Switch Pro's morning and UV alerts on (they need the key), staging first with the [Notifications](#notifications) checks:
+       optionally give them their own least-privilege identity with `DEPLOY_SA=<deploy service account email> infra/alerts-identity.sh` (print, read, then `--apply`) and `gh variable set ALERTS_SERVICE_ACCOUNT --repo n8watkins/solara --body solara-alerts@uv-activity-planner.iam.gserviceaccount.com`;
+       then `gh variable set ALERTS_ENABLED --repo n8watkins/solara --body true` and let the next deploy run ([Pro alerts](DEPLOYMENT.md#pro-alerts)).
 18. Run the release checks in [Release verification](#release-verification), plus [Functions and Stripe](#functions-and-stripe) and [Notifications](#notifications).
 
 ### Later: mobile app (Wave 6)
@@ -102,12 +105,13 @@ Already done: the domain move to `solara-uv.web.app`, the Firestore index role (
 - [x] Secret scanning with push protection, CodeQL default setup, Dependabot alerts and security updates.
 - [ ] Optional: private vulnerability reporting.
 - [ ] Recommended: a `production` environment (**Settings**, **Environments**) with **Deployment branches** set to `main` only and optionally a required reviewer; ask the agent to attach the deploy and notifier jobs to it, and once that is merged, move the `FIREBASE_SERVICE_ACCOUNT` and `SENTRY_AUTH_TOKEN` secrets into the environment.
-  The workflows already refuse to deploy or notify from any other branch, so this is a second guard that GitHub enforces.
+      The deploy workflow already refuses to deploy from any other branch, so this is a second guard that GitHub enforces.
 
 ## Credentials
 
-- [ ] Run [WIF_SETUP.md](WIF_SETUP.md) so deploys and the notifier use short-lived credentials with separate identities.
-- [ ] Delete the `FIREBASE_SERVICE_ACCOUNT` key and secret once both workflows run on WIF (D4).
+- [ ] Run [WIF_SETUP.md](WIF_SETUP.md) so deploys use short-lived credentials.
+- [ ] Delete the `FIREBASE_SERVICE_ACCOUNT` key and secret once deploys run on WIF (D4).
+- [ ] The GitHub Actions notifier is retired: delete the `GCP_NOTIFIER_SERVICE_ACCOUNT` variable and the `solara-notifier` service account if they were created.
 - [ ] Move every `NEXT_PUBLIC_*` secret to a repository variable, then delete the secret, including the leftover `NEXT_PUBLIC_SITE_URL` secret ([steps](WIF_SETUP.md#move-public-build-values-from-secrets-to-variables)).
 - [ ] Delete the unused `NEXT_PUBLIC_PRO_PRICE` variable or secret ([step 9](#now-free-no-blaze)).
 
@@ -118,9 +122,9 @@ Already done: the domain move to `solara-uv.web.app`, the Firestore index role (
 - [x] The OAuth scopes are added: `openid`, `userinfo.email`, `userinfo.profile`, `calendar.freebusy`, `calendar.events.owned` (owner reported).
 - [ ] Finish the OAuth consent screen: data access lists only `https://www.googleapis.com/auth/calendar.freebusy` and `https://www.googleapis.com/auth/calendar.events.owned`, the privacy policy link points at `https://solara-uv.web.app/privacy/`, and the app is published.
 - [ ] Submit the two Calendar scopes for verification and answer Google's review.
-  For `calendar.events.owned`, the justification is: Solara creates an event for a lower-UV window the person picks, stores its id, time, title and link to show it as Scheduled, and later reads, moves or deletes only events it created (found by a private extended property).
+      For `calendar.events.owned`, the justification is: Solara creates an event for a lower-UV window the person picks, stores its id, time, title and link to show it as Scheduled, and later reads, moves or deletes only events it created (found by a private extended property).
 - [ ] Create a Google OAuth web client with `https://solara-uv.web.app` as an Authorized JavaScript origin, and store its client ID as the `NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID` repository variable.
-  This is a public client ID; there is no client secret to store.
+      This is a public client ID; there is no client secret to store.
 - [ ] With a controlled Google account on production:
   - connecting asks only for `calendar.freebusy`, and only busy times are read;
   - creating an event asks for `calendar.events.owned` at that moment, and the event has the expected date, time, time zone and description;
@@ -186,14 +190,16 @@ Everything in this section waits for the Pro launch (roadmap item 9); see [Fireb
 
 ## Notifications
 
-Morning alerts are Pro-only and stay off until they launch with Pro on a scheduled Function (D6, roadmap item 10) and this real-device evidence is recorded.
+Pro's morning and UV alerts are built and switched off (`ALERTS_ENABLED`, [Pro alerts](DEPLOYMENT.md#pro-alerts)); record this real-device evidence in staging before switching them on in production.
 
-- [ ] Provide a real phone that can receive web push and a controlled paid test account.
-- [ ] Run the dispatcher as a dry run and confirm it selects the expected user, activity, device, local date and time zone.
-- [ ] Approve one real send; exactly one system notification appears while the app is in the background, and tapping it opens the intended page.
-- [ ] Repeat the dispatch; no second notification appears.
+- [ ] Provide a real phone that can receive web push and a controlled Pro test account; on an iPhone, add Solara to the Home Screen and open it from there.
+- [ ] In Settings, **Sun profile**, turn alerts on for the phone, then set **Morning alert** to the current hour.
+- [ ] Within 15 minutes exactly one notification appears while the app is in the background, and tapping it opens the app.
+- [ ] Wait for two more runs: no second morning alert arrives, and `users/<uid>/alertState/daily` shows `morning.status` `delivered`.
+- [ ] Choose a **UV alert** level today's forecast reaches, with quiet hours that do not cover now: exactly one UV alert arrives that day.
 - [ ] Register the same phone to a second controlled account; ownership moves instead of producing two deliveries.
-- [ ] Turn notifications off, then sign out; the device is no longer selected either time.
+- [ ] Move the test account to Free (or cancel its test subscription): no alert arrives the next morning.
+- [ ] Turn alerts off on the phone, then sign out; the device record is gone either time.
 
 ## Legal
 

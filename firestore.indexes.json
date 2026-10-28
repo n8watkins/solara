@@ -64,6 +64,11 @@
       ]
     },
     {
+      "collectionGroup": "alertState",
+      "fieldPath": "expireAt",
+      "indexes": []
+    },
+    {
       "collectionGroup": "accountDeletionTombstones",
       "fieldPath": "expireAt",
       "indexes": []

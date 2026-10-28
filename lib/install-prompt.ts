@@ -20,13 +20,29 @@ export interface InstallEnvironment {
  */
 export function installPromptKind(env: InstallEnvironment): 'ios' | 'chromium' | null {
   if (env.standalone || env.dismissed) return null
-  // iPadOS 13+ reports itself as MacIntel with a touch screen.
-  const isIOS =
-    /iPad|iPhone|iPod/.test(env.userAgent) ||
-    (env.platform === 'MacIntel' && env.maxTouchPoints > 1)
-  if (!isIOS) return 'chromium'
+  if (!isIOSDevice(env)) return 'chromium'
   // Only Safari can add to the Home Screen; other iOS browsers never get a prompt.
   return /CriOS|FxiOS|EdgiOS|OPiOS|mercury/i.test(env.userAgent) ? null : 'ios'
+}
+
+/** An iPhone or iPad. iPadOS 13+ reports itself as MacIntel with a touch screen. */
+export function isIOSDevice(
+  env: Pick<InstallEnvironment, 'userAgent' | 'platform' | 'maxTouchPoints'>,
+) {
+  return (
+    /iPad|iPhone|iPod/.test(env.userAgent) ||
+    (env.platform === 'MacIntel' && env.maxTouchPoints > 1)
+  )
+}
+
+/**
+ * Whether push needs Solara on the Home Screen first: iOS and iPadOS deliver web push
+ * only to a site added to the Home Screen and opened from there (16.4 and later).
+ */
+export function pushNeedsHomeScreen(
+  env: Pick<InstallEnvironment, 'standalone' | 'userAgent' | 'platform' | 'maxTouchPoints'>,
+): boolean {
+  return isIOSDevice(env) && !env.standalone
 }
 
 /** Chromium's install event (not in TypeScript's DOM types). */

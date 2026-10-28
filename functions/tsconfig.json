@@ -2,8 +2,6 @@
 // TypeScript source in src/ and the JavaScript scripts (checkJs). tsconfig.build.json
 // compiles src/ into lib/, the code that deploys. Shared logic comes from @solara/core
 // through the `#core` import, whose declarations `npm run build:core` writes into core/.
-// The morning notifier (scripts/send-notifications.js, scripts/notification-core.js)
-// predates type checking; plan lane W3-B replaces it with a scheduled Function.
 {
   "compilerOptions": {
     "target": "ES2023",
@@ -25,6 +23,5 @@
     "types": ["node"],
     "newLine": "lf"
   },
-  "include": ["src", "scripts/**/*.js"],
-  "exclude": ["scripts/send-notifications.js", "scripts/notification-core.js"]
+  "include": ["src", "scripts/**/*.js"]
 }

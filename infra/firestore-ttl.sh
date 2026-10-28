@@ -19,6 +19,7 @@
 # | notificationRegistrationLimits | 1 day after the rate-limit window             |
 # | scheduled                      | 30 days after the scheduled event ends        |
 # | forecastCache                  | 1 day after the forecast was fetched          |
+# | alertState                     | 7 days after the last alert was claimed       |
 #
 # Usage: infra/firestore-ttl.sh (prints the commands), then infra/firestore-ttl.sh --apply
 # Check with: gcloud firestore fields ttls list --project uv-activity-planner
@@ -26,7 +27,7 @@ source "$(dirname "$0")/lib.sh"
 
 for group in stripeWebhookEvents stripeCheckoutCleanupTasks accountDeletionTombstones \
   billingCleanupResources stripeSubscriptionOwners notificationRegistrationLimits scheduled \
-  forecastCache; do
+  forecastCache alertState; do
   run gcloud firestore fields ttls update expireAt \
     --collection-group "$group" --enable-ttl --async --project "$PROJECT_ID"
 done

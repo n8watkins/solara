@@ -51,6 +51,24 @@ const STATES: State[] = [
     },
   },
   {
+    // Pro's alerts once switched on (the harness builds with NEXT_PUBLIC_ALERTS_ENABLED):
+    // the account's alert settings, with a UV alert chosen.
+    name: 'settings-alerts',
+    query: 'screen=settings',
+    act: async page => {
+      const dialog = settings(page)
+      await dialog.getByRole('combobox', { name: 'UV alert' }).selectOption('6')
+      await expect(dialog.getByRole('combobox', { name: 'Quiet from' })).toHaveValue('21')
+      const card = dialog
+        .getByRole('heading', { name: 'Morning and UV alerts' })
+        .locator('..')
+        .locator('..')
+      await card.scrollIntoViewIfNeeded()
+      const box = (await card.boundingBox())!
+      return { x: box.x - 16, y: box.y - 16, width: box.width + 32, height: box.height + 32 }
+    },
+  },
+  {
     name: 'settings-activities',
     query: 'screen=settings&tab=activities',
     act: async page => {
@@ -133,7 +151,7 @@ const STATES: State[] = [
     name: 'settings-free',
     query: 'screen=settings&tier=free',
     act: async page => {
-      await expect(settings(page).getByText('Paused for all plans right now.')).toBeVisible()
+      await expect(settings(page).getByText(/Included with Pro\./)).toBeVisible()
     },
   },
   {

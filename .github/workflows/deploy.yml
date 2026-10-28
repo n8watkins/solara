@@ -70,6 +70,9 @@ jobs:
       # Forecasts come through the commercial-licence proxy only once the owner switches
       # it on; until then the browser calls Open-Meteo directly.
       NEXT_PUBLIC_FORECAST_PROXY: ${{ vars.ENABLE_BLAZE_FUNCTIONS == 'true' && vars.FORECAST_PROXY_ENABLED == 'true' && '1' || '' }}
+      # Settings offers Pro morning and UV alerts only once the owner switches them on,
+      # and only together with the Functions that send them.
+      NEXT_PUBLIC_ALERTS_ENABLED: ${{ vars.ENABLE_BLAZE_FUNCTIONS == 'true' && vars.ALERTS_ENABLED == 'true' && '1' || '' }}
       NEXT_TELEMETRY_DISABLED: '1'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -279,9 +282,9 @@ jobs:
           service-account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
           credentials-json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
 
-      # functions/.env holds the committed defaults. The Pro prices and the billing switch
-      # are per project, and the budget kill switch's last resort (detaching billing) is
-      # opt-in per project.
+      # functions/.env holds the committed defaults. The Pro prices, the billing and alerts
+      # switches and the alerts' runtime identity are per project, and the budget kill
+      # switch's last resort (detaching billing) is opt-in per project.
       - name: Write project-specific Functions params
         env:
           STRIPE_PRICE_ID: ${{ vars.STRIPE_PRICE_ID || secrets.STRIPE_PRICE_ID }}
@@ -289,6 +292,8 @@ jobs:
           BILLING_ENABLED: ${{ vars.BILLING_ENABLED == 'true' && 'true' || 'false' }}
           FORECAST_PROXY_ENABLED: ${{ vars.FORECAST_PROXY_ENABLED == 'true' && 'true' || 'false' }}
           COST_GUARD_DETACH_BILLING: ${{ vars.COST_GUARD_DETACH_BILLING == 'true' && 'true' || 'false' }}
+          ALERTS_ENABLED: ${{ vars.ALERTS_ENABLED == 'true' && 'true' || 'false' }}
+          ALERTS_SERVICE_ACCOUNT: ${{ vars.ALERTS_SERVICE_ACCOUNT }}
         run: |
           if [ "$BILLING_ENABLED" = true ] && { [ -z "$STRIPE_PRICE_ID" ] || [ -z "$STRIPE_YEARLY_PRICE_ID" ]; }; then
             echo "::error::Set the STRIPE_PRICE_ID and STRIPE_YEARLY_PRICE_ID repository variables before switching billing on."
@@ -300,6 +305,8 @@ jobs:
             printf 'BILLING_ENABLED=%s\n' "$BILLING_ENABLED"
             printf 'FORECAST_PROXY_ENABLED=%s\n' "$FORECAST_PROXY_ENABLED"
             printf 'COST_GUARD_DETACH_BILLING=%s\n' "$COST_GUARD_DETACH_BILLING"
+            printf 'ALERTS_ENABLED=%s\n' "$ALERTS_ENABLED"
+            printf 'ALERTS_SERVICE_ACCOUNT=%s\n' "$ALERTS_SERVICE_ACCOUNT"
           } > "functions/.env.$FIREBASE_PROJECT_ID"
 
       # The deploy uploads compiled code: @solara/core in functions/core and the

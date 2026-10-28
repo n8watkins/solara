@@ -28,6 +28,8 @@ describe('settingsDraftFrom', () => {
       hiddenActivitySuggestionIds: [],
       collapsedActivityCategories: [],
       notificationHour: 7,
+      uvAlertThreshold: 0,
+      quietHours: { from: 21, to: 7 },
       temperatureUnit: 'auto',
       clockFormat: 'auto',
     })
@@ -40,6 +42,12 @@ describe('settingsDraftFrom', () => {
     expect(draft.showSunPath).toBe(false)
     expect(draft.temperatureUnit).toBe('celsius')
     expect(draft.notificationHour).toBe(9)
+  })
+
+  it('keeps the alert settings', () => {
+    const draft = settingsDraftFrom(prefs({ uvAlertThreshold: 6, quietHours: { from: 22, to: 6 } }))
+    expect(draft.uvAlertThreshold).toBe(6)
+    expect(draft.quietHours).toEqual({ from: 22, to: 6 })
   })
 })
 
@@ -58,6 +66,8 @@ describe('isSettingsDraftDirty', () => {
     expect(isSettingsDraftDirty(p, { ...draft, location: SD })).toBe(true)
     expect(isSettingsDraftDirty(p, { ...draft, clockFormat: '24h' })).toBe(true)
     expect(isSettingsDraftDirty(p, { ...draft, hiddenActivitySuggestionIds: ['swim'] })).toBe(true)
+    expect(isSettingsDraftDirty(p, { ...draft, uvAlertThreshold: 8 })).toBe(true)
+    expect(isSettingsDraftDirty(p, { ...draft, quietHours: { from: 22, to: 7 } })).toBe(true)
   })
 
   it('is clean again once a change is undone', () => {

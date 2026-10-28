@@ -1,10 +1,9 @@
 # Solara Deployment Guide
 
-_Last reviewed: 2026-10-23_
+_Last reviewed: 2026-10-27_
 
 Solara exports a static Next.js site to `out/` and hosts it on Firebase Hosting.
-Firebase Functions provide trusted server behavior for billing, account data, notification registration, scheduled cleanup, and calendar feeds.
-The notification dispatcher is a manual GitHub Actions workflow until notifications are relaunched on a scheduled Function (roadmap W3-B).
+Firebase Functions provide trusted server behavior for billing, account data, notification registration, Pro alerts, scheduled cleanup, and calendar feeds.
 
 This guide explains how deploys work and how to configure them.
 What is actually deployed and configured today is in [status.md](status.md), and the owner's steps are in [OWNER_CHECKLIST.md](OWNER_CHECKLIST.md).
@@ -76,8 +75,10 @@ Repository variables:
 - `BILLING_ENABLED`: `true` opens Pro checkout: the build compiles `NEXT_PUBLIC_BILLING_ENABLED=1` and the Functions deploy writes `BILLING_ENABLED=true`; anything else keeps the waitlist and makes `createCheckoutSession` refuse with `unavailable`.
 - `STRIPE_PRICE_ID` and `STRIPE_YEARLY_PRICE_ID`: the monthly ($2.99) and yearly ($19.99) Stripe prices of the Pro product, written into `functions/.env.<project-id>` by the Functions deploy job, which fails without them while `BILLING_ENABLED` is `true`.
 - `FORECAST_PROXY_ENABLED`: `true` turns the forecast proxy on in both the build and the Functions; anything else keeps the browser calling Open-Meteo directly and makes the `forecast` Function answer `unavailable`.
+- `ALERTS_ENABLED`: `true` turns on Pro's morning and UV alerts: the build compiles `NEXT_PUBLIC_ALERTS_ENABLED=1` (Settings offers them) and the Functions deploy writes `ALERTS_ENABLED=true` (the `alerts` job sends them); anything else keeps Settings saying they are coming and makes each `alerts` run return at once ([Pro alerts](#pro-alerts)).
+- `ALERTS_SERVICE_ACCOUNT` (optional): the service account the `alerts` Function runs as, created by `infra/alerts-identity.sh`; empty keeps the project's default runtime identity.
 - `COST_GUARD_DETACH_BILLING` (optional): `true` lets the budget kill switch detach billing as a last resort ([Cost guard and budget kill switch](#cost-guard-and-budget-kill-switch)); anything else keeps it off.
-- `GCP_WORKLOAD_IDENTITY_PROVIDER`, `GCP_DEPLOY_SERVICE_ACCOUNT` and `GCP_NOTIFIER_SERVICE_ACCOUNT`: Workload Identity Federation ([WIF_SETUP.md](WIF_SETUP.md)).
+- `GCP_WORKLOAD_IDENTITY_PROVIDER` and `GCP_DEPLOY_SERVICE_ACCOUNT`: Workload Identity Federation ([WIF_SETUP.md](WIF_SETUP.md)).
 - `FIREBASE_PROJECT_ID` (optional): the deploy target, `uv-activity-planner` by default.
 - `NEXT_PUBLIC_SENTRY_DSN` (optional): the Sentry public DSN; read from variables only.
 - `SENTRY_ORG` and `SENTRY_PROJECT` (optional): the Sentry organization and project slugs for the source map upload.
@@ -119,12 +120,12 @@ Every push to `main` runs `.github/workflows/deploy.yml`:
 1. The reusable quality workflow (`.github/workflows/quality.yml`) runs the README's [quality checks](../README.md#quality-checks) plus workflow and secret scanning.
 2. One job builds the static export with the checked public configuration, uploads its source maps to Sentry and deletes them when that is configured, smoke-tests that `out/` on the Hosting emulator, and packages it with its SHA-256 digest, CycloneDX SBOMs and a provenance record.
 3. Firestore rules and Firestore indexes deploy as separate jobs, so an index failure is visible on its own and does not hide whether Hosting published.
-4. When `ENABLE_BLAZE_FUNCTIONS` is `true`, the Functions job (which deploys with `--force`, so functions removed from the source are deleted and the Artifact Registry cleanup policy is set when missing) writes the project's prices and switches (`STRIPE_PRICE_ID`, `STRIPE_YEARLY_PRICE_ID`, `BILLING_ENABLED`, `COST_GUARD_DETACH_BILLING`), builds `@solara/core` and the Functions, re-runs the params and payload checks, and deploys after rules and indexes.
+4. When `ENABLE_BLAZE_FUNCTIONS` is `true`, the Functions job (which deploys with `--force`, so functions removed from the source are deleted and the Artifact Registry cleanup policy is set when missing) writes the project's prices and switches (`STRIPE_PRICE_ID`, `STRIPE_YEARLY_PRICE_ID`, `BILLING_ENABLED`, `FORECAST_PROXY_ENABLED`, `ALERTS_ENABLED`, `ALERTS_SERVICE_ACCOUNT`, `COST_GUARD_DETACH_BILLING`), builds `@solara/core` and the Functions, re-runs the params and payload checks, and deploys after rules and indexes.
 5. Hosting verifies the digest and deploys exactly the tested artifact, after rules and, when they deploy, Functions.
 
 Pull requests run the same quality workflow without deploying.
 The "Protect main" ruleset requires a pull request and the required checks for every change to `main`.
-A manual run of `deploy.yml` or `notify.yml` (`workflow_dispatch`) may pick any branch, so every job that receives credentials or a deploy token runs only when the ref is `main`; from another branch only the quality checks run.
+A manual run of `deploy.yml` (`workflow_dispatch`) may pick any branch, so every job that receives credentials or a deploy token runs only when the ref is `main`; from another branch only the quality checks run.
 Until Workload Identity Federation replaces the key secret, that job condition is the only thing keeping other branches away from production credentials; a `production` environment limited to `main` would add a second guard ([owner checklist](OWNER_CHECKLIST.md#repository)).
 
 ### Manual deploy
@@ -177,32 +178,27 @@ Only an emulator build for the signed-in e2e suite (`NEXT_PUBLIC_FIREBASE_EMULAT
 Because the meta policy cannot send reports, violations show only in the browser console; check the console on the deployed site after a release.
 Unknown paths are served the exported `404.html` with a 404 status; there is no catch-all rewrite.
 
-## Notification activation
+## Pro alerts
 
-The notification workflow (`.github/workflows/notify.yml`) runs `functions/scripts/send-notifications.js` from the committed dependency graph and prevents overlapping dispatch runs.
-It authenticates as `GCP_NOTIFIER_SERVICE_ACCOUNT` through WIF when that variable is set, and with the `FIREBASE_SERVICE_ACCOUNT` key otherwise.
-The workflow has no schedule: pull request #13 removed the daily cron on 2026-07-15.
-Do not add one; roadmap lane W3-B replaces this workflow with a scheduled Function.
-Device registration goes through the `registerNotificationDevice` Function, so notifications also need deployed Functions.
+Pro's morning and UV alerts are sent by the scheduled `alerts` Function (`functions/src/notifications/`), every 15 minutes for every time zone (decision D6).
+The timing and wording rules are shared in `packages/core/src/alerts.ts`.
+It deploys with the other Functions and sends nothing until the `ALERTS_ENABLED` repository variable is `true`; the cost guard pauses it, and without the Open-Meteo commercial key it logs the ERROR `alerts need the Open-Meteo commercial key (OPEN_METEO_API_KEY)` and sends nothing (decision D5).
 
-Each run is bounded by page and time budgets and checkpoints its device and legacy-registration cursors in `notificationDispatchState/morning` or `notificationDispatchState/morning-dry-run`.
-Later runs resume from those cursors and alternate between current device registrations and legacy registrations so a large or repeatedly interrupted scan cannot starve either source.
+- **Who:** accounts with `tier: 'paid'` whose subscription is `active` or `trialing`, or `past_due` within the 7-day grace period, or that have no subscription (Pro granted by hand); never an account being deleted (`functions/src/billing/entitlement.ts`).
+- **Morning alert:** once per local day, in the two hours from the account's `notificationHour` (5-10) in the time zone of its place; quiet hours do not apply, because the person picks the hour.
+- **UV alert:** once per local day, when the day's forecast UV index reaches the account's `uvAlertThreshold` (0 is off): from an hour before the first such hour until the last one ends, never in the account's `quietHours` (default 9pm-7am).
+- **Devices:** every enabled device the account registered (`registerNotificationDevice`, at most five), whose token the `notificationTokenOwners` index still assigns to it.
+  A token FCM rejects as unregistered or invalid is removed with its device.
+- **At most once:** each alert is claimed for its local day in `users/{uid}/alertState/daily` before it is sent; `claimed`, `delivered` and `unknown` stop any later send that day, and only a send that failed for certain on every device (`failed`) is retried, up to three times.
+  Each account gets at most one alert per run, so a morning and a UV alert that are due together go out 15 minutes apart.
+  Do not clear an `unknown` state unless the delivery has been reconciled.
+- **Bounds:** at most 2,000 accounts and 400 forecast lookups per run, 10 at a time, within 240 seconds; a run that stops early saves its place in `alertDispatch/state` and logs a WARNING, and the next run carries on from there.
+  Forecasts come from the shared `forecastCache`, so a place costs at most one upstream call an hour across the app and the alerts.
+- **Identity:** set `ALERTS_SERVICE_ACCOUNT` to the account `infra/alerts-identity.sh` creates (Firestore, Cloud Messaging and log writing only) to run the alerts with least privilege (BE-11); empty keeps the default runtime identity.
+- **Delivery:** data-only messages; the push worker shows each one once per account and key (`morning-v1:<date>`, `uv-v1:<date>`), and a tap opens `/app/`.
 
-Use `workflow_dispatch` for controlled verification.
-The workflow defaults to `dry_run = true`.
-Use `force_send = true` only when you intentionally need to bypass local-time eligibility during a manual test.
-Application idempotency should still prevent the same delivery from being sent twice.
-
-The dispatcher creates a transactional claim on the device before it calls FCM.
-`notificationDeliveryStatus` is `claimed` while the provider outcome is pending, `delivered` after a confirmed send, `failed` after a definite provider rejection, and `unknown` when delivery may have occurred.
-Definite failures are retried for the same local date.
-To preserve at-most-once delivery after an ambiguous interruption, a `claimed` attempt suppresses every later attempt for the same local date regardless of claim age.
-Retries use the same platform notification tag or collapse identifier so the phone replaces an earlier delivery instead of displaying a duplicate.
-Do not manually clear an `unknown` claim unless delivery has been reconciled with the user or provider evidence.
-Use `notificationDeliveryKey`, `notificationDeliveryAttemptId`, `notificationDeliveryAttemptCount`, `notificationDeliveryClaimedAt`, and `notificationDeliveryRunId` to correlate the device record with workflow logs.
-The dispatcher emits a structured `notification-delivery-unknown` log when it catches an ambiguous provider or transport result.
-
-The real-device checks that must pass before any schedule is turned on are in the [owner checklist](OWNER_CHECKLIST.md#notifications).
+The real-device checks that must pass before `ALERTS_ENABLED` is switched on are in the [owner checklist](OWNER_CHECKLIST.md#notifications).
+It replaces the manual GitHub Actions notifier, which was retired.
 
 ## Firebase Functions and Stripe
 
@@ -221,8 +217,8 @@ npx firebase deploy --only functions --project <project-id>
 
 The `firebase.json` predeploy hook builds `@solara/core` and the TypeScript Functions before the upload.
 
-The Functions deployment includes one scheduled job, `maintenance` (`functions/src/ops/functions.ts`), which runs every five minutes.
-Cloud Scheduler gives each billing account three free jobs, so the background work shares one job and leaves room for the morning alerts job (roadmap item 10).
+The Functions deployment includes two scheduled jobs: `maintenance` (`functions/src/ops/functions.ts`), which runs every five minutes, and `alerts` ([Pro alerts](#pro-alerts)), every 15 minutes.
+Cloud Scheduler gives each billing account three free jobs, so the background work shares one job and the alerts take the second.
 Each run does three tasks, each isolated so one failing never stops the others:
 
 - `accountDeletions` resumes account deletion, Stripe cancellation, and data cleanup with bounded retries.
@@ -237,7 +233,7 @@ Allow the billing-resource backfill to complete before relying on deletion clean
 ### Cost and abuse limits
 
 Every Function declares its own ceiling in `functions/src/shared/options.ts` instead of the platform defaults: 256 MiB of memory, a timeout of 30-300 seconds, and at most 1-5 instances (`maxInstances`).
-HTTP functions run on one vCPU and serve up to 20 requests per instance at once (40 for the calendar feed); `maintenance` and `budgetAlert` run one instance with a fractional CPU (`gcf_gen1`) and are not retried, because the next run or notification resumes the work.
+HTTP functions run on one vCPU and serve up to 20 requests per instance at once (40 for the calendar feed); `maintenance`, `alerts` and `budgetAlert` run one instance with a fractional CPU (`gcf_gen1`) and are not retried, because the next run or notification resumes the work.
 `functions/test/hardening.test.js` loads the deploy entry point and fails when a function lacks a ceiling.
 
 Every browser-called endpoint also:
@@ -252,7 +248,7 @@ These limits live in instance memory, so each instance enforces its own; with th
 
 ### Cost guard and budget kill switch
 
-Paths whose cost grows with traffic (the calendar feed, new feed links, notification registration, and the forecast proxy when it is on) stop while the Firestore switch `systemFlags/costGuard` is engaged (`functions/src/shared/cost-guard.ts`).
+Paths whose cost grows with traffic (the calendar feed, new feed links, notification registration, Pro alerts, and the forecast proxy when it is on) stop while the Firestore switch `systemFlags/costGuard` is engaged (`functions/src/shared/cost-guard.ts`).
 The `budgetAlert` Function engages it when the Cloud Billing budget, which publishes to the `budget-alerts` Pub/Sub topic, passes `COST_GUARD_THRESHOLD_PERCENT` of its amount, and releases it when a new budget period starts.
 Detaching billing is an opt-in last resort: set the `COST_GUARD_DETACH_BILLING` repository variable to `true` and grant the role in `infra/budget.sh`.
 The budget, the topic and the role are created by `infra/budget.sh`; what to do when the switch fires is in the [runbook](RUNBOOK.md#budget-kill-switch).
@@ -440,6 +436,6 @@ The consent and booking checks are in the [owner checklist](OWNER_CHECKLIST.md#g
 
 Rollback per component, restores, alerts and secret rotation are in the [runbook](RUNBOOK.md).
 Use the Firebase Hosting release history to roll Hosting back.
-Disable the notification workflow before investigating any duplicate or incorrectly timed delivery incident.
+Set the `ALERTS_ENABLED` repository variable to `false` and redeploy, or engage the cost guard for an immediate stop, before investigating any duplicate or incorrectly timed alert.
 Rotate a compromised service account, calendar-feed token, FCM token, or Stripe webhook secret immediately.
 Do not log full notification tokens, calendar tokens, service-account JSON, or Stripe secrets.

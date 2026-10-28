@@ -1,5 +1,5 @@
 // Production credentials stay on main: a manual run (workflow_dispatch) may pick any
-// branch, so every job in deploy.yml and notify.yml that receives a secret or can mint
+// branch, so every job in deploy.yml that receives a secret or can mint
 // an OIDC token must check the ref itself.
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -58,7 +58,7 @@ test('finds a credentialed job without the main check', () => {
   assert.deepEqual(unguardedJobs(workflow), ['open'])
 })
 
-for (const file of ['deploy.yml', 'notify.yml']) {
+for (const file of ['deploy.yml']) {
   test(`${file} uses production credentials only on main`, () => {
     const workflow = readFileSync(new URL(`../workflows/${file}`, import.meta.url), 'utf8')
     assert.ok(Object.keys(jobs(workflow)).length > 0)

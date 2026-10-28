@@ -29,7 +29,7 @@ For each one, Solara shows:
 - **Sunscreen timing:** apply 15 to 30 minutes before the start, and reapply every 2 hours or after swimming or heavy sweating, shown only when the peak UV is 3 or more.
 - **A better window, when there is one:** for events the person controls (a solo run), the existing recommendation engine suggests a lower-UV start nearby; for fixed events (a race, a group meetup) Solara only advises.
 - **Forecast horizon:** events beyond the person's plan (today for guests, two days on Free, 10 days on Pro) show "Forecast from <date>" instead of numbers, and the item becomes live when the forecast reaches it.
-- **Heads-up (Pro, Blaze):** a push the evening before, or a set time before the start, when the event's peak UV is high; this reuses the morning alerts Function and device tokens of [ROADMAP item 10](../ROADMAP.md#10-wave-3-phase-2-pro-only-morning-alerts-w3-b-at-pro-launch) and the threshold alerts of item 12.2.
+- **Heads-up (Pro, Blaze):** a push the evening before, or a set time before the start, when the event's peak UV is high; this reuses the morning alerts Function and device tokens of [ROADMAP item 10](../ROADMAP.md#10-wave-3-phase-2-pro-only-morning-alerts-w3-b-built) and the threshold alerts of item 12.2.
 - **After the event (Strava, phase 3):** a recap of the UV during a recorded activity, from its start time, elapsed time and start point.
 
 All of this is pure, deterministic logic over data the app already fetches, so it belongs in `packages/core/src/events.ts` (new), shared by the app and the Functions that send heads-ups.

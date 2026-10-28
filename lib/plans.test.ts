@@ -1,5 +1,5 @@
 import { PRO_TRIAL_DAYS } from '@solara/core'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { FAMILY_PROFILES_LABEL, PRO_FEATURES, PRO_PLAN } from './plans'
 
 describe('PRO_PLAN', () => {
@@ -38,13 +38,25 @@ describe('PRO_FEATURES', () => {
 
   it('keeps calendar sync on Free for now, and family profiles and alerts for Pro', () => {
     expect(row('Calendar sync')).toMatchObject({ guest: false, free: true, pro: true })
-    for (const label of [FAMILY_PROFILES_LABEL, 'Morning alerts']) {
+    for (const label of [FAMILY_PROFILES_LABEL, 'Morning and UV alerts']) {
       expect(row(label)).toMatchObject({ guest: false, free: false })
       expect(row(label)?.pro).toBeTruthy()
     }
     // Family profiles come with planning by the most sensitive person, and say so.
     expect(FAMILY_PROFILES_LABEL).toMatch(/most sensitive/)
-    // Alerts relaunch with Pro (D6), so they are listed as coming soon.
-    expect(row('Morning alerts')?.pro).toBe('Coming soon')
+    // Alerts relaunch with Pro (D6), so they are listed as coming soon until switched on.
+    expect(row('Morning and UV alerts')?.pro).toBe('Coming soon')
+  })
+
+  it('lists the alerts as included once they are switched on', async () => {
+    vi.stubEnv('NEXT_PUBLIC_ALERTS_ENABLED', '1')
+    try {
+      vi.resetModules()
+      const fresh = await import('./plans')
+      expect(fresh.alertsLaunched()).toBe(true)
+      expect(fresh.PRO_FEATURES.find(f => f.label === 'Morning and UV alerts')?.pro).toBe(true)
+    } finally {
+      vi.unstubAllEnvs()
+    }
   })
 })

@@ -5,7 +5,7 @@ import type { Activity, HourlyForecast } from '@/lib/types'
 
 /* eslint-disable @typescript-eslint/no-require-imports */
 const sun = require('../functions/lib/feed/sun')
-const { buildMessage } = require('../functions/scripts/notification-core')
+const { morningAlertMessage } = require('../functions/core')
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 // A 6am-8pm day whose UV is low from 5pm on, so the last window runs to the
@@ -45,8 +45,14 @@ describe('the last window of a day', () => {
     expect(event.description).toContain('17:00–20:00')
   })
 
-  it('ends at the last hourly sample in the morning notification', () => {
-    const message = buildMessage({ activities: [evening], skinType: 'fair' }, hourly, DATE)
+  it('ends at the last hourly sample in the morning alert', () => {
+    const message = morningAlertMessage({
+      date: DATE,
+      city: 'Portland',
+      hourly,
+      activities: [evening],
+      skinType: 'fair',
+    })
     expect(message.title).toBe('🚶 Walk: 5pm to 8pm')
   })
 
