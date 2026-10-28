@@ -151,6 +151,9 @@ function buildSite() {
     NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID: 'solara-e2e.apps.googleusercontent.com',
     // Events already in Google Calendar are on too, read from the same fake Calendar.
     NEXT_PUBLIC_GOOGLE_CALENDAR_EVENTS_ENABLED: '1',
+    // Linked calendars too, with the Functions switch below; the providers' calendar
+    // servers are faked inside the Functions emulator (emulator-calendars.js).
+    NEXT_PUBLIC_EVENTS_SUBSCRIPTIONS_ENABLED: '1',
     NEXT_PUBLIC_GA_MEASUREMENT_ID: '',
     NEXT_PUBLIC_SENTRY_DSN: '',
     NEXT_PUBLIC_UI_HARNESS: '',
@@ -258,6 +261,7 @@ writeFileSync(
     'STRIPE_YEARLY_PRICE_ID=price_e2e_yearly',
     'BILLING_ENABLED=true',
     'FORECAST_PROXY_ENABLED=true',
+    'EVENTS_SUBSCRIPTIONS_ENABLED=true',
     '',
   ].join('\n'),
 )
@@ -295,9 +299,12 @@ const child = spawn(
       NODE_OPTIONS: [
         process.env.NODE_OPTIONS,
         `--require=${resolve('tests/e2e/signed-in/emulator-app-check.js')}`,
+        `--require=${resolve('tests/e2e/signed-in/emulator-calendars.js')}`,
       ]
         .filter(Boolean)
         .join(' '),
+      // Read by emulator-calendars.js, inside the Functions emulator only.
+      SIGNED_IN_FAKE_CALENDARS: '1',
       SIGNED_IN_PORT: String(port),
       SIGNED_IN_SITE_DIR: SITE_DIR,
       SIGNED_IN_PROJECT: PROJECT,
