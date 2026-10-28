@@ -319,31 +319,40 @@ export default function EventsSection({ uid, prefs, weather, displayTier, onUpgr
         </div>
       )}
 
-      {googleCalendarEventsLaunched() && (
+      {(googleCalendarEventsLaunched() || outlookCalendarEventsLaunched()) && (
+        // One boundary, so the shared note below never shows before its panels.
         <Suspense fallback={null}>
-          <GoogleCalendarEvents
-            uid={uid}
-            home={location}
-            activities={prefs.activities}
-            items={items ?? []}
-            upcomingCount={upcoming.filter(item => item.source === 'google').length}
-            allLoaded={(items?.length ?? 0) < IMPORTED_EVENT_LIMITS.listLimit}
-            nowMs={nowMs}
-          />
-        </Suspense>
-      )}
-
-      {outlookCalendarEventsLaunched() && (
-        <Suspense fallback={null}>
-          <OutlookCalendarEvents
-            uid={uid}
-            home={location}
-            activities={prefs.activities}
-            items={items ?? []}
-            upcomingCount={upcoming.filter(item => item.source === 'outlook').length}
-            allLoaded={(items?.length ?? 0) < IMPORTED_EVENT_LIMITS.listLimit}
-            nowMs={nowMs}
-          />
+          {googleCalendarEventsLaunched() && (
+            <GoogleCalendarEvents
+              uid={uid}
+              home={location}
+              activities={prefs.activities}
+              items={items ?? []}
+              upcomingCount={upcoming.filter(item => item.source === 'google').length}
+              allLoaded={(items?.length ?? 0) < IMPORTED_EVENT_LIMITS.listLimit}
+              nowMs={nowMs}
+            />
+          )}
+          {outlookCalendarEventsLaunched() && (
+            <OutlookCalendarEvents
+              uid={uid}
+              home={location}
+              activities={prefs.activities}
+              items={items ?? []}
+              upcomingCount={upcoming.filter(item => item.source === 'outlook').length}
+              allLoaded={(items?.length ?? 0) < IMPORTED_EVENT_LIMITS.listLimit}
+              nowMs={nowMs}
+            />
+          )}
+          {/* How both connections update, said once below them: each panel used to carry
+              its own copy, so with both on it showed twice (REVIEW7 L7.2). */}
+          <p
+            className="mt-2.5 text-[11px] leading-normal text-ink-3"
+            data-testid="calendar-refresh-note"
+          >
+            Events update while Solara is open: by themselves for an hour after you connect or
+            refresh, otherwise when you press Refresh.
+          </p>
         </Suspense>
       )}
 

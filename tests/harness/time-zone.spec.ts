@@ -32,10 +32,8 @@ for (const timezoneId of DEVICE_ZONES) {
       await expect(hero).toHaveAttribute('data-start', '16')
       await expect(page.getByTestId('uv-readout')).toContainText('now')
       await expect(page.getByTestId('uv-readout')).toContainText('°F')
-      await expect(page.getByRole('button', { name: /current hour/ })).toHaveAttribute(
-        'data-hour',
-        '10',
-      )
+      // The current hour's chip reads "Now" with the live reading (REVIEW7 L7.3).
+      await expect(page.getByRole('button', { name: /, Now$/ })).toHaveAttribute('data-hour', '10')
     })
 
     test('calendar marks Los Angeles today and now', async ({ page }, testInfo) => {

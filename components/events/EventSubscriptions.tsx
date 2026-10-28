@@ -56,12 +56,20 @@ export default function EventSubscriptions({ uid, nowMs }: Props) {
   const [loadError, setLoadError] = useState(false)
   const [url, setUrl] = useState('')
   const [busy, setBusy] = useState<Busy>(null)
-  const [status, setStatus] = useState<{ text: string; error?: boolean } | null>(null)
+  // `refused`: the link field's own warning, repeated as the status after "Link calendar";
+  // while it shows, the hint under the field steps aside so the sentence appears once.
+  const [status, setStatus] = useState<{
+    text: string
+    error?: boolean
+    refused?: boolean
+  } | null>(null)
   const [confirming, setConfirming] = useState<string | null>(null)
   const [guideOpen, setGuideOpen] = useState(false)
   // What the pasted link looks like, worked out here and never sent or logged.
   const recognised = useMemo(() => recogniseCalendarLink(url), [url])
   const linkHint = calendarLinkHint(recognised)
+  const refusalShown = status?.refused === true
+  const shownHint = refusalShown ? null : linkHint
 
   useEffect(
     () =>
@@ -103,7 +111,7 @@ export default function EventSubscriptions({ uid, nowMs }: Props) {
     }
     // A provider's website or HTML page can never be a calendar: say so without a fetch.
     if (calendarLinkRefused(recognised) && linkHint) {
-      setStatus({ text: linkHint.text, error: true })
+      setStatus({ text: linkHint.text, error: true, refused: true })
       return
     }
     void run({ kind: 'add' }, async () => {
@@ -120,6 +128,7 @@ export default function EventSubscriptions({ uid, nowMs }: Props) {
   const hintId = `${id}-hint`
   const guideId = `${id}-guide`
   const linkHintId = `${id}-link-hint`
+  const statusId = `${id}-status`
   return (
     <div className="mt-4 border-t-[0.5px] border-line pt-3.5" data-testid="event-subscriptions">
       <div className="flex items-baseline justify-between gap-3">
@@ -168,11 +177,15 @@ export default function EventSubscriptions({ uid, nowMs }: Props) {
           autoCapitalize="none"
           spellCheck={false}
           placeholder="https://… or webcal://…"
-          aria-describedby={`${hintId} ${linkHintId}`}
+          aria-describedby={`${hintId} ${refusalShown ? statusId : linkHintId}`}
           className="min-w-0 flex-1 py-2 text-[13px]"
           value={url}
           disabled={full || busy !== null}
-          onChange={event => setUrl(event.target.value)}
+          onChange={event => {
+            setUrl(event.target.value)
+            // A refusal was about the old link; the hint speaks for the new one.
+            if (refusalShown) setStatus(null)
+          }}
         />
         <button
           type="submit"
@@ -195,16 +208,16 @@ export default function EventSubscriptions({ uid, nowMs }: Props) {
         aria-live="polite"
         data-testid="calendar-link-hint"
         className={`flex gap-1.5 text-[12px] leading-normal ${
-          linkHint ? 'mt-1.5' : 'hidden'
-        } ${linkHint?.tone === 'warning' ? 'text-notice-ink' : 'text-ink-2'}`}
+          shownHint ? 'mt-1.5' : 'hidden'
+        } ${shownHint?.tone === 'warning' ? 'text-notice-ink' : 'text-ink-2'}`}
       >
-        {linkHint?.tone === 'ok' && (
+        {shownHint?.tone === 'ok' && (
           <CircleCheck size={14} aria-hidden="true" className="mt-px shrink-0 text-success" />
         )}
-        {linkHint?.tone === 'warning' && (
+        {shownHint?.tone === 'warning' && (
           <TriangleAlert size={14} aria-hidden="true" className="mt-px shrink-0" />
         )}
-        {linkHint && <span>{linkHint.text}</span>}
+        {shownHint && <span>{shownHint.text}</span>}
       </p>
       {full && (
         <p className="mt-2 text-[12px] leading-normal text-ink-2">
@@ -215,6 +228,7 @@ export default function EventSubscriptions({ uid, nowMs }: Props) {
 
       {(status || loadError) && (
         <p
+          id={statusId}
           role={status?.error || (!status && loadError) ? 'alert' : 'status'}
           data-testid="event-subscriptions-status"
           className={`mt-2.5 rounded-[10px] px-3 py-2 text-[13px] leading-normal ${

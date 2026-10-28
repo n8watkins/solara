@@ -151,6 +151,20 @@ describe('uvReadout', () => {
     expect(r.burn).toBe(burnMins(6.4, 'fair'))
   })
 
+  it('keeps the live reading when today’s current hour is focused (REVIEW7 L7.3)', () => {
+    // 10:30am: the 10am chip shows the live reading, so focusing it changes nothing.
+    const withNow = [hour(9, 3), hour(10, 5.1), hour(12, 9.5, 30)]
+    const r = uvReadout(weather(), withNow, true, withNow[1]!, 'fair', fmtHour)
+    expect(r).toMatchObject({ headUV: 6.4, headTemp: 25, headCond: 'Clear', headSuffix: ' now' })
+    expect(r.headBurn).toBe(burnMins(6.4, 'fair'))
+    // Another hour still shows its own forecast, and another day's 10am is that hour.
+    expect(uvReadout(weather(), withNow, true, withNow[0]!, 'fair', fmtHour).headUV).toBe(3)
+    expect(uvReadout(weather(), withNow, false, withNow[1]!, 'fair', fmtHour)).toMatchObject({
+      headUV: 5.1,
+      headSuffix: ' at 10h',
+    })
+  })
+
   it('copes with a day without hours', () => {
     const r = uvReadout(weather(), [], false, null, 'fair', fmtHour)
     expect(r).toMatchObject({ currentUV: 0, peakUV: 0, peakHour: 12, headTemp: undefined })

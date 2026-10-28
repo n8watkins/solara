@@ -44,7 +44,9 @@ test.describe('British English', () => {
     await open(page, 'dashboard')
     await expect(readout(page)).toContainText('26°C')
     await expect(hero(page)).toContainText('16:00–18:00')
-    await expect(page.getByRole('button', { name: /current hour/ })).toContainText('10:00')
+    // The current hour (10:00) reads "Now"; the next one shows the 24-hour clock.
+    await expect(page.getByRole('button', { name: /, Now$/ })).toHaveAttribute('data-hour', '10')
+    await expect(page.locator('button.uv-bar[data-hour="11"]')).toContainText('11:00')
   })
 })
 
