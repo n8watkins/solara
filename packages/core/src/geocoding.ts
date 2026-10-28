@@ -35,8 +35,8 @@ export const GeocodingResultSchema = record({
 
 export type GeocodingResult = v.InferOutput<typeof GeocodingResultSchema>
 
-/** Open-Meteo omits `results` when nothing matches. */
-const GeocodingResponseSchema = record({
+/** Open-Meteo omits `results` when nothing matches; the place search proxy answers the same. */
+export const GeocodingResponseSchema = record({
   results: v.optional(v.array(v.fallback(v.nullable(GeocodingResultSchema), null))),
 })
 

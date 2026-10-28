@@ -11,8 +11,12 @@ import {
   searchPlaces,
 } from './geocoding'
 
+// The proxy path asks Firebase for an App Check token; nothing else here loads it.
+vi.mock('./firebase', () => ({ appCheckToken: async () => 'app-check-token' }))
+
 afterEach(() => {
   vi.unstubAllGlobals()
+  vi.unstubAllEnvs()
   vi.useRealTimers()
 })
 
@@ -456,5 +460,33 @@ describe('locationFromCoordinates', () => {
       city: 'Pasadena',
       region: 'California',
     })
+  })
+})
+
+describe('place search through the proxy', () => {
+  it('asks the placeSearch Function with App Check once the forecast proxy is on', async () => {
+    vi.stubEnv('NEXT_PUBLIC_FORECAST_PROXY', '1')
+    vi.stubEnv('NEXT_PUBLIC_FUNCTIONS_URL', 'https://fn.example.com/project/us-central1/')
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        results: [
+          { latitude: 34.1478, longitude: -118.1445, name: 'Pasadena', admin1: 'California' },
+        ],
+      }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(searchLocation('Pasadena')).resolves.toMatchObject({ city: 'Pasadena' })
+    const [url, init] = fetchMock.mock.calls[0] ?? []
+    const requested = new URL(String(url))
+    expect(requested.origin + requested.pathname).toBe(
+      'https://fn.example.com/project/us-central1/placeSearch',
+    )
+    expect(requested.searchParams.get('name')).toBe('Pasadena')
+    expect(requested.searchParams.get('count')).toBe('1')
+    expect(init).toEqual({ headers: { 'X-Firebase-AppCheck': 'app-check-token' } })
+    // Never the free API once the proxy is on.
+    expect(String(url)).not.toContain('open-meteo.com')
   })
 })
