@@ -1,4 +1,5 @@
 import type { Ref } from 'react'
+import { formatUV } from '@solara/core'
 import type { LabelPlacement, Point } from '@/lib/sun-arc'
 import { SUN_ARC_BASELINE_Y } from '@/lib/sun-arc'
 import { useUnits } from '@/lib/use-units'
@@ -57,7 +58,7 @@ export function PeakMarker({
               {'← '}
             </tspan>
           )}
-          Peak {uv.toFixed(1)}
+          Peak {formatUV(uv)}
           <tspan fontWeight="500" fill="var(--text-3)">
             {' '}
             · {fmt.hour(hour)}

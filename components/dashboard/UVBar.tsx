@@ -43,7 +43,7 @@ export function UVBar({
           around the visible number and hour so the name contains both. */}
       <span className="text-[13px] font-bold leading-none">
         <VisuallyHidden>UV </VisuallyHidden>
-        {formatUV(hour.uv, { compact: true })}
+        {formatUV(hour.uv)}
         <VisuallyHidden>, {uvLabel(hour.uv)}, at </VisuallyHidden>
       </span>
       <span className="text-[10px] leading-none">

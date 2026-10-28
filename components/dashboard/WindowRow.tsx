@@ -1,3 +1,4 @@
+import { formatUV } from '@solara/core'
 import type { SafeActivityWindow } from '@/lib/types'
 import { useUnits } from '@/lib/use-units'
 import VisuallyHidden from '../VisuallyHidden'
@@ -51,7 +52,7 @@ export default function WindowRow({
           )}
         </div>
         <span className="block truncate text-[11px] text-ink-3">
-          {win.label} · Peak UV {win.peakUV.toFixed(1)}
+          {win.label} · Peak UV {formatUV(win.peakUV)}
           {cloudNote ? ' · if the clouds hold' : ''}
         </span>
       </div>

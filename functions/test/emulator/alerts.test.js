@@ -219,7 +219,7 @@ describe('morning alerts', () => {
           send.messages[0].data.body,
           /^Today in .+: UV peaks at .+ Recheck current conditions\.$/,
         )
-        assert.match(send.messages[0].data.body, /Best lower-UV window: Run /)
+        assert.match(send.messages[0].data.body, /Lowest-UV window: Run /)
         assert.equal(send.messages[0].data.link, 'https://solara.example/app/')
       }
     }

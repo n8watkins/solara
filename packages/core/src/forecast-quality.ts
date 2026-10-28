@@ -9,6 +9,7 @@
 // the sky stays clear.
 
 import { exposedUV, type ExposureSetting } from './exposure'
+import { formatUV } from './uv-scale'
 
 /**
  * Forecast confidence by lead time: the first three days (today, tomorrow and the
@@ -39,16 +40,17 @@ export function confidenceNote(confidence: ForecastConfidence): string | null {
 export const CLOUD_EFFECT_MIN = 2
 
 export interface CloudEffect {
-  /** The day's peak forecast UV, with clouds, as a whole number. */
+  /** The day's peak forecast UV, with clouds. */
   uv: number
-  /** The day's peak clear-sky UV, as a whole number. */
+  /** The day's peak clear-sky UV. */
   clearSky: number
 }
 
 /**
- * How much the forecast clouds lower a day's peak, in whole UV index points (no
- * false precision); null when the provider gave no clear-sky value or the gap is
- * under CLOUD_EFFECT_MIN.
+ * How much the forecast clouds lower a day's peak; null when the provider gave no
+ * clear-sky value or the gap is under CLOUD_EFFECT_MIN whole UV index points (smaller
+ * gaps are noise). The values are the peaks as forecast, so the note quotes the same
+ * peak as the rest of the app.
  */
 export function cloudEffect(
   hourly: readonly { uv: number; clearSkyUV?: number | null }[],
@@ -60,13 +62,12 @@ export function cloudEffect(
     if (typeof hour.clearSkyUV === 'number') clearSky = Math.max(clearSky, hour.clearSkyUV)
   }
   if (!Number.isFinite(uv) || !Number.isFinite(clearSky)) return null
-  const effect = { uv: Math.round(uv), clearSky: Math.round(clearSky) }
-  return effect.clearSky - effect.uv >= CLOUD_EFFECT_MIN ? effect : null
+  return Math.round(clearSky) - Math.round(uv) >= CLOUD_EFFECT_MIN ? { uv, clearSky } : null
 }
 
-/** "Clouds may cut UV to 4 from a clear-sky 7". */
+/** "Clouds may cut UV to 4.3 from a clear-sky 6.8". */
 export function cloudNote({ uv, clearSky }: CloudEffect): string {
-  return `Clouds may cut UV to ${uv} from a clear-sky ${clearSky}`
+  return `Clouds may cut UV to ${formatUV(uv)} from a clear-sky ${formatUV(clearSky)}`
 }
 
 /** One hour of forecast: UV with the forecast clouds, and under a clear sky when known. */

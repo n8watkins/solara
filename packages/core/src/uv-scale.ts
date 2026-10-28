@@ -33,3 +33,14 @@ export function uvBand(uv: number): UVBand {
 export function uvLabel(uv: number): string {
   return UV_BAND_LABELS[uvBand(uv)]
 }
+
+/**
+ * How every UV value is written, in the app, the alerts, the calendar feed and the city
+ * pages: one decimal, as the forecast gives it ("10.3", "6.0"), so the same hour or
+ * peak never reads as two numbers in two places (REVIEW4 L5). Bands and thresholds
+ * still read the whole-number index (`uvBand`).
+ */
+export function formatUV(uv: number): string {
+  const rounded = Math.round(uv * 10) / 10
+  return (rounded === 0 ? 0 : rounded).toFixed(1)
+}

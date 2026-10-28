@@ -4,7 +4,7 @@
 // when someone connects or schedules; it re-exports these.
 import type { BusyInterval, SlotRecommendation } from './scheduler'
 import type { Activity } from './types'
-import { fmtClock } from './weather'
+import { fmtClock, formatUV } from './weather'
 import { addDays, isIsoDate, zonedInstant } from './time'
 
 const CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID
@@ -68,7 +68,7 @@ export function buildEventDescription(
     )
   }
   if (typeof opts.peakUV === 'number' && typeof opts.peakHour === 'number') {
-    lines.push(`Peak UV ${opts.peakUV.toFixed(1)} around ${fmtClock(opts.peakHour)}.`)
+    lines.push(`Peak UV ${formatUV(opts.peakUV)} around ${fmtClock(opts.peakHour)}.`)
   }
   lines.push(activity.sunscreen ? 'Assumes SPF 30+.' : 'Planned for no sunscreen.')
   lines.push('Forecast-based estimate only. Recheck current UV and use sun protection.')

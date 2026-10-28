@@ -69,3 +69,16 @@ test('a browser with a Solara account goes straight to the app', async ({ page }
   await page.goto('/?checkout=canceled#top')
   await expect(page).toHaveURL(/\/app\/\?checkout=canceled#top$/)
 })
+
+test('follows an OS theme change while open, without any framework JavaScript', async ({
+  page,
+}) => {
+  await page.emulateMedia({ colorScheme: 'light' })
+  await page.goto('/')
+  const root = page.locator('html')
+  await expect(root).not.toHaveClass(/\bdark\b/)
+  await page.emulateMedia({ colorScheme: 'dark' })
+  await expect(root).toHaveClass(/\bdark\b/)
+  await page.emulateMedia({ colorScheme: 'light' })
+  await expect(root).not.toHaveClass(/\bdark\b/)
+})

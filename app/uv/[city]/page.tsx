@@ -9,13 +9,16 @@ import {
   cityDescription,
   cityPage,
   cityPath,
+  cityTitle,
   hourText,
 } from '@/lib/city-pages'
-import { uvBandColor } from '@/lib/weather'
+import { cityStructuredData, jsonLd } from '@/lib/structured-data'
+import { formatUV, uvBandColor } from '@/lib/weather'
 
 // One city's typical UV by month, built at export time from the checked-in data in
 // lib/cities/. Static HTML and CSS only: scripts/static-pages.mjs strips the
-// framework scripts, so a visitor from search downloads no JavaScript here.
+// framework scripts, so a visitor from search downloads no JavaScript here; the only
+// inline script is the page's structured data (JSON-LD), which is not code.
 
 export const dynamicParams = false
 
@@ -28,11 +31,7 @@ type Props = { params: Promise<{ city: string }> }
 export async function generateMetadata({ params }: Props) {
   const page = cityPage((await params).city)
   if (!page) return {}
-  return cityMetadata(
-    `UV index in ${page.city.name} by month | Solara`,
-    cityDescription(page),
-    cityPath(page.city.slug),
-  )
+  return cityMetadata(cityTitle(page), cityDescription(page), cityPath(page.city.slug))
 }
 
 /** The chart's scale: UV 12 fills the bar area (Extreme starts at 11). */
@@ -48,6 +47,12 @@ export default async function CityUVPage({ params }: Props) {
 
   return (
     <CityShell appHref={appHref}>
+      {/* Kept by scripts/static-pages.mjs (data-static) and hashed by scripts/csp.mjs. */}
+      <script
+        type="application/ld+json"
+        data-static=""
+        dangerouslySetInnerHTML={{ __html: jsonLd(cityStructuredData(page)) }}
+      />
       <nav aria-label="Breadcrumb" className="text-[13px] text-ink-3">
         <Link href="/uv/" className="text-inherit underline">
           UV by city
@@ -115,7 +120,7 @@ export default async function CityUVPage({ params }: Props) {
           {months.map(m => (
             <div key={m.month} className="flex min-w-0 flex-col items-center">
               <span className="text-[11px] font-semibold text-ink-2 tabular-nums sm:text-[12px]">
-                {Math.round(m.peak)}
+                {formatUV(m.peak)}
               </span>
               <div className="mt-1 flex h-[132px] w-full items-end justify-center">
                 <div
@@ -166,10 +171,10 @@ export default async function CityUVPage({ params }: Props) {
                         className="size-2.5 rounded-[3px]"
                         style={{ background: uvBandColor(m.band) }}
                       />
-                      {Math.round(m.peak)} {m.label}
+                      {formatUV(m.peak)} {m.label}
                     </span>
                   </td>
-                  <td className="px-2.5 py-2.5 sm:px-4 tabular-nums">{Math.round(m.clearSky)}</td>
+                  <td className="px-2.5 py-2.5 sm:px-4 tabular-nums">{formatUV(m.clearSky)}</td>
                   <td className="px-2.5 py-2.5 sm:px-4">
                     {m.from !== null && m.to !== null
                       ? `${hourText(m.from)}-${hourText(m.to)}`

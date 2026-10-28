@@ -4,7 +4,7 @@ import type { DayWeather, Activity, SkinType } from '@/lib/types'
 import type { UpcomingSlot } from '@/lib/planner'
 import { planUpcomingSlots } from '@/lib/planner'
 import type { BusyInterval, SlotRecommendation } from '@/lib/scheduler'
-import { uvBand, uvLabel } from '@/lib/weather'
+import { formatUV, uvBand, uvLabel } from '@/lib/weather'
 import type * as IcsCode from '@/lib/ics'
 import { useUnits } from '@/lib/use-units'
 import { UV_BG } from './dashboard/uv-classes'
@@ -108,10 +108,10 @@ export default function PlanAhead({
             <div className="shrink-0 text-right">
               <p className="text-[12px] font-semibold text-ink-2">{slot.windowLabel}</p>
               <span
-                title={`Average UV ${slot.avgUV.toFixed(1)}, ${uvLabel(slot.avgUV)}`}
+                title={`Average UV ${formatUV(slot.avgUV)}, ${uvLabel(slot.avgUV)}`}
                 className={`mt-[3px] inline-block rounded-full px-[7px] py-0.5 text-[11px] font-[650] whitespace-nowrap text-uv-ink ${UV_BG[uvBand(slot.avgUV)]}`}
               >
-                avg UV {slot.avgUV.toFixed(1)}
+                avg UV {formatUV(slot.avgUV)}
               </span>
             </div>
             {onBook && (

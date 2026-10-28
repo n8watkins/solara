@@ -150,7 +150,7 @@ describe('with the harness forecast', () => {
     ])
   })
 
-  it('gives each day its whole-number peak, cloud effect and confidence', () => {
+  it('gives each day its peak, cloud effect and confidence', () => {
     const days = calendarDays(buildWeather(), 10)
     expect(days.map(d => d.confidence)).toEqual([
       ...Array(3).fill('high'),
@@ -158,9 +158,11 @@ describe('with the harness forecast', () => {
       ...Array(4).fill('low'),
     ])
     // Day 3 of the fixture is 92% overcast: UV 4 with clouds, 6 under a clear sky.
-    expect(days[3]).toMatchObject({ peakUV: 4, cloud: { uv: 4, clearSky: 6 } })
-    // A nearly clear day has nothing worth telling.
-    expect(days[0]).toMatchObject({ peakUV: 10, cloud: null })
+    // Day 3 of the fixture is 92% overcast: UV 4.1 with clouds, 6.3 under a clear sky.
+    expect(days[3]).toMatchObject({ peakUV: 4.1, cloud: { uv: 4.1, clearSky: 6.3 } })
+    // A nearly clear day has nothing worth telling. Its peak is the forecast's 10.3, as
+    // the dashboard writes it, not a rounded 10 (REVIEW4 L5).
+    expect(days[0]).toMatchObject({ peakUV: 10.3, cloud: null })
   })
 
   it('plans a lane per activity and leaves out days an activity does not run', () => {

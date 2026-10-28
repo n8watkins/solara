@@ -56,7 +56,7 @@ describe('cityPage', () => {
     expect(page.place).toBe('London, England')
     expect(page.top.month).toBe('June')
     expect(page.facts[0]).toBe(
-      'UV in London is highest in June, when a typical day peaks around 5 (Moderate).',
+      'UV in London is highest in June, when a typical day peaks around 4.9 (Moderate).',
     )
     expect(page.facts).toContain(
       'The typical midday UV reaches 3 or more from April to September, when public-health guidance recommends sun protection.',

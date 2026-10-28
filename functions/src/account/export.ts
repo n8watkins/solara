@@ -1,11 +1,25 @@
 // Data export: the portable account fields, a billing summary, notification devices,
 // scheduled activities, imported events and the Pro alert history, never billing ids,
 // tokens or internal bookkeeping.
+//
+// The collections a person can fill from the browser (imported events, scheduled
+// activities) are read in pages of EXPORT_PAGE_SIZE documents and turned into plain
+// records page by page, so the single 256 MiB instance never holds a whole collection
+// of Firestore snapshots, and each is capped at EXPORT_COLLECTION_LIMIT documents with
+// the cut-short sections named in `truncated` (REVIEW4 M4).
 
 import { parseScheduledActivity, PREFERENCE_FIELDS } from '#core'
 import { parseImportedEvent } from '#core/event-import'
 import type { Auth } from 'firebase-admin/auth'
-import type { DocumentData, Firestore, QuerySnapshot } from 'firebase-admin/firestore'
+import {
+  type CollectionReference,
+  type DocumentData,
+  FieldPath,
+  type Firestore,
+  type Query,
+  type QueryDocumentSnapshot,
+  type Transaction,
+} from 'firebase-admin/firestore'
 import type { Request } from 'firebase-functions/v2/https'
 
 import { authenticate, uidLimiter } from '../shared/auth'
@@ -49,8 +63,63 @@ export function billingSummary(data: DocumentData | null | undefined) {
   }
 }
 
-function safeDeviceData(snapshot: QuerySnapshot) {
-  return snapshot.docs.map(doc => {
+/** Documents read per query while exporting a collection. */
+export const EXPORT_PAGE_SIZE = 200
+
+/**
+ * The most documents exported per collection. Well above what the app lets an account
+ * keep, so it only cuts short an account that wrote documents around the app.
+ */
+export const EXPORT_COLLECTION_LIMIT = 5000
+
+export interface ExportLimits {
+  pageSize: number
+  collectionLimit: number
+}
+
+const DEFAULT_LIMITS: ExportLimits = {
+  pageSize: EXPORT_PAGE_SIZE,
+  collectionLimit: EXPORT_COLLECTION_LIMIT,
+}
+
+type Docs = readonly QueryDocumentSnapshot[]
+
+/**
+ * Reads a collection in document id order, one page at a time, keeping only what
+ * `convert` returns for each page. At most `collectionLimit` documents are read (invalid
+ * ones count too, so a collection of junk cannot make the export slow); `truncated` says
+ * whether more were left.
+ */
+async function readPaged<T>(
+  transaction: Transaction,
+  collection: CollectionReference,
+  convert: (docs: Docs) => T[],
+  { pageSize, collectionLimit }: ExportLimits,
+): Promise<{ records: T[]; truncated: boolean }> {
+  const records: T[] = []
+  const ordered = collection.orderBy(FieldPath.documentId())
+  let lastId: string | null = null
+  let scanned = 0
+  for (;;) {
+    const remaining = collectionLimit - scanned
+    // One document past the limit, to tell a full collection from a longer one.
+    const take = Math.min(pageSize, remaining + 1)
+    const query: Query = lastId === null ? ordered : ordered.startAfter(lastId)
+    const { docs } = await transaction.get(query.limit(take))
+    if (docs.length > remaining) {
+      records.push(...convert(docs.slice(0, remaining)))
+      return { records, truncated: true }
+    }
+    records.push(...convert(docs))
+    scanned += docs.length
+    const last = docs.at(-1)
+    if (!last || docs.length < take) return { records, truncated: false }
+    lastId = last.id
+  }
+}
+
+export function safeDeviceData(docs: Docs) {
+  return docs.map(doc => {
     const data = doc.data()
     return {
       id: doc.id,
@@ -65,8 +134,8 @@ function safeDeviceData(snapshot: QuerySnapshot) {
 }
 
 /** Scheduled activities (Google Calendar events Solara created), as stored. */
-export function safeScheduledData(snapshot: QuerySnapshot) {
-  return snapshot.docs.flatMap(doc => {
+export function safeScheduledData(docs: Docs) {
+  return docs.flatMap(doc => {
     const item = parseScheduledActivity(doc.data())
     return item && item.eventId === doc.id ? [item] : []
   })
@@ -98,8 +167,8 @@ export function alertHistory(data: DocumentData | null | undefined) {
 }
 
 /** Events imported from .ics files, as stored (docs/integrations/EVENTS.md). */
-export function safeImportedEventData(snapshot: QuerySnapshot) {
-  return snapshot.docs.flatMap(doc => {
+export function safeImportedEventData(docs: Docs) {
+  return docs.flatMap(doc => {
     const event = parseImportedEvent(doc.data())
     return event && event.key === doc.id ? [event] : []
   })
@@ -109,49 +178,57 @@ export async function exportAccountData({
   auth,
   db,
   req,
+  limits = DEFAULT_LIMITS,
 }: {
   auth: Auth
   db: Firestore
   req: Request
+  limits?: ExportLimits
 }) {
   const identity = await authenticate(auth, req.headers.authorization, {
     limiter: exportLimiter,
   })
   const userRef = db.collection('users').doc(identity.uid)
   const tombstoneRef = db.collection('accountDeletionTombstones').doc(identity.uid)
-  const devicesQuery = userRef.collection('notificationDevices')
-  const scheduledQuery = userRef.collection('scheduled')
   const alertStateRef = userRef.collection(ALERT_STATE_COLLECTION).doc(ALERT_STATE_DOC)
-  const eventsQuery = userRef.collection('events')
-  const { userSnapshot, devicesSnapshot, scheduledSnapshot, alertSnapshot, eventsSnapshot } =
-    await db.runTransaction(async transaction => {
+  // A read-only transaction: every page comes from the same snapshot, and nothing is locked.
+  const sections = await db.runTransaction(
+    async transaction => {
       const tombstone = await transaction.get(tombstoneRef)
       if (tombstone.exists) {
         throw new HttpError('deletion-in-progress', 'Account deletion is in progress')
       }
-      const [account, devices, scheduled, alerts, events] = await Promise.all([
+      const [account, alerts, devices, scheduled, events] = await Promise.all([
         transaction.get(userRef),
-        transaction.get(devicesQuery),
-        transaction.get(scheduledQuery),
         transaction.get(alertStateRef),
-        transaction.get(eventsQuery),
+        readPaged(transaction, userRef.collection('notificationDevices'), safeDeviceData, limits),
+        readPaged(transaction, userRef.collection('scheduled'), safeScheduledData, limits),
+        readPaged(transaction, userRef.collection('events'), safeImportedEventData, limits),
       ])
       return {
-        userSnapshot: account,
-        devicesSnapshot: devices,
-        scheduledSnapshot: scheduled,
-        alertSnapshot: alerts,
-        eventsSnapshot: events,
+        account: account.exists ? (account.data() ?? {}) : null,
+        alerts: alerts.exists ? (alerts.data() ?? null) : null,
+        devices,
+        scheduled,
+        events,
       }
-    })
+    },
+    { readOnly: true },
+  )
+  const truncated = [
+    sections.devices.truncated && 'notificationDevices',
+    sections.scheduled.truncated && 'scheduledActivities',
+    sections.events.truncated && 'importedEvents',
+  ].filter(section => section !== false)
   return {
     formatVersion: 1,
     exportedAt: new Date().toISOString(),
-    account: userSnapshot.exists ? safeAccountData(userSnapshot.data() ?? {}) : null,
-    billing: billingSummary(userSnapshot.exists ? userSnapshot.data() : null),
-    notificationDevices: safeDeviceData(devicesSnapshot),
-    scheduledActivities: safeScheduledData(scheduledSnapshot),
-    alerts: alertHistory(alertSnapshot.exists ? alertSnapshot.data() : null),
-    importedEvents: safeImportedEventData(eventsSnapshot),
+    account: sections.account ? safeAccountData(sections.account) : null,
+    billing: billingSummary(sections.account),
+    notificationDevices: sections.devices.records,
+    scheduledActivities: sections.scheduled.records,
+    alerts: alertHistory(sections.alerts),
+    importedEvents: sections.events.records,
+    truncated,
   }
 }

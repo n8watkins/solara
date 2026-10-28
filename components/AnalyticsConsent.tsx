@@ -8,6 +8,8 @@ import styles from './AnalyticsConsent.module.css'
 import {
   ANALYTICS_CONSENT_EVENT,
   ANALYTICS_CONSENT_STORAGE_KEY,
+  asksForAnalyticsConsent,
+  markAnalyticsConsent,
   parseAnalyticsConsent,
   persistAnalyticsConsent,
   readAnalyticsConsent,
@@ -15,6 +17,7 @@ import {
 
 function announceConsent(consent: Exclude<AnalyticsConsentValue, 'unset'>) {
   persistAnalyticsConsent(window.localStorage, consent)
+  markAnalyticsConsent(document.documentElement, consent)
   window.dispatchEvent(new CustomEvent(ANALYTICS_CONSENT_EVENT, { detail: consent }))
 }
 
@@ -22,15 +25,20 @@ function useAnalyticsConsent() {
   const [consent, setConsent] = useState<AnalyticsConsentValue | null>(null)
 
   useEffect(() => {
+    const stored = readAnalyticsConsent(window.localStorage)
+    // Normally already set by the head script; this keeps the banner right without it.
+    markAnalyticsConsent(document.documentElement, stored)
     // eslint-disable-next-line react-hooks/set-state-in-effect -- Browser-only state is read after hydration so the static export's prerendered markup matches the first client render.
-    setConsent(readAnalyticsConsent(window.localStorage))
+    setConsent(stored)
 
     const handleConsent = (event: Event) => {
       setConsent(parseAnalyticsConsent((event as CustomEvent<string>).detail))
     }
     const handleStorage = (event: StorageEvent) => {
       if (event.key === ANALYTICS_CONSENT_STORAGE_KEY) {
-        setConsent(parseAnalyticsConsent(event.newValue))
+        const next = parseAnalyticsConsent(event.newValue)
+        markAnalyticsConsent(document.documentElement, next)
+        setConsent(next)
       }
     }
 
@@ -85,7 +93,6 @@ function setAnalyticsDisabled(measurementId: string, disabled: boolean) {
 export default function AnalyticsConsent({ measurementId }: { measurementId?: string }) {
   const consent = useAnalyticsConsent()
   const pathname = usePathname()
-  const hasPageLevelControls = pathname === '/privacy' || pathname === '/privacy/'
 
   useEffect(() => {
     if (!measurementId || consent === null) return
@@ -101,28 +108,37 @@ export default function AnalyticsConsent({ measurementId }: { measurementId?: st
     }
   }, [consent, pathname])
 
-  if (!measurementId || consent !== 'unset' || hasPageLevelControls) return null
+  // Rendered into the static export too (consent is null until hydration): the head
+  // script (ANALYTICS_CONSENT_INIT_SCRIPT) marks <html> with the stored choice, and
+  // the stylesheet shows the banner only while that is 'unset', so it is in place from
+  // the first frame and never shifts the page.
+  if (!measurementId || !asksForAnalyticsConsent(pathname) || (consent && consent !== 'unset')) {
+    return null
+  }
 
-  // A non-blocking banner: the page stays usable, nothing is focused or trapped,
-  // and both choices carry equal visual weight.
+  // A non-blocking banner at the top of the page, in the page flow: it never covers
+  // anything at any width, nothing is focused or trapped, and both choices carry
+  // equal visual weight.
   return (
     <section className={styles.banner} aria-labelledby="analytics-consent-title">
-      <div className={styles.copy}>
-        <h2 id="analytics-consent-title" className={styles.title}>
-          Help improve Solara
-        </h2>
-        <p className={styles.text}>
-          Allow optional analytics to help us understand which features are useful. Nothing loads
-          unless you choose Allow. <a href="/privacy/">Privacy details</a>
-        </p>
-      </div>
-      <div className={styles.actions}>
-        <button className="btn" type="button" onClick={() => announceConsent('accepted')}>
-          Allow analytics
-        </button>
-        <button className="btn" type="button" onClick={() => announceConsent('declined')}>
-          Not now
-        </button>
+      <div className={styles.inner}>
+        <div className={styles.copy}>
+          <h2 id="analytics-consent-title" className={styles.title}>
+            Help improve Solara
+          </h2>
+          <p className={styles.text}>
+            Allow optional analytics to help us understand which features are useful. Nothing loads
+            unless you choose Allow. <a href="/privacy/">Privacy details</a>
+          </p>
+        </div>
+        <div className={styles.actions}>
+          <button className="btn" type="button" onClick={() => announceConsent('accepted')}>
+            Allow analytics
+          </button>
+          <button className="btn" type="button" onClick={() => announceConsent('declined')}>
+            Not now
+          </button>
+        </div>
       </div>
     </section>
   )

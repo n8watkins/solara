@@ -57,6 +57,17 @@ test.describe('logic checks', () => {
     expect((await visibleHours(page))[0]).toBe(6)
   })
 
+  test('just after sunset, with the last hour still on the strip, it opens where UV returns', async ({
+    page,
+  }) => {
+    // 20:30: the strip's last bar (8pm) is the current hour, but the day is over
+    // (REVIEW4: the strip opened on the afternoon, under "UV returns about 7am").
+    await openDashboard(page, { at: NIGHT_MS - 60 * 60_000, tier: 'guest', edit: atNight })
+    await expect(page.getByTestId('uv-readout')).toContainText('Sun is down')
+    await expect.poll(() => visibleHours(page)).toContain(7)
+    expect((await visibleHours(page))[0]).toBe(6)
+  })
+
   test('by day the strip opens on the current hour', async ({ page }) => {
     await openDashboard(page, { at: NOW_MS, tier: 'guest' })
     await expect.poll(() => visibleHours(page)).toContain(10)

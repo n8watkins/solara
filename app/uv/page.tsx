@@ -1,6 +1,7 @@
 import CityShell from '@/components/city/CityShell'
 import { cityMetadata } from '@/components/city/metadata'
 import { citiesByCountry, cityPage, cityPath } from '@/lib/city-pages'
+import { formatUV } from '@/lib/weather'
 
 // The index of the city pages: every city, grouped by country, with its typical peak.
 
@@ -40,7 +41,7 @@ export default function CityIndex() {
                     {page && (
                       <span className="text-ink-3">
                         {' '}
-                        · peaks around {Math.round(page.top.peak)} in {page.top.month}
+                        · peaks around {formatUV(page.top.peak)} in {page.top.month}
                       </span>
                     )}
                   </li>
