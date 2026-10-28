@@ -17,7 +17,7 @@ test('a city page is static, described and linked', async ({ page }) => {
   const head = page.locator('head')
   await expect(head.locator('meta[name="description"]')).toHaveAttribute(
     'content',
-    /^Typical UV index in Los Angeles, California by month: UV peaks around 10.3 in July\./,
+    /^Typical UV index in Los Angeles, California by month: UV peaks around 10\.3 in July\./,
   )
   await expect(head.locator('link[rel="canonical"]')).toHaveAttribute(
     'href',
