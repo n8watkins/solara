@@ -2,17 +2,22 @@
 // guards, redirects, size, time and content checks, with a fake resolver and transport.
 const { describe, test } = require('node:test')
 const assert = require('node:assert/strict')
+const { randomBytes } = require('node:crypto')
 const { Readable } = require('node:stream')
 const { createServer } = require('node:net')
-const { gzipSync } = require('node:zlib')
+const { brotliCompressSync, gzipSync } = require('node:zlib')
 
 const {
+  BodyTooLargeError,
   fetchCalendar,
   httpsTransport,
   isPublicAddress,
   looksLikeCalendar,
   publicAddresses,
+  readBoundedBody,
+  withDeadline,
 } = require('../lib/events/safe-fetch')
+const { localTransport, startTlsServer } = require('./support/tls-server')
 
 const ICS = 'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nEND:VCALENDAR\r\n'
 const PUBLIC = [{ address: '93.184.216.34', family: 4 }]
@@ -350,5 +355,229 @@ describe('fetchCalendar', () => {
   test('recognises a calendar body', () => {
     assert.equal(looksLikeCalendar('﻿  BEGIN:VCALENDAR\r\n'), true)
     assert.equal(looksLikeCalendar('<!doctype html>'), false)
+  })
+})
+
+/**
+ * Runs `fn` and returns the unhandled rejections it caused (each one would make the
+ * Functions Framework exit the instance with code 16, REVIEW5 H1).
+ */
+async function unhandledDuring(fn) {
+  const seen = []
+  const record = error => seen.push(error)
+  process.on('unhandledRejection', record)
+  try {
+    const result = await fn()
+    // Rejections are reported a turn after they happen; give them a moment.
+    await new Promise(resolve => setTimeout(resolve, 100))
+    return { result, unhandled: seen }
+  } finally {
+    process.off('unhandledRejection', record)
+  }
+}
+
+describe('hostile calendar sites over real TLS (REVIEW5 H1)', () => {
+  const CAL = 'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nEND:VCALENDAR\r\n'
+  const bomb = gzipSync(Buffer.concat([Buffer.from(CAL), Buffer.alloc(16 * 1024 * 1024, 'A')]))
+  const routes = {
+    '/ok': (_req, res) => {
+      res.writeHead(200, { 'content-type': 'text/calendar' })
+      res.end(CAL)
+    },
+    '/ok-gzip': (_req, res) => {
+      res.writeHead(200, { 'content-type': 'text/calendar', 'content-encoding': 'gzip' })
+      res.end(gzipSync(CAL))
+    },
+    // Says gzip, sends text: the decoder fails with "incorrect header check".
+    '/gzip-corrupt': (_req, res) => {
+      res.writeHead(200, { 'content-type': 'text/calendar', 'content-encoding': 'gzip' })
+      res.write('this is not gzip at all, just text pretending')
+      setTimeout(() => res.end(), 200)
+    },
+    // A gzip bomb sent in small pieces, so the limit is hit while the reader waits.
+    '/gzip-bomb-slow': (_req, res) => {
+      res.writeHead(200, { 'content-type': 'text/calendar', 'content-encoding': 'gzip' })
+      let at = 0
+      const timer = setInterval(() => {
+        if (at >= bomb.length) {
+          clearInterval(timer)
+          res.end()
+          return
+        }
+        res.write(bomb.subarray(at, (at += 4096)))
+      }, 5)
+      res.on('close', () => clearInterval(timer))
+    },
+    '/br-bomb': (_req, res) => {
+      res.writeHead(200, { 'content-type': 'text/calendar', 'content-encoding': 'br' })
+      res.end(brotliCompressSync(Buffer.alloc(32 * 1024 * 1024, 'A')))
+    },
+    // Valid gzip, trickled one byte at a time past the deadline.
+    '/gzip-trickle': (_req, res) => {
+      res.writeHead(200, { 'content-type': 'text/calendar', 'content-encoding': 'gzip' })
+      const zipped = gzipSync(CAL + 'X'.repeat(10_000))
+      let at = 0
+      const timer = setInterval(() => res.write(zipped.subarray(at, ++at)), 20)
+      res.on('close', () => clearInterval(timer))
+    },
+    // Drops the connection halfway through a compressed body.
+    '/gzip-reset': (req, res) => {
+      res.writeHead(200, { 'content-type': 'text/calendar', 'content-encoding': 'gzip' })
+      const zipped = gzipSync(CAL + randomBytes(64 * 1024).toString('hex'))
+      res.write(zipped.subarray(0, zipped.length / 2))
+      setTimeout(() => req.socket.destroy(), 50)
+    },
+  }
+  let server
+  let transport
+  const fetchFrom = (path, options = {}) =>
+    fetchCalendar(`https://calendar.example.com${path}`, {
+      resolve: resolver(),
+      transport,
+      ...options,
+    })
+
+  test('setup', async () => {
+    server = await startTlsServer(routes)
+    transport = localTransport(server.port)
+  })
+
+  test('reads a plain and a gzipped calendar', async () => {
+    const plain = await fetchFrom('/ok')
+    assert.equal(plain.ok && !plain.notModified && plain.text, CAL)
+    const zipped = await fetchFrom('/ok-gzip')
+    assert.equal(zipped.ok && !zipped.notModified && zipped.text, CAL)
+  })
+
+  test('a corrupt gzip body is refused without an unhandled rejection', async () => {
+    const { result, unhandled } = await unhandledDuring(() => fetchFrom('/gzip-corrupt'))
+    assert.deepEqual(result, { ok: false, error: 'not-calendar' })
+    assert.deepEqual(unhandled, [])
+  })
+
+  test('a slowly sent gzip bomb ends as too-large at once, without an unhandled rejection', async () => {
+    const started = Date.now()
+    const { result, unhandled } = await unhandledDuring(() => fetchFrom('/gzip-bomb-slow'))
+    assert.deepEqual(result, { ok: false, error: 'too-large' })
+    assert.ok(Date.now() - started < 5_000, `took ${Date.now() - started} ms`)
+    assert.deepEqual(unhandled, [])
+  })
+
+  test('a brotli bomb ends as too-large', async () => {
+    const { result, unhandled } = await unhandledDuring(() => fetchFrom('/br-bomb'))
+    assert.deepEqual(result, { ok: false, error: 'too-large' })
+    assert.deepEqual(unhandled, [])
+  })
+
+  test('the deadline stops a compressed body that never finishes', async () => {
+    const started = Date.now()
+    const { result, unhandled } = await unhandledDuring(() =>
+      fetchFrom('/gzip-trickle', { timeoutMs: 400 }),
+    )
+    assert.deepEqual(result, { ok: false, error: 'timeout' })
+    assert.ok(Date.now() - started < 2_000, `took ${Date.now() - started} ms`)
+    assert.deepEqual(unhandled, [])
+  })
+
+  test('a connection dropped inside a compressed body is unreachable', async () => {
+    const { result, unhandled } = await unhandledDuring(() => fetchFrom('/gzip-reset'))
+    assert.deepEqual(result, { ok: false, error: 'unreachable' })
+    assert.deepEqual(unhandled, [])
+  })
+
+  test('teardown', async () => {
+    await server.close()
+  })
+})
+
+describe('readBoundedBody and withDeadline', () => {
+  test('a decoder error and the size limit reject the one promise returned', async () => {
+    const { result, unhandled } = await unhandledDuring(async () => {
+      const outcomes = []
+      for (const [encoding, body, maxBytes] of [
+        ['gzip', Buffer.from('not gzip'), 1024],
+        ['deflate', Buffer.from('not deflate'), 1024],
+        ['br', Buffer.from('not brotli at all'), 1024],
+        ['gzip', gzipSync(Buffer.alloc(1024 * 1024, 'A')), 4096],
+      ]) {
+        try {
+          await readBoundedBody(Readable.from([body]), {
+            contentEncoding: encoding,
+            maxBytes,
+            signal: new AbortController().signal,
+          })
+          outcomes.push('read')
+        } catch (error) {
+          outcomes.push(error instanceof BodyTooLargeError ? 'too-large' : 'error')
+        }
+      }
+      return outcomes
+    })
+    assert.deepEqual(result, ['error', 'error', 'error', 'too-large'])
+    assert.deepEqual(unhandled, [])
+  })
+
+  test('an abort settles the read even when the source never yields again', async () => {
+    const controller = new AbortController()
+    const destroyed = []
+    const stuck = {
+      async *[Symbol.asyncIterator]() {
+        yield gzipSync('BEGIN:VCALENDAR').subarray(0, 4)
+        await new Promise(() => {})
+      },
+      destroy: () => destroyed.push(true),
+    }
+    setTimeout(() => controller.abort(new Error('deadline')), 50)
+    await assert.rejects(
+      readBoundedBody(stuck, {
+        contentEncoding: 'gzip',
+        maxBytes: 1024,
+        signal: controller.signal,
+      }),
+      /deadline|abort/i,
+    )
+    assert.deepEqual(destroyed, [true])
+  })
+
+  test('withDeadline settles on time even when the work ignores its signal', async () => {
+    const started = Date.now()
+    const result = await withDeadline(
+      50,
+      () => new Promise(() => {}),
+      () => 'timed out',
+    )
+    assert.equal(result, 'timed out')
+    assert.ok(Date.now() - started < 1_000)
+    assert.equal(
+      await withDeadline(
+        1_000,
+        async () => 'done',
+        () => 'timed out',
+      ),
+      'done',
+    )
+    // Work that fails after the deadline leaves nothing unhandled.
+    const { unhandled } = await unhandledDuring(() =>
+      withDeadline(
+        10,
+        () => new Promise((_, reject) => setTimeout(() => reject(new Error('late')), 30)),
+        () => null,
+      ),
+    )
+    assert.deepEqual(unhandled, [])
+  })
+
+  test('fetchCalendar settles at its deadline even with a transport that ignores the signal', async () => {
+    const deaf = async () => new Promise(() => {})
+    const started = Date.now()
+    assert.deepEqual(
+      await fetchCalendar('https://cal.example.com/a', {
+        resolve: resolver(),
+        transport: deaf,
+        timeoutMs: 50,
+      }),
+      { ok: false, error: 'timeout' },
+    )
+    assert.ok(Date.now() - started < 1_000)
   })
 })
