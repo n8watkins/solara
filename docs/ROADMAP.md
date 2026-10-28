@@ -177,6 +177,16 @@ The fourth security review (2026-10-28, `handoff/review4.md`) found that the glo
 - **No free-API forecasts in the paid cache (L7):** the free API's forecasts stay in the feed instance's memory, and cached entries record their source.
 - **Not done, for later if real traffic needs it:** reserved shares for signed-in or returning users, serving the nearest cached cell, limited-use App Check tokens for cache misses, a /32 tier, and showing the `stale` flag in the app.
 
+### 17. Imported events hardening from the fourth review (FIX4B, built)
+
+The fourth review's event findings M2, M3, the rules part of M4, L1, L2 and L3 ([integrations/EVENTS.md](integrations/EVENTS.md#phase-1-as-built)):
+
+- **No file can freeze the app (M2):** one work allowance per file bounds the parser (a full 1 MB hostile file now parses in under half a second, against minutes to hours before), and the app parses in a Web Worker stopped after 20 seconds.
+- **The soonest events always show (M3):** the list reads the 200 soonest-ending upcoming events, and "Remove all" removes every stored event.
+- **Per-account caps (M4, rules part):** at most 1,000 imported events and 500 scheduled activities, enforced by `firestore.rules` through a key list per collection; imported events expire within 31 days of their end.
+  The export paging is lane FIX4C's.
+- **Re-imports, text and lookups (L1-L3):** a re-import removes events the calendar cancels and occurrences it no longer produces; bidi controls are removed from event text; place lookups stop at 10 per import.
+
 ## Decisions
 
 Agents never make owner decisions; they follow the recorded decision or the default.
@@ -207,6 +217,7 @@ The steps behind each one are in the [owner checklist](OWNER_CHECKLIST.md).
 | Server reads | Stored plans on the server | Default, owner may change (2026-10-27, item 15): the alerts and the calendar feed parse activities and profiles with the app's schemas and skip invalid entries |
 | Export | Alert history in the export | Default, owner may change (2026-10-27, item 15): the export includes the last 7 days' alert history (kind, day, status, attempts, devices reached, times, error code) |
 | Fair forecast budget | How the paid forecast calls are shared | Default, owner may change (2026-10-28): 20 upstream calls per caller per UTC hour in each budget (`UPSTREAM_SHARE_PER_CALLER`), keyed like the per-address limits, with an IPv6 /48 allowed 4 times the per-address limit and share; place search has its own budget of 200 an hour and 2,000 a day (`PLACE_SEARCH_UPSTREAM_PER_HOUR`, `PLACE_SEARCH_UPSTREAM_PER_DAY`); while a budget or share is spent, the last good forecast up to 12 hours old is served, flagged `stale`, instead of a 503 |
+| Record caps | Imported events and scheduled activities per account | Default, owner may change (2026-10-28): 1,000 imported events and 500 scheduled activities, enforced by `firestore.rules` through a key list per collection (`lib/key-index.ts`, REVIEW4 M4) |
 | Instance caps | HTTP Functions' `maxInstances` | Default, owner may change (2026-10-27, item 14): 3 for the forecast proxy, 2 for the calendar feed, 1 for the rest (the Stripe webhook and place search included), 15 in all (`INSTANCE_CAPS` in `functions/src/shared/options.ts`) |
 
 ### Tiers

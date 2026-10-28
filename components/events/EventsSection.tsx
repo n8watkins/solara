@@ -11,10 +11,13 @@ import {
   importSummary,
   upcomingEvents,
   withPlace,
+  type EventsSnapshot,
   type ImportedEvent,
 } from '@/lib/events'
 import { EventsStoreContext } from '@/lib/events-context'
+import { capMessage } from '@/lib/record-cap'
 import { planningFor } from '@solara/core'
+import { IMPORTED_EVENT_LIMITS } from '@solara/core/event-import'
 import { getFutureDays } from '@/lib/tiers'
 import type { Location, TierLevel, UserPreferences, WeatherResponse } from '@/lib/types'
 import EventCard from './EventCard'
@@ -36,7 +39,7 @@ export default function EventsSection({ uid, prefs, weather, displayTier, onUpgr
   const store = useContext(EventsStoreContext) ?? firestoreEventsStore
   const headingId = useId()
   const fileRef = useRef<HTMLInputElement>(null)
-  const [items, setItems] = useState<ImportedEvent[] | null>(null)
+  const [snapshot, setSnapshot] = useState<EventsSnapshot | null>(null)
   const [loadError, setLoadError] = useState(false)
   const [progress, setProgress] = useState<string | null>(null)
   const [status, setStatus] = useState<{ text: string; error?: boolean } | null>(null)
@@ -47,8 +50,9 @@ export default function EventsSection({ uid, prefs, weather, displayTier, onUpgr
     () =>
       store.subscribe(
         uid,
+        Date.now(),
         next => {
-          setItems(next)
+          setSnapshot(next)
           setLoadError(false)
         },
         () => setLoadError(true),
@@ -61,6 +65,9 @@ export default function EventsSection({ uid, prefs, weather, displayTier, onUpgr
   }, [store, uid])
 
   const nowMs = weather.now.epochMs
+  const items = snapshot?.items ?? null
+  const stored = snapshot?.stored ?? 0
+  const full = stored >= IMPORTED_EVENT_LIMITS.maxStored
   const upcoming = upcomingEvents(items ?? [], nowMs)
   const shown = showAll ? upcoming : upcoming.slice(0, FIRST_SHOWN)
   const planning = planningFor(prefs)
@@ -77,7 +84,9 @@ export default function EventsSection({ uid, prefs, weather, displayTier, onUpgr
       existing: items ?? [],
       nowMs: Date.now(),
       lookups: geocodingLookups,
+      seriesEvents: seriesIds => store.seriesEvents(uid, seriesIds),
       save: records => store.save(uid, records),
+      remove: keys => store.remove(uid, keys),
       onProgress: setProgress,
     })
     setProgress(null)
@@ -123,6 +132,20 @@ export default function EventsSection({ uid, prefs, weather, displayTier, onUpgr
       setStatus({ text: done })
     } catch {
       setStatus({ text: 'Could not remove that. Try again.', error: true })
+    }
+  }
+
+  /** Removes every stored event, not only the ones loaded (REVIEW4 M3). */
+  async function removeAll() {
+    setStatus(null)
+    setProgress('Removing your events…')
+    try {
+      await store.removeAll(uid)
+      setStatus({ text: 'Removed every imported event.' })
+    } catch {
+      setStatus({ text: 'Could not remove every event. Try again.', error: true })
+    } finally {
+      setProgress(null)
     }
   }
 
@@ -173,6 +196,15 @@ export default function EventsSection({ uid, prefs, weather, displayTier, onUpgr
         </p>
       )}
 
+      {full && (
+        <p
+          data-testid="events-cap"
+          className="mt-3 rounded-[10px] bg-surface-metric px-3 py-2 text-[13px] leading-normal text-ink-2"
+        >
+          {capMessage('events', IMPORTED_EVENT_LIMITS.maxStored)}
+        </p>
+      )}
+
       {items !== null && upcoming.length === 0 && (
         <p className="mt-3 text-[13px] leading-normal text-ink-2">
           No upcoming events yet. On Meetup, Eventbrite, a race page or your calendar, use “Add to
@@ -202,7 +234,7 @@ export default function EventsSection({ uid, prefs, weather, displayTier, onUpgr
         </ul>
       )}
 
-      {upcoming.length > 0 && (
+      {(upcoming.length > 0 || stored > 0) && (
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
           {upcoming.length > FIRST_SHOWN ? (
             <button
@@ -223,13 +255,10 @@ export default function EventsSection({ uid, prefs, weather, displayTier, onUpgr
                 className="btn px-3 py-1.5 text-[12px] text-danger"
                 onClick={() => {
                   setConfirmingClear(false)
-                  void remove(
-                    (items ?? []).map(i => i.key),
-                    'Removed every imported event.',
-                  )
+                  void removeAll()
                 }}
               >
-                Remove all {(items ?? []).length}
+                Remove all {stored.toLocaleString('en-US')}
               </button>
               <button
                 type="button"
@@ -243,6 +272,7 @@ export default function EventsSection({ uid, prefs, weather, displayTier, onUpgr
             <button
               type="button"
               className="btn btn-ghost px-3 py-1.5 text-[12px] text-ink-3"
+              disabled={busy}
               onClick={() => setConfirmingClear(true)}
             >
               Remove all

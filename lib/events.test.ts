@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { ParsedIcsEvent } from '@solara/core/event-import'
+import { importedEventKey, importedSeriesId, type ParsedIcsEvent } from '@solara/core/event-import'
 import {
   eventDocument,
   findPlace,
@@ -7,8 +7,10 @@ import {
   importSummary,
   knownPlaces,
   locationQueries,
+  IcsTimeoutError,
   MAX_PLACE_LOOKUPS,
   recordsFromImport,
+  staleEventKeys,
   resolvePlaces,
   samePlace,
   upcomingEvents,
@@ -287,13 +289,18 @@ describe('view helpers', () => {
 })
 
 describe('importIcsFile', () => {
-  const context = (save = vi.fn(async () => {})) => ({
+  const context = (
+    save = vi.fn(async (_items: ImportedEvent[]): Promise<ImportedEvent[]> => []),
+    stored: ImportedEvent[] = [],
+  ) => ({
     home: HOME,
     activities: ACTIVITIES,
     existing: [],
     nowMs: NOW,
     lookups: async () => lookups(),
+    seriesEvents: vi.fn(async () => stored),
     save,
+    remove: vi.fn(async () => {}),
   })
 
   it('refuses a file over 1 MB before reading it', async () => {
@@ -311,7 +318,7 @@ describe('importIcsFile', () => {
   })
 
   it('stores the upcoming events and summarizes what it skipped', async () => {
-    const save = vi.fn(async () => {})
+    const save = vi.fn(async (_items: ImportedEvent[]): Promise<ImportedEvent[]> => [])
     const outcome = await importIcsFile(
       file(
         ics(
@@ -347,7 +354,7 @@ describe('importIcsFile', () => {
   })
 
   it('says when a file has nothing upcoming, without saving', async () => {
-    const save = vi.fn(async () => {})
+    const save = vi.fn(async (_items: ImportedEvent[]): Promise<ImportedEvent[]> => [])
     const outcome = await importIcsFile(file(ics()), context(save))
     expect(outcome.ok && importSummary(outcome)).toBe(
       'No upcoming events with a start time were found in that file.',
@@ -361,5 +368,178 @@ describe('importIcsFile', () => {
       context(vi.fn(async () => Promise.reject(new Error('denied')))),
     )
     expect(outcome).toEqual({ ok: false, message: expect.stringContaining('Could not save') })
+  })
+})
+
+describe('importIcsFile at the cap and on re-import', () => {
+  const event = (uid: string, start: string, extra: string[] = []) => [
+    'BEGIN:VEVENT',
+    `UID:${uid}`,
+    `DTSTART:${start}`,
+    'SUMMARY:Ride',
+    ...extra,
+    'END:VEVENT',
+  ]
+
+  it('reports events that did not fit under the cap', async () => {
+    const save = vi.fn(async (items: ImportedEvent[]) => items.slice(1))
+    const outcome = await importIcsFile(
+      file(ics(...event('a', '20260620T150000Z'), ...event('b', '20260621T150000Z'))),
+      {
+        home: HOME,
+        activities: ACTIVITIES,
+        existing: [],
+        nowMs: NOW,
+        lookups: async () => lookups(),
+        seriesEvents: async () => [],
+        save,
+        remove: async () => {},
+      },
+    )
+    expect(outcome.ok && outcome.saved).toHaveLength(1)
+    expect(outcome.ok && importSummary(outcome)).toBe(
+      'Imported 1 event. 1 event did not fit. You have 1,000 imported events, the most an account can keep. Remove some to import more. 1 event had no place Solara could find; set it on the event.',
+    )
+  })
+
+  it('removes stored events the source cancelled or no longer has, before saving', async () => {
+    const calls: string[] = []
+    const seriesId = await importedSeriesId('file', 'ride')
+    const storedRide = async (start: string) => ({
+      ...(
+        await recordsFromImport(
+          [
+            parsed({
+              uid: 'ride',
+              recurrenceId: start,
+              start: Date.parse(start),
+              end: Date.parse(start) + 3_600_000,
+            }),
+          ],
+          {
+            places: new Map(),
+            home: HOME,
+            activities: ACTIVITIES,
+            previous: new Map(),
+            now: '2026-06-01T00:00:00.000Z',
+          },
+        )
+      )[0]!,
+    })
+    const kept = await storedRide('2026-06-16T15:00:00.000Z')
+    const dropped = await storedRide('2026-06-17T15:00:00.000Z')
+    expect(kept.seriesId).toBe(seriesId)
+    const remove = vi.fn(async (keys: readonly string[]) => {
+      calls.push(`remove ${keys.length}`)
+    })
+    const outcome = await importIcsFile(
+      file(
+        ics(
+          ...event('ride', '20260616T150000Z', [
+            'RRULE:FREQ=DAILY;COUNT=2',
+            'EXDATE:20260617T150000Z',
+          ]),
+          ...event('race', '20260620T150000Z', ['STATUS:CANCELLED']),
+        ),
+      ),
+      {
+        home: HOME,
+        activities: ACTIVITIES,
+        existing: [],
+        nowMs: NOW,
+        lookups: async () => lookups(),
+        seriesEvents: async () => [kept, dropped],
+        save: async () => {
+          calls.push('save')
+          return []
+        },
+        remove,
+      },
+    )
+    expect(remove).toHaveBeenCalledWith([dropped.key])
+    expect(calls).toEqual(['remove 1', 'save'])
+    expect(outcome.ok && importSummary(outcome)).toContain(
+      'Removed 1 event cancelled or no longer in the calendar.',
+    )
+  })
+
+  it('explains a parse that took too long', async () => {
+    const outcome = await importIcsFile(file(ics()), {
+      home: HOME,
+      activities: ACTIVITIES,
+      existing: [],
+      nowMs: NOW,
+      lookups: async () => lookups(),
+      seriesEvents: async () => [],
+      save: async () => [],
+      remove: async () => {},
+      parse: async () => Promise.reject(new IcsTimeoutError()),
+    })
+    expect(outcome).toEqual({ ok: false, message: expect.stringContaining('too long') })
+  })
+})
+
+describe('staleEventKeys', () => {
+  async function record(uid: string, start: string, recurrenceId: string | null = start) {
+    const [item] = await recordsFromImport(
+      [
+        parsed({
+          uid,
+          recurrenceId,
+          start: Date.parse(start),
+          end: Date.parse(start) + 3_600_000,
+        }),
+      ],
+      {
+        places: new Map(),
+        home: HOME,
+        activities: ACTIVITIES,
+        previous: new Map(),
+        now: '2026-06-01T00:00:00.000Z',
+      },
+    )
+    return item!
+  }
+
+  it('finds cancelled series and occurrences, and occurrences no longer produced', async () => {
+    const race = await record('race', '2026-06-20T15:00:00.000Z', null)
+    const rideKept = await record('ride', '2026-06-16T15:00:00.000Z')
+    const rideCancelled = await record('ride', '2026-06-17T15:00:00.000Z')
+    const rideGone = await record('ride', '2026-06-18T15:00:00.000Z')
+    const rideLater = await record('ride', '2026-07-30T15:00:00.000Z')
+    const ridePast = await record('ride', '2026-06-01T15:00:00.000Z')
+    const other = await record('other', '2026-06-18T15:00:00.000Z')
+    const stale = await staleEventKeys(
+      {
+        events: [{ ...parsed({ uid: 'ride', recurrenceId: '2026-06-16T15:00:00.000Z' }) }],
+        cancelled: [
+          { uid: 'race', recurrenceId: null },
+          { uid: 'ride', recurrenceId: '2026-06-17T15:00:00.000Z' },
+        ],
+        series: [{ uid: 'ride', until: Date.parse('2026-06-25T15:00:00Z') }],
+      },
+      [race, rideKept, rideCancelled, rideGone, rideLater, ridePast, other],
+      NOW,
+    )
+    expect(new Set(stale)).toEqual(new Set([race.key, rideCancelled.key, rideGone.key]))
+    expect(await importedEventKey('file', 'ride', '2026-06-16T15:00:00.000Z')).toBe(rideKept.key)
+  })
+})
+
+describe('resolvePlaces lookup cap (REVIEW4 L3)', () => {
+  it('caps reverse lookups of GEO points and names the rest by a found place nearby', async () => {
+    const api = lookups()
+    const reverse = vi.spyOn(api, 'reverse')
+    const near = (i: number) => parsed({ geo: { lat: 34.15 + i * 0.01, lon: -118.14 } })
+    const far = parsed({ geo: { lat: 10, lon: 10 } })
+    const places = await resolvePlaces(
+      [...Array.from({ length: 200 }, (_, i) => near(i)), far],
+      HOME,
+      api,
+    )
+    expect(reverse).toHaveBeenCalledTimes(MAX_PLACE_LOOKUPS)
+    expect(places.get('geo:34.25,-118.14')?.label).toBe('Pasadena, California')
+    expect(places.get('geo:10,10')?.label).toBe('Event location')
+    expect(places.size).toBe(201)
   })
 })

@@ -1,9 +1,9 @@
 // Imported events (docs/integrations/EVENTS.md, phase 1): an .ics file the person picks
-// is parsed in the browser (packages/core/src/ics-parse.ts), each event gets a place,
-// and the events are kept in Firestore (users/{uid}/events/{key}) so every device shows
-// them. This module holds the pure steps (unit-tested) and the Firestore storage, which
-// loads Firestore on demand. It is only ever imported by the lazily loaded Events
-// section (components/events/), never by the guest's first load.
+// is parsed in a Web Worker (lib/ics-worker.ts, running packages/core/src/ics-parse.ts),
+// each event gets a place, and the events are kept in Firestore (users/{uid}/events/{key})
+// so every device shows them. This module holds the pure steps (unit-tested) and the
+// Firestore storage, which loads Firestore on demand. It is only ever imported by the
+// lazily loaded Events section (components/events/), never by the guest's first load.
 import { capText, roundCoordinate } from '@solara/core'
 import {
   ICS_IMPORT_LIMITS,
@@ -17,12 +17,15 @@ import {
   matchActivity,
   parseIcs,
   parseImportedEvent,
+  type IcsParseOptions,
   type IcsParseResult,
   type ImportedEvent,
   type ParsedIcsEvent,
 } from '@solara/core/event-import'
+import type { QuerySnapshot } from 'firebase/firestore'
 import { lazySubscription, loadFirebase } from './firebase'
 import type { PlaceName, PlaceSuggestion } from './geocoding'
+import { capMessage } from './record-cap'
 import { resolveTimeZone } from './time'
 import type { Activity, Location } from './types'
 
@@ -39,8 +42,15 @@ export interface EventPlace {
   guessed: boolean
 }
 
-/** Most distinct LOCATION texts one import looks up (each takes a second or two). */
+/**
+ * Most place lookups one import makes, searches of LOCATION text and reverse lookups of
+ * GEO points together (REVIEW4 L3). Each is a request to a free geocoding service that
+ * allows about one a second and no bulk use, and takes a second or two.
+ */
 export const MAX_PLACE_LOOKUPS = 10
+
+/** A GEO point past the lookup cap takes the name of a found place this close, in km. */
+export const NEARBY_PLACE_KM = 10
 
 /** "San Diego, California" for a saved place. */
 export function placeLabel(place: Pick<Location, 'city' | 'region'>): string {
@@ -147,10 +157,12 @@ export function placeKey(event: Pick<ParsedIcsEvent, 'geo' | 'location'>): strin
 
 /**
  * A place for every distinct place in the import. GEO coordinates are used as they
- * are (named by the LOCATION text, else by a reverse lookup); LOCATION text is searched
- * at city level, at most MAX_PLACE_LOOKUPS distinct texts. `known` holds places from
- * earlier imports of the same events, which are reused without a lookup. Events with
- * neither, or whose place is not found, get the person's place, marked as guessed.
+ * are, named by the LOCATION text or else by a reverse lookup; LOCATION text alone is
+ * searched at city level. Lookups (searches and reverse lookups together) stop at
+ * MAX_PLACE_LOOKUPS, soonest events first; a GEO point past the cap takes the name of a
+ * found place within NEARBY_PLACE_KM, else "Event location". `known` holds places from
+ * earlier imports, reused without a lookup. Events with neither, or whose place is not
+ * found, get the person's place, marked as guessed (by the caller).
  */
 export async function resolvePlaces(
   events: readonly ParsedIcsEvent[],
@@ -170,35 +182,51 @@ export async function resolvePlaces(
     const key = placeKey(event)
     if (key && !places.has(key) && !pending.has(key)) pending.set(key, event)
   }
-  // GEO needs no search; LOCATION text is searched for the first MAX_PLACE_LOOKUPS texts.
-  let searches = 0
-  const work = [...pending].filter(([, event]) => !!event.geo || searches++ < MAX_PLACE_LOOKUPS)
-  let done = 0
-  for (const [key, event] of work) {
-    onProgress?.(done, work.length)
+  const needsLookup = (event: ParsedIcsEvent) => !event.geo || !geoLabel(event)
+  const total = Math.min(MAX_PLACE_LOOKUPS, [...pending.values()].filter(needsLookup).length)
+  let lookupsMade = 0
+  const unnamed: [string, { lat: number; lon: number }][] = []
+  for (const [key, event] of pending) {
     if (event.geo) {
       const lat = roundCoordinate(event.geo.lat)
       const lon = roundCoordinate(event.geo.lon)
-      let label = event.location?.split(',')[0]?.trim() ?? ''
+      let label = geoLabel(event)
       if (!label) {
+        if (lookupsMade >= MAX_PLACE_LOOKUPS) {
+          unnamed.push([key, { lat, lon }])
+          continue
+        }
+        onProgress?.(lookupsMade, total)
+        lookupsMade += 1
         const name = await lookups.reverse(lat, lon)
         // The lookup answers "Your location" when it cannot name the spot.
-        label = name.region ? placeLabel(name) : 'Event location'
+        label = name.region ? placeLabel(name) : ''
       }
-      places.set(key, {
-        lat,
-        lon,
-        label: capText(label, IMPORTED_EVENT_LIMITS.placeLabelLength),
-        guessed: false,
-      })
-    } else if (event.location) {
+      places.set(key, { lat, lon, label: label || 'Event location', guessed: false })
+    } else if (event.location && lookupsMade < MAX_PLACE_LOOKUPS) {
+      onProgress?.(lookupsMade, total)
+      lookupsMade += 1
       const found = await findPlace(event.location, home, lookups.search)
       if (found) places.set(key, found)
     }
-    done += 1
   }
-  onProgress?.(work.length, work.length)
+  // Points past the cap: the nearest place this import (or an earlier one) named.
+  const named = [...places.values()].filter(place => place.label !== 'Event location')
+  for (const [key, point] of unnamed) {
+    const near = named
+      .map(place => ({ place, km: distanceKm(point, place) }))
+      .filter(({ km }) => km <= NEARBY_PLACE_KM)
+      .sort((a, b) => a.km - b.km)[0]
+    places.set(key, { ...point, label: near?.place.label ?? 'Event location', guessed: false })
+  }
+  onProgress?.(total, total)
   return places
+}
+
+/** The LOCATION text's first part, which names a GEO point without a lookup. */
+function geoLabel(event: ParsedIcsEvent): string {
+  const label = event.location?.split(',')[0]?.trim() ?? ''
+  return capText(label, IMPORTED_EVENT_LIMITS.placeLabelLength)
 }
 
 // ---- Records -------------------------------------------------------------------------
@@ -291,36 +319,166 @@ export function withPlace(item: ImportedEvent, place: Location, now: string): Im
   }
 }
 
+// ---- Re-imports ----------------------------------------------------------------------
+
+/**
+ * PURE apart from hashing. Stored events a re-import shows are gone from the source
+ * (REVIEW4 L1): upcoming events of a series the file cancels, cancelled occurrences, and
+ * occurrences of a series the file was read in full for (IcsParseResult.series) that it
+ * no longer produces. Events the import saves are never in the list. One-off events
+ * deleted from the source cannot be told apart from events of another file, so they
+ * stay until they end.
+ */
+export async function staleEventKeys(
+  result: Pick<IcsParseResult, 'events' | 'cancelled' | 'series'>,
+  stored: readonly ImportedEvent[],
+  nowMs: number,
+): Promise<string[]> {
+  const saving = new Set(
+    await Promise.all(result.events.map(e => importedEventKey('file', e.uid, e.recurrenceId))),
+  )
+  const upcoming = stored.filter(item => Date.parse(item.end) > nowMs && !saving.has(item.key))
+  const bySeries = new Map<string, ImportedEvent[]>()
+  for (const item of upcoming) {
+    const list = bySeries.get(item.seriesId)
+    if (list) list.push(item)
+    else bySeries.set(item.seriesId, [item])
+  }
+  const stale = new Set<string>()
+  const cancelledKeys = new Set<string>()
+  for (const { uid, recurrenceId } of result.cancelled) {
+    if (recurrenceId === null) {
+      for (const item of bySeries.get(await importedSeriesId('file', uid)) ?? []) {
+        stale.add(item.key)
+      }
+    } else cancelledKeys.add(await importedEventKey('file', uid, recurrenceId))
+  }
+  for (const item of upcoming) if (cancelledKeys.has(item.key)) stale.add(item.key)
+  for (const { uid, until } of result.series) {
+    for (const item of bySeries.get(await importedSeriesId('file', uid)) ?? []) {
+      if (until === null || Date.parse(item.start) < until) stale.add(item.key)
+    }
+  }
+  return [...stale]
+}
+
+/** PURE apart from hashing. The series ids a re-import may remove stored events of. */
+export async function affectedSeries(
+  result: Pick<IcsParseResult, 'cancelled' | 'series'>,
+): Promise<string[]> {
+  const uids = new Set([...result.cancelled.map(c => c.uid), ...result.series.map(s => s.uid)])
+  return Promise.all([...uids].map(uid => importedSeriesId('file', uid)))
+}
+
+// ---- Parsing off the main thread -------------------------------------------------------
+
+export type IcsParser = (text: string, options: IcsParseOptions) => Promise<IcsParseResult>
+
+/** A parse still running after this long is stopped (real files take well under a second). */
+export const PARSE_TIMEOUT_MS = 20_000
+
+/** The worker took longer than PARSE_TIMEOUT_MS. */
+export class IcsTimeoutError extends Error {
+  constructor() {
+    super('Reading the calendar file took too long')
+    this.name = 'IcsTimeoutError'
+  }
+}
+
+/** What lib/ics-worker.ts posts back. */
+export type IcsWorkerReply =
+  | { ok: true; result: IcsParseResult }
+  | { ok: false; code: IcsImportError['code'] | null; message: string }
+
+/**
+ * Parses in a Web Worker so the page stays responsive whatever the file holds, and
+ * stops it after PARSE_TIMEOUT_MS. Where a worker cannot run (no Worker, or it fails to
+ * load), it parses on the main thread: the parser's work allowance bounds that too.
+ */
+export const parseIcsOffThread: IcsParser = (text, options) => {
+  if (typeof Worker === 'undefined') return Promise.resolve().then(() => parseIcs(text, options))
+  return new Promise((resolve, reject) => {
+    let worker: Worker
+    try {
+      worker = new Worker(new URL('./ics-worker.ts', import.meta.url))
+    } catch {
+      resolve(parseIcs(text, options))
+      return
+    }
+    const timer = setTimeout(() => {
+      worker.terminate()
+      reject(new IcsTimeoutError())
+    }, PARSE_TIMEOUT_MS)
+    const finish = () => {
+      clearTimeout(timer)
+      worker.terminate()
+    }
+    worker.onmessage = (message: MessageEvent<IcsWorkerReply>) => {
+      finish()
+      const reply = message.data
+      if (reply.ok) resolve(reply.result)
+      else
+        reject(
+          reply.code ? new IcsImportError(reply.code, reply.message) : new Error(reply.message),
+        )
+    }
+    worker.onerror = event => {
+      // The worker script did not load or run: parse here instead.
+      event.preventDefault()
+      finish()
+      try {
+        resolve(parseIcs(text, options))
+      } catch (error) {
+        reject(error)
+      }
+    }
+    worker.postMessage({ text, options })
+  })
+}
+
 // ---- Import --------------------------------------------------------------------------
 
 export type ImportOutcome =
-  { ok: true; saved: ImportedEvent[]; result: IcsParseResult } | { ok: false; message: string }
+  | {
+      ok: true
+      saved: ImportedEvent[]
+      /** Events not saved because the account holds the most it can keep. */
+      refused: number
+      /** Stored events removed because the source cancelled or dropped them. */
+      removed: number
+      result: IcsParseResult
+    }
+  | { ok: false; message: string }
 
 export interface ImportContext {
   home: Location
   activities: readonly Pick<Activity, 'id' | 'name'>[]
-  /** Events already stored. */
+  /** Events already loaded (the soonest upcoming ones). */
   existing: readonly ImportedEvent[]
   nowMs: number
   lookups: () => Promise<PlaceLookups>
-  save: (events: ImportedEvent[]) => Promise<void>
+  /** Every stored event of these series. */
+  seriesEvents: (seriesIds: readonly string[]) => Promise<ImportedEvent[]>
+  /** Saves within the account's cap and returns the events that did not fit. */
+  save: (events: ImportedEvent[]) => Promise<ImportedEvent[]>
+  remove: (keys: readonly string[]) => Promise<void>
+  /** Defaults to parseIcsOffThread. */
+  parse?: IcsParser
   onProgress?: (message: string) => void
 }
+
+const TOO_LARGE = 'That file is larger than 1 MB. Export a shorter range of events.'
 
 /** Reads a picked file and stores its upcoming events. Never throws. */
 export async function importIcsFile(
   file: Pick<File, 'size' | 'text'>,
   context: ImportContext,
 ): Promise<ImportOutcome> {
-  if (file.size > ICS_IMPORT_LIMITS.maxBytes) {
-    return {
-      ok: false,
-      message: 'That file is larger than 1 MB. Export a shorter range of events.',
-    }
-  }
+  if (file.size > ICS_IMPORT_LIMITS.maxBytes) return { ok: false, message: TOO_LARGE }
   let result: IcsParseResult
   try {
-    result = parseIcs(await file.text(), {
+    const parse = context.parse ?? parseIcsOffThread
+    result = await parse(await file.text(), {
       now: context.nowMs,
       defaultTimeZone: resolveTimeZone(context.home.timezone),
     })
@@ -330,16 +488,40 @@ export async function importIcsFile(
         ok: false,
         message:
           error.code === 'too-large'
-            ? 'That file is larger than 1 MB. Export a shorter range of events.'
+            ? TOO_LARGE
             : 'That file is not a calendar (.ics) file. Use "Add to calendar" or "Export" on the event page to get one.',
       }
     }
+    if (error instanceof IcsTimeoutError) {
+      return { ok: false, message: 'That file took too long to read. Export a shorter range.' }
+    }
     return { ok: false, message: 'Could not read that file.' }
   }
-  if (!result.events.length) return { ok: true, saved: [], result }
   try {
-    context.onProgress?.('Finding the places…')
-    const places = await resolvePlaces(result.events, context.home, await context.lookups(), {
+    const seriesIds = await affectedSeries(result)
+    const stored = seriesIds.length ? await context.seriesEvents(seriesIds) : []
+    const stale = await staleEventKeys(result, stored, context.nowMs)
+    if (!result.events.length && !stale.length) {
+      return { ok: true, saved: [], refused: 0, removed: 0, result }
+    }
+    // Removed first, so they make room under the cap.
+    if (stale.length) await context.remove(stale)
+
+    const previous = new Map(
+      [...context.existing, ...stored].map(item => [item.key, item] as const),
+    )
+    const keys = await Promise.all(
+      result.events.map(e => importedEventKey('file', e.uid, e.recurrenceId)),
+    )
+    // Events whose stored record keeps its place need no lookup.
+    const toPlace = result.events.filter((event, i) => {
+      const before = previous.get(keys[i] as string)
+      return (
+        !before || before.where !== capText(event.location ?? '', IMPORTED_EVENT_LIMITS.whereLength)
+      )
+    })
+    if (toPlace.length) context.onProgress?.('Finding the places…')
+    const places = await resolvePlaces(toPlace, context.home, await context.lookups(), {
       known: knownPlaces(context.existing),
       onProgress: (done, total) =>
         total > 1 && context.onProgress?.(`Finding the places… ${done} of ${total}`),
@@ -348,22 +530,23 @@ export async function importIcsFile(
       places,
       home: context.home,
       activities: context.activities,
-      previous: new Map(context.existing.map(item => [item.key, item])),
+      previous,
       now: new Date(context.nowMs).toISOString(),
     })
     context.onProgress?.('Saving…')
-    await context.save(records)
-    return { ok: true, saved: records, result }
+    const refused = new Set((await context.save(records)).map(item => item.key))
+    const saved = records.filter(item => !refused.has(item.key))
+    return { ok: true, saved, refused: refused.size, removed: stale.length, result }
   } catch {
-    return { ok: false, message: 'Could not save the events. Nothing was changed; try again.' }
+    return { ok: false, message: 'Could not save the events. Try again.' }
   }
 }
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
 
-/** PURE. What an import did, in one or two sentences. */
+/** PURE. What an import did, in a few sentences. */
 export function importSummary(outcome: Extract<ImportOutcome, { ok: true }>): string {
-  const { saved, result } = outcome
+  const { saved, result, refused, removed } = outcome
   const { skipped } = result
   const notes: string[] = []
   if (skipped.allDay) notes.push(plural(skipped.allDay, 'all-day event'))
@@ -374,11 +557,20 @@ export function importSummary(outcome: Extract<ImportOutcome, { ok: true }>): st
   if (skipped.invalid) notes.push(plural(skipped.invalid, 'unreadable event'))
   if (skipped.overLimit)
     notes.push(`${skipped.overLimit} more past the ${ICS_IMPORT_LIMITS.maxEvents}-event limit`)
+  if (result.tooComplex) {
+    notes.push(`${plural(result.tooComplex, 'repeating event')} too complex to read`)
+  }
   const head = saved.length
     ? `Imported ${plural(saved.length, 'event')}.`
-    : 'No upcoming events with a start time were found in that file.'
+    : refused
+      ? 'No events were imported.'
+      : 'No upcoming events with a start time were found in that file.'
   const guessed = saved.filter(e => e.placeGuessed).length
   const tail = [
+    removed ? `Removed ${plural(removed, 'event')} cancelled or no longer in the calendar.` : '',
+    refused
+      ? `${plural(refused, 'event')} did not fit. ${capMessage('events', IMPORTED_EVENT_LIMITS.maxStored)}`
+      : '',
     notes.length ? `Skipped ${notes.join(', ')}.` : '',
     guessed
       ? `${plural(guessed, 'event')} had no place Solara could find; set it on the event.`
@@ -389,15 +581,30 @@ export function importSummary(outcome: Extract<ImportOutcome, { ok: true }>): st
 
 // ---- Storage -------------------------------------------------------------------------
 
+/** What the Events section shows. */
+export interface EventsSnapshot {
+  /** The soonest-ending events that have not ended (at most IMPORTED_EVENT_LIMITS.listLimit). */
+  items: ImportedEvent[]
+  /** How many events the account holds, past ones included (its key list). */
+  stored: number
+}
+
 /** Where the account's events live: Firestore in the app, memory in the UI harness. */
 export interface EventsStore {
+  /** Live upcoming events from `nowMs` on, and the stored count. */
   subscribe(
     uid: string,
-    onItems: (items: ImportedEvent[]) => void,
+    nowMs: number,
+    onChange: (snapshot: EventsSnapshot) => void,
     onError: (error: Error) => void,
   ): () => void
-  save(uid: string, items: readonly ImportedEvent[]): Promise<void>
+  /** Saves within the account's cap; returns the events that did not fit. */
+  save(uid: string, items: readonly ImportedEvent[]): Promise<ImportedEvent[]>
   remove(uid: string, keys: readonly string[]): Promise<void>
+  /** Deletes every stored event and returns how many there were. */
+  removeAll(uid: string): Promise<number>
+  /** Every stored event of these series. */
+  seriesEvents(uid: string, seriesIds: readonly string[]): Promise<ImportedEvent[]>
   /** Deletes events that ended more than IMPORTED_EVENT_RETENTION_DAYS ago. */
   prune(uid: string, nowMs: number): Promise<number>
 }
@@ -413,58 +620,132 @@ async function eventsCollection(uid: string) {
   const db = (await loadFirebase())?.db
   if (!db) throw new Error('Firestore is not configured')
   const firestore = await import('firebase/firestore')
-  return { firestore, db, events: firestore.collection(db, 'users', uid, 'events') }
+  return {
+    firestore,
+    events: firestore.collection(db, 'users', uid, 'events'),
+    index: firestore.doc(db, 'users', uid, 'meta', 'events'),
+  }
 }
 
-/** Firestore allows 500 writes per batch. */
-const BATCH_SIZE = 400
+/** Valid records of a query snapshot (invalid ones are ignored). */
+function recordsOf(docs: readonly { id: string; data: () => unknown }[]): ImportedEvent[] {
+  const items: ImportedEvent[] = []
+  for (const d of docs) {
+    const item = parseImportedEvent(d.data())
+    if (item && item.key === d.id) items.push(item)
+  }
+  return items
+}
+
+/** Most series ids one `in` query may name. */
+const IN_QUERY_LIMIT = 30
 
 export const firestoreEventsStore: EventsStore = {
-  subscribe(uid, onItems, onError) {
+  subscribe(uid, nowMs, onChange, onError) {
     return lazySubscription(
       async () => {
-        const { firestore, events } = await eventsCollection(uid)
-        const { limit, onSnapshot, orderBy, query } = firestore
-        // The latest-starting events: upcoming ones always make the list.
-        const q = query(events, orderBy('start', 'desc'), limit(IMPORTED_EVENT_LIMITS.listLimit))
-        return onSnapshot(
-          q,
+        const { firestore, events, index } = await eventsCollection(uid)
+        const { limit, onSnapshot, orderBy, query, where } = firestore
+        let items: ImportedEvent[] | null = null
+        let listed: Set<string> | null = null
+        let reconciling = false
+        const emit = () => {
+          if (!items || !listed) return
+          onChange({ items, stored: Math.max(listed.size, items.length) })
+          // Events stored before the key list existed are listed once, so the count and
+          // the cap include them.
+          const known = listed
+          if (!reconciling && items.some(item => !known.has(item.key))) {
+            reconciling = true
+            void import('./key-index')
+              .then(({ reconcile }) => reconcile(uid, 'events'))
+              .catch(() => {})
+          }
+        }
+        // The soonest-ending events that have not ended: the ones the list shows first,
+        // however many later ones the account holds (REVIEW4 M3).
+        const upcoming = query(
+          events,
+          where('end', '>', new Date(nowMs).toISOString()),
+          orderBy('end'),
+          limit(IMPORTED_EVENT_LIMITS.listLimit),
+        )
+        const stopItems = onSnapshot(
+          upcoming,
           snapshot => {
-            const items: ImportedEvent[] = []
-            for (const d of snapshot.docs) {
-              const item = parseImportedEvent(d.data())
-              if (item && item.key === d.id) items.push(item)
-            }
-            onItems(items.reverse())
+            items = recordsOf(snapshot.docs)
+            emit()
           },
           onError,
         )
+        const stopCount = onSnapshot(
+          index,
+          snapshot => {
+            const ids: unknown = snapshot.data()?.ids
+            listed = new Set(ids && typeof ids === 'object' ? Object.keys(ids) : [])
+            emit()
+          },
+          onError,
+        )
+        return () => {
+          stopItems()
+          stopCount()
+        }
       },
       error => onError(error instanceof Error ? error : new Error(String(error))),
     )
   },
   async save(uid, items) {
-    const { firestore, db, events } = await eventsCollection(uid)
-    for (let i = 0; i < items.length; i += BATCH_SIZE) {
-      const batch = firestore.writeBatch(db)
-      for (const item of items.slice(i, i + BATCH_SIZE)) {
-        batch.set(firestore.doc(events, item.key), eventDocument(item))
-      }
-      await batch.commit()
-    }
+    const { saveWithinCap } = await import('./key-index')
+    const refused = await saveWithinCap(
+      uid,
+      'events',
+      items.map(item => ({ key: item.key, data: eventDocument(item), item })),
+    )
+    return refused.map(record => record.item)
   },
   async remove(uid, keys) {
-    const { firestore, db, events } = await eventsCollection(uid)
-    for (let i = 0; i < keys.length; i += BATCH_SIZE) {
-      const batch = firestore.writeBatch(db)
-      for (const key of keys.slice(i, i + BATCH_SIZE)) batch.delete(firestore.doc(events, key))
-      await batch.commit()
+    const { removeRecords } = await import('./key-index')
+    await removeRecords(uid, 'events', keys)
+  },
+  async removeAll(uid) {
+    const { reconcile, removeRecords, storedKeys } = await import('./key-index')
+    const keys = await storedKeys(uid, 'events')
+    await removeRecords(uid, 'events', [...keys])
+    // Keys of events Firestore's TTL policy already deleted come off the list too.
+    await reconcile(uid, 'events')
+    return keys.size
+  },
+  async seriesEvents(uid, seriesIds) {
+    const { firestore, events } = await eventsCollection(uid)
+    const { documentId, getDocs, limit, orderBy, query, startAfter, where } = firestore
+    const pageSize = IMPORTED_EVENT_LIMITS.listLimit
+    const out: ImportedEvent[] = []
+    for (let i = 0; i < seriesIds.length; i += IN_QUERY_LIMIT) {
+      const ids = seriesIds.slice(i, i + IN_QUERY_LIMIT)
+      let last: string | null = null
+      for (;;) {
+        const snapshot: QuerySnapshot = await getDocs(
+          query(
+            events,
+            where('seriesId', 'in', ids),
+            orderBy(documentId()),
+            ...(last === null ? [] : [startAfter(last)]),
+            limit(pageSize),
+          ),
+        )
+        out.push(...recordsOf(snapshot.docs))
+        if (snapshot.size < pageSize) break
+        last = snapshot.docs[snapshot.size - 1]?.id ?? null
+      }
     }
+    return out
   },
   async prune(uid, nowMs) {
     const cutoff = new Date(nowMs - EVENTS_RETENTION_MS).toISOString()
     const { firestore, events } = await eventsCollection(uid)
-    const { deleteDoc, getDocs, limit, orderBy, query, where } = firestore
+    const { getDocs, limit, orderBy, query, where } = firestore
+    const { removeRecords } = await import('./key-index')
     let deleted = 0
     // At most a few pages per pass; a larger backlog finishes on a later visit.
     for (let page = 0; page < 5; page += 1) {
@@ -476,7 +757,11 @@ export const firestoreEventsStore: EventsStore = {
           limit(IMPORTED_EVENT_LIMITS.listLimit),
         ),
       )
-      await Promise.all(snapshot.docs.map(d => deleteDoc(d.ref)))
+      await removeRecords(
+        uid,
+        'events',
+        snapshot.docs.map(d => d.id),
+      )
       deleted += snapshot.size
       if (snapshot.size < IMPORTED_EVENT_LIMITS.listLimit) break
     }

@@ -12,7 +12,8 @@
 //   scheduled = none (default) | synced | reconnect: in-memory scheduled activities
 //            (see scheduled-fixtures.tsx), shown as synced or awaiting reconnect
 //   activities = comma-separated activity ids to keep from the plan (default: all)
-//   events = none (default) | sample: in-memory imported events (see event-fixtures.ts);
+//   events = none (default) | sample | full: in-memory imported events (see
+//            event-fixtures.ts; full is the sample in an account at the per-account cap);
 //            signed-in screens always get the in-memory store, empty by default
 //   (offline: the offline notice shows whenever the browser is offline, as in the app)
 //   (guest plan notice: shows when localStorage holds a record for harness-user, as in
@@ -42,6 +43,7 @@ import { buildGapWeather } from './uv-gap-fixtures'
 import { buildSunPeakWeather, isSunPeakFixture, type SunPeakFixture } from './sun-peak-fixtures'
 import { HarnessScheduledProvider } from './scheduled-fixtures'
 import { EventsStoreContext } from '@/lib/events-context'
+import { IMPORTED_EVENT_LIMITS } from '@solara/core/event-import'
 import { buildEvents, createMemoryEventsStore } from './event-fixtures'
 
 export type HarnessScreen = 'dashboard' | 'calendar' | 'settings' | 'pricing' | 'pricing-checkout'
@@ -75,14 +77,20 @@ function readParams() {
     live: params.get('data') === 'live',
     scheduled: (['synced', 'reconnect'] as const).find(v => v === params.get('scheduled')) ?? null,
     activities: params.get('activities')?.split(',') ?? null,
-    events: params.get('events') === 'sample',
+    events: (['sample', 'full'] as const).find(v => v === params.get('events')) ?? null,
   }
 }
 
 export default function HarnessApp() {
   const [forecasts] = useState(createForecastStore)
   const [scheduled] = useState(() => readParams().scheduled)
-  const [events] = useState(() => createMemoryEventsStore(readParams().events ? buildEvents() : []))
+  const [events] = useState(() => {
+    const kind = readParams().events
+    const sample = kind ? buildEvents() : []
+    // "full": the sample plus enough past events to reach the per-account cap.
+    const pastStored = kind === 'full' ? IMPORTED_EVENT_LIMITS.maxStored - sample.length : 0
+    return createMemoryEventsStore(sample, { pastStored })
+  })
   return (
     <ForecastStoreProvider value={forecasts}>
       <EventsStoreContext value={events}>

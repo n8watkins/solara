@@ -1,8 +1,10 @@
 // In-memory imported events for the UI harness (?events=sample). It stands in for the
 // Firestore store in lib/events.ts with the same EventsStore shape, so the Events
-// section renders deterministically. Without ?events the store starts empty.
-import type { ImportedEvent } from '@solara/core/event-import'
-import type { EventsStore } from '@/lib/events'
+// section renders deterministically. Without ?events the store starts empty;
+// ?events=full adds past events up to the per-account cap.
+import { IMPORTED_EVENT_LIMITS, type ImportedEvent } from '@solara/core/event-import'
+import type { EventsSnapshot, EventsStore } from '@/lib/events'
+import { fitToCap } from '@/lib/key-index'
 import { zonedInstant } from '@/lib/time'
 import { HARNESS_DATE, HARNESS_TIMEZONE } from './clock'
 
@@ -75,29 +77,60 @@ export function buildEvents(): ImportedEvent[] {
   ]
 }
 
-/** An EventsStore that keeps everything in memory and notifies subscribers at once. */
-export function createMemoryEventsStore(initial: ImportedEvent[] = []): EventsStore {
+/**
+ * An EventsStore that keeps everything in memory and notifies subscribers at once. It
+ * applies the per-account cap like the Firestore store; `pastStored` adds that many
+ * stored events which have already ended (they count, but are not listed), so a
+ * harness page can show an account at the cap.
+ */
+export function createMemoryEventsStore(
+  initial: ImportedEvent[] = [],
+  { pastStored = 0 }: { pastStored?: number } = {},
+): EventsStore {
   let items = new Map(initial.map(item => [item.key, item]))
-  const listeners = new Set<(items: ImportedEvent[]) => void>()
+  let past = pastStored
+  const listeners = new Set<(snapshot: EventsSnapshot) => void>()
+  const listed = () =>
+    new Set([...items.keys(), ...Array.from({ length: past }, (_, i) => `past-${i}`)])
   const emit = () => {
-    const list = [...items.values()].sort((a, b) => a.start.localeCompare(b.start))
-    for (const listener of listeners) listener(list)
+    const list = [...items.values()].sort((a, b) => a.end.localeCompare(b.end))
+    for (const listener of listeners) {
+      listener({ items: list.slice(0, IMPORTED_EVENT_LIMITS.listLimit), stored: items.size + past })
+    }
   }
   return {
-    subscribe(_uid, onItems) {
-      listeners.add(onItems)
+    subscribe(_uid, _nowMs, onChange) {
+      listeners.add(onChange)
       queueMicrotask(emit)
-      return () => listeners.delete(onItems)
+      return () => listeners.delete(onChange)
     },
     async save(_uid, records) {
+      const { fit, refused } = fitToCap(
+        records,
+        r => r.key,
+        listed(),
+        IMPORTED_EVENT_LIMITS.maxStored,
+      )
       items = new Map(items)
-      for (const record of records) items.set(record.key, record)
+      for (const record of fit) items.set(record.key, record)
       emit()
+      return refused
     },
     async remove(_uid, keys) {
       items = new Map(items)
       for (const key of keys) items.delete(key)
       emit()
+    },
+    async removeAll() {
+      const count = items.size + past
+      items = new Map()
+      past = 0
+      emit()
+      return count
+    },
+    async seriesEvents(_uid, seriesIds) {
+      const ids = new Set(seriesIds)
+      return [...items.values()].filter(item => ids.has(item.seriesId))
     },
     async prune() {
       return 0

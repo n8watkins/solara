@@ -285,6 +285,50 @@ service cloud.firestore {
           || data.schemaVersion >= resource.data.schemaVersion);
     }
 
+    // ---- Per-account record caps -------------------------------------------------------
+
+    // Rules cannot count a collection, so users/{uid}/meta/{name} lists the key of every
+    // record in users/{uid}/{name} (`ids`, a map of key to true) and the rules hold the two
+    // together (REVIEW4 M4, lib/key-index.ts): a record is created or rewritten only in a
+    // batched write whose result lists its key (getAfter); the list holds at most the cap;
+    // and a key leaves the list only in a write that names it in `removed` (at most 8 per
+    // write) and after which its record does not exist (existsAfter). So the list never
+    // holds fewer keys than there are records, and an account never holds more than the
+    // cap. Keys of records Firestore's TTL policy deleted stay listed until the app takes
+    // them off. Caps: 1,000 imported events, 500 scheduled activities.
+    function listedAfter(userId, name, key) {
+      return key in getAfter(/databases/$(database)/documents/users/$(userId)/meta/$(name)).data.get('ids', {});
+    }
+
+    function goneAfter(userId, name, removed, i) {
+      return removed.size() <= i
+        || !existsAfter(/databases/$(database)/documents/users/$(userId)/$(name)/$(removed[i]));
+    }
+
+    function validKeyIndex(userId, name, cap) {
+      let data = request.resource.data;
+      // A write that only takes keys off a list that does not exist yet leaves no `ids`.
+      let ids = data.get('ids', {});
+      let before = resource == null ? {} : resource.data.get('ids', {});
+      return data.keys().hasAll(['removed'])
+        && data.keys().hasOnly(['ids', 'removed'])
+        && ids is map && ids.size() <= cap
+        && data.removed is list && data.removed.size() <= 8
+        && ids.diff(before).removedKeys().difference(data.removed.toSet()).size() == 0
+        && goneAfter(userId, name, data.removed, 0)
+        && goneAfter(userId, name, data.removed, 1)
+        && goneAfter(userId, name, data.removed, 2)
+        && goneAfter(userId, name, data.removed, 3)
+        && goneAfter(userId, name, data.removed, 4)
+        && goneAfter(userId, name, data.removed, 5)
+        && goneAfter(userId, name, data.removed, 6)
+        && goneAfter(userId, name, data.removed, 7);
+    }
+
+    function keyIndexCap(name) {
+      return name == 'events' ? 1000 : 500;
+    }
+
     // ---- Scheduled activities ----------------------------------------------------------
 
     // Google Calendar events Solara created, users/{uid}/scheduled/{eventId}. The fields and
@@ -326,8 +370,9 @@ service cloud.firestore {
     // Events imported from an .ics file, users/{uid}/events/{key} (docs/integrations/EVENTS.md).
     // The fields and caps come from packages/core/src/events.ts (checked by
     // lib/firestore-rules.test.ts). The key is a SHA-256 prefix of the source and the event's
-    // UID, so a re-import overwrites instead of adding copies. `expireAt` works as for
-    // scheduled activities: required, and at most IMPORTED_EVENT_MAX_TTL_DAYS ahead.
+    // UID, so a re-import overwrites instead of adding copies. `expireAt` is required, at
+    // most IMPORTED_EVENT_MAX_TTL_DAYS ahead and at most a day past the retention period
+    // after the event's end (`end` is an ISO instant in UTC, so its date is read from it).
     function importedEventKeys() {
       return [
         'key', 'source', 'seriesId', 'title', 'start', 'end', 'timeZone', 'where', 'lat', 'lon',
@@ -347,6 +392,7 @@ service cloud.firestore {
         && data.start is string && data.start.size() <= 40
         && data.end is string && data.end.size() <= 40
         && data.end > data.start
+        && data.end.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z$')
         && data.timeZone is string && data.timeZone.size() <= 64
         && data.where is string && data.where.size() <= 200
         && data.lat is number && data.lat >= -90 && data.lat <= 90
@@ -359,7 +405,14 @@ service cloud.firestore {
         && data.createdAt is string && data.createdAt.size() <= 40
         && data.updatedAt is string && data.updatedAt.size() <= 40
         && data.expireAt is timestamp
-        && data.expireAt <= request.time + duration.value(400, 'd');
+        && data.expireAt <= request.time + duration.value(400, 'd')
+        && data.expireAt <= endDate(data.end) + duration.value(31, 'd');
+    }
+
+    // Midnight UTC of an ISO instant's date.
+    function endDate(iso) {
+      let parts = iso.split('T')[0].split('-');
+      return timestamp.date(int(parts[0]), int(parts[1]), int(parts[2]));
     }
 
     match /users/{userId} {
@@ -380,7 +433,7 @@ service cloud.firestore {
         allow get, delete: if isOwner(userId) && isActiveAccount(userId);
         allow list: if isOwner(userId) && isActiveAccount(userId) && request.query.limit <= 100;
         allow create, update: if isOwner(userId) && isActiveAccount(userId)
-          && validScheduled(eventId);
+          && validScheduled(eventId) && listedAfter(userId, 'scheduled', eventId);
       }
 
       // Imported events: list queries are capped (IMPORTED_EVENT_LIMITS.listLimit).
@@ -388,7 +441,15 @@ service cloud.firestore {
         allow get, delete: if isOwner(userId) && isActiveAccount(userId);
         allow list: if isOwner(userId) && isActiveAccount(userId) && request.query.limit <= 200;
         allow create, update: if isOwner(userId) && isActiveAccount(userId)
-          && validImportedEvent(eventKey);
+          && validImportedEvent(eventKey) && listedAfter(userId, 'events', eventKey);
+      }
+
+      // The key lists behind the per-account caps (validKeyIndex). Never deleted by the
+      // client; account deletion removes them with the rest of users/{uid}.
+      match /meta/{name} {
+        allow get: if isOwner(userId) && isActiveAccount(userId);
+        allow create, update: if isOwner(userId) && isActiveAccount(userId)
+          && name in ['events', 'scheduled'] && validKeyIndex(userId, name, keyIndexCap(name));
       }
 
       // Server-written secrets the owner may read, such as the calendar feed token.

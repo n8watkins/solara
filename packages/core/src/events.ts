@@ -29,6 +29,11 @@ export const IMPORTED_EVENT_LIMITS = Object.freeze({
   urlLength: 2048,
   /** Most records one list query may return (rules check `request.query.limit`). */
   listLimit: 200,
+  /**
+   * Most records one account may hold (REVIEW4 M4; default, owner may change). The rules
+   * enforce it through users/{uid}/meta/events (lib/key-index.ts).
+   */
+  maxStored: 1000,
 })
 
 /** Where events come from. Phase 1 has files only; later phases add `feed` and `strava`. */

@@ -64,8 +64,14 @@ export default function CalendarWindowSheet({
         `Scheduled ${act.name} for ${fmt.time(slot.start)}. It is on your Google Calendar.`,
         5000,
       )
-    } catch {
-      status.flash('Could not add to Google Calendar. Nothing was saved; try again.', 5000)
+    } catch (error) {
+      status.flash(
+        // A RecordCapError (lib/record-cap.ts), matched by name to keep it out of this bundle.
+        error instanceof Error && error.name === 'RecordCapError'
+          ? error.message
+          : 'Could not add to Google Calendar. Nothing was saved; try again.',
+        5000,
+      )
     } finally {
       setAdding(false)
     }

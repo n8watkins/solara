@@ -186,8 +186,13 @@ function DashboardView({
       status.flash(
         `✓ Scheduled ${activity.name} for ${fmt.time(rec.start)}. It is on your Google Calendar.`,
       )
-    } catch {
-      status.flash('Could not add to Google Calendar. Nothing was saved; try again.')
+    } catch (error) {
+      status.flash(
+        // A RecordCapError (lib/record-cap.ts), matched by name to keep it out of this bundle.
+        error instanceof Error && error.name === 'RecordCapError'
+          ? error.message
+          : 'Could not add to Google Calendar. Nothing was saved; try again.',
+      )
     }
   }
 
