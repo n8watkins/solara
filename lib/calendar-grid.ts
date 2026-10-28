@@ -66,7 +66,7 @@ export function calendarDays(weather: WeatherResponse, limit: number): CalendarD
     return {
       ...day,
       isToday,
-      peakUV: peak === null ? null : Math.round(peak),
+      peakUV: peak,
       cloud: cloudEffect(day.hourly),
       // The forecast starts today, so a day's index is how far ahead it is.
       confidence: forecastConfidence(daysAhead),

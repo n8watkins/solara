@@ -1,5 +1,5 @@
 // What the app header shows for the signed-in account and the current UV.
-import { uvBand, uvLabel, type UVBand } from './weather'
+import { formatUV, uvBand, uvLabel, type UVBand } from './weather'
 
 /** The letter on the avatar when the account has no photo. */
 export function accountInitial(user: { displayName: string | null; email: string | null }): string {
@@ -13,7 +13,7 @@ export function headerUV(
   if (typeof currentUV !== 'number' || !Number.isFinite(currentUV)) return null
   return {
     band: uvBand(currentUV),
-    value: currentUV.toFixed(1),
+    value: formatUV(currentUV),
     level: uvLabel(currentUV),
   }
 }

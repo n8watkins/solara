@@ -36,7 +36,7 @@ describe('cloudEffect', () => {
   const day = (pairs: [number, number | undefined][]) =>
     pairs.map(([uv, clearSkyUV]) => ({ uv, clearSkyUV }))
 
-  it('compares the peaks in whole numbers', () => {
+  it('compares the peaks in whole numbers and quotes them as forecast', () => {
     const effect = cloudEffect(
       day([
         [2, 3],
@@ -44,8 +44,8 @@ describe('cloudEffect', () => {
         [3.9, 7.2],
       ]),
     )
-    expect(effect).toEqual({ uv: 4, clearSky: 7 })
-    expect(cloudNote(effect!)).toBe('Clouds may cut UV to 4 from a clear-sky 7')
+    expect(effect).toEqual({ uv: 4.4, clearSky: 7.2 })
+    expect(cloudNote(effect!)).toBe('Clouds may cut UV to 4.4 from a clear-sky 7.2')
   })
 
   it('keeps quiet about a gap under two points', () => {

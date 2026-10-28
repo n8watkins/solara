@@ -9,6 +9,7 @@
 //   reaches the person's threshold: from an hour before the first such hour until the
 //   last one ends, outside quiet hours.
 import { dailyBriefing } from './briefing'
+import { formatUV } from './uv-scale'
 import type { ExposureSetting } from './exposure'
 import { isSkinType, type PreferredHours, type SkinType } from './recommendation'
 import { NOTIFICATION_HOUR, QUIET_HOURS, UV_ALERT_THRESHOLD } from './prefs'
@@ -180,8 +181,6 @@ export interface MorningAlertInput {
   clock?: '12h' | '24h'
 }
 
-const oneDecimal = (uv: number) => String(Math.round(uv * 10) / 10)
-
 /**
  * The morning alert, from the daily briefing (`dailyBriefing`, briefing.ts): the title
  * names its best lower-UV window and the activity it suits, and the body is its text,
@@ -218,7 +217,7 @@ export interface UvAlertInput {
 export function uvAlertMessage({ plan, city, localHour, clock }: UvAlertInput): AlertMessage {
   const time = (hours: number) => formatAlertTime(hours, clock)
   const place = city.trim() || 'your area'
-  const until = `until about ${time(plan.to)}, peaking at ${oneDecimal(plan.peak.uv)} around ${time(plan.peak.hour)}`
+  const until = `until about ${time(plan.to)}, peaking at ${formatUV(plan.peak.uv)} around ${time(plan.peak.hour)}`
   const title =
     localHour < plan.from
       ? `☀️ UV reaches ${plan.threshold} around ${time(plan.from)}`

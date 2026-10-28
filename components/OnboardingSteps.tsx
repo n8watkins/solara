@@ -11,7 +11,7 @@ import SkinSwatch from './SkinSwatch'
 import { TIER_LIMITS } from '@/lib/tiers'
 import { firebaseEnabled } from '@/lib/firebase'
 import type { Location, SkinType, UserPreferences } from '@/lib/types'
-import { uvBand, uvLabel, type UVBand } from '@/lib/weather'
+import { formatUV, uvBand, uvLabel, type UVBand } from '@/lib/weather'
 import DataAttribution from './DataAttribution'
 import GoogleSignInButton from './GoogleSignInButton'
 import PlaceSearch, { type PlaceSearchMiss } from './PlaceSearch'
@@ -128,11 +128,11 @@ export function UVPreviewStep({
           <>
             <Moon size={44} strokeWidth={1.75} className="mb-2.5 text-ink-3" />
             <p className="mb-2 text-[30px] leading-none font-[750] text-ink">Sun is down</p>
-            <p className="mb-[18px] text-[14px] text-ink-3">UV {uv.toFixed(1)} right now</p>
+            <p className="mb-[18px] text-[14px] text-ink-3">UV {formatUV(uv)} right now</p>
           </>
         ) : (
           <>
-            <p className="mb-2.5 text-[68px] leading-none font-[750] text-ink">{uv.toFixed(1)}</p>
+            <p className="mb-2.5 text-[68px] leading-none font-[750] text-ink">{formatUV(uv)}</p>
             {/* The band in the app's one UV palette, as on the dashboard. */}
             <p
               className={clsx(

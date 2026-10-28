@@ -1,6 +1,6 @@
 'use client'
 import { CalendarPlus, Cloud, Gauge, Lock, Share2 } from 'lucide-react'
-import { cloudNote, confidenceNote } from '@solara/core'
+import { cloudNote, confidenceNote, formatUV } from '@solara/core'
 import { useState, type Ref } from 'react'
 import { gcalWindowLink } from '@/lib/calendar'
 import { durationText, windowSlot } from '@/lib/calendar-grid'
@@ -126,7 +126,7 @@ export default function CalendarWindowSheet({
       </div>
       <p className="mt-3 text-[13px] leading-[1.5] text-ink-2">
         Estimated lower-UV window with a forecast peak of UV{' '}
-        <strong className="text-ink">{win.peakUV.toFixed(1)}</strong>. Schedule your{' '}
+        <strong className="text-ink">{formatUV(win.peakUV)}</strong>. Schedule your{' '}
         <strong className="text-ink">{durationText(act.durationMins)}</strong> session anywhere in
         this range.
       </p>

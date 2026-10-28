@@ -109,13 +109,12 @@ describe('effectiveMaxUV', () => {
 })
 
 describe('formatUV', () => {
-  it('keeps one decimal by default', () => {
+  it('writes every UV value with one decimal, double digits included (REVIEW4 L5)', () => {
     expect(formatUV(8.62)).toBe('8.6')
-    expect(formatUV(10.2)).toBe('10.2')
-  })
-  it('drops the decimal at double digits only in compact mode', () => {
-    expect(formatUV(10.2, { compact: true })).toBe('10')
-    expect(formatUV(9.55, { compact: true })).toBe('9.6')
+    expect(formatUV(10.3)).toBe('10.3')
+    expect(formatUV(10)).toBe('10.0')
+    expect(formatUV(6)).toBe('6.0')
+    expect(formatUV(-0.01)).toBe('0.0')
   })
 })
 

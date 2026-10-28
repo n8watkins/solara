@@ -1,7 +1,7 @@
 import type { CSSProperties, UIEvent } from 'react'
 import clsx from 'clsx'
 import { Cloud } from 'lucide-react'
-import { cloudNote } from '@solara/core'
+import { cloudNote, formatUV } from '@solara/core'
 import { dayOfMonth } from '@/lib/time'
 import {
   AXIS_PAD,
@@ -109,7 +109,7 @@ export default function CalendarWeekGrid({
                 className="mt-[3px] flex items-center gap-1 text-[11px] leading-none text-ink-2 tabular-nums"
               >
                 {day.cloud && <Cloud size={12} aria-hidden className="shrink-0 text-ink-3" />}
-                UV {day.peakUV}
+                UV {formatUV(day.peakUV)}
                 {day.cloud && <span className="text-ink-3">· clear {day.cloud.clearSky}</span>}
               </span>
             )}

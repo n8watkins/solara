@@ -1,3 +1,4 @@
+import { formatUV } from '@solara/core'
 import type { Activity, Location, SafeActivityWindow } from './types'
 import { formatClockTime } from './units'
 import type { ClockFormat } from './units'
@@ -162,7 +163,7 @@ export function buildActivityShareText(
 ): string {
   const time = (hours: number) => formatClockTime(hours, clock)
   const place = `${location.city}${location.region ? `, ${location.region}` : ''}`
-  const uvCopy = typeof win.peakUV === 'number' ? ` Peak UV ${win.peakUV.toFixed(1)}.` : ''
+  const uvCopy = typeof win.peakUV === 'number' ? ` Peak UV ${formatUV(win.peakUV)}.` : ''
   const duration =
     activity.durationMins < 60 ? `${activity.durationMins} min` : `${activity.durationMins / 60} hr`
   return `Let's do ${activity.name.toLowerCase()} ${dateLabel.toLowerCase()} from ${time(win.from)}–${time(win.to)} in ${place}. Solara estimates this as a lower-UV ${duration} planning window.${uvCopy} Recheck current conditions and use sun protection.`
@@ -189,7 +190,7 @@ export function buildActivityShareUrl(
   })
   const region = sanitizeShareText(location.region || '', SHARE_LIMITS.place)
   if (region && isSafeShareText(region)) params.set('region', region)
-  if (typeof win.peakUV === 'number') params.set('uv', win.peakUV.toFixed(1))
+  if (typeof win.peakUV === 'number') params.set('uv', formatUV(win.peakUV))
   return `${base}/share/?${params.toString()}`
 }
 

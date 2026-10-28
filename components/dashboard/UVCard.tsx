@@ -78,7 +78,7 @@ export default function UVCard({
               <span
                 className={`shrink-0 text-[40px] leading-none font-bold ${UV_NUMBER_TEXT[uvNumberTone(headUV)]}`}
               >
-                {headUV.toFixed(1)}
+                {formatUV(headUV)}
               </span>
               <span className="min-w-0 text-[14px] leading-[1.2] font-semibold text-ink-2">
                 {uvLabel(headUV)}

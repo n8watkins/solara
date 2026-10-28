@@ -15,7 +15,7 @@ import {
 } from './recommendation'
 import type { ExposureSetting } from './exposure'
 import { planningUV } from './forecast-quality'
-import { uvLabel } from './uv-scale'
+import { formatUV, uvLabel } from './uv-scale'
 
 /** One forecast hour of the briefed day (local hour, forecast UV). */
 export interface BriefingHour {
@@ -114,8 +114,6 @@ export function formatBriefingTime(hours: number): string {
   return `${h12}${minute ? `:${String(minute).padStart(2, '0')}` : ''}${suffix}`
 }
 
-const oneDecimal = (uv: number) => uv.toFixed(1)
-
 /** The lowest window of each activity that runs on the day, trimmed to `from`; the best wins. */
 function activityWindow(
   hourly: readonly BriefingHour[],
@@ -205,7 +203,7 @@ export function dailyBriefing({
     `${formatTime(span.from)}–${formatTime(span.to)}`
 
   const peakLine = peak
-    ? `${peak.passed ? 'UV peaked' : 'UV peaks'} at ${oneDecimal(peak.uv)} (${uvLabel(peak.uv)}) around ${formatTime(peak.hour)}`
+    ? `${peak.passed ? 'UV peaked' : 'UV peaks'} at ${formatUV(peak.uv)} (${uvLabel(peak.uv)}) around ${formatTime(peak.hour)}`
     : 'UV stays near zero'
 
   const running = activities.filter(a => runsOn(a, day.date))

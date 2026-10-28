@@ -11,7 +11,7 @@ import {
   cityPath,
   hourText,
 } from '@/lib/city-pages'
-import { uvBandColor } from '@/lib/weather'
+import { formatUV, uvBandColor } from '@/lib/weather'
 
 // One city's typical UV by month, built at export time from the checked-in data in
 // lib/cities/. Static HTML and CSS only: scripts/static-pages.mjs strips the
@@ -115,7 +115,7 @@ export default async function CityUVPage({ params }: Props) {
           {months.map(m => (
             <div key={m.month} className="flex min-w-0 flex-col items-center">
               <span className="text-[11px] font-semibold text-ink-2 tabular-nums sm:text-[12px]">
-                {Math.round(m.peak)}
+                {formatUV(m.peak)}
               </span>
               <div className="mt-1 flex h-[132px] w-full items-end justify-center">
                 <div
@@ -166,10 +166,10 @@ export default async function CityUVPage({ params }: Props) {
                         className="size-2.5 rounded-[3px]"
                         style={{ background: uvBandColor(m.band) }}
                       />
-                      {Math.round(m.peak)} {m.label}
+                      {formatUV(m.peak)} {m.label}
                     </span>
                   </td>
-                  <td className="px-2.5 py-2.5 sm:px-4 tabular-nums">{Math.round(m.clearSky)}</td>
+                  <td className="px-2.5 py-2.5 sm:px-4 tabular-nums">{formatUV(m.clearSky)}</td>
                   <td className="px-2.5 py-2.5 sm:px-4">
                     {m.from !== null && m.to !== null
                       ? `${hourText(m.from)}-${hourText(m.to)}`

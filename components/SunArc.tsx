@@ -1,7 +1,7 @@
 'use client'
 import { useId, useLayoutEffect, useRef, useState } from 'react'
 import type { HourlyForecast } from '@/lib/types'
-import { uvColor } from '@/lib/weather'
+import { formatUV, uvColor } from '@/lib/weather'
 import { useElementWidth } from '@/hooks/useElementWidth'
 import { useVisibleSpan } from '@/hooks/useVisibleSpan'
 import { useUnits } from '@/lib/use-units'
@@ -107,7 +107,7 @@ export default function SunArc({ hourly, nowHour, focused, onSelectHour, sunDown
   }
   const pointer = peakOffView(peakPoint.x, view)
   const labelText = peak
-    ? `${pointer === 'left' ? '← ' : ''}Peak ${peak.uv.toFixed(1)} · ${fmt.hour(peak.hour)}${pointer === 'right' ? ' →' : ''}`
+    ? `${pointer === 'left' ? '← ' : ''}Peak ${formatUV(peak.uv)} · ${fmt.hour(peak.hour)}${pointer === 'right' ? ' →' : ''}`
     : ''
 
   // The callout is placed from its rendered size, so measure it whenever its text

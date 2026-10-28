@@ -2,7 +2,7 @@
 // and the words each page says about it. Everything comes from the checked-in
 // lib/cities/ data (scripts/city-climatology.mjs), so the pages build with no
 // network and no API key.
-import { uvBand, uvLabel, type UVBand } from './weather'
+import { formatUV, uvBand, uvLabel, type UVBand } from './weather'
 import cityList from './cities/cities.json'
 import climatology from './cities/uv-climatology.json'
 
@@ -87,7 +87,7 @@ export function hourText(hour: number): string {
   return h < 12 ? `${h}am` : `${h - 12}pm`
 }
 
-/** Whole-number UV, as the UV index is read. */
+/** Whole-number UV, as the UV index scale is read (for thresholds, never for display). */
 const index = (uv: number) => Math.round(uv)
 
 /** "June", "June and July", "May, June and July". */
@@ -173,7 +173,7 @@ export function cityPage(slug: string): CityPage | null {
   const season = monthSpan(reaches3)
   const lowSpan = monthSpan(reaches3.map(reached => !reached))
   const facts: string[] = [
-    `UV in ${city.name} is highest in ${top.month}, when a typical day peaks around ${index(top.peak)} (${top.label}).`,
+    `UV in ${city.name} is highest in ${top.month}, when a typical day peaks around ${formatUV(top.peak)} (${top.label}).`,
   ]
   if (top.from !== null && top.to !== null) {
     facts.push(
@@ -193,7 +193,7 @@ export function cityPage(slug: string): CityPage | null {
   )
   if (index(cloudiest.clearSky) - index(cloudiest.peak) >= 1) {
     facts.push(
-      `Clouds take the most off in ${cloudiest.month}: a typical peak of ${index(cloudiest.peak)}, against ${index(cloudiest.clearSky)} under a clear sky. On a clear day, expect the higher number.`,
+      `Clouds take the most off in ${cloudiest.month}: a typical peak of ${formatUV(cloudiest.peak)}, against ${formatUV(cloudiest.clearSky)} under a clear sky. On a clear day, expect the higher number.`,
     )
   }
   if (data.elevation >= 1000) {
@@ -214,7 +214,7 @@ export function cityPage(slug: string): CityPage | null {
 
 /** The page's meta description: unique per city, under about 160 characters. */
 export function cityDescription(page: CityPage): string {
-  return `Typical UV index in ${page.place} by month: UV peaks around ${index(page.top.peak)} in ${page.top.month}. See when UV is 3 or more and today's forecast.`
+  return `Typical UV index in ${page.place} by month: UV peaks around ${formatUV(page.top.peak)} in ${page.top.month}. See when UV is 3 or more and today's forecast.`
 }
 
 /** Cities grouped by country, countries and cities in alphabetical order, for the index page. */

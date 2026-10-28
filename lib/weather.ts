@@ -23,7 +23,7 @@ export function vitDMins(uv: number, skinType: SkinType): number | null {
 }
 
 /** The WHO UV scale lives in @solara/core so briefings and alerts name levels the same. */
-export { UV_BANDS, uvBand, uvLabel, type UVBand } from '@solara/core'
+export { UV_BANDS, formatUV, uvBand, uvLabel, type UVBand } from '@solara/core'
 
 /**
  * The fill color of a UV value's band, as a CSS value for inline styles and SVG.
@@ -46,13 +46,6 @@ export function uvBandColor(band: UVBand): string {
  */
 export function uvTextColor(_uv: number): string {
   return 'var(--color-uv-ink)'
-}
-
-// UV values display with one decimal everywhere; `compact` drops the decimal at
-// double digits so the value fits the ~22px mobile timeline bars.
-export function formatUV(uv: number, opts?: { compact?: boolean }): string {
-  if (opts?.compact && uv >= 10) return String(Math.round(uv))
-  return uv.toFixed(1)
 }
 
 const DAY_ABBR = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']

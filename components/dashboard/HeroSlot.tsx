@@ -1,3 +1,4 @@
+import { formatUV } from '@solara/core'
 import { Bell, CloudSun, X } from 'lucide-react'
 import type { ActivityDayPlan } from '@/lib/next-slot'
 import type { UpcomingSlot } from '@/lib/planner'
@@ -59,7 +60,7 @@ export default function HeroSlot({
               {fmt.time(slot.start)}–{fmt.time(slot.end)}
             </p>
             <p className="mt-[3px] truncate text-[13px] text-ink-2">
-              {activity.name} · {slot.windowLabel} · Peak UV {slot.peakUV.toFixed(1)}
+              {activity.name} · {slot.windowLabel} · Peak UV {formatUV(slot.peakUV)}
             </p>
           </div>
           {plan.startsNow && <span className="badge badge-safe shrink-0">Start now</span>}

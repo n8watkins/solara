@@ -9,6 +9,7 @@ import {
   bestWindow,
   effectiveMaxUV,
   findWindows,
+  formatUV,
   forecastDates,
   isPlannableHour,
   parseHourlyRows,
@@ -85,7 +86,7 @@ export function buildSunEvents(user: unknown, forecast: SunForecastDay[]): IcsEv
       events.push({
         uid: windowEventUid(day.dateStr, act.id, start),
         summary: windowEventSummary(act),
-        description: `Estimated lower-UV window ${win.from}:00–${win.to}:00 (avg UV ${win.avgUV})${act.sunscreen ? ', assumes SPF 30+' : ', no sunscreen'}. Forecast-based estimate only. Recheck current UV and use sun protection. Planned by Solara.`,
+        description: `Estimated lower-UV window ${win.from}:00–${win.to}:00 (avg UV ${formatUV(win.avgUV)})${act.sunscreen ? ', assumes SPF 30+' : ', no sunscreen'}. Forecast-based estimate only. Recheck current UV and use sun protection. Planned by Solara.`,
         dateStr: day.dateStr,
         start,
         end,

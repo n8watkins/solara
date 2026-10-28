@@ -1,4 +1,5 @@
 import type { Ref } from 'react'
+import { formatUV } from '@solara/core'
 import clsx from 'clsx'
 import type { SafeWindow } from '@/lib/calendar'
 import type { Block } from '@/lib/calendar-grid'
@@ -97,7 +98,7 @@ export default function CalendarWindowChip({
       {/* The visible label is abbreviated, so the accessible name is this full
           description instead. */}
       <span data-sr-only className="sr-only">
-        {`${act.name}, ${dayLabel}, ${fmt.time(win.from)} – ${fmt.time(win.to)}, peak UV ${win.peakUV.toFixed(1)}`}
+        {`${act.name}, ${dayLabel}, ${fmt.time(win.from)} – ${fmt.time(win.to)}, peak UV ${formatUV(win.peakUV)}`}
       </span>
     </button>
   )
