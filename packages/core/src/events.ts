@@ -39,10 +39,16 @@ export const IMPORTED_EVENT_LIMITS = Object.freeze({
 /**
  * Where events come from: `file` for an .ics file the person imports (phase 1, written
  * by the app), `feed` for a linked calendar Solara refreshes (phase 2, written only by
- * the server; packages/core/src/event-subscriptions.ts). A later phase may add `strava`.
+ * the server; packages/core/src/event-subscriptions.ts), `google` for an event already in
+ * the person's Google Calendar (phase 2b, written by the app;
+ * packages/core/src/google-calendar-events.ts). A later phase may add `strava`.
  */
-export const IMPORTED_EVENT_SOURCES = Object.freeze(['file', 'feed'] as const)
+export const IMPORTED_EVENT_SOURCES = Object.freeze(['file', 'feed', 'google'] as const)
+
+/** The sources the app writes itself (firestore.rules lets it create only these). */
+export const CLIENT_EVENT_SOURCES = Object.freeze(['file', 'google'] as const)
 export type ImportedEventSource = (typeof IMPORTED_EVENT_SOURCES)[number]
+export type ClientEventSource = (typeof CLIENT_EVENT_SOURCES)[number]
 
 /** Fields of a stored imported event, in the order firestore.rules lists them. */
 export const IMPORTED_EVENT_FIELDS = Object.freeze([

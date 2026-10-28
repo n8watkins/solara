@@ -1,6 +1,6 @@
 'use client'
 import { useId, useState } from 'react'
-import { CalendarSync, ExternalLink, MapPin, X } from 'lucide-react'
+import { CalendarDays, CalendarSync, ExternalLink, MapPin, X } from 'lucide-react'
 import clsx from 'clsx'
 import { stripInvisibleFormatting, type ImportedEvent } from '@solara/core/event-import'
 import { eventCardView } from '@/lib/event-view'
@@ -144,9 +144,15 @@ export default function EventCard({
               From a linked calendar
             </p>
           )}
+          {item.source === 'google' && (
+            <p className="mt-0.5 flex min-w-0 items-center gap-1 text-[12px] text-ink-3">
+              <CalendarDays size={12} className="shrink-0" aria-hidden="true" />
+              From Google Calendar
+            </p>
+          )}
         </div>
-        {/* A linked calendar's event would come back at its next refresh, so it goes
-            with its calendar (Linked calendars, below the list). */}
+        {/* A linked calendar's or Google Calendar's event would come back at its next
+            refresh, so it goes with its calendar (below the list). */}
         {item.source === 'file' && (
           <button
             type="button"

@@ -31,6 +31,12 @@ export {
 //   created: each one carries a private tag, lookups filter on that tag, and the
 //   rest of the calendar is only ever read as free/busy.
 //
+// A third, read-only access is for showing the UV at events already in the person's
+// calendars (docs/integrations/EVENTS.md, phase 2b): lib/google-events.ts asks for
+// `calendar.events.readonly` (and `calendar.calendarlist.readonly` to choose calendars)
+// through `requestScopeToken` only when the person turns that on, and reads events with
+// `listCalendarEvents` below. Every token stays in memory; none is stored.
+//
 // Configured via env so the repo ships no client ID. When unset, the UI hides
 // the "connect calendar" affordance and recommendations run calendar-free.
 
@@ -224,6 +230,53 @@ export function hasWriteToken(): boolean {
   return cachedToken(CALENDAR_BOOKING_SCOPE) !== null
 }
 
+/**
+ * A token for any other Calendar scope (the read-only events and calendar list scopes of
+ * lib/google-events.ts): from memory when one is unexpired, else from a consent popup,
+ * which needs a click. With `interactive: false` only a cached token is returned.
+ */
+export function requestScopeToken(
+  scope: string,
+  options: { interactive?: boolean } = {},
+): Promise<string> {
+  return getToken(scope, options)
+}
+
+/** True when an unexpired token for `scope` is in memory. */
+export function hasScopeToken(scope: string): boolean {
+  return cachedToken(scope) !== null
+}
+
+/**
+ * Revokes Solara's Google Calendar access and forgets every token. Google's revoke ends
+ * the whole grant (every scope the person gave Solara, Scheduled's included), so the next
+ * calendar feature asks for consent again. Needs an unexpired token from this session to
+ * say whose grant it is; returns false when there is none (the person can still remove
+ * Solara at https://myaccount.google.com/permissions).
+ */
+export async function revokeCalendarAccess(): Promise<boolean> {
+  const token = [...tokens.keys()].map(cachedToken).find((t): t is string => t !== null)
+  forgetCalendarTokens()
+  if (!token) return false
+  await loadGis()
+  const oauth2 = (
+    window as unknown as {
+      google: { accounts: { oauth2: { revoke?: (token: string, done?: () => void) => void } } }
+    }
+  ).google.accounts.oauth2
+  if (typeof oauth2.revoke !== 'function') return false
+  await new Promise<void>(resolve => {
+    // GIS reports the outcome through `done`; a revoke that never answers must not hang
+    // the disconnect, which has already removed Solara's copy of the events.
+    const timer = setTimeout(resolve, 10_000)
+    oauth2.revoke!(token, () => {
+      clearTimeout(timer)
+      resolve()
+    })
+  })
+  return true
+}
+
 /** Query the primary calendar's busy periods over [timeMin, timeMax]. */
 export async function fetchFreeBusy(
   token: string,
@@ -311,6 +364,119 @@ export function buildEventBody(
         [SOLARA_DATE_PROPERTY]: dateStr,
       },
     },
+  }
+}
+
+// ---- Events already in the person's calendars (read only) -----------------------------
+//
+// Used by lib/google-events.ts with the read-only scopes it asks for. `fields` keeps the
+// answer to what the UV card needs: no descriptions, attendee addresses or organisers
+// reach the browser (only whether the person declined).
+
+/** One of the person's calendars, as the calendar list names it. */
+export interface CalendarListEntry {
+  id: string
+  name: string
+  primary: boolean
+}
+
+const calendarListSchema = record({
+  items: v.optional(v.array(v.unknown())),
+  nextPageToken: v.optional(v.string()),
+})
+
+const calendarListEntrySchema = record({
+  id: v.pipe(v.string(), v.minLength(1)),
+  summary: v.optional(v.string()),
+  summaryOverride: v.optional(v.string()),
+  primary: v.optional(v.boolean()),
+  hidden: v.optional(v.boolean()),
+  deleted: v.optional(v.boolean()),
+})
+
+/** The calendars in the person's list (hidden and deleted ones left out), at most 250. */
+export async function listCalendars(token: string, scope: string): Promise<CalendarListEntry[]> {
+  const params = new URLSearchParams({
+    maxResults: '250',
+    fields: 'items(id,summary,summaryOverride,primary,hidden,deleted)',
+  })
+  const res = await calendarFetch(
+    token,
+    `https://www.googleapis.com/calendar/v3/users/me/calendarList?${params}`,
+    {},
+    scope,
+  )
+  if (!res.ok) throw new Error(`calendar list failed: ${res.status}`)
+  const parsed = v.safeParse(calendarListSchema, await res.json())
+  if (!parsed.success) throw new Error('Unexpected Google Calendar response')
+  const out: CalendarListEntry[] = []
+  for (const raw of parsed.output.items ?? []) {
+    const entry = v.safeParse(calendarListEntrySchema, raw)
+    if (!entry.success || entry.output.hidden || entry.output.deleted) continue
+    out.push({
+      id: entry.output.id,
+      name: entry.output.summaryOverride || entry.output.summary || entry.output.id,
+      primary: entry.output.primary === true,
+    })
+  }
+  return out
+}
+
+/** One page of a calendar's events, as Google sends it (parsed by lib/google-events.ts). */
+export interface CalendarEventsPage {
+  /** The calendar's own zone, for events that do not name one. */
+  timeZone?: string
+  items: unknown[]
+  nextPageToken?: string
+}
+
+const eventsPageSchema = record({
+  timeZone: v.optional(v.string()),
+  items: v.optional(v.array(v.unknown())),
+  nextPageToken: v.optional(v.string()),
+})
+
+/** The fields of each event Solara reads (no description, attendee addresses or organiser). */
+export const READ_EVENT_FIELDS =
+  'timeZone,nextPageToken,items(id,iCalUID,status,summary,location,start,end,recurringEventId,originalStartTime,eventType,attendees(self,responseStatus))'
+
+/**
+ * One page of events on `calendarId` between `timeMin` and `timeMax`, recurring events
+ * expanded, soonest first. Null when the calendar is gone or no longer shared (404 or
+ * 410), so a refresh can skip it.
+ */
+export async function listCalendarEvents(
+  token: string,
+  scope: string,
+  calendarId: string,
+  timeMin: Date,
+  timeMax: Date,
+  { pageToken, pageSize }: { pageToken?: string; pageSize: number },
+): Promise<CalendarEventsPage | null> {
+  const params = new URLSearchParams({
+    timeMin: timeMin.toISOString(),
+    timeMax: timeMax.toISOString(),
+    singleEvents: 'true',
+    orderBy: 'startTime',
+    maxResults: String(pageSize),
+    eventTypes: 'default',
+    fields: READ_EVENT_FIELDS,
+  })
+  if (pageToken) params.set('pageToken', pageToken)
+  const res = await calendarFetch(
+    token,
+    `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?${params}`,
+    {},
+    scope,
+  )
+  if (res.status === 404 || res.status === 410) return null
+  if (!res.ok) throw new Error(`event list failed: ${res.status}`)
+  const parsed = v.safeParse(eventsPageSchema, await res.json())
+  if (!parsed.success) throw new Error('Unexpected Google Calendar response')
+  return {
+    timeZone: parsed.output.timeZone,
+    items: parsed.output.items ?? [],
+    nextPageToken: parsed.output.nextPageToken,
   }
 }
 

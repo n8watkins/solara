@@ -18,13 +18,15 @@ import { EventsStoreContext } from '@/lib/events-context'
 import { capMessage } from '@/lib/record-cap'
 import { planningFor } from '@solara/core'
 import { IMPORTED_EVENT_LIMITS } from '@solara/core/event-import'
-import { eventSubscriptionsLaunched } from '@/lib/plans'
+import { eventSubscriptionsLaunched, googleCalendarEventsLaunched } from '@/lib/plans'
 import { getFutureDays } from '@/lib/tiers'
 import type { Location, TierLevel, UserPreferences, WeatherResponse } from '@/lib/types'
 import EventCard from './EventCard'
 
 // Linked calendars load only where they are switched on (docs/integrations/EVENTS.md).
 const EventSubscriptions = lazy(() => import('./EventSubscriptions'))
+// So do events already in Google Calendar (phase 2b).
+const GoogleCalendarEvents = lazy(() => import('./GoogleCalendarEvents'))
 
 /** Events shown before "Show all". */
 const FIRST_SHOWN = 5
@@ -283,6 +285,19 @@ export default function EventsSection({ uid, prefs, weather, displayTier, onUpgr
             </button>
           )}
         </div>
+      )}
+
+      {googleCalendarEventsLaunched() && (
+        <Suspense fallback={null}>
+          <GoogleCalendarEvents
+            uid={uid}
+            home={location}
+            activities={prefs.activities}
+            items={items ?? []}
+            upcomingCount={upcoming.filter(item => item.source === 'google').length}
+            nowMs={nowMs}
+          />
+        </Suspense>
       )}
 
       {eventSubscriptionsLaunched() && (

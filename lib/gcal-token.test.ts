@@ -183,3 +183,23 @@ describe('Google refusing a request', () => {
     await expect(gcal.requestAccessToken()).resolves.toBe('fb-2')
   })
 })
+
+describe('revoking Calendar access', () => {
+  it('revokes with a token from this session and forgets every token', async () => {
+    const gcal = await loadGcal()
+    const revoked: string[] = []
+    ;(
+      window as unknown as { google: { accounts: { oauth2: Record<string, unknown> } } }
+    ).google.accounts.oauth2.revoke = (token: string, done: () => void) => {
+      revoked.push(token)
+      done()
+    }
+    onRequest = config => config.callback({ access_token: 'read-1', expires_in: 3599 })
+    const scope = 'https://www.googleapis.com/auth/calendar.events.readonly'
+    await expect(gcal.requestScopeToken(scope)).resolves.toBe('read-1')
+    expect(gcal.hasScopeToken(scope)).toBe(true)
+    await expect(gcal.revokeCalendarAccess()).resolves.toBe(true)
+    expect(revoked).toEqual(['read-1'])
+    expect(gcal.hasScopeToken(scope)).toBe(false)
+  })
+})

@@ -148,6 +148,12 @@ export function createMemoryEventsStore(
       const ids = new Set(seriesIds)
       return [...items.values()].filter(item => ids.has(item.seriesId))
     },
+    async sourceEvents(_uid, source) {
+      return [...items.values()].filter(item => item.source === source)
+    },
+    async storedKeys() {
+      return listed()
+    },
     async prune() {
       return 0
     },

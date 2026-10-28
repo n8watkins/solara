@@ -20,8 +20,10 @@ import {
   parseIcs,
   parseImportedEvent,
   type IcsParseOptions,
+  type ClientEventSource,
   type IcsParseResult,
   type ImportedEvent,
+  type ImportedEventSource,
   type ParsedIcsEvent,
 } from '@solara/core/event-import'
 import type { QuerySnapshot } from 'firebase/firestore'
@@ -205,16 +207,18 @@ export interface RecordOptions {
   previous: ReadonlyMap<string, ImportedEvent>
   /** ISO time of this import. */
   now: string
+  /** Where the events come from: a file (default) or the person's Google Calendar. */
+  source?: ClientEventSource
 }
 
 /** PURE apart from hashing. The stored records for an import's events. */
 export async function recordsFromImport(
   events: readonly ParsedIcsEvent[],
-  { places, home, activities, previous, now }: RecordOptions,
+  { places, home, activities, previous, now, source = 'file' }: RecordOptions,
 ): Promise<ImportedEvent[]> {
   const records: ImportedEvent[] = []
   for (const event of events) {
-    const key = await importedEventKey('file', event.uid, event.recurrenceId)
+    const key = await importedEventKey(source, event.uid, event.recurrenceId)
     const before = previous.get(key)
     const where = capText(event.location ?? '', IMPORTED_EVENT_LIMITS.whereLength)
     const placeId = placeKey(event)
@@ -230,8 +234,8 @@ export async function recordsFromImport(
         : ((placeId ? places.get(placeId) : undefined) ?? homePlace(home))
     const record = parseImportedEvent({
       key,
-      source: 'file',
-      seriesId: await importedSeriesId('file', event.uid),
+      source,
+      seriesId: await importedSeriesId(source, event.uid),
       title: capText(event.title, IMPORTED_EVENT_LIMITS.titleLength),
       start: new Date(event.start).toISOString(),
       end: new Date(event.end).toISOString(),
@@ -571,6 +575,10 @@ export interface EventsStore {
   removeAll(uid: string): Promise<number>
   /** Every stored event of these series. */
   seriesEvents(uid: string, seriesIds: readonly string[]): Promise<ImportedEvent[]>
+  /** Every stored event from one source (the Google Calendar refresh replaces its own). */
+  sourceEvents(uid: string, source: ImportedEventSource): Promise<ImportedEvent[]>
+  /** The key of every stored event (the account's key list), to skip events stored already. */
+  storedKeys(uid: string): Promise<Set<string>>
   /** Deletes events that ended more than IMPORTED_EVENT_RETENTION_DAYS ago. */
   prune(uid: string, nowMs: number): Promise<number>
 }
@@ -706,6 +714,34 @@ export const firestoreEventsStore: EventsStore = {
       }
     }
     return out
+  },
+  async sourceEvents(uid, source) {
+    const { firestore, events } = await eventsCollection(uid)
+    const { documentId, getDocs, limit, orderBy, query, startAfter, where } = firestore
+    const pageSize = IMPORTED_EVENT_LIMITS.listLimit
+    const out: ImportedEvent[] = []
+    let last: string | null = null
+    // The account holds at most IMPORTED_EVENT_LIMITS.maxStored events, so this ends.
+    for (;;) {
+      const snapshot: QuerySnapshot = await getDocs(
+        query(
+          events,
+          where('source', '==', source),
+          orderBy(documentId()),
+          ...(last === null ? [] : [startAfter(last)]),
+          limit(pageSize),
+        ),
+      )
+      out.push(...recordsOf(snapshot.docs))
+      if (snapshot.size < pageSize) break
+      last = snapshot.docs[snapshot.size - 1]?.id ?? null
+    }
+    return out
+  },
+  async storedKeys(uid) {
+    // One read of the key list (users/{uid}/meta/events), not of every record.
+    const { listedKeys } = await import('./key-index')
+    return listedKeys(uid, 'events')
   },
   async prune(uid, nowMs) {
     const cutoff = new Date(nowMs - EVENTS_RETENTION_MS).toISOString()

@@ -10,9 +10,14 @@ import {
   deleteCalendarEvent,
   eventTimes,
   getCalendarEvent,
+  hasScopeToken,
+  listCalendarEvents,
+  listCalendars,
   listSolaraEvents,
   patchCalendarEventTime,
+  requestScopeToken,
   requestWriteToken,
+  revokeCalendarAccess,
 } from '@/lib/gcal'
 import type { SlotRecommendation } from '@/lib/scheduler'
 import type { Activity } from '@/lib/types'
@@ -255,5 +260,90 @@ describe('Solara event calls', () => {
     await expect(requestWriteToken({ interactive: false })).rejects.toBeInstanceOf(
       CalendarAuthError,
     )
+  })
+})
+
+describe('reading events already in the calendar (phase 2b)', () => {
+  const READ = 'https://www.googleapis.com/auth/calendar.events.readonly'
+  const LIST = 'https://www.googleapis.com/auth/calendar.calendarlist.readonly'
+  const calls: string[] = []
+  const json = (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
+  function mockFetch(...responses: Response[]) {
+    calls.length = 0
+    const queue = [...responses]
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        calls.push(url)
+        const next = queue.shift()
+        if (!next) throw new Error('unexpected fetch')
+        return next
+      }),
+    )
+  }
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('asks Google only for the fields the UV card needs', async () => {
+    mockFetch(json({ timeZone: 'America/Los_Angeles', items: [{ id: 'e1' }], nextPageToken: 'n' }))
+    const page = await listCalendarEvents(
+      'tok',
+      READ,
+      'club@group.calendar.google.com',
+      new Date('2026-06-15T00:00:00Z'),
+      new Date('2026-07-15T00:00:00Z'),
+      { pageSize: 250, pageToken: 'p1' },
+    )
+    expect(page).toEqual({
+      timeZone: 'America/Los_Angeles',
+      items: [{ id: 'e1' }],
+      nextPageToken: 'n',
+    })
+    const url = new URL(calls[0]!)
+    expect(url.pathname).toBe('/calendar/v3/calendars/club%40group.calendar.google.com/events')
+    expect(url.searchParams.get('singleEvents')).toBe('true')
+    expect(url.searchParams.get('pageToken')).toBe('p1')
+    expect(url.searchParams.get('eventTypes')).toBe('default')
+    const fields = url.searchParams.get('fields') ?? ''
+    expect(fields).toContain('attendees(self,responseStatus)')
+    for (const never of ['description', 'organizer', 'creator', 'email', 'conferenceData']) {
+      expect(fields).not.toContain(never)
+    }
+  })
+
+  it('treats a calendar that is gone as missing, and a refused token as an auth error', async () => {
+    mockFetch(new Response(null, { status: 404 }), new Response(null, { status: 401 }))
+    const span = [new Date('2026-06-15T00:00:00Z'), new Date('2026-06-16T00:00:00Z')] as const
+    expect(await listCalendarEvents('tok', READ, 'primary', ...span, { pageSize: 10 })).toBeNull()
+    await expect(
+      listCalendarEvents('tok', READ, 'primary', ...span, { pageSize: 10 }),
+    ).rejects.toBeInstanceOf(CalendarAuthError)
+  })
+
+  it('lists calendars without hidden or deleted ones', async () => {
+    mockFetch(
+      json({
+        items: [
+          { id: 'me@example.com', summary: 'me@example.com', primary: true },
+          { id: 'club@group', summary: 'Club', summaryOverride: 'Running club' },
+          { id: 'old@group', summary: 'Old', hidden: true },
+          { id: 'gone@group', summary: 'Gone', deleted: true },
+          { summary: 'No id' },
+        ],
+      }),
+    )
+    expect(await listCalendars('tok', LIST)).toEqual([
+      { id: 'me@example.com', name: 'me@example.com', primary: true },
+      { id: 'club@group', name: 'Running club', primary: false },
+    ])
+    expect(new URL(calls[0]!).pathname).toBe('/calendar/v3/users/me/calendarList')
+  })
+
+  it('never asks for a read token without a click, and revokes nothing without one', async () => {
+    await expect(requestScopeToken(READ, { interactive: false })).rejects.toBeInstanceOf(
+      CalendarAuthError,
+    )
+    expect(hasScopeToken(READ)).toBe(false)
+    await expect(revokeCalendarAccess()).resolves.toBe(false)
   })
 })
