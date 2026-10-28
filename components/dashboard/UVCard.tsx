@@ -1,5 +1,4 @@
-import { Cloud, Gauge } from 'lucide-react'
-import { cloudEffect, cloudNote, confidenceNote, forecastConfidence } from '@solara/core'
+import { cloudEffect, forecastConfidence } from '@solara/core'
 import type { HourlyForecast } from '@/lib/types'
 import { dayHourText, uvNumberTone, type SunDown, type UVReadout } from '@/lib/dashboard-view'
 import { formatUV, uvLabel } from '@/lib/weather'
@@ -7,6 +6,7 @@ import { useUnits } from '@/lib/use-units'
 import SunArc from '../SunArc'
 import Tooltip from '../Tooltip'
 import UVTimeline from '../UVTimeline'
+import { ForecastNotes } from '../deferred'
 import { UV_NUMBER_TEXT } from './uv-classes'
 
 /**
@@ -41,7 +41,7 @@ export default function UVCard({
   const fmt = useUnits()
   const { headUV, headTemp, headCond, headSuffix, headBurn } = readout
   const cloud = cloudEffect(hourly)
-  const confidence = confidenceNote(forecastConfidence(daysAhead))
+  const confidence = forecastConfidence(daysAhead)
   return (
     <div className="card">
       <p className="mb-3 text-[16px] font-[650] text-ink">
@@ -112,22 +112,8 @@ export default function UVCard({
           ) : null
         }
       />
-      {(cloud || confidence) && (
-        <ul data-testid="uv-forecast-notes" className="mt-3 grid gap-1.5">
-          {cloud && (
-            <li className="flex items-start gap-2 text-[13px] leading-[1.4] text-ink-2">
-              <Cloud size={15} aria-hidden className="mt-0.5 shrink-0 text-ink-3" />
-              {cloudNote(cloud)}.
-            </li>
-          )}
-          {confidence && (
-            <li className="flex items-start gap-2 text-[13px] leading-[1.4] text-ink-2">
-              <Gauge size={15} aria-hidden className="mt-0.5 shrink-0 text-ink-3" />
-              {confidence}.
-            </li>
-          )}
-        </ul>
-      )}
+      {/* Only on a cloudy or far-off day; the wording loads with it (deferred.tsx). */}
+      {(cloud || confidence !== 'high') && <ForecastNotes cloud={cloud} confidence={confidence} />}
     </div>
   )
 }

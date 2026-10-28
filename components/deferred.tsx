@@ -75,6 +75,8 @@ export const ManageActivitiesModal = deferred(() => import('./ManageActivitiesMo
 export const ScheduledSheet = deferred(() => import('./ScheduledSheet'))
 export const CalendarView = deferred(() => import('./CalendarView'))
 export const CalendarFeed = deferred(() => import('./CalendarFeed'))
+/** The UV card's cloud and confidence notes, shown on cloudy or far-off days. */
+export const ForecastNotes = deferred(() => import('./dashboard/ForecastNotes'))
 /** Floats over the page once the browser allows installing (lib/install-prompt.ts). */
 export const InstallPrompt = deferred(() => import('./InstallPrompt'))
 export const ActivityModals = deferred(() => import('./dashboard/ActivityModals'))
