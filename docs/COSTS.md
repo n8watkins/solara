@@ -81,7 +81,8 @@ The budget kill switch is the last line ([runbook](RUNBOOK.md#budget-kill-switch
 
 - a Cloud Billing budget of $25 a month publishes to Pub/Sub, and the `budgetAlert` Function logs a warning at 50%;
 - at 100% it turns off the paths an outsider's traffic drives (calendar feed, feed links, notification registration, forecast proxy upstream calls) within a minute, until the next budget period starts; the scheduled Pro alerts keep running, because their cost is bounded by the number of Pro accounts, so an attacker cannot pause paying customers' alerts;
-- at 300% ($75) it detaches the project from its billing account: the hard stop. The Functions stop (checkout, the webhook, the feed, the alerts), while Hosting, sign-in and Firestore keep serving within the no-cost quotas until the owner re-attaches billing.
+- at 300% ($75) it detaches the project from its billing account: the hard stop.
+  The Functions stop (checkout, the webhook, the feed, the alerts), while Hosting, sign-in and Firestore keep serving within the no-cost quotas until the owner re-attaches billing.
 
 $25 is far above the expected Google bill up to about 1,000 daily users (a few cents to about $10 a month in the table above; the Open-Meteo plan is billed separately), so ordinary growth does not trip it; raise it as traffic grows.
 Budget data arrives hours after the usage, so the switch caps a runaway bill rather than preventing every cent.

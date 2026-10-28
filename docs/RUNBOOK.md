@@ -46,8 +46,10 @@ While it is engaged:
 
 The document's fields:
 
-- `engaged` (boolean) and `engagedUntil` (time): set by the budget kill switch. A guard the budget engaged ends by itself at `engagedUntil`, about the start of the next budget period, even if no budget notification arrives then.
-- `override` (string): set only by the owner. `engaged` keeps the guarded paths off whatever the budget says; `released` keeps them on; `auto` or no value follows the budget.
+- `engaged` (boolean) and `engagedUntil` (time): set by the budget kill switch.
+  A guard the budget engaged ends by itself at `engagedUntil`, about the start of the next budget period, even if no budget notification arrives then.
+- `override` (string): set only by the owner.
+  `engaged` keeps the guarded paths off whatever the budget says; `released` keeps them on; `auto` or no value follows the budget.
 - `reason`, `engagedAt`, `releasedAt`, `costAmount`, `budgetAmount`, `ratio`, `costIntervalStart`, `warnedIntervalStart`: what the kill switch last saw.
 
 To force it off or on, from a shell signed in as the owner (`gcloud auth login`):
