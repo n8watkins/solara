@@ -100,6 +100,7 @@ export default function UVCard({
         currentHour={currentHour}
         focused={focused}
         onSelectHour={onSelectHour}
+        restAtStart={sunDown?.phase === 'after-sunset'}
         above={
           showSunPath ? (
             <SunArc
