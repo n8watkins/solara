@@ -674,7 +674,7 @@ describe('account data security', () => {
     let userRead = false
     const userRef = {
       kind: 'user',
-      collection: name => ({ kind: name }),
+      collection: name => ({ kind: name, doc: id => ({ kind: `${name}/${id}` }) }),
     }
     const db = {
       collection(name) {
@@ -712,6 +712,7 @@ describe('account data security', () => {
     const reads = []
     const devicesQuery = { kind: 'devices' }
     const scheduledQuery = { kind: 'scheduled' }
+    const alertStateRef = { kind: 'alertState' }
     const scheduledItem = {
       eventId: 'evt1',
       calendarId: 'primary',
@@ -729,6 +730,9 @@ describe('account data security', () => {
       kind: 'user',
       collection(name) {
         if (name === 'notificationDevices') return devicesQuery
+        if (name === 'alertState') {
+          return { doc: id => (assert.equal(id, 'daily'), alertStateRef) }
+        }
         assert.equal(name, 'scheduled')
         return scheduledQuery
       },
@@ -749,6 +753,31 @@ describe('account data security', () => {
               return { exists: true, data: () => ({ location: { city: 'Seattle' } }) }
             }
             if (ref === devicesQuery) return { docs: [] }
+            if (ref === alertStateRef) {
+              return {
+                exists: true,
+                data: () => ({
+                  morning: {
+                    day: '2026-06-15',
+                    status: 'delivered',
+                    attemptId: 'internal-attempt-id',
+                    attempts: 1,
+                    devices: 2,
+                    claimedAt: new Date('2026-06-15T14:00:05Z'),
+                    finishedAt: new Date('2026-06-15T14:00:06Z'),
+                  },
+                  uv: {
+                    day: '2026-06-14',
+                    status: 'failed',
+                    attemptId: 'other-attempt-id',
+                    attempts: 3,
+                    devices: 0,
+                    error: 'messaging/message-rate-exceeded',
+                  },
+                  expireAt: new Date('2026-06-22T14:00:05Z'),
+                }),
+              }
+            }
             if (ref === scheduledQuery) {
               return {
                 docs: [
@@ -771,10 +800,34 @@ describe('account data security', () => {
       req: { headers: { authorization: 'Bearer valid' } },
     })
 
-    assert.deepEqual(reads, ['tombstone', 'user', 'devices', 'scheduled'])
+    assert.deepEqual(reads, ['tombstone', 'user', 'devices', 'scheduled', 'alertState'])
     assert.deepEqual(result.account, { location: { city: 'Seattle' } })
     assert.deepEqual(result.notificationDevices, [])
     assert.deepEqual(result.scheduledActivities, [scheduledItem])
+    // The alert history (REVIEW3 L5): what was sent on which day, never internal ids.
+    assert.deepEqual(result.alerts, [
+      {
+        kind: 'morning',
+        day: '2026-06-15',
+        status: 'delivered',
+        attempts: 1,
+        devicesReached: 2,
+        sentAt: '2026-06-15T14:00:05.000Z',
+        finishedAt: '2026-06-15T14:00:06.000Z',
+        error: null,
+      },
+      {
+        kind: 'uv',
+        day: '2026-06-14',
+        status: 'failed',
+        attempts: 3,
+        devicesReached: 0,
+        sentAt: null,
+        finishedAt: null,
+        error: 'messaging/message-rate-exceeded',
+      },
+    ])
+    assert.doesNotMatch(JSON.stringify(result), /attempt-id/)
   })
 
   test('quarantines deletion and copies the billing index in bounded pages', async () => {

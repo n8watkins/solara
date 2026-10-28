@@ -1,5 +1,6 @@
-// Data export: the portable account fields, a billing summary, notification devices and
-// scheduled activities, never billing ids, tokens or internal bookkeeping.
+// Data export: the portable account fields, a billing summary, notification devices,
+// scheduled activities and the Pro alert history, never billing ids, tokens or internal
+// bookkeeping.
 
 import { parseScheduledActivity, PREFERENCE_FIELDS } from '#core'
 import type { Auth } from 'firebase-admin/auth'
@@ -7,6 +8,7 @@ import type { DocumentData, Firestore, QuerySnapshot } from 'firebase-admin/fire
 import type { Request } from 'firebase-functions/v2/https'
 
 import { authenticate, uidLimiter } from '../shared/auth'
+import { ALERT_STATE_COLLECTION, ALERT_STATE_DOC } from '../notifications/alerts'
 import { HttpError } from '../shared/errors'
 import { toMillis } from '../shared/time'
 
@@ -69,6 +71,31 @@ export function safeScheduledData(snapshot: QuerySnapshot) {
   })
 }
 
+const ALERT_KINDS = ['morning', 'uv'] as const
+
+/**
+ * The Pro alerts sent recently (`alertState/daily`, kept 7 days): for each kind, the
+ * last local day it was sent for and how that went, without the internal attempt id.
+ */
+export function alertHistory(data: DocumentData | null | undefined) {
+  return ALERT_KINDS.flatMap(kind => {
+    const entry = data?.[kind]
+    if (!entry || typeof entry !== 'object' || typeof entry.day !== 'string') return []
+    return [
+      {
+        kind,
+        day: entry.day,
+        status: typeof entry.status === 'string' ? entry.status : null,
+        attempts: typeof entry.attempts === 'number' ? entry.attempts : null,
+        devicesReached: typeof entry.devices === 'number' ? entry.devices : null,
+        sentAt: isoDate(entry.claimedAt),
+        finishedAt: isoDate(entry.finishedAt),
+        error: typeof entry.error === 'string' ? entry.error : null,
+      },
+    ]
+  })
+}
+
 export async function exportAccountData({
   auth,
   db,
@@ -85,20 +112,26 @@ export async function exportAccountData({
   const tombstoneRef = db.collection('accountDeletionTombstones').doc(identity.uid)
   const devicesQuery = userRef.collection('notificationDevices')
   const scheduledQuery = userRef.collection('scheduled')
-  const { userSnapshot, devicesSnapshot, scheduledSnapshot } = await db.runTransaction(
-    async transaction => {
+  const alertStateRef = userRef.collection(ALERT_STATE_COLLECTION).doc(ALERT_STATE_DOC)
+  const { userSnapshot, devicesSnapshot, scheduledSnapshot, alertSnapshot } =
+    await db.runTransaction(async transaction => {
       const tombstone = await transaction.get(tombstoneRef)
       if (tombstone.exists) {
         throw new HttpError('deletion-in-progress', 'Account deletion is in progress')
       }
-      const [account, devices, scheduled] = await Promise.all([
+      const [account, devices, scheduled, alerts] = await Promise.all([
         transaction.get(userRef),
         transaction.get(devicesQuery),
         transaction.get(scheduledQuery),
+        transaction.get(alertStateRef),
       ])
-      return { userSnapshot: account, devicesSnapshot: devices, scheduledSnapshot: scheduled }
-    },
-  )
+      return {
+        userSnapshot: account,
+        devicesSnapshot: devices,
+        scheduledSnapshot: scheduled,
+        alertSnapshot: alerts,
+      }
+    })
   return {
     formatVersion: 1,
     exportedAt: new Date().toISOString(),
@@ -106,5 +139,6 @@ export async function exportAccountData({
     billing: billingSummary(userSnapshot.exists ? userSnapshot.data() : null),
     notificationDevices: safeDeviceData(devicesSnapshot),
     scheduledActivities: safeScheduledData(scheduledSnapshot),
+    alerts: alertHistory(alertSnapshot.exists ? alertSnapshot.data() : null),
   }
 }
