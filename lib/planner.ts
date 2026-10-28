@@ -43,7 +43,7 @@ export function bestUpcomingWindow(
   for (const [i, day] of days.entries()) {
     if (!day.hourly.length) continue
     if (!activityRunsOn(activity, day.dateStr)) continue
-    const { allWindows } = getActivityWindow(day.hourly, activity, -1, skinType)
+    const { allWindows } = getActivityWindow(day.hourly, activity, -1, skinType, day.daylight)
     const dayBest = lowestUVWindow(allWindows)
     if (!dayBest) continue
 
@@ -103,6 +103,7 @@ export function bestUpcomingSlot(
     const { slot } = planActivityDay(day.hourly, activity, skinType, {
       nowHour: i === 0 ? nowHourToday : -1,
       busy: busyByDate[day.dateStr] ?? [],
+      daylight: day.daylight,
     })
     if (!slot) continue
 
@@ -158,6 +159,7 @@ export function nextSlotAfterToday(
       const { slot } = planActivityDay(day.hourly, activity, skinType, {
         nowHour: -1,
         busy: busyByDate[day.dateStr] ?? [],
+        daylight: day.daylight,
       })
       if (slot && (!best || slot.start < best.slot.start))
         best = { activity, dateStr: day.dateStr, label: day.label, dayOffset: i, slot }

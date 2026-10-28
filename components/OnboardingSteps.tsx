@@ -112,7 +112,7 @@ export function UVPreviewStep({
 }: {
   uv: number
   city: string
-  /** The sun is above the horizon at the place now (lib/sun-times.ts). */
+  /** The sun is above the horizon at the place now (@solara/core sunPhaseAt). */
   sunUp?: boolean
   onContinue: () => void
   onBack?: () => void
@@ -130,7 +130,7 @@ export function UVPreviewStep({
           <span className="mb-3.5 block text-[16px] font-[650] text-ink">{city}</span>
         </h1>
         {sunDown ? (
-          // After dark (or before sunrise) a giant "0.0 None" says nothing useful.
+          // After dark (or before sunrise) a giant "0.0 Low" says nothing useful.
           <>
             <Moon size={44} strokeWidth={1.75} className="mb-2.5 text-ink-3" />
             <p className="mb-2 text-[30px] leading-none font-[750] text-ink">Sun is down</p>

@@ -12,6 +12,7 @@ import {
   windowsPassedNote,
   nextHourWhere,
   sunDown,
+  todayOver,
 } from './dashboard-view'
 import { burnMins, vitDMins } from './weather'
 
@@ -284,5 +285,21 @@ describe('sunDown and nextHourWhere', () => {
     expect(nextHourWhere(w, 12.5, uv => uv >= 1)).toEqual({ hour: 12, tomorrow: false })
     expect(nextHourWhere(w, 19.5, uv => uv >= 5)).toEqual({ hour: 12, tomorrow: true })
     expect(nextHourWhere(w, 19.5, uv => uv >= 50)).toBeNull()
+  })
+})
+
+describe('todayOver', () => {
+  const today = [hour(16, 1.3), hour(17, 0.3), hour(18, 0), hour(19, 0)]
+
+  it("goes by the place's sunset when it is known", () => {
+    // 5:20pm, no UV of 0.5 left, the sun still up: today is not over.
+    expect(todayOver({ today }, 17.33, 'up')).toBe(false)
+    expect(todayOver({ today }, 6.67, 'before-sunrise')).toBe(false)
+    expect(todayOver({ today }, 18.17, 'after-sunset')).toBe(true)
+  })
+
+  it('falls back to the UV left without a place', () => {
+    expect(todayOver({ today }, 16.5, null)).toBe(false)
+    expect(todayOver({ today }, 17.33, null)).toBe(true)
   })
 })

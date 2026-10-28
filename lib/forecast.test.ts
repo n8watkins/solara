@@ -136,6 +136,14 @@ describe('forecastView', () => {
     ])
     expect(view.today).toBe(view.forecast[0]!.hourly)
     expect(view.tomorrow).toBe(view.forecast[1]!.hourly)
+    expect(view.forecast[0]!.daylight).toBeNull()
+  })
+
+  it("gives each day its daylight at the forecast's place", () => {
+    const view = forecastView(data, zonedNow(TZ, NOW_MS), { lat: 34.05, lon: -118.24 })
+    // Los Angeles in mid-June: sunrise 5:41am and sunset 8:06pm, on 5-minute steps.
+    expect(view.forecast[0]!.daylight).toEqual({ from: 5.75, to: 20 + 5 / 60 })
+    expect(view.forecast.every(d => d.daylight && d.daylight.to > d.daylight.from)).toBe(true)
   })
 
   it('rolls over at the location midnight: yesterday drops out', () => {

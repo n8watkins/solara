@@ -12,7 +12,7 @@ test.describe('logic checks', () => {
     test.skip(testInfo.project.name !== 'desktop-light', 'logic check, run once')
   })
 
-  // Item 5: no bare "0.0 None now" and unexplained dashes after dark.
+  // Item 5: no bare "0.0 Low now" and unexplained dashes after dark.
   test('after dark the dashboard says the sun is down and when UV returns', async ({ page }) => {
     await openDashboard(page, { at: NIGHT_MS, tier: 'free', edit: atNight })
     const readout = page.getByTestId('uv-readout')

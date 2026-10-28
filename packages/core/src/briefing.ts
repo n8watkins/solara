@@ -16,6 +16,7 @@ import {
 import type { ExposureSetting } from './exposure'
 import { cloudEffect, planningUV, type CloudEffect } from './forecast-quality'
 import { formatUV, uvLabel } from './uv-scale'
+import type { Daylight } from './sun-times'
 
 /** One forecast hour of the briefed day (local hour, forecast UV). */
 export interface BriefingHour {
@@ -66,17 +67,19 @@ const NBSP = '\u00a0'
 const SUN_UP_UV = 0.5
 
 /**
- * The day a briefing covers: today while any UV is left from `nowHour` on, else
- * tomorrow (after sunset, or on a day with no UV left), so the evening and night
- * brief the next day. Falls back to today when there is no tomorrow.
+ * The day a briefing covers: today until today is over, then tomorrow, so the night
+ * briefs the next day. `todayOver` is whether the sun has set at the place
+ * (sun-times.ts), the same notion the dashboard's hero uses; without it, today is over
+ * once no UV is left from `nowHour` on. Falls back to today when there is no tomorrow.
  */
 export function briefingDay(
   today: BriefingDay,
   tomorrow: BriefingDay | null | undefined,
   nowHour: number,
+  todayOver?: boolean | null,
 ): { day: BriefingDay; which: 'today' | 'tomorrow' } {
-  const uvLeft = today.hourly.some(h => h.hour + 1 > nowHour && h.uv >= SUN_UP_UV)
-  if (uvLeft || !tomorrow?.hourly.length) return { day: today, which: 'today' }
+  const over = todayOver ?? !today.hourly.some(h => h.hour + 1 > nowHour && h.uv >= SUN_UP_UV)
+  if (!over || !tomorrow?.hourly.length) return { day: today, which: 'today' }
   return { day: tomorrow, which: 'tomorrow' }
 }
 
@@ -94,6 +97,11 @@ export interface BriefingInput {
   skinType: SkinType
   /** Formats a fractional local hour ("6:45am"); default 12-hour. */
   formatTime?: (hours: number) => string
+  /**
+   * The day's hours with the sun up (sun-times.ts daylightHours): windows and low-UV
+   * spans stay inside them, never in the dark. Omit when the place is unknown.
+   */
+  daylight?: Daylight | null
 }
 
 export interface BriefingWindow {
@@ -138,6 +146,7 @@ function activityWindow(
   activities: readonly BriefingActivity[],
   date: string,
   from: number,
+  daylight: Daylight | null,
 ): { activity: string; window: RecommendationWindow } | null {
   let best: { activity: string; window: RecommendationWindow } | null = null
   for (const activity of activities) {
@@ -150,6 +159,7 @@ function activityWindow(
       effectiveMaxUV(activity),
       duration,
       activity.preferredHours,
+      daylight,
     ).flatMap(w => {
       const start = Math.max(w.from, from)
       if (w.to <= start || (w.to - start) * 60 < duration) return []
@@ -169,10 +179,17 @@ function activityWindow(
  */
 const index = (uv: number) => Math.round(uv)
 
-/** Spans of at least an hour whose UV index stays below PROTECT_FROM_UV, from `from` on. */
-function lowSpans(hourly: readonly BriefingHour[], from: number): { from: number; to: number }[] {
+/**
+ * Spans of at least an hour whose UV index stays below PROTECT_FROM_UV, from `from` on,
+ * in daylight.
+ */
+function lowSpans(
+  hourly: readonly BriefingHour[],
+  from: number,
+  daylight: Daylight | null,
+): { from: number; to: number }[] {
   const indexed = hourly.map(h => ({ ...h, planningUV: index(h.uv) }))
-  return findWindows(indexed, PROTECT_FROM_UV - 1, 60)
+  return findWindows(indexed, PROTECT_FROM_UV - 1, 60, null, daylight)
     .map(w => ({ from: Math.max(w.from, from), to: w.to }))
     .filter(w => w.to - w.from >= 1)
     .slice(0, 2)
@@ -206,6 +223,7 @@ export function dailyBriefing({
   activities,
   skinType,
   formatTime = formatBriefingTime,
+  daylight = null,
 }: BriefingInput): DailyBriefing {
   const from = nowHour ?? -1
   const { hourly } = day
@@ -233,7 +251,7 @@ export function dailyBriefing({
   let window: BriefingWindow | null = null
   let windowLine: string
   if (running.length) {
-    const best = activityWindow(hourly, running, day.date, from)
+    const best = activityWindow(hourly, running, day.date, from, daylight)
     window = best
       ? { activity: best.activity, spans: [{ from: best.window.from, to: best.window.to }] }
       : null
@@ -244,7 +262,7 @@ export function dailyBriefing({
         `lowest-UV window: ${best.activity} ${range(best.window)}`
       : `no lower-UV window ${from >= 0 ? 'left ' : ''}for ${who}`
   } else {
-    const spans = lowSpans(hourly, from)
+    const spans = lowSpans(hourly, from, daylight)
     window = spans.length ? { activity: null, spans } : null
     const rest = from >= 0 ? 'the rest of the day' : 'all day'
     windowLine =

@@ -1,6 +1,7 @@
 // The recommendation engine shared by the web app, the calendar feed and the
 // notification worker. Keep it free of Firebase, browser and Node-only APIs so
 // every delivery surface runs exactly the same calculations.
+import type { Daylight } from './sun-times'
 
 export type SkinType = 'very-fair' | 'fair' | 'medium' | 'olive' | 'dark'
 
@@ -175,12 +176,17 @@ export function summarizeWindow(
  * A window ends no later than the day's last hourly sample: the forecast day
  * shown to the user ends there, so every surface (dashboard, calendar, feed and
  * notifications) offers the same span.
+ *
+ * With the day's `daylight` (sun-times.ts daylightHours), a window is also cut to the
+ * hours the sun is up, and dropped when what is left is too short: before sunrise and
+ * after sunset the UV is 0, which would otherwise make the dark the "lowest-UV" time.
  */
 export function findWindows(
   hourly: readonly RecommendationHour[],
   maxUV: number,
   durationMins = 0,
   preferredHours?: PreferredHours | null,
+  daylight?: Daylight | null,
 ): RecommendationWindow[] {
   const windows: RecommendationWindow[] = []
   const lastHour = hourly.at(-1)?.hour
@@ -209,7 +215,22 @@ export function findWindows(
     if (qualifies && start === null) start = current.hour
   }
 
-  return windows
+  return daylight ? withinDaylight(windows, hourly, durationMins, daylight) : windows
+}
+
+/** `windows` cut to `daylight`, keeping those still at least `durationMins` long. */
+export function withinDaylight(
+  windows: readonly RecommendationWindow[],
+  hourly: readonly RecommendationHour[],
+  durationMins: number,
+  daylight: Daylight,
+): RecommendationWindow[] {
+  return windows.flatMap(w => {
+    const from = Math.max(w.from, daylight.from)
+    const to = Math.min(w.to, daylight.to)
+    if (to <= from || (to - from) * 60 < durationMins) return []
+    return [from === w.from && to === w.to ? w : summarizeWindow(hourly, from, to)]
+  })
 }
 
 /** The lowest-average-UV window, ties broken toward the longer one, then the earlier one. */
@@ -227,6 +248,7 @@ export function bestWindow(
   maxUV: number,
   durationMins = 0,
   preferredHours?: PreferredHours | null,
+  daylight?: Daylight | null,
 ): RecommendationWindow | null {
-  return lowestUVWindow(findWindows(hourly, maxUV, durationMins, preferredHours))
+  return lowestUVWindow(findWindows(hourly, maxUV, durationMins, preferredHours, daylight))
 }

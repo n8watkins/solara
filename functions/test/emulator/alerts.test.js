@@ -195,7 +195,8 @@ describe('morning alerts', () => {
     const expected = {
       'pro-la': ['America/Los_Angeles', 7, 2, '🏃 Run: 7am to 10am'],
       'pro-tokyo': ['Asia/Tokyo', 7, 1, '🏃 Run: 7am to 10am'],
-      'pro-mumbai': ['Asia/Kolkata', 5, 1, '🏃 Run: 6am to 10am'],
+      // The sun rises in Mumbai at about 6:04am: no window before it, though UV is low.
+      'pro-mumbai': ['Asia/Kolkata', 5, 1, '🏃 Run: 6:05am to 10am'],
       // By 10am the UV is above the run's limit until 5pm.
       'pro-london': ['Europe/London', 10, 1, '🏃 Run: 5pm to 8pm'],
       'pro-grace': ['America/Los_Angeles', 7, 1, '🏃 Run: 7am to 10am'],

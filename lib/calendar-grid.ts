@@ -214,6 +214,7 @@ export function planCalendarDays(
       windows: activityRunsOnDate(act, day.dateStr)
         ? planActivityDay(day.hourly, act, skinType, {
             nowHour: day.isToday ? todayNowHour : -1,
+            daylight: day.daylight,
           }).windows
         : [],
     })),
@@ -260,6 +261,7 @@ export function scheduledDetail(
     activity && day
       ? planActivityDay(day.hourly, activity, skinType, {
           nowHour: day.isToday ? todayNowHour : -1,
+          daylight: day.daylight,
         }).windows
       : []
   return { item, activity, dateStr, windows }

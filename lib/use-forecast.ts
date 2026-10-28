@@ -104,7 +104,7 @@ export function useWeather(location: Location | null | undefined): WeatherState 
   const forecast = useForecast(location)
   const data = forecast.data
   const now = useZonedNow(resolveTimeZone(data?.timezone, location?.timezone))
-  const weather = data ? forecastView(data, now) : null
+  const weather = data ? forecastView(data, now, location) : null
   const fetchedDate = data ? zonedNow(data.timezone, data.fetchedAt).date : null
   const refetch = forecast.refetch
   useEffect(() => {

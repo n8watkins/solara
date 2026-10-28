@@ -16,7 +16,8 @@ const weather = {
   now: { date: '2026-06-15', hour: 10, minute: 30 },
   today: hours(),
   tomorrow: hours(0.9),
-} as unknown as Pick<WeatherResponse, 'now' | 'today' | 'tomorrow'>
+  forecast: [],
+} as unknown as Pick<WeatherResponse, 'now' | 'today' | 'tomorrow' | 'forecast'>
 
 const run = { id: 'run', name: 'Running', icon: '🏃', durationMins: 45, maxUV: 4 } as Activity
 
@@ -25,6 +26,7 @@ function view(overrides: Partial<BriefingViewInput> = {}) {
     weather,
     selectedDay: null,
     nowHour: 10.5,
+    todayOver: false,
     activities: [run],
     skinType: 'fair',
     laterDaysVisible: true,
@@ -47,7 +49,7 @@ describe('briefingView', () => {
   })
 
   it('briefs tomorrow after dark', () => {
-    const v = view({ nowHour: 21.5 })
+    const v = view({ nowHour: 21.5, todayOver: true })
     expect(v.heading).toBe('Tomorrow at a glance')
     expect(v.briefing.date).toBe('2026-06-16')
     expect(v.briefing.lines.peak).toBe('UV peaks at 9.3 (Very high) around 1pm')
@@ -55,7 +57,7 @@ describe('briefingView', () => {
   })
 
   it('offers sign-in instead of tomorrow on the guest plan', () => {
-    expect(view({ nowHour: 21.5, laterDaysVisible: false }).locked).toBe(true)
+    expect(view({ nowHour: 21.5, todayOver: true, laterDaysVisible: false }).locked).toBe(true)
     // By day a guest sees today in full.
     expect(view({ laterDaysVisible: false }).locked).toBe(false)
   })
@@ -67,6 +69,28 @@ describe('briefingView', () => {
     expect(v.heading).toBe('Wed, Jun 17 at a glance')
     expect(v.briefing.peak?.passed).toBe(false)
     expect(v.briefing.lines.window).toBe('Lowest-UV window: Running 6am–12pm')
+  })
+
+  it('keeps briefing today until sunset, though no UV is left (the hero agrees)', () => {
+    // 8:10pm: UV is 0 from 8pm, but the sun is still up; today is not over yet.
+    const v = view({ nowHour: 20.17, todayOver: false })
+    expect(v.heading).toBe('Today at a glance')
+    expect(v.briefing.lines.window).toBe('No lower-UV window left for Running')
+    expect(view({ nowHour: 20.17, todayOver: true }).heading).toBe('Tomorrow at a glance')
+  })
+
+  it("keeps windows inside the day's daylight", () => {
+    // Sunrise 7:09am and sunset 6:04pm: the 6am start and the 6pm-8pm evening are dark.
+    const daylight = { from: 7 + 10 / 60, to: 18 }
+    const later = view({
+      selectedDay: { dateStr: '2026-06-17', label: 'Wed, Jun 17', hourly: hours(0.5), daylight },
+    })
+    expect(later.briefing.lines.window).toBe('Lowest-UV window: Running 7:10am–12pm')
+    const today = view({
+      nowHour: 6.5,
+      weather: { ...weather, forecast: [{ dateStr: '2026-06-15', daylight }] },
+    } as unknown as Partial<BriefingViewInput>)
+    expect(today.briefing.lines.window).toBe('Lowest-UV window: Running 7:10am–10am')
   })
 
   it('leaves the place out of the share text when it is unknown', () => {

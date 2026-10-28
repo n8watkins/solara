@@ -4,6 +4,7 @@ import {
   lowestUVWindow,
   uvBand,
   windowEventTitle,
+  type Daylight,
   type UVBand,
 } from '@solara/core'
 import type { HourlyForecast, Activity, ActivityWindow, SkinType } from './types'
@@ -97,6 +98,8 @@ export function getActivityWindow(
   activity: Activity,
   currentHour: number,
   skinType: SkinType = 'fair',
+  /** The day's hours with the sun up (DayWeather.daylight): no window in the dark. */
+  daylight: Daylight | null = null,
 ): ActivityWindow {
   const maxUV = effectiveMaxUV(activity)
   // Planning judges each hour by the UV the activity's skin is expected to get: the
@@ -113,6 +116,7 @@ export function getActivityWindow(
     maxUV,
     activity.durationMins,
     activity.preferredHours,
+    daylight,
   )
   const best = lowestUVWindow(allWindows)
 
@@ -121,10 +125,15 @@ export function getActivityWindow(
   const safeNow = current
     ? exposureUV(current) <= maxUV && withinPreferredHours(current.hour, activity)
     : false
-  const qualifyingHours = hourly.filter(
+  // "% of daylight hours fit": an hour counts as daylight when the sun is up at its
+  // middle, so the dark hours at either end of the forecast day count for nothing.
+  const daylit = daylight
+    ? hourly.filter(h => h.hour + 0.5 >= daylight.from && h.hour + 0.5 < daylight.to)
+    : hourly
+  const qualifyingHours = daylit.filter(
     hour => exposureUV(hour) <= maxUV && withinPreferredHours(hour.hour, activity),
   ).length
-  const pctDaySafe = hourly.length ? Math.round((qualifyingHours / hourly.length) * 100) : 0
+  const pctDaySafe = daylit.length ? Math.round((qualifyingHours / daylit.length) * 100) : 0
   const burn = burnMins(maxUV, skinType)
 
   return { activity, bestWindow, allWindows, safeNow, pctDaySafe, burnMins: burn }

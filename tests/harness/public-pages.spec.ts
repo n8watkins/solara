@@ -156,7 +156,7 @@ const SCREENS: Screen[] = [
     },
   },
   {
-    // After dark (10:30pm in Pasadena) the preview says so instead of a giant "0.0 None".
+    // After dark (10:30pm in Pasadena) the preview says so instead of a giant "0.0 Low".
     name: 'onboarding-uv-night',
     path: '/app/',
     fullPage: false,
@@ -164,7 +164,7 @@ const SCREENS: Screen[] = [
     at: HARNESS_NOW_MS + 12 * HOUR,
     reach: async page => {
       await searchCity(page)
-      await expect(page.getByText('None', { exact: true })).toHaveCount(0)
+      await expect(page.getByText('Low', { exact: true })).toHaveCount(0)
       return page.getByText('Sun is down')
     },
   },
@@ -179,7 +179,8 @@ const SCREENS: Screen[] = [
     reach: async page => {
       await searchCity(page)
       await expect(page.getByText('Sun is down')).toHaveCount(0)
-      await expect(page.getByText('None', { exact: true })).toBeVisible()
+      // The WHO's name for an index of 0-2, never "None".
+      await expect(page.getByText('Low', { exact: true })).toBeVisible()
       return page.getByText('0.2', { exact: true })
     },
   },

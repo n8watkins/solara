@@ -5,7 +5,11 @@
 // up for an hour or more while the app said "Before sunrise" (REVIEW6 L7). The sun's
 // times come from NOAA's solar calculator equations (accurate to about a minute
 // between the polar circles), for the place's local date in its own time zone.
-import { zonedNow } from './time'
+//
+// Daylight also bounds every recommended slot (`daylightHours`, used by `findWindows`):
+// UV is 0 before sunrise and after sunset, which would otherwise read as the safest
+// time of all.
+import { isIanaTimeZone, wallClockAt, zonedDate } from './zoned-time'
 
 /** Today's sun at a place: when it rises and sets (epoch ms), or that it does neither. */
 export type SunTimes =
@@ -68,7 +72,7 @@ function sunAround(lat: number, lon: number, approxNoonMs: number): SunTimes & {
 /**
  * The sun on `dateStr` (YYYY-MM-DD, the place's local date) at `lat`, `lon` in
  * `timeZone`: the solar noon whose local date is `dateStr`, and the sunrise and sunset
- * around it. Null for coordinates or a date it cannot use.
+ * around it. Null for coordinates, a date or a time zone it cannot use.
  */
 export function sunTimes(
   lat: number,
@@ -77,6 +81,7 @@ export function sunTimes(
   timeZone: string,
 ): SunTimes | null {
   if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90) return null
+  if (!isIanaTimeZone(timeZone)) return null
   const midnight = Date.parse(`${dateStr}T00:00:00Z`)
   if (!Number.isFinite(midnight)) return null
   // Local noon is near 12:00 at the place's longitude; a zone far from its meridian (or
@@ -84,7 +89,7 @@ export function sunTimes(
   for (const offset of [0, -1, 1]) {
     const approxNoon = midnight + offset * DAY_MS + (720 - 4 * lon) * MINUTE_MS
     const { noon, ...sun } = sunAround(lat, lon, approxNoon)
-    if (zonedNow(timeZone, noon).date === dateStr) return sun
+    if (zonedDate(noon, timeZone) === dateStr) return sun
   }
   return null
 }
@@ -102,10 +107,52 @@ export function sunPhaseAt(
   timeZone: string,
   epochMs: number,
 ): SunPhase | null {
-  const sun = sunTimes(place.lat, place.lon, zonedNow(timeZone, epochMs).date, timeZone)
+  const sun = sunTimes(place.lat, place.lon, zonedDate(epochMs, timeZone), timeZone)
   if (!sun) return null
   if (sun.kind === 'polar-day') return 'up'
   if (sun.kind === 'polar-night') return 'after-sunset'
   if (epochMs < sun.sunrise) return 'before-sunrise'
   return epochMs < sun.sunset ? 'up' : 'after-sunset'
+}
+
+/** The daylight part of a local day, in fractional local hours: [from, to). */
+export interface Daylight {
+  from: number
+  to: number
+}
+
+/** Slots start and end on 5-minute steps (lib/next-slot.ts nowHourOf): 12 an hour. */
+const STEPS = 12
+
+/** A local fractional hour on `dateStr` for an instant (24 for the next midnight). */
+function localHourOn(epochMs: number, dateStr: string, timeZone: string): number {
+  const date = zonedDate(epochMs, timeZone)
+  if (date < dateStr) return 0
+  if (date > dateStr) return 24
+  const wall = wallClockAt(epochMs, timeZone)
+  return wall.hour + wall.minute / 60 + wall.second / 3600
+}
+
+/**
+ * The hours of `dateStr` with the sun up at a place, on the 5-minute steps a slot starts
+ * and ends on: from the first step at or after sunrise to the last at or before sunset
+ * (sunrise 7:09am and sunset 6:04pm give 7:10 to 18:00). The midnight sun gives the whole
+ * day and the polar night none (from = to). Null when the sun cannot be worked out, and
+ * then nothing is bounded.
+ *
+ * Solara plans outdoor time in daylight only: no activity is offered a slot in the dark,
+ * where a UV of 0 would otherwise make it the "lowest-UV" time of the day.
+ */
+export function daylightHours(
+  place: { lat: number; lon: number },
+  dateStr: string,
+  timeZone: string,
+): Daylight | null {
+  const sun = sunTimes(place.lat, place.lon, dateStr, timeZone)
+  if (!sun) return null
+  if (sun.kind === 'polar-day') return { from: 0, to: 24 }
+  if (sun.kind === 'polar-night') return { from: 0, to: 0 }
+  const from = Math.ceil(localHourOn(sun.sunrise, dateStr, timeZone) * STEPS) / STEPS
+  const to = Math.floor(localHourOn(sun.sunset, dateStr, timeZone) * STEPS) / STEPS
+  return { from, to: Math.max(from, to) }
 }

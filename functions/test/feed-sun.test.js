@@ -71,6 +71,28 @@ describe('calendar feed windows', () => {
     )
   })
 
+  test('keep windows in daylight at the place, as the app does', () => {
+    // Los Angeles in late October: sunrise 7:09am, sunset 6:04pm.
+    const hours = [6, 7, 8, 9, 16, 17, 18, 19]
+    const days = parseSunForecast(
+      {
+        timezone: 'America/Los_Angeles',
+        hourly: {
+          time: hours.map(h => `2026-10-28T${String(h).padStart(2, '0')}:00`),
+          uv_index: hours.map(h => (h < 8 || h > 17 ? 0 : 2)),
+        },
+      },
+      1,
+      { lat: 34.05, lon: -118.24 },
+    )
+    assert.deepEqual(days[0].daylight, { from: 7 + 10 / 60, to: 18 })
+    const events = buildSunEvents({ activities: [walk] }, days)
+    assert.equal(events.length, 1)
+    // The dark 6am hour (UV 0) is not offered; the walk starts at the first step after sunrise.
+    assert.equal(events[0].start, 7 + 10 / 60)
+    assert.match(events[0].description, /window 7:10–10:00 /)
+  })
+
   test('read the clear-sky UV from the forecast', () => {
     const days = parseSunForecast(
       {

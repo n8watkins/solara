@@ -1,11 +1,16 @@
 // The WHO UV index scale, shared by every surface that names a UV level.
 
-/** The bands of the UV index scale, lowest first. */
+/**
+ * The bands of the UV index scale, lowest first. 'none' (an index of 0: night, or the
+ * low sun just after sunrise and before sunset) is the app's own shade of the WHO's Low
+ * band, drawn gray; it is named "Low" like the rest of the band, since the WHO scale has
+ * no "None" (Low is 0-2, as the app's UV scale legend says).
+ */
 export const UV_BANDS = ['none', 'low', 'moderate', 'high', 'very-high', 'extreme'] as const
 export type UVBand = (typeof UV_BANDS)[number]
 
 const UV_BAND_LABELS: Record<UVBand, string> = {
-  none: 'None',
+  none: 'Low',
   low: 'Low',
   moderate: 'Moderate',
   high: 'High',
@@ -29,7 +34,7 @@ export function uvBand(uv: number): UVBand {
   return 'extreme'
 }
 
-/** The band's name: "Low", "Very high". */
+/** The WHO category's name: "Low" (an index of 0-2), "Moderate", "High", "Very high", "Extreme". */
 export function uvLabel(uv: number): string {
   return UV_BAND_LABELS[uvBand(uv)]
 }

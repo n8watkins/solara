@@ -12,7 +12,7 @@ import type {
 import type { BusyPeriod } from './gcal-view'
 import type { BusyInterval } from './scheduler'
 import type { UpcomingSlot } from './planner'
-import type { SunPhase } from './sun-times'
+import type { SunPhase } from '@solara/core'
 import { busyIntervalsForDay } from './gcal-view'
 import { getFutureDays } from './tiers'
 import { burnMins, uvBand, vitDMins, type UVBand } from './weather'
@@ -252,7 +252,7 @@ export interface SunDown {
 /**
  * Today's sun-down state: the live UV reads none and the sun is below the horizon,
  * before today's sunrise or after today's sunset at the place (`sun`, from
- * lib/sun-times.ts). Null while the sun is up, even when its UV is still under 0.5 (a
+ * @solara/core sun-times.ts). Null while the sun is up, even when its UV is still under 0.5 (a
  * low morning or evening sun, or heavy cloud; REVIEW6 L7). Without the sun's times (no
  * place) it falls back to the forecast: before the day's first UV, or after its last.
  */
@@ -272,4 +272,20 @@ export function sunDown(
   if (first && nowHour < first.hour) return { phase: 'before-sunrise', uvReturns }
   if (!last || nowHour >= last.hour + 1) return { phase: 'after-sunset', uvReturns }
   return null
+}
+
+/**
+ * Whether today is over at the place: the sun has set (`sun`, from @solara/core
+ * sunPhaseAt). The briefing then turns to tomorrow and the hero steps aside, both on
+ * this one notion (they used to disagree in the evening: the briefing went by the UV
+ * and the hero by the windows). Without the sun's times (no place) it falls back to
+ * the forecast: no UV of 0.5 or more is left from `nowHour` on.
+ */
+export function todayOver(
+  weather: Pick<WeatherResponse, 'today'>,
+  nowHour: number,
+  sun: SunPhase | null,
+): boolean {
+  if (sun) return sun === 'after-sunset'
+  return !weather.today.some(h => h.hour + 1 > nowHour && h.uv >= 0.5)
 }
