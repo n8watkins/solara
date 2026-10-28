@@ -324,6 +324,33 @@ export const PREFERENCES_SHAPE = {
   ),
   /** Kept only while it names one of `profiles`. */
   activeProfileId: v.fallback(v.optional(v.string()), undefined),
+  /**
+   * Planning for a group (Pro): when true, plans and burn estimates use the most
+   * sensitive of the profiles in `groupProfileIds` (lib/profiles.ts planningFor).
+   * Optional and added without a version bump, like the display units.
+   */
+  groupMode: v.fallback(v.optional(v.boolean()), undefined),
+  /** The profiles in the group; undefined means all of them. Unique, capped like `profiles`. */
+  groupProfileIds: v.fallback(
+    v.optional(
+      v.pipe(
+        v.array(v.unknown()),
+        v.transform(raw =>
+          Array.from(
+            new Set(
+              raw.filter(
+                (id): id is string =>
+                  typeof id === 'string' &&
+                  isNonBlank(id) &&
+                  id.length <= PREFS_LIMITS.activeProfileIdLength,
+              ),
+            ),
+          ).slice(0, PREFS_LIMITS.profiles),
+        ),
+      ),
+    ),
+    undefined,
+  ),
   /** Legacy global sunscreen flag; activities carry their own since version 2. */
   sunscreen: v.fallback(v.boolean(), false),
   activities: v.pipe(

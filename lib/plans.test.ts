@@ -1,6 +1,6 @@
 import { PRO_TRIAL_DAYS } from '@solara/core'
 import { describe, expect, it } from 'vitest'
-import { PRO_FEATURES, PRO_PLAN } from './plans'
+import { FAMILY_PROFILES_LABEL, PRO_FEATURES, PRO_PLAN } from './plans'
 
 describe('PRO_PLAN', () => {
   it('prices Pro monthly or yearly with a 7-day free trial', () => {
@@ -38,10 +38,12 @@ describe('PRO_FEATURES', () => {
 
   it('keeps calendar sync on Free for now, and family profiles and alerts for Pro', () => {
     expect(row('Calendar sync')).toMatchObject({ guest: false, free: true, pro: true })
-    for (const label of ['Family profiles', 'Morning alerts']) {
+    for (const label of [FAMILY_PROFILES_LABEL, 'Morning alerts']) {
       expect(row(label)).toMatchObject({ guest: false, free: false })
       expect(row(label)?.pro).toBeTruthy()
     }
+    // Family profiles come with planning by the most sensitive person, and say so.
+    expect(FAMILY_PROFILES_LABEL).toMatch(/most sensitive/)
     // Alerts relaunch with Pro (D6), so they are listed as coming soon.
     expect(row('Morning alerts')?.pro).toBe('Coming soon')
   })

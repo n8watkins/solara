@@ -113,13 +113,12 @@ export default function Header({
 
           <div className={styles.right}>
             {tier !== 'anonymous' && (
-              <span className="hide-mobile">
-                <ProfileSwitcher
-                  prefs={prefs}
-                  tier={tier}
-                  onApply={patch => onPrefsUpdate({ ...prefs, ...patch })}
-                />
-              </span>
+              <ProfileSwitcher
+                prefs={prefs}
+                tier={tier}
+                user={user}
+                onApply={patch => onPrefsUpdate({ ...prefs, ...patch })}
+              />
             )}
             {uv && (
               <span className={styles.uv} title={`Current UV index ${uv.value}, ${uv.level}`}>

@@ -186,6 +186,11 @@ describe('firestore.rules match the preferences schema', () => {
     expect(numberIn(interest, /email\.size\(\) <= (\d+)/)).toBe(PREFS_LIMITS.emailLength)
   })
 
+  it('caps the group selection like the profiles list', () => {
+    const body = rulesFunction('validPreferences')
+    expect(numberIn(body, /data\.groupProfileIds\.size\(\) <= (\d+)/)).toBe(PREFS_LIMITS.profiles)
+  })
+
   it('holds each list to the Free and Pro plan limits', () => {
     expect(planCaps(preferences, 'activities')).toEqual({
       free: TIER_LIMITS.free.activities,

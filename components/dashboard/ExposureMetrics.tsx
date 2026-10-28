@@ -37,6 +37,7 @@ export default function ExposureMetrics({
   vitD,
   isToday,
   skinType,
+  mostSensitive,
   burnFrom,
   vitDFrom,
 }: {
@@ -44,21 +45,28 @@ export default function ExposureMetrics({
   vitD: number | null
   isToday: boolean
   skinType: SkinType
+  /** In group mode, the name of the person whose skin type is used. */
+  mostSensitive?: string
   /** With no burn estimate now: when UV is next high enough for one ("9am tomorrow"). */
   burnFrom: string | null
   /** With no vitamin D estimate now: when UV is next high enough for one. */
   vitDFrom: string | null
 }) {
+  // In group mode the estimate is the most sensitive person's.
+  const whose = mostSensitive
+    ? `${mostSensitive}'s ${skinType} skin, the most sensitive in your group,`
+    : `${skinType} skin`
+  const who = mostSensitive ? `${mostSensitive} (most sensitive)` : `${skinType} skin`
   return (
     <div className="grid grid-cols-[repeat(auto-fit,minmax(130px,1fr))] gap-2.5">
       <Metric
         testId="burn-metric"
         label="Estimated burn time"
-        help={`A rough estimate for ${skinType} skin without sunscreen at this UV level. Do not use it as a timer for unprotected exposure.`}
+        help={`A rough estimate for ${whose} without sunscreen at this UV level. Do not use it as a timer for unprotected exposure.`}
         value={burn ? `${burn}m` : 'None'}
         detail={
           burn || !burnFrom
-            ? `${isToday ? 'Now' : 'At peak'} · ${skinType} skin, no SPF`
+            ? `${isToday ? 'Now' : 'At peak'} · ${who}, no SPF`
             : `No burn risk until ${burnFrom}`
         }
       />

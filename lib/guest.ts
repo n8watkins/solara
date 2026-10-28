@@ -49,6 +49,8 @@ export function asGuestPrefs(prefs: UserPreferences): UserPreferences {
     savedLocations: [],
     profiles: undefined,
     activeProfileId: undefined,
+    groupMode: undefined,
+    groupProfileIds: undefined,
     upgradeInterest: undefined,
   }
 }

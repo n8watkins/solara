@@ -40,6 +40,19 @@ export const FITZPATRICK_TYPES: Readonly<Record<SkinType, FitzpatrickType>> = Ob
   dark: 'V-VI',
 })
 
+/**
+ * The skin type that burns fastest among `skinTypes` (the shortest time to a burn in
+ * SKIN_BURN_BASE), or null for none. Planning for a group uses it, so a plan that suits
+ * the most sensitive person suits everyone in it.
+ */
+export function mostSensitiveSkinType(skinTypes: Iterable<SkinType>): SkinType | null {
+  let most: SkinType | null = null
+  for (const skin of skinTypes) {
+    if (most === null || SKIN_BURN_BASE[skin] < SKIN_BURN_BASE[most]) most = skin
+  }
+  return most
+}
+
 export function isSkinType(value: unknown): value is SkinType {
   return typeof value === 'string' && (SKIN_TYPES as readonly string[]).includes(value)
 }

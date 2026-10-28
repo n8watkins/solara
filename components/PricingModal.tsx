@@ -228,7 +228,7 @@ export default function PricingModal({
   return (
     <ActivityModalShell
       title="Solara Pro"
-      description="10 days of planning, up to 20 activities, calendar sync, family profiles and morning alerts."
+      description="10 days of planning, up to 20 activities, calendar sync, family profiles that plan for the most sensitive person, and morning alerts."
       onClose={onClose}
       footer={footer}
     >
