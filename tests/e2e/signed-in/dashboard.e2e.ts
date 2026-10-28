@@ -10,9 +10,11 @@ test('a returning account sees its saved plan on the forecast', async ({ page, e
   const header = page.getByRole('banner')
   await expect(header.getByRole('button', { name: /Los Angeles/ })).toBeVisible()
   await expect(header.getByText('Current UV index 7.0, High')).toBeVisible()
-  await expect(
-    uvStrip(page).getByRole('button', { name: 'UV 6.0 , High, at 10am , current hour' }),
-  ).toBeVisible()
+  // The current hour's chip (10am) shows the live reading as "Now", like the readout
+  // (REVIEW7 L7.3); the next hour shows its forecast.
+  const now = uvStrip(page).getByRole('button', { name: /^UV 7\.0\s*, High,\s*Now$/ })
+  await expect(now).toBeVisible()
+  await expect(now).toHaveAttribute('data-hour', '10')
   await expect(page.getByText('UV peaks at 10.3, Very high, at 1pm.')).toBeVisible()
 
   // Each saved activity gets today's remaining lower-UV window.
@@ -23,5 +25,5 @@ test('a returning account sees its saved plan on the forecast', async ({ page, e
 
   // Tomorrow switches the whole dashboard to the next forecast day.
   await page.getByRole('button', { name: 'Tomorrow', exact: true }).click()
-  await expect(uvStrip(page).getByRole('button', { name: /current hour/ })).toHaveCount(0)
+  await expect(uvStrip(page).getByRole('button', { name: /current hour|Now$/ })).toHaveCount(0)
 })
