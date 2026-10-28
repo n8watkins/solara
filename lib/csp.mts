@@ -76,6 +76,11 @@ const CONNECT_SOURCES = [
   'https://www.googleapis.com', // Google Calendar REST API
   'https://accounts.google.com/gsi/', // Google Identity Services
   'https://oauth2.googleapis.com', // Revoking Calendar access (GIS oauth2.revoke)
+  // Events from Outlook (lib/microsoft-auth.ts, lib/outlook-events.ts): redeeming the
+  // sign-in code (the sign-in itself is a popup, a top-level page this policy does not
+  // govern), and reading calendars from Microsoft Graph. No script, frame or image source.
+  'https://login.microsoftonline.com',
+  'https://graph.microsoft.com',
   // App Check reCAPTCHA: api.js posts client reports to /recaptcha/api2/clr from the
   // page itself (seen in tests/e2e/integrations against the real script).
   'https://www.google.com/recaptcha/',

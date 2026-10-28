@@ -10,11 +10,13 @@ import cities from './cities/cities.json' with { type: 'json' }
 
 /**
  * Pages served without the framework, relative to the export directory: the landing
- * page and the city pages (app/uv/).
+ * page, the city pages (app/uv/), and the Microsoft sign-in redirect page
+ * (app/auth/microsoft/), whose address carries a one-time code no other script may see.
  */
 export const STATIC_PAGES = [
   'index.html',
   'uv/index.html',
+  'auth/microsoft/index.html',
   ...cities.map(city => `uv/${city.slug}/index.html`),
 ]
 

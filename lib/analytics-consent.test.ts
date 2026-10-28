@@ -55,6 +55,7 @@ describe('analytics consent', () => {
     expect(asksForAnalyticsConsent('/')).toBe(false)
     expect(asksForAnalyticsConsent('/uv/')).toBe(false)
     expect(asksForAnalyticsConsent('/uv/los-angeles/')).toBe(false)
+    expect(asksForAnalyticsConsent('/auth/microsoft/')).toBe(false)
     expect(asksForAnalyticsConsent('/privacy/')).toBe(false)
     expect(asksForAnalyticsConsent('/privacy')).toBe(false)
     expect(asksForAnalyticsConsent(null)).toBe(false)

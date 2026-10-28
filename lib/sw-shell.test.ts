@@ -99,6 +99,11 @@ describe('routeRequest', () => {
       expect(routeRequest(get(path, 'navigate'), ORIGIN, precached), path).toBeNull()
   })
 
+  it('leaves the Microsoft sign-in redirect to the network, never the app shell (Outlook)', () => {
+    for (const path of ['/auth/microsoft/?code=M.C5&state=s', '/auth/microsoft/'])
+      expect(routeRequest(get(path, 'navigate'), ORIGIN, precached), path).toBeNull()
+  })
+
   it('answers hashed files and precached files', () => {
     expect(routeRequest(get('/_next/static/chunks/x.js'), ORIGIN, precached)).toEqual({
       kind: 'static',
