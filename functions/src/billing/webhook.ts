@@ -1,6 +1,7 @@
 // Stripe webhook processing: verified checkout and subscription events update the account's
 // tier exactly once per event, and subscriptions that cannot be applied are canceled.
 
+import type { Auth } from 'firebase-admin/auth'
 import type {
   DocumentData,
   DocumentReference,
@@ -8,8 +9,10 @@ import type {
   Firestore,
   QueryDocumentSnapshot,
 } from 'firebase-admin/firestore'
+import { logger } from 'firebase-functions/logger'
 import type Stripe from 'stripe'
 
+import { errorCode } from '../shared/errors'
 import type { ServerTimestamp } from '../shared/time'
 import { RETENTION_DAYS, expiresAfter } from '../shared/ttl'
 import {
@@ -20,6 +23,7 @@ import {
 } from './ids'
 import { pastDueSince, withinGrace } from './grace'
 import { cancelAndRefund, endSubscriptionForReversedPayment } from './refunds'
+import { type TrialHistory, type TrialKey, identityFromUser } from './trial-history'
 import {
   type BillingResource,
   customerBelongsToUser,
@@ -43,6 +47,7 @@ type SubscriptionLike = Pick<Stripe.Subscription, 'id' | 'customer' | 'status' |
   trial_start?: number | null
   trial_end?: number | null
   cancel_at_period_end?: boolean | null
+  default_payment_method?: unknown
 }
 
 /** Whether the subscription is for one of the Pro prices. */
@@ -385,23 +390,80 @@ async function completePendingCancellation({
   )
 }
 
+/**
+ * Keeps the free trial once per person (trial-history.ts): records the trial under the
+ * account's sign-in identities, verified email and card, and ends it at once (billing
+ * starts now) when any of them already had a trial. Returns whether it ended the trial.
+ * Throwing makes Stripe retry the event; the record and the update are idempotent.
+ */
+export async function enforceTrialOnce({
+  auth,
+  stripe,
+  subscription,
+  trialHistory,
+  uid,
+}: {
+  auth: Pick<Auth, 'getUser'>
+  stripe: Stripe
+  subscription: SubscriptionLike
+  trialHistory: TrialHistory | null
+  uid: string
+}): Promise<boolean> {
+  if (!trialHistory || subscription.status !== 'trialing' || !subscription.trial_start) {
+    return false
+  }
+  const keys: TrialKey[] = []
+  try {
+    keys.push(...trialHistory.identityKeys(identityFromUser(await auth.getUser(uid))))
+  } catch (error) {
+    // A deleted sign-in has nothing left to key on; anything else is retried.
+    if (errorCode(error) !== 'auth/user-not-found') throw error
+  }
+  const paymentMethodId = stringId(subscription.default_payment_method)
+  if (paymentMethodId) {
+    const paymentMethod = await stripe.paymentMethods.retrieve(paymentMethodId)
+    const fingerprint = paymentMethod.card?.fingerprint
+    if (fingerprint) keys.push(trialHistory.cardKey(fingerprint))
+  }
+  const { reused } = await trialHistory.record(keys, subscription.id)
+  if (!reused) return false
+  await stripe.subscriptions.update(
+    subscription.id,
+    { trial_end: 'now', proration_behavior: 'none' },
+    { idempotencyKey: `trial-reuse:${subscription.id}` },
+  )
+  logger.info('a free trial already used by this person or card was ended', {
+    subscriptionId: subscription.id,
+  })
+  return true
+}
+
 export type StripeEventResult =
-  CommitResult | (CommitResult & { endedSubscriptionId: string | null }) | { ignored: true }
+  | CommitResult
+  | (CommitResult & { trialEnded: boolean })
+  | (CommitResult & { endedSubscriptionId: string | null })
+  | { ignored: true }
 
 /** Applies one signature-verified Stripe event. Throwing makes Stripe retry it. */
 export async function processStripeEvent({
+  auth,
   db,
   event,
   prices,
   serverTimestamp,
   stripe,
+  trialHistory,
 }: {
+  /** Reads the account's sign-in identities for the trial history. */
+  auth: Pick<Auth, 'getUser'>
   db: Firestore
   event: Stripe.Event
   /** The Pro price of each plan; a subscription to either is Pro. */
   prices: { monthly: string; yearly: string }
   serverTimestamp: ServerTimestamp
   stripe: Stripe
+  /** The once-per-person trial record; null only in tests that do not cover it. */
+  trialHistory: TrialHistory | null
 }): Promise<StripeEventResult> {
   const priceIds = [prices.monthly, prices.yearly].filter(Boolean)
   if (
@@ -463,7 +525,11 @@ export async function processStripeEvent({
       ],
     )
     await completePendingCancellation({ db, event, result, serverTimestamp, stripe })
-    return result
+    const trialEnded =
+      !result.accountDeleted &&
+      !result.rejected &&
+      (await enforceTrialOnce({ auth, stripe, subscription, trialHistory, uid }))
+    return { ...result, trialEnded }
   }
 
   if (
@@ -544,7 +610,17 @@ export async function processStripeEvent({
       ],
     )
     await completePendingCancellation({ db, event, result, serverTimestamp, stripe })
-    return result
+    const trialEnded =
+      !result.accountDeleted &&
+      !result.rejected &&
+      (await enforceTrialOnce({
+        auth,
+        stripe,
+        subscription: currentSubscription,
+        trialHistory,
+        uid: userRef.id,
+      }))
+    return { ...result, trialEnded }
   }
 
   if (event.type === 'charge.refunded' || event.type === 'charge.dispute.created') {

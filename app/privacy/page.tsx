@@ -63,6 +63,12 @@ export default function PrivacyPage() {
             customer and subscription identifiers. Card details go to Stripe and never reach Solara.
           </li>
           <li>
+            <strong>A free-trial record</strong>, if you start the free trial: one-way keyed hashes
+            of your sign-in account&apos;s identifier at Google, your verified email address and
+            your card&apos;s fingerprint at Stripe, so the trial is given once per person. The
+            hashes cannot be turned back into those details.
+          </li>
+          <li>
             <strong>Optional analytics</strong>, only if you allow it: pages visited (without query
             strings), approximate device and browser details, and feature usage.
           </li>
@@ -144,7 +150,7 @@ export default function PrivacyPage() {
           <li>
             <strong>Legitimate interests</strong>: keeping Solara secure, preventing abuse and
             fixing problems, including the error reports above, which is why they do not depend on
-            the analytics choice.
+            the analytics choice, and the free-trial record, which prevents repeated free trials.
           </li>
           <li>
             <strong>Legal obligations</strong>: keeping payment records for tax and accounting.
@@ -218,6 +224,10 @@ export default function PrivacyPage() {
             days, and it is included in your data download.
           </li>
           <li>
+            The free-trial record: 2 years after the trial, including after you delete your account,
+            to prevent repeated free trials.
+          </li>
+          <li>
             Payment records: as long as tax and accounting law requires, even after account
             deletion. Stripe keeps its own records under its privacy policy.
           </li>
@@ -263,7 +273,8 @@ export default function PrivacyPage() {
           Deleting your account removes your Solara preferences, scheduled activities, calendar feed
           and notification registrations, cancels an active Solara subscription and deletes your
           customer record at Stripe (Stripe keeps the payment records the law requires it to keep).
-          Events already in your Google Calendar stay there until you delete them.
+          If you had the free trial, its hashed record is kept for 2 years to prevent repeated free
+          trials. Events already in your Google Calendar stay there until you delete them.
         </p>
         <p>You also have the right to complain to your local data protection authority.</p>
 

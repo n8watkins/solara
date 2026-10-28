@@ -15,6 +15,7 @@ import { toMillis } from '../shared/time'
 import { RETENTION_DAYS, expiresAfter } from '../shared/ttl'
 import type { BillingPrices } from './config'
 import { cancelAndRefund } from './refunds'
+import { type TrialHistory, identityFromToken } from './trial-history'
 import {
   TERMINAL_SUBSCRIPTION_STATUSES,
   listCustomerSubscriptions,
@@ -189,7 +190,10 @@ type Reservation =
   | { reuseSessionId: string; userData?: undefined }
   | { reuseSessionId?: undefined; userData: DocumentData }
 
-/** Whether an account may still get the free trial: never once per account or customer. */
+/**
+ * Whether an account may still get the free trial: never twice for one account or
+ * customer. The trial history (trial-history.ts) also keeps it once per person.
+ */
 export function trialAvailable(
   userData: DocumentData,
   pastSubscriptions: Stripe.Subscription[],
@@ -200,9 +204,10 @@ export function trialAvailable(
 
 /**
  * A Stripe Checkout Session for Pro on the chosen plan (`monthly` unless the body says
- * `yearly`), bound to the signed-in account, with the free trial when the account has
- * never had one. A trial asks for a payment method up front and cancels itself if none
- * is left at its end.
+ * `yearly`), bound to the signed-in account, with the free trial when neither the
+ * account nor its sign-in identity or verified email has had one (`trialHistory`). A
+ * trial asks for a payment method up front and cancels itself if none is left at its
+ * end; a card that already had a trial ends it at once (webhook.ts).
  */
 export async function createCheckout({
   appUrl,
@@ -212,6 +217,7 @@ export async function createCheckout({
   prices,
   req,
   stripe,
+  trialHistory,
 }: {
   appUrl: string
   auth: Auth
@@ -221,6 +227,8 @@ export async function createCheckout({
   prices: BillingPrices
   req: Request
   stripe: Stripe
+  /** The once-per-person trial record; null only in tests that do not cover it. */
+  trialHistory: TrialHistory | null
 }): Promise<Stripe.Checkout.Session> {
   if (!billingEnabled) throw new HttpError('unavailable', 'Pro checkout is not open yet')
   const plan: unknown = req.body?.plan ?? 'monthly'
@@ -355,7 +363,9 @@ export async function createCheckout({
         throw new HttpError('conflict', 'Account already has a subscription')
       }
     }
-    const trial = trialAvailable(userData, pastSubscriptions)
+    const trial =
+      trialAvailable(userData, pastSubscriptions) &&
+      !(await trialHistory?.used(trialHistory.identityKeys(identityFromToken(identity))))
     const session = await stripe.checkout.sessions.create(
       {
         mode: 'subscription',

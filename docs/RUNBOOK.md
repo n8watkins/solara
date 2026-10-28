@@ -188,6 +188,7 @@ Never paste a secret into an issue, pull request, chat or repository file.
 | --- | --- | --- | --- |
 | `STRIPE_SECRET_KEY` | Firebase Secret Manager | Stripe, **Developers**, **API keys**, **Roll key** (keep the old one for 1 hour); `npx firebase functions:secrets:set STRIPE_SECRET_KEY --project uv-activity-planner` | Redeploy the Functions (rerun the deploy); check a portal session opens |
 | `STRIPE_WEBHOOK_SECRET` | Firebase Secret Manager | Stripe, **Webhooks**, the endpoint, **Roll secret** (keep the old one for 24 hours); set the new value as above | Redeploy the Functions; check the next event is accepted |
+| `TRIAL_HISTORY_KEY` | Firebase Secret Manager | Only if it leaks: `openssl rand -base64 48 \| npx firebase functions:secrets:set TRIAL_HISTORY_KEY --data-file=- --project uv-activity-planner` | Redeploy the Functions; every recorded trial is forgotten, so a person could get the trial once more |
 | `OPEN_METEO_API_KEY` | Firebase Secret Manager | Open-Meteo dashboard, new key; set it as above | Redeploy the Functions; delete the old key at Open-Meteo |
 | `FIREBASE_SERVICE_ACCOUNT` (until Workload Identity Federation) | GitHub secret | Google Cloud, **IAM**, the service account, **Keys**, add a key, update the secret, delete the old key | Better: finish [WIF_SETUP.md](WIF_SETUP.md) and delete the key for good |
 | `SENTRY_AUTH_TOKEN` | GitHub secret | Sentry, **Organization Tokens**, create a new one, update the secret, revoke the old one | The next deploy uploads source maps with it |

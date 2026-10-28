@@ -17,13 +17,19 @@ import {
   BILLING_ENABLED,
   STRIPE_SECRET_KEY,
   STRIPE_WEBHOOK_SECRET,
+  TRIAL_HISTORY_KEY,
   billingPrices,
   stripeClient,
 } from './config'
+import { TrialHistory } from './trial-history'
 import { processStripeEvent } from './webhook'
 
 export const createCheckoutSession = onRequest(
-  httpOptions({ name: 'createCheckoutSession', timeoutSeconds: 30, secrets: [STRIPE_SECRET_KEY] }),
+  httpOptions({
+    name: 'createCheckoutSession',
+    timeoutSeconds: 30,
+    secrets: [STRIPE_SECRET_KEY, TRIAL_HISTORY_KEY],
+  }),
   browserApi({
     name: 'createCheckoutSession',
     method: 'POST',
@@ -38,6 +44,7 @@ export const createCheckoutSession = onRequest(
         prices: billingPrices(),
         req,
         stripe: stripeClient(),
+        trialHistory: new TrialHistory(db, TRIAL_HISTORY_KEY.value()),
       })
       // Hosted Checkout always has a URL; without one the browser has nowhere to go.
       if (!session.url) throw new Error('Checkout session has no URL')
@@ -83,7 +90,7 @@ export const stripeWebhook = onRequest(
   httpOptions({
     name: 'stripeWebhook',
     timeoutSeconds: 60,
-    secrets: [STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET],
+    secrets: [STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, TRIAL_HISTORY_KEY],
   }),
   async (req, res) => {
     setApiHeaders(res)
@@ -116,11 +123,13 @@ export const stripeWebhook = onRequest(
 
     try {
       const result = await processStripeEvent({
+        auth: getAuth(),
         db,
         event,
         prices: billingPrices(),
         serverTimestamp,
         stripe,
+        trialHistory: new TrialHistory(db, TRIAL_HISTORY_KEY.value()),
       })
       const duplicate = 'duplicate' in result && result.duplicate === true
       logger.info('stripeWebhook processed', { eventId: event.id, eventType: event.type, result })

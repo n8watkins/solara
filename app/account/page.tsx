@@ -241,7 +241,7 @@ export default function AccountPage() {
             <AccountSection
               danger
               title="Delete account"
-              body="This permanently removes your Solara preferences, scheduled activities and notification devices. A subscription is canceled at once, without a refund for the current period, and your billing details are deleted at Stripe."
+              body="This permanently removes your Solara preferences, scheduled activities and notification devices. A subscription is canceled at once, without a refund for the current period, and your billing details are deleted at Stripe. If you had the free trial, a hashed record of it is kept for 2 years so the trial is once per person."
             >
               <label className="mb-2 block text-[13px] font-semibold" htmlFor="delete-confirmation">
                 Type DELETE to confirm

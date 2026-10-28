@@ -761,6 +761,24 @@ describe('alert bookkeeping', () => {
   })
 })
 
+describe('trial history', () => {
+  test('no client can read, list or write the trial-use record', async () => {
+    const id = 'a'.repeat(64)
+    await testEnv.withSecurityRulesDisabled(async context => {
+      await context.firestore().doc(`trialHistory/${id}`).set({ kind: 'card', trial: 'b' })
+    })
+    for (const db of [
+      testEnv.authenticatedContext('alice').firestore(),
+      testEnv.unauthenticatedContext().firestore(),
+    ]) {
+      await assertFails(db.doc(`trialHistory/${id}`).get())
+      await assertFails(db.collection('trialHistory').get())
+      await assertFails(db.doc(`trialHistory/${id}`).delete())
+      await assertFails(db.doc(`trialHistory/${'c'.repeat(64)}`).set({ kind: 'card' }))
+    }
+  })
+})
+
 describe('server switches', () => {
   test('no client can read or change the cost guard', async () => {
     await testEnv.withSecurityRulesDisabled(async context => {
