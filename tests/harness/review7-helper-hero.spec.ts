@@ -153,6 +153,8 @@ test('Google Calendar and Outlook share one refresh note (L7.2)', async ({ page 
   )
   // Below both panels, and not inside either.
   await expect(page.getByTestId('google-calendar-events').getByText(NOTE)).toHaveCount(0)
+  await expect(outlook.getByText(NOTE)).toHaveCount(0)
+  await expect(section.getByText(NOTE)).toHaveCount(1)
   const below = await note.evaluate(el => {
     const google = document.querySelector('[data-testid="google-calendar-events"]')!
     const outlookPanel = document.querySelector('[data-testid="outlook-calendar-events"]')!

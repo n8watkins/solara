@@ -493,12 +493,8 @@ export default function OutlookCalendarEvents({
         </p>
       )}
 
-      {link && (
-        <p className="mt-2.5 text-[11px] leading-normal text-ink-3">
-          Events update while Solara is open: by themselves for an hour after you connect or
-          refresh, otherwise when you press Refresh.
-        </p>
-      )}
+      {/* How the events update is said once for Google and Outlook, below both panels
+          (EventsSection, REVIEW7 L7.2). */}
     </div>
   )
 }
