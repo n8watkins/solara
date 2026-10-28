@@ -102,6 +102,11 @@
       "collectionGroup": "stripeWebhookEvents",
       "fieldPath": "expireAt",
       "indexes": []
+    },
+    {
+      "collectionGroup": "trialHistory",
+      "fieldPath": "expireAt",
+      "indexes": []
     }
   ]
 }

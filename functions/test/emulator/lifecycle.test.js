@@ -15,6 +15,7 @@ const {
 } = require('../../lib/account/deletion')
 const { exportAccountData } = require('../../lib/account/export')
 const { createCheckout } = require('../../lib/billing/checkout')
+const { TrialHistory } = require('../../lib/billing/trial-history')
 const { endExpiredGracePeriods } = require('../../lib/billing/grace')
 const { processStripeEvent } = require('../../lib/billing/webhook')
 const { clearUidLimiters } = require('../../lib/shared/auth')
@@ -28,17 +29,45 @@ let app
 let db
 const logs = captureLogs()
 
+/**
+ * The Google account each test account signs in with: its own unless a test says that
+ * two Solara accounts (say, one deleted and one created later) are the same person.
+ */
+const googleAccounts = new Map()
+const googleAccount = uid =>
+  googleAccounts.get(uid) ?? { sub: `google-${uid}`, email: `${uid}@example.com` }
+
 function auth(uid, deletedUsers = []) {
   return {
-    verifyIdToken: async () => ({
-      uid,
-      email: `${uid}@example.com`,
-      auth_time: Math.floor(Date.now() / 1000),
-    }),
+    verifyIdToken: async () => {
+      const google = googleAccount(uid)
+      return {
+        uid,
+        email: google.email,
+        email_verified: true,
+        auth_time: Math.floor(Date.now() / 1000),
+        firebase: {
+          sign_in_provider: 'google.com',
+          identities: { 'google.com': [google.sub], email: [google.email] },
+        },
+      }
+    },
+    getUser: async id => {
+      const google = googleAccount(id)
+      return {
+        uid: id,
+        email: google.email,
+        emailVerified: true,
+        providerData: [{ providerId: 'google.com', uid: google.sub, email: google.email }],
+      }
+    },
     revokeRefreshTokens: async () => {},
     deleteUser: async id => deletedUsers.push(id),
   }
 }
+
+const TRIAL_HISTORY_KEY = 'trial-history-test-key'
+const trialHistory = () => new TrialHistory(db, TRIAL_HISTORY_KEY)
 
 const request = body => ({ headers: { authorization: 'Bearer token' }, body })
 
@@ -56,25 +85,36 @@ async function seedAccount(uid) {
 }
 
 /** Buys Pro through checkout and the webhook, as a person would. */
-async function subscribe(stripe, uid, { plan = 'monthly', trialDays = 0, created } = {}) {
-  const session = await createCheckout({
+async function subscribe(stripe, uid, { plan = 'monthly', trialDays = 0, created, card } = {}) {
+  const session = await startCheckout(stripe, uid, plan)
+  const event = stripe.complete(session.id, { trialDays, created, card })
+  await deliver(stripe, event)
+  const account = (await db.doc(`users/${uid}`).get()).data()
+  return { subscriptionId: account.stripeSubscriptionId, customerId: account.stripeCustomerId }
+}
+
+/** Opens checkout for the account; the session's parameters say whether it has a trial. */
+function startCheckout(stripe, uid, plan = 'monthly') {
+  return createCheckout({
     appUrl: 'https://solara.example',
     auth: auth(uid),
     db,
     prices: PRICES,
     req: request({ attemptId: `attempt-${uid}-0000000000`, plan }),
     stripe,
+    trialHistory: trialHistory(),
   })
-  const event = stripe.complete(session.id, { trialDays, created })
-  await deliver(stripe, event)
-  const account = (await db.doc(`users/${uid}`).get()).data()
-  return { subscriptionId: account.stripeSubscriptionId, customerId: account.stripeCustomerId }
 }
+
+const offeredTrialDays = (stripe, session) =>
+  stripe.sessions.get(session.id)._params.subscription_data.trial_period_days
 
 function deliver(stripe, event) {
   return processStripeEvent({
+    auth: auth('stripe'),
     db,
     event,
+    trialHistory: trialHistory(),
     prices: PRICES,
     serverTimestamp: () => new Date(),
     stripe,
@@ -124,6 +164,7 @@ before(() => {
 
 afterEach(async () => {
   clearUidLimiters()
+  googleAccounts.clear()
   await clearFirestore()
 })
 
@@ -206,6 +247,75 @@ describe('subscription lifecycle', () => {
     assert.equal(exported.billing.freeTrialUsed, true)
     assert.match(exported.billing.trialEndsAt, /^\d{4}-\d{2}-\d{2}T/)
     assert.doesNotMatch(JSON.stringify(exported), /cus_test|sub_test|cs_test|pi_test/)
+  })
+})
+
+describe('the free trial is once per person (REVIEW3 M4)', () => {
+  test('a new account for the same Google account gets no second trial after deletion', async () => {
+    const stripe = new FakeStripe()
+    await seedAccount('ann')
+    assert.equal(offeredTrialDays(stripe, await startCheckout(stripe, 'ann')), 7)
+    await subscribe(stripe, 'ann', { trialDays: 7, card: 'fp_ann' })
+    await deleteAccount({ auth: auth('ann'), db, req: request({ confirmation: 'DELETE' }), stripe })
+    await runDeletion(stripe, 'ann')
+    assert.equal((await db.doc('users/ann').get()).exists, false)
+
+    // The same person signs in again: a new uid, no Stripe customer, the same Google account.
+    googleAccounts.set('ann-again', googleAccount('ann'))
+    await seedAccount('ann-again')
+    assert.equal(offeredTrialDays(stripe, await startCheckout(stripe, 'ann-again')), undefined)
+    // Someone else still gets it.
+    await seedAccount('zoe')
+    assert.equal(offeredTrialDays(stripe, await startCheckout(stripe, 'zoe')), 7)
+
+    // What is kept is keyed hashes only: no uid, address, Google id, card or Stripe id.
+    const history = await db.collection('trialHistory').get()
+    assert.deepEqual(history.docs.map(doc => doc.data().kind).sort(), ['card', 'email', 'identity'])
+    for (const doc of history.docs) {
+      assert.match(doc.id, /^[0-9a-f]{64}$/)
+      assert.doesNotMatch(JSON.stringify(doc.data()), /ann|google|example|fp_|sub_|cus_/)
+      assertExpiresInDays(doc.data().expireAt, 730)
+    }
+  })
+
+  test('a verified email that already had a trial gets none on another sign-in', async () => {
+    const stripe = new FakeStripe()
+    await seedAccount('bea')
+    await subscribe(stripe, 'bea', { trialDays: 7 })
+    googleAccounts.set('bea-work', { sub: 'google-other', email: 'BEA@example.com ' })
+    await seedAccount('bea-work')
+    assert.equal(offeredTrialDays(stripe, await startCheckout(stripe, 'bea-work')), undefined)
+  })
+
+  test('a card that already had a trial ends the next trial at once', async () => {
+    const stripe = new FakeStripe()
+    await seedAccount('cal')
+    await subscribe(stripe, 'cal', { trialDays: 7, card: 'fp_shared' })
+    assert.deepEqual(stripe.subscriptionUpdates, [])
+
+    // Another Google account is offered the trial, but pays with the same card.
+    await seedAccount('cal-alt')
+    assert.equal(offeredTrialDays(stripe, await startCheckout(stripe, 'cal-alt')), 7)
+    const session = (await db.doc('users/cal-alt').get()).data().stripeCheckoutSessionId
+    const event = stripe.complete(session, { trialDays: 7, card: 'fp_shared' })
+    await deliver(stripe, event)
+    const subscriptionId = (await db.doc('users/cal-alt').get()).data().stripeSubscriptionId
+    assert.deepEqual(stripe.subscriptionUpdates, [
+      {
+        id: subscriptionId,
+        params: { trial_end: 'now', proration_behavior: 'none' },
+        options: { idempotencyKey: `trial-reuse:${subscriptionId}` },
+      },
+    ])
+    assert.equal(stripe.subscriptionsById.get(subscriptionId).status, 'active')
+    // A retried event changes nothing more.
+    await deliver(stripe, event)
+    assert.equal(stripe.subscriptionUpdates.length, 1)
+
+    // A different card keeps its trial.
+    await seedAccount('dot')
+    await subscribe(stripe, 'dot', { trialDays: 7, card: 'fp_other' })
+    assert.equal(stripe.subscriptionUpdates.length, 1)
   })
 })
 

@@ -27,6 +27,11 @@ export const RETENTION_DAYS = Object.freeze({
   forecastCache: 1,
   /** The forecast upstream budget's counters name one hour or day; two days covers both. */
   forecastUpstream: 2,
+  /**
+   * A trial-use record (billing/trial-history.ts) keeps the free trial once per person
+   * for two years after the trial, even after the account is deleted.
+   */
+  trialHistory: 730,
 })
 
 const DAY_MS = 24 * 60 * 60 * 1000

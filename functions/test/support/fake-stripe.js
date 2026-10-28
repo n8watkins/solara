@@ -1,7 +1,8 @@
 // An in-memory Stripe client for the Functions' emulator tests: the methods the billing
 // and deletion code call, answering with Stripe-shaped objects and Stripe's
 // `resource_missing` errors. `forget()` makes Stripe lose an object, and `failNext()`
-// makes a method throw, to test that deletion never stalls.
+// makes a method throw, to test that deletion never stalls. A checkout can be paid with
+// a card (`complete(id, { card })`), whose fingerprint identifies it across customers.
 const DAY = 24 * 60 * 60
 
 function missing(id) {
@@ -18,6 +19,8 @@ class FakeStripe {
     this.subscriptionsById = new Map()
     this.customersById = new Map()
     this.invoicesById = new Map()
+    this.paymentMethodsById = new Map()
+    this.subscriptionUpdates = []
     this.refundsMade = []
     this.deletedCustomers = []
     this.failures = new Map()
@@ -84,6 +87,16 @@ class FakeStripe {
         if (customer && !this.customersById.has(customer)) throw missing(customer)
         return list([...this.subscriptionsById.values()].filter(s => s.customer === customer))
       },
+      update: async (id, params, options) => {
+        const subscription = this.subscriptionsById.get(id)
+        if (!subscription) throw missing(id)
+        this.subscriptionUpdates.push({ id, params, options })
+        if (params.trial_end === 'now' && subscription.status === 'trialing') {
+          subscription.trial_end = Math.floor(Date.now() / 1000)
+          subscription.status = 'active'
+        }
+        return subscription
+      },
       cancel: async id => {
         failing('subscriptions.cancel')
         const subscription = this.subscriptionsById.get(id)
@@ -101,6 +114,13 @@ class FakeStripe {
           if (subscription.customer === id) subscription.status = 'canceled'
         }
         return { id, deleted: true }
+      },
+    }
+    this.paymentMethods = {
+      retrieve: async id => {
+        const paymentMethod = this.paymentMethodsById.get(id)
+        if (!paymentMethod) throw missing(id)
+        return paymentMethod
       },
     }
     this.invoices = {
@@ -127,13 +147,25 @@ class FakeStripe {
   }
 
   /** Completes a checkout the way a customer paying would; returns the event to deliver. */
-  complete(sessionId, { trialDays = 0, status, created = Math.floor(Date.now() / 1000) } = {}) {
+  complete(
+    sessionId,
+    { trialDays = 0, status, created = Math.floor(Date.now() / 1000), card } = {},
+  ) {
     const session = this.sessions.get(sessionId)
     if (!session.customer) {
       session.customer = this.nextId('cus')
       this.customersById.set(session.customer, { id: session.customer })
     }
     const price = session._params.line_items[0].price
+    let paymentMethod = null
+    if (card) {
+      paymentMethod = {
+        id: this.nextId('pm'),
+        object: 'payment_method',
+        card: { fingerprint: card },
+      }
+      this.paymentMethodsById.set(paymentMethod.id, paymentMethod)
+    }
     const subscription = {
       id: this.nextId('sub'),
       object: 'subscription',
@@ -141,6 +173,7 @@ class FakeStripe {
       status: status ?? (trialDays ? 'trialing' : 'active'),
       metadata: { ...session._params.subscription_data?.metadata },
       cancel_at_period_end: false,
+      default_payment_method: paymentMethod?.id ?? null,
       trial_start: trialDays ? created : null,
       trial_end: trialDays ? created + trialDays * DAY : null,
       items: list([{ price: { id: price }, current_period_end: created + 30 * DAY }]),

@@ -159,6 +159,14 @@ The owner's requirement: nobody can abuse the Blaze setup or run up costs, and i
 - **A real hard stop that cannot be turned against paying users (H1, H2, L1, L2):** a $25 budget with three tiers (warn at 50%, cost guard at 100%, detach billing at 300%, on by default); a budget-engaged guard ends by itself at the next budget period and the owner releases it with `infra/cost-guard.sh released --apply`; the scheduled Pro alerts are never paused by the budget; `budgetAlert` acts only on `BUDGET_ID` and runs as its own `solara-budget` identity, the only one allowed to detach billing ([RUNBOOK.md](RUNBOOK.md#budget-kill-switch)).
 - **Paid forecast calls bounded (M1, M3, L1, L3):** a global upstream budget (1,500 an hour, 20,000 a day) shared by the proxy and the calendar feed, failing closed to the cached forecast; a 0.02 degree cache grid chosen from measured UV differences; the calendar feed reads the shared cache with 4 upstream calls per feed an hour; fallbacks are remembered and logged once a minute; setup's current UV and the place search go through the proxy (a new `placeSearch` Function on the commercial geocoding host) once it is on, and the feed never uses the free API once billing is on ([DEPLOYMENT.md](DEPLOYMENT.md#forecast-proxy)).
 
+### 15. Trial, alert and export fixes from the third review (FIX3B, in progress)
+
+The third review's findings M4, M5, L4 and L5, all in switched-off Pro features:
+
+- **The free trial once per person (M4):** a keyed-hash trial history that survives account deletion keeps the trial from being taken again by a recreated account, the same verified email, or the same card on another account ([DEPLOYMENT.md](DEPLOYMENT.md#trial-history)); the owner creates the `TRIAL_HISTORY_KEY` secret ([owner checklist](OWNER_CHECKLIST.md#at-pro-launch-blaze), step 14).
+- **One planning skin type everywhere (M5) and validated server reads (L4):** the morning alert plans for a group's most sensitive person like the dashboard, and the alerts and the calendar feed read activities and profiles through the app's schemas (#122).
+- **The alert history in the export (L5):** #123.
+
 ## Decisions
 
 Agents never make owner decisions; they follow the recorded decision or the default.
@@ -184,6 +192,10 @@ The steps behind each one are in the [owner checklist](OWNER_CHECKLIST.md).
 | Price | Pro price | Decided 2026-10-24: $2.99 a month or $19.99 a year, 7-day free trial, waitlist until billing launches |
 | Tiers | Plans | Decided 2026-10-24: as shipped in #71, below |
 | Testing | Where tests run | Decided 2026-10-24: fast checks locally, full suites on GitHub Actions (#74) |
+| Trial reuse | Keeping the free trial once per person | Default, owner may change (2026-10-27, item 15): keyed hashes (HMAC, `TRIAL_HISTORY_KEY`) of the sign-in provider's user id, the verified email and the card fingerprint, kept 2 years (TTL) after the trial, also after account deletion; checkout skips the trial for a known identity or email, and the webhook ends a trial at once for a known card |
+| Group planning | Whom alerts and estimates plan for | Default, owner may change (2026-10-27, item 15): every estimate, the morning alert included, uses one core `planningFor`: in group mode, the group's most sensitive person |
+| Server reads | Stored plans on the server | Default, owner may change (2026-10-27, item 15): the alerts and the calendar feed parse activities and profiles with the app's schemas and skip invalid entries |
+| Export | Alert history in the export | Default, owner may change (2026-10-27, item 15): the export includes the last 7 days' alert history (kind, day, status, attempts, devices reached, times, error code) |
 | Instance caps | HTTP Functions' `maxInstances` | Default, owner may change (2026-10-27, item 14): 3 for the forecast proxy, 2 for the calendar feed, 1 for the rest (the Stripe webhook and place search included), 15 in all (`INSTANCE_CAPS` in `functions/src/shared/options.ts`) |
 
 ### Tiers

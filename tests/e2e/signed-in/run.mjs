@@ -229,6 +229,7 @@ if (ownsSecrets) {
       'STRIPE_SECRET_KEY=sk_test_signed_in_emulator',
       `STRIPE_WEBHOOK_SECRET=${WEBHOOK_SECRET}`,
       `OPEN_METEO_API_KEY=${OPEN_METEO_KEY}`,
+      'TRIAL_HISTORY_KEY=trial-history-signed-in-emulator',
       '',
     ].join('\n'),
   )

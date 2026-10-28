@@ -7,6 +7,11 @@ import Stripe from 'stripe'
 
 export const STRIPE_SECRET_KEY = defineSecret('STRIPE_SECRET_KEY')
 export const STRIPE_WEBHOOK_SECRET = defineSecret('STRIPE_WEBHOOK_SECRET')
+/**
+ * The HMAC key of the trial history (trial-history.ts): random, at least 32 bytes, never
+ * rotated (a new key forgets every recorded trial) unless it leaks.
+ */
+export const TRIAL_HISTORY_KEY = defineSecret('TRIAL_HISTORY_KEY')
 /** The monthly Pro price ($2.99). */
 export const STRIPE_PRICE_ID = defineString('STRIPE_PRICE_ID', { default: '' })
 /** The yearly Pro price ($19.99). */

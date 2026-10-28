@@ -95,7 +95,7 @@ Server configuration for Functions:
 
 - `functions/.env` holds the non-secret params (`APP_URL`, an empty `STRIPE_PRICE_ID` default, and the kill switch thresholds), because non-interactive deploys resolve params only from `functions/.env*` files.
   `.github/scripts/check-functions-params.js` resolves them exactly as a deploy does, and runs in CI.
-- Firebase Secret Manager stores `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` and `OPEN_METEO_API_KEY` (the value `unset` until the commercial plan is bought); a Functions deploy fails while any of them is missing.
+- Firebase Secret Manager stores `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `TRIAL_HISTORY_KEY` (the HMAC key of the [trial history](#trial-history)) and `OPEN_METEO_API_KEY` (the value `unset` until the commercial plan is bought); a Functions deploy fails while any of them is missing.
 
 ## Firebase console setup
 
@@ -213,6 +213,7 @@ npm ci --prefix functions
 cd functions
 npx firebase functions:secrets:set STRIPE_SECRET_KEY --project <project-id>
 npx firebase functions:secrets:set STRIPE_WEBHOOK_SECRET --project <project-id>
+openssl rand -base64 48 | npx firebase functions:secrets:set TRIAL_HISTORY_KEY --data-file=- --project <project-id>
 npx firebase deploy --only functions --project <project-id>
 ```
 
@@ -273,7 +274,7 @@ The budget ($25 a month by default), the topic, the identity and its role are cr
 Pro is sold through Stripe Checkout once the owner switches billing on (`BILLING_ENABLED`); until then the plans dialog keeps the waitlist and `createCheckoutSession` refuses.
 
 - The plans dialog (`components/PricingModal.tsx`) offers the monthly and yearly plans; `createCheckoutSession` (`functions/src/billing/checkout.ts`) maps the chosen plan to its price and binds the session to the signed-in account.
-- An account that never had a trial gets `PRO_TRIAL_DAYS` (7, in `packages/core/src/plans.ts`) free: Checkout asks for a card up front (`payment_method_collection: always`), and a trial that ends without a payment method cancels itself. `stripeTrialUsed` on the account, and any earlier trial on the same Stripe customer, rule out a second trial.
+- An account that never had a trial gets `PRO_TRIAL_DAYS` (7, in `packages/core/src/plans.ts`) free: Checkout asks for a card up front (`payment_method_collection: always`), and a trial that ends without a payment method cancels itself. `stripeTrialUsed` on the account, any earlier trial on the same Stripe customer, and the [trial history](#trial-history) rule out a second trial.
 - An open checkout for the other plan is expired before a new one is created, so only one can ever be paid.
 - The webhook treats a subscription to either price as Pro and records a billing summary on the account (`subscriptionPlan`, `subscriptionCurrentPeriodEnd`, `subscriptionTrialEnd`, `subscriptionCancelAtPeriodEnd`), which the account page shows without any Stripe identifier.
 - The customer portal (`createBillingPortalSession`) changes plans, payment methods and cancels; configure it in Stripe as in the [owner checklist](OWNER_CHECKLIST.md#functions-and-stripe).
@@ -446,7 +447,21 @@ The [runbook](RUNBOOK.md#account-deletion-alerts) says what to do with either al
 Monitor `cleanupStatus`, `cleanupLastError`, `cleanupNextAttemptAt`, and the `maintenance` logs for pending deletions.
 Do not manually remove a tombstone or mark it complete while billing cleanup resources remain pending.
 
+Deletion keeps one record on purpose: the [trial history](#trial-history) of an account that had the free trial, for 2 years, so the trial stays once per person.
+
 The export (`exportAccountData`) holds the portable preferences, a billing summary (plan, interval, status, Pro since, trial end, current period end, cancellation, payment failed since, trial used), scheduled activities, device metadata and the Pro alert history (`alerts`: for the morning and the UV alert, the last day sent, its status, attempts, devices reached, times and any FCM error code, from `alertState/daily`, which is kept 7 days), never a Stripe identifier, a token or an internal attempt id.
+
+### Trial history
+
+The free trial is once per person, not once per account (`functions/src/billing/trial-history.ts`; default decision, see [ROADMAP](ROADMAP.md#decisions)).
+When a trial starts, the webhook records keyed hashes (HMAC-SHA256 with the `TRIAL_HISTORY_KEY` secret) of each sign-in provider's stable user id (the Google account's id), the verified email address (trimmed and lowercased) and the card's Stripe fingerprint in the server-only `trialHistory` collection.
+Each record holds only its kind, a keyed hash of the subscription, and `expireAt` 2 years on; the rules deny every client access, and account deletion leaves it in place.
+
+- Checkout offers no trial when the signed-in identity or verified email is on record.
+- The webhook (`checkout.session.completed` and `customer.subscription.updated`) ends a trial at once (`trial_end: 'now'`, so billing starts) when the card, or an identity, already had a trial from another subscription, and logs `a free trial already used by this person or card was ended`.
+- The card is read from the subscription's `default_payment_method`, which Checkout sets.
+
+`TRIAL_HISTORY_KEY` is random (48 bytes from `openssl rand`), and rotating it forgets every recorded trial, so it is rotated only if it leaks ([RUNBOOK](RUNBOOK.md#secret-rotation)).
 
 ### Record retention
 
