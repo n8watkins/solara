@@ -9,6 +9,7 @@
 //   reaches the person's threshold: from an hour before the first such hour until the
 //   last one ends, outside quiet hours.
 import { dailyBriefing } from './briefing'
+import type { ExposureSetting } from './exposure'
 import { isSkinType, type PreferredHours, type SkinType } from './recommendation'
 import { NOTIFICATION_HOUR, QUIET_HOURS, UV_ALERT_THRESHOLD } from './prefs'
 
@@ -97,6 +98,8 @@ export function inQuietHours(localHour: number, quiet: QuietHours): boolean {
 export interface AlertHour {
   hour: number
   uv: number
+  /** UV under a clear sky, when the forecast has it: morning plans count clouds once (planningUV). */
+  clearSkyUV?: number | null
 }
 
 /** When today's UV is at or above a threshold. */
@@ -161,6 +164,9 @@ export interface AlertActivity {
   durationMins?: number | null
   preferredHours?: PreferredHours | null
   daysOfWeek?: readonly number[] | null
+  cloudSensitive?: boolean | null
+  shade?: ExposureSetting['shade']
+  surface?: ExposureSetting['surface']
 }
 
 export interface MorningAlertInput {
