@@ -293,7 +293,9 @@ The Stripe webhook refuses bodies over 256 KiB and more than 300 requests a minu
 The client address is the `X-Forwarded-For` entry Google's front end appends (`clientAddress` in `functions/src/shared/client-address.ts`).
 IPv6 addresses are counted by their /64 prefix, because one ordinary connection is given a whole /64 and could otherwise use a new address for every request; an IPv4-mapped IPv6 address counts as its IPv4 address.
 Each IPv6 request also counts against its /48 at 4 times the limit (`IPV6_SITE_WEIGHT`, default, owner may change), because a /48 is one site (free from tunnel brokers, common on servers) and holds 65,536 /64s (REVIEW4 M1).
-A request a prefix has already refused is turned away without opening a window for its /64, and the limiter never forgets a live window: it drops expired windows, and when its 10,000 windows are all live it refuses new keys for the rest of the minute instead of handing a throttled client a fresh budget.
+A request a prefix has already refused is turned away without opening a window for its /64, and the limiter never forgets a live window: it drops expired windows and keeps at most 10,000 exact ones.
+When all 10,000 are live (a flood of new addresses), a new key is counted in a fixed-size count-min sketch for the rest of the minute instead (REVIEW5 M5): the sketch never under-counts, so a sprayed key is held to the same limit and keeps its count if it later gets an exact window, while a newcomer is still served.
+The sketch takes 2 MB once used, its cells are chosen with a per-instance secret so collisions cannot be aimed at another client, and in a flood of 100,000 new keys a minute about 1 newcomer in 100 loses one request of its budget.
 These limits live in instance memory, so each instance enforces its own: the effective limit for one address is the per-minute limit times the function's instance cap (for example 60 x 1 for checkout, 120 x 3 for the forecast proxy).
 That is the right shape for a first line against one noisy client; the costs that must be bounded globally use shared counters instead (the forecast proxy's upstream budget and each caller's share of it).
 

@@ -346,13 +346,14 @@ describe('per-address limits across an IPv6 /48 (REVIEW4 M1)', () => {
     const limiter = new FixedWindowLimiter({ limit: 2, windowMs: 60_000, maxKeys: 100 })
     for (let i = 0; i < 3; i += 1) limiter.take('attacker', 0)
     assert.equal(limiter.take('attacker', 1).allowed, false)
-    // Fill the map with live windows: newcomers are refused, the throttled key is kept.
+    // Fill the map with live windows: the throttled key is kept, and newcomers are
+    // counted in the overflow sketch instead of refused (REVIEW5 M5).
     for (let i = 0; i < 1000; i += 1) limiter.take(`spray-${i}`, 2)
     assert.equal(limiter.windows.size, 100)
     assert.equal(limiter.take('attacker', 3).allowed, false)
-    const refused = limiter.take('newcomer', 3)
-    assert.equal(refused.allowed, false)
-    assert.equal(refused.retryAfterSeconds, 60)
+    assert.equal(limiter.take('newcomer', 3).allowed, true)
+    assert.equal(limiter.take('newcomer', 4).allowed, true)
+    assert.equal(limiter.take('newcomer', 5).allowed, false)
     // Once windows expire, they make room again.
     assert.equal(limiter.take('newcomer', 60_002).allowed, true)
     assert.equal(limiter.windows.size, 1)

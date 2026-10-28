@@ -389,13 +389,67 @@ describe('fixed-window limiter', () => {
     const limiter = new FixedWindowLimiter({ limit: 1, windowMs: 1000, maxKeys: 2 })
     limiter.take('a', 0)
     limiter.take('b', 0)
-    // Full of live windows: the newcomer waits, and 'a' keeps its spent window.
-    assert.deepEqual(limiter.take('c', 0), { allowed: false, retryAfterSeconds: 1 })
+    // Full of live windows: the newcomer is counted in the overflow sketch, and 'a'
+    // keeps its spent window.
+    assert.deepEqual(limiter.take('c', 0), { allowed: true, retryAfterSeconds: 1 })
     assert.equal(limiter.windows.size, 2)
     assert.equal(limiter.take('a', 1).allowed, false)
-    // Expired windows make room.
+    // The sketch holds the newcomer to the same limit.
+    assert.equal(limiter.exhausted('c', 1), true)
+    assert.equal(limiter.take('c', 1).allowed, false)
+    // Expired windows make room, and a fresh window starts with the next one.
     assert.equal(limiter.take('c', 1000).allowed, true)
     assert.deepEqual([...limiter.windows.keys()], ['c'])
+  })
+
+  test('a flood of new keys neither locks out newcomers nor frees throttled ones (REVIEW5 M5)', () => {
+    const limiter = new FixedWindowLimiter({ limit: 6, windowMs: 60_000, maxKeys: 1000 })
+    for (let i = 0; i < 7; i += 1) limiter.take('throttled', 0)
+    assert.equal(limiter.take('throttled', 1).allowed, false)
+    // 100,000 sprayed keys, one request each, far past the map's 1,000 windows.
+    for (let i = 0; i < 100_000; i += 1) limiter.take(`spray-${i}`, 2)
+    assert.equal(limiter.windows.size, 1000)
+    // The throttled client is still refused; newcomers get their budget: the sketch may
+    // over-count a key that shares all its cells with sprayed ones, by a request or so.
+    assert.equal(limiter.take('throttled', 3).allowed, false)
+    let refused = 0
+    let firstRefused = 0
+    for (let i = 0; i < 1000; i += 1) {
+      for (let n = 0; n < 6; n += 1) {
+        if (limiter.take(`visitor-${i}`, 4).allowed) continue
+        refused += 1
+        if (n === 0) firstRefused += 1
+      }
+    }
+    assert.equal(firstRefused, 0)
+    assert.ok(refused < 60, `${refused} of 6,000 requests refused`)
+    // ...and is refused past it, like an exact window.
+    assert.equal(limiter.take('visitor-0', 5).allowed, false)
+    assert.equal(limiter.take('spray-7', 6).allowed, true)
+  })
+
+  test('a key the sketch counted keeps its count when it gets an exact window', () => {
+    const limiter = new FixedWindowLimiter({ limit: 3, windowMs: 60_000, maxKeys: 1 })
+    limiter.take('holder', 0)
+    for (let i = 0; i < 3; i += 1) assert.equal(limiter.take('late', 10).allowed, true)
+    assert.equal(limiter.take('late', 11).allowed, false)
+    // 'holder' expires at 60,000; the sketch's window (aligned) ends at 60,000 too.
+    assert.equal(limiter.take('late', 59_999).allowed, false)
+    assert.equal(limiter.take('late', 60_000).allowed, true)
+  })
+
+  test('a sprayed key moving into the map is not handed a fresh budget', () => {
+    const limiter = new FixedWindowLimiter({ limit: 3, windowMs: 60_000, maxKeys: 1 })
+    limiter.take('holder', 30_000)
+    assert.equal(limiter.take('sprayed', 30_001).allowed, true)
+    assert.equal(limiter.take('sprayed', 30_002).allowed, true)
+    // Room appears before the sketch's window (aligned, ending at 60,000) is over: the
+    // exact window starts from the sketch's count of 2 and ends with the sketch's window.
+    limiter.windows.delete('holder')
+    assert.equal(limiter.take('sprayed', 59_000).allowed, true)
+    assert.equal(limiter.windows.get('sprayed').resetAt, 60_000)
+    assert.equal(limiter.take('sprayed', 59_001).allowed, false)
+    assert.equal(limiter.take('sprayed', 60_000).allowed, true)
   })
 })
 
