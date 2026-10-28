@@ -172,11 +172,13 @@ function fromCivilDay(n: number): CivilDate {
 /** Days of a month matching BYDAY (with ordinals counted within the month). */
 function monthDaysByDay(year: number, month: number, byDay: readonly ByDay[]): number[] {
   const length = daysInMonth(year, month)
+  const firstWeekday = weekdayOf(year, month, 1)
   const out = new Set<number>()
   for (const { weekday, ordinal } of byDay) {
+    // Every matching day, found by stepping a week at a time from the first one.
     const matching: number[] = []
-    for (let day = 1; day <= length; day += 1) {
-      if (weekdayOf(year, month, day) === weekday) matching.push(day)
+    for (let day = 1 + ((weekday - firstWeekday + 7) % 7); day <= length; day += 7) {
+      matching.push(day)
     }
     if (ordinal === 0) matching.forEach(day => out.add(day))
     else {
@@ -218,9 +220,8 @@ function yearDaysByDay(year: number, byDay: readonly ByDay[]): CivilDate[] {
   const out = new Map<number, CivilDate>()
   for (const { weekday, ordinal } of byDay) {
     const matching: number[] = []
-    for (let n = first; n <= last; n += 1) {
-      if (((n % 7) + 7 + 4) % 7 === weekday) matching.push(n)
-    }
+    const firstWeekday = weekdayOf(year, 1, 1)
+    for (let n = first + ((weekday - firstWeekday + 7) % 7); n <= last; n += 7) matching.push(n)
     const picks =
       ordinal === 0
         ? matching
@@ -294,10 +295,8 @@ function applySetPos(sorted: CivilDate[], bySetPos: readonly number[]): CivilDat
   return sorted.filter(date => picked.has(date))
 }
 
-/** The first period worth generating for occurrences on or after `fromDay`. */
-function firstPeriod(rule: Rrule, start: CivilDate, fromDay: number | undefined): number {
-  // With COUNT every occurrence from the start must be counted.
-  if (fromDay === undefined || rule.count !== null) return 0
+/** How many whole periods lie between the start and `fromDay` (0 when it is not later). */
+function periodsBefore(rule: Rrule, start: CivilDate, fromDay: number): number {
   const startDay = civilDay(start.year, start.month, start.day)
   if (fromDay <= startDay) return 0
   const target = fromCivilDay(fromDay)
@@ -320,11 +319,45 @@ function firstPeriod(rule: Rrule, start: CivilDate, fromDay: number | undefined)
   return Math.max(0, Math.floor(periods) - 1)
 }
 
+/**
+ * Occurrences in every period after the first, when that number is fixed: a DAILY
+ * rule with no BY* part, or a WEEKLY rule with no BYMONTH or BYSETPOS (its weekdays
+ * all fall in every week). Null for any other rule. Lets COUNT skip whole periods.
+ */
+function fixedPerPeriod(rule: Rrule): number | null {
+  if (rule.byMonth.length || rule.bySetPos.length || rule.byMonthDay.length) return null
+  if (rule.freq === 'DAILY') return rule.byDay.length ? null : 1
+  if (rule.freq === 'WEEKLY') return Math.max(1, new Set(rule.byDay.map(b => b.weekday)).size)
+  return null
+}
+
+/**
+ * A shared allowance of expansion work (periods stepped and candidate dates made), so
+ * no input can make a parse slow: once it is spent, expansion stops early and the
+ * caller sees `exhausted`.
+ */
+export class ExpansionBudget {
+  exhausted = false
+  constructor(public left: number) {}
+
+  /** Spends `units`; false (and `exhausted`) once the allowance is gone. */
+  spend(units: number): boolean {
+    this.left -= units
+    if (this.left < 0) this.exhausted = true
+    return !this.exhausted
+  }
+}
+
 export interface ExpandOptions {
-  /** Skip periods that end before this civil day (days since 1970), when COUNT allows. */
+  /**
+   * Skip periods that end before this civil day (days since 1970). With COUNT, whole
+   * periods are only skipped when each holds a fixed number of occurrences.
+   */
   fromDay?: number
   /** Most periods to step through; protects against rules that never match. */
   maxPeriods?: number
+  /** Work allowance shared with the caller; expansion stops when it runs out. */
+  budget?: ExpansionBudget
 }
 
 /**
@@ -336,22 +369,34 @@ export interface ExpandOptions {
 export function* expandRrule(
   rule: Rrule,
   dtstart: LocalDateTime,
-  { fromDay, maxPeriods = 5000 }: ExpandOptions = {},
+  { fromDay, maxPeriods = 5000, budget }: ExpandOptions = {},
 ): Generator<LocalDateTime> {
   const start: CivilDate = { year: dtstart.year, month: dtstart.month, day: dtstart.day }
   const startMs = localAsUtc(dtstart)
   const untilLocal = rule.until && 'local' in rule.until ? localAsUtc(rule.until.local) : null
+  // Without COUNT, nothing before `fromDay` matters; with it, every earlier occurrence
+  // must be counted, which can be done period by period or, for fixed-size periods,
+  // by multiplying.
+  const skip = fromDay === undefined ? 0 : periodsBefore(rule, start, fromDay)
+  const perPeriod = rule.count === null ? null : fixedPerPeriod(rule)
+  const begin = rule.count === null ? skip : 0
   let emitted = 0
-  const begin = firstPeriod(rule, start, fromDay)
   if (begin === 0) {
     yield dtstart
     emitted = 1
     if (rule.count !== null && emitted >= rule.count) return
   }
-  for (let period = begin; period < begin + maxPeriods; period += 1) {
-    const candidates = periodCandidates(rule, period, start).sort(
-      (a, b) => civilDay(a.year, a.month, a.day) - civilDay(b.year, b.month, b.day),
-    )
+  let steps = 0
+  for (let period = begin; steps < maxPeriods; period += 1, steps += 1) {
+    if (period === 1 && perPeriod !== null && skip > 1) {
+      // Periods 1 to skip - 1 each hold perPeriod occurrences, all before fromDay.
+      emitted += (skip - 1) * perPeriod
+      if (emitted >= (rule.count as number)) return
+      period = skip
+    }
+    const candidates = periodCandidates(rule, period, start)
+    if (budget && !budget.spend(1 + candidates.length)) return
+    candidates.sort((a, b) => civilDay(a.year, a.month, a.day) - civilDay(b.year, b.month, b.day))
     for (const date of applySetPos(candidates, rule.bySetPos)) {
       const local: LocalDateTime = {
         ...date,

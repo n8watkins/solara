@@ -10,10 +10,13 @@
 // RECURRENCE-ID overrides, STATUS:CANCELLED, SUMMARY, LOCATION, GEO, URL and UID.
 // All-day events (DTSTART as a date) are skipped: they say nothing about when someone
 // is outside. Input is capped (ICS_IMPORT_LIMITS) so a hostile file cannot make it
-// slow or large, and malformed lines are skipped rather than failing the whole file.
+// slow or large: the file's size, its events, its nesting, and one work allowance for
+// the whole file that every recurrence expansion and date list draws on (a series that
+// would need more is reported in `tooComplex`). Malformed lines are skipped rather than
+// failing the whole file. The same bounds make it safe to run on a server.
 
 import { APP_FORECAST_DAYS } from './forecast'
-import { expandRrule, parseRrule, type Rrule } from './rrule'
+import { ExpansionBudget, expandRrule, parseRrule, type Rrule } from './rrule'
 import { capText } from './scheduled'
 import {
   civilDay,
@@ -35,6 +38,17 @@ export const ICS_IMPORT_LIMITS = Object.freeze({
   maxOccurrencesPerSeries: 50,
   /** Most VEVENT components read from one file. */
   maxComponents: 5000,
+  /** Deepest component nesting read (VCALENDAR > VTIMEZONE > STANDARD needs 3). */
+  maxDepth: 6,
+  /**
+   * Work one file may cost in all: recurrence periods stepped, dates made and date
+   * values read. Bounds the parse to well under a second whatever the file holds.
+   */
+  maxWork: 200_000,
+  /** Work one recurring event may cost, so one bad series cannot starve the rest. */
+  maxWorkPerSeries: 20_000,
+  /** Most RDATE values one VTIMEZONE observance keeps. */
+  maxZoneDates: 200,
   /** Recurring events are expanded this many days ahead (the longest forecast). */
   recurrenceDays: APP_FORECAST_DAYS,
   /** One-off events further ahead than this are skipped. */
@@ -75,12 +89,36 @@ export interface ParsedIcsEvent {
   url: string | null
 }
 
+/** An event (or one occurrence of a recurring event) the file marks STATUS:CANCELLED. */
+export interface IcsCancellation {
+  uid: string
+  /** The cancelled occurrence's original start (ISO, UTC); null for the whole event. */
+  recurrenceId: string | null
+}
+
+/**
+ * A recurring event the file was read in full for: its occurrences that end after
+ * `now` and start before `until` are exactly the ones in `events`, so any other stored
+ * occurrence in that range is gone from the source.
+ */
+export interface IcsSeriesCoverage {
+  uid: string
+  /** Epoch ms; null when the series has no occurrence after the ones returned. */
+  until: number | null
+}
+
 export interface IcsParseResult {
   /** Upcoming events, soonest first, at most ICS_IMPORT_LIMITS.maxEvents. */
   events: ParsedIcsEvent[]
   skipped: IcsSkipCounts
+  /** Events and occurrences the file cancels, so a re-import can remove them. */
+  cancelled: IcsCancellation[]
+  /** Recurring events read in full (see IcsSeriesCoverage). */
+  series: IcsSeriesCoverage[]
   /** Recurring events whose rule could not be expanded (only their first date was read). */
   unsupportedRecurrence: number
+  /** Recurring events cut short by the work allowance (ICS_IMPORT_LIMITS.maxWork). */
+  tooComplex: number
   /** Events whose TZID could not be resolved (read in the default zone). */
   unknownTimeZone: number
   /** X-WR-CALNAME, if given. */
@@ -174,15 +212,18 @@ function buildTree(lines: readonly string[]): { root: Component; eventsDropped: 
   const stack: Component[] = [root]
   let events = 0
   let eventsDropped = 0
-  // While inside a dropped VEVENT, its lines are read but not kept.
+  // While inside a dropped component (an event past the limit, or anything nested
+  // deeper than maxDepth), its lines are read but not kept. The stack never grows past
+  // maxDepth, so closing an unmatched END costs at most that many steps.
   let dropDepth = 0
   for (const line of lines) {
     const prop = parseContentLine(line)
     if (!prop) continue
     const value = prop.value.trim().toUpperCase()
     if (prop.name === 'BEGIN' && value) {
-      if (dropDepth > 0 || (value === 'VEVENT' && events >= ICS_IMPORT_LIMITS.maxComponents)) {
-        if (dropDepth === 0) eventsDropped += 1
+      const overLimit = value === 'VEVENT' && events >= ICS_IMPORT_LIMITS.maxComponents
+      if (dropDepth > 0 || overLimit || stack.length > ICS_IMPORT_LIMITS.maxDepth) {
+        if (dropDepth === 0 && value === 'VEVENT') eventsDropped += 1
         dropDepth += 1
         continue
       }
@@ -217,9 +258,26 @@ export function unescapeText(value: string): string {
   )
 }
 
-/** Text for display: unescaped, control characters and runs of whitespace made one space. */
+/**
+ * Invisible characters that change how the text around them is shown: bidirectional
+ * marks, embeddings, overrides and isolates (U+061C, U+200E, U+200F, U+202A-U+202E,
+ * U+2066-U+2069), zero-width space, word joiner and byte order mark. A title such as
+ * "photo\u202Egnp.exe" would otherwise read as "photoexe.png". Zero-width (non-)joiners
+ * stay: emoji sequences and several scripts need them.
+ */
+const INVISIBLE_FORMATTING = /[\u061c\u200b\u200e\u200f\u202a-\u202e\u2060\u2066-\u2069\ufeff]/g
+
+/** Text with the invisible formatting characters above removed. */
+export function stripInvisibleFormatting(value: string): string {
+  return value.replace(INVISIBLE_FORMATTING, '')
+}
+
+/**
+ * Text for display: unescaped, invisible formatting removed, control characters and
+ * runs of whitespace made one space.
+ */
 function cleanText(value: string, max: number): string {
-  const text = unescapeText(value)
+  const text = stripInvisibleFormatting(unescapeText(value))
     .replace(/[\u0000-\u001f\u007f]+/g, ' ')
     .replace(/\s+/g, ' ')
   return capText(text, max)
@@ -371,8 +429,16 @@ interface Observance {
   dates: LocalDateTime[]
 }
 
-/** A zone defined only by its VTIMEZONE (its STANDARD and DAYLIGHT observances). */
-function vtimezoneZone(component: Component, displayName: string): Zone | null {
+/**
+ * A zone defined only by its VTIMEZONE (its STANDARD and DAYLIGHT observances). Each
+ * conversion draws on the file's work allowance; once it is spent, conversions use the
+ * offsets found so far.
+ */
+function vtimezoneZone(
+  component: Component,
+  displayName: string,
+  work: ExpansionBudget,
+): Zone | null {
   const observances: Observance[] = []
   for (const child of component.children) {
     if (child.name !== 'STANDARD' && child.name !== 'DAYLIGHT') continue
@@ -393,6 +459,7 @@ function vtimezoneZone(component: Component, displayName: string): Zone | null {
       .flatMap(p => p.value.split(','))
       .map(parseTimeValue)
       .flatMap(v => (v?.kind === 'datetime' ? [v.local] : []))
+      .slice(0, ICS_IMPORT_LIMITS.maxZoneDates)
     observances.push({ start: start.local, offsetTo, rule, dates })
   }
   if (!observances.length) return null
@@ -409,10 +476,12 @@ function vtimezoneZone(component: Component, displayName: string): Zone | null {
       }
       for (const obs of observances) {
         consider(localAsUtc(obs.start), obs.offsetTo)
+        if (!work.spend(1 + obs.dates.length)) continue
         for (const date of obs.dates) consider(localAsUtc(date), obs.offsetTo)
         if (!obs.rule) continue
         const fromDay = civilDay(local.year - 1, 1, 1)
-        for (const onset of expandRrule(obs.rule, obs.start, { fromDay, maxPeriods: 400 })) {
+        const options = { fromDay, maxPeriods: 400, budget: work }
+        for (const onset of expandRrule(obs.rule, obs.start, options)) {
           const ms = localAsUtc(onset)
           if (ms > at) break
           if (obs.rule.until && 'instant' in obs.rule.until && ms > obs.rule.until.instant) break
@@ -429,6 +498,8 @@ interface ZoneContext {
   timezones: Map<string, Component>
   defaultZone: Zone
   cache: Map<string, Zone | null>
+  /** The file's work allowance (ICS_IMPORT_LIMITS.maxWork). */
+  work: ExpansionBudget
 }
 
 /** The zone a TZID names, or null when it cannot be resolved. */
@@ -447,7 +518,7 @@ function resolveTzid(tzid: string, context: ZoneContext): Zone | null {
     if (suffix) zone = ianaZone(suffix)
     else if (windows && isIanaTimeZone(windows)) zone = ianaZone(windows)
     else if (licensed && isIanaTimeZone(licensed)) zone = ianaZone(licensed)
-    else if (definition) zone = vtimezoneZone(definition, context.defaultZone.name)
+    else if (definition) zone = vtimezoneZone(definition, context.defaultZone.name, context.work)
   }
   context.cache.set(tzid, zone)
   return zone
@@ -486,13 +557,17 @@ function readTime(prop: Property | undefined, context: ZoneContext): ReadTime {
   }
 }
 
-/** The instants in a multi-valued EXDATE or RDATE property. */
+/**
+ * The instants in a multi-valued EXDATE or RDATE property. Each value draws on the
+ * file's work allowance; values past it are not read.
+ */
 function instantsOf(props: readonly Property[], context: ZoneContext, fallback: Zone): number[] {
   const out: number[] = []
   for (const prop of props) {
     const tzid = prop.params.get('TZID')
     const zone = (tzid && resolveTzid(tzid, context)) || fallback
     for (const raw of prop.value.split(',')) {
+      if (!context.work.spend(1)) return out
       // RDATE;VALUE=PERIOD gives start/end; the start is the occurrence.
       const value = parseTimeValue(raw.split('/')[0] ?? '')
       if (value?.kind !== 'datetime') continue
@@ -630,7 +705,11 @@ export function parseIcs(text: string, { now, defaultTimeZone }: IcsParseOptions
   const skipped = emptySkips()
   skipped.overLimit += eventsDropped
   let unsupportedRecurrence = 0
+  let tooComplex = 0
   let unknownTimeZone = 0
+  const work = new ExpansionBudget(ICS_IMPORT_LIMITS.maxWork)
+  const cancelled: IcsCancellation[] = []
+  const series: IcsSeriesCoverage[] = []
   const horizon = now + ICS_IMPORT_LIMITS.recurrenceDays * 86_400_000
   const farthest = now + ICS_IMPORT_LIMITS.maxFutureDays * 86_400_000
   const results: ParsedIcsEvent[] = []
@@ -648,6 +727,7 @@ export function parseIcs(text: string, { now, defaultTimeZone }: IcsParseOptions
       timezones,
       defaultZone: fallback === 'UTC' ? UTC_ZONE : ianaZone(fallback),
       cache: new Map(),
+      work,
     }
 
     // Masters and their RECURRENCE-ID overrides, by UID.
@@ -656,7 +736,9 @@ export function parseIcs(text: string, { now, defaultTimeZone }: IcsParseOptions
     for (const event of calendar.children.filter(c => c.name === 'VEVENT')) {
       const uid = uidOf(event)
       if (first(event, 'RECURRENCE-ID')) {
-        overrides.set(uid, [...(overrides.get(uid) ?? []), event])
+        const list = overrides.get(uid)
+        if (list) list.push(event)
+        else overrides.set(uid, [event])
       } else if (!masters.has(uid)) {
         masters.set(uid, event)
       }
@@ -683,6 +765,7 @@ export function parseIcs(text: string, { now, defaultTimeZone }: IcsParseOptions
     for (const [uid, master] of masters) {
       if (isCancelled(master)) {
         skipped.cancelled += 1
+        cancelled.push({ uid, recurrenceId: null })
         continue
       }
       const timing = timingOf(master, context)
@@ -726,6 +809,9 @@ export function parseIcs(text: string, { now, defaultTimeZone }: IcsParseOptions
       }
       const starts = new Set<number>()
       let nextAfterHorizon: number | null = null
+      // Every original start before this instant (exclusive) was read; Infinity when the
+      // series ends, null when it was not read in full.
+      let coverUntil: number | null = Infinity
       if (rule) {
         const fromLocal =
           start.zone === UTC_ZONE ? utcAsLocal(now) : wallClockAt(now, start.zone.name)
@@ -733,17 +819,38 @@ export function parseIcs(text: string, { now, defaultTimeZone }: IcsParseOptions
           civilDay(fromLocal.year, fromLocal.month, fromLocal.day) -
           Math.ceil(durationMs / 86_400_000) -
           1
-        for (const local of expandRrule(rule, start.local, { fromDay })) {
+        const budget = new ExpansionBudget(
+          Math.min(ICS_IMPORT_LIMITS.maxWorkPerSeries, Math.max(0, work.left)),
+        )
+        const allowance = budget.left
+        // No zone is more than a day from UTC, so a wall-clock time that ended more
+        // than two days before `now` read as UTC has surely ended: skip it without the
+        // (slower) zone conversion.
+        const pastBefore = now - durationMs - 2 * 86_400_000
+        for (const local of expandRrule(rule, start.local, { fromDay, budget })) {
+          if (localAsUtc(local) < pastBefore) continue
           const instant = start.zone.toInstant(local)
           if (rule.until && 'instant' in rule.until && instant > rule.until.instant) break
-          if (instant > farthest) break
+          if (instant > farthest) {
+            coverUntil = instant
+            break
+          }
           if (instant + durationMs <= now || !keep(instant)) continue
           if (instant >= horizon) {
             nextAfterHorizon = instant
+            coverUntil = instant
             break
           }
           starts.add(instant)
-          if (starts.size >= ICS_IMPORT_LIMITS.maxOccurrencesPerSeries) break
+          if (starts.size >= ICS_IMPORT_LIMITS.maxOccurrencesPerSeries) {
+            coverUntil = instant + 1
+            break
+          }
+        }
+        work.spend(allowance - budget.left)
+        if (budget.exhausted) {
+          tooComplex += 1
+          coverUntil = null
         }
       } else {
         // RDATE-only series: DTSTART is its first occurrence.
@@ -752,13 +859,19 @@ export function parseIcs(text: string, { now, defaultTimeZone }: IcsParseOptions
       for (const instant of instantsOf(rdates, context, start.zone)) {
         if (instant + durationMs > now && instant < horizon && keep(instant)) starts.add(instant)
       }
+      // RDATEs are read up to the horizon only; a rule that could not be expanded not at all.
+      if (rdates.length && coverUntil !== null) coverUntil = Math.min(coverUntil, horizon)
+      if (ruleValue && !rule) coverUntil = null
 
       const occurrences = new Map<
         number,
         { start: number; duration: number; fields: EventFields }
       >()
       for (const instant of [...starts].sort((a, b) => a - b)) {
-        if (occurrences.size >= ICS_IMPORT_LIMITS.maxOccurrencesPerSeries) break
+        if (occurrences.size >= ICS_IMPORT_LIMITS.maxOccurrencesPerSeries) {
+          if (coverUntil !== null) coverUntil = Math.min(coverUntil, instant)
+          break
+        }
         if (instant + durationMs > now && instant < horizon) {
           occurrences.set(instant, { start: instant, duration: durationMs, fields })
         }
@@ -770,6 +883,7 @@ export function parseIcs(text: string, { now, defaultTimeZone }: IcsParseOptions
         const id = original.time.instant
         if (isCancelled(override)) {
           occurrences.delete(id)
+          cancelled.push({ uid, recurrenceId: new Date(id).toISOString() })
           continue
         }
         const moved = timingOf(override, context)
@@ -806,17 +920,23 @@ export function parseIcs(text: string, { now, defaultTimeZone }: IcsParseOptions
       for (const [id, occurrence] of occurrences) {
         emit(uid, id, occurrence.fields, occurrence.start, occurrence.duration, start.zone)
       }
+      if (coverUntil !== null) {
+        series.push({ uid, until: coverUntil === Infinity ? null : coverUntil })
+      }
     }
 
     // Overrides whose series is not in the file stand on their own.
     for (const [uid, list] of overrides) {
       for (const override of list) {
+        const original = readTime(first(override, 'RECURRENCE-ID'), context)
         if (isCancelled(override)) {
           skipped.cancelled += 1
+          if (original.kind === 'time') {
+            cancelled.push({ uid, recurrenceId: new Date(original.time.instant).toISOString() })
+          }
           continue
         }
         const timing = timingOf(override, context)
-        const original = readTime(first(override, 'RECURRENCE-ID'), context)
         if (!timing.ok) {
           skipped[timing.reason] += 1
           continue
@@ -835,7 +955,19 @@ export function parseIcs(text: string, { now, defaultTimeZone }: IcsParseOptions
   results.sort((a, b) => a.start - b.start || a.uid.localeCompare(b.uid))
   if (results.length > ICS_IMPORT_LIMITS.maxEvents) {
     skipped.overLimit += results.length - ICS_IMPORT_LIMITS.maxEvents
+    // Occurrences past the cut were read but not returned: no series covers them.
+    const cut = (results[ICS_IMPORT_LIMITS.maxEvents] as ParsedIcsEvent).start
+    for (const item of series) item.until = Math.min(item.until ?? Infinity, cut)
     results.length = ICS_IMPORT_LIMITS.maxEvents
   }
-  return { events: results, skipped, unsupportedRecurrence, unknownTimeZone, calendarName }
+  return {
+    events: results,
+    skipped,
+    cancelled,
+    series,
+    unsupportedRecurrence,
+    tooComplex,
+    unknownTimeZone,
+    calendarName,
+  }
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { expandRrule, parseRrule, type Rrule } from './rrule'
+import { ExpansionBudget, expandRrule, parseRrule, type Rrule } from './rrule'
 import { civilDay, isoDateOf, type LocalDateTime } from './zoned-time'
 
 const at = (iso: string): LocalDateTime => {
@@ -198,10 +198,40 @@ describe('expandRrule', () => {
 
   it('counts from the start when a COUNT is set, whatever the hint', () => {
     const fromDay = civilDay(2026, 6, 15)
-    expect(dates('FREQ=DAILY;COUNT=2', '2020-01-01T09:00', 5, fromDay)).toEqual([
-      '2020-01-01',
-      '2020-01-02',
-    ])
+    // Every occurrence counts, so a short series ends long before the hint.
+    expect(dates('FREQ=DAILY;COUNT=2', '2020-01-01T09:00', 5, fromDay)).toEqual(['2020-01-01'])
+    // A series that runs past the hint ends on the same day whether its periods are
+    // stepped one by one or skipped by multiplying.
+    const daily = 'FREQ=DAILY;COUNT=2360'
+    const all = dates(daily, '2020-01-01T09:00', 3000)
+    expect(all.at(-1)).toBe('2026-06-17')
+    const fast = dates(daily, '2020-01-01T09:00', 3000, fromDay).slice(1)
+    expect(fast).toEqual(all.slice(all.length - fast.length))
+    expect(fast).toEqual(expect.arrayContaining(all.filter(date => date >= '2026-06-15')))
+    // Weekly with two weekdays: the first week holds only the start's later days.
+    const weekly = 'FREQ=WEEKLY;BYDAY=MO,WE;COUNT=700'
+    const stepped = dates(weekly, '2020-01-01T09:00', 1000)
+    const skipped = dates(weekly, '2020-01-01T09:00', 1000, fromDay).slice(1)
+    expect(skipped.length).toBeGreaterThan(2)
+    expect(skipped).toEqual(stepped.slice(stepped.length - skipped.length))
+  })
+
+  it('counts every candidate of a yearly rule against the budget and stops when it runs out', () => {
+    const budget = new ExpansionBudget(10_000)
+    const out = [
+      ...expandRrule(
+        rule('FREQ=YEARLY;COUNT=999999;BYDAY=MO,TU,WE,TH,FR,SA,SU'),
+        at('1000-01-01T09:00'),
+        { fromDay: civilDay(2026, 6, 15), budget },
+      ),
+    ]
+    expect(budget.exhausted).toBe(true)
+    expect(out.length).toBeLessThan(10_000)
+    const roomy = new ExpansionBudget(10_000)
+    expect([
+      ...expandRrule(rule('FREQ=WEEKLY;COUNT=10'), at('2026-06-01T09:00'), { budget: roomy }),
+    ]).toHaveLength(10)
+    expect(roomy.exhausted).toBe(false)
   })
 
   it('gives up on a rule that never matches', () => {

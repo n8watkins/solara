@@ -8,6 +8,7 @@ import {
   parseIcs,
   parseTimeValue,
   safeEventUrl,
+  stripInvisibleFormatting,
   unescapeText,
   unfoldLines,
 } from './ics-parse'
@@ -499,5 +500,216 @@ describe('parseIcs', () => {
         end: Date.parse('2026-06-16T14:45:00Z'),
       }),
     ])
+  })
+})
+
+describe('re-import information', () => {
+  it('lists cancelled events and occurrences', () => {
+    const result = parse(
+      calendar(
+        ...vevent('UID:race', 'DTSTART:20260620T150000Z', 'STATUS:CANCELLED'),
+        ...vevent('UID:ride', 'DTSTART:20260615T200000Z', 'RRULE:FREQ=DAILY;COUNT=5'),
+        ...vevent(
+          'UID:ride',
+          'RECURRENCE-ID:20260617T200000Z',
+          'DTSTART:20260617T200000Z',
+          'STATUS:CANCELLED',
+        ),
+        ...vevent(
+          'UID:orphan',
+          'RECURRENCE-ID:20260618T150000Z',
+          'DTSTART:20260618T150000Z',
+          'STATUS:cancelled',
+        ),
+      ),
+    )
+    expect(result.cancelled).toEqual([
+      { uid: 'race', recurrenceId: null },
+      { uid: 'ride', recurrenceId: '2026-06-17T20:00:00.000Z' },
+      { uid: 'orphan', recurrenceId: '2026-06-18T15:00:00.000Z' },
+    ])
+    expect(result.skipped.cancelled).toBe(2)
+  })
+
+  it('says how far each recurring event was read in full', () => {
+    const result = parse(
+      calendar(
+        // Ends within the range: read to its end.
+        ...vevent('UID:short', 'DTSTART:20260615T200000Z', 'RRULE:FREQ=DAILY;COUNT=3'),
+        // Goes on past the range: read up to its next occurrence after it.
+        ...vevent('UID:weekly', 'DTSTART:20260601T200000Z', 'RRULE:FREQ=WEEKLY'),
+        // A one-off event is not a series.
+        ...vevent('UID:once', 'DTSTART:20260620T150000Z'),
+        // A rule that cannot be expanded is not read in full.
+        ...vevent('UID:hourly', 'DTSTART:20260620T150000Z', 'RRULE:FREQ=HOURLY'),
+      ),
+    )
+    expect(result.series).toEqual([
+      { uid: 'short', until: null },
+      { uid: 'weekly', until: Date.parse('2026-06-29T20:00:00Z') },
+    ])
+  })
+
+  it('reads a series with an occurrence cap only up to the cap', () => {
+    const result = parse(
+      calendar(...vevent('UID:many', 'DTSTART:20260615T180000Z', 'RRULE:FREQ=DAILY;BYMONTH=6,7')),
+    )
+    expect(result.events).toHaveLength(10)
+    expect(result.series).toEqual([{ uid: 'many', until: Date.parse('2026-06-25T18:00:00Z') }])
+  })
+})
+
+describe('hostile input', () => {
+  /** Milliseconds one parse takes. */
+  function timed(text: string) {
+    const started = performance.now()
+    const result = parse(text)
+    return { result, ms: performance.now() - started }
+  }
+
+  /** As many copies of a component as fit in the size cap. */
+  function filled(component: (i: number) => string, reserve = 0): string {
+    const parts: string[] = []
+    let size = 200 + reserve
+    for (let i = 0; ; i += 1) {
+      const next = component(i)
+      if (size + next.length > ICS_IMPORT_LIMITS.maxBytes) break
+      parts.push(next)
+      size += next.length + 2
+    }
+    return calendar(...parts)
+  }
+
+  // REVIEW4 M2: each of these took seconds to hours before the work allowance.
+  it('bounds recurrence expansion that starts centuries ago', () => {
+    const { result, ms } = timed(
+      filled(i =>
+        vevent(
+          `UID:y${i}`,
+          'DTSTART;TZID=America/New_York:10000101T090000',
+          'DURATION:PT1H',
+          'RRULE:FREQ=YEARLY;COUNT=999999;BYDAY=MO,TU,WE,TH,FR,SA,SU',
+          'SUMMARY:x',
+        ).join('\r\n'),
+      ),
+    )
+    expect(ms).toBeLessThan(3000)
+    expect(result.tooComplex).toBe(ICS_IMPORT_LIMITS.maxComponents)
+    expect(result.series).toEqual([])
+  })
+
+  it('bounds rules that never match and huge date lists', () => {
+    const never = timed(
+      filled(i =>
+        vevent(
+          `UID:n${i}`,
+          'DTSTART:20260101T090000Z',
+          'RRULE:FREQ=DAILY;BYMONTH=2;BYMONTHDAY=30',
+        ).join('\r\n'),
+      ),
+    )
+    expect(never.ms).toBeLessThan(3000)
+    const dates = Array.from(
+      { length: 60_000 },
+      (_, i) => `2026${String(1 + (i % 12)).padStart(2, '0')}01T090000`,
+    )
+    const listed = timed(
+      calendar(
+        ...vevent(
+          'UID:e',
+          'DTSTART;TZID=Europe/Paris:20260101T090000',
+          'RRULE:FREQ=DAILY',
+          `EXDATE;TZID=Europe/Paris:${dates.join(',')}`,
+        ),
+      ).slice(0, ICS_IMPORT_LIMITS.maxBytes - 20),
+    )
+    expect(listed.ms).toBeLessThan(3000)
+  })
+
+  it('bounds a VTIMEZONE with a hostile rule and date list', () => {
+    const rdates = Array.from({ length: 5000 }, (_, i) => `${1100 + (i % 800)}0101T020000`)
+    const zone = [
+      'BEGIN:VTIMEZONE',
+      'TZID:Bad',
+      'BEGIN:STANDARD',
+      'DTSTART:10000101T020000',
+      'RRULE:FREQ=YEARLY;COUNT=999999;BYDAY=MO,TU,WE,TH,FR,SA,SU',
+      `RDATE:${rdates.join(',')}`,
+      'TZOFFSETFROM:-0400',
+      'TZOFFSETTO:-0500',
+      'END:STANDARD',
+      'END:VTIMEZONE',
+    ].join('\r\n')
+    const events = filled(
+      i => vevent(`UID:t${i}`, 'DTSTART;TZID=Bad:20260620T090000').join('\r\n'),
+      zone.length + 2,
+    )
+    const { result, ms } = timed(
+      events.replace('PRODID:-//Test//EN', `PRODID:-//Test//EN\r\n${zone}`),
+    )
+    expect(ms).toBeLessThan(3000)
+    expect(result.events).toHaveLength(ICS_IMPORT_LIMITS.maxEvents)
+  })
+
+  it('bounds deep nesting and unmatched ENDs', () => {
+    const lines = ['BEGIN:VCALENDAR']
+    for (let i = 0; i < 60_000; i += 1) lines.push('BEGIN:X')
+    for (let i = 0; i < 60_000; i += 1) lines.push('END:Y')
+    lines.push(...vevent('UID:inside', 'DTSTART:20260620T150000Z'), 'END:VCALENDAR')
+    const { result, ms } = timed(lines.join('\r\n').slice(-ICS_IMPORT_LIMITS.maxBytes))
+    expect(ms).toBeLessThan(1000)
+    expect(result.events).toEqual([])
+  })
+
+  it('reads a series that starts long ago with COUNT without stepping every day', () => {
+    const { result, ms } = timed(
+      calendar(
+        ...vevent(
+          'UID:old',
+          'DTSTART:15000101T090000Z',
+          'DURATION:PT1H',
+          'RRULE:FREQ=DAILY;COUNT=999999',
+        ),
+        ...vevent(
+          'UID:weeks',
+          'DTSTART:15000101T090000Z',
+          'RRULE:FREQ=WEEKLY;BYDAY=MO,TH;COUNT=99999',
+        ),
+      ),
+    )
+    expect(ms).toBeLessThan(500)
+    expect(result.tooComplex).toBe(0)
+    expect(result.events.filter(e => e.uid === 'old').map(e => iso(e.start))[0]).toBe(
+      '2026-06-16T09:00:00.000Z',
+    )
+    expect(result.events.filter(e => e.uid === 'weeks').length).toBeGreaterThan(0)
+  })
+})
+
+describe('invisible formatting', () => {
+  it('removes bidirectional controls and zero-width spaces but keeps joiners', () => {
+    expect(stripInvisibleFormatting('photo\u202egnp.exe\u202c')).toBe('photognp.exe')
+    expect(stripInvisibleFormatting('a\u200bb\u2066c\u2069\u200fd\ufeff')).toBe('abcd')
+    // A family emoji is joined with U+200D.
+    expect(stripInvisibleFormatting('👨\u200d👩\u200d👧')).toBe('👨\u200d👩\u200d👧')
+  })
+
+  it('is applied to titles, places and the calendar name', () => {
+    const result = parse(
+      calendar(
+        'X-WR-CALNAME:Club \u202ecal',
+        ...vevent(
+          'UID:b',
+          'DTSTART:20260620T150000Z',
+          'SUMMARY:Beach volleyball \u202egnp.exe\u202c',
+          'LOCATION:Venice\u2067 Beach',
+        ),
+      ),
+    )
+    expect(result.events[0]).toMatchObject({
+      title: 'Beach volleyball gnp.exe',
+      location: 'Venice Beach',
+    })
+    expect(result.calendarName).toBe('Club cal')
   })
 })
