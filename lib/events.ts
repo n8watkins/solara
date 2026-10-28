@@ -4,8 +4,8 @@
 // them. This module holds the pure steps (unit-tested) and the Firestore storage, which
 // loads Firestore on demand. It is only ever imported by the lazily loaded Events
 // section (components/events/), never by the guest's first load.
+import { capText, roundCoordinate } from '@solara/core'
 import {
-  capText,
   ICS_IMPORT_LIMITS,
   IcsImportError,
   IMPORTED_EVENT_LIMITS,
@@ -17,11 +17,10 @@ import {
   matchActivity,
   parseIcs,
   parseImportedEvent,
-  roundCoordinate,
   type IcsParseResult,
   type ImportedEvent,
   type ParsedIcsEvent,
-} from '@solara/core'
+} from '@solara/core/event-import'
 import { lazySubscription, loadFirebase } from './firebase'
 import type { PlaceName, PlaceSuggestion } from './geocoding'
 import { resolveTimeZone } from './time'

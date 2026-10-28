@@ -4,7 +4,8 @@
   "private": true,
   "description": "Business logic shared by the Solara web app and Cloud Functions: recommendation engine, Open-Meteo parser, ICS builder and feed-token policy.",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./event-import": "./src/event-import.ts"
   },
   "dependencies": {
     "valibot": "^1.5.0"

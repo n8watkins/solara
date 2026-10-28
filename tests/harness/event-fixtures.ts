@@ -1,7 +1,7 @@
 // In-memory imported events for the UI harness (?events=sample). It stands in for the
 // Firestore store in lib/events.ts with the same EventsStore shape, so the Events
 // section renders deterministically. Without ?events the store starts empty.
-import type { ImportedEvent } from '@solara/core'
+import type { ImportedEvent } from '@solara/core/event-import'
 import type { EventsStore } from '@/lib/events'
 import { zonedInstant } from '@/lib/time'
 import { HARNESS_DATE, HARNESS_TIMEZONE } from './clock'

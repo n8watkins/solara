@@ -2,7 +2,7 @@
 import { useId, useState } from 'react'
 import { ExternalLink, MapPin, X } from 'lucide-react'
 import clsx from 'clsx'
-import type { ImportedEvent } from '@solara/core'
+import type { ImportedEvent } from '@solara/core/event-import'
 import { eventCardView } from '@/lib/event-view'
 import { samePlace } from '@/lib/events'
 import { useWeather } from '@/lib/use-forecast'

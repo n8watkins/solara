@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { ParsedIcsEvent } from '@solara/core'
+import type { ParsedIcsEvent } from '@solara/core/event-import'
 import {
   eventDocument,
   findPlace,

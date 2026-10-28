@@ -29,7 +29,7 @@ import {
   IMPORTED_EVENT_SHAPE,
   IMPORTED_EVENT_SOURCES,
   IMPORTED_EVENT_TTL_FIELD,
-} from '@solara/core'
+} from '@solara/core/event-import'
 import { describe, expect, it } from 'vitest'
 import { defaultPrefs, newAccountPrefs, normalizePrefs } from './prefs'
 import { ACTIVITY_CATEGORIES, PRESET_ACTIVITIES, TIER_LIMITS } from './tiers'

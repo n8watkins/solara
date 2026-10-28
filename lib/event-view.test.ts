@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { ImportedEvent } from '@solara/core'
+import type { ImportedEvent } from '@solara/core/event-import'
 import { durationText, eventCardView, type EventCardInput } from './event-view'
 import { unitFormatters } from './units'
 import type { HourlyForecast, WeatherResponse } from './types'

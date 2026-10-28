@@ -9,7 +9,7 @@ import {
   zonedDate,
   type EventUV,
   type ImportedEvent,
-} from '@solara/core'
+} from '@solara/core/event-import'
 import { exposureSummary } from './activity-exposure'
 import { dayLabel } from './forecast'
 import { SKIN_TYPE_LABELS } from './profiles'

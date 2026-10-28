@@ -2,7 +2,8 @@
 // scheduled activities, imported events and the Pro alert history, never billing ids,
 // tokens or internal bookkeeping.
 
-import { parseImportedEvent, parseScheduledActivity, PREFERENCE_FIELDS } from '#core'
+import { parseScheduledActivity, PREFERENCE_FIELDS } from '#core'
+import { parseImportedEvent } from '#core/event-import'
 import type { Auth } from 'firebase-admin/auth'
 import type { DocumentData, Firestore, QuerySnapshot } from 'firebase-admin/firestore'
 import type { Request } from 'firebase-functions/v2/https'

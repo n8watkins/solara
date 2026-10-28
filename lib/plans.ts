@@ -44,6 +44,8 @@ export const PRO_FEATURES: ProFeature[] = [
     ...perTier(tier => (TIER_LIMITS[tier].storage === 'device' ? 'This device' : 'Synced')),
   },
   { label: 'Calendar sync', ...perTier(tier => TIER_LIMITS[tier].calendar) },
+  // Imported events need an account to keep them (docs/integrations/EVENTS.md).
+  { label: 'UV at your events (.ics)', ...perTier(tier => tier !== 'anonymous') },
   {
     // Group planning by the most sensitive person comes with family profiles
     // (planningFor in packages/core/src/prefs.ts).

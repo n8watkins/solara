@@ -6,7 +6,8 @@
   },
   "main": "lib/index.js",
   "imports": {
-    "#core": "./core/index.js"
+    "#core": "./core/index.js",
+    "#core/*": "./core/*.js"
   },
   "private": true,
   "scripts": {
