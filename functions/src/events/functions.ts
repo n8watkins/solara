@@ -64,7 +64,7 @@ const deps: SubscriptionDeps = {
 // cost guard sit in front of every call. Each add or refresh fetches one link within
 // the fetcher's limits (safe-fetch.ts).
 export const eventSubscriptions = onRequest(
-  httpOptions({ name: 'eventSubscriptions', timeoutSeconds: 60, secrets: [OPEN_METEO_API_KEY] }),
+  httpOptions({ name: 'eventSubscriptions', timeoutSeconds: 120, secrets: [OPEN_METEO_API_KEY] }),
   browserApi({
     name: 'eventSubscriptions',
     method: 'POST',

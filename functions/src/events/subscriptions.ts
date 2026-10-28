@@ -818,7 +818,9 @@ export interface RefreshRunLimits {
 export const REFRESH_RUN_LIMITS: RefreshRunLimits = Object.freeze({
   maxLinks: 100,
   concurrency: 4,
-  budgetMs: 240_000,
+  // A link can take about a minute (a 10 s fetch and up to 10 place searches of 5 s), so
+  // the job's 300 s timeout leaves room for the last ones started.
+  budgetMs: 200_000,
 })
 
 export interface RefreshRunResult {

@@ -238,7 +238,7 @@ test('linked calendars on Pro: every state, link, refresh and remove', async ({
   await expect(ride.getByText('From a linked calendar')).toBeVisible()
   await expect(ride.getByRole('button', { name: /^Remove/ })).toHaveCount(0)
 
-  await panel.evaluate(element => element.scrollIntoView({ block: 'center' }))
+  await panel.scrollIntoViewIfNeeded()
   await captureScreen(page, testInfo, capture, { name: 'events-links-pro', fullPage: false })
   await sectionShot(page, testInfo, 'events-section-links-pro')
   if (!testInfo.project.name.startsWith('mobile')) {
@@ -286,9 +286,10 @@ test('linked calendars on Free offer Pro heads-ups', async ({ page }, testInfo) 
     'With Pro, get a heads-up a few hours before an event with high UV.',
   )
   await expect(panel.getByRole('button', { name: 'See Pro' })).toBeVisible()
-  // Centred, so the sticky header covers none of the dashboard's buttons (axe target-size).
-  await panel.evaluate(element => element.scrollIntoView({ block: 'center' }))
-  await captureScreen(page, testInfo, capture, { name: 'events-links-free', fullPage: false })
+  // The whole page from the top: scrolled, the sticky header would partly cover a
+  // dashboard button above the section, which axe counts as a small target.
+  await page.evaluate(() => window.scrollTo(0, 0))
+  await captureScreen(page, testInfo, capture, { name: 'events-links-free', fullPage: true })
   await sectionShot(page, testInfo, 'events-section-links-free')
   if (!testInfo.project.name.startsWith('mobile')) {
     await page.setViewportSize({ width: 1280, height: 900 })
