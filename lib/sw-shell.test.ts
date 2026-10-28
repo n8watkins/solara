@@ -100,7 +100,7 @@ describe('routeRequest', () => {
   })
 
   it('leaves the Microsoft sign-in redirect to the network, never the app shell (Outlook)', () => {
-    for (const path of ['/auth/microsoft/?code=M.C5&state=s', '/auth/microsoft/'])
+    for (const path of ['/auth/microsoft/?code=test-code&state=s', '/auth/microsoft/'])
       expect(routeRequest(get(path, 'navigate'), ORIGIN, precached), path).toBeNull()
   })
 

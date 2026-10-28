@@ -112,7 +112,7 @@ export class FakeMicrosoft {
           'AADSTS90094: The grant requires admin permission.',
         )
       } else {
-        const code = `M.C5${this.serial++}.code`
+        const code = `test-code-${this.serial++}`
         this.codes.set(code, {
           clientId: params.get('client_id')!,
           redirectUri: params.get('redirect_uri')!,
@@ -151,7 +151,7 @@ export class FakeMicrosoft {
         })
         return
       }
-      const token = `eyJ0eXAi.fake-graph-token-${this.serial++}`
+      const token = `test-graph-token-${this.serial++}`
       this.tokens.add(token)
       await route.fulfill({
         headers: cors,

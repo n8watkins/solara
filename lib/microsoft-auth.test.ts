@@ -110,7 +110,7 @@ function harness(overrides: Partial<MicrosoftAuthDeps> = {}) {
       token_type: 'Bearer',
       scope: SCOPE,
       expires_in: 3599,
-      access_token: 'eyJ.access',
+      access_token: 'test-access-token',
       // Microsoft never sends one without offline_access; Solara must ignore it anyway.
       refresh_token: 'should-not-be-kept',
     })
@@ -198,7 +198,7 @@ describe('createMicrosoftAuth', () => {
     // Opened before anything is awaited, so the click's user activation still counts.
     expect(popups).toHaveLength(1)
     await redirect({ code: 'the-code' })
-    expect(await pending).toBe('eyJ.access')
+    expect(await pending).toBe('test-access-token')
 
     const authorize = new URL(popups[0]!.location.href)
     expect(posts).toHaveLength(1)
@@ -217,12 +217,12 @@ describe('createMicrosoftAuth', () => {
     )
     // The next request needs no popup until the token is about to expire.
     expect(auth.hasToken(SCOPE)).toBe(true)
-    expect(await auth.requestToken(SCOPE, { interactive: false })).toBe('eyJ.access')
+    expect(await auth.requestToken(SCOPE, { interactive: false })).toBe('test-access-token')
     expect(popups).toHaveLength(1)
     vi.advanceTimersByTime(3599_000 - 60_000)
     expect(auth.hasToken(SCOPE)).toBe(false)
     // Never stored anywhere but memory.
-    expect(JSON.stringify(globalThis.localStorage ?? {})).not.toContain('eyJ')
+    expect(JSON.stringify(globalThis.localStorage ?? {})).not.toContain('test-access-token')
   })
 
   it('never opens a popup without a click', async () => {
@@ -238,8 +238,8 @@ describe('createMicrosoftAuth', () => {
     const first = auth.requestToken(SCOPE, { interactive: true })
     const second = auth.requestToken(SCOPE, { interactive: true })
     await redirect({ code: 'c' })
-    expect(await first).toBe('eyJ.access')
-    expect(await second).toBe('eyJ.access')
+    expect(await first).toBe('test-access-token')
+    expect(await second).toBe('test-access-token')
     expect(popups).toHaveLength(1)
   })
 

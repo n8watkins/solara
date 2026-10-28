@@ -28,14 +28,14 @@ function run(url: string) {
 describe('the Microsoft redirect page script', () => {
   it('hands the code to the sign-in on its own channel, clears the address bar and closes', () => {
     const { posted, replaced, close } = run(
-      'https://solara-uv.web.app/auth/microsoft/?code=M.C5_BAY.2.U&state=abc123&session_state=x',
+      'https://solara-uv.web.app/auth/microsoft/?code=test-code-1&state=abc123&session_state=x',
     )
     expect(posted).toEqual([
       {
         name: `${MICROSOFT_AUTH_CHANNEL_PREFIX}abc123`,
         data: {
           state: 'abc123',
-          code: 'M.C5_BAY.2.U',
+          code: 'test-code-1',
           error: '',
           errorDescription: '',
           errorSubcode: '',

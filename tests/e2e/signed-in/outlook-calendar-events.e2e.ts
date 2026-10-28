@@ -270,8 +270,9 @@ test('a cancelled sign-in is not an error, and an organization’s refusal says 
   popup = page.waitForEvent('popup')
   await show.click()
   await (await popup).waitForEvent('close')
+  // Linked calendars are on in this build, so the message points to them.
   await expect(page.getByTestId('outlook-calendar-status')).toHaveText(
-    'Your organization needs to approve Solara before it can read your work calendar. Ask your IT team.',
+    'Your organization needs to approve Solara before it can read your work calendar. Ask your IT team, or link the calendar under Linked calendars instead.',
   )
   expect(await emulators.readDoc(account, 'meta/outlookCalendar')).toBeNull()
   expect(microsoft.calls.filter(c => c.url.pathname.endsWith('/token'))).toHaveLength(0)
