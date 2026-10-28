@@ -95,8 +95,19 @@ When billing was detached:
 - The Functions stop: checkout, the webhook, account export and deletion, the feed, the forecast proxy and the alerts.
 - Hosting keeps serving the site, and sign-in and Firestore keep working, within the no-cost (Spark) quotas; the app falls back to what it can do without Functions, as before the Pro launch.
 - Google warns that resources which need billing can be deleted if billing stays off; re-attach the same day.
-- Re-attach at https://console.cloud.google.com/billing/linkedaccount?project=uv-activity-planner (**Link a billing account**), then redeploy the Functions (`firebase deploy --only functions --project uv-activity-planner`) and check that `maintenance` and `stripeWebhook` run again.
-- Stripe retries webhook deliveries for up to three days, so subscription changes made while the webhook was down are applied once it is back.
+- Stripe retries a failed webhook delivery for up to 3 days and then gives up, so a subscription change, renewal, failed payment or refund sent while the Functions were down is lost unless it is resent: finish the steps below within 3 days of the detach.
+
+Within 3 days of a detach:
+
+1. Note the time of the ERROR `billing detached by the budget kill switch`; that is when the webhook started failing.
+2. Fix or block whatever drove the spend (the cost guard steps above), so re-attaching does not trip the switch again at once.
+3. Re-attach at https://console.cloud.google.com/billing/linkedaccount?project=uv-activity-planner (**Link a billing account**), then redeploy the Functions (`firebase deploy --only functions --project uv-activity-planner`) and check that `maintenance` and `stripeWebhook` run again.
+4. Replay the webhook events that failed: in the Stripe dashboard, **Workbench**, **Webhooks**, the Solara endpoint, **Event deliveries**, look at the **Failed** deliveries from the detach time on, and **Resend** each one, oldest first.
+   With many events, the Stripe CLI does the same: `stripe events resend <event id> --webhook-endpoint=<endpoint id>` for each failed event id.
+   Resending is safe: the webhook records each event id it applied (`stripeWebhookEvents`) and skips one it has already seen, and it ignores a subscription update older than the one it holds.
+5. Check that nothing is left: the endpoint shows no failed deliveries since the detach, and `stripeWebhook failed` stops appearing in the logs.
+6. If more than 3 days passed, Stripe has stopped retrying, but the events can still be resent by hand: from the dashboard for 15 days after each event, and with the CLI command above for 30 days.
+   Older than that, compare the Stripe subscriptions list with the accounts' `subscriptionStatus`, and for each account that differs, change the subscription in Stripe (for example its metadata) so Stripe sends a fresh `customer.subscription.updated` event.
 
 ## Account deletion alerts
 
