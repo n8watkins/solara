@@ -6,6 +6,7 @@
 import * as v from 'valibot'
 import { isValidFeedToken } from './feed-token'
 import { OpenMeteoResponseSchema } from './forecast'
+import { GeocodingResponseSchema } from './geocoding'
 import { finiteNumber, isPlainRecord, looseRecord, record } from './schema'
 
 function isUrl(value: string, check: (url: URL) => boolean): boolean {
@@ -60,6 +61,8 @@ export const FUNCTION_RESPONSES = {
   revokeCalendarFeed: record({ revoked: v.boolean() }),
   /** The forecast proxy answers in Open-Meteo's shape, read by the same parser. */
   forecast: OpenMeteoResponseSchema,
+  /** The place search proxy answers in Open-Meteo's geocoding shape. */
+  placeSearch: GeocodingResponseSchema,
 }
 
 export type FunctionName = keyof typeof FUNCTION_RESPONSES

@@ -16,6 +16,7 @@ const {
   requestedPlace,
 } = require('../lib/forecast/proxy')
 const { UpstreamBudget } = require('../lib/forecast/upstream-budget')
+const { PlaceSearchCache, requestedSearch } = require('../lib/forecast/place-search')
 const { captureLogs } = require('./support/logs')
 
 const logs = captureLogs()
@@ -445,5 +446,97 @@ describe('forecast upstream budget', () => {
     })
     assert.equal(await spend.take(), false)
     assert.ok(logs.entries.some(e => e.message === 'forecast upstream budget could not be read'))
+  })
+})
+
+describe('place search proxy (L3)', () => {
+  const PASADENA = {
+    latitude: 34.1478,
+    longitude: -118.1445,
+    name: 'Pasadena',
+    admin1: 'California',
+    country: 'United States',
+    timezone: 'America/Los_Angeles',
+    population: 141029,
+  }
+
+  function places({ key = 'key-123', allowed = true, left = 100, respond } = {}) {
+    const calls = []
+    const spend = { left, take: async () => spend.left-- > 0 }
+    const search = new PlaceSearchCache({
+      apiKey: () => key,
+      upstreamAllowed: async () => allowed,
+      upstreamBudget: spend,
+      fetchImpl: async (url, init) => {
+        calls.push({ url: new URL(url), init })
+        return respond ? respond() : { ok: true, json: async () => ({ results: [PASADENA] }) }
+      },
+    })
+    return { calls, search }
+  }
+
+  test('accepts only a short place name and a small count', () => {
+    assert.deepEqual(requestedSearch({ name: '  Pasadena,   CA ', count: '10' }), {
+      name: 'Pasadena, CA',
+      count: 10,
+    })
+    assert.deepEqual(requestedSearch({ name: 'Pa' }), { name: 'Pa', count: 5 })
+    for (const query of [
+      {},
+      { name: 'P' },
+      { name: 'x'.repeat(81) },
+      { name: 'Pasadena\u0000' },
+      { name: ['a', 'b'] },
+      { name: 'Pasadena', count: '0' },
+      { name: 'Pasadena', count: '11' },
+      { name: 'Pasadena', count: '5.5' },
+      { name: 'Pasadena', count: '100' },
+    ]) {
+      assert.throws(
+        () => requestedSearch(query),
+        { code: 'invalid-argument' },
+        JSON.stringify(query),
+      )
+    }
+  })
+
+  test('asks the commercial host with the key, returns only validated fields, and caches', async () => {
+    const { calls, search } = places()
+    const first = await search.search({ name: 'Pasadena', count: 5 })
+    // `population` and anything else Open-Meteo sends is dropped.
+    assert.deepEqual(first, {
+      results: [
+        {
+          latitude: 34.1478,
+          longitude: -118.1445,
+          name: 'Pasadena',
+          admin1: 'California',
+          country: 'United States',
+          timezone: 'America/Los_Angeles',
+        },
+      ],
+    })
+    assert.equal(calls.length, 1)
+    assert.equal(calls[0].url.origin, 'https://customer-geocoding-api.open-meteo.com')
+    assert.equal(calls[0].url.searchParams.get('apikey'), 'key-123')
+    assert.equal(calls[0].url.searchParams.get('name'), 'Pasadena')
+    assert.equal(calls[0].url.searchParams.get('count'), '5')
+    // The same search, in any case, is served from memory.
+    await search.search({ name: 'pasadena', count: 5 })
+    assert.equal(calls.length, 1)
+  })
+
+  test('never calls upstream without a key, under the cost guard, or past the budget', async () => {
+    for (const setup of [{ key: null }, { allowed: false }, { left: 0 }]) {
+      const { calls, search } = places(setup)
+      await assert.rejects(search.search({ name: 'Pasadena', count: 5 }), { code: 'unavailable' })
+      assert.equal(calls.length, 0, JSON.stringify(setup))
+    }
+  })
+
+  test('turns an upstream failure into 503 without leaking the key', async () => {
+    const { search } = places({ respond: () => ({ ok: false, status: 500 }) })
+    await assert.rejects(search.search({ name: 'Pasadena', count: 5 }), { code: 'unavailable' })
+    assert.doesNotMatch(JSON.stringify(logs.entries), /key-123/)
   })
 })

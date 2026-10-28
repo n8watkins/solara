@@ -234,7 +234,7 @@ Allow the billing-resource backfill to complete before relying on deletion clean
 ### Cost and abuse limits
 
 Every Function declares its own ceiling in `functions/src/shared/options.ts` instead of the platform defaults: 256 MiB of memory, a timeout of 30-300 seconds, and an instance cap.
-The HTTP functions' caps are one table, `INSTANCE_CAPS`, sized for launch traffic (a few requests a minute) rather than for a flood: 3 instances for `forecast`, 2 for `calendarFeed` and `stripeWebhook`, and 1 for each of the other eight, 15 in all.
+The HTTP functions' caps are one table, `INSTANCE_CAPS`, sized for launch traffic (a few requests a minute) rather than for a flood: 3 instances for `forecast`, 2 for `calendarFeed`, and 1 for each of the other ten (`stripeWebhook` and `placeSearch` included), 15 in all.
 HTTP functions run on one vCPU and serve up to 20 requests per instance at once (40 for the forecast proxy and the calendar feed); `maintenance`, `alerts` and `budgetAlert` run one instance with a fractional CPU (`gcf_gen1`) and are not retried, because the next run or notification resumes the work.
 `functions/test/hardening.test.js` loads the deploy entry point and fails when a function lacks a ceiling or the HTTP caps add up to more than 15.
 Raise a cap in `INSTANCE_CAPS` when real traffic needs it, and update the worst case in [COSTS.md](COSTS.md#worst-case-under-a-flood) with it.
@@ -311,6 +311,10 @@ Open-Meteo's free API is for non-commercial use, so once Pro is sold, forecasts 
 - **Limits**: App Check (standard), 120 requests a minute per address, three instances, and only the app's own request (the coordinates are the only input); while the cost guard is engaged, only cached forecasts are served.
 - **Calendar feed** (finding M3): reads through the same cache and budget, and each feed may cause at most `FEED_UPSTREAM_PER_HOUR` (4) upstream calls an hour per instance, so an account that keeps moving its location cannot make every feed request a paid call; past that it gets the cached forecast or a 503 with `Retry-After: 900`, and calendar apps keep their last copy.
 - **Switch**: the `FORECAST_PROXY_ENABLED` repository variable turns it on in the build and the Functions together; until then the browser calls Open-Meteo directly, as today, and setup's current-UV check goes through the proxy too once it is on.
+- **Place search** (finding L3): Open-Meteo's terms make its free API non-commercial for every API, geocoding included, and its paid plans include the Geocoding API on the customer host.
+  So once the proxy is on, the app's place search (setup, the location panel, Settings) calls the `placeSearch` Function instead of `geocoding-api.open-meteo.com` (`functions/src/forecast/place-search.ts`, `lib/geocoding.ts`).
+  It checks the search (2-80 characters, at most 10 results), asks `customer-geocoding-api.open-meteo.com` with the key, returns only the validated fields, caches answers in memory for a day, and counts misses against the same upstream budget; App Check, 60 requests a minute per address, one instance.
+  "Use my location" names still come from Nominatim, whose usage policy allows that use.
 - **The feed's provider** (finding L3): the commercial API as soon as `OPEN_METEO_API_KEY` holds a real key; before that, Open-Meteo's free API only while billing is off (no Pro is sold, so the use is non-commercial).
   Once `BILLING_ENABLED` is on without a key, the feed serves what is cached and otherwise answers 503 instead of using the free API commercially.
 

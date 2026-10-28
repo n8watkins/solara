@@ -150,14 +150,14 @@ Candidates, roughly ranked by impact over effort:
 - **Depends on:** an Apple Developer account ($99 per year) and a Google Play developer account ($25 once); native push needs item 10.
 - **Size:** L.
 
-### 14. Cost and abuse fixes from the third review (FIX3A, in progress)
+### 14. Cost and abuse fixes from the third review (FIX3A, built, #118-#121)
 
 The third security review (2026-10-27) found that a request flood could still run up the Blaze bill and that an attacker could pause Pro for everyone; this item fixes its cost and abuse findings H1, H2, M1, M2, M3, M6, L1, L2 and L3 (the other findings are lane FIX3B's).
 The owner's requirement: nobody can abuse the Blaze setup or run up costs, and it is not easy to break.
 
 - **Cheap rejections and client addresses (H1, M2, M6):** a rejected request is turned away before any Firestore read or upstream call and logged once a minute instead of once per request; the HTTP instance caps are launch-sized (15 in all, down from 37); `infra/logging.sh` drops 99% of rejected-request logs; IPv6 clients are limited per /64; a runtime self-check and `infra/check-client-address.sh` catch a wrong `TRUSTED_PROXY_HOPS` ([DEPLOYMENT.md](DEPLOYMENT.md#cost-and-abuse-limits), [COSTS.md](COSTS.md#worst-case-under-a-flood)).
 - **A real hard stop that cannot be turned against paying users (H1, H2, L1, L2):** a $25 budget with three tiers (warn at 50%, cost guard at 100%, detach billing at 300%, on by default); a budget-engaged guard ends by itself at the next budget period and the owner releases it with `infra/cost-guard.sh released --apply`; the scheduled Pro alerts are never paused by the budget; `budgetAlert` acts only on `BUDGET_ID` and runs as its own `solara-budget` identity, the only one allowed to detach billing ([RUNBOOK.md](RUNBOOK.md#budget-kill-switch)).
-- **Paid forecast calls bounded (M1, M3, L1, L3):** a global upstream budget (1,500 an hour, 20,000 a day) shared by the proxy and the calendar feed, failing closed to the cached forecast; a 0.02 degree cache grid chosen from measured UV differences; the calendar feed reads the shared cache with 4 upstream calls per feed an hour; fallbacks are remembered and logged once a minute; setup's current UV goes through the proxy once it is on, and the feed never uses the free API once billing is on ([DEPLOYMENT.md](DEPLOYMENT.md#forecast-proxy)).
+- **Paid forecast calls bounded (M1, M3, L1, L3):** a global upstream budget (1,500 an hour, 20,000 a day) shared by the proxy and the calendar feed, failing closed to the cached forecast; a 0.02 degree cache grid chosen from measured UV differences; the calendar feed reads the shared cache with 4 upstream calls per feed an hour; fallbacks are remembered and logged once a minute; setup's current UV and the place search go through the proxy (a new `placeSearch` Function on the commercial geocoding host) once it is on, and the feed never uses the free API once billing is on ([DEPLOYMENT.md](DEPLOYMENT.md#forecast-proxy)).
 
 ## Decisions
 
@@ -184,7 +184,7 @@ The steps behind each one are in the [owner checklist](OWNER_CHECKLIST.md).
 | Price | Pro price | Decided 2026-10-24: $2.99 a month or $19.99 a year, 7-day free trial, waitlist until billing launches |
 | Tiers | Plans | Decided 2026-10-24: as shipped in #71, below |
 | Testing | Where tests run | Decided 2026-10-24: fast checks locally, full suites on GitHub Actions (#74) |
-| Instance caps | HTTP Functions' `maxInstances` | Default, owner may change (2026-10-27, item 14): 3 for the forecast proxy, 2 for the calendar feed and the Stripe webhook, 1 for the rest, 15 in all (`INSTANCE_CAPS` in `functions/src/shared/options.ts`) |
+| Instance caps | HTTP Functions' `maxInstances` | Default, owner may change (2026-10-27, item 14): 3 for the forecast proxy, 2 for the calendar feed, 1 for the rest (the Stripe webhook and place search included), 15 in all (`INSTANCE_CAPS` in `functions/src/shared/options.ts`) |
 
 ### Tiers
 

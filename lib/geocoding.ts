@@ -172,6 +172,42 @@ function createLookupCache<T>(limit: number) {
 }
 
 const GEOCODING_URL = 'https://geocoding-api.open-meteo.com/v1/search'
+
+/**
+ * The place search proxy's URL when this build uses the forecast proxy
+ * (NEXT_PUBLIC_FORECAST_PROXY, fixed at build time), or null. Open-Meteo's free API is
+ * non-commercial for geocoding too, so once forecasts come from the commercial plan,
+ * place search does as well, through the `placeSearch` Function that holds the key.
+ */
+function placeSearchProxyUrl(): string | null {
+  const functionsUrl = process.env.NEXT_PUBLIC_FUNCTIONS_URL
+  return process.env.NEXT_PUBLIC_FORECAST_PROXY === '1' && functionsUrl
+    ? `${functionsUrl.replace(/\/$/, '')}/placeSearch`
+    : null
+}
+
+/** The request for one place search: the proxy with an App Check token, or the free API. */
+async function placeSearchRequest(
+  query: string,
+  count: number,
+): Promise<{ url: string; init?: RequestInit }> {
+  const proxy = placeSearchProxyUrl()
+  if (!proxy) {
+    const params = new URLSearchParams({
+      name: query,
+      count: String(count),
+      language: 'en',
+      format: 'json',
+    })
+    return { url: `${GEOCODING_URL}?${params}` }
+  }
+  // Loaded on demand, as for the forecast proxy (lib/forecast.ts).
+  const { appCheckToken } = await import('./firebase')
+  const token = await appCheckToken()
+  if (!token) throw new Error('Location search unavailable: app verification is not set up')
+  const params = new URLSearchParams({ name: query, count: String(count) })
+  return { url: `${proxy}?${params}`, init: { headers: { 'X-Firebase-AppCheck': token } } }
+}
 /**
  * Place search is spaced like the reverse lookup below: at most one request per
  * second from this browser. Typing is debounced before it gets here, and a
@@ -205,15 +241,10 @@ async function fetchResults(
   const sent = searchCache.get(key)
   if (sent) return sent
 
-  const params = new URLSearchParams({
-    name: query,
-    count: String(count),
-    language: 'en',
-    format: 'json',
-  })
   return searchCache.set(
     key,
-    fetch(`${GEOCODING_URL}?${params}`).then(async response => {
+    placeSearchRequest(query, count).then(async ({ url, init }) => {
+      const response = await fetch(url, init)
       if (!response.ok) throw new Error(`Location search failed with status ${response.status}`)
       // Results without a usable position or name are dropped; a malformed body throws.
       return parseGeocodingResponse(await response.json())

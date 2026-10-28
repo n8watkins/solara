@@ -31,7 +31,7 @@ const MEMORY = '256MiB' as const
 export const INSTANCE_CAPS = Object.freeze({
   forecast: 3,
   calendarFeed: 2,
-  stripeWebhook: 2,
+  stripeWebhook: 1,
   createCheckoutSession: 1,
   createBillingPortalSession: 1,
   exportAccountData: 1,
@@ -40,6 +40,7 @@ export const INSTANCE_CAPS = Object.freeze({
   removeNotificationDevice: 1,
   rotateCalendarFeed: 1,
   revokeCalendarFeed: 1,
+  placeSearch: 1,
 })
 
 export type HttpFunctionName = keyof typeof INSTANCE_CAPS

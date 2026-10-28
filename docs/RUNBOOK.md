@@ -156,7 +156,7 @@ Every component can be put back to its last good state without a new build.
 | Functions | Each function is a Cloud Run service: Cloud Run console, the service (its name is the function's in lower case), **Revisions**, **Manage traffic**, send 100% to the previous revision; or `gcloud run services update-traffic <service> --to-revisions <revision>=100 --region us-central1 --project uv-activity-planner`. Then revert the change on `main`, because the next deploy rolls forward again |
 | A single paid path | Without a deploy: `infra/cost-guard.sh engaged --apply` pins the cost guard, which pauses the feed, feed links, notification registration, Pro alerts and the forecast proxy's upstream calls within a minute |
 | Pro checkout | Set the `BILLING_ENABLED` repository variable to `false` and rerun the deploy: the plans dialog goes back to the waitlist and checkout refuses; subscriptions, the webhook and the portal keep working |
-| Forecast proxy | Set `FORECAST_PROXY_ENABLED` to `false` and rerun the deploy: the app calls Open-Meteo directly again |
+| Forecast proxy | Set `FORECAST_PROXY_ENABLED` to `false` and rerun the deploy: the app calls Open-Meteo directly again, for forecasts and place search |
 | Pro alerts | Set `ALERTS_ENABLED` to `false` and rerun the deploy: the `alerts` job sends nothing and Settings says alerts are coming; registered devices stay registered |
 | Firestore rules | Firebase console, **Firestore**, **Rules**, the history, restore the previous version; then revert on `main` |
 | Firestore indexes | Revert the change on `main`; a removed index is not deleted by the deploy (it would need `--force`) |
