@@ -77,7 +77,8 @@ Repository variables:
 - `FORECAST_PROXY_ENABLED`: `true` turns the forecast proxy on in both the build and the Functions; anything else keeps the browser calling Open-Meteo directly and makes the `forecast` Function answer `unavailable`.
 - `ALERTS_ENABLED`: `true` turns on Pro's morning and UV alerts: the build compiles `NEXT_PUBLIC_ALERTS_ENABLED=1` (Settings offers them) and the Functions deploy writes `ALERTS_ENABLED=true` (the `alerts` job sends them); anything else keeps Settings saying they are coming and makes each `alerts` run return at once ([Pro alerts](#pro-alerts)).
 - `ALERTS_SERVICE_ACCOUNT` (optional): the service account the `alerts` Function runs as, created by `infra/alerts-identity.sh`; empty keeps the project's default runtime identity.
-- `COST_GUARD_DETACH_BILLING` (optional): `true` lets the budget kill switch detach billing as a last resort ([Cost guard and budget kill switch](#cost-guard-and-budget-kill-switch)); anything else keeps it off.
+- `COST_GUARD_DETACH_BILLING` (optional): the budget kill switch detaches billing at 300% of the budget unless this is `false` ([Cost guard and budget kill switch](#cost-guard-and-budget-kill-switch)).
+- `BUDGET_ID` and `BUDGET_SERVICE_ACCOUNT` (set after `infra/budget.sh`, which prints both): the budget the kill switch acts on, and the identity `budgetAlert` runs as, the only one allowed to detach billing.
 - `GCP_WORKLOAD_IDENTITY_PROVIDER` and `GCP_DEPLOY_SERVICE_ACCOUNT`: Workload Identity Federation ([WIF_SETUP.md](WIF_SETUP.md)).
 - `FIREBASE_PROJECT_ID` (optional): the deploy target, `uv-activity-planner` by default.
 - `NEXT_PUBLIC_SENTRY_DSN` (optional): the Sentry public DSN; read from variables only.
@@ -120,7 +121,7 @@ Every push to `main` runs `.github/workflows/deploy.yml`:
 1. The reusable quality workflow (`.github/workflows/quality.yml`) runs the README's [quality checks](../README.md#quality-checks) plus workflow and secret scanning.
 2. One job builds the static export with the checked public configuration, uploads its source maps to Sentry and deletes them when that is configured, smoke-tests that `out/` on the Hosting emulator, and packages it with its SHA-256 digest, CycloneDX SBOMs and a provenance record.
 3. Firestore rules and Firestore indexes deploy as separate jobs, so an index failure is visible on its own and does not hide whether Hosting published.
-4. When `ENABLE_BLAZE_FUNCTIONS` is `true`, the Functions job (which deploys with `--force`, so functions removed from the source are deleted and the Artifact Registry cleanup policy is set when missing) writes the project's prices and switches (`STRIPE_PRICE_ID`, `STRIPE_YEARLY_PRICE_ID`, `BILLING_ENABLED`, `FORECAST_PROXY_ENABLED`, `ALERTS_ENABLED`, `ALERTS_SERVICE_ACCOUNT`, `COST_GUARD_DETACH_BILLING`), builds `@solara/core` and the Functions, re-runs the params and payload checks, and deploys after rules and indexes.
+4. When `ENABLE_BLAZE_FUNCTIONS` is `true`, the Functions job (which deploys with `--force`, so functions removed from the source are deleted and the Artifact Registry cleanup policy is set when missing) writes the project's prices and switches (`STRIPE_PRICE_ID`, `STRIPE_YEARLY_PRICE_ID`, `BILLING_ENABLED`, `FORECAST_PROXY_ENABLED`, `ALERTS_ENABLED`, `ALERTS_SERVICE_ACCOUNT`, `COST_GUARD_DETACH_BILLING`, `BUDGET_ID`, `BUDGET_SERVICE_ACCOUNT`), builds `@solara/core` and the Functions, re-runs the params and payload checks, and deploys after rules and indexes.
 5. Hosting verifies the digest and deploys exactly the tested artifact, after rules and, when they deploy, Functions.
 
 Pull requests run the same quality workflow without deploying.
@@ -182,7 +183,7 @@ Unknown paths are served the exported `404.html` with a 404 status; there is no 
 
 Pro's morning and UV alerts are sent by the scheduled `alerts` Function (`functions/src/notifications/`), every 15 minutes for every time zone (decision D6).
 The timing and wording rules are shared in `packages/core/src/alerts.ts`.
-It deploys with the other Functions and sends nothing until the `ALERTS_ENABLED` repository variable is `true`; the cost guard pauses it, and without the Open-Meteo commercial key it logs the ERROR `alerts need the Open-Meteo commercial key (OPEN_METEO_API_KEY)` and sends nothing (decision D5).
+It deploys with the other Functions and sends nothing until the `ALERTS_ENABLED` repository variable is `true`; a budget-engaged cost guard does not pause it (only the owner's pin does), and without the Open-Meteo commercial key it logs the ERROR `alerts need the Open-Meteo commercial key (OPEN_METEO_API_KEY)` and sends nothing (decision D5).
 
 - **Who:** accounts with `tier: 'paid'` whose subscription is `active` or `trialing`, or `past_due` within the 7-day grace period, or that have no subscription (Pro granted by hand); never an account being deleted (`functions/src/billing/entitlement.ts`).
 - **Morning alert:** once per local day, in the two hours from the account's `notificationHour` (5-10) in the time zone of its place; quiet hours do not apply, because the person picks the hour.
@@ -261,10 +262,11 @@ That is the right shape for a first line against one noisy client; the costs tha
 
 ### Cost guard and budget kill switch
 
-Paths whose cost grows with traffic (the calendar feed, new feed links, notification registration, Pro alerts, and the forecast proxy when it is on) stop while the Firestore switch `systemFlags/costGuard` is engaged (`functions/src/shared/cost-guard.ts`).
-The `budgetAlert` Function engages it when the Cloud Billing budget, which publishes to the `budget-alerts` Pub/Sub topic, passes `COST_GUARD_THRESHOLD_PERCENT` of its amount, and releases it when a new budget period starts.
-Detaching billing is an opt-in last resort: set the `COST_GUARD_DETACH_BILLING` repository variable to `true` and grant the role in `infra/budget.sh`.
-The budget, the topic and the role are created by `infra/budget.sh`; what to do when the switch fires is in the [runbook](RUNBOOK.md#budget-kill-switch).
+Paths whose cost an outsider's traffic drives (the calendar feed, new feed links, notification registration, and the forecast proxy's upstream calls when it is on) stop while the Firestore switch `systemFlags/costGuard` is engaged (`functions/src/shared/cost-guard.ts`).
+The scheduled Pro alerts are not among them: their cost is bounded by the number of Pro accounts, so only the owner's pin (`infra/cost-guard.sh engaged`) pauses them.
+The `budgetAlert` Function, which runs as its own `solara-budget` service account and acts only on the budget named by `BUDGET_ID`, has three tiers (defaults, owner may change, in `functions/.env`): a warning at 50% of the budget, the cost guard at 100% until the next budget period starts, and detaching billing at 300%, which stops the Functions while Hosting keeps serving the site.
+Detaching is on by default; set the `COST_GUARD_DETACH_BILLING` repository variable to `false` to switch it off.
+The budget ($25 a month by default), the topic, the identity and its role are created by `infra/budget.sh`; what to do when the switch fires is in the [runbook](RUNBOOK.md#budget-kill-switch).
 
 ### Pro billing
 
@@ -454,6 +456,6 @@ The consent and booking checks are in the [owner checklist](OWNER_CHECKLIST.md#g
 
 Rollback per component, restores, alerts and secret rotation are in the [runbook](RUNBOOK.md).
 Use the Firebase Hosting release history to roll Hosting back.
-Set the `ALERTS_ENABLED` repository variable to `false` and redeploy, or engage the cost guard for an immediate stop, before investigating any duplicate or incorrectly timed alert.
+Set the `ALERTS_ENABLED` repository variable to `false` and redeploy, or pin the cost guard (`infra/cost-guard.sh engaged --apply`) for an immediate stop, before investigating any duplicate or incorrectly timed alert.
 Rotate a compromised service account, calendar-feed token, FCM token, or Stripe webhook secret immediately.
 Do not log full notification tokens, calendar tokens, service-account JSON, or Stripe secrets.

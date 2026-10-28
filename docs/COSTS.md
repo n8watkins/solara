@@ -77,8 +77,13 @@ Free quotas protect nothing once billing is attached, so the Functions are built
 - the forecast proxy caches per place and hour, so traffic does not multiply upstream calls;
 - the Firestore rules cap list sizes, and every server-owned record and scheduled activity expires.
 
-The budget kill switch is the last line ([runbook](RUNBOOK.md#budget-kill-switch)): a Cloud Billing budget (for example $5 a month) publishes to Pub/Sub, and when spend reaches the budget the `budgetAlert` Function turns off the traffic-driven paths (calendar feed, feed links, notification registration, forecast proxy upstream calls) within a minute.
-Detaching billing entirely at twice the budget is an opt-in last resort, because it also takes checkout, the webhook and the site's paid capacity down.
+The budget kill switch is the last line ([runbook](RUNBOOK.md#budget-kill-switch)), with three tiers (defaults, owner may change):
+
+- a Cloud Billing budget of $25 a month publishes to Pub/Sub, and the `budgetAlert` Function logs a warning at 50%;
+- at 100% it turns off the paths an outsider's traffic drives (calendar feed, feed links, notification registration, forecast proxy upstream calls) within a minute, until the next budget period starts; the scheduled Pro alerts keep running, because their cost is bounded by the number of Pro accounts, so an attacker cannot pause paying customers' alerts;
+- at 300% ($75) it detaches the project from its billing account: the hard stop. The Functions stop (checkout, the webhook, the feed, the alerts), while Hosting, sign-in and Firestore keep serving within the no-cost quotas until the owner re-attaches billing.
+
+$25 is far above the expected Google bill up to about 1,000 daily users (a few cents to about $10 a month in the table above; the Open-Meteo plan is billed separately), so ordinary growth does not trip it; raise it as traffic grows.
 Budget data arrives hours after the usage, so the switch caps a runaway bill rather than preventing every cent.
 
 ## Worst case under a flood
@@ -86,7 +91,7 @@ Budget data arrives hours after the usage, so the switch caps a runaway bill rat
 What an attacker can make Solara spend by flooding the Functions from many addresses (finding H1 of the October 2026 security review), with the limits above.
 These are planning estimates from public list prices, not measurements on a deployed project.
 
-- Rejecting a request costs about 50 microseconds of the handler's CPU (measured locally), so the instances' throughput, not their CPU bill, is the ceiling.
+- Rejecting a request costs about 10 microseconds of the handler's CPU (measured locally), so the instances' throughput, not their CPU bill, is the ceiling.
   Assuming a conservative 1,000 requests a second per instance, the 15 HTTP instances serve at most about 15,000 a second, or 1.3 billion a day.
 - Cloud Run bills $0.40 per million requests beyond the free 2 million a month, so that is about $520 a day in request fees, plus about $30 a day of vCPU time and $1 of memory.
   Requests Cloud Run turns away because every instance is busy are not billed.
@@ -95,7 +100,8 @@ These are planning estimates from public list prices, not measurements on a depl
 - Firestore, Stripe and the forecast provider: nothing, because no rejected request reaches them.
 
 So a sustained, distributed flood costs at most about $550 a day, about $23 an hour, against $1,900 a day or more before these limits (37 instances and a log line per request).
-The budget kill switch is what ends it ([below](#abuse-and-the-kill-switch)); a cheaper first line in front of the Functions (Cloud Armor rate limiting on an external HTTPS load balancer, from about $18 a month plus per-request fees, or API Gateway quotas) is the next step if a real attack ever happens, and needs `TRUSTED_PROXY_HOPS` changed with it ([DEPLOYMENT.md](DEPLOYMENT.md#check-the-client-address-at-the-first-deploy)).
+The budget kill switch is what ends it ([above](#abuse-and-the-kill-switch)): billing is detached once the month's spend reaches $75, and since Cloud Billing reports spend hours late (often 6-24 hours), the worst month is roughly $75 plus that lag at $23 an hour, about $200-$630, before nothing more can be billed.
+A cheaper first line in front of the Functions (Cloud Armor rate limiting on an external HTTPS load balancer, from about $18 a month plus per-request fees, or API Gateway quotas) is the next step if a real attack ever happens, and needs `TRUSTED_PROXY_HOPS` changed with it ([DEPLOYMENT.md](DEPLOYMENT.md#check-the-client-address-at-the-first-deploy)).
 
 ## Cost levers
 

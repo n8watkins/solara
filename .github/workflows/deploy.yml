@@ -283,15 +283,18 @@ jobs:
           credentials-json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
 
       # functions/.env holds the committed defaults. The Pro prices, the billing and alerts
-      # switches and the alerts' runtime identity are per project, and the budget kill
-      # switch's last resort (detaching billing) is opt-in per project.
+      # switches, the alerts' and the budget kill switch's runtime identities and the
+      # budget's id are per project. Detaching billing (the kill switch's hard stop) is on
+      # unless the COST_GUARD_DETACH_BILLING repository variable is false.
       - name: Write project-specific Functions params
         env:
           STRIPE_PRICE_ID: ${{ vars.STRIPE_PRICE_ID || secrets.STRIPE_PRICE_ID }}
           STRIPE_YEARLY_PRICE_ID: ${{ vars.STRIPE_YEARLY_PRICE_ID }}
           BILLING_ENABLED: ${{ vars.BILLING_ENABLED == 'true' && 'true' || 'false' }}
           FORECAST_PROXY_ENABLED: ${{ vars.FORECAST_PROXY_ENABLED == 'true' && 'true' || 'false' }}
-          COST_GUARD_DETACH_BILLING: ${{ vars.COST_GUARD_DETACH_BILLING == 'true' && 'true' || 'false' }}
+          COST_GUARD_DETACH_BILLING: ${{ vars.COST_GUARD_DETACH_BILLING == 'false' && 'false' || 'true' }}
+          BUDGET_ID: ${{ vars.BUDGET_ID }}
+          BUDGET_SERVICE_ACCOUNT: ${{ vars.BUDGET_SERVICE_ACCOUNT }}
           ALERTS_ENABLED: ${{ vars.ALERTS_ENABLED == 'true' && 'true' || 'false' }}
           ALERTS_SERVICE_ACCOUNT: ${{ vars.ALERTS_SERVICE_ACCOUNT }}
         run: |
@@ -299,12 +302,20 @@ jobs:
             echo "::error::Set the STRIPE_PRICE_ID and STRIPE_YEARLY_PRICE_ID repository variables before switching billing on."
             exit 1
           fi
+          if [ "$COST_GUARD_DETACH_BILLING" = true ] && [ -z "$BUDGET_SERVICE_ACCOUNT" ]; then
+            echo "::warning::The budget kill switch cannot detach billing until infra/budget.sh has run and the BUDGET_SERVICE_ACCOUNT repository variable is set (docs/RUNBOOK.md, Budget kill switch)."
+          fi
+          if [ -z "$BUDGET_ID" ]; then
+            echo "::warning::Set the BUDGET_ID repository variable so the budget kill switch acts only on Solara's budget (infra/budget.sh prints it)."
+          fi
           {
             printf 'STRIPE_PRICE_ID=%s\n' "$STRIPE_PRICE_ID"
             printf 'STRIPE_YEARLY_PRICE_ID=%s\n' "$STRIPE_YEARLY_PRICE_ID"
             printf 'BILLING_ENABLED=%s\n' "$BILLING_ENABLED"
             printf 'FORECAST_PROXY_ENABLED=%s\n' "$FORECAST_PROXY_ENABLED"
             printf 'COST_GUARD_DETACH_BILLING=%s\n' "$COST_GUARD_DETACH_BILLING"
+            printf 'BUDGET_ID=%s\n' "$BUDGET_ID"
+            printf 'BUDGET_SERVICE_ACCOUNT=%s\n' "$BUDGET_SERVICE_ACCOUNT"
             printf 'ALERTS_ENABLED=%s\n' "$ALERTS_ENABLED"
             printf 'ALERTS_SERVICE_ACCOUNT=%s\n' "$ALERTS_SERVICE_ACCOUNT"
           } > "functions/.env.$FIREBASE_PROJECT_ID"
