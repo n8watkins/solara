@@ -232,6 +232,14 @@ export default function Dashboard({
             nowHour={isToday ? nowHour : null}
             focused={focused}
             sunDown={down}
+            daysAhead={
+              day
+                ? Math.max(
+                    0,
+                    weather.forecast.findIndex(d => d.dateStr === day.dateStr),
+                  )
+                : 0
+            }
             onSelectHour={setFocusedHour}
             showSunPath={
               process.env.NEXT_PUBLIC_HIDE_SUNPATH !== '1' && prefs.showSunPath !== false

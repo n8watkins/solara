@@ -53,6 +53,8 @@ export interface OpenMeteoPayload {
   hourly: {
     time: string[]
     uv_index?: (number | null)[]
+    /** UV under a cloudless sky; `uv_index` already includes the forecast clouds. */
+    uv_index_clear_sky?: (number | null)[]
     temperature_2m?: (number | null)[]
     weathercode?: (number | null)[]
     cloudcover?: (number | null)[]
@@ -86,6 +88,7 @@ export const OpenMeteoResponseSchema = record({
     // Unreadable timestamps are skipped row by row (see splitTime).
     time: v.array(v.unknown()),
     uv_index: series,
+    uv_index_clear_sky: series,
     temperature_2m: series,
     weathercode: series,
     cloudcover: series,
@@ -136,6 +139,8 @@ export interface OpenMeteoHourlyRow {
   date: string
   hour: number
   uv: number | null
+  /** UV under a cloudless sky, when requested. */
+  clearSkyUV: number | null
   tempF: number | null
   weatherCode: number | null
   cloudCover: number | null
@@ -160,6 +165,7 @@ export function hourlyRows({ hourly }: OpenMeteoResponse): OpenMeteoHourlyRow[] 
       date: at.date,
       hour: at.hour,
       uv: roundUV(hourly.uv_index?.[index]),
+      clearSkyUV: roundUV(hourly.uv_index_clear_sky?.[index]),
       tempF: toFahrenheit(hourly.temperature_2m?.[index]),
       weatherCode: hourly.weathercode?.[index] ?? null,
       cloudCover: roundPercent(hourly.cloudcover?.[index]),
@@ -214,7 +220,7 @@ export function appForecastRequest(lat: number, lon: number): ForecastRequest {
     lat,
     lon,
     days: APP_FORECAST_DAYS,
-    hourly: ['uv_index', 'temperature_2m', 'weathercode', 'cloudcover'],
+    hourly: ['uv_index', 'uv_index_clear_sky', 'temperature_2m', 'weathercode', 'cloudcover'],
     current: ['uv_index', 'temperature_2m', 'weathercode'],
   }
 }

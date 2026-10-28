@@ -1,5 +1,7 @@
 import type { CSSProperties, UIEvent } from 'react'
 import clsx from 'clsx'
+import { Cloud } from 'lucide-react'
+import { cloudNote } from '@solara/core'
 import { dayOfMonth } from '@/lib/time'
 import {
   AXIS_PAD,
@@ -78,8 +80,9 @@ export default function CalendarWeekGrid({
           <div
             key={day.dateStr}
             data-testid="calendar-day-header"
+            data-date={day.dateStr}
             className={clsx(
-              'sticky top-0 z-3 flex min-w-0 snap-start flex-col items-center justify-center gap-[3px] border-b border-l border-line',
+              'sticky top-0 z-3 flex min-w-0 snap-start flex-col items-center justify-start gap-[3px] pt-2.5 border-b border-l border-line',
               day.isToday ? 'bg-accent-soft' : 'bg-surface-card',
             )}
           >
@@ -99,6 +102,28 @@ export default function CalendarWeekGrid({
             >
               {dayOfMonth(day.dateStr)}
             </span>
+            {day.peakUV !== null && (
+              <span
+                data-testid="calendar-day-uv"
+                title={day.cloud ? cloudNote(day.cloud) : undefined}
+                className="mt-[3px] flex items-center gap-1 text-[11px] leading-none text-ink-2 tabular-nums"
+              >
+                {day.cloud && <Cloud size={12} aria-hidden className="shrink-0 text-ink-3" />}
+                UV {day.peakUV}
+                {day.cloud && <span className="text-ink-3">· clear {day.cloud.clearSky}</span>}
+              </span>
+            )}
+            {day.confidence !== 'high' && (
+              <span
+                data-testid="calendar-day-confidence"
+                className={clsx(
+                  'rounded-full border-[0.5px] px-1.5 py-px text-[10px] leading-[1.3] font-semibold text-ink-2',
+                  day.confidence === 'low' ? 'border-dashed border-line-strong' : 'border-line',
+                )}
+              >
+                {day.confidence === 'low' ? 'Low confidence' : 'Fair confidence'}
+              </span>
+            )}
           </div>
         ))}
 

@@ -23,6 +23,8 @@ export interface HourlyForecast {
   tempC: number
   condition: string
   cloudCover?: number // % cloud cover (0–100); used by cloud-sensitive exposure
+  /** UV under a cloudless sky (never below `uv`, which includes the forecast clouds). */
+  clearSkyUV?: number
 }
 
 /** One forecast day as fetched: the provider's local date and its daytime hours. */

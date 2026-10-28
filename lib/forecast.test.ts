@@ -89,6 +89,21 @@ describe('parseForecast', () => {
     const r = parseForecast(raw, { days: 1 })
     expect(r.days[0]!.hourly[0]!.cloudCover).toBeUndefined()
   })
+
+  it('keeps the clear-sky UV, never below the forecast UV', () => {
+    const raw = rawPayload(1)
+    const clear = raw.hourly.uv_index.map(uv => uv + 3)
+    clear[8] = 1 // below the forecast's 8: the provider's rounding, not a real gap
+    const r = parseForecast(
+      { ...raw, hourly: { ...raw.hourly, uv_index_clear_sky: clear } },
+      { days: 1 },
+    )
+    const at = (hour: number) => r.days[0]!.hourly.find(h => h.hour === hour)!
+    expect(at(12).clearSkyUV).toBe(15)
+    expect(at(8).clearSkyUV).toBe(8)
+    // Without the series there is no clear-sky value.
+    expect(parseForecast(raw, { days: 1 }).days[0]!.hourly[0]!.clearSkyUV).toBeUndefined()
+  })
 })
 
 describe('forecastView', () => {
@@ -165,6 +180,7 @@ describe('fetchForecast', () => {
     const r = await fetchForecast(loc, { days: 5 })
     const url = fetchMock.mock.calls[0]![0] as string
     expect(url).toContain('cloudcover')
+    expect(url).toContain('uv_index_clear_sky')
     expect(url).toContain('timezone=auto')
     expect(url).toContain('forecast_days=5')
     expect(r.days.length).toBe(5)

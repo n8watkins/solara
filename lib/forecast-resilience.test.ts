@@ -83,11 +83,20 @@ describe('parseHourlyRows', () => {
         date: '2026-06-15',
         hour: 10,
         uv: null,
+        clearSkyUV: null,
         tempF: null,
         weatherCode: null,
         cloudCover: null,
       },
-      { date: '2026-06-15', hour: 11, uv: 2.3, tempF: 68, weatherCode: 0, cloudCover: null },
+      {
+        date: '2026-06-15',
+        hour: 11,
+        uv: 2.3,
+        clearSkyUV: null,
+        tempF: 68,
+        weatherCode: 0,
+        cloudCover: null,
+      },
     ])
   })
 

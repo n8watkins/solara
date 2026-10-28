@@ -27,6 +27,7 @@ const hourSchema = record({
   tempC: finite,
   condition: v.string(),
   cloudCover: v.optional(finite),
+  clearSkyUV: v.optional(v.pipe(finite, v.minValue(0))),
 })
 
 const forecastSchema = record({
