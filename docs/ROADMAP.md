@@ -338,6 +338,18 @@ The seventh review's findings M1, L1, L2, L3, L4 and L6 (`handoff/review7.md`), 
 - **The redirect page's own policy and Web Crypto (L6):** `/auth/microsoft/` has a Content-Security-Policy of its own with only its inline scripts' hashes, its own styles, font and icon, `connect-src 'none'` and no third-party origin; a page without `crypto.subtle` (a development server on a LAN address over http) says the sign-in needs a secure connection before any popup opens.
 - **Left for the owner:** [step 10 of Events from Outlook](OWNER_CHECKLIST.md#events-from-outlook-only-for-the-outlook-connection), one sign-in with production's headers, the cache cleared and the network throttled, before `OUTLOOK_CALENDAR_EVENTS_ENABLED`.
 
+### 30. Link helper, refresh note, UV card and sun times from the seventh review (FIX7B, built)
+
+The seventh review's findings L5 and L7 (`handoff/review7.md`):
+
+- **The helper blocks only what cannot be a calendar (L5):** a provider's web page, an HTML link or an embed link is still held back with its reason; any other link on a provider's host goes to the server with a warning ("This is not the usual Yahoo Calendar link. If linking fails, ..."), so Outlook's `/OWA/calendar/` in capitals and Yahoo hosts other than `calendar.yahoo.com` work again; hosts are compared exactly after lowercasing, and no part of a link is echoed or logged (`packages/core/src/calendar-providers.ts`).
+  After "Link calendar" on a refused link the reason shows once, as the status, instead of also under the field.
+- **The UV card at 320 px (L7.1):** the line under "Sun is down" ("UV returns about 9am tomorrow · 66°F · Clear") and under the reading wrap after a dot instead of cutting the weather off.
+- **One refresh note (L7.2):** "Events update while Solara is open ..." shows once, below the Google Calendar and Outlook panels, instead of under each; both panels' own copies are gone.
+- **The reading and the current hour's chip agree (L7.3):** at 5:20pm the reading said "0.1 Low now" beside a ringed 5pm chip reading 0.3, because the reading is the provider's live value at the clock's instant and the chip the forecast for the top of the hour (same rounding, different moments); the current hour's chip now shows the live reading as "Now", and pressing it keeps that reading.
+- **The date line (L7.4):** `sunTimes` normalises the longitude to (-180, 180] first, so -180 gives the same sun as 180 instead of nothing.
+- **Tests:** unit tests for every new recognition rule, the readout and the date line; `tests/harness/review7-helper-hero.spec.ts` at 320, 390 and 1280-1440 px, light and dark.
+
 ## Decisions
 
 Agents never make owner decisions; they follow the recorded decision or the default.
@@ -389,6 +401,7 @@ The steps behind each one are in the [owner checklist](OWNER_CHECKLIST.md).
 | Outlook events | Scope, auth and limits for events already in Outlook | Default, owner may change (2026-10-28, item 23): Microsoft Graph `Calendars.ReadBasic` only (`Calendars.Read` only if the build gate finds that ReadBasic hides titles or locations); a hand-rolled PKCE popup without `offline_access` instead of MSAL.js, tokens in memory only; the `common` authority; up to 10 of the person's own calendars (the default one first, as for Google), the next 30 days, at most 200 events a refresh in the 1,000-event key list; disconnect removes the events and links to Microsoft's consent pages (a public client cannot revoke its own grant); shipped without publisher verification; behind `OUTLOOK_CALENDAR_EVENTS_ENABLED` and `MICROSOFT_CLIENT_ID` |
 | Outlook account picker | When Microsoft's account picker shows in the Outlook sign-in | Default, owner may change (2026-10-28): only "Show my Outlook events" sends `prompt=select_account`, so someone with a personal and a work account picks one when connecting; Refresh and "Choose calendars" do not, so Microsoft reuses the account it has signed in (usually without a prompt) and a Refresh cannot silently switch to another account's calendar (REVIEW7 L3) |
 | Calendar link helper | Which providers the "Add a calendar from..." helper covers | Default, owner may change (2026-10-28, item 24): Apple iCloud, Google, Outlook.com and Yahoo, computer steps first and phone steps where the provider offers them; it recommends a separate calendar for outdoor plans; Yahoo ships without numbered steps if they cannot be confirmed in a real account |
+| Calendar link refusals | Which pasted links the helper holds back | Default, owner may change (2026-10-28): only links that certainly are not calendars (a provider's web page, an HTML or embed link); any other link, such as Outlook's `/OWA/` in capitals or another `yahoo.com` host, goes through with a warning; hosts are matched exactly and case-insensitively, and no secret link is ever echoed or logged (REVIEW7 L5) |
 
 ### Tiers
 
