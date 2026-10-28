@@ -1,8 +1,14 @@
 // Account deletion.
 //
 // Deleting an account writes a tombstone, revokes sessions, then cancels and cleans up
-// every Stripe resource the account owns in small leased pages (a scheduled job resumes
-// any page that fails), and only then deletes the account data and the Auth user.
+// every Stripe resource the account owns in small leased pages (the maintenance job
+// resumes any page that fails), deletes the Stripe customer once its subscriptions have
+// ended, and only then deletes the account data and the Auth user.
+//
+// Deletion never stalls: a Stripe resource that no longer exists counts as done, and a
+// resource that keeps failing is given up after MAX_RESOURCE_ATTEMPTS (about a day of
+// backoff) with an ERROR log for the owner, so the account data is still deleted. The
+// finished tombstone and its records expire after RETENTION_DAYS.completedDeletion.
 
 import { randomUUID } from 'node:crypto'
 
@@ -23,12 +29,17 @@ import { deleteCalendarFeedsForUser } from '../feed/tokens'
 import { authenticate, uidLimiter } from '../shared/auth'
 import { HttpError, errorCode, errorMessage, loggableError } from '../shared/errors'
 import { toMillis } from '../shared/time'
+import { RETENTION_DAYS, expiresAfter } from '../shared/ttl'
 
 const BILLING_INDEX_PAGE_SIZE = 25
 const BILLING_CLEANUP_PAGE_SIZE = 10
 const BILLING_CLEANUP_LEASE_MS = 5 * 60 * 1000
 const BILLING_CLEANUP_RETRY_BASE_MS = 5 * 60 * 1000
 const BILLING_CLEANUP_RETRY_MAX_MS = 24 * 60 * 60 * 1000
+/** Attempts before one Stripe resource is given up (5 min doubling: about 21 hours). */
+export const MAX_RESOURCE_ATTEMPTS = 9
+/** Failed whole-account runs before every further failure is logged as an ERROR. */
+export const ACCOUNT_CLEANUP_ALERT_ATTEMPTS = 6
 const deletionLimiter = uidLimiter(3)
 
 /** A cleanup resource claimed under a processing lease. */
@@ -95,6 +106,9 @@ async function markCleanupResource(
       resource.ref,
       {
         ...data,
+        ...(data.status === 'completed'
+          ? { expireAt: expiresAfter(RETENTION_DAYS.completedDeletion, timestamp) }
+          : {}),
         nextAttemptAt: data.status === 'completed' ? null : timestamp,
         processingToken: null,
         updatedAt: timestamp,
@@ -123,12 +137,39 @@ async function markCleanupFailure(
     const attemptCount = Number.isSafeInteger(current.data()?.attemptCount)
       ? current.data()?.attemptCount + 1
       : 1
+    const lastError = errorMessage(error, 'Billing cleanup failed')
+    if (attemptCount >= MAX_RESOURCE_ATTEMPTS) {
+      // Given up so the deletion can finish; the ERROR is the alert hook.
+      transaction.set(
+        resource.ref,
+        {
+          attemptCount,
+          expireAt: expiresAfter(RETENTION_DAYS.completedDeletion, timestamp),
+          lastError,
+          lastFailedAt: timestamp,
+          needsAttention: true,
+          nextAttemptAt: null,
+          processingToken: null,
+          status: 'failed',
+          updatedAt: timestamp,
+        },
+        { merge: true },
+      )
+      logger.error('account deletion gave up on a Stripe resource', {
+        uid: resource.ref.parent.parent?.id,
+        resource: resource.id,
+        type: current.data()?.type,
+        attemptCount,
+        error: loggableError(error),
+      })
+      return true
+    }
     const delay = cleanupRetryDelay(attemptCount)
     transaction.set(
       resource.ref,
       {
         attemptCount,
-        lastError: errorMessage(error, 'Billing cleanup failed'),
+        lastError,
         lastFailedAt: timestamp,
         nextAttemptAt: new Date(timestamp.getTime() + delay),
         processingToken: null,
@@ -164,6 +205,14 @@ async function markAccountCleanupFailure(
       },
       { merge: true },
     )
+    if (attemptCount >= ACCOUNT_CLEANUP_ALERT_ATTEMPTS) {
+      // It keeps retrying daily; the ERROR is the alert hook (docs/RUNBOOK.md).
+      logger.error('account deletion is stalled', {
+        uid: tombstoneRef.id,
+        attemptCount,
+        error: loggableError(error),
+      })
+    }
     return true
   })
 }
@@ -244,8 +293,13 @@ async function processCheckoutCleanup({
     try {
       await stripe.checkout.sessions.expire(data.stripeId)
     } catch (error) {
-      const current = await stripe.checkout.sessions.retrieve(data.stripeId)
-      if (current.status === 'open') throw error
+      if (errorCode(error) !== 'resource_missing') {
+        const current = await stripe.checkout.sessions.retrieve(data.stripeId).catch(lookup => {
+          if (errorCode(lookup) === 'resource_missing') return null
+          throw lookup
+        })
+        if (current?.status === 'open') throw error
+      }
     }
   }
   await markCleanupResource(db, resource, { status: 'completed', verified: true })
@@ -283,6 +337,22 @@ async function processSubscriptionCleanup({
 }
 
 async function processCustomerCleanup({
+  db,
+  resource,
+  stripe,
+  tombstoneRef,
+  uid,
+}: CleanupContext): Promise<void> {
+  try {
+    await cleanUpCustomer({ db, resource, stripe, tombstoneRef, uid })
+  } catch (error) {
+    // A customer Stripe no longer has is already gone, with everything it held.
+    if (errorCode(error) !== 'resource_missing') throw error
+    await markCleanupResource(db, resource, { status: 'completed', customerMissing: true })
+  }
+}
+
+async function cleanUpCustomer({
   db,
   resource,
   stripe,
@@ -351,14 +421,83 @@ async function processCustomerCleanup({
   const subscriptionCursor = subscriptionPage ? stripePageCursor(subscriptionPage) : null
   const checkoutComplete = data.checkoutComplete === true || checkoutCursor === null
   const subscriptionComplete = data.subscriptionComplete === true || subscriptionCursor === null
+  if (!checkoutComplete || !subscriptionComplete) {
+    await markCleanupResource(db, resource, {
+      checkoutComplete,
+      checkoutCursor,
+      status: 'pending',
+      subscriptionComplete,
+      subscriptionCursor,
+      verified: true,
+    })
+    return
+  }
+  // Every session and subscription of the customer is queued. Once they are all done,
+  // the customer itself is deleted, so Stripe keeps nothing of the account.
+  if (await otherBillingCleanupPending(tombstoneRef, resource.id)) {
+    await markCleanupResource(db, resource, {
+      checkoutComplete,
+      checkoutCursor,
+      status: 'pending',
+      subscriptionComplete,
+      subscriptionCursor,
+      verified: true,
+    })
+    return
+  }
+  const deleted = await deleteCustomerIfOnlyOurs(stripe, data.stripeId, uid)
   await markCleanupResource(db, resource, {
     checkoutComplete,
     checkoutCursor,
-    status: checkoutComplete && subscriptionComplete ? 'completed' : 'pending',
+    customerDeleted: deleted,
+    ...(deleted ? {} : { customerKept: 'shared' }),
+    status: 'completed',
     subscriptionComplete,
     subscriptionCursor,
     verified: true,
   })
+}
+
+/** Whether a session or subscription of this deletion still waits for cleanup. */
+async function otherBillingCleanupPending(
+  tombstoneRef: DocumentReference,
+  resourceId: string,
+): Promise<boolean> {
+  const pending = await tombstoneRef
+    .collection('billingCleanupResources')
+    .where('status', '==', 'pending')
+    .limit(BILLING_CLEANUP_PAGE_SIZE + 1)
+    .get()
+  return pending.docs.some(doc => doc.id !== resourceId && doc.data()?.type !== 'customer')
+}
+
+/**
+ * Deletes a Stripe customer that holds nothing live for another account. A customer
+ * with a live subscription that is not this account's (an old shared customer) is kept,
+ * because deleting it would cancel that subscription too.
+ */
+async function deleteCustomerIfOnlyOurs(
+  stripe: Stripe,
+  customerId: string,
+  uid: string,
+): Promise<boolean> {
+  const subscriptions = await stripe.subscriptions.list({
+    customer: customerId,
+    status: 'all',
+    limit: 100,
+  })
+  const shared = subscriptions.data.some(
+    subscription =>
+      !TERMINAL_SUBSCRIPTION_STATUSES.has(subscription.status) &&
+      subscription.metadata?.firebaseUid !== uid,
+  )
+  if (shared || subscriptions.has_more) return false
+  try {
+    await stripe.customers.del(customerId)
+  } catch (error) {
+    if (errorCode(error) !== 'resource_missing') throw error
+  }
+  return true
 }
 
 async function finalizeAccountDeletion({
@@ -417,10 +556,18 @@ async function finalizeAccountDeletion({
   } catch (error) {
     if (errorCode(error) !== 'auth/user-not-found') throw error
   }
+  const failedQuery = tombstoneRef
+    .collection('billingCleanupResources')
+    .where('status', '==', 'failed')
+    .limit(1)
+  // Subscription-owner entries route late Stripe events to the tombstone; they expire with it.
+  const ownersQuery = db.collection('stripeSubscriptionOwners').where('uid', '==', uid).limit(100)
   return db.runTransaction(async transaction => {
-    const [tombstoneSnapshot, pending] = await Promise.all([
+    const [tombstoneSnapshot, pending, failed, owners] = await Promise.all([
       transaction.get(tombstoneRef),
       transaction.get(pendingQuery),
+      transaction.get(failedQuery),
+      transaction.get(ownersQuery),
     ])
     if (tombstoneSnapshot.data()?.finalizationToken !== finalizationToken) return false
     if (!pending.empty) {
@@ -434,16 +581,26 @@ async function finalizeAccountDeletion({
       )
       return false
     }
+    const completedAt = new Date()
     transaction.set(
       tombstoneRef,
       {
-        cleanupCompletedAt: new Date(),
+        cleanupCompletedAt: completedAt,
+        cleanupNeedsAttention: !failed.empty,
         cleanupStatus: 'completed',
+        expireAt: expiresAfter(RETENTION_DAYS.completedDeletion, completedAt),
         finalizationLeaseExpiresAt: null,
         finalizationToken: null,
       },
       { merge: true },
     )
+    for (const owner of owners.docs) {
+      transaction.set(
+        owner.ref,
+        { expireAt: expiresAfter(RETENTION_DAYS.completedDeletion, completedAt) },
+        { merge: true },
+      )
+    }
     return true
   })
 }

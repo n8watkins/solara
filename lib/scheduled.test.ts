@@ -4,6 +4,7 @@ import type { GoogleEvent } from './gcal'
 import {
   planReconcile,
   recordFromEvent,
+  scheduledDocument,
   scheduledOn,
   scheduledSpan,
   startOptions,
@@ -191,5 +192,12 @@ describe('the stored record schema', () => {
     expect(parseScheduledActivity(record({ end: record().start }))).toBeNull()
     expect(parseScheduledActivity({ ...record(), title: 'x'.repeat(201) })).toBeNull()
     expect(parseScheduledActivity({ ...record(), calendarId: 'work' })).toBeNull()
+  })
+
+  it('stores an expiry 30 days after the event ends, which reading leaves out', () => {
+    const stored = scheduledDocument(record())
+    expect(stored.expireAt).toEqual(new Date(Date.parse(record().end) + 30 * 86_400_000))
+    // The expiry is storage bookkeeping: the parsed record is the same as before.
+    expect(parseScheduledActivity(stored)).toEqual(record())
   })
 })

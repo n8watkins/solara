@@ -326,6 +326,7 @@ function fakeDeletionDb({ cleanup = [], resources = [], tombstone = {}, user = {
     },
     where(field, _operator, value) {
       if (field === 'status') {
+        this.status = value
         this.dueBefore = null
         this.orderField = null
       } else if (field === 'nextAttemptAt') {
@@ -343,7 +344,7 @@ function fakeDeletionDb({ cleanup = [], resources = [], tombstone = {}, user = {
     },
     async get() {
       const entries = [...cleanupResources.entries()]
-        .filter(([, data]) => data.status === 'pending')
+        .filter(([, data]) => data.status === (this.status ?? 'pending'))
         .filter(
           ([, data]) =>
             !this.dueBefore || !data.nextAttemptAt || data.nextAttemptAt <= this.dueBefore,
@@ -439,7 +440,28 @@ function fakeDeletionDb({ cleanup = [], resources = [], tombstone = {}, user = {
         }
       }
       if (name === 'stripeSubscriptionOwners') {
+        const ownerRef = id => ({
+          async get() {
+            return { exists: subscriptionOwners.has(id), data: () => subscriptionOwners.get(id) }
+          },
+          async set(data) {
+            subscriptionOwners.set(id, { ...subscriptionOwners.get(id), ...data })
+          },
+        })
+        const byUid = {
+          limit: () => byUid,
+          async get() {
+            const docs = [...subscriptionOwners.entries()]
+              .filter(([, data]) => data.uid === 'alice')
+              .map(([id, data]) => ({ id, ref: ownerRef(id), data: () => ({ ...data }) }))
+            return { docs, empty: docs.length === 0 }
+          },
+        }
         return {
+          where: (field, op, value) => {
+            assert.deepEqual([field, op, value], ['uid', '==', 'alice'])
+            return byUid
+          },
           doc: id => ({
             async set(data) {
               subscriptionOwners.set(id, { ...subscriptionOwners.get(id), ...data })
@@ -1701,6 +1723,9 @@ describe('Stripe fulfillment security', () => {
         items: { data: [{ price: { id: 'price_pro' } }] },
       }),
     },
+    // No paid invoices unless a test adds them, so cancellations refund nothing.
+    invoices: { list: async () => ({ data: [], has_more: false }) },
+    invoicePayments: { list: async () => ({ data: [], has_more: false }) },
   }
 
   test('backfills legacy checkout ownership across durable pages', async () => {
@@ -2570,6 +2595,7 @@ describe('Stripe fulfillment security', () => {
       return runTransaction(callback)
     }
     const canceled = []
+    const refunds = []
 
     await assert.rejects(
       createCheckout({
@@ -2592,13 +2618,40 @@ describe('Stripe fulfillment security', () => {
               }),
             },
           },
-          subscriptions: { cancel: async id => canceled.push(id) },
+          subscriptions: {
+            retrieve: async id => ({ id, status: 'active' }),
+            cancel: async id => canceled.push(id),
+          },
+          invoices: {
+            list: async ({ subscription }) => {
+              assert.equal(subscription, 'sub_completed')
+              return { data: [{ id: 'in_1', amount_paid: 299 }], has_more: false }
+            },
+          },
+          invoicePayments: {
+            list: async ({ invoice }) => ({
+              data: [{ payment: { type: 'payment_intent', payment_intent: `pi_for_${invoice}` } }],
+            }),
+          },
+          refunds: {
+            create: async (params, options) => refunds.push({ params, options }),
+          },
         },
       }),
       /Firestore persistence failed/,
     )
 
     assert.deepEqual(canceled, ['sub_completed'])
+    // The account never got Pro for this payment, so it is refunded once.
+    assert.deepEqual(refunds, [
+      {
+        params: {
+          payment_intent: 'pi_for_in_1',
+          metadata: { solaraReason: 'checkout-not-recorded', subscriptionId: 'sub_completed' },
+        },
+        options: { idempotencyKey: 'refund:pi_for_in_1' },
+      },
+    ])
     assert.equal(db.userData.stripeCheckoutStatus, 'failed')
   })
 
@@ -3160,6 +3213,8 @@ describe('Stripe fulfillment security', () => {
             canceled.push(id)
           },
         },
+        invoices: stripe.invoices,
+        invoicePayments: stripe.invoicePayments,
       },
     })
 

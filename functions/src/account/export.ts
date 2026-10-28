@@ -1,5 +1,5 @@
-// Data export: the portable account fields, notification devices and scheduled
-// activities, never billing ids, tokens or internal bookkeeping.
+// Data export: the portable account fields, a billing summary, notification devices and
+// scheduled activities, never billing ids, tokens or internal bookkeeping.
 
 import { parseScheduledActivity, PREFERENCE_FIELDS } from '#core'
 import type { Auth } from 'firebase-admin/auth'
@@ -8,6 +8,7 @@ import type { Request } from 'firebase-functions/v2/https'
 
 import { authenticate, uidLimiter } from '../shared/auth'
 import { HttpError } from '../shared/errors'
+import { toMillis } from '../shared/time'
 
 /** An export reads every account document, so it is held to a few a minute. */
 const exportLimiter = uidLimiter(3)
@@ -19,6 +20,30 @@ export function safeAccountData(data: DocumentData | null | undefined): Document
   return Object.fromEntries(
     Object.entries(data || {}).filter(([key]) => PORTABLE_ACCOUNT_FIELDS.has(key)),
   )
+}
+
+function isoDate(value: unknown): string | null {
+  const millis = toMillis(value)
+  return Number.isFinite(millis) ? new Date(millis).toISOString() : null
+}
+
+/**
+ * What the account's subscription is, from the fields billing keeps on the account,
+ * without any Stripe identifier: the plan, its state, and the dates that matter.
+ */
+export function billingSummary(data: DocumentData | null | undefined) {
+  const interval = data?.subscriptionPlan
+  return {
+    plan: data?.tier === 'paid' ? 'pro' : 'free',
+    interval: interval === 'monthly' || interval === 'yearly' ? interval : null,
+    status: typeof data?.subscriptionStatus === 'string' ? data.subscriptionStatus : null,
+    proSince: isoDate(data?.proSince),
+    trialEndsAt: isoDate(data?.subscriptionTrialEnd),
+    currentPeriodEndsAt: isoDate(data?.subscriptionCurrentPeriodEnd),
+    cancelsAtPeriodEnd: data?.subscriptionCancelAtPeriodEnd === true,
+    paymentFailedSince: isoDate(data?.pastDueSince),
+    freeTrialUsed: data?.stripeTrialUsed === true,
+  }
 }
 
 function safeDeviceData(snapshot: QuerySnapshot) {
@@ -78,6 +103,7 @@ export async function exportAccountData({
     formatVersion: 1,
     exportedAt: new Date().toISOString(),
     account: userSnapshot.exists ? safeAccountData(userSnapshot.data() ?? {}) : null,
+    billing: billingSummary(userSnapshot.exists ? userSnapshot.data() : null),
     notificationDevices: safeDeviceData(devicesSnapshot),
     scheduledActivities: safeScheduledData(scheduledSnapshot),
   }

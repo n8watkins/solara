@@ -1,0 +1,297 @@
+// The subscription and account lifecycle against the real Firestore emulator (run by
+// `npm run test:rules`), with an in-memory Stripe (test/support/fake-stripe.js):
+// checkout through the webhook, the past_due grace period, the account export's billing
+// summary, and account deletion that cancels, deletes the Stripe customer, never stalls,
+// and leaves only records that expire.
+const { after, afterEach, before, describe, test } = require('node:test')
+const assert = require('node:assert/strict')
+const { deleteApp, initializeApp } = require('firebase-admin/app')
+const { getFirestore } = require('firebase-admin/firestore')
+
+const {
+  MAX_RESOURCE_ATTEMPTS,
+  deleteAccount,
+  processAccountDeletionPage,
+} = require('../../lib/account/deletion')
+const { exportAccountData } = require('../../lib/account/export')
+const { createCheckout } = require('../../lib/billing/checkout')
+const { endExpiredGracePeriods } = require('../../lib/billing/grace')
+const { processStripeEvent } = require('../../lib/billing/webhook')
+const { clearUidLimiters } = require('../../lib/shared/auth')
+const { FakeStripe } = require('../support/fake-stripe')
+const { captureLogs } = require('../support/logs')
+
+const projectId = 'demo-solara-lifecycle'
+const PRICES = { monthly: 'price_monthly', yearly: 'price_yearly' }
+const DAY_MS = 24 * 60 * 60 * 1000
+let app
+let db
+const logs = captureLogs()
+
+function auth(uid, deletedUsers = []) {
+  return {
+    verifyIdToken: async () => ({
+      uid,
+      email: `${uid}@example.com`,
+      auth_time: Math.floor(Date.now() / 1000),
+    }),
+    revokeRefreshTokens: async () => {},
+    deleteUser: async id => deletedUsers.push(id),
+  }
+}
+
+const request = body => ({ headers: { authorization: 'Bearer token' }, body })
+
+async function seedAccount(uid) {
+  await db.doc(`users/${uid}`).set({
+    uid,
+    schemaVersion: 2,
+    location: { lat: 47.61, lon: -122.33, city: 'Seattle', region: 'WA' },
+    skinType: 'fair',
+    sunscreen: false,
+    activities: [],
+    tier: 'free',
+    onboardingComplete: true,
+  })
+}
+
+/** Buys Pro through checkout and the webhook, as a person would. */
+async function subscribe(stripe, uid, { plan = 'monthly', trialDays = 0, created } = {}) {
+  const session = await createCheckout({
+    appUrl: 'https://solara.example',
+    auth: auth(uid),
+    db,
+    prices: PRICES,
+    req: request({ attemptId: `attempt-${uid}-0000000000`, plan }),
+    stripe,
+  })
+  const event = stripe.complete(session.id, { trialDays, created })
+  await deliver(stripe, event)
+  const account = (await db.doc(`users/${uid}`).get()).data()
+  return { subscriptionId: account.stripeSubscriptionId, customerId: account.stripeCustomerId }
+}
+
+function deliver(stripe, event) {
+  return processStripeEvent({
+    db,
+    event,
+    prices: PRICES,
+    serverTimestamp: () => new Date(),
+    stripe,
+  })
+}
+
+/** Runs deletion pages until the tombstone completes, moving retry times into the past. */
+async function runDeletion(stripe, uid, { maxPages = 40 } = {}) {
+  const tombstoneRef = db.doc(`accountDeletionTombstones/${uid}`)
+  for (let page = 0; page < maxPages; page += 1) {
+    const pending = await tombstoneRef
+      .collection('billingCleanupResources')
+      .where('status', '==', 'pending')
+      .get()
+    await Promise.all(pending.docs.map(doc => doc.ref.update({ nextAttemptAt: new Date(0) })))
+    const result = await processAccountDeletionPage({
+      auth: auth(uid),
+      db,
+      stripe,
+      tombstoneRef,
+      uid,
+    })
+    if (result.completed) return (await tombstoneRef.get()).data()
+  }
+  throw new Error('deletion did not complete')
+}
+
+async function clearFirestore() {
+  const response = await fetch(
+    `http://${process.env.FIRESTORE_EMULATOR_HOST}/emulator/v1/projects/${projectId}/databases/(default)/documents`,
+    { method: 'DELETE' },
+  )
+  assert.equal(response.ok, true)
+}
+
+function assertExpiresInDays(value, days) {
+  const millis = value?.toMillis?.()
+  assert.ok(Number.isFinite(millis), 'expireAt is a timestamp')
+  assert.ok(Math.abs(millis - (Date.now() + days * DAY_MS)) < 60_000, `expires in ${days} days`)
+}
+
+before(() => {
+  assert.ok(process.env.FIRESTORE_EMULATOR_HOST, 'run with the Firestore emulator')
+  app = initializeApp({ projectId }, 'lifecycle-emulator-test')
+  db = getFirestore(app)
+})
+
+afterEach(async () => {
+  clearUidLimiters()
+  await clearFirestore()
+})
+
+after(async () => {
+  await deleteApp(app)
+})
+
+describe('subscription lifecycle', () => {
+  test('a monthly purchase is Pro, and the webhook record expires', async () => {
+    const stripe = new FakeStripe()
+    await seedAccount('alice')
+    await subscribe(stripe, 'alice')
+    const account = (await db.doc('users/alice').get()).data()
+    assert.equal(account.tier, 'paid')
+    assert.equal(account.subscriptionPlan, 'monthly')
+    const events = await db.collection('stripeWebhookEvents').get()
+    assert.equal(events.size, 1)
+    assertExpiresInDays(events.docs[0].get('expireAt'), 90)
+  })
+
+  test('a failed renewal keeps Pro for the grace period, then ends it', async () => {
+    const stripe = new FakeStripe()
+    await seedAccount('bea')
+    const { subscriptionId } = await subscribe(stripe, 'bea')
+
+    const failedAt = Math.floor(Date.now() / 1000)
+    await deliver(stripe, stripe.updated(subscriptionId, { status: 'past_due' }, failedAt))
+    let account = (await db.doc('users/bea').get()).data()
+    assert.equal(account.tier, 'paid')
+    assert.equal(account.subscriptionStatus, 'past_due')
+    assert.equal(account.pastDueSince.toMillis(), failedAt * 1000)
+
+    // A second failure during the grace period keeps its original start.
+    await deliver(stripe, stripe.updated(subscriptionId, { status: 'past_due' }, failedAt + 3600))
+    account = (await db.doc('users/bea').get()).data()
+    assert.equal(account.pastDueSince.toMillis(), failedAt * 1000)
+
+    // Six days on, still Pro; eight days on, the maintenance job makes it Free.
+    assert.deepEqual(
+      await endExpiredGracePeriods({ db, now: new Date(failedAt * 1000 + 6 * DAY_MS) }),
+      { ended: 0 },
+    )
+    assert.deepEqual(
+      await endExpiredGracePeriods({ db, now: new Date(failedAt * 1000 + 8 * DAY_MS) }),
+      { ended: 1 },
+    )
+    account = (await db.doc('users/bea').get()).data()
+    assert.equal(account.tier, 'free')
+
+    // The card is updated and the retry succeeds: Pro again, the grace is cleared.
+    await deliver(
+      stripe,
+      stripe.updated(subscriptionId, { status: 'active' }, failedAt + 9 * 86400),
+    )
+    account = (await db.doc('users/bea').get()).data()
+    assert.equal(account.tier, 'paid')
+    assert.equal(account.pastDueSince, null)
+  })
+
+  test('a past_due event that arrives after the grace period does not restore Pro', async () => {
+    const stripe = new FakeStripe()
+    await seedAccount('cy')
+    const now = Math.floor(Date.now() / 1000)
+    const { subscriptionId } = await subscribe(stripe, 'cy', { created: now - 40 * 86400 })
+    const longAgo = now - 10 * 86400
+    await deliver(stripe, stripe.updated(subscriptionId, { status: 'past_due' }, longAgo))
+    const account = (await db.doc('users/cy').get()).data()
+    assert.equal(account.tier, 'free')
+    assert.equal(account.subscriptionStatus, 'past_due')
+  })
+
+  test('the export carries a billing summary without Stripe identifiers', async () => {
+    const stripe = new FakeStripe()
+    await seedAccount('dee')
+    await subscribe(stripe, 'dee', { plan: 'yearly', trialDays: 7 })
+    const exported = await exportAccountData({ auth: auth('dee'), db, req: request() })
+    assert.equal(exported.billing.plan, 'pro')
+    assert.equal(exported.billing.interval, 'yearly')
+    assert.equal(exported.billing.status, 'trialing')
+    assert.equal(exported.billing.freeTrialUsed, true)
+    assert.match(exported.billing.trialEndsAt, /^\d{4}-\d{2}-\d{2}T/)
+    assert.doesNotMatch(JSON.stringify(exported), /cus_test|sub_test|cs_test|pi_test/)
+  })
+})
+
+describe('account deletion', () => {
+  test('cancels the subscription, deletes the Stripe customer, and leaves only expiring records', async () => {
+    const stripe = new FakeStripe()
+    await seedAccount('erin')
+    const { subscriptionId, customerId } = await subscribe(stripe, 'erin')
+
+    const deletedUsers = []
+    await deleteAccount({
+      auth: auth('erin', deletedUsers),
+      db,
+      req: request({ confirmation: 'DELETE' }),
+      stripe,
+    })
+    const tombstone = await runDeletion(stripe, 'erin')
+
+    assert.equal(tombstone.cleanupStatus, 'completed')
+    assert.equal(tombstone.cleanupNeedsAttention, false)
+    assertExpiresInDays(tombstone.expireAt, 90)
+    assert.equal(stripe.subscriptionsById.get(subscriptionId).status, 'canceled')
+    assert.deepEqual(stripe.deletedCustomers, [customerId])
+    // Deleting your own account cancels without a refund.
+    assert.deepEqual(stripe.refundsMade, [])
+    assert.equal((await db.doc('users/erin').get()).exists, false)
+
+    const resources = await db
+      .collection('accountDeletionTombstones/erin/billingCleanupResources')
+      .get()
+    assert.ok(resources.size >= 2)
+    for (const resource of resources.docs) {
+      assert.equal(resource.get('status'), 'completed')
+      assertExpiresInDays(resource.get('expireAt'), 90)
+    }
+    const owners = await db.collection('stripeSubscriptionOwners').where('uid', '==', 'erin').get()
+    assert.equal(owners.size, 1)
+    assertExpiresInDays(owners.docs[0].get('expireAt'), 90)
+  })
+
+  test('finishes when Stripe no longer has the customer or subscription', async () => {
+    const stripe = new FakeStripe()
+    await seedAccount('finn')
+    await subscribe(stripe, 'finn')
+    stripe.forget()
+
+    await deleteAccount({
+      auth: auth('finn'),
+      db,
+      req: request({ confirmation: 'DELETE' }),
+      stripe,
+    })
+    const tombstone = await runDeletion(stripe, 'finn')
+    assert.equal(tombstone.cleanupStatus, 'completed')
+    assert.equal(tombstone.cleanupNeedsAttention, false)
+    assert.equal((await db.doc('users/finn').get()).exists, false)
+  })
+
+  test('gives up on a resource that keeps failing, alerts, and still deletes the account', async () => {
+    const stripe = new FakeStripe()
+    await seedAccount('gus')
+    const { subscriptionId } = await subscribe(stripe, 'gus')
+    stripe.failNext('subscriptions.cancel', 1000)
+
+    await deleteAccount({ auth: auth('gus'), db, req: request({ confirmation: 'DELETE' }), stripe })
+    const tombstone = await runDeletion(stripe, 'gus', { maxPages: MAX_RESOURCE_ATTEMPTS * 3 })
+
+    assert.equal(tombstone.cleanupStatus, 'completed')
+    assert.equal(tombstone.cleanupNeedsAttention, true)
+    assert.equal((await db.doc('users/gus').get()).exists, false)
+    const failed = await db
+      .collection('accountDeletionTombstones/gus/billingCleanupResources')
+      .where('status', '==', 'failed')
+      .get()
+    assert.equal(failed.size, 1)
+    assert.equal(failed.docs[0].get('type'), 'subscription')
+    assert.equal(failed.docs[0].get('attemptCount'), MAX_RESOURCE_ATTEMPTS)
+    assert.equal(failed.docs[0].get('needsAttention'), true)
+    assert.ok(
+      logs.entries.some(
+        entry =>
+          entry.severity === 'ERROR' &&
+          entry.message === 'account deletion gave up on a Stripe resource',
+      ),
+    )
+    // The customer is still deleted, which ends the subscription Stripe could not cancel.
+    assert.equal(stripe.subscriptionsById.get(subscriptionId).status, 'canceled')
+  })
+})

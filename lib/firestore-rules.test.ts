@@ -11,6 +11,8 @@ import {
   PROFILE_SHAPE,
   SCHEDULED_CALENDAR_IDS,
   SCHEDULED_FIELDS,
+  SCHEDULED_MAX_TTL_DAYS,
+  SCHEDULED_TTL_FIELD,
   SCHEDULED_LIMITS,
   SCHEDULED_SHAPE,
   SERVER_OWNED_FIELDS,
@@ -239,8 +241,17 @@ describe('firestore.rules scheduled activities match the schema', () => {
   const rule = () => rulesFunction('validScheduled')
 
   it('allows exactly the schema fields', () => {
-    expect(sorted(rulesList('scheduledKeys'))).toEqual(sorted(SCHEDULED_FIELDS))
+    expect(sorted(rulesList('scheduledKeys'))).toEqual(
+      sorted([...SCHEDULED_FIELDS, SCHEDULED_TTL_FIELD]),
+    )
     expect(sorted(SCHEDULED_FIELDS)).toEqual(sorted(Object.keys(SCHEDULED_SHAPE)))
+  })
+
+  it('requires an expiry no later than the schema allows', () => {
+    expect(rule()).toContain(`data.${SCHEDULED_TTL_FIELD} is timestamp`)
+    expect(numberIn(rule(), /expireAt <= request\.time \+ duration\.value\((\d+), 'd'\)/)).toBe(
+      SCHEDULED_MAX_TTL_DAYS,
+    )
   })
 
   it('caps every text field at the schema limit', () => {

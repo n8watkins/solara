@@ -142,7 +142,9 @@ Everything in this section waits for the Pro launch (roadmap item 9); see [Fireb
 - [ ] Configure the customer portal (Stripe **Settings**, **Billing**, **Customer portal**): allow updating payment methods and viewing invoices; allow cancellations **at the end of the billing period**; allow switching plans between the two Pro prices only; set the default return link to `https://solara-uv.web.app/account/`.
 - [ ] Switch billing on last: set the `BILLING_ENABLED` repository variable to `true` and let the next deploy run; the plans dialog then shows checkout instead of the waitlist. Set it to anything else to go back to the waitlist.
 - [ ] Set `NEXT_PUBLIC_FUNCTIONS_URL` and then `ENABLE_BLAZE_FUNCTIONS=true` as repository variables.
-- [ ] Register the deployed webhook endpoint in Stripe test mode with the events listed in DEPLOYMENT.md.
+- [ ] Register the deployed webhook endpoint in Stripe test mode with the events listed in DEPLOYMENT.md (seven, including `charge.refunded` and `charge.dispute.created`).
+- [ ] In Stripe **Settings**, **Billing**, **Subscriptions and emails**, keep Smart Retries on and, when all retries fail, **cancel the subscription**; Solara keeps Pro for 7 days after the first failed renewal either way.
+- [ ] After Blaze, turn on the Firestore TTL policies: `infra/firestore-ttl.sh`, read the commands, then `infra/firestore-ttl.sh --apply`.
 - [ ] After the first Functions deploy, run the calendar feed token migration ([Calendar feed tokens](DEPLOYMENT.md#calendar-feed-tokens)).
 - [ ] Before offering the calendar feed, add the Cloud Logging exclusion that keeps feed links out of request logs ([Keep feed tokens out of request logs](DEPLOYMENT.md#keep-feed-tokens-out-of-request-logs)).
 - [ ] On the first Functions deploy, have the agent check how many `X-Forwarded-For` entries a feed request carries ([Check the feed's address limit](DEPLOYMENT.md#check-the-feeds-address-limit-at-the-first-deploy)).
@@ -155,11 +157,15 @@ Everything in this section waits for the Pro launch (roadmap item 9); see [Fireb
   - changing the subscription away from the Pro price, cancelling, or a failed payment revokes or restricts Pro as designed;
   - a failed post-creation checkout cleanup is eventually neutralized by the `maintenance` job;
   - the customer portal updates payment details, shows invoices and cancels;
-  - an invalid webhook signature changes nothing in Firestore.
+  - an invalid webhook signature changes nothing in Firestore;
+  - a failed renewal (test card `4000 0000 0000 0341` attached after a trial) keeps Pro and shows "Your last payment failed" on the account page, and a successful retry clears it;
+  - refunding a payment in full in the dashboard ends that subscription and Pro; a partial refund does not;
+  - a duplicate checkout that loses the race is canceled and refunded in full.
 - [ ] Verify the account lifecycle:
   - the export holds portable preferences and safe device metadata only, without capability tokens, notification tokens or Stripe identifiers;
   - deletion requires a recent Google reauthentication and the exact `DELETE` confirmation;
-  - deleting an account with an active test subscription signs the user out, confirms the deletion on the account page, leaves no `solara_` entries in the browser's local storage, cancels the subscription, removes notification ownership and feed entries, deletes the user data and the Auth user, and the tombstone reaches `cleanupStatus = completed`.
+  - the export includes the billing summary (plan, status and dates) and no Stripe identifier;
+  - deleting an account with an active test subscription signs the user out, confirms the deletion on the account page, leaves no `solara_` entries in the browser's local storage, cancels the subscription, deletes the Stripe customer, removes notification ownership and feed entries, deletes the user data and the Auth user, and the tombstone reaches `cleanupStatus = completed` with an `expireAt`.
 - [ ] Verify the calendar feed from a real calendar client: it refreshes after forecast or preference changes, it shows two days on Free and ten on Pro, rotating the link stops the old URL, and the feed's requests do not appear in Logs Explorer.
 
 ## Notifications

@@ -268,8 +268,15 @@ Pro is sold through Stripe Checkout once the owner switches billing on (`BILLING
 The signed-in e2e suite runs all of this against a local fake Stripe (`tests/e2e/signed-in/fake-stripe.mjs`) that delivers signed webhook events: checkout with the trial, the webhook, the return to the app, the account page, the portal and a cancellation (`tests/e2e/signed-in/billing.e2e.ts`).
 The Functions emulator alone may point Stripe at that fake (`STRIPE_API_BASE`); a deployed function always calls api.stripe.com.
 
+### Refunds, disputes and failed payments
+
+- **Server-initiated cancellations are refunded in full** (`functions/src/billing/refunds.ts`): a losing duplicate checkout, a checkout that completed while its account was being deleted, and a checkout the server could not record are canceled and every paid payment on them refunded, idempotently per payment.
+- **Deleting your own account cancels without a refund**, as an immediate cancellation in the portal would; this is the default until the owner decides otherwise, and the account page says so.
+- **A full refund issued in Stripe, or a dispute, ends the subscription it paid for** (`charge.refunded`, `charge.dispute.created`); the `customer.subscription.deleted` event that follows takes Pro away. Partial refunds change nothing.
+- **A failed renewal keeps Pro for 7 days** (`PAST_DUE_GRACE_DAYS` in `functions/src/billing/grace.ts`) from the first `past_due` event, while Stripe retries the card; the account page asks for a new payment method. After the grace period the `maintenance` job moves the account to Free, and a successful retry restores Pro.
+
 Register the deployed Stripe webhook URL in Stripe test mode first.
-Subscribe the endpoint to `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `customer.subscription.updated`, and `customer.subscription.deleted`.
+Subscribe the endpoint to `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `customer.subscription.updated`, `customer.subscription.deleted`, `charge.refunded`, and `charge.dispute.created`.
 Create the endpoint with API version `2026-09-30.endive`, the version pinned as `STRIPE_API_VERSION` in `functions/src/billing/config.ts`, so event payloads match the types the Functions were built against.
 When a Stripe SDK upgrade moves that pin, update the endpoint's API version in the same release.
 Run the Stripe checks in the [owner checklist](OWNER_CHECKLIST.md#functions-and-stripe) in test mode before using live mode; no local test can replace these Stripe-signed integration checks.
@@ -380,11 +387,25 @@ Account export and deletion require `NEXT_PUBLIC_FUNCTIONS_URL`, an App Check si
 Deletion additionally requires a recent Google reauthentication and the exact `DELETE` confirmation.
 
 Deletion may return HTTP 202 and sign the user out while cleanup continues.
-The backend creates `accountDeletionTombstones/{uid}`, blocks further account access, revokes Firebase sessions, cancels owned Stripe resources, removes notification ownership records and calendar feed index entries, recursively deletes the user document, and deletes the Firebase Authentication user.
-The scheduled cleanup job resumes incomplete work with leases and retry backoff until `cleanupStatus` becomes `completed`.
+The backend creates `accountDeletionTombstones/{uid}`, blocks further account access, revokes Firebase sessions, expires open checkouts and cancels subscriptions, deletes the Stripe customer once its sessions and subscriptions are done (unless a live subscription of another account shares it), removes notification ownership records and calendar feed index entries, recursively deletes the user document, and deletes the Firebase Authentication user.
+The `maintenance` job resumes incomplete work with leases and retry backoff until `cleanupStatus` becomes `completed`.
 
+Deletion never stalls:
+
+- a Stripe object that no longer exists counts as done;
+- a Stripe resource that keeps failing is given up after `MAX_RESOURCE_ATTEMPTS` (9, about a day of backoff) with `status: failed` and `needsAttention: true`, and the ERROR `account deletion gave up on a Stripe resource`; the deletion then finishes with `cleanupNeedsAttention: true` on the tombstone;
+- a whole-account run that keeps failing retries daily and logs the ERROR `account deletion is stalled` from its sixth failure on.
+
+The [runbook](RUNBOOK.md#account-deletion-alerts) says what to do with either alert.
 Monitor `cleanupStatus`, `cleanupLastError`, `cleanupNextAttemptAt`, and the `maintenance` logs for pending deletions.
 Do not manually remove a tombstone or mark it complete while billing cleanup resources remain pending.
+
+The export (`exportAccountData`) holds the portable preferences, a billing summary (plan, interval, status, Pro since, trial end, current period end, cancellation, payment failed since, trial used), scheduled activities and device metadata, never a Stripe identifier or a token.
+
+### Record retention
+
+Every server-owned bookkeeping record carries an `expireAt` timestamp (`functions/src/shared/ttl.ts`), and every scheduled activity carries one 30 days after its event ends (required by `firestore.rules`), so nothing piles up, even for accounts that never come back.
+Firestore deletes them once the TTL policies are on; `infra/firestore-ttl.sh` lists the policies and turns them on after Blaze (TTL deletes need billing), and `firestore.indexes.json` exempts `expireAt` from indexing without touching the TTL setting.
 The account lifecycle checks to run before production activation are in the [owner checklist](OWNER_CHECKLIST.md#functions-and-stripe).
 
 ## Google Calendar activation

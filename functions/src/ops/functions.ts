@@ -9,6 +9,7 @@ import { onSchedule } from 'firebase-functions/v2/scheduler'
 
 import { processPendingAccountDeletions } from '../account/deletion'
 import { backfillBillingResourcePage } from '../billing/backfill'
+import { endExpiredGracePeriods } from '../billing/grace'
 import { processPendingCheckoutCleanups } from '../billing/checkout'
 import { STRIPE_SECRET_KEY, stripeClient } from '../billing/config'
 import { db, serverTimestamp } from '../shared/firebase'
@@ -38,6 +39,11 @@ export const maintenance = onSchedule(
           if (failed > 0) logger.warn('failed checkout cleanups will retry', { failed })
           return { processed: results.length, failed }
         },
+      },
+      {
+        // Moves accounts whose past_due grace period ran out to Free.
+        name: 'pastDueGrace',
+        run: () => endExpiredGracePeriods({ db }),
       },
       {
         // Builds ownership records for Stripe resources created before the index existed.
