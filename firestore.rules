@@ -224,31 +224,37 @@ service cloud.firestore {
         && (!('activities' in keys)
           || (data.activities is list && validActivities(data.activities)
             && withinPlan(data, prior, 'activities', 3, 20)))
-        && (!('onboardingComplete' in keys) || data.onboardingComplete is bool)
         && (!('calendarHours' in keys) || validCalendarHours(data.calendarHours))
-        && (!('showSunPath' in keys) || data.showSunPath is bool)
         && (!('hiddenActivitySuggestionIds' in keys)
           || (data.hiddenActivitySuggestionIds is list
             && data.hiddenActivitySuggestionIds.hasOnly(presetActivityIds())))
         && (!('collapsedActivityCategories' in keys)
           || (data.collapsedActivityCategories is list
             && data.collapsedActivityCategories.hasOnly(activityCategoryNames())))
-        && (!('upgradeInterest' in keys) || validUpgradeInterest(data.upgradeInterest))
         && (!('notificationHour' in keys)
           || (data.notificationHour is int
             && data.notificationHour >= 5
             && data.notificationHour <= 10))
-        && (!('temperatureUnit' in keys)
-          || data.temperatureUnit in ['auto', 'celsius', 'fahrenheit'])
-        && (!('clockFormat' in keys) || data.clockFormat in ['auto', '12h', '24h'])
         && (!('groupMode' in keys) || data.groupMode is bool)
         && (!('groupProfileIds' in keys)
           || (data.groupProfileIds is list && data.groupProfileIds.size() <= 12))
-        && (!('uvAlertThreshold' in keys)
-          || (data.uvAlertThreshold is int
-            && data.uvAlertThreshold >= 0
-            && data.uvAlertThreshold <= 11))
-        && (!('quietHours' in keys) || validQuietHours(data.quietHours));
+        // Settings that change one at a time share one check while none is written, which
+        // keeps a multi-list write within the expression budget.
+        && (!keys.hasAny([
+            'onboardingComplete', 'showSunPath', 'upgradeInterest', 'temperatureUnit',
+            'clockFormat', 'uvAlertThreshold', 'quietHours'
+          ])
+          || ((!('onboardingComplete' in keys) || data.onboardingComplete is bool)
+            && (!('showSunPath' in keys) || data.showSunPath is bool)
+            && (!('upgradeInterest' in keys) || validUpgradeInterest(data.upgradeInterest))
+            && (!('temperatureUnit' in keys)
+              || data.temperatureUnit in ['auto', 'celsius', 'fahrenheit'])
+            && (!('clockFormat' in keys) || data.clockFormat in ['auto', '12h', '24h'])
+            && (!('uvAlertThreshold' in keys)
+              || (data.uvAlertThreshold is int
+                && data.uvAlertThreshold >= 0
+                && data.uvAlertThreshold <= 11))
+            && (!('quietHours' in keys) || validQuietHours(data.quietHours))));
     }
 
     function validNewUser(userId) {
