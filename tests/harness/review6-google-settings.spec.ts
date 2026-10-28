@@ -63,7 +63,7 @@ test('heads-ups follow Google Calendar alone, with the one rule (REVIEW6 L1)', a
   await expect(dialog.getByRole('combobox', { name: 'Event heads-up' })).toHaveValue('on')
   await expect(
     dialog.getByText(
-      'About 3 hours before an outdoor event (one with an activity set) with UV 6 or higher, from a calendar file or Google Calendar, at most one every 3 hours.',
+      'About 3 hours before an outdoor event (one with an activity set) with UV 6 or higher, from a calendar file or Google Calendar, at most one every 3 hours (it also counts the others coming up).',
     ),
   ).toBeVisible()
 

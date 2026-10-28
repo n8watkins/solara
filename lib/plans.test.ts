@@ -120,9 +120,10 @@ describe('eventHeadsUpsLaunched (REVIEW6 L1)', () => {
     }
   }
 
-  it('offers heads-ups with either outside source of events', async () => {
-    expect(await launched('')).toBe(false)
-    expect(await launched('?subscriptions=on')).toBe(true)
-    expect(await launched('?gcal=on')).toBe(true)
+  it('offers heads-ups with the alerts on and either outside source of events', async () => {
+    expect(await launched('?alerts=on')).toBe(false)
+    expect(await launched('?subscriptions=on&gcal=on')).toBe(false)
+    expect(await launched('?alerts=on&subscriptions=on')).toBe(true)
+    expect(await launched('?alerts=on&gcal=on')).toBe(true)
   })
 })

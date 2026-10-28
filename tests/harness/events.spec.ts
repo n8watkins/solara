@@ -233,7 +233,9 @@ test('linked calendars on Pro: every state, link, refresh and remove', async ({
   page,
 }, testInfo) => {
   const capture = await preparePage(page, testInfo, answerOpenMeteo)
-  await page.goto('/harness/?screen=dashboard&events=sample&links=sample&subscriptions=on')
+  await page.goto(
+    '/harness/?screen=dashboard&events=sample&links=sample&subscriptions=on&alerts=on',
+  )
   await expect(page.getByTestId(HARNESS_MARKER)).toBeVisible()
   const panel = page.getByTestId('event-subscriptions')
   await expect(panel.getByTestId('event-subscription')).toHaveCount(3)
@@ -251,7 +253,7 @@ test('linked calendars on Pro: every state, link, refresh and remove', async ({
   await expect(paused.getByText(/^Paused after a week of failed checks/)).toBeVisible()
   // One rule for every source (REVIEW6 L1): outdoor events only, at most one every 3 hours.
   await expect(page.getByTestId('event-heads-up-note')).toHaveText(
-    'Pro sends a heads-up about 3 hours before an outdoor event (one with an activity set) with UV 6 or higher, from a calendar file or a linked calendar, at most one every 3 hours, to the devices you turned alerts on for. Change it in Settings.',
+    'Pro sends a heads-up about 3 hours before an outdoor event (one with an activity set) with UV 6 or higher, from a calendar file or a linked calendar, at most one every 3 hours (it also counts the others coming up), to the devices you turned alerts on for. Change it in Settings.',
   )
 
   // The linked calendar's event says where it comes from and has no single remove.
@@ -298,7 +300,7 @@ test('linked calendars on Pro: every state, link, refresh and remove', async ({
 
 test('linked calendars on Free offer Pro heads-ups', async ({ page }, testInfo) => {
   const capture = await preparePage(page, testInfo, answerOpenMeteo)
-  await page.goto('/harness/?screen=dashboard&tier=free&subscriptions=on')
+  await page.goto('/harness/?screen=dashboard&tier=free&subscriptions=on&alerts=on')
   await expect(page.getByTestId(HARNESS_MARKER)).toBeVisible()
   const panel = page.getByTestId('event-subscriptions')
   await expect(panel.getByText('0 of 5')).toBeVisible()
