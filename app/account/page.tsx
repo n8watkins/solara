@@ -227,7 +227,7 @@ export default function AccountPage() {
 
             <AccountSection
               title="Download your data"
-              body="The JSON export includes your account preferences, a summary of your plan and billing dates, your scheduled activities and device registration metadata. Capability tokens and payment-provider identifiers are excluded for security."
+              body="The JSON export includes your account preferences, a summary of your plan and billing dates, your scheduled activities, the Pro alerts sent in the last week and device registration metadata. Capability tokens and payment-provider identifiers are excluded for security."
             >
               <button
                 className="btn btn-primary"

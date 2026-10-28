@@ -446,7 +446,7 @@ The [runbook](RUNBOOK.md#account-deletion-alerts) says what to do with either al
 Monitor `cleanupStatus`, `cleanupLastError`, `cleanupNextAttemptAt`, and the `maintenance` logs for pending deletions.
 Do not manually remove a tombstone or mark it complete while billing cleanup resources remain pending.
 
-The export (`exportAccountData`) holds the portable preferences, a billing summary (plan, interval, status, Pro since, trial end, current period end, cancellation, payment failed since, trial used), scheduled activities and device metadata, never a Stripe identifier or a token.
+The export (`exportAccountData`) holds the portable preferences, a billing summary (plan, interval, status, Pro since, trial end, current period end, cancellation, payment failed since, trial used), scheduled activities, device metadata and the Pro alert history (`alerts`: for the morning and the UV alert, the last day sent, its status, attempts, devices reached, times and any FCM error code, from `alertState/daily`, which is kept 7 days), never a Stripe identifier, a token or an internal attempt id.
 
 ### Record retention
 

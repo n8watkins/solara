@@ -214,6 +214,10 @@ export default function PrivacyPage() {
           </li>
           <li>Push registrations: until you turn notifications off or delete your account.</li>
           <li>
+            Pro alert history (which alerts were sent on which day, and whether they arrived): 7
+            days, and it is included in your data download.
+          </li>
+          <li>
             Payment records: as long as tax and accounting law requires, even after account
             deletion. Stripe keeps its own records under its privacy policy.
           </li>
