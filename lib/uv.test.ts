@@ -52,7 +52,7 @@ describe('vitDMins', () => {
 // ---------------------------------------------------------------------------
 describe('uvLabel', () => {
   it('maps each band at its boundary', () => {
-    expect(uvLabel(0)).toBe('None')
+    expect(uvLabel(0)).toBe('Low')
     expect(uvLabel(2)).toBe('Low')
     expect(uvLabel(2.4)).toBe('Low')
     expect(uvLabel(2.5)).toBe('Moderate')

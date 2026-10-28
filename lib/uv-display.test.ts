@@ -69,8 +69,9 @@ describe('UV color bands', () => {
   })
 
   it('labels each band', () => {
+    // The WHO's Low band is 0-2; the app's gray "none" shade of it has the same name.
     expect(BAND_SAMPLES.map(uvLabel)).toEqual([
-      'None',
+      'Low',
       'Low',
       'Moderate',
       'High',

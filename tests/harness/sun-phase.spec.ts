@@ -43,7 +43,7 @@ for (const place of SUN_PHASE_PLACES) {
         await expect(readout).toContainText(`UV returns about ${returns} tomorrow`)
       } else {
         // The sun is up with UV under 0.5: the reading, not a sun-down state.
-        await expect(readout).toContainText(/^0\.[0-4]None now/)
+        await expect(readout).toContainText(/^0\.[0-4]Low now/)
         await expect(readout).not.toContainText(/Before sunrise|Sun is down|UV returns/)
         await expect(page.getByTestId('hero-slot').or(page.getByTestId('hero-empty'))).toBeVisible()
       }
