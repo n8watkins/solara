@@ -249,8 +249,9 @@ test('linked calendars on Pro: every state, link, refresh and remove', async ({
   ).toBeVisible()
   const paused = panel.getByRole('listitem', { name: 'calendar.example.com' })
   await expect(paused.getByText(/^Paused after a week of failed checks/)).toBeVisible()
-  await expect(panel.getByTestId('event-heads-up-note')).toContainText(
-    'Pro sends a heads-up about 3 hours before an event with UV 6 or higher',
+  // One rule for every source (REVIEW6 L1): outdoor events only, at most one every 3 hours.
+  await expect(page.getByTestId('event-heads-up-note')).toHaveText(
+    'Pro sends a heads-up about 3 hours before an outdoor event (one with an activity set) with UV 6 or higher, from a calendar file or a linked calendar, at most one every 3 hours, to the devices you turned alerts on for. Change it in Settings.',
   )
 
   // The linked calendar's event says where it comes from and has no single remove.
@@ -302,10 +303,10 @@ test('linked calendars on Free offer Pro heads-ups', async ({ page }, testInfo) 
   const panel = page.getByTestId('event-subscriptions')
   await expect(panel.getByText('0 of 5')).toBeVisible()
   await expect(panel.getByRole('button', { name: 'Link calendar' })).toBeDisabled()
-  await expect(panel.getByTestId('event-heads-up-note')).toContainText(
-    'With Pro, get a heads-up a few hours before an event with high UV.',
+  await expect(page.getByTestId('event-heads-up-note')).toContainText(
+    'With Pro, get a heads-up a few hours before an outdoor event with high UV.',
   )
-  await expect(panel.getByRole('button', { name: 'See Pro' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'See Pro' })).toBeVisible()
   // The whole page from the top: scrolled, the sticky header would partly cover a
   // dashboard button above the section, which axe counts as a small target.
   await page.evaluate(() => window.scrollTo(0, 0))

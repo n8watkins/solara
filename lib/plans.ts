@@ -115,3 +115,12 @@ export function googleCalendarEventsLaunched(): boolean {
     new URLSearchParams(window.location.search).get('gcal') === 'on'
   )
 }
+
+/**
+ * Whether Pro event heads-ups are offered: with either source of outside events switched
+ * on, linked calendars or Google Calendar (the server's gate follows the same rule,
+ * REVIEW6 L1). Imported files then get them too.
+ */
+export function eventHeadsUpsLaunched(): boolean {
+  return eventSubscriptionsLaunched() || googleCalendarEventsLaunched()
+}

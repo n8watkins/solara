@@ -106,3 +106,23 @@ describe('googleCalendarEventsLaunched', () => {
     expect(await launched({ NEXT_PUBLIC_UI_HARNESS: '1' }, '?gcal=on')).toBe(true)
   })
 })
+
+describe('eventHeadsUpsLaunched (REVIEW6 L1)', () => {
+  async function launched(search: string) {
+    vi.stubEnv('NEXT_PUBLIC_UI_HARNESS', '1')
+    vi.stubGlobal('window', { location: { search } })
+    try {
+      vi.resetModules()
+      return (await import('./plans')).eventHeadsUpsLaunched()
+    } finally {
+      vi.unstubAllEnvs()
+      vi.unstubAllGlobals()
+    }
+  }
+
+  it('offers heads-ups with either outside source of events', async () => {
+    expect(await launched('')).toBe(false)
+    expect(await launched('?subscriptions=on')).toBe(true)
+    expect(await launched('?gcal=on')).toBe(true)
+  })
+})

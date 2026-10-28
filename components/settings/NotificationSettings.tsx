@@ -5,7 +5,8 @@ import { NOTIFICATION_HOUR, UV_ALERT_THRESHOLD } from '@solara/core'
 import type { TierLevel } from '@/lib/types'
 import type { SettingsDraft } from '@/lib/settings'
 import { TIER_LIMITS } from '@/lib/tiers'
-import { alertsLaunched, eventSubscriptionsLaunched } from '@/lib/plans'
+import { alertsLaunched, eventHeadsUpsLaunched } from '@/lib/plans'
+import { eventHeadsUpSentence } from '@/lib/event-heads-up-copy'
 import { installEnvironment, pushNeedsHomeScreen } from '@/lib/install-prompt'
 import { notificationRegistrationConfigured } from '@/lib/notifications'
 import { useNotificationToggle } from '@/lib/use-notification-toggle'
@@ -40,9 +41,12 @@ interface Props {
 }
 
 const TITLE = 'Morning and UV alerts'
-/** What the alerts are; with linked calendars on, the event heads-ups too (REVIEW5 L6). */
+/**
+ * What the alerts are; with linked calendars or Google Calendar on, the event heads-ups
+ * too (REVIEW5 L6, REVIEW6 L1).
+ */
 function what(): string {
-  return eventSubscriptionsLaunched()
+  return eventHeadsUpsLaunched()
     ? 'A morning summary of your UV day, and a heads-up when the UV gets high and before your outdoor events.'
     : 'A morning summary of your UV day, and a heads-up when the UV gets high.'
 }
@@ -135,15 +139,14 @@ function AlertControls({ user, draft, onChange }: Omit<Props, 'tier'>) {
         </select>
       </SettingsField>
 
-      {eventSubscriptionsLaunched() && (
+      {eventHeadsUpsLaunched() && (
         <SettingsField>
           <div>
             <SettingsTitle className="mb-1">
               <label htmlFor={`${id}-events`}>Event heads-up</label>
             </SettingsTitle>
             <SettingsHint id={`${id}-events-desc`} className="leading-[1.45]">
-              About 3 hours before an outdoor event with UV 6 or higher: an imported or linked event
-              with an activity set. At most one every 3 hours.
+              {eventHeadsUpSentence()}
             </SettingsHint>
           </div>
           <select
@@ -166,7 +169,7 @@ function AlertControls({ user, draft, onChange }: Omit<Props, 'tier'>) {
           </SettingsTitle>
           <SettingsHint className="leading-[1.45]">
             The UV alert waits until they end.{' '}
-            {eventSubscriptionsLaunched() &&
+            {eventHeadsUpsLaunched() &&
               'An event heads-up that would fall in them comes the evening before. '}
             The morning alert comes at its own hour.
           </SettingsHint>
