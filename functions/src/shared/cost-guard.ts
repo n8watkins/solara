@@ -13,7 +13,7 @@
 import type { Firestore } from 'firebase-admin/firestore'
 import { logger } from 'firebase-functions/logger'
 
-import { HttpError, loggableError } from './errors'
+import { loggableError } from './errors'
 
 /** Paths the cost guard can turn off. */
 export type CostFeature = 'calendarFeed' | 'feedLinks' | 'forecast' | 'notifications'
@@ -60,15 +60,6 @@ export class CostGuard {
       this.pending = null
     })
     return this.pending
-  }
-
-  /** Throws 503 `unavailable` while the switch is engaged. */
-  async assertAllowed(feature: CostFeature): Promise<void> {
-    if (await this.engaged()) {
-      throw new HttpError('unavailable', 'This feature is paused. Try again later.', {
-        cause: new Error(`cost guard engaged for ${feature}`),
-      })
-    }
   }
 
   clear(): void {

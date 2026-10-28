@@ -20,9 +20,33 @@ export const REGION = 'us-central1'
 /** The smallest memory size that runs the Admin SDK and Stripe comfortably. */
 const MEMORY = '256MiB' as const
 
+/**
+ * The most instances each HTTP function may ever run at once, sized for launch traffic
+ * (a few requests a minute) with headroom, not for a flood (finding H1). Each instance
+ * serves 20-40 requests at once, so even one instance handles far more than launch
+ * traffic. The sum (15) bounds what a flood can bill: Cloud Run does not bill requests it
+ * turns away because every instance is busy. Raise a cap here when real traffic needs it
+ * (docs/COSTS.md, "Worst case under a flood").
+ */
+export const INSTANCE_CAPS = Object.freeze({
+  forecast: 3,
+  calendarFeed: 2,
+  stripeWebhook: 2,
+  createCheckoutSession: 1,
+  createBillingPortalSession: 1,
+  exportAccountData: 1,
+  deleteAccount: 1,
+  registerNotificationDevice: 1,
+  removeNotificationDevice: 1,
+  rotateCalendarFeed: 1,
+  revokeCalendarFeed: 1,
+})
+
+export type HttpFunctionName = keyof typeof INSTANCE_CAPS
+
 export interface HttpBudget {
-  /** The most instances that may ever run at once. */
-  maxInstances: number
+  /** The exported function name, which picks its instance cap from INSTANCE_CAPS. */
+  name: HttpFunctionName
   /**
    * Requests one instance serves at once. These endpoints wait on Firestore and
    * Stripe, so sharing an instance is cheaper than starting another.
@@ -34,7 +58,7 @@ export interface HttpBudget {
 
 /** Options for an HTTP function: one vCPU (needed for concurrency), 256 MiB. */
 export function httpOptions({
-  maxInstances,
+  name,
   concurrency = 20,
   timeoutSeconds,
   secrets,
@@ -44,7 +68,7 @@ export function httpOptions({
     memory: MEMORY,
     cpu: 1,
     concurrency,
-    maxInstances,
+    maxInstances: INSTANCE_CAPS[name],
     timeoutSeconds,
     ...(secrets ? { secrets } : {}),
   }

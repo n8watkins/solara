@@ -20,7 +20,7 @@ import {
 } from './devices'
 
 export const registerNotificationDevice = onRequest(
-  httpOptions({ maxInstances: 3, timeoutSeconds: 30 }),
+  httpOptions({ name: 'registerNotificationDevice', timeoutSeconds: 30 }),
   browserApi({
     name: 'registerNotificationDevice',
     method: 'POST',
@@ -34,7 +34,7 @@ export const registerNotificationDevice = onRequest(
 )
 
 export const removeNotificationDevice = onRequest(
-  httpOptions({ maxInstances: 3, timeoutSeconds: 30 }),
+  httpOptions({ name: 'removeNotificationDevice', timeoutSeconds: 30 }),
   browserApi({
     name: 'removeNotificationDevice',
     method: 'DELETE',

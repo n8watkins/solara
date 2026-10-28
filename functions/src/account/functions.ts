@@ -12,7 +12,7 @@ import { deleteAccount as deleteAccountData } from './deletion'
 import { exportAccountData as exportAccount } from './export'
 
 export const exportAccountData = onRequest(
-  httpOptions({ maxInstances: 3, timeoutSeconds: 30 }),
+  httpOptions({ name: 'exportAccountData', timeoutSeconds: 30 }),
   browserApi({
     name: 'exportAccountData',
     method: 'GET',
@@ -23,7 +23,7 @@ export const exportAccountData = onRequest(
 )
 
 export const deleteAccount = onRequest(
-  httpOptions({ maxInstances: 3, timeoutSeconds: 60, secrets: [STRIPE_SECRET_KEY] }),
+  httpOptions({ name: 'deleteAccount', timeoutSeconds: 60, secrets: [STRIPE_SECRET_KEY] }),
   browserApi({
     name: 'deleteAccount',
     method: 'DELETE',
