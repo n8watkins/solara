@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { sunPhaseAt, sunTimes } from './sun-times'
-import { zonedNow } from './time'
+import { daylightHours, sunPhaseAt, sunTimes } from './sun-times'
+import { wallClockAt, zonedDate } from './zoned-time'
 
 /** "HH:MM" in `timeZone` for an instant. */
 const clock = (ms: number, timeZone: string) => {
-  const now = zonedNow(timeZone, ms)
+  const now = wallClockAt(ms, timeZone)
   return `${String(now.hour).padStart(2, '0')}:${String(now.minute).padStart(2, '0')}`
 }
 
@@ -38,7 +38,7 @@ describe('sunTimes', () => {
     if (sun?.kind !== 'rises') return
     near(sun.sunrise, timeZone, sunrise)
     near(sun.sunset, timeZone, sunset)
-    expect(zonedNow(timeZone, sun.sunrise).date).toBe(date)
+    expect(zonedDate(sun.sunrise, timeZone)).toBe(date)
   })
 
   it('knows the midnight sun and the polar night', () => {
@@ -80,5 +80,31 @@ describe('sunPhaseAt', () => {
   it('is up all day under the midnight sun and down all day in the polar night', () => {
     expect(sunPhaseAt(TROMSO, 'Europe/Oslo', at('2026-06-21T01:00:00+02:00'))).toBe('up')
     expect(sunPhaseAt(TROMSO, 'Europe/Oslo', at('2026-12-21T12:00:00+01:00'))).toBe('after-sunset')
+  })
+})
+
+describe('daylightHours', () => {
+  it('rounds sunrise up and sunset down to the 5-minute steps slots use', () => {
+    // Sunrise 7:09am, sunset 6:04pm.
+    expect(daylightHours(LA, '2026-10-28', 'America/Los_Angeles')).toEqual({
+      from: 7 + 10 / 60,
+      to: 18,
+    })
+    // Sunrise 5:58am, sunset 7:19pm.
+    expect(daylightHours(SYDNEY, '2026-10-28', 'Australia/Sydney')).toEqual({
+      from: 6,
+      to: 19 + 15 / 60,
+    })
+  })
+
+  it('is the whole day under the midnight sun and none in the polar night', () => {
+    expect(daylightHours(TROMSO, '2026-06-21', 'Europe/Oslo')).toEqual({ from: 0, to: 24 })
+    expect(daylightHours(TROMSO, '2026-12-21', 'Europe/Oslo')).toEqual({ from: 0, to: 0 })
+  })
+
+  it('is unknown for a place or zone it cannot use', () => {
+    expect(daylightHours({ lat: Number.NaN, lon: 0 }, '2026-10-28', 'UTC')).toBeNull()
+    expect(daylightHours(LA, '2026-10-28', 'Not/AZone')).toBeNull()
+    expect(daylightHours(LA, '2026-10-28', '')).toBeNull()
   })
 })

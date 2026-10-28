@@ -176,15 +176,21 @@ function currentAt(data: ForecastData, today: HourlyForecast[], now: ZonedNow): 
 /**
  * The forecast as seen at `now` in the forecast's own zone: past days dropped,
  * "today" and "tomorrow" picked by the location's date, and labels relative to
- * it. The device's time zone plays no part.
+ * it. The device's time zone plays no part. With the forecast's `place`, each day
+ * also carries its daylight, which bounds the slots offered on it.
  */
 export function forecastView(
   data: ForecastData,
   now: ZonedNow = zonedNow(data.timezone),
+  place: Pick<Location, 'lat' | 'lon'> | null = null,
 ): WeatherResponse {
   const forecast: DayWeather[] = data.days
     .filter(day => day.dateStr >= now.date)
-    .map(day => ({ ...day, label: dayLabel(day.dateStr, now.date) }))
+    .map(day => ({
+      ...day,
+      label: dayLabel(day.dateStr, now.date),
+      daylight: place ? core.daylightHours(place, day.dateStr, data.timezone) : null,
+    }))
   const today = forecast.find(day => day.dateStr === now.date)?.hourly ?? []
   const tomorrow = forecast.find(day => day.dateStr === addDays(now.date, 1))?.hourly ?? []
   return {

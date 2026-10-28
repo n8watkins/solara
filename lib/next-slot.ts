@@ -7,8 +7,16 @@
 //     window already under way is trimmed to start now),
 //   - ends inside the forecast day the UV strip shows (the last hourly sample;
 //     the engine in @solara/core already ends every window there),
-//   - is long enough for the activity.
-import { effectiveMaxUV, lowestUVWindow, planningUV, summarizeWindow } from '@solara/core'
+//   - is long enough for the activity,
+//   - lies in daylight: between the place's sunrise and sunset on that day (Solara plans
+//     outdoor time in daylight only; the UV of 0 in the dark is not a "lower-UV slot").
+import {
+  effectiveMaxUV,
+  lowestUVWindow,
+  planningUV,
+  summarizeWindow,
+  type Daylight,
+} from '@solara/core'
 import type { Activity, HourlyForecast, SafeActivityWindow, SkinType } from './types'
 import { getActivityWindow } from './weather'
 import type { BusyInterval, SlotRecommendation } from './scheduler'
@@ -62,7 +70,12 @@ export interface ActivityDayPlan {
   startsNow: boolean
   /** True when the day had matching windows but all of them have already passed. */
   elapsed: boolean
-  /** Share of the day's hours under the activity's limit (whole day, for context). */
+  /**
+   * True when the activity's preferred hours leave too little daylight for it on this
+   * day (a 5-7am run in winter): it gets no slot because of the dark, not the UV.
+   */
+  hoursInDark: boolean
+  /** Share of the day's daylight hours under the activity's limit (for context). */
   pctDaySafe: number
   /** Burn estimate at the activity's planning UV limit. */
   burnMins: number | null
@@ -90,11 +103,24 @@ export function needsClouds(
   )
 }
 
+/** Whether the activity's preferred hours overlap the day's daylight for less than its duration. */
+function hoursInDark(activity: Activity, daylight: Daylight | null): boolean {
+  const hours = activity.preferredHours
+  if (!hours || !daylight) return false
+  const overlap = Math.min(hours.to, daylight.to) - Math.max(hours.from, daylight.from)
+  return overlap * 60 < Math.max(activity.durationMins, 1)
+}
+
 export interface PlanOptions {
   /** Fractional current hour for today (see nowHourOf); -1 for any other day. */
   nowHour?: number
   /** Calendar busy blocks for the day. */
   busy?: BusyInterval[]
+  /**
+   * The day's hours with the sun up (DayWeather.daylight): no slot starts before sunrise
+   * or ends after sunset, though the UV there is 0. Null when the place is unknown.
+   */
+  daylight?: Daylight | null
 }
 
 /** The one recommendation for an activity on one day. */
@@ -102,9 +128,15 @@ export function planActivityDay(
   hourly: HourlyForecast[],
   activity: Activity,
   skinType: SkinType,
-  { nowHour = -1, busy = [] }: PlanOptions = {},
+  { nowHour = -1, busy = [], daylight = null }: PlanOptions = {},
 ): ActivityDayPlan {
-  const { allWindows, pctDaySafe, burnMins } = getActivityWindow(hourly, activity, -1, skinType)
+  const { allWindows, pctDaySafe, burnMins } = getActivityWindow(
+    hourly,
+    activity,
+    -1,
+    skinType,
+    daylight,
+  )
   const windows = actionableWindows(allWindows, hourly, activity.durationMins, nowHour)
   const slot = recommendSlot(
     windows,
@@ -125,6 +157,7 @@ export function planActivityDay(
     slot,
     startsNow: !!slot && nowHour >= 0 && slot.start <= nowHour,
     elapsed,
+    hoursInDark: hoursInDark(activity, daylight),
     pctDaySafe,
     burnMins,
     cloudDependent: windows.map(w => needsClouds(w, hourly, activity)),

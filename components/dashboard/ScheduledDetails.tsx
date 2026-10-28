@@ -38,6 +38,7 @@ export default function ScheduledDetails({
         activity && day
           ? planActivityDay(day.hourly, activity, planningFor(prefs).skinType, {
               nowHour: dayNowHour,
+              daylight: day.daylight,
             }).windows
           : []
       }

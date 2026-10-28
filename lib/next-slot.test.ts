@@ -150,6 +150,51 @@ describe('planActivityDay', () => {
   })
 })
 
+describe('planActivityDay in daylight', () => {
+  // Sunrise 7:09am and sunset 6:04pm (Los Angeles in late October): daylightHours.
+  const daylight = { from: 7 + 10 / 60, to: 18 }
+
+  it('starts no slot before sunrise, though UV 0 counts as low', () => {
+    const plan = planActivityDay(day(), run, 'fair', { nowHour: 6 + 40 / 60, daylight })
+    expect(plan.slot?.start).toBeCloseTo(7 + 10 / 60)
+    expect(plan.startsNow).toBe(false)
+    expect(plan.windows.map(w => [w.from, w.to])).toEqual([
+      [7 + 10 / 60, 11],
+      [17, 18],
+    ])
+  })
+
+  it('ends every slot by sunset, and drops one too short to fit before it', () => {
+    const at5 = planActivityDay(day(), run, 'fair', { nowHour: 17, daylight })
+    expect(at5.slot).toMatchObject({ start: 17, end: 18 })
+    // 5:20pm: 40 minutes of daylight left for a 60-minute run.
+    const at520 = planActivityDay(day(), run, 'fair', { nowHour: 17 + 20 / 60, daylight })
+    expect(at520.slot).toBeNull()
+    expect(at520.elapsed).toBe(true)
+  })
+
+  it('counts only daylight hours in the share of the day that fits', () => {
+    // 6am-8pm has 15 hours, 9 of them low; the 11 daylight hours (7am-5pm) have 5.
+    expect(planActivityDay(day(), run, 'fair').pctDaySafe).toBe(60)
+    expect(planActivityDay(day(), run, 'fair', { daylight }).pctDaySafe).toBe(45)
+  })
+
+  it('says when preferred hours are all in the dark', () => {
+    const early = { ...run, preferredHours: { from: 5, to: 7 } }
+    const plan = planActivityDay(day(), early, 'fair', { daylight })
+    expect(plan.slot).toBeNull()
+    expect(plan.hoursInDark).toBe(true)
+    expect(planActivityDay(day(), early, 'fair').hoursInDark).toBe(false)
+    expect(planActivityDay(day(), run, 'fair', { daylight }).hoursInDark).toBe(false)
+  })
+
+  it('offers nothing in the polar night', () => {
+    const plan = planActivityDay(day(), run, 'fair', { daylight: { from: 0, to: 0 } })
+    expect(plan.windows).toEqual([])
+    expect(plan.slot).toBeNull()
+  })
+})
+
 describe('soonestPlan', () => {
   it('picks the plan whose slot starts first, keeping list order on ties', () => {
     const hourly = day()

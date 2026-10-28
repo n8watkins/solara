@@ -16,11 +16,13 @@ export interface DailyBriefingView {
 }
 
 export interface BriefingViewInput {
-  weather: Pick<WeatherResponse, 'now' | 'today' | 'tomorrow'>
+  weather: Pick<WeatherResponse, 'now' | 'today' | 'tomorrow' | 'forecast'>
   /** A later day picked in the day picker, else null (today). */
-  selectedDay: Pick<DayWeather, 'dateStr' | 'label' | 'hourly'> | null
+  selectedDay: Pick<DayWeather, 'dateStr' | 'label' | 'hourly' | 'daylight'> | null
   /** Fractional "now" in the forecast's zone (lib/next-slot.ts nowHourOf). */
   nowHour: number
+  /** Today is over at the place (lib/dashboard-view.ts todayOver): brief tomorrow. */
+  todayOver: boolean
   activities: readonly Activity[]
   skinType: SkinType
   /** The plan shows days after today (false on the guest plan). */
@@ -31,12 +33,13 @@ export interface BriefingViewInput {
 
 /**
  * The selected day's briefing, or with today selected: today's, or tomorrow's once
- * no UV is left today.
+ * today is over (after sunset). Windows stay inside the briefed day's daylight.
  */
 export function briefingView({
   weather,
   selectedDay,
   nowHour,
+  todayOver,
   activities,
   skinType,
   laterDaysVisible,
@@ -52,6 +55,7 @@ export function briefingView({
         { date: weather.now.date, hourly: weather.today },
         { date: addDays(weather.now.date, 1), hourly: weather.tomorrow },
         nowHour,
+        todayOver,
       )
   const dayWord =
     picked.which === 'today'
@@ -59,12 +63,16 @@ export function briefingView({
       : picked.which === 'tomorrow'
         ? 'Tomorrow'
         : selectedDay!.label
+  const daylight = selectedDay
+    ? selectedDay.daylight
+    : weather.forecast.find(day => day.dateStr === picked.day.date)?.daylight
   const input = {
     day: picked.day,
     nowHour: picked.which === 'today' ? nowHour : null,
     activities,
     skinType,
     formatTime,
+    daylight: daylight ?? null,
   }
   const where = city ? ` in ${city}` : ''
   return {

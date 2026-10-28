@@ -157,6 +157,19 @@ describe('morning alert message', () => {
     })
   })
 
+  it('offers no window before sunrise, as the app does', () => {
+    // A winter morning: sunrise at 7:10, so the 6am hour of UV 1 is dark.
+    const alert = morningAlertMessage({
+      date: '2026-06-15',
+      city: 'Austin',
+      hourly,
+      activities: [run],
+      skinType: 'fair',
+      daylight: { from: 7 + 10 / 60, to: 17 },
+    })
+    expect(alert.title).toBe('🏃 Run: 7:10am to 9am')
+  })
+
   it('carries the briefing cloud note: what a clear sky would bring', () => {
     const cloudy = hourly.map(h => ({ ...h, uv: Math.round(h.uv * 5) / 10, clearSkyUV: h.uv }))
     const message = morningAlertMessage({

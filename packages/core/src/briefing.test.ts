@@ -32,6 +32,13 @@ describe('briefingDay', () => {
     expect(briefed).toBe(TOMORROW)
   })
 
+  it("follows the place's sunset when it is known, as the dashboard's hero does", () => {
+    // 8:15pm with no UV left but the sun still up: today until sunset.
+    expect(briefingDay(TODAY, TOMORROW, 20.25, false).which).toBe('today')
+    // 7:15pm with UV left but the sun down (a mismatched forecast): tomorrow.
+    expect(briefingDay(TODAY, TOMORROW, 19.25, true).which).toBe('tomorrow')
+  })
+
   it('stays on today when there is no tomorrow to brief', () => {
     expect(briefingDay(TODAY, null, 21.5).which).toBe('today')
     expect(briefingDay(TODAY, day('2026-06-16', []), 21.5).which).toBe('today')
@@ -195,6 +202,47 @@ describe('dailyBriefing', () => {
       skinType: 'olive' as const,
     }
     expect(dailyBriefing(input)).toEqual(dailyBriefing(input))
+  })
+})
+
+describe('dailyBriefing in daylight', () => {
+  // Sunrise 7:09am and sunset 6:04pm: 6am and the evening after 6pm are dark.
+  const daylight = { from: 7 + 10 / 60, to: 18 }
+
+  it("keeps an activity's window inside the day's daylight", () => {
+    const b = dailyBriefing({
+      day: TODAY,
+      dayLabel: 'Today',
+      nowHour: 6.5,
+      activities: [run],
+      skinType: 'fair',
+      daylight,
+    })
+    expect(b.lines.window).toBe('Lowest-UV window: Running 7:10am–10am')
+    expect(b.window?.spans).toEqual([{ from: 7 + 10 / 60, to: 10 }])
+  })
+
+  it('names low-UV hours only in daylight', () => {
+    const b = dailyBriefing({
+      day: TODAY,
+      dayLabel: 'Today',
+      activities: [],
+      skinType: 'fair',
+      daylight,
+    })
+    expect(b.window?.spans).toEqual([{ from: 7 + 10 / 60, to: 9 }])
+  })
+
+  it('has no window left once the rest of the daylight is too short', () => {
+    const b = dailyBriefing({
+      day: TODAY,
+      dayLabel: 'Today',
+      nowHour: 17.5,
+      activities: [run],
+      skinType: 'fair',
+      daylight,
+    })
+    expect(b.lines.window).toBe('No lower-UV window left for Running')
   })
 })
 

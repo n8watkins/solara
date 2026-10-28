@@ -3,16 +3,19 @@
 // itself comes from the shared forecast cache (forecast/proxy.ts, feed/functions.ts).
 
 import {
+  type Daylight,
   type IcsEvent,
   type PreferredHours,
   type RecommendationHour,
   bestWindow,
+  daylightHours,
   effectiveMaxUV,
   findWindows,
   formatUV,
   forecastDates,
+  hourlyRows,
   isPlannableHour,
-  parseHourlyRows,
+  parseOpenMeteoResponse,
   parsePlanningPreferences,
   planningUV,
   runsOn,
@@ -25,6 +28,8 @@ export interface SunForecastDay {
   dateStr: string
   /** UV with the forecast clouds, and under a clear sky when the provider gave it. */
   hourly: (RecommendationHour & { clearSkyUV?: number })[]
+  /** The day's hours with the sun up at the place, which bound its windows, as in the app. */
+  daylight?: Daylight | null
 }
 
 export { bestWindow, effectiveMaxUV, runsOn }
@@ -38,13 +43,26 @@ export function safeWindows(
   return findWindows(hourly, maxUV, durationMins, activity?.preferredHours)
 }
 
-/** Daytime (06-20) hours with a known UV, grouped by date. Unknown hours are omitted. */
-export function parseSunForecast(raw: unknown, days: number): SunForecastDay[] {
-  const rows = parseHourlyRows(raw)
+/**
+ * Daytime (06-20) hours with a known UV, grouped by date. Unknown hours are omitted.
+ * With the forecast's `place`, each day also carries its daylight (sunrise to sunset in
+ * the forecast's zone), so no window is offered in the dark, as in the app.
+ */
+export function parseSunForecast(
+  raw: unknown,
+  days: number,
+  place?: { lat: number; lon: number },
+): SunForecastDay[] {
+  const response = parseOpenMeteoResponse(raw)
+  const rows = hourlyRows(response)
+  const zone = response.timezone
+  const sunUp = (dateStr: string) =>
+    place && zone ? { daylight: daylightHours(place, dateStr, zone) } : {}
   return forecastDates(rows)
     .slice(0, days)
     .map(dateStr => ({
       dateStr,
+      ...sunUp(dateStr),
       hourly: rows
         .filter(row => row.date === dateStr && isPlannableHour(row))
         .map(row => ({
@@ -56,6 +74,12 @@ export function parseSunForecast(raw: unknown, days: number): SunForecastDay[] {
             : { clearSkyUV: Math.max(row.clearSkyUV, row.uv as number) }),
         })),
     }))
+}
+
+/** "6:00", "7:10": a fractional local hour in the description's 24-hour clock. */
+function clock(hours: number): string {
+  const minutes = Math.round(hours * 60)
+  return `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, '0')}`
 }
 
 /**
@@ -78,6 +102,7 @@ export function buildSunEvents(user: unknown, forecast: SunForecastDay[]): IcsEv
         effectiveMaxUV(act),
         act.durationMins ?? 30,
         act.preferredHours,
+        day.daylight,
       )
       if (!win) continue
       const durH = (act.durationMins ?? 30) / 60
@@ -86,7 +111,7 @@ export function buildSunEvents(user: unknown, forecast: SunForecastDay[]): IcsEv
       events.push({
         uid: windowEventUid(day.dateStr, act.id, start),
         summary: windowEventSummary(act),
-        description: `Estimated lower-UV window ${win.from}:00–${win.to}:00 (avg UV ${formatUV(win.avgUV)})${act.sunscreen ? ', assumes SPF 30+' : ', no sunscreen'}. Forecast-based estimate only. Recheck current UV and use sun protection. Planned by Solara.`,
+        description: `Estimated lower-UV window ${clock(win.from)}–${clock(win.to)} (avg UV ${formatUV(win.avgUV)})${act.sunscreen ? ', assumes SPF 30+' : ', no sunscreen'}. Forecast-based estimate only. Recheck current UV and use sun protection. Planned by Solara.`,
         dateStr: day.dateStr,
         start,
         end,

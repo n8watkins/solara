@@ -6,7 +6,7 @@ import { createAccountPrefs, defaultPrefs } from '@/lib/prefs'
 import type { UserPreferences, Location, SkinType } from '@/lib/types'
 import { CITY_PARAM, cityParam, loadCityLocation } from '@/lib/city-preset'
 import { locationFromCoordinates } from '@/lib/geocoding'
-import { sunPhaseAt } from '@/lib/sun-times'
+import { sunPhaseAt } from '@solara/core'
 import { isValidTimeZone } from '@/lib/time'
 import {
   ONBOARDING_BACK,

@@ -89,6 +89,6 @@ export const calendarFeed = onRequest(
     db,
     // The commercial API once its key is set (decision D5); see feedForecastProvider.
     fetchForecast: async (location, days, lookup) =>
-      parseSunForecast(await feedForecasts.get(location, lookup), days),
+      parseSunForecast(await feedForecasts.get(location, lookup), days, location),
   }),
 )

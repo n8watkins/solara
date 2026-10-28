@@ -1,4 +1,4 @@
-import type { Activity, RecommendationWindow } from '@solara/core'
+import type { Activity, Daylight, RecommendationWindow } from '@solara/core'
 import type { ZonedNow } from './time'
 
 // Preference types are inferred from the Valibot schema in @solara/core (packages/core/src/prefs.ts),
@@ -36,6 +36,11 @@ export interface ForecastDay {
 /** A forecast day labeled for display ("Today", "Tomorrow", "Wed, Jun 17"). */
 export interface DayWeather extends ForecastDay {
   label: string
+  /**
+   * The day's hours with the sun up at the forecast's place (@solara/core daylightHours),
+   * which bound every slot offered on it; absent or null when the place is unknown.
+   */
+  daylight?: Daylight | null
 }
 
 export interface CurrentConditions {

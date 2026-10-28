@@ -14,7 +14,7 @@ import { useStatusFlash } from '@/hooks/useStatusFlash'
 import { useCalendarBusy } from '@/hooks/useCalendarBusy'
 import { nowHourOf, planActivityDay, soonestPlan } from '@/lib/next-slot'
 import { nextSlotAfterToday } from '@/lib/planner'
-import { sunPhaseAt } from '@/lib/sun-times'
+import { sunPhaseAt } from '@solara/core'
 import {
   busyByDate,
   dashboardAccess,
@@ -22,6 +22,7 @@ import {
   dayPhrase,
   nextHourWhere,
   sunDown,
+  todayOver,
   uvReadout,
 } from '@/lib/dashboard-view'
 import { briefingView } from '@/lib/briefing-view'
@@ -99,6 +100,8 @@ function DashboardView({
 
   const hourly = day ? day.hourly : weather.today
   const isToday = !day
+  // The shown day's hours with the sun up: no slot is offered in the dark.
+  const daylight = (day ?? weather.forecast.find(d => d.dateStr === weather.now.date))?.daylight
 
   // Switching days clears the scrubbed hour so the arc and strip snap back to
   // "now" (or the new day's peak) rather than pointing at a stale hour.
@@ -124,6 +127,7 @@ function DashboardView({
     planActivityDay(hourly, a, planning.skinType, {
       nowHour: isToday ? nowHour : -1,
       busy: busy[activeDateStr] ?? [],
+      daylight,
     }),
   )
   const heroPlan = soonestPlan(dayPlans)
@@ -142,25 +146,27 @@ function DashboardView({
       )
     : null
   // After dark (or before sunrise) today: the readout and metrics say so and when UV
-  // comes back, instead of a bare "0.0 None" and dashes. Whether the sun is up comes
+  // comes back, instead of a bare "0.0 Low" and dashes. Whether the sun is up comes
   // from the place's sunrise and sunset, not from the UV (REVIEW6 L7).
   const sun = prefs.location
     ? sunPhaseAt(prefs.location, weather.timezone, weather.now.epochMs)
     : null
   const down = isToday ? sunDown(weather, nowHour, sun) : null
-  // The briefing names the day's peak and best window; after dark it briefs
-  // tomorrow and leads the dashboard in place of the hero, which has nothing left today.
+  // After sunset today is over: the briefing turns to tomorrow and leads the dashboard
+  // in place of the hero, which has nothing left today. Both read this one notion.
+  const over = todayOver(weather, nowHour, sun)
   const briefing = briefingView({
     weather,
     selectedDay: day,
     nowHour,
+    todayOver: over,
     activities: prefs.activities,
     skinType: planning.skinType,
     laterDaysVisible,
     city: prefs.location?.city ?? '',
     formatTime: fmt.time,
   })
-  const showHero = hasActivities && down?.phase !== 'after-sunset'
+  const showHero = hasActivities && !(isToday && over)
   const fromHour = (test: (uv: number) => boolean) => {
     const at = isToday ? nextHourWhere(weather, nowHour, test) : null
     return at ? dayHourText(at, fmt.hour) : null
@@ -246,6 +252,7 @@ function DashboardView({
               isToday={isToday}
               dateLabel={dateLabel}
               allElapsed={allElapsed}
+              hoursInDark={dayPlans.length > 0 && dayPlans.every(p => p.hoursInDark)}
               dayPhrase={dayPhrase(isToday, dateLabel)}
               next={nextSlot}
               laterDaysVisible={laterDaysVisible}

@@ -49,6 +49,7 @@ import {
   type AlertMessage,
   type OpenMeteoResponse,
   type QuietHours,
+  daylightHours,
   hourlyRows,
   inQuietHours,
   isPlannableHour,
@@ -653,7 +654,7 @@ async function processAccount(
 
   const quiet = quietHours(user.quietHours)
   const devices = devicesOnce(run, doc.ref)
-  const daily = await dailyAlert(run, doc, { forecast, local, quiet, devices })
+  const daily = await dailyAlert(run, doc, { forecast, local, timeZone, quiet, devices })
   // At most one alert per account and run: a heads-up only when nothing else went out.
   if (daily !== 'not-due' && daily !== 'already-sent') return daily
   const headsUp = await prepareHeadsUp(run, doc, { timeZone, quiet, devices, otherwise: daily })
@@ -667,11 +668,14 @@ async function dailyAlert(
   {
     forecast: known,
     local,
+    timeZone,
     quiet,
     devices: readDevices,
   }: {
     forecast: OpenMeteoResponse | null | undefined
     local: { date: string; hour: number }
+    /** The place's IANA zone, for its sunrise and sunset. */
+    timeZone: string
     quiet: QuietHours
     devices: () => Promise<Device[]>
   },
@@ -723,6 +727,8 @@ async function dailyAlert(
       activities: planning.activities,
       skinType: planningFor(planning).skinType,
       clock,
+      // As in the app, no window before sunrise or after sunset, however low its UV.
+      daylight: daylightHours({ lat, lon }, local.date, timeZone),
     })
     return deliver(run, stateRef, doc.id, devices, daily('morning'), alert)
   }

@@ -13,6 +13,7 @@ import { formatUV } from './uv-scale'
 import type { ExposureSetting } from './exposure'
 import { isSkinType, type PreferredHours, type SkinType } from './recommendation'
 import { NOTIFICATION_HOUR, QUIET_HOURS, UV_ALERT_THRESHOLD } from './prefs'
+import type { Daylight } from './sun-times'
 
 /** The kinds of alert, each sent at most once per local day. */
 export const ALERT_KINDS = Object.freeze(['morning', 'uv'] as const)
@@ -179,6 +180,8 @@ export interface MorningAlertInput {
   activities: readonly AlertActivity[]
   skinType: unknown
   clock?: '12h' | '24h'
+  /** The day's hours with the sun up at the place (daylightHours): no window in the dark. */
+  daylight?: Daylight | null
 }
 
 /**
@@ -196,6 +199,7 @@ export function morningAlertMessage(input: MorningAlertInput): AlertMessage {
     activities: input.activities,
     skinType,
     formatTime: time,
+    daylight: input.daylight,
   })
   const body = `${briefing.text} Recheck current conditions.`
   const span = briefing.window?.spans[0]

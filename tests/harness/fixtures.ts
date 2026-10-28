@@ -144,7 +144,11 @@ export function buildRawForecast(at: number = HARNESS_NOW_MS): RawForecast {
 
 /** The parsed forecast as seen at `at`. Call in the browser with the clock's time. */
 export function buildWeather(at: number = HARNESS_NOW_MS): WeatherResponse {
-  return forecastView(parseForecast(buildRawForecast(at), { days: DAYS.length }))
+  return forecastView(
+    parseForecast(buildRawForecast(at), { days: DAYS.length }),
+    undefined,
+    HARNESS_LOCATION,
+  )
 }
 
 const ACTIVITIES: Activity[] = [
