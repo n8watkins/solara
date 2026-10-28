@@ -61,7 +61,8 @@ The signed-in suite covers Scheduled with a faked Google Calendar.
 - **Cloud Functions are not deployed.**
   The `ENABLE_BLAZE_FUNCTIONS` variable is not set and the build ships an empty `NEXT_PUBLIC_FUNCTIONS_URL`, so the client hides everything that needs Functions: checkout and the billing portal, account export and deletion, the live calendar feed, notification device registration, and the scheduled billing and deletion jobs.
 - **Billing:** built and switched off: monthly and yearly checkout with a 7-day trial, the billing portal and an account billing summary are in the code and tested against a fake Stripe; the pricing dialog offers the waitlist until the `BILLING_ENABLED`, `STRIPE_PRICE_ID` and `STRIPE_YEARLY_PRICE_ID` variables are set.
-- **Morning alerts** are Pro-only and launch with Pro on a scheduled Function; nothing has been sent since 2026-07-15 and the manual `notify.yml` workflow has no schedule.
+- **Pro alerts:** built and switched off: the scheduled `alerts` Function sends Pro accounts one morning alert per local morning and, when they choose a level, one UV alert on days the forecast UV reaches it, outside their quiet hours ([Pro alerts](DEPLOYMENT.md#pro-alerts)); Settings offers them once the `ALERTS_ENABLED` variable is set, and says they are coming until then.
+  Nothing has been sent since 2026-07-15; the manual GitHub Actions notifier is retired.
 
 - **Forecast licensing (D5):** the forecast proxy for the Open-Meteo commercial API is built and switched off; the browser calls Open-Meteo's free API until `FORECAST_PROXY_ENABLED` is set.
 - **Operations:** every Function has instance, memory and timeout caps, rate limits and App Check; a budget kill switch and cost guard, alerts, uptime checks, backups and TTL policies are in code and `infra/` scripts, applied by the owner at the Pro launch ([RUNBOOK.md](RUNBOOK.md)).
@@ -72,13 +73,13 @@ The project stays on Spark until Pro launches ([COSTS.md](COSTS.md)).
 
 - **Repository:** public, with the "Protect main" ruleset: pull requests only, squash merges only, no force pushes or deletion, and 8 required checks from `quality.yml` (lint, types and unit tests; browser tests on the static export; signed-in UI harness; signed-in browser tests on emulators; Functions and Firestore rules; workflow and secret scanning; dependency review; browser tests with Sentry and App Check switched on).
   Dependabot alerts and security updates, secret scanning with push protection, and CodeQL are on; CodeQL has no open alerts (#72, #73).
-  There is no `production` environment yet; the deploy and notifier jobs that receive credentials run only from `main`, even when started by hand on another branch ([owner checklist](OWNER_CHECKLIST.md#repository)).
+  There is no `production` environment yet; the deploy jobs that receive credentials run only from `main`, even when started by hand on another branch ([owner checklist](OWNER_CHECKLIST.md#repository)).
 - **Testing policy (#74):** agents run the fast checks locally (lint, typecheck, docs check, unit tests, build and the suites their files touch); the full browser and emulator suites run on GitHub Actions.
   CI runs only the suites a pull request's files can affect (#76); every required check still reports, and the others pass in seconds ([change-aware checks](../README.md#change-aware-checks)).
 - **Pull requests** run `.github/workflows/ci.yml`, which calls the reusable `quality.yml` once per commit (older runs are cancelled).
 - **Pushes to `main`** run `deploy.yml`: the same quality workflow, then one production build that is checked, smoke-tested on the Hosting emulator and packaged with its SHA-256, SBOMs and a provenance record and attestation.
   Separate jobs then deploy Firestore rules, Firestore indexes, Functions (only when `ENABLE_BLAZE_FUNCTIONS` is `true`) and Hosting, which receives exactly the tested artifact.
-- **Credentials:** deploys and the notifier still use the long-lived `FIREBASE_SERVICE_ACCOUNT` key, because Workload Identity Federation is not set up yet.
+- **Credentials:** deploys still use the long-lived `FIREBASE_SERVICE_ACCOUNT` key, because Workload Identity Federation is not set up yet.
 - **Configuration:** `NEXT_PUBLIC_SITE_URL` is a repository variable; the other public `NEXT_PUBLIC_*` values are still repository secrets, which the build reads as a fallback.
   The `NEXT_PUBLIC_PRO_PRICE` secret is unused since #71 (prices live in `lib/plans.ts`).
 - **Dependencies:** Dependabot version updates run weekly with a 7-day cooldown.

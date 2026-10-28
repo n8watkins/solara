@@ -34,7 +34,7 @@ Steps 12-18 (Blaze with the budget kill switch, staging and Stripe test mode, th
 | 2 - shared core, data layer, signed-in e2e | Done 2026-10-23 | #44, #47, #49-#52 |
 | 4 - Tailwind 4, restyle and split, upgrades | Done 2026-10-24 (ESLint 10 and TypeScript 7 deferred, see Next up) | #57-#67 |
 | 3 phase 1 - free launch (no Blaze) | Done 2026-10-24; Sentry and App Check wait for the owner's keys | #70, #71 |
-| 3 phase 2 - Pro launch (Blaze) | Built and switched off (items 6, 9, 11); waits for the owner's Pro launch steps; morning alerts (item 10) not started | #99, #102, #104, #106, #107 |
+| 3 phase 2 - Pro launch (Blaze) | Built and switched off (items 6, 9, 10, 11); waits for the owner's Pro launch steps | #99, #102, #104, #106, #107 |
 | 5 - features | Scheduled activities done (#55, #56); the rest not started | - |
 | 6 - mobile app | Not started | - |
 
@@ -103,16 +103,15 @@ Built 2026-10-27 and switched off behind `BILLING_ENABLED`; closes BE-9, BE-10 a
 
 Left for the owner: the Stripe test-mode run on the staging project, then the [Functions and Stripe](OWNER_CHECKLIST.md#functions-and-stripe) checks and switching billing on ([steps 13-16](OWNER_CHECKLIST.md#at-pro-launch-blaze)).
 
-### 10. Wave 3 phase 2: Pro-only morning alerts (W3-B, at Pro launch)
+### 10. Wave 3 phase 2: Pro-only morning alerts (W3-B) (built)
 
-- **Goal:** Pro subscribers get one morning alert per local morning, and nobody else does.
-- **Closes:** OPS-4, BE-19, BE-11 (Functions runtime identity).
-- **Owns:** `functions/src/notifications/`, `functions/scripts/send-notifications.js` and `functions/scripts/notification-core.js` (removal), `.github/workflows/notify.yml` (removal, coordinated with the CI owner), `components/settings/NotificationSettings.tsx`, `lib/use-notification-toggle.ts`, `components/InstallPrompt.tsx`.
-- **Scope:** one scheduled Function every 15 minutes serving every time zone (D6) on a least-privilege service account, reusing the at-most-once claim logic; gated on `TIER_LIMITS.paid.notifications`; restore the notification copy; iOS Home Screen install guidance; a base for threshold alerts.
-- **Acceptance:** an emulator test sends exactly one notification per eligible Pro user per local morning across time zones and none to Free users; then the real-device checks in the [owner checklist](OWNER_CHECKLIST.md#notifications).
-- **Depends on:** Blaze, item 9 (Pro must be purchasable).
-- **Hooks in place:** the `maintenance` job leaves room for this job within Cloud Scheduler's 3 free jobs; `functions/src/shared/options.ts` sizes scheduled functions; the cost guard already covers notification registration.
-- **Size:** M-L.
+Built 2026-10-27 and switched off behind `ALERTS_ENABLED`; closes OPS-4, BE-19 and BE-11 in code.
+The scheduled `alerts` Function (`functions/src/notifications/`) runs every 15 minutes for every time zone (D6), as the second of Cloud Scheduler's three free jobs, and sends each entitled Pro account (active, trialing or in the `past_due` grace period) one morning alert per local morning at its chosen hour, at most once per day, with per-run caps, a saved cursor, the cost guard, and removal of devices whose token FCM rejects.
+Its own least-privilege identity is created by `infra/alerts-identity.sh` and named by `ALERTS_SERVICE_ACCOUNT`.
+The emulator test (`functions/test/emulator/alerts.test.js`) simulates a day of runs across time zones: one alert per entitled account per local morning, none to Free, canceled, lapsed or deleting accounts.
+The GitHub Actions notifier is retired.
+Left for the owner: the real-device checks in the [owner checklist](OWNER_CHECKLIST.md#notifications), then switching alerts on (step 17).
+The morning alert's text is built in `packages/core/src/alerts.ts` with the daily briefing's inputs, so it can switch to the briefing's text once that lands.
 
 ### 11. Wave 3 phase 2: operations (rest of W3-D, at Pro launch) (code built, #99, #107)
 
@@ -126,7 +125,7 @@ Each feature is its own lane that owns new files plus touch points agreed at kic
 Candidates, roughly ranked by impact over effort:
 
 1. **Scheduled activities** - done (#55, #56); hidden in production until the Google OAuth client ID is set.
-2. Threshold UV alerts and a sunscreen reapply timer (builds on item 10).
+2. Threshold UV alerts and a sunscreen reapply timer: the UV alert is built with item 10 (Pro, once a day when the forecast UV reaches the chosen level, outside quiet hours).
 3. A daily briefing card, optionally AI-written, reused by push and share.
 4. **Family profiles as a headline Pro feature** - done (#105): "Plan for a group" uses the most sensitive person among those ticked for plans and burn estimates, the switcher works on phones, Free sees an honest Pro offer (a waitlist while checkout is off), and the plan comparison names the mode.
 5. Cloud-aware forecasts with confidence that decays after day 3.

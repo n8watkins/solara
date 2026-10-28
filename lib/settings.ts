@@ -1,6 +1,7 @@
 // Pure logic behind the Settings dialog (components/PreferencesModal.tsx): the
 // draft it edits, whether that draft has unsaved changes, and the plan limits
 // it lists on the Account tab.
+import { QUIET_HOURS, UV_ALERT_THRESHOLD } from '@solara/core'
 import { TIER_LIMITS } from './tiers'
 import type { Location, SkinType, TierLevel, UserPreferences } from './types'
 
@@ -12,6 +13,10 @@ export interface SettingsDraft {
   hiddenActivitySuggestionIds: string[]
   collapsedActivityCategories: string[]
   notificationHour: number
+  /** The UV alert's threshold; UV_ALERT_THRESHOLD.off (0) is off. */
+  uvAlertThreshold: number
+  /** When alerts other than the morning one wait. */
+  quietHours: { from: number; to: number }
   /** 'auto' follows the browser locale. */
   temperatureUnit: NonNullable<UserPreferences['temperatureUnit']>
   /** 'auto' follows the browser locale. */
@@ -25,6 +30,8 @@ const DRAFT_FIELDS = [
   'hiddenActivitySuggestionIds',
   'collapsedActivityCategories',
   'notificationHour',
+  'uvAlertThreshold',
+  'quietHours',
   'temperatureUnit',
   'clockFormat',
 ] as const satisfies readonly (keyof SettingsDraft)[]
@@ -41,6 +48,8 @@ export function settingsDraftFrom(prefs: UserPreferences): SettingsDraft {
     hiddenActivitySuggestionIds: prefs.hiddenActivitySuggestionIds ?? [],
     collapsedActivityCategories: prefs.collapsedActivityCategories ?? [],
     notificationHour: prefs.notificationHour ?? DEFAULT_NOTIFICATION_HOUR,
+    uvAlertThreshold: prefs.uvAlertThreshold ?? UV_ALERT_THRESHOLD.off,
+    quietHours: prefs.quietHours ?? { ...QUIET_HOURS.default },
     temperatureUnit: prefs.temperatureUnit ?? 'auto',
     clockFormat: prefs.clockFormat ?? 'auto',
   }

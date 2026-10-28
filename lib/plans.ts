@@ -51,7 +51,18 @@ export const PRO_FEATURES: ProFeature[] = [
     ...perTier(tier => TIER_LIMITS[tier].profiles > 1),
   },
   {
-    label: 'Morning alerts',
-    ...perTier(tier => (TIER_LIMITS[tier].notifications ? 'Coming soon' : false)),
+    label: 'Morning and UV alerts',
+    ...perTier(tier =>
+      TIER_LIMITS[tier].notifications ? (alertsLaunched() ? true : 'Coming soon') : false,
+    ),
   },
 ]
+
+/**
+ * Whether Pro's morning and UV alerts are switched on: the deploy sets
+ * NEXT_PUBLIC_ALERTS_ENABLED with the ALERTS_ENABLED repository variable, and only
+ * together with the Functions that send them.
+ */
+export function alertsLaunched(): boolean {
+  return process.env.NEXT_PUBLIC_ALERTS_ENABLED === '1'
+}

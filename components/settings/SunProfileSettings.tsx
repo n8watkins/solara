@@ -22,7 +22,7 @@ interface Props {
   user?: User | null
 }
 
-/** The "Sun profile" section: skin type, sunscreen and morning alerts. */
+/** The "Sun profile" section: skin type, sunscreen, and morning and UV alerts. */
 export default function SunProfileSettings({ draft, onChange, tier, user }: Props) {
   const id = useId()
   const [showHelp, setShowHelp] = useState(false)
@@ -112,12 +112,7 @@ export default function SunProfileSettings({ draft, onChange, tier, user }: Prop
         </SettingsHint>
       </SettingsCard>
 
-      <NotificationSettings
-        tier={tier}
-        user={user}
-        hour={draft.notificationHour}
-        onHourChange={notificationHour => onChange({ notificationHour })}
-      />
+      <NotificationSettings tier={tier} user={user} draft={draft} onChange={onChange} />
     </div>
   )
 }

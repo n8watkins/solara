@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { installPromptKind, type InstallEnvironment } from './install-prompt'
+import { installPromptKind, pushNeedsHomeScreen, type InstallEnvironment } from './install-prompt'
 
 const IPHONE_SAFARI =
   'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1'
@@ -20,6 +20,26 @@ function env(overrides: Partial<InstallEnvironment>): InstallEnvironment {
     ...overrides,
   }
 }
+
+describe('pushNeedsHomeScreen', () => {
+  it('asks iPhone and iPad visitors to add Solara to the Home Screen first', () => {
+    expect(pushNeedsHomeScreen(env({ userAgent: IPHONE_SAFARI, platform: 'iPhone' }))).toBe(true)
+    // Every iOS browser shares Safari's engine and its push rules.
+    expect(pushNeedsHomeScreen(env({ userAgent: IPHONE_CHROME, platform: 'iPhone' }))).toBe(true)
+    // iPadOS reports a Mac with a touch screen.
+    expect(pushNeedsHomeScreen(env({ userAgent: MAC_SAFARI, platform: 'MacIntel' }))).toBe(true)
+  })
+
+  it('is satisfied once Solara runs from the Home Screen, and elsewhere', () => {
+    expect(
+      pushNeedsHomeScreen(env({ userAgent: IPHONE_SAFARI, platform: 'iPhone', standalone: true })),
+    ).toBe(false)
+    expect(pushNeedsHomeScreen(env({}))).toBe(false)
+    expect(
+      pushNeedsHomeScreen(env({ userAgent: MAC_SAFARI, platform: 'MacIntel', maxTouchPoints: 0 })),
+    ).toBe(false)
+  })
+})
 
 describe('installPromptKind', () => {
   it('never prompts an installed app or after a dismissal', () => {

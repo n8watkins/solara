@@ -61,9 +61,10 @@ export const NOTIFICATION_HOUR = Object.freeze({ min: 5, max: 10, default: 7 })
 
 /**
  * The UV alert (Pro): a push on the day today's UV index first reaches this whole
- * number. Off when the field is missing.
+ * number. `off` (or a missing field) turns it off; clients cannot remove a field, so
+ * turning it off writes `off`.
  */
-export const UV_ALERT_THRESHOLD = Object.freeze({ min: 1, max: 11 })
+export const UV_ALERT_THRESHOLD = Object.freeze({ off: 0, min: 1, max: 11 })
 
 /**
  * Quiet hours, as whole local hours: alerts other than the morning alert (whose hour
@@ -401,12 +402,17 @@ export const PREFERENCES_SHAPE = {
     ),
     NOTIFICATION_HOUR.default,
   ),
-  /** UV alert threshold (Pro); see UV_ALERT_THRESHOLD. Undefined means off. */
+  /** UV alert threshold (Pro); see UV_ALERT_THRESHOLD. 0 or undefined means off. */
   uvAlertThreshold: v.fallback(
     v.optional(
       v.pipe(
         finiteNumber,
-        v.transform(uv => clamp(Math.round(uv), UV_ALERT_THRESHOLD.min, UV_ALERT_THRESHOLD.max)),
+        v.transform(uv => {
+          const index = Math.round(uv)
+          return index < UV_ALERT_THRESHOLD.min
+            ? UV_ALERT_THRESHOLD.off
+            : Math.min(index, UV_ALERT_THRESHOLD.max)
+        }),
       ),
     ),
     undefined,

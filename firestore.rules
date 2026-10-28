@@ -246,7 +246,7 @@ service cloud.firestore {
           || (data.groupProfileIds is list && data.groupProfileIds.size() <= 12))
         && (!('uvAlertThreshold' in keys)
           || (data.uvAlertThreshold is int
-            && data.uvAlertThreshold >= 1
+            && data.uvAlertThreshold >= 0
             && data.uvAlertThreshold <= 11))
         && (!('quietHours' in keys) || validQuietHours(data.quietHours));
     }

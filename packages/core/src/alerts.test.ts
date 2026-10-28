@@ -129,7 +129,8 @@ describe('UV alert plan', () => {
     expect(uvAlertThreshold(undefined)).toBeNull()
     expect(uvAlertThreshold('6')).toBeNull()
     expect(uvAlertThreshold(5.6)).toBe(6)
-    expect(uvAlertThreshold(0)).toBe(1)
+    expect(uvAlertThreshold(0)).toBeNull()
+    expect(uvAlertThreshold(1)).toBe(1)
     expect(uvAlertThreshold(14)).toBe(11)
   })
 })
@@ -210,6 +211,7 @@ describe('alert preferences', () => {
       quietHours: { from: 23.6, to: -2 },
     })
     expect(prefs?.uvAlertThreshold).toBe(11)
+    expect(parsePreferences({ location, uvAlertThreshold: 0.4 })?.uvAlertThreshold).toBe(0)
     expect(prefs?.quietHours).toEqual({ from: 23, to: 0 })
   })
 })

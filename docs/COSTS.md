@@ -19,7 +19,7 @@ On Blaze, every product keeps its free quota; you pay only for usage above it.
 | Error reporting (Sentry) | Yes, Sentry free plan | No |
 | Cloud Functions: billing, account export and deletion, calendar feed, notification registration, forecast proxy, maintenance job, budget kill switch | No | Yes |
 | Firestore TTL deletes, point-in-time recovery and backups | No | Yes |
-| Pro-only morning alerts (scheduled Function plus Cloud Messaging) | No | Yes |
+| Pro-only morning and UV alerts (scheduled Function plus Cloud Messaging) | No | Yes |
 
 ## How many users before Blaze costs money
 
@@ -32,10 +32,10 @@ Quotas marked "per billing account" are shared by every project on that billing 
 | Hosting | 10 GB storage; 360 MB a day transfer | About 0.35 MB a day per active user (first visits download about 0.5 MB, repeat visits are mostly cached) | 1,000 DAU | $0.15 per GB |
 | Cloud Firestore | 50,000 reads, 20,000 writes and 20,000 deletes a day; 1 GiB stored; 10 GiB a month egress | About 22 reads and 4 writes per active user a day, plus about 1,200 reads a day for the maintenance job; the forecast proxy adds one read per cache miss and one write per place and hour | 2,200 DAU (reads run out first) | $0.03 per 100,000 reads, $0.09 per 100,000 writes (us-central1) |
 | Cloud Functions (Cloud Run functions) | 2 million requests, 180,000 vCPU-seconds and 360,000 GiB-seconds a month, per billing account | About 6 requests per active user a day with the forecast proxy on (3 without), at about 0.2 vCPU-seconds each; the maintenance job uses about 3,000 vCPU-seconds a month | 5,000 DAU (CPU runs out first) | Tier 1 rates per vCPU-second and GiB-second |
-| Cloud Scheduler | 3 jobs a month, per billing account | 1 job (`maintenance`), 2 once morning alerts launch | Never | $0.10 per job a month |
+| Cloud Scheduler | 3 jobs a month, per billing account | 2 jobs (`maintenance` and `alerts`) | Never | $0.10 per job a month |
 | Pub/Sub | 10 GiB of message delivery a month, per billing account | A few budget notifications a day for the kill switch | Never | Per GiB |
 | Artifact Registry (Functions container images) | 0.5 GB of storage, per billing account | One image per function; the cleanup policy keeps 1 day of images (set by the deploy, or `infra/backups.sh`) | Usually within it; at most about $0.10 a month | About $0.10 per GB a month |
-| Cloud Messaging (push) | No charge | Pro morning alerts | Never | - |
+| Cloud Messaging (push) | No charge | Pro morning and UV alerts | Never | - |
 | Authentication | 50,000 monthly active users | Google sign-in only | 50,000 MAU | Per MAU |
 | Cloud Logging | 50 GiB ingested a month, per project | Structured logs; the calendar feed's request logs are excluded | Far beyond any plan here | $0.50 per GiB |
 | Cloud Monitoring | Uptime checks: 1 million executions a month per project; alerting: free until September 1, 2027 | 2 uptime checks every 5 minutes (about 52,000 executions); 2 alert policies | Never for uptime | Alerting: $0.35 a month per metric reference from September 2027 (about $0.35-0.70) |
@@ -49,7 +49,8 @@ The Open-Meteo commercial plan ($29 a month, below) is a fixed cost on top, paid
 
 - An active user causes about 20 Firestore reads and 3 writes per day from the app; the forecast proxy and server bookkeeping add the rest.
 - A first visit downloads about 0.5 MB; repeat visits are mostly cached.
-- Morning alerts run as one scheduled job every 15 minutes that serves every time zone (about 2,900 runs per month), not one job per user.
+- Morning and UV alerts run as one scheduled job every 15 minutes that serves every time zone (about 2,900 runs per month), not one job per user.
+  Each run reads every Pro account once (96 reads per Pro account a day), plus the alert state, devices and a cached forecast only for accounts with an alert due; at 300 Pro accounts that is about 30,000 reads a day, and the forecasts come from the forecast proxy's shared cache.
 - App Check tokens are cached for about an hour, and App Check starts only after sign-in (or, with the forecast proxy on, at a guest's first forecast fetch), so reCAPTCHA assessments roughly equal session-hours.
 - Function requests are small (under 300 ms of CPU each) and share instances (concurrency 20-40); background jobs run on a fractional CPU.
 

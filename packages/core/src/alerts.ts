@@ -73,7 +73,8 @@ export function morningAlertDue(localHour: number, notificationHour: unknown): b
 /** The UV alert threshold a stored value stands for, or null when the alert is off. */
 export function uvAlertThreshold(value: unknown): number | null {
   if (typeof value !== 'number' || !Number.isFinite(value)) return null
-  return Math.min(UV_ALERT_THRESHOLD.max, Math.max(UV_ALERT_THRESHOLD.min, Math.round(value)))
+  const index = Math.round(value)
+  return index < UV_ALERT_THRESHOLD.min ? null : Math.min(UV_ALERT_THRESHOLD.max, index)
 }
 
 export interface QuietHours {

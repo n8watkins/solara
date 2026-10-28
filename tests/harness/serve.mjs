@@ -31,6 +31,8 @@ const env = {
   NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY: '',
   NEXT_PUBLIC_GA_MEASUREMENT_ID: '',
   NEXT_PUBLIC_FUNCTIONS_URL: '',
+  // The harness shows Pro's alerts settings as they look once switched on.
+  NEXT_PUBLIC_ALERTS_ENABLED: '1',
   NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID: '',
   NEXT_PUBLIC_SENTRY_DSN: '',
   NEXT_TELEMETRY_DISABLED: '1',

@@ -35,7 +35,7 @@ test('offers the app, sign-in, the plans, the legal pages and the data credits',
   )
   await expect(main.getByText('$2.99')).toBeVisible()
   await expect(main.getByText(/\$19\.99 a year\. 7-day free trial/)).toBeVisible()
-  await expect(main.getByText('Morning alerts (coming soon)')).toBeVisible()
+  await expect(main.getByText('Morning and UV alerts (coming soon)')).toBeVisible()
   await expect(page.getByRole('link', { name: 'Privacy' })).toHaveAttribute('href', '/privacy/')
   await expect(page.getByRole('link', { name: 'Terms' })).toHaveAttribute('href', '/terms/')
   await expect(page.getByRole('link', { name: 'Open-Meteo' })).toHaveAttribute(

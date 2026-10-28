@@ -464,12 +464,13 @@ describe('typed and size-capped preference fields', () => {
     await assertFails(ref.update({ clockFormat: 24 }))
   })
 
-  test('the UV alert threshold is a whole UV index from 1 to 11', async () => {
+  test('the UV alert threshold is a whole UV index from 1 to 11, or 0 for off', async () => {
     const ref = await ownerRef()
     await assertSucceeds(ref.update({ uvAlertThreshold: 6 }))
     await assertSucceeds(ref.update({ uvAlertThreshold: 1 }))
     await assertSucceeds(ref.update({ uvAlertThreshold: 11 }))
-    await assertFails(ref.update({ uvAlertThreshold: 0 }))
+    await assertSucceeds(ref.update({ uvAlertThreshold: 0 }))
+    await assertFails(ref.update({ uvAlertThreshold: -1 }))
     await assertFails(ref.update({ uvAlertThreshold: 12 }))
     await assertFails(ref.update({ uvAlertThreshold: 5.5 }))
     await assertFails(ref.update({ uvAlertThreshold: '6' }))
