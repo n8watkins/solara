@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { stripFrameworkScripts } from './static-pages.mts'
+import { HEAD_FIRST_PAGES, stripFrameworkScripts } from './static-pages.mts'
 import { LANDING_REDIRECT_SCRIPT } from './app-routes'
 
 const page = (body: string) => `<!DOCTYPE html><html><head>
@@ -38,6 +38,28 @@ describe('stripFrameworkScripts', () => {
     )
     expect(html).not.toContain('__next_f')
     expect(html).not.toMatch(/\.js/)
+  })
+
+  it('moves a script marked data-head-first to the start of head, after the charset (REVIEW7 M1)', () => {
+    const handOver = '(function(){postTheCode()})()'
+    const { html, hoisted } = stripFrameworkScripts(
+      page(`<main><script data-static="" data-head-first="">${handOver}</script>Hi</main>`).replace(
+        '<head>',
+        '<head><meta charSet="utf-8"/>',
+      ),
+    )
+    expect(hoisted).toBe(1)
+    expect(html).toContain(
+      `<head><meta charSet="utf-8"/><script data-static="" data-head-first="">${handOver}</script>`,
+    )
+    // Before every stylesheet and font, and gone from the body.
+    expect(html.indexOf(handOver)).toBeLessThan(html.indexOf('app.css'))
+    expect(html.indexOf(handOver)).toBeLessThan(html.indexOf('inter.woff2'))
+    expect(html.split(handOver)).toHaveLength(2)
+    expect(html).toContain('<main>Hi</main>')
+    // The other kept script stays where it was.
+    expect(stripFrameworkScripts(page('')).hoisted).toBe(0)
+    expect(HEAD_FIRST_PAGES).toEqual(['auth/microsoft/index.html'])
   })
 
   it('refuses an inline script it does not recognize', () => {

@@ -110,7 +110,9 @@ while (!(await portIsFree(port))) {
   await new Promise(resolveDelay => setTimeout(resolveDelay, 250))
 }
 
-const serveStatic = createStaticHandler(root)
+// With production's headers (firebase.json), opener policy included, so the Outlook
+// sign-in popup meets what it meets in production (REVIEW7 M1).
+const serveStatic = createStaticHandler(root, { securityHeaders: true })
 
 createServer((req, res) => {
   const route = ROUTES.find(r => (req.url || '/').startsWith(r.prefix))

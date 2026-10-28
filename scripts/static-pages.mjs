@@ -5,8 +5,10 @@
 // with no client components, so it can hydrate. The landing page has nothing to
 // hydrate: it is HTML and CSS plus two inline scripts of our own (the theme, which
 // must run before first paint, and the redirect that sends an account to the app),
-// which carry the `data-static` attribute. This removes every other script, so the landing page loads no
-// framework code and nothing from Firebase (target: under 100 KB of JavaScript).
+// which carry the `data-static` attribute. This removes every other script, so the landing
+// page loads no framework code and nothing from Firebase (target: under 100 KB of
+// JavaScript). A kept script marked `data-head-first` (the Microsoft redirect page's
+// hand-over) moves to the start of <head>, so no stylesheet or font can delay it.
 //
 // Runs after `next build` and before scripts/csp.mjs, which then hashes only the
 // scripts that remain. Fails the build when the export no longer looks the way this
@@ -15,7 +17,7 @@
 // Usage: node scripts/static-pages.mjs [exportDir]   (default: out)
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { STATIC_PAGES, stripFrameworkScripts } from '../lib/static-pages.mts'
+import { HEAD_FIRST_PAGES, STATIC_PAGES, stripFrameworkScripts } from '../lib/static-pages.mts'
 
 const dir = process.argv[2] || 'out'
 
@@ -32,9 +34,16 @@ for (const page of STATIC_PAGES) {
     continue
   }
   try {
-    const { html, removed } = stripFrameworkScripts(readFileSync(file, 'utf8'))
+    const { html, removed, hoisted } = stripFrameworkScripts(readFileSync(file, 'utf8'))
+    // The Microsoft redirect page's hand-over must run before anything else loads (REVIEW7 M1).
+    if (HEAD_FIRST_PAGES.includes(page) && hoisted !== 1) {
+      problems.push(`${page} must have exactly one script marked data-head-first (has ${hoisted})`)
+      continue
+    }
     writeFileSync(file, html)
-    console.log(`static-pages: ${page} is static (${removed} framework scripts removed).`)
+    console.log(
+      `static-pages: ${page} is static (${removed} framework scripts removed${hoisted ? `, ${hoisted} moved first` : ''}).`,
+    )
   } catch (error) {
     problems.push(`${page}: ${error.message}`)
   }

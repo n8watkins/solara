@@ -30,6 +30,21 @@ const FRAMEWORK_INLINE =
  */
 export const KEEP_ATTRIBUTE = 'data-static'
 
+/**
+ * Marks a kept script that must run before anything else on its page loads:
+ * `<script data-static data-head-first>`. It is moved to the start of `<head>` (after the
+ * charset, and after the Content-Security-Policy that scripts/csp.mjs puts first), so no
+ * stylesheet, font or other resource can hold it back: a parser-inserted script waits for
+ * every stylesheet before it. The Microsoft redirect page needs this (REVIEW7 M1).
+ */
+export const HEAD_FIRST_ATTRIBUTE = 'data-head-first'
+
+/** Pages whose hand-over script must run first; the build fails if one has none. */
+export const HEAD_FIRST_PAGES = ['auth/microsoft/index.html']
+
+/** `<meta charset>` as the first element of `<head>`, which stays first. */
+const LEADING_CHARSET = /^\s*<meta\s+charset\s*=\s*["']?[\w-]+["']?\s*\/?>/i
+
 const LINK = /<link\b[^>]*>/gi
 
 /**
@@ -39,12 +54,25 @@ const LINK = /<link\b[^>]*>/gi
  * was nothing to remove (the Next.js output changed), or if framework JavaScript is
  * still referenced.
  */
-export function stripFrameworkScripts(html: string): { html: string; removed: number } {
+export function stripFrameworkScripts(html: string): {
+  html: string
+  removed: number
+  /** Scripts moved to the start of `<head>` (HEAD_FIRST_ATTRIBUTE). */
+  hoisted: number
+} {
   let removed = 0
   const unknown: string[] = []
+  const first: string[] = []
   let out = html.replace(SCRIPT_TAG, (tag: string, attributes: string, body: string) => {
     if (hasAttribute(attributes, 'src')) {
       removed++
+      return ''
+    }
+    if (
+      hasAttribute(attributes, KEEP_ATTRIBUTE) &&
+      hasAttribute(attributes, HEAD_FIRST_ATTRIBUTE)
+    ) {
+      first.push(tag)
       return ''
     }
     if (hasAttribute(attributes, KEEP_ATTRIBUTE)) return tag
@@ -70,5 +98,16 @@ export function stripFrameworkScripts(html: string): { html: string; removed: nu
   if (/\/_next\/static\/[^"']*\.js/.test(out)) {
     throw new Error('still references framework JavaScript after stripping')
   }
-  return { html: out, removed }
+  if (first.length) out = prependToHead(out, first.join(''))
+  return { html: out, removed, hoisted: first.length }
+}
+
+/** Puts `markup` first in `<head>`, after a leading `<meta charset>`. */
+function prependToHead(html: string, markup: string): string {
+  const head = /<head\b[^>]*>/i.exec(html)
+  if (!head) throw new Error('a script that must run first, but no <head>')
+  let at = head.index + head[0].length
+  const charset = LEADING_CHARSET.exec(html.slice(at))
+  if (charset) at += charset[0].length
+  return html.slice(0, at) + markup + html.slice(at)
 }
