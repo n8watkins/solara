@@ -181,6 +181,7 @@ export function createFakeOutlookCalendarApi(): OutlookCalendarApi {
       if (popup === 'closed') throw authError('popup_closed')
       if (popup === 'blocked') throw authError('popup_failed_to_open')
       if (popup === 'admin') throw authError('admin_approval')
+      if (popup === 'insecure') throw authError('insecure_context')
       token = 'harness-graph-token'
       return token
     },

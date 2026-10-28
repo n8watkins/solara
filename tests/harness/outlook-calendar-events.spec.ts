@@ -246,6 +246,22 @@ test('with linked calendars on, an organization’s refusal points to them', asy
   )
 })
 
+test('a page without Web Crypto says the sign-in needs a secure connection (REVIEW7 L6)', async ({
+  page,
+}, testInfo) => {
+  await preparePage(page, testInfo, answerOpenMeteo)
+  await page.addInitScript(() => {
+    ;(window as unknown as { __solaraOutlookPopup: string }).__solaraOutlookPopup = 'insecure'
+  })
+  await page.goto('/harness/?screen=dashboard&outlook=on')
+  await expect(page.getByTestId(HARNESS_MARKER)).toBeVisible()
+  await panel(page).getByRole('button', { name: 'Show my Outlook events' }).click()
+  await expect(status(page)).toHaveText(
+    'Microsoft sign-in needs a secure connection. Open Solara at its https:// address, then try again.',
+  )
+  await expect(panel(page).getByRole('button', { name: 'Show my Outlook events' })).toBeEnabled()
+})
+
 test('Google Calendar and Outlook together show a shared event once', async ({
   page,
 }, testInfo) => {
@@ -263,5 +279,6 @@ test('Google Calendar and Outlook together show a shared event once', async ({
     'Your 2 events from Outlook are already in Solara, so they are shown once.',
   )
   await expect(page.getByRole('listitem', { name: 'Family picnic' })).toHaveCount(1)
-  await expect(page.getByText('From Outlook')).toHaveCount(0)
+  // No card is marked as Outlook's (the status sentence also says "from Outlook").
+  await expect(page.getByText('From Outlook', { exact: true })).toHaveCount(0)
 })
