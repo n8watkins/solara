@@ -100,9 +100,11 @@ test('switching location aborts the request for the old one', async ({ page }) =
 
 test('rolls over at the location midnight and fetches the new day', async ({ page }) => {
   const requests = await playOpenMeteo(page)
-  // 23:58 in Los Angeles on the first forecast day: nothing is left today.
+  // 23:58 in Los Angeles on the first forecast day: the sun has set, so today is over;
+  // the briefing turns to tomorrow and the hero steps aside.
   await openLive(page, NOW_MS + (13 * 60 + 28) * MINUTE)
-  await expect(page.getByText('No lower-UV slot left today')).toBeVisible()
+  await expect(page.getByTestId('daily-briefing')).toContainText('Tomorrow at a glance')
+  await expect(page.getByTestId('hero-slot').or(page.getByTestId('hero-empty'))).toHaveCount(0)
   expect(requests).toHaveLength(1)
 
   await page.clock.fastForward('03:00')
