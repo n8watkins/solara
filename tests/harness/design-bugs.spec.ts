@@ -52,33 +52,6 @@ test.describe('logic checks', () => {
     const card = page.getByTestId('activity-card').filter({ hasText: 'Running' })
     await expect(card).toContainText('Next lower-UV slot: tomorrow at 6am')
   })
-
-  // Item 3: the tip never shows a sliver of a neighbouring one, and never moves by itself.
-  test('the sun safety tip is one static card with nothing beside it', async ({ page }) => {
-    await openDashboard(page, {})
-    const tip = page.getByRole('note', { name: 'Sun safety tip' })
-    await expect(tip).toBeVisible()
-    await expect(page.locator('[aria-roledescription="carousel"]')).toHaveCount(0)
-    const before = await tip.textContent()
-    await page.clock.runFor(20_000)
-    expect(await tip.textContent()).toBe(before)
-    const overflow = await tip.evaluate(el => el.scrollWidth - el.clientWidth)
-    expect(overflow).toBe(0)
-  })
-
-  test('a dismissed tip stays dismissed, and the next visit shows another', async ({ page }) => {
-    await openDashboard(page, {})
-    const tip = page.getByRole('note', { name: 'Sun safety tip' })
-    const first = await tip.textContent()
-    await page.reload()
-    await expect(tip).toBeVisible()
-    expect(await tip.textContent()).not.toBe(first)
-    await tip.getByRole('button', { name: 'Hide tips' }).click()
-    await expect(tip).toHaveCount(0)
-    await page.reload()
-    await expect(page.getByRole('group', { name: 'UV forecast by hour' })).toBeVisible()
-    await expect(tip).toHaveCount(0)
-  })
 })
 
 test.describe('phone strip', () => {

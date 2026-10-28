@@ -249,18 +249,6 @@ test('tooltips are keyboard-reachable and describe their button', async ({ page 
   await expect(tip).toBeHidden()
 })
 
-test('sun safety tip: a 24 px hide button reachable by keyboard', async ({ page }) => {
-  await open(page, 'dashboard')
-  const tip = page.getByRole('note', { name: 'Sun safety tip' })
-  const hide = tip.getByRole('button', { name: 'Hide tips' })
-  const box = await hide.boundingBox()
-  expect(box!.width).toBeGreaterThanOrEqual(24)
-  expect(box!.height).toBeGreaterThanOrEqual(24)
-  await hide.focus()
-  await press(page, 'Enter')
-  await expect(tip).toHaveCount(0)
-})
-
 test('profile switcher: disclosure with Escape and focus return', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name.startsWith('mobile'), 'the compact mobile header hides it')
   await open(page, 'dashboard')

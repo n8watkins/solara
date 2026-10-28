@@ -1,7 +1,7 @@
 'use client'
 // Parts of the app that are not on screen when it opens: the dialogs and sheets, the
-// calendar view and the calendar feed card, the location panel, setup (a returning
-// visitor never sees it), and the header's signed-in parts (account menu, profile
+// calendar view and the calendar feed card, the location panel, setup and the sign-in
+// screen (a returning visitor never sees them), the UV scale's bands (until opened), and the header's signed-in parts (account menu, profile
 // switcher) and scheduled activities, which a guest never sees. Each loads as its own chunk the first time it
 // renders, so the first load carries only what the opening screen shows. Soon after
 // the page has loaded, preloadDeferred() fetches them all, so opening one is instant;
@@ -79,6 +79,8 @@ export const CalendarFeed = deferred(() => import('./CalendarFeed'))
 export const InstallPrompt = deferred(() => import('./InstallPrompt'))
 export const ActivityModals = deferred(() => import('./dashboard/ActivityModals'))
 export const DayDialog = deferred(() => import('./dashboard/DayDialog'))
+/** The "UV scale" disclosure's bands, once it is opened. */
+export const UVScaleBands = deferred(() => import('./dashboard/UVScaleBands'))
 export const LocationPanel = deferred(() => import('./LocationPanel'))
 
 /** Keeps the sunscreen timer's place until it shows, so nothing below it moves. */
@@ -97,6 +99,8 @@ export function SunscreenTimer() {
   useEffect(() => afterPageLoad(() => setReady(true)), [])
   return ready ? <ReapplyTimer /> : <ReapplyTimerSpace />
 }
+/** The sign-in screen (the landing page's "Sign in"); the loading screen shows until it has arrived. */
+export const SignInScreen = deferred(() => import('./SignInScreen'), AccountLoading)
 /** Setup, for a first visit; the loading screen shows until it has arrived. */
 export const Onboarding = deferred(() => import('./Onboarding'), AccountLoading)
 export const AccountMenu = deferred(() => import('./AccountMenu'))

@@ -15,7 +15,6 @@ import { UnitsContext } from '@/lib/use-units'
 import { lazySubscription, storedSessionHint } from '@/lib/firebase'
 import { watchInstallPrompt } from '@/lib/install-prompt'
 import type { Activity, UserPreferences, TierLevel, DayWeather } from '@/lib/types'
-import SignInScreen from './SignInScreen'
 import Dashboard from './Dashboard'
 import Header from './Header'
 import Skeleton from './Skeleton'
@@ -24,6 +23,7 @@ import {
   GuestPlanNotice,
   InstallPrompt,
   Onboarding,
+  SignInScreen,
   preloadDeferred,
   preloadSignedInParts,
 } from './deferred'
