@@ -112,7 +112,7 @@ export function UVPreviewStep({
 }: {
   uv: number
   city: string
-  /** The sun is above the horizon at the place now (lib/sun-times.ts). */
+  /** The sun is above the horizon at the place now (@solara/core sunPhaseAt). */
   sunUp?: boolean
   onContinue: () => void
   onBack?: () => void

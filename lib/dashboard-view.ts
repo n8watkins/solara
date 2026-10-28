@@ -252,7 +252,7 @@ export interface SunDown {
 /**
  * Today's sun-down state: the live UV reads none and the sun is below the horizon,
  * before today's sunrise or after today's sunset at the place (`sun`, from
- * lib/sun-times.ts). Null while the sun is up, even when its UV is still under 0.5 (a
+ * @solara/core sun-times.ts). Null while the sun is up, even when its UV is still under 0.5 (a
  * low morning or evening sun, or heavy cloud; REVIEW6 L7). Without the sun's times (no
  * place) it falls back to the forecast: before the day's first UV, or after its last.
  */
