@@ -14,11 +14,15 @@ import {
   googleLocationQueries,
   isMeetingLocation,
   parseGoogleEvent,
+  disconnectGoogleCalendar,
   refreshDue,
+  refreshGoogleEvents,
+  removeGoogleEvents,
   syncGoogleEvents,
   syncSummary,
   syncedText,
   type GoogleCalendarApi,
+  type GoogleCalendarLink,
   type SyncContext,
   type SyncOutcome,
 } from './google-events'
@@ -406,6 +410,13 @@ const PICNIC = timed('picnic', 'Picnic', '2026-06-16T12:00:00-07:00', '2026-06-1
 const RUN = timed('run', 'Morning run', '2026-06-17T07:00:00-07:00', '2026-06-17T08:00:00-07:00')
 const MEETING = timed('m', '1:1', '2026-06-16T09:00:00-07:00', '2026-06-16T09:30:00-07:00')
 
+/** A refresh with no connection check, which always finishes. */
+async function syncOrFail(sync: SyncContext): Promise<SyncOutcome> {
+  const outcome = await syncGoogleEvents(sync)
+  if (!outcome) throw new Error('the refresh stopped')
+  return outcome
+}
+
 describe('syncGoogleEvents', () => {
   it('stores events with a place or an activity, once across calendars', async () => {
     const { store, items } = memoryStore()
@@ -417,7 +428,7 @@ describe('syncGoogleEvents', () => {
       // The same invitation on a second calendar is one event.
       'club@group': [{ items: [PICNIC] }],
     })
-    const outcome = await syncGoogleEvents(context(store, api))
+    const outcome = await syncOrFail(context(store, api))
     expect(outcome).toMatchObject({ shown: 2, refused: 0, removed: 0, duplicates: 0 })
     expect(outcome.skipped.noPlace).toBe(1)
     const stored = [...items.values()]
@@ -440,7 +451,7 @@ describe('syncGoogleEvents', () => {
 
   it('reports a calendar that is no longer shared, and keeps reading the others', async () => {
     const { store } = memoryStore()
-    const outcome = await syncGoogleEvents(
+    const outcome = await syncOrFail(
       context(store, fakeApi({ primary: [{ items: [PICNIC] }], 'club@group': null })),
     )
     expect(outcome.shown).toBe(1)
@@ -462,7 +473,7 @@ describe('syncGoogleEvents', () => {
       end: '2026-06-17T15:00:00.000Z',
     } as ImportedEvent
     const { store, items } = memoryStore([imported])
-    const outcome = await syncGoogleEvents(
+    const outcome = await syncOrFail(
       context(store, fakeApi({ primary: [{ items: [PICNIC, RUN] }], 'club@group': [] }), {
         existing: [linked],
       }),
@@ -487,7 +498,7 @@ describe('syncGoogleEvents', () => {
     saved.length = 0
 
     // The picnic is deleted in Google; the run is unchanged.
-    const outcome = await syncGoogleEvents(
+    const outcome = await syncOrFail(
       context(store, fakeApi({ primary: [{ items: [RUN] }], 'club@group': [] })),
     )
     expect(outcome).toMatchObject({ shown: 1, removed: 1 })
@@ -506,7 +517,7 @@ describe('syncGoogleEvents', () => {
       ),
     )
     const { store } = memoryStore([], 150)
-    const outcome = await syncGoogleEvents(
+    const outcome = await syncOrFail(
       context(store, fakeApi({ primary: [{ items: many }], 'club@group': [] })),
     )
     expect(outcome.overLimit).toBe(3)
@@ -532,7 +543,7 @@ describe('syncGoogleEvents', () => {
       PICNIC,
     ]
     const { store, items: stored } = memoryStore()
-    const outcome = await syncGoogleEvents(
+    const outcome = await syncOrFail(
       context(store, fakeApi({ primary: [{ items }], 'club@group': [] }), {
         lookups: recording,
       }),
@@ -558,6 +569,150 @@ describe('syncGoogleEvents', () => {
       ),
     )
     expect(listEvents).toHaveBeenCalledTimes(GOOGLE_EVENT_LIMITS.maxPagesPerCalendar)
+  })
+})
+
+describe('a disconnect on another device wins (REVIEW6 L4)', () => {
+  /** The stored connection, and an events store that refuses Google events without it, as the rules do. */
+  function connectedAccount() {
+    const memory = memoryStore()
+    let link: GoogleCalendarLink | null = context(memory.store, fakeApi({})).link
+    const order: string[] = []
+    const linkStore = {
+      async read() {
+        return link
+      },
+      async update(_uid: string, patch: Partial<GoogleCalendarLink>) {
+        if (!link) return false
+        link = { ...link, ...patch }
+        return true
+      },
+      async remove() {
+        order.push('link')
+        link = null
+      },
+    }
+    const store = {
+      ...memory.store,
+      async save(uid: string, records: readonly ImportedEvent[]) {
+        if (!link && records.some(r => r.source === 'google')) {
+          throw Object.assign(new Error('Missing or insufficient permissions.'), {
+            code: 'permission-denied',
+          })
+        }
+        return memory.store.save(uid, records)
+      },
+      async remove(uid: string, keys: readonly string[]) {
+        order.push('events')
+        return memory.store.remove(uid, keys)
+      },
+    }
+    return {
+      ...memory,
+      store,
+      linkStore,
+      order,
+      link: () => link,
+      setLink: (next: GoogleCalendarLink | null) => (link = next),
+    }
+  }
+
+  /** Google answers only once `release` is called. */
+  function heldApi(pages: Record<string, CalendarEventsPage[] | null>) {
+    const api = fakeApi(pages)
+    let release!: () => void
+    const gate = new Promise<void>(resolve => (release = resolve))
+    const listEvents: GoogleCalendarApi['listEvents'] = async (...args) => {
+      await gate
+      return api.listEvents(...args)
+    }
+    return { api: { ...api, listEvents }, release }
+  }
+
+  it('a refresh that was running when the phone disconnected writes nothing back', async () => {
+    const account = connectedAccount()
+    await refreshGoogleEvents({
+      ...context(account.store, fakeApi({ primary: [{ items: [RUN] }], 'club@group': [] })),
+      linkStore: account.linkStore,
+    })
+    expect(account.items.size).toBe(1)
+    const started = account.link()!
+
+    // The laptop's refresh is waiting on Google when the phone disconnects.
+    const { api, release } = heldApi({ primary: [{ items: [PICNIC, RUN] }], 'club@group': [] })
+    const laptop = refreshGoogleEvents({
+      ...context(account.store, api, { link: started }),
+      linkStore: account.linkStore,
+    })
+    const revoked = await disconnectGoogleCalendar({
+      uid: 'u1',
+      linkStore: account.linkStore,
+      store: account.store,
+      api,
+    })
+    expect(revoked).toBe(true)
+    // The connection goes first, so nothing can be stored after the events are removed.
+    expect(account.order).toEqual(['link', 'events'])
+    release()
+
+    expect(await laptop).toBeNull()
+    expect(account.link()).toBeNull()
+    expect([...account.items.values()].filter(e => e.source === 'google')).toEqual([])
+  })
+
+  it('stops when the rules refuse a write because the connection just went', async () => {
+    const account = connectedAccount()
+    const store = {
+      ...account.store,
+      async sourceEvents(uid: string, source: string) {
+        // The phone disconnects after the laptop checked the connection.
+        account.setLink(null)
+        return account.store.sourceEvents(uid, source)
+      },
+    }
+    const outcome = await refreshGoogleEvents({
+      ...context(store, fakeApi({ primary: [{ items: [PICNIC] }], 'club@group': [] })),
+      linkStore: account.linkStore,
+    })
+    expect(outcome).toBeNull()
+    expect(account.items.size).toBe(0)
+    expect(account.link()).toBeNull()
+  })
+
+  it('leaves a calendar choice made on another device during the refresh alone', async () => {
+    const account = connectedAccount()
+    const started = account.link()!
+    const { api, release } = heldApi({ primary: [{ items: [PICNIC] }], 'club@group': [] })
+    const laptop = refreshGoogleEvents({
+      ...context(account.store, api, { link: started }),
+      linkStore: account.linkStore,
+    })
+    // The phone picks only the main calendar.
+    await account.linkStore.update('u1', { calendars: [{ id: 'primary', name: '' }] })
+    release()
+    expect(await laptop).toBeNull()
+    expect(account.items.size).toBe(0)
+    expect(account.link()).toMatchObject({ calendars: [{ id: 'primary', name: '' }], syncedAt: '' })
+  })
+
+  it('records the refresh time without rewriting the connection', async () => {
+    const account = connectedAccount()
+    const outcome = await refreshGoogleEvents({
+      ...context(account.store, fakeApi({ primary: [{ items: [PICNIC] }], 'club@group': [] })),
+      linkStore: account.linkStore,
+    })
+    expect(outcome?.shown).toBe(1)
+    expect(account.link()?.syncedAt).not.toBe('')
+    expect(account.link()?.calendars).toHaveLength(2)
+  })
+
+  it('removes Google events left without a connection, and nothing else', async () => {
+    const google = { key: 'g'.repeat(32), source: 'google', title: 'Picnic' } as ImportedEvent
+    const file = { key: 'f'.repeat(32), source: 'file', title: 'Race' } as ImportedEvent
+    const { store, items } = memoryStore([google, file])
+    expect(await removeGoogleEvents('u1', store)).toBe(1)
+    expect([...items.keys()]).toEqual([file.key])
+    expect(await removeGoogleEvents('u1', store)).toBe(0)
   })
 })
 

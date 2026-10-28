@@ -18,10 +18,12 @@ import {
   authProblem,
   calendarChoices,
   calendarsText,
+  disconnectGoogleCalendar,
   firestoreGoogleLinkStore,
   googleCalendarApi,
   refreshDue,
-  syncGoogleEvents,
+  refreshGoogleEvents,
+  removeGoogleEvents,
   syncSummary,
   syncedText,
   type GoogleCalendarChoice,
@@ -88,10 +90,13 @@ export default function GoogleCalendarEvents({
     [linkStore, uid],
   )
 
-  /** Reads the chosen calendars and stores their events; returns what it did. */
-  async function sync(current: GoogleCalendarLink, interactive: boolean): Promise<string> {
+  /**
+   * Reads the chosen calendars and stores their events; returns what it did, or nothing
+   * when the connection was removed or changed meanwhile, on another device (REVIEW6 L4).
+   */
+  async function sync(current: GoogleCalendarLink, interactive: boolean): Promise<string | null> {
     const token = await api.requestToken(GOOGLE_EVENTS_SCOPE, { interactive })
-    const outcome = await syncGoogleEvents({
+    const outcome = await refreshGoogleEvents({
       uid,
       link: current,
       api,
@@ -101,11 +106,11 @@ export default function GoogleCalendarEvents({
       existing: itemsRef.current,
       nowMs: Date.now(),
       store: events,
+      linkStore,
       lookups: geocodingLookups,
       onProgress: setProgress,
     })
-    await linkStore.save(uid, { ...current, syncedAt: new Date().toISOString() })
-    return syncSummary(outcome)
+    return outcome && syncSummary(outcome)
   }
 
   async function run(kind: Exclude<Busy, null>, action: () => Promise<string | null>) {
@@ -151,6 +156,19 @@ export default function GoogleCalendarEvents({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [link, api])
 
+  // Google events with no connection: a disconnect (here or on another device) whose
+  // removal stopped halfway. They are removed, as the disconnect meant.
+  const orphaned = link === null && items.some(item => item.source === 'google')
+  useEffect(() => {
+    if (!orphaned || busyRef.current) return
+    void run('disconnect', async () => {
+      // Only when the server agrees the connection is gone (not a cache that has not
+      // heard of it yet).
+      if (!(await linkStore.read(uid))) await removeGoogleEvents(uid, events)
+      return null
+    })
+  }, [orphaned, uid, events, linkStore])
+
   function connect() {
     void run('connect', async () => {
       await api.requestToken(GOOGLE_EVENTS_SCOPE, { interactive: true })
@@ -180,23 +198,17 @@ export default function GoogleCalendarEvents({
     const calendars = choosing.options.filter(o => choosing.picked.includes(o.id)).slice(0, MAX)
     if (!calendars.length) return
     void run('choose', async () => {
-      const next = { ...current, calendars }
-      await linkStore.save(uid, next)
       setChoosing(null)
-      return sync(next, true)
+      // Disconnected on another device meanwhile: nothing to change.
+      if (!(await linkStore.update(uid, { calendars }))) return null
+      return sync({ ...current, calendars }, true)
     })
   }
 
   function disconnect() {
     setConfirming(false)
     void run('disconnect', async () => {
-      const stored = await events.sourceEvents(uid, 'google')
-      await events.remove(
-        uid,
-        stored.map(e => e.key),
-      )
-      await linkStore.remove(uid)
-      const revoked = await api.revoke().catch(() => false)
+      const revoked = await disconnectGoogleCalendar({ uid, linkStore, store: events, api })
       return revoked
         ? 'Disconnected Google Calendar and removed its events.'
         : 'Removed the events from Google Calendar. To also end Solara’s access, remove Solara at myaccount.google.com/connections.'

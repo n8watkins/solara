@@ -455,6 +455,14 @@ service cloud.firestore {
         && data.syncedAt is string && data.syncedAt.size() <= 40;
     }
 
+    // Google events may be stored only while the connection exists (REVIEW6 L4): a
+    // disconnect deletes it first, so a refresh still running on another device cannot
+    // bring its events back. Other sources do not depend on it.
+    function connectedIfGoogle(userId) {
+      return request.resource.data.source != 'google'
+        || exists(/databases/$(database)/documents/users/$(userId)/meta/googleCalendar);
+    }
+
     // Midnight UTC of an ISO instant's date.
     function endDate(iso) {
       let parts = iso.split('T')[0].split('-');
@@ -491,9 +499,11 @@ service cloud.firestore {
         allow create: if isOwner(userId) && isActiveAccount(userId)
           && validImportedEvent(eventKey)
           && request.resource.data.source in ['file', 'google']
+          && connectedIfGoogle(userId)
           && listedAfter(userId, 'events', eventKey);
         allow update: if isOwner(userId) && isActiveAccount(userId)
           && validImportedEvent(eventKey) && listedAfter(userId, 'events', eventKey)
+          && connectedIfGoogle(userId)
           && (resource.data.source in ['file', 'google']
             ? request.resource.data.source == resource.data.source
             : request.resource.data.diff(resource.data).affectedKeys()

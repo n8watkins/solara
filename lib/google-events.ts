@@ -360,15 +360,37 @@ export function parseGoogleEvent(
 
 // ---- The connection (which calendars) -------------------------------------------------
 
-/** Where the account's Google Calendar connection lives: Firestore, or memory in the harness. */
+/**
+ * Where the account's Google Calendar connection lives: Firestore, or memory in the
+ * harness. The connection is also what lets the app store Google events: the rules refuse
+ * them while it does not exist, so a disconnect on one device wins over a refresh still
+ * running on another (REVIEW6 L4).
+ */
 export interface GoogleLinkStore {
   subscribe(
     uid: string,
     onChange: (link: GoogleCalendarLink | null) => void,
     onError: (error: Error) => void,
   ): () => void
+  /** The connection as stored now (asked of the server, not a cache), or null. */
+  read(uid: string): Promise<GoogleCalendarLink | null>
+  /** Starts a connection, replacing any. Only a click on "Show my Google Calendar events" does. */
   save(uid: string, link: GoogleCalendarLink): Promise<void>
+  /**
+   * Changes a connection that still exists, and only the fields given; false when it is
+   * gone (disconnected, perhaps on another device), which it never brings back.
+   */
+  update(
+    uid: string,
+    patch: Partial<Pick<GoogleCalendarLink, 'calendars' | 'syncedAt'>>,
+  ): Promise<boolean>
   remove(uid: string): Promise<void>
+}
+
+/** Firestore's error for a write the rules refused, or for a document that is gone. */
+function errorCode(error: unknown): string {
+  const code = (error as { code?: unknown } | null)?.code
+  return typeof code === 'string' ? code : ''
 }
 
 async function linkDoc(uid: string) {
@@ -392,9 +414,23 @@ export const firestoreGoogleLinkStore: GoogleLinkStore = {
       error => onError(error instanceof Error ? error : new Error(String(error))),
     )
   },
+  async read(uid) {
+    const { firestore, ref } = await linkDoc(uid)
+    return parseGoogleCalendarLink((await firestore.getDocFromServer(ref)).data())
+  },
   async save(uid, link) {
     const { firestore, ref } = await linkDoc(uid)
     await firestore.setDoc(ref, link)
+  },
+  async update(uid, patch) {
+    const { firestore, ref } = await linkDoc(uid)
+    try {
+      await firestore.updateDoc(ref, patch)
+      return true
+    } catch (error) {
+      if (errorCode(error) === 'not-found') return false
+      throw error
+    }
   },
   async remove(uid) {
     const { firestore, ref } = await linkDoc(uid)
@@ -439,6 +475,12 @@ export interface SyncContext {
   store: Pick<EventsStore, 'save' | 'remove' | 'sourceEvents' | 'storedKeys'>
   lookups: () => Promise<PlaceLookups>
   onProgress?: (message: string) => void
+  /**
+   * Asked once Google has answered and before anything is written: false when the
+   * connection is gone or its calendars changed meanwhile (on another device), and the
+   * refresh then stops without writing (REVIEW6 L4).
+   */
+  connected?: () => Promise<boolean>
 }
 
 export interface SyncOutcome {
@@ -485,9 +527,11 @@ function unchanged(a: ImportedEvent, b: ImportedEvent | undefined): boolean {
  * Reads the chosen calendars' events for the next GOOGLE_EVENT_LIMITS.windowDays days and
  * makes the stored `google` events match: new and changed ones saved within the account's
  * cap, ones gone from Google removed, the person's place and activity kept while the
- * location text is unchanged. Throws Google's errors (an auth problem: authProblem).
+ * location text is unchanged. Null when `connected` says the connection is gone or
+ * changed, before anything is written. Throws Google's errors (an auth problem:
+ * authProblem).
  */
-export async function syncGoogleEvents(context: SyncContext): Promise<SyncOutcome> {
+export async function syncGoogleEvents(context: SyncContext): Promise<SyncOutcome | null> {
   const { uid, link, api, token, home, activities, existing, nowMs, store } = context
   const timeMin = new Date(nowMs)
   const timeMax = new Date(nowMs + GOOGLE_EVENT_LIMITS.windowDays * 86_400_000)
@@ -533,6 +577,8 @@ export async function syncGoogleEvents(context: SyncContext): Promise<SyncOutcom
       if (!pageToken) break
     }
   }
+
+  if (context.connected && !(await context.connected())) return null
 
   // Events already in Solara from a file (same UID) or another source (same title and
   // times) are shown once, from there.
@@ -593,6 +639,70 @@ export async function syncGoogleEvents(context: SyncContext): Promise<SyncOutcom
     missing,
     skipped,
   }
+}
+
+const sameCalendars = (a: GoogleCalendarLink, b: GoogleCalendarLink) =>
+  a.calendars.map(c => c.id).join('\n') === b.calendars.map(c => c.id).join('\n')
+
+/**
+ * A refresh of `link`, the connection as it was when it started: syncGoogleEvents, then
+ * the new `syncedAt`. A disconnect or a new calendar choice on another device wins: the
+ * refresh writes nothing once it sees either, never brings the connection back, and a
+ * write the rules refuse because the connection is gone ends it quietly. Null when it
+ * stopped for that reason (REVIEW6 L4).
+ */
+export async function refreshGoogleEvents(
+  context: SyncContext & { linkStore: Pick<GoogleLinkStore, 'read' | 'update'> },
+): Promise<SyncOutcome | null> {
+  const { uid, link, linkStore } = context
+  const unchanged = async () => {
+    const now = await linkStore.read(uid)
+    return !!now && sameCalendars(now, link)
+  }
+  try {
+    const outcome = await syncGoogleEvents({ ...context, connected: unchanged })
+    if (!outcome) return null
+    return (await linkStore.update(uid, { syncedAt: new Date().toISOString() })) ? outcome : null
+  } catch (error) {
+    if (errorCode(error) === 'permission-denied' && !(await unchanged().catch(() => true))) {
+      return null
+    }
+    throw error
+  }
+}
+
+/**
+ * Disconnects Google Calendar: the connection goes first, so no refresh on any device can
+ * store events from then on (the rules refuse them), then every stored Google event, then
+ * Solara's grant at Google. True when Google confirmed the grant ended.
+ */
+export async function disconnectGoogleCalendar({
+  uid,
+  linkStore,
+  store,
+  api,
+}: {
+  uid: string
+  linkStore: Pick<GoogleLinkStore, 'remove'>
+  store: Pick<EventsStore, 'sourceEvents' | 'remove'>
+  api: Pick<GoogleCalendarApi, 'revoke'>
+}): Promise<boolean> {
+  await linkStore.remove(uid)
+  await removeGoogleEvents(uid, store)
+  return api.revoke().catch(() => false)
+}
+
+/**
+ * Removes every stored Google event: after a disconnect, and whenever a device finds
+ * Google events with no connection (a disconnect whose removal stopped halfway).
+ */
+export async function removeGoogleEvents(
+  uid: string,
+  store: Pick<EventsStore, 'sourceEvents' | 'remove'>,
+): Promise<number> {
+  const keys = (await store.sourceEvents(uid, 'google')).map(item => item.key)
+  if (keys.length) await store.remove(uid, keys)
+  return keys.length
 }
 
 const plural = (n: number, one: string, many = `${one}s`) =>

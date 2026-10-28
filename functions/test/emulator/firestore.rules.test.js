@@ -1094,8 +1094,15 @@ describe('imported events', () => {
     await assertSucceeds(ref.delete())
   })
 
+  const googleLink = {
+    calendars: [{ id: 'primary', name: '' }],
+    connectedAt: '2026-06-15T17:30:00.000Z',
+    syncedAt: '',
+  }
+
   test('the app creates and rewrites events from Google Calendar, which keep their source', async () => {
     const db = testEnv.authenticatedContext('alice').firestore()
+    await assertSucceeds(db.doc('users/alice/meta/googleCalendar').set(googleLink))
     const ref = db.doc(`users/alice/events/${KEY}`)
     const google = importedEvent(KEY, { source: 'google', url: '' })
     await assertSucceeds(ref.set(google))
@@ -1107,6 +1114,30 @@ describe('imported events', () => {
     // A file event cannot become a Google one either.
     await assertSucceeds(ref.set(importedEvent(KEY)))
     await assertFails(ref.set({ ...importedEvent(KEY), source: 'google' }))
+  })
+
+  test('Google events are refused once the connection is gone, so a disconnect wins (REVIEW6 L4)', async () => {
+    const db = testEnv.authenticatedContext('alice').firestore()
+    const link = db.doc('users/alice/meta/googleCalendar')
+    const ref = db.doc(`users/alice/events/${KEY}`)
+    const google = importedEvent(KEY, { source: 'google', url: '' })
+    // Never connected: refused.
+    await assertFails(ref.set(google))
+    await assertSucceeds(link.set(googleLink))
+    await assertSucceeds(ref.set(google))
+    // Disconnected on another device: a refresh still running cannot rewrite or add events,
+    // nor bring the connection back with a partial update.
+    await assertSucceeds(link.delete())
+    await assertFails(ref.set({ ...google, title: 'Moved' }))
+    await assertFails(
+      db
+        .doc(`users/alice/events/${OTHER}`)
+        .set(importedEvent(OTHER, { source: 'google', url: '' })),
+    )
+    await assertFails(link.update({ syncedAt: '2026-06-15T18:00:00.000Z' }))
+    // The disconnect still removes the events, and files never depend on the connection.
+    await assertSucceeds(ref.delete())
+    await assertSucceeds(ref.set(importedEvent(KEY)))
   })
 
   test('a tombstoned account cannot read or write its events', async () => {

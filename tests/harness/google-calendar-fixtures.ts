@@ -191,9 +191,18 @@ export function createMemoryGoogleLinkStore(
       queueMicrotask(() => onChange(link))
       return () => listeners.delete(onChange)
     },
+    async read() {
+      return link
+    },
     async save(_uid, next) {
       link = next
       emit()
+    },
+    async update(_uid, patch) {
+      if (!link) return false
+      link = { ...link, ...patch }
+      emit()
+      return true
     },
     async remove() {
       link = null
