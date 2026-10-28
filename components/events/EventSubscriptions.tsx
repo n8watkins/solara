@@ -2,17 +2,43 @@
 // Linked calendars in the Events section (docs/integrations/EVENTS.md, phase 2): paste an
 // https or webcal link, and the server keeps its events current. Loaded on demand by
 // EventsSection only when the feature is switched on (eventSubscriptionsLaunched).
-import { useContext, useEffect, useId, useState, type FormEvent } from 'react'
-import { CalendarSync, Link2, RefreshCw } from 'lucide-react'
+// "Add a calendar from..." (ROADMAP item 24) is loaded only when opened.
+import {
+  lazy,
+  Suspense,
+  useContext,
+  useEffect,
+  useId,
+  useMemo,
+  useState,
+  type FormEvent,
+} from 'react'
+import {
+  CalendarSync,
+  CircleCheck,
+  ChevronDown,
+  Link2,
+  RefreshCw,
+  TriangleAlert,
+} from 'lucide-react'
+import {
+  calendarLinkHint,
+  calendarLinkRefused,
+  recogniseCalendarLink,
+} from '@solara/core/event-import'
 import {
   REFRESH_HOURS,
   SUBSCRIPTION_CAP,
   linkProblem,
   serverSubscriptionsStore,
+  subscriptionTitle,
   subscriptionView,
   type SubscriptionSummary,
 } from '@/lib/event-subscriptions'
 import { SubscriptionsStoreContext } from '@/lib/events-context'
+import { googleCalendarEventsLaunched } from '@/lib/plans'
+
+const AddCalendarGuide = lazy(() => import('./AddCalendarGuide'))
 
 interface Props {
   uid: string
@@ -32,6 +58,10 @@ export default function EventSubscriptions({ uid, nowMs }: Props) {
   const [busy, setBusy] = useState<Busy>(null)
   const [status, setStatus] = useState<{ text: string; error?: boolean } | null>(null)
   const [confirming, setConfirming] = useState<string | null>(null)
+  const [guideOpen, setGuideOpen] = useState(false)
+  // What the pasted link looks like, worked out here and never sent or logged.
+  const recognised = useMemo(() => recogniseCalendarLink(url), [url])
+  const linkHint = calendarLinkHint(recognised)
 
   useEffect(
     () =>
@@ -71,17 +101,25 @@ export default function EventSubscriptions({ uid, nowMs }: Props) {
       setStatus({ text: problem, error: true })
       return
     }
+    // A provider's website or HTML page can never be a calendar: say so without a fetch.
+    if (calendarLinkRefused(recognised) && linkHint) {
+      setStatus({ text: linkHint.text, error: true })
+      return
+    }
     void run({ kind: 'add' }, async () => {
       const added = await store.add(uid, url)
       setUrl('')
+      const title = subscriptionTitle(added)
       return added.error
-        ? `Linked ${added.label || added.host}, but its events could not be read yet.`
-        : `Linked ${added.label || added.host}: ${added.eventCount} upcoming ${added.eventCount === 1 ? 'event' : 'events'}.`
+        ? `Linked ${title}, but its events could not be read yet.`
+        : `Linked ${title}: ${added.eventCount} upcoming ${added.eventCount === 1 ? 'event' : 'events'}.`
     })
   }
 
   const inputId = `${id}-url`
   const hintId = `${id}-hint`
+  const guideId = `${id}-guide`
+  const linkHintId = `${id}-link-hint`
   return (
     <div className="mt-4 border-t-[0.5px] border-line pt-3.5" data-testid="event-subscriptions">
       <div className="flex items-baseline justify-between gap-3">
@@ -96,6 +134,27 @@ export default function EventSubscriptions({ uid, nowMs }: Props) {
         Paste a calendar link (https:// or webcal://), such as a club or race calendar, and Solara
         keeps its events current, checking every {REFRESH_HOURS} hours.
       </p>
+      <button
+        type="button"
+        className="mt-1 inline-flex min-h-6 items-center gap-1 text-[12px] font-semibold text-accent underline-offset-2 hover:underline"
+        aria-expanded={guideOpen}
+        aria-controls={guideId}
+        onClick={() => setGuideOpen(!guideOpen)}
+      >
+        Add a calendar from…
+        <ChevronDown
+          size={14}
+          aria-hidden="true"
+          className={`transition-transform motion-reduce:transition-none ${guideOpen ? 'rotate-180' : ''}`}
+        />
+      </button>
+      <div id={guideId} hidden={!guideOpen}>
+        {guideOpen && (
+          <Suspense fallback={null}>
+            <AddCalendarGuide googleEvents={googleCalendarEventsLaunched()} />
+          </Suspense>
+        )}
+      </div>
 
       <form className="mt-2.5 flex gap-2 max-sm:flex-col" onSubmit={add} noValidate>
         <label htmlFor={inputId} className="sr-only">
@@ -109,7 +168,7 @@ export default function EventSubscriptions({ uid, nowMs }: Props) {
           autoCapitalize="none"
           spellCheck={false}
           placeholder="https://… or webcal://…"
-          aria-describedby={hintId}
+          aria-describedby={`${hintId} ${linkHintId}`}
           className="min-w-0 flex-1 py-2 text-[13px]"
           value={url}
           disabled={full || busy !== null}
@@ -117,9 +176,12 @@ export default function EventSubscriptions({ uid, nowMs }: Props) {
         />
         <button
           type="submit"
-          // Disabled, it is an outline button: a faded filled one reads as active.
+          // Disabled, it is an outline button: a faded filled one reads as active. A link
+          // that cannot be a calendar keeps it clickable (it explains why) but not inviting.
           className={`btn shrink-0 justify-center px-3.5 py-2 text-[13px] ${
-            full || busy !== null || !url.trim() ? '' : 'btn-primary'
+            full || busy !== null || !url.trim() || calendarLinkRefused(recognised)
+              ? ''
+              : 'btn-primary'
           }`}
           disabled={full || busy !== null || !url.trim()}
         >
@@ -127,6 +189,23 @@ export default function EventSubscriptions({ uid, nowMs }: Props) {
           {busy?.kind === 'add' ? 'Checking the link…' : 'Link calendar'}
         </button>
       </form>
+      {/* Names the provider a pasted link comes from, or the mistake, as it is pasted. */}
+      <p
+        id={linkHintId}
+        aria-live="polite"
+        data-testid="calendar-link-hint"
+        className={`flex gap-1.5 text-[12px] leading-normal ${
+          linkHint ? 'mt-1.5' : 'hidden'
+        } ${linkHint?.tone === 'warning' ? 'text-notice-ink' : 'text-ink-2'}`}
+      >
+        {linkHint?.tone === 'ok' && (
+          <CircleCheck size={14} aria-hidden="true" className="mt-px shrink-0 text-success" />
+        )}
+        {linkHint?.tone === 'warning' && (
+          <TriangleAlert size={14} aria-hidden="true" className="mt-px shrink-0" />
+        )}
+        {linkHint && <span>{linkHint.text}</span>}
+      </p>
       {full && (
         <p className="mt-2 text-[12px] leading-normal text-ink-2">
           You have linked {SUBSCRIPTION_CAP} calendars, the most an account can keep. Remove one to

@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { linkProblem, subscriptionView, updatedText } from './event-subscriptions'
+import {
+  linkProblem,
+  subscriptionTitle,
+  subscriptionView,
+  updatedText,
+} from './event-subscriptions'
 
 const NOW = Date.parse('2026-06-15T17:30:00.000Z')
 const base = {
@@ -61,5 +66,28 @@ describe('subscriptionView', () => {
       /^Paused after a week of failed checks\..*Refresh to try again\.$/,
     )
     expect(subscriptionView({ ...base, refused: 3 }, NOW).refused).toMatch(/^3 events did not fit/)
+  })
+})
+
+describe('subscriptionTitle', () => {
+  it('names an unnamed calendar by its provider, else its host (CALENDAR_LINKS.md)', () => {
+    expect(subscriptionTitle(base)).toBe('LA Trail Runners')
+    // The server labels a calendar without a name with its host.
+    const google = { ...base, host: 'calendar.google.com', label: 'calendar.google.com' }
+    expect(subscriptionTitle(google)).toBe('Google Calendar')
+    expect(subscriptionTitle({ ...google, label: '' })).toBe('Google Calendar')
+    expect(subscriptionTitle({ ...base, host: 'p63-caldav.icloud.com', label: '' })).toBe('iCloud')
+    // A calendar's own name always wins.
+    expect(subscriptionTitle({ ...google, label: 'Runs' })).toBe('Runs')
+    expect(subscriptionTitle({ ...base, label: 'www.meetup.com' })).toBe('www.meetup.com')
+  })
+
+  it('shows the host beside a provider name, and never twice', () => {
+    const view = subscriptionView({ ...base, host: 'calendar.google.com', label: '' }, NOW)
+    expect(view.title).toBe('Google Calendar')
+    expect(view.meta).toBe('calendar.google.com · Updated 2 hours ago · 12 upcoming events')
+    expect(subscriptionView({ ...base, label: 'www.meetup.com' }, NOW).meta).toBe(
+      'Updated 2 hours ago · 12 upcoming events',
+    )
   })
 })

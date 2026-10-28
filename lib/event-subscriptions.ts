@@ -5,9 +5,11 @@
 // users/{uid}/private/eventSubscriptions (host, label, refresh state; never the link).
 // Only the lazily loaded Events section imports this module.
 import {
+  CALENDAR_PROVIDER_NAMES,
   EVENT_SUBSCRIPTION_LIMITS,
   IMPORTED_EVENT_LIMITS,
   SubscriptionSummarySchema,
+  calendarProviderForHost,
   normalizeSubscriptionUrl,
   parseSubscriptionSummaries,
   subscriptionErrorMessage,
@@ -109,7 +111,7 @@ export function updatedText(iso: string, nowMs: number): string {
 }
 
 export interface SubscriptionView {
-  /** The label, or the host when there is none. */
+  /** The label, else the provider's name, else the host (subscriptionTitle). */
   title: string
   /** "calendar.example.org · Updated 2 hours ago · 12 upcoming events". */
   meta: string
@@ -119,11 +121,27 @@ export interface SubscriptionView {
   refused: string | null
 }
 
+/** Whether the calendar sent no name of its own: the server then labels it with its host. */
+const unnamed = (item: SubscriptionSummary) => !item.label || item.label === item.host
+
+/**
+ * PURE. A linked calendar's name: its label, else the provider its host belongs to
+ * ("Google Calendar", "iCloud"; docs/integrations/CALENDAR_LINKS.md), else the host.
+ */
+export function subscriptionTitle(item: SubscriptionSummary): string {
+  if (!unnamed(item)) return item.label
+  const provider = calendarProviderForHost(item.host)
+  return provider ? CALENDAR_PROVIDER_NAMES[provider] : item.host
+}
+
 /** PURE. What one linked calendar's row says. */
 export function subscriptionView(item: SubscriptionSummary, nowMs: number): SubscriptionView {
-  const title = item.label || item.host
-  // The host names a link without a label already, so it is not repeated.
-  const parts = [...(item.label ? [item.host] : []), updatedText(item.lastSuccessAt, nowMs)]
+  const title = subscriptionTitle(item)
+  // A title that is the host already names it, so the host is not repeated.
+  const parts = [
+    ...(title !== item.host ? [item.host] : []),
+    updatedText(item.lastSuccessAt, nowMs),
+  ]
   if (item.lastSuccessAt) parts.push(plural(item.eventCount, 'upcoming event'))
   const reason = subscriptionErrorMessage(item.error)
   let problem: string | null = null
