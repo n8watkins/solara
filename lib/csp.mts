@@ -213,7 +213,8 @@ export function pagePolicy(hashes: string[], env: CspEnv = {}): CspDirectives {
 /**
  * The policy of the Microsoft sign-in redirect page, /auth/microsoft/ (REVIEW7 L6). A
  * one-time code sits in its address, and the page needs nothing but its own inline scripts
- * (the theme and the hand-over, by hash), its stylesheets, font and icon: no Google, Tag
+ * (the theme, the hand-over and, with analytics configured, the consent banner's layout,
+ * by hash), its stylesheets, font and icon: no Google, Tag
  * Manager, reCAPTCHA or other third-party origin, and no connection of any kind (the
  * hand-over is a BroadcastChannel, which no policy governs).
  */

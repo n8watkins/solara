@@ -172,7 +172,9 @@ test('the redirect page runs under its own policy without a single violation', a
   const policy = await page
     .locator('meta[http-equiv="Content-Security-Policy"]')
     .getAttribute('content')
-  expect(policy).toMatch(/^default-src 'none'; script-src 'sha256-[^']+' 'sha256-[^']+';/)
+  // Its inline scripts by hash only: the theme, the hand-over and, in a build with analytics,
+  // the consent banner's layout (an attribute, no request).
+  expect(policy).toMatch(/^default-src 'none'; script-src( 'sha256-[^']+'){2,3};/)
   expect(policy).not.toMatch(/https?:|google|recaptcha/)
   expect(violations).toEqual([])
 })

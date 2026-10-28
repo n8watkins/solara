@@ -282,7 +282,7 @@ test('the redirect page carries no script but its own', async ({ page }) => {
   )
   // ...under a policy of its own, with no third-party origin (REVIEW7 L6).
   const policy = /<meta http-equiv="Content-Security-Policy" content="([^"]*)"/.exec(html)![1]!
-  expect(policy).toMatch(/^default-src 'none'; script-src 'sha256-[^']+' 'sha256-[^']+';/)
+  expect(policy).toMatch(/^default-src 'none'; script-src( 'sha256-[^']+'){2,3};/)
   expect(policy).toContain("connect-src 'none'")
   expect(policy).not.toMatch(/https?:|google|recaptcha/)
   expect(response.headers()['cross-origin-opener-policy']).toBe('same-origin-allow-popups')
