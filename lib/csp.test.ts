@@ -8,7 +8,9 @@ import {
   inlineEventHandlers,
   inlineScriptHashes,
   isSiteVerificationFile,
+  OWN_POLICY_PAGES,
   pagePolicy,
+  redirectPagePolicy,
   scriptHash,
   sentryIngestOrigin,
   serializePolicy,
@@ -153,6 +155,36 @@ describe('App Check reCAPTCHA v3', () => {
     expect(directive(policy, 'connect-src')).toContain(
       'https://content-firebaseappcheck.googleapis.com',
     )
+  })
+})
+
+describe('the Microsoft redirect page policy (REVIEW7 L6)', () => {
+  const hashes = [scriptHash('theme()'), scriptHash('handOver()')]
+  const policy = serializePolicy(redirectPagePolicy(hashes))
+
+  it('runs only its own two scripts and connects nowhere', () => {
+    expect(directive(policy, 'default-src')).toEqual(["'none'"])
+    expect(directive(policy, 'script-src')).toEqual(hashes)
+    expect(directive(policy, 'connect-src')).toEqual(["'none'"])
+    expect(directive(policy, 'frame-src')).toEqual(["'none'"])
+    expect(directive(policy, 'form-action')).toEqual(["'none'"])
+    expect(directive(policy, 'base-uri')).toEqual(["'none'"])
+  })
+
+  it('names no third-party origin at all', () => {
+    expect(policy).not.toMatch(/https?:|google|recaptcha|gstatic|sentry|\*/)
+    expect(directive(policy, 'style-src')).toEqual(["'self'"])
+    expect(directive(policy, 'font-src')).toEqual(["'self'"])
+    expect(directive(policy, 'img-src')).toEqual(["'self'"])
+  })
+
+  it('runs nothing when the page has no script', () => {
+    expect(directive(serializePolicy(redirectPagePolicy([])), 'script-src')).toEqual(["'none'"])
+  })
+
+  it('is the policy of the exported redirect page only', () => {
+    expect(Object.keys(OWN_POLICY_PAGES)).toEqual(['auth/microsoft/index.html'])
+    expect(OWN_POLICY_PAGES['auth/microsoft/index.html']).toBe(redirectPagePolicy)
   })
 })
 

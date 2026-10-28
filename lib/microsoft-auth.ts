@@ -5,15 +5,17 @@
 //
 // Why not MSAL.js: about 77 KB gzip for one popup and one POST, and it always asks for
 // `offline_access`, so it would hold a refresh token, which Solara promises never to have.
-// This flow asks only for the Graph scope it needs, so Microsoft issues no refresh token;
-// the access token (about an hour) is kept in memory only, like Google's (lib/gcal.ts).
+// This flow asks only for the Graph scope it needs, never `offline_access`, and drops any
+// refresh token an answer might carry; the access token is kept in memory only, for at
+// most an hour, like Google's (lib/gcal.ts).
 //
 // 1. On the click, a popup opens (before anything is awaited, so it is not blocked); a
 //    random code verifier and state are made, and the popup goes to Microsoft's authorize
 //    page with the verifier's S256 challenge.
 // 2. Microsoft sends the popup back to /auth/microsoft/ (app/auth/microsoft/page.tsx),
-//    whose one inline script posts the query's code, state or error on a BroadcastChannel
-//    named for this state, removes them from the address bar and closes the popup.
+//    whose one inline script, the first thing on the page, posts the query's code, state
+//    or error on a BroadcastChannel named for this state, removes them from the address
+//    bar and closes the popup (see MICROSOFT_CLOSED_GRACE_MS for why it comes first).
 // 3. The state is checked, and the code is redeemed with the verifier at the token
 //    endpoint, which allows the browser's cross-origin POST because the registration's
 //    redirect URI is of the "Single-page application" type.
@@ -42,18 +44,27 @@ export const MICROSOFT_TOKEN_TIMEOUT_MS = 3 * 60_000
 /** How often the popup is checked for having been closed. */
 const POLL_MS = 500
 /**
- * The redirect page posts its answer and then closes itself, so a popup seen closed may
- * still have an answer on its way; it counts as closed by the person only after this.
+ * A popup seen closed may still have an answer on its way, so it counts as closed by the
+ * person only after this (REVIEW7 M1). Solara's own `Cross-Origin-Opener-Policy`
+ * (firebase.json) puts the redirect page in a browsing context group of its own, which
+ * severs this window's handle on the popup: `popup.closed` reads true from the moment the
+ * redirect page arrives, before its script has posted anything, and the app cannot tell
+ * that from the person closing the popup. The script runs first on the page and waits for
+ * nothing (lib/static-pages.mts), so its answer follows within milliseconds; this leaves
+ * ample room for a slow phone, at the cost of a few seconds' wait after a real close.
  */
-const CLOSED_GRACE_MS = 1_500
+export const MICROSOFT_CLOSED_GRACE_MS = 5_000
 /** Treat a token as expired this long before Microsoft does. */
 const EXPIRY_MARGIN_MS = 60_000
 
 /**
  * Why no token is available:
  * - `no_token`: none yet, expired, refused by Graph, or an unusable answer.
- * - `popup_closed`: the person closed the popup or cancelled the sign-in.
+ * - `popup_closed`: the person closed the popup or cancelled the sign-in, or the sign-in
+ *   was dropped because the token was forgotten meanwhile (sign-out, account switch).
  * - `popup_failed_to_open`: the browser blocked the popup.
+ * - `insecure_context`: the page has no Web Crypto (`crypto.subtle`), which browsers give
+ *   only to secure (https or localhost) pages, so no PKCE challenge can be made.
  * - `timeout`: no answer within MICROSOFT_TOKEN_TIMEOUT_MS.
  * - `admin_approval`: the person's organization must approve Solara first.
  * - `state_mismatch`: the answer was not for this sign-in.
@@ -63,6 +74,7 @@ export type MicrosoftAuthReason =
   | 'no_token'
   | 'popup_closed'
   | 'popup_failed_to_open'
+  | 'insecure_context'
   | 'timeout'
   | 'admin_approval'
   | 'state_mismatch'
@@ -78,7 +90,9 @@ export class MicrosoftAuthError extends Error {
     super(
       reason === 'no_token'
         ? 'Outlook needs to be connected again'
-        : `Outlook was not connected (${reason})`,
+        : reason === 'insecure_context'
+          ? 'Outlook needs a secure (https) page to sign in'
+          : `Outlook was not connected (${reason})`,
     )
     this.name = 'CalendarAuthError'
     this.reason = reason
@@ -138,19 +152,26 @@ export async function codeChallengeFor(verifier: string): Promise<string> {
   return base64UrlEncode(new Uint8Array(digest))
 }
 
-/** PURE. The authorize page for one sign-in. */
+/**
+ * PURE. The authorize page for one sign-in. With `selectAccount`, Microsoft always shows
+ * its account picker (`prompt=select_account`), so someone with a personal and a work
+ * account picks one; without it, Microsoft reuses the account signed in to it, usually
+ * without a prompt.
+ */
 export function authorizeUrl({
   clientId,
   redirectUri,
   scope,
   state,
   codeChallenge,
+  selectAccount = false,
 }: {
   clientId: string
   redirectUri: string
   scope: string
   state: string
   codeChallenge: string
+  selectAccount?: boolean
 }): string {
   const params = new URLSearchParams({
     client_id: clientId,
@@ -161,10 +182,14 @@ export function authorizeUrl({
     state,
     code_challenge: codeChallenge,
     code_challenge_method: 'S256',
-    // Someone with a personal and a work account picks one each time.
-    prompt: 'select_account',
   })
+  if (selectAccount) params.set('prompt', 'select_account')
   return `${MICROSOFT_AUTHORIZE_URL}?${params}`
+}
+
+/** Whether this page can make a PKCE challenge (Web Crypto exists only on secure pages). */
+function hasWebCrypto(): boolean {
+  return typeof globalThis.crypto?.subtle?.digest === 'function'
 }
 
 // ---- The popup flow --------------------------------------------------------------------
@@ -192,12 +217,28 @@ export interface MicrosoftAuthDeps {
   now: () => number
 }
 
+/** How to get a token: `interactive` opens the sign-in popup, which needs a click. */
+export interface TokenRequest {
+  interactive: boolean
+  /**
+   * Show Microsoft's account picker (authorizeUrl). Only connecting asks for it: a
+   * Refresh reuses the account Microsoft has signed in, so it cannot silently switch to
+   * another account's calendar. Ignored when a sign-in is already open.
+   */
+  selectAccount?: boolean
+}
+
 export interface MicrosoftAuth {
   /** True when an unexpired token for `scope` is in memory (no popup needed). */
   hasToken(scope: string): boolean
-  /** A token for `scope`; `interactive` opens the sign-in popup, which needs a click. */
-  requestToken(scope: string, options: { interactive: boolean }): Promise<string>
-  /** Drops every token (sign-out, account switch, a disconnect, or Graph refusing it). */
+  /** A token for `scope`. */
+  requestToken(scope: string, options: TokenRequest): Promise<string>
+  /**
+   * Drops every token and ends any sign-in still open, closing its popup, so a sign-in
+   * started before a sign-out or an account switch can never leave its token behind
+   * (REVIEW7 L1). Called on sign-out, an account switch, a disconnect, or Graph refusing
+   * the token.
+   */
   forget(): void
 }
 
@@ -220,6 +261,8 @@ interface TokenAnswer {
 export function createMicrosoftAuth(deps: MicrosoftAuthDeps): MicrosoftAuth {
   const tokens = new Map<string, { token: string; expiresAt: number }>()
   const pending = new Map<string, Promise<string>>()
+  /** One per sign-in still open; forget() aborts them all. */
+  const flows = new Set<AbortController>()
 
   function cached(scope: string): string | null {
     const entry = tokens.get(scope)
@@ -231,14 +274,18 @@ export function createMicrosoftAuth(deps: MicrosoftAuthDeps): MicrosoftAuth {
     return entry.token
   }
 
-  /** Waits for the redirect page's answer for `state`, the popup closing, or the timeout. */
-  function answer(popup: AuthPopup, state: string): Promise<RedirectResult> {
+  /**
+   * Waits for the redirect page's answer for `state`, the popup closing, the timeout, or
+   * `signal` (forget()) ending the sign-in.
+   */
+  function answer(popup: AuthPopup, state: string, signal: AbortSignal): Promise<RedirectResult> {
     return new Promise((resolve, reject) => {
       const channel = deps.channel(`${MICROSOFT_AUTH_CHANNEL_PREFIX}${state}`)
       let closedSince: number | null = null
       const done = () => {
         clearInterval(poll)
         clearTimeout(timeout)
+        signal.removeEventListener('abort', ended)
         channel.onmessage = null
         channel.close()
       }
@@ -256,14 +303,24 @@ export function createMicrosoftAuth(deps: MicrosoftAuthDeps): MicrosoftAuth {
       const poll = setInterval(() => {
         if (!popup.closed) return
         closedSince ??= deps.now()
-        if (deps.now() - closedSince >= CLOSED_GRACE_MS) fail('popup_closed')
+        if (deps.now() - closedSince >= MICROSOFT_CLOSED_GRACE_MS) fail('popup_closed')
       }, POLL_MS)
       const timeout = setTimeout(() => fail('timeout'), MICROSOFT_TOKEN_TIMEOUT_MS)
+      const ended = () => fail('popup_closed')
+      signal.addEventListener('abort', ended)
     })
   }
 
-  /** Redeems the code at the token endpoint (a network failure is thrown as it is). */
-  async function redeem(scope: string, code: string, verifier: string): Promise<string> {
+  /**
+   * Redeems the code at the token endpoint (a network failure is thrown as it is). The
+   * token is kept only if forget() has not ended the sign-in meanwhile.
+   */
+  async function redeem(
+    scope: string,
+    code: string,
+    verifier: string,
+    signal: AbortSignal,
+  ): Promise<string> {
     const response = await deps.fetch(MICROSOFT_TOKEN_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -296,57 +353,79 @@ export function createMicrosoftAuth(deps: MicrosoftAuthDeps): MicrosoftAuth {
     ) {
       throw new MicrosoftAuthError('no_token')
     }
+    if (signal.aborted) throw new MicrosoftAuthError('popup_closed')
     const seconds = Number(body.expires_in)
-    // Only the access token is kept, in memory; anything else in the answer is dropped.
-    tokens.set(scope, {
-      token,
-      expiresAt: deps.now() + (Number.isFinite(seconds) && seconds > 0 ? seconds : 3600) * 1000,
-    })
+    // Only the access token is kept, in memory, for at most an hour (as the privacy policy
+    // says, whatever lifetime Microsoft gives it); anything else in the answer is dropped.
+    const lifetime = Number.isFinite(seconds) && seconds > 0 ? Math.min(seconds, 3600) : 3600
+    tokens.set(scope, { token, expiresAt: deps.now() + lifetime * 1000 })
     return token
   }
 
-  async function signIn(scope: string, popup: AuthPopup): Promise<string> {
+  async function signIn(
+    scope: string,
+    popup: AuthPopup,
+    selectAccount: boolean,
+    flow: AbortController,
+  ): Promise<string> {
     const verifier = randomString(32)
     const state = randomString(16)
-    const waiting = answer(popup, state)
+    const waiting = answer(popup, state, flow.signal)
     try {
       const codeChallenge = await codeChallengeFor(verifier)
-      popup.location.replace(
-        authorizeUrl({
-          clientId: deps.clientId,
-          redirectUri: deps.redirectUri,
-          scope,
-          state,
-          codeChallenge,
-        }),
-      )
+      if (!flow.signal.aborted) {
+        popup.location.replace(
+          authorizeUrl({
+            clientId: deps.clientId,
+            redirectUri: deps.redirectUri,
+            scope,
+            state,
+            codeChallenge,
+            selectAccount,
+          }),
+        )
+      }
     } catch (error) {
-      popup.close()
+      // Ends the wait (closing the popup); its rejection is this error's, not another.
+      waiting.catch(() => {})
+      flow.abort()
       throw error
     }
     const result = await waiting
     if (result.error || !result.code) throw new MicrosoftAuthError(reasonFor(result))
-    return redeem(scope, result.code, verifier)
+    return redeem(scope, result.code, verifier, flow.signal)
   }
 
   return {
     hasToken: scope => cached(scope) !== null,
-    async requestToken(scope, { interactive }) {
+    async requestToken(scope, { interactive, selectAccount = false }) {
       const token = cached(scope)
       if (token) return token
       const inFlight = pending.get(scope)
       if (inFlight) return inFlight
       if (!interactive) throw new MicrosoftAuthError('no_token')
       if (!deps.clientId) throw new Error('Outlook is not configured')
+      // Checked before the popup opens, so a page without Web Crypto (a development server
+      // on a LAN address over http) says why instead of flashing a popup.
+      if (!hasWebCrypto()) throw new MicrosoftAuthError('insecure_context')
       // Opened now, before anything is awaited, so the click still allows a popup.
       const popup = deps.open('about:blank')
       if (!popup) throw new MicrosoftAuthError('popup_failed_to_open')
-      const flow = signIn(scope, popup).finally(() => pending.delete(scope))
+      const controller = new AbortController()
+      flows.add(controller)
+      const flow: Promise<string> = signIn(scope, popup, selectAccount, controller).finally(() => {
+        flows.delete(controller)
+        // A sign-in started after a forget() may own the entry by now.
+        if (pending.get(scope) === flow) pending.delete(scope)
+      })
       pending.set(scope, flow)
       return flow
     },
     forget() {
       tokens.clear()
+      pending.clear()
+      for (const flow of flows) flow.abort()
+      flows.clear()
     },
   }
 }

@@ -5,7 +5,9 @@ import type { Page } from './fixtures'
 // real app on the emulators (Auth, Firestore with the real rules and the 1,000-event key
 // list), the real sign-in code and redirect page in a real popup, with Microsoft's
 // authorize page, token endpoint and Graph answered by the in-test fake
-// (fake-microsoft.ts). The clock is Monday 2026-06-15, 10:30 in Los Angeles (17:30 UTC).
+// (fake-microsoft.ts). The test server sends firebase.json's headers, so the popup meets
+// Solara's Cross-Origin-Opener-Policy as in production (REVIEW7 M1). The clock is Monday
+// 2026-06-15, 10:30 in Los Angeles (17:30 UTC).
 
 function outlookPanel(page: Page) {
   return page.getByTestId('outlook-calendar-events')
@@ -112,22 +114,44 @@ test('show events from Outlook, choose calendars, refresh and disconnect', async
   })
 
   // The sign-in opens in a popup, goes through the (fake) Microsoft page, comes back to
-  // Solara's redirect page, which hands over the code and closes itself.
+  // Solara's redirect page, which hands over the code and closes itself. Its stylesheets
+  // and font take 4 s (a cold cache on a slow network): the hand-over must not wait for
+  // them, since the opener policy makes the popup read as closed the moment it arrives.
+  const slowStyles = /\.(css|woff2)(\?|$)/
+  await page.context().route(slowStyles, async route => {
+    let frame = ''
+    try {
+      frame = route.request().frame().url()
+    } catch {
+      // A request without a frame (none here) is not the redirect page's.
+    }
+    if (frame.includes('/auth/microsoft/')) {
+      await new Promise(resolve => setTimeout(resolve, 4_000))
+    }
+    await route.fallback().catch(() => {})
+  })
   const popupPromise = page.waitForEvent('popup')
   await outlook.getByRole('button', { name: 'Show my Outlook events' }).click()
   const popup = await popupPromise
+  const redirect = await popup.waitForResponse(response =>
+    response.url().includes('/auth/microsoft/'),
+  )
+  expect(redirect.headers()['cross-origin-opener-policy']).toBe('same-origin-allow-popups')
   await popup.waitForEvent('close')
   await expect(page.getByTestId('outlook-calendar-status')).toHaveText(
     'Showing 2 upcoming events from Outlook.',
   )
+  await page.context().unroute(slowStyles)
   expect(placeSearches.length).toBeGreaterThan(0)
   expect(placeSearches.every(name => /^Los Angeles(, CA)?$/.test(name))).toBe(true)
 
-  // The authorize request asked for one permission, with PKCE, and nothing else.
+  // The authorize request asked for one permission, with PKCE, and nothing else; turning
+  // it on shows Microsoft's account picker.
   const authorize = microsoft.calls.find(c => c.url.pathname.endsWith('/authorize'))!.url
   expect(authorize.searchParams.get('scope')).toBe(
     'https://graph.microsoft.com/Calendars.ReadBasic',
   )
+  expect(authorize.searchParams.get('prompt')).toBe('select_account')
   expect(authorize.searchParams.get('code_challenge_method')).toBe('S256')
   expect(authorize.searchParams.get('redirect_uri')).toBe(
     `${new URL(page.url()).origin}/auth/microsoft/`,
@@ -204,6 +228,10 @@ test('show events from Outlook, choose calendars, refresh and disconnect', async
   await expect(page.getByTestId('outlook-calendar-status')).toHaveText(
     'Showing 2 upcoming events from Outlook.',
   )
+  // A Refresh reuses the Microsoft account signed in: no account picker (REVIEW7 L3).
+  const authorizations = microsoft.calls.filter(c => c.url.pathname.endsWith('/authorize'))
+  expect(authorizations).toHaveLength(2)
+  expect(authorizations[1]!.url.searchParams.has('prompt')).toBe(false)
   await expect
     .poll(async () =>
       Object.values(await emulators.readEvents(account))
@@ -247,6 +275,17 @@ test('the redirect page carries no script but its own', async ({ page }) => {
   // No framework JavaScript either (scripts/static-pages.mjs), so no analytics or Firebase;
   // only the stylesheets.
   expect(html).not.toMatch(/_next\/static\/[^"]+\.js/)
+  // The hand-over runs first, before any stylesheet or font (REVIEW7 M1)...
+  const head = /<head>([\s\S]*?)<\/head>/.exec(html)![1]!
+  expect(head).toMatch(
+    /^<meta http-equiv="Content-Security-Policy"[^>]*\/><meta charSet="utf-8"\/><script data-static="" data-head-first="">\(function\(\)\{var q=new URLSearchParams/,
+  )
+  // ...under a policy of its own, with no third-party origin (REVIEW7 L6).
+  const policy = /<meta http-equiv="Content-Security-Policy" content="([^"]*)"/.exec(html)![1]!
+  expect(policy).toMatch(/^default-src 'none'; script-src( 'sha256-[^']+'){2,3};/)
+  expect(policy).toContain("connect-src 'none'")
+  expect(policy).not.toMatch(/https?:|google|recaptcha/)
+  expect(response.headers()['cross-origin-opener-policy']).toBe('same-origin-allow-popups')
 })
 
 test('a cancelled sign-in is not an error, and an organization’s refusal says what to do', async ({

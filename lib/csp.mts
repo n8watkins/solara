@@ -210,6 +210,41 @@ export function pagePolicy(hashes: string[], env: CspEnv = {}): CspDirectives {
   }
 }
 
+/**
+ * The policy of the Microsoft sign-in redirect page, /auth/microsoft/ (REVIEW7 L6). A
+ * one-time code sits in its address, and the page needs nothing but its own inline scripts
+ * (the theme, the hand-over and, with analytics configured, the consent banner's layout,
+ * by hash), its stylesheets, font and icon: no Google, Tag
+ * Manager, reCAPTCHA or other third-party origin, and no connection of any kind (the
+ * hand-over is a BroadcastChannel, which no policy governs).
+ */
+export function redirectPagePolicy(hashes: string[]): CspDirectives {
+  return {
+    'default-src': ["'none'"],
+    'script-src': hashes.length ? hashes : ["'none'"],
+    'script-src-attr': ["'none'"],
+    'style-src': ["'self'"],
+    'font-src': ["'self'"],
+    'img-src': ["'self'"],
+    'manifest-src': ["'self'"],
+    'connect-src': ["'none'"],
+    'frame-src': ["'none'"],
+    'worker-src': ["'none'"],
+    'media-src': ["'none'"],
+    'object-src': ["'none'"],
+    'base-uri': ["'none'"],
+    'form-action': ["'none'"],
+  }
+}
+
+/**
+ * Pages with a policy of their own instead of pagePolicy, by their path in the export
+ * (forward slashes).
+ */
+export const OWN_POLICY_PAGES: Record<string, (hashes: string[]) => CspDirectives> = {
+  'auth/microsoft/index.html': redirectPagePolicy,
+}
+
 export function serializePolicy(directives: CspDirectives): string {
   return Object.entries(directives)
     .map(([name, values]) => [name, ...values].join(' '))

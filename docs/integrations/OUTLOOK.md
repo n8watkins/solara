@@ -95,16 +95,20 @@ Hand-rolled PKCE, in `lib/microsoft-auth.ts` (new), imported only by the lazily 
   Holding it only in memory (`memoryStorage`) narrows but does not remove that difference.
 - **What the hand-rolled flow does** ([auth code flow](https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth2-auth-code-flow)):
   1. Make a random `code_verifier` (32 random bytes, base64url), its S256 `code_challenge` with `crypto.subtle`, and a random `state`; keep both in memory only.
-  2. Open a popup (on the click, so it is not blocked) to `https://login.microsoftonline.com/common/oauth2/v2.0/authorize` with `client_id`, `response_type=code`, `redirect_uri`, `response_mode=query`, `scope=https://graph.microsoft.com/Calendars.ReadBasic`, `state`, `code_challenge`, `code_challenge_method=S256` and `prompt=select_account`, so a person with both a personal and a work account picks one each time.
+  2. Open a popup (on the click, so it is not blocked) to `https://login.microsoftonline.com/common/oauth2/v2.0/authorize` with `client_id`, `response_type=code`, `redirect_uri`, `response_mode=query`, `scope=https://graph.microsoft.com/Calendars.ReadBasic`, `state`, `code_challenge` and `code_challenge_method=S256`.
+     "Show my Outlook events" also sends `prompt=select_account`, so a person with both a personal and a work account picks one; Refresh and "Choose calendars" do not, so Microsoft reuses the account it has signed in, usually without a prompt, and a Refresh cannot silently switch to another account's calendar (default, owner may change, 2026-10-28).
   3. Microsoft redirects the popup to Solara's redirect page, `/auth/microsoft/` (new static page, `app/auth/microsoft/page.tsx` (new)), which reads `code`, `state` or `error` from its query, removes them from the address bar with `history.replaceState`, posts them on a `BroadcastChannel` named for this flow, and closes itself.
-     A BroadcastChannel works whatever `window.opener` is after the popup visited Microsoft's pages (Solara sends `Cross-Origin-Opener-Policy: same-origin-allow-popups`, and the popup passes through Microsoft's pages, whose opener policy Solara does not control), and it never leaves the origin.
+     A BroadcastChannel works whatever `window.opener` is after the popup visited Microsoft's pages, and it never leaves the origin.
+     Solara's own `Cross-Origin-Opener-Policy: same-origin-allow-popups` (firebase.json) puts the redirect page in a browsing context group of its own when the popup comes back from Microsoft, which severs the app's handle on the popup: `popup.closed` reads true from the moment the redirect page arrives, before its script has run (REVIEW7 M1).
+     So the hand-back script is the first thing in the page's `<head>`, right after its Content-Security-Policy and before any stylesheet, font or other resource (moved there by `scripts/static-pages.mjs`), so nothing on the page can delay it; and the app waits 5 seconds after `closed` (`MICROSOFT_CLOSED_GRACE_MS`) before it treats the popup as closed by the person.
   4. The app checks `state`, then POSTs `client_id`, `grant_type=authorization_code`, `code`, `redirect_uri`, `code_verifier` and `scope` to `https://login.microsoftonline.com/common/oauth2/v2.0/token` with `fetch`.
      The browser sends the `Origin` header, which Microsoft requires for redirect URIs of the "Single-page application" type, and that type is what enables CORS on the token endpoint ([auth code flow, "Redirect URIs for single-page apps"](https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth2-auth-code-flow)).
   5. The answer's `access_token` and `expires_in` are kept in memory, as `lib/gcal.ts` does for Google; nothing is written to storage, and the code verifier is dropped.
 - **The redirect page** loads none of the app: one small hashed inline script (hashed into its CSP by `scripts/csp.mjs` like every inline script), no analytics, no Firebase, no third-party request, so the one-minute authorization code never reaches another origin (the `Referrer-Policy` is already `strict-origin-when-cross-origin`).
+  Its Content-Security-Policy is its own (`redirectPagePolicy` in `lib/csp.mts`): its inline scripts' hashes, its own stylesheets, font and icon, `connect-src 'none'`, and no third-party origin at all.
   The app-shell service worker (`scripts/sw/shell.ts`) must pass `/auth/microsoft/` through to the network instead of serving the app shell for it.
-- **Errors:** `access_denied` (the person said no), a popup that closed or never reported back (a 3-minute timeout, as `TOKEN_TIMEOUT_MS` in `lib/gcal.ts`), a blocked popup, and a token error are mapped to the same `CalendarAuthReason`-style reasons the Google panel shows; an organisation that requires admin approval gets its own message (see [Accounts](#personal-and-work-or-school-accounts)).
-- **Tests:** unit tests for the PKCE pair (RFC 7636's appendix B example), state checks, and every error path; a signed-in browser test against a fake authorize page and fake token and Graph endpoints served by the test server, with the real rules, as the Google feature does with its fake Calendar.
+- **Errors:** `access_denied` (the person said no), a popup that closed or never reported back (a 3-minute timeout, as `TOKEN_TIMEOUT_MS` in `lib/gcal.ts`), a blocked popup, a page without Web Crypto (`crypto.subtle` exists only on https and localhost pages, so a development server on a LAN address says it needs a secure connection), and a token error are mapped to the same `CalendarAuthReason`-style reasons the Google panel shows; an organisation that requires admin approval gets its own message (see [Accounts](#personal-and-work-or-school-accounts)).
+- **Tests:** unit tests for the PKCE pair (RFC 7636's appendix B example), state checks, and every error path; a signed-in browser test against a fake authorize page and fake token and Graph endpoints served by the test server, with the real rules and firebase.json's security headers, as the Google feature does with its fake Calendar; and `tests/e2e/microsoft-sign-in.spec.ts`, which runs the real sign-in code and redirect page on the Hosting emulator with slow stylesheets in Chromium, Firefox and WebKit.
 
 ## Personal and work or school accounts
 
@@ -137,7 +141,7 @@ Hand-rolled PKCE, in `lib/microsoft-auth.ts` (new), imported only by the lazily 
 - **Time zones:** without a `Prefer: outlook.timezone` header, `start` and `end` come back in UTC ([List calendarView](https://learn.microsoft.com/en-us/graph/api/user-list-calendarview?view=graph-rest-1.0)); Solara sends none and reads `dateTime` as UTC (it has no offset, so `Z` is added before parsing).
   The event's zone for display is `originalStartTimeZone`, a Windows zone name such as "Pacific Standard Time" in Microsoft's example, mapped to IANA with the table the .ics parser already has (`WINDOWS_ZONES` in `packages/core/src/ics-parse.ts`, exported for this); an IANA name is used as is; `tzone://Microsoft/Custom` (a legacy custom zone from desktop Outlook) or an unknown name falls back to the person's zone, as Google events without a zone do.
 - **Paging:** the page size differs per API and is not documented for calendarView ([paging](https://learn.microsoft.com/en-us/graph/paging)); Solara asks for `$top=100` and follows `@odata.nextLink` as given, at most 10 pages per calendar, so at most 1,000 occurrences are read per calendar per refresh.
-- **Throttling:** Outlook allows 10,000 requests per 10 minutes and 4 concurrent requests per app and mailbox ([throttling limits](https://learn.microsoft.com/en-us/graph/throttling-limits)); a refresh makes at most about 100 sequential requests (10 calendars, 10 pages), so it cannot reach either; a `429` keeps the token, waits for `Retry-After` once, then reports "Outlook is busy, try again shortly".
+- **Throttling:** Outlook allows 10,000 requests per 10 minutes and 4 concurrent requests per app and mailbox ([throttling limits](https://learn.microsoft.com/en-us/graph/throttling-limits)); a refresh makes at most about 100 sequential requests (10 calendars, 10 pages), so it cannot reach either; a `429` keeps the token, waits for `Retry-After` once (seconds or a date, at least 1 second and at most 30, and 5 seconds when the header is missing or unreadable), then reports "Outlook is busy, try again shortly".
 - **Auth failures:** a `401` drops the token and asks to connect again (`CalendarAuthError` pattern from `lib/gcal.ts`); a `403` on one calendar marks it "no longer shared" like Google's 404 and 410.
 
 ## Mapping to Solara's stored event
@@ -181,10 +185,10 @@ Each kept event becomes the same `ParsedIcsEvent` that `lib/google-events.ts` bu
 
 ## Refresh, sign-out and disconnect
 
-- **Refresh:** while Solara is open and the in-memory token is valid (its `expires_in`, about an hour in Microsoft's example answer), every 30 minutes; otherwise when the person presses Refresh, which opens the popup again (usually without a prompt, because Microsoft remembers the consent and the sign-in session).
-- **Signing out of Solara or switching accounts:** forgets the token, as `forgetCalendarTokens` does for Google.
+- **Refresh:** while Solara is open and the in-memory token is valid (its `expires_in`, about an hour in Microsoft's example answer), every 30 minutes; otherwise when the person presses Refresh, which opens the popup again, usually without a prompt, because Microsoft remembers the consent and the sign-in session and Refresh does not ask for the account picker.
+- **Signing out of Solara or switching accounts:** forgets the token, as `forgetCalendarTokens` does for Google, and ends any sign-in still open, closing its popup, so a sign-in started before a sign-out can never leave its token for the next account in the same tab (REVIEW7 L1).
   Solara does not call Microsoft's sign-out endpoint: it would sign the person out of Outlook everywhere in that browser.
-- **Disconnect:** deletes every `outlook` event with its keys, then the connection document, then forgets the token.
+- **Disconnect:** forgets the token (and ends any sign-in still open), then deletes the connection document, so no refresh on any device can store events from then on (the rules refuse them), then every `outlook` event with its keys.
   There is no revoke call a public client can make for its own grant: Microsoft's documented ways to remove an app's consent are the person's own account pages, so the confirmation links to them:
   - personal accounts: <https://account.live.com/consent/Manage> (named in a [Microsoft Q&A article](https://learn.microsoft.com/en-us/answers/questions/4375979/article-managing-apps-and-services-connected-to-ou), not in Microsoft's reference docs);
   - work or school accounts: My Apps, <https://myapplications.microsoft.com/>, then "Manage your application" and "Revoke Permissions" ([Microsoft support](https://support.microsoft.com/account-billing/edit-or-revoke-application-permissions-in-the-my-apps-portal-169be2b4-ee26-4338-aea8-d19bb2f329ee)); permissions an admin granted cannot be revoked there.
@@ -199,7 +203,7 @@ Each kept event becomes the same `ParsedIcsEvent` that `lib/google-events.ts` bu
 - `https://graph.microsoft.com` for the calendar reads.
 
 No `script-src` (no library script is loaded), no `frame-src` (no hidden iframe renewal), and no `img-src` (no profile photo).
-The redirect page gets the same policy with its own script hash.
+The redirect page gets a policy of its own instead (`redirectPagePolicy` in `lib/csp.mts`), since a code sits in its address: `script-src` with its own inline scripts' hashes only (the theme, the hand-over and, in a build with analytics, the consent banner's layout), `style-src`, `font-src` and `img-src` of its own origin, `connect-src 'none'`, `frame-src 'none'`, and no Google, Tag Manager or other third-party origin.
 The integrations browser suite gains a check that a connect and a refresh raise no CSP violation, as it does for Google's revoke.
 
 ## Privacy policy, export and deletion
@@ -235,7 +239,7 @@ The checklist copy is in [OWNER_CHECKLIST.md](../OWNER_CHECKLIST.md#events-from-
 6. **Authentication:** leave **Access tokens** and **ID tokens** (implicit grant) unticked and **Allow public client flows** off.
 7. **Branding and properties:** the home page `https://solara-uv.web.app/`, terms `https://solara-uv.web.app/terms/`, privacy `https://solara-uv.web.app/privacy/`, and the Solara logo, which the consent prompt shows.
 8. **Give the agent the Application (client) ID** (public): `gh variable set MICROSOFT_CLIENT_ID --repo n8watkins/solara --body <client id>`.
-9. **Once the build is merged and checked in staging or a preview with a controlled personal account and, if available, a work account:** `gh variable set OUTLOOK_CALENDAR_EVENTS_ENABLED --repo n8watkins/solara --body true`.
+9. **Once the build is merged and checked in staging or a preview with a controlled personal account and, if available, a work account, and one sign-in has gone through with production's headers, the cache cleared and the network throttled (REVIEW7 M1):** `gh variable set OUTLOOK_CALENDAR_EVENTS_ENABLED --repo n8watkins/solara --body true`.
 10. **No Microsoft review is needed.** `Calendars.ReadBasic` needs no admin consent, there is no counterpart to Google's sensitive-scope verification for delegated Graph permissions, and publisher verification is optional and not possible yet ([Publisher verification](#publisher-verification)).
     Microsoft 365 App Certification is a separate, optional program for apps that want it ([publisher verification FAQ](https://learn.microsoft.com/en-us/entra/identity-platform/publisher-verification-overview)); Solara does not.
 
@@ -262,7 +266,7 @@ One lane, size M, after REVIEW6's fixes land in the events code:
 
 ## Open questions
 
-Each is handled so the build works either way; the owner's live check settles them ([owner checklist, step 9](../OWNER_CHECKLIST.md#events-from-outlook-only-for-the-outlook-connection)).
+Each is handled so the build works either way; the owner's live check settles them ([owner checklist, steps 9 and 10](../OWNER_CHECKLIST.md#events-from-outlook-only-for-the-outlook-connection)).
 
 - **Exact properties under `Calendars.ReadBasic`:** Microsoft documents only "except for properties such as body, attachments, and extensions"; a Microsoft Q&A answer (not staff-confirmed) claims the application-only `Calendars.ReadBasic.All` hides subject and location.
   The build could not reach a real account, so the parser treats every field as optional: an event without a subject keeps only its place, one without a location only an activity match, and nothing fails; the tests cover both.
@@ -271,4 +275,6 @@ Each is handled so the build works either way; the owner's live check settles th
 - **Graph calendar id length:** Microsoft's examples are about 150 characters; the cap stays 512 in the schema and rules, and longer ids are left out of "Choose calendars" rather than failing.
 - **Internet calendars a person subscribed to inside Outlook.com:** if they appear in `/me/calendars` with the person as owner they are offered, and a `403` or `404` when reading one shows "no longer shared"; such feeds can be added to Solara directly as [linked calendars](CALENDAR_LINKS.md).
 - **Personal-account consent page:** `https://account.live.com/consent/Manage` is documented by a Microsoft Q&A article and third-party guides, not by a Microsoft reference page; it is linked after a disconnect and in the privacy policy, and the live check confirms it lists Solara.
-- **Closing the popup:** Solara notices a closed popup by polling `closed`, as MSAL.js does; if Microsoft's pages ever sent a strict `Cross-Origin-Opener-Policy`, the popup would read as closed early, and the live check covers it.
+- **Closing the popup:** Solara notices a closed popup by polling `closed`, as MSAL.js does.
+  Solara's own `Cross-Origin-Opener-Policy` makes the popup read as closed as soon as the redirect page arrives (REVIEW7 M1), so the hand-back script runs first on that page and the app waits 5 seconds after `closed`; the browser test reproduces it in three engines with slow stylesheets, and the owner's live check signs in once on production with the cache cleared and the network throttled.
+- **Refresh tokens:** Solara never asks for `offline_access`, so by Microsoft's documentation it is given no refresh token, and it would drop one if it were; the live check confirms the token answer carries none.

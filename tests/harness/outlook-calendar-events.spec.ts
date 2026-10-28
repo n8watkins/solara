@@ -59,7 +59,7 @@ const panel = (page: Page) => page.getByTestId('outlook-calendar-events')
 const status = (page: Page) => page.getByTestId('outlook-calendar-status')
 
 interface Log {
-  tokenRequests: { interactive: boolean }[]
+  tokenRequests: { interactive: boolean; selectAccount?: boolean }[]
   signIns: number
   listed: string[]
   forgotten: number
@@ -94,7 +94,8 @@ test('turn it on, choose calendars, and see the UV at each event', async ({ page
   // Turning it on opens Microsoft's sign-in with a click.
   await outlook.getByRole('button', { name: 'Show my Outlook events' }).click()
   await expect(status(page)).toHaveText('Showing 2 upcoming events from Outlook.')
-  expect((await log(page)).tokenRequests[0]).toEqual({ interactive: true })
+  // Connecting shows Microsoft's account picker (a Refresh does not).
+  expect((await log(page)).tokenRequests[0]).toEqual({ interactive: true, selectAccount: true })
   expect((await log(page)).listed).toEqual(['default'])
 
   // The Teams meeting, the all-day offsite, the conference room and the declined game are
@@ -152,6 +153,8 @@ test('a connected account: refresh, then disconnect with Microsoft’s pages', a
 
   await outlook.getByRole('button', { name: 'Refresh' }).click()
   await expect(status(page)).toHaveText('Showing 2 upcoming events from Outlook.')
+  // A Refresh reuses the Microsoft account signed in: no account picker (REVIEW7 L3).
+  expect((await log(page)).tokenRequests.at(-1)).toEqual({ interactive: true })
   await expect(outlook.getByText(/^Updated just now/)).toBeVisible()
 
   // "Remove imported events" leaves Outlook's (a refresh would bring them back).
@@ -243,6 +246,22 @@ test('with linked calendars on, an organization’s refusal points to them', asy
   )
 })
 
+test('a page without Web Crypto says the sign-in needs a secure connection (REVIEW7 L6)', async ({
+  page,
+}, testInfo) => {
+  await preparePage(page, testInfo, answerOpenMeteo)
+  await page.addInitScript(() => {
+    ;(window as unknown as { __solaraOutlookPopup: string }).__solaraOutlookPopup = 'insecure'
+  })
+  await page.goto('/harness/?screen=dashboard&outlook=on')
+  await expect(page.getByTestId(HARNESS_MARKER)).toBeVisible()
+  await panel(page).getByRole('button', { name: 'Show my Outlook events' }).click()
+  await expect(status(page)).toHaveText(
+    'Microsoft sign-in needs a secure connection. Open Solara at its https:// address, then try again.',
+  )
+  await expect(panel(page).getByRole('button', { name: 'Show my Outlook events' })).toBeEnabled()
+})
+
 test('Google Calendar and Outlook together show a shared event once', async ({
   page,
 }, testInfo) => {
@@ -255,9 +274,11 @@ test('Google Calendar and Outlook together show a shared event once', async ({
     section.getByText(/from a calendar \(\.ics\) file, Google Calendar or Outlook\./),
   ).toBeVisible()
   await panel(page).getByRole('button', { name: 'Show my Outlook events' }).click()
+  // Not "no events have an address" while both are shown (REVIEW7 L2).
   await expect(status(page)).toHaveText(
-    'No events in the next 30 days have an address or match one of your activities. 2 events already in Solara are shown once.',
+    'Your 2 events from Outlook are already in Solara, so they are shown once.',
   )
   await expect(page.getByRole('listitem', { name: 'Family picnic' })).toHaveCount(1)
-  await expect(page.getByText('From Outlook')).toHaveCount(0)
+  // No card is marked as Outlook's (the status sentence also says "from Outlook").
+  await expect(page.getByText('From Outlook', { exact: true })).toHaveCount(0)
 })

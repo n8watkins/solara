@@ -4,7 +4,7 @@ import { connect, type AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { createStaticHandler } from './static-server.mjs'
+import { createStaticHandler, firebaseSecurityHeaders } from './static-server.mjs'
 
 // Layout: <dir>/site is served. Secrets sit next to it, including in a sibling
 // whose name starts with the root's name (a naive prefix check would allow it).
@@ -122,5 +122,37 @@ describe('static test server', () => {
   it('keeps serving after a refused request', async () => {
     await get('/%')
     expect((await get('/')).status).toBe(200)
+  })
+})
+
+describe("firebase.json's headers (REVIEW7 M1)", () => {
+  it('sends what production sends on every path, opener policy included', async () => {
+    const headers = firebaseSecurityHeaders()
+    expect(headers['Cross-Origin-Opener-Policy']).toBe('same-origin-allow-popups')
+    expect(headers['Content-Security-Policy']).toContain("frame-ancestors 'none'")
+    expect(headers['X-Frame-Options']).toBe('DENY')
+    // Not over plain http, and tests never cache.
+    expect(Object.keys(headers)).not.toContain('Strict-Transport-Security')
+    expect(Object.keys(headers)).not.toContain('Cache-Control')
+
+    const secured = createServer(createStaticHandler(site, { securityHeaders: true }))
+    await new Promise<void>(resolve => secured.listen(0, '127.0.0.1', resolve))
+    try {
+      const origin = `http://127.0.0.1:${(secured.address() as AddressInfo).port}`
+      for (const path of ['/about/', '/no-such-page/']) {
+        const response = await fetch(`${origin}${path}`)
+        await response.text()
+        for (const [key, value] of Object.entries(headers)) {
+          expect(response.headers.get(key), `${path} ${key}`).toBe(value)
+        }
+        expect(response.headers.get('Cache-Control')).toBe('no-store')
+      }
+    } finally {
+      await new Promise(resolve => secured.close(resolve))
+    }
+    // Off by default (the UI harness).
+    const plain = await fetch(`http://127.0.0.1:${port}/about/`)
+    await plain.text()
+    expect(plain.headers.get('Cross-Origin-Opener-Policy')).toBeNull()
   })
 })

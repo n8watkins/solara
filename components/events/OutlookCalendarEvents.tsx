@@ -71,6 +71,8 @@ function problemText(error: unknown, connected: boolean): string | null {
       return null
     case 'popup_failed_to_open':
       return 'Your browser blocked the Microsoft sign-in window. Allow pop-ups for Solara, then try again.'
+    case 'insecure_context':
+      return 'Microsoft sign-in needs a secure connection. Open Solara at its https:// address, then try again.'
     case 'admin_approval':
       return `Your organization needs to approve Solara before it can read your work calendar. Ask your IT team${
         eventSubscriptionsLaunched() ? ', or link the calendar under Linked calendars instead' : ''
@@ -218,8 +220,10 @@ export default function OutlookCalendarEvents({
 
   function connect() {
     void run('connect', async () => {
-      // The popup opens on this click, before anything else is awaited.
-      await api.requestToken({ interactive: true })
+      // The popup opens on this click, before anything else is awaited. Connecting shows
+      // Microsoft's account picker, so someone with a personal and a work account picks
+      // one; Refresh and Choose calendars reuse the account Microsoft has signed in.
+      await api.requestToken({ interactive: true, selectAccount: true })
       const next = newOutlookCalendarLink(new Date().toISOString())
       await linkStore.save(uid, next)
       return sync(next, false)
@@ -470,7 +474,7 @@ export default function OutlookCalendarEvents({
           {!progress && status?.consentLinks && (
             <>
               {' '}
-              Solara kept no Microsoft token. To also remove the permission you gave it, use{' '}
+              Solara stored no Microsoft token. To also remove the permission you gave it, use{' '}
               <a
                 className={LINK}
                 href={MICROSOFT_PERSONAL_CONSENT_URL}

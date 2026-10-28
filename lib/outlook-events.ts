@@ -48,6 +48,7 @@ import {
   forgetMicrosoftToken,
   microsoftAuth,
   type MicrosoftAuthReason,
+  type TokenRequest,
 } from './microsoft-auth'
 import { resolveTimeZone } from './time'
 
@@ -99,8 +100,11 @@ export interface OutlookEventsPage {
 export interface OutlookCalendarApi {
   /** True when an unexpired token is in memory (no popup needed). */
   hasToken(): boolean
-  /** A token; `interactive` opens Microsoft's sign-in popup, which needs a click. */
-  requestToken(options: { interactive: boolean }): Promise<string>
+  /**
+   * A token; `interactive` opens Microsoft's sign-in popup, which needs a click, and
+   * `selectAccount` shows Microsoft's account picker in it (only when connecting).
+   */
+  requestToken(options: TokenRequest): Promise<string>
   listCalendars(token: string): Promise<OutlookCalendarEntry[]>
   /**
    * One page of events on `calendarId` ('default' for the default calendar) between
@@ -128,6 +132,27 @@ export class OutlookBusyError extends Error {
 
 /** The longest Retry-After Solara waits for once before saying Outlook is busy. */
 const MAX_RETRY_AFTER_MS = 30_000
+/** The wait when Graph's 429 names none Solara can read (REVIEW7 L4). */
+const DEFAULT_RETRY_AFTER_MS = 5_000
+/** The shortest wait before a retry, so a 429 is never retried at once. */
+const MIN_RETRY_AFTER_MS = 1_000
+
+/**
+ * PURE. How long to wait before retrying a 429, from its `Retry-After` header: seconds,
+ * or an HTTP date (RFC 9110 section 10.2.3); 5 seconds when it is missing or unreadable;
+ * at least 1 second and at most 30.
+ */
+export function retryAfterMs(header: string | null, nowMs: number): number {
+  const text = header?.trim() ?? ''
+  let wait = DEFAULT_RETRY_AFTER_MS
+  if (/^\d+$/.test(text)) wait = Number(text) * 1000
+  // An HTTP date names its weekday and month ("Mon, 15 Jun 2026 17:30:12 GMT"); Date.parse
+  // alone would read "-3" or "1.5" as years.
+  else if (/[a-z]/i.test(text) && !Number.isNaN(Date.parse(text))) {
+    wait = Date.parse(text) - nowMs
+  }
+  return Math.min(MAX_RETRY_AFTER_MS, Math.max(MIN_RETRY_AFTER_MS, wait))
+}
 
 /** Waits `ms`; swappable in tests. */
 let pause = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms))
@@ -150,8 +175,7 @@ async function graphGet(token: string, url: string, forget: () => void): Promise
     }
     if (response.status !== 429) return response
     if (attempt > 0) throw new OutlookBusyError()
-    const seconds = Number(response.headers.get('Retry-After'))
-    await pause(Math.min(MAX_RETRY_AFTER_MS, (Number.isFinite(seconds) ? seconds : 5) * 1000))
+    await pause(retryAfterMs(response.headers.get('Retry-After'), Date.now()))
   }
 }
 
@@ -518,9 +542,9 @@ export function refreshOutlookEvents(
 }
 
 /**
- * Disconnects Outlook: the connection goes first, so no refresh on any device can store
- * events from then on (the rules refuse them), then every stored Outlook event, then the
- * token in memory. A public client cannot revoke its own consent at Microsoft: the panel
+ * Disconnects Outlook: the token in memory goes first (with any sign-in still open), then
+ * the connection, so no refresh on any device can store events from then on (the rules
+ * refuse them), then every stored Outlook event. A public client cannot revoke its own consent at Microsoft: the panel
  * links to the person's account pages for that (MICROSOFT_PERSONAL_CONSENT_URL,
  * MICROSOFT_WORK_APPS_URL). Without a refresh token, the remaining consent lets Solara
  * read nothing until the person signs in through the popup again.

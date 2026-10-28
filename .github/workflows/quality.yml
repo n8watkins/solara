@@ -164,9 +164,11 @@ jobs:
           npm ci --ignore-scripts
           npm ci --prefix functions --ignore-scripts
 
-      - name: Install Chromium
+      # Firefox and WebKit run only tests/e2e/microsoft-sign-in.spec.ts (playwright.config.ts):
+      # each engine applies Solara's opener policy to the Outlook sign-in popup its own way.
+      - name: Install Chromium, Firefox and WebKit
         if: env.RELEVANT == 'true'
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium firefox webkit
 
       # Builds out/ with a hermetic public env, then serves it on the Hosting emulator.
       - name: Browser tests

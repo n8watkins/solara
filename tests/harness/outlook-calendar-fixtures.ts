@@ -147,7 +147,7 @@ export function buildOutlookLink(): OutlookCalendarLink {
 
 /** What the fake Microsoft did, for specs to read (window.__solaraOutlook). */
 export interface FakeOutlookLog {
-  tokenRequests: { interactive: boolean }[]
+  tokenRequests: { interactive: boolean; selectAccount?: boolean }[]
   /** Sign-in popups opened (a token request with none in memory, on a click). */
   signIns: number
   listed: string[]
@@ -172,8 +172,8 @@ export function createFakeOutlookCalendarApi(): OutlookCalendarApi {
   ;(window as Window & { __solaraOutlook?: FakeOutlookLog }).__solaraOutlook = log
   return {
     hasToken: () => token !== null,
-    async requestToken({ interactive }) {
-      log.tokenRequests.push({ interactive })
+    async requestToken({ interactive, selectAccount }) {
+      log.tokenRequests.push(selectAccount ? { interactive, selectAccount } : { interactive })
       if (token) return token
       if (!interactive) throw authError('no_token')
       log.signIns += 1
@@ -181,6 +181,7 @@ export function createFakeOutlookCalendarApi(): OutlookCalendarApi {
       if (popup === 'closed') throw authError('popup_closed')
       if (popup === 'blocked') throw authError('popup_failed_to_open')
       if (popup === 'admin') throw authError('admin_approval')
+      if (popup === 'insecure') throw authError('insecure_context')
       token = 'harness-graph-token'
       return token
     },

@@ -47,6 +47,18 @@ export default defineConfig({
       name: 'mobile-chromium',
       use: { ...devices['Pixel 7'] },
     },
+    // The Outlook sign-in popup meets Solara's Cross-Origin-Opener-Policy, which each
+    // engine applies in its own way (REVIEW7 M1), so it also runs in Firefox and WebKit.
+    {
+      name: 'firefox',
+      testMatch: 'microsoft-sign-in.spec.ts',
+      use: { ...devices['Desktop Firefox'] },
+    },
+    {
+      name: 'webkit',
+      testMatch: 'microsoft-sign-in.spec.ts',
+      use: { ...devices['Desktop Safari'] },
+    },
   ],
   webServer: [
     {

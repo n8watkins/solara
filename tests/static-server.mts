@@ -11,9 +11,13 @@
  * - the real path (after symlinks) must sit inside the root as well.
  * Anything else is a 404, never an error that could stop the server.
  *
+ * With `securityHeaders`, every answer also carries the headers firebase.json sends on
+ * every path (firebaseSecurityHeaders), Cross-Origin-Opener-Policy included, so a test sees
+ * what production does to popups and frames (REVIEW7 M1).
+ *
  * Node runs this file directly (type stripping), so it uses erasable syntax only.
  */
-import { createReadStream, existsSync, realpathSync, statSync } from 'node:fs'
+import { createReadStream, existsSync, readFileSync, realpathSync, statSync } from 'node:fs'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { extname, join, resolve, sep } from 'node:path'
 
@@ -78,26 +82,54 @@ export function resolveStaticFile(root: string, url: string): string | null {
   return fileInside(root, target) ?? fileInside(root, join(target, 'index.html'))
 }
 
+/** Headers of firebase.json's first site that a local http server does not send as is. */
+const NOT_LOCAL = new Set(['cache-control', 'strict-transport-security'])
+
+/**
+ * The headers firebase.json's app site sends on every path (`"source": "**"`): its
+ * Content-Security-Policy, Cross-Origin-Opener-Policy and the rest, without Cache-Control
+ * (tests never cache) and Strict-Transport-Security (the test servers speak http).
+ */
+export function firebaseSecurityHeaders(firebaseJson = 'firebase.json'): Record<string, string> {
+  const config = JSON.parse(readFileSync(firebaseJson, 'utf8')) as {
+    hosting: { headers?: { source: string; headers: { key: string; value: string }[] }[] }[]
+  }
+  const everyPath = config.hosting[0]?.headers?.find(rule => rule.source === '**')
+  if (!everyPath) throw new Error(`${firebaseJson} has no headers for every path`)
+  return Object.fromEntries(
+    everyPath.headers
+      .filter(header => !NOT_LOCAL.has(header.key.toLowerCase()))
+      .map(header => [header.key, header.value]),
+  )
+}
+
 /** A request handler that serves `root` like Firebase Hosting serves the export. */
 export function createStaticHandler(
   root: string,
+  { securityHeaders = false }: { securityHeaders?: boolean } = {},
 ): (req: IncomingMessage, res: ServerResponse) => void {
   const realRoot = realpathSync(resolve(root))
   const notFound = join(realRoot, '404.html')
+  const site = securityHeaders ? firebaseSecurityHeaders() : {}
   return (req, res) => {
     const file = resolveStaticFile(realRoot, req.url ?? '/')
     if (!file) {
       // Like Firebase Hosting: unknown paths get the exported 404 page.
       if (existsSync(notFound)) {
-        res.writeHead(404, { 'Content-Type': TYPES['.html'], 'Cache-Control': 'no-store' })
+        res.writeHead(404, {
+          ...site,
+          'Content-Type': TYPES['.html'],
+          'Cache-Control': 'no-store',
+        })
         createReadStream(notFound).pipe(res)
       } else {
-        res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' })
+        res.writeHead(404, { ...site, 'Content-Type': 'text/plain; charset=utf-8' })
         res.end('Not found')
       }
       return
     }
     res.writeHead(200, {
+      ...site,
       'Content-Type': TYPES[extname(file)] ?? 'application/octet-stream',
       'Cache-Control': 'no-store',
     })
