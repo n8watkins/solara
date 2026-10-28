@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { APP_PATH, SIGN_IN_PATH } from '@/lib/app-routes'
 import type { User } from 'firebase/auth'
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useId, useState, type ReactNode } from 'react'
 import clsx from 'clsx'
 import {
   firebaseEnabled,
@@ -18,6 +18,7 @@ import {
   loadBillingSummary,
   type BillingSummary,
 } from '@/lib/billing'
+import { DELETION_DESCRIPTION, EXPORT_DESCRIPTION, exportedMessage } from '@/lib/account-data'
 import { callFunction, functionsApiConfigured } from '@/lib/functions-api'
 import { clearGuestData } from '@/lib/guest'
 import { clearAccountData } from '@/lib/session'
@@ -98,7 +99,7 @@ export default function AccountPage() {
       anchor.download = `solara-account-${new Date().toISOString().slice(0, 10)}.json`
       anchor.click()
       URL.revokeObjectURL(url)
-      setMessage('Your account data was downloaded.')
+      setMessage(exportedMessage(data.truncated))
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Export failed.')
     } finally {
@@ -225,10 +226,7 @@ export default function AccountPage() {
               ) : null}
             </AccountSection>
 
-            <AccountSection
-              title="Download your data"
-              body="The JSON export includes your account preferences, a summary of your plan and billing dates, your scheduled activities, the Pro alerts sent in the last week and device registration metadata. Capability tokens and payment-provider identifiers are excluded for security."
-            >
+            <AccountSection title="Download your data" body={EXPORT_DESCRIPTION}>
               <button
                 className="btn btn-primary"
                 disabled={busy !== null || !FUNCTIONS_READY}
@@ -238,11 +236,7 @@ export default function AccountPage() {
               </button>
             </AccountSection>
 
-            <AccountSection
-              danger
-              title="Delete account"
-              body="This permanently removes your Solara preferences, scheduled activities and notification devices. A subscription is canceled at once, without a refund for the current period, and your billing details are deleted at Stripe. If you had the free trial, a hashed record of it is kept for 2 years so the trial is once per person."
-            >
+            <AccountSection danger title="Delete account" body={DELETION_DESCRIPTION}>
               <label className="mb-2 block text-[13px] font-semibold" htmlFor="delete-confirmation">
                 Type DELETE to confirm
               </label>
@@ -316,9 +310,12 @@ function AccountSection({
   children?: ReactNode
 }) {
   const gap = !children ? 'mb-0' : danger ? 'mb-3.5' : 'mb-[18px]'
+  const headingId = useId()
   return (
-    <section className={clsx('card', danger && 'border-danger/40')}>
-      <h2 className={clsx('mb-2 text-[18px] font-[650]', danger && 'text-danger')}>{title}</h2>
+    <section aria-labelledby={headingId} className={clsx('card', danger && 'border-danger/40')}>
+      <h2 id={headingId} className={clsx('mb-2 text-[18px] font-[650]', danger && 'text-danger')}>
+        {title}
+      </h2>
       <p className={clsx('leading-[1.55] text-ink-2', note ? 'mb-1.5' : gap)}>{body}</p>
       {note && <p className={clsx('text-[13px] leading-[1.55] text-ink-3', gap)}>{note}</p>}
       {children}
