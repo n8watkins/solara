@@ -222,6 +222,7 @@ It asks for `calendar.events.readonly` when the person turns it on, and `calenda
 5. In the **Verification Center**, request verification for the two scopes with the video and this justification: "Solara shows the UV index during the person's upcoming events. With calendar.events.readonly, the browser reads the next 30 days of events on the calendars the person chose and keeps only events with a place or that match one of their outdoor activities: each one's title, time, time zone and location text, to forecast the UV there. calendar.calendarlist.readonly lists the person's calendars so they can choose which to use. Nothing is read on a server, no token is stored, and Disconnect deletes the stored events and revokes access."
    Google's review of sensitive scopes takes from a few days to a few weeks.
 6. Once approved: `gh variable set GOOGLE_CALENDAR_EVENTS_ENABLED --repo n8watkins/solara --body true`, and let the next deploy run.
+   With `ALERTS_ENABLED` on, this also turns on Pro event heads-ups, even while linked calendars stay off (REVIEW6 L1).
 7. With a controlled Google account on production:
    - [ ] The Events section shows **Google Calendar** with **Show my Google Calendar events**; pressing it asks only for "View events on all your calendars".
    - [ ] Events with a place (and ones whose title matches an activity) appear, marked "From Google Calendar"; meetings with only a video link, all-day events and declined events do not.
