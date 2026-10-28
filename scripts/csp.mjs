@@ -6,7 +6,7 @@
 // Usage: node scripts/csp.mjs [exportDir]   (default: out)
 // Fails the build if a page has no <head> or uses inline event handlers.
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
-import { basename, join, relative } from 'node:path'
+import { basename, join, relative, sep } from 'node:path'
 import nextEnv from '@next/env'
 import {
   cspEnvFrom,
@@ -14,6 +14,7 @@ import {
   inlineEventHandlers,
   inlineScriptHashes,
   isSiteVerificationFile,
+  OWN_POLICY_PAGES,
   pagePolicy,
   serializePolicy,
 } from '../lib/csp.mts'
@@ -54,8 +55,11 @@ for (const file of walk(dir)) {
     continue
   }
   const hashes = inlineScriptHashes(html)
+  // The Microsoft redirect page has a policy of its own, with no third-party origin.
+  const own = OWN_POLICY_PAGES[relative(dir, file).split(sep).join('/')]
+  const policy = own ? own(hashes) : pagePolicy(hashes, env)
   try {
-    writeFileSync(file, injectCspMeta(html, serializePolicy(pagePolicy(hashes, env))))
+    writeFileSync(file, injectCspMeta(html, serializePolicy(policy)))
   } catch (error) {
     problems.push(`${relative(dir, file)}: ${error.message}`)
     continue
