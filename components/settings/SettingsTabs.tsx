@@ -31,7 +31,8 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   },
   {
     id: 'appearance',
-    label: 'Appearance',
+    // Short enough for six columns on a 320 px phone.
+    label: 'Display',
     Icon: Palette,
     desc: 'Theme, units and what the dashboard shows.',
   },
@@ -108,7 +109,7 @@ export default function SettingsTabs({ tab, onTabChange, tabId, panelId }: Props
           tabIndex={tab === s.id ? 0 : -1}
           onClick={() => onTabChange(s.id)}
           onKeyDown={handleKeyDown}
-          className="flex min-h-9 items-center gap-[9px] rounded-[9px] px-3 py-[9px] text-left text-[13px] font-semibold text-ink-2 transition-colors duration-120 hover:bg-surface-metric aria-selected:bg-surface-metric aria-selected:text-accent max-sm:min-h-13 max-sm:flex-col max-sm:justify-center max-sm:gap-1 max-sm:px-0 max-sm:py-[7px] max-sm:text-center max-sm:text-[length:clamp(9.5px,2.75vw,11px)] max-sm:whitespace-nowrap"
+          className="flex min-h-9 items-center gap-[9px] rounded-[9px] px-3 py-[9px] text-left text-[13px] font-semibold text-ink-2 transition-colors duration-120 hover:bg-surface-metric aria-selected:bg-surface-metric aria-selected:text-accent max-sm:min-h-13 max-sm:flex-col max-sm:justify-center max-sm:gap-1 max-sm:px-0 max-sm:py-[7px] max-sm:text-center max-sm:text-[length:clamp(9.5px,2.75vw,11px)] max-sm:leading-[1.15]"
         >
           <s.Icon size={17} className="shrink-0 max-sm:size-[19px]" />
           {s.label}
