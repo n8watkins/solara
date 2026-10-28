@@ -168,6 +168,28 @@ describe('THEME_INIT_SCRIPT (blocking head script)', () => {
     expect(THEME_INIT_SCRIPT).not.toMatch(/<\/|<!--/)
   })
 
+  it('follows an OS theme change while the preference is system (pages without React)', () => {
+    const browser = installBrowser({ prefersDark: false })
+    runInitScript()
+    expect(browser.root.classList.contains('dark')).toBe(false)
+    browser.setSystemDark(true)
+    expect(browser.root.classList.contains('dark')).toBe(true)
+    expect(browser.root.style.colorScheme).toBe('dark')
+    browser.setSystemDark(false)
+    expect(browser.root.classList.contains('dark')).toBe(false)
+  })
+
+  it('keeps an explicit choice when the OS theme changes, and follows other tabs', () => {
+    const browser = installBrowser({ stored: 'light', prefersDark: false })
+    runInitScript()
+    browser.setSystemDark(true)
+    expect(browser.root.classList.contains('dark')).toBe(false)
+    // Another tab picks dark.
+    browser.store.set(THEME_STORAGE_KEY, 'dark')
+    window.dispatchEvent(Object.assign(new Event('storage'), { key: THEME_STORAGE_KEY }))
+    expect(browser.root.classList.contains('dark')).toBe(true)
+  })
+
   it('never throws when storage is blocked', () => {
     const browser = installBrowser({ prefersDark: true })
     vi.stubGlobal('localStorage', {

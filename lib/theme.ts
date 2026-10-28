@@ -104,4 +104,7 @@ export function subscribeToTheme(onChange: () => void): () => void {
 // so a storage error can never block rendering. A fixed literal, not built from
 // values, so nothing can change the code that runs (and its CSP hash) except an
 // edit here; theme.test.ts checks it still names THEME_STORAGE_KEY and DARK_QUERY.
-export const THEME_INIT_SCRIPT = `(function(){try{var p=null;try{p=localStorage.getItem("solara_theme")}catch(e){}var d=p==='dark'||(p!=='light'&&window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches);var r=document.documentElement;if(d)r.classList.add('dark');else r.classList.remove('dark');r.style.colorScheme=d?'dark':'light'}catch(e){}})()`
+// It also keeps the theme current afterwards (OS theme changes while the preference
+// is "system", and changes made in another tab), because the landing and city pages
+// ship no other JavaScript; on the app pages ThemeInit does the same, harmlessly twice.
+export const THEME_INIT_SCRIPT = `(function(){function a(){try{var p=null;try{p=localStorage.getItem("solara_theme")}catch(e){}var d=p==='dark'||(p!=='light'&&window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches);var r=document.documentElement;if(d)r.classList.add('dark');else r.classList.remove('dark');r.style.colorScheme=d?'dark':'light'}catch(e){}}a();try{var m=window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)");if(m&&m.addEventListener)m.addEventListener('change',a);window.addEventListener('storage',function(e){if(e.key===null||e.key==="solara_theme")a()})}catch(e){}})()`

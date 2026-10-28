@@ -17,7 +17,7 @@ test('a city page is static, described and linked', async ({ page }) => {
   const head = page.locator('head')
   await expect(head.locator('meta[name="description"]')).toHaveAttribute(
     'content',
-    /^Typical UV index in Los Angeles, California by month: UV peaks around 10 in July\./,
+    /^Typical UV index in Los Angeles, California by month: UV peaks around 10.3 in July\./,
   )
   await expect(head.locator('link[rel="canonical"]')).toHaveAttribute(
     'href',
@@ -77,4 +77,13 @@ test('an unknown city leaves setup on the search', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Where are you?' })).toBeVisible()
   await expect(page.getByLabel('City or location')).toBeEnabled()
   await expect(page).toHaveURL(/\/app\/$/)
+})
+
+test('a city page follows an OS theme change while open', async ({ page }) => {
+  await page.emulateMedia({ colorScheme: 'dark' })
+  await page.goto('/uv/los-angeles/')
+  const root = page.locator('html')
+  await expect(root).toHaveClass(/\bdark\b/)
+  await page.emulateMedia({ colorScheme: 'light' })
+  await expect(root).not.toHaveClass(/\bdark\b/)
 })
