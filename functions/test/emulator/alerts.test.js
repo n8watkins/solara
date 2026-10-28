@@ -383,3 +383,130 @@ describe('UV alerts', () => {
     assert.equal(uvSends('uv-never').length, 0)
   })
 })
+
+describe('event heads-ups', () => {
+  const at = (iso, hour) => new Date(Date.parse(`${iso}T00:00:00Z`) + (hour + 7) * 3_600_000)
+
+  async function addEvent(uid, key, { title, start, hours = 1.5, ...fields }) {
+    await db
+      .collection('users')
+      .doc(uid)
+      .collection('events')
+      .doc(key)
+      .set({
+        key,
+        source: 'file',
+        seriesId: 'f'.repeat(32),
+        title,
+        start: start.toISOString(),
+        end: new Date(start.getTime() + hours * 3_600_000).toISOString(),
+        timeZone: 'America/Los_Angeles',
+        where: '',
+        lat: 34.05,
+        lon: -118.24,
+        placeLabel: 'Griffith Park',
+        placeGuessed: false,
+        activityId: '',
+        url: '',
+        createdAt: '2026-06-01T00:00:00.000Z',
+        updatedAt: '2026-06-01T00:00:00.000Z',
+        ...fields,
+      })
+  }
+
+  async function runDay(messaging, withEvents = true) {
+    const lookups = []
+    for (let now = DAY_START; now < DAY_START + 24 * 3_600_000; now += QUARTER_HOUR) {
+      messaging.now = now
+      await runAlerts({
+        db,
+        messaging,
+        forecast: async place => forecastFor(place, now),
+        ...(withEvents
+          ? {
+              eventForecast: async (place, uid) => {
+                lookups.push(uid)
+                return forecastFor(place, now)
+              },
+            }
+          : {}),
+        appUrl: 'https://solara.example',
+        now: () => now,
+      })
+    }
+    return lookups
+  }
+
+  const eventSends = (sends, uid) =>
+    sends.filter(
+      send =>
+        send.messages[0].token.startsWith(`${uid}-token-`) &&
+        send.messages[0].data.deliveryKey.startsWith('event-v1:'),
+    )
+
+  test('one heads-up a few hours before a high-UV event, only for Pro with heads-ups on', async () => {
+    const run = 'a'.repeat(32)
+    const evening = 'b'.repeat(32)
+    for (const uid of ['pro', 'pro-off', 'free']) {
+      await addUser(uid, {
+        ...(uid === 'pro-off' ? { eventHeadsUp: false } : {}),
+        ...(uid === 'free' ? { tier: 'free', subscriptionStatus: null } : {}),
+      })
+      // UV peaks at 8 at 1pm; the evening event has no UV.
+      await addEvent(uid, run, { title: 'Saturday 10K', start: at('2026-06-15', 13) })
+      await addEvent(uid, evening, { title: 'Sunset walk', start: at('2026-06-15', 20) })
+    }
+    const messaging = new FakeMessaging()
+    const sends = recording(messaging)
+    await runDay(messaging)
+
+    const [heads] = eventSends(sends, 'pro')
+    assert.equal(eventSends(sends, 'pro').length, 1)
+    assert.equal(localTime(new Date(heads.at), 'America/Los_Angeles').hour, 10)
+    assert.equal(heads.messages[0].data.title, '🗓️ Saturday 10K at 1pm: UV up to 8.0')
+    assert.equal(heads.messages[0].data.deliveryKey, `event-v1:${run}`)
+    assert.match(heads.messages[0].data.body, /Forecast for Griffith Park: UV peaks at 8\.0/)
+    // The morning alert still came, in another run.
+    const morning = sends.filter(
+      send =>
+        send.messages[0].token.startsWith('pro-token-') &&
+        send.messages[0].data.deliveryKey.startsWith('morning-'),
+    )
+    assert.equal(morning.length, 1)
+    assert.notEqual(morning[0].at, heads.at)
+
+    assert.equal(eventSends(sends, 'pro-off').length, 0)
+    assert.equal(eventSends(sends, 'free').length, 0)
+
+    const state = (
+      await db.collection('users').doc('pro').collection('alertState').doc('events').get()
+    ).data()
+    assert.equal(state[run].status, 'delivered')
+    assert.equal(state[evening], undefined)
+  })
+
+  test('an event that starts early gets its heads-up the evening before, outside quiet hours', async () => {
+    const early = 'c'.repeat(32)
+    await addUser('pro')
+    // 7am start: 4am is in quiet hours (9pm-7am), so 8pm the evening before.
+    await addEvent('pro', early, { title: 'Dawn run', start: at('2026-06-15', 7), hours: 6 })
+    const messaging = new FakeMessaging()
+    const sends = recording(messaging)
+    await runDay(messaging)
+    const [heads] = eventSends(sends, 'pro')
+    assert.equal(eventSends(sends, 'pro').length, 1)
+    const local = localTime(new Date(heads.at), 'America/Los_Angeles')
+    assert.equal(local.date, '2026-06-14')
+    assert.equal(local.hour, 20)
+    assert.match(heads.messages[0].data.title, /^🗓️ Dawn run tomorrow at 7am/)
+  })
+
+  test('nothing is sent while event heads-ups are switched off', async () => {
+    await addUser('pro')
+    await addEvent('pro', 'd'.repeat(32), { title: 'Saturday 10K', start: at('2026-06-15', 13) })
+    const messaging = new FakeMessaging()
+    const sends = recording(messaging)
+    await runDay(messaging, false)
+    assert.equal(eventSends(sends, 'pro').length, 0)
+  })
+})
