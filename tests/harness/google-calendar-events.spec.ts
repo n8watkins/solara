@@ -147,6 +147,17 @@ test('a connected account: refresh, then disconnect', async ({ page }, testInfo)
   await expect(status(page)).toHaveText('Showing 2 upcoming events from Google Calendar.')
   await expect(google.getByText(/^Updated just now/)).toBeVisible()
 
+  // "Remove imported events" leaves Google's (a refresh would bring them back).
+  const section = page.getByRole('region', { name: 'Events' })
+  await section.getByRole('button', { name: 'Remove imported events' }).click()
+  await expect(
+    section.getByText(/Events from linked calendars and Google Calendar stay/),
+  ).toBeVisible()
+  await section.getByRole('button', { name: 'Remove', exact: true }).click()
+  await expect(page.getByTestId('events-status')).toHaveText('Removed every imported event.')
+  await expect(cards(page)).toHaveCount(2)
+  await expect(section.getByRole('button', { name: 'Remove imported events' })).toHaveCount(0)
+
   await google.getByRole('button', { name: 'Disconnect' }).click()
   await expect(google.getByText('Remove its events and Solara’s access?')).toBeVisible()
   await expect(google.getByText(/Scheduled activities will ask to connect again/)).toBeVisible()
@@ -157,8 +168,8 @@ test('a connected account: refresh, then disconnect', async ({ page }, testInfo)
   })
   await google.getByRole('button', { name: 'Disconnect' }).click()
   await expect(status(page)).toHaveText('Disconnected Google Calendar and removed its events.')
-  // The imported (file) events stay; the Google ones are gone, and the offer is back.
-  await expect(cards(page)).toHaveCount(4)
+  // The Google events are gone, and the offer is back.
+  await expect(cards(page)).toHaveCount(0)
   await expect(page.getByText('From Google Calendar')).toHaveCount(0)
   await expect(google.getByRole('button', { name: 'Show my Google Calendar events' })).toBeVisible()
   expect(

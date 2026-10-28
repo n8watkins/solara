@@ -4,7 +4,7 @@ _Scoped 2026-10-27 by lane INTEG._
 _Every external fact below was checked against the cited page on 2026-10-27._
 
 This is the design for [ROADMAP item 12.9](../ROADMAP.md#12-wave-5-features): linking events from Strava, Meetup and similar services so Solara can plan around them.
-Phase 1 is built (see [Phase 1 as built](#phase-1-as-built)), phase 2 is built and switched off (see [Phase 2 as built](#phase-2-as-built)); the later phases are still a plan.
+Phase 1 is built (see [Phase 1 as built](#phase-1-as-built)), phases 2 and 2b are built and switched off (see [Phase 2 as built](#phase-2-as-built) and [Phase 2b as built](#phase-2b-as-built)); phase 3 is still a plan.
 Files marked "(new)" are planned.
 
 ## Phase 1 as built
@@ -36,7 +36,7 @@ _Built 2026-10-27 by lane EVENTS._
   The rules cannot count documents, so `users/{uid}/meta/events` and `users/{uid}/meta/scheduled` list every record's key: a record is written only in a batch that lists its key, the list holds at most the cap, and a key comes off only in a write that names it and after which its record is gone (`lib/key-index.ts`).
   Keys of records Firestore's TTL policy deleted are taken off when a save would otherwise not fit; the Events section says when the account is at the cap, and an import says how many events did not fit.
   A phase 2 Function writes with the Admin SDK, which skips the rules, so it must keep the list the same way.
-- **List and "Remove all" (REVIEW4 M3):** the section reads the 200 soonest-ending events that have not ended, however many later ones are stored, and "Remove all" deletes every stored event, page by page.
+- **List and "Remove all" (REVIEW4 M3):** the section reads the 200 soonest-ending events that have not ended, however many later ones are stored, and "Remove all" deletes every stored event, page by page (since REVIEW5 L2 it is "Remove imported events" and keeps linked and Google Calendar events, which come back at their next refresh).
 - **Not in phase 1:** sharing a file to the installed app (Web Share Target), the "better window" suggestion for events the person controls, and keeping recurring events current beyond 10 days without importing again (phase 2's subscriptions do that).
 
 ## Phase 2 as built
@@ -62,6 +62,36 @@ _Built 2026-10-28 by lane EVENTS2, switched off behind `EVENTS_SUBSCRIPTIONS_ENA
   Event forecasts come from the shared cache within the global upstream budget and the account's share of it (FIX4A), at most 200 lookups a run.
 - **Account data:** removing a link deletes it, its summary entry, its events and their keys; account deletion deletes the account's links; the export lists the links' summaries (never the addresses) and the heads-ups of the last week; the privacy policy describes linked calendars.
 - **Not in phase 2:** a label field in the form (the calendar's own name is used); naming the link on each event; reverse lookups of unnamed points on the server.
+
+## Phase 2b as built
+
+_Built 2026-10-28 by lane GCAL, switched off until the Google OAuth client ID and `GOOGLE_CALENDAR_EVENTS_ENABLED` are set ([DEPLOYMENT.md](../DEPLOYMENT.md#events-from-google-calendar), [owner checklist](../OWNER_CHECKLIST.md#events-from-google-calendar))._
+_Every choice below is a default the owner may change (ROADMAP decisions, 2026-10-28)._
+
+- **Who and where:** every signed-in account, like the file import; a "Google Calendar" panel in the Events section (`components/events/GoogleCalendarEvents.tsx`), loaded only when switched on, so neither first load grows.
+  Events from it say "From Google Calendar" and, like linked calendars' events, have no remove button of their own: Disconnect removes them, and "Remove imported events" keeps them (REVIEW5 L2).
+- **Scope:** `calendar.events.readonly` ("View events on all your calendars"), the least privilege that sees every calendar the person reads, subscribed ones included; `calendar.readonly` would also read calendar settings and sharing, and `calendar.events.owned` cannot see subscribed calendars and is promised to Scheduled's own events.
+  Choosing calendars other than the main one asks separately for `calendar.calendarlist.readonly` ("See the list of Google calendars you're subscribed to").
+  Both are sensitive scopes with their own verification (a demo video and a justification, [owner checklist](../OWNER_CHECKLIST.md#events-from-google-calendar)), kept out of the pending Scheduled request so it is not delayed.
+  The phase plan said `calendar.events.readonly` too; it is unchanged.
+- **Client only, no refresh tokens:** Google Identity Services' token model in the browser, incremental and separate from Scheduled's scopes, tokens in memory only (`lib/gcal.ts`).
+  Storing refresh tokens would need the code flow with the client secret in a Function, Blaze, an encrypted token store and a refresh job, for a feature whose events change rarely; it is not needed.
+  The cost: events refresh only while Solara is open, by themselves every 30 minutes while the session holds a token (about an hour after a consent) and otherwise when the person presses Refresh (Google needs a click to show its popup).
+  The stored events stay in between, so the Pro heads-ups of phase 2 work from them as for imported events.
+- **What is read and kept:** the chosen calendars (main one by default, at most 10), the next 30 days, recurring events expanded, at most 4 pages of 250 events per calendar, with `fields` limited to id, iCalUID, status, title, location, times, the recurrence's original start, whether the person declined, and private properties (to skip Solara's own scheduled windows).
+  Kept: timed events that are not declined, last at most a week, and have a location that is not a link (video calls are dropped, never stored, as their links can hold passcodes) or a title matching one of the person's activities.
+  Each is stored like an imported event (`source: 'google'`): title, time, zone, location text, place and activity, no link; at most 200 per refresh, the soonest.
+  Unchanged events are not written again.
+- **Places:** the location text is searched at town level as for the file import (at most 10 lookups a refresh, places already found reused); otherwise the person's place, marked as guessed; the person's place and activity choices stay while the location text is unchanged.
+- **Cap and keys:** Google events count toward the account's 1,000 events through the same key list (`lib/key-index.ts`), written by the app under the rules; a refresh removes stored Google events that are gone (deleted, moved past the window, declined, or on a calendar no longer chosen) before saving, so they make room, and says how many did not fit.
+- **Duplicates:** the same event on two chosen calendars is stored once (keys hash the iCalUID and occurrence); an event already in Solara from a file (same UID and occurrence, so the same key an import would give) or from any source with the same title, start and end is not stored again; a later import of the same event wins, because the next refresh drops the Google copy.
+- **Connection:** `users/{uid}/meta/googleCalendar` (the chosen calendars' ids and names, the main one as `primary`, never its email address; when it was connected and last read), typed and capped by the rules, so every device reads the same calendars and a disconnect on one device holds on all.
+- **Disconnect:** removes every `google` event and the connection, then revokes the grant through GIS; Google's revoke ends all of Solara's calendar access at once, so Scheduled asks to connect again, and the confirmation says so.
+  Without a token in this session there is nothing to revoke with; the message then points to the Google Account connections page.
+- **Account data:** the export gains `googleCalendar` (the chosen calendars) and lists Google events in `importedEvents`; account deletion removes both with `users/{uid}`; the privacy policy describes the scopes, what is kept and for how long.
+- **Heads-ups:** REVIEW5 M3 found that heads-ups treat every event as outdoors; lane FIX5B limits them to outdoor events (an activity set) and de-duplicates them across sources.
+  Google events without a matching activity are stored with no activity, so that rule leaves them out; the owner checklist puts FIX5B before switching this on.
+- **Not in phase 2b:** a server refresh while Solara is closed; per-calendar colours or names on each event; reading events further than 30 days ahead.
 
 ## Recommendation in short
 
@@ -198,7 +228,9 @@ Ranked by user value against integration cost and approval or terms risk.
 - **Heads-ups:** a Pro push before a high-UV event, built into the item 10 alert Function rather than a second scheduler.
 - **Size:** M, after item 10.
 
-### Phase 2b: events already in Google Calendar (optional)
+### Phase 2b: events already in Google Calendar (optional, built)
+
+As built, see [Phase 2b as built](#phase-2b-as-built): 30 days rather than 10, and events are stored like imported ones (instead of only pinned ones) so other devices and the heads-ups see them.
 
 - **Scope:** with `calendar.events.readonly`, requested only when the person turns this on, Solara lists the next 10 days of events with a place, in the browser, and offers the same UV card; nothing is stored except events the person pins.
 - **Needs:** a new privacy policy section, a verification request with a demo video, and an update to the CSP only if a new origin is called (the Calendar API origin is already allowed).
@@ -245,6 +277,6 @@ Actions, only when the matching phase starts:
 | --- | --- | --- |
 | 1 | None | $0 |
 | 2 | Blaze, already planned for the Pro launch ([COSTS.md](../COSTS.md)); then the [Linked calendars](../OWNER_CHECKLIST.md#linked-calendars) checks and `EVENTS_SUBSCRIPTIONS_ENABLED` ([step 17](../OWNER_CHECKLIST.md#at-pro-launch-blaze)); the refresh job fetches at most 4,800 links a day | Within the free tier at launch scale |
-| 2b | Add `https://www.googleapis.com/auth/calendar.events.readonly` on the Data Access page, record a demo video (an agent can script it), submit it in the Verification Center | $0; Google's review time |
+| 2b | Add `calendar.events.readonly` and `calendar.calendarlist.readonly` on the Data Access page, record a demo video (an agent can script it), submit it in the Verification Center, then set `GOOGLE_CALENDAR_EVENTS_ENABLED` ([owner checklist](../OWNER_CHECKLIST.md#events-from-google-calendar)) | $0; Google's review time |
 | 3 | Subscribe to Strava on the developer account; create the API application at <https://www.strava.com/settings/api> (name, website `https://solara-uv.web.app`, callback domain); give the client id and secret to the Functions secrets; self-upgrade to 10 athletes for a beta; later submit the Developer Program review form with screenshots | A Strava subscription at Strava's current price; the API itself is free |
 | Never | A Meetup Pro subscription, Eventbrite, Komoot or Garmin developer accounts | Not needed |

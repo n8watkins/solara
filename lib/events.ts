@@ -571,8 +571,12 @@ export interface EventsStore {
   /** Saves within the account's cap; returns the events that did not fit. */
   save(uid: string, items: readonly ImportedEvent[]): Promise<ImportedEvent[]>
   remove(uid: string, keys: readonly string[]): Promise<void>
-  /** Deletes every stored event and returns how many there were. */
-  removeAll(uid: string): Promise<number>
+  /**
+   * Deletes every event imported from a file and returns how many there were. Events from
+   * linked calendars and Google Calendar are removed with their calendar instead, since a
+   * refresh would bring them back (REVIEW5 L2).
+   */
+  removeImported(uid: string): Promise<number>
   /** Every stored event of these series. */
   seriesEvents(uid: string, seriesIds: readonly string[]): Promise<ImportedEvent[]>
   /** Every stored event from one source (the Google Calendar refresh replaces its own). */
@@ -682,13 +686,13 @@ export const firestoreEventsStore: EventsStore = {
     const { removeRecords } = await import('./key-index')
     await removeRecords(uid, 'events', keys)
   },
-  async removeAll(uid) {
-    const { reconcile, removeRecords, storedKeys } = await import('./key-index')
-    const keys = await storedKeys(uid, 'events')
-    await removeRecords(uid, 'events', [...keys])
+  async removeImported(uid) {
+    const { reconcile, removeRecords } = await import('./key-index')
+    const keys = (await this.sourceEvents(uid, 'file')).map(item => item.key)
+    await removeRecords(uid, 'events', keys)
     // Keys of events Firestore's TTL policy already deleted come off the list too.
     await reconcile(uid, 'events')
-    return keys.size
+    return keys.length
   },
   async seriesEvents(uid, seriesIds) {
     const { firestore, events } = await eventsCollection(uid)

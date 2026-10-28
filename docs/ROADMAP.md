@@ -143,7 +143,8 @@ Candidates, roughly ranked by impact over effort:
 8. **Shade and surface reflection factors** - done (#109): each activity can set its typical shade and the surface around it, which scale the UV it is planned against (cited, cautious factors in `packages/core/src/exposure.ts`), in the app and the calendar feed.
 9. Linking with live events from Strava, Meetup and similar services, so Solara can plan around them (owner's idea) - scoped in [integrations/EVENTS.md](integrations/EVENTS.md); **phase 1 built**: .ics file import with the UV, burn time and sunscreen timing per event, for every signed-in account.
    **Phase 2 built and switched off** (item 19): linked calendars refreshed on the server and Pro heads-ups before high-UV events.
-   Next: optionally events already in Google Calendar (phase 2b), and Strava last (no future events in its API, a developer subscription and a 10-athlete cap); the Meetup, Eventbrite, Komoot and Garmin APIs are not needed.
+   **Phase 2b built and switched off** (item 20): events already in Google Calendar, read in the browser.
+   Next: Strava last (no future events in its API, a developer subscription and a 10-athlete cap); the Meetup, Eventbrite, Komoot and Garmin APIs are not needed.
 
 ### 13. Wave 6: mobile app (owner's learning project)
 
@@ -213,7 +214,19 @@ Built 2026-10-28 by lane EVENTS2 and switched off behind `EVENTS_SUBSCRIPTIONS_E
 - **Removal and accounts:** removing a link deletes its events and their keys; account deletion removes the account's links; the export lists linked calendars without their addresses and the heads-ups sent.
 - **Tests:** unit tests for the URL rules, backoff, heads-up timing and wording, and the fetcher's SSRF, redirect, size, time and content checks; emulator tests for adding, refreshing, backoff and pause, the caps, removal, the rules, and a day of heads-ups; harness screens at 390 and 1440 px, light and dark.
 - **Left for the owner:** the [Linked calendars](OWNER_CHECKLIST.md#linked-calendars) checks in staging, then `EVENTS_SUBSCRIPTIONS_ENABLED` (step 17).
-- **Not done:** events already in Google Calendar (phase 2b) and Strava (phase 3); reverse lookups of unnamed `GEO` points on the server; showing which linked calendar an event came from by name.
+- **Not done:** Strava (phase 3); reverse lookups of unnamed `GEO` points on the server; showing which linked calendar an event came from by name.
+
+### 20. Events already in Google Calendar (Wave 5 item 9, phase 2b, built and switched off)
+
+Built 2026-10-28 by lane GCAL, as scoped in [integrations/EVENTS.md](integrations/EVENTS.md#phase-2b-as-built); hidden until the build has the Google OAuth client ID (the switch that also shows Scheduled) and `GOOGLE_CALENDAR_EVENTS_ENABLED`.
+
+- **What:** "Show my Google Calendar events" in the Events section reads the next 30 days of the chosen calendars (the main one by default, up to 10) in the browser with `calendar.events.readonly`, and keeps timed events with a place or a matching activity, with the same UV card, marked "From Google Calendar"; "Choose calendars" asks for `calendar.calendarlist.readonly`.
+- **Privacy:** only title, time, zone, location text, place and activity are stored (`source: 'google'` in `users/{uid}/events`); no description, guests, links or tokens; video-call locations are dropped; the chosen calendars live in `users/{uid}/meta/googleCalendar` (the main one as `primary`), in the export as `googleCalendar` and deleted with the account; the privacy policy describes it.
+- **Refresh and cap:** client only (no refresh tokens): every 30 minutes while the session holds a token, else on Refresh; at most 200 events a refresh within the 1,000-event key list; gone events removed, unchanged ones not rewritten; duplicates of file or linked events skipped.
+- **Disconnect:** removes the events and the connection and revokes the grant with GIS (which ends Scheduled's access too, as the confirmation says; `oauth2.googleapis.com` added to `connect-src`).
+- **Also (REVIEW5 L2 client part and UI items 4 and 5):** "Remove all" is now "Remove imported events" and keeps linked and Google Calendar events, which their next refresh would bring back; the empty "Link calendar" and "Save" buttons are outline buttons while disabled.
+- **Tests:** unit tests for parsing, filtering, de-duplication, the refresh and the read calls; static and emulator rules tests for `google` events and the connection document; a signed-in browser test against the fake Calendar with the real rules; UI harness screens at 390 and 1440/1280 px, light and dark, with a fake Google.
+- **Left for the owner:** the [Events from Google Calendar](OWNER_CHECKLIST.md#events-from-google-calendar) steps: after the Scheduled verification and REVIEW5 M3's outdoor-only heads-ups (FIX5B), add the two scopes, verify them with a demo video, then set `GOOGLE_CALENDAR_EVENTS_ENABLED`.
 
 ## Decisions
 
@@ -248,6 +261,7 @@ The steps behind each one are in the [owner checklist](OWNER_CHECKLIST.md).
 | Record caps | Imported events and scheduled activities per account | Default, owner may change (2026-10-28): 1,000 imported events and 500 scheduled activities, enforced by `firestore.rules` through a key list per collection (`lib/key-index.ts`, REVIEW4 M4) |
 | Instance caps | HTTP Functions' `maxInstances` | Default, owner may change (2026-10-27, item 14; 2026-10-28, item 19): 3 for the forecast proxy, 2 for the calendar feed, 1 for the rest (the Stripe webhook, place search and linked calendars included), 16 in all (`INSTANCE_CAPS` in `functions/src/shared/options.ts`) |
 | Linked calendars | Caps, refresh and backoff for linked calendars | Default, owner may change (2026-10-28): at most 5 links per account; each refreshed every 6 hours by the third free Cloud Scheduler job (`eventSubscriptionsRefresh`, every 30 minutes, at most 100 links a run, 4 at a time); a failing link waits 6, 12, 24, then 48 hours and is paused after 7 days; a manual refresh at most once per 10 minutes per link and 20 fetches an hour per account; 10 seconds, 1 MB and 3 redirects per fetch, https on port 443 to public addresses only; for every signed-in account, like the file import |
+| Google Calendar events | Scope, refresh and limits for events already in Google Calendar | Default, owner may change (2026-10-28, item 20): `calendar.events.readonly`, plus `calendar.calendarlist.readonly` only to choose calendars, verified separately from Scheduled's scopes; client only with tokens in memory and no refresh tokens (events refresh while Solara is open); the main calendar by default, up to 10 chosen; the next 30 days; only timed, not declined events with a place or a matching activity, at most 200 a refresh, counted in the 1,000-event key list; an event already stored from a file or linked calendar is not added again; disconnect removes the events and revokes the grant; behind `GOOGLE_CALENDAR_EVENTS_ENABLED` as well as the OAuth client ID |
 | Event heads-ups | When Pro hears about a high-UV event | Default, owner may change (2026-10-28): one push per event whose peak UV at its place reaches 6, about 3 hours before the start (the evening before when that falls in quiet hours, never later than 15 minutes before), on by default for Pro (Settings turns it off), for imported and linked events alike; event forecasts count against the global upstream budget with a per-account share, at most 200 a run |
 
 ### Tiers

@@ -137,9 +137,10 @@ export function createMemoryEventsStore(
       for (const key of keys) items.delete(key)
       emit()
     },
-    async removeAll() {
-      const count = items.size + past
-      items = new Map()
+    async removeImported() {
+      const kept = [...items.values()].filter(item => item.source !== 'file')
+      const count = items.size - kept.length + past
+      items = new Map(kept.map(item => [item.key, item]))
       past = 0
       emit()
       return count

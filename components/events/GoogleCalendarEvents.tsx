@@ -362,7 +362,9 @@ export default function GoogleCalendarEvents({
               <div className="mt-2 flex flex-wrap gap-2">
                 <button
                   type="button"
-                  className="btn btn-primary px-3 py-1.5 text-[12px]"
+                  className={`btn px-3 py-1.5 text-[12px] ${
+                    working || choosing.picked.length === 0 ? '' : 'btn-primary'
+                  }`}
                   disabled={working || choosing.picked.length === 0}
                   onClick={() => saveChoice(link)}
                 >

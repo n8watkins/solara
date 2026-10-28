@@ -149,6 +149,8 @@ function buildSite() {
     // A placeholder client: the suite answers Google Identity Services and the
     // Calendar API itself (fake-google-calendar.ts), so scheduling can be tested.
     NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID: 'solara-e2e.apps.googleusercontent.com',
+    // Events already in Google Calendar are on too, read from the same fake Calendar.
+    NEXT_PUBLIC_GOOGLE_CALENDAR_EVENTS_ENABLED: '1',
     NEXT_PUBLIC_GA_MEASUREMENT_ID: '',
     NEXT_PUBLIC_SENTRY_DSN: '',
     NEXT_PUBLIC_UI_HARNESS: '',
