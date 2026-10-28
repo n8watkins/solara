@@ -1,6 +1,6 @@
 # Solara roadmap
 
-_Last reviewed: 2026-10-27_
+_Last reviewed: 2026-10-28_
 
 This is the plan for the remaining work, in priority order.
 What is live today is in [status.md](status.md); the owner's steps are in the [owner checklist](OWNER_CHECKLIST.md); how lanes are run by parallel agents is in [CONTRIBUTING-AGENTS.md](CONTRIBUTING-AGENTS.md).
@@ -25,7 +25,7 @@ The full, numbered list with exact console links is [Next steps, in order](OWNER
 
 Steps 12-18 (Blaze with the budget kill switch, staging and Stripe test mode, the first Functions deploy, monitoring and backups, switching billing on, the Open-Meteo commercial plan, release checks) come at the Pro launch.
 
-## Where we are (2026-10-25)
+## Where we are (2026-10-28)
 
 | Wave | State | PRs |
 | --- | --- | --- |
@@ -34,8 +34,8 @@ Steps 12-18 (Blaze with the budget kill switch, staging and Stripe test mode, th
 | 2 - shared core, data layer, signed-in e2e | Done 2026-10-23 | #44, #47, #49-#52 |
 | 4 - Tailwind 4, restyle and split, upgrades | Done 2026-10-24 (ESLint 10 and TypeScript 7 deferred, see Next up) | #57-#67 |
 | 3 phase 1 - free launch (no Blaze) | Done 2026-10-24; Sentry and App Check wait for the owner's keys | #70, #71 |
-| 3 phase 2 - Pro launch (Blaze) | Built and switched off (items 6, 9, 10, 11); waits for the owner's Pro launch steps | #99, #102, #104, #106, #107 |
-| 5 - features | Scheduled activities done (#55, #56); the rest not started | - |
+| 3 phase 2 - Pro launch (Blaze) | Built and switched off (items 6, 9, 10, 11), hardened after the third and fourth reviews (items 14-18); waits for the owner's Pro launch steps | #99, #102, #104, #106, #107, #118-#124, #126, #128 |
+| 5 - features | Done: scheduled activities, the reapply timer and UV alert, the daily briefing, family profiles, cloud-aware forecasts, skin typing, city pages, shade and surface, and .ics event import phase 1; event subscriptions (phase 2) not started (item 12) | #55, #56, #103, #105, #108-#112, #114, #115, #117 |
 | 6 - mobile app | Not started | - |
 
 Also done: the move to `solara-uv.web.app` (#42, #45), Search Console verification (#43), the legal operator details (#46), the privacy policy's Google user data section (#48), the docs consolidation (#53), the costs page and Wave 3 decisions (#68), the new-user sign-in race and test flake fixes (#69), every CodeQL alert (#72, #73), the "fast checks locally, full suites on CI" agent contract (#74), the plan docs refresh (#75), and the fixes from the first post-launch code review (client findings in #79, server and rules findings in #81).
@@ -162,11 +162,11 @@ The owner's requirement: nobody can abuse the Blaze setup or run up costs, and i
 - **A real hard stop that cannot be turned against paying users (H1, H2, L1, L2):** a $25 budget with three tiers (warn at 50%, cost guard at 100%, detach billing at 300%, on by default); a budget-engaged guard ends by itself at the next budget period and the owner releases it with `infra/cost-guard.sh released --apply`; the scheduled Pro alerts are never paused by the budget; `budgetAlert` acts only on `BUDGET_ID` and runs as its own `solara-budget` identity, the only one allowed to detach billing ([RUNBOOK.md](RUNBOOK.md#budget-kill-switch)).
 - **Paid forecast calls bounded (M1, M3, L1, L3):** a global upstream budget (1,500 an hour, 20,000 a day) shared by the proxy and the calendar feed, failing closed to the cached forecast; a 0.02 degree cache grid chosen from measured UV differences; the calendar feed reads the shared cache with 4 upstream calls per feed an hour; fallbacks are remembered and logged once a minute; setup's current UV and the place search go through the proxy (a new `placeSearch` Function on the commercial geocoding host) once it is on, and the feed never uses the free API once billing is on ([DEPLOYMENT.md](DEPLOYMENT.md#forecast-proxy)).
 
-### 15. Trial, alert and export fixes from the third review (FIX3B, in progress)
+### 15. Trial, alert and export fixes from the third review (FIX3B, done, #122-#124)
 
 The third review's findings M4, M5, L4 and L5, all in switched-off Pro features:
 
-- **The free trial once per person (M4):** a keyed-hash trial history that survives account deletion keeps the trial from being taken again by a recreated account, the same verified email, or the same card on another account ([DEPLOYMENT.md](DEPLOYMENT.md#trial-history)); the owner creates the `TRIAL_HISTORY_KEY` secret ([owner checklist](OWNER_CHECKLIST.md#at-pro-launch-blaze), step 14).
+- **The free trial once per person (M4):** a keyed-hash trial history that survives account deletion keeps the trial from being taken again by a recreated account, the same verified email, or the same card on another account (#124, [DEPLOYMENT.md](DEPLOYMENT.md#trial-history)); the owner creates the `TRIAL_HISTORY_KEY` secret ([owner checklist](OWNER_CHECKLIST.md#at-pro-launch-blaze), step 14).
 - **One planning skin type everywhere (M5) and validated server reads (L4):** the morning alert plans for a group's most sensitive person like the dashboard, and the alerts and the calendar feed read activities and profiles through the app's schemas (#122).
 - **The alert history in the export (L5):** #123.
 
@@ -186,8 +186,19 @@ The fourth review's event findings M2, M3, the rules part of M4, L1, L2 and L3 (
 - **No file can freeze the app (M2):** one work allowance per file bounds the parser (a full 1 MB hostile file now parses in under half a second, against minutes to hours before), and the app parses in a Web Worker stopped after 20 seconds.
 - **The soonest events always show (M3):** the list reads the 200 soonest-ending upcoming events, and "Remove all" removes every stored event.
 - **Per-account caps (M4, rules part):** at most 1,000 imported events and 500 scheduled activities, enforced by `firestore.rules` through a key list per collection; imported events expire within 31 days of their end.
-  The export paging is lane FIX4C's.
+  The export paging is item 18's.
 - **Re-imports, text and lookups (L1-L3):** a re-import removes events the calendar cancels and occurrences it no longer produces; bidi controls are removed from event text; place lookups stop at 10 per import.
+
+### 18. Export, wording and UI fixes from the fourth review (FIX4C, built)
+
+The fourth security review's findings M4 (the export part), L4, L5 and L6, and its UI leftovers (`handoff/review4.md`):
+
+- **A bounded export (M4):** the account export reads every collection in pages of 200 documents inside one read-only transaction and stops at 5,000 documents per collection, naming any section cut short in `truncated` ([DEPLOYMENT.md](DEPLOYMENT.md#account-export-and-deletion)); an emulator test exports 1,250 events and 230 scheduled activities in pages and checks that deletion removes imported events.
+  The per-account caps on what clients can write (1,000 events, 500 scheduled activities) are item 17's.
+- **Account page wording (L4):** the export and deletion text name every section, imported events and the calendar feed included, from one list a test compares with the real export.
+- **One way to write UV (L5):** every UV value has one decimal through `formatUV` in `packages/core/src/uv-scale.ts`, so the 1pm chip reads 10.3 like the briefing, in the app, the alerts, the calendar feed and the city pages.
+- **Replaying Stripe webhooks after a detach (L6):** the [runbook](RUNBOOK.md#budget-kill-switch) has the steps to finish within 3 days of a billing detach, and the [owner checklist](OWNER_CHECKLIST.md#at-pro-launch-blaze) step 12 states what a detach at 300% stops; detaching stays on by default.
+- **UI:** the briefing gives the clear-sky peak when clouds lower it ("UV peaks at 6.2 (High) around 1pm, or 10.8 if the sky clears", also in the morning alert) and the UV card no longer repeats that note; the briefing names the "lowest-UV window" while the hero names the next slot, so the two never contradict each other; at night "UV returns about 7am" is said once; after sunset the hour strip opens where UV returns even while the last hour is on it; the analytics consent banner sits at the top of the page flow and covers nothing at any width; the landing and city pages follow an OS theme change while open; city pages carry JSON-LD, hashed into their CSP at build time.
 
 ## Decisions
 

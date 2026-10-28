@@ -462,7 +462,9 @@ Do not manually remove a tombstone or mark it complete while billing cleanup res
 
 Deletion keeps one record on purpose: the [trial history](#trial-history) of an account that had the free trial, for 2 years, so the trial stays once per person.
 
-The export (`exportAccountData`) holds the portable preferences, a billing summary (plan, interval, status, Pro since, trial end, current period end, cancellation, payment failed since, trial used), scheduled activities, device metadata and the Pro alert history (`alerts`: for the morning and the UV alert, the last day sent, its status, attempts, devices reached, times and any FCM error code, from `alertState/daily`, which is kept 7 days), never a Stripe identifier, a token or an internal attempt id.
+The export (`exportAccountData`) holds the portable preferences, a billing summary (plan, interval, status, Pro since, trial end, current period end, cancellation, payment failed since, trial used), scheduled activities, device metadata and the Pro alert history (`alerts`: for the morning and the UV alert, the last day sent, its status, attempts, devices reached, times and any FCM error code, from `alertState/daily`, which is kept 7 days) and the imported events, never a Stripe identifier, a token or an internal attempt id.
+It reads everything in one read-only transaction, so every part comes from the same moment, and reads the collections in pages of 200 documents, turning each page into plain records before the next, so the single 256 MiB instance never holds a whole collection of Firestore snapshots (REVIEW4 M4).
+Each collection is capped at 5,000 documents (`EXPORT_COLLECTION_LIMIT`, well above what the app lets an account keep); a section cut short is named in the export's `truncated` list, and the account page says so.
 
 ### Trial history
 

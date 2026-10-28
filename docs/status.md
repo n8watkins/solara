@@ -1,6 +1,6 @@
 # Solara status
 
-_Last reviewed: 2026-10-27_
+_Last reviewed: 2026-10-28_
 
 This is the single page for the current state of Solara: what is live, what is built but switched off, how CI/CD runs, and which owner actions are done or open.
 Facts were checked against the code, the workflows, GitHub (`gh`) and the live site on the date above.
@@ -39,16 +39,20 @@ What users get:
 - Personalized activity windows on the dashboard and in the week calendar, within each plan's days.
   Each activity can account for its typical shade and the surface around it (grass, pavement, water, sand, snow), which scale the UV it is planned against with cited, cautious factors; the card says so ("Sand, some shade · 90% of forecast UV").
   Plans assume a clear sky, which stays safe if forecast clouds break; an activity with "Account for cloud cover" on plans with the forecast's clouds instead, counted once (#114), and the calendar feed plans the same way.
-- A daily briefing at the top of the dashboard (#108): the day's peak UV and time, the best lower-UV window for the plan, the burn time at the peak and one line of advice, shareable; after dark it briefs tomorrow (on the guest plan it offers sign-in instead).
+- A daily briefing at the top of the dashboard (#108): the day's peak UV and time (and the clear-sky peak when clouds lower it), the lowest-UV window for the plan, the burn time at the peak and one line of advice, shareable; after dark it briefs tomorrow (on the guest plan it offers sign-in instead).
+  The hero above the UV card names the next lower-UV slot, so the two never both claim to be the "best".
+- After dark the UV card says once when UV returns (no burn and vitamin D cards repeating it), and the hour strip opens where UV returns, also in the hour right after sunset.
+- Every UV value is written with one decimal (`formatUV` in `packages/core/src/uv-scale.ts`): hour chips, briefing, alerts, calendar feed and city pages quote the same number.
 - Cloud-aware forecasts (#110): the dashboard and the week view say when the forecast clouds lower UV, against the clear-sky UV, and how much to trust each day (fair confidence from day 4, low from day 7).
-- City pages for search (#111): `/uv/` and `/uv/<city>/` for 50 cities, static with no JavaScript, with the typical UV by month from checked-in CAMS data and a link that opens setup on the city; listed in the sitemap and linked from the landing page.
+- City pages for search (#111): `/uv/` and `/uv/<city>/` for 50 cities, static with no framework JavaScript, with the typical UV by month from checked-in CAMS data and a link that opens setup on the city; listed in the sitemap and linked from the landing page.
+  Each city page carries structured data (JSON-LD), hashed into its CSP at build time; the landing and city pages follow an OS theme change while open, like the app.
 - Place suggestions while typing a town in setup, the header's location panel and Settings (Open-Meteo place search based on GeoNames, at most one request per second, keyboard and screen-reader friendly) (#80, #95).
 - Saved locations, share links (`/share/`), a one-off calendar file download from Plan ahead, and family profiles on Pro.
 - Imported events for signed-in accounts (Wave 5 item 9, phase 1): the dashboard's Events section imports an .ics file (Meetup, Eventbrite, race sites, any calendar), read in the browser, and shows each upcoming event with the UV during it at its place, the burn time for the planning skin type (the most sensitive person in a group), the activity's shade and surface, and sunscreen timing.
   Places come from the event's coordinates or its location text at city level, else the person's place with a "Set the place" fix; events are kept in `users/{uid}/events` (rules-checked, in the account export, deleted with the account, and expiring 30 days after they end).
   The file is parsed in a Web Worker within a fixed work allowance, so no file can freeze the page; an account keeps at most 1,000 imported events (and 500 scheduled activities), enforced by the rules; the list shows the soonest upcoming events however many are stored, "Remove all" removes every one, and a re-import removes events the calendar cancelled (REVIEW4 M2, M3, M4, L1-L3).
   On Pro, "Plan for a group" makes plans and burn estimates use the most sensitive of the people ticked; the profile switcher is in the header on phones too, and on Free it explains family profiles and offers the Pro waitlist.
-- Opt-in Google Analytics 4.
+- Opt-in Google Analytics 4, asked by a banner at the top of the app's pages, in the page flow, so it never covers anything.
 - The privacy policy and terms with the operator details (#46), the Google user data section (#48) and the Sentry and reCAPTCHA notices (#70); each has its own last-updated date (`lib/legal.ts`).
 - Firestore rules and indexes, deployed by every push to `main`.
   The rules also hold each account's activities, saved places and profiles to its plan (Free 3, 3 and 1; Pro 20, 12 and 6), so the limits do not depend on the client; an account back on Free keeps and can shrink what it saved on Pro.
