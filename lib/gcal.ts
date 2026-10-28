@@ -436,9 +436,12 @@ const eventsPageSchema = record({
   nextPageToken: v.optional(v.string()),
 })
 
-/** The fields of each event Solara reads (no description, attendee addresses or organiser). */
+/**
+ * The fields of each event Solara reads (no description, attendee addresses or organiser).
+ * The private properties tell Solara's own scheduled events apart, which Scheduled shows.
+ */
 export const READ_EVENT_FIELDS =
-  'timeZone,nextPageToken,items(id,iCalUID,status,summary,location,start,end,recurringEventId,originalStartTime,eventType,attendees(self,responseStatus))'
+  'timeZone,nextPageToken,items(id,iCalUID,status,summary,location,start,end,recurringEventId,originalStartTime,eventType,attendees(self,responseStatus),extendedProperties(private))'
 
 /**
  * One page of events on `calendarId` between `timeMin` and `timeMax`, recurring events

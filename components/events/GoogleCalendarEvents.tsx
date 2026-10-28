@@ -256,7 +256,7 @@ export default function GoogleCalendarEvents({
                 </p>
               </div>
             </div>
-            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+            <div className="flex shrink-0 flex-wrap items-center gap-2 @lg:justify-end">
               {confirming ? (
                 <>
                   <span className="mr-auto text-[12px] text-ink-2">
@@ -306,7 +306,10 @@ export default function GoogleCalendarEvents({
                     type="button"
                     className={SMALL_BUTTON}
                     disabled={working}
-                    onClick={() => setConfirming(true)}
+                    onClick={() => {
+                      setStatus(null)
+                      setConfirming(true)
+                    }}
                   >
                     Disconnect
                   </button>
@@ -397,8 +400,7 @@ export default function GoogleCalendarEvents({
       {link && (
         <p className="mt-2.5 text-[11px] leading-normal text-ink-3">
           Events update while Solara is open: by themselves for an hour after you connect or
-          refresh, otherwise when you press Refresh. Only each event’s title, time and place are
-          kept, never the rest of your calendar.
+          refresh, otherwise when you press Refresh.
         </p>
       )}
     </div>

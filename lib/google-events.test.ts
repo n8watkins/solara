@@ -111,6 +111,13 @@ describe('parseGoogleEvent', () => {
       'tooLong',
     )
     expect(skip(timed('c', 'Run', ...at, { status: 'cancelled' }))).toBe('other')
+    expect(
+      skip(
+        timed('s', 'Running: lower-UV window', ...at, {
+          extendedProperties: { private: { solara: '1' } },
+        }),
+      ),
+    ).toBe('other')
     expect(skip(timed('p', 'Run', '2026-06-15T08:00:00Z', '2026-06-15T09:00:00Z'))).toBe('other')
     expect(skip('not an event')).toBe('other')
   })

@@ -6,7 +6,7 @@
 // the Pro heads-ups. Tokens stay in memory, so events refresh only while Solara is open:
 // by themselves while this session holds a token, otherwise when the person presses
 // Refresh. Only the lazily loaded Events section imports this module.
-import { capText } from '@solara/core'
+import { capText, SOLARA_EVENT_TAG } from '@solara/core'
 import {
   GOOGLE_CALENDAR_LINK_DOC,
   GOOGLE_EVENT_LIMITS,
@@ -117,6 +117,9 @@ const googleEventSchema = v.looseObject({
   end: v.optional(timeSchema),
   recurringEventId: v.optional(v.string()),
   originalStartTime: v.optional(timeSchema),
+  extendedProperties: v.optional(
+    v.looseObject({ private: v.optional(v.record(v.string(), v.unknown())) }),
+  ),
   attendees: v.optional(
     v.array(
       v.looseObject({ self: v.optional(v.boolean()), responseStatus: v.optional(v.string()) }),
@@ -157,6 +160,10 @@ export function parseGoogleEvent(
   if (!parsed.success) return { skip: 'other' }
   const item = parsed.output
   if (item.status === 'cancelled') return { skip: 'other' }
+  // A window Solara added itself already shows under Scheduled.
+  if (item.extendedProperties?.private?.[SOLARA_EVENT_TAG.key] === SOLARA_EVENT_TAG.value) {
+    return { skip: 'other' }
+  }
   if (!item.start?.dateTime || !item.end?.dateTime) {
     return item.start?.date ? { skip: 'allDay' } : { skip: 'other' }
   }
