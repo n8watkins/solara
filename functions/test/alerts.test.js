@@ -11,6 +11,7 @@ const {
   canSend,
   deliveryKey,
   deliveryScope,
+  planHeadsUpLookups,
 } = require('../lib/notifications/alerts')
 const { alertsServiceAccount } = require('../lib/notifications/config')
 
@@ -113,5 +114,71 @@ describe('morning alert forecast', () => {
       { hour: 9, uv: 3.5, clearSkyUV: 6 },
       { hour: 10, uv: 5 },
     ])
+  })
+})
+
+describe('event forecast lookups shared out among heads-ups (REVIEW6 M1)', () => {
+  /** A run's planning side: the caps and the places planned so far. */
+  function fakeRun({ perRun = 200, perAccount = 10, known = [] } = {}) {
+    const planned = new Set(known)
+    const cell = place => `${place.lat.toFixed(2)},${place.lon.toFixed(2)}`
+    return {
+      limits: { maxEventForecasts: perRun, maxEventForecastsPerAccount: perAccount },
+      planned,
+      eventPlaceKnown: place => planned.has(cell(place)),
+      planEventLookup(place) {
+        if (planned.size - known.length >= perRun) return false
+        planned.add(cell(place))
+        return true
+      },
+    }
+  }
+  /** An account's candidates: `count` events from `firstStart` minutes on, each at its own place. */
+  const job = (count, { firstStart = 0, lat = 10, sharedPlace = false } = {}) => ({
+    looked: 0,
+    candidates: Array.from({ length: count }, (_, n) => ({
+      startMs: (firstStart + n) * 60_000,
+      lat: sharedPlace ? lat : lat + n * 0.02,
+      lon: 20,
+    })),
+  })
+
+  test('an account looks up at most 10 places, its soonest events first', () => {
+    const run = fakeRun()
+    const greedy = job(200)
+    planHeadsUpLookups(run, [greedy])
+    assert.equal(greedy.looked, 10)
+    assert.equal(run.planned.size, 10)
+  })
+
+  test('the run cap goes one per account per round, so no account starves another', () => {
+    const run = fakeRun({ perRun: 30 })
+    // Ten accounts want 20 places each; the last account wants one, for a later event.
+    const greedy = Array.from({ length: 10 }, (_, a) => job(20, { lat: 10 + a }))
+    const victim = job(1, { firstStart: 60, lat: 40 })
+    planHeadsUpLookups(run, [...greedy, victim])
+    assert.equal(victim.looked, 1)
+    assert.equal(run.planned.size, 30)
+    for (const account of greedy) assert.ok(account.looked >= 2 && account.looked <= 3)
+  })
+
+  test('within a round, the account whose next event starts soonest goes first', () => {
+    const run = fakeRun({ perRun: 2 })
+    const late = job(1, { firstStart: 120, lat: 50 })
+    const soon = job(1, { firstStart: 30, lat: 60 })
+    const soonest = job(1, { firstStart: 0, lat: 70 })
+    planHeadsUpLookups(run, [late, soon, soonest])
+    assert.deepEqual([late.looked, soon.looked, soonest.looked], [0, 1, 1])
+  })
+
+  test('places already looked up in the run are free and do not count', () => {
+    // The home forecast of the run already holds 10.00,20.00; 30 events at one park.
+    const run = fakeRun({ perRun: 1, known: ['10.00,20.00'] })
+    const park = job(30, { sharedPlace: true })
+    const other = job(3, { lat: 30, sharedPlace: true })
+    planHeadsUpLookups(run, [park, other])
+    assert.equal(park.looked, 30)
+    // One new place for the other account (its three events share it), then the run is full.
+    assert.equal(other.looked, 3)
   })
 })

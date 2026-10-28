@@ -660,4 +660,133 @@ describe('event heads-ups', () => {
     assert.match(heads.messages[0].data.body, /^Event: “Run Your Solara Pro payment failed…”\. /)
     assert.doesNotMatch(heads.messages[0].data.body, /evil|\u202e/)
   })
+
+  test('an outdoor event shortly after another is counted in the first push (REVIEW6 L2)', async () => {
+    await addUser('pro')
+    // A Kids 1K at noon and the Main 10K at 12:15, both with high UV. The 1K's heads-up
+    // goes out at 9; the 10K's own would be due only until noon, when the 3-hour gap
+    // ends, so the 9am push stands for it.
+    await addEvent('pro', key(1), { title: 'Kids 1K', start: at('2026-06-15', 12) })
+    await addEvent('pro', key(2), {
+      title: 'Main 10K',
+      start: new Date(at('2026-06-15', 12).getTime() + 15 * 60_000),
+    })
+    const messaging = new FakeMessaging()
+    const sends = recording(messaging)
+    await runDay(messaging)
+    assert.deepEqual(titlesOf(sends, 'pro'), ['9h 🗓️ UV up to 8.0 during your 12pm event'])
+    const [heads] = eventSends(sends, 'pro')
+    assert.match(
+      heads.messages[0].data.body,
+      /^Event: “Kids 1K”\..* 1 more of your events coming up reaches high UV too\.$/,
+    )
+    const state = (
+      await db.collection('users').doc('pro').collection('alertState').doc('events').get()
+    ).data()
+    assert.equal(state[key(1)].status, 'delivered')
+    assert.equal(state[key(2)].status, 'covered')
+    assert.equal(state[key(2)].by, key(1))
+  })
+
+  test("an early start due only the evening before is counted in that evening's push (REVIEW6 L2)", async () => {
+    await addUser('pro')
+    // An overnight trek from 9pm to 1pm (UV 8 in the morning) is due from 6pm; a 7am
+    // race the next morning only from 8pm to 9pm (quiet hours until 7am), inside the gap
+    // after the 6pm push.
+    await addEvent('pro', key(1), {
+      title: 'Overnight trek',
+      start: at('2026-06-14', 21),
+      hours: 16,
+    })
+    await addEvent('pro', key(2), { title: 'Dawn 5K', start: at('2026-06-15', 7), hours: 6 })
+    const messaging = new FakeMessaging()
+    const sends = recording(messaging)
+    // The evening before, from 5pm to midnight.
+    for (let now = DAY_START; now < DAY_START + 7 * 3_600_000; now += QUARTER_HOUR) {
+      messaging.now = now
+      await runAlerts({
+        db,
+        messaging,
+        forecast: async place => forecastFor(place, now),
+        eventForecast: async place => forecastFor(place, now),
+        appUrl: 'https://solara.example',
+        now: () => now,
+      })
+    }
+    const pushes = eventSends(sends, 'pro')
+    assert.equal(pushes.length, 1)
+    assert.equal(localTime(new Date(pushes[0].at), 'America/Los_Angeles').hour, 18)
+    assert.match(pushes[0].messages[0].data.body, / 1 more of your events coming up reaches/)
+    const state = (
+      await db.collection('users').doc('pro').collection('alertState').doc('events').get()
+    ).data()
+    assert.equal(state[key(2)].status, 'covered')
+  })
+
+  test("accounts with many outdoor events at new places cannot spend everyone else's lookups (REVIEW6 M1)", async () => {
+    // The review's probe: ten accounts with 20 outdoor events each at places nobody else
+    // asked for, whose forecasts fail (as when an account's share of the budget is spent,
+    // or would be low), so nothing is claimed and every run repeats them; 'zzz' sorts
+    // after them and has a high-UV race due at 9am. Homes in London, so no home forecast
+    // of Los Angeles is in the run, and no daily alert is due.
+    const quietHome = { zone: 'Europe/London', uvAlertThreshold: null }
+    await addUser('zzz', quietHome)
+    const writes = []
+    for (let a = 0; a < 10; a += 1) {
+      await addUser(`aa${a}`, quietHome)
+      for (let n = 0; n < 20; n += 1) {
+        writes.push(
+          addEvent(`aa${a}`, key(n + 1), {
+            title: `Ride ${n}`,
+            start: at('2026-06-15', 11),
+            lat: Number((10 + (a * 20 + n) * 0.02).toFixed(2)),
+            lon: 20,
+          }),
+        )
+      }
+    }
+    await Promise.all(writes)
+    await addEvent('zzz', key(900), { title: 'Saturday 10K', start: at('2026-06-15', 12) })
+
+    const runAt = async (hour, limits) => {
+      const now = DAY_START + (hour + 7) * 3_600_000
+      const messaging = new FakeMessaging()
+      const sends = recording(messaging)
+      messaging.now = now
+      const lookups = {}
+      const eventForecast = async (place, uid) => {
+        lookups[uid] = (lookups[uid] ?? 0) + 1
+        if (place.lat < 30) throw new Error('no forecast for this place')
+        return forecastFor(place, now)
+      }
+      const result = await runAlerts({
+        db,
+        messaging,
+        forecast: async place => forecastFor(place, now),
+        eventForecast,
+        appUrl: 'https://solara.example',
+        now: () => now,
+        limits,
+      })
+      return { pushes: eventSends(sends, 'zzz'), lookups, result }
+    }
+
+    // With the run's default caps: each account looks up at most 10 places, and the
+    // victim gets its heads-up in the first run.
+    const first = await runAt(9)
+    assert.equal(first.pushes.length, 1)
+    assert.equal(first.pushes[0].messages[0].data.title, '🗓️ UV up to 8.0 during your 12pm event')
+    for (let a = 0; a < 10; a += 1) assert.equal(first.lookups[`aa${a}`], 10)
+    assert.equal(first.result.outcomes.sent, 1)
+
+    // With a run cap smaller than the accounts want (30 places for 11 accounts wanting
+    // 101), the lookups go one per account per round, so the victim is still served.
+    await db.collection('users').doc('zzz').collection('alertState').doc('events').delete()
+    const tight = await runAt(9.25, { maxEventForecasts: 30 })
+    assert.equal(tight.pushes.length, 1)
+    const total = Object.values(tight.lookups).reduce((sum, n) => sum + n, 0)
+    assert.equal(total, 30)
+    for (let a = 0; a < 10; a += 1) assert.ok(tight.lookups[`aa${a}`] <= 3)
+    assert.equal(tight.result.outcomes['forecast-limit'], 10)
+  })
 })
