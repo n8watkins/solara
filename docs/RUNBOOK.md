@@ -139,6 +139,21 @@ To stop it at once, pin the cost guard (`infra/cost-guard.sh engaged --apply`; a
   If it appears in every run, Pro has outgrown the per-run caps in `functions/src/notifications/alerts.ts`.
 
 An account's alert state is `users/<uid>/alertState/daily`: `morning` and `uv` each hold the local `day`, the `status` (`claimed`, `delivered`, `failed` or `unknown`), the `attempts` and how many devices it reached.
+Event heads-ups are in `users/<uid>/alertState/events`, one field per event key, with the same states; the WARNING `alerts run reached its event forecast lookup limit` means more than 200 event places needed a forecast in one run (the rest wait for the next run).
+
+## Linked calendars
+
+Linked calendars are fetched by the `eventSubscriptionsRefresh` job every 30 minutes and by the `eventSubscriptions` endpoint ([Linked calendars and event heads-ups](DEPLOYMENT.md#linked-calendars-and-event-heads-ups)).
+To stop every fetch at once, pin the cost guard (`infra/cost-guard.sh engaged --apply`): the endpoint answers `unavailable` and the job skips its runs, and links stay due for later.
+To switch the feature off, set `EVENTS_SUBSCRIPTIONS_ENABLED` to `false` and rerun the deploy: the Events section hides linked calendars, the endpoint answers `404` and the job does nothing; links and their events stay stored, and events expire as usual.
+
+- The WARNING `linked calendar refresh has a backlog; the next run carries on` (fields `due`, `outcomes`): more links were due than one run takes (100) or the run hit its time budget.
+  If it appears in every run, the links outgrew `REFRESH_RUN_LIMITS` in `functions/src/events/subscriptions.ts`; raise `maxLinks` with the cost line in [COSTS.md](COSTS.md).
+- The ERROR `linked calendar refresh failed`: an unexpected error for one link; the others carry on and the link stays due.
+- The WARNING `linked calendar refresh paused by the cost guard`: expected while the guard is engaged.
+- One link failing for a person is not an incident: its summary in `users/<uid>/private/eventSubscriptions` shows the error code (`timeout`, `http-status`, `not-calendar`, `blocked-address` and so on), it backs off to 48 hours and is paused after 7 days, and the person can refresh or remove it.
+- A link to remove by hand (abuse, or at the person's request): delete `eventSubscriptions/<id>`; the next refresh finds nothing, and the person's "Remove" or account deletion removes the summary entry and events.
+  Never copy a link's `url` field anywhere: it can hold a private calendar token.
 
 ## Record retention
 
@@ -170,6 +185,7 @@ Every component can be put back to its last good state without a new build.
 | Pro checkout | Set the `BILLING_ENABLED` repository variable to `false` and rerun the deploy: the plans dialog goes back to the waitlist and checkout refuses; subscriptions, the webhook and the portal keep working |
 | Forecast proxy | Set `FORECAST_PROXY_ENABLED` to `false` and rerun the deploy: the app calls Open-Meteo directly again, for forecasts and place search |
 | Pro alerts | Set `ALERTS_ENABLED` to `false` and rerun the deploy: the `alerts` job sends nothing and Settings says alerts are coming; registered devices stay registered |
+| Linked calendars and event heads-ups | Set `EVENTS_SUBSCRIPTIONS_ENABLED` to `false` and rerun the deploy, or pin the cost guard to stop fetches at once ([Linked calendars](#linked-calendars)) |
 | Firestore rules | Firebase console, **Firestore**, **Rules**, the history, restore the previous version; then revert on `main` |
 | Firestore indexes | Revert the change on `main`; a removed index is not deleted by the deploy (it would need `--force`) |
 | Stripe webhook | In Stripe, **Developers**, **Webhooks**, disable the endpoint; Stripe keeps the events and retries them for 3 days once it is enabled again |

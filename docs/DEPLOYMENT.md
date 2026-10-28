@@ -77,6 +77,7 @@ Repository variables:
 - `FORECAST_PROXY_ENABLED`: `true` turns the forecast proxy on in both the build and the Functions; anything else keeps the browser calling Open-Meteo directly and makes the `forecast` Function answer `unavailable`.
 - `ALERTS_ENABLED`: `true` turns on Pro's morning and UV alerts: the build compiles `NEXT_PUBLIC_ALERTS_ENABLED=1` (Settings offers them) and the Functions deploy writes `ALERTS_ENABLED=true` (the `alerts` job sends them); anything else keeps Settings saying they are coming and makes each `alerts` run return at once ([Pro alerts](#pro-alerts)).
 - `ALERTS_SERVICE_ACCOUNT` (optional): the service account the `alerts` Function runs as, created by `infra/alerts-identity.sh`; empty keeps the project's default runtime identity.
+- `EVENTS_SUBSCRIPTIONS_ENABLED`: `true` turns on linked calendars and Pro event heads-ups: the build compiles `NEXT_PUBLIC_EVENTS_SUBSCRIPTIONS_ENABLED=1` (the Events section offers linked calendars and Settings the event heads-up) and the Functions deploy writes `EVENTS_SUBSCRIPTIONS_ENABLED=true`; anything else hides them, makes `eventSubscriptions` answer `404 not-found` and each `eventSubscriptionsRefresh` run return at once ([Linked calendars and event heads-ups](#linked-calendars-and-event-heads-ups)).
 - `COST_GUARD_DETACH_BILLING` (optional): the budget kill switch detaches billing at 300% of the budget unless this is `false` ([Cost guard and budget kill switch](#cost-guard-and-budget-kill-switch)).
 - `BUDGET_ID` and `BUDGET_SERVICE_ACCOUNT` (set after `infra/budget.sh`, which prints both): the budget the kill switch acts on, and the identity `budgetAlert` runs as, the only one allowed to detach billing.
 - `GCP_WORKLOAD_IDENTITY_PROVIDER` and `GCP_DEPLOY_SERVICE_ACCOUNT`: Workload Identity Federation ([WIF_SETUP.md](WIF_SETUP.md)).
@@ -201,6 +202,25 @@ It deploys with the other Functions and sends nothing until the `ALERTS_ENABLED`
 The real-device checks that must pass before `ALERTS_ENABLED` is switched on are in the [owner checklist](OWNER_CHECKLIST.md#notifications).
 It replaces the manual GitHub Actions notifier, which was retired.
 
+## Linked calendars and event heads-ups
+
+Phase 2 of [integrations/EVENTS.md](integrations/EVENTS.md#phase-2-as-built): a signed-in account links an https or webcal calendar address, Solara's servers fetch it now and every 6 hours, and Pro accounts get a heads-up before an imported or linked event with high UV.
+Both deploy with the other Functions and stay off until the `EVENTS_SUBSCRIPTIONS_ENABLED` repository variable is `true`; heads-ups also need `ALERTS_ENABLED`, because the `alerts` job sends them.
+
+- **Endpoint:** `eventSubscriptions` (POST, `functions/src/events/endpoint.ts`) adds, refreshes or removes a link for the signed-in account, behind App Check, 20 requests a minute per address, 6 a minute and 20 fetches an hour per account, and the cost guard (`eventSubscriptions` feature).
+- **Fetcher** (`functions/src/events/safe-fetch.ts`): https on port 443 only (webcal is rewritten), no user name or password in the address; every host name is resolved by the Function and the connection goes to the checked address, so DNS cannot change between the check and the connection; every address must be public (no loopback, private, carrier-grade NAT, link-local or metadata, multicast, reserved or documentation ranges; IPv6 only global unicast outside its special blocks, so IPv4-mapped, NAT64 and 6to4 addresses are refused); at most 3 redirects, each checked the same way; 10 seconds for the whole fetch; 1 MB of body after decompression; an allowlisted content type and a body that starts with `BEGIN:VCALENDAR`.
+  No cookies or credentials are sent, conditional requests use the stored `ETag` and `Last-Modified`, and the address is never logged.
+- **Parsing:** the same bounded parser as the file import (`packages/core/src/ics-parse.ts`, REVIEW4 M2), at most 200 events per link.
+- **Storage:** the address is a credential, so it lives only in `eventSubscriptions/{id}` (top level, server-only in `firestore.rules`); the app reads `users/{uid}/private/eventSubscriptions` (host, label, refresh state).
+  Events go in `users/{uid}/events` with `source: 'feed'` and `feedId`; the rules let the app change only their place and activity.
+  The Function keeps the per-account key list (`users/{uid}/meta/events`, at most 1,000 keys) in the same transaction as the events, and counts events that did not fit.
+- **Limits:** at most 5 links per account; the scheduled `eventSubscriptionsRefresh` job (every 30 minutes, the third free Cloud Scheduler job) refreshes at most 100 due links a run, 4 at a time, within 240 seconds, oldest due first, and pauses while the cost guard is engaged.
+  A failing link waits 6, 12, 24, then 48 hours between attempts and is paused after 7 days of failures until the person presses Refresh (at most once per 10 minutes per link).
+- **Places:** `GEO` is used as given; `LOCATION` text is searched at town level with the commercial place search, within place search's budget and the account's share of it (at most 10 searches a refresh); otherwise the person's place, marked as guessed.
+- **Heads-ups:** the `alerts` job looks at each Pro account's events starting in the next 20 hours (5 a run) when no morning or UV alert goes out for it; an event whose peak UV at its place (with the activity's shade and surface) reaches 6 gets one heads-up about 3 hours before it, moved to the evening before when that falls in quiet hours, never later than 15 minutes before the start, claimed in `users/{uid}/alertState/events` (delivery key `event-v1:<event key>`).
+  Event places' forecasts go through the shared `forecastCache` within the global upstream budget and the account's share of it, at most 200 lookups a run; `eventHeadsUp: false` in the account turns them off.
+- **Removal:** removing a link deletes its document, its summary entry, then its events and their keys; account deletion deletes the account's links beside the calendar feed tokens, and a refresh of a link whose account is gone or being deleted removes the link and writes nothing.
+
 ## Firebase Functions and Stripe
 
 Functions require a reproducible install in `functions/` and a Blaze-enabled Firebase project.
@@ -219,8 +239,8 @@ npx firebase deploy --only functions --project <project-id>
 
 The `firebase.json` predeploy hook builds `@solara/core` and the TypeScript Functions before the upload.
 
-The Functions deployment includes two scheduled jobs: `maintenance` (`functions/src/ops/functions.ts`), which runs every five minutes, and `alerts` ([Pro alerts](#pro-alerts)), every 15 minutes.
-Cloud Scheduler gives each billing account three free jobs, so the background work shares one job and the alerts take the second.
+The Functions deployment includes three scheduled jobs: `maintenance` (`functions/src/ops/functions.ts`), which runs every five minutes, `alerts` ([Pro alerts](#pro-alerts)), every 15 minutes, and `eventSubscriptionsRefresh` ([Linked calendars and event heads-ups](#linked-calendars-and-event-heads-ups)), every 30 minutes.
+Cloud Scheduler gives each billing account three free jobs, so the background work shares one job, the alerts take the second and the linked calendar refresh the third; a fourth job would cost $0.10 a month.
 Each run does three tasks, each isolated so one failing never stops the others:
 
 - `accountDeletions` resumes account deletion, Stripe cancellation, and data cleanup with bounded retries.
@@ -235,9 +255,9 @@ Allow the billing-resource backfill to complete before relying on deletion clean
 ### Cost and abuse limits
 
 Every Function declares its own ceiling in `functions/src/shared/options.ts` instead of the platform defaults: 256 MiB of memory, a timeout of 30-300 seconds, and an instance cap.
-The HTTP functions' caps are one table, `INSTANCE_CAPS`, sized for launch traffic (a few requests a minute) rather than for a flood: 3 instances for `forecast`, 2 for `calendarFeed`, and 1 for each of the other ten (`stripeWebhook` and `placeSearch` included), 15 in all.
-HTTP functions run on one vCPU and serve up to 20 requests per instance at once (40 for the forecast proxy and the calendar feed); `maintenance`, `alerts` and `budgetAlert` run one instance with a fractional CPU (`gcf_gen1`) and are not retried, because the next run or notification resumes the work.
-`functions/test/hardening.test.js` loads the deploy entry point and fails when a function lacks a ceiling or the HTTP caps add up to more than 15.
+The HTTP functions' caps are one table, `INSTANCE_CAPS`, sized for launch traffic (a few requests a minute) rather than for a flood: 3 instances for `forecast`, 2 for `calendarFeed`, and 1 for each of the other eleven (`stripeWebhook`, `placeSearch` and `eventSubscriptions` included), 16 in all.
+HTTP functions run on one vCPU and serve up to 20 requests per instance at once (40 for the forecast proxy and the calendar feed); `maintenance`, `alerts`, `eventSubscriptionsRefresh` and `budgetAlert` run one instance with a fractional CPU (`gcf_gen1`) and are not retried, because the next run or notification resumes the work.
+`functions/test/hardening.test.js` loads the deploy entry point and fails when a function lacks a ceiling or the HTTP caps add up to more than 16.
 Raise a cap in `INSTANCE_CAPS` when real traffic needs it, and update the worst case in [COSTS.md](COSTS.md#worst-case-under-a-flood) with it.
 
 Every browser-called endpoint also, in this order, so a rejected request costs as little as possible (`createApiHandler` in `functions/src/shared/http.ts`):

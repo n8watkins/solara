@@ -146,7 +146,7 @@ Change the rules and their tests in `.github/scripts/changed-areas.test.mjs` tog
 
 ## Firestore layout
 
-The primary account document is `users/{uid}`, with scheduled activities in `users/{uid}/scheduled/{eventId}`, events imported from .ics files in `users/{uid}/events/{key}`, notification registrations in `users/{uid}/notificationDevices/{deviceId}`, the Pro alerts' delivery state in `users/{uid}/alertState/daily`, Stripe resource history in `users/{uid}/billingResources/{resourceId}`, and the owner's calendar feed link in `users/{uid}/private/calendarFeed`.
+The primary account document is `users/{uid}`, with scheduled activities in `users/{uid}/scheduled/{eventId}`, events imported from .ics files or linked calendars in `users/{uid}/events/{key}`, linked calendar addresses in the server-only `eventSubscriptions/{id}` (their summary in `users/{uid}/private/eventSubscriptions`), notification registrations in `users/{uid}/notificationDevices/{deviceId}`, the Pro alerts' delivery state in `users/{uid}/alertState/daily`, Stripe resource history in `users/{uid}/billingResources/{resourceId}`, and the owner's calendar feed link in `users/{uid}/private/calendarFeed`.
 Trusted backend code owns the calendar feed token index, the notification-token ownership index, the Stripe subscription ownership index, account-deletion tombstones, billing cleanup resources, checkout cleanup tasks, the alerts' run cursor (`alertDispatch/state`), entitlements and delivery state.
 Firestore rules deny client access to those server-owned collections and prevent clients from writing notification-device or billing state.
 
