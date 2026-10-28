@@ -647,9 +647,20 @@ export const firestoreEventsStore: EventsStore = {
         const { firestore, events, index } = await eventsCollection(uid)
         const { limit, onSnapshot, orderBy, query, where } = firestore
         let items: ImportedEvent[] | null = null
-        let stored: number | null = null
+        let listed: Set<string> | null = null
+        let reconciling = false
         const emit = () => {
-          if (items && stored !== null) onChange({ items, stored: Math.max(stored, items.length) })
+          if (!items || !listed) return
+          onChange({ items, stored: Math.max(listed.size, items.length) })
+          // Events stored before the key list existed are listed once, so the count and
+          // the cap include them.
+          const known = listed
+          if (!reconciling && items.some(item => !known.has(item.key))) {
+            reconciling = true
+            void import('./key-index')
+              .then(({ reconcile }) => reconcile(uid, 'events'))
+              .catch(() => {})
+          }
         }
         // The soonest-ending events that have not ended: the ones the list shows first,
         // however many later ones the account holds (REVIEW4 M3).
@@ -671,7 +682,7 @@ export const firestoreEventsStore: EventsStore = {
           index,
           snapshot => {
             const ids: unknown = snapshot.data()?.ids
-            stored = ids && typeof ids === 'object' ? Object.keys(ids).length : 0
+            listed = new Set(ids && typeof ids === 'object' ? Object.keys(ids) : [])
             emit()
           },
           onError,

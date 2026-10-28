@@ -9,7 +9,8 @@
 //
 // So an account never holds more records than the cap, whatever it writes. Records
 // Firestore's TTL policy deletes stay listed until `reconcile` takes their keys off,
-// which happens when a save would otherwise not fit. Functions write with the Admin
+// which happens when a save would otherwise not fit; `reconcile` also lists records
+// stored before the list existed (the Events section runs it when it sees one). Functions write with the Admin
 // SDK, which skips the rules; one that adds or removes these records must update the
 // list the same way (phase 2 of docs/integrations/EVENTS.md).
 //
@@ -156,15 +157,23 @@ export async function storedKeys(uid: string, name: CappedCollection): Promise<S
 }
 
 /**
- * Lists every stored record (records written before the list existed count too) and
- * takes off keys whose records are gone (deleted by Firestore's TTL policy). Returns
- * the keys listed afterwards.
+ * Brings the list in line with the stored records: takes off keys whose records are
+ * gone (deleted by Firestore's TTL policy) and lists records stored before the list
+ * existed, as far as the cap allows. Returns the keys listed afterwards.
  */
 export async function reconcile(uid: string, name: CappedCollection): Promise<Set<string>> {
   const [listed, stored] = await Promise.all([listedKeys(uid, name), storedKeys(uid, name)])
   const gone = [...listed].filter(key => !stored.has(key))
   if (gone.length) await removeRecords(uid, name, gone, { deleteRecords: false })
-  return new Set([...listed].filter(key => stored.has(key)))
+  const kept = [...listed].filter(key => stored.has(key))
+  const room = Math.max(0, KEY_INDEX_CAPS[name] - kept.length)
+  const unlisted = [...stored].filter(key => !listed.has(key)).slice(0, room)
+  if (unlisted.length) {
+    const { firestore, index } = await open(uid, name)
+    const ids = Object.fromEntries(unlisted.map(key => [key, true]))
+    await firestore.setDoc(index, { ids, removed: [] }, { merge: true })
+  }
+  return new Set([...kept, ...unlisted])
 }
 
 /**

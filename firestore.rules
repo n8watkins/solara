@@ -297,7 +297,7 @@ service cloud.firestore {
     // cap. Keys of records Firestore's TTL policy deleted stay listed until the app takes
     // them off. Caps: 1,000 imported events, 500 scheduled activities.
     function listedAfter(userId, name, key) {
-      return key in getAfter(/databases/$(database)/documents/users/$(userId)/meta/$(name)).data.ids;
+      return key in getAfter(/databases/$(database)/documents/users/$(userId)/meta/$(name)).data.get('ids', {});
     }
 
     function goneAfter(userId, name, removed, i) {
@@ -307,12 +307,14 @@ service cloud.firestore {
 
     function validKeyIndex(userId, name, cap) {
       let data = request.resource.data;
-      return data.keys().hasAll(['ids', 'removed'])
+      // A write that only takes keys off a list that does not exist yet leaves no `ids`.
+      let ids = data.get('ids', {});
+      let before = resource == null ? {} : resource.data.get('ids', {});
+      return data.keys().hasAll(['removed'])
         && data.keys().hasOnly(['ids', 'removed'])
-        && data.ids is map && data.ids.size() <= cap
+        && ids is map && ids.size() <= cap
         && data.removed is list && data.removed.size() <= 8
-        && (resource == null
-          || data.ids.diff(resource.data.ids).removedKeys().difference(data.removed.toSet()).size() == 0)
+        && ids.diff(before).removedKeys().difference(data.removed.toSet()).size() == 0
         && goneAfter(userId, name, data.removed, 0)
         && goneAfter(userId, name, data.removed, 1)
         && goneAfter(userId, name, data.removed, 2)

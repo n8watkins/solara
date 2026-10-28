@@ -1173,6 +1173,24 @@ describe('per-account record caps', () => {
     await assertFails(index(db, 'other').set({ ids: {}, removed: [] }))
   })
 
+  test('records stored before the list existed can be deleted and listed', async () => {
+    await testEnv.withSecurityRulesDisabled(async context => {
+      const db = context.firestore()
+      await db.doc(`users/alice/events/${hex(1)}`).set(importedEvent(hex(1)))
+      await db.doc(`users/alice/events/${hex(2)}`).set(importedEvent(hex(2)))
+    })
+    const db = testEnv.authenticatedContext('alice').firestore()
+    // With no list yet, the write that takes a key off leaves the list without `ids`.
+    await assertSucceeds(removeBatch(db, 'events', [hex(1)]))
+    // Listing an existing record is always allowed.
+    await assertSucceeds(
+      index(db, 'events').set({ ids: { [hex(2)]: true }, removed: [] }, { merge: true }),
+    )
+    await assertSucceeds(
+      db.doc(`users/alice/events/${hex(2)}`).set(importedEvent(hex(2), { title: 'Renamed' })),
+    )
+  })
+
   test('an event expires at most 31 days after it ends', async () => {
     const db = testEnv.authenticatedContext('alice').firestore()
     const late = new Date(Date.parse(END) + 32 * 24 * 60 * 60 * 1000)
