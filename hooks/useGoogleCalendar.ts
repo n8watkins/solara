@@ -15,6 +15,7 @@ import {
 } from '@/lib/gcal'
 import { syncWithGoogle } from '@/lib/google-calendar-sync'
 import {
+  assertScheduledRoom,
   deleteScheduled,
   pruneExpiredScheduled,
   recordFromEvent,
@@ -137,6 +138,8 @@ export function useGoogleCalendar(
     sync,
     lastChanges,
     async schedule({ activity, dateStr, slot, description, timeZone }) {
+      // At the per-account cap nothing is added to Google Calendar either.
+      await assertScheduledRoom(uid)
       const body = buildEventBody(activity, dateStr, slot.start, slot.end, description, timeZone)
       const event = await withGoogle(accessToken => createCalendarEvent(accessToken, body))
       const record = recordFromEvent(event, { ...context(), timeZone })

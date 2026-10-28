@@ -26,11 +26,13 @@ import {
   IMPORTED_EVENT_FIELDS,
   IMPORTED_EVENT_LIMITS,
   IMPORTED_EVENT_MAX_TTL_DAYS,
+  IMPORTED_EVENT_RETENTION_DAYS,
   IMPORTED_EVENT_SHAPE,
   IMPORTED_EVENT_SOURCES,
   IMPORTED_EVENT_TTL_FIELD,
 } from '@solara/core/event-import'
 import { describe, expect, it } from 'vitest'
+import { KEY_INDEX_CAPS, KEY_INDEX_MAX_REMOVED } from './key-index'
 import { defaultPrefs, newAccountPrefs, normalizePrefs } from './prefs'
 import { ACTIVITY_CATEGORIES, PRESET_ACTIVITIES, TIER_LIMITS } from './tiers'
 
@@ -345,5 +347,44 @@ describe('firestore.rules imported events match the schema', () => {
     expect(
       numberIn(rules, /match \/events\/\{eventKey\}[^}]*?request\.query\.limit <= (\d+)/),
     ).toBe(IMPORTED_EVENT_LIMITS.listLimit)
+  })
+})
+
+describe('firestore.rules per-account caps match the client', () => {
+  it('caps each key list at the client cap', () => {
+    const cap = rulesFunction('keyIndexCap')
+    expect(numberIn(cap, /name == 'events' \? (\d+)/)).toBe(KEY_INDEX_CAPS.events)
+    expect(numberIn(cap, /: (\d+);/)).toBe(KEY_INDEX_CAPS.scheduled)
+    expect(KEY_INDEX_CAPS).toEqual({
+      events: IMPORTED_EVENT_LIMITS.maxStored,
+      scheduled: SCHEDULED_LIMITS.maxStored,
+    })
+  })
+
+  it('checks as many removed keys as the client takes off in one write', () => {
+    const index = rulesFunction('validKeyIndex')
+    expect(numberIn(index, /data\.removed\.size\(\) <= (\d+)/)).toBe(KEY_INDEX_MAX_REMOVED)
+    const checked = [...index.matchAll(/goneAfter\(userId, name, data\.removed, (\d+)\)/g)]
+    expect(checked.map(m => Number(m[1]))).toEqual(
+      Array.from({ length: KEY_INDEX_MAX_REMOVED }, (_, i) => i),
+    )
+  })
+
+  it('requires every record write to list its key', () => {
+    expect(rules).toMatch(
+      /validScheduled\(eventId\) && listedAfter\(userId, 'scheduled', eventId\)/,
+    )
+    expect(rules).toMatch(
+      /validImportedEvent\(eventKey\) && listedAfter\(userId, 'events', eventKey\)/,
+    )
+  })
+
+  it('expires an imported event at most a day past its retention', () => {
+    expect(
+      numberIn(
+        rulesFunction('validImportedEvent'),
+        /endDate\(data\.end\) \+ duration\.value\((\d+), 'd'\)/,
+      ),
+    ).toBe(IMPORTED_EVENT_RETENTION_DAYS + 1)
   })
 })

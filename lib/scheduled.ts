@@ -204,14 +204,30 @@ export function scheduledDocument(item: ScheduledActivity) {
   return { ...item, [SCHEDULED_TTL_FIELD]: scheduledExpiry(item) }
 }
 
+/**
+ * Saves a record with its key listed in users/{uid}/meta/scheduled, which the rules use
+ * to cap an account at SCHEDULED_LIMITS.maxStored records (lib/key-index.ts). Throws a
+ * RecordCapError when a new record does not fit.
+ */
 export async function saveScheduled(uid: string, item: ScheduledActivity): Promise<void> {
-  const { firestore, scheduled } = await scheduledCollection(uid)
-  await firestore.setDoc(firestore.doc(scheduled, item.eventId), scheduledDocument(item))
+  const { saveWithinCap, RecordCapError, KEY_INDEX_CAPS } = await import('./key-index')
+  const refused = await saveWithinCap(uid, 'scheduled', [
+    { key: item.eventId, data: scheduledDocument(item) },
+  ])
+  if (refused.length) throw new RecordCapError('scheduled', KEY_INDEX_CAPS.scheduled)
+}
+
+/** Throws a RecordCapError when the account cannot hold another record. */
+export async function assertScheduledRoom(uid: string): Promise<void> {
+  const { listedKeys, reconcile, RecordCapError, KEY_INDEX_CAPS } = await import('./key-index')
+  const cap = KEY_INDEX_CAPS.scheduled
+  if ((await listedKeys(uid, 'scheduled')).size < cap) return
+  if ((await reconcile(uid, 'scheduled')).size >= cap) throw new RecordCapError('scheduled', cap)
 }
 
 export async function deleteScheduled(uid: string, eventId: string): Promise<void> {
-  const { firestore, scheduled } = await scheduledCollection(uid)
-  await firestore.deleteDoc(firestore.doc(scheduled, eventId))
+  const { removeRecords } = await import('./key-index')
+  await removeRecords(uid, 'scheduled', [eventId])
 }
 
 /**
@@ -235,7 +251,8 @@ export async function pruneExpiredScheduled(uid: string, nowMs: number): Promise
   const cutoff = scheduledRetentionCutoff(nowMs)
   let deleted = 0
   const { firestore, scheduled } = await scheduledCollection(uid)
-  const { deleteDoc, getDocs, limit, orderBy, query, where } = firestore
+  const { getDocs, limit, orderBy, query, where } = firestore
+  const { removeRecords } = await import('./key-index')
   for (let page = 0; page < MAX_PRUNE_PAGES; page += 1) {
     const snapshot = await getDocs(
       query(
@@ -245,7 +262,11 @@ export async function pruneExpiredScheduled(uid: string, nowMs: number): Promise
         limit(SCHEDULED_LIMITS.listLimit),
       ),
     )
-    await Promise.all(snapshot.docs.map(d => deleteDoc(d.ref)))
+    await removeRecords(
+      uid,
+      'scheduled',
+      snapshot.docs.map(d => d.id),
+    )
     deleted += snapshot.size
     if (snapshot.size < SCHEDULED_LIMITS.listLimit) break
   }

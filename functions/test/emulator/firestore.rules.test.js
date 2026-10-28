@@ -1,4 +1,4 @@
-const { after, afterEach, before, describe, test } = require('node:test')
+const { after, afterEach, before, beforeEach, describe, test } = require('node:test')
 const fs = require('node:fs')
 const firebase = require('firebase/compat/app')
 require('firebase/compat/firestore')
@@ -45,6 +45,17 @@ async function seededRef(uid, overrides = {}) {
   return testEnv.authenticatedContext(uid).firestore().doc(`users/${uid}`)
 }
 after(async () => testEnv.cleanup())
+
+/**
+ * Lists record keys in users/{uid}/meta/{name} as the app's batched writes do, so the
+ * tests of a record's fields can write it on its own (see 'per-account record caps').
+ */
+async function seedKeyIndex(uid, name, keys) {
+  await testEnv.withSecurityRulesDisabled(async context => {
+    const ids = Object.fromEntries(keys.map(key => [key, true]))
+    await context.firestore().doc(`users/${uid}/meta/${name}`).set({ ids, removed: [] })
+  })
+}
 
 describe('user preferences', () => {
   test('an owner can create and update allowlisted preference fields', async () => {
@@ -795,6 +806,8 @@ describe('server switches', () => {
 })
 
 describe('scheduled activities', () => {
+  beforeEach(() => seedKeyIndex('alice', 'scheduled', ['evt1', 'evt2', 'bad.id']))
+
   function scheduled(eventId, overrides = {}) {
     return {
       eventId,
@@ -902,6 +915,9 @@ describe('scheduled activities', () => {
 describe('imported events', () => {
   const KEY = 'a'.repeat(32)
   const OTHER = 'fedcba9876543210fedcba9876543210'
+  const upper = KEY.toUpperCase()
+  beforeEach(() => seedKeyIndex('alice', 'events', [KEY, OTHER, upper, 'evt1']))
+
   function importedEvent(key, overrides = {}) {
     return {
       key,
@@ -921,7 +937,7 @@ describe('imported events', () => {
       createdAt: '2026-06-15T17:30:00.000Z',
       updatedAt: '2026-06-15T17:30:00.000Z',
       // Firestore's TTL policy deletes the record after this (30 days after it ends).
-      expireAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      expireAt: new Date(Date.parse('2026-06-20T16:30:00.000Z') + 30 * 24 * 60 * 60 * 1000),
       ...overrides,
     }
   }
@@ -994,7 +1010,6 @@ describe('imported events', () => {
     )
     // Keys are SHA-256 prefixes: lowercase hex, 32 characters.
     await assertFails(db.doc('users/alice/events/evt1').set(importedEvent('evt1')))
-    const upper = KEY.toUpperCase()
     await assertFails(db.doc(`users/alice/events/${upper}`).set(importedEvent(upper)))
     await assertSucceeds(ref.set(importedEvent(KEY)))
   })
@@ -1008,5 +1023,170 @@ describe('imported events', () => {
     const alice = testEnv.authenticatedContext('alice').firestore()
     await assertFails(alice.doc(`users/alice/events/${KEY}`).get())
     await assertFails(alice.doc(`users/alice/events/${OTHER}`).set(importedEvent(OTHER)))
+  })
+})
+
+// REVIEW4 M4: users/{uid}/meta/{events,scheduled} lists every record's key, so the rules
+// can cap how many records an account holds (1,000 imported events, 500 scheduled
+// activities) and no key can leave the list while its record still exists.
+describe('per-account record caps', () => {
+  const FieldValue = firebase.firestore.FieldValue
+  const hex = n => n.toString(16).padStart(32, '0')
+  const END = '2026-11-20T16:30:00.000Z'
+  function importedEvent(key, overrides = {}) {
+    return {
+      key,
+      source: 'file',
+      seriesId: key,
+      title: 'Saturday 10K',
+      start: '2026-11-20T15:00:00.000Z',
+      end: END,
+      timeZone: 'America/Los_Angeles',
+      where: '',
+      lat: 34.14,
+      lon: -118.29,
+      placeLabel: 'Los Angeles, California',
+      placeGuessed: false,
+      activityId: '',
+      url: '',
+      createdAt: '2026-10-28T17:30:00.000Z',
+      updatedAt: '2026-10-28T17:30:00.000Z',
+      expireAt: new Date(Date.parse(END) + 30 * 24 * 60 * 60 * 1000),
+      ...overrides,
+    }
+  }
+  function scheduled(eventId) {
+    return {
+      eventId,
+      calendarId: 'primary',
+      activityId: 'run',
+      title: 'Running',
+      icon: '🏃',
+      start: '2026-11-16T01:00:00.000Z',
+      end: '2026-11-16T01:45:00.000Z',
+      timeZone: 'America/Los_Angeles',
+      htmlLink: `https://www.google.com/calendar/event?eid=${eventId}`,
+      createdAt: '2026-10-28T17:30:00.000Z',
+      updatedAt: '2026-10-28T17:30:00.000Z',
+      expireAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    }
+  }
+  const index = (db, name) => db.doc(`users/alice/meta/${name}`)
+
+  /** Saves events the way the app does: the records and their keys in one batch. */
+  async function saveEvents(db, keys) {
+    for (let i = 0; i < keys.length; i += 400) {
+      const batch = db.batch()
+      const slice = keys.slice(i, i + 400)
+      for (const key of slice) batch.set(db.doc(`users/alice/events/${key}`), importedEvent(key))
+      batch.set(
+        index(db, 'events'),
+        { ids: Object.fromEntries(slice.map(key => [key, true])), removed: [] },
+        { merge: true },
+      )
+      await batch.commit()
+    }
+  }
+
+  /** Deletes records and takes their keys off the list in one batch. */
+  function removeBatch(db, name, keys, { deleteDocs = true, declared = keys } = {}) {
+    const batch = db.batch()
+    if (deleteDocs) for (const key of keys) batch.delete(db.doc(`users/alice/${name}/${key}`))
+    batch.set(
+      index(db, name),
+      { ids: Object.fromEntries(keys.map(key => [key, FieldValue.delete()])), removed: declared },
+      { merge: true },
+    )
+    return batch.commit()
+  }
+
+  test('a record can only be written with its key on the list', async () => {
+    const db = testEnv.authenticatedContext('alice').firestore()
+    await assertFails(db.doc(`users/alice/events/${hex(1)}`).set(importedEvent(hex(1))))
+    await assertFails(db.doc('users/alice/scheduled/evt1').set(scheduled('evt1')))
+    await assertSucceeds(saveEvents(db, [hex(1)]))
+    // Once listed, an update needs nothing more.
+    await assertSucceeds(
+      db.doc(`users/alice/events/${hex(1)}`).set(importedEvent(hex(1), { title: 'Renamed' })),
+    )
+    const batch = db.batch()
+    batch.set(db.doc('users/alice/scheduled/evt1'), scheduled('evt1'))
+    batch.set(index(db, 'scheduled'), { ids: { evt1: true }, removed: [] }, { merge: true })
+    await assertSucceeds(batch.commit())
+    await assertSucceeds(index(db, 'events').get())
+    const mallory = testEnv.authenticatedContext('mallory').firestore()
+    await assertFails(mallory.doc('users/alice/meta/events').get())
+    await assertFails(
+      mallory.doc('users/alice/meta/events').set({ ids: {}, removed: [] }, { merge: true }),
+    )
+  })
+
+  test('an account holds at most 1,000 imported events', async () => {
+    const db = testEnv.authenticatedContext('alice').firestore()
+    const keys = Array.from({ length: 1000 }, (_, i) => hex(i + 1))
+    await assertSucceeds(saveEvents(db, keys))
+    await assertFails(saveEvents(db, [hex(5000)]))
+    // Rewriting a stored event is not a new one.
+    await assertSucceeds(saveEvents(db, [hex(7)]))
+    // Removing one makes room for one.
+    await assertSucceeds(removeBatch(db, 'events', [hex(1)]))
+    await assertSucceeds(saveEvents(db, [hex(5000)]))
+    await assertFails(saveEvents(db, [hex(5001)]))
+  })
+
+  test('an account holds at most 500 scheduled activities', async () => {
+    await testEnv.withSecurityRulesDisabled(async context => {
+      const ids = Object.fromEntries(Array.from({ length: 500 }, (_, i) => [`evt${i}`, true]))
+      await context.firestore().doc('users/alice/meta/scheduled').set({ ids, removed: [] })
+    })
+    const db = testEnv.authenticatedContext('alice').firestore()
+    const batch = db.batch()
+    batch.set(db.doc('users/alice/scheduled/new1'), scheduled('new1'))
+    batch.set(index(db, 'scheduled'), { ids: { new1: true }, removed: [] }, { merge: true })
+    await assertFails(batch.commit())
+    // Keys whose records are gone (deleted by Firestore's TTL policy) can be taken off.
+    await assertSucceeds(removeBatch(db, 'scheduled', ['evt1', 'evt2'], { deleteDocs: false }))
+    const retry = db.batch()
+    retry.set(db.doc('users/alice/scheduled/new1'), scheduled('new1'))
+    retry.set(index(db, 'scheduled'), { ids: { new1: true }, removed: [] }, { merge: true })
+    await assertSucceeds(retry.commit())
+  })
+
+  test('a key leaves the list only when its record is gone and the write names it', async () => {
+    const db = testEnv.authenticatedContext('alice').firestore()
+    const keys = Array.from({ length: 12 }, (_, i) => hex(i + 1))
+    await saveEvents(db, keys)
+    // The record still exists.
+    await assertFails(removeBatch(db, 'events', [hex(1)], { deleteDocs: false }))
+    // Taken off without being named, or named without being taken off.
+    await assertFails(removeBatch(db, 'events', [hex(1)], { declared: [] }))
+    await assertFails(removeBatch(db, 'events', [], { declared: [hex(1)] }))
+    // At most 8 keys per write.
+    await assertFails(removeBatch(db, 'events', keys.slice(0, 9)))
+    await assertSucceeds(removeBatch(db, 'events', keys.slice(0, 8)))
+    // Deleting a record alone is always allowed; its key can be taken off later.
+    await assertSucceeds(db.doc(`users/alice/events/${hex(9)}`).delete())
+    await assertSucceeds(removeBatch(db, 'events', [hex(9)], { deleteDocs: false }))
+    // The list itself is never deleted and holds nothing else.
+    await assertFails(index(db, 'events').delete())
+    await assertFails(index(db, 'events').set({ ids: {}, removed: [], extra: 1 }, { merge: true }))
+    await assertFails(index(db, 'other').set({ ids: {}, removed: [] }))
+  })
+
+  test('an event expires at most 31 days after it ends', async () => {
+    const db = testEnv.authenticatedContext('alice').firestore()
+    const late = new Date(Date.parse(END) + 32 * 24 * 60 * 60 * 1000)
+    const batch = db.batch()
+    batch.set(db.doc(`users/alice/events/${hex(1)}`), importedEvent(hex(1), { expireAt: late }))
+    batch.set(index(db, 'events'), { ids: { [hex(1)]: true }, removed: [] }, { merge: true })
+    await assertFails(batch.commit())
+    const odd = db.batch()
+    odd.set(
+      db.doc(`users/alice/events/${hex(1)}`),
+      importedEvent(hex(1), { end: 'Fri Nov 20 2026 16:30:00 GMT', start: 'Fri Nov 20 2026' }),
+    )
+    odd.set(index(db, 'events'), { ids: { [hex(1)]: true }, removed: [] }, { merge: true })
+    await assertFails(odd.commit())
+    await assertSucceeds(saveEvents(db, [hex(1)]))
   })
 })

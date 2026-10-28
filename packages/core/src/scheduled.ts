@@ -21,6 +21,11 @@ export const SCHEDULED_LIMITS = Object.freeze({
   linkLength: 2048,
   /** Most records one list query may return (rules check `request.query.limit`). */
   listLimit: 100,
+  /**
+   * Most records one account may hold (REVIEW4 M4; default, owner may change). The rules
+   * enforce it through users/{uid}/meta/scheduled (lib/key-index.ts).
+   */
+  maxStored: 500,
 })
 
 /** Fields of a stored scheduled activity, in the order firestore.rules lists them. */
