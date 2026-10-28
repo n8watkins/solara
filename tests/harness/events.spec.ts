@@ -210,6 +210,25 @@ test('linked calendars are hidden until switched on', async ({ page }, testInfo)
   await expect(page.getByTestId('event-subscriptions')).toHaveCount(0)
 })
 
+test('the section names every switched-on source, and no link for Google events', async ({
+  page,
+}, testInfo) => {
+  test.skip(!testInfo.project.name.endsWith('-light'), 'copy check, once per width')
+  const section = page.getByTestId('events-section')
+  await preparePage(page, testInfo, answerOpenMeteo)
+  await page.goto('/harness/?screen=dashboard&events=sample')
+  await expect(page.getByTestId(HARNESS_MARKER)).toBeVisible()
+  await expect(section).toContainText('from a calendar (.ics) file.')
+  await expect(section).toContainText('title, time, place and link are kept')
+  await page.goto('/harness/?screen=dashboard&events=sample&subscriptions=on&gcal=on')
+  await expect(section).toContainText(
+    'from a calendar (.ics) file, a calendar link or Google Calendar.',
+  )
+  await expect(section).toContainText(
+    'title, time and place, and the link a calendar file or linked calendar gives, are kept',
+  )
+})
+
 test('linked calendars on Pro: every state, link, refresh and remove', async ({
   page,
 }, testInfo) => {

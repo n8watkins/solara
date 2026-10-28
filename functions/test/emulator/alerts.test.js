@@ -534,6 +534,15 @@ describe('event heads-ups', () => {
         feedId: 'c'.repeat(32),
       })
     }
+    // An event read from Google Calendar with no matching activity (lib/google-events.ts
+    // stores it with activityId '' from matchActivity) gets none either, however high
+    // the UV.
+    await addEvent('pro', key(7), {
+      title: 'Client lunch at Balboa Park',
+      start: at('2026-06-15', 12),
+      activityId: '',
+      source: 'google',
+    })
     // An activity the person has since removed counts as none, too.
     await addEvent('pro', key(9), {
       title: 'Golf',
@@ -546,7 +555,7 @@ describe('event heads-ups', () => {
     assert.deepEqual(titlesOf(sends, 'pro'), [])
   })
 
-  test('the same event from a file and a linked calendar gets one heads-up (REVIEW5 M3)', async () => {
+  test('the same event from a file, a linked calendar and Google Calendar gets one heads-up (REVIEW5 M3)', async () => {
     await addUser('pro')
     await addEvent('pro', key(1), { title: 'Saturday 10K', start: at('2026-06-15', 13) })
     await addEvent('pro', key(2), {
@@ -554,6 +563,12 @@ describe('event heads-ups', () => {
       start: new Date(at('2026-06-15', 13).getTime() + 15 * 60_000),
       source: 'feed',
       feedId: 'c'.repeat(32),
+    })
+    // The same race read from Google Calendar too.
+    await addEvent('pro', key(4), {
+      title: 'Saturday 10K',
+      start: at('2026-06-15', 13),
+      source: 'google',
     })
     const messaging = new FakeMessaging()
     const sends = recording(messaging)
