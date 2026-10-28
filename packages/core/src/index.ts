@@ -2,6 +2,7 @@
 // The web app imports this TypeScript source directly; Functions load the
 // CommonJS build in functions/core (npm run build:core).
 
+export * from './alerts'
 export * from './exposure'
 export * from './feed-token'
 export * from './forecast'

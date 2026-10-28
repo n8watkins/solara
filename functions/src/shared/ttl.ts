@@ -21,6 +21,8 @@ export const RETENTION_DAYS = Object.freeze({
   completedDeletion: 90,
   /** A registration rate-limit window is useless a minute later. */
   notificationRegistrationLimits: 1,
+  /** An account's alert state names one local day; a week covers every time zone. */
+  alertState: 7,
   /** A cached forecast is replaced every hour; a day covers the last-good fallback. */
   forecastCache: 1,
 })

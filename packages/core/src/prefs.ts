@@ -59,6 +59,23 @@ export type ClockFormatPreference = (typeof CLOCK_FORMAT_PREFERENCES)[number]
 /** Morning notification hour: allowed range and default. */
 export const NOTIFICATION_HOUR = Object.freeze({ min: 5, max: 10, default: 7 })
 
+/**
+ * The UV alert (Pro): a push on the day today's UV index first reaches this whole
+ * number. Off when the field is missing.
+ */
+export const UV_ALERT_THRESHOLD = Object.freeze({ min: 1, max: 11 })
+
+/**
+ * Quiet hours, as whole local hours: alerts other than the morning alert (whose hour
+ * the person picks) wait until `to`. `from` after `to` spans midnight; equal hours
+ * mean no quiet hours. A missing field means QUIET_HOURS.default.
+ */
+export const QUIET_HOURS = Object.freeze({
+  min: 0,
+  max: 23,
+  default: Object.freeze({ from: 21, to: 7 }),
+})
+
 /** Calendar view bounds: `from` is a start hour, `to` an end hour. */
 export const CALENDAR_HOUR_BOUNDS = Object.freeze({
   from: { min: 0, max: 23 },
@@ -279,6 +296,12 @@ const calendarHours = v.pipe(
   })),
 )
 
+/** A whole hour 0-23. */
+const quietHour = v.pipe(
+  finiteNumber,
+  v.transform(hour => clamp(Math.round(hour), QUIET_HOURS.min, QUIET_HOURS.max)),
+)
+
 const upgradeInterest = record({
   email: v.fallback(
     v.optional(
@@ -378,6 +401,18 @@ export const PREFERENCES_SHAPE = {
     ),
     NOTIFICATION_HOUR.default,
   ),
+  /** UV alert threshold (Pro); see UV_ALERT_THRESHOLD. Undefined means off. */
+  uvAlertThreshold: v.fallback(
+    v.optional(
+      v.pipe(
+        finiteNumber,
+        v.transform(uv => clamp(Math.round(uv), UV_ALERT_THRESHOLD.min, UV_ALERT_THRESHOLD.max)),
+      ),
+    ),
+    undefined,
+  ),
+  /** Quiet hours for alerts; see QUIET_HOURS. Undefined means the default. */
+  quietHours: v.fallback(v.optional(record({ from: quietHour, to: quietHour })), undefined),
   /** Temperature display unit; see TEMPERATURE_UNIT_PREFERENCES. */
   temperatureUnit: v.fallback(v.optional(v.picklist(TEMPERATURE_UNIT_PREFERENCES)), undefined),
   /** 12- or 24-hour clock; see CLOCK_FORMAT_PREFERENCES. */

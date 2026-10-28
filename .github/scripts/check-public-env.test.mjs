@@ -52,6 +52,10 @@ test('ties the Functions URL to the Functions deployment switch', () => {
     /NEXT_PUBLIC_FORECAST_PROXY is set but Functions are not deployed/,
   )
   assert.match(
+    checkEnv({ ...complete, NEXT_PUBLIC_ALERTS_ENABLED: '1' }).errors.join('\n'),
+    /NEXT_PUBLIC_ALERTS_ENABLED is set but Functions are not deployed/,
+  )
+  assert.match(
     checkEnv({ ...complete, NEXT_PUBLIC_FUNCTIONS_URL: 'https://fn.example.com' }).errors.join(
       '\n',
     ),

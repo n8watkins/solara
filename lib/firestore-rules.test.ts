@@ -9,6 +9,7 @@ import {
   PREFS_LIMITS,
   PREFS_SCHEMA_VERSION,
   PROFILE_SHAPE,
+  QUIET_HOURS,
   SCHEDULED_CALENDAR_IDS,
   SCHEDULED_FIELDS,
   SCHEDULED_MAX_TTL_DAYS,
@@ -19,6 +20,7 @@ import {
   SKIN_TYPES,
   TEMPERATURE_UNIT_PREFERENCES,
   TIER_LEVELS,
+  UV_ALERT_THRESHOLD,
 } from '@solara/core'
 import { describe, expect, it } from 'vitest'
 import { defaultPrefs, newAccountPrefs, normalizePrefs } from './prefs'
@@ -133,6 +135,13 @@ describe('firestore.rules match the preferences schema', () => {
     expect(numberIn(hours, /hours\.from <= (\d+)/)).toBe(CALENDAR_HOUR_BOUNDS.from.max)
     expect(numberIn(hours, /hours\.to >= (\d+)/)).toBe(CALENDAR_HOUR_BOUNDS.to.min)
     expect(numberIn(hours, /hours\.to <= (\d+)/)).toBe(CALENDAR_HOUR_BOUNDS.to.max)
+    expect(numberIn(preferences, /uvAlertThreshold >= (\d+)/)).toBe(UV_ALERT_THRESHOLD.min)
+    expect(numberIn(preferences, /uvAlertThreshold <= (\d+)/)).toBe(UV_ALERT_THRESHOLD.max)
+    const quiet = rulesFunction('validQuietHours')
+    expect(numberIn(quiet, /hours\.from >= (\d+)/)).toBe(QUIET_HOURS.min)
+    expect(numberIn(quiet, /hours\.from <= (\d+)/)).toBe(QUIET_HOURS.max)
+    expect(numberIn(quiet, /hours\.to >= (\d+)/)).toBe(QUIET_HOURS.min)
+    expect(numberIn(quiet, /hours\.to <= (\d+)/)).toBe(QUIET_HOURS.max)
     expect(numberIn(preferences, /activeProfileId\.size\(\) <= (\d+)/)).toBe(
       PREFS_LIMITS.activeProfileIdLength,
     )

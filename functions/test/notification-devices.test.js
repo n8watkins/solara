@@ -654,12 +654,3 @@ describe('notification device mutations', () => {
     assert.equal(db.deletes.length, 0)
   })
 })
-
-describe('morning notifier', () => {
-  test('derives the same token owner ids as device registration', () => {
-    const notifier = require('../scripts/notification-core')
-    for (const token of [TOKEN, 'x'.repeat(4096), 'fcm:APA91b-token_with.symbols']) {
-      assert.equal(notifier.tokenOwnerId(token), tokenOwnerId(token))
-    }
-  })
-})

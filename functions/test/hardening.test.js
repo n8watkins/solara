@@ -94,12 +94,16 @@ describe('deployed runtime ceilings', () => {
     assert.equal(budgetAlert.__endpoint.eventTrigger.eventFilters.topic, 'budget-alerts')
   })
 
-  test('uses one Cloud Scheduler job, leaving free jobs for morning alerts', () => {
+  test("stays within Cloud Scheduler's three free jobs: maintenance and alerts", () => {
     const scheduled = Object.entries(functions).filter(([, fn]) => fn.__endpoint.scheduleTrigger)
-    assert.deepEqual(
-      scheduled.map(([name]) => name),
-      ['maintenance'],
-    )
+    assert.deepEqual(scheduled.map(([name]) => name).sort(), ['alerts', 'maintenance'])
+    const { alerts } = functions
+    assert.equal(alerts.__endpoint.scheduleTrigger.schedule, 'every 15 minutes')
+    assert.equal(alerts.__endpoint.scheduleTrigger.retryConfig.retryCount, 0)
+    assert.equal(alerts.__endpoint.maxInstances, 1)
+    assert.equal(alerts.__endpoint.concurrency, 1)
+    // The default runtime identity until ALERTS_SERVICE_ACCOUNT names one.
+    assert.notEqual(typeof alerts.__endpoint.serviceAccountEmail, 'string')
   })
 
   test('every HTTP function verifies App Check, except the two token-checked ones', () => {

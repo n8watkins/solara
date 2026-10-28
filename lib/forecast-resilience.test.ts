@@ -5,8 +5,6 @@ import { fetchForecast, weatherLabel } from '@/lib/forecast'
 /* eslint-disable @typescript-eslint/no-require-imports */
 const core = require('../functions/core')
 const sun = require('../functions/lib/feed/sun')
-const notificationCore = require('../functions/scripts/notification-core')
-const { clearForecastCache, fetchHourly } = require('../functions/scripts/send-notifications')
 // The Functions log through firebase-functions/logger, resolved from functions/.
 const { logger } = createRequire(require.resolve('../functions/package.json'))(
   'firebase-functions/logger',
@@ -49,15 +47,13 @@ afterEach(() => {
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
   sun.clearLastGoodForecasts()
-  clearForecastCache()
 })
 
 describe('weather labels', () => {
-  it('uses one table in the app and the notifier', () => {
+  it('uses one table in the app and the Functions', () => {
     for (let code = -1; code <= 100; code++) {
-      expect(notificationCore.weatherLabel(code)).toBe(weatherLabel(code))
+      expect(core.weatherLabel(code)).toBe(weatherLabel(code))
     }
-    expect(notificationCore.weatherLabel).toBe(core.weatherLabel)
   })
 
   it('maps WMO groups, including snow showers, and marks missing codes as unknown', () => {
@@ -171,36 +167,5 @@ describe('calendar feed forecast', () => {
     await expect(
       sun.fetchForecast(40, -74, 1, { fetchImpl: async () => failing() }),
     ).rejects.toThrow('Forecast request failed: 503')
-  })
-})
-
-describe('notifier forecast cache', () => {
-  it('retries a failed request once', async () => {
-    vi.useFakeTimers({ toFake: ['Date'] })
-    vi.setSystemTime(new Date('2026-06-15T12:00:00Z'))
-    const fetchImpl = vi
-      .fn()
-      .mockResolvedValueOnce(failing())
-      .mockResolvedValueOnce(okJson(rawDay('2026-06-15')))
-    const forecast = await fetchHourly(34, -118, { fetchImpl })
-    expect(fetchImpl).toHaveBeenCalledTimes(2)
-    expect(forecast.hourly).toHaveLength(15)
-  })
-
-  it('evicts a failed lookup so a later subscriber tries again', async () => {
-    vi.useFakeTimers({ toFake: ['Date'] })
-    vi.setSystemTime(new Date('2026-06-15T12:00:00Z'))
-    const down = vi.fn(async () => failing())
-    await expect(fetchHourly(34, -118, { fetchImpl: down })).rejects.toThrow('503')
-    expect(down).toHaveBeenCalledTimes(2)
-
-    const up = vi.fn(async () => okJson(rawDay('2026-06-15')))
-    const forecast = await fetchHourly(34, -118, { fetchImpl: up })
-    expect(up).toHaveBeenCalledTimes(1)
-    expect(forecast.timezone).toBe('UTC')
-
-    // A success stays cached for the rest of the run.
-    await fetchHourly(34, -118, { fetchImpl: up })
-    expect(up).toHaveBeenCalledTimes(1)
   })
 })

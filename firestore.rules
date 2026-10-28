@@ -144,6 +144,15 @@ service cloud.firestore {
         && hours.to is number && hours.to >= 1 && hours.to <= 24;
     }
 
+    // Whole local hours; equal hours mean no quiet hours (QUIET_HOURS in prefs.ts).
+    function validQuietHours(hours) {
+      return hours is map
+        && hours.keys().hasAll(['from', 'to'])
+        && hours.keys().hasOnly(['from', 'to'])
+        && hours.from is int && hours.from >= 0 && hours.from <= 23
+        && hours.to is int && hours.to >= 0 && hours.to <= 23;
+    }
+
     function validUpgradeInterest(interest) {
       return interest is map
         && interest.keys().hasOnly(['email', 'createdAt'])
@@ -190,7 +199,8 @@ service cloud.firestore {
         'schemaVersion', 'location', 'savedLocations', 'skinType', 'profiles', 'activeProfileId',
         'sunscreen', 'activities', 'onboardingComplete', 'calendarHours', 'showSunPath',
         'hiddenActivitySuggestionIds', 'collapsedActivityCategories', 'upgradeInterest',
-        'notificationHour', 'temperatureUnit', 'clockFormat', 'groupMode', 'groupProfileIds'
+        'notificationHour', 'temperatureUnit', 'clockFormat', 'groupMode', 'groupProfileIds',
+        'uvAlertThreshold', 'quietHours'
       ];
     }
 
@@ -233,7 +243,12 @@ service cloud.firestore {
         && (!('clockFormat' in keys) || data.clockFormat in ['auto', '12h', '24h'])
         && (!('groupMode' in keys) || data.groupMode is bool)
         && (!('groupProfileIds' in keys)
-          || (data.groupProfileIds is list && data.groupProfileIds.size() <= 12));
+          || (data.groupProfileIds is list && data.groupProfileIds.size() <= 12))
+        && (!('uvAlertThreshold' in keys)
+          || (data.uvAlertThreshold is int
+            && data.uvAlertThreshold >= 1
+            && data.uvAlertThreshold <= 11))
+        && (!('quietHours' in keys) || validQuietHours(data.quietHours));
     }
 
     function validNewUser(userId) {

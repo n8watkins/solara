@@ -8,8 +8,7 @@ import type { Activity } from '@/lib/types'
 /* eslint-disable @typescript-eslint/no-require-imports */
 const engine = require('../functions/core')
 const sun = require('../functions/lib/feed/sun')
-const { buildMessage } = require('../functions/scripts/notification-core')
-const { clearForecastCache, fetchHourly } = require('../functions/scripts/send-notifications')
+const { alertDayHours } = require('../functions/lib/notifications/alerts')
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 // Acceptance for CQ-1: Open-Meteo returns `null` for hours it has no data for.
@@ -67,7 +66,6 @@ afterEach(() => {
   vi.useRealTimers()
   vi.restoreAllMocks()
   sun.clearLastGoodForecasts()
-  clearForecastCache()
 })
 
 describe('null UV gaps never produce a recommendation', () => {
@@ -122,13 +120,18 @@ describe('null UV gaps never produce a recommendation', () => {
     expect(buildICS(events, NOW)).toContain('DTSTART:20260615T060000')
   })
 
-  it('notifier: the morning message never names a window across the gap', async () => {
-    const fetchImpl = vi.fn(async () => okJson(rawWithGap()))
-    const forecast = await fetchHourly(34, -118, { fetchImpl })
-    expect(forecast.hourly.map((h: { hour: number }) => h.hour)).toEqual([
+  it('alerts: the morning alert never names a window across the gap', () => {
+    const hourly = alertDayHours(engine.parseOpenMeteoResponse(rawWithGap()), DATE)
+    expect(hourly.map((h: { hour: number }) => h.hour)).toEqual([
       6, 7, 8, 9, 15, 16, 17, 18, 19, 20,
     ])
-    const message = buildMessage({ activities: [walk] }, forecast.hourly, DATE)
+    const message = engine.morningAlertMessage({
+      date: DATE,
+      city: 'Los Angeles',
+      hourly,
+      activities: [walk],
+      skinType: 'fair',
+    })
     expect(message.title).toBe('🚶 Walk: 6am to 10am')
   })
 })
