@@ -16,7 +16,8 @@
 //
 // Every limiter that uses this key lives in one instance's memory, so the effective
 // limit across a function is `limit x maxInstances` (shared/options.ts). Paths whose
-// cost must be bounded globally use a shared counter instead (forecast/upstream-budget.ts).
+// cost must be bounded globally use shared counters instead (forecast/upstream-budget.ts
+// and each caller's share of it, forecast/caller-share.ts).
 
 import { isIP } from 'node:net'
 

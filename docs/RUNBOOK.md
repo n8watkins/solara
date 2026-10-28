@@ -25,7 +25,8 @@ ERROR messages and where they are handled:
 | `client address is a proxy address: check TRUSTED_PROXY_HOPS` | Per-address limits are keying on a Google proxy, so people share one budget; set `TRUSTED_PROXY_HOPS` as in [Check the client address](DEPLOYMENT.md#check-the-client-address-at-the-first-deploy) and redeploy the Functions |
 | `maintenance task <name> failed` | The task's own errors are in the same log entry; the next run (5 minutes) retries; if it keeps failing, see [Rollback](#rollback) |
 | `stripeWebhook failed` | Stripe retries for 3 days; fix the cause, then resend the event from the Stripe dashboard (**Developers**, **Webhooks**, the event, **Resend**) |
-| `forecast upstream budget exhausted` | The forecast proxy and the feed have made their hourly or daily share of paid forecast calls (`FORECAST_UPSTREAM_PER_HOUR`, `FORECAST_UPSTREAM_PER_DAY`); cached forecasts are still served. Look at the `forecast` Function's request counts for a flood of new places; if it is real growth, raise the caps in `functions/.env` within the plan's monthly calls ([Forecast proxy](DEPLOYMENT.md#forecast-proxy)) |
+| `forecast upstream budget exhausted` | The forecast proxy and the feed have made their hourly or daily share of paid forecast calls (`FORECAST_UPSTREAM_PER_HOUR`, `FORECAST_UPSTREAM_PER_DAY`); cached forecasts up to 12 hours old are still served, flagged stale. Each caller may spend only 20 calls an hour, so this takes many addresses or real growth: look at the `forecast` Function's request counts and the `caller share of upstream calls spent` warnings; if it is real growth, raise the caps in `functions/.env` within the plan's monthly calls ([Forecast proxy](DEPLOYMENT.md#forecast-proxy)) |
+| `place search upstream budget exhausted` | Place search has made its hourly or daily calls (`PLACE_SEARCH_UPSTREAM_PER_HOUR`, `PLACE_SEARCH_UPSTREAM_PER_DAY`); searches already cached still answer, new ones get 503 until the next hour, and forecasts are unaffected. Same checks as above, on the `placeSearch` Function |
 | `<function> failed` (a 5xx answer) | The function's recent logs in Cloud Run; roll the Function back if a deploy caused it. Logged at most once a minute per instance; `suppressed` counts the failures held back since the previous line |
 
 ## Cost guard
@@ -40,7 +41,7 @@ While it is engaged:
 | Calendar feed (`calendarFeed`) | 503 with `Retry-After: 3600`; calendar apps keep their last copy |
 | New feed links (`rotateCalendarFeed`) | 503 `unavailable`; revoking a link still works |
 | Notification device registration (`registerNotificationDevice`) | 503 `unavailable`; removal still works |
-| Forecast proxy (`forecast`, when switched on) | Serves cached forecasts (up to 6 hours old) and makes no upstream call; a place with no cached forecast gets 503 |
+| Forecast proxy (`forecast`, when switched on) | Serves cached forecasts (up to 12 hours old, flagged stale) and makes no upstream call; a place with no cached forecast gets 503 |
 | Pro alerts (the `alerts` job) | Unchanged while the budget engaged it: their cost is bounded by the number of Pro accounts and the per-run caps, not by anyone's traffic, so paying customers keep them during an attack. The owner's pin (`override: engaged`) pauses them too (WARNING `alerts paused by the owner (cost guard override)`) |
 | Checkout, billing portal, Stripe webhook | Unchanged: they bring in money and keep subscriptions correct |
 | Account export and deletion, the `maintenance` job | Unchanged: people are owed these |
@@ -140,7 +141,7 @@ Firestore deletes these records some time after their `expireAt` passes, once `i
 | `notificationRegistrationLimits` | 1 day after the rate-limit window |
 | `users/{uid}/scheduled` | 30 days after the scheduled event ends |
 | `forecastCache` | 1 day after the forecast was fetched (each place is refreshed hourly while in use) |
-| `forecastUpstream` | 2 days after the hour or day its counter counts (the forecast upstream budget) |
+| `forecastUpstream` | 2 days after the hour or day its counter counts (the forecast and place search upstream budgets and the callers' shares of them) |
 | `alertState` | 7 days after the account's last alert was claimed |
 
 Check the policies with `gcloud firestore fields ttls list --project uv-activity-planner`.

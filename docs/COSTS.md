@@ -75,6 +75,7 @@ Free quotas protect nothing once billing is attached, so the Functions are built
 - every browser endpoint needs App Check and has per-address and per-account rate limits and a body size cap, and turns a request away before any Firestore read or upstream call;
 - rejections are logged once a minute, not once per request, and `infra/logging.sh` drops 99% of Cloud Run's request logs for rejected requests;
 - the forecast proxy, the calendar feed and the alerts share one cache per place and hour, so traffic does not multiply upstream calls, and a global budget caps the proxy's and the feed's paid forecast calls at 1,500 an hour and 20,000 a day (about 60% of the Standard plan), so a script walking new places cannot spend the plan's quota;
+- within that budget each caller (an IPv4 address, or an IPv6 /64 and its /48 at 4 times as much) may cause only 20 paid calls an hour, so one caller cannot spend everyone's hour, and place search has its own budget (200 an hour, 2,000 a day, about 6% of the plan), so searches and forecasts cannot starve each other; while a budget is spent, people get the last good forecast up to 12 hours old instead of an error (REVIEW4 H1);
 - the Firestore rules cap list sizes, and every server-owned record and scheduled activity expires.
 
 The budget kill switch is the last line ([runbook](RUNBOOK.md#budget-kill-switch)), with three tiers (defaults, owner may change):
@@ -99,6 +100,7 @@ These are planning estimates from public list prices, not measurements on a depl
 - Logs: about 1 KB per request log line.
   Without `infra/logging.sh`, Cloud Run's request logs alone would be about 1.3 TB a day (about $650 a day at $0.50 per GiB); with it, 1% are kept (about $6 a day), and the Functions' own rejection logs are a few lines a minute.
 - Firestore, Stripe and the forecast provider: nothing, because no rejected request reaches them.
+- Accepted cache misses: each one charges a caller's share in one Firestore transaction (one or two reads and writes), and the misses are bounded by the forecast and place search budgets (at most 1,700 an hour), so a few cents a day; a caller past its share costs one more transaction per instance and hour, then nothing.
 
 So a sustained, distributed flood costs at most about $550 a day, about $23 an hour, against $1,900 a day or more before these limits (37 instances and a log line per request).
 The budget kill switch is what ends it ([above](#abuse-and-the-kill-switch)): billing is detached once the month's spend reaches $75, and since Cloud Billing reports spend hours late (often 6-24 hours), the worst month is roughly $75 plus that lag at $23 an hour, about $200-$630, before nothing more can be billed.
