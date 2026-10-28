@@ -90,7 +90,7 @@ Already done: the domain move to `solara-uv.web.app`, the Firestore index role (
 17. **Buy the Open-Meteo Standard commercial plan** (about $29 per month) once the first subscription is live (D5), then switch forecasts to it:
     1. Set the key: `npx firebase functions:secrets:set OPEN_METEO_API_KEY --project uv-activity-planner` and paste the API key from the Open-Meteo dashboard.
     2. Set the `FORECAST_PROXY_ENABLED` repository variable to `true`: `gh variable set FORECAST_PROXY_ENABLED --repo n8watkins/solara --body true`.
-    3. The next deploy redeploys the Functions with the key and builds the app to fetch through the proxy; check that the dashboard still loads a forecast in a private window, and that the `forecast` Function's logs show no `forecast served from the last good copy` warnings.
+    3. The next deploy redeploys the Functions with the key and builds the app to fetch through the proxy; check that the dashboard still loads a forecast and setup still suggests places in a private window, and that the `forecast` Function's logs show no `forecast served from the last good copy` warnings.
     4. Switch Pro's morning and UV alerts on (they need the key), staging first with the [Notifications](#notifications) checks:
        optionally give them their own least-privilege identity with `DEPLOY_SA=<deploy service account email> infra/alerts-identity.sh` (print, read, then `--apply`) and `gh variable set ALERTS_SERVICE_ACCOUNT --repo n8watkins/solara --body solara-alerts@uv-activity-planner.iam.gserviceaccount.com`;
        then `gh variable set ALERTS_ENABLED --repo n8watkins/solara --body true` and let the next deploy run ([Pro alerts](DEPLOYMENT.md#pro-alerts)).

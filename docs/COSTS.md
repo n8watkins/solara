@@ -17,7 +17,7 @@ On Blaze, every product keeps its free quota; you pay only for usage above it.
 | Forecasts (Open-Meteo, fetched by each user's browser) | Yes, non-commercial terms | No, but commercial use needs a paid Open-Meteo plan (see below) |
 | App Check with reCAPTCHA (bot protection) | Yes | No |
 | Error reporting (Sentry) | Yes, Sentry free plan | No |
-| Cloud Functions: billing, account export and deletion, calendar feed, notification registration, forecast proxy, maintenance job, budget kill switch | No | Yes |
+| Cloud Functions: billing, account export and deletion, calendar feed, notification registration, forecast proxy and place search, maintenance job, budget kill switch | No | Yes |
 | Firestore TTL deletes, point-in-time recovery and backups | No | Yes |
 | Pro-only morning and UV alerts (scheduled Function plus Cloud Messaging) | No | Yes |
 
