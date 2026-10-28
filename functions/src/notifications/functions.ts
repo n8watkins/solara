@@ -7,7 +7,6 @@ import { logger } from 'firebase-functions/logger'
 import { onRequest } from 'firebase-functions/v2/https'
 import { onSchedule } from 'firebase-functions/v2/scheduler'
 
-import { EVENTS_SUBSCRIPTIONS_ENABLED } from '../events/config'
 import { CallerShare } from '../forecast/caller-share'
 import {
   OPEN_METEO_API_KEY,
@@ -21,7 +20,7 @@ import { appOrigin, browserApi, costGuard } from '../shared/browser-api'
 import { db, serverTimestamp } from '../shared/firebase'
 import { httpOptions, scheduleOptions } from '../shared/options'
 import { runAlerts } from './alerts'
-import { ALERTS_ENABLED, alertsServiceAccount } from './config'
+import { ALERTS_ENABLED, alertsServiceAccount, eventHeadsUpsEnabled } from './config'
 import {
   registerNotificationDevice as registerDevice,
   removeNotificationDevice as removeDevice,
@@ -63,7 +62,8 @@ const forecasts = new ForecastCache({
   upstreamAllowed: async () => true,
 })
 
-// Event heads-ups look up forecasts at places people chose (imported and linked events),
+// Event heads-ups look up forecasts at places people chose (imported, linked and Google
+// Calendar events),
 // so unlike the home forecasts above they count against the global upstream budget, and
 // each account has a share of it like a caller of the proxy (REVIEW4 H1): no account's
 // events can spend the hour's paid calls. The cache itself is the same forecastCache.
@@ -111,7 +111,8 @@ export const alerts = onSchedule(
       db,
       messaging: getMessaging(),
       forecast: place => forecasts.get(place),
-      ...(EVENTS_SUBSCRIPTIONS_ENABLED.value()
+      // With either events switch on (REVIEW6 L1), for every stored event alike.
+      ...(eventHeadsUpsEnabled()
         ? {
             eventForecast: (place: { lat: number; lon: number }, uid: string) =>
               eventForecasts.get(place, {

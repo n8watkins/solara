@@ -13,7 +13,7 @@ const {
   deliveryScope,
   planHeadsUpLookups,
 } = require('../lib/notifications/alerts')
-const { alertsServiceAccount } = require('../lib/notifications/config')
+const { alertsServiceAccount, eventHeadsUpsEnabled } = require('../lib/notifications/config')
 
 const NOW = Date.parse('2026-06-15T12:00:00Z')
 const DAY = 86_400_000
@@ -95,6 +95,39 @@ describe('alerts runtime identity', () => {
       alertsServiceAccount({ ALERTS_SERVICE_ACCOUNT: 'solara-alerts@p.iam.gserviceaccount.com' }),
       'solara-alerts@p.iam.gserviceaccount.com',
     )
+  })
+})
+
+describe('event heads-up switch (REVIEW6 L1)', () => {
+  test('heads-ups run with either events switch on, and not with both off', () => {
+    const on = (linkedCalendars, googleCalendar) =>
+      eventHeadsUpsEnabled({ linkedCalendars, googleCalendar })
+    assert.equal(on(false, false), false)
+    assert.equal(on(true, false), true)
+    assert.equal(on(false, true), true)
+    assert.equal(on(true, true), true)
+  })
+
+  test('reads the deployed params: Google Calendar events alone turn heads-ups on', () => {
+    const saved = {
+      linked: process.env.EVENTS_SUBSCRIPTIONS_ENABLED,
+      google: process.env.GOOGLE_CALENDAR_EVENTS_ENABLED,
+    }
+    const restore = (name, value) =>
+      value === undefined ? delete process.env[name] : (process.env[name] = value)
+    try {
+      process.env.EVENTS_SUBSCRIPTIONS_ENABLED = 'false'
+      process.env.GOOGLE_CALENDAR_EVENTS_ENABLED = 'false'
+      assert.equal(eventHeadsUpsEnabled(), false)
+      process.env.GOOGLE_CALENDAR_EVENTS_ENABLED = 'true'
+      assert.equal(eventHeadsUpsEnabled(), true)
+      process.env.GOOGLE_CALENDAR_EVENTS_ENABLED = 'false'
+      process.env.EVENTS_SUBSCRIPTIONS_ENABLED = 'true'
+      assert.equal(eventHeadsUpsEnabled(), true)
+    } finally {
+      restore('EVENTS_SUBSCRIPTIONS_ENABLED', saved.linked)
+      restore('GOOGLE_CALENDAR_EVENTS_ENABLED', saved.google)
+    }
   })
 })
 

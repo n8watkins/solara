@@ -289,8 +289,8 @@ jobs:
           service-account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
           credentials-json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
 
-      # functions/.env holds the committed defaults. The Pro prices, the billing and alerts
-      # switches, the alerts' and the budget kill switch's runtime identities and the
+      # functions/.env holds the committed defaults. The Pro prices, the billing, alerts and
+      # events switches, the alerts' and the budget kill switch's runtime identities and the
       # budget's id are per project. Detaching billing (the kill switch's hard stop) is on
       # unless the COST_GUARD_DETACH_BILLING repository variable is false.
       - name: Write project-specific Functions params
@@ -305,6 +305,7 @@ jobs:
           ALERTS_ENABLED: ${{ vars.ALERTS_ENABLED == 'true' && 'true' || 'false' }}
           ALERTS_SERVICE_ACCOUNT: ${{ vars.ALERTS_SERVICE_ACCOUNT }}
           EVENTS_SUBSCRIPTIONS_ENABLED: ${{ vars.EVENTS_SUBSCRIPTIONS_ENABLED == 'true' && 'true' || 'false' }}
+          GOOGLE_CALENDAR_EVENTS_ENABLED: ${{ vars.GOOGLE_CALENDAR_EVENTS_ENABLED == 'true' && 'true' || 'false' }}
         run: |
           if [ "$BILLING_ENABLED" = true ] && { [ -z "$STRIPE_PRICE_ID" ] || [ -z "$STRIPE_YEARLY_PRICE_ID" ]; }; then
             echo "::error::Set the STRIPE_PRICE_ID and STRIPE_YEARLY_PRICE_ID repository variables before switching billing on."
@@ -327,6 +328,7 @@ jobs:
             printf 'ALERTS_ENABLED=%s\n' "$ALERTS_ENABLED"
             printf 'ALERTS_SERVICE_ACCOUNT=%s\n' "$ALERTS_SERVICE_ACCOUNT"
             printf 'EVENTS_SUBSCRIPTIONS_ENABLED=%s\n' "$EVENTS_SUBSCRIPTIONS_ENABLED"
+            printf 'GOOGLE_CALENDAR_EVENTS_ENABLED=%s\n' "$GOOGLE_CALENDAR_EVENTS_ENABLED"
           } > "functions/.env.$FIREBASE_PROJECT_ID"
 
       # The deploy uploads compiled code: @solara/core in functions/core and the
