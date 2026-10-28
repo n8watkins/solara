@@ -84,6 +84,18 @@ describe('deployed runtime ceilings', () => {
     }
   })
 
+  test('HTTP instance caps come from one table and stay at launch size', () => {
+    const { INSTANCE_CAPS } = require('../lib/shared/options')
+    const http = Object.entries(functions).filter(([, fn]) => fn.__endpoint.httpsTrigger)
+    assert.deepEqual(http.map(([name]) => name).sort(), Object.keys(INSTANCE_CAPS).sort())
+    for (const [name, fn] of http) {
+      assert.equal(fn.__endpoint.maxInstances, INSTANCE_CAPS[name], name)
+    }
+    // The worst case in docs/COSTS.md is computed for at most 15 HTTP instances in all.
+    const total = http.reduce((sum, [, fn]) => sum + fn.__endpoint.maxInstances, 0)
+    assert.ok(total <= 15, `HTTP instances in all: ${total}`)
+  })
+
   test('background functions run one small instance and are not retried', () => {
     const { budgetAlert, maintenance } = functions
     assert.equal(maintenance.__endpoint.maxInstances, 1)
@@ -171,20 +183,13 @@ describe('browser endpoint limits', () => {
   })
 
   test('answers 503 while the cost guard is engaged, and needs a guard to be guarded', async () => {
-    const guard = {
-      assertAllowed: async () => {
-        throw new (require('../lib/shared/errors').HttpError)(
-          'unavailable',
-          'This feature is paused. Try again later.',
-        )
-      },
-    }
-    const handle = endpoint({ costFeature: 'forecast', costGuard: () => guard })
+    const guard = { engaged: async () => true }
+    const handle = endpoint({ costFeature: 'notifications', costGuard: () => guard })
     const res = responseRecorder()
     await handle(post(), res)
     assert.equal(res.statusCode, 503)
     assert.equal(res.body.code, 'unavailable')
-    assert.throws(() => endpoint({ costFeature: 'forecast' }), /needs a costGuard/)
+    assert.throws(() => endpoint({ costFeature: 'notifications' }), /needs a costGuard/)
   })
 
   test('holds one account to its per-endpoint budget after verifying it', async () => {
@@ -240,7 +245,6 @@ describe('cost guard', () => {
     const guard = new CostGuard(db, () => now)
     await Promise.all([guard.engaged(), guard.engaged(), guard.engaged()])
     assert.equal(db.reads, 1)
-    await assert.rejects(guard.assertAllowed('forecast'), { code: 'unavailable', status: 503 })
     db.data = { engaged: false }
     now = 59_000
     assert.equal(await guard.engaged(), true)
@@ -251,7 +255,7 @@ describe('cost guard', () => {
 
   test('keeps the paths on when the switch cannot be read', async () => {
     const guard = new CostGuard(fakeDb(undefined, { fail: true }))
-    await guard.assertAllowed('forecast')
+    assert.equal(await guard.engaged(), false)
     assert.ok(logs.entries.some(entry => entry.message?.includes('cost guard could not be read')))
   })
 

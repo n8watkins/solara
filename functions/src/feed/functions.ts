@@ -18,7 +18,7 @@ const rotateLimiter = uidLimiter(5)
 const revokeLimiter = uidLimiter(5)
 
 export const rotateCalendarFeed = onRequest(
-  httpOptions({ maxInstances: 3, timeoutSeconds: 30 }),
+  httpOptions({ name: 'rotateCalendarFeed', timeoutSeconds: 30 }),
   browserApi({
     name: 'rotateCalendarFeed',
     method: 'POST',
@@ -36,7 +36,7 @@ export const rotateCalendarFeed = onRequest(
 
 // Revoking stays available while the cost guard is on: it only removes a link.
 export const revokeCalendarFeed = onRequest(
-  httpOptions({ maxInstances: 3, timeoutSeconds: 30 }),
+  httpOptions({ name: 'revokeCalendarFeed', timeoutSeconds: 30 }),
   browserApi({
     name: 'revokeCalendarFeed',
     method: 'DELETE',
@@ -56,7 +56,7 @@ export const revokeCalendarFeed = onRequest(
 export const calendarFeed = onRequest(
   {
     ...httpOptions({
-      maxInstances: 5,
+      name: 'calendarFeed',
       concurrency: 40,
       timeoutSeconds: 30,
       secrets: [OPEN_METEO_API_KEY],

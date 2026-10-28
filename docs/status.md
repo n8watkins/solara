@@ -71,7 +71,7 @@ The signed-in suite covers Scheduled with a faked Google Calendar.
   Nothing has been sent since 2026-07-15; the manual GitHub Actions notifier is retired.
 
 - **Forecast licensing (D5):** the forecast proxy for the Open-Meteo commercial API is built and switched off; the browser calls Open-Meteo's free API until `FORECAST_PROXY_ENABLED` is set.
-- **Operations:** every Function has instance, memory and timeout caps, rate limits and App Check; a budget kill switch and cost guard, alerts, uptime checks, backups and TTL policies are in code and `infra/` scripts, applied by the owner at the Pro launch ([RUNBOOK.md](RUNBOOK.md)).
+- **Operations:** every Function has instance (15 HTTP instances in all), memory and timeout caps, rate limits that reject before any Firestore read, and App Check; a budget kill switch and cost guard, alerts, uptime checks, backups and TTL policies are in code and `infra/` scripts, applied by the owner at the Pro launch ([RUNBOOK.md](RUNBOOK.md)).
 
 The project stays on Spark until Pro launches ([COSTS.md](COSTS.md)).
 

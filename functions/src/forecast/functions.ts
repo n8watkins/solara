@@ -19,7 +19,7 @@ const cache = new ForecastCache({
 // guard it, and the cache bounds what any number of callers can cost upstream.
 export const forecast = onRequest(
   httpOptions({
-    maxInstances: 5,
+    name: 'forecast',
     concurrency: 40,
     timeoutSeconds: 15,
     secrets: [OPEN_METEO_API_KEY],

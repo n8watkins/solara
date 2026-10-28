@@ -23,7 +23,7 @@ import {
 import { processStripeEvent } from './webhook'
 
 export const createCheckoutSession = onRequest(
-  httpOptions({ maxInstances: 3, timeoutSeconds: 30, secrets: [STRIPE_SECRET_KEY] }),
+  httpOptions({ name: 'createCheckoutSession', timeoutSeconds: 30, secrets: [STRIPE_SECRET_KEY] }),
   browserApi({
     name: 'createCheckoutSession',
     method: 'POST',
@@ -47,7 +47,11 @@ export const createCheckoutSession = onRequest(
 )
 
 export const createBillingPortalSession = onRequest(
-  httpOptions({ maxInstances: 3, timeoutSeconds: 30, secrets: [STRIPE_SECRET_KEY] }),
+  httpOptions({
+    name: 'createBillingPortalSession',
+    timeoutSeconds: 30,
+    secrets: [STRIPE_SECRET_KEY],
+  }),
   browserApi({
     name: 'createBillingPortalSession',
     method: 'POST',
@@ -77,7 +81,7 @@ const webhookLimiter = new FixedWindowLimiter({ limit: 300, windowMs: 60_000 })
 // Not App Check: Stripe calls it, and every request must carry a valid Stripe signature.
 export const stripeWebhook = onRequest(
   httpOptions({
-    maxInstances: 3,
+    name: 'stripeWebhook',
     timeoutSeconds: 60,
     secrets: [STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET],
   }),

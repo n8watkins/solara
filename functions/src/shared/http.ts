@@ -12,12 +12,13 @@
 // Revisit only together with a client change; the handlers are transport-agnostic.
 
 import type { AppCheck } from 'firebase-admin/app-check'
-import { logger } from 'firebase-functions/logger'
 import type { Request, Response } from 'firebase-functions/v2/https'
 
 import { type AppCheckMode, verifyAppCheck } from './app-check'
-import type { CostFeature, CostGuard } from './cost-guard'
+import { ProxyHopMonitor, clientAddress } from './client-address'
+import type { CostFeature } from './cost-guard'
 import { HttpError, loggableError, publicError } from './errors'
+import { ThrottledLog } from './log-throttle'
 import { FixedWindowLimiter } from './rate-limit'
 
 export type ApiMethod = 'GET' | 'POST' | 'DELETE'
@@ -43,7 +44,7 @@ export interface ApiHandlerOptions<T> {
   maxBodyBytes?: number
   /** Turns the endpoint off while the cost guard is engaged (shared/cost-guard.ts). */
   costFeature?: CostFeature
-  costGuard?: () => CostGuard
+  costGuard?: () => { engaged: () => Promise<boolean> }
   /** Public message for any failure that is not an HttpError. */
   fallbackMessage: string
   handler: (req: Request) => Promise<ApiResult<T>>
@@ -100,9 +101,16 @@ export function requestBodyBytes(req: Request): number {
 
 /**
  * One request pipeline for every browser-called endpoint: security headers, an exact-origin
- * CORS check, a single method, a per-address rate limit and a body size limit, App Check
- * (with replay protection where requested), the cost guard, then the handler. Errors become
- * an allowlisted `{ error, code }` body; nothing else is echoed.
+ * CORS check, a single method, a per-address rate limit and a body size limit, an App Check
+ * token's presence, the cost guard, App Check verification (with replay protection where
+ * requested), then the handler. Errors become an allowlisted `{ error, code }` body;
+ * nothing else is echoed.
+ *
+ * The order makes a rejected request as cheap as possible (finding H1): everything before
+ * the handler runs in memory, the cost guard is a cached read (at most one Firestore read
+ * a minute per instance, and never for a request without a token), and a guarded path
+ * answers 503 before the token is verified. Rejections are logged once a minute per kind
+ * (shared/log-throttle.ts), not once per request.
  */
 export function createApiHandler<T>({
   name,
@@ -119,6 +127,8 @@ export function createApiHandler<T>({
 }: ApiHandlerOptions<T>): HttpHandler {
   if (costFeature && !costGuard) throw new TypeError(`${name}: costFeature needs a costGuard`)
   const addressLimiter = new FixedWindowLimiter({ limit: perAddressPerMinute, windowMs: 60_000 })
+  const rejections = new ThrottledLog()
+  const proxyHops = new ProxyHopMonitor(name)
   return async (req, res) => {
     setApiHeaders(res)
     if (handleCors(req, res, allowedOrigin(), [method])) return
@@ -131,6 +141,7 @@ export function createApiHandler<T>({
       res.status(status).json(body)
       return
     }
+    proxyHops.observe(req)
     try {
       const budget = addressLimiter.take(clientAddress(req))
       if (!budget.allowed) {
@@ -140,40 +151,32 @@ export function createApiHandler<T>({
       if (requestBodyBytes(req) > maxBodyBytes) {
         throw new HttpError('payload-too-large', 'Request too large')
       }
-      await verifyAppCheck(appCheck(), req.headers['x-firebase-appcheck'], appCheckMode)
-      if (costFeature) await costGuard?.().assertAllowed(costFeature)
+      const token = req.headers['x-firebase-appcheck']
+      if (typeof token !== 'string' || !token) {
+        throw new HttpError('app-check-required', 'App verification required')
+      }
+      if (costFeature && (await costGuard?.().engaged())) {
+        throw new HttpError('unavailable', 'This feature is paused. Try again later.', {
+          cause: new Error(`cost guard engaged for ${costFeature}`),
+        })
+      }
+      await verifyAppCheck(appCheck(), token, appCheckMode)
       const result = await handler(req)
       res.status(result.status ?? 200).json(result.body)
     } catch (error) {
       const { status, body } = publicError(error, fallbackMessage)
       const fields = { function: name, status, error: loggableError(error) }
-      if (status >= 500) logger.error(`${name} failed`, fields)
-      else logger.warn(`${name} rejected`, fields)
+      // An allowlisted rejection (including 503 `unavailable` while a feature is paused)
+      // is expected and a WARNING; anything else is a failure and an ERROR. Either way
+      // a flood logs one line a minute per kind, with the count of lines it held back.
+      if (error instanceof HttpError && (status < 500 || error.code === 'unavailable')) {
+        rejections.log('warn', `${status}:${error.code}`, `${name} rejected`, fields)
+      } else {
+        rejections.log('error', `${status}:failed`, `${name} failed`, fields)
+      }
       res.status(status).json(body)
     }
   }
 }
 
-/**
- * How many X-Forwarded-For entries, counted from the right, Google's own proxies add.
- * The Functions are called on their Cloud Run URLs with no load balancer or Hosting
- * rewrite in front, and Google's front end appends exactly one entry: the address the
- * connection came from. Everything to its left was sent by the client and can be forged.
- * An external HTTPS load balancer in front would append `<client>,<load balancer>`,
- * making this 2; change it together with any such change to how the Functions are served.
- */
-export const TRUSTED_PROXY_HOPS = 1
-
-/**
- * The client address for coarse abuse limits: the X-Forwarded-For entry Google
- * appended (see TRUSTED_PROXY_HOPS), never one the client could have sent.
- * Without the header (local runs and tests), the socket's peer address.
- */
-export function clientAddress(req: Request, trustedHops = TRUSTED_PROXY_HOPS): string {
-  const header = req.headers['x-forwarded-for']
-  const entries = (Array.isArray(header) ? header.join(',') : (header ?? ''))
-    .split(',')
-    .map(entry => entry.trim())
-  const appended = entries.length >= trustedHops ? entries[entries.length - trustedHops] : ''
-  return appended || req.socket?.remoteAddress || 'unknown'
-}
+export { TRUSTED_PROXY_HOPS, clientAddress } from './client-address'

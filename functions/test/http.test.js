@@ -4,6 +4,7 @@ const assert = require('node:assert/strict')
 const { verifyAppCheck } = require('../lib/shared/app-check')
 const { ERROR_CODES, HttpError, publicError } = require('../lib/shared/errors')
 const { clientAddress, createApiHandler, TRUSTED_PROXY_HOPS } = require('../lib/shared/http')
+const { ProxyHopMonitor, isProxyOrPrivateAddress } = require('../lib/shared/client-address')
 const { FixedWindowLimiter } = require('../lib/shared/rate-limit')
 const { captureLogs } = require('./support/logs')
 
@@ -200,6 +201,7 @@ describe('browser API pipeline', () => {
               code: 'conflict',
               message: 'Checkout is already in progress',
             },
+            suppressed: 0,
           },
         ],
         [
@@ -209,6 +211,7 @@ describe('browser API pipeline', () => {
             function: 'testEndpoint',
             status: 500,
             error: { name: 'Error', message: 'internal path /srv/secret' },
+            suppressed: 0,
           },
         ],
       ],
@@ -227,6 +230,82 @@ describe('browser API pipeline', () => {
     assert.equal(foreign.statusCode, 403)
     assert.deepEqual(foreign.body, { error: 'Origin not allowed', code: 'origin-not-allowed' })
     assert.equal(appCheck.calls.length, 0)
+  })
+})
+
+describe('cheap rejections', () => {
+  test('logs one line a minute per kind of rejection, not one per request', async t => {
+    t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-10-27T14:00:00Z') })
+    const { handle } = api()
+    // 50 stays under the per-address limit, so every one is the same kind of rejection.
+    for (let i = 0; i < 50; i += 1) {
+      await handle(post({ 'x-firebase-appcheck': undefined }), responseRecorder())
+    }
+    const rejected = () => logs.entries.filter(entry => entry.message === 'testEndpoint rejected')
+    assert.equal(rejected().length, 1)
+    assert.equal(rejected()[0].fields.suppressed, 0)
+    assert.equal(rejected()[0].fields.status, 401)
+    t.mock.timers.tick(60_000)
+    await handle(post({ 'x-firebase-appcheck': undefined }), responseRecorder())
+    assert.equal(rejected().length, 2)
+    assert.equal(rejected()[1].fields.suppressed, 49)
+  })
+
+  test('answers 503 while the cost guard is engaged, before verifying App Check', async () => {
+    const appCheck = appCheckStub()
+    let checks = 0
+    const guard = {
+      engaged: async () => {
+        checks += 1
+        return true
+      },
+    }
+    const handle = createApiHandler({
+      name: 'guarded',
+      method: 'POST',
+      allowedOrigin: () => ORIGIN,
+      appCheck: () => appCheck,
+      appCheckMode: 'standard',
+      costFeature: 'notifications',
+      costGuard: () => guard,
+      fallbackMessage: 'Service unavailable',
+      handler: async () => ({ body: { ok: true } }),
+    })
+    for (let i = 0; i < 50; i += 1) {
+      const res = responseRecorder()
+      await handle(post(), res)
+      assert.equal(res.statusCode, 503)
+      assert.equal(res.body.code, 'unavailable')
+    }
+    assert.equal(appCheck.calls.length, 0)
+    assert.equal(checks, 50)
+    // No ERROR per request: the budget kill switch already alerted the owner.
+    assert.equal(logs.entries.filter(entry => entry.severity === 'ERROR').length, 0)
+    assert.equal(logs.entries.length, 1)
+  })
+
+  test('a request without an App Check token never reaches the cost guard', async () => {
+    let checks = 0
+    const handle = createApiHandler({
+      name: 'guarded',
+      method: 'POST',
+      allowedOrigin: () => ORIGIN,
+      appCheck: () => appCheckStub(),
+      appCheckMode: 'standard',
+      costFeature: 'notifications',
+      costGuard: () => ({
+        engaged: async () => {
+          checks += 1
+          return false
+        },
+      }),
+      fallbackMessage: 'Service unavailable',
+      handler: async () => ({ body: { ok: true } }),
+    })
+    const res = responseRecorder()
+    await handle(post({ 'x-firebase-appcheck': undefined }), res)
+    assert.equal(res.statusCode, 401)
+    assert.equal(checks, 0)
   })
 })
 
@@ -330,9 +409,95 @@ describe('clientAddress', () => {
     assert.equal(clientAddress(req('203.0.113.9'), 2), '10.0.0.1')
   })
 
+  test('buckets IPv6 clients by their /64, so one connection gets one budget', () => {
+    const limiter = new FixedWindowLimiter({ limit: 1, windowMs: 60_000 })
+    const keys = new Set()
+    let allowed = 0
+    for (let i = 1; i <= 50; i += 1) {
+      const key = clientAddress(req(`2001:db8:1:2::${i.toString(16)}`))
+      keys.add(key)
+      if (limiter.take(key).allowed) allowed += 1
+    }
+    assert.deepEqual([...keys], ['2001:db8:1:2::/64'])
+    assert.equal(allowed, 1)
+    assert.equal(clientAddress(req('2001:0db8:0001:0002:ffff:1:2:3')), '2001:db8:1:2::/64')
+    assert.equal(clientAddress(req('2001:db8:1:3::1')), '2001:db8:1:3::/64')
+    assert.equal(clientAddress(req('::1')), '0:0:0:0::/64')
+    assert.equal(clientAddress(req('2001:db8::')), '2001:db8:0:0::/64')
+  })
+
+  test('counts an IPv4-mapped IPv6 address as the IPv4 address', () => {
+    assert.equal(clientAddress(req('::ffff:203.0.113.9')), '203.0.113.9')
+    assert.equal(clientAddress(req('::ffff:cb00:7109')), '203.0.113.9')
+    assert.equal(clientAddress(req(undefined, '::ffff:198.51.100.2')), '198.51.100.2')
+  })
+
+  test('leaves anything that is not an address as it is', () => {
+    assert.equal(clientAddress(req('not-an-address')), 'not-an-address')
+    assert.equal(clientAddress(req('1.2.3.4.5')), '1.2.3.4.5')
+  })
+
   test('falls back to the socket address without the header', () => {
     assert.equal(clientAddress(req(undefined)), '10.0.0.1')
     assert.equal(clientAddress(req('')), '10.0.0.1')
     assert.equal(clientAddress({ headers: {} }), 'unknown')
+  })
+})
+
+describe('proxy hop self-check', () => {
+  const req = forwarded => ({ headers: { 'x-forwarded-for': forwarded } })
+
+  test('raises one ERROR when most requests seem to come from Google proxies', () => {
+    const monitor = new ProxyHopMonitor('forecast', { sampleSize: 20 })
+    for (let i = 0; i < 100; i += 1)
+      monitor.observe(req(`198.51.100.${i % 200}, 35.191.4.${i % 250}`))
+    const errors = logs.entries.filter(entry => entry.severity === 'ERROR')
+    assert.equal(errors.length, 1)
+    assert.equal(errors[0].message, 'client address is a proxy address: check TRUSTED_PROXY_HOPS')
+    assert.deepEqual(errors[0].fields.forwardedEntryCounts, { 2: 20 })
+    // Never an address in the log.
+    assert.doesNotMatch(JSON.stringify(logs.entries), /198\.51|35\.191/)
+    const check = logs.entries.find(entry => entry.message === 'client address check')
+    assert.deepEqual(check.fields, {
+      function: 'forecast',
+      forwardedEntries: 2,
+      trustedHops: 1,
+      kind: 'not-a-client',
+    })
+  })
+
+  test('stays quiet for real client addresses and for local requests', () => {
+    const monitor = new ProxyHopMonitor('forecast', { sampleSize: 20 })
+    for (let i = 0; i < 100; i += 1) monitor.observe(req(`1.2.3.4, 203.0.113.${i % 200}`))
+    for (let i = 0; i < 100; i += 1) monitor.observe({ headers: {} })
+    assert.equal(logs.entries.filter(entry => entry.severity === 'ERROR').length, 0)
+    assert.equal(logs.entries.filter(entry => entry.message === 'client address check').length, 1)
+  })
+
+  test('knows the ranges no client connects from', () => {
+    for (const address of [
+      '35.191.0.1',
+      '130.211.3.255',
+      '10.1.2.3',
+      '172.31.0.1',
+      '192.168.1.1',
+      '169.254.1.1',
+      '127.0.0.1',
+      '::1',
+      'fd00::1',
+      'fe80::1',
+      '2600:2d00:1:b029::1',
+    ]) {
+      assert.equal(isProxyOrPrivateAddress(address), true, address)
+    }
+    for (const address of [
+      '203.0.113.9',
+      '130.211.4.0',
+      '8.8.8.8',
+      '2001:db8::1',
+      '2600:1700::1',
+    ]) {
+      assert.equal(isProxyOrPrivateAddress(address), false, address)
+    }
   })
 })
