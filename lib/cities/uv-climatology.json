@@ -1,0 +1,5056 @@
+{
+  "source": "CAMS global atmospheric composition model via the Open-Meteo Air Quality API (CC BY 4.0)",
+  "years": [2023, 2024, 2025],
+  "cities": {
+    "new-york": {
+      "elevation": 32,
+      "months": [
+        {
+          "peak": 1.3,
+          "clearSky": 1.7,
+          "hours3": 0,
+          "from": null,
+          "to": null,
+          "days": 93
+        },
+        {
+          "peak": 2.3,
+          "clearSky": 2.9,
+          "hours3": 1,
+          "from": null,
+          "to": null,
+          "days": 85
+        },
+        {
+          "peak": 3.4,
+          "clearSky": 4.5,
+          "hours3": 3.2,
+          "from": 11,
+          "to": 15,
+          "days": 93
+        },
+        {
+          "peak": 4.5,
+          "clearSky": 6.1,
+          "hours3": 4.3,
+          "from": 10,
+          "to": 16,
+          "days": 90
+        },
+        {
+          "peak": 5.5,
+          "clearSky": 7.4,
+          "hours3": 5.6,
+          "from": 10,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 6.1,
+          "clearSky": 7.9,
+          "hours3": 6.4,
+          "from": 9,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 6.6,
+          "clearSky": 8.2,
+          "hours3": 6.7,
+          "from": 10,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 6,
+          "clearSky": 7.3,
+          "hours3": 5.8,
+          "from": 10,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 4.8,
+          "clearSky": 6,
+          "hours3": 4.8,
+          "from": 10,
+          "to": 16,
+          "days": 90
+        },
+        {
+          "peak": 3.4,
+          "clearSky": 4,
+          "hours3": 3.1,
+          "from": 11,
+          "to": 15,
+          "days": 93
+        },
+        {
+          "peak": 2,
+          "clearSky": 2.3,
+          "hours3": 0.4,
+          "from": null,
+          "to": null,
+          "days": 90
+        },
+        {
+          "peak": 1.2,
+          "clearSky": 1.6,
+          "hours3": 0,
+          "from": null,
+          "to": null,
+          "days": 92
+        }
+      ]
+    },
+    "los-angeles": {
+      "elevation": 91,
+      "months": [
+        {
+          "peak": 2.5,
+          "clearSky": 2.9,
+          "hours3": 1.4,
+          "from": 11,
+          "to": 14,
+          "days": 93
+        },
+        {
+          "peak": 3.5,
+          "clearSky": 4.4,
+          "hours3": 3.1,
+          "from": 10,
+          "to": 15,
+          "days": 85
+        },
+        {
+          "peak": 4.7,
+          "clearSky": 6.1,
+          "hours3": 4.4,
+          "from": 10,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 6.8,
+          "clearSky": 7.6,
+          "hours3": 6.4,
+          "from": 10,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 7.5,
+          "clearSky": 8.6,
+          "hours3": 6.8,
+          "from": 10,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 9.1,
+          "clearSky": 9.7,
+          "hours3": 7.6,
+          "from": 9,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 10.3,
+          "clearSky": 10.4,
+          "hours3": 8.7,
+          "from": 9,
+          "to": 18,
+          "days": 93
+        },
+        {
+          "peak": 9.4,
+          "clearSky": 9.7,
+          "hours3": 7.7,
+          "from": 9,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 7,
+          "clearSky": 7.8,
+          "hours3": 6.2,
+          "from": 10,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 5.5,
+          "clearSky": 5.7,
+          "hours3": 5.5,
+          "from": 10,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 3.4,
+          "clearSky": 3.7,
+          "hours3": 3,
+          "from": 10,
+          "to": 14,
+          "days": 90
+        },
+        {
+          "peak": 2.5,
+          "clearSky": 2.7,
+          "hours3": 1.4,
+          "from": 11,
+          "to": 13,
+          "days": 92
+        }
+      ]
+    },
+    "chicago": {
+      "elevation": 241,
+      "months": [
+        {
+          "peak": 1.2,
+          "clearSky": 1.6,
+          "hours3": 0,
+          "from": null,
+          "to": null,
+          "days": 93
+        },
+        {
+          "peak": 2.2,
+          "clearSky": 2.6,
+          "hours3": 0.7,
+          "from": null,
+          "to": null,
+          "days": 85
+        },
+        {
+          "peak": 3.3,
+          "clearSky": 4.2,
+          "hours3": 2.9,
+          "from": 11,
+          "to": 15,
+          "days": 93
+        },
+        {
+          "peak": 4.8,
+          "clearSky": 5.9,
+          "hours3": 4.6,
+          "from": 10,
+          "to": 16,
+          "days": 90
+        },
+        {
+          "peak": 6.2,
+          "clearSky": 7.3,
+          "hours3": 6.5,
+          "from": 9,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 6.9,
+          "clearSky": 8,
+          "hours3": 7,
+          "from": 9,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 6.9,
+          "clearSky": 8.2,
+          "hours3": 6.9,
+          "from": 9,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 6.5,
+          "clearSky": 7.4,
+          "hours3": 6.6,
+          "from": 10,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 5.2,
+          "clearSky": 5.8,
+          "hours3": 5.2,
+          "from": 10,
+          "to": 16,
+          "days": 90
+        },
+        {
+          "peak": 3.4,
+          "clearSky": 3.9,
+          "hours3": 2.9,
+          "from": 11,
+          "to": 15,
+          "days": 93
+        },
+        {
+          "peak": 1.7,
+          "clearSky": 2.1,
+          "hours3": 0.2,
+          "from": null,
+          "to": null,
+          "days": 90
+        },
+        {
+          "peak": 1,
+          "clearSky": 1.4,
+          "hours3": 0,
+          "from": null,
+          "to": null,
+          "days": 92
+        }
+      ]
+    },
+    "houston": {
+      "elevation": 20,
+      "months": [
+        {
+          "peak": 3,
+          "clearSky": 4.2,
+          "hours3": 2.3,
+          "from": 11,
+          "to": 15,
+          "days": 93
+        },
+        {
+          "peak": 4.5,
+          "clearSky": 6,
+          "hours3": 4.1,
+          "from": 10,
+          "to": 16,
+          "days": 85
+        },
+        {
+          "peak": 6,
+          "clearSky": 7.9,
+          "hours3": 5.1,
+          "from": 11,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 6.8,
+          "clearSky": 9.2,
+          "hours3": 6.1,
+          "from": 10,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 7.3,
+          "clearSky": 9.4,
+          "hours3": 6.3,
+          "from": 10,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 9.1,
+          "clearSky": 10.6,
+          "hours3": 7.6,
+          "from": 10,
+          "to": 18,
+          "days": 90
+        },
+        {
+          "peak": 8.5,
+          "clearSky": 10.7,
+          "hours3": 7.5,
+          "from": 10,
+          "to": 18,
+          "days": 93
+        },
+        {
+          "peak": 8.8,
+          "clearSky": 9.9,
+          "hours3": 7.4,
+          "from": 10,
+          "to": 18,
+          "days": 93
+        },
+        {
+          "peak": 7.7,
+          "clearSky": 8.8,
+          "hours3": 6.6,
+          "from": 10,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 6.1,
+          "clearSky": 6.9,
+          "hours3": 5.6,
+          "from": 11,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 3.8,
+          "clearSky": 4.9,
+          "hours3": 3.6,
+          "from": 10,
+          "to": 15,
+          "days": 90
+        },
+        {
+          "peak": 2.9,
+          "clearSky": 3.7,
+          "hours3": 2.1,
+          "from": 11,
+          "to": 14,
+          "days": 92
+        }
+      ]
+    },
+    "phoenix": {
+      "elevation": 333,
+      "months": [
+        {
+          "peak": 2.8,
+          "clearSky": 3.1,
+          "hours3": 2.2,
+          "from": 12,
+          "to": 14,
+          "days": 93
+        },
+        {
+          "peak": 4.4,
+          "clearSky": 4.8,
+          "hours3": 4.2,
+          "from": 11,
+          "to": 15,
+          "days": 85
+        },
+        {
+          "peak": 5.8,
+          "clearSky": 6.5,
+          "hours3": 5.5,
+          "from": 10,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 8,
+          "clearSky": 8.2,
+          "hours3": 7.3,
+          "from": 9,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 9.2,
+          "clearSky": 9.4,
+          "hours3": 7.9,
+          "from": 9,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 10.3,
+          "clearSky": 10.5,
+          "hours3": 8.2,
+          "from": 9,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 10.4,
+          "clearSky": 10.6,
+          "hours3": 8,
+          "from": 9,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 9.5,
+          "clearSky": 10,
+          "hours3": 7.8,
+          "from": 9,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 8.2,
+          "clearSky": 8.5,
+          "hours3": 7,
+          "from": 9,
+          "to": 16,
+          "days": 90
+        },
+        {
+          "peak": 6.1,
+          "clearSky": 6.2,
+          "hours3": 5.5,
+          "from": 10,
+          "to": 15,
+          "days": 93
+        },
+        {
+          "peak": 4,
+          "clearSky": 4.1,
+          "hours3": 3.8,
+          "from": 11,
+          "to": 15,
+          "days": 90
+        },
+        {
+          "peak": 2.8,
+          "clearSky": 3,
+          "hours3": 2.1,
+          "from": 12,
+          "to": 14,
+          "days": 92
+        }
+      ]
+    },
+    "philadelphia": {
+      "elevation": 32,
+      "months": [
+        {
+          "peak": 1.4,
+          "clearSky": 1.9,
+          "hours3": 0,
+          "from": null,
+          "to": null,
+          "days": 93
+        },
+        {
+          "peak": 2.4,
+          "clearSky": 3,
+          "hours3": 1.2,
+          "from": 11,
+          "to": 14,
+          "days": 85
+        },
+        {
+          "peak": 3.8,
+          "clearSky": 4.8,
+          "hours3": 3.5,
+          "from": 11,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 4.7,
+          "clearSky": 6.4,
+          "hours3": 4.6,
+          "from": 10,
+          "to": 16,
+          "days": 90
+        },
+        {
+          "peak": 5.7,
+          "clearSky": 7.6,
+          "hours3": 5.5,
+          "from": 10,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 6.4,
+          "clearSky": 8.1,
+          "hours3": 6.5,
+          "from": 10,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 6.9,
+          "clearSky": 8.4,
+          "hours3": 6.6,
+          "from": 10,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 6,
+          "clearSky": 7.5,
+          "hours3": 5.9,
+          "from": 10,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 4.8,
+          "clearSky": 6.2,
+          "hours3": 4.7,
+          "from": 10,
+          "to": 16,
+          "days": 90
+        },
+        {
+          "peak": 3.6,
+          "clearSky": 4.2,
+          "hours3": 3.4,
+          "from": 11,
+          "to": 15,
+          "days": 93
+        },
+        {
+          "peak": 2.1,
+          "clearSky": 2.4,
+          "hours3": 0.6,
+          "from": null,
+          "to": null,
+          "days": 90
+        },
+        {
+          "peak": 1.3,
+          "clearSky": 1.7,
+          "hours3": 0,
+          "from": null,
+          "to": null,
+          "days": 92
+        }
+      ]
+    },
+    "san-diego": {
+      "elevation": 20,
+      "months": [
+        {
+          "peak": 2.8,
+          "clearSky": 3.2,
+          "hours3": 2,
+          "from": 11,
+          "to": 14,
+          "days": 93
+        },
+        {
+          "peak": 3.9,
+          "clearSky": 4.7,
+          "hours3": 3.7,
+          "from": 10,
+          "to": 15,
+          "days": 85
+        },
+        {
+          "peak": 5,
+          "clearSky": 6.5,
+          "hours3": 4.7,
+          "from": 10,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 7.1,
+          "clearSky": 7.9,
+          "hours3": 6.7,
+          "from": 10,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 7.6,
+          "clearSky": 8.9,
+          "hours3": 6.9,
+          "from": 10,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 9.1,
+          "clearSky": 10,
+          "hours3": 7.5,
+          "from": 9,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 10.2,
+          "clearSky": 10.5,
+          "hours3": 8.2,
+          "from": 9,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 9.6,
+          "clearSky": 10,
+          "hours3": 7.5,
+          "from": 9,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 7.5,
+          "clearSky": 8.2,
+          "hours3": 6.4,
+          "from": 10,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 5.6,
+          "clearSky": 5.9,
+          "hours3": 5.6,
+          "from": 10,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 3.7,
+          "clearSky": 4,
+          "hours3": 3.6,
+          "from": 10,
+          "to": 14,
+          "days": 90
+        },
+        {
+          "peak": 2.7,
+          "clearSky": 3,
+          "hours3": 1.6,
+          "from": 11,
+          "to": 13,
+          "days": 92
+        }
+      ]
+    },
+    "dallas": {
+      "elevation": 137,
+      "months": [
+        {
+          "peak": 2.8,
+          "clearSky": 3.3,
+          "hours3": 2.2,
+          "from": 11,
+          "to": 14,
+          "days": 93
+        },
+        {
+          "peak": 4,
+          "clearSky": 5,
+          "hours3": 3.6,
+          "from": 11,
+          "to": 15,
+          "days": 85
+        },
+        {
+          "peak": 5.8,
+          "clearSky": 6.9,
+          "hours3": 5,
+          "from": 11,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 6.5,
+          "clearSky": 8.5,
+          "hours3": 5.6,
+          "from": 11,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 7.2,
+          "clearSky": 9,
+          "hours3": 6.4,
+          "from": 10,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 8.9,
+          "clearSky": 10.1,
+          "hours3": 7.5,
+          "from": 10,
+          "to": 18,
+          "days": 90
+        },
+        {
+          "peak": 9.1,
+          "clearSky": 10.3,
+          "hours3": 7.6,
+          "from": 10,
+          "to": 18,
+          "days": 93
+        },
+        {
+          "peak": 8.9,
+          "clearSky": 9.5,
+          "hours3": 7.5,
+          "from": 10,
+          "to": 18,
+          "days": 93
+        },
+        {
+          "peak": 7.2,
+          "clearSky": 8.1,
+          "hours3": 6.5,
+          "from": 10,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 5.6,
+          "clearSky": 6.1,
+          "hours3": 5.1,
+          "from": 11,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 3.7,
+          "clearSky": 4.2,
+          "hours3": 3.4,
+          "from": 11,
+          "to": 15,
+          "days": 90
+        },
+        {
+          "peak": 2.5,
+          "clearSky": 3,
+          "hours3": 1.7,
+          "from": 11,
+          "to": 14,
+          "days": 92
+        }
+      ]
+    },
+    "austin": {
+      "elevation": 157,
+      "months": [
+        {
+          "peak": 3.1,
+          "clearSky": 3.9,
+          "hours3": 2.6,
+          "from": 11,
+          "to": 15,
+          "days": 93
+        },
+        {
+          "peak": 4.7,
+          "clearSky": 5.8,
+          "hours3": 4,
+          "from": 11,
+          "to": 16,
+          "days": 85
+        },
+        {
+          "peak": 6.2,
+          "clearSky": 7.7,
+          "hours3": 5.1,
+          "from": 11,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 7,
+          "clearSky": 9,
+          "hours3": 6,
+          "from": 11,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 7.2,
+          "clearSky": 9.4,
+          "hours3": 6.3,
+          "from": 10,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 9.3,
+          "clearSky": 10.6,
+          "hours3": 7.5,
+          "from": 10,
+          "to": 18,
+          "days": 90
+        },
+        {
+          "peak": 9.3,
+          "clearSky": 10.8,
+          "hours3": 7.3,
+          "from": 10,
+          "to": 18,
+          "days": 93
+        },
+        {
+          "peak": 9.3,
+          "clearSky": 10.1,
+          "hours3": 7.6,
+          "from": 10,
+          "to": 18,
+          "days": 93
+        },
+        {
+          "peak": 7.9,
+          "clearSky": 8.8,
+          "hours3": 6.7,
+          "from": 10,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 6,
+          "clearSky": 6.8,
+          "hours3": 5.4,
+          "from": 11,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 3.9,
+          "clearSky": 4.7,
+          "hours3": 3.5,
+          "from": 11,
+          "to": 15,
+          "days": 90
+        },
+        {
+          "peak": 2.9,
+          "clearSky": 3.5,
+          "hours3": 2.2,
+          "from": 11,
+          "to": 14,
+          "days": 92
+        }
+      ]
+    },
+    "san-francisco": {
+      "elevation": 18,
+      "months": [
+        {
+          "peak": 1.8,
+          "clearSky": 2.3,
+          "hours3": 0.3,
+          "from": null,
+          "to": null,
+          "days": 93
+        },
+        {
+          "peak": 2.7,
+          "clearSky": 3.4,
+          "hours3": 1.7,
+          "from": 11,
+          "to": 14,
+          "days": 85
+        },
+        {
+          "peak": 4,
+          "clearSky": 5,
+          "hours3": 4,
+          "from": 11,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 6.4,
+          "clearSky": 7,
+          "hours3": 6.4,
+          "from": 10,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 7.5,
+          "clearSky": 8.2,
+          "hours3": 7.2,
+          "from": 10,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 8.3,
+          "clearSky": 9.2,
+          "hours3": 8,
+          "from": 10,
+          "to": 18,
+          "days": 90
+        },
+        {
+          "peak": 8.2,
+          "clearSky": 9.8,
+          "hours3": 7.7,
+          "from": 10,
+          "to": 18,
+          "days": 93
+        },
+        {
+          "peak": 7.4,
+          "clearSky": 8.8,
+          "hours3": 6.9,
+          "from": 10,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 6.2,
+          "clearSky": 6.9,
+          "hours3": 5.9,
+          "from": 10,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 4.6,
+          "clearSky": 5,
+          "hours3": 4.5,
+          "from": 11,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 2.6,
+          "clearSky": 3,
+          "hours3": 1.3,
+          "from": null,
+          "to": null,
+          "days": 90
+        },
+        {
+          "peak": 1.7,
+          "clearSky": 2.1,
+          "hours3": 0,
+          "from": null,
+          "to": null,
+          "days": 92
+        }
+      ]
+    },
+    "seattle": {
+      "elevation": 59,
+      "months": [
+        {
+          "peak": 0.6,
+          "clearSky": 0.9,
+          "hours3": 0,
+          "from": null,
+          "to": null,
+          "days": 93
+        },
+        {
+          "peak": 1.1,
+          "clearSky": 1.6,
+          "hours3": 0,
+          "from": null,
+          "to": null,
+          "days": 85
+        },
+        {
+          "peak": 2.1,
+          "clearSky": 2.9,
+          "hours3": 0.9,
+          "from": null,
+          "to": null,
+          "days": 93
+        },
+        {
+          "peak": 3.4,
+          "clearSky": 4.7,
+          "hours3": 3.1,
+          "from": 11,
+          "to": 16,
+          "days": 90
+        },
+        {
+          "peak": 5,
+          "clearSky": 6.3,
+          "hours3": 5.6,
+          "from": 10,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 5.9,
+          "clearSky": 7.2,
+          "hours3": 6.6,
+          "from": 10,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 6.9,
+          "clearSky": 7.6,
+          "hours3": 7.4,
+          "from": 10,
+          "to": 18,
+          "days": 93
+        },
+        {
+          "peak": 5.6,
+          "clearSky": 6.4,
+          "hours3": 6,
+          "from": 10,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 3.8,
+          "clearSky": 4.6,
+          "hours3": 3.8,
+          "from": 11,
+          "to": 16,
+          "days": 90
+        },
+        {
+          "peak": 2.1,
+          "clearSky": 2.8,
+          "hours3": 1,
+          "from": null,
+          "to": null,
+          "days": 93
+        },
+        {
+          "peak": 0.9,
+          "clearSky": 1.3,
+          "hours3": 0,
+          "from": null,
+          "to": null,
+          "days": 90
+        },
+        {
+          "peak": 0.5,
+          "clearSky": 0.8,
+          "hours3": 0,
+          "from": null,
+          "to": null,
+          "days": 92
+        }
+      ]
+    },
+    "denver": {
+      "elevation": 1599,
+      "months": [
+        {
+          "peak": 2.3,
+          "clearSky": 2.5,
+          "hours3": 0.8,
+          "from": null,
+          "to": null,
+          "days": 93
+        },
+        {
+          "peak": 3.7,
+          "clearSky": 3.9,
+          "hours3": 3.6,
+          "from": 11,
+          "to": 14,
+          "days": 85
+        },
+        {
+          "peak": 5.1,
+          "clearSky": 5.5,
+          "hours3": 5.2,
+          "from": 10,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 6.5,
+          "clearSky": 7.5,
+          "hours3": 6.3,
+          "from": 10,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 7.5,
+          "clearSky": 9,
+          "hours3": 7,
+          "from": 9,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 9,
+          "clearSky": 10.4,
+          "hours3": 7.8,
+          "from": 9,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 9.5,
+          "clearSky": 10.6,
+          "hours3": 8.2,
+          "from": 9,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 8.6,
+          "clearSky": 9.7,
+          "hours3": 7.3,
+          "from": 9,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 6.9,
+          "clearSky": 7.5,
+          "hours3": 6.1,
+          "from": 10,
+          "to": 16,
+          "days": 90
+        },
+        {
+          "peak": 4.9,
+          "clearSky": 5.3,
+          "hours3": 4.8,
+          "from": 11,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 2.9,
+          "clearSky": 3.1,
+          "hours3": 2,
+          "from": 11,
+          "to": 14,
+          "days": 90
+        },
+        {
+          "peak": 2,
+          "clearSky": 2.1,
+          "hours3": 0.1,
+          "from": null,
+          "to": null,
+          "days": 92
+        }
+      ]
+    },
+    "washington-dc": {
+      "elevation": 25,
+      "months": [
+        {
+          "peak": 1.6,
+          "clearSky": 2.1,
+          "hours3": 0.1,
+          "from": null,
+          "to": null,
+          "days": 93
+        },
+        {
+          "peak": 2.7,
+          "clearSky": 3.3,
+          "hours3": 1.8,
+          "from": 11,
+          "to": 14,
+          "days": 85
+        },
+        {
+          "peak": 4.1,
+          "clearSky": 5.1,
+          "hours3": 3.9,
+          "from": 11,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 5.1,
+          "clearSky": 6.7,
+          "hours3": 5,
+          "from": 10,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 5.9,
+          "clearSky": 7.8,
+          "hours3": 5.6,
+          "from": 10,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 6.9,
+          "clearSky": 8.3,
+          "hours3": 6.8,
+          "from": 10,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 7.1,
+          "clearSky": 8.7,
+          "hours3": 6.8,
+          "from": 10,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 6.4,
+          "clearSky": 7.8,
+          "hours3": 6.1,
+          "from": 10,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 4.8,
+          "clearSky": 6.4,
+          "hours3": 4.6,
+          "from": 10,
+          "to": 16,
+          "days": 90
+        },
+        {
+          "peak": 3.9,
+          "clearSky": 4.4,
+          "hours3": 3.7,
+          "from": 11,
+          "to": 15,
+          "days": 93
+        },
+        {
+          "peak": 2.4,
+          "clearSky": 2.7,
+          "hours3": 1.2,
+          "from": null,
+          "to": null,
+          "days": 90
+        },
+        {
+          "peak": 1.4,
+          "clearSky": 1.8,
+          "hours3": 0,
+          "from": null,
+          "to": null,
+          "days": 92
+        }
+      ]
+    },
+    "boston": {
+      "elevation": 9,
+      "months": [
+        {
+          "peak": 1.2,
+          "clearSky": 1.5,
+          "hours3": 0,
+          "from": null,
+          "to": null,
+          "days": 93
+        },
+        {
+          "peak": 2.1,
+          "clearSky": 2.6,
+          "hours3": 0.6,
+          "from": null,
+          "to": null,
+          "days": 85
+        },
+        {
+          "peak": 3.1,
+          "clearSky": 4.1,
+          "hours3": 2.7,
+          "from": 11,
+          "to": 15,
+          "days": 93
+        },
+        {
+          "peak": 4.3,
+          "clearSky": 5.8,
+          "hours3": 4.2,
+          "from": 10,
+          "to": 16,
+          "days": 90
+        },
+        {
+          "peak": 5.3,
+          "clearSky": 7.1,
+          "hours3": 5.3,
+          "from": 9,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 5.9,
+          "clearSky": 7.7,
+          "hours3": 6.3,
+          "from": 9,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 6.2,
+          "clearSky": 8,
+          "hours3": 6.4,
+          "from": 9,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 5.6,
+          "clearSky": 6.9,
+          "hours3": 5.8,
+          "from": 10,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 4.4,
+          "clearSky": 5.7,
+          "hours3": 4.4,
+          "from": 10,
+          "to": 16,
+          "days": 90
+        },
+        {
+          "peak": 3,
+          "clearSky": 3.6,
+          "hours3": 2.4,
+          "from": 11,
+          "to": 14,
+          "days": 93
+        },
+        {
+          "peak": 1.7,
+          "clearSky": 2,
+          "hours3": 0.2,
+          "from": null,
+          "to": null,
+          "days": 90
+        },
+        {
+          "peak": 1.1,
+          "clearSky": 1.3,
+          "hours3": 0,
+          "from": null,
+          "to": null,
+          "days": 92
+        }
+      ]
+    },
+    "nashville": {
+      "elevation": 159,
+      "months": [
+        {
+          "peak": 1.9,
+          "clearSky": 2.7,
+          "hours3": 0.7,
+          "from": null,
+          "to": null,
+          "days": 93
+        },
+        {
+          "peak": 3.3,
+          "clearSky": 4.2,
+          "hours3": 2.7,
+          "from": 10,
+          "to": 14,
+          "days": 85
+        },
+        {
+          "peak": 4.7,
+          "clearSky": 6,
+          "hours3": 4.3,
+          "from": 10,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 6,
+          "clearSky": 7.5,
+          "hours3": 5.5,
+          "from": 10,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 6.3,
+          "clearSky": 8.3,
+          "hours3": 6,
+          "from": 10,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 7.3,
+          "clearSky": 9.1,
+          "hours3": 6.9,
+          "from": 9,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 7.6,
+          "clearSky": 9.4,
+          "hours3": 6.8,
+          "from": 9,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 7.3,
+          "clearSky": 8.6,
+          "hours3": 6.8,
+          "from": 10,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 5.7,
+          "clearSky": 7,
+          "hours3": 5.2,
+          "from": 10,
+          "to": 16,
+          "days": 90
+        },
+        {
+          "peak": 4.4,
+          "clearSky": 5.1,
+          "hours3": 4.3,
+          "from": 10,
+          "to": 15,
+          "days": 93
+        },
+        {
+          "peak": 2.8,
+          "clearSky": 3.4,
+          "hours3": 1.9,
+          "from": 11,
+          "to": 13,
+          "days": 90
+        },
+        {
+          "peak": 1.7,
+          "clearSky": 2.3,
+          "hours3": 0.1,
+          "from": null,
+          "to": null,
+          "days": 92
+        }
+      ]
+    },
+    "las-vegas": {
+      "elevation": 620,
+      "months": [
+        {
+          "peak": 2.5,
+          "clearSky": 2.7,
+          "hours3": 1.2,
+          "from": 11,
+          "to": 13,
+          "days": 93
+        },
+        {
+          "peak": 3.8,
+          "clearSky": 4.2,
+          "hours3": 3.6,
+          "from": 10,
+          "to": 14,
+          "days": 85
+        },
+        {
+          "peak": 5.3,
+          "clearSky": 5.9,
+          "hours3": 5.2,
+          "from": 10,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 7.6,
+          "clearSky": 7.8,
+          "hours3": 7.3,
+          "from": 9,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 8.8,
+          "clearSky": 9,
+          "hours3": 7.8,
+          "from": 9,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 10.1,
+          "clearSky": 10.3,
+          "hours3": 8.1,
+          "from": 9,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 10.6,
+          "clearSky": 10.9,
+          "hours3": 8.3,
+          "from": 9,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 9.5,
+          "clearSky": 10.1,
+          "hours3": 7.8,
+          "from": 9,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 7.6,
+          "clearSky": 8,
+          "hours3": 6.7,
+          "from": 9,
+          "to": 16,
+          "days": 90
+        },
+        {
+          "peak": 5.8,
+          "clearSky": 5.9,
+          "hours3": 5.5,
+          "from": 10,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 3.4,
+          "clearSky": 3.7,
+          "hours3": 3.1,
+          "from": 10,
+          "to": 14,
+          "days": 90
+        },
+        {
+          "peak": 2.4,
+          "clearSky": 2.5,
+          "hours3": 0.9,
+          "from": 11,
+          "to": 13,
+          "days": 92
+        }
+      ]
+    },
+    "atlanta": {
+      "elevation": 327,
+      "months": [
+        {
+          "peak": 2.5,
+          "clearSky": 3.3,
+          "hours3": 1.7,
+          "from": 12,
+          "to": 15,
+          "days": 93
+        },
+        {
+          "peak": 3.8,
+          "clearSky": 4.8,
+          "hours3": 3.4,
+          "from": 11,
+          "to": 16,
+          "days": 85
+        },
+        {
+          "peak": 5.7,
+          "clearSky": 6.8,
+          "hours3": 4.9,
+          "from": 11,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 6.9,
+          "clearSky": 8.3,
+          "hours3": 6.2,
+          "from": 10,
+          "to": 18,
+          "days": 90
+        },
+        {
+          "peak": 7,
+          "clearSky": 8.9,
+          "hours3": 6.5,
+          "from": 10,
+          "to": 18,
+          "days": 93
+        },
+        {
+          "peak": 7.8,
+          "clearSky": 9.3,
+          "hours3": 7.1,
+          "from": 10,
+          "to": 18,
+          "days": 90
+        },
+        {
+          "peak": 8.3,
+          "clearSky": 9.7,
+          "hours3": 7,
+          "from": 10,
+          "to": 18,
+          "days": 93
+        },
+        {
+          "peak": 7.6,
+          "clearSky": 9.1,
+          "hours3": 6.9,
+          "from": 10,
+          "to": 18,
+          "days": 93
+        },
+        {
+          "peak": 6.3,
+          "clearSky": 7.5,
+          "hours3": 5.7,
+          "from": 11,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 5,
+          "clearSky": 5.8,
+          "hours3": 4.7,
+          "from": 11,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 3.2,
+          "clearSky": 3.9,
+          "hours3": 2.8,
+          "from": 11,
+          "to": 15,
+          "days": 90
+        },
+        {
+          "peak": 2.3,
+          "clearSky": 2.8,
+          "hours3": 0.9,
+          "from": null,
+          "to": null,
+          "days": 92
+        }
+      ]
+    },
+    "miami": {
+      "elevation": 5,
+      "months": [
+        {
+          "peak": 4.6,
+          "clearSky": 5.5,
+          "hours3": 4.4,
+          "from": 10,
+          "to": 15,
+          "days": 93
+        },
+        {
+          "peak": 6.4,
+          "clearSky": 7.3,
+          "hours3": 5.6,
+          "from": 10,
+          "to": 16,
+          "days": 85
+        },
+        {
+          "peak": 8.2,
+          "clearSky": 9.4,
+          "hours3": 6.6,
+          "from": 10,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 9.4,
+          "clearSky": 10.4,
+          "hours3": 7.4,
+          "from": 10,
+          "to": 18,
+          "days": 90
+        },
+        {
+          "peak": 9.6,
+          "clearSky": 10.6,
+          "hours3": 7.7,
+          "from": 10,
+          "to": 18,
+          "days": 93
+        },
+        {
+          "peak": 8.8,
+          "clearSky": 11,
+          "hours3": 7.2,
+          "from": 10,
+          "to": 18,
+          "days": 90
+        },
+        {
+          "peak": 9.5,
+          "clearSky": 11.1,
+          "hours3": 7.5,
+          "from": 10,
+          "to": 18,
+          "days": 93
+        },
+        {
+          "peak": 9.3,
+          "clearSky": 11.1,
+          "hours3": 7.5,
+          "from": 10,
+          "to": 18,
+          "days": 93
+        },
+        {
+          "peak": 8.2,
+          "clearSky": 10.1,
+          "hours3": 6.6,
+          "from": 10,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 6.6,
+          "clearSky": 8.2,
+          "hours3": 5.8,
+          "from": 10,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 5.1,
+          "clearSky": 6.1,
+          "hours3": 4.7,
+          "from": 10,
+          "to": 15,
+          "days": 90
+        },
+        {
+          "peak": 4,
+          "clearSky": 4.9,
+          "hours3": 3.9,
+          "from": 10,
+          "to": 15,
+          "days": 92
+        }
+      ]
+    },
+    "orlando": {
+      "elevation": 35,
+      "months": [
+        {
+          "peak": 3.8,
+          "clearSky": 4.6,
+          "hours3": 3.3,
+          "from": 11,
+          "to": 15,
+          "days": 93
+        },
+        {
+          "peak": 5.2,
+          "clearSky": 6.3,
+          "hours3": 4.8,
+          "from": 10,
+          "to": 16,
+          "days": 85
+        },
+        {
+          "peak": 7.2,
+          "clearSky": 8.5,
+          "hours3": 6,
+          "from": 10,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 8.1,
+          "clearSky": 9.6,
+          "hours3": 7,
+          "from": 10,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 8.4,
+          "clearSky": 9.9,
+          "hours3": 7.1,
+          "from": 10,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 8.4,
+          "clearSky": 10.4,
+          "hours3": 7.2,
+          "from": 10,
+          "to": 18,
+          "days": 90
+        },
+        {
+          "peak": 8.6,
+          "clearSky": 10.6,
+          "hours3": 7.1,
+          "from": 10,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 8.6,
+          "clearSky": 10.4,
+          "hours3": 7,
+          "from": 10,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 7.1,
+          "clearSky": 9.1,
+          "hours3": 6,
+          "from": 10,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 5.8,
+          "clearSky": 7.3,
+          "hours3": 5.4,
+          "from": 11,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 4.3,
+          "clearSky": 5.2,
+          "hours3": 4.2,
+          "from": 10,
+          "to": 15,
+          "days": 90
+        },
+        {
+          "peak": 3.4,
+          "clearSky": 4.1,
+          "hours3": 2.8,
+          "from": 11,
+          "to": 14,
+          "days": 92
+        }
+      ]
+    },
+    "tampa": {
+      "elevation": 9,
+      "months": [
+        {
+          "peak": 3.9,
+          "clearSky": 4.7,
+          "hours3": 3.5,
+          "from": 11,
+          "to": 15,
+          "days": 93
+        },
+        {
+          "peak": 5.7,
+          "clearSky": 6.5,
+          "hours3": 5.1,
+          "from": 10,
+          "to": 16,
+          "days": 85
+        },
+        {
+          "peak": 7.5,
+          "clearSky": 8.6,
+          "hours3": 6.2,
+          "from": 10,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 8.5,
+          "clearSky": 9.7,
+          "hours3": 7.4,
+          "from": 10,
+          "to": 18,
+          "days": 90
+        },
+        {
+          "peak": 8.5,
+          "clearSky": 10,
+          "hours3": 7.4,
+          "from": 10,
+          "to": 18,
+          "days": 93
+        },
+        {
+          "peak": 8.5,
+          "clearSky": 10.5,
+          "hours3": 7.2,
+          "from": 10,
+          "to": 18,
+          "days": 90
+        },
+        {
+          "peak": 8.7,
+          "clearSky": 10.7,
+          "hours3": 6.9,
+          "from": 10,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 8.5,
+          "clearSky": 10.5,
+          "hours3": 6.9,
+          "from": 10,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 7.5,
+          "clearSky": 9.2,
+          "hours3": 6.3,
+          "from": 10,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 6.1,
+          "clearSky": 7.4,
+          "hours3": 5.5,
+          "from": 11,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 4.6,
+          "clearSky": 5.3,
+          "hours3": 4.3,
+          "from": 10,
+          "to": 15,
+          "days": 90
+        },
+        {
+          "peak": 3.6,
+          "clearSky": 4.1,
+          "hours3": 3.2,
+          "from": 11,
+          "to": 15,
+          "days": 92
+        }
+      ]
+    },
+    "honolulu": {
+      "elevation": 4,
+      "months": [
+        {
+          "peak": 6.2,
+          "clearSky": 6.9,
+          "hours3": 5.7,
+          "from": 10,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 7.4,
+          "clearSky": 8.4,
+          "hours3": 5.9,
+          "from": 10,
+          "to": 16,
+          "days": 85
+        },
+        {
+          "peak": 9.2,
+          "clearSky": 10.2,
+          "hours3": 7.1,
+          "from": 10,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 9.8,
+          "clearSky": 10.9,
+          "hours3": 7.6,
+          "from": 9,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 9.9,
+          "clearSky": 10.8,
+          "hours3": 7.8,
+          "from": 9,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 10.8,
+          "clearSky": 11.3,
+          "hours3": 7.9,
+          "from": 9,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 11.5,
+          "clearSky": 12.2,
+          "hours3": 8,
+          "from": 9,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 11.6,
+          "clearSky": 12.3,
+          "hours3": 8,
+          "from": 9,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 10.8,
+          "clearSky": 11.3,
+          "hours3": 7.7,
+          "from": 9,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 8.7,
+          "clearSky": 9.2,
+          "hours3": 6.8,
+          "from": 9,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 6.5,
+          "clearSky": 7.1,
+          "hours3": 5.7,
+          "from": 10,
+          "to": 16,
+          "days": 90
+        },
+        {
+          "peak": 5.6,
+          "clearSky": 6.2,
+          "hours3": 5.3,
+          "from": 10,
+          "to": 16,
+          "days": 92
+        }
+      ]
+    },
+    "salt-lake-city": {
+      "elevation": 1302,
+      "months": [
+        {
+          "peak": 1.9,
+          "clearSky": 2.2,
+          "hours3": 0.3,
+          "from": null,
+          "to": null,
+          "days": 93
+        },
+        {
+          "peak": 3.1,
+          "clearSky": 3.6,
+          "hours3": 2.7,
+          "from": 11,
+          "to": 15,
+          "days": 85
+        },
+        {
+          "peak": 4.7,
+          "clearSky": 5.4,
+          "hours3": 4.7,
+          "from": 11,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 6.2,
+          "clearSky": 7.1,
+          "hours3": 6.1,
+          "from": 10,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 7.3,
+          "clearSky": 8.3,
+          "hours3": 7,
+          "from": 10,
+          "to": 18,
+          "days": 93
+        },
+        {
+          "peak": 8.9,
+          "clearSky": 9.6,
+          "hours3": 8.1,
+          "from": 10,
+          "to": 18,
+          "days": 90
+        },
+        {
+          "peak": 9.8,
+          "clearSky": 10.2,
+          "hours3": 8.2,
+          "from": 10,
+          "to": 18,
+          "days": 93
+        },
+        {
+          "peak": 8.5,
+          "clearSky": 9.2,
+          "hours3": 7.5,
+          "from": 10,
+          "to": 18,
+          "days": 93
+        },
+        {
+          "peak": 6.6,
+          "clearSky": 7,
+          "hours3": 6.3,
+          "from": 10,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 4.4,
+          "clearSky": 4.9,
+          "hours3": 4.3,
+          "from": 11,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 2.4,
+          "clearSky": 2.8,
+          "hours3": 1.1,
+          "from": null,
+          "to": null,
+          "days": 90
+        },
+        {
+          "peak": 1.7,
+          "clearSky": 2,
+          "hours3": 0,
+          "from": null,
+          "to": null,
+          "days": 92
+        }
+      ]
+    },
+    "portland": {
+      "elevation": 25,
+      "months": [
+        {
+          "peak": 0.8,
+          "clearSky": 1.2,
+          "hours3": 0,
+          "from": null,
+          "to": null,
+          "days": 93
+        },
+        {
+          "peak": 1.3,
+          "clearSky": 2,
+          "hours3": 0.1,
+          "from": null,
+          "to": null,
+          "days": 85
+        },
+        {
+          "peak": 2.1,
+          "clearSky": 3.4,
+          "hours3": 1,
+          "from": null,
+          "to": null,
+          "days": 93
+        },
+        {
+          "peak": 3.3,
+          "clearSky": 5.2,
+          "hours3": 2.8,
+          "from": 11,
+          "to": 16,
+          "days": 90
+        },
+        {
+          "peak": 5,
+          "clearSky": 6.8,
+          "hours3": 5.1,
+          "from": 10,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 6.3,
+          "clearSky": 7.8,
+          "hours3": 6.7,
+          "from": 10,
+          "to": 18,
+          "days": 90
+        },
+        {
+          "peak": 7.6,
+          "clearSky": 8.2,
+          "hours3": 7.9,
+          "from": 10,
+          "to": 18,
+          "days": 93
+        },
+        {
+          "peak": 6,
+          "clearSky": 7.1,
+          "hours3": 6.2,
+          "from": 10,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 4.2,
+          "clearSky": 5.2,
+          "hours3": 4.2,
+          "from": 11,
+          "to": 16,
+          "days": 90
+        },
+        {
+          "peak": 2.4,
+          "clearSky": 3.2,
+          "hours3": 1.3,
+          "from": null,
+          "to": null,
+          "days": 93
+        },
+        {
+          "peak": 1,
+          "clearSky": 1.5,
+          "hours3": 0,
+          "from": null,
+          "to": null,
+          "days": 90
+        },
+        {
+          "peak": 0.6,
+          "clearSky": 1,
+          "hours3": 0,
+          "from": null,
+          "to": null,
+          "days": 92
+        }
+      ]
+    },
+    "minneapolis": {
+      "elevation": 253,
+      "months": [
+        {
+          "peak": 1.1,
+          "clearSky": 1.3,
+          "hours3": 0,
+          "from": null,
+          "to": null,
+          "days": 93
+        },
+        {
+          "peak": 2.1,
+          "clearSky": 2.3,
+          "hours3": 0.4,
+          "from": null,
+          "to": null,
+          "days": 85
+        },
+        {
+          "peak": 3.1,
+          "clearSky": 3.7,
+          "hours3": 2.8,
+          "from": 12,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 4,
+          "clearSky": 5.4,
+          "hours3": 3.8,
+          "from": 11,
+          "to": 16,
+          "days": 90
+        },
+        {
+          "peak": 5.6,
+          "clearSky": 6.9,
+          "hours3": 5.7,
+          "from": 10,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 6.2,
+          "clearSky": 7.7,
+          "hours3": 6.4,
+          "from": 10,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 6.5,
+          "clearSky": 7.5,
+          "hours3": 6.8,
+          "from": 10,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 5.8,
+          "clearSky": 6.9,
+          "hours3": 6,
+          "from": 10,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 4.8,
+          "clearSky": 5.4,
+          "hours3": 4.8,
+          "from": 11,
+          "to": 16,
+          "days": 90
+        },
+        {
+          "peak": 2.8,
+          "clearSky": 3.4,
+          "hours3": 2.2,
+          "from": 12,
+          "to": 15,
+          "days": 93
+        },
+        {
+          "peak": 1.4,
+          "clearSky": 1.7,
+          "hours3": 0,
+          "from": null,
+          "to": null,
+          "days": 90
+        },
+        {
+          "peak": 0.9,
+          "clearSky": 1.2,
+          "hours3": 0,
+          "from": null,
+          "to": null,
+          "days": 92
+        }
+      ]
+    },
+    "new-orleans": {
+      "elevation": 19,
+      "months": [
+        {
+          "peak": 3.4,
+          "clearSky": 4.2,
+          "hours3": 2.9,
+          "from": 11,
+          "to": 14,
+          "days": 93
+        },
+        {
+          "peak": 4.8,
+          "clearSky": 6,
+          "hours3": 4.2,
+          "from": 10,
+          "to": 15,
+          "days": 85
+        },
+        {
+          "peak": 6.3,
+          "clearSky": 7.9,
+          "hours3": 5.5,
+          "from": 10,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 7.4,
+          "clearSky": 9.3,
+          "hours3": 6.2,
+          "from": 10,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 7.7,
+          "clearSky": 9.4,
+          "hours3": 6.8,
+          "from": 10,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 8.5,
+          "clearSky": 10.2,
+          "hours3": 7.4,
+          "from": 9,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 8.5,
+          "clearSky": 10.5,
+          "hours3": 7.3,
+          "from": 10,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 8.5,
+          "clearSky": 9.8,
+          "hours3": 6.7,
+          "from": 10,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 7.3,
+          "clearSky": 8.6,
+          "hours3": 6.2,
+          "from": 10,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 6,
+          "clearSky": 6.6,
+          "hours3": 5.5,
+          "from": 10,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 3.9,
+          "clearSky": 4.7,
+          "hours3": 3.5,
+          "from": 10,
+          "to": 14,
+          "days": 90
+        },
+        {
+          "peak": 3,
+          "clearSky": 3.6,
+          "hours3": 2.4,
+          "from": 11,
+          "to": 14,
+          "days": 92
+        }
+      ]
+    },
+    "toronto": {
+      "elevation": 99,
+      "months": [
+        {
+          "peak": 0.9,
+          "clearSky": 1.3,
+          "hours3": 0,
+          "from": null,
+          "to": null,
+          "days": 93
+        },
+        {
+          "peak": 1.8,
+          "clearSky": 2.3,
+          "hours3": 0.2,
+          "from": null,
+          "to": null,
+          "days": 85
+        },
+        {
+          "peak": 2.9,
+          "clearSky": 3.9,
+          "hours3": 2.5,
+          "from": 12,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 4.3,
+          "clearSky": 5.5,
+          "hours3": 4.4,
+          "from": 11,
+          "to": 16,
+          "days": 90
+        },
+        {
+          "peak": 5.7,
+          "clearSky": 6.9,
+          "hours3": 6,
+          "from": 10,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 6.1,
+          "clearSky": 7.4,
+          "hours3": 6.6,
+          "from": 10,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 6.9,
+          "clearSky": 7.8,
+          "hours3": 7.2,
+          "from": 10,
+          "to": 18,
+          "days": 93
+        },
+        {
+          "peak": 5.7,
+          "clearSky": 6.8,
+          "hours3": 6.1,
+          "from": 10,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 4.8,
+          "clearSky": 5.4,
+          "hours3": 5,
+          "from": 11,
+          "to": 16,
+          "days": 90
+        },
+        {
+          "peak": 2.7,
+          "clearSky": 3.5,
+          "hours3": 1.9,
+          "from": 12,
+          "to": 15,
+          "days": 93
+        },
+        {
+          "peak": 1.3,
+          "clearSky": 1.9,
+          "hours3": 0,
+          "from": null,
+          "to": null,
+          "days": 90
+        },
+        {
+          "peak": 0.7,
+          "clearSky": 1.2,
+          "hours3": 0,
+          "from": null,
+          "to": null,
+          "days": 92
+        }
+      ]
+    },
+    "vancouver": {
+      "elevation": 40,
+      "months": [
+        {
+          "peak": 0.5,
+          "clearSky": 0.8,
+          "hours3": 0,
+          "from": null,
+          "to": null,
+          "days": 93
+        },
+        {
+          "peak": 0.9,
+          "clearSky": 1.5,
+          "hours3": 0,
+          "from": null,
+          "to": null,
+          "days": 85
+        },
+        {
+          "peak": 1.9,
+          "clearSky": 2.8,
+          "hours3": 0.7,
+          "from": null,
+          "to": null,
+          "days": 93
+        },
+        {
+          "peak": 3.1,
+          "clearSky": 4.5,
+          "hours3": 3,
+          "from": 11,
+          "to": 16,
+          "days": 90
+        },
+        {
+          "peak": 4.7,
+          "clearSky": 6.1,
+          "hours3": 5.2,
+          "from": 11,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 5.6,
+          "clearSky": 6.9,
+          "hours3": 6.3,
+          "from": 10,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 6.6,
+          "clearSky": 7.3,
+          "hours3": 7.4,
+          "from": 10,
+          "to": 18,
+          "days": 93
+        },
+        {
+          "peak": 5.3,
+          "clearSky": 6.2,
+          "hours3": 6,
+          "from": 10,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 3.5,
+          "clearSky": 4.4,
+          "hours3": 3.4,
+          "from": 11,
+          "to": 16,
+          "days": 90
+        },
+        {
+          "peak": 1.8,
+          "clearSky": 2.5,
+          "hours3": 0.6,
+          "from": null,
+          "to": null,
+          "days": 93
+        },
+        {
+          "peak": 0.7,
+          "clearSky": 1.1,
+          "hours3": 0,
+          "from": null,
+          "to": null,
+          "days": 90
+        },
+        {
+          "peak": 0.4,
+          "clearSky": 0.7,
+          "hours3": 0,
+          "from": null,
+          "to": null,
+          "days": 92
+        }
+      ]
+    },
+    "mexico-city": {
+      "elevation": 2230,
+      "months": [
+        {
+          "peak": 7.8,
+          "clearSky": 8.4,
+          "hours3": 5.9,
+          "from": 10,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 10,
+          "clearSky": 10.6,
+          "hours3": 6.6,
+          "from": 10,
+          "to": 17,
+          "days": 85
+        },
+        {
+          "peak": 12.3,
+          "clearSky": 12.8,
+          "hours3": 7.7,
+          "from": 9,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 12.8,
+          "clearSky": 13.7,
+          "hours3": 7.7,
+          "from": 9,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 11.6,
+          "clearSky": 13,
+          "hours3": 7.4,
+          "from": 9,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 11.1,
+          "clearSky": 13.5,
+          "hours3": 7.3,
+          "from": 9,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 10.3,
+          "clearSky": 12.9,
+          "hours3": 7.4,
+          "from": 9,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 10.9,
+          "clearSky": 13.1,
+          "hours3": 7.4,
+          "from": 9,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 10,
+          "clearSky": 12.6,
+          "hours3": 7,
+          "from": 9,
+          "to": 16,
+          "days": 90
+        },
+        {
+          "peak": 8.8,
+          "clearSky": 11.2,
+          "hours3": 6.4,
+          "from": 9,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 8.5,
+          "clearSky": 9.1,
+          "hours3": 6.4,
+          "from": 9,
+          "to": 16,
+          "days": 90
+        },
+        {
+          "peak": 6.7,
+          "clearSky": 7.8,
+          "hours3": 5.5,
+          "from": 10,
+          "to": 16,
+          "days": 92
+        }
+      ]
+    },
+    "london": {
+      "elevation": 16,
+      "months": [
+        {
+          "peak": 0.5,
+          "clearSky": 0.7,
+          "hours3": 0,
+          "from": null,
+          "to": null,
+          "days": 93
+        },
+        {
+          "peak": 0.8,
+          "clearSky": 1.3,
+          "hours3": 0,
+          "from": null,
+          "to": null,
+          "days": 85
+        },
+        {
+          "peak": 1.9,
+          "clearSky": 2.7,
+          "hours3": 0.6,
+          "from": null,
+          "to": null,
+          "days": 93
+        },
+        {
+          "peak": 3.2,
+          "clearSky": 4.1,
+          "hours3": 2.8,
+          "from": 11,
+          "to": 15,
+          "days": 90
+        },
+        {
+          "peak": 4.1,
+          "clearSky": 5.5,
+          "hours3": 4.2,
+          "from": 10,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 4.9,
+          "clearSky": 6.4,
+          "hours3": 5.7,
+          "from": 10,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 4.4,
+          "clearSky": 6.3,
+          "hours3": 4.7,
+          "from": 10,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 4.1,
+          "clearSky": 5.6,
+          "hours3": 4.2,
+          "from": 11,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 3.1,
+          "clearSky": 4,
+          "hours3": 2.5,
+          "from": 11,
+          "to": 15,
+          "days": 90
+        },
+        {
+          "peak": 1.6,
+          "clearSky": 2.2,
+          "hours3": 0.2,
+          "from": null,
+          "to": null,
+          "days": 93
+        },
+        {
+          "peak": 0.7,
+          "clearSky": 0.9,
+          "hours3": 0,
+          "from": null,
+          "to": null,
+          "days": 90
+        },
+        {
+          "peak": 0.4,
+          "clearSky": 0.6,
+          "hours3": 0,
+          "from": null,
+          "to": null,
+          "days": 93
+        }
+      ]
+    },
+    "paris": {
+      "elevation": 36,
+      "months": [
+        {
+          "peak": 0.5,
+          "clearSky": 0.9,
+          "hours3": 0,
+          "from": null,
+          "to": null,
+          "days": 93
+        },
+        {
+          "peak": 1.1,
+          "clearSky": 1.6,
+          "hours3": 0,
+          "from": null,
+          "to": null,
+          "days": 85
+        },
+        {
+          "peak": 2.4,
+          "clearSky": 3.1,
+          "hours3": 1.2,
+          "from": null,
+          "to": null,
+          "days": 93
+        },
+        {
+          "peak": 3.5,
+          "clearSky": 4.6,
+          "hours3": 3.3,
+          "from": 12,
+          "to": 16,
+          "days": 90
+        },
+        {
+          "peak": 4.6,
+          "clearSky": 6,
+          "hours3": 4.8,
+          "from": 11,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 5.6,
+          "clearSky": 6.9,
+          "hours3": 6.3,
+          "from": 10,
+          "to": 18,
+          "days": 90
+        },
+        {
+          "peak": 5.3,
+          "clearSky": 7,
+          "hours3": 5.6,
+          "from": 11,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 5,
+          "clearSky": 6.2,
+          "hours3": 5.3,
+          "from": 11,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 3.6,
+          "clearSky": 4.6,
+          "hours3": 3.1,
+          "from": 12,
+          "to": 16,
+          "days": 90
+        },
+        {
+          "peak": 2,
+          "clearSky": 2.6,
+          "hours3": 0.8,
+          "from": null,
+          "to": null,
+          "days": 93
+        },
+        {
+          "peak": 0.8,
+          "clearSky": 1.2,
+          "hours3": 0,
+          "from": null,
+          "to": null,
+          "days": 90
+        },
+        {
+          "peak": 0.5,
+          "clearSky": 0.7,
+          "hours3": 0,
+          "from": null,
+          "to": null,
+          "days": 93
+        }
+      ]
+    },
+    "berlin": {
+      "elevation": 37,
+      "months": [
+        {
+          "peak": 0.4,
+          "clearSky": 0.6,
+          "hours3": 0,
+          "from": null,
+          "to": null,
+          "days": 93
+        },
+        {
+          "peak": 0.9,
+          "clearSky": 1.2,
+          "hours3": 0,
+          "from": null,
+          "to": null,
+          "days": 85
+        },
+        {
+          "peak": 1.9,
+          "clearSky": 2.6,
+          "hours3": 0.6,
+          "from": null,
+          "to": null,
+          "days": 93
+        },
+        {
+          "peak": 2.9,
+          "clearSky": 3.9,
+          "hours3": 2.5,
+          "from": 11,
+          "to": 15,
+          "days": 90
+        },
+        {
+          "peak": 4.2,
+          "clearSky": 5.3,
+          "hours3": 4.9,
+          "from": 10,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 4.9,
+          "clearSky": 6.1,
+          "hours3": 5.7,
+          "from": 10,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 4.7,
+          "clearSky": 6.1,
+          "hours3": 5.1,
+          "from": 10,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 4.5,
+          "clearSky": 5.5,
+          "hours3": 5.1,
+          "from": 10,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 3.3,
+          "clearSky": 4,
+          "hours3": 3.2,
+          "from": 11,
+          "to": 15,
+          "days": 90
+        },
+        {
+          "peak": 1.4,
+          "clearSky": 2,
+          "hours3": 0.1,
+          "from": null,
+          "to": null,
+          "days": 93
+        },
+        {
+          "peak": 0.6,
+          "clearSky": 0.8,
+          "hours3": 0,
+          "from": null,
+          "to": null,
+          "days": 90
+        },
+        {
+          "peak": 0.3,
+          "clearSky": 0.5,
+          "hours3": 0,
+          "from": null,
+          "to": null,
+          "days": 93
+        }
+      ]
+    },
+    "madrid": {
+      "elevation": 666,
+      "months": [
+        {
+          "peak": 1.5,
+          "clearSky": 1.9,
+          "hours3": 0.1,
+          "from": null,
+          "to": null,
+          "days": 93
+        },
+        {
+          "peak": 2.6,
+          "clearSky": 3,
+          "hours3": 1.3,
+          "from": 13,
+          "to": 15,
+          "days": 85
+        },
+        {
+          "peak": 3.8,
+          "clearSky": 4.9,
+          "hours3": 3.2,
+          "from": 11,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 6.1,
+          "clearSky": 6.9,
+          "hours3": 6.1,
+          "from": 11,
+          "to": 18,
+          "days": 90
+        },
+        {
+          "peak": 6.8,
+          "clearSky": 7.8,
+          "hours3": 6.8,
+          "from": 11,
+          "to": 18,
+          "days": 93
+        },
+        {
+          "peak": 7.9,
+          "clearSky": 8.8,
+          "hours3": 7.7,
+          "from": 10,
+          "to": 19,
+          "days": 90
+        },
+        {
+          "peak": 9.3,
+          "clearSky": 9.5,
+          "hours3": 8.6,
+          "from": 10,
+          "to": 19,
+          "days": 93
+        },
+        {
+          "peak": 8.2,
+          "clearSky": 8.5,
+          "hours3": 7.4,
+          "from": 11,
+          "to": 19,
+          "days": 93
+        },
+        {
+          "peak": 6,
+          "clearSky": 6.6,
+          "hours3": 5.9,
+          "from": 11,
+          "to": 18,
+          "days": 90
+        },
+        {
+          "peak": 3.7,
+          "clearSky": 4.4,
+          "hours3": 3,
+          "from": 12,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 2.1,
+          "clearSky": 2.6,
+          "hours3": 0.4,
+          "from": null,
+          "to": null,
+          "days": 90
+        },
+        {
+          "peak": 1.4,
+          "clearSky": 1.7,
+          "hours3": 0,
+          "from": null,
+          "to": null,
+          "days": 93
+        }
+      ]
+    },
+    "barcelona": {
+      "elevation": 25,
+      "months": [
+        {
+          "peak": 1.6,
+          "clearSky": 1.7,
+          "hours3": 0,
+          "from": null,
+          "to": null,
+          "days": 93
+        },
+        {
+          "peak": 2.4,
+          "clearSky": 2.6,
+          "hours3": 0.9,
+          "from": null,
+          "to": null,
+          "days": 85
+        },
+        {
+          "peak": 3.8,
+          "clearSky": 4.4,
+          "hours3": 3.5,
+          "from": 11,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 5.5,
+          "clearSky": 6.1,
+          "hours3": 5.9,
+          "from": 11,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 6.5,
+          "clearSky": 7.1,
+          "hours3": 7,
+          "from": 11,
+          "to": 18,
+          "days": 93
+        },
+        {
+          "peak": 7.5,
+          "clearSky": 8.1,
+          "hours3": 7.6,
+          "from": 10,
+          "to": 18,
+          "days": 90
+        },
+        {
+          "peak": 7.9,
+          "clearSky": 8.6,
+          "hours3": 7.6,
+          "from": 10,
+          "to": 18,
+          "days": 93
+        },
+        {
+          "peak": 7.1,
+          "clearSky": 7.6,
+          "hours3": 6.8,
+          "from": 11,
+          "to": 18,
+          "days": 93
+        },
+        {
+          "peak": 5.4,
+          "clearSky": 5.9,
+          "hours3": 5.5,
+          "from": 11,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 3.5,
+          "clearSky": 3.9,
+          "hours3": 3.1,
+          "from": 12,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 2,
+          "clearSky": 2.2,
+          "hours3": 0.2,
+          "from": null,
+          "to": null,
+          "days": 90
+        },
+        {
+          "peak": 1.4,
+          "clearSky": 1.5,
+          "hours3": 0,
+          "from": null,
+          "to": null,
+          "days": 93
+        }
+      ]
+    },
+    "rome": {
+      "elevation": 58,
+      "months": [
+        {
+          "peak": 1.3,
+          "clearSky": 1.5,
+          "hours3": 0,
+          "from": null,
+          "to": null,
+          "days": 93
+        },
+        {
+          "peak": 2,
+          "clearSky": 2.4,
+          "hours3": 0.4,
+          "from": null,
+          "to": null,
+          "days": 85
+        },
+        {
+          "peak": 3.3,
+          "clearSky": 4.1,
+          "hours3": 2.8,
+          "from": 11,
+          "to": 15,
+          "days": 93
+        },
+        {
+          "peak": 4.9,
+          "clearSky": 5.7,
+          "hours3": 5.2,
+          "from": 11,
+          "to": 16,
+          "days": 90
+        },
+        {
+          "peak": 5.9,
+          "clearSky": 7,
+          "hours3": 6.2,
+          "from": 10,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 7.5,
+          "clearSky": 8,
+          "hours3": 7.7,
+          "from": 10,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 8.2,
+          "clearSky": 8.6,
+          "hours3": 8.1,
+          "from": 10,
+          "to": 18,
+          "days": 93
+        },
+        {
+          "peak": 7,
+          "clearSky": 7.5,
+          "hours3": 6.8,
+          "from": 10,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 5.3,
+          "clearSky": 5.9,
+          "hours3": 5.4,
+          "from": 11,
+          "to": 16,
+          "days": 90
+        },
+        {
+          "peak": 3.2,
+          "clearSky": 3.8,
+          "hours3": 2.8,
+          "from": 11,
+          "to": 15,
+          "days": 93
+        },
+        {
+          "peak": 1.8,
+          "clearSky": 2.1,
+          "hours3": 0.3,
+          "from": null,
+          "to": null,
+          "days": 90
+        },
+        {
+          "peak": 1.2,
+          "clearSky": 1.4,
+          "hours3": 0,
+          "from": null,
+          "to": null,
+          "days": 93
+        }
+      ]
+    },
+    "amsterdam": {
+      "elevation": 5,
+      "months": [
+        {
+          "peak": 0.4,
+          "clearSky": 0.6,
+          "hours3": 0,
+          "from": null,
+          "to": null,
+          "days": 93
+        },
+        {
+          "peak": 0.8,
+          "clearSky": 1.2,
+          "hours3": 0,
+          "from": null,
+          "to": null,
+          "days": 85
+        },
+        {
+          "peak": 2.1,
+          "clearSky": 2.6,
+          "hours3": 0.8,
+          "from": null,
+          "to": null,
+          "days": 93
+        },
+        {
+          "peak": 3.2,
+          "clearSky": 4,
+          "hours3": 2.9,
+          "from": 12,
+          "to": 16,
+          "days": 90
+        },
+        {
+          "peak": 4.3,
+          "clearSky": 5.3,
+          "hours3": 5.1,
+          "from": 11,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 5.3,
+          "clearSky": 6.2,
+          "hours3": 6.4,
+          "from": 10,
+          "to": 18,
+          "days": 90
+        },
+        {
+          "peak": 5,
+          "clearSky": 6.1,
+          "hours3": 5.8,
+          "from": 11,
+          "to": 18,
+          "days": 93
+        },
+        {
+          "peak": 4.4,
+          "clearSky": 5.4,
+          "hours3": 5.1,
+          "from": 11,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 3.2,
+          "clearSky": 3.8,
+          "hours3": 2.6,
+          "from": 12,
+          "to": 16,
+          "days": 90
+        },
+        {
+          "peak": 1.5,
+          "clearSky": 2,
+          "hours3": 0.1,
+          "from": null,
+          "to": null,
+          "days": 93
+        },
+        {
+          "peak": 0.6,
+          "clearSky": 0.9,
+          "hours3": 0,
+          "from": null,
+          "to": null,
+          "days": 90
+        },
+        {
+          "peak": 0.3,
+          "clearSky": 0.5,
+          "hours3": 0,
+          "from": null,
+          "to": null,
+          "days": 93
+        }
+      ]
+    },
+    "athens": {
+      "elevation": 92,
+      "months": [
+        {
+          "peak": 1.7,
+          "clearSky": 2,
+          "hours3": 0,
+          "from": null,
+          "to": null,
+          "days": 92
+        },
+        {
+          "peak": 2.4,
+          "clearSky": 3.1,
+          "hours3": 1.2,
+          "from": null,
+          "to": null,
+          "days": 85
+        },
+        {
+          "peak": 4.1,
+          "clearSky": 4.7,
+          "hours3": 4.1,
+          "from": 11,
+          "to": 15,
+          "days": 93
+        },
+        {
+          "peak": 5.5,
+          "clearSky": 6.4,
+          "hours3": 5.6,
+          "from": 11,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 6.5,
+          "clearSky": 7.5,
+          "hours3": 6.4,
+          "from": 10,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 8.3,
+          "clearSky": 8.9,
+          "hours3": 7.8,
+          "from": 10,
+          "to": 18,
+          "days": 90
+        },
+        {
+          "peak": 9.2,
+          "clearSky": 9.5,
+          "hours3": 7.9,
+          "from": 10,
+          "to": 18,
+          "days": 93
+        },
+        {
+          "peak": 8,
+          "clearSky": 8.5,
+          "hours3": 7.4,
+          "from": 10,
+          "to": 18,
+          "days": 93
+        },
+        {
+          "peak": 6,
+          "clearSky": 6.7,
+          "hours3": 5.9,
+          "from": 11,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 4.3,
+          "clearSky": 4.8,
+          "hours3": 4.1,
+          "from": 11,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 2.4,
+          "clearSky": 2.8,
+          "hours3": 1,
+          "from": null,
+          "to": null,
+          "days": 90
+        },
+        {
+          "peak": 1.6,
+          "clearSky": 1.9,
+          "hours3": 0,
+          "from": null,
+          "to": null,
+          "days": 93
+        }
+      ]
+    },
+    "lisbon": {
+      "elevation": 66,
+      "months": [
+        {
+          "peak": 1.7,
+          "clearSky": 2.1,
+          "hours3": 0.1,
+          "from": null,
+          "to": null,
+          "days": 93
+        },
+        {
+          "peak": 2.7,
+          "clearSky": 3.2,
+          "hours3": 1.5,
+          "from": 12,
+          "to": 14,
+          "days": 85
+        },
+        {
+          "peak": 4,
+          "clearSky": 5,
+          "hours3": 3.4,
+          "from": 11,
+          "to": 15,
+          "days": 93
+        },
+        {
+          "peak": 6,
+          "clearSky": 6.8,
+          "hours3": 5.9,
+          "from": 11,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 7,
+          "clearSky": 7.8,
+          "hours3": 7.3,
+          "from": 10,
+          "to": 18,
+          "days": 93
+        },
+        {
+          "peak": 7.7,
+          "clearSky": 8.5,
+          "hours3": 7.5,
+          "from": 10,
+          "to": 18,
+          "days": 90
+        },
+        {
+          "peak": 8.8,
+          "clearSky": 9.3,
+          "hours3": 7.8,
+          "from": 10,
+          "to": 18,
+          "days": 93
+        },
+        {
+          "peak": 8.2,
+          "clearSky": 8.4,
+          "hours3": 7.7,
+          "from": 10,
+          "to": 18,
+          "days": 93
+        },
+        {
+          "peak": 5.9,
+          "clearSky": 6.5,
+          "hours3": 5.6,
+          "from": 11,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 3.7,
+          "clearSky": 4.5,
+          "hours3": 3.3,
+          "from": 11,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 2.2,
+          "clearSky": 2.7,
+          "hours3": 0.6,
+          "from": null,
+          "to": null,
+          "days": 90
+        },
+        {
+          "peak": 1.6,
+          "clearSky": 1.8,
+          "hours3": 0,
+          "from": null,
+          "to": null,
+          "days": 93
+        }
+      ]
+    },
+    "dubai": {
+      "elevation": 6,
+      "months": [
+        {
+          "peak": 4.7,
+          "clearSky": 5,
+          "hours3": 4.6,
+          "from": 10,
+          "to": 15,
+          "days": 92
+        },
+        {
+          "peak": 6,
+          "clearSky": 6.4,
+          "hours3": 5.5,
+          "from": 10,
+          "to": 16,
+          "days": 85
+        },
+        {
+          "peak": 7.9,
+          "clearSky": 8.3,
+          "hours3": 6.5,
+          "from": 9,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 9.1,
+          "clearSky": 9.4,
+          "hours3": 7.2,
+          "from": 9,
+          "to": 16,
+          "days": 90
+        },
+        {
+          "peak": 10.1,
+          "clearSky": 10.3,
+          "hours3": 7.8,
+          "from": 9,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 9.8,
+          "clearSky": 9.8,
+          "hours3": 7.9,
+          "from": 9,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 8.8,
+          "clearSky": 8.8,
+          "hours3": 7.7,
+          "from": 9,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 8.7,
+          "clearSky": 8.8,
+          "hours3": 7.3,
+          "from": 9,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 8.5,
+          "clearSky": 8.5,
+          "hours3": 7,
+          "from": 9,
+          "to": 16,
+          "days": 90
+        },
+        {
+          "peak": 7.3,
+          "clearSky": 7.4,
+          "hours3": 6.5,
+          "from": 9,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 5.5,
+          "clearSky": 5.6,
+          "hours3": 5,
+          "from": 10,
+          "to": 15,
+          "days": 90
+        },
+        {
+          "peak": 4.4,
+          "clearSky": 4.6,
+          "hours3": 4.5,
+          "from": 10,
+          "to": 15,
+          "days": 93
+        }
+      ]
+    },
+    "mumbai": {
+      "elevation": 6,
+      "months": [
+        {
+          "peak": 6,
+          "clearSky": 6,
+          "hours3": 5.5,
+          "from": 10,
+          "to": 16,
+          "days": 92
+        },
+        {
+          "peak": 8.2,
+          "clearSky": 8.2,
+          "hours3": 6.7,
+          "from": 9,
+          "to": 16,
+          "days": 85
+        },
+        {
+          "peak": 9.1,
+          "clearSky": 9.2,
+          "hours3": 6.8,
+          "from": 9,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 9.8,
+          "clearSky": 9.9,
+          "hours3": 7,
+          "from": 9,
+          "to": 16,
+          "days": 90
+        },
+        {
+          "peak": 9.4,
+          "clearSky": 10.1,
+          "hours3": 6.9,
+          "from": 9,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 7.7,
+          "clearSky": 10.5,
+          "hours3": 6.1,
+          "from": 9,
+          "to": 16,
+          "days": 90
+        },
+        {
+          "peak": 5.1,
+          "clearSky": 10.7,
+          "hours3": 4.2,
+          "from": 10,
+          "to": 15,
+          "days": 93
+        },
+        {
+          "peak": 7.5,
+          "clearSky": 10.9,
+          "hours3": 6.2,
+          "from": 9,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 6.8,
+          "clearSky": 10.1,
+          "hours3": 5.6,
+          "from": 9,
+          "to": 16,
+          "days": 90
+        },
+        {
+          "peak": 7.2,
+          "clearSky": 7.9,
+          "hours3": 6.1,
+          "from": 9,
+          "to": 15,
+          "days": 93
+        },
+        {
+          "peak": 6,
+          "clearSky": 6.1,
+          "hours3": 5.5,
+          "from": 9,
+          "to": 15,
+          "days": 90
+        },
+        {
+          "peak": 5.6,
+          "clearSky": 5.7,
+          "hours3": 5,
+          "from": 10,
+          "to": 15,
+          "days": 93
+        }
+      ]
+    },
+    "delhi": {
+      "elevation": 222,
+      "months": [
+        {
+          "peak": 3.2,
+          "clearSky": 3.3,
+          "hours3": 2.8,
+          "from": 11,
+          "to": 14,
+          "days": 92
+        },
+        {
+          "peak": 5,
+          "clearSky": 5.1,
+          "hours3": 4.7,
+          "from": 10,
+          "to": 15,
+          "days": 85
+        },
+        {
+          "peak": 6.7,
+          "clearSky": 7,
+          "hours3": 6.1,
+          "from": 9,
+          "to": 15,
+          "days": 93
+        },
+        {
+          "peak": 7.4,
+          "clearSky": 7.8,
+          "hours3": 6.6,
+          "from": 9,
+          "to": 16,
+          "days": 90
+        },
+        {
+          "peak": 7.5,
+          "clearSky": 7.9,
+          "hours3": 6.9,
+          "from": 8,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 6.9,
+          "clearSky": 8.1,
+          "hours3": 6.6,
+          "from": 8,
+          "to": 16,
+          "days": 90
+        },
+        {
+          "peak": 6.4,
+          "clearSky": 8.8,
+          "hours3": 6.1,
+          "from": 9,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 6.7,
+          "clearSky": 8.9,
+          "hours3": 6,
+          "from": 9,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 6.5,
+          "clearSky": 7.9,
+          "hours3": 5.6,
+          "from": 9,
+          "to": 15,
+          "days": 90
+        },
+        {
+          "peak": 5.9,
+          "clearSky": 6.1,
+          "hours3": 5.6,
+          "from": 9,
+          "to": 15,
+          "days": 93
+        },
+        {
+          "peak": 3.9,
+          "clearSky": 3.9,
+          "hours3": 3.9,
+          "from": 10,
+          "to": 14,
+          "days": 90
+        },
+        {
+          "peak": 3.3,
+          "clearSky": 3.3,
+          "hours3": 3.1,
+          "from": 10,
+          "to": 14,
+          "days": 93
+        }
+      ]
+    },
+    "singapore": {
+      "elevation": 46,
+      "months": [
+        {
+          "peak": 8.2,
+          "clearSky": 12.1,
+          "hours3": 6.3,
+          "from": 10,
+          "to": 17,
+          "days": 92
+        },
+        {
+          "peak": 10.6,
+          "clearSky": 13.1,
+          "hours3": 7.1,
+          "from": 10,
+          "to": 17,
+          "days": 85
+        },
+        {
+          "peak": 10.4,
+          "clearSky": 13.6,
+          "hours3": 6.7,
+          "from": 10,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 9.7,
+          "clearSky": 12.3,
+          "hours3": 6.7,
+          "from": 10,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 8.9,
+          "clearSky": 11.3,
+          "hours3": 6.6,
+          "from": 10,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 8.1,
+          "clearSky": 10.3,
+          "hours3": 6.5,
+          "from": 10,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 8.9,
+          "clearSky": 10.7,
+          "hours3": 6.7,
+          "from": 10,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 9.5,
+          "clearSky": 11.9,
+          "hours3": 6.7,
+          "from": 10,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 10.1,
+          "clearSky": 12.6,
+          "hours3": 7,
+          "from": 10,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 10.3,
+          "clearSky": 12.4,
+          "hours3": 7.3,
+          "from": 10,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 8.6,
+          "clearSky": 11.9,
+          "hours3": 6.6,
+          "from": 10,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 8.3,
+          "clearSky": 11.6,
+          "hours3": 6.6,
+          "from": 10,
+          "to": 17,
+          "days": 93
+        }
+      ]
+    },
+    "bangkok": {
+      "elevation": 4,
+      "months": [
+        {
+          "peak": 7.7,
+          "clearSky": 8,
+          "hours3": 6.1,
+          "from": 10,
+          "to": 16,
+          "days": 92
+        },
+        {
+          "peak": 8.6,
+          "clearSky": 9.2,
+          "hours3": 6.5,
+          "from": 9,
+          "to": 16,
+          "days": 85
+        },
+        {
+          "peak": 9.7,
+          "clearSky": 10.4,
+          "hours3": 7.2,
+          "from": 9,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 9.6,
+          "clearSky": 10.5,
+          "hours3": 7.3,
+          "from": 9,
+          "to": 16,
+          "days": 90
+        },
+        {
+          "peak": 8.7,
+          "clearSky": 11,
+          "hours3": 6.8,
+          "from": 9,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 8.8,
+          "clearSky": 11.8,
+          "hours3": 6.8,
+          "from": 9,
+          "to": 16,
+          "days": 90
+        },
+        {
+          "peak": 8.5,
+          "clearSky": 12.3,
+          "hours3": 6.7,
+          "from": 9,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 10.2,
+          "clearSky": 12.6,
+          "hours3": 7.3,
+          "from": 9,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 8.8,
+          "clearSky": 12.3,
+          "hours3": 6.5,
+          "from": 9,
+          "to": 16,
+          "days": 90
+        },
+        {
+          "peak": 7.9,
+          "clearSky": 10.1,
+          "hours3": 6.6,
+          "from": 9,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 7.5,
+          "clearSky": 8.8,
+          "hours3": 6.4,
+          "from": 9,
+          "to": 16,
+          "days": 90
+        },
+        {
+          "peak": 7.6,
+          "clearSky": 8.3,
+          "hours3": 6.7,
+          "from": 9,
+          "to": 16,
+          "days": 93
+        }
+      ]
+    },
+    "tokyo": {
+      "elevation": 37,
+      "months": [
+        {
+          "peak": 2.1,
+          "clearSky": 2.5,
+          "hours3": 0.4,
+          "from": null,
+          "to": null,
+          "days": 92
+        },
+        {
+          "peak": 3,
+          "clearSky": 3.8,
+          "hours3": 2.4,
+          "from": 10,
+          "to": 14,
+          "days": 85
+        },
+        {
+          "peak": 3.7,
+          "clearSky": 5.2,
+          "hours3": 3.4,
+          "from": 10,
+          "to": 15,
+          "days": 93
+        },
+        {
+          "peak": 5,
+          "clearSky": 7,
+          "hours3": 4.7,
+          "from": 9,
+          "to": 15,
+          "days": 90
+        },
+        {
+          "peak": 5.7,
+          "clearSky": 8.4,
+          "hours3": 5.4,
+          "from": 9,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 6.5,
+          "clearSky": 9.1,
+          "hours3": 6.1,
+          "from": 8,
+          "to": 16,
+          "days": 90
+        },
+        {
+          "peak": 7.7,
+          "clearSky": 9.7,
+          "hours3": 7,
+          "from": 8,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 7.8,
+          "clearSky": 9.3,
+          "hours3": 7,
+          "from": 8,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 6.1,
+          "clearSky": 7.7,
+          "hours3": 5.2,
+          "from": 9,
+          "to": 15,
+          "days": 90
+        },
+        {
+          "peak": 3.9,
+          "clearSky": 5.5,
+          "hours3": 3.2,
+          "from": 9,
+          "to": 14,
+          "days": 93
+        },
+        {
+          "peak": 2.7,
+          "clearSky": 3.4,
+          "hours3": 1.8,
+          "from": 11,
+          "to": 13,
+          "days": 90
+        },
+        {
+          "peak": 2.1,
+          "clearSky": 2.3,
+          "hours3": 0.2,
+          "from": null,
+          "to": null,
+          "days": 93
+        }
+      ]
+    },
+    "seoul": {
+      "elevation": 34,
+      "months": [
+        {
+          "peak": 1.6,
+          "clearSky": 1.9,
+          "hours3": 0,
+          "from": null,
+          "to": null,
+          "days": 92
+        },
+        {
+          "peak": 2.5,
+          "clearSky": 2.9,
+          "hours3": 1.3,
+          "from": null,
+          "to": null,
+          "days": 85
+        },
+        {
+          "peak": 3.7,
+          "clearSky": 4.2,
+          "hours3": 3.6,
+          "from": 11,
+          "to": 15,
+          "days": 93
+        },
+        {
+          "peak": 4.7,
+          "clearSky": 5.9,
+          "hours3": 4.4,
+          "from": 10,
+          "to": 16,
+          "days": 90
+        },
+        {
+          "peak": 5.3,
+          "clearSky": 7.1,
+          "hours3": 5.4,
+          "from": 9,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 6.2,
+          "clearSky": 7.8,
+          "hours3": 6.4,
+          "from": 9,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 6,
+          "clearSky": 8.8,
+          "hours3": 5.5,
+          "from": 10,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 6.1,
+          "clearSky": 8.2,
+          "hours3": 5.9,
+          "from": 9,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 5,
+          "clearSky": 6.8,
+          "hours3": 4.6,
+          "from": 10,
+          "to": 16,
+          "days": 90
+        },
+        {
+          "peak": 3.4,
+          "clearSky": 4.6,
+          "hours3": 3.1,
+          "from": 11,
+          "to": 15,
+          "days": 93
+        },
+        {
+          "peak": 2.3,
+          "clearSky": 2.6,
+          "hours3": 1,
+          "from": null,
+          "to": null,
+          "days": 90
+        },
+        {
+          "peak": 1.5,
+          "clearSky": 1.7,
+          "hours3": 0,
+          "from": null,
+          "to": null,
+          "days": 93
+        }
+      ]
+    },
+    "hong-kong": {
+      "elevation": 21,
+      "months": [
+        {
+          "peak": 5,
+          "clearSky": 6.1,
+          "hours3": 4.6,
+          "from": 10,
+          "to": 16,
+          "days": 92
+        },
+        {
+          "peak": 6,
+          "clearSky": 7.7,
+          "hours3": 5,
+          "from": 10,
+          "to": 16,
+          "days": 85
+        },
+        {
+          "peak": 6.1,
+          "clearSky": 8.6,
+          "hours3": 4.9,
+          "from": 10,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 6.1,
+          "clearSky": 8.5,
+          "hours3": 5.4,
+          "from": 10,
+          "to": 16,
+          "days": 90
+        },
+        {
+          "peak": 6.5,
+          "clearSky": 10.1,
+          "hours3": 5.7,
+          "from": 9,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 7.1,
+          "clearSky": 11.3,
+          "hours3": 6.4,
+          "from": 9,
+          "to": 16,
+          "days": 90
+        },
+        {
+          "peak": 8.1,
+          "clearSky": 11.3,
+          "hours3": 7,
+          "from": 9,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 7.4,
+          "clearSky": 11.1,
+          "hours3": 6.2,
+          "from": 9,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 7,
+          "clearSky": 10.3,
+          "hours3": 5.7,
+          "from": 9,
+          "to": 16,
+          "days": 90
+        },
+        {
+          "peak": 6.6,
+          "clearSky": 8.5,
+          "hours3": 5.6,
+          "from": 9,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 5.4,
+          "clearSky": 6.9,
+          "hours3": 4.4,
+          "from": 10,
+          "to": 15,
+          "days": 90
+        },
+        {
+          "peak": 4.7,
+          "clearSky": 5.7,
+          "hours3": 4.2,
+          "from": 10,
+          "to": 15,
+          "days": 93
+        }
+      ]
+    },
+    "sydney": {
+      "elevation": 86,
+      "months": [
+        {
+          "peak": 8.6,
+          "clearSky": 12.2,
+          "hours3": 7.3,
+          "from": 9,
+          "to": 17,
+          "days": 92
+        },
+        {
+          "peak": 8.3,
+          "clearSky": 10.9,
+          "hours3": 7,
+          "from": 10,
+          "to": 17,
+          "days": 85
+        },
+        {
+          "peak": 6.6,
+          "clearSky": 8.7,
+          "hours3": 5.8,
+          "from": 10,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 4.6,
+          "clearSky": 5.7,
+          "hours3": 4.3,
+          "from": 10,
+          "to": 15,
+          "days": 90
+        },
+        {
+          "peak": 2.7,
+          "clearSky": 3.4,
+          "hours3": 1.8,
+          "from": 11,
+          "to": 14,
+          "days": 93
+        },
+        {
+          "peak": 2.1,
+          "clearSky": 2.5,
+          "hours3": 0.2,
+          "from": null,
+          "to": null,
+          "days": 90
+        },
+        {
+          "peak": 2.4,
+          "clearSky": 2.7,
+          "hours3": 1,
+          "from": 11,
+          "to": 13,
+          "days": 93
+        },
+        {
+          "peak": 3.1,
+          "clearSky": 3.9,
+          "hours3": 2.5,
+          "from": 11,
+          "to": 14,
+          "days": 93
+        },
+        {
+          "peak": 5,
+          "clearSky": 5.7,
+          "hours3": 5.1,
+          "from": 9,
+          "to": 15,
+          "days": 90
+        },
+        {
+          "peak": 6.7,
+          "clearSky": 8,
+          "hours3": 6.3,
+          "from": 10,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 7.5,
+          "clearSky": 10,
+          "hours3": 6.6,
+          "from": 9,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 9.4,
+          "clearSky": 11.7,
+          "hours3": 7.8,
+          "from": 9,
+          "to": 17,
+          "days": 93
+        }
+      ]
+    },
+    "melbourne": {
+      "elevation": 19,
+      "months": [
+        {
+          "peak": 9.2,
+          "clearSky": 11.5,
+          "hours3": 7.6,
+          "from": 10,
+          "to": 18,
+          "days": 92
+        },
+        {
+          "peak": 8.5,
+          "clearSky": 10.2,
+          "hours3": 7.3,
+          "from": 10,
+          "to": 18,
+          "days": 85
+        },
+        {
+          "peak": 6.2,
+          "clearSky": 7.8,
+          "hours3": 5.8,
+          "from": 11,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 3.5,
+          "clearSky": 4.7,
+          "hours3": 3.1,
+          "from": 11,
+          "to": 15,
+          "days": 90
+        },
+        {
+          "peak": 2.1,
+          "clearSky": 2.6,
+          "hours3": 0.7,
+          "from": null,
+          "to": null,
+          "days": 93
+        },
+        {
+          "peak": 1.4,
+          "clearSky": 1.8,
+          "hours3": 0,
+          "from": null,
+          "to": null,
+          "days": 90
+        },
+        {
+          "peak": 1.5,
+          "clearSky": 1.9,
+          "hours3": 0,
+          "from": null,
+          "to": null,
+          "days": 93
+        },
+        {
+          "peak": 2.4,
+          "clearSky": 3,
+          "hours3": 1,
+          "from": null,
+          "to": null,
+          "days": 93
+        },
+        {
+          "peak": 3.7,
+          "clearSky": 4.8,
+          "hours3": 3.2,
+          "from": 11,
+          "to": 15,
+          "days": 90
+        },
+        {
+          "peak": 5.3,
+          "clearSky": 7.2,
+          "hours3": 5.2,
+          "from": 10,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 6.6,
+          "clearSky": 9.4,
+          "hours3": 6.2,
+          "from": 10,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 8.7,
+          "clearSky": 11.5,
+          "hours3": 7.8,
+          "from": 9,
+          "to": 18,
+          "days": 93
+        }
+      ]
+    },
+    "auckland": {
+      "elevation": 36,
+      "months": [
+        {
+          "peak": 8,
+          "clearSky": 11.6,
+          "hours3": 7.2,
+          "from": 10,
+          "to": 18,
+          "days": 92
+        },
+        {
+          "peak": 7.5,
+          "clearSky": 10.3,
+          "hours3": 7,
+          "from": 10,
+          "to": 18,
+          "days": 85
+        },
+        {
+          "peak": 6,
+          "clearSky": 7.8,
+          "hours3": 5.8,
+          "from": 11,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 3.6,
+          "clearSky": 5.3,
+          "hours3": 3.3,
+          "from": 11,
+          "to": 15,
+          "days": 90
+        },
+        {
+          "peak": 2.2,
+          "clearSky": 2.9,
+          "hours3": 0.7,
+          "from": null,
+          "to": null,
+          "days": 93
+        },
+        {
+          "peak": 1.6,
+          "clearSky": 2,
+          "hours3": 0,
+          "from": null,
+          "to": null,
+          "days": 90
+        },
+        {
+          "peak": 1.7,
+          "clearSky": 2.1,
+          "hours3": 0,
+          "from": null,
+          "to": null,
+          "days": 93
+        },
+        {
+          "peak": 2.4,
+          "clearSky": 3.1,
+          "hours3": 1.1,
+          "from": null,
+          "to": null,
+          "days": 93
+        },
+        {
+          "peak": 3.7,
+          "clearSky": 5,
+          "hours3": 3.6,
+          "from": 11,
+          "to": 15,
+          "days": 90
+        },
+        {
+          "peak": 5.1,
+          "clearSky": 7.4,
+          "hours3": 5.3,
+          "from": 10,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 6.9,
+          "clearSky": 9.7,
+          "hours3": 6.6,
+          "from": 10,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 8.3,
+          "clearSky": 11.5,
+          "hours3": 7.5,
+          "from": 9,
+          "to": 18,
+          "days": 93
+        }
+      ]
+    },
+    "rio-de-janeiro": {
+      "elevation": 12,
+      "months": [
+        {
+          "peak": 9.8,
+          "clearSky": 12.9,
+          "hours3": 7.4,
+          "from": 8,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 10.7,
+          "clearSky": 12.2,
+          "hours3": 7.4,
+          "from": 9,
+          "to": 16,
+          "days": 85
+        },
+        {
+          "peak": 9.1,
+          "clearSky": 10.8,
+          "hours3": 6.6,
+          "from": 9,
+          "to": 16,
+          "days": 93
+        },
+        {
+          "peak": 6.9,
+          "clearSky": 8.5,
+          "hours3": 5.6,
+          "from": 9,
+          "to": 15,
+          "days": 90
+        },
+        {
+          "peak": 5.4,
+          "clearSky": 6.3,
+          "hours3": 4.9,
+          "from": 9,
+          "to": 15,
+          "days": 93
+        },
+        {
+          "peak": 4.6,
+          "clearSky": 5.1,
+          "hours3": 4.3,
+          "from": 10,
+          "to": 15,
+          "days": 90
+        },
+        {
+          "peak": 4.4,
+          "clearSky": 5.3,
+          "hours3": 4,
+          "from": 10,
+          "to": 15,
+          "days": 93
+        },
+        {
+          "peak": 5.8,
+          "clearSky": 7,
+          "hours3": 5.1,
+          "from": 9,
+          "to": 15,
+          "days": 93
+        },
+        {
+          "peak": 7.2,
+          "clearSky": 8.5,
+          "hours3": 6.1,
+          "from": 9,
+          "to": 15,
+          "days": 90
+        },
+        {
+          "peak": 7.8,
+          "clearSky": 10.6,
+          "hours3": 6.3,
+          "from": 8,
+          "to": 15,
+          "days": 93
+        },
+        {
+          "peak": 9.3,
+          "clearSky": 12,
+          "hours3": 7,
+          "from": 8,
+          "to": 16,
+          "days": 90
+        },
+        {
+          "peak": 10.1,
+          "clearSky": 12.9,
+          "hours3": 7.4,
+          "from": 8,
+          "to": 16,
+          "days": 92
+        }
+      ]
+    },
+    "cape-town": {
+      "elevation": 17,
+      "months": [
+        {
+          "peak": 11.6,
+          "clearSky": 12.4,
+          "hours3": 8.7,
+          "from": 9,
+          "to": 18,
+          "days": 92
+        },
+        {
+          "peak": 10.5,
+          "clearSky": 11,
+          "hours3": 8,
+          "from": 9,
+          "to": 17,
+          "days": 85
+        },
+        {
+          "peak": 7.8,
+          "clearSky": 8.7,
+          "hours3": 6.5,
+          "from": 10,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 5,
+          "clearSky": 5.7,
+          "hours3": 4.8,
+          "from": 11,
+          "to": 16,
+          "days": 90
+        },
+        {
+          "peak": 3.2,
+          "clearSky": 3.6,
+          "hours3": 2.8,
+          "from": 11,
+          "to": 15,
+          "days": 93
+        },
+        {
+          "peak": 2.1,
+          "clearSky": 2.6,
+          "hours3": 0.6,
+          "from": null,
+          "to": null,
+          "days": 90
+        },
+        {
+          "peak": 2.3,
+          "clearSky": 2.7,
+          "hours3": 0.7,
+          "from": null,
+          "to": null,
+          "days": 93
+        },
+        {
+          "peak": 3.6,
+          "clearSky": 4.1,
+          "hours3": 3.3,
+          "from": 11,
+          "to": 15,
+          "days": 93
+        },
+        {
+          "peak": 5.4,
+          "clearSky": 6.1,
+          "hours3": 5.2,
+          "from": 10,
+          "to": 16,
+          "days": 90
+        },
+        {
+          "peak": 8.2,
+          "clearSky": 8.7,
+          "hours3": 7.3,
+          "from": 9,
+          "to": 17,
+          "days": 93
+        },
+        {
+          "peak": 10.2,
+          "clearSky": 10.8,
+          "hours3": 7.9,
+          "from": 9,
+          "to": 17,
+          "days": 90
+        },
+        {
+          "peak": 11.2,
+          "clearSky": 11.9,
+          "hours3": 8.3,
+          "from": 9,
+          "to": 17,
+          "days": 93
+        }
+      ]
+    }
+  }
+}

@@ -1,9 +1,10 @@
 'use client'
-import { useState } from 'react'
+import { useEffect, useEffectEvent, useState } from 'react'
 import clsx from 'clsx'
 import type { User } from 'firebase/auth'
 import { createAccountPrefs, defaultPrefs } from '@/lib/prefs'
 import type { UserPreferences, Location, SkinType } from '@/lib/types'
+import { CITY_PARAM, cityParam, loadCityLocation } from '@/lib/city-preset'
 import { locationFromCoordinates } from '@/lib/geocoding'
 import {
   ONBOARDING_BACK,
@@ -31,8 +32,11 @@ interface Props {
 
 /** Setup: location (with a live UV preview), skin type, then start as a guest or sign in. */
 export default function Onboarding({ user, onSignedIn, onStartAsGuest }: Props) {
+  // A city page's link (/app/?city=<slug>, lib/city-preset.ts) starts setup on that city.
+  const [initialCity] = useState(() => cityParam(window.location.search))
   const [step, setStep] = useState<OnboardingStep>('location')
-  const [locLoading, setLocLoad] = useState(false)
+  // A city page's city shows as loading until it is chosen, not as an empty search.
+  const [locLoading, setLocLoad] = useState(!!initialCity)
   const [cityInput, setCityInput] = useState('')
   const [geoError, setGeoError] = useState<string | null>(null)
   const [location, setLocation] = useState<Location | null>(null)
@@ -82,6 +86,31 @@ export default function Onboarding({ user, onSignedIn, onStartAsGuest }: Props) 
       setLocLoad(false)
     }
   }
+
+  // A city page's link: choose its city as if picked from the suggestions. An
+  // unknown city, or a list that cannot load, leaves setup on the location step.
+  const startWithCity = useEffectEvent((loc: Location) => void handlePlaceChosen(loc))
+  useEffect(() => {
+    if (!initialCity) return
+    // Read once: drop it from the address so a reload starts setup afresh.
+    const url = new URL(window.location.href)
+    url.searchParams.delete(CITY_PARAM)
+    window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash)
+    let active = true
+    loadCityLocation(initialCity).then(
+      loc => {
+        if (!active) return
+        if (loc) startWithCity(loc)
+        else setLocLoad(false)
+      },
+      () => {
+        if (active) setLocLoad(false)
+      },
+    )
+    return () => {
+      active = false
+    }
+  }, [initialCity])
 
   function handlePlaceMiss(reason: PlaceSearchMiss) {
     setGeoError(

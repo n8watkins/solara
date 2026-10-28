@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import Link from 'next/link'
 import DataAttribution from '@/components/DataAttribution'
 import { APP_PATH, LANDING_REDIRECT_SCRIPT, SIGN_IN_PATH } from '@/lib/app-routes'
+import { CITIES, cityPath } from '@/lib/city-pages'
 import { PRO_FEATURES, PRO_PLAN, type ProFeature } from '@/lib/plans'
 import SolaraMark from '@/components/SolaraMark'
 
@@ -224,6 +225,37 @@ export default function Landing() {
                   }
                 />
               </div>
+            </div>
+          </section>
+
+          <section
+            aria-labelledby="cities-heading"
+            className="border-t-[0.5px] border-line-strong bg-surface-subtle"
+          >
+            <div className="mx-auto max-w-[1080px] px-4 py-14 sm:px-6 md:py-16">
+              <h2
+                id="cities-heading"
+                className="text-[22px] font-[750] tracking-[-0.01em] text-ink"
+              >
+                Typical UV by city
+              </h2>
+              <p className="mt-2 max-w-[600px] text-[15px] leading-[1.6] text-ink-2">
+                How strong the sun gets each month, and when UV reaches 3 or more.
+              </p>
+              <ul className="mt-5 flex flex-wrap gap-x-4 gap-y-2 text-[14px]">
+                {CITIES.map(city => (
+                  <li key={city.slug}>
+                    <a href={cityPath(city.slug)} className="text-ink-2 underline">
+                      {city.name}
+                    </a>
+                  </li>
+                ))}
+                <li>
+                  <Link href="/uv/" className="font-semibold text-accent">
+                    All cities
+                  </Link>
+                </li>
+              </ul>
             </div>
           </section>
 
