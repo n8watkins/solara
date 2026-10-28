@@ -1,6 +1,6 @@
 # Solara runbook
 
-_Last reviewed: 2026-10-27_
+_Last reviewed: 2026-10-28_
 
 What to do when something goes wrong in production, once the Functions run on the Blaze plan.
 How deploys work is in [DEPLOYMENT.md](DEPLOYMENT.md); what each thing costs is in [COSTS.md](COSTS.md); the owner's one-time setup steps are in the [owner checklist](OWNER_CHECKLIST.md#at-pro-launch-blaze).
@@ -26,6 +26,7 @@ ERROR messages and where they are handled:
 | `maintenance task <name> failed` | The task's own errors are in the same log entry; the next run (5 minutes) retries; if it keeps failing, see [Rollback](#rollback) |
 | `stripeWebhook failed` | Stripe retries for 3 days; fix the cause, then resend the event from the Stripe dashboard (**Developers**, **Webhooks**, the event, **Resend**) |
 | `forecast upstream budget exhausted` | The forecast proxy and the feed have made their hourly or daily share of paid forecast calls (`FORECAST_UPSTREAM_PER_HOUR`, `FORECAST_UPSTREAM_PER_DAY`); cached forecasts up to 12 hours old are still served, flagged stale. Each caller may spend only 20 calls an hour, so this takes many addresses or real growth: look at the `forecast` Function's request counts and the `caller share of upstream calls spent` warnings; if it is real growth, raise the caps in `functions/.env` within the plan's monthly calls ([Forecast proxy](DEPLOYMENT.md#forecast-proxy)) |
+| `linked calendar refresh is falling behind`, `linked calendar refresh failed`, `linked calendar place lookups upstream budget exhausted` | [Linked calendars](#linked-calendars) |
 | `place search upstream budget exhausted` | Place search has made its hourly or daily calls (`PLACE_SEARCH_UPSTREAM_PER_HOUR`, `PLACE_SEARCH_UPSTREAM_PER_DAY`); searches already cached still answer, new ones get 503 until the next hour, and forecasts are unaffected. Same checks as above, on the `placeSearch` Function |
 | `<function> failed` (a 5xx answer) | The function's recent logs in Cloud Run; roll the Function back if a deploy caused it. Logged at most once a minute per instance; `suppressed` counts the failures held back since the previous line |
 
@@ -147,11 +148,17 @@ Linked calendars are fetched by the `eventSubscriptionsRefresh` job every 30 min
 To stop every fetch at once, pin the cost guard (`infra/cost-guard.sh engaged --apply`): the endpoint answers `unavailable` and the job skips its runs, and links stay due for later.
 To switch the feature off, set `EVENTS_SUBSCRIPTIONS_ENABLED` to `false` and rerun the deploy: the Events section hides linked calendars, the endpoint answers `404` and the job does nothing; links and their events stay stored, and events expire as usual.
 
-- The WARNING `linked calendar refresh has a backlog; the next run carries on` (fields `due`, `outcomes`): more links were due than one run takes (100) or the run hit its time budget.
-  If it appears in every run, the links outgrew `REFRESH_RUN_LIMITS` in `functions/src/events/subscriptions.ts`; raise `maxLinks` with the cost line in [COSTS.md](COSTS.md).
-- The ERROR `linked calendar refresh failed`: an unexpected error for one link; the others carry on and the link stays due.
+- The WARNING `linked calendar refresh has a backlog; the next run carries on` (fields `due`, `taken`, `outcomes`, `behindMinutes`): links were still due when the run stopped (after 200 seconds or 3,000 links); the next run, 30 minutes later, takes them first.
+- The ERROR `linked calendar refresh is falling behind` (same fields): a link has waited more than a whole extra refresh period (6 hours) past its time, so people's calendars refresh late.
+  Look at `outcomes`: many `timeout` mean slow sites hold the 16 lanes (each link may take at most 90 seconds, and a link that keeps timing out backs off on its own); otherwise the links outgrew one run, usually because many large calendars change at once on the job's fractional CPU.
+  The levers, in order: give `eventSubscriptionsRefresh` a full CPU (it uses `scheduleOptions` in `functions/src/shared/options.ts`, the fractional CPU every scheduled job has), raise `concurrency` or `maxLinks` in `REFRESH_RUN_LIMITS` (`functions/src/events/subscriptions.ts`), with the cost line in [COSTS.md](COSTS.md).
+- The WARNING `linked calendar refresh took too long; the run moved on` (field `id`): one link held a lane for 90 seconds; it stays claimed, and its next attempt (6 or more hours later) counts this one as a `timeout` failure, so a link that hangs every time backs off and is paused like a failing one.
+- The ERROR `linked calendar refresh failed`: an unexpected error for one link; the others carry on, and the link was already claimed, so it waits for its retry time instead of being taken again at once.
+- The ERROR `linked calendar place lookups upstream budget exhausted`: linked calendars made their 50 place lookups this hour or 300 today (`EVENT_PLACE_LOOKUPS_PER_HOUR`, `EVENT_PLACE_LOOKUPS_PER_DAY`); their new events use the person's own place until the next hour, place search for everyone else is unaffected, and each text is tried again on a later refresh.
+  Each account may cause only 10 an hour, so this takes many accounts or real growth; if it is growth, raise the caps in `functions/.env`.
 - The WARNING `linked calendar refresh paused by the cost guard`: expected while the guard is engaged.
 - One link failing for a person is not an incident: its summary in `users/<uid>/private/eventSubscriptions` shows the error code (`timeout`, `http-status`, `not-calendar`, `blocked-address` and so on), it backs off to 48 hours and is paused after 7 days, and the person can refresh or remove it.
+- A removal that stopped halfway (the person's "Remove" call failed) leaves the link marked `removing: true`: no refresh writes for it, the person still sees it and can press Remove again, and the scheduled run finishes the removal an hour later (outcome `removed`).
 - A link to remove by hand (abuse, or at the person's request): delete `eventSubscriptions/<id>`; the next refresh finds nothing, and the person's "Remove" or account deletion removes the summary entry and events.
   Never copy a link's `url` field anywhere: it can hold a private calendar token.
 
