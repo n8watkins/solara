@@ -132,7 +132,9 @@ test('a connected account: refresh, then disconnect', async ({ page }, testInfo)
   await expect(page.getByTestId(HARNESS_MARKER)).toBeVisible()
   const google = panel(page)
   await expect(google.getByText('Updated 2 hours ago · 2 upcoming events')).toBeVisible()
-  await expect(google.getByText(/Events update while Solara is open/)).toBeVisible()
+  // Said once below the Google and Outlook panels (REVIEW7 L7.2), not inside this one.
+  await expect(page.getByTestId('calendar-refresh-note')).toBeVisible()
+  await expect(google.getByText(/Events update while Solara is open/)).toHaveCount(0)
   // No token in this session yet, so nothing refreshed by itself.
   expect(
     await page.evaluate(
