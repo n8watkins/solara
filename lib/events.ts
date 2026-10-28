@@ -400,10 +400,7 @@ export const parseIcsOffThread: IcsParser = (text, options) => {
   return new Promise((resolve, reject) => {
     let worker: Worker
     try {
-      worker = new Worker(new URL('./ics-worker.ts', import.meta.url), {
-        type: 'module',
-        name: 'ics-parse',
-      })
+      worker = new Worker(new URL('./ics-worker.ts', import.meta.url))
     } catch {
       resolve(parseIcs(text, options))
       return

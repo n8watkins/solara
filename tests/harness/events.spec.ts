@@ -133,6 +133,11 @@ test('import an .ics file', async ({ page }, testInfo) => {
   const section = page.getByRole('region', { name: 'Events' })
   await expect(section.getByText(/No upcoming events yet/)).toBeVisible()
 
+  // The file is parsed in a Web Worker (REVIEW4 M2), whose script loads.
+  const parsedOffThread = page.waitForEvent('worker')
+  const workerScript = page.waitForResponse(response =>
+    /turbopack-worker[^/]*\.js/.test(response.url()),
+  )
   await page.getByTestId('events-file').setInputFiles({
     name: 'events.ics',
     mimeType: 'text/calendar',
@@ -141,6 +146,8 @@ test('import an .ics file', async ({ page }, testInfo) => {
   await expect(page.getByTestId('events-status')).toHaveText(
     'Imported 1 event. Skipped 1 all-day event.',
   )
+  await parsedOffThread
+  expect((await workerScript).ok()).toBe(true)
   const paddle = section.getByRole('listitem', { name: 'Mission Bay paddle' })
   await expect(paddle.getByText('San Diego, California')).toBeVisible()
   await expect(paddle.getByText('Tomorrow · 9am – 10:30am')).toBeVisible()
