@@ -24,3 +24,13 @@ export const EVENTS_SUBSCRIPTIONS_ENABLED = defineBoolean('EVENTS_SUBSCRIPTIONS_
 export const GOOGLE_CALENDAR_EVENTS_ENABLED = defineBoolean('GOOGLE_CALENDAR_EVENTS_ENABLED', {
   default: false,
 })
+
+/**
+ * Whether the app shows events already in Outlook (the OUTLOOK_CALENDAR_EVENTS_ENABLED
+ * repository variable, which also builds NEXT_PUBLIC_OUTLOOK_CALENDAR_EVENTS_ENABLED). As
+ * for Google, the events are read in the browser; the Functions only need to know so the
+ * `alerts` Function sends heads-ups for them while the other events switches stay off.
+ */
+export const OUTLOOK_CALENDAR_EVENTS_ENABLED = defineBoolean('OUTLOOK_CALENDAR_EVENTS_ENABLED', {
+  default: false,
+})

@@ -1,6 +1,7 @@
 // Data export: the portable account fields, a billing summary, notification devices,
 // scheduled activities, imported events, linked calendars (their host and label, never
-// the link), the Google calendars events are read from and the Pro alert history, never
+// the link), the Google and Outlook calendars events are read from and the Pro alert
+// history, never
 // billing ids, tokens or internal bookkeeping.
 //
 // The collections a person can fill from the browser (imported events, scheduled
@@ -12,8 +13,10 @@
 import { parseScheduledActivity, PREFERENCE_FIELDS } from '#core'
 import {
   GOOGLE_CALENDAR_LINK_DOC,
+  OUTLOOK_CALENDAR_LINK_DOC,
   parseGoogleCalendarLink,
   parseImportedEvent,
+  parseOutlookCalendarLink,
   parseSubscriptionSummaries,
 } from '#core/event-import'
 import type { Auth } from 'firebase-admin/auth'
@@ -225,6 +228,7 @@ export async function exportAccountData({
   const eventAlertsRef = userRef.collection(ALERT_STATE_COLLECTION).doc(EVENT_ALERT_STATE_DOC)
   const linksRef = userRef.collection('private').doc(EVENT_SUBSCRIPTIONS_DOC)
   const googleRef = userRef.collection('meta').doc(GOOGLE_CALENDAR_LINK_DOC)
+  const outlookRef = userRef.collection('meta').doc(OUTLOOK_CALENDAR_LINK_DOC)
   // A read-only transaction: every page comes from the same snapshot, and nothing is locked.
   const sections = await db.runTransaction(
     async transaction => {
@@ -232,13 +236,14 @@ export async function exportAccountData({
       if (tombstone.exists) {
         throw new HttpError('deletion-in-progress', 'Account deletion is in progress')
       }
-      const [account, alerts, eventAlerts, links, google, devices, scheduled, events] =
+      const [account, alerts, eventAlerts, links, google, outlook, devices, scheduled, events] =
         await Promise.all([
           transaction.get(userRef),
           transaction.get(alertStateRef),
           transaction.get(eventAlertsRef),
           transaction.get(linksRef),
           transaction.get(googleRef),
+          transaction.get(outlookRef),
           readPaged(transaction, userRef.collection('notificationDevices'), safeDeviceData, limits),
           readPaged(transaction, userRef.collection('scheduled'), safeScheduledData, limits),
           readPaged(transaction, userRef.collection('events'), safeImportedEventData, limits),
@@ -249,6 +254,7 @@ export async function exportAccountData({
         eventAlerts: eventAlerts.exists ? (eventAlerts.data() ?? null) : null,
         links: links.exists ? (links.data() ?? null) : null,
         google: google.exists ? (google.data() ?? null) : null,
+        outlook: outlook.exists ? (outlook.data() ?? null) : null,
         devices,
         scheduled,
         events,
@@ -275,6 +281,8 @@ export async function exportAccountData({
     linkedCalendars: parseSubscriptionSummaries(sections.links),
     // The Google calendars events are read from (no token is ever stored), or null.
     googleCalendar: parseGoogleCalendarLink(sections.google),
+    // The Outlook calendars events are read from (no token or account is stored), or null.
+    outlookCalendar: parseOutlookCalendarLink(sections.outlook),
     truncated,
   }
 }

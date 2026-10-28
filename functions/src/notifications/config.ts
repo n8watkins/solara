@@ -3,7 +3,11 @@
 
 import { defineBoolean } from 'firebase-functions/params'
 
-import { EVENTS_SUBSCRIPTIONS_ENABLED, GOOGLE_CALENDAR_EVENTS_ENABLED } from '../events/config'
+import {
+  EVENTS_SUBSCRIPTIONS_ENABLED,
+  GOOGLE_CALENDAR_EVENTS_ENABLED,
+  OUTLOOK_CALENDAR_EVENTS_ENABLED,
+} from '../events/config'
 
 /**
  * Whether the scheduled `alerts` Function sends anything. Off until the owner switches
@@ -13,19 +17,20 @@ export const ALERTS_ENABLED = defineBoolean('ALERTS_ENABLED', { default: false }
 
 /**
  * Whether the `alerts` Function (itself on with ALERTS_ENABLED) sends Pro heads-ups before
- * high-UV events: with either events switch on, linked calendars
- * (EVENTS_SUBSCRIPTIONS_ENABLED) or events from Google Calendar
- * (GOOGLE_CALENDAR_EVENTS_ENABLED), for every stored event alike (files, linked calendars,
- * Google Calendar). With both off, no heads-ups (REVIEW6 L1; default, owner may change,
- * 2026-10-28).
+ * high-UV events: with any events switch on, linked calendars
+ * (EVENTS_SUBSCRIPTIONS_ENABLED), events from Google Calendar
+ * (GOOGLE_CALENDAR_EVENTS_ENABLED) or events from Outlook (OUTLOOK_CALENDAR_EVENTS_ENABLED),
+ * for every stored event alike (files, linked calendars, Google Calendar, Outlook). With
+ * all off, no heads-ups (REVIEW6 L1; default, owner may change, 2026-10-28).
  */
 export function eventHeadsUpsEnabled(
-  switches: { linkedCalendars: boolean; googleCalendar: boolean } = {
+  switches: { linkedCalendars: boolean; googleCalendar: boolean; outlookCalendar: boolean } = {
     linkedCalendars: EVENTS_SUBSCRIPTIONS_ENABLED.value(),
     googleCalendar: GOOGLE_CALENDAR_EVENTS_ENABLED.value(),
+    outlookCalendar: OUTLOOK_CALENDAR_EVENTS_ENABLED.value(),
   },
 ): boolean {
-  return switches.linkedCalendars || switches.googleCalendar
+  return switches.linkedCalendars || switches.googleCalendar || switches.outlookCalendar
 }
 
 /**

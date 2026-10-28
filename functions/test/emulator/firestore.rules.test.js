@@ -1140,6 +1140,59 @@ describe('imported events', () => {
     await assertSucceeds(ref.set(importedEvent(KEY)))
   })
 
+  const outlookLink = {
+    calendars: [{ id: 'default', name: '' }],
+    connectedAt: '2026-06-15T17:30:00.000Z',
+    syncedAt: '',
+  }
+
+  test('the app creates and rewrites events from Outlook, which keep their source', async () => {
+    const db = testEnv.authenticatedContext('alice').firestore()
+    await assertSucceeds(db.doc('users/alice/meta/outlookCalendar').set(outlookLink))
+    const ref = db.doc(`users/alice/events/${KEY}`)
+    const outlook = importedEvent(KEY, { source: 'outlook', url: '' })
+    await assertSucceeds(ref.set(outlook))
+    await assertSucceeds(ref.set({ ...outlook, title: 'Moved', placeLabel: 'Long Beach' }))
+    // An Outlook event cannot become another source's, nor name a calendar link.
+    for (const source of ['file', 'google', 'feed']) {
+      await assertFails(ref.set({ ...outlook, source }))
+    }
+    await assertFails(ref.set({ ...outlook, feedId: 'c'.repeat(32) }))
+    await assertSucceeds(ref.delete())
+    await assertSucceeds(ref.set(importedEvent(KEY)))
+    await assertFails(ref.set({ ...importedEvent(KEY), source: 'outlook' }))
+  })
+
+  test('Outlook events need the Outlook connection, not Google’s, so a disconnect wins (REVIEW6 L4)', async () => {
+    const db = testEnv.authenticatedContext('alice').firestore()
+    const link = db.doc('users/alice/meta/outlookCalendar')
+    const ref = db.doc(`users/alice/events/${KEY}`)
+    const outlook = importedEvent(KEY, { source: 'outlook', url: '' })
+    // Never connected, or connected to Google only: refused.
+    await assertFails(ref.set(outlook))
+    await assertSucceeds(db.doc('users/alice/meta/googleCalendar').set(googleLink))
+    await assertFails(ref.set(outlook))
+    await assertSucceeds(link.set(outlookLink))
+    await assertSucceeds(ref.set(outlook))
+    // Disconnected on another device: a refresh still running cannot rewrite or add events,
+    // nor bring the connection back with a partial update.
+    await assertSucceeds(link.delete())
+    await assertFails(ref.set({ ...outlook, title: 'Moved' }))
+    await assertFails(
+      db
+        .doc(`users/alice/events/${OTHER}`)
+        .set(importedEvent(OTHER, { source: 'outlook', url: '' })),
+    )
+    await assertFails(link.update({ syncedAt: '2026-06-15T18:00:00.000Z' }))
+    // Google events still depend on Google's connection only.
+    await assertSucceeds(
+      db
+        .doc(`users/alice/events/${OTHER}`)
+        .set(importedEvent(OTHER, { source: 'google', url: '' })),
+    )
+    await assertSucceeds(ref.delete())
+  })
+
   test('a tombstoned account cannot read or write its events', async () => {
     await testEnv.withSecurityRulesDisabled(async context => {
       const db = context.firestore()
@@ -1214,6 +1267,71 @@ describe('Google Calendar connection', () => {
     const alice = testEnv.authenticatedContext('alice').firestore()
     await assertFails(alice.doc('users/alice/meta/events').delete())
     await assertFails(alice.doc('users/alice/meta/other').set(link()))
+  })
+})
+
+// Events already in Outlook (ROADMAP item 23): users/{uid}/meta/outlookCalendar names the
+// calendars the app reads, at most 10, and is deleted when the person disconnects.
+describe('Outlook calendar connection', () => {
+  // Graph calendar ids are long base64 strings.
+  const graphId = `AAMkAGI2TGuLAAA=${'A'.repeat(140)}`
+  const link = (overrides = {}) => ({
+    calendars: [
+      { id: 'default', name: '' },
+      { id: graphId, name: 'Running club' },
+    ],
+    connectedAt: '2026-06-15T17:30:00.000Z',
+    syncedAt: '',
+    ...overrides,
+  })
+
+  test('the owner can save, read, update and delete it', async () => {
+    const db = testEnv.authenticatedContext('alice').firestore()
+    const ref = db.doc('users/alice/meta/outlookCalendar')
+    await assertSucceeds(ref.set(link()))
+    await assertSucceeds(ref.get())
+    await assertSucceeds(ref.set(link({ syncedAt: '2026-06-15T18:00:00.000Z' })))
+    const ten = Array.from({ length: 10 }, (_, i) => ({ id: `${graphId}${i}`, name: `C${i}` }))
+    await assertSucceeds(ref.set(link({ calendars: ten })))
+    await assertSucceeds(ref.set(link({ calendars: [{ id: 'x'.repeat(512), name: '' }] })))
+    await assertSucceeds(ref.delete())
+  })
+
+  test('it is typed and capped', async () => {
+    const ref = testEnv
+      .authenticatedContext('alice')
+      .firestore()
+      .doc('users/alice/meta/outlookCalendar')
+    const eleven = Array.from({ length: 11 }, (_, i) => ({ id: `c${i}`, name: '' }))
+    for (const bad of [
+      link({ calendars: [] }),
+      link({ calendars: eleven }),
+      link({ calendars: 'default' }),
+      link({ calendars: [{ id: '', name: '' }] }),
+      link({ calendars: [{ id: 'x'.repeat(513), name: '' }] }),
+      link({ calendars: [{ id: 'default', name: 'x'.repeat(121) }] }),
+      link({ calendars: [{ id: 'default', name: '', token: 'EwBwA8l6BAAU' }] }),
+      link({ calendars: [{ id: 'default' }] }),
+      link({ calendars: [{ id: 'default', name: '' }, 'club'] }),
+      link({ accessToken: 'EwBwA8l6BAAU' }),
+      link({ account: 'person@outlook.com' }),
+      link({ syncedAt: 5 }),
+      link({ connectedAt: 'x'.repeat(41) }),
+    ]) {
+      await assertFails(ref.set(bad))
+    }
+    const { syncedAt: _syncedAt, ...missing } = link()
+    await assertFails(ref.set(missing))
+  })
+
+  test('nobody else can read or write it', async () => {
+    await testEnv.withSecurityRulesDisabled(async context => {
+      await context.firestore().doc('users/alice/meta/outlookCalendar').set(link())
+    })
+    const mallory = testEnv.authenticatedContext('mallory').firestore()
+    await assertFails(mallory.doc('users/alice/meta/outlookCalendar').get())
+    await assertFails(mallory.doc('users/alice/meta/outlookCalendar').set(link()))
+    await assertFails(mallory.doc('users/alice/meta/outlookCalendar').delete())
   })
 })
 

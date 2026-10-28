@@ -541,14 +541,26 @@ describe('the account export pages large collections (REVIEW4 M4)', () => {
 })
 
 describe('account deletion removes what the person added (REVIEW4 L4)', () => {
-  test('imported events, scheduled activities and devices go with the account', async () => {
+  test('imported, Google and Outlook events, their connections, scheduled activities and devices go with the account', async () => {
     const stripe = new FakeStripe()
     await seedAccount('gus')
     await seedCollections('gus', { events: 620, scheduled: 12 })
     await db.doc('users/gus/notificationDevices/device-1').set({ enabled: true, platform: 'web' })
+    // Events from Google Calendar and Outlook, and the calendars chosen for each.
+    const connection = { calendars: [{ id: 'default', name: '' }], connectedAt: '', syncedAt: '' }
+    await db.doc('users/gus/meta/googleCalendar').set(connection)
+    await db.doc('users/gus/meta/outlookCalendar').set(connection)
+    for (const [index, source] of [
+      [700, 'google'],
+      [701, 'outlook'],
+    ]) {
+      await db
+        .doc(`users/gus/events/${eventKey(index)}`)
+        .set({ ...importedEvent(index), source, expireAt: new Date(Date.now() + 30 * DAY_MS) })
+    }
     await deleteAccount({ auth: auth('gus'), db, req: request({ confirmation: 'DELETE' }), stripe })
     await runDeletion(stripe, 'gus')
-    for (const collection of ['events', 'scheduled', 'notificationDevices']) {
+    for (const collection of ['events', 'scheduled', 'notificationDevices', 'meta']) {
       const left = await db.collection(`users/gus/${collection}`).count().get()
       assert.equal(left.data().count, 0, `${collection} deleted`)
     }

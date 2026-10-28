@@ -84,6 +84,29 @@ test('shows events from Google Calendar only with the OAuth client ID', () => {
   )
 })
 
+test('shows events from Outlook only with a Microsoft client ID', () => {
+  const on = { ...complete, NEXT_PUBLIC_OUTLOOK_CALENDAR_EVENTS_ENABLED: '1' }
+  assert.match(
+    checkEnv(on).errors.join('\n'),
+    /NEXT_PUBLIC_OUTLOOK_CALENDAR_EVENTS_ENABLED is set but NEXT_PUBLIC_MICROSOFT_CLIENT_ID is empty/,
+  )
+  // No Functions needed: the browser reads the calendar itself.
+  const id = '6731de76-14a6-49ae-97bc-6eba6914391e'
+  assert.deepEqual(checkEnv({ ...on, NEXT_PUBLIC_MICROSOFT_CLIENT_ID: id }).errors, [])
+  // The client ID alone is allowed (the feature stays hidden).
+  assert.deepEqual(checkEnv({ ...complete, NEXT_PUBLIC_MICROSOFT_CLIENT_ID: id }).errors, [])
+  assert.match(
+    checkEnv({ ...on, NEXT_PUBLIC_MICROSOFT_CLIENT_ID: 'solara' }).errors.join('\n'),
+    /NEXT_PUBLIC_MICROSOFT_CLIENT_ID is not an Application \(client\) ID/,
+  )
+  assert.match(
+    checkEnv({ ...complete, NEXT_PUBLIC_OUTLOOK_CALENDAR_EVENTS_ENABLED: 'true' }).errors.join(
+      '\n',
+    ),
+    /NEXT_PUBLIC_OUTLOOK_CALENDAR_EVENTS_ENABLED must be '1' or empty/,
+  )
+})
+
 test('rejects secrets in public values', () => {
   const { errors } = checkEnv({ ...complete, NEXT_PUBLIC_GA_MEASUREMENT_ID: 'sk_live_abc123' })
   assert.match(errors.join('\n'), /NEXT_PUBLIC_GA_MEASUREMENT_ID looks like a Stripe secret/)
