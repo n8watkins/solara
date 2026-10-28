@@ -6,12 +6,7 @@ const { beforeEach, describe, test } = require('node:test')
 const assert = require('node:assert/strict')
 
 const { openMeteoFree } = require('../core/index.js')
-const {
-  BROWSER_SHARE_OF_UPSTREAM,
-  CallerShare,
-  browserUpstreamLimits,
-  shareScopes,
-} = require('../lib/forecast/caller-share')
+const { CallerShare, shareScopes } = require('../lib/forecast/caller-share')
 const { commercialProvider, feedForecastProvider } = require('../lib/forecast/config')
 const { forecastHandler, placeSearchHandler } = require('../lib/forecast/endpoints')
 const { PlaceSearchCache } = require('../lib/forecast/place-search')
@@ -20,7 +15,11 @@ const {
   ForecastCache,
   LAST_GOOD_MAX_AGE_MS,
 } = require('../lib/forecast/proxy')
-const { UpstreamBudget } = require('../lib/forecast/upstream-budget')
+const {
+  SIDE_SHARE_OF_UPSTREAM,
+  UpstreamBudget,
+  sideLimits,
+} = require('../lib/forecast/upstream-budget')
 const { addressScopes, clientScopes } = require('../lib/shared/client-address')
 const { createApiHandler } = require('../lib/shared/http')
 const { FixedWindowLimiter } = require('../lib/shared/rate-limit')
@@ -62,8 +61,9 @@ function forecastStack({
   net = upstream(),
   perHour = 1500,
   limits = () => ({ perHour, perDay: 20000 }),
+  side,
 } = {}) {
-  const budget = new UpstreamBudget({ db, limits, now: clock })
+  const budget = new UpstreamBudget({ db, limits, now: clock, ...(side ? { side } : {}) })
   const cache = new ForecastCache({
     db,
     provider: () => commercialProvider('k'),
@@ -292,9 +292,9 @@ describe('networks and the reserve (REVIEW5 L1)', () => {
   test('callers in many networks spend only the browser part; the feed and heads-ups keep the rest', async () => {
     const db = fakeFirestore()
     const limits = () => ({ perHour: 1500, perDay: 20000 })
-    const stack = forecastStack({ db, clock, limits: () => browserUpstreamLimits(limits()) })
-    assert.deepEqual(browserUpstreamLimits(limits()), { perHour: 1000, perDay: 13333 })
-    assert.equal(BROWSER_SHARE_OF_UPSTREAM, 2 / 3)
+    const stack = forecastStack({ db, clock, limits, side: 'browser' })
+    assert.deepEqual(sideLimits(limits()), { perHour: 1000, perDay: 13333 })
+    assert.equal(SIDE_SHARE_OF_UPSTREAM, 2 / 3)
     let fresh = 0
     let n = 0
     // 100 addresses, each in its own /24, 20 new cells each: 2,000 asks.
@@ -305,12 +305,58 @@ describe('networks and the reserve (REVIEW5 L1)', () => {
       }
     }
     assert.equal(fresh, 1000)
-    // The server's own budget (the feed's and the heads-ups', the same counters at the
-    // full limits) still has the last 500 calls of the hour.
-    const server = new UpstreamBudget({ db, limits, now: clock })
+    // The server's side (the feed and the heads-ups) still has the last 500 calls of the hour.
+    const server = new UpstreamBudget({ db, limits, side: 'server', now: clock })
     let granted = 0
     for (let i = 0; i < 600; i += 1) if (await server.take()) granted += 1
     assert.equal(granted, 500)
+  })
+
+  test('the server side cannot starve the browser either (REVIEW6 L3)', async () => {
+    const db = fakeFirestore()
+    const limits = () => ({ perHour: 1500, perDay: 20000 })
+    // The feed and the heads-ups, on separate instances, ask for far more than the hour.
+    const feed = new UpstreamBudget({ db, limits, side: 'server', now: clock })
+    const headsUps = new UpstreamBudget({ db, limits, side: 'server', now: clock })
+    let server = 0
+    for (let i = 0; i < 1000; i += 1) {
+      if (await feed.take()) server += 1
+      if (await headsUps.take()) server += 1
+    }
+    assert.equal(server, 1000)
+    // A guest's forecast for a new place still reaches upstream, and the browser keeps
+    // the rest of the hour: 500, so the total stays at 1,500.
+    const stack = forecastStack({ db, clock, limits, side: 'browser' })
+    const res = await call(endpoint(stack), '198.51.100.20', LOS_ANGELES)
+    assert.equal(res.code, 200)
+    assert.equal(res.body.stale, undefined)
+    let browser = 1
+    for (let i = 0; i < 600; i += 1) if (await stack.budget.take()) browser += 1
+    assert.equal(browser, 500)
+    assert.equal(db.docs.get('forecastUpstream/hour-2026-10-27T14').count, 1500)
+    assert.equal(db.docs.get('forecastUpstream/server-hour-2026-10-27T14').count, 1000)
+    assert.equal(db.docs.get('forecastUpstream/browser-hour-2026-10-27T14').count, 500)
+    // Whatever either side spends, the total never passes the hour's limit.
+    const late = new UpstreamBudget({ db, limits, side: 'server', now: clock })
+    assert.equal(await late.take(), false)
+    assert.ok(
+      logs.entries.some(
+        e => e.message === 'forecast upstream budget exhausted' && e.fields.side === 'server',
+      ),
+    )
+  })
+
+  test("a side's day is two thirds of the day too", async () => {
+    const db = fakeFirestore()
+    const limits = () => ({ perHour: 1500, perDay: 30 })
+    const server = new UpstreamBudget({ db, limits, side: 'server', now: clock })
+    let granted = 0
+    for (let i = 0; i < 40; i += 1) if (await server.take()) granted += 1
+    assert.equal(granted, 20)
+    const browser = new UpstreamBudget({ db, limits, side: 'browser', now: clock })
+    granted = 0
+    for (let i = 0; i < 40; i += 1) if (await browser.take()) granted += 1
+    assert.equal(granted, 10)
   })
 })
 

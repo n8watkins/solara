@@ -58,6 +58,36 @@ describe('forecast upstream budget', () => {
   })
 })
 
+describe("the budget's two sides (REVIEW6 L3)", () => {
+  test('racing instances on both sides keep each side to two thirds and the total to the cap', async () => {
+    const now = Date.parse('2026-10-27T14:05:00Z')
+    const instances = ['browser', 'server', 'browser', 'server'].map(
+      side =>
+        new UpstreamBudget({
+          db,
+          side,
+          limits: () => ({ perHour: 30, perDay: 1000 }),
+          leaseSize: 3,
+          now: () => now,
+        }),
+    )
+    const results = await Promise.all(
+      instances.map(async budget => {
+        let granted = 0
+        for (let i = 0; i < 25; i += 1) if (await budget.take()) granted += 1
+        return granted
+      }),
+    )
+    const [browser, server] = [results[0] + results[2], results[1] + results[3]]
+    assert.equal(browser + server, 30)
+    assert.ok(browser <= 20 && server <= 20, `browser ${browser}, server ${server}`)
+    const count = async id => (await db.doc(`forecastUpstream/${id}`).get()).data().count
+    assert.equal(await count('hour-2026-10-27T14'), 30)
+    assert.equal(await count('browser-hour-2026-10-27T14'), browser)
+    assert.equal(await count('server-hour-2026-10-27T14'), server)
+  })
+})
+
 describe('caller shares (REVIEW4 H1)', () => {
   test('three racing instances grant one caller exactly its share, and a /48 four shares', async () => {
     const now = Date.parse('2026-10-27T14:05:00Z')

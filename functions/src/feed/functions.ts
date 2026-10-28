@@ -56,7 +56,9 @@ export const revokeCalendarFeed = onRequest(
 
 // The feed reads forecasts through the same Firestore-backed cache as the proxy and the
 // alerts (one upstream call per place and hour across the app), within the same global
-// upstream budget, and each feed may cause only a few upstream calls an hour (finding M3).
+// upstream budget on the server's side of it (shared with event heads-ups, so the browser
+// cannot starve it nor it the browser; REVIEW6 L3), and each feed may cause only a few
+// upstream calls an hour (finding M3).
 // The feed answers 503 while the cost guard is engaged, so no upstream call then either.
 // Until the commercial key is set (billing off), its provider is Open-Meteo's free API,
 // whose forecasts the cache keeps in this instance's memory and never writes to the
@@ -65,7 +67,7 @@ const feedForecasts = new ForecastCache({
   db,
   provider: () => feedForecastProvider(BILLING_ENABLED.value()),
   upstreamAllowed: async () => !(await costGuard.engaged()),
-  upstreamBudget: new UpstreamBudget({ db, limits: upstreamLimits }),
+  upstreamBudget: new UpstreamBudget({ db, limits: upstreamLimits, side: 'server' }),
 })
 
 // Token-authorized (calendar apps cannot send App Check tokens) and rate limited per

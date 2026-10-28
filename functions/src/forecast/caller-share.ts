@@ -18,10 +18,10 @@
 // (REVIEW5 L1), like an IPv6 /64 against its /48: a /24 is one network (a hosting
 // provider's block, an office), and without it 75 addresses from one block could spend
 // the hour. No per-address scheme stops an attacker with addresses in many networks, so
-// the browser's forecasts may also spend only BROWSER_SHARE_OF_UPSTREAM of the global
-// budget (`browserUpstreamLimits`): the rest stays for the server's own work for
-// signed-in and Pro accounts (the calendar feed and event heads-ups), which a flood of
-// anonymous callers therefore cannot starve.
+// the browser's forecasts may also spend only their side's part of the global budget
+// (upstream-budget.ts SIDE_SHARE_OF_UPSTREAM): a flood of anonymous callers cannot
+// starve the server's own work for signed-in and Pro accounts (the calendar feed and
+// event heads-ups), nor that work the browser (REVIEW5 L1, REVIEW6 L3).
 //
 // It fails closed like the budget: when the counters cannot be read, the caller gets the
 // cached forecast. An instance remembers which callers spent their share this hour, so a
@@ -39,7 +39,7 @@ import { loggableError } from '../shared/errors'
 import { ThrottledLog } from '../shared/log-throttle'
 import type { LimitScope } from '../shared/rate-limit'
 import { RETENTION_DAYS, expiresAfter } from '../shared/ttl'
-import { FORECAST_UPSTREAM_COLLECTION, type UpstreamLimits } from './upstream-budget'
+import { FORECAST_UPSTREAM_COLLECTION } from './upstream-budget'
 
 /** The IPv4 prefix every IPv4 caller also counts against: one network. */
 export const IPV4_NETWORK_PREFIX = 24
@@ -50,22 +50,6 @@ export const IPV4_NETWORK_PREFIX = 24
  * looked at in the last hour are cache hits and cost no share.
  */
 export const IPV4_NETWORK_WEIGHT = 4
-
-/**
- * The part of the global forecast budget the browser's forecasts (guests and signed-in
- * people alike, through the `forecast` Function) may spend (default, owner may change):
- * two thirds, 1,000 of the 1,500 an hour; the last third is kept for the calendar feed
- * and event heads-ups, which serve signed-in and Pro accounts (REVIEW5 L1).
- */
-export const BROWSER_SHARE_OF_UPSTREAM = 2 / 3
-
-/** The global budget's limits as the browser's forecasts see them (BROWSER_SHARE_OF_UPSTREAM). */
-export function browserUpstreamLimits({ perHour, perDay }: UpstreamLimits): UpstreamLimits {
-  return {
-    perHour: Math.floor(perHour * BROWSER_SHARE_OF_UPSTREAM),
-    perDay: Math.floor(perDay * BROWSER_SHARE_OF_UPSTREAM),
-  }
-}
 
 /**
  * The scopes a caller's share is counted against: its limit scopes

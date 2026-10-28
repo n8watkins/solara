@@ -73,7 +73,7 @@ const eventForecasts = new ForecastCache({
   // Like the home forecasts, never paused by a budget-engaged guard (finding H2); the
   // upstream budget and the account's share bound these calls instead.
   upstreamAllowed: async () => true,
-  upstreamBudget: new UpstreamBudget({ db, limits: upstreamLimits }),
+  upstreamBudget: new UpstreamBudget({ db, limits: upstreamLimits, side: 'server' }),
 })
 const eventShare = new CallerShare({
   db,
