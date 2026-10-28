@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page, type Route } from '@playwright/test'
 import { captureScreen, preparePage } from './capture'
-import { HARNESS_DATE } from './clock'
+import { HARNESS_DATE, HARNESS_NOW_MS } from './clock'
 
 // Screenshots and axe results for the screens a visitor sees before signing in:
 // the landing page, the sign-in screen, each onboarding step, the legal pages, share links, the account page
@@ -20,6 +20,7 @@ const PLACES = {
       country: 'United States',
       latitude: 34.1478,
       longitude: -118.1445,
+      timezone: 'America/Los_Angeles',
     },
     {
       name: 'Pasadena',
@@ -27,6 +28,7 @@ const PLACES = {
       country: 'United States',
       latitude: 29.6911,
       longitude: -95.2091,
+      timezone: 'America/Chicago',
     },
     {
       name: 'Pasadena Hills',
@@ -34,6 +36,7 @@ const PLACES = {
       country: 'United States',
       latitude: 38.7084,
       longitude: -90.2948,
+      timezone: 'America/Chicago',
     },
   ],
 }
@@ -47,6 +50,8 @@ function shiftDate(days: number): string {
   d.setUTCDate(d.getUTCDate() + days)
   return d.toISOString().slice(0, 10)
 }
+
+const HOUR = 3_600_000
 
 const SHARE = `/share/?a=Run&icon=%F0%9F%8F%83&city=Pasadena&region=California&from=7.5&to=8.5&uv=2.1`
 
@@ -73,6 +78,8 @@ interface Screen {
   fullPage: boolean
   /** The live UV the forecast answers with (default 6.4). */
   uv?: number
+  /** The clock (epoch ms, default the harness's 10:30 in Los Angeles). */
+  at?: number
   /** Brings the page to the state to capture and returns an element that proves it. */
   reach: (page: Page) => Promise<Locator> | Locator
 }
@@ -149,15 +156,31 @@ const SCREENS: Screen[] = [
     },
   },
   {
-    // After dark the preview says so instead of a giant "0.0 None".
+    // After dark (10:30pm in Pasadena) the preview says so instead of a giant "0.0 None".
     name: 'onboarding-uv-night',
     path: '/app/',
     fullPage: false,
     uv: 0,
+    at: HARNESS_NOW_MS + 12 * HOUR,
     reach: async page => {
       await searchCity(page)
       await expect(page.getByText('None', { exact: true })).toHaveCount(0)
       return page.getByText('Sun is down')
+    },
+  },
+  {
+    // 6:30am, the sun up since 5:41 and UV still 0.2: the reading, not "Sun is down"
+    // (REVIEW6 L7).
+    name: 'onboarding-uv-low-sun',
+    path: '/app/',
+    fullPage: false,
+    uv: 0.2,
+    at: HARNESS_NOW_MS - 4 * HOUR,
+    reach: async page => {
+      await searchCity(page)
+      await expect(page.getByText('Sun is down')).toHaveCount(0)
+      await expect(page.getByText('None', { exact: true })).toBeVisible()
+      return page.getByText('0.2', { exact: true })
     },
   },
   {
@@ -225,14 +248,19 @@ const SCREENS: Screen[] = [
 
 for (const screen of SCREENS) {
   test(screen.name, async ({ page }, testInfo) => {
-    const capture = await preparePage(page, testInfo, (route, url) => {
-      if (GEOCODE.test(url.href)) {
-        const name = url.searchParams.get('name') ?? ''
-        return json(route, name.toLowerCase().startsWith('pas') ? PLACES : { results: [] })
-      }
-      if (FORECAST.test(url.href)) return json(route, { current: { uv_index: screen.uv ?? 6.4 } })
-      return false
-    })
+    const capture = await preparePage(
+      page,
+      testInfo,
+      (route, url) => {
+        if (GEOCODE.test(url.href)) {
+          const name = url.searchParams.get('name') ?? ''
+          return json(route, name.toLowerCase().startsWith('pas') ? PLACES : { results: [] })
+        }
+        if (FORECAST.test(url.href)) return json(route, { current: { uv_index: screen.uv ?? 6.4 } })
+        return false
+      },
+      screen.at === undefined ? {} : { at: screen.at },
+    )
     await page.goto(screen.path)
     await expect(await screen.reach(page)).toBeVisible()
     await captureScreen(page, testInfo, capture, screen)

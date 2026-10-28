@@ -86,7 +86,9 @@ export default function SunArc({ hourly, nowHour, focused, onSelectHour, sunDown
   // Hide the peak callout while the focus marker sits on the peak.
   const showPeakLabel = hasPeak && focused?.hour !== peak.hour
   const peakPoint = (peak && pointForHour(peak.hour)) ?? pointAt(0.5)
-  const nowIndex = nowHour !== null ? indexForTime(nowHour) : null
+  // While the sun is down the moon marks "now"; a sun on the arc beside it (at dawn,
+  // inside the strip's hours) would say the sun is already up.
+  const nowIndex = nowHour !== null && !sunDown ? indexForTime(nowHour) : null
   const nowPoint = nowIndex !== null ? pointAt(tForIndex(nowIndex)) : null
   const focusedPoint = focused ? pointForHour(focused.hour) : null
   // The moon sits where the sun path meets the horizon at that end of the day.

@@ -1,6 +1,6 @@
 # Running Costs
 
-_Last reviewed: 2026-10-27._
+_Last reviewed: 2026-10-28._
 _Free quotas below were checked on the providers' pricing pages on that date (see [Sources](#sources)); all usage figures are planning estimates._
 
 ## Principle
@@ -56,7 +56,7 @@ The Open-Meteo commercial plan ($29 a month, below) is a fixed cost on top, paid
   A changed calendar costs N + 7 reads and one write per new or changed event, plus 3; nothing is written for an event that did not change.
   So a link of N stored events costs at most about N + 30 reads and 12 writes a day while it does not change: at 1,000 links of 50 events about 80,000 reads and 12,000 writes a day (about $0.02 a day above the free quotas), at 1,000 links of 200 events about 230,000 reads (about $0.11 a day).
   CPU: a fetch takes well under a second of waiting, and a parse about 0.5 vCPU-seconds for a full 1 MB calendar (typical calendars are 10-100 KB); 4,000 refreshes a day of 100 KB calendars are a few hundred vCPU-seconds, far inside the free tier.
-  LOCATION texts are looked up once per link and kept (REVIEW5 M1), from their own budget of 50 searches an hour and 300 a day (`EVENT_PLACE_LOOKUPS_PER_HOUR`, `EVENT_PLACE_LOOKUPS_PER_DAY`, about 1% of the Standard plan), 10 an hour per account, never from place search's; event forecasts for heads-ups come out of the forecasts' 20,000 a day through each account's share.
+  LOCATION texts are looked up once per link and kept (REVIEW5 M1), from their own budget of 50 searches an hour and 300 a day (`EVENT_PLACE_LOOKUPS_PER_HOUR`, `EVENT_PLACE_LOOKUPS_PER_DAY`, about 1% of the Standard plan), 10 an hour per account, never from place search's; event forecasts for heads-ups come out of the server's side of the forecasts' 20,000 a day (at most two thirds, shared with the calendar feed) through each account's share.
   Capacity (REVIEW5 M4): every 30 minutes the refresh job takes every due link, oldest due first, 16 at a time for up to 200 seconds and 3,000 links a run; at about 2 seconds a link that is about 1,600 links a run, enough for roughly 19,000 links on the 6-hour cycle.
   The scale point is the job's fractional CPU when many large calendars change at once (about 3 seconds a 1 MB parse); when a link waits a whole extra 6 hours, the job logs the ERROR `linked calendar refresh is falling behind`, which emails the owner ([RUNBOOK.md](RUNBOOK.md#linked-calendars)), and the lever is a larger CPU for that one job.
   Pro event heads-ups add one state read and one events query per Pro account per alerts run (at least 192 reads a day per Pro account, plus one read per event starting in the next 3 hours; none for 3 hours after a heads-up) and a cached forecast per event place.
@@ -83,8 +83,9 @@ Free quotas protect nothing once billing is attached, so the Functions are built
 - every function has a small fixed size and a launch-sized instance cap (16 HTTP instances in all), so CPU-seconds and billed requests cannot grow without limit;
 - every browser endpoint needs App Check and has per-address and per-account rate limits and a body size cap, and turns a request away before any Firestore read or upstream call;
 - rejections are logged once a minute, not once per request, and `infra/logging.sh` drops 99% of Cloud Run's request logs for rejected requests;
-- the forecast proxy, the calendar feed and the alerts share one cache per place and hour, so traffic does not multiply upstream calls, and a global budget caps the proxy's and the feed's paid forecast calls at 1,500 an hour and 20,000 a day (about 60% of the Standard plan), so a script walking new places cannot spend the plan's quota;
-- within that budget each caller (an IPv4 address, or an IPv6 /64 and its /48 at 4 times as much) may cause only 20 paid calls an hour, so one caller cannot spend everyone's hour, and place search has its own budget (200 an hour, 2,000 a day, about 6% of the plan), so searches and forecasts cannot starve each other; while a budget is spent, people get the last good forecast up to 12 hours old instead of an error (REVIEW4 H1);
+- the forecast proxy, the calendar feed and the alerts share one cache per place and hour, so traffic does not multiply upstream calls, and a global budget caps the paid forecast calls of the proxy, the feed and event heads-ups at 1,500 an hour and 20,000 a day (about 60% of the Standard plan), so a script walking new places cannot spend the plan's quota;
+- that budget has two sides, each allowed at most two thirds of it (1,000 an hour, 13,333 a day): the browser's forecasts, and the server's own work for accounts (the calendar feed and event heads-ups), so a flood of browser callers cannot stop the feed or Pro heads-ups, and the server side cannot leave guests without forecasts for new places (REVIEW5 L1, REVIEW6 L3);
+- within each budget every caller (an IPv4 address and its /24 at 4 times as much, or an IPv6 /64 and its /48 at 4 times as much, or an account for heads-ups) may cause only 20 paid calls an hour, so one caller or one network cannot spend everyone's hour, and place search has its own budget (200 an hour, 2,000 a day, about 6% of the plan), so searches and forecasts cannot starve each other; while a budget is spent, people get the last good forecast up to 12 hours old instead of an error (REVIEW4 H1);
 - the Firestore rules cap list sizes, and every server-owned record and scheduled activity expires;
 - linked calendars are bounded per account: at most 5 links, each fetched every 6 hours by the refresh job and within 10 seconds and 1 MB; adding or refreshing by hand is limited to 20 fetches an hour per account; their place lookups have their own budget (50 an hour, 300 a day), so they cannot take place search from guests.
 
@@ -110,7 +111,7 @@ These are planning estimates from public list prices, not measurements on a depl
 - Logs: about 1 KB per request log line.
   Without `infra/logging.sh`, Cloud Run's request logs alone would be about 1.4 TB a day (about $690 a day at $0.50 per GiB); with it, 1% are kept (about $7 a day), and the Functions' own rejection logs are a few lines a minute.
 - Firestore, Stripe and the forecast provider: nothing, because no rejected request reaches them.
-- Accepted cache misses: each one charges a caller's share in one Firestore transaction (one or two reads and writes), and the misses are bounded by the forecast and place search budgets (at most 1,700 an hour), so a few cents a day; a caller past its share costs one more transaction per instance and hour, then nothing.
+- Accepted cache misses: each one charges a caller's share in one Firestore transaction (two reads and writes: the address and its /24 or /48; one for an account), and every 10 misses take a lease from the budget's counters in one more (four reads and writes with the side's own counters); the misses are bounded by the forecast, place search and linked calendar place lookup budgets (at most 1,750 an hour: 1,500, 200 and 50), so a few cents a day; a caller past its share costs one more transaction per instance and hour, then nothing.
 - Linked calendars, which an account can drive by hand (REVIEW5 M2): the worst is an account with 5 links whose site changes every one of 200 events on every fetch, refreshed 20 times an hour, which makes about 100,000 Firestore reads and 100,000 writes a day (about $0.25 a day); unchanged calendars write nothing.
   This grows with the number of Google accounts an attacker signs in, not with requests, and is the reason linking could be limited to Pro if it is ever abused.
 

@@ -37,8 +37,9 @@ export function commercialProvider(
 }
 
 /**
- * The global budget for upstream calls from the traffic-driven paths (the proxy and the
- * calendar feed; finding M1), per UTC hour and day. Defaults, owner may change: 20,000 a
+ * The global budget for upstream calls from the traffic-driven paths (the proxy, the
+ * calendar feed and event heads-ups; finding M1), per UTC hour and day; the browser's
+ * side and the server's may each spend at most two thirds (upstream-budget.ts). Defaults, owner may change: 20,000 a
  * day is 60% of the Standard plan's 1 million calls a month (about 33,000 a day), which
  * leaves the rest for the Pro alerts; 1,500 an hour keeps a burst from spending the day
  * in one hour. docs/DEPLOYMENT.md ("Forecast proxy") explains the sizing.
