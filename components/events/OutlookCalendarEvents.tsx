@@ -288,8 +288,9 @@ export default function OutlookCalendarEvents({
           <p id={hintId} className="mt-1 text-[12px] leading-normal text-ink-3">
             See the UV at events already in your Outlook.com or Microsoft 365 calendar. Solara reads
             the next {OUTLOOK_EVENT_LIMITS.windowDays} days in this browser, with permission to read
-            basic event details only, and keeps only events with an address, a place or that match
-            one of your activities. Only an address&rsquo;s town is searched to find the place.
+            basic event details only, and keeps only events with an address or a place picked in
+            Outlook, or that match one of your activities. Only an address&rsquo;s town is searched
+            to find the place.
           </p>
           <button
             type="button"

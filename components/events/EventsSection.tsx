@@ -15,6 +15,7 @@ import {
   type ImportedEvent,
 } from '@/lib/events'
 import { EventsStoreContext } from '@/lib/events-context'
+import { listInWords } from '@/lib/account-data'
 import { capMessage } from '@/lib/record-cap'
 import { planningFor } from '@solara/core'
 import { IMPORTED_EVENT_LIMITS } from '@solara/core/event-import'
@@ -35,6 +36,13 @@ const EventSubscriptions = lazy(() => import('./EventSubscriptions'))
 const GoogleCalendarEvents = lazy(() => import('./GoogleCalendarEvents'))
 // And events already in Outlook, with their Microsoft sign-in (ROADMAP item 23).
 const OutlookCalendarEvents = lazy(() => import('./OutlookCalendarEvents'))
+
+/** How the note under "Remove imported events" names the calendars whose events stay. */
+const KEPT_SOURCE_NAMES = {
+  feed: 'linked calendars',
+  google: 'Google Calendar',
+  outlook: 'Outlook',
+} as const
 
 /** Events shown before "Show all". */
 const FIRST_SHOWN = 5
@@ -91,7 +99,10 @@ export default function EventsSection({ uid, prefs, weather, displayTier, onUpgr
   // Events from a file may be stored: one is loaded, or the account holds more than loaded.
   const mayHoldImported =
     (items ?? []).some(item => item.source === 'file') || stored > (items?.length ?? 0)
-  const hasLinked = (items ?? []).some(item => item.source !== 'file')
+  // The calendars whose events "Remove imported events" keeps, as the loaded events show them.
+  const keptSources = (['feed', 'google', 'outlook'] as const)
+    .filter(source => (items ?? []).some(item => item.source === source))
+    .map(source => KEPT_SOURCE_NAMES[source])
 
   async function importFile(file: File) {
     setStatus(null)
@@ -300,10 +311,9 @@ export default function EventsSection({ uid, prefs, weather, displayTier, onUpgr
               Remove imported events
             </button>
           )}
-          {confirmingClear && hasLinked && (
+          {confirmingClear && keptSources.length > 0 && (
             <p className="w-full text-right text-[12px] leading-normal text-ink-3">
-              Events from linked calendars, Google Calendar and Outlook stay; remove those with
-              their calendar below.
+              Events from {listInWords(keptSources)} stay; remove those with their calendar below.
             </p>
           )}
         </div>

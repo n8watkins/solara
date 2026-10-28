@@ -80,6 +80,19 @@ export default function PrivacyPage() {
             token is stored anywhere.
           </li>
           <li>
+            <strong>Events from your Outlook calendar</strong>, where offered, if you turn this on:
+            which of your Outlook.com or Microsoft 365 calendars you chose (each calendar&apos;s
+            Microsoft identifier and name; your main calendar is recorded only as
+            &ldquo;default&rdquo;) and when they were last read; and, for each upcoming event in the
+            next 30 days whose location is written as an address, is a place picked in Outlook, or
+            that matches one of your activities, its title, start and end time, time zone, location
+            text, the place Solara forecasts it for and which activity it counts as, stored like
+            imported events. Other events, notes, attendees, organizers, meeting links, dial-in
+            numbers and passcodes, office rooms and home addresses are never stored; Solara never
+            learns which Microsoft account you signed in with; and no Microsoft access or refresh
+            token is stored anywhere.
+          </li>
+          <li>
             <strong>Calendar feed and notifications</strong>, if you turn them on: a private feed
             token and your device&apos;s push notification registration.
           </li>
@@ -187,6 +200,52 @@ export default function PrivacyPage() {
           , including the Limited Use requirements.
         </p>
 
+        <h2>How Solara uses Microsoft user data</h2>
+        <p>
+          Where offered, Solara asks Microsoft for one permission, and only after you turn on
+          &ldquo;Show my Outlook events&rdquo;:{' '}
+          <strong>Read basic details of user calendars</strong> (<code>Calendars.ReadBasic</code>),
+          which lets it read your calendars and their events except for their notes, attachments and
+          extensions. You sign in to Microsoft in a window of its own, so Solara never sees your
+          Microsoft password. Solara does not ask to know who you are at Microsoft, and does not ask
+          for offline access, so Microsoft gives it no refresh token: the access lasts about an
+          hour, in your browser&apos;s memory only, and Solara can read your calendar again only
+          while it is open and after you sign in again.
+        </p>
+        <ul>
+          <li>
+            Your browser reads the next 30 days of events on the calendars you chose (your main
+            calendar unless you choose others; calendars other people share with you are not
+            offered), with only their title, time, time zone, location, identifier, whether they are
+            all-day or online meetings, whether you declined them and whether they were cancelled.
+            Solara keeps only the events and fields listed under &ldquo;Events from your Outlook
+            calendar&rdquo; above, and never changes or deletes any of them.
+          </li>
+          <li>
+            Places are found as for Google Calendar events: only the town part of a location written
+            as an address is searched, and for a place you picked from Outlook&apos;s place search,
+            its coordinates are used as they are (rounded to two decimal places), with its name.
+            Meeting links, dial-in details, office rooms and homes are never searched or sent
+            anywhere.
+          </li>
+          <li>
+            Disconnecting in the Events section removes the stored events and the list of calendars
+            and forgets the access in your browser. Solara cannot end the permission at Microsoft
+            itself; you can remove it at any time in{' '}
+            <a href="https://account.live.com/consent/Manage">
+              your Microsoft account&apos;s app permissions
+            </a>{' '}
+            (Outlook.com, Hotmail and Live) or in{' '}
+            <a href="https://myapplications.microsoft.com/">My Apps</a> (work or school accounts,
+            unless your organization granted it).
+          </li>
+        </ul>
+        <p>
+          Solara does not sell Microsoft user data, does not use it for advertising or to train
+          artificial intelligence or machine learning models, and shares it with no one except the
+          service providers listed below, only as needed to show the UV at your events.
+        </p>
+
         <h2>Why it is used, and the legal basis</h2>
         <ul>
           <li>
@@ -195,9 +254,9 @@ export default function PrivacyPage() {
             subscriptions.
           </li>
           <li>
-            <strong>With your consent</strong>: device location, Google Calendar access, push
-            notifications and optional analytics. You can withdraw consent at any time, which does
-            not affect processing that already happened.
+            <strong>With your consent</strong>: device location, Google Calendar and Outlook access,
+            push notifications and optional analytics. You can withdraw consent at any time, which
+            does not affect processing that already happened.
           </li>
           <li>
             <strong>Legitimate interests</strong>: keeping Solara secure, preventing abuse and
@@ -229,6 +288,12 @@ export default function PrivacyPage() {
             to read or create the calendar data described above.
           </li>
           <li>
+            <strong>Microsoft identity platform and Microsoft Graph</strong> (Microsoft
+            Corporation): only when you turn on events from your Outlook calendar, to sign you in to
+            your Microsoft account, ask for your permission and read the calendar data described
+            above.
+          </li>
+          <li>
             <strong>Google Analytics</strong>: only after you allow analytics. Google signals and ad
             personalization are turned off.
           </li>
@@ -239,15 +304,16 @@ export default function PrivacyPage() {
             event&apos;s location (such as &quot;Los Angeles, CA&quot;), searched the same way to
             find where the event is: from your browser for a calendar (.ics) file you import; from
             Solara&apos;s servers for a linked calendar; and from your browser for events from your
-            Google Calendar, only when the location is written as an address, as described above.
-            When Solara runs its own forecast and place search service, these requests from your
-            browser pass through Solara&apos;s servers (Google Cloud) on their way to Open-Meteo,
-            which then sees Solara&apos;s address instead of yours.
+            Google Calendar or Outlook, only when the location is written as an address, as
+            described above. When Solara runs its own forecast and place search service, these
+            requests from your browser pass through Solara&apos;s servers (Google Cloud) on their
+            way to Open-Meteo, which then sees Solara&apos;s address instead of yours.
           </li>
           <li>
             <strong>OpenStreetMap Nominatim</strong> (OpenStreetMap Foundation): receives rounded
-            coordinates when you use your device location, or import an event that gives only
-            coordinates, to find the nearest city name.
+            coordinates when you use your device location, or import an event (or have an Outlook
+            event at a place picked in Outlook) that gives only coordinates, to find the nearest
+            city name.
           </li>
           <li>
             <strong>Stripe</strong>: processes payments when subscriptions are enabled.
@@ -288,6 +354,12 @@ export default function PrivacyPage() {
             Events from your Google Calendar: until they are gone from your calendar or you
             disconnect, which removes them and the list of calendars; Firestore deletes each event
             automatically 30 days after it ends, and always when you delete your account.
+          </li>
+          <li>
+            Events from your Outlook calendar: until they are gone from your calendar or you
+            disconnect, which removes them and the list of calendars; Firestore deletes each event
+            automatically 30 days after it ends, and always when you delete your account. The
+            Microsoft access is kept only in your browser&apos;s memory, for about an hour.
           </li>
           <li>
             Calendar availability: only in your browser for the current session; never stored by
@@ -342,16 +414,18 @@ export default function PrivacyPage() {
           You can disconnect Google Calendar at any time in the Events section or in your{' '}
           <a href="https://myaccount.google.com/connections">Google Account connections</a>, rotate
           or revoke a calendar feed in Settings, and turn notifications off in Settings or your
-          browser.
+          browser. You can disconnect Outlook at any time in the Events section, and remove
+          Solara&apos;s permission in your Microsoft account&apos;s app permissions or My Apps, as
+          described above.
         </p>
         <p>
           Deleting your account removes your Solara preferences, scheduled activities, imported
-          events, linked calendars, events from your Google Calendar and the calendars you chose,
-          calendar feed and notification registrations, cancels an active Solara subscription and
-          deletes your customer record at Stripe (Stripe keeps the payment records the law requires
-          it to keep). If you had the free trial, its hashed record is kept for 2 years to prevent
-          repeated free trials. Events already in your Google Calendar stay there until you delete
-          them.
+          events, linked calendars, events from your Google Calendar and Outlook and the calendars
+          you chose, calendar feed and notification registrations, cancels an active Solara
+          subscription and deletes your customer record at Stripe (Stripe keeps the payment records
+          the law requires it to keep). If you had the free trial, its hashed record is kept for 2
+          years to prevent repeated free trials. Events already in your Google Calendar or Outlook
+          stay there until you delete them.
         </p>
         <p>You also have the right to complain to your local data protection authority.</p>
 
