@@ -64,5 +64,12 @@ export const PRO_FEATURES: ProFeature[] = [
  * together with the Functions that send them.
  */
 export function alertsLaunched(): boolean {
-  return process.env.NEXT_PUBLIC_ALERTS_ENABLED === '1'
+  if (process.env.NEXT_PUBLIC_ALERTS_ENABLED === '1') return true
+  // The UI harness shows the production default and opts in per screen with
+  // ?alerts=on; outside a harness build this is compiled away.
+  return (
+    process.env.NEXT_PUBLIC_UI_HARNESS === '1' &&
+    typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).get('alerts') === 'on'
+  )
 }
