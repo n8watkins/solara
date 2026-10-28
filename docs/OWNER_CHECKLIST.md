@@ -77,7 +77,7 @@ Already done: the domain move to `solara-uv.web.app`, the Firestore index role (
     2. Create the three secrets: `npx firebase functions:secrets:set STRIPE_SECRET_KEY --project uv-activity-planner`, the same for `STRIPE_WEBHOOK_SECRET`, and `OPEN_METEO_API_KEY` with the value `unset` for now.
     3. Set the repository variables `NEXT_PUBLIC_FUNCTIONS_URL` (`https://us-central1-uv-activity-planner.cloudfunctions.net`) and then `ENABLE_BLAZE_FUNCTIONS=true`; leave `BILLING_ENABLED` and `FORECAST_PROXY_ENABLED` unset.
        The next deploy publishes the Functions (it sets the Artifact Registry cleanup policy itself); checkout still shows the waitlist and forecasts still come straight from Open-Meteo.
-    4. Then the follow-ups in [Functions and Stripe](#functions-and-stripe): the feed token migration, the feed log exclusion and the `X-Forwarded-For` check.
+    4. Then the follow-ups in [Functions and Stripe](#functions-and-stripe): the feed token migration, the log exclusions (`infra/logging.sh`) and the client address check (`infra/check-client-address.sh`).
 15. **Monitoring, backups and record expiry (about 15 minutes).** From a shell signed in as the owner, print each script's commands, read them, then run it again with `--apply`:
     1. `ALERT_EMAIL=<your email> infra/monitoring.sh`: two uptime checks and the two alert policies ([runbook](RUNBOOK.md#alerts)).
     2. `infra/backups.sh`: point-in-time recovery, delete protection, daily backups and the image cleanup policy.
@@ -166,8 +166,8 @@ Everything in this section waits for the Pro launch (roadmap item 9); see [Fireb
 - [ ] In Stripe **Settings**, **Billing**, **Subscriptions and emails**, keep Smart Retries on and, when all retries fail, **cancel the subscription**; Solara keeps Pro for 7 days after the first failed renewal either way.
 - [ ] After Blaze, turn on the Firestore TTL policies: `infra/firestore-ttl.sh`, read the commands, then `infra/firestore-ttl.sh --apply`.
 - [ ] After the first Functions deploy, run the calendar feed token migration ([Calendar feed tokens](DEPLOYMENT.md#calendar-feed-tokens)).
-- [ ] Before offering the calendar feed, add the Cloud Logging exclusion that keeps feed links out of request logs ([Keep feed tokens out of request logs](DEPLOYMENT.md#keep-feed-tokens-out-of-request-logs)).
-- [ ] On the first Functions deploy, have the agent check how many `X-Forwarded-For` entries a feed request carries ([Check the feed's address limit](DEPLOYMENT.md#check-the-feeds-address-limit-at-the-first-deploy)).
+- [ ] Before offering the calendar feed, add the Cloud Logging exclusions that keep feed links out of request logs and drop most rejected-request logs: `infra/logging.sh`, read the commands, then `--apply` ([Keep feed tokens out of request logs](DEPLOYMENT.md#keep-feed-tokens-out-of-request-logs)).
+- [ ] On the first Functions deploy (staging first), run `infra/check-client-address.sh`; it must end with `OK` ([Check the client address](DEPLOYMENT.md#check-the-client-address-at-the-first-deploy)).
 - [ ] Confirm the `maintenance` job runs cleanly (no `maintenance task ... failed` errors) and its indexes are `READY` before turning on checkout or deletion.
 - [ ] Verify Stripe in test mode with a controlled account:
   - checkout is bound to the signed-in account, and a second checkout is refused while a subscription is active or reserved;

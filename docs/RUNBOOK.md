@@ -22,9 +22,10 @@ ERROR messages and where they are handled:
 | `cost guard engaged by the budget`, `billing detached by the budget kill switch` | [Budget kill switch](#budget-kill-switch) |
 | `account deletion gave up on a Stripe resource`, `account deletion is stalled` | [Account deletion alerts](#account-deletion-alerts) |
 | `alerts need the Open-Meteo commercial key (OPEN_METEO_API_KEY)`, `alert delivery outcome unknown`, `alert for an account failed` | [Pro alerts](#pro-alerts) |
+| `client address is a proxy address: check TRUSTED_PROXY_HOPS` | Per-address limits are keying on a Google proxy, so people share one budget; set `TRUSTED_PROXY_HOPS` as in [Check the client address](DEPLOYMENT.md#check-the-client-address-at-the-first-deploy) and redeploy the Functions |
 | `maintenance task <name> failed` | The task's own errors are in the same log entry; the next run (5 minutes) retries; if it keeps failing, see [Rollback](#rollback) |
 | `stripeWebhook failed` | Stripe retries for 3 days; fix the cause, then resend the event from the Stripe dashboard (**Developers**, **Webhooks**, the event, **Resend**) |
-| `<function> failed` (a 5xx answer) | The function's recent logs in Cloud Run; roll the Function back if a deploy caused it |
+| `<function> failed` (a 5xx answer) | The function's recent logs in Cloud Run; roll the Function back if a deploy caused it. Logged at most once a minute per instance; `suppressed` counts the failures held back since the previous line |
 
 ## Cost guard
 
@@ -69,7 +70,7 @@ When the cost guard engages:
 
 1. Look at **Billing**, **Reports** for the project, grouped by SKU, to see what is costing money.
 2. Look at the Functions' request counts in Cloud Run, and at Firestore usage, for a spike; a single client address or account in the logs usually explains it.
-3. Fix the cause (for example block an abusive account in Firebase Authentication, or lower a function's `maxInstances` where it is defined, in a `functions.ts` under `functions/src/`).
+3. Fix the cause (for example block an abusive account in Firebase Authentication, or lower a function's cap in `INSTANCE_CAPS` in `functions/src/shared/options.ts`).
 4. If the spend was legitimate growth, raise the budget in Cloud Billing, then set `override` to `released`; set it back to `auto` at the start of the next month.
 
 When billing was detached:
