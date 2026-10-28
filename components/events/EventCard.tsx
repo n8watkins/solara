@@ -2,7 +2,7 @@
 import { useId, useState } from 'react'
 import { ExternalLink, MapPin, X } from 'lucide-react'
 import clsx from 'clsx'
-import type { ImportedEvent } from '@solara/core/event-import'
+import { stripInvisibleFormatting, type ImportedEvent } from '@solara/core/event-import'
 import { eventCardView } from '@/lib/event-view'
 import { samePlace } from '@/lib/events'
 import { useWeather } from '@/lib/use-forecast'
@@ -79,7 +79,10 @@ export default function EventCard({
   const [editingPlace, setEditingPlace] = useState(false)
   const [query, setQuery] = useState('')
   const [placeError, setPlaceError] = useState<string | null>(null)
-  const title = item.title || 'Untitled event'
+  // Events stored before the importer removed bidi controls are cleaned here too (L2).
+  const title = stripInvisibleFormatting(item.title) || 'Untitled event'
+  const placeName = stripInvisibleFormatting(item.placeLabel)
+  const where = stripInvisibleFormatting(item.where)
 
   async function choosePlace(place: Location) {
     setPlaceError(null)
@@ -101,7 +104,7 @@ export default function EventCard({
   const titleId = `${id}-title`
   return (
     <li
-      className="rounded-[12px] border-[0.5px] border-line-strong bg-surface-card px-3 py-3"
+      className="@container rounded-[12px] border-[0.5px] border-line-strong bg-surface-card px-3 py-3"
       aria-labelledby={titleId}
       data-testid="event-card"
       data-event-key={item.key}
@@ -132,7 +135,7 @@ export default function EventCard({
           <p className="mt-0.5 flex min-w-0 items-center gap-1 text-[12px] text-ink-3">
             <MapPin size={12} className="shrink-0" aria-hidden="true" />
             <span className="min-w-0 truncate">
-              {item.placeGuessed ? `Using ${item.placeLabel}` : item.placeLabel}
+              {item.placeGuessed ? `Using ${placeName}` : placeName}
             </span>
           </p>
         </div>
@@ -175,8 +178,8 @@ export default function EventCard({
 
       {item.placeGuessed && !editingPlace && (
         <p className="mt-2.5 rounded-[9px] bg-surface-metric px-2.5 py-2 text-[12px] leading-[1.45] text-ink-2">
-          {item.where
-            ? `Solara could not find “${item.where}”, so this uses your place.`
+          {where
+            ? `Solara could not find “${where}”, so this uses your place.`
             : 'The event has no place, so this uses your place.'}{' '}
           <button
             type="button"
@@ -219,7 +222,9 @@ export default function EventCard({
       )}
 
       <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-2 border-t-[0.5px] border-line pt-2.5">
-        <label className="flex min-w-0 items-center gap-1.5 text-[12px] text-ink-3">
+        {/* On a narrow card "Counts as" takes its own row, so the buttons always line up
+            on the next one instead of wrapping one by one. */}
+        <label className="flex w-full min-w-0 items-center gap-1.5 text-[12px] text-ink-3 @md:w-auto">
           Counts as
           <select
             className="max-w-[170px] min-w-0 px-2 py-1 text-[12px]"

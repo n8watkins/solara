@@ -19,13 +19,24 @@ _Built 2026-10-27 by lane EVENTS._
   The in-house reader covers what event feeds send (unfolding, escapes, UTC, floating and TZID times with IANA names, Windows names, Mozilla-style paths, `X-LIC-LOCATION` and VTIMEZONE rules; RRULE with DAILY to YEARLY, INTERVAL, COUNT, UNTIL, BYDAY with ordinals, BYMONTHDAY, BYMONTH, BYSETPOS and WKST; RDATE, EXDATE and RECURRENCE-ID overrides), rejects rules it cannot expand faithfully (reading only their first date), and has unit tests for each case, including RFC 5545's own examples and malformed input.
 - **Limits:** 1 MB per file, 5,000 VEVENTs read, 200 events kept (the soonest), 50 occurrences per recurring event; recurring events are expanded over the next 10 days (the longest forecast), and a series with nothing in that range shows its next occurrence.
   One-off events more than a year ahead and events longer than a week are skipped; an event with no end or duration counts as one hour.
-- **Places:** `GEO` is used as given (named by the first part of `LOCATION`, else by the reverse lookup in `lib/geocoding.ts`); `LOCATION` text is searched at town level with the existing place search and its rate limit and cache, picking the same-named town nearest the person, for at most 10 distinct texts per import.
+- **Bounded parsing (REVIEW4 M2):** one work allowance per file (200,000 units, at most 20,000 per recurring event) is counted inside the recurrence expansion, VTIMEZONE conversions and RDATE/EXDATE lists, so no file takes more than about half a second; a series that needs more is reported as too complex to read.
+  COUNT rules with a fixed number of occurrences per period (DAILY, WEEKLY) skip whole periods by multiplying, nesting stops at 6 levels, and the app parses in a Web Worker (`lib/ics-worker.ts`) stopped after 20 seconds, so the page stays responsive whatever the file holds.
+  The same bounds make the parser safe for phase 2's Function.
+- **Text:** bidirectional controls and zero-width spaces are removed from titles, places and the calendar name (REVIEW4 L2), so a title cannot display differently from what it says.
+- **Places:** `GEO` is used as given (named by the first part of `LOCATION`, else by the reverse lookup in `lib/geocoding.ts`); `LOCATION` text is searched at town level with the existing place search and its rate limit and cache, picking the same-named town nearest the person, with at most 10 lookups per import, searches and reverse lookups together (REVIEW4 L3); a `GEO` point past that takes the name of a found place within 10 km, else "Event location".
   Anything else uses the person's place and says so, with "Set the place", which moves every occurrence of that event.
   Re-importing keeps the place and activity the person chose.
+- **Re-imports (REVIEW4 L1):** importing a calendar again removes stored events it cancels (`STATUS:CANCELLED` on an event or an occurrence) and occurrences of a recurring event it no longer produces within the range it was read for.
+  A one-off event deleted from the source stays until it ends: a file does not say which calendar it came from, so its absence cannot be told apart from an event of another file.
 - **UV source:** the forecast hours at the event's place through core's `planningUV` (#114), as the app plans windows: a clear sky unless the event's activity plans with the clouds, then its shade and surface.
   An event four or more days ahead carries the forecast's fair or low confidence note (#110).
 - **Storage:** `users/{uid}/events/{key}` as planned, typed and capped in `packages/core/src/events.ts` and `firestore.rules`, with `expireAt` (30 days after the end) for the TTL policy in `infra/firestore-ttl.sh`, in the account export (`importedEvents`) and removed by account deletion with the rest of `users/{uid}`.
-  The rules cannot count documents, so the number of events per account is bounded by the import cap, the 200-document list query and the TTL, as for scheduled activities.
+  `expireAt` may be at most 31 days after the end (the rules read the date from `end`).
+- **Per-account cap (REVIEW4 M4):** at most 1,000 imported events and 500 scheduled activities per account (default, owner may change).
+  The rules cannot count documents, so `users/{uid}/meta/events` and `users/{uid}/meta/scheduled` list every record's key: a record is written only in a batch that lists its key, the list holds at most the cap, and a key comes off only in a write that names it and after which its record is gone (`lib/key-index.ts`).
+  Keys of records Firestore's TTL policy deleted are taken off when a save would otherwise not fit; the Events section says when the account is at the cap, and an import says how many events did not fit.
+  A phase 2 Function writes with the Admin SDK, which skips the rules, so it must keep the list the same way.
+- **List and "Remove all" (REVIEW4 M3):** the section reads the 200 soonest-ending events that have not ended, however many later ones are stored, and "Remove all" deletes every stored event, page by page.
 - **Not in phase 1:** sharing a file to the installed app (Web Share Target), the "better window" suggestion for events the person controls, and keeping recurring events current beyond 10 days without importing again (phase 2's subscriptions do that).
 
 ## Recommendation in short

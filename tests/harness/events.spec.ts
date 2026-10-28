@@ -154,3 +154,39 @@ test('import an .ics file', async ({ page }, testInfo) => {
   })
   await expect(page.getByTestId('events-status')).toContainText('not a calendar')
 })
+
+test('an account at the cap says so, and "Remove all" clears every stored event', async ({
+  page,
+}, testInfo) => {
+  const capture = await preparePage(page, testInfo, answerOpenMeteo)
+  await page.goto('/harness/?screen=dashboard&events=full')
+  await expect(page.getByTestId(HARNESS_MARKER)).toBeVisible()
+  const section = page.getByRole('region', { name: 'Events' })
+  await expect(cards(page)).toHaveCount(4)
+  await expect(section.getByTestId('events-cap')).toHaveText(
+    'You have 1,000 imported events, the most an account can keep. Remove some to import more.',
+  )
+  await section.getByTestId('events-cap').scrollIntoViewIfNeeded()
+  await captureScreen(page, testInfo, capture, { name: 'events-cap', fullPage: false })
+  await sectionShot(page, testInfo, 'events-section-cap')
+  if (!testInfo.project.name.startsWith('mobile')) {
+    await page.setViewportSize({ width: 1280, height: 900 })
+    await sectionShot(page, testInfo, 'events-section-cap-1280')
+  }
+
+  // A new event does not fit; the summary says why.
+  await page.getByTestId('events-file').setInputFiles({
+    name: 'events.ics',
+    mimeType: 'text/calendar',
+    buffer: Buffer.from(ICS),
+  })
+  await expect(page.getByTestId('events-status')).toHaveText(
+    'No events were imported. 1 event did not fit. You have 1,000 imported events, the most an account can keep. Remove some to import more. Skipped 1 all-day event.',
+  )
+
+  await section.getByRole('button', { name: 'Remove all', exact: true }).click()
+  await section.getByRole('button', { name: 'Remove all 1,000' }).click()
+  await expect(page.getByTestId('events-status')).toHaveText('Removed every imported event.')
+  await expect(cards(page)).toHaveCount(0)
+  await expect(section.getByTestId('events-cap')).toHaveCount(0)
+})

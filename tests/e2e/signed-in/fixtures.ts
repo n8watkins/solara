@@ -217,6 +217,27 @@ export class Emulators {
     })
   }
 
+  /**
+   * Writes imported-event documents straight into Firestore (bypassing the rules), in
+   * one commit per 400, with `expireAt` 30 days after each end as the app writes it.
+   */
+  async seedEvents(account: Account, records: (Record<string, unknown> & { key: string })[]) {
+    const root = FIRESTORE_API.replace(/^http:\/\/[^/]+\/v1\//, '')
+    for (let i = 0; i < records.length; i += 400) {
+      const writes = records.slice(i, i + 400).map(record => {
+        const { fields } = encode(record).mapValue as { fields: Record<string, FirestoreValue> }
+        const expireAt = new Date(Date.parse(String(record.end)) + 30 * 86_400_000)
+        return {
+          update: {
+            name: `${root}/users/${account.uid}/events/${record.key}`,
+            fields: { ...fields, expireAt: { timestampValue: expireAt.toISOString() } },
+          },
+        }
+      })
+      await admin(`${FIRESTORE_API}:commit`, { method: 'POST', body: JSON.stringify({ writes }) })
+    }
+  }
+
   /** The account's scheduled-activity records, by event id. */
   async readScheduled(account: Account): Promise<Record<string, Record<string, unknown>>> {
     return this.readCollection(account, 'scheduled')
