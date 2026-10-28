@@ -92,7 +92,11 @@ export function eventCardView({
   const day = dayLabel(startDate, today)
   const endDay = endDate !== startDate ? `${dayLabel(endDate, today)} ` : ''
   const when = `${day} · ${time(start)} – ${endDay}${time(end)}`
-  const setting = { shade: activity?.shade, surface: activity?.surface }
+  const setting = {
+    shade: activity?.shade,
+    surface: activity?.surface,
+    cloudSensitive: activity?.cloudSensitive,
+  }
   const exposure = activity ? exposureSummary(setting) : null
   const empty = {
     when,
@@ -113,7 +117,7 @@ export function eventCardView({
     hoursOn: date => weather.forecast.find(d => d.dateStr === date)?.hourly,
     planDays,
     today,
-    exposure: setting,
+    activity: setting,
   })
   if (uv.kind === 'later') {
     const from = formatDate(uv.fromDate, { weekday: 'short', month: 'short', day: 'numeric' })

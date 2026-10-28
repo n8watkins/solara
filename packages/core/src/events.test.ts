@@ -173,9 +173,26 @@ describe('eventUV', () => {
       ...base,
       start: at('2026-06-16T12:00'),
       end: at('2026-06-16T13:00'),
-      exposure: { shade: 'partial', surface: 'sand' },
+      activity: { shade: 'partial', surface: 'sand' },
     })
     expect(uv).toMatchObject({ kind: 'forecast', peakUV: 8.5, forecastPeakUV: 9.4 })
+  })
+
+  it('plans for a clear sky unless the activity plans with the clouds', () => {
+    const cloudy = new Map([
+      ['2026-06-16', june.map(h => (h.hour === 12 ? { ...h, uv: 6, clearSkyUV: 9.4 } : h))],
+    ])
+    const input = {
+      ...base,
+      hoursOn: (date: string) => cloudy.get(date),
+      start: at('2026-06-16T12:00'),
+      end: at('2026-06-16T13:00'),
+    }
+    expect(eventUV(input)).toMatchObject({ peakUV: 9.4, forecastPeakUV: 9.4 })
+    expect(eventUV({ ...input, activity: { cloudSensitive: true } })).toMatchObject({
+      peakUV: 6,
+      forecastPeakUV: 6,
+    })
   })
 
   it('counts night hours as UV 0 and skips missing daytime hours', () => {

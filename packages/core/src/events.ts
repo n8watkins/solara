@@ -9,7 +9,8 @@
 // (subscriptions and heads-ups, phase 2) run the same logic.
 
 import * as v from 'valibot'
-import { exposedUV, type ExposureSetting } from './exposure'
+import type { ExposureSetting } from './exposure'
+import { planningUV, skyUV, type SkyHour } from './forecast-quality'
 import { burnMins, type SkinType } from './recommendation'
 import { finiteNumber, record } from './schema'
 import { isIanaTimeZone, wallClockAt, isoDateOf } from './zoned-time'
@@ -236,13 +237,16 @@ export function matchActivity(
 
 // ---- UV during an event --------------------------------------------------------------
 
-export interface HourUV {
+/** One forecast hour: `uv` includes the forecast clouds; `clearSkyUV` is a cloudless sky. */
+export interface HourUV extends SkyHour {
   hour: number
-  uv: number
 }
 
 export type EventUV =
-  /** The forecast covers the event. UVs are adjusted for the activity's shade and surface. */
+  /**
+   * The forecast covers the event. UVs are what the activity plans on (planningUV in
+   * forecast-quality.ts): clouds counted once, then its shade and surface.
+   */
   | {
       kind: 'forecast'
       /** Highest UV during the event (after shade and surface). */
@@ -251,7 +255,7 @@ export type EventUV =
       avgUV: number
       /** When the peak hour starts (epoch ms; the event's start if it began mid-hour). */
       peakAt: number
-      /** The forecast UV at the peak, before shade and surface. */
+      /** The sky UV at the peak hour, before shade and surface. */
       forecastPeakUV: number
     }
   /** The event is past the forecast the person can see; it becomes live on `fromDate`. */
@@ -270,7 +274,8 @@ export interface EventUVInput {
   planDays: number
   /** Today's date in the place's zone. */
   today: string
-  exposure?: ExposureSetting
+  /** The activity the event counts as: its cloud option, shade and surface. */
+  activity?: { cloudSensitive?: boolean | null } & ExposureSetting
 }
 
 function addDaysIso(dateStr: string, days: number): string {
@@ -296,7 +301,7 @@ export function eventUV({
   hoursOn,
   planDays,
   today,
-  exposure = {},
+  activity = {},
 }: EventUVInput): EventUV {
   const lastPlanDate = addDaysIso(today, planDays - 1)
   let weighted = 0
@@ -316,9 +321,10 @@ export function eventUV({
     if (date >= today && !hours) return { kind: 'unknown' }
     const daytime = local.hour >= DAY_START_HOUR && local.hour <= DAY_END_HOUR
     const found = hours?.find(h => h.hour === local.hour)
-    const forecast = found ? found.uv : daytime ? null : 0
-    if (forecast !== null) {
-      const uv = exposedUV(forecast, exposure)
+    const sky = found ? skyUV(found, activity.cloudSensitive) : daytime ? null : 0
+    if (sky !== null) {
+      const uv = found ? planningUV(found, activity) : 0
+      const forecast = sky
       const span = (next - t) / 60_000
       weighted += uv * span
       minutes += span
