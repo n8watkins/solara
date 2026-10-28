@@ -18,6 +18,9 @@
 //   links  = none (default) | sample: in-memory linked calendars (subscription-fixtures.ts)
 //            and one event from a linked calendar; shown with ?subscriptions=on, which
 //            stands in for NEXT_PUBLIC_EVENTS_SUBSCRIPTIONS_ENABLED
+//   google = none (default) | connected: events already in Google Calendar, with a fake
+//            Google (google-calendar-fixtures.ts); shown with ?gcal=on, which stands in for
+//            NEXT_PUBLIC_GOOGLE_CALENDAR_EVENTS_ENABLED with the OAuth client ID
 //   (offline: the offline notice shows whenever the browser is offline, as in the app)
 //   (stale: with data=live, a forecast answer marked `stale` shows its note, as in the
 //   app; stale-forecast.spec.ts)
@@ -47,10 +50,21 @@ import { HARNESS_MARKER, buildPrefs, buildUser, buildWeather } from './fixtures'
 import { buildGapWeather } from './uv-gap-fixtures'
 import { buildSunPeakWeather, isSunPeakFixture, type SunPeakFixture } from './sun-peak-fixtures'
 import { HarnessScheduledProvider } from './scheduled-fixtures'
-import { EventsStoreContext, SubscriptionsStoreContext } from '@/lib/events-context'
+import {
+  EventsStoreContext,
+  GoogleCalendarApiContext,
+  GoogleLinkStoreContext,
+  SubscriptionsStoreContext,
+} from '@/lib/events-context'
 import { IMPORTED_EVENT_LIMITS } from '@solara/core/event-import'
 import { buildEvents, buildFeedEvent, createMemoryEventsStore } from './event-fixtures'
 import { buildSubscriptions, createMemorySubscriptionsStore } from './subscription-fixtures'
+import {
+  buildGoogleEvents,
+  buildGoogleLink,
+  createFakeGoogleCalendarApi,
+  createMemoryGoogleLinkStore,
+} from './google-calendar-fixtures'
 
 export type HarnessScreen = 'dashboard' | 'calendar' | 'settings' | 'pricing' | 'pricing-checkout'
 type SettingsTab = 'general' | 'activities' | 'location'
@@ -85,6 +99,7 @@ function readParams() {
     activities: params.get('activities')?.split(',') ?? null,
     events: (['sample', 'full'] as const).find(v => v === params.get('events')) ?? null,
     links: params.get('links') === 'sample',
+    google: params.get('google') === 'connected',
   }
 }
 
@@ -94,9 +109,17 @@ export default function HarnessApp() {
   const [links] = useState(() =>
     createMemorySubscriptionsStore(readParams().links ? buildSubscriptions() : []),
   )
+  const [googleApi] = useState(createFakeGoogleCalendarApi)
+  const [googleLink] = useState(() =>
+    createMemoryGoogleLinkStore(readParams().google ? buildGoogleLink() : null),
+  )
   const [events] = useState(() => {
-    const { events: kind, links: withLinks } = readParams()
-    const sample = [...(kind ? buildEvents() : []), ...(withLinks ? [buildFeedEvent()] : [])]
+    const { events: kind, links: withLinks, google } = readParams()
+    const sample = [
+      ...(kind ? buildEvents() : []),
+      ...(withLinks ? [buildFeedEvent()] : []),
+      ...(google ? buildGoogleEvents() : []),
+    ]
     // "full": the sample plus enough past events to reach the per-account cap.
     const pastStored = kind === 'full' ? IMPORTED_EVENT_LIMITS.maxStored - sample.length : 0
     return createMemoryEventsStore(sample, { pastStored })
@@ -105,13 +128,17 @@ export default function HarnessApp() {
     <ForecastStoreProvider value={forecasts}>
       <EventsStoreContext value={events}>
         <SubscriptionsStoreContext value={links}>
-          {scheduled ? (
-            <HarnessScheduledProvider sync={scheduled}>
-              <Harness />
-            </HarnessScheduledProvider>
-          ) : (
-            <Harness />
-          )}
+          <GoogleLinkStoreContext value={googleLink}>
+            <GoogleCalendarApiContext value={googleApi}>
+              {scheduled ? (
+                <HarnessScheduledProvider sync={scheduled}>
+                  <Harness />
+                </HarnessScheduledProvider>
+              ) : (
+                <Harness />
+              )}
+            </GoogleCalendarApiContext>
+          </GoogleLinkStoreContext>
         </SubscriptionsStoreContext>
       </EventsStoreContext>
     </ForecastStoreProvider>

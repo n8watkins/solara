@@ -23,7 +23,12 @@ import {
   UV_ALERT_THRESHOLD,
 } from '@solara/core'
 import {
+  CLIENT_EVENT_SOURCES,
   FEED_EVENT_CLIENT_FIELDS,
+  GOOGLE_CALENDAR_CHOICE_FIELDS,
+  GOOGLE_CALENDAR_LINK_DOC,
+  GOOGLE_CALENDAR_LINK_FIELDS,
+  GOOGLE_EVENT_LIMITS,
   IMPORTED_EVENT_FIELDS,
   IMPORTED_EVENT_LIMITS,
   IMPORTED_EVENT_MAX_TTL_DAYS,
@@ -346,7 +351,8 @@ describe('firestore.rules imported events match the schema', () => {
 
   it('lets the app change only the place and activity of a linked calendar event', () => {
     expect(sorted(rulesList('feedEventClientKeys'))).toEqual(sorted(FEED_EVENT_CLIENT_FIELDS))
-    expect(rules).toMatch(/allow create:[^;]*request\.resource\.data\.source == 'file'/)
+    expect(listAfter(rules, 'request.resource.data.source in')).toEqual([...CLIENT_EVENT_SOURCES])
+    expect(listAfter(rules, 'resource.data.source in')).toEqual([...CLIENT_EVENT_SOURCES])
     expect(rules).toContain('match /eventSubscriptions/{subscriptionId}')
   })
 
@@ -354,6 +360,34 @@ describe('firestore.rules imported events match the schema', () => {
     expect(
       numberIn(rules, /match \/events\/\{eventKey\}[^}]*?request\.query\.limit <= (\d+)/),
     ).toBe(IMPORTED_EVENT_LIMITS.listLimit)
+  })
+})
+
+describe('firestore.rules Google calendar connection matches the schema', () => {
+  const rule = () => rulesFunction('validGoogleCalendarLink')
+  const choice = () => rulesFunction('validGoogleCalendar')
+
+  it('allows exactly the schema fields', () => {
+    expect(sorted(rulesList('googleCalendarLinkKeys'))).toEqual(sorted(GOOGLE_CALENDAR_LINK_FIELDS))
+    expect(sorted(listAfter(choice(), 'hasOnly('))).toEqual(sorted(GOOGLE_CALENDAR_CHOICE_FIELDS))
+    expect(rules).toContain(`name == '${GOOGLE_CALENDAR_LINK_DOC}' && validGoogleCalendarLink()`)
+  })
+
+  it('checks every calendar up to the cap, and each field at its limit', () => {
+    expect(numberIn(rule(), /calendars\.size\(\) <= (\d+)/)).toBe(GOOGLE_EVENT_LIMITS.maxCalendars)
+    const checked = [...rule().matchAll(/validGoogleCalendar\(calendars, (\d+)\)/g)]
+    expect(checked.map(m => Number(m[1]))).toEqual(
+      Array.from({ length: GOOGLE_EVENT_LIMITS.maxCalendars }, (_, i) => i),
+    )
+    expect(numberIn(choice(), /id\.size\(\) <= (\d+)/)).toBe(GOOGLE_EVENT_LIMITS.calendarIdLength)
+    expect(numberIn(choice(), /name\.size\(\) <= (\d+)/)).toBe(
+      GOOGLE_EVENT_LIMITS.calendarNameLength,
+    )
+    for (const field of ['connectedAt', 'syncedAt']) {
+      expect(numberIn(rule(), new RegExp(`data\\.${field}\\.size\\(\\) <= (\\d+)`))).toBe(
+        GOOGLE_EVENT_LIMITS.timestampLength,
+      )
+    }
   })
 })
 

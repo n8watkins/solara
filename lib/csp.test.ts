@@ -135,6 +135,10 @@ describe('App Check reCAPTCHA v3', () => {
     expect(policy).not.toMatch(/https:\/\/www\.(google|gstatic)\.com(?=[ ;]|$)/)
   })
 
+  it('lets Google Identity Services revoke Calendar access', () => {
+    expect(directive(policy, 'connect-src')).toContain('https://oauth2.googleapis.com')
+  })
+
   it('lets App Check exchange its token', () => {
     expect(directive(policy, 'connect-src')).toContain(
       'https://content-firebaseappcheck.googleapis.com',

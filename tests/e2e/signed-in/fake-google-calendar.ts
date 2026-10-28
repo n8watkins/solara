@@ -44,6 +44,13 @@ export const FAKE_GIS = `;(function () {
         },
       }
     },
+    // Revoking ends the grant; tests read window.__solaraRevoked.
+    revoke: function (token, done) {
+      window.__solaraRevoked = (window.__solaraRevoked || []).concat([token])
+      setTimeout(function () {
+        if (done) done({ successful: true })
+      }, 0)
+    },
   }
 })()
 `
@@ -59,9 +66,14 @@ export interface FakeEvent {
   htmlLink: string
   summary: string
   description?: string
+  location?: string
+  iCalUID?: string
+  attendees?: { email?: string; self?: boolean; responseStatus?: string }[]
   start: EventTime
   end: EventTime
   extendedProperties?: { private?: Record<string, string> }
+  /** The calendar it is on ('primary' unless another calendar of `calendarList`). */
+  calendarId?: string
 }
 
 export interface CalendarCall {
@@ -84,6 +96,8 @@ const EVENTS_PATH = '/calendar/v3/calendars/primary/events'
 
 export class FakeGoogleCalendar {
   readonly events = new Map<string, FakeEvent>()
+  /** The person's other calendars, as calendarList.list names them (after the main one). */
+  readonly calendarList: { id: string; summary: string }[] = []
   readonly calls: CalendarCall[] = []
   /** Tokens Google no longer accepts (see expireTokens). */
   private readonly expired = new Set<string>()
@@ -162,7 +176,32 @@ export class FakeGoogleCalendar {
       return
     }
     if (url.pathname === EVENTS_PATH && method === 'GET') {
-      await route.fulfill({ json: { items: this.list(url.searchParams) } })
+      await route.fulfill({
+        json: { timeZone: 'America/Los_Angeles', items: this.list(url.searchParams) },
+      })
+      return
+    }
+    if (url.pathname === '/calendar/v3/users/me/calendarList' && method === 'GET') {
+      await route.fulfill({
+        json: {
+          items: [
+            { id: 'person@example.com', summary: 'person@example.com', primary: true },
+            ...this.calendarList,
+          ],
+        },
+      })
+      return
+    }
+    const other = /^\/calendar\/v3\/calendars\/([^/]+)\/events$/.exec(url.pathname)
+    if (other?.[1] && method === 'GET') {
+      const calendarId = decodeURIComponent(other[1])
+      if (!this.calendarList.some(c => c.id === calendarId)) {
+        await route.fulfill({ status: 404, json: { error: { code: 404 } } })
+        return
+      }
+      await route.fulfill({
+        json: { timeZone: 'America/Los_Angeles', items: this.list(url.searchParams, calendarId) },
+      })
       return
     }
     const match = new RegExp(`^${EVENTS_PATH}/([^/]+)$`).exec(url.pathname)
@@ -199,14 +238,15 @@ export class FakeGoogleCalendar {
     })
   }
 
-  /** events.list with the filters Solara uses. */
-  private list(params: URLSearchParams): FakeEvent[] {
+  /** events.list with the filters Solara uses, on one calendar. */
+  private list(params: URLSearchParams, calendarId = 'primary'): FakeEvent[] {
     const filters = params.getAll('privateExtendedProperty').map(f => f.split('='))
     const timeMin = params.get('timeMin') ? Date.parse(params.get('timeMin')!) : -Infinity
     const timeMax = params.get('timeMax') ? Date.parse(params.get('timeMax')!) : Infinity
     const showDeleted = params.get('showDeleted') === 'true'
     return [...this.events.values()].filter(
       e =>
+        (e.calendarId ?? 'primary') === calendarId &&
         filters.every(([key, value]) => key && e.extendedProperties?.private?.[key] === value) &&
         (showDeleted || e.status !== 'cancelled') &&
         Date.parse(e.end.dateTime) > timeMin &&

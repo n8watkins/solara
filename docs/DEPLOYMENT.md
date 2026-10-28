@@ -78,6 +78,7 @@ Repository variables:
 - `ALERTS_ENABLED`: `true` turns on Pro's morning and UV alerts: the build compiles `NEXT_PUBLIC_ALERTS_ENABLED=1` (Settings offers them) and the Functions deploy writes `ALERTS_ENABLED=true` (the `alerts` job sends them); anything else keeps Settings saying they are coming and makes each `alerts` run return at once ([Pro alerts](#pro-alerts)).
 - `ALERTS_SERVICE_ACCOUNT` (optional): the service account the `alerts` Function runs as, created by `infra/alerts-identity.sh`; empty keeps the project's default runtime identity.
 - `EVENTS_SUBSCRIPTIONS_ENABLED`: `true` turns on linked calendars and Pro event heads-ups: the build compiles `NEXT_PUBLIC_EVENTS_SUBSCRIPTIONS_ENABLED=1` (the Events section offers linked calendars and Settings the event heads-up) and the Functions deploy writes `EVENTS_SUBSCRIPTIONS_ENABLED=true`; anything else hides them, makes `eventSubscriptions` answer `404 not-found` and each `eventSubscriptionsRefresh` run return at once ([Linked calendars and event heads-ups](#linked-calendars-and-event-heads-ups)).
+- `GOOGLE_CALENDAR_EVENTS_ENABLED`: `true` makes the build compile `NEXT_PUBLIC_GOOGLE_CALENDAR_EVENTS_ENABLED=1`, so the Events section offers events already in Google Calendar; it also needs `NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID` (the env check fails the build without it) but no Functions ([Events from Google Calendar](#events-from-google-calendar)).
 - `COST_GUARD_DETACH_BILLING` (optional): the budget kill switch detaches billing at 300% of the budget unless this is `false` ([Cost guard and budget kill switch](#cost-guard-and-budget-kill-switch)).
 - `BUDGET_ID` and `BUDGET_SERVICE_ACCOUNT` (set after `infra/budget.sh`, which prints both): the budget the kill switch acts on, and the identity `budgetAlert` runs as, the only one allowed to detach billing.
 - `GCP_WORKLOAD_IDENTITY_PROVIDER` and `GCP_DEPLOY_SERVICE_ACCOUNT`: Workload Identity Federation ([WIF_SETUP.md](WIF_SETUP.md)).
@@ -220,6 +221,17 @@ Both deploy with the other Functions and stay off until the `EVENTS_SUBSCRIPTION
 - **Heads-ups:** the `alerts` job looks at each Pro account's events starting in the next 20 hours (5 a run) when no morning or UV alert goes out for it; an event whose peak UV at its place (with the activity's shade and surface) reaches 6 gets one heads-up about 3 hours before it, moved to the evening before when that falls in quiet hours, never later than 15 minutes before the start, claimed in `users/{uid}/alertState/events` (delivery key `event-v1:<event key>`).
   Event places' forecasts go through the shared `forecastCache` within the global upstream budget and the account's share of it, at most 200 lookups a run; `eventHeadsUp: false` in the account turns them off.
 - **Removal:** removing a link deletes its document, its summary entry, then its events and their keys; account deletion deletes the account's links beside the calendar feed tokens, and a refresh of a link whose account is gone or being deleted removes the link and writes nothing.
+
+## Events from Google Calendar
+
+Phase 2b of [integrations/EVENTS.md](integrations/EVENTS.md#phase-2b-as-built): the Events section reads the person's upcoming Google Calendar events in the browser and shows the UV at each.
+It is hidden unless the build has both `NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID` and `NEXT_PUBLIC_GOOGLE_CALENDAR_EVENTS_ENABLED=1` (from the `GOOGLE_CALENDAR_EVENTS_ENABLED` repository variable); turn it on only after Google verifies its scopes ([owner checklist](OWNER_CHECKLIST.md#events-from-google-calendar)).
+
+- **Scopes:** `calendar.events.readonly`, requested by Google Identity Services when the person turns it on, and `calendar.calendarlist.readonly` only when they choose calendars; tokens stay in memory, as for Scheduled.
+- **Reads:** `events.list` on each chosen calendar (at most 10) for the next 30 days, recurring events expanded, at most 4 pages of 250 per calendar, with `fields` limited to what the card needs; Solara's own scheduled windows are skipped.
+- **Storage:** `users/{uid}/events` with `source: 'google'`, written by the app within the 1,000-event key list (at most 200 per refresh, the soonest), and `users/{uid}/meta/googleCalendar` (the chosen calendars and the last refresh), both checked by `firestore.rules`; unchanged events are not rewritten.
+- **Refresh:** while Solara is open, every 30 minutes as long as this session holds a token (about an hour after a consent), otherwise when the person presses Refresh; there is no server job and no stored refresh token.
+- **Disconnect:** deletes the `google` events and the connection document, then revokes the grant with GIS (`oauth2.googleapis.com` is in the CSP's `connect-src` for that); account deletion removes both with the rest of `users/{uid}`.
 
 ## Firebase Functions and Stripe
 

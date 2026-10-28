@@ -18,13 +18,15 @@ import { EventsStoreContext } from '@/lib/events-context'
 import { capMessage } from '@/lib/record-cap'
 import { planningFor } from '@solara/core'
 import { IMPORTED_EVENT_LIMITS } from '@solara/core/event-import'
-import { eventSubscriptionsLaunched } from '@/lib/plans'
+import { eventSubscriptionsLaunched, googleCalendarEventsLaunched } from '@/lib/plans'
 import { getFutureDays } from '@/lib/tiers'
 import type { Location, TierLevel, UserPreferences, WeatherResponse } from '@/lib/types'
 import EventCard from './EventCard'
 
 // Linked calendars load only where they are switched on (docs/integrations/EVENTS.md).
 const EventSubscriptions = lazy(() => import('./EventSubscriptions'))
+// So do events already in Google Calendar (phase 2b).
+const GoogleCalendarEvents = lazy(() => import('./GoogleCalendarEvents'))
 
 /** Events shown before "Show all". */
 const FIRST_SHOWN = 5
@@ -78,6 +80,10 @@ export default function EventsSection({ uid, prefs, weather, displayTier, onUpgr
   const planDays = getFutureDays(displayTier)
   const location = prefs.location as Location
   const busy = progress !== null
+  // Events from a file may be stored: one is loaded, or the account holds more than loaded.
+  const mayHoldImported =
+    (items ?? []).some(item => item.source === 'file') || stored > (items?.length ?? 0)
+  const hasLinked = (items ?? []).some(item => item.source !== 'file')
 
   async function importFile(file: File) {
     setStatus(null)
@@ -139,12 +145,15 @@ export default function EventsSection({ uid, prefs, weather, displayTier, onUpgr
     }
   }
 
-  /** Removes every stored event, not only the ones loaded (REVIEW4 M3). */
-  async function removeAll() {
+  /**
+   * Removes every event imported from a file, not only the ones loaded (REVIEW4 M3). Linked
+   * and Google Calendar events stay: their next refresh would bring them back (REVIEW5 L2).
+   */
+  async function removeImported() {
     setStatus(null)
     setProgress('Removing your events…')
     try {
-      await store.removeAll(uid)
+      await store.removeImported(uid)
       setStatus({ text: 'Removed every imported event.' })
     } catch {
       setStatus({ text: 'Could not remove every event. Try again.', error: true })
@@ -238,7 +247,7 @@ export default function EventsSection({ uid, prefs, weather, displayTier, onUpgr
         </ul>
       )}
 
-      {(upcoming.length > 0 || stored > 0) && (
+      {(upcoming.length > FIRST_SHOWN || mayHoldImported) && (
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
           {upcoming.length > FIRST_SHOWN ? (
             <button
@@ -252,17 +261,18 @@ export default function EventsSection({ uid, prefs, weather, displayTier, onUpgr
           ) : (
             <span />
           )}
-          {confirmingClear ? (
-            <span className="flex items-center gap-2">
+          {!mayHoldImported ? null : confirmingClear ? (
+            <span className="flex flex-wrap items-center justify-end gap-2">
+              <span className="text-[12px] text-ink-2">Remove every imported event?</span>
               <button
                 type="button"
                 className="btn px-3 py-1.5 text-[12px] text-danger"
                 onClick={() => {
                   setConfirmingClear(false)
-                  void removeAll()
+                  void removeImported()
                 }}
               >
-                Remove all {stored.toLocaleString('en-US')}
+                Remove
               </button>
               <button
                 type="button"
@@ -279,10 +289,29 @@ export default function EventsSection({ uid, prefs, weather, displayTier, onUpgr
               disabled={busy}
               onClick={() => setConfirmingClear(true)}
             >
-              Remove all
+              Remove imported events
             </button>
           )}
+          {confirmingClear && hasLinked && (
+            <p className="w-full text-right text-[12px] leading-normal text-ink-3">
+              Events from linked calendars and Google Calendar stay; remove those with their
+              calendar below.
+            </p>
+          )}
         </div>
+      )}
+
+      {googleCalendarEventsLaunched() && (
+        <Suspense fallback={null}>
+          <GoogleCalendarEvents
+            uid={uid}
+            home={location}
+            activities={prefs.activities}
+            items={items ?? []}
+            upcomingCount={upcoming.filter(item => item.source === 'google').length}
+            nowMs={nowMs}
+          />
+        </Suspense>
       )}
 
       {eventSubscriptionsLaunched() && (

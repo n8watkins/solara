@@ -32,7 +32,7 @@ function stored(index: number, title: string, start: string, end: string) {
   }
 }
 
-test('with more than 200 future events the soonest still show, and "Remove all" removes every one', async ({
+test('with more than 200 future events the soonest still show, and "Remove imported events" removes every one', async ({
   page,
   emulators,
 }) => {
@@ -63,8 +63,8 @@ test('with more than 200 future events the soonest still show, and "Remove all" 
   await expect(cards.first()).toHaveAccessibleName('Afternoon swim')
   await expect(section.getByRole('listitem', { name: 'Series race 1', exact: true })).toBeVisible()
 
-  await section.getByRole('button', { name: 'Remove all' }).click()
-  await section.getByRole('button', { name: 'Remove all 251' }).click()
+  await section.getByRole('button', { name: 'Remove imported events' }).click()
+  await section.getByRole('button', { name: 'Remove', exact: true }).click()
   await expect(page.getByTestId('events-status')).toHaveText('Removed every imported event.', {
     timeout: 60_000,
   })

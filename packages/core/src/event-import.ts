@@ -6,6 +6,7 @@
 export * from './event-heads-up'
 export * from './event-subscriptions'
 export * from './events'
+export * from './google-calendar-events'
 export * from './ics-parse'
 export * from './rrule'
 export * from './zoned-time'

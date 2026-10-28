@@ -1,6 +1,6 @@
 # Solara owner checklist
 
-_Last reviewed: 2026-10-27_
+_Last reviewed: 2026-10-28_
 
 This checklist holds what only the owner can do: decisions, credentials, provider consoles, legal facts and real-device evidence, plus the manual checks for each release.
 Which items are already done is tracked in [status.md](status.md#owner-actions); the decisions and the roadmap items that need them are in [ROADMAP.md](ROADMAP.md#decisions).
@@ -28,6 +28,7 @@ Already done: the domain move to `solara-uv.web.app`, the Firestore index role (
 2. **Resubmit branding (2 minutes).** Confirm https://solara-uv.web.app/privacy/ shows the operator and the "How Solara uses Google user data" section, then at https://console.cloud.google.com/auth/branding?project=uv-activity-planner choose **View issues**, **I have fixed the issues**, **Proceed**.
 3. **Publish sign-in (1 minute).** At https://console.cloud.google.com/auth/audience?project=uv-activity-planner, if the status is **Testing**, click **Publish app** and confirm. Send a screenshot of the result.
 4. **Request calendar scope verification (15 minutes, after step 2 passes).** In Google Auth Platform, **Verification Center**, start verification for `calendar.freebusy` and `calendar.events.owned` using the justification text in [Google sign-in and Calendar](#google-sign-in-and-calendar). The agent can script a short demo video.
+   Showing events already in Google Calendar is a separate, optional request made after this one passes; its steps are in [Events from Google Calendar](#events-from-google-calendar).
 5. **Turn on App Check with reCAPTCHA v3 (about 15 minutes, then a week of watching).**
    Cost: free up to 10,000 reCAPTCHA assessments a month, then a flat $8 up to 100,000 ([COSTS.md](COSTS.md)).
    App Check starts only after sign-in and its token lasts an hour, so assessments are roughly signed-in session-hours: about 3,000 a month at 100 daily users, about 30,000 ($8) at 1,000.
@@ -206,6 +207,28 @@ Pro's morning and UV alerts are built and switched off (`ALERTS_ENABLED`, [Pro a
 - [ ] Register the same phone to a second controlled account; ownership moves instead of producing two deliveries.
 - [ ] Move the test account to Free (or cancel its test subscription): no alert arrives the next morning.
 - [ ] Turn alerts off on the phone, then sign out; the device record is gone either time.
+
+## Events from Google Calendar
+
+Showing the UV at events already in the person's Google Calendar (events phase 2b) is built and switched off: it needs the OAuth client ID from step 1 **and** the `GOOGLE_CALENDAR_EVENTS_ENABLED` repository variable ([DEPLOYMENT.md](DEPLOYMENT.md#events-from-google-calendar)).
+It runs in the browser, needs no Blaze and stores no Google token.
+It asks for `calendar.events.readonly` when the person turns it on, and `calendar.calendarlist.readonly` only if they choose calendars other than their main one; both are sensitive scopes that need their own verification, so keep them out of the step 4 request (default, owner may change).
+
+1. Wait until step 4's verification of `calendar.freebusy` and `calendar.events.owned` has passed, so this request cannot delay Scheduled.
+2. Wait until REVIEW5 M3's rule (heads-ups only for outdoor events, de-duplicated across sources; lane FIX5B) is on `main`, so events from a work calendar never send Pro heads-ups.
+3. At https://console.cloud.google.com/auth/scopes?project=uv-activity-planner (**Data Access**), click **Add or remove scopes** and add `https://www.googleapis.com/auth/calendar.events.readonly` and `https://www.googleapis.com/auth/calendar.calendarlist.readonly`; save.
+   The page lists both under **Your sensitive scopes**.
+4. Switch it on in staging only, or ask the agent for a preview build, and record the demo video (the agent can script it): turning it on and the consent screen, the events with their UV, choosing calendars, and Disconnect.
+5. In the **Verification Center**, request verification for the two scopes with the video and this justification: "Solara shows the UV index during the person's upcoming events. With calendar.events.readonly, the browser reads the next 30 days of events on the calendars the person chose and keeps only events with a place or that match one of their outdoor activities: each one's title, time, time zone and location text, to forecast the UV there. calendar.calendarlist.readonly lists the person's calendars so they can choose which to use. Nothing is read on a server, no token is stored, and Disconnect deletes the stored events and revokes access."
+   Google's review of sensitive scopes takes from a few days to a few weeks.
+6. Once approved: `gh variable set GOOGLE_CALENDAR_EVENTS_ENABLED --repo n8watkins/solara --body true`, and let the next deploy run.
+7. With a controlled Google account on production:
+   - [ ] The Events section shows **Google Calendar** with **Show my Google Calendar events**; pressing it asks only for "View events on all your calendars".
+   - [ ] Events with a place (and ones whose title matches an activity) appear, marked "From Google Calendar"; meetings with only a video link, all-day events and declined events do not.
+   - [ ] **Choose calendars** asks for "See the list of Google calendars you're subscribed to" and lists your calendars; ticking another one adds its events.
+   - [ ] Move an event in Google Calendar, then press **Refresh**: Solara follows; a second signed-in device shows the same events and calendars.
+   - [ ] **Disconnect** removes the events, and Solara disappears from https://myaccount.google.com/connections (Google ends all of Solara's calendar access at once, so Scheduled asks to connect again).
+   - [ ] No CSP violation shows in the console while disconnecting.
 
 ## Linked calendars
 

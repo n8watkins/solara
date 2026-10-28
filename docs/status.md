@@ -50,7 +50,7 @@ What users get:
 - Saved locations, share links (`/share/`), a one-off calendar file download from Plan ahead, and family profiles on Pro.
 - Imported events for signed-in accounts (Wave 5 item 9, phase 1): the dashboard's Events section imports an .ics file (Meetup, Eventbrite, race sites, any calendar), read in the browser, and shows each upcoming event with the UV during it at its place, the burn time for the planning skin type (the most sensitive person in a group), the activity's shade and surface, and sunscreen timing.
   Places come from the event's coordinates or its location text at city level, else the person's place with a "Set the place" fix; events are kept in `users/{uid}/events` (rules-checked, in the account export, deleted with the account, and expiring 30 days after they end).
-  The file is parsed in a Web Worker within a fixed work allowance, so no file can freeze the page; an account keeps at most 1,000 imported events (and 500 scheduled activities), enforced by the rules; the list shows the soonest upcoming events however many are stored, "Remove all" removes every one, and a re-import removes events the calendar cancelled (REVIEW4 M2, M3, M4, L1-L3).
+  The file is parsed in a Web Worker within a fixed work allowance, so no file can freeze the page; an account keeps at most 1,000 imported events (and 500 scheduled activities), enforced by the rules; the list shows the soonest upcoming events however many are stored, "Remove imported events" removes every imported one (keeping linked and Google Calendar events, which their next refresh would bring back, REVIEW5 L2), and a re-import removes events the calendar cancelled (REVIEW4 M2, M3, M4, L1-L3).
   On Pro, "Plan for a group" makes plans and burn estimates use the most sensitive of the people ticked; the profile switcher is in the header on phones too, and on Free it explains family profiles and offers the Pro waitlist.
 - Opt-in Google Analytics 4, asked by a banner at the top of the app's pages, in the page flow, so it never covers anything.
 - The privacy policy and terms with the operator details (#46), the Google user data section (#48) and the Sentry and reCAPTCHA notices (#70); each has its own last-updated date (`lib/legal.ts`).
@@ -64,6 +64,7 @@ These are in the code and tested in CI; each waits for an owner step, not engine
 | Feature | Switched on by | Owner step |
 | --- | --- | --- |
 | Google Calendar connect, adding events and **Scheduled** activities (#55, #56) | `NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID` (not set; no client ID in the live bundle) | [Steps 1-4](OWNER_CHECKLIST.md#next-steps-in-order) |
+| **Events from Google Calendar** (events phase 2b): the Events section reads the next 30 days of chosen calendars in the browser with a read-only scope and shows the UV at events with a place | `NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_CALENDAR_EVENTS_ENABLED` (neither set) | [Events from Google Calendar](OWNER_CHECKLIST.md#events-from-google-calendar), after steps 1-4 |
 | **App Check** with reCAPTCHA v3, for signed-in users only | `NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY` (not set) | [Step 5](OWNER_CHECKLIST.md#next-steps-in-order) |
 | **Sentry** error reporting, scrubbed in the browser (#70) | `NEXT_PUBLIC_SENTRY_DSN` (not set; the bundle then contains no Sentry code) | [Step 6](OWNER_CHECKLIST.md#next-steps-in-order) |
 

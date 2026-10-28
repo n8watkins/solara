@@ -162,7 +162,7 @@ test('import an .ics file', async ({ page }, testInfo) => {
   await expect(page.getByTestId('events-status')).toContainText('not a calendar')
 })
 
-test('an account at the cap says so, and "Remove all" clears every stored event', async ({
+test('an account at the cap says so, and "Remove imported events" clears every imported event', async ({
   page,
 }, testInfo) => {
   const capture = await preparePage(page, testInfo, answerOpenMeteo)
@@ -191,8 +191,9 @@ test('an account at the cap says so, and "Remove all" clears every stored event'
     'No events were imported. 1 event did not fit. You have 1,000 imported events, the most an account can keep. Remove some to import more. Skipped 1 all-day event.',
   )
 
-  await section.getByRole('button', { name: 'Remove all', exact: true }).click()
-  await section.getByRole('button', { name: 'Remove all 1,000' }).click()
+  await section.getByRole('button', { name: 'Remove imported events' }).click()
+  await expect(section.getByText('Remove every imported event?')).toBeVisible()
+  await section.getByRole('button', { name: 'Remove', exact: true }).click()
   await expect(page.getByTestId('events-status')).toHaveText('Removed every imported event.')
   await expect(cards(page)).toHaveCount(0)
   await expect(section.getByTestId('events-cap')).toHaveCount(0)

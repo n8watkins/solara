@@ -75,3 +75,34 @@ describe('PRO_FEATURES', () => {
     }
   })
 })
+
+describe('googleCalendarEventsLaunched', () => {
+  async function launched(env: Record<string, string>, search = '') {
+    for (const [key, value] of Object.entries(env)) vi.stubEnv(key, value)
+    vi.stubGlobal('window', { location: { search } })
+    try {
+      vi.resetModules()
+      return (await import('./plans')).googleCalendarEventsLaunched()
+    } finally {
+      vi.unstubAllEnvs()
+      vi.unstubAllGlobals()
+    }
+  }
+
+  it('needs both the switch and the OAuth client ID', async () => {
+    expect(await launched({})).toBe(false)
+    expect(await launched({ NEXT_PUBLIC_GOOGLE_CALENDAR_EVENTS_ENABLED: '1' })).toBe(false)
+    expect(await launched({ NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID: 'id' })).toBe(false)
+    expect(
+      await launched({
+        NEXT_PUBLIC_GOOGLE_CALENDAR_EVENTS_ENABLED: '1',
+        NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID: 'id',
+      }),
+    ).toBe(true)
+  })
+
+  it('opens per screen with ?gcal=on only in a harness build', async () => {
+    expect(await launched({}, '?gcal=on')).toBe(false)
+    expect(await launched({ NEXT_PUBLIC_UI_HARNESS: '1' }, '?gcal=on')).toBe(true)
+  })
+})

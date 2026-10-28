@@ -375,8 +375,9 @@ service cloud.firestore {
     // most IMPORTED_EVENT_MAX_TTL_DAYS ahead and at most a day past the retention period
     // after the event's end (`end` is an ISO instant in UTC, so its date is read from it).
     // Events from a linked calendar (`source: 'feed'`, with `feedId`) are written only by
-    // the server (functions/src/events/); the app may create and rewrite `file` events, and
-    // on a `feed` event change only its place and activity (FEED_EVENT_CLIENT_FIELDS).
+    // the server (functions/src/events/); the app may create and rewrite `file` events and
+    // events it read from the person's Google Calendar (`google`, CLIENT_EVENT_SOURCES),
+    // and on a `feed` event change only its place and activity (FEED_EVENT_CLIENT_FIELDS).
     function importedEventKeys() {
       return [
         'key', 'source', 'seriesId', 'title', 'start', 'end', 'timeZone', 'where', 'lat', 'lon',
@@ -397,7 +398,7 @@ service cloud.firestore {
         && data.keys().hasOnly(importedEventKeys())
         && data.key == eventKey
         && eventKey.matches('^[0-9a-f]{32}$')
-        && data.source in ['file', 'feed']
+        && data.source in ['file', 'feed', 'google']
         && (data.source == 'feed') == ('feedId' in data)
         && data.seriesId is string && data.seriesId.matches('^[0-9a-f]{32}$')
         && data.title is string && data.title.size() <= 200
@@ -419,6 +420,39 @@ service cloud.firestore {
         && data.expireAt is timestamp
         && data.expireAt <= request.time + duration.value(400, 'd')
         && data.expireAt <= endDate(data.end) + duration.value(31, 'd');
+    }
+
+    // ---- Events already in Google Calendar ---------------------------------------------
+
+    // users/{uid}/meta/googleCalendar: the calendars the app reads events from
+    // (packages/core/src/google-calendar-events.ts, checked by lib/firestore-rules.test.ts).
+    // At most 10 calendars, each an id and a name; no token is ever stored.
+    function googleCalendarLinkKeys() {
+      return ['calendars', 'connectedAt', 'syncedAt'];
+    }
+
+    function validGoogleCalendar(list, i) {
+      return list.size() <= i
+        || (list[i] is map
+          && list[i].keys().hasAll(['id', 'name'])
+          && list[i].keys().hasOnly(['id', 'name'])
+          && list[i].id is string && list[i].id.size() >= 1 && list[i].id.size() <= 256
+          && list[i].name is string && list[i].name.size() <= 120);
+    }
+
+    function validGoogleCalendarLink() {
+      let data = request.resource.data;
+      let calendars = data.calendars;
+      return data.keys().hasAll(googleCalendarLinkKeys())
+        && data.keys().hasOnly(googleCalendarLinkKeys())
+        && calendars is list && calendars.size() >= 1 && calendars.size() <= 10
+        && validGoogleCalendar(calendars, 0) && validGoogleCalendar(calendars, 1)
+        && validGoogleCalendar(calendars, 2) && validGoogleCalendar(calendars, 3)
+        && validGoogleCalendar(calendars, 4) && validGoogleCalendar(calendars, 5)
+        && validGoogleCalendar(calendars, 6) && validGoogleCalendar(calendars, 7)
+        && validGoogleCalendar(calendars, 8) && validGoogleCalendar(calendars, 9)
+        && data.connectedAt is string && data.connectedAt.size() <= 40
+        && data.syncedAt is string && data.syncedAt.size() <= 40;
     }
 
     // Midnight UTC of an ISO instant's date.
@@ -449,28 +483,33 @@ service cloud.firestore {
       }
 
       // Imported events: list queries are capped (IMPORTED_EVENT_LIMITS.listLimit). The app
-      // creates `file` events only; a linked calendar's events keep their source and
-      // everything but the place and activity.
+      // creates `file` and `google` events only, and they keep their source; a linked
+      // calendar's events keep their source and everything but the place and activity.
       match /events/{eventKey} {
         allow get, delete: if isOwner(userId) && isActiveAccount(userId);
         allow list: if isOwner(userId) && isActiveAccount(userId) && request.query.limit <= 200;
         allow create: if isOwner(userId) && isActiveAccount(userId)
-          && validImportedEvent(eventKey) && request.resource.data.source == 'file'
+          && validImportedEvent(eventKey)
+          && request.resource.data.source in ['file', 'google']
           && listedAfter(userId, 'events', eventKey);
         allow update: if isOwner(userId) && isActiveAccount(userId)
           && validImportedEvent(eventKey) && listedAfter(userId, 'events', eventKey)
-          && (resource.data.source == 'file'
-            ? request.resource.data.source == 'file'
+          && (resource.data.source in ['file', 'google']
+            ? request.resource.data.source == resource.data.source
             : request.resource.data.diff(resource.data).affectedKeys()
               .hasOnly(feedEventClientKeys()));
       }
 
-      // The key lists behind the per-account caps (validKeyIndex). Never deleted by the
-      // client; account deletion removes them with the rest of users/{uid}.
+      // The key lists behind the per-account caps (validKeyIndex), never deleted by the
+      // client, and the Google calendars the account reads events from
+      // (validGoogleCalendarLink), deleted when the person disconnects. Account deletion
+      // removes them with the rest of users/{uid}.
       match /meta/{name} {
         allow get: if isOwner(userId) && isActiveAccount(userId);
         allow create, update: if isOwner(userId) && isActiveAccount(userId)
-          && name in ['events', 'scheduled'] && validKeyIndex(userId, name, keyIndexCap(name));
+          && ((name in ['events', 'scheduled'] && validKeyIndex(userId, name, keyIndexCap(name)))
+            || (name == 'googleCalendar' && validGoogleCalendarLink()));
+        allow delete: if isOwner(userId) && isActiveAccount(userId) && name == 'googleCalendar';
       }
 
       // Server-written records the owner may read: the calendar feed token, and the linked

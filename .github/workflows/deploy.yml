@@ -76,6 +76,10 @@ jobs:
       # The Events section offers linked calendars (and Settings the Pro event heads-up)
       # only once the owner switches them on, and only together with the Functions.
       NEXT_PUBLIC_EVENTS_SUBSCRIPTIONS_ENABLED: ${{ vars.ENABLE_BLAZE_FUNCTIONS == 'true' && vars.EVENTS_SUBSCRIPTIONS_ENABLED == 'true' && '1' || '' }}
+      # The Events section shows events already in Google Calendar only once the owner
+      # switches it on, after Google verifies the read-only scope; it needs no Functions,
+      # only the OAuth client ID above.
+      NEXT_PUBLIC_GOOGLE_CALENDAR_EVENTS_ENABLED: ${{ vars.GOOGLE_CALENDAR_EVENTS_ENABLED == 'true' && '1' || '' }}
       NEXT_TELEMETRY_DISABLED: '1'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

@@ -137,9 +137,10 @@ export function createMemoryEventsStore(
       for (const key of keys) items.delete(key)
       emit()
     },
-    async removeAll() {
-      const count = items.size + past
-      items = new Map()
+    async removeImported() {
+      const kept = [...items.values()].filter(item => item.source !== 'file')
+      const count = items.size - kept.length + past
+      items = new Map(kept.map(item => [item.key, item]))
       past = 0
       emit()
       return count
@@ -147,6 +148,12 @@ export function createMemoryEventsStore(
     async seriesEvents(_uid, seriesIds) {
       const ids = new Set(seriesIds)
       return [...items.values()].filter(item => ids.has(item.seriesId))
+    },
+    async sourceEvents(_uid, source) {
+      return [...items.values()].filter(item => item.source === source)
+    },
+    async storedKeys() {
+      return listed()
     },
     async prune() {
       return 0

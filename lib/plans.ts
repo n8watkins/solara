@@ -92,3 +92,26 @@ export function eventSubscriptionsLaunched(): boolean {
     new URLSearchParams(window.location.search).get('subscriptions') === 'on'
   )
 }
+
+/**
+ * Whether the Events section offers events already in Google Calendar
+ * (docs/integrations/EVENTS.md, phase 2b): only in a build with the Google OAuth client
+ * ID (the switch that also shows Scheduled) and NEXT_PUBLIC_GOOGLE_CALENDAR_EVENTS_ENABLED,
+ * which the deploy sets from the GOOGLE_CALENDAR_EVENTS_ENABLED repository variable once
+ * Google has verified the read-only Calendar scope it asks for.
+ */
+export function googleCalendarEventsLaunched(): boolean {
+  if (
+    process.env.NEXT_PUBLIC_GOOGLE_CALENDAR_EVENTS_ENABLED === '1' &&
+    !!process.env.NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID
+  ) {
+    return true
+  }
+  // The UI harness has no client ID and shows the production default; a screen opts in
+  // with ?gcal=on (and a fake Google). Outside a harness build this is compiled away.
+  return (
+    process.env.NEXT_PUBLIC_UI_HARNESS === '1' &&
+    typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).get('gcal') === 'on'
+  )
+}

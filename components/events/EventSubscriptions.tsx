@@ -122,7 +122,10 @@ export default function EventSubscriptions({ uid, nowMs, pro, onUpgrade }: Props
         />
         <button
           type="submit"
-          className="btn btn-primary shrink-0 justify-center px-3.5 py-2 text-[13px]"
+          // Disabled, it is an outline button: a faded filled one reads as active.
+          className={`btn shrink-0 justify-center px-3.5 py-2 text-[13px] ${
+            full || busy !== null || !url.trim() ? '' : 'btn-primary'
+          }`}
           disabled={full || busy !== null || !url.trim()}
         >
           <Link2 size={15} aria-hidden="true" />

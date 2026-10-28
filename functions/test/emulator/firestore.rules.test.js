@@ -1094,6 +1094,21 @@ describe('imported events', () => {
     await assertSucceeds(ref.delete())
   })
 
+  test('the app creates and rewrites events from Google Calendar, which keep their source', async () => {
+    const db = testEnv.authenticatedContext('alice').firestore()
+    const ref = db.doc(`users/alice/events/${KEY}`)
+    const google = importedEvent(KEY, { source: 'google', url: '' })
+    await assertSucceeds(ref.set(google))
+    await assertSucceeds(ref.set({ ...google, title: 'Moved', placeLabel: 'Long Beach' }))
+    // A Google event cannot become a file or linked calendar event, nor name a calendar link.
+    await assertFails(ref.set({ ...google, source: 'file' }))
+    await assertFails(ref.set({ ...google, feedId: 'c'.repeat(32) }))
+    await assertSucceeds(ref.delete())
+    // A file event cannot become a Google one either.
+    await assertSucceeds(ref.set(importedEvent(KEY)))
+    await assertFails(ref.set({ ...importedEvent(KEY), source: 'google' }))
+  })
+
   test('a tombstoned account cannot read or write its events', async () => {
     await testEnv.withSecurityRulesDisabled(async context => {
       const db = context.firestore()
@@ -1103,6 +1118,71 @@ describe('imported events', () => {
     const alice = testEnv.authenticatedContext('alice').firestore()
     await assertFails(alice.doc(`users/alice/events/${KEY}`).get())
     await assertFails(alice.doc(`users/alice/events/${OTHER}`).set(importedEvent(OTHER)))
+  })
+})
+
+// Events already in Google Calendar (phase 2b): users/{uid}/meta/googleCalendar names the
+// calendars the app reads, at most 10, and is deleted when the person disconnects.
+describe('Google Calendar connection', () => {
+  const link = (overrides = {}) => ({
+    calendars: [
+      { id: 'primary', name: '' },
+      { id: 'club@group.calendar.google.com', name: 'Running club' },
+    ],
+    connectedAt: '2026-06-15T17:30:00.000Z',
+    syncedAt: '',
+    ...overrides,
+  })
+
+  test('the owner can save, read, update and delete it', async () => {
+    const db = testEnv.authenticatedContext('alice').firestore()
+    const ref = db.doc('users/alice/meta/googleCalendar')
+    await assertSucceeds(ref.set(link()))
+    await assertSucceeds(ref.get())
+    await assertSucceeds(ref.set(link({ syncedAt: '2026-06-15T18:00:00.000Z' })))
+    const ten = Array.from({ length: 10 }, (_, i) => ({ id: `c${i}@group`, name: `C${i}` }))
+    await assertSucceeds(ref.set(link({ calendars: ten })))
+    await assertSucceeds(ref.delete())
+  })
+
+  test('it is typed and capped', async () => {
+    const ref = testEnv
+      .authenticatedContext('alice')
+      .firestore()
+      .doc('users/alice/meta/googleCalendar')
+    const eleven = Array.from({ length: 11 }, (_, i) => ({ id: `c${i}@group`, name: '' }))
+    for (const bad of [
+      link({ calendars: [] }),
+      link({ calendars: eleven }),
+      link({ calendars: 'primary' }),
+      link({ calendars: [{ id: '', name: '' }] }),
+      link({ calendars: [{ id: 'x'.repeat(257), name: '' }] }),
+      link({ calendars: [{ id: 'primary', name: 'x'.repeat(121) }] }),
+      link({ calendars: [{ id: 'primary', name: '', token: 'ya29.secret' }] }),
+      link({ calendars: [{ id: 'primary' }] }),
+      link({ calendars: [{ id: 'primary', name: '' }, 'club'] }),
+      link({ token: 'ya29.secret' }),
+      link({ syncedAt: 5 }),
+      link({ connectedAt: 'x'.repeat(41) }),
+    ]) {
+      await assertFails(ref.set(bad))
+    }
+    const { syncedAt: _syncedAt, ...missing } = link()
+    await assertFails(ref.set(missing))
+  })
+
+  test('nobody else can read or write it, and the key lists still cannot be deleted', async () => {
+    await testEnv.withSecurityRulesDisabled(async context => {
+      await context.firestore().doc('users/alice/meta/googleCalendar').set(link())
+    })
+    const mallory = testEnv.authenticatedContext('mallory').firestore()
+    await assertFails(mallory.doc('users/alice/meta/googleCalendar').get())
+    await assertFails(mallory.doc('users/alice/meta/googleCalendar').set(link()))
+    await assertFails(mallory.doc('users/alice/meta/googleCalendar').delete())
+    await seedKeyIndex('alice', 'events', [])
+    const alice = testEnv.authenticatedContext('alice').firestore()
+    await assertFails(alice.doc('users/alice/meta/events').delete())
+    await assertFails(alice.doc('users/alice/meta/other').set(link()))
   })
 })
 

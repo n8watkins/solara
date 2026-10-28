@@ -17,6 +17,7 @@
 //   NEXT_PUBLIC_FORECAST_PROXY   '1' when forecasts come through the forecast proxy
 //   NEXT_PUBLIC_ALERTS_ENABLED   '1' when Settings offers Pro morning and UV alerts
 //   NEXT_PUBLIC_EVENTS_SUBSCRIPTIONS_ENABLED  '1' when the Events section offers linked calendars
+//   NEXT_PUBLIC_GOOGLE_CALENDAR_EVENTS_ENABLED  '1' when it shows events from Google Calendar
 //   NEXT_PUBLIC_*           the values compiled into the bundle
 //
 // With --built it also refuses source maps (the deploy workflow uploads them to
@@ -116,6 +117,16 @@ export function checkEnv(env) {
     if (flag === '1' && env.ENABLE_BLAZE_FUNCTIONS !== 'true') {
       errors.push(`${key} is set but Functions are not deployed.`)
     }
+  }
+
+  const googleEvents = value('NEXT_PUBLIC_GOOGLE_CALENDAR_EVENTS_ENABLED')
+  if (googleEvents && googleEvents !== '1') {
+    errors.push(`NEXT_PUBLIC_GOOGLE_CALENDAR_EVENTS_ENABLED must be '1' or empty.`)
+  }
+  if (googleEvents === '1' && !value('NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID')) {
+    errors.push(
+      'NEXT_PUBLIC_GOOGLE_CALENDAR_EVENTS_ENABLED is set but NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID is empty, so the events would stay hidden.',
+    )
   }
 
   const dsn = value('NEXT_PUBLIC_SENTRY_DSN')
