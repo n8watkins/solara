@@ -11,6 +11,7 @@ describe('privacy policy', () => {
       'Google Firebase',
       'reCAPTCHA',
       'Google Calendar API',
+      'Microsoft identity platform and Microsoft Graph',
       'Google Analytics',
       'Open-Meteo',
       'OpenStreetMap Nominatim',
@@ -71,14 +72,30 @@ describe('privacy policy', () => {
     expect(privacy).toContain('<strong>Events from your Google Calendar</strong>')
     expect(privacy.replace(/\s+/g, ' ')).toContain('no Google access token is stored anywhere')
     expect(privacy).toContain('Events from your Google Calendar: until they are gone')
-    expect(privacy).toContain('events from your Google Calendar and the calendars you chose')
+    expect(privacy.replace(/\s+/g, ' ')).toContain(
+      'events from your Google Calendar and Outlook and the calendars you chose',
+    )
+  })
+
+  it('has a Microsoft user data section: the one permission, what is kept, no tokens, how to remove it', () => {
+    const text = privacy.replace(/\s+/g, ' ')
+    expect(privacy).toContain('<h2>How Solara uses Microsoft user data</h2>')
+    expect(text).toContain('<strong>Read basic details of user calendars</strong>')
+    expect(privacy).toContain('<code>Calendars.ReadBasic</code>')
+    expect(privacy).toContain('<strong>Events from your Outlook calendar</strong>')
+    expect(text).toContain('no Microsoft access or refresh token is stored anywhere')
+    expect(text).toContain('Solara never learns which Microsoft account you signed in with')
+    expect(privacy).toContain('Events from your Outlook calendar: until they are gone')
+    expect(privacy).toContain('https://account.live.com/consent/Manage')
+    expect(privacy).toContain('https://myapplications.microsoft.com/')
+    expect(text).toContain('Events already in your Google Calendar or Outlook stay there')
   })
 
   it('names where data from every event source is sent (REVIEW6 M2)', () => {
     const text = privacy.replace(/\s+/g, ' ')
     // Open-Meteo's place search, for each source, and only addresses from Google Calendar.
     expect(text).toContain(
-      'from your browser for a calendar (.ics) file you import; from Solara&apos;s servers for a linked calendar; and from your browser for events from your Google Calendar, only when the location is written as an address',
+      'from your browser for a calendar (.ics) file you import; from Solara&apos;s servers for a linked calendar; and from your browser for events from your Google Calendar or Outlook, only when the location is written as an address',
     )
     expect(text).toContain(
       'Other location text, such as a person&apos;s name, a room, an office or a meeting link, is never searched or sent anywhere',

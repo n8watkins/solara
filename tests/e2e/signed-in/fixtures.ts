@@ -15,6 +15,7 @@ import type { Page, Route } from '@playwright/test'
 import { buildRawForecast } from '../../harness/fixtures'
 import { startClock } from '../../harness/clock'
 import { FAKE_GIS, FakeGoogleCalendar } from './fake-google-calendar'
+import { FakeMicrosoft, GRAPH, MICROSOFT_LOGIN } from './fake-microsoft'
 
 function emulatorEnv(name: string): string {
   const value = process.env[name]
@@ -267,6 +268,18 @@ export class Emulators {
     )
   }
 
+  /** One document under users/{uid} (`path` such as 'meta/outlookCalendar'), or null. */
+  async readDoc(account: Account, path: string): Promise<Record<string, unknown> | null> {
+    const response = await fetch(`${FIRESTORE_API}/users/${account.uid}/${path}`, {
+      headers: ADMIN,
+    })
+    if (response.status === 404) return null
+    if (!response.ok)
+      throw new Error(`Reading users/${account.uid}/${path} failed: ${response.status}`)
+    const { fields = {} } = (await response.json()) as { fields?: Record<string, FirestoreValue> }
+    return decode({ mapValue: { fields } }) as Record<string, unknown>
+  }
+
   /** The account document as stored, or null. */
   async readPrefs(account: Account): Promise<Record<string, unknown> | null> {
     const response = await fetch(`${FIRESTORE_API}/users/${account.uid}`, { headers: ADMIN })
@@ -340,6 +353,7 @@ async function stubNetwork(
   origin: string,
   blocked: string[],
   calendar: FakeGoogleCalendar,
+  microsoft: FakeMicrosoft,
 ): Promise<void> {
   await page.context().route(
     url => url.origin !== origin,
@@ -392,6 +406,11 @@ async function stubNetwork(
         await calendar.handle(route)
         return
       }
+      if (url.origin === MICROSOFT_LOGIN || url.origin === GRAPH) {
+        // Microsoft's sign-in and Graph, for events from Outlook (fake-microsoft.ts).
+        await microsoft.handle(route)
+        return
+      }
       if (url.href.startsWith('https://www.google.com/images/cleardot.gif')) {
         // Firestore's connection checks this image when the browser comes back online.
         await route.fulfill({
@@ -435,8 +454,9 @@ export async function preparePage(
   baseURL: string,
   blocked: string[],
   calendar: FakeGoogleCalendar,
+  microsoft: FakeMicrosoft = new FakeMicrosoft(),
 ): Promise<void> {
-  await stubNetwork(page, new URL(baseURL).origin, blocked, calendar)
+  await stubNetwork(page, new URL(baseURL).origin, blocked, calendar, microsoft)
   await startClock(page)
 }
 
@@ -444,6 +464,7 @@ export const test = base.extend<{
   emulators: Emulators
   stripe: FakeStripe
   googleCalendar: FakeGoogleCalendar
+  microsoft: FakeMicrosoft
   blockedRequests: string[]
 }>({
   emulators: async ({}, provide) => {
@@ -456,11 +477,15 @@ export const test = base.extend<{
   googleCalendar: async ({}, provide) => {
     await provide(new FakeGoogleCalendar())
   },
+  // The test's Microsoft sign-in and Graph (see fake-microsoft.ts), shared by its pages.
+  microsoft: async ({}, provide) => {
+    await provide(new FakeMicrosoft())
+  },
   // Automatic: stub the network and freeze the clock before the test opens a page.
   blockedRequests: [
-    async ({ page, baseURL, googleCalendar }, provide) => {
+    async ({ page, baseURL, googleCalendar, microsoft }, provide) => {
       const blocked: string[] = []
-      await preparePage(page, baseURL!, blocked, googleCalendar)
+      await preparePage(page, baseURL!, blocked, googleCalendar, microsoft)
       await provide(blocked)
       expect(blocked, 'requests that tried to leave the machine').toEqual([])
     },

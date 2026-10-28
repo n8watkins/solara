@@ -18,6 +18,8 @@
 //   NEXT_PUBLIC_ALERTS_ENABLED   '1' when Settings offers Pro morning and UV alerts
 //   NEXT_PUBLIC_EVENTS_SUBSCRIPTIONS_ENABLED  '1' when the Events section offers linked calendars
 //   NEXT_PUBLIC_GOOGLE_CALENDAR_EVENTS_ENABLED  '1' when it shows events from Google Calendar
+//   NEXT_PUBLIC_MICROSOFT_CLIENT_ID  the Azure app's (public) Application ID, a GUID
+//   NEXT_PUBLIC_OUTLOOK_CALENDAR_EVENTS_ENABLED  '1' when it shows events from Outlook
 //   NEXT_PUBLIC_*           the values compiled into the bundle
 //
 // With --built it also refuses source maps (the deploy workflow uploads them to
@@ -36,6 +38,9 @@ export const REQUIRED = [
 ]
 
 export const URL_KEYS = ['NEXT_PUBLIC_SITE_URL', 'NEXT_PUBLIC_FUNCTIONS_URL']
+
+/** An Entra ID Application (client) ID: a GUID. */
+export const MICROSOFT_CLIENT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 // Shapes of real secrets that must never be compiled into a public bundle.
 const SECRET_PATTERNS = [
@@ -126,6 +131,22 @@ export function checkEnv(env) {
   if (googleEvents === '1' && !value('NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID')) {
     errors.push(
       'NEXT_PUBLIC_GOOGLE_CALENDAR_EVENTS_ENABLED is set but NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID is empty, so the events would stay hidden.',
+    )
+  }
+
+  const microsoftClient = value('NEXT_PUBLIC_MICROSOFT_CLIENT_ID')
+  if (microsoftClient && !MICROSOFT_CLIENT_ID.test(microsoftClient)) {
+    errors.push(
+      'NEXT_PUBLIC_MICROSOFT_CLIENT_ID is not an Application (client) ID (a GUID such as 00000000-0000-0000-0000-000000000000).',
+    )
+  }
+  const outlookEvents = value('NEXT_PUBLIC_OUTLOOK_CALENDAR_EVENTS_ENABLED')
+  if (outlookEvents && outlookEvents !== '1') {
+    errors.push(`NEXT_PUBLIC_OUTLOOK_CALENDAR_EVENTS_ENABLED must be '1' or empty.`)
+  }
+  if (outlookEvents === '1' && !microsoftClient) {
+    errors.push(
+      'NEXT_PUBLIC_OUTLOOK_CALENDAR_EVENTS_ENABLED is set but NEXT_PUBLIC_MICROSOFT_CLIENT_ID is empty, so the events would stay hidden.',
     )
   }
 

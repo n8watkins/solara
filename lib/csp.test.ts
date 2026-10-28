@@ -139,6 +139,16 @@ describe('App Check reCAPTCHA v3', () => {
     expect(directive(policy, 'connect-src')).toContain('https://oauth2.googleapis.com')
   })
 
+  it('lets the Outlook connection redeem its sign-in and read Graph, and nothing more', () => {
+    const connect = directive(policy, 'connect-src')
+    expect(connect).toContain('https://login.microsoftonline.com')
+    expect(connect).toContain('https://graph.microsoft.com')
+    // No library script, hidden renewal frame or profile photo from Microsoft.
+    for (const name of ['script-src', 'frame-src', 'img-src', 'style-src', 'font-src']) {
+      expect(directive(policy, name).filter(source => /microsoft/.test(source))).toEqual([])
+    }
+  })
+
   it('lets App Check exchange its token', () => {
     expect(directive(policy, 'connect-src')).toContain(
       'https://content-firebaseappcheck.googleapis.com',

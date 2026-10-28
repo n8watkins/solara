@@ -1,11 +1,35 @@
-# Events from Outlook (plan)
+# Events from Outlook
 
-_Scoped 2026-10-28 by lane CALSCOPE, planned and owner approved 2026-10-28 ([ROADMAP item 23](../ROADMAP.md#23-events-already-in-outlook-planned))._
-_Every external fact below was checked against the cited page on 2026-10-28; claims that could not be confirmed are listed in [Open questions](#open-questions)._
+_Scoped 2026-10-28 by lane CALSCOPE, planned and owner approved 2026-10-28; built 2026-10-28 by lane OUTLOOK and switched off ([ROADMAP item 23](../ROADMAP.md#23-events-already-in-outlook-built-and-switched-off))._
+_Every external fact below was checked against the cited page on 2026-10-28; claims that could not be confirmed are listed in [Open questions](#open-questions), with how the build handles each._
 
 This is the design for showing the UV at events already in a person's Outlook calendar: Outlook.com, Hotmail and Live (personal Microsoft accounts) and Microsoft 365 (work or school accounts).
-It mirrors [events from Google Calendar](EVENTS.md#phase-2b-as-built) (#132, ROADMAP item 20) wherever Microsoft allows it, so the build lane can copy that feature's structure, tests and UI.
-Files marked "(new)" are planned.
+It mirrors [events from Google Calendar](EVENTS.md#phase-2b-as-built) (#132, ROADMAP item 20) wherever Microsoft allows it.
+[As built](#as-built) lists what the build changed or settled; the sections after it are the plan as approved.
+
+## As built
+
+_Switched off until the `MICROSOFT_CLIENT_ID` and `OUTLOOK_CALENDAR_EVENTS_ENABLED` repository variables are set ([DEPLOYMENT.md](../DEPLOYMENT.md#events-from-outlook), [owner checklist](../OWNER_CHECKLIST.md#events-from-outlook-only-for-the-outlook-connection))._
+
+- **Files:** `packages/core/src/outlook-calendar-events.ts` (limits, the connection schema, `OUTLOOK_EVENTS_SCOPE`), `windowsZoneToIana` exported from `packages/core/src/ics-parse.ts`, `lib/microsoft-auth.ts` (the PKCE popup flow), `lib/microsoft-redirect.ts` and `app/auth/microsoft/page.tsx` (the redirect page), `lib/outlook-events.ts` (Graph reads, `parseOutlookEvent`, the refresh), `components/events/OutlookCalendarEvents.tsx` (the panel), and `lib/calendar-events.ts`, which now holds the refresh, duplicate, cap, place and connection code that `lib/google-events.ts` had, so both connections share it instead of copying it.
+- **Everything in the plan holds**, with these changes and details:
+  - **Redirect page:** an app route made static by `scripts/static-pages.mjs` (like the landing page), so it ships no framework, analytics or Firebase code; its scripts are the theme script and the hand-over, both hashed into its CSP, and the consent banner never shows there.
+    It also works under `npm run dev`, so the dev registration needs nothing else.
+    The hand-over posts `state`, `code`, `error`, `error_description` and `error_subcode` (capped) on the BroadcastChannel `solara-microsoft-auth:<state>`, removes the query with `history.replaceState`, and closes the popup; the app-shell worker already leaves `/auth/microsoft/` to the network (now covered by a test).
+  - **Popup:** opened as `about:blank` on the click, before anything is awaited, then sent to the authorize page once the S256 challenge is ready; a popup seen closed counts as closed by the person only after 1.5 seconds, since the redirect page closes itself right after posting.
+    "Cancel" on Microsoft's page (`access_denied` with `error_subcode=cancel`) is treated like closing the popup, not as an error.
+  - **Organization approval:** `consent_required`, `admin_consent_required`, or an `error_description` with AADSTS65001, 90094 or 90095, shows "Your organization needs to approve Solara before it can read your work calendar. Ask your IT team.", with ", or link the calendar under Linked calendars instead" only where linked calendars are switched on (the in-app helper of item 24 is lane LINKGUIDE's).
+  - **Calendar list:** `$select=id,name,isDefaultCalendar,owner`, not `isSharedWithMe`, which is not in Graph v1.0's documented calendar resource and would make Graph refuse the `$select`.
+    Calendars added by another address than the default calendar's owner are left out; the owner address is compared in memory and never stored; an `isSharedWithMe: true` is still honoured if Graph sends it.
+  - **Locations:** besides links, dial-ins and `conferenceRoom`, `homeAddress` and `businessAddress` are never kept or searched, and a meeting provider's name ("Microsoft Teams Meeting", "Skype Meeting", "Zoom Meeting") is dropped whether or not `isOnlineMeeting` is set.
+    Coordinates are used as the place (rounded to two decimals, named by the location text, so no place search is needed) unless the location is one of those private types or its text was dropped.
+  - **Times:** `start` and `end` are read as UTC when Graph says `UTC` or names no zone; a time in another zone (IANA or Windows), which Graph should not send without a `Prefer` header, is read as that zone's wall clock, so the parser tolerates both.
+  - **Errors from Graph:** `401` forgets the token and asks to connect again; `403` and `404` mark that calendar "no longer shared"; `429` waits for `Retry-After` once (at most 30 seconds), then says "Outlook is busy. Try again in a few minutes."; a `@odata.nextLink` is followed only when it is a Graph v1.0 address, so the token is never sent elsewhere.
+  - **Calendars:** at most 10 in all, the default one first, as for Google (`OUTLOOK_EVENT_LIMITS.maxCalendars`).
+  - **Disconnect order:** the connection document goes first, then the events, then the token in memory, as Google's does since REVIEW6 L4 (#137), so a refresh still running on another device cannot write events back; the status then links to the two consent pages.
+  - **Token lifetime:** the token is forgotten when the Outlook panel unmounts (sign-out, an account switch or leaving the dashboard), and after a reload Refresh opens the popup again (usually without a prompt).
+  - **Heads-ups:** `OUTLOOK_CALENDAR_EVENTS_ENABLED` joins `eventHeadsUpsEnabled()` in `functions/src/notifications/config.ts`, `functions/.env` and the deploy, as #136 did for Google.
+- **Tests:** unit tests for PKCE (RFC 7636 appendix B), the popup flow (blocked, closed, timeout, state mismatch, cancel, admin approval, token errors, refresh tokens ignored), the redirect script, Graph mapping (every row of the mapping table, Windows zones, `tzone://Microsoft/Custom`, all-day, cancelled, declined, recurring, places, tolerance of missing fields), the Graph reads (select, paging, `401`, `403`, `404`, `429`), duplicates with Google and file events, caps and the disconnect order; static and emulator rules tests (the connection is typed and capped, Outlook events need the Outlook connection, deletion removes both); a signed-in browser test with the real popup, redirect page and rules against a fake Microsoft sign-in (which checks PKCE and the redirect URI) and a fake Graph, with no CSP violation; UI harness screens at 390, 1280 and 1440 px, light and dark, with 0 axe violations.
 
 ## In short
 
@@ -238,9 +262,13 @@ One lane, size M, after REVIEW6's fixes land in the events code:
 
 ## Open questions
 
+Each is handled so the build works either way; the owner's live check settles them ([owner checklist, step 9](../OWNER_CHECKLIST.md#events-from-outlook-only-for-the-outlook-connection)).
+
 - **Exact properties under `Calendars.ReadBasic`:** Microsoft documents only "except for properties such as body, attachments, and extensions"; a Microsoft Q&A answer (not staff-confirmed) claims the application-only `Calendars.ReadBasic.All` hides subject and location.
-  The build gate in [Scope](#scope-calendarsreadbasic-over-calendarsread) settles it for the delegated permission before any code depends on it.
-- **calendarView page size:** not documented; the build lane checks what `$top=100` returns.
-- **Graph calendar id length:** the 512-character cap is a guess until measured.
-- **Internet calendars a person subscribed to inside Outlook.com:** whether they appear in `/me/calendars` was not confirmed; such feeds can be added to Solara directly as [linked calendars](CALENDAR_LINKS.md).
-- **Personal-account consent page:** `https://account.live.com/consent/Manage` is documented by a Microsoft Q&A article and third-party guides, not by a Microsoft reference page; the build lane opens it with a test account before quoting it in the UI.
+  The build could not reach a real account, so the parser treats every field as optional: an event without a subject keeps only its place, one without a location only an activity match, and nothing fails; the tests cover both.
+  If the live check shows empty titles or no places, the fallback is `Calendars.Read` with the same `$select`, and the privacy policy changes to say so.
+- **calendarView page size:** not documented; Solara asks for `$top=100` and follows `@odata.nextLink` for up to 10 pages, so any smaller page size Microsoft applies only means more pages.
+- **Graph calendar id length:** Microsoft's examples are about 150 characters; the cap stays 512 in the schema and rules, and longer ids are left out of "Choose calendars" rather than failing.
+- **Internet calendars a person subscribed to inside Outlook.com:** if they appear in `/me/calendars` with the person as owner they are offered, and a `403` or `404` when reading one shows "no longer shared"; such feeds can be added to Solara directly as [linked calendars](CALENDAR_LINKS.md).
+- **Personal-account consent page:** `https://account.live.com/consent/Manage` is documented by a Microsoft Q&A article and third-party guides, not by a Microsoft reference page; it is linked after a disconnect and in the privacy policy, and the live check confirms it lists Solara.
+- **Closing the popup:** Solara notices a closed popup by polling `closed`, as MSAL.js does; if Microsoft's pages ever sent a strict `Cross-Origin-Opener-Policy`, the popup would read as closed early, and the live check covers it.

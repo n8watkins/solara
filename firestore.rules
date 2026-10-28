@@ -376,8 +376,9 @@ service cloud.firestore {
     // after the event's end (`end` is an ISO instant in UTC, so its date is read from it).
     // Events from a linked calendar (`source: 'feed'`, with `feedId`) are written only by
     // the server (functions/src/events/); the app may create and rewrite `file` events and
-    // events it read from the person's Google Calendar (`google`, CLIENT_EVENT_SOURCES),
-    // and on a `feed` event change only its place and activity (FEED_EVENT_CLIENT_FIELDS).
+    // events it read from the person's Google Calendar (`google`) or Outlook (`outlook`)
+    // (CLIENT_EVENT_SOURCES), and on a `feed` event change only its place and activity
+    // (FEED_EVENT_CLIENT_FIELDS).
     function importedEventKeys() {
       return [
         'key', 'source', 'seriesId', 'title', 'start', 'end', 'timeZone', 'where', 'lat', 'lon',
@@ -398,7 +399,7 @@ service cloud.firestore {
         && data.keys().hasOnly(importedEventKeys())
         && data.key == eventKey
         && eventKey.matches('^[0-9a-f]{32}$')
-        && data.source in ['file', 'feed', 'google']
+        && data.source in ['file', 'feed', 'google', 'outlook']
         && (data.source == 'feed') == ('feedId' in data)
         && data.seriesId is string && data.seriesId.matches('^[0-9a-f]{32}$')
         && data.title is string && data.title.size() <= 200
@@ -455,12 +456,48 @@ service cloud.firestore {
         && data.syncedAt is string && data.syncedAt.size() <= 40;
     }
 
-    // Google events may be stored only while the connection exists (REVIEW6 L4): a
-    // disconnect deletes it first, so a refresh still running on another device cannot
-    // bring its events back. Other sources do not depend on it.
-    function connectedIfGoogle(userId) {
-      return request.resource.data.source != 'google'
-        || exists(/databases/$(database)/documents/users/$(userId)/meta/googleCalendar);
+    // ---- Events already in Outlook (ROADMAP item 23) ----------------------------------
+
+    // users/{uid}/meta/outlookCalendar: the calendars the app reads events from
+    // (packages/core/src/outlook-calendar-events.ts, checked by lib/firestore-rules.test.ts).
+    // At most 10 calendars, each an id and a name; no token is ever stored.
+    function outlookCalendarLinkKeys() {
+      return ['calendars', 'connectedAt', 'syncedAt'];
+    }
+
+    function validOutlookCalendar(list, i) {
+      return list.size() <= i
+        || (list[i] is map
+          && list[i].keys().hasAll(['id', 'name'])
+          && list[i].keys().hasOnly(['id', 'name'])
+          && list[i].id is string && list[i].id.size() >= 1 && list[i].id.size() <= 512
+          && list[i].name is string && list[i].name.size() <= 120);
+    }
+
+    function validOutlookCalendarLink() {
+      let data = request.resource.data;
+      let calendars = data.calendars;
+      return data.keys().hasAll(outlookCalendarLinkKeys())
+        && data.keys().hasOnly(outlookCalendarLinkKeys())
+        && calendars is list && calendars.size() >= 1 && calendars.size() <= 10
+        && validOutlookCalendar(calendars, 0) && validOutlookCalendar(calendars, 1)
+        && validOutlookCalendar(calendars, 2) && validOutlookCalendar(calendars, 3)
+        && validOutlookCalendar(calendars, 4) && validOutlookCalendar(calendars, 5)
+        && validOutlookCalendar(calendars, 6) && validOutlookCalendar(calendars, 7)
+        && validOutlookCalendar(calendars, 8) && validOutlookCalendar(calendars, 9)
+        && data.connectedAt is string && data.connectedAt.size() <= 40
+        && data.syncedAt is string && data.syncedAt.size() <= 40;
+    }
+
+    // Google and Outlook events may be stored only while their connection exists (REVIEW6
+    // L4): a disconnect deletes it first, so a refresh still running on another device
+    // cannot bring its events back. Other sources do not depend on it.
+    function connectedIfCalendar(userId) {
+      let source = request.resource.data.source;
+      return (source != 'google'
+          || exists(/databases/$(database)/documents/users/$(userId)/meta/googleCalendar))
+        && (source != 'outlook'
+          || exists(/databases/$(database)/documents/users/$(userId)/meta/outlookCalendar));
     }
 
     // Midnight UTC of an ISO instant's date.
@@ -491,35 +528,37 @@ service cloud.firestore {
       }
 
       // Imported events: list queries are capped (IMPORTED_EVENT_LIMITS.listLimit). The app
-      // creates `file` and `google` events only, and they keep their source; a linked
+      // creates `file`, `google` and `outlook` events only, and they keep their source; a linked
       // calendar's events keep their source and everything but the place and activity.
       match /events/{eventKey} {
         allow get, delete: if isOwner(userId) && isActiveAccount(userId);
         allow list: if isOwner(userId) && isActiveAccount(userId) && request.query.limit <= 200;
         allow create: if isOwner(userId) && isActiveAccount(userId)
           && validImportedEvent(eventKey)
-          && request.resource.data.source in ['file', 'google']
-          && connectedIfGoogle(userId)
+          && request.resource.data.source in ['file', 'google', 'outlook']
+          && connectedIfCalendar(userId)
           && listedAfter(userId, 'events', eventKey);
         allow update: if isOwner(userId) && isActiveAccount(userId)
           && validImportedEvent(eventKey) && listedAfter(userId, 'events', eventKey)
-          && connectedIfGoogle(userId)
-          && (resource.data.source in ['file', 'google']
+          && connectedIfCalendar(userId)
+          && (resource.data.source in ['file', 'google', 'outlook']
             ? request.resource.data.source == resource.data.source
             : request.resource.data.diff(resource.data).affectedKeys()
               .hasOnly(feedEventClientKeys()));
       }
 
       // The key lists behind the per-account caps (validKeyIndex), never deleted by the
-      // client, and the Google calendars the account reads events from
-      // (validGoogleCalendarLink), deleted when the person disconnects. Account deletion
-      // removes them with the rest of users/{uid}.
+      // client, and the Google and Outlook calendars the account reads events from
+      // (validGoogleCalendarLink, validOutlookCalendarLink), deleted when the person
+      // disconnects. Account deletion removes them with the rest of users/{uid}.
       match /meta/{name} {
         allow get: if isOwner(userId) && isActiveAccount(userId);
         allow create, update: if isOwner(userId) && isActiveAccount(userId)
           && ((name in ['events', 'scheduled'] && validKeyIndex(userId, name, keyIndexCap(name)))
-            || (name == 'googleCalendar' && validGoogleCalendarLink()));
-        allow delete: if isOwner(userId) && isActiveAccount(userId) && name == 'googleCalendar';
+            || (name == 'googleCalendar' && validGoogleCalendarLink())
+            || (name == 'outlookCalendar' && validOutlookCalendarLink()));
+        allow delete: if isOwner(userId) && isActiveAccount(userId)
+          && name in ['googleCalendar', 'outlookCalendar'];
       }
 
       // Server-written records the owner may read: the calendar feed token, and the linked

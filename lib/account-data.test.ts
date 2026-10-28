@@ -23,6 +23,8 @@ describe('account data copy', () => {
     expect(DELETION_DESCRIPTION).toContain('Google Calendar stay there')
     expect(DELETION_DESCRIPTION).toContain('your Google Calendar choices')
     expect(DELETION_DESCRIPTION).toContain('myaccount.google.com/connections')
+    expect(DELETION_DESCRIPTION).toContain('your Outlook calendar choices')
+    expect(DELETION_DESCRIPTION).toContain('Microsoft account’s app permissions')
   })
 
   it('joins lists in plain words', () => {

@@ -49,11 +49,11 @@ export function markAnalyticsConsent(root: Element, consent: AnalyticsConsent) {
 }
 
 /**
- * Pages that never ask: the landing page and the city pages ship no framework
- * JavaScript (scripts/static-pages.mjs), so they load no analytics to ask about, and
- * the privacy page has its own controls.
+ * Pages that never ask: the landing page, the city pages and the Microsoft sign-in
+ * redirect page ship no framework JavaScript (scripts/static-pages.mjs), so they load no
+ * analytics to ask about, and the privacy page has its own controls.
  */
 export function asksForAnalyticsConsent(pathname: string | null): boolean {
   if (!pathname || pathname === '/') return false
-  return !/^\/(uv|privacy)(\/|$)/.test(pathname)
+  return !/^\/(uv|privacy|auth)(\/|$)/.test(pathname)
 }

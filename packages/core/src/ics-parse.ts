@@ -412,6 +412,16 @@ const WINDOWS_ZONES: Readonly<Record<string, string>> = {
   'new zealand standard time': 'Pacific/Auckland',
 }
 
+/**
+ * The IANA zone a Windows zone name stands for ("Pacific Standard Time" is
+ * America/Los_Angeles), or null for a name the table does not know. Outlook's Graph API
+ * names an event's zone this way (lib/outlook-events.ts).
+ */
+export function windowsZoneToIana(name: string): string | null {
+  const zone = WINDOWS_ZONES[name.trim().toLowerCase()]
+  return zone && isIanaTimeZone(zone) ? zone : null
+}
+
 /** An IANA name inside a longer TZID, such as /mozilla.org/20050126_1/America/New_York. */
 function ianaSuffix(tzid: string): string | null {
   const segments = tzid.split('/').filter(Boolean)

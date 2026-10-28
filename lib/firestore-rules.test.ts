@@ -36,6 +36,10 @@ import {
   IMPORTED_EVENT_SHAPE,
   IMPORTED_EVENT_SOURCES,
   IMPORTED_EVENT_TTL_FIELD,
+  OUTLOOK_CALENDAR_CHOICE_FIELDS,
+  OUTLOOK_CALENDAR_LINK_DOC,
+  OUTLOOK_CALENDAR_LINK_FIELDS,
+  OUTLOOK_EVENT_LIMITS,
 } from '@solara/core/event-import'
 import { describe, expect, it } from 'vitest'
 import { KEY_INDEX_CAPS, KEY_INDEX_MAX_REMOVED } from './key-index'
@@ -388,6 +392,47 @@ describe('firestore.rules Google calendar connection matches the schema', () => 
         GOOGLE_EVENT_LIMITS.timestampLength,
       )
     }
+  })
+})
+
+describe('firestore.rules Outlook calendar connection matches the schema', () => {
+  const rule = () => rulesFunction('validOutlookCalendarLink')
+  const choice = () => rulesFunction('validOutlookCalendar')
+
+  it('allows exactly the schema fields', () => {
+    expect(sorted(rulesList('outlookCalendarLinkKeys'))).toEqual(
+      sorted(OUTLOOK_CALENDAR_LINK_FIELDS),
+    )
+    expect(sorted(listAfter(choice(), 'hasOnly('))).toEqual(sorted(OUTLOOK_CALENDAR_CHOICE_FIELDS))
+    expect(rules).toContain(`name == '${OUTLOOK_CALENDAR_LINK_DOC}' && validOutlookCalendarLink()`)
+    expect(rules).toContain("name in ['googleCalendar', 'outlookCalendar']")
+  })
+
+  it('checks every calendar up to the cap, and each field at its limit', () => {
+    expect(numberIn(rule(), /calendars\.size\(\) <= (\d+)/)).toBe(OUTLOOK_EVENT_LIMITS.maxCalendars)
+    const checked = [...rule().matchAll(/validOutlookCalendar\(calendars, (\d+)\)/g)]
+    expect(checked.map(m => Number(m[1]))).toEqual(
+      Array.from({ length: OUTLOOK_EVENT_LIMITS.maxCalendars }, (_, i) => i),
+    )
+    expect(numberIn(choice(), /id\.size\(\) <= (\d+)/)).toBe(OUTLOOK_EVENT_LIMITS.calendarIdLength)
+    expect(numberIn(choice(), /name\.size\(\) <= (\d+)/)).toBe(
+      OUTLOOK_EVENT_LIMITS.calendarNameLength,
+    )
+    for (const field of ['connectedAt', 'syncedAt']) {
+      expect(numberIn(rule(), new RegExp(`data\\.${field}\\.size\\(\\) <= (\\d+)`))).toBe(
+        OUTLOOK_EVENT_LIMITS.timestampLength,
+      )
+    }
+  })
+
+  it('stores Google and Outlook events only while their own connection exists', () => {
+    const connected = rulesFunction('connectedIfCalendar')
+    expect(connected).toContain(`source != 'outlook'`)
+    expect(connected).toContain(`/meta/${OUTLOOK_CALENDAR_LINK_DOC})`)
+    expect(connected).toContain(`source != 'google'`)
+    expect(connected).toContain('/meta/googleCalendar)')
+    // Both the create and the update of an event check it.
+    expect(rules.match(/&& connectedIfCalendar\(userId\)/g)).toHaveLength(2)
   })
 })
 

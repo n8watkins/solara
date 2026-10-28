@@ -793,7 +793,12 @@ describe('account data security', () => {
           return { doc: id => (assert.equal(id, 'eventSubscriptions'), linksRef) }
         }
         if (name === 'meta') {
-          return { doc: id => (assert.equal(id, 'googleCalendar'), googleRef) }
+          return {
+            doc: id =>
+              id === 'outlookCalendar'
+                ? outlookRef
+                : (assert.equal(id, 'googleCalendar'), googleRef),
+          }
         }
         if (name === 'events') return eventsQuery
         assert.equal(name, 'scheduled')
@@ -802,6 +807,15 @@ describe('account data security', () => {
     }
     const tombstoneRef = { kind: 'tombstone' }
     const googleRef = { kind: 'googleCalendar' }
+    const outlookRef = { kind: 'outlookCalendar' }
+    const outlookLink = {
+      calendars: [
+        { id: 'default', name: '' },
+        { id: 'AAMkAGI2TGuLAAA=', name: 'Running club' },
+      ],
+      connectedAt: '2026-06-10T17:30:00.000Z',
+      syncedAt: '2026-06-15T17:30:00.000Z',
+    }
     const googleLink = {
       calendars: [{ id: 'primary', name: '' }],
       connectedAt: '2026-06-10T17:30:00.000Z',
@@ -841,6 +855,12 @@ describe('account data security', () => {
             }
             if (ref === googleRef) {
               return { exists: true, data: () => ({ ...googleLink, token: 'never-stored' }) }
+            }
+            if (ref === outlookRef) {
+              return {
+                exists: true,
+                data: () => ({ ...outlookLink, accessToken: 'never-stored', account: 'a@b.com' }),
+              }
             }
             if (ref === linksRef) {
               return {
@@ -921,6 +941,7 @@ describe('account data security', () => {
       'eventAlerts',
       'links',
       'googleCalendar',
+      'outlookCalendar',
       'devices',
       'scheduled',
       'events',
@@ -929,6 +950,8 @@ describe('account data security', () => {
     assert.deepEqual(result.linkedCalendars, [link])
     // The chosen Google calendars, only the schema's fields.
     assert.deepEqual(result.googleCalendar, googleLink)
+    // The chosen Outlook calendars, only the schema's fields (no token or account).
+    assert.deepEqual(result.outlookCalendar, outlookLink)
     assert.deepEqual(result.eventHeadsUps, [
       {
         eventKey: 'c'.repeat(32),

@@ -107,6 +107,39 @@ describe('googleCalendarEventsLaunched', () => {
   })
 })
 
+describe('outlookCalendarEventsLaunched', () => {
+  async function launched(env: Record<string, string>, search = '') {
+    for (const [key, value] of Object.entries(env)) vi.stubEnv(key, value)
+    vi.stubGlobal('window', { location: { search } })
+    try {
+      vi.resetModules()
+      return (await import('./plans')).outlookCalendarEventsLaunched()
+    } finally {
+      vi.unstubAllEnvs()
+      vi.unstubAllGlobals()
+    }
+  }
+
+  it('needs both the switch and the Microsoft client ID', async () => {
+    const id = '6731de76-14a6-49ae-97bc-6eba6914391e'
+    expect(await launched({})).toBe(false)
+    expect(await launched({ NEXT_PUBLIC_OUTLOOK_CALENDAR_EVENTS_ENABLED: '1' })).toBe(false)
+    expect(await launched({ NEXT_PUBLIC_MICROSOFT_CLIENT_ID: id })).toBe(false)
+    expect(
+      await launched({
+        NEXT_PUBLIC_OUTLOOK_CALENDAR_EVENTS_ENABLED: '1',
+        NEXT_PUBLIC_MICROSOFT_CLIENT_ID: id,
+      }),
+    ).toBe(true)
+  })
+
+  it('opts in per screen only in a UI harness build', async () => {
+    expect(await launched({}, '?outlook=on')).toBe(false)
+    expect(await launched({ NEXT_PUBLIC_UI_HARNESS: '1' }, '?outlook=on')).toBe(true)
+    expect(await launched({ NEXT_PUBLIC_UI_HARNESS: '1' }, '?gcal=on')).toBe(false)
+  })
+})
+
 describe('eventHeadsUpsLaunched (REVIEW6 L1)', () => {
   async function launched(search: string) {
     vi.stubEnv('NEXT_PUBLIC_UI_HARNESS', '1')
@@ -125,5 +158,7 @@ describe('eventHeadsUpsLaunched (REVIEW6 L1)', () => {
     expect(await launched('?subscriptions=on&gcal=on')).toBe(false)
     expect(await launched('?alerts=on&subscriptions=on')).toBe(true)
     expect(await launched('?alerts=on&gcal=on')).toBe(true)
+    expect(await launched('?outlook=on')).toBe(false)
+    expect(await launched('?alerts=on&outlook=on')).toBe(true)
   })
 })

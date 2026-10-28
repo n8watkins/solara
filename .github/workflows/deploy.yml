@@ -80,6 +80,11 @@ jobs:
       # switches it on, after Google verifies the read-only scope; it needs no Functions,
       # only the OAuth client ID above.
       NEXT_PUBLIC_GOOGLE_CALENDAR_EVENTS_ENABLED: ${{ vars.GOOGLE_CALENDAR_EVENTS_ENABLED == 'true' && '1' || '' }}
+      # Events already in Outlook (docs/integrations/OUTLOOK.md): the Azure app's public
+      # client ID (a public client has no secret), and the switch the owner sets once a
+      # controlled account has been checked; no Functions needed.
+      NEXT_PUBLIC_MICROSOFT_CLIENT_ID: ${{ vars.MICROSOFT_CLIENT_ID }}
+      NEXT_PUBLIC_OUTLOOK_CALENDAR_EVENTS_ENABLED: ${{ vars.OUTLOOK_CALENDAR_EVENTS_ENABLED == 'true' && '1' || '' }}
       NEXT_TELEMETRY_DISABLED: '1'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -306,6 +311,7 @@ jobs:
           ALERTS_SERVICE_ACCOUNT: ${{ vars.ALERTS_SERVICE_ACCOUNT }}
           EVENTS_SUBSCRIPTIONS_ENABLED: ${{ vars.EVENTS_SUBSCRIPTIONS_ENABLED == 'true' && 'true' || 'false' }}
           GOOGLE_CALENDAR_EVENTS_ENABLED: ${{ vars.GOOGLE_CALENDAR_EVENTS_ENABLED == 'true' && 'true' || 'false' }}
+          OUTLOOK_CALENDAR_EVENTS_ENABLED: ${{ vars.OUTLOOK_CALENDAR_EVENTS_ENABLED == 'true' && 'true' || 'false' }}
         run: |
           if [ "$BILLING_ENABLED" = true ] && { [ -z "$STRIPE_PRICE_ID" ] || [ -z "$STRIPE_YEARLY_PRICE_ID" ]; }; then
             echo "::error::Set the STRIPE_PRICE_ID and STRIPE_YEARLY_PRICE_ID repository variables before switching billing on."
@@ -329,6 +335,7 @@ jobs:
             printf 'ALERTS_SERVICE_ACCOUNT=%s\n' "$ALERTS_SERVICE_ACCOUNT"
             printf 'EVENTS_SUBSCRIPTIONS_ENABLED=%s\n' "$EVENTS_SUBSCRIPTIONS_ENABLED"
             printf 'GOOGLE_CALENDAR_EVENTS_ENABLED=%s\n' "$GOOGLE_CALENDAR_EVENTS_ENABLED"
+            printf 'OUTLOOK_CALENDAR_EVENTS_ENABLED=%s\n' "$OUTLOOK_CALENDAR_EVENTS_ENABLED"
           } > "functions/.env.$FIREBASE_PROJECT_ID"
 
       # The deploy uploads compiled code: @solara/core in functions/core and the

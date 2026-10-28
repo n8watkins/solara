@@ -117,11 +117,39 @@ export function googleCalendarEventsLaunched(): boolean {
 }
 
 /**
- * Whether Pro event heads-ups are offered: with the alerts on and either source of outside
- * events switched on, linked calendars or Google Calendar, as the server's `alerts` job
- * sends them (eventHeadsUpsEnabled in functions/src/notifications/config.ts, REVIEW6 L1).
- * Imported files then get them too.
+ * Whether the Events section offers events already in Outlook (docs/integrations/OUTLOOK.md,
+ * ROADMAP item 23): only in a build with the Azure app's client ID
+ * (NEXT_PUBLIC_MICROSOFT_CLIENT_ID, from the MICROSOFT_CLIENT_ID repository variable) and
+ * NEXT_PUBLIC_OUTLOOK_CALENDAR_EVENTS_ENABLED, which the deploy sets from the
+ * OUTLOOK_CALENDAR_EVENTS_ENABLED repository variable once a real account has been checked.
+ */
+export function outlookCalendarEventsLaunched(): boolean {
+  if (
+    process.env.NEXT_PUBLIC_OUTLOOK_CALENDAR_EVENTS_ENABLED === '1' &&
+    !!process.env.NEXT_PUBLIC_MICROSOFT_CLIENT_ID
+  ) {
+    return true
+  }
+  // The UI harness has no client ID and shows the production default; a screen opts in
+  // with ?outlook=on (and a fake Microsoft). Outside a harness build this is compiled away.
+  return (
+    process.env.NEXT_PUBLIC_UI_HARNESS === '1' &&
+    typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).get('outlook') === 'on'
+  )
+}
+
+/**
+ * Whether Pro event heads-ups are offered: with the alerts on and any source of outside
+ * events switched on, linked calendars, Google Calendar or Outlook, as the server's
+ * `alerts` job sends them (eventHeadsUpsEnabled in functions/src/notifications/config.ts,
+ * REVIEW6 L1). Imported files then get them too.
  */
 export function eventHeadsUpsLaunched(): boolean {
-  return alertsLaunched() && (eventSubscriptionsLaunched() || googleCalendarEventsLaunched())
+  return (
+    alertsLaunched() &&
+    (eventSubscriptionsLaunched() ||
+      googleCalendarEventsLaunched() ||
+      outlookCalendarEventsLaunched())
+  )
 }

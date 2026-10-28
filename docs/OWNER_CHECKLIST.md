@@ -234,10 +234,10 @@ It asks for `calendar.events.readonly` when the person turns it on, and `calenda
 
 ## Events from Outlook (only for the Outlook connection)
 
-Needed only for the planned Outlook connection ([ROADMAP item 23](ROADMAP.md#23-events-already-in-outlook-planned), design in [integrations/OUTLOOK.md](integrations/OUTLOOK.md#owner-steps-in-azure)); nothing else in Solara uses Microsoft, so skip this section unless you want Outlook events.
+Needed only for the Outlook connection ([ROADMAP item 23](ROADMAP.md#23-events-already-in-outlook-built-and-switched-off), as built in [integrations/OUTLOOK.md](integrations/OUTLOOK.md#owner-steps-in-azure)); nothing else in Solara uses Microsoft, so skip this section unless you want Outlook events.
+The feature is built and switched off; it stays hidden until both repository variables below are set.
 Everything here is free: the Azure free account charges nothing at sign-up (a temporary one-dollar card hold verifies identity), the app registration costs nothing, and Microsoft Graph calendar reads are not metered.
 No Microsoft review is needed for the one permission Solara asks for.
-The steps can be done before the feature is built; the agent needs only the client ID.
 
 1. Create a free Azure account at https://azure.microsoft.com/en-us/pricing/purchase-options/azure-account (a phone number and a non-prepaid card for verification), or sign in if you have one; its **Default Directory** is the tenant the app lives in.
 2. At https://entra.microsoft.com, open **Entra ID**, **App registrations**, **New registration**:
@@ -248,17 +248,22 @@ The steps can be done before the feature is built; the agent needs only the clie
    Do not press **Grant admin consent**.
 4. **Authentication:** leave the implicit grant boxes (**Access tokens**, **ID tokens**) unticked and **Allow public client flows** set to **No**.
 5. **Branding & properties:** home page `https://solara-uv.web.app/`, terms of service `https://solara-uv.web.app/terms/`, privacy statement `https://solara-uv.web.app/privacy/`, and the Solara logo; the consent prompt shows them.
-6. Optional, for local development: register a second app, `Solara (dev)`, the same way with the SPA redirect URI `http://localhost/auth/microsoft/` (Microsoft ignores the port for localhost), and give its client ID to the agent for `.env.local` only.
-7. Send the agent the **Application (client) ID** from the app's **Overview** (public, not a secret), or set it yourself: `gh variable set MICROSOFT_CLIENT_ID --repo n8watkins/solara --body <client id>`.
+6. Optional, for local development: register a second app, `Solara (dev)`, the same way with the SPA redirect URI `http://localhost/auth/microsoft/` (Microsoft ignores the port for localhost), and put its client ID in `.env.local` as `NEXT_PUBLIC_MICROSOFT_CLIENT_ID` with `NEXT_PUBLIC_OUTLOOK_CALENDAR_EVENTS_ENABLED=1`.
+7. Set the **Application (client) ID** from the app's **Overview** (public, not a secret): `gh variable set MICROSOFT_CLIENT_ID --repo n8watkins/solara --body <client id>`.
+   On its own it changes nothing visible; the deploy's env check refuses a value that is not a GUID.
 8. Leave publisher verification alone: it needs a Microsoft AI Cloud Partner Program account and a custom domain, which Solara does not have; without it the consent prompt shows the publisher as unverified, and some work or school accounts will need their IT admin's approval.
-9. Once the feature is built and the agent has checked it in a preview: `gh variable set OUTLOOK_CALENDAR_EVENTS_ENABLED --repo n8watkins/solara --body true`, and let the next deploy run.
-10. With a controlled Outlook.com account on production:
-    - [ ] The Events section shows **Outlook** with **Show my Outlook events**; the Microsoft popup asks only for "Read basic details of user calendars".
-    - [ ] Events with a place (and ones whose title matches an activity) appear, marked "From Outlook"; Teams meetings without a place, all-day and declined events do not.
-    - [ ] **Choose calendars** lists your own calendars without asking for anything new.
-    - [ ] Move an event in Outlook, then press **Refresh**: Solara follows.
-    - [ ] **Disconnect** removes the events; Solara can then be removed at https://account.live.com/consent/Manage.
-    - [ ] No CSP violation shows in the console.
+9. Live check before switching on, with the dev registration on `npm run dev` (step 6; preview channels have their own addresses, which a registration cannot match by wildcard): these settle what the build could only test against Microsoft's documented answers ([open questions](integrations/OUTLOOK.md#open-questions)).
+   With a controlled Outlook.com account, and a work or school account if you have one:
+   - [ ] The popup asks only for "Read basic details of user calendars" (and, for a work account whose organization blocks user consent, Solara then says the organization needs to approve it).
+   - [ ] Events with a place (and ones whose title matches an activity) appear with their **title** and **place**, marked "From Outlook": this confirms `Calendars.ReadBasic` returns `subject` and `location`; if titles are empty or places missing, tell the agent (the fallback is `Calendars.Read`, with a privacy policy change).
+   - [ ] Teams meetings without a place, all-day, cancelled and declined events do not appear; a recurring event shows each occurrence.
+   - [ ] An event whose place you picked from Outlook's place suggestions shows that place's name without "Using your place".
+   - [ ] **Choose calendars** lists your own calendars (not ones others share with you) without asking for anything new; note whether internet calendars you subscribed to in Outlook.com appear, and whether choosing one shows its events or "no longer shared".
+   - [ ] Closing the sign-in popup without signing in leaves the button ready again within a few seconds, with no error.
+   - [ ] Move an event in Outlook, then press **Refresh**: Solara follows.
+   - [ ] **Disconnect** removes the events, and the link to your Microsoft account's app permissions (https://account.live.com/consent/Manage) lists Solara and removes it; for a work account, My Apps (https://myapplications.microsoft.com/) does.
+   - [ ] No CSP violation shows in the browser console.
+10. Switch it on: `gh variable set OUTLOOK_CALENDAR_EVENTS_ENABLED --repo n8watkins/solara --body true`, and let the next deploy run (it also turns on Pro event heads-ups with `ALERTS_ENABLED`, as the Google switch does); repeat the first and last checks on production.
 
 ## Linked calendars
 

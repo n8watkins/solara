@@ -15,6 +15,7 @@ import {
   type ImportedEvent,
 } from '@/lib/events'
 import { EventsStoreContext } from '@/lib/events-context'
+import { listInWords } from '@/lib/account-data'
 import { capMessage } from '@/lib/record-cap'
 import { planningFor } from '@solara/core'
 import { IMPORTED_EVENT_LIMITS } from '@solara/core/event-import'
@@ -22,6 +23,7 @@ import {
   eventHeadsUpsLaunched,
   eventSubscriptionsLaunched,
   googleCalendarEventsLaunched,
+  outlookCalendarEventsLaunched,
 } from '@/lib/plans'
 import { eventHeadsUpRule } from '@/lib/event-heads-up-copy'
 import { getFutureDays } from '@/lib/tiers'
@@ -32,6 +34,15 @@ import EventCard from './EventCard'
 const EventSubscriptions = lazy(() => import('./EventSubscriptions'))
 // So do events already in Google Calendar (phase 2b).
 const GoogleCalendarEvents = lazy(() => import('./GoogleCalendarEvents'))
+// And events already in Outlook, with their Microsoft sign-in (ROADMAP item 23).
+const OutlookCalendarEvents = lazy(() => import('./OutlookCalendarEvents'))
+
+/** How the note under "Remove imported events" names the calendars whose events stay. */
+const KEPT_SOURCE_NAMES = {
+  feed: 'linked calendars',
+  google: 'Google Calendar',
+  outlook: 'Outlook',
+} as const
 
 /** Events shown before "Show all". */
 const FIRST_SHOWN = 5
@@ -88,7 +99,10 @@ export default function EventsSection({ uid, prefs, weather, displayTier, onUpgr
   // Events from a file may be stored: one is loaded, or the account holds more than loaded.
   const mayHoldImported =
     (items ?? []).some(item => item.source === 'file') || stored > (items?.length ?? 0)
-  const hasLinked = (items ?? []).some(item => item.source !== 'file')
+  // The calendars whose events "Remove imported events" keeps, as the loaded events show them.
+  const keptSources = (['feed', 'google', 'outlook'] as const)
+    .filter(source => (items ?? []).some(item => item.source === source))
+    .map(source => KEPT_SOURCE_NAMES[source])
 
   async function importFile(file: File) {
     setStatus(null)
@@ -297,10 +311,9 @@ export default function EventsSection({ uid, prefs, weather, displayTier, onUpgr
               Remove imported events
             </button>
           )}
-          {confirmingClear && hasLinked && (
+          {confirmingClear && keptSources.length > 0 && (
             <p className="w-full text-right text-[12px] leading-normal text-ink-3">
-              Events from linked calendars and Google Calendar stay; remove those with their
-              calendar below.
+              Events from {listInWords(keptSources)} stay; remove those with their calendar below.
             </p>
           )}
         </div>
@@ -314,6 +327,20 @@ export default function EventsSection({ uid, prefs, weather, displayTier, onUpgr
             activities={prefs.activities}
             items={items ?? []}
             upcomingCount={upcoming.filter(item => item.source === 'google').length}
+            allLoaded={(items?.length ?? 0) < IMPORTED_EVENT_LIMITS.listLimit}
+            nowMs={nowMs}
+          />
+        </Suspense>
+      )}
+
+      {outlookCalendarEventsLaunched() && (
+        <Suspense fallback={null}>
+          <OutlookCalendarEvents
+            uid={uid}
+            home={location}
+            activities={prefs.activities}
+            items={items ?? []}
+            upcomingCount={upcoming.filter(item => item.source === 'outlook').length}
             allLoaded={(items?.length ?? 0) < IMPORTED_EVENT_LIMITS.listLimit}
             nowMs={nowMs}
           />
@@ -352,7 +379,7 @@ export default function EventsSection({ uid, prefs, weather, displayTier, onUpgr
       )}
 
       <p className="mt-3 text-[11px] leading-normal text-ink-3">
-        {googleCalendarEventsLaunched()
+        {googleCalendarEventsLaunched() || outlookCalendarEventsLaunched()
           ? 'Only each event’s title, time and place, and the link a calendar file or linked calendar gives, are kept, and only until 30 days after it ends.'
           : 'Only each event’s title, time, place and link are kept, and only until 30 days after it ends.'}
       </p>
@@ -360,12 +387,16 @@ export default function EventsSection({ uid, prefs, weather, displayTier, onUpgr
   )
 }
 
-/** Where events come from, as switched on: "from a calendar (.ics) file, a calendar link or Google Calendar". */
+/**
+ * Where events come from, as switched on: "from a calendar (.ics) file, a calendar link,
+ * Google Calendar or Outlook".
+ */
 function eventSources(): string {
   const sources = [
     'a calendar (.ics) file',
     ...(eventSubscriptionsLaunched() ? ['a calendar link'] : []),
     ...(googleCalendarEventsLaunched() ? ['Google Calendar'] : []),
+    ...(outlookCalendarEventsLaunched() ? ['Outlook'] : []),
   ]
   return `from ${sources.length > 1 ? `${sources.slice(0, -1).join(', ')} or ${sources.at(-1)}` : sources[0]}`
 }
