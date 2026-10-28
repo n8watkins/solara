@@ -16,6 +16,7 @@
 //   NEXT_PUBLIC_BILLING_ENABLED  '1' when Pro checkout replaces the waitlist
 //   NEXT_PUBLIC_FORECAST_PROXY   '1' when forecasts come through the forecast proxy
 //   NEXT_PUBLIC_ALERTS_ENABLED   '1' when Settings offers Pro morning and UV alerts
+//   NEXT_PUBLIC_EVENTS_SUBSCRIPTIONS_ENABLED  '1' when the Events section offers linked calendars
 //   NEXT_PUBLIC_*           the values compiled into the bundle
 //
 // With --built it also refuses source maps (the deploy workflow uploads them to
@@ -108,6 +109,7 @@ export function checkEnv(env) {
     'NEXT_PUBLIC_BILLING_ENABLED',
     'NEXT_PUBLIC_FORECAST_PROXY',
     'NEXT_PUBLIC_ALERTS_ENABLED',
+    'NEXT_PUBLIC_EVENTS_SUBSCRIPTIONS_ENABLED',
   ]) {
     const flag = value(key)
     if (flag && flag !== '1') errors.push(`${key} must be '1' or empty.`)

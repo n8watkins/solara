@@ -10,10 +10,10 @@ Firebase's client SDK still pins `@grpc/grpc-js ~1.9.0` (checked 2026-10-23 with
 The app's development dependencies report zero advisories too (`npm audit`), since the Tailwind CSS 4 migration removed `postcss-selector-parser`.
 The Functions development dependencies still report moderate advisories that have no compatible fix (checked 2026-10-23):
 
-| Package | Severity | Reached through | Notes |
-| --- | --- | --- | --- |
-| `@opentelemetry/core <2.8.0` | Moderate | `firebase-tools` (Functions) | Emulator and CLI tooling only; the only fix is a firebase-tools downgrade. |
-| `uuid <11.1.1` | Moderate | `firebase-tools` through `gaxios` (Functions) | Only affects calls that pass a caller-supplied buffer; same fix situation. |
+| Package                      | Severity | Reached through                               | Notes                                                                      |
+| ---------------------------- | -------- | --------------------------------------------- | -------------------------------------------------------------------------- |
+| `@opentelemetry/core <2.8.0` | Moderate | `firebase-tools` (Functions)                  | Emulator and CLI tooling only; the only fix is a firebase-tools downgrade. |
+| `uuid <11.1.1`               | Moderate | `firebase-tools` through `gaxios` (Functions) | Only affects calls that pass a caller-supplied buffer; same fix situation. |
 
 npm reports the chain packages (`firebase-tools`, `gaxios`, `@google-cloud/pubsub`) as moderate too, because they depend on the packages above.
 The `braces` advisory that this record used to list is no longer reported.

@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
   eventBurn,
+  eventLocationQueries,
   eventUV,
+  feedEventKey,
+  feedSeriesId,
   importedEventExpiry,
   importedEventKey,
   importedSeriesId,
@@ -97,6 +100,32 @@ describe('keys', () => {
     expect(await importedEventKey('file', 'uid-2', null)).not.toBe(one)
     expect(await importedSeriesId('file', 'uid-1')).toMatch(/^[0-9a-f]{32}$/)
     expect(await importedSeriesId('file', 'uid-1')).not.toBe(one)
+  })
+
+  it('keep a linked calendar apart from files and from other linked calendars', async () => {
+    const feed = 'a'.repeat(32)
+    const other = 'b'.repeat(32)
+    const key = await feedEventKey(feed, 'uid-1', null)
+    expect(key).toMatch(/^[0-9a-f]{32}$/)
+    expect(key).not.toBe(await importedEventKey('file', 'uid-1', null))
+    expect(key).not.toBe(await feedEventKey(other, 'uid-1', null))
+    expect(await feedSeriesId(feed, 'uid-1')).not.toBe(await feedSeriesId(other, 'uid-1'))
+  })
+})
+
+describe('linked calendar events', () => {
+  it('name their calendar, and only they do', () => {
+    const feedId = 'c'.repeat(32)
+    expect(parseImportedEvent({ ...valid, source: 'feed', feedId })).toMatchObject({ feedId })
+    expect(parseImportedEvent({ ...valid, source: 'feed' })).toBeNull()
+    expect(parseImportedEvent({ ...valid, feedId })).toBeNull()
+    expect(parseImportedEvent({ ...valid, source: 'feed', feedId: 'nope' })).toBeNull()
+  })
+
+  it('share the town-level LOCATION searches with the file import', () => {
+    expect(
+      eventLocationQueries('Griffith Park, 4730 Crystal Springs Dr, Los Angeles, CA 90027, USA'),
+    ).toEqual(['Los Angeles, CA', 'Los Angeles'])
   })
 })
 

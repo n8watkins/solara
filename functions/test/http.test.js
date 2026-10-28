@@ -323,6 +323,8 @@ describe('deployed entry point', () => {
       'createBillingPortalSession',
       'createCheckoutSession',
       'deleteAccount',
+      'eventSubscriptions',
+      'eventSubscriptionsRefresh',
       'exportAccountData',
       'forecast',
       'maintenance',
@@ -344,6 +346,7 @@ describe('deployed entry point', () => {
       revokeCalendarFeed: 'DELETE',
       forecast: 'GET',
       placeSearch: 'GET',
+      eventSubscriptions: 'POST',
     }
     for (const [name, method] of Object.entries(browserEndpoints)) {
       const res = responseRecorder()

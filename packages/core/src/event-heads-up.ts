@@ -12,6 +12,7 @@ import {
   inQuietHours,
   localTime,
 } from './alerts'
+import { formatUV } from './uv-scale'
 
 /** Defaults, owner may change (docs/ROADMAP.md decisions, 2026-10-28). */
 export const EVENT_HEADS_UP = Object.freeze({
@@ -89,10 +90,6 @@ export interface EventHeadsUpInput {
   clock?: '12h' | '24h'
 }
 
-function oneDecimal(value: number): string {
-  return (Math.round(value * 10) / 10).toFixed(1)
-}
-
 /** "🗓️ Saturday 10K at 8am: UV up to 7.2" with sunscreen timing in the body. */
 export function eventHeadsUpMessage({
   title,
@@ -111,13 +108,18 @@ export function eventHeadsUpMessage({
   }
   const startDay = local(startMs)?.date
   const today = local(nowMs)?.date
-  const when = startDay && today && startDay !== today ? `tomorrow ${time(startMs)}` : time(startMs)
+  const at = time(startMs)
+  const when = !at
+    ? 'soon'
+    : startDay && today && startDay !== today
+      ? `tomorrow at ${at}`
+      : `at ${at}`
   const name = title.trim() || 'Your event'
   const place = placeLabel.trim()
   return {
-    title: `🗓️ ${name} ${when ? `at ${when}` : 'soon'}: UV up to ${oneDecimal(peakUV)}`,
+    title: `🗓️ ${name} ${when}: UV up to ${formatUV(peakUV)}`,
     body:
-      `${place ? `Forecast for ${place}: ` : ''}UV peaks at ${oneDecimal(peakUV)} around ${time(peakAtMs)}. ` +
+      `${place ? `Forecast for ${place}: ` : ''}UV peaks at ${formatUV(peakUV)} around ${time(peakAtMs)}. ` +
       `Apply sunscreen 15 to 30 minutes before you go, reapply every 2 hours, and plan for shade.`,
   }
 }

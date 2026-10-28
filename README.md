@@ -12,20 +12,20 @@ Conditions and individual sensitivity can change quickly.
 
 ## Documentation
 
-| Document | What it covers |
-| --- | --- |
-| [docs/HANDOFF.md](docs/HANDOFF.md) | Start here: current state, open problems, owner blockers and next steps |
-| [docs/status.md](docs/status.md) | What is live today, what is not, the CI/CD shape, and which owner actions are done or open |
-| [docs/ROADMAP.md](docs/ROADMAP.md) | Open work in waves of parallel lanes, the owner decisions they need, and feature candidates |
-| [docs/OWNER_CHECKLIST.md](docs/OWNER_CHECKLIST.md) | Steps only the owner can do, and the manual checks for a release |
-| [docs/COSTS.md](docs/COSTS.md) | Running-cost estimates by user count, free-tier limits and forecast provider options |
-| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Environment variables, GitHub configuration, how a deploy runs, and Functions, App Check, feed, notification and Calendar setup |
-| [docs/WIF_SETUP.md](docs/WIF_SETUP.md) | Replacing the deploy key with Workload Identity Federation, and moving public values to variables |
-| [docs/integrations/EVENTS.md](docs/integrations/EVENTS.md) | Scoping for linking events from calendars, Strava and Meetup (Wave 5 item 9) |
-| [docs/DEPENDENCY_RISK.md](docs/DEPENDENCY_RISK.md) | Accepted development-dependency advisories and the audit policy |
-| [docs/CONTRIBUTING-AGENTS.md](docs/CONTRIBUTING-AGENTS.md) | How roadmap lanes run in parallel: ownership, agent contract, merge protocol |
-| [SECURITY.md](SECURITY.md) | Reporting a vulnerability and how the supply chain is protected |
-| [docs/archive/](docs/archive/assessment-2026-10/REPORT.md) | The October 2026 assessment, with the status of every finding |
+| Document                                                   | What it covers                                                                                                                  |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| [docs/HANDOFF.md](docs/HANDOFF.md)                         | Start here: current state, open problems, owner blockers and next steps                                                         |
+| [docs/status.md](docs/status.md)                           | What is live today, what is not, the CI/CD shape, and which owner actions are done or open                                      |
+| [docs/ROADMAP.md](docs/ROADMAP.md)                         | Open work in waves of parallel lanes, the owner decisions they need, and feature candidates                                     |
+| [docs/OWNER_CHECKLIST.md](docs/OWNER_CHECKLIST.md)         | Steps only the owner can do, and the manual checks for a release                                                                |
+| [docs/COSTS.md](docs/COSTS.md)                             | Running-cost estimates by user count, free-tier limits and forecast provider options                                            |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)                   | Environment variables, GitHub configuration, how a deploy runs, and Functions, App Check, feed, notification and Calendar setup |
+| [docs/WIF_SETUP.md](docs/WIF_SETUP.md)                     | Replacing the deploy key with Workload Identity Federation, and moving public values to variables                               |
+| [docs/integrations/EVENTS.md](docs/integrations/EVENTS.md) | Scoping for linking events from calendars, Strava and Meetup (Wave 5 item 9)                                                    |
+| [docs/DEPENDENCY_RISK.md](docs/DEPENDENCY_RISK.md)         | Accepted development-dependency advisories and the audit policy                                                                 |
+| [docs/CONTRIBUTING-AGENTS.md](docs/CONTRIBUTING-AGENTS.md) | How roadmap lanes run in parallel: ownership, agent contract, merge protocol                                                    |
+| [SECURITY.md](SECURITY.md)                                 | Reporting a vulnerability and how the supply chain is protected                                                                 |
+| [docs/archive/](docs/archive/assessment-2026-10/REPORT.md) | The October 2026 assessment, with the status of every finding                                                                   |
 
 ## Stack
 
@@ -120,25 +120,25 @@ Every required check reports on every pull request, but a suite runs only when t
 A `changes` job maps the diff against the pull request's base (from the merge base, counting both sides of a rename) with [`.github/scripts/changed-areas.mjs`](.github/scripts/changed-areas.mjs); a suite with nothing relevant passes in seconds with "No relevant changes" and the reason in its job summary.
 Lint, the docs check, the dependency audit, workflow and secret scanning and dependency review always run.
 
-| Changed files | Typecheck and unit | Functions and rules | Static export e2e | Signed-in e2e | UI harness | Sentry and App Check e2e |
-| --- | --- | --- | --- | --- | --- | --- |
-| `.github/**`, `package.json`, lockfiles, `tsconfig*.json`, tool configs (next, postcss, eslint, prettier, vitest, playwright), `.nvmrc`, `.env*`, `firebase.json`, `.firebaserc`, `packages/**`, `scripts/build-core.mjs` | yes | yes | yes | yes | yes | yes |
-| Markdown, `docs/**`, `LICENSE`, `CODEOWNERS`, `.gitignore`, `.gitleaksignore`, `.local-ops.yaml` | - | - | - | - | - | - |
-| `tests/e2e/signed-in/**` | yes | - | - | yes | - | - |
-| `tests/e2e/integrations/**` | yes | - | - | - | - | yes |
-| `tests/e2e/serve-export.mjs` | yes | - | yes | - | - | yes |
-| `tests/e2e/**` | yes | - | yes | - | - | - |
-| `tests/harness/clock.ts`, `tests/harness/fixtures.ts`, `tests/static-server.mts` | yes | - | yes | yes | yes | - |
-| `tests/harness/**` | yes | - | - | - | yes | - |
-| `lib/**/*.test.ts`, `tests/*.test.ts` | yes | - | - | - | - | - |
-| `functions/**`, `firestore.rules` | yes | yes | - | yes | - | - |
-| `firestore.indexes.json` | - | yes | - | - | - | - |
-| `app/**` except CSS, `lib/` Firebase, CSP, error reporting, Sentry, session, account and Functions API modules, `components/` App, ErrorBoundary, SignInScreen and GoogleSignInButton, `instrumentation-client.ts` | yes | - | yes | yes | yes | yes |
-| Other `app/**`, `components/**`, `lib/**`, `hooks/**` | yes | - | yes | yes | yes | - |
-| `public/**` | yes | - | yes | - | yes | - |
-| `scripts/**` | yes | - | yes | yes | - | yes |
-| `hosting-redirect/**` | - | - | yes | - | - | - |
-| Anything else | yes | yes | yes | yes | yes | yes |
+| Changed files                                                                                                                                                                                                             | Typecheck and unit | Functions and rules | Static export e2e | Signed-in e2e | UI harness | Sentry and App Check e2e |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ | ------------------- | ----------------- | ------------- | ---------- | ------------------------ |
+| `.github/**`, `package.json`, lockfiles, `tsconfig*.json`, tool configs (next, postcss, eslint, prettier, vitest, playwright), `.nvmrc`, `.env*`, `firebase.json`, `.firebaserc`, `packages/**`, `scripts/build-core.mjs` | yes                | yes                 | yes               | yes           | yes        | yes                      |
+| Markdown, `docs/**`, `LICENSE`, `CODEOWNERS`, `.gitignore`, `.gitleaksignore`, `.local-ops.yaml`                                                                                                                          | -                  | -                   | -                 | -             | -          | -                        |
+| `tests/e2e/signed-in/**`                                                                                                                                                                                                  | yes                | -                   | -                 | yes           | -          | -                        |
+| `tests/e2e/integrations/**`                                                                                                                                                                                               | yes                | -                   | -                 | -             | -          | yes                      |
+| `tests/e2e/serve-export.mjs`                                                                                                                                                                                              | yes                | -                   | yes               | -             | -          | yes                      |
+| `tests/e2e/**`                                                                                                                                                                                                            | yes                | -                   | yes               | -             | -          | -                        |
+| `tests/harness/clock.ts`, `tests/harness/fixtures.ts`, `tests/static-server.mts`                                                                                                                                          | yes                | -                   | yes               | yes           | yes        | -                        |
+| `tests/harness/**`                                                                                                                                                                                                        | yes                | -                   | -                 | -             | yes        | -                        |
+| `lib/**/*.test.ts`, `tests/*.test.ts`                                                                                                                                                                                     | yes                | -                   | -                 | -             | -          | -                        |
+| `functions/**`, `firestore.rules`                                                                                                                                                                                         | yes                | yes                 | -                 | yes           | -          | -                        |
+| `firestore.indexes.json`                                                                                                                                                                                                  | -                  | yes                 | -                 | -             | -          | -                        |
+| `app/**` except CSS, `lib/` Firebase, CSP, error reporting, Sentry, session, account and Functions API modules, `components/` App, ErrorBoundary, SignInScreen and GoogleSignInButton, `instrumentation-client.ts`        | yes                | -                   | yes               | yes           | yes        | yes                      |
+| Other `app/**`, `components/**`, `lib/**`, `hooks/**`                                                                                                                                                                     | yes                | -                   | yes               | yes           | yes        | -                        |
+| `public/**`                                                                                                                                                                                                               | yes                | -                   | yes               | -             | yes        | -                        |
+| `scripts/**`                                                                                                                                                                                                              | yes                | -                   | yes               | yes           | -          | yes                      |
+| `hosting-redirect/**`                                                                                                                                                                                                     | -                  | -                   | yes               | -             | -          | -                        |
+| Anything else                                                                                                                                                                                                             | yes                | yes                 | yes               | yes           | yes        | yes                      |
 
 Rows are checked top to bottom and the first match decides, so a more specific row wins (for example, `tests/e2e/signed-in/**` before `tests/e2e/**`).
 When in doubt the map runs a suite: an unknown path, an empty diff, a push to `main`, a manual run or a failed `changes` job runs everything.

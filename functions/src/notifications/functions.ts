@@ -70,7 +70,9 @@ const forecasts = new ForecastCache({
 const eventForecasts = new ForecastCache({
   db,
   provider: () => commercialProvider(),
-  upstreamAllowed: async () => !(await costGuard.engaged()),
+  // Like the home forecasts, never paused by a budget-engaged guard (finding H2); the
+  // upstream budget and the account's share bound these calls instead.
+  upstreamAllowed: async () => true,
   upstreamBudget: new UpstreamBudget({ db, limits: upstreamLimits }),
 })
 const eventShare = new CallerShare({

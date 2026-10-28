@@ -80,18 +80,18 @@ All of this is pure, deterministic logic over data the app already fetches, so i
 
 Ranked by user value against integration cost and approval or terms risk.
 
-| Rank | Source | User value | Cost | Approval and terms risk | Verdict |
-| --- | --- | --- | --- | --- | --- |
-| 1 | .ics file import | High: covers Meetup, Eventbrite, races, club sites, any calendar | Low, client only | None | Phase 1 |
-| 2 | .ics or webcal link subscription | High: stays current without re-importing | Medium: a Function fetcher with SSRF guards | None from partners; needs Blaze | Phase 2 |
-| 3 | Google Calendar events | High for people who already put events there | Low: the GIS integration exists (`lib/gcal.ts`) | Medium: a broader scope to verify and a privacy promise to change | Phase 2b, optional |
-| 4 | Strava | Medium: no future events in the API; recaps and routes only | High: server OAuth, token storage, webhooks | High: subscription, 10-athlete cap, display and AI limits | Phase 3 |
-| 5 | parkrun | Medium in the UK and Australia | None: a preset recurring activity, no API | Low if no parkrun data is fetched | An activity preset, not an integration |
-| 6 | Meetup API | Same as Meetup's .ics feeds | High | High: Meetup Pro to create an OAuth client, approval not guaranteed | Not recommended |
-| 7 | Eventbrite API | Low: no public event search | Medium | Medium | Not recommended; use .ics |
-| 8 | Komoot | Medium | High | Blocking: partner contract only | Not recommended |
-| 9 | Garmin Connect | Medium | High | Blocking: new approvals paused | Not recommended |
-| 10 | Google Fit, Apple Health, Health Connect | Low for planning | High | Google Fit ends with 2026; the others are native only | Wave 6 (mobile app) at most |
+| Rank | Source                                   | User value                                                       | Cost                                            | Approval and terms risk                                             | Verdict                                |
+| ---- | ---------------------------------------- | ---------------------------------------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------- | -------------------------------------- |
+| 1    | .ics file import                         | High: covers Meetup, Eventbrite, races, club sites, any calendar | Low, client only                                | None                                                                | Phase 1                                |
+| 2    | .ics or webcal link subscription         | High: stays current without re-importing                         | Medium: a Function fetcher with SSRF guards     | None from partners; needs Blaze                                     | Phase 2                                |
+| 3    | Google Calendar events                   | High for people who already put events there                     | Low: the GIS integration exists (`lib/gcal.ts`) | Medium: a broader scope to verify and a privacy promise to change   | Phase 2b, optional                     |
+| 4    | Strava                                   | Medium: no future events in the API; recaps and routes only      | High: server OAuth, token storage, webhooks     | High: subscription, 10-athlete cap, display and AI limits           | Phase 3                                |
+| 5    | parkrun                                  | Medium in the UK and Australia                                   | None: a preset recurring activity, no API       | Low if no parkrun data is fetched                                   | An activity preset, not an integration |
+| 6    | Meetup API                               | Same as Meetup's .ics feeds                                      | High                                            | High: Meetup Pro to create an OAuth client, approval not guaranteed | Not recommended                        |
+| 7    | Eventbrite API                           | Low: no public event search                                      | Medium                                          | Medium                                                              | Not recommended; use .ics              |
+| 8    | Komoot                                   | Medium                                                           | High                                            | Blocking: partner contract only                                     | Not recommended                        |
+| 9    | Garmin Connect                           | Medium                                                           | High                                            | Blocking: new approvals paused                                      | Not recommended                        |
+| 10   | Google Fit, Apple Health, Health Connect | Low for planning                                                 | High                                            | Google Fit ends with 2026; the others are native only               | Wave 6 (mobile app) at most            |
 
 ### iCalendar (.ics) import and subscriptions
 
@@ -208,19 +208,19 @@ Ranked by user value against integration cost and approval or terms risk.
 
 Decisions, with the default agents follow until the owner says otherwise:
 
-| Decision | Default |
-| --- | --- |
-| Approve the phased plan and the ICS-first approach | Phase 1 is buildable now; later phases wait for this approval |
-| Who gets event linking | Every signed-in person; the existing forecast horizon (Free two days, Pro 10 days) and Pro-only push are the upsell, so no new gate |
-| Add `calendar.events.readonly` to the pending Calendar verification | No; request it separately once phase 2b is built |
-| Build the Strava integration | Only after phases 1 and 2 show use, and only with the owner's Strava subscription |
+| Decision                                                            | Default                                                                                                                             |
+| ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Approve the phased plan and the ICS-first approach                  | Phase 1 is buildable now; later phases wait for this approval                                                                       |
+| Who gets event linking                                              | Every signed-in person; the existing forecast horizon (Free two days, Pro 10 days) and Pro-only push are the upsell, so no new gate |
+| Add `calendar.events.readonly` to the pending Calendar verification | No; request it separately once phase 2b is built                                                                                    |
+| Build the Strava integration                                        | Only after phases 1 and 2 show use, and only with the owner's Strava subscription                                                   |
 
 Actions, only when the matching phase starts:
 
-| Phase | Action | Cost |
-| --- | --- | --- |
-| 1 | None | $0 |
-| 2 | Blaze, already planned for the Pro launch ([COSTS.md](../COSTS.md)); the fetcher is a few thousand Function calls a month at small scale | Within the free tier at launch scale |
-| 2b | Add `https://www.googleapis.com/auth/calendar.events.readonly` on the Data Access page, record a demo video (an agent can script it), submit it in the Verification Center | $0; Google's review time |
-| 3 | Subscribe to Strava on the developer account; create the API application at <https://www.strava.com/settings/api> (name, website `https://solara-uv.web.app`, callback domain); give the client id and secret to the Functions secrets; self-upgrade to 10 athletes for a beta; later submit the Developer Program review form with screenshots | A Strava subscription at Strava's current price; the API itself is free |
-| Never | A Meetup Pro subscription, Eventbrite, Komoot or Garmin developer accounts | Not needed |
+| Phase | Action                                                                                                                                                                                                                                                                                                                                          | Cost                                                                    |
+| ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| 1     | None                                                                                                                                                                                                                                                                                                                                            | $0                                                                      |
+| 2     | Blaze, already planned for the Pro launch ([COSTS.md](../COSTS.md)); the fetcher is a few thousand Function calls a month at small scale                                                                                                                                                                                                        | Within the free tier at launch scale                                    |
+| 2b    | Add `https://www.googleapis.com/auth/calendar.events.readonly` on the Data Access page, record a demo video (an agent can script it), submit it in the Verification Center                                                                                                                                                                      | $0; Google's review time                                                |
+| 3     | Subscribe to Strava on the developer account; create the API application at <https://www.strava.com/settings/api> (name, website `https://solara-uv.web.app`, callback domain); give the client id and secret to the Functions secrets; self-upgrade to 10 athletes for a beta; later submit the Developer Program review form with screenshots | A Strava subscription at Strava's current price; the API itself is free |
+| Never | A Meetup Pro subscription, Eventbrite, Komoot or Garmin developer accounts                                                                                                                                                                                                                                                                      | Not needed                                                              |

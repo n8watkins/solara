@@ -77,6 +77,22 @@ export function buildEvents(): ImportedEvent[] {
   ]
 }
 
+/** A club ride tomorrow morning from a linked calendar (?links=sample). */
+export function buildFeedEvent(): ImportedEvent {
+  return event(5, {
+    title: 'Saturday club ride',
+    source: 'feed',
+    feedId: 'a'.repeat(32),
+    start: at('2026-06-16', 9),
+    end: at('2026-06-16', 11),
+    where: 'Santa Monica Pier, Santa Monica, CA',
+    lat: 34.01,
+    lon: -118.5,
+    placeLabel: 'Santa Monica Pier',
+    activityId: 'run',
+  })
+}
+
 /**
  * An EventsStore that keeps everything in memory and notifies subscribers at once. It
  * applies the per-account cap like the Firestore store; `pastStored` adds that many

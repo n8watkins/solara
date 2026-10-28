@@ -2,7 +2,7 @@
 // The dashboard's Events section (docs/integrations/EVENTS.md, phase 1): import an .ics
 // file and see the UV during each upcoming event. Loaded on demand for signed-in
 // accounts only (components/deferred.tsx), so nothing here is in a guest's first load.
-import { useContext, useEffect, useId, useRef, useState } from 'react'
+import { lazy, Suspense, useContext, useEffect, useId, useRef, useState } from 'react'
 import { CalendarPlus } from 'lucide-react'
 import {
   firestoreEventsStore,
@@ -18,9 +18,13 @@ import { EventsStoreContext } from '@/lib/events-context'
 import { capMessage } from '@/lib/record-cap'
 import { planningFor } from '@solara/core'
 import { IMPORTED_EVENT_LIMITS } from '@solara/core/event-import'
+import { eventSubscriptionsLaunched } from '@/lib/plans'
 import { getFutureDays } from '@/lib/tiers'
 import type { Location, TierLevel, UserPreferences, WeatherResponse } from '@/lib/types'
 import EventCard from './EventCard'
+
+// Linked calendars load only where they are switched on (docs/integrations/EVENTS.md).
+const EventSubscriptions = lazy(() => import('./EventSubscriptions'))
 
 /** Events shown before "Show all". */
 const FIRST_SHOWN = 5
@@ -279,6 +283,17 @@ export default function EventsSection({ uid, prefs, weather, displayTier, onUpgr
             </button>
           )}
         </div>
+      )}
+
+      {eventSubscriptionsLaunched() && (
+        <Suspense fallback={null}>
+          <EventSubscriptions
+            uid={uid}
+            nowMs={nowMs}
+            pro={displayTier === 'paid'}
+            onUpgrade={displayTier === 'paid' ? undefined : onUpgrade}
+          />
+        </Suspense>
       )}
 
       <p className="mt-3 text-[11px] leading-normal text-ink-3">

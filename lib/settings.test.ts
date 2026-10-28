@@ -30,6 +30,7 @@ describe('settingsDraftFrom', () => {
       notificationHour: 7,
       uvAlertThreshold: 0,
       quietHours: { from: 21, to: 7 },
+      eventHeadsUp: true,
       temperatureUnit: 'auto',
       clockFormat: 'auto',
     })
@@ -48,6 +49,14 @@ describe('settingsDraftFrom', () => {
     const draft = settingsDraftFrom(prefs({ uvAlertThreshold: 6, quietHours: { from: 22, to: 6 } }))
     expect(draft.uvAlertThreshold).toBe(6)
     expect(draft.quietHours).toEqual({ from: 22, to: 6 })
+  })
+
+  it('keeps event heads-ups on unless they were turned off', () => {
+    expect(settingsDraftFrom(prefs()).eventHeadsUp).toBe(true)
+    expect(settingsDraftFrom(prefs({ eventHeadsUp: false })).eventHeadsUp).toBe(false)
+    expect(
+      isSettingsDraftDirty(prefs(), { ...settingsDraftFrom(prefs()), eventHeadsUp: false }),
+    ).toBe(true)
   })
 })
 

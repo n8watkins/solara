@@ -97,9 +97,9 @@ describe('deployed runtime ceilings', () => {
     for (const [name, fn] of http) {
       assert.equal(fn.__endpoint.maxInstances, INSTANCE_CAPS[name], name)
     }
-    // The worst case in docs/COSTS.md is computed for at most 15 HTTP instances in all.
+    // The worst case in docs/COSTS.md is computed for at most 16 HTTP instances in all.
     const total = http.reduce((sum, [, fn]) => sum + fn.__endpoint.maxInstances, 0)
-    assert.ok(total <= 15, `HTTP instances in all: ${total}`)
+    assert.ok(total <= 16, `HTTP instances in all: ${total}`)
   })
 
   test('background functions run one small instance and are not retried', () => {
@@ -114,9 +114,18 @@ describe('deployed runtime ceilings', () => {
     assert.notEqual(typeof budgetAlert.__endpoint.serviceAccountEmail, 'string')
   })
 
-  test("stays within Cloud Scheduler's three free jobs: maintenance and alerts", () => {
+  test("stays within Cloud Scheduler's three free jobs: maintenance, alerts and the linked calendar refresh", () => {
     const scheduled = Object.entries(functions).filter(([, fn]) => fn.__endpoint.scheduleTrigger)
-    assert.deepEqual(scheduled.map(([name]) => name).sort(), ['alerts', 'maintenance'])
+    assert.deepEqual(scheduled.map(([name]) => name).sort(), [
+      'alerts',
+      'eventSubscriptionsRefresh',
+      'maintenance',
+    ])
+    const refresh = functions.eventSubscriptionsRefresh.__endpoint
+    assert.equal(refresh.scheduleTrigger.schedule, 'every 30 minutes')
+    assert.equal(refresh.scheduleTrigger.retryConfig.retryCount, 0)
+    assert.equal(refresh.maxInstances, 1)
+    assert.equal(refresh.concurrency, 1)
     const { alerts } = functions
     assert.equal(alerts.__endpoint.scheduleTrigger.schedule, 'every 15 minutes')
     assert.equal(alerts.__endpoint.scheduleTrigger.retryConfig.retryCount, 0)

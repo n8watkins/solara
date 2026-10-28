@@ -98,8 +98,8 @@ export default function EventSubscriptions({ uid, nowMs, pro, onUpgrade }: Props
         )}
       </div>
       <p id={hintId} className="mt-1 text-[12px] leading-normal text-ink-3">
-        Paste a calendar link (https:// or webcal://), such as a club or race calendar, and
-        Solara keeps its events current, checking every {REFRESH_HOURS} hours.
+        Paste a calendar link (https:// or webcal://), such as a club or race calendar, and Solara
+        keeps its events current, checking every {REFRESH_HOURS} hours.
       </p>
 
       <form className="mt-2.5 flex gap-2 max-sm:flex-col" onSubmit={add} noValidate>

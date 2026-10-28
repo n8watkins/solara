@@ -61,11 +61,11 @@ What users get:
 
 These are in the code and tested in CI; each waits for an owner step, not engineering work.
 
-| Feature | Switched on by | Owner step |
-| --- | --- | --- |
+| Feature                                                                        | Switched on by                                                                  | Owner step                                          |
+| ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------- | --------------------------------------------------- |
 | Google Calendar connect, adding events and **Scheduled** activities (#55, #56) | `NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID` (not set; no client ID in the live bundle) | [Steps 1-4](OWNER_CHECKLIST.md#next-steps-in-order) |
-| **App Check** with reCAPTCHA v3, for signed-in users only | `NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY` (not set) | [Step 5](OWNER_CHECKLIST.md#next-steps-in-order) |
-| **Sentry** error reporting, scrubbed in the browser (#70) | `NEXT_PUBLIC_SENTRY_DSN` (not set; the bundle then contains no Sentry code) | [Step 6](OWNER_CHECKLIST.md#next-steps-in-order) |
+| **App Check** with reCAPTCHA v3, for signed-in users only                      | `NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY` (not set)                             | [Step 5](OWNER_CHECKLIST.md#next-steps-in-order)    |
+| **Sentry** error reporting, scrubbed in the browser (#70)                      | `NEXT_PUBLIC_SENTRY_DSN` (not set; the bundle then contains no Sentry code)     | [Step 6](OWNER_CHECKLIST.md#next-steps-in-order)    |
 
 The integrations browser suite (`npm run test:e2e:integrations`) builds the export with a fake site key and DSN and proves that signed-out pages make no reCAPTCHA request, that signing in loads reCAPTCHA and exchanges its token, that Firestore sends the App Check token, and that the CSP allows exactly what reCAPTCHA v3 and Sentry need.
 The signed-in suite covers Scheduled with a faked Google Calendar.
@@ -112,18 +112,18 @@ How deploys work and how to configure them is in [DEPLOYMENT.md](DEPLOYMENT.md).
 
 ### Done
 
-| Action | State |
-| --- | --- |
-| D1 Functions deployment status | Resolved: not deployed until Pro launch |
-| D2 Make the repository public | Done 2026-10-23, with the ruleset and security features above |
-| D3 Firestore index role for the deploy identity | Granted 2026-10-23; the Firestore indexes job is green |
-| D8 Operator, contact, jurisdiction and license | Nathan Watkins, contact@n8builds.dev, California, all rights reserved (#46) |
-| Move to `solara-uv.web.app` | Done (#42, #45); `NEXT_PUBLIC_SITE_URL` variable set |
-| Search Console ownership of `https://solara-uv.web.app/` | Verified 2026-10-23 (#43), owner reported |
-| Firebase Auth and OAuth authorized domains | Added, owner reported |
-| OAuth scopes (`openid`, email, profile, `calendar.freebusy`, `calendar.events.owned`) | Added, owner reported |
-| Price and tiers | Confirmed 2026-10-24 ([ROADMAP.md](ROADMAP.md#decisions)) |
-| Dependabot alerts and security updates | On |
+| Action                                                                                | State                                                                       |
+| ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| D1 Functions deployment status                                                        | Resolved: not deployed until Pro launch                                     |
+| D2 Make the repository public                                                         | Done 2026-10-23, with the ruleset and security features above               |
+| D3 Firestore index role for the deploy identity                                       | Granted 2026-10-23; the Firestore indexes job is green                      |
+| D8 Operator, contact, jurisdiction and license                                        | Nathan Watkins, contact@n8builds.dev, California, all rights reserved (#46) |
+| Move to `solara-uv.web.app`                                                           | Done (#42, #45); `NEXT_PUBLIC_SITE_URL` variable set                        |
+| Search Console ownership of `https://solara-uv.web.app/`                              | Verified 2026-10-23 (#43), owner reported                                   |
+| Firebase Auth and OAuth authorized domains                                            | Added, owner reported                                                       |
+| OAuth scopes (`openid`, email, profile, `calendar.freebusy`, `calendar.events.owned`) | Added, owner reported                                                       |
+| Price and tiers                                                                       | Confirmed 2026-10-24 ([ROADMAP.md](ROADMAP.md#decisions))                   |
+| Dependabot alerts and security updates                                                | On                                                                          |
 
 ### Open
 
