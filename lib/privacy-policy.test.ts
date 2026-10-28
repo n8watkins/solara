@@ -36,7 +36,13 @@ describe('privacy policy', () => {
 
   it('has a Google user data section naming every requested Google scope', () => {
     expect(privacy).toContain('<h2>How Solara uses Google user data</h2>')
-    for (const scope of ['calendar.freebusy', 'calendar.events.owned', 'openid']) {
+    for (const scope of [
+      'calendar.freebusy',
+      'calendar.events.owned',
+      'calendar.events.readonly',
+      'calendar.calendarlist.readonly',
+      'openid',
+    ]) {
       expect(privacy).toContain(scope)
     }
     expect(privacy).toContain('does not use it for advertising')
@@ -59,6 +65,13 @@ describe('privacy policy', () => {
     expect(privacy).toContain('<strong>Imported events</strong>')
     expect(privacy).toContain('The file is read in your')
     expect(privacy).toContain('Imported events: until you remove them')
+  })
+
+  it('says what Solara keeps about events from Google Calendar, and for how long', () => {
+    expect(privacy).toContain('<strong>Events from your Google Calendar</strong>')
+    expect(privacy).toContain('no Google access token is stored anywhere')
+    expect(privacy).toContain('Events from your Google Calendar: until they are gone')
+    expect(privacy).toContain('events from your Google Calendar and the calendars you chose')
   })
 
   it('says what error reports contain, that they are scrubbed, and how long they are kept', () => {

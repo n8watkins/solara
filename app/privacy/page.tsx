@@ -69,6 +69,16 @@ export default function PrivacyPage() {
             hours from Google Cloud and store its upcoming events like imported ones.
           </li>
           <li>
+            <strong>Events from your Google Calendar</strong>, where offered, if you turn this on:
+            which of your calendars you chose (each calendar&apos;s identifier and name; your main
+            calendar is recorded only as &ldquo;primary&rdquo;) and when they were last read; and,
+            for each upcoming event in the next 30 days that has a place or matches one of your
+            activities, its title, start and end time, time zone, location text, the place Solara
+            forecasts it for and which activity it counts as, stored like imported events. Other
+            events, descriptions, attendees, organizers, meeting links and event links are never
+            stored, and no Google access token is stored anywhere.
+          </li>
+          <li>
             <strong>Calendar feed and notifications</strong>, if you turn them on: a private feed
             token and your device&apos;s push notification registration.
           </li>
@@ -125,6 +135,19 @@ export default function PrivacyPage() {
             identifier, time, title and link of events it created, so it can show them as scheduled
             and let you open, move or remove them. To keep them up to date, Solara looks up only
             events it created; it does not read, change or delete any other event.
+          </li>
+          <li>
+            <strong>Google Calendar events, read only</strong> (
+            <code>calendar.events.readonly</code>, and <code>calendar.calendarlist.readonly</code>{' '}
+            only if you choose which calendars to use), where offered and only after you turn on
+            &ldquo;Show my Google Calendar events&rdquo;: your browser reads the next 30 days of
+            events on the calendars you chose (your main calendar unless you choose others) to show
+            the UV during each one. Solara keeps only the events with a place or that match one of
+            your activities, and only the fields listed under &ldquo;Events from your Google
+            Calendar&rdquo; above; it never changes or deletes any of them. The events are read
+            again only while Solara is open. Disconnecting removes the stored events and the list of
+            calendars, and ends Solara&apos;s access with Google, which also ends the free/busy and
+            event permissions above until you connect again.
           </li>
         </ul>
         <p>
@@ -241,6 +264,11 @@ export default function PrivacyPage() {
             always when you delete your account.
           </li>
           <li>
+            Events from your Google Calendar: until they are gone from your calendar or you
+            disconnect, which removes them and the list of calendars; Firestore deletes each event
+            automatically 30 days after it ends, and always when you delete your account.
+          </li>
+          <li>
             Calendar availability: only in your browser for the current session; never stored by
             Solara.
           </li>
@@ -290,18 +318,19 @@ export default function PrivacyPage() {
           copy of your data or delete your account, or email <LegalDetail name="contactEmail" />.
         </p>
         <p>
-          You can disconnect Google Calendar at any time in your{' '}
+          You can disconnect Google Calendar at any time in the Events section or in your{' '}
           <a href="https://myaccount.google.com/connections">Google Account connections</a>, rotate
           or revoke a calendar feed in Settings, and turn notifications off in Settings or your
           browser.
         </p>
         <p>
           Deleting your account removes your Solara preferences, scheduled activities, imported
-          events, linked calendars, calendar feed and notification registrations, cancels an active
-          Solara subscription and deletes your customer record at Stripe (Stripe keeps the payment
-          records the law requires it to keep). If you had the free trial, its hashed record is kept
-          for 2 years to prevent repeated free trials. Events already in your Google Calendar stay
-          there until you delete them.
+          events, linked calendars, events from your Google Calendar and the calendars you chose,
+          calendar feed and notification registrations, cancels an active Solara subscription and
+          deletes your customer record at Stripe (Stripe keeps the payment records the law requires
+          it to keep). If you had the free trial, its hashed record is kept for 2 years to prevent
+          repeated free trials. Events already in your Google Calendar stay there until you delete
+          them.
         </p>
         <p>You also have the right to complain to your local data protection authority.</p>
 

@@ -199,7 +199,7 @@ export default function GoogleCalendarEvents({
       const revoked = await api.revoke().catch(() => false)
       return revoked
         ? 'Disconnected Google Calendar and removed its events.'
-        : 'Removed the events from Google Calendar. To also end Solara’s access, remove Solara at myaccount.google.com/permissions.'
+        : 'Removed the events from Google Calendar. To also end Solara’s access, remove Solara at myaccount.google.com/connections.'
     })
   }
 

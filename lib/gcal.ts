@@ -252,7 +252,7 @@ export function hasScopeToken(scope: string): boolean {
  * the whole grant (every scope the person gave Solara, Scheduled's included), so the next
  * calendar feature asks for consent again. Needs an unexpired token from this session to
  * say whose grant it is; returns false when there is none (the person can still remove
- * Solara at https://myaccount.google.com/permissions).
+ * Solara at https://myaccount.google.com/connections).
  */
 export async function revokeCalendarAccess(): Promise<boolean> {
   const token = [...tokens.keys()].map(cachedToken).find((t): t is string => t !== null)

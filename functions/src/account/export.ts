@@ -1,6 +1,7 @@
 // Data export: the portable account fields, a billing summary, notification devices,
 // scheduled activities, imported events, linked calendars (their host and label, never
-// the link) and the Pro alert history, never billing ids, tokens or internal bookkeeping.
+// the link), the Google calendars events are read from and the Pro alert history, never
+// billing ids, tokens or internal bookkeeping.
 //
 // The collections a person can fill from the browser (imported events, scheduled
 // activities) are read in pages of EXPORT_PAGE_SIZE documents and turned into plain
@@ -9,7 +10,12 @@
 // the cut-short sections named in `truncated` (REVIEW4 M4).
 
 import { parseScheduledActivity, PREFERENCE_FIELDS } from '#core'
-import { parseImportedEvent, parseSubscriptionSummaries } from '#core/event-import'
+import {
+  GOOGLE_CALENDAR_LINK_DOC,
+  parseGoogleCalendarLink,
+  parseImportedEvent,
+  parseSubscriptionSummaries,
+} from '#core/event-import'
 import type { Auth } from 'firebase-admin/auth'
 import {
   type CollectionReference,
@@ -218,6 +224,7 @@ export async function exportAccountData({
   const alertStateRef = userRef.collection(ALERT_STATE_COLLECTION).doc(ALERT_STATE_DOC)
   const eventAlertsRef = userRef.collection(ALERT_STATE_COLLECTION).doc(EVENT_ALERT_STATE_DOC)
   const linksRef = userRef.collection('private').doc(EVENT_SUBSCRIPTIONS_DOC)
+  const googleRef = userRef.collection('meta').doc(GOOGLE_CALENDAR_LINK_DOC)
   // A read-only transaction: every page comes from the same snapshot, and nothing is locked.
   const sections = await db.runTransaction(
     async transaction => {
@@ -225,20 +232,23 @@ export async function exportAccountData({
       if (tombstone.exists) {
         throw new HttpError('deletion-in-progress', 'Account deletion is in progress')
       }
-      const [account, alerts, eventAlerts, links, devices, scheduled, events] = await Promise.all([
-        transaction.get(userRef),
-        transaction.get(alertStateRef),
-        transaction.get(eventAlertsRef),
-        transaction.get(linksRef),
-        readPaged(transaction, userRef.collection('notificationDevices'), safeDeviceData, limits),
-        readPaged(transaction, userRef.collection('scheduled'), safeScheduledData, limits),
-        readPaged(transaction, userRef.collection('events'), safeImportedEventData, limits),
-      ])
+      const [account, alerts, eventAlerts, links, google, devices, scheduled, events] =
+        await Promise.all([
+          transaction.get(userRef),
+          transaction.get(alertStateRef),
+          transaction.get(eventAlertsRef),
+          transaction.get(linksRef),
+          transaction.get(googleRef),
+          readPaged(transaction, userRef.collection('notificationDevices'), safeDeviceData, limits),
+          readPaged(transaction, userRef.collection('scheduled'), safeScheduledData, limits),
+          readPaged(transaction, userRef.collection('events'), safeImportedEventData, limits),
+        ])
       return {
         account: account.exists ? (account.data() ?? {}) : null,
         alerts: alerts.exists ? (alerts.data() ?? null) : null,
         eventAlerts: eventAlerts.exists ? (eventAlerts.data() ?? null) : null,
         links: links.exists ? (links.data() ?? null) : null,
+        google: google.exists ? (google.data() ?? null) : null,
         devices,
         scheduled,
         events,
@@ -263,6 +273,8 @@ export async function exportAccountData({
     eventHeadsUps: eventHeadsUpHistory(sections.eventAlerts),
     // Linked calendars without their links, which may hold private tokens.
     linkedCalendars: parseSubscriptionSummaries(sections.links),
+    // The Google calendars events are read from (no token is ever stored), or null.
+    googleCalendar: parseGoogleCalendarLink(sections.google),
     truncated,
   }
 }

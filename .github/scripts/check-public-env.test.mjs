@@ -67,6 +67,23 @@ test('ties the Functions URL to the Functions deployment switch', () => {
   )
 })
 
+test('shows events from Google Calendar only with the OAuth client ID', () => {
+  const on = { ...complete, NEXT_PUBLIC_GOOGLE_CALENDAR_EVENTS_ENABLED: '1' }
+  assert.match(
+    checkEnv(on).errors.join('\n'),
+    /NEXT_PUBLIC_GOOGLE_CALENDAR_EVENTS_ENABLED is set but NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID is empty/,
+  )
+  // No Functions needed: the browser reads the calendar itself.
+  assert.deepEqual(
+    checkEnv({ ...on, NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID: 'id.apps.googleusercontent.com' }).errors,
+    [],
+  )
+  assert.match(
+    checkEnv({ ...complete, NEXT_PUBLIC_GOOGLE_CALENDAR_EVENTS_ENABLED: 'yes' }).errors.join('\n'),
+    /NEXT_PUBLIC_GOOGLE_CALENDAR_EVENTS_ENABLED must be '1' or empty/,
+  )
+})
+
 test('rejects secrets in public values', () => {
   const { errors } = checkEnv({ ...complete, NEXT_PUBLIC_GA_MEASUREMENT_ID: 'sk_live_abc123' })
   assert.match(errors.join('\n'), /NEXT_PUBLIC_GA_MEASUREMENT_ID looks like a Stripe secret/)

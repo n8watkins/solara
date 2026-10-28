@@ -9,6 +9,7 @@ export const EXPORT_SECTIONS = {
   scheduledActivities: 'your scheduled activities',
   importedEvents: 'your imported events',
   linkedCalendars: 'your linked calendars (their site and name, not their links)',
+  googleCalendar: 'the Google calendars you show events from',
   alerts: 'the Pro alerts sent in the last week',
   eventHeadsUps: 'the Pro event heads-ups sent in the last week',
   notificationDevices: 'device registration metadata',
@@ -23,6 +24,7 @@ export const DELETED_DATA = [
   'scheduled activities',
   'imported events',
   'linked calendars',
+  'your Google Calendar choices',
   'your calendar feed',
   'notification devices',
   'alert history',
@@ -41,7 +43,7 @@ export const EXPORT_DESCRIPTION = `The JSON export includes ${listInWords(
 
 export const DELETION_DESCRIPTION = `This permanently removes ${listInWords(
   DELETED_DATA,
-)}. A subscription is canceled at once, without a refund for the current period, and your billing details are deleted at Stripe. Events already added to your Google Calendar stay there. If you had the free trial, a hashed record of it is kept for 2 years so the trial is once per person.`
+)}. A subscription is canceled at once, without a refund for the current period, and your billing details are deleted at Stripe. Events already added to your Google Calendar stay there; to end Solara’s access to your Google Calendar, remove Solara at myaccount.google.com/connections. If you had the free trial, a hashed record of it is kept for 2 years so the trial is once per person.`
 
 const SECTION_NAMES: Record<string, string> = {
   notificationDevices: 'devices',

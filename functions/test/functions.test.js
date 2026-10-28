@@ -792,12 +792,21 @@ describe('account data security', () => {
         if (name === 'private') {
           return { doc: id => (assert.equal(id, 'eventSubscriptions'), linksRef) }
         }
+        if (name === 'meta') {
+          return { doc: id => (assert.equal(id, 'googleCalendar'), googleRef) }
+        }
         if (name === 'events') return eventsQuery
         assert.equal(name, 'scheduled')
         return scheduledQuery
       },
     }
     const tombstoneRef = { kind: 'tombstone' }
+    const googleRef = { kind: 'googleCalendar' }
+    const googleLink = {
+      calendars: [{ id: 'primary', name: '' }],
+      connectedAt: '2026-06-10T17:30:00.000Z',
+      syncedAt: '2026-06-15T17:30:00.000Z',
+    }
     const db = {
       collection(name) {
         if (name === 'accountDeletionTombstones') return { doc: () => tombstoneRef }
@@ -829,6 +838,9 @@ describe('account data security', () => {
                   expireAt: new Date('2026-06-22T15:00:00Z'),
                 }),
               }
+            }
+            if (ref === googleRef) {
+              return { exists: true, data: () => ({ ...googleLink, token: 'never-stored' }) }
             }
             if (ref === linksRef) {
               return {
@@ -908,12 +920,15 @@ describe('account data security', () => {
       'alertState',
       'eventAlerts',
       'links',
+      'googleCalendar',
       'devices',
       'scheduled',
       'events',
     ])
     // Linked calendars without their links; heads-ups without internal ids.
     assert.deepEqual(result.linkedCalendars, [link])
+    // The chosen Google calendars, only the schema's fields.
+    assert.deepEqual(result.googleCalendar, googleLink)
     assert.deepEqual(result.eventHeadsUps, [
       {
         eventKey: 'c'.repeat(32),

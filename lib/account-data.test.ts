@@ -21,6 +21,8 @@ describe('account data copy', () => {
     expect(DELETION_DESCRIPTION).toContain('imported events')
     expect(DELETION_DESCRIPTION).toContain('your calendar feed')
     expect(DELETION_DESCRIPTION).toContain('Google Calendar stay there')
+    expect(DELETION_DESCRIPTION).toContain('your Google Calendar choices')
+    expect(DELETION_DESCRIPTION).toContain('myaccount.google.com/connections')
   })
 
   it('joins lists in plain words', () => {
