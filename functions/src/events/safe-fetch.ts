@@ -11,8 +11,11 @@
 //   and 6to4 addresses cannot smuggle a private IPv4 address in.
 // - Redirects are followed by hand, at most EVENT_SUBSCRIPTION_LIMITS.maxRedirects, each
 //   checked like the first link.
-// - One deadline (timeoutMs) covers the whole fetch, redirects included; the body is read
-//   up to maxBytes (after decompression), and anything larger is abandoned.
+// - One deadline (timeoutMs) covers the whole fetch, redirects and decompression included,
+//   and fetchCalendar settles by then whatever the site does (withDeadline); the body is
+//   read up to maxBytes on the wire and after decompression (readBoundedBody), and every
+//   error while reading it, a corrupt or oversized compressed body included, ends that one
+//   fetch and nothing else (REVIEW5 H1).
 // - The answer must be a calendar: an allowlisted content type and a body that starts
 //   with BEGIN:VCALENDAR.
 // - No cookies, credentials or Solara headers are sent; the link is never logged.
@@ -23,6 +26,7 @@ import type { IncomingMessage } from 'node:http'
 import { BlockList, isIP } from 'node:net'
 import { createBrotliDecompress, createGunzip, createInflate } from 'node:zlib'
 import type { Transform } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
 
 import {
   EVENT_SUBSCRIPTION_LIMITS,
@@ -156,38 +160,43 @@ export type Transport = (request: TransportRequest) => Promise<TransportResponse
 /**
  * Node's https client, connecting only to the checked addresses: the `lookup` hands the
  * socket the address resolved and checked above instead of asking DNS again. TLS still
- * verifies the certificate against the host name.
+ * verifies the certificate against the host name. `ca` adds trusted certificates (tests).
  */
-export const httpsTransport: Transport = ({ url, addresses, headers, signal }) =>
-  new Promise((resolve, reject) => {
-    const request = httpsRequest(
-      url,
-      {
-        method: 'GET',
-        headers,
-        signal,
-        agent: false,
-        lookup: (_hostname, options, callback) => {
-          const all = (options as { all?: boolean }).all
-          if (all) {
-            ;(callback as (error: null, addresses: ResolvedAddress[]) => void)(null, addresses)
-          } else {
-            const first = addresses[0] as ResolvedAddress
-            ;(callback as (error: null, address: string, family: number) => void)(
-              null,
-              first.address,
-              first.family,
-            )
-          }
+export function createHttpsTransport({ ca }: { ca?: string | Buffer } = {}): Transport {
+  return ({ url, addresses, headers, signal }) =>
+    new Promise((resolve, reject) => {
+      const request = httpsRequest(
+        url,
+        {
+          method: 'GET',
+          headers,
+          signal,
+          agent: false,
+          ...(ca ? { ca } : {}),
+          lookup: (_hostname, options, callback) => {
+            const all = (options as { all?: boolean }).all
+            if (all) {
+              ;(callback as (error: null, addresses: ResolvedAddress[]) => void)(null, addresses)
+            } else {
+              const first = addresses[0] as ResolvedAddress
+              ;(callback as (error: null, address: string, family: number) => void)(
+                null,
+                first.address,
+                first.family,
+              )
+            }
+          },
         },
-      },
-      (response: IncomingMessage) => {
-        resolve({ status: response.statusCode ?? 0, headers: response.headers, body: response })
-      },
-    )
-    request.on('error', reject)
-    request.end()
-  })
+        (response: IncomingMessage) => {
+          resolve({ status: response.statusCode ?? 0, headers: response.headers, body: response })
+        },
+      )
+      request.on('error', reject)
+      request.end()
+    })
+}
+
+export const httpsTransport: Transport = createHttpsTransport()
 
 export type FetchCalendarResult =
   | { ok: true; notModified: true }
@@ -237,67 +246,126 @@ function header(headers: TransportResponse['headers'], name: string): string | n
   return typeof value === 'string' ? value : null
 }
 
-class BodyTooLarge extends Error {}
+/** A body grew past its limit, on the wire or after decompression. */
+export class BodyTooLargeError extends Error {
+  constructor() {
+    super('The body is larger than the limit')
+    this.name = 'BodyTooLargeError'
+  }
+}
 
-function decoder(encoding: string | null): Transform | null | 'unsupported' {
+/** A Content-Encoding this reader does not decode. */
+export class UnsupportedEncodingError extends Error {
+  constructor() {
+    super('Unsupported content encoding')
+    this.name = 'UnsupportedEncodingError'
+  }
+}
+
+/** The decoder for a Content-Encoding: null for none, or an UnsupportedEncodingError. */
+function bodyDecoder(encoding: string | null): Transform | null {
   const name = (encoding ?? '').trim().toLowerCase()
   if (!name || name === 'identity') return null
   if (name === 'gzip' || name === 'x-gzip') return createGunzip()
   if (name === 'deflate') return createInflate()
   if (name === 'br') return createBrotliDecompress()
-  return 'unsupported'
+  throw new UnsupportedEncodingError()
 }
 
-/** Reads a body up to `maxBytes` after decoding; throws BodyTooLarge past it. */
-async function readBody(
-  response: TransportResponse,
-  maxBytes: number,
-  signal: AbortSignal,
+/** Rejects with the signal's reason once it aborts (or at once if it has). */
+function aborted(signal: AbortSignal): Promise<never> {
+  return new Promise((_, reject) => {
+    const fail = () => reject(signal.reason ?? new Error('aborted'))
+    if (signal.aborted) fail()
+    else signal.addEventListener('abort', fail, { once: true })
+  })
+}
+
+export interface ReadBoundedBodyOptions {
+  /** The response's Content-Encoding header (gzip, x-gzip, deflate, br or none). */
+  contentEncoding: string | null
+  /** Most bytes accepted, counted on the wire and again after decompression. */
+  maxBytes: number
+  /** Aborting it stops the read at once, decompression included. */
+  signal: AbortSignal
+}
+
+/**
+ * Reads an untrusted response body into memory, at most `maxBytes` on the wire and after
+ * decompression, for as long as `signal` allows (REVIEW5 H1). Reusable by anything that
+ * reads a body a third party controls.
+ *
+ * The source, the decoder and the collector run as one `pipeline`, so every failure (a
+ * corrupt gzip stream, a decompression bomb, a dropped connection, the deadline) rejects
+ * the one promise returned here, exactly once, and destroys every stage: no rejection is
+ * left unhandled, and no decoder keeps inflating after the read has failed. The promise
+ * also settles at once when `signal` aborts, whatever a stage is waiting for.
+ *
+ * Throws BodyTooLargeError past the limit, UnsupportedEncodingError for an encoding it
+ * does not decode, and the signal's reason or the stream's error otherwise.
+ */
+export async function readBoundedBody(
+  body: AsyncIterable<Buffer> & { destroy?: () => void },
+  { contentEncoding, maxBytes, signal }: ReadBoundedBodyOptions,
 ): Promise<Buffer> {
-  const encoding = decoder(header(response.headers, 'content-encoding'))
-  if (encoding === 'unsupported') throw new TypeError('unsupported content encoding')
   const chunks: Buffer[] = []
   let size = 0
-  const take = (chunk: Buffer) => {
-    size += chunk.length
-    if (size > maxBytes) throw new BodyTooLarge()
-    chunks.push(chunk)
-  }
-  // Compressed bodies are limited on the wire too, so a slow trickle of a small
-  // compressed file cannot run past the deadline unnoticed (the signal aborts it).
-  let wire = 0
   try {
-    if (!encoding) {
-      for await (const chunk of response.body) {
-        if (signal.aborted) throw signal.reason
-        take(chunk)
-      }
-    } else {
-      const done = new Promise<void>((resolve, reject) => {
-        encoding.on('data', (chunk: Buffer) => {
-          try {
-            take(chunk)
-          } catch (error) {
-            encoding.destroy()
-            reject(error)
-          }
-        })
-        encoding.on('end', resolve)
-        encoding.on('error', reject)
-      })
-      for await (const chunk of response.body) {
-        if (signal.aborted) throw signal.reason
+    const decoder = bodyDecoder(contentEncoding)
+    // Counted before decoding, so a slow trickle of a small compressed body that inflates
+    // to little cannot run on unnoticed (the deadline ends it either way).
+    let wire = 0
+    const limitWire = async function* (source: AsyncIterable<Buffer>) {
+      for await (const chunk of source) {
         wire += chunk.length
-        if (wire > maxBytes) throw new BodyTooLarge()
-        if (!encoding.write(chunk)) await new Promise(resolve => encoding.once('drain', resolve))
+        if (wire > maxBytes) throw new BodyTooLargeError()
+        yield chunk
       }
-      encoding.end()
-      await done
     }
+    const collect = async (source: AsyncIterable<Buffer>) => {
+      for await (const chunk of source) {
+        size += chunk.length
+        if (size > maxBytes) throw new BodyTooLargeError()
+        chunks.push(chunk)
+      }
+    }
+    const piped = decoder
+      ? pipeline(body, limitWire, decoder, collect, { signal })
+      : pipeline(body, limitWire, collect, { signal })
+    // pipeline settles on abort by itself; the race makes that a guarantee even for a
+    // source that ignores being destroyed. The loser's rejection is handled here.
+    const stopped = aborted(signal)
+    stopped.catch(() => {})
+    piped.catch(() => {})
+    await Promise.race([piped, stopped])
   } finally {
-    response.body.destroy?.()
+    body.destroy?.()
   }
   return Buffer.concat(chunks, size)
+}
+
+/**
+ * Runs `work` with an AbortSignal that aborts after `ms`, and settles by then whatever
+ * `work` does: with `work`'s result, or with `onTimeout()` once the time is up (REVIEW5
+ * H1). `work` should stop when the signal aborts; if it does not, its late result or
+ * error is ignored, never left unhandled. Reusable by any job that must not let one
+ * slow item hold it.
+ */
+export async function withDeadline<T>(
+  ms: number,
+  work: (signal: AbortSignal) => Promise<T>,
+  onTimeout: () => T,
+): Promise<T> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(new Error('deadline')), ms)
+  try {
+    const running = Promise.resolve().then(() => work(controller.signal))
+    const late = aborted(controller.signal).catch(onTimeout)
+    running.catch(() => {})
+    return await Promise.race([running, late])
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 /** Whether text read from a link is an iCalendar file (it starts with BEGIN:VCALENDAR). */
@@ -306,106 +374,131 @@ export function looksLikeCalendar(text: string): boolean {
 }
 
 /**
- * Fetches a calendar link within the limits above. Never throws: every failure is one of
- * the stored error codes.
+ * Fetches a calendar link within the limits above. Never throws and always settles within
+ * `timeoutMs` (one deadline for the lookups, the redirects and the body, decompression
+ * included): every failure is one of the stored error codes.
  */
 export async function fetchCalendar(
+  link: string,
+  options: FetchCalendarOptions = {},
+): Promise<FetchCalendarResult> {
+  const timeoutMs = options.timeoutMs ?? EVENT_SUBSCRIPTION_LIMITS.timeoutMs
+  const timeout: FetchCalendarResult = { ok: false, error: 'timeout' }
+  try {
+    return await withDeadline(
+      timeoutMs,
+      signal =>
+        fetchWithin(link, options, signal).catch((): FetchCalendarResult =>
+          signal.aborted ? timeout : { ok: false, error: 'unreachable' },
+        ),
+      () => timeout,
+    )
+  } catch {
+    return { ok: false, error: 'unreachable' }
+  }
+}
+
+async function fetchWithin(
   link: string,
   {
     etag,
     lastModified,
     resolve = systemResolver,
     transport = httpsTransport,
-    timeoutMs = EVENT_SUBSCRIPTION_LIMITS.timeoutMs,
     maxBytes = EVENT_SUBSCRIPTION_LIMITS.maxBytes,
-  }: FetchCalendarOptions = {},
+  }: FetchCalendarOptions,
+  signal: AbortSignal,
 ): Promise<FetchCalendarResult> {
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(new Error('timeout')), timeoutMs)
-  const timedOut = () => controller.signal.aborted
-  try {
-    let current = link
-    for (let redirects = 0; ; redirects += 1) {
-      const normalized = normalizeSubscriptionUrl(current)
-      if (!normalized.ok) {
-        // A redirect to plain http, another port or a URL with credentials is refused.
-        return { ok: false, error: normalized.error }
+  const timedOut = () => signal.aborted
+  let current = link
+  for (let redirects = 0; ; redirects += 1) {
+    const normalized = normalizeSubscriptionUrl(current)
+    if (!normalized.ok) {
+      // A redirect to plain http, another port or a URL with credentials is refused.
+      return { ok: false, error: normalized.error }
+    }
+    const url = new URL(normalized.url)
+    let addresses: ResolvedAddress[]
+    try {
+      addresses = await publicAddresses(url.hostname, resolve)
+    } catch (error) {
+      if (error instanceof BlockedAddressError) return { ok: false, error: 'blocked-address' }
+      return { ok: false, error: timedOut() ? 'timeout' : 'unreachable' }
+    }
+    if (timedOut()) return { ok: false, error: 'timeout' }
+    const headers: Record<string, string> = { ...FETCH_HEADERS }
+    // Validators belong to the link as stored, so only the first request sends them.
+    if (redirects === 0 && etag) headers['If-None-Match'] = etag
+    if (redirects === 0 && lastModified) headers['If-Modified-Since'] = lastModified
+    let response: TransportResponse
+    try {
+      response = await transport({ url, addresses, headers, signal })
+    } catch {
+      return { ok: false, error: timedOut() ? 'timeout' : 'unreachable' }
+    }
+
+    if (REDIRECTS.has(response.status)) {
+      response.body.destroy?.()
+      const location = header(response.headers, 'location')
+      if (!location) return { ok: false, error: 'http-status' }
+      if (redirects >= EVENT_SUBSCRIPTION_LIMITS.maxRedirects) {
+        return { ok: false, error: 'too-many-redirects' }
       }
-      const url = new URL(normalized.url)
-      let addresses: ResolvedAddress[]
       try {
-        addresses = await publicAddresses(url.hostname, resolve)
-      } catch (error) {
-        if (error instanceof BlockedAddressError) return { ok: false, error: 'blocked-address' }
-        return { ok: false, error: timedOut() ? 'timeout' : 'unreachable' }
-      }
-      if (timedOut()) return { ok: false, error: 'timeout' }
-      const headers: Record<string, string> = { ...FETCH_HEADERS }
-      // Validators belong to the link as stored, so only the first request sends them.
-      if (redirects === 0 && etag) headers['If-None-Match'] = etag
-      if (redirects === 0 && lastModified) headers['If-Modified-Since'] = lastModified
-      let response: TransportResponse
-      try {
-        response = await transport({ url, addresses, headers, signal: controller.signal })
+        current = new URL(location, url).href
       } catch {
-        return { ok: false, error: timedOut() ? 'timeout' : 'unreachable' }
+        return { ok: false, error: 'invalid-url' }
       }
+      continue
+    }
+    if (response.status === 304 && (etag || lastModified)) {
+      response.body.destroy?.()
+      return { ok: true, notModified: true }
+    }
+    if (response.status < 200 || response.status >= 300) {
+      response.body.destroy?.()
+      return { ok: false, error: 'http-status' }
+    }
 
-      if (REDIRECTS.has(response.status)) {
-        response.body.destroy?.()
-        const location = header(response.headers, 'location')
-        if (!location) return { ok: false, error: 'http-status' }
-        if (redirects >= EVENT_SUBSCRIPTION_LIMITS.maxRedirects) {
-          return { ok: false, error: 'too-many-redirects' }
-        }
-        try {
-          current = new URL(location, url).href
-        } catch {
-          return { ok: false, error: 'invalid-url' }
-        }
-        continue
-      }
-      if (response.status === 304 && (etag || lastModified)) {
-        response.body.destroy?.()
-        return { ok: true, notModified: true }
-      }
-      if (response.status < 200 || response.status >= 300) {
-        response.body.destroy?.()
-        return { ok: false, error: 'http-status' }
-      }
-
-      const type = (header(response.headers, 'content-type') ?? '')
-        .split(';')[0]
-        ?.trim()
-        .toLowerCase()
-      if (type && !CALENDAR_TYPES.has(type)) {
-        response.body.destroy?.()
-        return { ok: false, error: 'not-calendar' }
-      }
-      const declared = Number(header(response.headers, 'content-length'))
-      if (Number.isFinite(declared) && declared > maxBytes) {
-        response.body.destroy?.()
-        return { ok: false, error: 'too-large' }
-      }
-      let body: Buffer
-      try {
-        body = await readBody(response, maxBytes, controller.signal)
-      } catch (error) {
-        if (error instanceof BodyTooLarge) return { ok: false, error: 'too-large' }
-        if (timedOut()) return { ok: false, error: 'timeout' }
-        return { ok: false, error: error instanceof TypeError ? 'not-calendar' : 'unreachable' }
-      }
-      const text = new TextDecoder('utf-8').decode(body)
-      if (!looksLikeCalendar(text)) return { ok: false, error: 'not-calendar' }
+    const type = (header(response.headers, 'content-type') ?? '')
+      .split(';')[0]
+      ?.trim()
+      .toLowerCase()
+    if (type && !CALENDAR_TYPES.has(type)) {
+      response.body.destroy?.()
+      return { ok: false, error: 'not-calendar' }
+    }
+    const declared = Number(header(response.headers, 'content-length'))
+    if (Number.isFinite(declared) && declared > maxBytes) {
+      response.body.destroy?.()
+      return { ok: false, error: 'too-large' }
+    }
+    let body: Buffer
+    try {
+      body = await readBoundedBody(response.body, {
+        contentEncoding: header(response.headers, 'content-encoding'),
+        maxBytes,
+        signal,
+      })
+    } catch (error) {
+      if (error instanceof BodyTooLargeError) return { ok: false, error: 'too-large' }
+      if (timedOut()) return { ok: false, error: 'timeout' }
+      if (error instanceof UnsupportedEncodingError) return { ok: false, error: 'not-calendar' }
+      // A corrupt compressed body is not a calendar either; a dropped connection is not.
+      const code = (error as { code?: unknown } | null)?.code
       return {
-        ok: true,
-        notModified: false,
-        text,
-        etag: header(response.headers, 'etag')?.slice(0, 200) ?? null,
-        lastModified: header(response.headers, 'last-modified')?.slice(0, 100) ?? null,
+        ok: false,
+        error: typeof code === 'string' && code.startsWith('Z_') ? 'not-calendar' : 'unreachable',
       }
     }
-  } finally {
-    clearTimeout(timer)
+    const text = new TextDecoder('utf-8').decode(body)
+    if (!looksLikeCalendar(text)) return { ok: false, error: 'not-calendar' }
+    return {
+      ok: true,
+      notModified: false,
+      text,
+      etag: header(response.headers, 'etag')?.slice(0, 200) ?? null,
+      lastModified: header(response.headers, 'last-modified')?.slice(0, 100) ?? null,
+    }
   }
 }

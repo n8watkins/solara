@@ -6,19 +6,17 @@ import { logger } from 'firebase-functions/logger'
 import { onRequest } from 'firebase-functions/v2/https'
 import { onSchedule } from 'firebase-functions/v2/scheduler'
 
-import { CallerShare } from '../forecast/caller-share'
 import {
+  EVENT_PLACE_LOOKUPS_PER_ACCOUNT,
   OPEN_METEO_API_KEY,
-  UPSTREAM_SHARE_PER_CALLER,
-  placeSearchLimits,
+  eventPlaceLookupLimits,
 } from '../forecast/config'
-import { PlaceSearchCache } from '../forecast/place-search'
-import { UpstreamBudget } from '../forecast/upstream-budget'
 import { browserApi, costGuard } from '../shared/browser-api'
 import { db } from '../shared/firebase'
 import { httpOptions, scheduleOptions } from '../shared/options'
 import { EVENTS_SUBSCRIPTIONS_ENABLED } from './config'
 import { handleSubscriptionRequest } from './endpoint'
+import { eventPlaceSearch } from './places'
 import { fetchCalendar } from './safe-fetch'
 import { type SubscriptionDeps, runSubscriptionRefresh } from './subscriptions'
 
@@ -28,36 +26,19 @@ function planKey(): string | null {
   return key && key !== 'unset' ? key : null
 }
 
-// LOCATION text is looked up with the commercial place search, inside place search's own
-// global budget, and each account has a share of it like a caller of the proxy (REVIEW4
-// H1), so linked calendars cannot starve anyone's searches. Without the key, events with
-// only LOCATION text use the person's place, as an import does when search fails.
-const places = new PlaceSearchCache({
-  apiKey: planKey,
-  upstreamAllowed: async () => !(await costGuard.engaged()),
-  upstreamBudget: new UpstreamBudget({
-    db,
-    label: 'place search',
-    prefix: 'places-',
-    limits: placeSearchLimits,
-  }),
-})
-const placeShare = new CallerShare({
-  db,
-  scope: 'places',
-  perHour: () => UPSTREAM_SHARE_PER_CALLER.value(),
-})
-
 const deps: SubscriptionDeps = {
   db,
   fetchCalendar: (url, validators) => fetchCalendar(url, validators),
-  searchPlace: async (uid, query) =>
-    (
-      await places.search(
-        { name: query, count: 5 },
-        { mayFetch: () => placeShare.take([{ key: `uid:${uid}`, weight: 1 }]) },
-      )
-    ).results,
+  // A budget of its own, never place search's (REVIEW5 M1, places.ts). Without the key,
+  // or once the budget or the account's share is spent, events with only LOCATION text
+  // use the person's place, and the text is tried again on a later refresh.
+  searchPlace: eventPlaceSearch({
+    db,
+    apiKey: planKey,
+    upstreamAllowed: async () => !(await costGuard.engaged()),
+    limits: eventPlaceLookupLimits,
+    perAccountPerHour: () => EVENT_PLACE_LOOKUPS_PER_ACCOUNT,
+  }),
 }
 
 // Signed-in accounts only; App Check, the per-address and per-account limits and the
@@ -83,9 +64,10 @@ export const eventSubscriptions = onRequest(
 
 /**
  * The third of Cloud Scheduler's three free jobs. Every 30 minutes it refreshes the
- * links that are due (every 6 hours each, longer while one fails), at most
- * REFRESH_RUN_LIMITS.maxLinks a run. Paused while the cost guard is engaged: no one is
- * owed a refresh, and the links stay due for later.
+ * links that are due (every 6 hours each, longer while one fails), oldest due first,
+ * within REFRESH_RUN_LIMITS; it logs an ERROR when links wait a whole refresh period too
+ * long. Paused while the cost guard is engaged: no one is owed a refresh, and the links
+ * stay due for later.
  */
 export const eventSubscriptionsRefresh = onSchedule(
   scheduleOptions('every 30 minutes', { timeoutSeconds: 300, secrets: [OPEN_METEO_API_KEY] }),

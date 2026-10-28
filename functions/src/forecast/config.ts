@@ -75,6 +75,33 @@ export function placeSearchLimits(): UpstreamLimits {
 }
 
 /**
+ * The budget for linked calendars' place lookups (REVIEW5 M1), apart from place search's,
+ * so linked calendars can never spend what guests and new accounts need to set a place.
+ * Defaults, owner may change (2026-10-28): 50 an hour and 300 a day; each LOCATION text is
+ * looked up once per link and kept, and past the budget events use the person's own place.
+ */
+export const EVENT_PLACE_LOOKUPS_PER_HOUR = defineInt('EVENT_PLACE_LOOKUPS_PER_HOUR', {
+  default: 50,
+})
+export const EVENT_PLACE_LOOKUPS_PER_DAY = defineInt('EVENT_PLACE_LOOKUPS_PER_DAY', {
+  default: 300,
+})
+
+export function eventPlaceLookupLimits(): UpstreamLimits {
+  return {
+    perHour: EVENT_PLACE_LOOKUPS_PER_HOUR.value(),
+    perDay: EVENT_PLACE_LOOKUPS_PER_DAY.value(),
+  }
+}
+
+/**
+ * Linked calendar place lookups one account may cause per UTC hour, inside the budget
+ * above: one refresh's worth (MAX_PLACE_LOOKUPS_PER_REFRESH), so a few accounts cannot
+ * spend the hour for everyone. Default, owner may change (2026-10-28).
+ */
+export const EVENT_PLACE_LOOKUPS_PER_ACCOUNT = 10
+
+/**
  * Upstream calls one caller (an IPv4 address or IPv6 /64; an IPv6 /48 gets 4 times as
  * many) may cause per UTC hour, in each of the forecast and place search budgets
  * (REVIEW4 H1, caller-share.ts). Default, owner may change: 20 is a sliver of the

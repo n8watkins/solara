@@ -2,13 +2,18 @@
 // by `npm run test:rules`): adding, refreshing and removing a link writes its events with
 // the per-account key list kept exactly as the rules require, the link never reaches the
 // owner-readable summary, failing links back off and pause, the per-account caps hold,
-// and an account's deletion takes its links along.
+// and an account's deletion takes its links along. REVIEW5: a hanging or crashing link
+// cannot hold the scheduled run (H1), an unchanged calendar writes nothing (M2), the run
+// pages through every due link and reports how far behind it is (M4), a removal can be
+// finished after it stops halfway (L2), and nothing is written under a deleted account (L3).
 const { after, afterEach, before, describe, test } = require('node:test')
 const assert = require('node:assert/strict')
 const { deleteApp, initializeApp } = require('firebase-admin/app')
 const { getFirestore } = require('firebase-admin/firestore')
 
 const {
+  CLAIM_HOLD_MS,
+  REMOVAL_RETRY_MS,
   SUBSCRIPTIONS_COLLECTION,
   addSubscription,
   deleteEventSubscriptionsForUser,
@@ -83,15 +88,19 @@ function fetcher(files) {
 }
 
 function deps(files, { now = NOW, searchPlace } = {}) {
+  const searches = []
   return {
     db,
     fetchCalendar: fetcher(files),
     searchPlace:
       searchPlace ??
-      (async (_uid, query) =>
-        /santa monica/i.test(query)
+      (async (_uid, query) => {
+        searches.push(query)
+        return /santa monica/i.test(query)
           ? [{ name: 'Santa Monica', admin1: 'California', latitude: 34.02, longitude: -118.49 }]
-          : []),
+          : []
+      }),
+    searches,
     now: () => now,
   }
 }
@@ -356,7 +365,14 @@ describe('refreshing', () => {
     assert.equal((await runSubscriptionRefresh(deps(files, { now: NOW + 2 * HOUR }))).due, 0)
     const first = deps(files, { now: NOW + 8 * HOUR })
     const result = await runSubscriptionRefresh(first, { maxLinks: 1 })
-    assert.deepEqual(result, { due: 1, outcomes: { refreshed: 1 }, backlog: true })
+    assert.deepEqual(result, {
+      due: 2,
+      taken: 1,
+      // The same body as when it was added: nothing to write.
+      outcomes: { 'not-modified': 1 },
+      backlog: true,
+      behindMinutes: 60,
+    })
     assert.equal(first.fetchCalendar.calls[0].url, 'https://a.example.com/a.ics')
   })
 
@@ -375,6 +391,12 @@ describe('refreshing', () => {
     )
     assert.equal(result.outcome, 'removed-orphan')
     assert.equal((await db.collection(SUBSCRIPTIONS_COLLECTION).doc(added.id).get()).exists, false)
+    // Nothing is written under the deleted account (REVIEW5 L3).
+    assert.equal(
+      (await userRef('alice').collection('private').doc('eventSubscriptions').get()).exists,
+      false,
+    )
+    assert.equal((await userRef('alice').collection('events').get()).size, 0)
   })
 })
 
@@ -469,5 +491,367 @@ describe('removing', () => {
       left.docs.map(doc => doc.data().uid),
       ['bob'],
     )
+  })
+})
+
+const linkDoc = async id => (await db.collection(SUBSCRIPTIONS_COLLECTION).doc(id).get()).data()
+
+describe('a hanging or crashing link cannot hold the refresh (REVIEW5 H1)', () => {
+  test('the run gives up on a link that hangs, refreshes the others, and the link is claimed', async () => {
+    const files = {}
+    const ids = {}
+    for (const name of ['evil', 'a', 'b', 'c']) {
+      await addUser(name)
+      files[`https://${name}.example.com/cal.ics`] = { text: calendar(RUNS.slice(0, 1)) }
+    }
+    // The hostile link was added first, so it is the oldest due.
+    for (const [i, name] of ['evil', 'a', 'b', 'c'].entries()) {
+      ids[name] = (
+        await addSubscription(
+          deps(files, { now: NOW + i * 60_000 }),
+          name,
+          `https://${name}.example.com/cal.ics`,
+          '',
+        )
+      ).id
+    }
+    const later = NOW + 7 * HOUR
+    const run = deps(files, { now: later })
+    const fetchOthers = run.fetchCalendar
+    run.fetchCalendar = (url, validators) =>
+      url.includes('evil') ? new Promise(() => {}) : fetchOthers(url, validators)
+
+    const started = Date.now()
+    const result = await runSubscriptionRefresh(run, { concurrency: 1, linkMs: 300 })
+    assert.ok(Date.now() - started < 20_000)
+    assert.equal(result.due, 4)
+    // The others answer with the same body as when they were added: nothing to write.
+    assert.deepEqual(result.outcomes, { timeout: 1, 'not-modified': 3 })
+    assert.equal(result.backlog, false)
+    assert.deepEqual(
+      fetchOthers.calls.map(call => new URL(call.url).host),
+      ['a.example.com', 'b.example.com', 'c.example.com'],
+    )
+    // Claimed before the fetch: no longer at the head of the queue.
+    const evil = await linkDoc(ids.evil)
+    assert.equal(evil.claimedAt.toMillis(), later)
+    assert.equal(evil.due.toMillis(), later + 6 * HOUR)
+    assert.equal((await runSubscriptionRefresh(deps(files, { now: later + HOUR }))).due, 0)
+
+    // The next attempt finds the claim abandoned and counts it as a failure.
+    const retry = await refreshSubscription(
+      deps(
+        { [`https://evil.example.com/cal.ics`]: { text: calendar(RUNS) } },
+        {
+          now: later + 6 * HOUR,
+        },
+      ),
+      ids.evil,
+    )
+    assert.equal(retry.outcome, 'refreshed')
+    const healed = await linkDoc(ids.evil)
+    assert.equal(healed.claimedAt, undefined)
+    assert.equal(healed.status, 'active')
+  })
+
+  test('a link that crashes every attempt backs off and is paused after a week', async () => {
+    await addUser('alice')
+    const added = await addSubscription(
+      deps({ [LINK]: { text: calendar(RUNS) } }),
+      'alice',
+      LINK,
+      '',
+    )
+    const crashing = now => ({
+      ...deps({}, { now }),
+      fetchCalendar: async () => {
+        throw new Error('the instance died here')
+      },
+    })
+    let now = NOW + 6 * HOUR
+    const waits = []
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      const result = await refreshSubscription(crashing(now), added.id).catch(error => error)
+      if (!(result instanceof Error)) {
+        assert.equal(result.outcome, 'paused')
+        break
+      }
+      const link = await linkDoc(added.id)
+      assert.ok(link.due.toMillis() > now, 'claimed before the fetch')
+      waits.push((link.due.toMillis() - now) / HOUR)
+      now = link.due.toMillis()
+    }
+    // Each crash counts as a failure at the next attempt, so the waits grow like a failing
+    // link's: 6, 12, 24, then 48 hours.
+    assert.deepEqual(waits.slice(0, 5), [6, 12, 24, 48, 48])
+    const link = await linkDoc(added.id)
+    assert.equal(link.status, 'paused')
+    assert.equal(link.due, undefined)
+    assert.equal(link.claimedAt, undefined)
+    const shown = (await summary('alice')).items[added.id]
+    assert.equal(shown.status, 'paused')
+    assert.equal(shown.error, 'timeout')
+    // The person can still try it by hand, which works once the site is fixed.
+    const resumed = await refreshSubscriptionNow(
+      deps({ [LINK]: { text: calendar(RUNS) } }, { now: now + HOUR }),
+      'alice',
+      added.id,
+    )
+    assert.equal(resumed.status, 'active')
+  })
+
+  test('a manual refresh while an attempt is running is turned away', async () => {
+    await addUser('alice')
+    const added = await addSubscription(
+      deps({ [LINK]: { text: calendar(RUNS) } }),
+      'alice',
+      LINK,
+      '',
+    )
+    const hanging = {
+      ...deps({}, { now: NOW + 6 * HOUR }),
+      fetchCalendar: () => new Promise(() => {}),
+    }
+    void refreshSubscription(hanging, added.id)
+    await new Promise(resolve => setTimeout(resolve, 500))
+    await assert.rejects(
+      refreshSubscriptionNow(
+        deps({ [LINK]: { text: calendar(RUNS) } }, { now: NOW + 6 * HOUR + 60_000 }),
+        'alice',
+        added.id,
+      ),
+      { code: 'rate-limited', message: /being refreshed/ },
+    )
+    // Once the claim is older than any attempt can run, the link is free again.
+    const later = await refreshSubscriptionNow(
+      deps({ [LINK]: { text: calendar(RUNS) } }, { now: NOW + 6 * HOUR + CLAIM_HOLD_MS + 60_000 }),
+      'alice',
+      added.id,
+    )
+    assert.equal(later.status, 'active')
+  })
+})
+
+describe('refresh cost (REVIEW5 M1, M2)', () => {
+  const MANY = Array.from({ length: 150 }, (_, i) => ({
+    uid: `e${i}`,
+    title: `Race ${i}`,
+    start: NOW + (i + 1) * DAY,
+    geo: '34.14;-118.29',
+    location: 'Griffith Park',
+  }))
+
+  test('a refresh of an unchanged calendar writes no event, a changed one only what changed', async () => {
+    await addUser('alice')
+    const added = await addSubscription(
+      deps({ [LINK]: { text: calendar(MANY) } }),
+      'alice',
+      LINK,
+      '',
+    )
+    const stamps = async () =>
+      new Map([...(await events('alice'))].map(([key, value]) => [key, value.updatedAt]))
+    const before = await stamps()
+    assert.equal(before.size, 150)
+
+    // The site answers in full, with a new etag each time (no 304).
+    const result = await refreshSubscription(
+      deps({ [LINK]: { text: calendar(MANY), etag: '"v2"' } }, { now: NOW + 6 * HOUR }),
+      added.id,
+    )
+    assert.equal(result.outcome, 'not-modified')
+    assert.deepEqual(await stamps(), before)
+
+    // A day later the same body is parsed again; still nothing to write.
+    const reparsed = await refreshSubscription(
+      deps({ [LINK]: { text: calendar(MANY) } }, { now: NOW + 30 * HOUR }),
+      added.id,
+    )
+    assert.equal(reparsed.outcome, 'refreshed')
+    assert.deepEqual(await stamps(), before)
+
+    // One event renamed: only that one is written.
+    const renamed = MANY.map((event, i) =>
+      i === 7 ? { ...event, title: 'Race 7 (moved)' } : event,
+    )
+    await refreshSubscription(
+      deps({ [LINK]: { text: calendar(renamed) } }, { now: NOW + 36 * HOUR }),
+      added.id,
+    )
+    const after = await stamps()
+    const rewritten = [...after].filter(([key, stamp]) => stamp !== before.get(key))
+    assert.equal(rewritten.length, 1)
+    assert.equal((await events('alice')).get(rewritten[0][0]).title, 'Race 7 (moved)')
+    // The first race has ended by now; it stays stored until it expires.
+    assert.equal((await linkDoc(added.id)).eventCount, 149)
+  })
+
+  test('each LOCATION text is looked up once per link, not on every refresh', async () => {
+    await addUser('alice')
+    const first = deps({ [LINK]: { text: calendar(RUNS) } })
+    const added = await addSubscription(first, 'alice', LINK, '')
+    assert.ok(first.searches.length > 0)
+    const more = [
+      ...RUNS,
+      { uid: 'run-9', title: 'Pier run', start: NOW + 4 * DAY, location: 'Santa Monica, CA' },
+    ]
+    const second = deps({ [LINK]: { text: calendar(more) } }, { now: NOW + 7 * HOUR })
+    await refreshSubscription(second, added.id)
+    assert.deepEqual(second.searches, [])
+    const pier = [...(await events('alice')).values()].find(event => event.title === 'Pier run')
+    assert.equal(pier.placeLabel, 'Santa Monica, California')
+    assert.equal(pier.placeGuessed, false)
+  })
+
+  test('a place found later replaces the guessed one, but never a place the person set', async () => {
+    await addUser('alice')
+    const failing = async () => {
+      throw new Error('budget spent')
+    }
+    const withPier = [
+      ...RUNS,
+      { uid: 'run-9', title: 'Pier run', start: NOW + 4 * DAY, location: 'Santa Monica, CA' },
+    ]
+    const added = await addSubscription(
+      deps({ [LINK]: { text: calendar(withPier) } }, { searchPlace: failing }),
+      'alice',
+      LINK,
+      '',
+    )
+    const byTitle = async () =>
+      Object.fromEntries(
+        [...(await events('alice'))].map(([key, event]) => [event.title, { key, ...event }]),
+      )
+    let stored = await byTitle()
+    assert.equal(stored['Sunset run'].placeGuessed, true)
+    assert.equal(stored['Pier run'].placeGuessed, true)
+    // The person sets the pier run's place by hand.
+    await userRef('alice').collection('events').doc(stored['Pier run'].key).update({
+      lat: 33.77,
+      lon: -118.19,
+      placeLabel: 'Long Beach, California',
+      placeGuessed: false,
+    })
+
+    await refreshSubscription(
+      deps({ [LINK]: { text: calendar(withPier) } }, { now: NOW + 30 * HOUR }),
+      added.id,
+    )
+    stored = await byTitle()
+    assert.equal(stored['Sunset run'].placeLabel, 'Santa Monica, California')
+    assert.equal(stored['Sunset run'].placeGuessed, false)
+    assert.equal(stored['Pier run'].placeLabel, 'Long Beach, California')
+  })
+})
+
+describe('the scheduled run scales (REVIEW5 M4)', () => {
+  test('it pages through every due link, oldest first, and reports how far behind it is', async () => {
+    const files = {}
+    for (let i = 0; i < 7; i += 1) {
+      await addUser(`u${i}`)
+      files[`https://cal${i}.example.com/a.ics`] = { text: calendar([]) }
+      await addSubscription(
+        deps(files, { now: NOW + i * 60_000 }),
+        `u${i}`,
+        `https://cal${i}.example.com/a.ics`,
+        '',
+      )
+    }
+    const late = NOW + 13 * HOUR
+    const run = deps(files, { now: late })
+    const result = await runSubscriptionRefresh(run, { pageSize: 2, concurrency: 3, maxLinks: 5 })
+    assert.equal(result.due, 7)
+    assert.equal(result.taken, 5)
+    assert.equal(result.outcomes['not-modified'], 5)
+    assert.equal(result.backlog, true)
+    // The two left have waited 7 hours past their time: more than a refresh period.
+    assert.equal(result.behindMinutes, 7 * 60 - 5)
+    assert.deepEqual(
+      run.fetchCalendar.calls.map(call => new URL(call.url).host).sort(),
+      ['cal0', 'cal1', 'cal2', 'cal3', 'cal4'].map(name => `${name}.example.com`),
+    )
+    const rest = await runSubscriptionRefresh(deps(files, { now: late + 60_000 }), { pageSize: 2 })
+    assert.equal(rest.taken, 2)
+    assert.equal(rest.backlog, false)
+    assert.equal(rest.behindMinutes, 0)
+  })
+})
+
+describe('removal (REVIEW5 L2, L3)', () => {
+  test('a removal that stopped halfway keeps the link listed, and the scheduled run finishes it', async () => {
+    await addUser('alice')
+    const added = await addSubscription(
+      deps({ [LINK]: { text: calendar(RUNS) } }),
+      'alice',
+      LINK,
+      '',
+    )
+    // The remove call marked the link and then died before deleting anything.
+    await db
+      .collection(SUBSCRIPTIONS_COLLECTION)
+      .doc(added.id)
+      .set({ removing: true, due: new Date(NOW + REMOVAL_RETRY_MS) }, { merge: true })
+    assert.deepEqual(Object.keys((await summary('alice')).items), [added.id])
+
+    // A refresh racing the removal writes nothing.
+    const racing = await refreshSubscriptionNow(
+      deps({ [LINK]: { text: calendar([RUNS[0]]) } }, { now: NOW + 10 * 60_000 }),
+      'alice',
+      added.id,
+    ).catch(error => error)
+    assert.equal(racing.code, 'not-found')
+    assert.equal((await events('alice')).size, 3)
+
+    const run = await runSubscriptionRefresh(deps({}, { now: NOW + REMOVAL_RETRY_MS + 60_000 }))
+    assert.deepEqual(run.outcomes, { removed: 1 })
+    assert.equal(await linkDoc(added.id), undefined)
+    assert.deepEqual((await summary('alice')).items, {})
+    assert.equal((await events('alice')).size, 0)
+    assert.deepEqual(await listed('alice'), [])
+  })
+
+  test('removing again finishes a removal, and events the app removed come back at the next refresh', async () => {
+    await addUser('alice')
+    const added = await addSubscription(
+      deps({ [LINK]: { text: calendar(RUNS) } }),
+      'alice',
+      LINK,
+      '',
+    )
+    // "Remove all" in the app deletes the stored records with their keys.
+    const keys = [...(await events('alice')).keys()]
+    const batch = db.batch()
+    for (const key of keys) batch.delete(userRef('alice').collection('events').doc(key))
+    batch.set(userRef('alice').collection('meta').doc('events'), { ids: {}, removed: keys })
+    await batch.commit()
+    await refreshSubscription(
+      deps({ [LINK]: { text: calendar(RUNS) } }, { now: NOW + 7 * HOUR }),
+      added.id,
+    )
+    assert.deepEqual([...(await events('alice')).keys()].sort(), keys.sort())
+    assert.deepEqual((await listed('alice')).sort(), keys.sort())
+
+    await removeSubscription({ db, now: () => NOW + 8 * HOUR }, 'alice', added.id)
+    await removeSubscription({ db, now: () => NOW + 8 * HOUR }, 'alice', added.id)
+    assert.equal(await linkDoc(added.id), undefined)
+    assert.equal((await events('alice')).size, 0)
+  })
+
+  test('removing a link of a deleted account writes nothing under it', async () => {
+    await addUser('gone')
+    const added = await addSubscription(
+      deps({ [LINK]: { text: calendar(RUNS) } }),
+      'gone',
+      LINK,
+      '',
+    )
+    await db.recursiveDelete(userRef('gone'))
+    await removeSubscription({ db }, 'gone', added.id)
+    assert.equal(await linkDoc(added.id), undefined)
+    assert.equal(
+      (await userRef('gone').collection('private').doc('eventSubscriptions').get()).exists,
+      false,
+    )
+    assert.equal((await userRef('gone').collection('meta').doc('events').get()).exists, false)
   })
 })
