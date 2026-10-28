@@ -9,6 +9,7 @@
 //            the Events section loads (REVIEW6 L5)
 import type { ImportedEvent } from '@solara/core/event-import'
 import type { CalendarEventsPage, CalendarListEntry } from '@/lib/gcal'
+import type { CalendarLink, CalendarLinkStore } from '@/lib/calendar-events'
 import type { GoogleCalendarApi, GoogleCalendarLink, GoogleLinkStore } from '@/lib/google-events'
 import { HARNESS_DATE, HARNESS_NOW_MS, HARNESS_TIMEZONE } from './clock'
 import { SAN_DIEGO } from './event-fixtures'
@@ -199,11 +200,12 @@ function authError(reason: string): Error {
   })
 }
 
-export function createMemoryGoogleLinkStore(
-  initial: GoogleCalendarLink | null = null,
-): GoogleLinkStore {
+/** An in-memory connection store, for Google Calendar or (with its link type) Outlook. */
+export function createMemoryLinkStore<Link extends CalendarLink>(
+  initial: Link | null = null,
+): CalendarLinkStore<Link> {
   let link = initial
-  const listeners = new Set<(link: GoogleCalendarLink | null) => void>()
+  const listeners = new Set<(link: Link | null) => void>()
   const emit = () => {
     for (const listener of listeners) listener(link)
   }
@@ -231,4 +233,10 @@ export function createMemoryGoogleLinkStore(
       emit()
     },
   }
+}
+
+export function createMemoryGoogleLinkStore(
+  initial: GoogleCalendarLink | null = null,
+): GoogleLinkStore {
+  return createMemoryLinkStore(initial)
 }

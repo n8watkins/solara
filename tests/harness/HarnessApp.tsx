@@ -22,6 +22,9 @@
 //   google = none (default) | connected | many: events already in Google Calendar, with a fake
 //            Google (google-calendar-fixtures.ts); shown with ?gcal=on, which stands in for
 //            NEXT_PUBLIC_GOOGLE_CALENDAR_EVENTS_ENABLED with the OAuth client ID
+//   outlookcal = none (default) | connected: events already in Outlook, with a fake
+//            Microsoft (outlook-calendar-fixtures.ts); shown with ?outlook=on, which stands in
+//            for NEXT_PUBLIC_OUTLOOK_CALENDAR_EVENTS_ENABLED with the Microsoft client ID
 //   (offline: the offline notice shows whenever the browser is offline, as in the app)
 //   (stale: with data=live, a forecast answer marked `stale` shows its note, as in the
 //   app; stale-forecast.spec.ts)
@@ -58,6 +61,8 @@ import {
   EventsStoreContext,
   GoogleCalendarApiContext,
   GoogleLinkStoreContext,
+  OutlookCalendarApiContext,
+  OutlookLinkStoreContext,
   SubscriptionsStoreContext,
 } from '@/lib/events-context'
 import { IMPORTED_EVENT_LIMITS } from '@solara/core/event-import'
@@ -70,6 +75,12 @@ import {
   createFakeGoogleCalendarApi,
   createMemoryGoogleLinkStore,
 } from './google-calendar-fixtures'
+import {
+  buildOutlookEvents,
+  buildOutlookLink,
+  createFakeOutlookCalendarApi,
+  createMemoryOutlookLinkStore,
+} from './outlook-calendar-fixtures'
 
 export type HarnessScreen = 'dashboard' | 'calendar' | 'settings' | 'pricing' | 'pricing-checkout'
 
@@ -104,6 +115,7 @@ function readParams() {
     events: (['sample', 'full'] as const).find(v => v === params.get('events')) ?? null,
     links: params.get('links') === 'sample',
     google: (['connected', 'many'] as const).find(v => v === params.get('google')) ?? null,
+    outlook: params.get('outlookcal') === 'connected',
     place: HARNESS_PLACES[params.get('place') ?? ''] ?? null,
   }
 }
@@ -118,12 +130,17 @@ export default function HarnessApp() {
   const [googleLink] = useState(() =>
     createMemoryGoogleLinkStore(readParams().google ? buildGoogleLink() : null),
   )
+  const [outlookApi] = useState(createFakeOutlookCalendarApi)
+  const [outlookLink] = useState(() =>
+    createMemoryOutlookLinkStore(readParams().outlook ? buildOutlookLink() : null),
+  )
   const [events] = useState(() => {
-    const { events: kind, links: withLinks, google } = readParams()
+    const { events: kind, links: withLinks, google, outlook } = readParams()
     const sample = [
       ...(kind ? buildEvents() : []),
       ...(withLinks ? [buildFeedEvent()] : []),
       ...(google === 'many' ? buildManyGoogleEvents() : google ? buildGoogleEvents() : []),
+      ...(outlook ? buildOutlookEvents() : []),
     ]
     // "full": the sample plus enough past events to reach the per-account cap.
     const pastStored = kind === 'full' ? IMPORTED_EVENT_LIMITS.maxStored - sample.length : 0
@@ -135,13 +152,17 @@ export default function HarnessApp() {
         <SubscriptionsStoreContext value={links}>
           <GoogleLinkStoreContext value={googleLink}>
             <GoogleCalendarApiContext value={googleApi}>
-              {scheduled ? (
-                <HarnessScheduledProvider sync={scheduled}>
-                  <Harness />
-                </HarnessScheduledProvider>
-              ) : (
-                <Harness />
-              )}
+              <OutlookLinkStoreContext value={outlookLink}>
+                <OutlookCalendarApiContext value={outlookApi}>
+                  {scheduled ? (
+                    <HarnessScheduledProvider sync={scheduled}>
+                      <Harness />
+                    </HarnessScheduledProvider>
+                  ) : (
+                    <Harness />
+                  )}
+                </OutlookCalendarApiContext>
+              </OutlookLinkStoreContext>
             </GoogleCalendarApiContext>
           </GoogleLinkStoreContext>
         </SubscriptionsStoreContext>

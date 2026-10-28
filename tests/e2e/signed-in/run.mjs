@@ -154,6 +154,10 @@ function buildSite() {
     // Linked calendars too, with the Functions switch below; the providers' calendar
     // servers are faked inside the Functions emulator (emulator-calendars.js).
     NEXT_PUBLIC_EVENTS_SUBSCRIPTIONS_ENABLED: '1',
+    // Events already in Outlook too, signed in and read through the in-test fake
+    // Microsoft (fake-microsoft.ts) with a placeholder Application ID.
+    NEXT_PUBLIC_MICROSOFT_CLIENT_ID: '00000000-0000-4000-8000-00000000e2e0',
+    NEXT_PUBLIC_OUTLOOK_CALENDAR_EVENTS_ENABLED: '1',
     NEXT_PUBLIC_GA_MEASUREMENT_ID: '',
     NEXT_PUBLIC_SENTRY_DSN: '',
     NEXT_PUBLIC_UI_HARNESS: '',

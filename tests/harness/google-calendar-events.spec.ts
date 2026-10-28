@@ -150,9 +150,7 @@ test('a connected account: refresh, then disconnect', async ({ page }, testInfo)
   // "Remove imported events" leaves Google's (a refresh would bring them back).
   const section = page.getByRole('region', { name: 'Events' })
   await section.getByRole('button', { name: 'Remove imported events' }).click()
-  await expect(
-    section.getByText(/Events from linked calendars and Google Calendar stay/),
-  ).toBeVisible()
+  await expect(section.getByText(/Events from Google Calendar stay/)).toBeVisible()
   await section.getByRole('button', { name: 'Remove', exact: true }).click()
   await expect(page.getByTestId('events-status')).toHaveText('Removed every imported event.')
   await expect(cards(page)).toHaveCount(2)
