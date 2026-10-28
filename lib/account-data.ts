@@ -8,7 +8,9 @@ export const EXPORT_SECTIONS = {
   billing: 'a summary of your plan and billing dates',
   scheduledActivities: 'your scheduled activities',
   importedEvents: 'your imported events',
+  linkedCalendars: 'your linked calendars (their site and name, not their links)',
   alerts: 'the Pro alerts sent in the last week',
+  eventHeadsUps: 'the Pro event heads-ups sent in the last week',
   notificationDevices: 'device registration metadata',
 } as const
 
@@ -20,6 +22,7 @@ export const DELETED_DATA = [
   'your Solara preferences, profiles and activities',
   'scheduled activities',
   'imported events',
+  'linked calendars',
   'your calendar feed',
   'notification devices',
   'alert history',

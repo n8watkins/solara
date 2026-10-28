@@ -10,6 +10,7 @@ process.setSourceMapsEnabled(true)
 
 export * from './account/functions'
 export * from './billing/functions'
+export * from './events/functions'
 export * from './feed/functions'
 export * from './notifications/functions'
 export * from './ops/functions'

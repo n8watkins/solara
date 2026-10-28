@@ -5,7 +5,7 @@ import { NOTIFICATION_HOUR, UV_ALERT_THRESHOLD } from '@solara/core'
 import type { TierLevel } from '@/lib/types'
 import type { SettingsDraft } from '@/lib/settings'
 import { TIER_LIMITS } from '@/lib/tiers'
-import { alertsLaunched } from '@/lib/plans'
+import { alertsLaunched, eventSubscriptionsLaunched } from '@/lib/plans'
 import { installEnvironment, pushNeedsHomeScreen } from '@/lib/install-prompt'
 import { notificationRegistrationConfigured } from '@/lib/notifications'
 import { useNotificationToggle } from '@/lib/use-notification-toggle'
@@ -27,7 +27,10 @@ const MORNING_HOURS = Array.from(
 const UV_THRESHOLDS = Array.from({ length: UV_ALERT_THRESHOLD.max - 2 }, (_, i) => i + 3)
 const DAY_HOURS = Array.from({ length: 24 }, (_, hour) => hour)
 
-export type AlertDraft = Pick<SettingsDraft, 'notificationHour' | 'uvAlertThreshold' | 'quietHours'>
+export type AlertDraft = Pick<
+  SettingsDraft,
+  'notificationHour' | 'uvAlertThreshold' | 'quietHours' | 'eventHeadsUp'
+>
 
 interface Props {
   tier: TierLevel
@@ -127,13 +130,39 @@ function AlertControls({ user, draft, onChange }: Omit<Props, 'tier'>) {
         </select>
       </SettingsField>
 
+      {eventSubscriptionsLaunched() && (
+        <SettingsField>
+          <div>
+            <SettingsTitle className="mb-1">
+              <label htmlFor={`${id}-events`}>Event heads-up</label>
+            </SettingsTitle>
+            <SettingsHint id={`${id}-events-desc`} className="leading-[1.45]">
+              About 3 hours before an imported or linked event with UV 6 or higher.
+            </SettingsHint>
+          </div>
+          <select
+            id={`${id}-events`}
+            aria-describedby={`${id}-events-desc`}
+            value={draft.eventHeadsUp ? 'on' : 'off'}
+            onChange={event => onChange({ eventHeadsUp: event.target.value === 'on' })}
+            className={FIELD_CONTROL}
+          >
+            <option value="on">On</option>
+            <option value="off">Off</option>
+          </select>
+        </SettingsField>
+      )}
+
       <SettingsField role="group" aria-labelledby={`${quietId}-title`}>
         <div>
           <SettingsTitle id={`${quietId}-title`} className="mb-1">
             Quiet hours
           </SettingsTitle>
           <SettingsHint className="leading-[1.45]">
-            The UV alert waits until they end. The morning alert comes at its own hour.
+            {eventSubscriptionsLaunched()
+              ? 'The UV alert and event heads-ups wait until they end.'
+              : 'The UV alert waits until they end.'}{' '}
+            The morning alert comes at its own hour.
           </SettingsHint>
         </div>
         <div className="flex shrink-0 items-center gap-2">

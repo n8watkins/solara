@@ -24,7 +24,7 @@ const MEMORY = '256MiB' as const
  * The most instances each HTTP function may ever run at once, sized for launch traffic
  * (a few requests a minute) with headroom, not for a flood (finding H1). Each instance
  * serves 20-40 requests at once, so even one instance handles far more than launch
- * traffic. The sum (15) bounds what a flood can bill: Cloud Run does not bill requests it
+ * traffic. The sum (16) bounds what a flood can bill: Cloud Run does not bill requests it
  * turns away because every instance is busy. Raise a cap here when real traffic needs it
  * (docs/COSTS.md, "Worst case under a flood").
  */
@@ -41,6 +41,7 @@ export const INSTANCE_CAPS = Object.freeze({
   rotateCalendarFeed: 1,
   revokeCalendarFeed: 1,
   placeSearch: 1,
+  eventSubscriptions: 1,
 })
 
 export type HttpFunctionName = keyof typeof INSTANCE_CAPS

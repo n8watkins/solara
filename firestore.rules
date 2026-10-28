@@ -200,7 +200,7 @@ service cloud.firestore {
         'sunscreen', 'activities', 'onboardingComplete', 'calendarHours', 'showSunPath',
         'hiddenActivitySuggestionIds', 'collapsedActivityCategories', 'upgradeInterest',
         'notificationHour', 'temperatureUnit', 'clockFormat', 'groupMode', 'groupProfileIds',
-        'uvAlertThreshold', 'quietHours'
+        'uvAlertThreshold', 'quietHours', 'eventHeadsUp'
       ];
     }
 
@@ -242,7 +242,7 @@ service cloud.firestore {
         // keeps a multi-list write within the expression budget.
         && (!keys.hasAny([
             'onboardingComplete', 'showSunPath', 'upgradeInterest', 'temperatureUnit',
-            'clockFormat', 'uvAlertThreshold', 'quietHours'
+            'clockFormat', 'uvAlertThreshold', 'quietHours', 'eventHeadsUp'
           ])
           || ((!('onboardingComplete' in keys) || data.onboardingComplete is bool)
             && (!('showSunPath' in keys) || data.showSunPath is bool)
@@ -254,7 +254,8 @@ service cloud.firestore {
               || (data.uvAlertThreshold is int
                 && data.uvAlertThreshold >= 0
                 && data.uvAlertThreshold <= 11))
-            && (!('quietHours' in keys) || validQuietHours(data.quietHours))));
+            && (!('quietHours' in keys) || validQuietHours(data.quietHours))
+            && (!('eventHeadsUp' in keys) || data.eventHeadsUp is bool)));
     }
 
     function validNewUser(userId) {
@@ -373,20 +374,31 @@ service cloud.firestore {
     // UID, so a re-import overwrites instead of adding copies. `expireAt` is required, at
     // most IMPORTED_EVENT_MAX_TTL_DAYS ahead and at most a day past the retention period
     // after the event's end (`end` is an ISO instant in UTC, so its date is read from it).
+    // Events from a linked calendar (`source: 'feed'`, with `feedId`) are written only by
+    // the server (functions/src/events/); the app may create and rewrite `file` events, and
+    // on a `feed` event change only its place and activity (FEED_EVENT_CLIENT_FIELDS).
     function importedEventKeys() {
       return [
         'key', 'source', 'seriesId', 'title', 'start', 'end', 'timeZone', 'where', 'lat', 'lon',
-        'placeLabel', 'placeGuessed', 'activityId', 'url', 'createdAt', 'updatedAt', 'expireAt'
+        'placeLabel', 'placeGuessed', 'activityId', 'url', 'createdAt', 'updatedAt', 'feedId',
+        'expireAt'
+      ];
+    }
+
+    function feedEventClientKeys() {
+      return [
+        'lat', 'lon', 'placeLabel', 'placeGuessed', 'activityId', 'updatedAt', 'expireAt'
       ];
     }
 
     function validImportedEvent(eventKey) {
       let data = request.resource.data;
-      return data.keys().hasAll(importedEventKeys())
+      return data.keys().hasAll(importedEventKeys().removeAll(['feedId']))
         && data.keys().hasOnly(importedEventKeys())
         && data.key == eventKey
         && eventKey.matches('^[0-9a-f]{32}$')
-        && data.source in ['file']
+        && data.source in ['file', 'feed']
+        && (data.source == 'feed') == ('feedId' in data)
         && data.seriesId is string && data.seriesId.matches('^[0-9a-f]{32}$')
         && data.title is string && data.title.size() <= 200
         && data.start is string && data.start.size() <= 40
@@ -436,12 +448,21 @@ service cloud.firestore {
           && validScheduled(eventId) && listedAfter(userId, 'scheduled', eventId);
       }
 
-      // Imported events: list queries are capped (IMPORTED_EVENT_LIMITS.listLimit).
+      // Imported events: list queries are capped (IMPORTED_EVENT_LIMITS.listLimit). The app
+      // creates `file` events only; a linked calendar's events keep their source and
+      // everything but the place and activity.
       match /events/{eventKey} {
         allow get, delete: if isOwner(userId) && isActiveAccount(userId);
         allow list: if isOwner(userId) && isActiveAccount(userId) && request.query.limit <= 200;
-        allow create, update: if isOwner(userId) && isActiveAccount(userId)
-          && validImportedEvent(eventKey) && listedAfter(userId, 'events', eventKey);
+        allow create: if isOwner(userId) && isActiveAccount(userId)
+          && validImportedEvent(eventKey) && request.resource.data.source == 'file'
+          && listedAfter(userId, 'events', eventKey);
+        allow update: if isOwner(userId) && isActiveAccount(userId)
+          && validImportedEvent(eventKey) && listedAfter(userId, 'events', eventKey)
+          && (resource.data.source == 'file'
+            ? request.resource.data.source == 'file'
+            : request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(feedEventClientKeys()));
       }
 
       // The key lists behind the per-account caps (validKeyIndex). Never deleted by the
@@ -452,7 +473,8 @@ service cloud.firestore {
           && name in ['events', 'scheduled'] && validKeyIndex(userId, name, keyIndexCap(name));
       }
 
-      // Server-written secrets the owner may read, such as the calendar feed token.
+      // Server-written records the owner may read: the calendar feed token, and the linked
+      // calendars' summary (eventSubscriptions: host, label and refresh state, never a link).
       match /private/{docId} {
         allow read: if isOwner(userId) && isActiveAccount(userId);
         allow write: if false;
@@ -461,6 +483,12 @@ service cloud.firestore {
 
     // Feed token hash index: server-only.
     match /calendarFeeds/{tokenHash} {
+      allow read, write: if false;
+    }
+
+    // Linked calendars (functions/src/events/): the link is a credential, so these are
+    // server-only; the app reads users/{uid}/private/eventSubscriptions instead.
+    match /eventSubscriptions/{subscriptionId} {
       allow read, write: if false;
     }
 

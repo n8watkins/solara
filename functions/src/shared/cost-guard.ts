@@ -25,7 +25,7 @@ import { logger } from 'firebase-functions/logger'
 import { loggableError } from './errors'
 
 /** Paths the cost guard can turn off. */
-export type CostFeature = 'calendarFeed' | 'feedLinks' | 'notifications'
+export type CostFeature = 'calendarFeed' | 'feedLinks' | 'notifications' | 'eventSubscriptions'
 
 export const COST_GUARD_COLLECTION = 'systemFlags'
 export const COST_GUARD_DOC = 'costGuard'
