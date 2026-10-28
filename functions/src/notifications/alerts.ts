@@ -25,16 +25,23 @@
 // that stops early saves its place (`alertDispatch/state`), and the next run carries on
 // from there. Tokens FCM reports as invalid are removed with their device.
 //
-// Event heads-ups (docs/integrations/EVENTS.md, phase 2; with EVENTS_SUBSCRIPTIONS_ENABLED):
-// when no morning or UV alert goes out for an account in a run, every imported and
-// linked event whose heads-up can be due now is checked (packages/core/src/
-// event-heads-up.ts): only events that count as an outdoor activity, each event once
-// however many sources hold a copy, and at most one push per account every 3 hours,
-// naming the soonest high-UV event and counting the others it stands for (REVIEW5 M3).
-// A push is claimed in `users/{uid}/alertState/events` with the events it covers. Their
-// forecasts come through the shared cache within the global upstream budget and the
-// account's own share of it, and a run looks up at most ALERTS_MAX_EVENT_FORECASTS_PER_RUN
-// event places.
+// Event heads-ups (docs/integrations/EVENTS.md, phase 2; with either events switch, see
+// functions.ts): when no morning or UV alert goes out for an account in a run, every
+// imported, linked and Google Calendar event whose heads-up can be due now is checked
+// (packages/core/src/event-heads-up.ts): only events that count as an outdoor activity,
+// each event once however many sources hold a copy, and at most one push per account
+// every 3 hours, naming the soonest high-UV event and counting the others it stands for
+// (REVIEW5 M3): those due now and those that could not get one of their own after it
+// (REVIEW6 L2). A push is claimed in `users/{uid}/alertState/events` with the events it
+// covers.
+//
+// Their forecasts come through the shared cache within the global upstream budget and
+// the account's own share of it. The walk over the accounts only gathers the events;
+// the forecasts are then shared out fairly (REVIEW6 M1): a run looks up at most
+// ALERTS_MAX_EVENT_FORECASTS_PER_RUN event places, an account at most
+// ALERTS_MAX_EVENT_FORECASTS_PER_ACCOUNT of them, soonest event first, and the run hands
+// them out one per account per round, so accounts with many events at new places cannot
+// spend everyone else's.
 
 import {
   APP_FORECAST_DAYS,
@@ -62,6 +69,7 @@ import {
   type ImportedEvent,
   countsAsOutdoorActivity,
   eventHeadsUpDue,
+  eventHeadsUpLaterPossible,
   eventHeadsUpMessage,
   eventHeadsUpThrottled,
   eventHeadsUpWindowEnd,
@@ -95,6 +103,12 @@ export const ALERTS_MAX_FORECASTS_PER_RUN = 400
 /** Most event places one run looks up a forecast for (each may cost an upstream call). */
 export const ALERTS_MAX_EVENT_FORECASTS_PER_RUN = 200
 /**
+ * Most event places one account's heads-up looks up per run, for its soonest events
+ * (REVIEW6 M1; default, owner may change, 2026-10-28). Places already looked up in the
+ * run cost nothing and do not count.
+ */
+export const ALERTS_MAX_EVENT_FORECASTS_PER_ACCOUNT = 10
+/**
  * Most upcoming events read per account and run for heads-ups: every event an account
  * can hold (REVIEW5 M3), though a run reads only those whose heads-up can be due now
  * (usually the next 3 hours, `eventHeadsUpWindowEnd`).
@@ -103,8 +117,13 @@ export const EVENT_HEADS_UP_EVENTS_PER_ACCOUNT = IMPORTED_EVENT_LIMITS.maxStored
 /** Heads-ups an account keeps a record of; older ones are dropped from its state. */
 const EVENT_STATE_MAX_ENTRIES = 50
 export const ALERTS_CONCURRENCY = 10
-/** A run stops starting new accounts after this long (the Function's timeout is 300 s). */
+/** A run starts nothing new after this long (the Function's timeout is 300 s). */
 export const ALERTS_RUN_BUDGET_MS = 240_000
+/**
+ * The last part of the run's time kept for the event heads-ups, which run after the walk
+ * over the accounts: the walk stops starting new pages this long before the budget ends.
+ */
+export const ALERTS_HEADS_UP_RESERVE_MS = 60_000
 /** Sends that failed for certain on every device are retried this many times a day. */
 export const ALERT_MAX_ATTEMPTS = 3
 
@@ -145,9 +164,9 @@ export interface AlertsDependencies {
   /** The app's address, opened by a tap on the alert. */
   appUrl: string
   /**
-   * Event heads-ups (EVENTS_SUBSCRIPTIONS_ENABLED): the forecast at an event's place for
-   * an account, through the shared cache within the upstream budget and the account's
-   * share. Absent: no heads-ups are sent.
+   * Event heads-ups (with either events switch, functions.ts): the forecast at an
+   * event's place for an account, through the shared cache within the upstream budget
+   * and the account's share. Absent: no heads-ups are sent.
    */
   eventForecast?: (place: { lat: number; lon: number }, uid: string) => Promise<OpenMeteoResponse>
   now?: () => number
@@ -159,8 +178,10 @@ export interface AlertLimits {
   maxUsers: number
   maxForecasts: number
   maxEventForecasts: number
+  maxEventForecastsPerAccount: number
   concurrency: number
   budgetMs: number
+  headsUpReserveMs: number
 }
 
 const DEFAULT_LIMITS: AlertLimits = {
@@ -168,8 +189,10 @@ const DEFAULT_LIMITS: AlertLimits = {
   maxUsers: ALERTS_MAX_USERS_PER_RUN,
   maxForecasts: ALERTS_MAX_FORECASTS_PER_RUN,
   maxEventForecasts: ALERTS_MAX_EVENT_FORECASTS_PER_RUN,
+  maxEventForecastsPerAccount: ALERTS_MAX_EVENT_FORECASTS_PER_ACCOUNT,
   concurrency: ALERTS_CONCURRENCY,
   budgetMs: ALERTS_RUN_BUDGET_MS,
+  headsUpReserveMs: ALERTS_HEADS_UP_RESERVE_MS,
 }
 
 /** What is sent: a morning or UV alert, or an event heads-up. */
@@ -188,6 +211,7 @@ export type AlertOutcome =
   | 'no-forecast'
   | 'forecast-limit'
   | 'claim-lost'
+  | 'out-of-time'
   | 'error'
 
 export interface AlertsRunResult {
@@ -244,6 +268,11 @@ interface Device {
   token: string
 }
 
+/** The run's key for a place's forecast. */
+function cellKey(lat: number, lon: number): string {
+  return `${lat.toFixed(2)},${lon.toFixed(2)}`
+}
+
 class Run {
   readonly limits: AlertLimits
   readonly now: () => number
@@ -252,9 +281,11 @@ class Run {
   readonly sent: Partial<Record<SentKind, number>> = {}
   removedDevices = 0
   forecastLookups = 0
+  /** Event places planned for a lookup in this run (`planHeadsUpLookups`). */
   eventForecastLookups = 0
   private readonly forecasts = new Map<string, Promise<OpenMeteoResponse | null>>()
   private readonly eventForecasts = new Map<string, Promise<OpenMeteoResponse | null>>()
+  private readonly plannedEventCells = new Set<string>()
 
   constructor(readonly deps: AlertsDependencies) {
     this.limits = { ...DEFAULT_LIMITS, ...deps.limits }
@@ -266,13 +297,19 @@ class Run {
     this.outcomes[outcome] = (this.outcomes[outcome] ?? 0) + 1
   }
 
+  /** Whether the run may start nothing new. */
   outOfTime(): boolean {
     return this.now() - this.startedAt >= this.limits.budgetMs
   }
 
+  /** Whether the walk over the accounts stops, leaving the rest of the time to the heads-ups. */
+  walkOutOfTime(): boolean {
+    return this.now() - this.startedAt >= this.limits.budgetMs - this.limits.headsUpReserveMs
+  }
+
   /** The forecast for a place, once per run; null when it cannot be had or the cap is reached. */
   forecast(lat: number, lon: number): Promise<OpenMeteoResponse | null> | 'limit' {
-    const key = `${lat.toFixed(2)},${lon.toFixed(2)}`
+    const key = cellKey(lat, lon)
     const known = this.forecasts.get(key)
     if (known) return known
     if (this.forecastLookups >= this.limits.maxForecasts) return 'limit'
@@ -285,22 +322,30 @@ class Run {
     return lookup
   }
 
+  /** Whether an event's place is already looked up, or planned to be, in this run (free). */
+  eventPlaceKnown(place: { lat: number; lon: number }): boolean {
+    const key = cellKey(place.lat, place.lon)
+    return this.plannedEventCells.has(key) || this.forecasts.has(key)
+  }
+
+  /** Plans a lookup of an event's place, unless the run's event forecast cap is reached. */
+  planEventLookup(place: { lat: number; lon: number }): boolean {
+    if (this.eventForecastLookups >= this.limits.maxEventForecasts) return false
+    this.eventForecastLookups += 1
+    this.plannedEventCells.add(cellKey(place.lat, place.lon))
+    return true
+  }
+
   /**
-   * The forecast at an event's place for an account, once per run and place; 'limit'
-   * past the run's event forecast cap, null when it cannot be had.
+   * The forecast at an event's place for an account, once per run and place (planned by
+   * `planHeadsUpLookups`, which keeps to the caps); null when it cannot be had.
    */
-  eventForecast(
-    lat: number,
-    lon: number,
-    uid: string,
-  ): Promise<OpenMeteoResponse | null> | 'limit' | null {
+  eventForecast(lat: number, lon: number, uid: string): Promise<OpenMeteoResponse | null> | null {
     const lookupFor = this.deps.eventForecast
     if (!lookupFor) return null
-    const key = `${lat.toFixed(2)},${lon.toFixed(2)}`
+    const key = cellKey(lat, lon)
     const known = this.eventForecasts.get(key) ?? this.forecasts.get(key)
     if (known) return known
-    if (this.eventForecastLookups >= this.limits.maxEventForecasts) return 'limit'
-    this.eventForecastLookups += 1
     const lookup = lookupFor({ lat, lon }, uid).catch(error => {
       logger.warn('event forecast unavailable', { error: loggableError(error) })
       return null
@@ -580,8 +625,14 @@ function devicesOnce(run: Run, userRef: DocumentReference): () => Promise<Device
   return () => (pending ??= alertDevices(run.deps.db, userRef))
 }
 
-/** Everything one account needs in one run. */
-async function processAccount(run: Run, doc: QueryDocumentSnapshot): Promise<AlertOutcome> {
+/**
+ * Everything one account needs in the walk over the accounts: its outcome, or its event
+ * heads-up, which waits for the event forecasts shared out after the walk.
+ */
+async function processAccount(
+  run: Run,
+  doc: QueryDocumentSnapshot,
+): Promise<AlertOutcome | HeadsUpJob> {
   const user = doc.data()
   const now = run.now()
   if (!hasProEntitlement(user, now)) return 'not-entitled'
@@ -605,7 +656,7 @@ async function processAccount(run: Run, doc: QueryDocumentSnapshot): Promise<Ale
   const daily = await dailyAlert(run, doc, { forecast, local, quiet, devices })
   // At most one alert per account and run: a heads-up only when nothing else went out.
   if (daily !== 'not-due' && daily !== 'already-sent') return daily
-  const headsUp = await eventHeadsUp(run, doc, { timeZone, quiet, devices })
+  const headsUp = await prepareHeadsUp(run, doc, { timeZone, quiet, devices, otherwise: daily })
   return headsUp ?? daily
 }
 
@@ -751,8 +802,8 @@ function alreadyHeard(
 async function claimHeadsUp(
   db: Firestore,
   stateRef: DocumentReference,
-  primary: DueEvent,
-  covered: readonly DueEvent[],
+  primary: HeadsUpCandidate,
+  covered: readonly HeadsUpCandidate[],
   now: number,
 ): Promise<{ attemptId: string } | null> {
   return db.runTransaction(async transaction => {
@@ -765,7 +816,10 @@ async function claimHeadsUp(
       prior?.day === primary.key && typeof prior.attempts === 'number' ? prior.attempts + 1 : 1
     const attemptId = randomUUID()
     const claimedAt = new Date(now)
-    const record = (item: DueEvent) => ({ same: titleHash(item.title), startMs: item.startMs })
+    const record = (item: HeadsUpCandidate) => ({
+      same: titleHash(item.title),
+      startMs: item.startMs,
+    })
     const fields: Record<string, unknown> = {
       [primary.key]: {
         day: primary.key,
@@ -803,24 +857,48 @@ async function claimHeadsUp(
   })
 }
 
-/** An upcoming event whose heads-up is due now. */
-interface DueEvent extends ImportedEvent {
+/** An upcoming outdoor event a heads-up may name or stand for. */
+interface HeadsUpCandidate extends ImportedEvent {
   startMs: number
+  /** Whether its own heads-up is due now: only such an event is named by a push. */
+  due: boolean
+}
+
+/** An account whose heads-up waits for the event forecasts shared out after the walk. */
+interface HeadsUpJob {
+  doc: QueryDocumentSnapshot
+  /** The account's outcome when no heads-up goes out (what the daily alerts said). */
+  otherwise: AlertOutcome
+  now: number
+  activities: ReturnType<typeof parsePlanningPreferences>['activities']
+  stateRef: DocumentReference
+  devices: Device[]
+  /** Soonest first: every event due now, and those that could not get one of their own later. */
+  candidates: HeadsUpCandidate[]
+  /** How many candidates, soonest first, get a forecast in this run (`planHeadsUpLookups`). */
+  looked: number
 }
 
 /**
- * A heads-up before the account's soonest high-UV outdoor event, when one is due; null
- * when none is (so the account's outcome stays what the daily alerts said).
+ * The account's heads-up, when one can be due: the outdoor events it may name or stand
+ * for, waiting for their forecasts. Null when none can be due (so the account's outcome
+ * stays what the daily alerts said).
  */
-async function eventHeadsUp(
+async function prepareHeadsUp(
   run: Run,
   doc: QueryDocumentSnapshot,
   {
     timeZone,
     quiet,
     devices: readDevices,
-  }: { timeZone: string; quiet: QuietHours; devices: () => Promise<Device[]> },
-): Promise<AlertOutcome | null> {
+    otherwise,
+  }: {
+    timeZone: string
+    quiet: QuietHours
+    devices: () => Promise<Device[]>
+    otherwise: AlertOutcome
+  },
+): Promise<HeadsUpJob | AlertOutcome | null> {
   const user = doc.data()
   if (!run.deps.eventForecast || user.eventHeadsUp === false) return null
   const now = run.now()
@@ -835,39 +913,106 @@ async function eventHeadsUp(
   const state = (await stateRef.get()).data()
   if (eventHeadsUpThrottled(lastHeadsUpAt(state), now)) return null
 
-  // Every event whose heads-up can be due now, not just the soonest few.
-  const from = new Date(now + EVENT_HEADS_UP.latestMinutes * 60_000).toISOString()
-  const to = new Date(eventHeadsUpWindowEnd(now, timeZone, quiet)).toISOString()
-  const snapshot = await doc.ref
-    .collection('events')
-    .where('start', '>', from)
-    .where('start', '<=', to)
-    .orderBy('start')
-    .limit(EVENT_HEADS_UP_EVENTS_PER_ACCOUNT)
-    .get()
-  const due = withoutDuplicates(
-    snapshot.docs.flatMap(event => {
+  const outdoorEvents = async (after: number, until: number) => {
+    const snapshot = await doc.ref
+      .collection('events')
+      .where('start', '>', new Date(after).toISOString())
+      .where('start', '<=', new Date(until).toISOString())
+      .orderBy('start')
+      .limit(EVENT_HEADS_UP_EVENTS_PER_ACCOUNT)
+      .get()
+    return snapshot.docs.flatMap(event => {
       const item = parseImportedEvent(event.data())
       if (!item || item.key !== event.id || !countsAsOutdoorActivity(item, activities)) return []
-      const startMs = Date.parse(item.start)
-      return eventHeadsUpDue({ startMs, nowMs: now, timeZone, quiet }) ? [{ ...item, startMs }] : []
-    }),
-  )
-  const open = due.filter(item => !alreadyHeard(state, item))
-  if (open.length === 0) return null
+      return [{ ...item, startMs: Date.parse(item.start) }]
+    })
+  }
+  const isDue = (item: { startMs: number }) =>
+    eventHeadsUpDue({ startMs: item.startMs, nowMs: now, timeZone, quiet })
+
+  // Every event whose heads-up can be due now, not just the soonest few.
+  const windowEnd = eventHeadsUpWindowEnd(now, timeZone, quiet)
+  const near = await outdoorEvents(now + EVENT_HEADS_UP.latestMinutes * 60_000, windowEnd)
+  if (!withoutDuplicates(near).some(item => isDue(item) && !alreadyHeard(state, item))) return null
+
+  // A push now holds back the next one for the gap, so it also stands for the later
+  // events that could not get a heads-up of their own after it (REVIEW6 L2): a 10K at
+  // 12:15 behind a 1K at noon, or an early start due only the evening before.
+  const lookaheadEnd = now + EVENT_HEADS_UP.lookaheadHours * 3_600_000
+  const far = windowEnd < lookaheadEnd ? await outdoorEvents(windowEnd, lookaheadEnd) : []
+  const gapEnd = now + EVENT_HEADS_UP.minGapHours * 3_600_000
+  const candidates = withoutDuplicates([...near, ...far]).flatMap(item => {
+    if (alreadyHeard(state, item)) return []
+    const due = isDue(item)
+    if (
+      !due &&
+      eventHeadsUpLaterPossible({ startMs: item.startMs, fromMs: gapEnd, timeZone, quiet })
+    ) {
+      return []
+    }
+    return [{ ...item, due }]
+  })
+  if (!candidates.some(item => item.due)) return null
 
   const devices = await readDevices()
   if (devices.length === 0) return 'no-devices'
+  return { doc, otherwise, now, activities, stateRef, devices, candidates, looked: 0 }
+}
 
-  // The UV at each one, soonest first; the push names the soonest high one.
-  const worthy: { item: DueEvent; zone: string; peakUV: number; peakAt: number }[] = []
-  let limited = false
-  for (const item of open) {
-    const lookup = run.eventForecast(item.lat, item.lon, doc.id)
-    if (lookup === 'limit') {
-      limited = true
-      break
+/**
+ * Shares the run's event forecast lookups out among the accounts' heads-ups (REVIEW6 M1):
+ * each account's events are looked at soonest first, up to
+ * `maxEventForecastsPerAccount` new places each, and the run's `maxEventForecasts` are
+ * handed out one per account per round (the account whose next event starts soonest
+ * first), so a few accounts with many events at new places cannot spend the lookups
+ * every other account's heads-up needs. A place already looked up in the run is free.
+ */
+export function planHeadsUpLookups(
+  run: Pick<Run, 'limits' | 'eventPlaceKnown' | 'planEventLookup'>,
+  jobs: readonly Pick<HeadsUpJob, 'candidates' | 'looked'>[],
+): void {
+  const charged = new Map<object, number>()
+  // Past every free place: the next event that needs a lookup of its own, if any.
+  const skipKnown = (job: Pick<HeadsUpJob, 'candidates' | 'looked'>) => {
+    while (job.looked < job.candidates.length) {
+      const next = job.candidates[job.looked] as HeadsUpCandidate
+      if (!run.eventPlaceKnown(next)) return next
+      job.looked += 1
     }
+    return null
+  }
+  let active = jobs.filter(job => skipKnown(job) !== null)
+  while (active.length > 0) {
+    const nextStart = (job: (typeof active)[number]) =>
+      (job.candidates[job.looked] as HeadsUpCandidate).startMs
+    active.sort((a, b) => nextStart(a) - nextStart(b))
+    active = active.filter(job => {
+      // An earlier account of this round may have planned the same place.
+      const next = skipKnown(job)
+      if (!next) return false
+      const used = charged.get(job) ?? 0
+      if (used >= run.limits.maxEventForecastsPerAccount || !run.planEventLookup(next)) {
+        return false
+      }
+      charged.set(job, used + 1)
+      job.looked += 1
+      return skipKnown(job) !== null
+    })
+  }
+}
+
+/**
+ * The heads-up before the account's soonest high-UV outdoor event due now, from the
+ * forecasts planned for it; null when none is due (so the account's outcome stays what
+ * the daily alerts said).
+ */
+async function sendHeadsUp(run: Run, job: HeadsUpJob): Promise<AlertOutcome | null> {
+  const { doc, now, activities, stateRef, devices } = job
+  const user = doc.data()
+  // The UV at each one, soonest first; the push names the soonest high one due now.
+  const worthy: { item: HeadsUpCandidate; zone: string; peakUV: number; peakAt: number }[] = []
+  for (const item of job.candidates.slice(0, job.looked)) {
+    const lookup = run.eventForecast(item.lat, item.lon, doc.id)
     const forecast = lookup ? await lookup : null
     if (!forecast) continue
     const zone = forecast.timezone || item.timeZone
@@ -896,8 +1041,12 @@ async function eventHeadsUp(
       worthy.push({ item, zone, peakUV: uv.peakUV, peakAt: uv.peakAt })
     }
   }
-  const [first, ...others] = worthy
-  if (!first) return limited ? 'forecast-limit' : null
+  const first = worthy.find(entry => entry.item.due)
+  if (!first) {
+    // An event due now went without a forecast: the run's or the account's lookups ran out.
+    return job.candidates.slice(job.looked).some(item => item.due) ? 'forecast-limit' : null
+  }
+  const others = worthy.filter(entry => entry !== first)
 
   const alert = eventHeadsUpMessage({
     title: first.item.title,
@@ -928,6 +1077,24 @@ async function eventHeadsUp(
   )
 }
 
+/** The heads-ups gathered in the walk: forecasts shared out fairly, then sent. */
+async function runHeadsUps(run: Run, jobs: HeadsUpJob[]): Promise<void> {
+  planHeadsUpLookups(run, jobs)
+  await mapLimit(jobs, run.limits.concurrency, async job => {
+    if (run.outOfTime()) {
+      // Still due in the next run, 15 minutes on.
+      run.count('out-of-time')
+      return
+    }
+    try {
+      run.count((await sendHeadsUp(run, job)) ?? job.otherwise)
+    } catch (error) {
+      run.count('error')
+      logger.error('event heads-up for an account failed', { error: loggableError(error) })
+    }
+  })
+}
+
 async function mapLimit<T>(
   items: readonly T[],
   limit: number,
@@ -952,8 +1119,9 @@ export async function runAlerts(deps: AlertsDependencies): Promise<AlertsRunResu
   let cursor: string | null = typeof stored?.cursor === 'string' ? stored.cursor : null
   let scanned = 0
   let completed = false
+  const headsUps: HeadsUpJob[] = []
 
-  while (!run.outOfTime() && scanned < run.limits.maxUsers) {
+  while (!run.walkOutOfTime() && scanned < run.limits.maxUsers) {
     const size = Math.min(run.limits.pageSize, run.limits.maxUsers - scanned)
     let query = db
       .collection('users')
@@ -964,7 +1132,9 @@ export async function runAlerts(deps: AlertsDependencies): Promise<AlertsRunResu
     const page = await query.get()
     await mapLimit(page.docs, run.limits.concurrency, async doc => {
       try {
-        run.count(await processAccount(run, doc))
+        const outcome = await processAccount(run, doc)
+        if (typeof outcome === 'string') run.count(outcome)
+        else headsUps.push(outcome)
       } catch (error) {
         run.count('error')
         logger.error('alert for an account failed', { error: loggableError(error) })
@@ -980,6 +1150,7 @@ export async function runAlerts(deps: AlertsDependencies): Promise<AlertsRunResu
   }
 
   await dispatchRef.set({ cursor, updatedAt: new Date(run.now()) })
+  await runHeadsUps(run, headsUps)
   if (!completed) {
     logger.warn('alerts run stopped before the last account; the next run carries on', {
       scanned,

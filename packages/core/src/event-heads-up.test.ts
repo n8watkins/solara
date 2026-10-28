@@ -4,6 +4,7 @@ import {
   countsAsOutdoorActivity,
   eventHeadsUpDue,
   eventHeadsUpFrom,
+  eventHeadsUpLaterPossible,
   eventHeadsUpMessage,
   eventHeadsUpThrottled,
   eventHeadsUpWindowEnd,
@@ -17,7 +18,8 @@ import {
 const ZONE = 'America/Los_Angeles'
 const QUIET = { from: 21, to: 7 }
 // 2026-06-16 in Los Angeles is UTC-7.
-const la = (day: number, hour: number) => Date.UTC(2026, 5, day, hour + 7)
+// Hours may have fractions (12.25 is 12:15), which Date.UTC itself would drop.
+const la = (day: number, hour: number) => Date.UTC(2026, 5, day, 7) + hour * 3_600_000
 
 describe('eventHeadsUpFrom', () => {
   it('is the lead time before the start outside quiet hours', () => {
@@ -48,6 +50,40 @@ describe('eventHeadsUpDue', () => {
     expect(due(la(15, 22), start)).toBe(false)
     expect(due(la(16, 6), start)).toBe(false)
     expect(due(la(16, 7.25), start)).toBe(true)
+  })
+})
+
+describe('eventHeadsUpLaterPossible (REVIEW6 L2)', () => {
+  const later = (start: number, from: number) =>
+    eventHeadsUpLaterPossible({ startMs: start, fromMs: from, timeZone: ZONE, quiet: QUIET })
+  const gap = EVENT_HEADS_UP.minGapHours
+
+  it('is false for an event whose due window closes before the gap after a push ends', () => {
+    // A push at 9am for a 1K at noon: the 10K at 12:15 is due only until noon, when the
+    // gap ends, so the push must stand for it.
+    expect(later(la(16, 12.25), la(16, 9 + gap))).toBe(false)
+    expect(later(la(16, 12), la(16, 9 + gap))).toBe(false)
+  })
+
+  it('is true when a run after the gap still finds the event due', () => {
+    expect(later(la(16, 12.5), la(16, 9 + gap))).toBe(true)
+    expect(later(la(16, 13), la(16, 9 + gap))).toBe(true)
+    // Not due yet when the gap ends, and due later: its own heads-up at 1pm.
+    expect(later(la(16, 16), la(16, 9 + gap))).toBe(true)
+  })
+
+  it('counts quiet hours: an early start whose only window is the evening before', () => {
+    // A 7am start is due only from 8pm to 9pm the evening before (6:45am is quiet).
+    expect(later(la(16, 7), la(15, 18 + gap))).toBe(false)
+    expect(later(la(16, 7), la(15, 17 + gap))).toBe(true)
+    // An 8am start is also due from 7am to 7:45am, after quiet hours.
+    expect(later(la(16, 8), la(15, 18 + gap))).toBe(true)
+  })
+
+  it('starts from a run on the quarter hour, as the alerts job runs', () => {
+    // The gap ends at 12:05; the next run is 12:15, when an event at 12:30 is no longer due.
+    expect(later(la(16, 12.5), la(16, 12 + 5 / 60))).toBe(false)
+    expect(later(la(16, 12.75), la(16, 12 + 5 / 60))).toBe(true)
   })
 })
 

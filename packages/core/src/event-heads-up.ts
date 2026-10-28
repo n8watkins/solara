@@ -12,7 +12,10 @@
 //   (later) Google Calendar, and whatever key it is stored under (`sameEvent`);
 // - at most one push per account every `minGapHours`, naming the soonest high-UV event
 //   and how many more are coming up;
-// - every qualifying event in the window is looked at, not just the soonest few.
+// - every qualifying event in the window is looked at, not just the soonest few;
+// - a push also stands for every high-UV outdoor event that could not get a heads-up of
+//   its own after it, because its due window closes within the gap (REVIEW6 L2,
+//   `eventHeadsUpLaterPossible`), so no qualifying event is silently dropped.
 //
 // The event's title comes from whoever published the calendar, so a push frames it as
 // the event's name, in quotes, and cleans it: invisible formatting, links, e-mail
@@ -50,6 +53,8 @@ export const EVENT_HEADS_UP = Object.freeze({
   titleLength: 40,
   /** The longest place name a push quotes. */
   placeLength: 60,
+  /** The `alerts` job runs this often (functions/src/notifications/functions.ts). */
+  runMinutes: 15,
 })
 
 // ---- Which events ---------------------------------------------------------------------
@@ -165,6 +170,35 @@ export function eventHeadsUpDue({
   return !!local && !inQuietHours(local.hour, quiet)
 }
 
+/**
+ * Whether an event can still get a heads-up of its own from `fromMs` on (the end of the
+ * gap after a push sent now, `minGapHours`): some later run of the `alerts` job, every
+ * `runMinutes` on the clock, finds it due (`eventHeadsUpDue`). When it cannot, a push
+ * sent now must stand for it ("and 1 more"), or the person never hears about it: a 10K
+ * at 12:15 behind a 1K at noon, whose due window closes before the gap ends (REVIEW6 L2).
+ */
+export function eventHeadsUpLaterPossible({
+  startMs,
+  fromMs,
+  timeZone,
+  quiet,
+}: {
+  startMs: number
+  fromMs: number
+  /** The person's own time zone (their quiet hours are in it). */
+  timeZone: string
+  quiet: QuietHours
+}): boolean {
+  const step = EVENT_HEADS_UP.runMinutes * 60_000
+  const last = startMs - EVENT_HEADS_UP.latestMinutes * 60_000
+  // The first run from when the heads-up could be due, and no earlier than `fromMs`.
+  const first = Math.max(fromMs, eventHeadsUpFrom(startMs, timeZone, quiet))
+  for (let at = Math.ceil(first / step) * step; at < last; at += step) {
+    if (eventHeadsUpDue({ startMs, nowMs: at, timeZone, quiet })) return true
+  }
+  return false
+}
+
 /** Whether a peak UV is high enough for a heads-up (the UV index reads whole numbers). */
 export function eventHeadsUpWorthy(peakUV: number): boolean {
   return Number.isFinite(peakUV) && Math.round(peakUV) >= EVENT_HEADS_UP.uv
@@ -212,7 +246,10 @@ export interface EventHeadsUpInput {
   peakAtMs: number
   nowMs: number
   clock?: '12h' | '24h'
-  /** Other events due a heads-up now, also with high UV, that this push stands for. */
+  /**
+   * Other high-UV events this push stands for: those due now, and those that could not
+   * get a heads-up of their own after it (`eventHeadsUpLaterPossible`).
+   */
   more?: number
 }
 

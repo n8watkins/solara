@@ -140,7 +140,7 @@ To stop it at once, pin the cost guard (`infra/cost-guard.sh engaged --apply`; a
   If it appears in every run, Pro has outgrown the per-run caps in `functions/src/notifications/alerts.ts`.
 
 An account's alert state is `users/<uid>/alertState/daily`: `morning` and `uv` each hold the local `day`, the `status` (`claimed`, `delivered`, `failed` or `unknown`), the `attempts` and how many devices it reached.
-Event heads-ups are in `users/<uid>/alertState/events`, one field per event key, with the same states; the WARNING `alerts run reached its event forecast lookup limit` means more than 200 event places needed a forecast in one run (the rest wait for the next run).
+Event heads-ups are in `users/<uid>/alertState/events`, one field per event key, with the same states; the WARNING `alerts run reached its event forecast lookup limit` means more than 200 event places needed a forecast in one run: they were handed out one per account per round (at most 10 per account, soonest events first), and the rest wait for the next run, 15 minutes later; the run's `forecast-limit` outcome counts the accounts whose due event got no lookup, and `out-of-time` those whose heads-up waited for the next run because the run's 4 minutes ran out.
 
 ## Linked calendars
 
@@ -192,7 +192,7 @@ Every component can be put back to its last good state without a new build.
 | Pro checkout | Set the `BILLING_ENABLED` repository variable to `false` and rerun the deploy: the plans dialog goes back to the waitlist and checkout refuses; subscriptions, the webhook and the portal keep working |
 | Forecast proxy | Set `FORECAST_PROXY_ENABLED` to `false` and rerun the deploy: the app calls Open-Meteo directly again, for forecasts and place search |
 | Pro alerts | Set `ALERTS_ENABLED` to `false` and rerun the deploy: the `alerts` job sends nothing and Settings says alerts are coming; registered devices stay registered |
-| Linked calendars and event heads-ups | Set `EVENTS_SUBSCRIPTIONS_ENABLED` to `false` and rerun the deploy, or pin the cost guard to stop fetches at once ([Linked calendars](#linked-calendars)) |
+| Linked calendars and event heads-ups | Set `EVENTS_SUBSCRIPTIONS_ENABLED` to `false` and rerun the deploy, or pin the cost guard to stop fetches at once ([Linked calendars](#linked-calendars)); heads-ups stop only when `GOOGLE_CALENDAR_EVENTS_ENABLED` is `false` too (or `ALERTS_ENABLED`, which stops every alert) |
 | Firestore rules | Firebase console, **Firestore**, **Rules**, the history, restore the previous version; then revert on `main` |
 | Firestore indexes | Revert the change on `main`; a removed index is not deleted by the deploy (it would need `--force`) |
 | Stripe webhook | In Stripe, **Developers**, **Webhooks**, disable the endpoint; Stripe keeps the events and retries them for 3 days once it is enabled again |
