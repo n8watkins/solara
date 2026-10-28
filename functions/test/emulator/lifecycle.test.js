@@ -405,3 +405,150 @@ describe('account deletion', () => {
     assert.equal(stripe.subscriptionsById.get(subscriptionId).status, 'canceled')
   })
 })
+
+const eventKey = index => index.toString(16).padStart(32, '0')
+
+function importedEvent(index) {
+  const start = new Date(Date.UTC(2026, 5, 20, 15) + index * 3_600_000)
+  return {
+    key: eventKey(index),
+    source: 'file',
+    seriesId: 'fedcba9876543210fedcba9876543210',
+    title: `Race ${index}`,
+    start: start.toISOString(),
+    end: new Date(start.getTime() + 5_400_000).toISOString(),
+    timeZone: 'America/Los_Angeles',
+    where: 'Griffith Park',
+    lat: 34.14,
+    lon: -118.29,
+    placeLabel: 'Los Angeles, California',
+    placeGuessed: false,
+    activityId: 'run',
+    url: '',
+    createdAt: '2026-06-15T17:30:00.000Z',
+    updatedAt: '2026-06-15T17:30:00.000Z',
+  }
+}
+
+function scheduledActivity(index) {
+  const eventId = `evt${String(index).padStart(5, '0')}`
+  return {
+    eventId,
+    calendarId: 'primary',
+    activityId: 'run',
+    title: 'Running: lower-UV window',
+    icon: '🏃',
+    start: '2026-06-16T01:00:00.000Z',
+    end: '2026-06-16T01:45:00.000Z',
+    timeZone: 'America/Los_Angeles',
+    htmlLink: `https://www.google.com/calendar/event?eid=${eventId}`,
+    createdAt: '2026-06-15T17:30:00.000Z',
+    updatedAt: '2026-06-15T17:30:00.000Z',
+  }
+}
+
+/** Writes `count` events and scheduled activities straight to Firestore, as a script could. */
+async function seedCollections(uid, { events = 0, scheduled = 0, junk = 0 }) {
+  const writes = [
+    ...Array.from({ length: events }, (_, index) => [
+      `users/${uid}/events/${eventKey(index)}`,
+      { ...importedEvent(index), expireAt: new Date(Date.now() + 30 * DAY_MS) },
+    ]),
+    ...Array.from({ length: scheduled }, (_, index) => {
+      const item = scheduledActivity(index)
+      return [`users/${uid}/scheduled/${item.eventId}`, item]
+    }),
+    // Records that fail the schema are read (and counted) but never exported.
+    ...Array.from({ length: junk }, (_, index) => [
+      `users/${uid}/events/${'f'.repeat(24)}${String(index).padStart(8, '0')}`,
+      { title: 'not an event' },
+    ]),
+  ]
+  for (let start = 0; start < writes.length; start += 500) {
+    const batch = db.batch()
+    for (const [path, data] of writes.slice(start, start + 500)) batch.set(db.doc(path), data)
+    await batch.commit()
+  }
+}
+
+/** Records the size of every query the export's transaction runs. */
+function countingDb() {
+  const queries = []
+  const counting = Object.create(db)
+  counting.runTransaction = (work, options) =>
+    db.runTransaction(async transaction => {
+      const get = transaction.get.bind(transaction)
+      const wrapped = Object.create(transaction)
+      wrapped.get = async ref => {
+        const result = await get(ref)
+        if (result.docs) queries.push(result.docs.length)
+        return result
+      }
+      return work(wrapped)
+    }, options)
+  return { counting, queries }
+}
+
+describe('the account export pages large collections (REVIEW4 M4)', () => {
+  test('reads every event and scheduled activity in pages from one read-only snapshot', async () => {
+    await seedAccount('page')
+    await seedCollections('page', { events: 1250, scheduled: 230 })
+    const { counting, queries } = countingDb()
+    const exported = await exportAccountData({
+      auth: auth('page'),
+      db: counting,
+      req: request(),
+    })
+    assert.equal(exported.importedEvents.length, 1250)
+    assert.deepEqual(exported.importedEvents[1249], importedEvent(1249))
+    assert.equal(exported.scheduledActivities.length, 230)
+    assert.deepEqual(exported.truncated, [])
+    // No query reads more than a page: 7 for the events, 2 for scheduled, 1 for devices.
+    assert.ok(queries.every(size => size <= 200), `page sizes ${queries}`)
+    assert.equal(queries.length, 10)
+  })
+
+  test('stops at the collection limit and says which sections were cut short', async () => {
+    await seedAccount('cap')
+    await seedCollections('cap', { events: 40, scheduled: 25, junk: 30 })
+    const exported = await exportAccountData({
+      auth: auth('cap'),
+      db,
+      req: request(),
+      limits: { pageSize: 10, collectionLimit: 50 },
+    })
+    // Junk sorts after the events, so the 50 documents read are 40 events and 10 junk.
+    assert.equal(exported.importedEvents.length, 40)
+    assert.equal(exported.scheduledActivities.length, 25)
+    assert.deepEqual(exported.truncated, ['importedEvents'])
+  })
+
+  test('an exact page boundary is not truncated', async () => {
+    await seedAccount('edge')
+    await seedCollections('edge', { events: 20 })
+    const exported = await exportAccountData({
+      auth: auth('edge'),
+      db,
+      req: request(),
+      limits: { pageSize: 10, collectionLimit: 20 },
+    })
+    assert.equal(exported.importedEvents.length, 20)
+    assert.deepEqual(exported.truncated, [])
+  })
+})
+
+describe('account deletion removes what the person added (REVIEW4 L4)', () => {
+  test('imported events, scheduled activities and devices go with the account', async () => {
+    const stripe = new FakeStripe()
+    await seedAccount('gus')
+    await seedCollections('gus', { events: 620, scheduled: 12 })
+    await db.doc('users/gus/notificationDevices/device-1').set({ enabled: true, platform: 'web' })
+    await deleteAccount({ auth: auth('gus'), db, req: request({ confirmation: 'DELETE' }), stripe })
+    await runDeletion(stripe, 'gus')
+    for (const collection of ['events', 'scheduled', 'notificationDevices']) {
+      const left = await db.collection(`users/gus/${collection}`).count().get()
+      assert.equal(left.data().count, 0, `${collection} deleted`)
+    }
+    assert.equal((await db.doc('users/gus').get()).exists, false)
+  })
+})

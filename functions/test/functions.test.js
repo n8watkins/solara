@@ -498,6 +498,13 @@ afterEach(() => {
   clearUidLimiters()
 })
 
+/** A fake collection whose ordered, limited query reads as `{ kind }` in a transaction. */
+function pagedCollection(kind) {
+  const page = { kind }
+  const query = { limit: () => page, startAfter: () => query }
+  return { orderBy: () => query }
+}
+
 describe('account data security', () => {
   test('preserves completed cleanup and verified ownership on rediscovery', async () => {
     const stored = {
@@ -674,7 +681,10 @@ describe('account data security', () => {
     let userRead = false
     const userRef = {
       kind: 'user',
-      collection: name => ({ kind: name, doc: id => ({ kind: `${name}/${id}` }) }),
+      collection: name => ({
+        ...pagedCollection(name),
+        doc: id => ({ kind: `${name}/${id}` }),
+      }),
     }
     const db = {
       collection(name) {
@@ -708,12 +718,12 @@ describe('account data security', () => {
     assert.equal(userRead, false)
   })
 
-  test('reads all exported data from one transaction snapshot', async () => {
+  test('reads all exported data from one read-only transaction snapshot', async () => {
     const reads = []
-    const devicesQuery = { kind: 'devices' }
-    const scheduledQuery = { kind: 'scheduled' }
+    const devicesQuery = pagedCollection('devices')
+    const scheduledQuery = pagedCollection('scheduled')
     const alertStateRef = { kind: 'alertState' }
-    const eventsQuery = { kind: 'events' }
+    const eventsQuery = pagedCollection('events')
     const importedEvent = {
       key: 'a'.repeat(32),
       source: 'file',
@@ -764,7 +774,8 @@ describe('account data security', () => {
         if (name === 'users') return { doc: () => userRef }
         throw new Error(`Unexpected collection ${name}`)
       },
-      async runTransaction(callback) {
+      async runTransaction(callback, options) {
+        assert.deepEqual(options, { readOnly: true })
         return callback({
           async get(ref) {
             reads.push(ref.kind)
@@ -772,7 +783,7 @@ describe('account data security', () => {
             if (ref === userRef) {
               return { exists: true, data: () => ({ location: { city: 'Seattle' } }) }
             }
-            if (ref === devicesQuery) return { docs: [] }
+            if (ref.kind === 'devices') return { docs: [] }
             if (ref === alertStateRef) {
               return {
                 exists: true,
@@ -798,7 +809,7 @@ describe('account data security', () => {
                 }),
               }
             }
-            if (ref === scheduledQuery) {
+            if (ref.kind === 'scheduled') {
               return {
                 docs: [
                   { id: 'evt1', data: () => scheduledItem },
@@ -808,7 +819,7 @@ describe('account data security', () => {
                 ],
               }
             }
-            if (ref === eventsQuery) {
+            if (ref.kind === 'events') {
               return {
                 docs: [
                   // Bookkeeping (the TTL field) is not exported.
@@ -837,7 +848,8 @@ describe('account data security', () => {
       req: { headers: { authorization: 'Bearer valid' } },
     })
 
-    assert.deepEqual(reads, ['tombstone', 'user', 'devices', 'scheduled', 'alertState', 'events'])
+    assert.deepEqual(reads, ['tombstone', 'user', 'alertState', 'devices', 'scheduled', 'events'])
+    assert.deepEqual(result.truncated, [])
     assert.deepEqual(result.account, { location: { city: 'Seattle' } })
     assert.deepEqual(result.notificationDevices, [])
     assert.deepEqual(result.scheduledActivities, [scheduledItem])
