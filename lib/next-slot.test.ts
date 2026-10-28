@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   actionableWindows,
   lowestUVWindow,
+  needsClouds,
   nowHourOf,
   planActivityDay,
   soonestPlan,
@@ -191,5 +192,29 @@ describe('harness scenario at 10:30', () => {
         if (upcoming?.dateStr === today.dateStr) expect(upcoming.slot).toEqual(plan.slot)
       }
     }
+  })
+})
+
+describe('needsClouds', () => {
+  const hours = [6, 7, 8, 9].map(hour => ({
+    hour,
+    uv: 3.5,
+    clearSkyUV: hour < 8 ? 3.8 : 6,
+    tempC: 18,
+    condition: 'Cloudy',
+  }))
+  const walk = { id: 'w', name: 'Walk', icon: '🚶', durationMins: 60, maxUV: 4, sunscreen: false }
+
+  it('marks a cloud-sensitive window that a clear sky would put over the limit', () => {
+    const plan = planActivityDay(hours, { ...walk, cloudSensitive: true }, 'fair')
+    expect(plan.windows.map(w => [w.from, w.to])).toEqual([[6, 9]])
+    expect(plan.cloudDependent).toEqual([true])
+    expect(needsClouds({ from: 6, to: 8 }, hours, { ...walk, cloudSensitive: true })).toBe(false)
+  })
+
+  it('never marks an activity that plans for a clear sky', () => {
+    const plan = planActivityDay(hours, walk, 'fair')
+    expect(plan.windows.map(w => [w.from, w.to])).toEqual([[6, 8]])
+    expect(plan.cloudDependent).toEqual([false])
   })
 })

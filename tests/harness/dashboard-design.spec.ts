@@ -22,7 +22,7 @@ test.describe('logic checks', () => {
     const briefing = page.getByTestId('daily-briefing')
     await expect(briefing).toContainText('Tomorrow at a glance')
     await expect(briefing).toContainText('UV peaks at 9.7 (Very high) around 1pm')
-    await expect(briefing).toContainText('Best lower-UV window: Running 6am–10am')
+    await expect(briefing).toContainText('Best lower-UV window: Running 6am–9am')
     await expect(page.getByTestId('hero-empty')).toHaveCount(0)
     await expect(page.getByText('Sun is down')).toHaveCount(1)
     await expect(page.getByTestId('burn-metric')).toContainText('No burn risk until 7am tomorrow')

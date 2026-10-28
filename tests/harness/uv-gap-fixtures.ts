@@ -27,7 +27,9 @@ export function buildGapWeather(): WeatherResponse {
       {
         ...raw,
         current: { ...raw.current, uv_index: null },
-        hourly: { ...raw.hourly, uv_index: uv },
+        // No clear-sky series, like a forecast cached before it was requested: plans
+        // fall back to the forecast UV, so the gap is the only thing that blocks a window.
+        hourly: { ...raw.hourly, uv_index: uv, uv_index_clear_sky: undefined },
       },
       { days: 10 },
     ),

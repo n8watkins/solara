@@ -1,11 +1,14 @@
 // How much to trust a forecast day, and how much its clouds lower UV. Shared so the
-// dashboard, the week view and later alerts word it the same way.
+// dashboard, the week view and later alerts word it the same way, and the UV every
+// planner judges an hour by (planningUV), so they all count clouds the same way.
 //
 // Open-Meteo's `uv_index` already accounts for the forecast clouds;
 // `uv_index_clear_sky` is the same hour under a cloudless sky. The gap between the
 // two is what the forecast clouds take off, and clouds are among the least
 // predictable parts of a forecast, so the clear-sky value is what to expect if
 // the sky stays clear.
+
+import { exposedUV, type ExposureSetting } from './exposure'
 
 /**
  * Forecast confidence by lead time: the first three days (today, tomorrow and the
@@ -64,4 +67,34 @@ export function cloudEffect(
 /** "Clouds may cut UV to 4 from a clear-sky 7". */
 export function cloudNote({ uv, clearSky }: CloudEffect): string {
   return `Clouds may cut UV to ${uv} from a clear-sky ${clearSky}`
+}
+
+/** One hour of forecast: UV with the forecast clouds, and under a clear sky when known. */
+export interface SkyHour {
+  uv: number
+  clearSkyUV?: number | null
+}
+
+/**
+ * The sky UV an activity plans on for one hour. `uv` already includes the forecast
+ * clouds, so an activity that accounts for cloud cover plans on it as it is (counting
+ * the clouds once); any other activity plans as if the sky were clear, which stays
+ * safe when forecast clouds break up. Without a clear-sky value (an older cached
+ * forecast) it falls back to `uv`.
+ */
+export function skyUV(hour: SkyHour, cloudSensitive?: boolean | null): number {
+  if (cloudSensitive || typeof hour.clearSkyUV !== 'number') return hour.uv
+  return Math.max(hour.uv, hour.clearSkyUV)
+}
+
+/**
+ * The UV one hour is planned against for an activity: the sky UV (clouds counted
+ * once, see skyUV) through the activity's shade and surface (exposure.ts). Every
+ * surface that plans windows (the app, the calendar feed, the briefing) uses it.
+ */
+export function planningUV(
+  hour: SkyHour,
+  activity: { cloudSensitive?: boolean | null } & ExposureSetting,
+): number {
+  return exposedUV(skyUV(hour, activity.cloudSensitive), activity)
 }

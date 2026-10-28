@@ -37,6 +37,7 @@ What users get:
 - UV and weather forecasts from Open-Meteo, in the location's time zone, with Celsius or Fahrenheit and 12- or 24-hour time chosen from the locale or in Settings.
 - Personalized activity windows on the dashboard and in the week calendar, within each plan's days.
   Each activity can account for its typical shade and the surface around it (grass, pavement, water, sand, snow), which scale the UV it is planned against with cited, cautious factors; the card says so ("Sand, some shade · 90% of forecast UV").
+  Plans assume a clear sky, which stays safe if forecast clouds break; an activity with "Account for cloud cover" on plans with the forecast's clouds instead, counted once (#PRNUM), and the calendar feed plans the same way.
 - A daily briefing at the top of the dashboard (#108): the day's peak UV and time, the best lower-UV window for the plan, the burn time at the peak and one line of advice, shareable; after dark it briefs tomorrow (on the guest plan it offers sign-in instead).
 - Cloud-aware forecasts (#110): the dashboard and the week view say when the forecast clouds lower UV, against the clear-sky UV, and how much to trust each day (fair confidence from day 4, low from day 7).
 - Place suggestions while typing a town in setup, the header's location panel and Settings (Open-Meteo place search based on GeoNames, at most one request per second, keyboard and screen-reader friendly) (#80, #95).
