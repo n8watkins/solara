@@ -169,6 +169,7 @@ export default function EventCard({
           {view.peak && <p>{view.peak}</p>}
           {view.burn && <p>{view.burn}</p>}
           {view.sunscreen && <p>{view.sunscreen}</p>}
+          {view.confidence && <p className="text-ink-3">{view.confidence}.</p>}
         </div>
       )}
 

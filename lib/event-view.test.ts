@@ -127,6 +127,23 @@ describe('eventCardView', () => {
     })
   })
 
+  it('says how far to trust a day four or more days ahead', () => {
+    const later = { ...weather, forecast: [...weather.forecast] }
+    for (const dateStr of ['2026-06-18', '2026-06-19', '2026-06-22']) {
+      later.forecast.push({ dateStr, label: dateStr, hourly: hours(dateStr) })
+    }
+    const at = (date: string) =>
+      eventCardView({
+        ...base,
+        weather: later,
+        planDays: 10,
+        item: item(`${date}T16:00:00.000Z`, `${date}T17:00:00.000Z`),
+      }).confidence
+    expect(at('2026-06-16')).toBeNull()
+    expect(at('2026-06-19')).toBe('Fair confidence: UV and the best times can still change')
+    expect(at('2026-06-22')).toBe('Low confidence: a rough guide, check again closer to the day')
+  })
+
   it('shows only when while the forecast loads', () => {
     const view = eventCardView({
       ...base,

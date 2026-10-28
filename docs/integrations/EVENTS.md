@@ -22,6 +22,7 @@ _Built 2026-10-27 by lane EVENTS._
 - **Places:** `GEO` is used as given (named by the first part of `LOCATION`, else by the reverse lookup in `lib/geocoding.ts`); `LOCATION` text is searched at town level with the existing place search and its rate limit and cache, picking the same-named town nearest the person, for at most 10 distinct texts per import.
   Anything else uses the person's place and says so, with "Set the place", which moves every occurrence of that event.
   Re-importing keeps the place and activity the person chose.
+- **UV source:** the hourly `uv` of the forecast at the event's place (it already includes the forecast clouds, #110), and an event four or more days ahead carries the forecast's fair or low confidence note.
 - **Storage:** `users/{uid}/events/{key}` as planned, typed and capped in `packages/core/src/events.ts` and `firestore.rules`, with `expireAt` (30 days after the end) for the TTL policy in `infra/firestore-ttl.sh`, in the account export (`importedEvents`) and removed by account deletion with the rest of `users/{uid}`.
   The rules cannot count documents, so the number of events per account is bounded by the import cap, the 200-document list query and the TTL, as for scheduled activities.
 - **Not in phase 1:** sharing a file to the installed app (Web Share Target), the "better window" suggestion for events the person controls, and keeping recurring events current beyond 10 days without importing again (phase 2's subscriptions do that).

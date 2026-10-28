@@ -10,10 +10,11 @@ import {
   type EventUV,
   type ImportedEvent,
 } from '@solara/core/event-import'
+import { confidenceNote, forecastConfidence } from '@solara/core'
 import { exposureSummary } from './activity-exposure'
 import { dayLabel } from './forecast'
 import { SKIN_TYPE_LABELS } from './profiles'
-import { formatDate } from './time'
+import { daysBetween, formatDate } from './time'
 import type { Activity, Profile, SkinType, WeatherResponse } from './types'
 import type { UnitFormatters } from './units'
 import { formatUV, uvBand, uvLabel, type UVBand } from './weather'
@@ -45,6 +46,8 @@ export interface EventCardView {
   sunscreen: string | null
   /** "Forecast from Fri, Jun 19", for an event the plan cannot see yet. */
   later: string | null
+  /** For a day 4 or more days ahead, how far to trust it (lib forecast-quality wording). */
+  confidence: string | null
   /** How the activity's setting changes the UV ("Sand, some shade · 90% of forecast UV"). */
   exposure: string | null
 }
@@ -91,7 +94,16 @@ export function eventCardView({
   const when = `${day} · ${time(start)} – ${endDay}${time(end)}`
   const setting = { shade: activity?.shade, surface: activity?.surface }
   const exposure = activity ? exposureSummary(setting) : null
-  const empty = { when, uv: null, badge: null, peak: null, burn: null, sunscreen: null, exposure }
+  const empty = {
+    when,
+    uv: null,
+    badge: null,
+    peak: null,
+    burn: null,
+    sunscreen: null,
+    confidence: null,
+    exposure,
+  }
   if (!weather) return { ...empty, later: null }
 
   const uv = eventUV({
@@ -140,6 +152,7 @@ export function eventCardView({
     burn,
     sunscreen,
     later: null,
+    confidence: confidenceNote(forecastConfidence(daysBetween(today, startDate))),
     exposure,
   }
 }
