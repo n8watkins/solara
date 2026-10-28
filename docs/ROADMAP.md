@@ -58,6 +58,7 @@ Done 2026-10-25 in #78: the peak callout stays inside the arc's box at every wid
 ### 3. Faster app load on phones (done, #83, #93)
 
 Done 2026-10-25 in #83 and #93: Lighthouse mobile LCP for `/app/` is about 2.1 s for a guest and the same for a returning account, whose dashboard now shows from this browser's copy while Firebase loads; a guest's first load is about 196 KB gzip of JavaScript, held under 200 KB by `tests/e2e/guest.spec.ts`.
+On 2026-10-28 (#127) the install prompt and the dashboard's activity plan moved out of the first load: about 189 KB, and the budget is now 193 KB.
 
 ### 4. App-shell service worker with an offline forecast (PERF-2, PROD-6 part) (done, #94)
 

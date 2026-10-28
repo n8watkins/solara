@@ -24,6 +24,7 @@ import {
   InstallPrompt,
   Onboarding,
   SignInScreen,
+  preloadActivityPlan,
   preloadDeferred,
   preloadSignedInParts,
 } from './deferred'
@@ -36,9 +37,13 @@ import { AccountLoadError, AccountLoading } from './AccountStatus'
 import ScheduledProvider from './ScheduledProvider'
 
 // A browser holding a session opens on the signed-in screen, which waits for these
-// parts (lib/use-account.ts): fetch them as soon as this module runs, not after the
-// first render.
-if (typeof window !== 'undefined' && storedSessionHint()) void preloadSignedInParts()
+// parts (lib/use-account.ts), and a guest plan with activities opens on a dashboard
+// that waits for its activity plan (ActivityPlanGate): fetch them as soon as this
+// module runs, not after the first render.
+if (typeof window !== 'undefined') {
+  if (storedSessionHint()) void preloadSignedInParts()
+  else if (loadGuestPrefs()?.activities.length) void preloadActivityPlan()
+}
 // The install prompt loads later; the browser's install event is kept from now on.
 watchInstallPrompt()
 

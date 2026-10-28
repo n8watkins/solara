@@ -1,15 +1,18 @@
 'use client'
 // Parts of the app that are not on screen when it opens: the dialogs and sheets, the
 // calendar view and the calendar feed card, the location panel, setup and the sign-in
-// screen (a returning visitor never sees them), the UV scale's bands (until opened), and the header's signed-in parts (account menu, profile
-// switcher) and scheduled activities, which a guest never sees. Each loads as its own chunk the first time it
-// renders, so the first load carries only what the opening screen shows. Soon after
-// the page has loaded, preloadDeferred() fetches them all, so opening one is instant;
-// preloadSignedInParts() fetches the signed-in header parts at once.
+// screen (a returning visitor never sees them), the UV scale's bands (until opened), the
+// install prompt, the header's signed-in parts (account menu, profile switcher) and
+// scheduled activities, which a guest never sees, and the dashboard's activity plan,
+// which a plan without activities (a new guest's) never shows. Each loads as its own
+// chunk the first time it renders, so the first load carries only what the opening
+// screen shows. Soon after the page has loaded, preloadDeferred() fetches them all, so
+// opening one is instant; preloadSignedInParts() fetches the signed-in parts at once.
 //
 // Import these instead of the modules themselves; each renders nothing (or its
 // fallback) until its chunk has arrived.
-import { useEffect, useState, type ComponentType } from 'react'
+import { useEffect, useState, type ComponentProps, type ComponentType, type ReactNode } from 'react'
+import { installEnvironment, installPromptKind } from '@/lib/install-prompt'
 import { AccountLoading } from './AccountStatus'
 
 type Loader<P> = () => Promise<{ default: ComponentType<P> }>
@@ -24,7 +27,7 @@ const PRELOAD_DELAY_MS = 1500
 function deferred<P extends object>(
   load: Loader<P>,
   Fallback: ComponentType<P> | null = null,
-): ComponentType<P> & { preload: () => Promise<unknown> } {
+): ComponentType<P> & { preload: () => Promise<unknown>; loaded: () => boolean } {
   let loaded: ComponentType<P> | null = null
   let pending: Promise<ComponentType<P>> | null = null
   const preload = () => {
@@ -57,7 +60,7 @@ function deferred<P extends object>(
     if (Component) return <Component {...props} />
     return Fallback ? <Fallback {...props} /> : null
   }
-  return Object.assign(Deferred, { preload })
+  return Object.assign(Deferred, { preload, loaded: () => loaded !== null })
 }
 
 // Code that runs only after a click, fetched with the rest so the click needs no download.
@@ -77,13 +80,99 @@ export const CalendarView = deferred(() => import('./CalendarView'))
 export const CalendarFeed = deferred(() => import('./CalendarFeed'))
 /** The UV card's cloud and confidence notes, shown on cloudy or far-off days. */
 export const ForecastNotes = deferred(() => import('./dashboard/ForecastNotes'))
-/** Floats over the page once the browser allows installing (lib/install-prompt.ts). */
-export const InstallPrompt = deferred(() => import('./InstallPrompt'))
+const InstallPromptPart = deferred(() => import('./InstallPrompt'))
 export const ActivityModals = deferred(() => import('./dashboard/ActivityModals'))
+/** A scheduled activity's details (change the time, remove it), opened from its card. */
+export const ScheduledDetails = deferred(() => import('./dashboard/ScheduledDetails'))
 export const DayDialog = deferred(() => import('./dashboard/DayDialog'))
 /** The "UV scale" disclosure's bands, once it is opened. */
 export const UVScaleBands = deferred(() => import('./dashboard/UVScaleBands'))
 export const LocationPanel = deferred(() => import('./LocationPanel'))
+
+/**
+ * The "Add to home screen" prompt (components/InstallPrompt.tsx), which floats over the
+ * page once the browser allows installing. It loads once the page has loaded and the
+ * browser is idle, like the preloads below, and only where a prompt can show (not once
+ * installed or dismissed), so none of it is part of the first load. The browser's
+ * install event is kept from start-up (lib/install-prompt.ts), so it is never missed.
+ */
+export function InstallPrompt() {
+  const [ready, setReady] = useState(false)
+  useEffect(
+    () =>
+      installPromptKind(installEnvironment()) ? afterPageLoad(() => setReady(true)) : undefined,
+    [],
+  )
+  return ready ? <InstallPromptPart /> : null
+}
+
+// The dashboard's activity plan (components/dashboard/activity-plan.ts), one chunk.
+const activityPlan = () => import('./dashboard/activity-plan')
+type ActivityPlan = Awaited<ReturnType<typeof activityPlan>>
+export const HeroSlot = deferred<ComponentProps<ActivityPlan['HeroSlot']>>(() =>
+  activityPlan().then(parts => ({ default: parts.HeroSlot })),
+)
+export const PlanAhead = deferred<ComponentProps<ActivityPlan['PlanAhead']>>(() =>
+  activityPlan().then(parts => ({ default: parts.PlanAhead })),
+)
+export const CalendarConnectBanner = deferred<
+  ComponentProps<ActivityPlan['CalendarConnectBanner']>
+>(() => activityPlan().then(parts => ({ default: parts.CalendarConnectBanner })))
+export const ActivityCards = deferred<ComponentProps<ActivityPlan['ActivityCards']>>(() =>
+  activityPlan().then(parts => ({ default: parts.ActivityCards })),
+)
+const activityPlanParts = [HeroSlot, PlanAhead, CalendarConnectBanner, ActivityCards]
+
+/** How long the dashboard waits for the activity plan before it shows without it. */
+const ACTIVITY_PLAN_WAIT_MS = 3000
+
+/**
+ * Loads the dashboard's activity plan now, for a plan with activities about to show
+ * (a guest plan at start-up, or a session about to show). Never rejects.
+ */
+export function preloadActivityPlan(): Promise<void> {
+  return Promise.all(activityPlanParts.map(part => part.preload())).then(
+    () => {},
+    () => {},
+  )
+}
+
+/**
+ * Shows `fallback` instead of the dashboard while a plan with activities waits for the
+ * activity plan's parts, so they render with the rest of the dashboard instead of
+ * popping in. Start-up fetches them as soon as it knows the plan has activities
+ * (components/App.tsx), so this is normally no wait at all. Only the first paint
+ * waits: an activity added later shows its parts once they arrive, which the preloads
+ * have long done. After ACTIVITY_PLAN_WAIT_MS, or should the download fail, the
+ * dashboard shows without them, and they appear once they load.
+ */
+export function ActivityPlanGate({
+  needed,
+  fallback,
+  children,
+}: {
+  needed: boolean
+  fallback: ReactNode
+  children: ReactNode
+}) {
+  const [ready, setReady] = useState(
+    () => !needed || activityPlanParts.every(part => part.loaded()),
+  )
+  useEffect(() => {
+    if (ready) return
+    let active = true
+    const show = () => {
+      if (active) setReady(true)
+    }
+    const timer = setTimeout(show, ACTIVITY_PLAN_WAIT_MS)
+    void preloadActivityPlan().then(show)
+    return () => {
+      active = false
+      clearTimeout(timer)
+    }
+  }, [ready])
+  return ready ? children : fallback
+}
 
 /** Keeps the sunscreen timer's place until it shows, so nothing below it moves. */
 function ReapplyTimerSpace() {
@@ -115,15 +204,17 @@ export const AccountScheduled = deferred(() => import('./scheduled/AccountSchedu
 export const EventsSection = deferred(() => import('./events/EventsSection'))
 
 /**
- * Loads the header's signed-in parts now, for a session about to show (a stored
- * session at start-up, or a sign-in in progress), so they render with the rest of the
- * header instead of popping in. Never rejects.
+ * Loads the signed-in parts now, for a session about to show (a stored session at
+ * start-up, or a sign-in in progress), so they render with the rest of the screen
+ * instead of popping in: the header's account menu and profile switcher, scheduled
+ * activities and the dashboard's activity plan. Never rejects.
  */
 export function preloadSignedInParts(): Promise<void> {
   return Promise.all([
     AccountMenu.preload(),
     ProfileSwitcher.preload(),
     AccountScheduled.preload(),
+    preloadActivityPlan(),
   ]).then(
     () => {},
     () => {},

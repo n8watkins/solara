@@ -111,12 +111,14 @@ test('a guest who comes back on a later day is offered to save the plan', async 
 /**
  * Gzip size budget for the JavaScript a guest downloads before the dashboard shows,
  * compressed like Firebase Hosting serves it (gzip level 9; browsers that accept
- * Brotli get about 15% less). Next.js and React are about 140 KB of it. Firebase, the
- * dialogs, setup, the location panel and the signed-in parts load on demand
- * (lib/firebase.ts, components/deferred.tsx), and the boundaries are validated with
- * Valibot; about 196 KB today, over 500 KB before #83.
+ * Brotli get about 15% less). Next.js and React are about 130 KB of it. Firebase, the
+ * dialogs, setup, the location panel, the install prompt, the signed-in parts and the
+ * activity plan (which a plan without activities, like a new guest's, never shows)
+ * load on demand (lib/firebase.ts, components/deferred.tsx), and the boundaries are
+ * validated with Valibot; about 189 KB today, 199 KB before #127 and over 500 KB
+ * before #83. The budget leaves a few KB for growth: raise it only with a reason.
  */
-const GUEST_FIRST_LOAD_BUDGET_KB = 200
+const GUEST_FIRST_LOAD_BUDGET_KB = 193
 
 test("a guest's first load stays within the JavaScript budget", async ({ page, baseURL }) => {
   await page.addInitScript(() => {
@@ -147,4 +149,38 @@ test("a guest's first load stays within the JavaScript budget", async ({ page, b
   expect(kb, `guest first load: ${kb.toFixed(1)} KB gzip\n${list.join('\n')}`).toBeLessThan(
     GUEST_FIRST_LOAD_BUDGET_KB,
   )
+})
+
+test('a guest plan with activities shows its activity cards with the dashboard', async ({
+  page,
+}) => {
+  // The activity plan loads on demand (components/deferred.tsx): the dashboard waits
+  // for it before its first paint, so the cards never pop in after the forecast.
+  await page.addInitScript(() => {
+    const prefs = {
+      location: { lat: 34.05, lon: -118.24, city: 'Los Angeles', region: 'California' },
+      skinType: 'fair',
+      activities: [
+        {
+          id: 'run',
+          name: 'Running',
+          icon: '🏃',
+          durationMins: 45,
+          maxUV: 4,
+          sunscreen: false,
+          timePreference: 'earliest',
+        },
+      ],
+      onboardingComplete: true,
+    }
+    localStorage.setItem('solara_guest', JSON.stringify({ prefs, since: '2026-06-15' }))
+  })
+  await page.goto('/app/')
+  // Checked in the same frame the forecast first shows.
+  const cardWithForecast = await page.waitForFunction(() => {
+    if (!document.querySelector('[aria-label="UV forecast by hour"]')) return null
+    return { card: !!document.querySelector('[data-testid="activity-card"]') }
+  })
+  expect(await cardWithForecast.jsonValue()).toEqual({ card: true })
+  await expect(page.getByTestId('activity-card')).toContainText('Running')
 })
