@@ -36,6 +36,7 @@ const forecastSchema = record({
     v.check(value => isValidTimeZone(value)),
   ),
   fetchedAt: finite,
+  stale: v.optional(v.literal(true)),
   current: record({ uv: v.pipe(finite, v.minValue(0)), tempC: finite, condition: v.string() }),
   days: v.array(
     record({

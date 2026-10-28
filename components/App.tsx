@@ -32,7 +32,7 @@ import DevPanel from './DevPanel'
 import ErrorBoundary from './ErrorBoundary'
 import AppShell, { type AppView } from './AppShell'
 import AppNotice from './AppNotice'
-import OfflineNotice from './OfflineNotice'
+import ForecastNotice from './ForecastNotice'
 import { AccountLoadError, AccountLoading } from './AccountStatus'
 import ScheduledProvider from './ScheduledProvider'
 
@@ -130,6 +130,7 @@ function SignedInApp() {
     loading: weatherLoading,
     error,
     updatedAt: weatherUpdatedAt,
+    stale: weatherStale,
     refresh: refreshWeather,
   } = useWeather(screen === 'dashboard' ? prefs?.location : null)
   const units = unitFormatters(resolveUnits(prefs))
@@ -232,7 +233,13 @@ function SignedInApp() {
           after={isDev && <DevPanel currentTier={displayTier} onOverride={setTierOverride} />}
         >
           <InstallPrompt />
-          <OfflineNotice weather={weather} updatedAt={weatherUpdatedAt} readOnly={!!pending} />
+          {/* A failed refresh has its own notice below, which also says the forecast is old. */}
+          <ForecastNotice
+            weather={weather}
+            updatedAt={weatherUpdatedAt}
+            stale={weatherStale && !error}
+            readOnly={!!pending}
+          />
           {foregroundNotice && (
             <AppNotice
               tone="notice"

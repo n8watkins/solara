@@ -62,7 +62,7 @@ The repository is an npm workspace.
   The app is `app/app/page.tsx` (`/app/`); a browser with a signed-in account that opens `/` is sent there.
   The city pages (`app/uv/`, `/uv/<city>/`) are static the same way; their typical UV by month is checked in under `lib/cities/` and rebuilt by hand with `node scripts/city-climatology.mjs` (CAMS data via the Open-Meteo Air Quality API).
 - Two service workers are built into the export after `next build` by `scripts/build-sw.mjs`.
-  `/sw.js` (`scripts/sw/shell.ts`, rules in `lib/sw-shell.mts`) is the app shell: `app/app/layout.tsx` registers it after the page loads, it precaches `/` and `/app/` with every file they load, and the app opens offline with the last forecast from `lib/cache.ts` and an offline notice (`components/OfflineNotice.tsx`).
+  `/sw.js` (`scripts/sw/shell.ts`, rules in `lib/sw-shell.mts`) is the app shell: `app/app/layout.tsx` registers it after the page loads, it precaches `/` and `/app/` with every file they load, and the app opens offline with the last forecast from `lib/cache.ts` and an offline notice (`components/ForecastNotice.tsx`, which also says when the forecast proxy served an earlier copy).
   `/firebase-messaging-sw.js` (`scripts/sw/firebase-messaging-sw.ts`) handles push and is registered by Firebase Messaging, under its own scope, only when someone turns on notifications.
 - The app's first load carries only the dashboard (about 189 KB gzip of JavaScript for a guest; `tests/e2e/guest.spec.ts` holds it under 193 KB).
   Firebase loads on demand: `lib/firebase.ts` is the only way to it, and `loadFirebase()` loads the SDK (`lib/firebase-services.ts`) when someone reaches for "Sign in" or the browser already holds a session, so a guest never downloads it.

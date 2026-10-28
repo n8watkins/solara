@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 import { captureScreen, preparePage } from './capture'
 import { HARNESS_MARKER } from './fixtures'
 
-// The offline notice (components/OfflineNotice.tsx) as the installed app shows it
+// The offline notice (components/ForecastNotice.tsx) as the installed app shows it
 // when it opens without a network: with the last forecast and when it was updated,
 // and without one. The browser reports itself offline from the first script on, so
 // the page itself still loads from the harness server. Screenshots and axe reports go

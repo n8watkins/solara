@@ -1,5 +1,5 @@
 import * as core from '@solara/core'
-import type { OpenMeteoPayload, OpenMeteoResponse } from '@solara/core'
+import type { OpenMeteoPayload, OpenMeteoResponse, ServedForecast } from '@solara/core'
 import type {
   CurrentConditions,
   DayWeather,
@@ -38,7 +38,7 @@ export const CURRENT_READING_MAX_AGE_MS = 90 * 60 * 1000
  */
 export type RawForecast = OpenMeteoPayload & {
   hourly: Required<Pick<OpenMeteoPayload['hourly'], 'uv_index' | 'temperature_2m' | 'weathercode'>>
-}
+} & Pick<ServedForecast, 'stale' | 'fetchedAt'>
 
 /** A Celsius value rounded to 0.1, or null when the provider has no finite value. */
 function roundCelsius(value: unknown): number | null {
@@ -127,10 +127,23 @@ export interface ParseOptions {
   fetchedAt?: number
 }
 
-/** Validate and normalize an Open-Meteo response into ForecastData. */
+/**
+ * When the forecast in `raw` was fetched: the proxy's own time for its earlier copy
+ * (never later than when it arrived), otherwise when it arrived.
+ */
+function servedAt(raw: ServedForecast, receivedAt: number): number {
+  return raw.stale && raw.fetchedAt ? Math.min(Date.parse(raw.fetchedAt), receivedAt) : receivedAt
+}
+
+/**
+ * Validate and normalize a provider's answer into ForecastData. The forecast proxy's
+ * earlier copy (`stale` with `fetchedAt`, @solara/core ServedForecastSchema) keeps its
+ * real age, so "now" and the notices never present it as current.
+ */
 export function parseForecast(input: RawForecast, opts: ParseOptions = {}): ForecastData {
-  const { days = FORECAST_DAYS, fetchedAt = Date.now() } = opts
-  const raw = core.parseOpenMeteoResponse(input)
+  const { days = FORECAST_DAYS } = opts
+  const raw = core.parseServedForecast(input)
+  const fetchedAt = servedAt(raw, opts.fetchedAt ?? Date.now())
   const timezone = resolveTimeZone(raw.timezone, opts.timeZone)
   const rows = rowsOf(raw)
   const forecastDays: ForecastDay[] = core
@@ -140,6 +153,7 @@ export function parseForecast(input: RawForecast, opts: ParseOptions = {}): Fore
   return {
     timezone,
     fetchedAt,
+    ...(raw.stale && { stale: true }),
     current: currentConditions(raw, rows, timezone, fetchedAt),
     days: forecastDays,
   }
@@ -232,6 +246,6 @@ export async function fetchForecast(
     days,
   }
   const provider = await forecastProvider()
-  const raw = await core.fetchProviderForecast(provider, request, { signal, timeoutMs })
+  const raw = await core.fetchServedForecast(provider, request, { signal, timeoutMs })
   return parseForecast(raw as RawForecast, { days, timeZone: location.timezone })
 }

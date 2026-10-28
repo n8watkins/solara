@@ -317,7 +317,8 @@ Open-Meteo's free API is for non-commercial use, so once Pro is sold, forecasts 
   It fails closed like the budget.
   One person rarely looks at more than a few new places an hour; a page that shows many new places at once (the Events section with many venues) gets cached forecasts or 503 for the places past the share.
 - **Stale copies while the budget is spent** (REVIEW4 H1): when Solara itself declines the upstream call (the cost guard, the budget or the caller's share), the last good forecast for the place is served up to 12 hours old (`BUDGET_LAST_GOOD_MAX_AGE_MS`, default, owner may change) instead of a 503, and the proxy's answer then carries `stale: true` and the copy's `fetchedAt`.
-  The app's parser ignores these two fields today; a 12-hour-old forecast still holds the day's hourly UV curve.
+  The app reads both through `ServedForecastSchema` in `packages/core/src/forecast.ts`, dates the forecast by `fetchedAt`, and shows a note on the dashboard saying when it was updated (`components/ForecastNotice.tsx`).
+  A 12-hour-old forecast still holds the day's hourly UV curve; the reading for "now" falls back to the forecast for the current hour once the copy is over 90 minutes old.
 - **Timeout and fallback**: the upstream call times out after 5 seconds; then the last good forecast for the place, at most 6 hours old, is served instead.
   A fallback is remembered in memory for 5 minutes, so repeated requests cost no Firestore read, and fallbacks are logged once a minute per reason.
 - **Limits**: App Check (standard), 120 requests a minute per address, three instances, and only the app's own request (the coordinates are the only input); while the cost guard is engaged, only cached forecasts are served.

@@ -66,12 +66,8 @@ const value = v.fallback(v.nullable(finiteNumber), null)
 /** A value series; anything that is not an array counts as missing. */
 const series = v.fallback(v.optional(v.array(value)), undefined)
 
-/**
- * The parts of an Open-Meteo response Solara reads. Only the hourly time axis is
- * required; every value is lenient, so a gap stays a gap instead of failing the
- * whole forecast.
- */
-export const OpenMeteoResponseSchema = record({
+/** The Open-Meteo fields Solara reads (OpenMeteoResponseSchema). */
+const openMeteoEntries = {
   timezone: v.fallback(v.optional(v.string()), undefined),
   current: v.fallback(
     v.optional(
@@ -93,13 +89,50 @@ export const OpenMeteoResponseSchema = record({
     weathercode: series,
     cloudcover: series,
   }),
-})
+}
+
+/**
+ * The parts of an Open-Meteo response Solara reads. Only the hourly time axis is
+ * required; every value is lenient, so a gap stays a gap instead of failing the
+ * whole forecast.
+ */
+export const OpenMeteoResponseSchema = record(openMeteoEntries)
 
 export type OpenMeteoResponse = v.InferOutput<typeof OpenMeteoResponseSchema>
 
 /** Validate an Open-Meteo response. Throws when it has no hourly time series. */
 export function parseOpenMeteoResponse(raw: unknown): OpenMeteoResponse {
   const result = v.safeParse(OpenMeteoResponseSchema, raw)
+  if (!result.success) throw new Error('Forecast response was incomplete')
+  return result.output
+}
+
+/**
+ * A forecast as a provider served it: Open-Meteo's shape, plus what Solara's forecast
+ * proxy adds when it answers with its last good copy from an earlier hour because the
+ * upstream budget or the caller's share is spent (functions/src/forecast/endpoints.ts):
+ * `stale: true` and `fetchedAt`, when that copy was fetched upstream (an ISO timestamp).
+ * Other providers never send either. The pair is kept only together and well formed,
+ * so a fresh answer, or a malformed marker, reads exactly like before.
+ */
+export const ServedForecastSchema = v.pipe(
+  record({
+    ...openMeteoEntries,
+    stale: v.fallback(v.optional(v.literal(true)), undefined),
+    fetchedAt: v.fallback(v.optional(v.pipe(v.string(), v.isoTimestamp())), undefined),
+  }),
+  v.transform(({ stale, fetchedAt, ...forecast }) =>
+    stale && fetchedAt && Number.isFinite(Date.parse(fetchedAt))
+      ? { ...forecast, stale, fetchedAt }
+      : forecast,
+  ),
+)
+
+export type ServedForecast = OpenMeteoResponse & { stale?: true; fetchedAt?: string }
+
+/** Validate a provider's answer (see ServedForecastSchema). Throws like parseOpenMeteoResponse. */
+export function parseServedForecast(raw: unknown): ServedForecast {
+  const result = v.safeParse(ServedForecastSchema, raw)
   if (!result.success) throw new Error('Forecast response was incomplete')
   return result.output
 }
@@ -281,8 +314,9 @@ export function solaraForecastProxy(
 }
 
 /**
- * Fetches a forecast from `provider` and validates it. Rejects on a timeout, a non-2xx
- * status or a response without an hourly time series.
+ * Fetches a forecast from `provider` and validates it as Open-Meteo's answer. Rejects on
+ * a timeout, a non-2xx status or a response without an hourly time series. The forecast
+ * proxy uses it upstream, so nothing but Open-Meteo's fields ever reaches its cache.
  */
 export async function fetchProviderForecast(
   provider: ForecastProvider,
@@ -291,6 +325,19 @@ export async function fetchProviderForecast(
 ): Promise<OpenMeteoResponse> {
   const { url, headers } = provider.request(forecast)
   return parseOpenMeteoResponse(await fetchJson(url, { ...options, headers }))
+}
+
+/**
+ * Like fetchProviderForecast, but keeps the proxy's marker for an earlier copy
+ * (ServedForecastSchema), for the app, which tells people how old such a forecast is.
+ */
+export async function fetchServedForecast(
+  provider: ForecastProvider,
+  forecast: ForecastRequest,
+  options: Omit<FetchJsonOptions, 'headers'> = {},
+): Promise<ServedForecast> {
+  const { url, headers } = provider.request(forecast)
+  return parseServedForecast(await fetchJson(url, { ...options, headers }))
 }
 
 export interface FetchJsonOptions {

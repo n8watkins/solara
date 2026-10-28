@@ -6,6 +6,7 @@ import { fetchForecast, weatherLabel } from '@/lib/forecast'
 const core = require('../functions/core')
 const sun = require('../functions/lib/feed/sun')
 const { ForecastCache } = require('../functions/lib/forecast/proxy')
+const { forecastHandler } = require('../functions/lib/forecast/endpoints')
 // The Functions log through firebase-functions/logger, resolved from functions/.
 const { logger } = createRequire(require.resolve('../functions/package.json'))(
   'firebase-functions/logger',
@@ -193,5 +194,64 @@ describe('calendar feed forecast', () => {
     vi.spyOn(logger, 'warn').mockImplementation(() => {})
     respond = async () => failing()
     await expect(cache.get({ lat: 40, lon: -74 })).rejects.toThrow('Forecast unavailable')
+  })
+})
+
+describe("the forecast proxy's earlier copy in the app", () => {
+  it('keeps its real age and the stale flag, and nothing changes for a fresh answer', async () => {
+    const t0 = Date.parse('2026-06-15T16:40:00Z')
+    let now = t0
+    const docs = new Map<string, unknown>()
+    const db = {
+      collection: () => ({
+        doc: (id: string) => ({
+          get: async () => ({ data: () => docs.get(id) }),
+          set: async (data: unknown) => docs.set(id, data),
+        }),
+      }),
+    }
+    const cache = new ForecastCache({
+      db,
+      provider: () => core.openMeteoCommercial('key'),
+      upstreamAllowed: async () => true,
+      now: () => now,
+      fetchImpl: async () => okJson(rawDay('2026-06-15', 4)),
+    })
+    let shareLeft = true
+    const handler = forecastHandler({
+      enabled: () => true,
+      cache,
+      share: { take: async () => shareLeft },
+    })
+    const answer = async () =>
+      (
+        await handler({
+          headers: { 'x-forwarded-for': '198.51.100.7' },
+          socket: {},
+          query: { lat: '34.05', lon: '-118.24' },
+        })
+      ).body
+    const place = { lat: 34.05, lon: -118.24, city: 'LA', region: 'CA', timezone: 'UTC' }
+
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(t0)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => okJson(await answer())),
+    )
+    const fresh = await fetchForecast(place, { days: 1 })
+    expect(fresh.fetchedAt).toBe(t0)
+    expect('stale' in fresh).toBe(false)
+
+    // Fifty minutes into the next hour the caller's share is spent: the proxy serves its copy.
+    shareLeft = false
+    now = t0 + 70 * 60_000
+    vi.setSystemTime(now)
+    vi.spyOn(logger, 'warn').mockImplementation(() => {})
+    vi.spyOn(logger, 'info').mockImplementation(() => {})
+    const earlier = await fetchForecast(place, { days: 1 })
+    expect(earlier.stale).toBe(true)
+    expect(earlier.fetchedAt).toBe(t0)
+    expect(earlier.days).toEqual(fresh.days)
   })
 })

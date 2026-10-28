@@ -70,6 +70,23 @@ describe('parseForecast', () => {
     expect(r.current).toEqual({ uv: 5, tempC: 25, condition: 'Partly cloudy' })
   })
 
+  it("keeps the forecast proxy's earlier copy at its real age, marked stale", () => {
+    const fetchedAt = new Date(NOW_MS - 50 * 60_000).toISOString()
+    const stale = parseForecast({ ...rawPayload(2), stale: true, fetchedAt }, { fetchedAt: NOW_MS })
+    expect(stale.stale).toBe(true)
+    expect(stale.fetchedAt).toBe(NOW_MS - 50 * 60_000)
+    // A copy that claims to be from the future is dated when it arrived.
+    const future = new Date(NOW_MS + 60_000).toISOString()
+    expect(
+      parseForecast({ ...rawPayload(2), stale: true, fetchedAt: future }, { fetchedAt: NOW_MS })
+        .fetchedAt,
+    ).toBe(NOW_MS)
+    // Without the marker, the forecast reads exactly as before.
+    const fresh = parseForecast(rawPayload(2), { fetchedAt: NOW_MS })
+    expect(Object.keys(fresh)).toEqual(['timezone', 'fetchedAt', 'current', 'days'])
+    expect(parseForecast({ ...rawPayload(2), fetchedAt }, { fetchedAt: NOW_MS })).toEqual(fresh)
+  })
+
   it('limits to `days`', () => {
     expect(parseForecast(rawPayload(10), { days: 3 }).days).toHaveLength(3)
   })

@@ -155,7 +155,7 @@ export function useAccount({
       }
 
       // Offline, the account shown from this browser's copy stays on screen, read-only
-      // with its cached forecast (components/OfflineNotice.tsx), and its saved plan
+      // with its cached forecast (components/ForecastNotice.tsx), and its saved plan
       // loads once the browser is back online instead of failing.
       if (wasCached && previousUid === u.uid) {
         await whenOnline()

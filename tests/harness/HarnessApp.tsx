@@ -16,6 +16,8 @@
 //            event-fixtures.ts; full is the sample in an account at the per-account cap);
 //            signed-in screens always get the in-memory store, empty by default
 //   (offline: the offline notice shows whenever the browser is offline, as in the app)
+//   (stale: with data=live, a forecast answer marked `stale` shows its note, as in the
+//   app; stale-forecast.spec.ts)
 //   (guest plan notice: shows when localStorage holds a record for harness-user, as in
 //   the app after a guest signs in to an existing account; guest-plan-notice.spec.ts)
 //   data   = fixture (default) | live: load the forecast through the app's real data
@@ -35,7 +37,7 @@ import { resolveUnits, unitFormatters } from '@/lib/units'
 import { UnitsContext } from '@/lib/use-units'
 import { createForecastStore, ForecastStoreProvider, useWeather } from '@/lib/use-forecast'
 import Skeleton from '@/components/Skeleton'
-import OfflineNotice from '@/components/OfflineNotice'
+import ForecastNotice from '@/components/ForecastNotice'
 import GuestPlanNotice from '@/components/GuestPlanNotice'
 import { HARNESS_NOW_MS } from './clock'
 import { HARNESS_MARKER, buildPrefs, buildUser, buildWeather } from './fixtures'
@@ -174,11 +176,13 @@ function Harness() {
             )
           }
         >
-          {/* Shown only offline (tests/harness/offline.spec.ts). The fixtures were
-              "fetched" 75 minutes before the frozen now. */}
-          <OfflineNotice
+          {/* Shown offline (tests/harness/offline.spec.ts) or for the proxy's earlier
+              copy (stale-forecast.spec.ts). The fixtures were "fetched" 75 minutes
+              before the frozen now. */}
+          <ForecastNotice
             weather={weather}
             updatedAt={initial.live ? live.updatedAt : HARNESS_NOW_MS - 75 * 60_000}
+            stale={initial.live && live.stale && !live.error}
           />
           {user && <GuestPlanNotice uid={user.uid} />}
           {initial.live && live.error && (

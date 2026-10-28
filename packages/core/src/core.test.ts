@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import {
+  appForecastRequest,
   bestWindow,
+  fetchProviderForecast,
+  fetchServedForecast,
   findWindows,
   isValidFeedToken,
   parseHourlyRows,
   parseOpenMeteoResponse,
+  parseServedForecast,
+  solaraForecastProxy,
   summarizeWindow,
 } from '@solara/core'
 
@@ -87,6 +92,48 @@ describe('Open-Meteo parsing', () => {
         cloudCover: null,
       },
     ])
+  })
+})
+
+describe("the forecast proxy's earlier copy", () => {
+  const forecast = { timezone: 'America/Los_Angeles', hourly: { time: ['2026-06-15T10:00'] } }
+  const marker = { stale: true, fetchedAt: '2026-06-15T16:40:00.000Z' }
+  const proxy = solaraForecastProxy('https://fn.example.com', 'token')
+  const REQUEST = appForecastRequest(34, -118)
+  const answering = (body: unknown) => async () => new Response(JSON.stringify(body))
+
+  it('keeps the stale marker and when the copy was fetched', async () => {
+    expect(parseServedForecast({ ...forecast, ...marker })).toMatchObject(marker)
+    const served = await fetchServedForecast(proxy, REQUEST, {
+      fetchImpl: answering({ ...forecast, ...marker }),
+    })
+    expect(served).toMatchObject(marker)
+  })
+
+  it("reads a fresh answer exactly like Open-Meteo's", () => {
+    const served = parseServedForecast(forecast)
+    expect(served).toEqual(parseOpenMeteoResponse(forecast))
+    expect(Object.keys(served)).not.toContain('stale')
+    expect(Object.keys(served)).not.toContain('fetchedAt')
+  })
+
+  it('drops a marker that is incomplete or malformed', () => {
+    for (const bad of [
+      { stale: true },
+      { fetchedAt: marker.fetchedAt },
+      { stale: 'yes', fetchedAt: marker.fetchedAt },
+      { stale: true, fetchedAt: 'this morning' },
+      { stale: true, fetchedAt: 1_750_000_000_000 },
+    ]) {
+      expect(parseServedForecast({ ...forecast, ...bad })).toEqual(parseOpenMeteoResponse(forecast))
+    }
+  })
+
+  it('never passes the marker on from the upstream fetch the proxy itself makes', async () => {
+    const upstream = await fetchProviderForecast(proxy, REQUEST, {
+      fetchImpl: answering({ ...forecast, ...marker }),
+    })
+    expect(upstream).toEqual(parseOpenMeteoResponse(forecast))
   })
 })
 
