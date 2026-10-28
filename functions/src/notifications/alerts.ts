@@ -816,7 +816,10 @@ async function claimHeadsUp(
       prior?.day === primary.key && typeof prior.attempts === 'number' ? prior.attempts + 1 : 1
     const attemptId = randomUUID()
     const claimedAt = new Date(now)
-    const record = (item: HeadsUpCandidate) => ({ same: titleHash(item.title), startMs: item.startMs })
+    const record = (item: HeadsUpCandidate) => ({
+      same: titleHash(item.title),
+      startMs: item.startMs,
+    })
     const fields: Record<string, unknown> = {
       [primary.key]: {
         day: primary.key,
