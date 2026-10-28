@@ -139,7 +139,7 @@ describe('morning alert message', () => {
   const hourly = day({ 6: 1, 7: 2, 8: 3, 9: 5, 10: 7, 11: 8, 12: 8, 13: 7, 14: 5, 15: 3 })
   const run = { name: 'Run', icon: '🏃', maxUV: 3, durationMins: 60 }
 
-  it('sends the daily briefing, titled with its best window', () => {
+  it('sends the daily briefing, titled with its lowest-UV window', () => {
     expect(
       morningAlertMessage({
         date: '2026-06-15',
@@ -151,10 +151,24 @@ describe('morning alert message', () => {
     ).toEqual({
       title: '🏃 Run: 6am to 9am',
       body:
-        'Today in Austin: UV peaks at 8.0 (Very high) around 11am. Best lower-UV window: Run 6am–9am. ' +
+        'Today in Austin: UV peaks at 8.0 (Very high) around 11am. Lowest-UV window: Run 6am–9am. ' +
         'At the peak, unprotected skin like yours can burn in about 19 min. ' +
         'Seek shade from 11am to 1pm, when UV is 8 or more. Recheck current conditions.',
     })
+  })
+
+  it('carries the briefing cloud note: what a clear sky would bring', () => {
+    const cloudy = hourly.map(h => ({ ...h, uv: Math.round(h.uv * 5) / 10, clearSkyUV: h.uv }))
+    const message = morningAlertMessage({
+      date: '2026-06-15',
+      city: 'Austin',
+      hourly: cloudy,
+      activities: [],
+      skinType: 'fair',
+    })
+    expect(message.body).toContain(
+      'Today in Austin: UV peaks at 4.0 (Moderate) around 11am, or 8.0 if the sky clears.',
+    )
   })
 
   it('skips an activity that does not run that day', () => {

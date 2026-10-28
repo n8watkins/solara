@@ -14,7 +14,7 @@ import {
   type SkinType,
 } from './recommendation'
 import type { ExposureSetting } from './exposure'
-import { planningUV } from './forecast-quality'
+import { cloudEffect, planningUV, type CloudEffect } from './forecast-quality'
 import { formatUV, uvLabel } from './uv-scale'
 
 /** One forecast hour of the briefed day (local hour, forecast UV). */
@@ -98,6 +98,11 @@ export interface DailyBriefing {
   window: BriefingWindow | null
   /** Minutes to a burn at the peak for the skin type; null without a peak or once it has passed. */
   burnMins: number | null
+  /**
+   * How much the forecast clouds lower the coming peak, when worth telling (cloudEffect);
+   * the peak line then says what UV reaches if the sky clears. Null otherwise.
+   */
+  cloud: CloudEffect | null
   /** The sentences, each without a final period. */
   lines: { peak: string; window: string; burn: string | null; tip: string }
   /** One paragraph for a share or a notification. */
@@ -177,8 +182,8 @@ function sentence(text: string): string {
 }
 
 /**
- * A day's briefing: the peak UV and its time, the best lower-UV window for the
- * person's activities (or the low-UV hours when none runs that day), the burn time
+ * A day's briefing: the peak UV and its time (and what a clear sky would bring when
+ * clouds lower it), the lowest-UV window for the person's activities (or the low-UV hours when none runs that day), the burn time
  * at the peak for their skin type and one line of advice.
  */
 export function dailyBriefing({
@@ -202,8 +207,11 @@ export function dailyBriefing({
   const range = (span: { from: number; to: number }) =>
     `${formatTime(span.from)}–${formatTime(span.to)}`
 
+  // Clouds are among the least predictable parts of a forecast, so a coming peak they
+  // lower also says what a clear sky would bring; a passed peak is history.
+  const cloud = peak && !peak.passed ? cloudEffect(hourly) : null
   const peakLine = peak
-    ? `${peak.passed ? 'UV peaked' : 'UV peaks'} at ${formatUV(peak.uv)} (${uvLabel(peak.uv)}) around ${formatTime(peak.hour)}`
+    ? `${peak.passed ? 'UV peaked' : 'UV peaks'} at ${formatUV(peak.uv)} (${uvLabel(peak.uv)}) around ${formatTime(peak.hour)}${cloud ? `, or ${formatUV(cloud.clearSky)} if the sky clears` : ''}`
     : 'UV stays near zero'
 
   const running = activities.filter(a => runsOn(a, day.date))
@@ -216,7 +224,9 @@ export function dailyBriefing({
       : null
     const who = running.length === 1 ? running[0]!.name : 'your activities'
     windowLine = best
-      ? `best lower-UV window: ${best.activity} ${range(best.window)}`
+      ? // "Lowest", not "best": the dashboard's hero names the soonest slot, which can
+        // be another window, and both must read as true at once.
+        `lowest-UV window: ${best.activity} ${range(best.window)}`
       : `no lower-UV window ${from >= 0 ? 'left ' : ''}for ${who}`
   } else {
     const spans = lowSpans(hourly, from)
@@ -258,5 +268,5 @@ export function dailyBriefing({
     .filter(Boolean)
     .map(part => sentence(part!))
     .join('. ')
-  return { date: day.date, peak, window, burnMins: burn, lines, text: `${text}.` }
+  return { date: day.date, peak, window, burnMins: burn, cloud, lines, text: `${text}.` }
 }

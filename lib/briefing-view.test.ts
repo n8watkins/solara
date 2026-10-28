@@ -39,7 +39,7 @@ describe('briefingView', () => {
     const v = view()
     expect(v.heading).toBe('Today at a glance')
     expect(v.briefing.date).toBe('2026-06-15')
-    expect(v.briefing.lines.window).toBe('Best lower-UV window: Running 6pm–8pm')
+    expect(v.briefing.lines.window).toBe('Lowest-UV window: Running 6pm–8pm')
     expect(v.locked).toBe(false)
     expect(v.shareText).toMatch(
       /^Today in Los Angeles: UV peaks at 10.3 \(Very high\) around 1pm\./,
@@ -66,7 +66,7 @@ describe('briefingView', () => {
     })
     expect(v.heading).toBe('Wed, Jun 17 at a glance')
     expect(v.briefing.peak?.passed).toBe(false)
-    expect(v.briefing.lines.window).toBe('Best lower-UV window: Running 6am–12pm')
+    expect(v.briefing.lines.window).toBe('Lowest-UV window: Running 6am–12pm')
   })
 
   it('leaves the place out of the share text when it is unknown', () => {

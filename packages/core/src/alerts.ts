@@ -183,7 +183,7 @@ export interface MorningAlertInput {
 
 /**
  * The morning alert, from the daily briefing (`dailyBriefing`, briefing.ts): the title
- * names its best lower-UV window and the activity it suits, and the body is its text,
+ * names its lowest-UV window and the activity it suits, and the body is its text,
  * so the dashboard card, a share and this push say the same.
  */
 export function morningAlertMessage(input: MorningAlertInput): AlertMessage {

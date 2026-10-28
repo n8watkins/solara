@@ -23,6 +23,7 @@ export default function UVCard({
   daysAhead,
   onSelectHour,
   showSunPath,
+  cloudToldAbove = false,
 }: {
   hourly: HourlyForecast[]
   readout: UVReadout
@@ -37,10 +38,12 @@ export default function UVCard({
   daysAhead: number
   onSelectHour: (h: HourlyForecast) => void
   showSunPath: boolean
+  /** The briefing above already says what the clouds take off this day: say it once. */
+  cloudToldAbove?: boolean
 }) {
   const fmt = useUnits()
   const { headUV, headTemp, headCond, headSuffix, headBurn } = readout
-  const cloud = cloudEffect(hourly)
+  const cloud = cloudToldAbove ? null : cloudEffect(hourly)
   const confidence = forecastConfidence(daysAhead)
   return (
     <div className="card">

@@ -268,17 +268,23 @@ function DashboardView({
             showSunPath={
               process.env.NEXT_PUBLIC_HIDE_SUNPATH !== '1' && prefs.showSunPath !== false
             }
+            cloudToldAbove={!!briefing.briefing.cloud && briefing.briefing.date === activeDateStr}
           />
 
-          <ExposureMetrics
-            burn={readout.burn}
-            vitD={readout.vitD}
-            isToday={isToday}
-            skinType={planning.skinType}
-            mostSensitive={planning.mostSensitive?.name}
-            burnFrom={readout.burn === null ? fromHour(uv => uv >= 0.5) : null}
-            vitDFrom={readout.vitD === null ? fromHour(uv => uv >= 1) : null}
-          />
+          {/* While the sun is down the readout already says when UV returns, and the
+              briefing gives the burn time at the coming peak: the estimates would only
+              repeat "until 7am" twice more. */}
+          {!down && (
+            <ExposureMetrics
+              burn={readout.burn}
+              vitD={readout.vitD}
+              isToday={isToday}
+              skinType={planning.skinType}
+              mostSensitive={planning.mostSensitive?.name}
+              burnFrom={readout.burn === null ? fromHour(uv => uv >= 0.5) : null}
+              vitDFrom={readout.vitD === null ? fromHour(uv => uv >= 1) : null}
+            />
+          )}
 
           {isToday && down?.phase !== 'after-sunset' && <SunscreenTimer />}
 

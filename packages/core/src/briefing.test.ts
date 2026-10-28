@@ -51,12 +51,12 @@ describe('dailyBriefing', () => {
     expect(briefing.burnMins).toBe(16)
     expect(briefing.lines).toEqual({
       peak: 'UV peaks at 9.3 (Very high) around 1pm',
-      window: 'Best lower-UV window: Running 6am–10am',
+      window: 'Lowest-UV window: Running 6am–10am',
       burn: 'At the peak, unprotected skin like yours can burn in about 16 min',
       tip: 'Seek shade from 12pm to 4pm, when UV is 8 or more',
     })
     expect(briefing.text).toBe(
-      'Tomorrow: UV peaks at 9.3 (Very high) around 1pm. Best lower-UV window: Running 6am–10am. ' +
+      'Tomorrow: UV peaks at 9.3 (Very high) around 1pm. Lowest-UV window: Running 6am–10am. ' +
         'At the peak, unprotected skin like yours can burn in about 16 min. ' +
         'Seek shade from 12pm to 4pm, when UV is 8 or more.',
     )
@@ -174,7 +174,7 @@ describe('dailyBriefing', () => {
       skinType: 'fair',
       formatTime: clock24,
     })
-    expect(briefing.lines.window).toBe('Best lower-UV window: Running 06:00–10:00')
+    expect(briefing.lines.window).toBe('Lowest-UV window: Running 06:00–10:00')
   })
 
   it('is deterministic', () => {
@@ -218,6 +218,48 @@ describe('dailyBriefing and clouds', () => {
         skinType: 'fair',
       }).lines.window
     expect(plan(false)).toBe('No lower-UV window for Running')
-    expect(plan(true)).toBe('Best lower-UV window: Running 6am–10am')
+    expect(plan(true)).toBe('Lowest-UV window: Running 6am–10am')
+  })
+
+  it('says what a clear sky would bring to a coming peak the clouds lower', () => {
+    const overcast = {
+      date: '2026-06-18',
+      hourly: SUMMER.map((uv, i) => ({
+        hour: 6 + i,
+        uv: Math.round(uv * 6) / 10,
+        clearSkyUV: uv,
+      })),
+    }
+    const briefing = dailyBriefing({
+      day: overcast,
+      dayLabel: 'Thu',
+      activities: [],
+      skinType: 'fair',
+    })
+    expect(briefing.cloud).toEqual({ uv: 6.2, clearSky: 10.3 })
+    expect(briefing.lines.peak).toBe('UV peaks at 6.2 (High) around 1pm, or 10.3 if the sky clears')
+    expect(briefing.text).toMatch(
+      /^Thu: UV peaks at 6\.2 \(High\) around 1pm, or 10\.3 if the sky clears\. /,
+    )
+    // A passed peak is history: no clear-sky note.
+    const later = dailyBriefing({
+      day: overcast,
+      dayLabel: 'Today',
+      nowHour: 16.5,
+      activities: [],
+      skinType: 'fair',
+    })
+    expect(later.cloud).toBeNull()
+    expect(later.lines.peak).toBe('UV peaked at 6.2 (High) around 1pm')
+  })
+
+  it('keeps quiet about a small cloud effect', () => {
+    const hazy = {
+      date: '2026-06-18',
+      hourly: SUMMER.map((uv, i) => ({ hour: 6 + i, uv, clearSkyUV: uv + 0.6 })),
+    }
+    const briefing = dailyBriefing({ day: hazy, dayLabel: 'Thu', activities: [], skinType: 'fair' })
+    expect(briefing.cloud).toBeNull()
+    expect(briefing.lines.peak).toBe('UV peaks at 10.3 (Very high) around 1pm')
   })
 })
