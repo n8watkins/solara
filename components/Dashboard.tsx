@@ -27,14 +27,21 @@ import { briefingView } from '@/lib/briefing-view'
 import { buildEventDescription } from '@/lib/gcal-view'
 import type { SlotRecommendation } from '@/lib/scheduler'
 import { useScheduled } from '@/lib/scheduled-context'
-import { EventsSection, PricingModal, ScheduledDetails, SunscreenTimer } from './deferred'
+import {
+  ActivityPlanGate,
+  EventsSection,
+  HeroSlot,
+  PricingModal,
+  ScheduledDetails,
+  SunscreenTimer,
+} from './deferred'
 import ActivitiesSection from './dashboard/ActivitiesSection'
 import DailyBriefing from './dashboard/DailyBriefing'
 import DayPicker from './dashboard/DayPicker'
 import ExposureMetrics from './dashboard/ExposureMetrics'
 import { planningFor } from '@solara/core'
-import HeroSlot from './dashboard/HeroSlot'
 import UVCard from './dashboard/UVCard'
+import Skeleton from './Skeleton'
 
 interface Props {
   /** The signed-in account, for checkout from the Pro plans dialog. */
@@ -48,7 +55,20 @@ interface Props {
   onSelectDay: (day: DayWeather | null) => void
 }
 
-export default function Dashboard({
+/**
+ * The dashboard. A plan with activities shows once the activity plan's parts have
+ * loaded (ActivityPlanGate in components/deferred.tsx), with the loading skeleton until
+ * then.
+ */
+export default function Dashboard(props: Props) {
+  return (
+    <ActivityPlanGate needed={props.prefs.activities.length > 0} fallback={<Skeleton />}>
+      <DashboardView {...props} />
+    </ActivityPlanGate>
+  )
+}
+
+function DashboardView({
   user,
   weather,
   prefs,

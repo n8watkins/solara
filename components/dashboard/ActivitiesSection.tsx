@@ -13,12 +13,15 @@ import { useUpsellDismissal } from '@/lib/upsell'
 import GoogleSignInButton from '../GoogleSignInButton'
 import Upsell from '../Upsell'
 import type { useCalendarBusy } from '@/hooks/useCalendarBusy'
-import ActivityCards from '../ActivityCards'
-import { ActivityModals, CalendarFeed } from '../deferred'
-import PlanAhead from '../PlanAhead'
+import {
+  ActivityCards,
+  ActivityModals,
+  CalendarConnectBanner,
+  CalendarFeed,
+  PlanAhead,
+} from '../deferred'
 import ActivitiesIntro from './ActivitiesIntro'
 import ActivityEmptyState from './ActivityEmptyState'
-import CalendarConnectBanner from './CalendarConnectBanner'
 
 /**
  * The dashboard's Activities section: the week's best days, calendar options,
