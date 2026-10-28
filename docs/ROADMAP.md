@@ -133,7 +133,8 @@ Candidates, roughly ranked by impact over effort:
 6. **Better skin typing** - done (#103): named Fitzpatrick types in setup, Settings and profiles, and an optional five-question quiz with the questionnaire's standard scoring.
 7. City landing pages for search traffic (builds on the static landing page).
 8. **Shade and surface reflection factors** - done (#109): each activity can set its typical shade and the surface around it, which scale the UV it is planned against (cited, cautious factors in `packages/core/src/exposure.ts`), in the app and the calendar feed.
-9. Linking with live events from Strava, Meetup and similar services, so Solara can plan around them (owner's idea, not yet scoped).
+9. Linking with live events from Strava, Meetup and similar services, so Solara can plan around them (owner's idea) - scoped in [integrations/EVENTS.md](integrations/EVENTS.md).
+   Recommended: .ics import first (phase 1, no Blaze and no partner approval), then link subscriptions and Pro heads-ups on Blaze, optionally events already in Google Calendar, and Strava last (no future events in its API, a developer subscription and a 10-athlete cap); the Meetup, Eventbrite, Komoot and Garmin APIs are not needed.
 
 ### 13. Wave 6: mobile app (owner's learning project)
 
