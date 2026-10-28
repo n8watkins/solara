@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { daylightHours, sunPhaseAt, sunTimes } from './sun-times'
+import { daylightHours, normalizeLongitude, sunPhaseAt, sunTimes } from './sun-times'
 import { wallClockAt, zonedDate } from './zoned-time'
 
 /** "HH:MM" in `timeZone` for an instant. */
@@ -50,10 +50,49 @@ describe('sunTimes', () => {
     })
   })
 
+  it('gives the same sun at the date line whether it is called -180 or 180 (REVIEW7 L7.4)', () => {
+    // Fiji's zone is 12 hours ahead of UTC, so its noon at the date line is 00:00 UTC; at
+    // exactly -180 every noon tried used to fall on the wrong local date.
+    const east = sunTimes(-16.5, 180, '2026-10-28', 'Pacific/Fiji')
+    const west = sunTimes(-16.5, -180, '2026-10-28', 'Pacific/Fiji')
+    expect(east?.kind).toBe('rises')
+    expect(west).toEqual(east)
+    // A longitude written past the date line is the same place.
+    expect(sunTimes(-16.5, 540, '2026-10-28', 'Pacific/Fiji')).toEqual(east)
+    expect(sunTimes(LA.lat, LA.lon + 360, '2026-10-28', 'America/Los_Angeles')).toEqual(
+      sunTimes(LA.lat, LA.lon, '2026-10-28', 'America/Los_Angeles'),
+    )
+    expect(daylightHours({ lat: -16.5, lon: -180 }, '2026-10-28', 'Pacific/Fiji')).toEqual(
+      daylightHours({ lat: -16.5, lon: 180 }, '2026-10-28', 'Pacific/Fiji'),
+    )
+  })
+
+  it('finds the sun for every longitude, on the place’s own date', () => {
+    for (let lon = -180; lon <= 180; lon += 7.5) {
+      for (const timeZone of ['UTC', 'Pacific/Fiji', 'Pacific/Kiritimati', 'Pacific/Pago_Pago']) {
+        const sun = sunTimes(10, lon, '2026-10-28', timeZone)
+        expect(sun?.kind, `${lon} ${timeZone}`).toBe('rises')
+      }
+    }
+  })
+
   it('refuses what it cannot use', () => {
     expect(sunTimes(Number.NaN, 0, '2026-06-15', 'UTC')).toBeNull()
     expect(sunTimes(95, 0, '2026-06-15', 'UTC')).toBeNull()
     expect(sunTimes(0, 0, 'not-a-date', 'UTC')).toBeNull()
+  })
+})
+
+describe('normalizeLongitude', () => {
+  it('names every longitude once, in (-180, 180]', () => {
+    expect(normalizeLongitude(-180)).toBe(180)
+    expect(normalizeLongitude(180)).toBe(180)
+    expect(normalizeLongitude(0)).toBe(0)
+    expect(normalizeLongitude(-118.24)).toBeCloseTo(-118.24, 10)
+    expect(normalizeLongitude(181)).toBe(-179)
+    expect(normalizeLongitude(-181)).toBe(179)
+    expect(normalizeLongitude(540)).toBe(180)
+    expect(normalizeLongitude(-540)).toBe(180)
   })
 })
 

@@ -70,6 +70,16 @@ function sunAround(lat: number, lon: number, approxNoonMs: number): SunTimes & {
 }
 
 /**
+ * `lon` as a longitude in (-180, 180]. The date line has two names, -180 and 180, and the
+ * three noons tried below are spaced for longitudes in that range: at exactly -180 they
+ * all fell on the wrong local date in a zone such as Pacific/Fiji (REVIEW7 L7.4).
+ */
+export function normalizeLongitude(lon: number): number {
+  const wrapped = ((((lon + 180) % 360) + 360) % 360) - 180
+  return wrapped === -180 ? 180 : wrapped
+}
+
+/**
  * The sun on `dateStr` (YYYY-MM-DD, the place's local date) at `lat`, `lon` in
  * `timeZone`: the solar noon whose local date is `dateStr`, and the sunrise and sunset
  * around it. Null for coordinates, a date or a time zone it cannot use.
@@ -82,13 +92,14 @@ export function sunTimes(
 ): SunTimes | null {
   if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90) return null
   if (!isIanaTimeZone(timeZone)) return null
+  const lng = normalizeLongitude(lon)
   const midnight = Date.parse(`${dateStr}T00:00:00Z`)
   if (!Number.isFinite(midnight)) return null
   // Local noon is near 12:00 at the place's longitude; a zone far from its meridian (or
   // across the date line) can put that noon on the UTC day before or after.
   for (const offset of [0, -1, 1]) {
-    const approxNoon = midnight + offset * DAY_MS + (720 - 4 * lon) * MINUTE_MS
-    const { noon, ...sun } = sunAround(lat, lon, approxNoon)
+    const approxNoon = midnight + offset * DAY_MS + (720 - 4 * lng) * MINUTE_MS
+    const { noon, ...sun } = sunAround(lat, lng, approxNoon)
     if (zonedDate(noon, timeZone) === dateStr) return sun
   }
   return null
