@@ -264,7 +264,10 @@ describe('networks and the reserve (REVIEW5 L1)', () => {
       weight: 4,
     })
     // IPv6 (already /64 and /48) and accounts are unchanged.
-    assert.deepEqual(shareScopes(addressScopes('2001:db8:1:2::9')), addressScopes('2001:db8:1:2::9'))
+    assert.deepEqual(
+      shareScopes(addressScopes('2001:db8:1:2::9')),
+      addressScopes('2001:db8:1:2::9'),
+    )
     assert.deepEqual(shareScopes([{ key: 'uid:abc', weight: 1 }]), [{ key: 'uid:abc', weight: 1 }])
   })
 
