@@ -4,8 +4,27 @@ _Scoped 2026-10-27 by lane INTEG._
 _Every external fact below was checked against the cited page on 2026-10-27._
 
 This is the design for [ROADMAP item 12.9](../ROADMAP.md#12-wave-5-features): linking events from Strava, Meetup and similar services so Solara can plan around them.
-It is a scoping document; no product code exists for it yet.
+Phase 1 is built (see [Phase 1 as built](#phase-1-as-built)); the later phases are still a plan.
 Files marked "(new)" are planned.
+
+## Phase 1 as built
+
+_Built 2026-10-27 by lane EVENTS._
+
+- **Where it shows:** an Events section on the dashboard, under the burn and vitamin D estimates, for every signed-in account (`components/events/EventsSection.tsx`, loaded on demand from `components/deferred.tsx`).
+  The plan below says "the Scheduled view", but Scheduled is not a view of its own and is switched off until the Google OAuth client ID is set, so tying events to it would hide them in production.
+  Guests do not see it; the plan comparison lists it as a Free and Pro feature.
+- **Parser:** written for Solara in `packages/core/src/ics-parse.ts` with `packages/core/src/rrule.ts` and `packages/core/src/zoned-time.ts`, rather than a library.
+  ical.js is the well-maintained choice, but it is about 25 KB gzip, more than this importer needs, and it would also have to be declared and bundled for Functions; node-ical is Node-only.
+  The in-house reader covers what event feeds send (unfolding, escapes, UTC, floating and TZID times with IANA names, Windows names, Mozilla-style paths, `X-LIC-LOCATION` and VTIMEZONE rules; RRULE with DAILY to YEARLY, INTERVAL, COUNT, UNTIL, BYDAY with ordinals, BYMONTHDAY, BYMONTH, BYSETPOS and WKST; RDATE, EXDATE and RECURRENCE-ID overrides), rejects rules it cannot expand faithfully (reading only their first date), and has unit tests for each case, including RFC 5545's own examples and malformed input.
+- **Limits:** 1 MB per file, 5,000 VEVENTs read, 200 events kept (the soonest), 50 occurrences per recurring event; recurring events are expanded over the next 10 days (the longest forecast), and a series with nothing in that range shows its next occurrence.
+  One-off events more than a year ahead and events longer than a week are skipped; an event with no end or duration counts as one hour.
+- **Places:** `GEO` is used as given (named by the first part of `LOCATION`, else by the reverse lookup in `lib/geocoding.ts`); `LOCATION` text is searched at town level with the existing place search and its rate limit and cache, picking the same-named town nearest the person, for at most 10 distinct texts per import.
+  Anything else uses the person's place and says so, with "Set the place", which moves every occurrence of that event.
+  Re-importing keeps the place and activity the person chose.
+- **Storage:** `users/{uid}/events/{key}` as planned, typed and capped in `packages/core/src/events.ts` and `firestore.rules`, with `expireAt` (30 days after the end) for the TTL policy in `infra/firestore-ttl.sh`, in the account export (`importedEvents`) and removed by account deletion with the rest of `users/{uid}`.
+  The rules cannot count documents, so the number of events per account is bounded by the import cap, the 200-document list query and the TTL, as for scheduled activities.
+- **Not in phase 1:** sharing a file to the installed app (Web Share Target), the "better window" suggestion for events the person controls, and keeping recurring events current beyond 10 days without importing again (phase 2's subscriptions do that).
 
 ## Recommendation in short
 
