@@ -106,7 +106,7 @@ Left for the owner: the Stripe test-mode run on the staging project, then the [F
 ### 10. Wave 3 phase 2: Pro-only morning alerts (W3-B) (built)
 
 Built 2026-10-27 and switched off behind `ALERTS_ENABLED`; closes OPS-4, BE-19 and BE-11 in code.
-The scheduled `alerts` Function (`functions/src/notifications/`) runs every 15 minutes for every time zone (D6), as the second of Cloud Scheduler's three free jobs, and sends each entitled Pro account (active, trialing or in the `past_due` grace period) one morning alert per local morning at its chosen hour, at most once per day, with per-run caps, a saved cursor, the cost guard, and removal of devices whose token FCM rejects.
+The scheduled `alerts` Function (`functions/src/notifications/`) runs every 15 minutes for every time zone (D6), as the second of Cloud Scheduler's three free jobs, and sends each entitled Pro account (active, trialing or in the `past_due` grace period) one morning alert per local morning at its chosen hour, at most once per day, with per-run caps, a saved cursor, the owner's cost-guard pin, and removal of devices whose token FCM rejects.
 Its own least-privilege identity is created by `infra/alerts-identity.sh` and named by `ALERTS_SERVICE_ACCOUNT`.
 The emulator test (`functions/test/emulator/alerts.test.js`) simulates a day of runs across time zones: one alert per entitled account per local morning, none to Free, canceled, lapsed or deleting accounts.
 The GitHub Actions notifier is retired.
@@ -156,6 +156,7 @@ The third security review (2026-10-27) found that a request flood could still ru
 The owner's requirement: nobody can abuse the Blaze setup or run up costs, and it is not easy to break.
 
 - **Cheap rejections and client addresses (H1, M2, M6):** a rejected request is turned away before any Firestore read or upstream call and logged once a minute instead of once per request; the HTTP instance caps are launch-sized (15 in all, down from 37); `infra/logging.sh` drops 99% of rejected-request logs; IPv6 clients are limited per /64; a runtime self-check and `infra/check-client-address.sh` catch a wrong `TRUSTED_PROXY_HOPS` ([DEPLOYMENT.md](DEPLOYMENT.md#cost-and-abuse-limits), [COSTS.md](COSTS.md#worst-case-under-a-flood)).
+- **A real hard stop that cannot be turned against paying users (H1, H2, L1, L2):** a $25 budget with three tiers (warn at 50%, cost guard at 100%, detach billing at 300%, on by default); a budget-engaged guard ends by itself at the next budget period and the owner releases it with `infra/cost-guard.sh released --apply`; the scheduled Pro alerts are never paused by the budget; `budgetAlert` acts only on `BUDGET_ID` and runs as its own `solara-budget` identity, the only one allowed to detach billing ([RUNBOOK.md](RUNBOOK.md#budget-kill-switch)).
 
 ## Decisions
 
@@ -176,7 +177,8 @@ The steps behind each one are in the [owner checklist](OWNER_CHECKLIST.md).
 | D10 | Error reporting | Decided 2026-10-23: Sentry; code shipped in #70, waits for the owner's DSN |
 | D11 | Bot protection | Decided 2026-10-23: App Check with reCAPTCHA v3; works without code changes, waits for the owner's site key |
 | D12 | Local branch and worktree cleanup on the owner's machine | Open, any time |
-| Blaze | Billing plan | Decided 2026-10-23: stay on Spark until Pro launches, then Blaze with a $5 budget alert ([COSTS.md](COSTS.md)) |
+| Blaze | Billing plan | Decided 2026-10-23: stay on Spark until Pro launches, then Blaze with a budget and its kill switch ([COSTS.md](COSTS.md)) |
+| Budget | Budget and kill switch tiers | Default, owner may change (2026-10-27, item 14): $25 a month; warn at 50%, cost guard at 100% until the next period, detach billing at 300% (on by default, `COST_GUARD_DETACH_BILLING=false` turns it off); the scheduled Pro alerts are never paused by the budget |
 | Price | Pro price | Decided 2026-10-24: $2.99 a month or $19.99 a year, 7-day free trial, waitlist until billing launches |
 | Tiers | Plans | Decided 2026-10-24: as shipped in #71, below |
 | Testing | Where tests run | Decided 2026-10-24: fast checks locally, full suites on GitHub Actions (#74) |

@@ -3,7 +3,7 @@
 import { applicationDefault } from 'firebase-admin/app'
 import { getAuth } from 'firebase-admin/auth'
 import { logger } from 'firebase-functions/logger'
-import { defineBoolean, defineInt } from 'firebase-functions/params'
+import { defineBoolean, defineInt, defineString } from 'firebase-functions/params'
 import { onMessagePublished } from 'firebase-functions/v2/pubsub'
 import { onSchedule } from 'firebase-functions/v2/scheduler'
 
@@ -14,7 +14,13 @@ import { processPendingCheckoutCleanups } from '../billing/checkout'
 import { STRIPE_SECRET_KEY, stripeClient } from '../billing/config'
 import { db, serverTimestamp } from '../shared/firebase'
 import { pubSubOptions, scheduleOptions } from '../shared/options'
-import { cloudBillingDisabler, handleBudgetNotification, parseBudgetNotification } from './budget'
+import {
+  budgetServiceAccount,
+  cloudBillingDisabler,
+  fromExpectedBudget,
+  handleBudgetNotification,
+  parseBudgetNotification,
+} from './budget'
 import { runMaintenance } from './maintenance'
 
 /** Each run walks at most this many backfill pages; a completed backfill costs one read. */
@@ -65,24 +71,48 @@ export const maintenance = onSchedule(
  * A literal, not a param, so the deploy names the trigger exactly.
  */
 const BUDGET_TOPIC = 'budget-alerts'
+/** One WARNING per budget period at this percentage of the budget amount. */
+const COST_GUARD_WARN_PERCENT = defineInt('COST_GUARD_WARN_PERCENT', { default: 50 })
 /** Engage the cost guard at this percentage of the budget amount. */
 const COST_GUARD_THRESHOLD_PERCENT = defineInt('COST_GUARD_THRESHOLD_PERCENT', { default: 100 })
-/** Opt-in last resort: detach billing at COST_GUARD_DETACH_THRESHOLD_PERCENT. */
-const COST_GUARD_DETACH_BILLING = defineBoolean('COST_GUARD_DETACH_BILLING', { default: false })
+/**
+ * The hard stop: detach billing at COST_GUARD_DETACH_THRESHOLD_PERCENT. On by default
+ * (default, owner may change); the deploy writes `false` only when the
+ * COST_GUARD_DETACH_BILLING repository variable is `false`.
+ */
+const COST_GUARD_DETACH_BILLING = defineBoolean('COST_GUARD_DETACH_BILLING', { default: true })
 const COST_GUARD_DETACH_THRESHOLD_PERCENT = defineInt('COST_GUARD_DETACH_THRESHOLD_PERCENT', {
-  default: 200,
+  default: 300,
 })
+/**
+ * The id of the budget infra/budget.sh created (the BUDGET_ID repository variable).
+ * Notifications from any other budget are ignored; empty accepts every budget.
+ */
+const BUDGET_ID = defineString('BUDGET_ID', { default: '' })
 
 export const budgetAlert = onMessagePublished(
-  pubSubOptions(BUDGET_TOPIC, { timeoutSeconds: 60 }),
+  {
+    ...pubSubOptions(BUDGET_TOPIC, { timeoutSeconds: 60 }),
+    // Its own identity, the only one allowed to detach billing (finding L2).
+    ...(budgetServiceAccount() ? { serviceAccount: budgetServiceAccount() } : {}),
+  },
   async event => {
-    const notification = parseBudgetNotification(event.data.message.json)
+    const message = event.data.message
+    if (!fromExpectedBudget(message.attributes, BUDGET_ID.value())) {
+      // Another budget pointed at the topic, or a message that is not Cloud Billing's.
+      logger.error('budgetAlert ignored a notification from another budget', {
+        budgetId: message.attributes?.budgetId ?? null,
+      })
+      return
+    }
+    const notification = parseBudgetNotification(message.json)
     if (!notification) {
       logger.warn('budgetAlert ignored a message that is not a budget notification')
       return
     }
     const result = await handleBudgetNotification({
       config: {
+        warnThreshold: COST_GUARD_WARN_PERCENT.value() / 100,
         threshold: COST_GUARD_THRESHOLD_PERCENT.value() / 100,
         detachThreshold: COST_GUARD_DETACH_THRESHOLD_PERCENT.value() / 100,
         detachBilling: COST_GUARD_DETACH_BILLING.value(),

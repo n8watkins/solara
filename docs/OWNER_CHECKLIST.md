@@ -64,13 +64,15 @@ Already done: the domain move to `solara-uv.web.app`, the Firestore index role (
 
 12. **Upgrade to Blaze with a budget and the kill switch (about 20 minutes).**
     1. Upgrade the Firebase project to **Blaze** at https://console.firebase.google.com/project/uv-activity-planner/usage/details and attach the billing account.
-    2. Create the budget and its Pub/Sub topic, which the `budgetAlert` Function listens to.
+    2. Create the budget, its Pub/Sub topic and the kill switch's own identity.
        From a shell signed in as the owner (`gcloud auth login`), print the commands first, read them, then run them:
-       `BILLING_ACCOUNT=<billing account id> infra/budget.sh`, then the same with `--apply`.
-       The billing account id is on https://console.cloud.google.com/billing.
-       Or in the console: **Billing**, **Budgets & alerts**, **Create budget**; scope the project `uv-activity-planner`; amount **$5** monthly; thresholds 50%, 90% and 100% of actual spend and 100% of forecasted spend; under **Manage notifications** tick **Connect a Pub/Sub topic to this budget** and choose (or create) `projects/uv-activity-planner/topics/budget-alerts`.
-    3. Leave the last resort (detaching billing) off unless you want the site to go down rather than spend more than twice the budget; to turn it on, run the script again with `DETACH_BILLING=true` and set the `COST_GUARD_DETACH_BILLING` repository variable to `true` ([runbook](RUNBOOK.md#budget-kill-switch)).
-    4. App Check order: Functions enforce App Check in their code from their first deploy, so the site key from step 5 must be live first; Firestore enforcement stays the console switch from step 5, after a week of metrics; never enforce **Authentication**.
+       `BILLING_ACCOUNT=<billing account id> DEPLOY_SA=<deploy service account email> infra/budget.sh`, then the same with `--apply`.
+       The billing account id is on https://console.cloud.google.com/billing; the deploy service account is the one from [WIF_SETUP.md](WIF_SETUP.md).
+       It creates a **$25** monthly budget with emails at 50%, 90%, 100% and 300% (defaults, owner may change: `BUDGET_AMOUNT=40USD` for another amount).
+    3. Set the two repository variables the script prints, `BUDGET_ID` and `BUDGET_SERVICE_ACCOUNT`, so the kill switch acts only on this budget and runs as the identity that alone may detach billing.
+    4. The kill switch then warns at 50% of the budget, pauses the traffic-driven paths at 100% until the next month, and detaches billing at 300% ($75 by default), which stops the Functions while Hosting keeps serving the site ([runbook](RUNBOOK.md#budget-kill-switch)).
+       That hard stop is on by default (default, owner may change); to keep spending instead, run the script with `DETACH_BILLING=false` and set the `COST_GUARD_DETACH_BILLING` repository variable to `false`.
+    5. App Check order: Functions enforce App Check in their code from their first deploy, so the site key from step 5 must be live first; Firestore enforcement stays the console switch from step 5, after a week of metrics; never enforce **Authentication**.
 13. **Staging and Stripe test mode first (D9, about an hour with the agent).** Create a staging Firebase project (Blaze, with its own budget from step 12) and use Stripe in **test mode**; do steps 14-16 there first, run the checks in [Functions and Stripe](#functions-and-stripe), then repeat them for `uv-activity-planner` with live Stripe keys.
 14. **First Functions deploy (about 20 minutes).**
     1. Grant the deploy identity the extra Functions roles ([WIF_SETUP.md](WIF_SETUP.md#extra-roles-when-functions-are-enabled)).
@@ -154,7 +156,7 @@ Decision D10 is Sentry; the steps are [step 6](#now-free-no-blaze) above, and ho
 
 Everything in this section waits for the Pro launch (roadmap item 9); see [Firebase Functions and Stripe](DEPLOYMENT.md#firebase-functions-and-stripe) for the commands.
 
-- [ ] Upgrade `uv-activity-planner` to Blaze, attach the billing account, and create a budget alert first.
+- [ ] Upgrade `uv-activity-planner` to Blaze, attach the billing account, and create the budget and the kill switch's identity first (`infra/budget.sh`, step 12).
 - [ ] Decide D9: create a staging Firebase project and use Stripe test mode there first.
 - [ ] Grant the deploy identity the extra Functions roles ([WIF_SETUP.md](WIF_SETUP.md#extra-roles-when-functions-are-enabled)).
 - [ ] In Stripe (test mode first), create the product **Solara Pro** with two recurring prices, **$2.99 per month** and **$19.99 per year** (no trial on the prices; checkout adds the 7-day trial), and set their ids as the `STRIPE_PRICE_ID` (monthly) and `STRIPE_YEARLY_PRICE_ID` (yearly) repository variables.
