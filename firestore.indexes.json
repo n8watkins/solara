@@ -74,6 +74,11 @@
       "indexes": []
     },
     {
+      "collectionGroup": "forecastUpstream",
+      "fieldPath": "expireAt",
+      "indexes": []
+    },
+    {
       "collectionGroup": "notificationRegistrationLimits",
       "fieldPath": "expireAt",
       "indexes": []

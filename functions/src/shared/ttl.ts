@@ -25,6 +25,8 @@ export const RETENTION_DAYS = Object.freeze({
   alertState: 7,
   /** A cached forecast is replaced every hour; a day covers the last-good fallback. */
   forecastCache: 1,
+  /** The forecast upstream budget's counters name one hour or day; two days covers both. */
+  forecastUpstream: 2,
 })
 
 const DAY_MS = 24 * 60 * 60 * 1000

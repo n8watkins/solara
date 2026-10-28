@@ -7,12 +7,15 @@ const assert = require('node:assert/strict')
 const core = require('../core/index.js')
 const { commercialProvider } = require('../lib/forecast/config')
 const {
+  FALLBACK_RETRY_MS,
   ForecastCache,
   LAST_GOOD_MAX_AGE_MS,
   forecastHour,
+  gridPlace,
   placeKey,
   requestedPlace,
 } = require('../lib/forecast/proxy')
+const { UpstreamBudget } = require('../lib/forecast/upstream-budget')
 const { captureLogs } = require('./support/logs')
 
 const logs = captureLogs()
@@ -69,14 +72,33 @@ function upstream() {
   return { calls, fetchImpl, respondWith: fn => (respond = fn) }
 }
 
-function cache(db, net, { now, provider = commercialProvider('key-123'), allowed = true } = {}) {
+function cache(
+  db,
+  net,
+  { now, provider = commercialProvider('key-123'), allowed = true, upstreamBudget } = {},
+) {
   return new ForecastCache({
     db,
     provider: () => provider,
     upstreamAllowed: async () => allowed,
+    upstreamBudget,
     now: () => now.value,
     fetchImpl: net.fetchImpl,
   })
+}
+
+/** A budget stand-in that allows `left` calls in all. */
+function budget(left) {
+  const state = { left, asked: 0 }
+  return {
+    state,
+    take: async () => {
+      state.asked += 1
+      if (state.left <= 0) return false
+      state.left -= 1
+      return true
+    },
+  }
 }
 
 describe('forecast providers', () => {
@@ -118,7 +140,7 @@ describe('forecast providers', () => {
 })
 
 describe('forecast proxy requests', () => {
-  test('rounds the place to the 0.01 degree cache grid and refuses anything else', () => {
+  test('rounds the place to 0.01 degree and refuses anything else', () => {
     assert.deepEqual(requestedPlace({ lat: '34.0522', lon: '-118.2437' }), {
       lat: 34.05,
       lon: -118.24,
@@ -139,6 +161,24 @@ describe('forecast proxy requests', () => {
         JSON.stringify(query),
       )
     }
+  })
+
+  test('snaps places to the 0.02 degree cache grid', () => {
+    assert.deepEqual(gridPlace({ lat: 34.05, lon: -118.24 }), { lat: 34.06, lon: -118.24 })
+    assert.deepEqual(gridPlace({ lat: 34.031, lon: -118.269 }), { lat: 34.04, lon: -118.26 })
+    assert.deepEqual(gridPlace({ lat: -0.03, lon: 179.99 }), { lat: -0.02, lon: 180 })
+    assert.equal(placeKey(gridPlace({ lat: -0.01, lon: 0 })), '0.00_0.00')
+    assert.deepEqual(gridPlace({ lat: 90, lon: -180 }), { lat: 90, lon: -180 })
+    // Four 0.01 degree points share one cell.
+    const keys = new Set(
+      [
+        [34.05, -118.25],
+        [34.06, -118.25],
+        [34.05, -118.24],
+        [34.06, -118.24],
+      ].map(([lat, lon]) => placeKey(gridPlace({ lat, lon }))),
+    )
+    assert.equal(keys.size, 1)
   })
 
   test('buckets forecasts by UTC hour', () => {
@@ -166,7 +206,7 @@ describe('forecast proxy cache', () => {
     await second.get(place)
     assert.equal(net.calls.length, 1)
     assert.match(net.calls[0].url, /customer-api\.open-meteo\.com.*apikey=key-123/)
-    const stored = db.docs.get('34.05_-118.24')
+    const stored = db.docs.get('34.06_-118.24')
     assert.equal(stored.hour, '2026-10-27T14')
     assert.equal(stored.expireAt.getTime(), T0 + 24 * HOUR)
 
@@ -212,6 +252,38 @@ describe('forecast proxy cache', () => {
     await assert.rejects(proxy.get(place), { code: 'unavailable' })
   })
 
+  test('remembers a fallback, so a flood costs no Firestore read or log line per request (L1)', async () => {
+    // The review's probe F2: with the cost guard engaged in the next hour, 100 requests
+    // read Firestore 100 times and logged 100 warnings.
+    const db = fakeDb()
+    const net = upstream()
+    await cache(db, net, { now }).get(place)
+    now.value = T0 + HOUR
+    const guarded = cache(db, net, { now, allowed: false })
+    const reads = db.reads
+    for (let i = 0; i < 100; i += 1) assert.ok(await guarded.get(place))
+    assert.equal(db.reads - reads, 1)
+    assert.equal(
+      logs.entries.filter(entry => entry.message === 'forecast served from the last good copy')
+        .length,
+      1,
+    )
+    // A few minutes later it looks again.
+    now.value += FALLBACK_RETRY_MS
+    await guarded.get(place)
+    assert.equal(db.reads - reads, 2)
+  })
+
+  test('remembers a place with nothing to serve too', async () => {
+    const db = fakeDb()
+    const guarded = cache(db, upstream(), { now, allowed: false })
+    for (let i = 0; i < 20; i += 1) {
+      await assert.rejects(guarded.get(place), { code: 'unavailable' })
+    }
+    assert.equal(db.reads, 1)
+    assert.equal(logs.entries.filter(entry => entry.message === 'forecast unavailable').length, 1)
+  })
+
   test('times out a slow upstream and falls back', async () => {
     const db = fakeDb()
     const net = upstream()
@@ -241,11 +313,137 @@ describe('forecast proxy cache', () => {
     assert.equal(net.calls.length, 1)
   })
 
+  test('stops calling upstream when the global budget is spent (M1)', async () => {
+    // The review's probe F1: 500 distinct places made 500 upstream calls and 500 writes.
+    const db = fakeDb()
+    const net = upstream()
+    const spend = budget(100)
+    const proxy = cache(db, net, { now, upstreamBudget: spend })
+    let unavailable = 0
+    for (let i = 0; i < 500; i += 1) {
+      try {
+        await proxy.get(requestedPlace({ lat: (10 + i / 10).toFixed(2), lon: '20' }))
+      } catch (error) {
+        assert.equal(error.code, 'unavailable')
+        unavailable += 1
+      }
+    }
+    assert.equal(net.calls.length, 100)
+    assert.equal(db.writes, 100)
+    assert.equal(unavailable, 400)
+    // A place cached before the budget ran out is still served.
+    assert.ok(await proxy.get(requestedPlace({ lat: '10.00', lon: '20' })))
+  })
+
+  test("asks the caller's own limit only on a miss, and before the global budget", async () => {
+    const db = fakeDb()
+    const net = upstream()
+    const spend = budget(10)
+    const proxy = cache(db, net, { now, upstreamBudget: spend })
+    let asked = 0
+    const mayFetch = () => {
+      asked += 1
+      return asked <= 1
+    }
+    await proxy.get(place, { mayFetch })
+    await proxy.get(place, { mayFetch })
+    assert.equal(asked, 1)
+    await assert.rejects(proxy.get({ lat: 1, lon: 1 }, { mayFetch }), { code: 'unavailable' })
+    assert.equal(asked, 2)
+    assert.equal(spend.state.asked, 1)
+    // A refusal by one caller's limit is not remembered for other callers.
+    assert.ok(await proxy.get({ lat: 1, lon: 1 }))
+    assert.equal(net.calls.length, 2)
+  })
+
   test('without a commercial key, never calls upstream', async () => {
     const net = upstream()
     await assert.rejects(cache(fakeDb(), net, { now, provider: null }).get(place), {
       code: 'unavailable',
     })
     assert.equal(net.calls.length, 0)
+  })
+})
+
+describe('forecast upstream budget', () => {
+  /** A Firestore stand-in with transactions, enough for UpstreamBudget. */
+  function counterDb({ fail = false } = {}) {
+    const docs = new Map()
+    const db = {
+      docs,
+      transactions: 0,
+      collection(name) {
+        assert.equal(name, 'forecastUpstream')
+        return { doc: id => ({ id }) }
+      },
+      async runTransaction(work) {
+        db.transactions += 1
+        if (fail) throw new Error('Firestore unavailable')
+        const writes = []
+        const result = await work({
+          getAll: async (...refs) => refs.map(ref => ({ data: () => docs.get(ref.id) })),
+          set: (ref, data) => writes.push([ref.id, data]),
+        })
+        for (const [id, data] of writes) docs.set(id, data)
+        return result
+      },
+    }
+    return db
+  }
+
+  test('leases calls in blocks and stops at the hourly and daily caps', async () => {
+    let now = Date.parse('2026-10-27T14:05:00Z')
+    const db = counterDb()
+    const spend = new UpstreamBudget({
+      db,
+      limits: () => ({ perHour: 25, perDay: 40 }),
+      leaseSize: 10,
+      now: () => now,
+    })
+    let granted = 0
+    for (let i = 0; i < 30; i += 1) if (await spend.take()) granted += 1
+    assert.equal(granted, 25)
+    assert.equal(db.docs.get('hour-2026-10-27T14').count, 25)
+    assert.equal(db.docs.get('day-2026-10-27').count, 25)
+    // Three leases for 25 calls, then one look that found the hour spent.
+    assert.equal(db.transactions, 4)
+    assert.equal(
+      logs.entries.filter(e => e.message === 'forecast upstream budget exhausted').length,
+      1,
+    )
+    // Spent: no further Firestore transaction for a minute.
+    await spend.take()
+    assert.equal(db.transactions, 4)
+
+    // The next hour has its own budget, until the day's runs out.
+    now += 60 * 60 * 1000
+    granted = 0
+    for (let i = 0; i < 30; i += 1) if (await spend.take()) granted += 1
+    assert.equal(granted, 15)
+    assert.equal(db.docs.get('day-2026-10-27').count, 40)
+    assert.ok(db.docs.get('hour-2026-10-27T15').expireAt instanceof Date)
+  })
+
+  test('two instances share one budget', async () => {
+    const now = Date.parse('2026-10-27T14:05:00Z')
+    const db = counterDb()
+    const make = () =>
+      new UpstreamBudget({ db, limits: () => ({ perHour: 20, perDay: 100 }), now: () => now })
+    const [a, b] = [make(), make()]
+    let granted = 0
+    for (let i = 0; i < 30; i += 1) {
+      if (await a.take()) granted += 1
+      if (await b.take()) granted += 1
+    }
+    assert.equal(granted, 20)
+  })
+
+  test('fails closed when the counters cannot be read', async () => {
+    const spend = new UpstreamBudget({
+      db: counterDb({ fail: true }),
+      limits: () => ({ perHour: 100, perDay: 100 }),
+    })
+    assert.equal(await spend.take(), false)
+    assert.ok(logs.entries.some(e => e.message === 'forecast upstream budget could not be read'))
   })
 })
