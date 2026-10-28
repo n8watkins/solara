@@ -3,6 +3,7 @@ import {
   CURRENT_READING_MAX_AGE_MS,
   dayLabel,
   fetchForecast,
+  forecastProxyBaseUrl,
   forecastView,
   parseForecast,
   weatherLabel,
@@ -10,6 +11,9 @@ import {
 import { addDays, zonedNow } from '@/lib/time'
 import type { Location } from '@/lib/types'
 import { withDeviceZones } from './test-zones'
+
+const appCheck = vi.hoisted(() => ({ token: vi.fn() }))
+vi.mock('@/lib/firebase', () => ({ appCheckToken: appCheck.token }))
 
 const loc: Location = { lat: 34, lon: -118, city: 'LA', region: 'CA' }
 const TZ = 'America/Los_Angeles'
@@ -169,5 +173,41 @@ describe('fetchForecast', () => {
   it('throws on a non-ok response', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 500 }))
     await expect(fetchForecast(loc)).rejects.toThrow()
+  })
+
+  it('calls Open-Meteo directly, without App Check, until the proxy is switched on', async () => {
+    vi.stubEnv('NEXT_PUBLIC_FUNCTIONS_URL', 'https://fn.example.com/project/us-central1')
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => rawPayload(10) })
+    vi.stubGlobal('fetch', fetchMock)
+    await fetchForecast(loc)
+    expect(fetchMock.mock.calls[0]![0]).toMatch(/^https:\/\/api\.open-meteo\.com\//)
+    expect(appCheck.token).not.toHaveBeenCalled()
+    vi.unstubAllEnvs()
+  })
+
+  it('goes through the forecast proxy with an App Check token once switched on', async () => {
+    vi.stubEnv('NEXT_PUBLIC_FUNCTIONS_URL', 'https://fn.example.com/project/us-central1/')
+    vi.stubEnv('NEXT_PUBLIC_FORECAST_PROXY', '1')
+    appCheck.token.mockResolvedValue('app-check-token')
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => rawPayload(10) })
+    vi.stubGlobal('fetch', fetchMock)
+    const forecast = await fetchForecast({ ...loc, lat: 34.0522, lon: -118.2437 }, { days: 2 })
+    const [url, init] = fetchMock.mock.calls[0]!
+    expect(url).toBe('https://fn.example.com/project/us-central1/forecast?lat=34.05&lon=-118.24')
+    expect(init.headers).toEqual({ 'X-Firebase-AppCheck': 'app-check-token' })
+    // The proxy always serves ten days; the app keeps the days it asked for.
+    expect(forecast.days.length).toBe(2)
+
+    appCheck.token.mockResolvedValue(null)
+    await expect(fetchForecast(loc)).rejects.toThrow('app verification is not set up')
+    vi.unstubAllEnvs()
+  })
+
+  it('reads the proxy switch and the Functions URL together', () => {
+    expect(forecastProxyBaseUrl({ proxy: '1', functionsUrl: 'https://fn.example.com/' })).toBe(
+      'https://fn.example.com',
+    )
+    expect(forecastProxyBaseUrl({ proxy: '1', functionsUrl: '' })).toBeNull()
+    expect(forecastProxyBaseUrl({ proxy: '', functionsUrl: 'https://fn.example.com' })).toBeNull()
   })
 })

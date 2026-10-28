@@ -17,6 +17,7 @@ While it is engaged:
 | Calendar feed (`calendarFeed`) | 503 with `Retry-After: 3600`; calendar apps keep their last copy |
 | New feed links (`rotateCalendarFeed`) | 503 `unavailable`; revoking a link still works |
 | Notification device registration (`registerNotificationDevice`) | 503 `unavailable`; removal still works |
+| Forecast proxy (`forecast`, when switched on) | Serves cached forecasts (up to 6 hours old) and makes no upstream call; a place with no cached forecast gets 503 |
 | Checkout, billing portal, Stripe webhook | Unchanged: they bring in money and keep subscriptions correct |
 | Account export and deletion, the `maintenance` job | Unchanged: people are owed these |
 
@@ -84,6 +85,7 @@ Firestore deletes these records some time after their `expireAt` passes, once `i
 | `accountDeletionTombstones`, `billingCleanupResources`, `stripeSubscriptionOwners` | 90 days after the account's deletion finished |
 | `notificationRegistrationLimits` | 1 day after the rate-limit window |
 | `users/{uid}/scheduled` | 30 days after the scheduled event ends |
+| `forecastCache` | 1 day after the forecast was fetched (each place is refreshed hourly while in use) |
 
 Check the policies with `gcloud firestore fields ttls list --project uv-activity-planner`.
 A finished tombstone that has expired no longer blocks a new account with the same Google sign-in, which is intended.

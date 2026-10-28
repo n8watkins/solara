@@ -23,7 +23,7 @@ import { addDays, formatDate, resolveTimeZone, zonedNow, type ZonedNow } from '.
 export const weatherLabel = core.weatherLabel
 
 /** Days of forecast the app requests (the paid tier's horizon; lower tiers see fewer). */
-export const FORECAST_DAYS = 10
+export const FORECAST_DAYS = core.APP_FORECAST_DAYS
 
 /**
  * The current reading is trusted for this long after the fetch. Past it, "now"
@@ -180,22 +180,53 @@ export function forecastView(
 }
 
 /**
- * Single source of truth for fetching the forecast. `cloudcover` is requested so
- * cloud sensitivity needs no fetch change. The request is abandoned after 5 s
- * so a slow provider surfaces as an error instead of a hang.
+ * The Functions origin when the forecast proxy is switched on (NEXT_PUBLIC_FORECAST_PROXY,
+ * from the FORECAST_PROXY_ENABLED repository variable), or null. Both values are fixed
+ * at build time, so a build without the proxy carries none of its code.
+ */
+export function forecastProxyBaseUrl(
+  env: { proxy?: string; functionsUrl?: string } = {
+    proxy: process.env.NEXT_PUBLIC_FORECAST_PROXY,
+    functionsUrl: process.env.NEXT_PUBLIC_FUNCTIONS_URL,
+  },
+): string | null {
+  return env.proxy === '1' && env.functionsUrl ? env.functionsUrl.replace(/\/$/, '') : null
+}
+
+/**
+ * Where this build gets forecasts: Solara's forecast proxy once it is switched on (the
+ * commercial Open-Meteo API, decision D5), otherwise Open-Meteo's free API directly.
+ * The proxy needs an App Check token, which loads Firebase and reCAPTCHA on demand.
+ */
+async function forecastProvider(): Promise<core.ForecastProvider> {
+  const proxy = forecastProxyBaseUrl()
+  if (!proxy) return core.openMeteoFree
+  const { appCheckToken } = await import('./firebase')
+  const token = await appCheckToken()
+  if (!token) throw new Error('Forecast unavailable: app verification is not set up')
+  return core.solaraForecastProxy(proxy, token)
+}
+
+/**
+ * Single source of truth for fetching the forecast: the app's request
+ * (core.appForecastRequest; `cloudcover` is included so cloud sensitivity needs no
+ * fetch change) from the configured provider, through the shared validated parser.
+ * The request is abandoned after 5 s so a slow provider surfaces as an error instead
+ * of a hang.
  */
 export async function fetchForecast(
   location: Location,
   opts: { days?: number; signal?: AbortSignal; timeoutMs?: number } = {},
 ): Promise<ForecastData> {
   const { days = FORECAST_DAYS, signal, timeoutMs = core.FETCH_TIMEOUT_MS } = opts
-  const url = core.forecastUrl({
-    lat: core.roundCoordinate(location.lat),
-    lon: core.roundCoordinate(location.lon),
+  const request = {
+    ...core.appForecastRequest(
+      core.roundCoordinate(location.lat),
+      core.roundCoordinate(location.lon),
+    ),
     days,
-    hourly: ['uv_index', 'temperature_2m', 'weathercode', 'cloudcover'],
-    current: ['uv_index', 'temperature_2m', 'weathercode'],
-  })
-  const raw = await core.fetchJson(url, { signal, timeoutMs })
+  }
+  const provider = await forecastProvider()
+  const raw = await core.fetchProviderForecast(provider, request, { signal, timeoutMs })
   return parseForecast(raw as RawForecast, { days, timeZone: location.timezone })
 }

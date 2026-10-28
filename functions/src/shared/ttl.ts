@@ -21,6 +21,8 @@ export const RETENTION_DAYS = Object.freeze({
   completedDeletion: 90,
   /** A registration rate-limit window is useless a minute later. */
   notificationRegistrationLimits: 1,
+  /** A cached forecast is replaced every hour; a day covers the last-good fallback. */
+  forecastCache: 1,
 })
 
 const DAY_MS = 24 * 60 * 60 * 1000

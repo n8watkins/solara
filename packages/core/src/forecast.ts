@@ -13,6 +13,8 @@ import * as v from 'valibot'
 import { finiteNumber, record } from './schema'
 
 export const OPEN_METEO_FORECAST_URL = 'https://api.open-meteo.com/v1/forecast'
+/** Open-Meteo's commercial endpoint: the same API on its own host, with an API key. */
+export const OPEN_METEO_CUSTOMER_FORECAST_URL = 'https://customer-api.open-meteo.com/v1/forecast'
 export const DAY_START_HOUR = 6
 export const DAY_END_HOUR = 20
 export const FETCH_TIMEOUT_MS = 5000
@@ -185,21 +187,111 @@ export interface ForecastRequest {
 }
 
 /** Open-Meteo forecast URL for the given hourly and current variables. */
-export function forecastUrl({ lat, lon, days, hourly, current }: ForecastRequest): string {
+export function forecastUrl(
+  { lat, lon, days, hourly, current }: ForecastRequest,
+  base: string = OPEN_METEO_FORECAST_URL,
+): string {
   if (!Number.isFinite(lat) || !Number.isFinite(lon) || !Number.isInteger(days)) {
     throw new Error('Invalid forecast request')
   }
   const currentParam = current?.length ? `&current=${current.join(',')}` : ''
   return (
-    `${OPEN_METEO_FORECAST_URL}?latitude=${lat}&longitude=${lon}` +
+    `${base}?latitude=${lat}&longitude=${lon}` +
     `&hourly=${hourly.join(',')}${currentParam}&timezone=auto&forecast_days=${days}`
   )
+}
+
+/** Days of forecast the app asks for: the paid tier's horizon; lower tiers see fewer. */
+export const APP_FORECAST_DAYS = 10
+
+/**
+ * The one forecast the app asks for at a place: ten days of hourly UV, temperature,
+ * weather code and cloud cover, and the current reading. The forecast proxy fetches
+ * exactly this and nothing else, so its cache serves every account at a place.
+ */
+export function appForecastRequest(lat: number, lon: number): ForecastRequest {
+  return {
+    lat,
+    lon,
+    days: APP_FORECAST_DAYS,
+    hourly: ['uv_index', 'temperature_2m', 'weathercode', 'cloudcover'],
+    current: ['uv_index', 'temperature_2m', 'weathercode'],
+  }
+}
+
+// ---- Providers -------------------------------------------------------------------------
+
+/**
+ * Where a forecast comes from. Every provider answers in Open-Meteo's response shape,
+ * and every caller validates the answer with the same parser (parseOpenMeteoResponse),
+ * so switching providers never changes how a forecast is read.
+ */
+export interface ForecastProvider {
+  readonly name: string
+  /** The HTTP request for a forecast: its URL and any headers. */
+  request(forecast: ForecastRequest): { url: string; headers?: Record<string, string> }
+}
+
+/** Open-Meteo's free, non-commercial API, called directly. */
+export const openMeteoFree: ForecastProvider = Object.freeze({
+  name: 'open-meteo-free',
+  request: (forecast: ForecastRequest) => ({ url: forecastUrl(forecast) }),
+})
+
+/**
+ * Open-Meteo's commercial API: the customer host and the subscription's API key.
+ * `base` is for tests against a local stand-in.
+ */
+export function openMeteoCommercial(
+  apiKey: string,
+  base: string = OPEN_METEO_CUSTOMER_FORECAST_URL,
+): ForecastProvider {
+  if (!apiKey) throw new Error('Open-Meteo API key is missing')
+  return {
+    name: 'open-meteo-commercial',
+    request: forecast => ({
+      url: `${forecastUrl(forecast, base)}&apikey=${encodeURIComponent(apiKey)}`,
+    }),
+  }
+}
+
+/**
+ * Solara's forecast proxy (the `forecast` Function), which calls the commercial API with
+ * the key kept on the server and caches per place and hour. It serves only the app's
+ * forecast (appForecastRequest), so only the coordinates are sent. `appCheckToken` is
+ * the App Check token the Function requires.
+ */
+export function solaraForecastProxy(
+  functionsBaseUrl: string,
+  appCheckToken: string,
+): ForecastProvider {
+  return {
+    name: 'solara-proxy',
+    request: ({ lat, lon }) => ({
+      url: `${functionsBaseUrl.replace(/\/$/, '')}/forecast?lat=${lat}&lon=${lon}`,
+      headers: { 'X-Firebase-AppCheck': appCheckToken },
+    }),
+  }
+}
+
+/**
+ * Fetches a forecast from `provider` and validates it. Rejects on a timeout, a non-2xx
+ * status or a response without an hourly time series.
+ */
+export async function fetchProviderForecast(
+  provider: ForecastProvider,
+  forecast: ForecastRequest,
+  options: Omit<FetchJsonOptions, 'headers'> = {},
+): Promise<OpenMeteoResponse> {
+  const { url, headers } = provider.request(forecast)
+  return parseOpenMeteoResponse(await fetchJson(url, { ...options, headers }))
 }
 
 export interface FetchJsonOptions {
   timeoutMs?: number
   signal?: AbortSignal
   fetchImpl?: typeof fetch
+  headers?: Record<string, string>
 }
 
 /**
@@ -208,7 +300,7 @@ export interface FetchJsonOptions {
  */
 export async function fetchJson(
   url: string,
-  { timeoutMs = FETCH_TIMEOUT_MS, signal, fetchImpl }: FetchJsonOptions = {},
+  { timeoutMs = FETCH_TIMEOUT_MS, signal, fetchImpl, headers }: FetchJsonOptions = {},
 ): Promise<unknown> {
   const doFetch = fetchImpl ?? globalThis.fetch
   const controller = new AbortController()
@@ -222,7 +314,10 @@ export async function fetchJson(
     else signal.addEventListener('abort', forwardAbort, { once: true })
   }
   try {
-    const response = await doFetch(url, { signal: controller.signal })
+    const response = await doFetch(url, {
+      signal: controller.signal,
+      ...(headers ? { headers } : {}),
+    })
     if (!response.ok) throw new Error(`Forecast request failed: ${response.status}`)
     return (await response.json()) as unknown
   } catch (error) {

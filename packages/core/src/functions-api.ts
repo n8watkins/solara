@@ -5,6 +5,7 @@
 
 import * as v from 'valibot'
 import { isValidFeedToken } from './feed-token'
+import { OpenMeteoResponseSchema } from './forecast'
 import { finiteNumber, isPlainRecord, looseRecord, record } from './schema'
 
 function isUrl(value: string, check: (url: URL) => boolean): boolean {
@@ -57,6 +58,8 @@ export const FUNCTION_RESPONSES = {
     ),
   }),
   revokeCalendarFeed: record({ revoked: v.boolean() }),
+  /** The forecast proxy answers in Open-Meteo's shape, read by the same parser. */
+  forecast: OpenMeteoResponseSchema,
 }
 
 export type FunctionName = keyof typeof FUNCTION_RESPONSES

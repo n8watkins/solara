@@ -72,7 +72,10 @@ Already done: the domain move to `solara-uv.web.app`, the Firestore index role (
     3. Leave the last resort (detaching billing) off unless you want the site to go down rather than spend more than twice the budget; to turn it on, run the script again with `DETACH_BILLING=true` and set the `COST_GUARD_DETACH_BILLING` repository variable to `true` ([runbook](RUNBOOK.md#budget-kill-switch)).
     4. App Check order: Functions enforce App Check in their code from their first deploy, so the site key from step 5 must be live first; Firestore enforcement stays the console switch from step 5, after a week of metrics; never enforce **Authentication**.
 13. Create a staging Firebase project and a Stripe account in **test mode** (D9); the agent guides both.
-14. Buy the Open-Meteo **Standard** commercial plan (about $29 per month) once the first subscription is live (D5).
+14. **Buy the Open-Meteo Standard commercial plan** (about $29 per month) once the first subscription is live (D5), then switch forecasts to it:
+    1. Set the key: `npx firebase functions:secrets:set OPEN_METEO_API_KEY --project uv-activity-planner` and paste the API key from the Open-Meteo dashboard.
+    2. Set the `FORECAST_PROXY_ENABLED` repository variable to `true`: `gh variable set FORECAST_PROXY_ENABLED --repo n8watkins/solara --body true`.
+    3. The next deploy redeploys the Functions with the key and builds the app to fetch through the proxy; check that the dashboard still loads a forecast in a private window, and that the `forecast` Function's logs show no `forecast served from the last good copy` warnings.
 15. Run the release checks in [Release verification](#release-verification), plus [Functions and Stripe](#functions-and-stripe) and [Notifications](#notifications).
 
 ### Later: mobile app (Wave 6)
@@ -138,7 +141,7 @@ Everything in this section waits for the Pro launch (roadmap item 9); see [Fireb
 - [ ] Decide D9: create a staging Firebase project and use Stripe test mode there first.
 - [ ] Grant the deploy identity the extra Functions roles ([WIF_SETUP.md](WIF_SETUP.md#extra-roles-when-functions-are-enabled)).
 - [ ] In Stripe (test mode first), create the product **Solara Pro** with two recurring prices, **$2.99 per month** and **$19.99 per year** (no trial on the prices; checkout adds the 7-day trial), and set their ids as the `STRIPE_PRICE_ID` (monthly) and `STRIPE_YEARLY_PRICE_ID` (yearly) repository variables.
-- [ ] Store `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` in Firebase Secret Manager.
+- [ ] Store `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` in Firebase Secret Manager, and create `OPEN_METEO_API_KEY` with the value `unset` (`npx firebase functions:secrets:set OPEN_METEO_API_KEY --project uv-activity-planner`, then type `unset`) so the first Functions deploy can start before the forecast plan is bought.
 - [ ] Configure the customer portal (Stripe **Settings**, **Billing**, **Customer portal**): allow updating payment methods and viewing invoices; allow cancellations **at the end of the billing period**; allow switching plans between the two Pro prices only; set the default return link to `https://solara-uv.web.app/account/`.
 - [ ] Switch billing on last: set the `BILLING_ENABLED` repository variable to `true` and let the next deploy run; the plans dialog then shows checkout instead of the waitlist. Set it to anything else to go back to the waitlist.
 - [ ] Set `NEXT_PUBLIC_FUNCTIONS_URL` and then `ENABLE_BLAZE_FUNCTIONS=true` as repository variables.

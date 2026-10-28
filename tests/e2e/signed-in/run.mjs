@@ -26,6 +26,7 @@ import {
 } from 'node:fs'
 import { createServer } from 'node:net'
 import { join, resolve } from 'node:path'
+import { startFakeOpenMeteo } from './fake-open-meteo.mjs'
 import { startFakeStripe } from './fake-stripe.mjs'
 
 const HOST = '127.0.0.1'
@@ -100,7 +101,8 @@ const [
   hubPort,
   loggingPort,
   stripePort,
-] = await freePorts(10, pinned)
+  openMeteoPort,
+] = await freePorts(11, pinned)
 const port = pinned || picked
 const origin = `http://${HOST}:${port}`
 
@@ -210,18 +212,25 @@ writeFileSync(
 // reach; the emulator takes secrets from functions/.secret.local instead (gitignored).
 // The placeholder key only ever reaches the local fake Stripe below.
 const WEBHOOK_SECRET = 'whsec_signed_in_emulator'
+const OPEN_METEO_KEY = 'e2e-open-meteo-key'
 const secretsPath = resolve('functions/.secret.local')
 const ownsSecrets = !existsSync(secretsPath)
 if (!ownsSecrets) {
   console.warn(
-    'signed-in: using the existing functions/.secret.local; billing tests need its ' +
-      `STRIPE_WEBHOOK_SECRET to be ${WEBHOOK_SECRET}.`,
+    'signed-in: using the existing functions/.secret.local; billing and forecast tests ' +
+      `need its STRIPE_WEBHOOK_SECRET to be ${WEBHOOK_SECRET} and its OPEN_METEO_API_KEY ` +
+      `to be ${OPEN_METEO_KEY}.`,
   )
 }
 if (ownsSecrets) {
   writeFileSync(
     secretsPath,
-    `STRIPE_SECRET_KEY=sk_test_signed_in_emulator\nSTRIPE_WEBHOOK_SECRET=${WEBHOOK_SECRET}\n`,
+    [
+      'STRIPE_SECRET_KEY=sk_test_signed_in_emulator',
+      `STRIPE_WEBHOOK_SECRET=${WEBHOOK_SECRET}`,
+      `OPEN_METEO_API_KEY=${OPEN_METEO_KEY}`,
+      '',
+    ].join('\n'),
   )
 }
 
@@ -234,6 +243,9 @@ const { server: fakeStripe } = await startFakeStripe({
   webhookUrl: `http://${HOST}:${functionsPort}/${PROJECT}/us-central1/stripeWebhook`,
   webhookSecret: WEBHOOK_SECRET,
 })
+// The forecast proxy is on in the Functions (the browser build keeps calling Open-Meteo,
+// which the fixtures answer) and calls a local stand-in for the commercial API.
+const fakeOpenMeteo = await startFakeOpenMeteo({ port: openMeteoPort, apiKey: OPEN_METEO_KEY })
 const paramsPath = resolve(`functions/.env.${PROJECT}`)
 writeFileSync(
   paramsPath,
@@ -242,6 +254,7 @@ writeFileSync(
     'STRIPE_PRICE_ID=price_e2e_monthly',
     'STRIPE_YEARLY_PRICE_ID=price_e2e_yearly',
     'BILLING_ENABLED=true',
+    'FORECAST_PROXY_ENABLED=true',
     '',
   ].join('\n'),
 )
@@ -291,6 +304,7 @@ const child = spawn(
       // Read by the Functions emulator only (functions/src/billing/config.ts) and by the
       // tests, which act as the customer on Stripe's pages.
       STRIPE_API_BASE: `http://${HOST}:${stripePort}`,
+      OPEN_METEO_API_BASE: `http://${HOST}:${openMeteoPort}/v1/forecast`,
     },
   },
 )
@@ -300,6 +314,7 @@ function cleanup() {
   rmSync(paramsPath, { force: true })
   if (ownsSecrets) rmSync(secretsPath, { force: true })
   fakeStripe.close()
+  fakeOpenMeteo.close()
 }
 for (const signal of ['SIGINT', 'SIGTERM']) {
   process.on(signal, () => child.kill(signal))
