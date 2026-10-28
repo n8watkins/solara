@@ -1,7 +1,7 @@
 // Events already in Google Calendar (docs/integrations/EVENTS.md, phase 2b): the app's
 // side, which is all of it. With the person's consent the browser reads their upcoming
 // events (the read-only scope in packages/core/src/google-calendar-events.ts, through
-// lib/gcal.ts), keeps those with a place or that match one of their activities, and
+// lib/gcal.ts), keeps those with an address or that match one of their activities, and
 // stores them next to imported events (`source: 'google'`), so they get the UV card and
 // the Pro heads-ups. Tokens stay in memory, so events refresh only while Solara is open:
 // by themselves while this session holds a token, otherwise when the person presses
@@ -28,7 +28,7 @@ import type * as Gcal from './gcal'
 import type { CalendarEventsPage, CalendarListEntry } from './gcal'
 import { lazySubscription, loadFirebase } from './firebase'
 import type { EventsStore, PlaceLookups } from './events'
-import { knownPlaces, recordsFromImport, resolvePlaces } from './events'
+import { knownPlaces, locationQueries, recordsFromImport, resolvePlaces } from './events'
 import { capMessage } from './record-cap'
 import { resolveTimeZone } from './time'
 import type { Activity, Location } from './types'
@@ -131,11 +131,152 @@ const googleEventSchema = v.looseObject({
 const MAX_EVENT_MS = 7 * 24 * 3_600_000
 
 /**
- * Location text that is a link (a video call, a meeting page) rather than a place. It is
- * dropped, never stored: meeting links can carry passcodes.
+ * Location text that is a meeting rather than a place: a link (a video call, a meeting
+ * page), a phone number or dial-in details. It is dropped, never stored: meeting links
+ * and dial-ins can carry passcodes (REVIEW6 M2).
  */
-export function isLinkLocation(text: string): boolean {
-  return /\bhttps?:\/\/|\bwww\.|\b[a-z0-9-]+\.(com|us|net|org|io|me)\/\S/i.test(text)
+export function isMeetingLocation(text: string): boolean {
+  return (
+    /\bhttps?:\/\/|\bwww\.|\b[a-z0-9-]+\.(com|us|net|org|io|me)\/\S/i.test(text) ||
+    /\b(pin|passcode|password|pwd|meeting id|conference id|access code|participant code|dial[- ]?in|join by phone)\b/i.test(
+      text,
+    ) ||
+    // A phone number: "+1 415 555 0100", "(415) 555-0100", "415-555-0100".
+    /\+\d[\d\s().-]{6,}\d|\(\d{3}\)\s*\d{3}[\s.-]\d{4}|\b\d{3}[.-]\d{3}[.-]\d{4}\b/.test(text)
+  )
+}
+
+/**
+ * Countries an address may end with (as Google Maps writes them), which mark the text as
+ * an address and are not searched themselves.
+ */
+const COUNTRIES = new Set([
+  'usa',
+  'u.s.a.',
+  'us',
+  'united states',
+  'united states of america',
+  'uk',
+  'united kingdom',
+  'england',
+  'scotland',
+  'wales',
+  'northern ireland',
+  'ireland',
+  'canada',
+  'mexico',
+  'australia',
+  'new zealand',
+  'france',
+  'germany',
+  'deutschland',
+  'spain',
+  'españa',
+  'portugal',
+  'italy',
+  'italia',
+  'netherlands',
+  'belgium',
+  'switzerland',
+  'austria',
+  'denmark',
+  'sweden',
+  'norway',
+  'finland',
+  'iceland',
+  'poland',
+  'czechia',
+  'greece',
+  'turkey',
+  'japan',
+  'south korea',
+  'china',
+  'india',
+  'singapore',
+  'thailand',
+  'indonesia',
+  'philippines',
+  'vietnam',
+  'south africa',
+  'brazil',
+  'argentina',
+  'chile',
+  'peru',
+  'colombia',
+  'costa rica',
+  'israel',
+  'united arab emirates',
+  'egypt',
+  'morocco',
+  'kenya',
+])
+
+/** A state or province code ("CA", "NSW"), with or without its postal code. */
+const REGION_CODE = /^([A-Z]{2,3})(\s+[A-Z0-9][A-Z0-9 -]{2,8})?$/
+
+/** Capitals that look like a region code in work locations but are not one. */
+const NOT_A_REGION = new Set([
+  'HQ',
+  'TBD',
+  'TBA',
+  'ID',
+  'PIN',
+  'RM',
+  'STE',
+  'APT',
+  'EXT',
+  'HR',
+  'IT',
+  'QA',
+  'VP',
+  'CEO',
+  'CTO',
+  'PM',
+  'AM',
+])
+
+const isRegionCode = (part: string) => {
+  const code = REGION_CODE.exec(part)?.[1]
+  return !!code && !NOT_A_REGION.has(code)
+}
+
+/** A US ZIP code or a Canadian or British postcode inside a part. */
+const POSTAL_CODE =
+  /\b\d{5}(-\d{4})?\b|\b[A-Z]\d[A-Z] ?\d[A-Z]\d\b|\b[A-Z]{1,2}\d[A-Z\d]? ?\d[A-Z]{2}\b/
+
+/** A part that names a person ("Dr Patel", "Mrs. Lee"): the text is about someone, not a place. */
+const PERSON = /^(dr|doctor|mr|mrs|ms|mx|miss|prof|professor|rev|fr|sir|dame)\.?\s+\S/i
+
+/** Words that make a search about a room, a meeting or someone's home rather than a town. */
+const NOT_A_TOWN =
+  /\b(room|rm|suite|ste|floor|fl|level|office|desk|building|bldg|conference|meeting|call|zoom|teams|webex|meet|phone|dial|pin|code|ext|hq|headquarters|apt|apartment|unit|home|house|my|our|his|her|their|clinic|hospital)\b|\p{L}'s\b|\p{L}\u2019s\b/iu
+
+/**
+ * PURE. The town-level searches a Google Calendar event's location may make, best
+ * first, or none (REVIEW6 M2). Work and personal calendars hold locations such as
+ * "Dr Patel", "Therapy Room 2" or "Client HQ", which must never reach a place search,
+ * so this under-matches on purpose: only text written as an address is searched, that
+ * is with at least two comma-separated parts, one of them after the first a state or
+ * province code ("CA", "NSW 2000"), a postal code or a country, and none of them naming
+ * a person. Only the town part is then searched ("Los Angeles, CA" for "Griffith Park,
+ * 4730 Crystal Springs Dr, Los Angeles, CA 90027, USA"), and never a part that names a
+ * room, a meeting or a home. Anything else keeps the person's place, which they can set
+ * by hand on the event.
+ */
+export function googleLocationQueries(where: string): string[] {
+  if (isMeetingLocation(where)) return []
+  const parts = where
+    .split(',')
+    .map(part => part.trim())
+    .filter(Boolean)
+  if (parts.length < 2 || parts.some(part => PERSON.test(part))) return []
+  const country = COUNTRIES.has(parts[parts.length - 1]!.toLowerCase())
+  const addressed =
+    country || parts.slice(1).some(part => isRegionCode(part) || POSTAL_CODE.test(part))
+  if (!addressed) return []
+  // The country is not a town to search for ("Tiergarten, Berlin, Germany" is Berlin).
+  const text = country ? parts.slice(0, -1).join(', ') : where
+  return locationQueries(text).filter(query => !NOT_A_TOWN.test(query))
 }
 
 export interface GoogleEventContext {
@@ -149,8 +290,9 @@ export interface GoogleEventContext {
 
 /**
  * PURE. A Google Calendar event as the importer's event, or why it is skipped. Kept: timed
- * events that have not ended, are not declined, last at most a week, and have a place
- * (location text that is not a link) or match one of the person's activities by title.
+ * events that have not ended, are not declined, last at most a week, and have a location
+ * that reads as a town (googleLocationQueries) or match one of the person's activities by
+ * title. Links and dial-in details are never kept as the location.
  */
 export function parseGoogleEvent(
   raw: unknown,
@@ -187,8 +329,12 @@ export function parseGoogleEvent(
     stripInvisibleFormatting(item.location ?? ''),
     IMPORTED_EVENT_LIMITS.whereLength,
   )
-  const location = rawPlace && !isLinkLocation(rawPlace) ? rawPlace : ''
-  if (!location && !matchActivity(title, activities)) return { skip: 'noPlace' }
+  const location = rawPlace && !isMeetingLocation(rawPlace) ? rawPlace : ''
+  // Kept when its location reads as a town Solara may search for, or when it is one of
+  // the person's activities (whose place they can set by hand).
+  if (!googleLocationQueries(location).length && !matchActivity(title, activities)) {
+    return { skip: 'noPlace' }
+  }
 
   const zone = [item.start.timeZone, calendarTimeZone].find(
     (z): z is string => !!z && isIanaTimeZone(z),
@@ -424,6 +570,7 @@ export async function syncGoogleEvents(context: SyncContext): Promise<SyncOutcom
         known: knownPlaces([...existing, ...stored]),
         onProgress: (done, total) =>
           total > 1 && context.onProgress?.(`Finding the places… ${done} of ${total}`),
+        queriesFor: googleLocationQueries,
       })
     : new Map()
   const records = await recordsFromImport(events, {
@@ -455,7 +602,7 @@ const plural = (n: number, one: string, many = `${one}s`) =>
 export function syncSummary(outcome: SyncOutcome): string {
   const head = outcome.shown
     ? `Showing ${plural(outcome.shown, 'upcoming event')} from Google Calendar.`
-    : `No events in the next ${GOOGLE_EVENT_LIMITS.windowDays} days have a place or match one of your activities.`
+    : `No events in the next ${GOOGLE_EVENT_LIMITS.windowDays} days have an address or match one of your activities.`
   const notes = [
     outcome.duplicates
       ? `${plural(outcome.duplicates, 'event')} already in Solara ${outcome.duplicates === 1 ? 'is' : 'are'} shown once.`

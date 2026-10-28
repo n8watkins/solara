@@ -48,6 +48,23 @@ test('show events from Google Calendar, choose calendars, refresh and disconnect
     start: { dateTime: '2026-06-18T15:00:00', timeZone: 'America/Los_Angeles' },
     end: { dateTime: '2026-06-18T17:00:00', timeZone: 'America/Los_Angeles' },
   })
+  // Work and personal locations that are not towns (REVIEW6 M2): a doctor's visit is not
+  // kept, and a run with its coach is kept for the activity, but neither text is ever sent
+  // to the place search.
+  googleCalendar.addEvent({
+    id: 'checkup',
+    summary: 'Checkup',
+    location: 'Dr Patel',
+    start: { dateTime: '2026-06-16T15:00:00', timeZone: 'America/Los_Angeles' },
+    end: { dateTime: '2026-06-16T16:00:00', timeZone: 'America/Los_Angeles' },
+  })
+  googleCalendar.addEvent({
+    id: 'track',
+    summary: 'Track run',
+    location: 'Coach Lee, Room 2',
+    start: { dateTime: '2026-06-18T07:00:00', timeZone: 'America/Los_Angeles' },
+    end: { dateTime: '2026-06-18T08:00:00', timeZone: 'America/Los_Angeles' },
+  })
   googleCalendar.calendarList.push({ id: 'club@group.calendar.google.com', summary: 'Hiking club' })
   googleCalendar.addEvent({
     id: 'hike',
@@ -63,14 +80,23 @@ test('show events from Google Calendar, choose calendars, refresh and disconnect
   await openDashboard(page, account)
   const section = page.getByRole('region', { name: 'Events' })
   const google = googlePanel(page)
+  const placeSearches: string[] = []
+  page.on('request', request => {
+    const url = new URL(request.url())
+    if (url.origin === 'https://geocoding-api.open-meteo.com') {
+      placeSearches.push(url.searchParams.get('name') ?? '')
+    }
+  })
 
   await google.getByRole('button', { name: 'Show my Google Calendar events' }).click()
   await expect(page.getByTestId('google-calendar-status')).toHaveText(
-    'Showing 2 upcoming events from Google Calendar.',
+    'Showing 3 upcoming events from Google Calendar.',
   )
+  expect(placeSearches.length).toBeGreaterThan(0)
+  expect(placeSearches.every(name => /^Los Angeles(, CA)?$/.test(name))).toBe(true)
 
   // Stored with the real rules: only title, time and place, no link, description or guests.
-  await expect.poll(async () => Object.keys(await emulators.readEvents(account)).length).toBe(2)
+  await expect.poll(async () => Object.keys(await emulators.readEvents(account)).length).toBe(3)
   const stored = Object.values(await emulators.readEvents(account))
   const picnic = stored.find(e => e.title === 'Family picnic')
   expect(picnic).toEqual({
@@ -92,7 +118,12 @@ test('show events from Google Calendar, choose calendars, refresh and disconnect
     updatedAt: expect.any(String),
     expireAt: '2026-07-16T21:00:00Z',
   })
-  expect(JSON.stringify(stored)).not.toMatch(/blue blanket|aunt@example|meet\.google/)
+  expect(JSON.stringify(stored)).not.toMatch(/blue blanket|aunt@example|meet\.google|Patel/)
+  expect(stored.find(e => e.title === 'Track run')).toMatchObject({
+    where: 'Coach Lee, Room 2',
+    placeGuessed: true,
+    activityId: 'run',
+  })
   const run = section.getByRole('listitem', { name: 'Morning run' })
   await expect(run.getByText('From Google Calendar')).toBeVisible()
   await expect(run.getByRole('combobox', { name: 'Counts as' })).toHaveValue('run')
@@ -107,7 +138,7 @@ test('show events from Google Calendar, choose calendars, refresh and disconnect
   await google.getByRole('checkbox', { name: 'Hiking club' }).check()
   await google.getByRole('button', { name: 'Save' }).click()
   await expect(page.getByTestId('google-calendar-status')).toHaveText(
-    'Showing 3 upcoming events from Google Calendar.',
+    'Showing 4 upcoming events from Google Calendar.',
   )
   await expect(google.getByText('Your main calendar and Hiking club')).toBeVisible()
 
@@ -118,7 +149,7 @@ test('show events from Google Calendar, choose calendars, refresh and disconnect
   await expect(google.getByText('Your main calendar and Hiking club')).toBeVisible()
   await google.getByRole('button', { name: 'Refresh' }).click()
   await expect(page.getByTestId('google-calendar-status')).toHaveText(
-    'Showing 2 upcoming events from Google Calendar.',
+    'Showing 3 upcoming events from Google Calendar.',
   )
   await expect
     .poll(async () =>
@@ -126,7 +157,12 @@ test('show events from Google Calendar, choose calendars, refresh and disconnect
         .map(e => `${e.title} ${e.start}`)
         .sort(),
     )
-    .toEqual(['Griffith hike 2026-06-20T15:00:00.000Z', 'Morning run 2026-06-17T15:00:00.000Z'])
+    .toEqual([
+      'Griffith hike 2026-06-20T15:00:00.000Z',
+      'Morning run 2026-06-17T15:00:00.000Z',
+      'Track run 2026-06-18T14:00:00.000Z',
+    ])
+  expect(placeSearches.some(name => /Patel|Coach|Room/.test(name))).toBe(false)
 
   // Disconnect: the events and the choice go, and Google's grant is revoked.
   await google.getByRole('button', { name: 'Disconnect' }).click()

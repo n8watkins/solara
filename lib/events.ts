@@ -95,13 +95,17 @@ export async function geocodingLookups(): Promise<PlaceLookups> {
   return { search: query => searchPlaces(query, { limit: 5 }), reverse: reverseGeocode }
 }
 
-/** The place a LOCATION text names, nearest the person among same-named towns, or null. */
+/**
+ * The place a LOCATION text names, nearest the person among same-named towns, or null.
+ * `queries` are the searches to try (locationQueries by default); none means no search.
+ */
 export async function findPlace(
   where: string,
   home: Location,
   search: PlaceLookups['search'],
+  queries: readonly string[] = locationQueries(where),
 ): Promise<EventPlace | null> {
-  for (const query of locationQueries(where)) {
+  for (const query of queries) {
     let results: PlaceSuggestion[]
     try {
       results = await search(query)
@@ -129,8 +133,10 @@ export function placeKey(event: Pick<ParsedIcsEvent, 'geo' | 'location'>): strin
  * searched at city level. Lookups (searches and reverse lookups together) stop at
  * MAX_PLACE_LOOKUPS, soonest events first; a GEO point past the cap takes the name of a
  * found place within NEARBY_PLACE_KM, else "Event location". `known` holds places from
- * earlier imports, reused without a lookup. Events with neither, or whose place is not
- * found, get the person's place, marked as guessed (by the caller).
+ * earlier imports, reused without a lookup. `queriesFor` decides which searches a
+ * LOCATION text may make (locationQueries by default); text it gives none for is never
+ * sent anywhere and takes no lookup. Events with neither, or whose place is not found,
+ * get the person's place, marked as guessed (by the caller).
  */
 export async function resolvePlaces(
   events: readonly ParsedIcsEvent[],
@@ -139,9 +145,11 @@ export async function resolvePlaces(
   {
     known = new Map(),
     onProgress,
+    queriesFor = locationQueries,
   }: {
     known?: ReadonlyMap<string, EventPlace>
     onProgress?: (done: number, total: number) => void
+    queriesFor?: (where: string) => string[]
   } = {},
 ): Promise<Map<string, EventPlace>> {
   const places = new Map<string, EventPlace>(known)
@@ -150,7 +158,8 @@ export async function resolvePlaces(
     const key = placeKey(event)
     if (key && !places.has(key) && !pending.has(key)) pending.set(key, event)
   }
-  const needsLookup = (event: ParsedIcsEvent) => !event.geo || !geoLabel(event)
+  const needsLookup = (event: ParsedIcsEvent) =>
+    event.geo ? !geoLabel(event) : !!event.location && queriesFor(event.location).length > 0
   const total = Math.min(MAX_PLACE_LOOKUPS, [...pending.values()].filter(needsLookup).length)
   let lookupsMade = 0
   const unnamed: [string, { lat: number; lon: number }][] = []
@@ -172,9 +181,11 @@ export async function resolvePlaces(
       }
       places.set(key, { lat, lon, label: label || 'Event location', guessed: false })
     } else if (event.location && lookupsMade < MAX_PLACE_LOOKUPS) {
+      const queries = queriesFor(event.location)
+      if (!queries.length) continue
       onProgress?.(lookupsMade, total)
       lookupsMade += 1
-      const found = await findPlace(event.location, home, lookups.search)
+      const found = await findPlace(event.location, home, lookups.search, queries)
       if (found) places.set(key, found)
     }
   }

@@ -222,7 +222,8 @@ export default function GoogleCalendarEvents({
           <p id={hintId} className="mt-1 text-[12px] leading-normal text-ink-3">
             See the UV at events already in your Google Calendar. Solara reads the next{' '}
             {GOOGLE_EVENT_LIMITS.windowDays} days in this browser, with read-only access, and keeps
-            only events with a place or that match one of your activities.
+            only events with an address or that match one of your activities. Only an
+            address&rsquo;s town is searched to find the place.
           </p>
           <button
             type="button"

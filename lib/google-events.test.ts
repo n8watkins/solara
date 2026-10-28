@@ -11,7 +11,8 @@ import {
   authProblem,
   calendarChoices,
   calendarsText,
-  isLinkLocation,
+  googleLocationQueries,
+  isMeetingLocation,
   parseGoogleEvent,
   refreshDue,
   syncGoogleEvents,
@@ -149,24 +150,87 @@ describe('parseGoogleEvent', () => {
   it('removes invisible formatting and caps text', () => {
     const read = parseGoogleEvent(
       timed('b', `Run\u202e${'x'.repeat(300)}`, '2026-06-16T12:00:00Z', '2026-06-16T13:00:00Z', {
-        location: 'Balboa\u200b Park, San Diego',
+        location: 'Balboa\u200b Park, San Diego, CA',
       }),
       CONTEXT,
     )
     const title = 'event' in read ? read.event.title : ''
     expect(title).not.toContain('\u202e')
     expect(title.length).toBe(200)
-    expect('event' in read && read.event.location).toBe('Balboa Park, San Diego')
+    expect('event' in read && read.event.location).toBe('Balboa Park, San Diego, CA')
   })
 })
 
-describe('isLinkLocation', () => {
-  it('tells links from places', () => {
-    expect(isLinkLocation('https://teams.microsoft.com/l/meetup')).toBe(true)
-    expect(isLinkLocation('www.example.org')).toBe(true)
-    expect(isLinkLocation('zoom.us/j/123')).toBe(true)
-    expect(isLinkLocation('Griffith Park, Los Angeles, CA')).toBe(false)
-    expect(isLinkLocation('St. Mary’s Field, 12 Oak St.')).toBe(false)
+describe('isMeetingLocation', () => {
+  it('tells links and dial-ins from places', () => {
+    expect(isMeetingLocation('https://teams.microsoft.com/l/meetup')).toBe(true)
+    expect(isMeetingLocation('www.example.org')).toBe(true)
+    expect(isMeetingLocation('zoom.us/j/123')).toBe(true)
+    expect(isMeetingLocation('+1 415 555 0100 PIN 4411#')).toBe(true)
+    expect(isMeetingLocation('(415) 555-0100')).toBe(true)
+    expect(isMeetingLocation('415.555.0100')).toBe(true)
+    expect(isMeetingLocation('Meeting ID 812 3456 7890')).toBe(true)
+    expect(isMeetingLocation('Dial-in: see invite')).toBe(true)
+    expect(isMeetingLocation('Passcode abc123')).toBe(true)
+    expect(isMeetingLocation('Griffith Park, Los Angeles, CA')).toBe(false)
+    expect(isMeetingLocation('St. Mary’s Field, 12 Oak St.')).toBe(false)
+    expect(
+      isMeetingLocation('Griffith Park, 4730 Crystal Springs Dr, Los Angeles, CA 90027, USA'),
+    ).toBe(false)
+    expect(isMeetingLocation('Pinewood Park, Pinecrest, FL')).toBe(false)
+  })
+})
+
+describe('googleLocationQueries (REVIEW6 M2)', () => {
+  it('searches only the town of text written as an address', () => {
+    const cases: [string, string[]][] = [
+      ['Balboa Park, San Diego, CA', ['San Diego, CA', 'San Diego']],
+      [
+        'Griffith Park, 4730 Crystal Springs Dr, Los Angeles, CA 90027, USA',
+        ['Los Angeles, CA', 'Los Angeles'],
+      ],
+      ['Rose Bowl, 1001 Rose Bowl Dr, Pasadena, CA 91103', ['Pasadena, CA', 'Pasadena']],
+      ['Opera House, Bennelong Point, Sydney NSW 2000, Australia', ['Sydney NSW']],
+      ['Tiergarten, Berlin, Germany', ['Berlin']],
+      ['Stanley Park, Vancouver, BC V6G 1Z4, Canada', ['Vancouver']],
+      ['Portland, OR', ['Portland, OR', 'Portland']],
+      ['Boston, MA 02116', ['Boston, MA', 'Boston']],
+    ]
+    for (const [where, queries] of cases)
+      expect(googleLocationQueries(where), where).toEqual(queries)
+  })
+
+  it('never searches people, rooms, meetings, homes or bare phrases', () => {
+    for (const where of [
+      '',
+      'Dr Patel',
+      'Therapy Room 2',
+      'Client HQ',
+      'Boston',
+      'Lake Merritt',
+      'Starbucks',
+      'Zoom',
+      'Coach Lee',
+      'Sarah’s house, upstairs',
+      'Starbucks, 123 Main St',
+      'Dr Patel, Boston, MA',
+      'Dr. Lee, Suite 400, Austin, TX 78701',
+      'Mrs Lee, London, UK',
+      '+1 415 555 0100 PIN 4411#',
+      'https://zoom.us/j/1, San Jose, CA',
+      'Room 4, HQ, Springfield',
+      'Conference Room B, Office, CA',
+      'Mom’s home, Home, CA',
+    ]) {
+      expect(googleLocationQueries(where), where).toEqual([])
+    }
+  })
+
+  it('keeps only the town when the text also names a room', () => {
+    expect(googleLocationQueries('Room 4, 1 Main St, Springfield, IL 62701')).toEqual([
+      'Springfield, IL',
+      'Springfield',
+    ])
   })
 })
 
@@ -450,6 +514,37 @@ describe('syncGoogleEvents', () => {
     expect(outcome.shown).toBe(150)
   })
 
+  it('sends a location to the place search only when it reads as a town (REVIEW6 M2)', async () => {
+    const queries: string[] = []
+    const recording: () => Promise<PlaceLookups> = async () => {
+      const real = await lookups()
+      return { ...real, search: query => (queries.push(query), real.search(query)) }
+    }
+    const at = ['2026-06-16T12:00:00-07:00', '2026-06-16T13:00:00-07:00'] as const
+    const items = [
+      timed('dr', 'Checkup', ...at, { location: 'Dr Patel' }),
+      timed('room', 'Session', ...at, { location: 'Therapy Room 2' }),
+      timed('hq', 'Review', ...at, { location: 'Client HQ' }),
+      timed('dial', 'Call', ...at, { location: '+1 415 555 0100 PIN 4411#' }),
+      timed('drtown', 'Visit', ...at, { location: 'Dr Patel, Boston, MA' }),
+      // A run with a location that is not a town: kept for the activity, never searched.
+      timed('track', 'Track run', ...at, { location: 'Coach Lee' }),
+      PICNIC,
+    ]
+    const { store, items: stored } = memoryStore()
+    const outcome = await syncGoogleEvents(
+      context(store, fakeApi({ primary: [{ items }], 'club@group': [] }), {
+        lookups: recording,
+      }),
+    )
+    expect(queries).toEqual(['San Diego, CA'])
+    expect(outcome.shown).toBe(2)
+    expect(outcome.skipped.noPlace).toBe(5)
+    const run = [...stored.values()].find(e => e.title === 'Track run')!
+    expect(run).toMatchObject({ where: 'Coach Lee', placeGuessed: true, activityId: 'run' })
+    expect(JSON.stringify([...stored.values()])).not.toMatch(/Patel|Therapy|Client|4411/)
+  })
+
   it('stops at the page limit for each calendar', async () => {
     const { store } = memoryStore()
     const listEvents = vi.fn(async () => ({ items: [], nextPageToken: 'more' }))
@@ -481,7 +576,7 @@ describe('syncSummary', () => {
       'Showing 1 upcoming event from Google Calendar.',
     )
     expect(syncSummary(base)).toBe(
-      'No events in the next 30 days have a place or match one of your activities.',
+      'No events in the next 30 days have an address or match one of your activities.',
     )
     expect(
       syncSummary({
