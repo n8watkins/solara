@@ -66,7 +66,7 @@ export default function PlanAhead({
   }
 
   return (
-    <div className="card">
+    <div className="card" data-testid="plan-ahead">
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>
           <p className="text-[15px] font-bold text-ink">Best day this week</p>
@@ -99,8 +99,12 @@ export default function PlanAhead({
             <span className="shrink-0 text-[20px]">{activity.icon}</span>
             <div className="min-w-0 flex-1">
               <p className="truncate text-[13px] font-semibold text-ink">{activity.name}</p>
-              <p className="mt-0.5 text-[12px] text-ink-3">
-                {label} · {fmt.time(slot.start)}–{fmt.time(slot.end)}
+              {/* On a narrow phone the line breaks after the dot, never inside the times. */}
+              <p className="mt-0.5 text-[12px] text-ink-3" data-testid="plan-ahead-when">
+                <span className="whitespace-nowrap">{label} ·</span>{' '}
+                <span className="whitespace-nowrap">
+                  {fmt.time(slot.start)}–{fmt.time(slot.end)}
+                </span>
               </p>
             </div>
             {/* Color means one thing here: the slot's average UV, on the same scale

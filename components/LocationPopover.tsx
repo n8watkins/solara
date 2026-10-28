@@ -26,7 +26,14 @@ export default function LocationPopover({ location, savedLocations, limit, onApp
         onClick={() => setOpen(o => !o)}
       >
         <MapPin size={14} className="shrink-0" />
-        <span className="truncate">{location.city}</span>
+        {/* A long name takes a second line on a narrow phone instead of being cut off
+            ("San Luis O..."); past two lines it ends in an ellipsis. */}
+        <span
+          className="line-clamp-2 text-left leading-[1.25] break-words"
+          data-testid="header-place-name"
+        >
+          {location.city}
+        </span>
       </button>
 
       {open && (

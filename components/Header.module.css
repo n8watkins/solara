@@ -4,8 +4,8 @@
 @layer theme, base, components, utilities;
 
 @layer components {
-  /* Header layout. One row at every width: on phones the location shrinks (and
-     truncates) instead of wrapping, so the city stays visible without a second row. */
+  /* Header layout. One row at every width: on phones the place takes what room the
+     controls leave and wraps to a second line inside the row when it needs one. */
   .header {
     background: var(--bg-card);
     border-bottom: 0.5px solid var(--border-md);
@@ -33,7 +33,7 @@
     min-width: 0;
   }
 
-  /* Let LocationPopover's trigger shrink so a long city name truncates. */
+  /* Let LocationPopover's trigger shrink so a long place name wraps. */
   .location > * {
     max-width: 100%;
   }

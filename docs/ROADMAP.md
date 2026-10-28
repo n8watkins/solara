@@ -350,6 +350,17 @@ The seventh review's findings L5 and L7 (`handoff/review7.md`):
 - **The date line (L7.4):** `sunTimes` normalises the longitude to (-180, 180] first, so -180 gives the same sun as 180 instead of nothing.
 - **Tests:** unit tests for every new recognition rule, the readout and the date line; `tests/harness/review7-helper-hero.spec.ts` at 320, 390 and 1280-1440 px, light and dark.
 
+### 31. Dashboard polish at 320 px (POLISH, built)
+
+Two UI findings left by the reviews, and what a pass over the whole dashboard at 320 px in both themes found:
+
+- **The place name in the header (320 px):** the header cut the place to "San Luis ..." and even "Los Ange...".
+  The name now wraps to a second line inside the header row when it needs one (two lines at most, then an ellipsis), and under 360 px the header shows the Solara mark without its wordmark (still the home button's name), so "San Luis Obispo, California" reads in full beside the Sign in button or the profile switcher and account menu, with no sideways scroll.
+- **Burn time and vitamin D with too little UV:** while the sun was up but UV was under 0.5 (5:20pm in Los Angeles in late October), both cards read "None" in the 23 px type of a number.
+  They now say "No burn risk" and "UV too low" in 15 px words on the number's line, so a card with words stays the height of one with minutes, with "Until 9am tomorrow" below; a screen reader hears "21 minutes" instead of "21m".
+- **Also at 320 px:** the day chips (Today, Tomorrow, More days) share one row with the refresh button instead of dropping "More days" to a row of its own, and "Best day this week" breaks after the dot instead of inside a time range ("6pm–" / "6:45pm").
+- **Tests:** `tests/harness/dashboard-polish.spec.ts` at 320, 390 and 1280 px, light and dark, for a long, a medium and a short place name on the guest and Pro headers, the low-UV cards, a burn time beside "UV too low", the day chips and the best-day rows.
+
 ## Decisions
 
 Agents never make owner decisions; they follow the recorded decision or the default.
