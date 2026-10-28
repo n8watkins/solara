@@ -85,6 +85,7 @@ Budget data arrives hours after the usage, so the switch caps a runaway bill rat
 - reCAPTCHA is the first cost to grow; keep App Check limited to signed-in users and backend calls, and weigh it when switching the forecast proxy on (guests then need App Check too).
 - Firestore reads: keep the account load to one document read and avoid listeners on large collections.
 - Hosting: hashed assets are cached for a year; keep first-load JavaScript small.
+  The 51 city pages (`/uv/`) are static HTML of about 4 KB gzip each with no JavaScript, sharing the cached stylesheet and font, so search traffic costs little transfer; they add a few seconds to the build and make no API calls (their data is checked in).
 - Keep the Cloud Billing budget and its kill switch in place from the day Blaze is enabled.
 
 ## Forecast providers

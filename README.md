@@ -59,6 +59,7 @@ The repository is an npm workspace.
 - The web app (Next.js static export) lives at the root: `app/`, `components/` and `lib/`.
   `app/page.tsx` is the static landing page: `scripts/static-pages.mjs` strips the framework scripts from it after the build, so it loads no JavaScript of its own beyond two inline scripts and nothing from Firebase.
   The app is `app/app/page.tsx` (`/app/`); a browser with a signed-in account that opens `/` is sent there.
+  The city pages (`app/uv/`, `/uv/<city>/`) are static the same way; their typical UV by month is checked in under `lib/cities/` and rebuilt by hand with `node scripts/city-climatology.mjs` (CAMS data via the Open-Meteo Air Quality API).
 - Two service workers are built into the export after `next build` by `scripts/build-sw.mjs`.
   `/sw.js` (`scripts/sw/shell.ts`, rules in `lib/sw-shell.mts`) is the app shell: `app/app/layout.tsx` registers it after the page loads, it precaches `/` and `/app/` with every file they load, and the app opens offline with the last forecast from `lib/cache.ts` and an offline notice (`components/OfflineNotice.tsx`).
   `/firebase-messaging-sw.js` (`scripts/sw/firebase-messaging-sw.ts`) handles push and is registered by Firebase Messaging, under its own scope, only when someone turns on notifications.

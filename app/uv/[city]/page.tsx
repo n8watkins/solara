@@ -69,11 +69,9 @@ export default async function CityUVPage({ params }: Props) {
         className="card mt-7 flex flex-col gap-4 border-accent-border bg-accent-soft/40 sm:flex-row sm:items-center sm:justify-between"
       >
         <div>
-          <p className="text-[17px] font-bold text-ink">
-            Today&apos;s UV in {city.name}, hour by hour
-          </p>
+          <p className="text-[17px] font-bold text-ink">Today&apos;s UV in {city.name}</p>
           <p className="mt-1 text-[14px] leading-[1.5] text-ink-2">
-            See the live forecast and the lower-UV times for what you do outside. Free, no account
+            The hourly forecast and the lower-UV times for what you do outside. Free, no account
             needed.
           </p>
         </div>
@@ -104,8 +102,8 @@ export default async function CityUVPage({ params }: Props) {
           Typical UV by month
         </h2>
         <p className="mt-1.5 text-[14px] leading-[1.6] text-ink-3">
-          The highest UV index of a typical day, with clouds, averaged over{' '}
-          {CLIMATOLOGY_SOURCE.first}-{CLIMATOLOGY_SOURCE.last}.
+          The highest UV index of a typical day, with clouds and under a clear sky, and the hours UV
+          is usually 3 or more, from {CLIMATOLOGY_SOURCE.first} to {CLIMATOLOGY_SOURCE.last}.
         </p>
 
         {/* The bars repeat the table below for sighted readers. */}
@@ -135,21 +133,21 @@ export default async function CityUVPage({ params }: Props) {
           ))}
         </div>
 
-        <div className="mt-5 overflow-x-auto rounded-xl border-[0.5px] border-line-strong">
-          <table className="w-full min-w-[520px] border-collapse text-left text-[14px]">
+        <div className="mt-5 rounded-xl border-[0.5px] border-line-strong">
+          <table className="w-full border-collapse text-left text-[13px] sm:text-[14px]">
             <caption className="sr-only">Typical UV index in {city.name} by month</caption>
             <thead className="bg-surface-subtle text-[12px] text-ink-3">
               <tr>
-                <th scope="col" className="px-4 py-2.5 font-semibold">
+                <th scope="col" className="px-2.5 py-2.5 sm:px-4 font-semibold">
                   Month
                 </th>
-                <th scope="col" className="px-4 py-2.5 font-semibold">
+                <th scope="col" className="px-2.5 py-2.5 sm:px-4 font-semibold">
                   Typical peak
                 </th>
-                <th scope="col" className="px-4 py-2.5 font-semibold">
+                <th scope="col" className="px-2.5 py-2.5 sm:px-4 font-semibold">
                   Clear sky
                 </th>
-                <th scope="col" className="px-4 py-2.5 font-semibold">
+                <th scope="col" className="px-2.5 py-2.5 sm:px-4 font-semibold">
                   UV 3 or more
                 </th>
               </tr>
@@ -157,10 +155,11 @@ export default async function CityUVPage({ params }: Props) {
             <tbody>
               {months.map(m => (
                 <tr key={m.month} className="border-t-[0.5px] border-line text-ink-2">
-                  <th scope="row" className="px-4 py-2.5 font-semibold text-ink">
-                    {m.month}
+                  <th scope="row" className="px-2.5 py-2.5 sm:px-4 font-semibold text-ink">
+                    <span className="sm:hidden">{m.month.slice(0, 3)}</span>
+                    <span className="hidden sm:inline">{m.month}</span>
                   </th>
-                  <td className="px-4 py-2.5 tabular-nums">
+                  <td className="px-2.5 py-2.5 sm:px-4 tabular-nums">
                     <span className="inline-flex items-center gap-2">
                       <span
                         aria-hidden="true"
@@ -170,11 +169,11 @@ export default async function CityUVPage({ params }: Props) {
                       {Math.round(m.peak)} {m.label}
                     </span>
                   </td>
-                  <td className="px-4 py-2.5 tabular-nums">{Math.round(m.clearSky)}</td>
-                  <td className="px-4 py-2.5">
+                  <td className="px-2.5 py-2.5 sm:px-4 tabular-nums">{Math.round(m.clearSky)}</td>
+                  <td className="px-2.5 py-2.5 sm:px-4">
                     {m.from !== null && m.to !== null
-                      ? `About ${hourText(m.from)}-${hourText(m.to)}`
-                      : 'Usually not reached'}
+                      ? `${hourText(m.from)}-${hourText(m.to)}`
+                      : 'Rarely'}
                   </td>
                 </tr>
               ))}
