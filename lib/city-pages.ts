@@ -24,7 +24,7 @@ export interface MonthUV {
   peak: number
   /** The day's highest UV index under a clear sky. */
   clearSky: number
-  /** Hours a day with a UV index of 3 or more. */
+  /** Hours a day with a UV index of 3 or more (2.5 or more, Moderate or higher). */
   hours3: number
   /** On days that reach UV 3: the median first hour, and the hour after the last; null when most days do not. */
   from: number | null
@@ -177,17 +177,17 @@ export function cityPage(slug: string): CityPage | null {
   ]
   if (top.from !== null && top.to !== null) {
     facts.push(
-      `On a typical ${top.month} day, UV is 3 or more from about ${hourText(top.from)} to ${hourText(top.to)}, about ${Math.round(top.hours3)} hours.`,
+      `On a typical ${top.month} day, UV is moderate or higher from about ${hourText(top.from)} to ${hourText(top.to)}, about ${Math.round(top.hours3)} hours.`,
     )
   }
   if (season) {
     facts.push(
       season === 'all year'
-        ? 'The typical midday UV reaches 3 or more in every month, so sun protection is a year-round habit here.'
-        : `The typical midday UV reaches 3 or more ${season}, when public-health guidance recommends sun protection.`,
+        ? 'The typical midday UV is moderate or higher in every month, so sun protection is a year-round habit here.'
+        : `The typical midday UV is moderate or higher ${season}, when public-health guidance recommends sun protection.`,
     )
   }
-  if (lowSpan) facts.push(`UV usually stays under 3 ${lowSpan}.`)
+  if (lowSpan) facts.push(`UV usually stays low ${lowSpan}.`)
   const cloudiest = months.reduce((best, m) =>
     m.clearSky - m.peak > best.clearSky - best.peak ? m : best,
   )
@@ -219,7 +219,7 @@ export function cityTitle(page: CityPage): string {
 
 /** The page's meta description: unique per city, under about 160 characters. */
 export function cityDescription(page: CityPage): string {
-  return `Typical UV index in ${page.place} by month: UV peaks around ${formatUV(page.top.peak)} in ${page.top.month}. See when UV is 3 or more and today's forecast.`
+  return `Typical UV index in ${page.place} by month: UV peaks around ${formatUV(page.top.peak)} in ${page.top.month}. See when UV is moderate or higher and today's forecast.`
 }
 
 /** Cities grouped by country, countries and cities in alphabetical order, for the index page. */

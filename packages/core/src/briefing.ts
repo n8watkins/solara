@@ -49,6 +49,19 @@ export interface BriefingActivity {
 export const PROTECT_FROM_UV = 3
 /** UV at which the WHO advises seeking shade at midday ("Very high"). */
 export const SHADE_FROM_UV = 8
+
+// The thresholds in words (REVIEW5 L5): the bands read the whole-number index (WHO), so
+// a forecast of 2.8 shows in a Moderate chip; copy that said "when UV is 3 or more"
+// beside it read as a contradiction. Naming the bands, as the chips do, never does.
+// In a sentence the band names are lower case ("when UV is moderate or higher").
+const band = (uv: number) => uvLabel(uv).toLowerCase()
+/** "moderate or higher": UV from PROTECT_FROM_UV on. */
+const PROTECT_TEXT = `${band(PROTECT_FROM_UV)} or higher`
+/** "low": UV below PROTECT_FROM_UV. */
+const BELOW_PROTECT = band(PROTECT_FROM_UV - 1)
+/** "very high or extreme": UV from SHADE_FROM_UV on. */
+const SHADE_TEXT = `${band(SHADE_FROM_UV)} or ${band(11)}`
+const NBSP = '\u00a0'
 /** Below this the sun is down or UV is negligible (no burn estimate). */
 const SUN_UP_UV = 0.5
 
@@ -202,8 +215,10 @@ export function dailyBriefing({
   )
   const peak =
     top && top.uv >= SUN_UP_UV ? { uv: top.uv, hour: top.hour, passed: top.hour + 1 <= from } : null
+  // A time range never breaks inside ("5pm to 8pm" stays on one line, REVIEW5 UI 3);
+  // the shared text and the alert get plain spaces back below.
   const fromTo = (span: { from: number; to: number }) =>
-    `from ${formatTime(span.from)} to ${formatTime(span.to)}`
+    `from ${formatTime(span.from)}${NBSP}to${NBSP}${formatTime(span.to)}`
   const range = (span: { from: number; to: number }) =>
     `${formatTime(span.from)}–${formatTime(span.to)}`
 
@@ -234,10 +249,10 @@ export function dailyBriefing({
     const rest = from >= 0 ? 'the rest of the day' : 'all day'
     windowLine =
       !peak || index(peak.uv) < PROTECT_FROM_UV
-        ? `UV stays under ${PROTECT_FROM_UV} ${rest}`
+        ? `UV stays ${BELOW_PROTECT} ${rest}`
         : spans.length
-          ? `UV is under ${PROTECT_FROM_UV} ${spans.map((span, i) => (i ? `${formatTime(span.from)} to ${formatTime(span.to)}` : fromTo(span))).join(' and ')}`
-          : `UV stays at ${PROTECT_FROM_UV} or more ${rest}`
+          ? `UV is ${BELOW_PROTECT} ${spans.map((span, i) => (i ? `${formatTime(span.from)}${NBSP}to${NBSP}${formatTime(span.to)}` : fromTo(span))).join(' and ')}`
+          : `UV stays ${PROTECT_TEXT} ${rest}`
   }
 
   // A passed peak's burn time is history; the dashboard's burn card has the current one.
@@ -247,16 +262,16 @@ export function dailyBriefing({
 
   // From "now" on when today is under way: "until 5pm" once the span has begun.
   const during = (span: { from: number; to: number }) =>
-    span.from <= from ? `until ${formatTime(span.to)}` : fromTo(span)
+    span.from <= from ? `until${NBSP}${formatTime(span.to)}` : fromTo(span)
   const shade = spanAtOrAbove(hourly, SHADE_FROM_UV, from)
   const protect = spanAtOrAbove(hourly, PROTECT_FROM_UV, from)
   const tip = shade
-    ? `seek shade ${during(shade)}, when UV is ${SHADE_FROM_UV} or more`
+    ? `seek shade ${during(shade)}, when UV is ${SHADE_TEXT}`
     : protect
-      ? `use sun protection ${during(protect)}, when UV is ${PROTECT_FROM_UV} or more`
+      ? `use sun protection ${during(protect)}, when UV is ${PROTECT_TEXT}`
       : peak && index(peak.uv) >= PROTECT_FROM_UV
         ? 'UV stays low for the rest of the day'
-        : 'UV stays low, so most people need little protection'
+        : 'most people need little sun protection today'
 
   const lines = {
     peak: sentence(peakLine),
@@ -268,5 +283,6 @@ export function dailyBriefing({
     .filter(Boolean)
     .map(part => sentence(part!))
     .join('. ')
+    .replaceAll(NBSP, ' ')
   return { date: day.date, peak, window, burnMins: burn, cloud, lines, text: `${text}.` }
 }
