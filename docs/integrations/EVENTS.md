@@ -6,7 +6,7 @@ _Every external fact below was checked against the cited page on 2026-10-27._
 This is the design for [ROADMAP item 12.9](../ROADMAP.md#12-wave-5-features): linking events from Strava, Meetup and similar services so Solara can plan around them.
 Phase 1 is built (see [Phase 1 as built](#phase-1-as-built)), phases 2 and 2b are built and switched off (see [Phase 2 as built](#phase-2-as-built) and [Phase 2b as built](#phase-2b-as-built)); phase 3 is still a plan.
 Files marked "(new)" are planned.
-Two follow-ups have their own documents: [events from Outlook](OUTLOOK.md) (ROADMAP item 23, planned), the Microsoft counterpart of phase 2b, and the [Add a calendar from... helper](CALENDAR_LINKS.md) (ROADMAP item 24, built and switched off with linked calendars) for linking iCloud, Google, Outlook.com and Yahoo calendars in phase 2.
+Two follow-ups have their own documents: [events from Outlook](OUTLOOK.md#as-built) (ROADMAP item 23, built and switched off), the Microsoft counterpart of phase 2b, which shares its refresh, duplicate, cap and place code (`lib/calendar-events.ts`), and the [Add a calendar from... helper](CALENDAR_LINKS.md) (ROADMAP item 24, built and switched off with linked calendars) for linking iCloud, Google, Outlook.com and Yahoo calendars in phase 2.
 
 ## Phase 1 as built
 
@@ -100,6 +100,7 @@ _Every choice below is a default the owner may change (ROADMAP decisions, 2026-1
 - **Account data:** the export gains `googleCalendar` (the chosen calendars) and lists Google events in `importedEvents`; account deletion removes both with `users/{uid}`; the privacy policy describes the scopes, what is kept and for how long.
 - **Heads-ups:** REVIEW5 M3 found that heads-ups treat every event as outdoors; lane FIX5B limits them to outdoor events (an activity set) and de-duplicates them across sources.
   Google events without a matching activity are stored with no activity, so that rule leaves them out; the owner checklist puts FIX5B before switching this on.
+- **Shared with Outlook:** since ROADMAP item 23 the refresh, duplicate, cap, place and connection code lives in `lib/calendar-events.ts` and serves both connections; duplicates are checked across every source, Outlook included, and "Remove imported events" names the calendars whose events stay.
 - **Not in phase 2b:** a server refresh while Solara is closed; per-calendar colours or names on each event; reading events further than 30 days ahead.
 
 ## Recommendation in short
