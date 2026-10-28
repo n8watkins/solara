@@ -6,17 +6,25 @@ import { browserApi, costGuard } from '../shared/browser-api'
 import { HttpError } from '../shared/errors'
 import { db } from '../shared/firebase'
 import { httpOptions } from '../shared/options'
-import { FORECAST_PROXY_ENABLED, OPEN_METEO_API_KEY, commercialProvider } from './config'
+import {
+  FORECAST_PROXY_ENABLED,
+  OPEN_METEO_API_KEY,
+  commercialProvider,
+  upstreamLimits,
+} from './config'
 import { ForecastCache, requestedPlace } from './proxy'
+import { UpstreamBudget } from './upstream-budget'
 
 const cache = new ForecastCache({
   db,
   provider: () => commercialProvider(),
   upstreamAllowed: async () => !(await costGuard.engaged()),
+  upstreamBudget: new UpstreamBudget({ db, limits: upstreamLimits }),
 })
 
 // Guests call it too, so there is no ID token: App Check and the per-address limit
-// guard it, and the cache bounds what any number of callers can cost upstream.
+// guard it, and the cache and the global upstream budget bound what any number of
+// callers can cost upstream.
 export const forecast = onRequest(
   httpOptions({
     name: 'forecast',

@@ -71,7 +71,7 @@ Settings' Location tab uses the same search (#95), and the data credits name Geo
 
 ### 6. Forecast proxy and licensing (BE-12, with D5) (built, #106)
 
-Built 2026-10-27 in #106 and switched off: one provider adapter (`packages/core/src/forecast.ts`) behind the shared validated parser, and the `forecast` Function, which keeps the Open-Meteo commercial key on the server and caches per place (0.01 degree) and hour, with a 5 s timeout and a 6-hour last-good fallback ([DEPLOYMENT.md](DEPLOYMENT.md#forecast-proxy)).
+Built 2026-10-27 in #106 and switched off: one provider adapter (`packages/core/src/forecast.ts`) behind the shared validated parser, and the `forecast` Function, which keeps the Open-Meteo commercial key on the server and caches per place (0.02 degree since item 14) and hour, with a 5 s timeout and a 6-hour last-good fallback ([DEPLOYMENT.md](DEPLOYMENT.md#forecast-proxy)).
 The browser keeps calling Open-Meteo directly until the owner buys the plan (D5) and sets `FORECAST_PROXY_ENABLED` ([owner checklist step 17](OWNER_CHECKLIST.md#at-pro-launch-blaze)).
 
 ### 7. ESLint 10 (done)
@@ -157,6 +157,7 @@ The owner's requirement: nobody can abuse the Blaze setup or run up costs, and i
 
 - **Cheap rejections and client addresses (H1, M2, M6):** a rejected request is turned away before any Firestore read or upstream call and logged once a minute instead of once per request; the HTTP instance caps are launch-sized (15 in all, down from 37); `infra/logging.sh` drops 99% of rejected-request logs; IPv6 clients are limited per /64; a runtime self-check and `infra/check-client-address.sh` catch a wrong `TRUSTED_PROXY_HOPS` ([DEPLOYMENT.md](DEPLOYMENT.md#cost-and-abuse-limits), [COSTS.md](COSTS.md#worst-case-under-a-flood)).
 - **A real hard stop that cannot be turned against paying users (H1, H2, L1, L2):** a $25 budget with three tiers (warn at 50%, cost guard at 100%, detach billing at 300%, on by default); a budget-engaged guard ends by itself at the next budget period and the owner releases it with `infra/cost-guard.sh released --apply`; the scheduled Pro alerts are never paused by the budget; `budgetAlert` acts only on `BUDGET_ID` and runs as its own `solara-budget` identity, the only one allowed to detach billing ([RUNBOOK.md](RUNBOOK.md#budget-kill-switch)).
+- **Paid forecast calls bounded (M1, M3, L1, L3):** a global upstream budget (1,500 an hour, 20,000 a day) shared by the proxy and the calendar feed, failing closed to the cached forecast; a 0.02 degree cache grid chosen from measured UV differences; the calendar feed reads the shared cache with 4 upstream calls per feed an hour; fallbacks are remembered and logged once a minute; setup's current UV goes through the proxy once it is on, and the feed never uses the free API once billing is on ([DEPLOYMENT.md](DEPLOYMENT.md#forecast-proxy)).
 
 ## Decisions
 
@@ -178,6 +179,7 @@ The steps behind each one are in the [owner checklist](OWNER_CHECKLIST.md).
 | D11 | Bot protection | Decided 2026-10-23: App Check with reCAPTCHA v3; works without code changes, waits for the owner's site key |
 | D12 | Local branch and worktree cleanup on the owner's machine | Open, any time |
 | Blaze | Billing plan | Decided 2026-10-23: stay on Spark until Pro launches, then Blaze with a budget and its kill switch ([COSTS.md](COSTS.md)) |
+| Forecast calls | Paid forecast API budget and cache grid | Default, owner may change (2026-10-27, item 14): 1,500 upstream calls an hour and 20,000 a day for the proxy and the feed (`FORECAST_UPSTREAM_PER_HOUR`, `FORECAST_UPSTREAM_PER_DAY`), 4 an hour per calendar feed, a 0.02 degree cache grid |
 | Budget | Budget and kill switch tiers | Default, owner may change (2026-10-27, item 14): $25 a month; warn at 50%, cost guard at 100% until the next period, detach billing at 300% (on by default, `COST_GUARD_DETACH_BILLING=false` turns it off); the scheduled Pro alerts are never paused by the budget |
 | Price | Pro price | Decided 2026-10-24: $2.99 a month or $19.99 a year, 7-day free trial, waitlist until billing launches |
 | Tiers | Plans | Decided 2026-10-24: as shipped in #71, below |

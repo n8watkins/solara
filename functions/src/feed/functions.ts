@@ -8,9 +8,12 @@ import { authenticate, uidLimiter } from '../shared/auth'
 import { browserApi, costGuard } from '../shared/browser-api'
 import { db } from '../shared/firebase'
 import { httpOptions } from '../shared/options'
-import { OPEN_METEO_API_KEY, commercialProvider } from '../forecast/config'
+import { BILLING_ENABLED } from '../billing/config'
+import { OPEN_METEO_API_KEY, feedForecastProvider, upstreamLimits } from '../forecast/config'
+import { ForecastCache } from '../forecast/proxy'
+import { UpstreamBudget } from '../forecast/upstream-budget'
 import { createCalendarFeedHandler } from './calendar-feed'
-import { buildSunEvents, fetchForecast } from './sun'
+import { buildSunEvents, parseSunForecast } from './sun'
 import { revokeCalendarFeed as revokeFeed, rotateCalendarFeed as rotateFeed } from './tokens'
 
 /** Minting or revoking a feed link is a deliberate action, a few times a minute at most. */
@@ -51,6 +54,17 @@ export const revokeCalendarFeed = onRequest(
   }),
 )
 
+// The feed reads forecasts through the same Firestore-backed cache as the proxy and the
+// alerts (one upstream call per place and hour across the app), within the same global
+// upstream budget, and each feed may cause only a few upstream calls an hour (finding M3).
+// The feed answers 503 while the cost guard is engaged, so no upstream call then either.
+const feedForecasts = new ForecastCache({
+  db,
+  provider: () => feedForecastProvider(BILLING_ENABLED.value()),
+  upstreamAllowed: async () => !(await costGuard.engaged()),
+  upstreamBudget: new UpstreamBudget({ db, limits: upstreamLimits }),
+})
+
 // Token-authorized (calendar apps cannot send App Check tokens) and rate limited per
 // feed and per address; see calendar-feed.ts.
 export const calendarFeed = onRequest(
@@ -68,8 +82,8 @@ export const calendarFeed = onRequest(
     buildSunEvents,
     costGuard,
     db,
-    // The commercial API once its key is set (decision D5).
-    fetchForecast: (lat, lon, days) =>
-      fetchForecast(lat, lon, days, { provider: commercialProvider() ?? undefined }),
+    // The commercial API once its key is set (decision D5); see feedForecastProvider.
+    fetchForecast: async (location, days, lookup) =>
+      parseSunForecast(await feedForecasts.get(location, lookup), days),
   }),
 )

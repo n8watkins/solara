@@ -749,6 +749,16 @@ describe('alert bookkeeping', () => {
     await assertFails(alice.doc('alertDispatch/state').get())
     await assertFails(alice.doc('alertDispatch/state').set({ cursor: 'alice' }))
   })
+
+  test('no client can read or change the forecast upstream budget', async () => {
+    await testEnv.withSecurityRulesDisabled(async context => {
+      await context.firestore().doc('forecastUpstream/day-2026-10-27').set({ count: 1 })
+    })
+    const alice = testEnv.authenticatedContext('alice').firestore()
+    await assertFails(alice.doc('forecastUpstream/day-2026-10-27').get())
+    await assertFails(alice.doc('forecastUpstream/day-2026-10-27').set({ count: 0 }))
+    await assertFails(alice.doc('forecastUpstream/hour-2026-10-27T14').set({ count: 0 }))
+  })
 })
 
 describe('server switches', () => {

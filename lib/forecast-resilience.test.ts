@@ -5,6 +5,7 @@ import { fetchForecast, weatherLabel } from '@/lib/forecast'
 /* eslint-disable @typescript-eslint/no-require-imports */
 const core = require('../functions/core')
 const sun = require('../functions/lib/feed/sun')
+const { ForecastCache } = require('../functions/lib/forecast/proxy')
 // The Functions log through firebase-functions/logger, resolved from functions/.
 const { logger } = createRequire(require.resolve('../functions/package.json'))(
   'firebase-functions/logger',
@@ -46,7 +47,6 @@ afterEach(() => {
   vi.useRealTimers()
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
-  sun.clearLastGoodForecasts()
 })
 
 describe('weather labels', () => {
@@ -145,36 +145,53 @@ describe('app fetchForecast', () => {
 })
 
 describe('calendar feed forecast', () => {
+  /** The shared forecast cache the feed reads through, over an in-memory Firestore. */
+  function feedForecasts(fetchImpl: () => Promise<Response>, now: () => number) {
+    const docs = new Map<string, unknown>()
+    const db = {
+      collection: () => ({
+        doc: (id: string) => ({
+          get: async () => ({ data: () => docs.get(id) }),
+          set: async (data: unknown) => docs.set(id, data),
+        }),
+      }),
+    }
+    return new ForecastCache({
+      db,
+      provider: () => core.openMeteoFree,
+      upstreamAllowed: async () => true,
+      now,
+      fetchImpl: (...args: unknown[]) =>
+        (fetchImpl as (...a: unknown[]) => Promise<Response>)(...args),
+    })
+  }
+
   it('serves the last good forecast when the provider fails', async () => {
     const t0 = Date.parse('2026-06-15T12:00:00Z')
-    const good = await sun.fetchForecast(34, -118, 1, {
-      fetchImpl: async () => okJson(rawDay('2026-06-15')),
-      now: t0,
-    })
-    const warn = vi.spyOn(logger, 'warn').mockImplementation(() => {})
+    let now = t0
+    let respond = async () => okJson(rawDay('2026-06-15'))
+    const cache = feedForecasts(
+      () => respond(),
+      () => now,
+    )
+    const good = sun.parseSunForecast(await cache.get({ lat: 34, lon: -118 }), 1)
+    vi.spyOn(logger, 'warn').mockImplementation(() => {})
 
-    const fallback = await sun.fetchForecast(34, -118, 1, {
-      fetchImpl: async () => failing(),
-      now: t0 + sun.LAST_GOOD_MAX_AGE_MS,
-    })
+    respond = async () => failing()
+    now = t0 + 60 * 60 * 1000
+    const fallback = sun.parseSunForecast(await cache.get({ lat: 34, lon: -118 }), 1)
     expect(fallback).toEqual(good)
-    expect(warn).toHaveBeenCalledWith('Forecast fetch failed; serving the last good forecast', {
-      error: { name: 'Error', message: 'Forecast request failed: 503' },
-      ageMs: sun.LAST_GOOD_MAX_AGE_MS,
-    })
-
-    await expect(
-      sun.fetchForecast(34, -118, 1, {
-        fetchImpl: async () => failing(),
-        now: t0 + sun.LAST_GOOD_MAX_AGE_MS + 1,
-      }),
-    ).rejects.toThrow('Forecast request failed: 503')
   })
 
   it('does not share a last good forecast between places', async () => {
-    await sun.fetchForecast(34, -118, 1, { fetchImpl: async () => okJson(rawDay('2026-06-15')) })
-    await expect(
-      sun.fetchForecast(40, -74, 1, { fetchImpl: async () => failing() }),
-    ).rejects.toThrow('Forecast request failed: 503')
+    let respond = async () => okJson(rawDay('2026-06-15'))
+    const cache = feedForecasts(
+      () => respond(),
+      () => Date.parse('2026-06-15T12:00:00Z'),
+    )
+    await cache.get({ lat: 34, lon: -118 })
+    vi.spyOn(logger, 'warn').mockImplementation(() => {})
+    respond = async () => failing()
+    await expect(cache.get({ lat: 40, lon: -74 })).rejects.toThrow('Forecast unavailable')
   })
 })

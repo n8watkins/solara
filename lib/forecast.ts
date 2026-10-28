@@ -202,7 +202,7 @@ export function forecastProxyBaseUrl(
  * commercial Open-Meteo API, decision D5), otherwise Open-Meteo's free API directly.
  * The proxy needs an App Check token, which loads Firebase and reCAPTCHA on demand.
  */
-async function forecastProvider(): Promise<core.ForecastProvider> {
+export async function forecastProvider(): Promise<core.ForecastProvider> {
   const proxy = forecastProxyBaseUrl()
   if (!proxy) return core.openMeteoFree
   const { appCheckToken } = await import('./firebase')
