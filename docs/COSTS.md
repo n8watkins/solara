@@ -74,7 +74,7 @@ Free quotas protect nothing once billing is attached, so the Functions are built
 - every function has a small fixed size and a launch-sized instance cap (15 HTTP instances in all), so CPU-seconds and billed requests cannot grow without limit;
 - every browser endpoint needs App Check and has per-address and per-account rate limits and a body size cap, and turns a request away before any Firestore read or upstream call;
 - rejections are logged once a minute, not once per request, and `infra/logging.sh` drops 99% of Cloud Run's request logs for rejected requests;
-- the forecast proxy caches per place and hour, so traffic does not multiply upstream calls;
+- the forecast proxy, the calendar feed and the alerts share one cache per place and hour, so traffic does not multiply upstream calls, and a global budget caps the proxy's and the feed's paid forecast calls at 1,500 an hour and 20,000 a day (about 60% of the Standard plan), so a script walking new places cannot spend the plan's quota;
 - the Firestore rules cap list sizes, and every server-owned record and scheduled activity expires.
 
 The budget kill switch is the last line ([runbook](RUNBOOK.md#budget-kill-switch)), with three tiers (defaults, owner may change):

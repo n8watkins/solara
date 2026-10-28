@@ -25,6 +25,7 @@ ERROR messages and where they are handled:
 | `client address is a proxy address: check TRUSTED_PROXY_HOPS` | Per-address limits are keying on a Google proxy, so people share one budget; set `TRUSTED_PROXY_HOPS` as in [Check the client address](DEPLOYMENT.md#check-the-client-address-at-the-first-deploy) and redeploy the Functions |
 | `maintenance task <name> failed` | The task's own errors are in the same log entry; the next run (5 minutes) retries; if it keeps failing, see [Rollback](#rollback) |
 | `stripeWebhook failed` | Stripe retries for 3 days; fix the cause, then resend the event from the Stripe dashboard (**Developers**, **Webhooks**, the event, **Resend**) |
+| `forecast upstream budget exhausted` | The forecast proxy and the feed have made their hourly or daily share of paid forecast calls (`FORECAST_UPSTREAM_PER_HOUR`, `FORECAST_UPSTREAM_PER_DAY`); cached forecasts are still served. Look at the `forecast` Function's request counts for a flood of new places; if it is real growth, raise the caps in `functions/.env` within the plan's monthly calls ([Forecast proxy](DEPLOYMENT.md#forecast-proxy)) |
 | `<function> failed` (a 5xx answer) | The function's recent logs in Cloud Run; roll the Function back if a deploy caused it. Logged at most once a minute per instance; `suppressed` counts the failures held back since the previous line |
 
 ## Cost guard
@@ -139,6 +140,7 @@ Firestore deletes these records some time after their `expireAt` passes, once `i
 | `notificationRegistrationLimits` | 1 day after the rate-limit window |
 | `users/{uid}/scheduled` | 30 days after the scheduled event ends |
 | `forecastCache` | 1 day after the forecast was fetched (each place is refreshed hourly while in use) |
+| `forecastUpstream` | 2 days after the hour or day its counter counts (the forecast upstream budget) |
 | `alertState` | 7 days after the account's last alert was claimed |
 
 Check the policies with `gcloud firestore fields ttls list --project uv-activity-planner`.
