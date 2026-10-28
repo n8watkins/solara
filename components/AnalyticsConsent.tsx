@@ -126,9 +126,14 @@ export default function AnalyticsConsent({ measurementId }: { measurementId?: st
           <h2 id="analytics-consent-title" className={styles.title}>
             Help improve Solara
           </h2>
+          {/* Phones get the short sentence, so the bar stays about two rows tall. */}
           <p className={styles.text}>
-            Allow optional analytics to help us understand which features are useful. Nothing loads
-            unless you choose Allow. <a href="/privacy/">Privacy details</a>
+            <span className={styles.long}>
+              Allow optional analytics to help us understand which features are useful. Nothing
+              loads unless you choose Allow.
+            </span>
+            <span className={styles.short}>Optional analytics, off unless you allow it.</span>{' '}
+            <a href="/privacy/">Privacy details</a>
           </p>
         </div>
         <div className={styles.actions}>
