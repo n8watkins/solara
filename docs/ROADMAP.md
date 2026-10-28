@@ -240,6 +240,18 @@ The fifth security review's findings H1, M1, M2, M4, L3 and the server part of L
 - **"Remove imported events" (L2):** the app's button (item 20) keeps linked events; if they are ever deleted anyway, the server notices the missing events and writes them back at the link's next refresh (emulator test).
 - **Left:** refreshing only accounts active in the last 30 days, if the link count ever needs it.
 
+### 22. Heads-ups, limiter, forecast shares and copy from the fifth review (FIX5B, built)
+
+The fifth security review's findings M3, M5, L1, L4, L5, L6 and L7, and its UI items 2, 3 and 7 (`handoff/review5.md`):
+
+- **Heads-ups only for outdoor events (M3):** an event gets a heads-up only when it counts as one of the person's (outdoor) activities (`countsAsOutdoorActivity` in `packages/core/src/event-heads-up.ts`, for files, linked calendars and Google Calendar alike); the same title starting within 30 minutes counts once across sources and keys; an account gets at most one every 3 hours, naming the soonest high-UV event and counting the others it covers; and a run reads every event whose heads-up can be due instead of the 5 soonest.
+- **Publisher text in pushes (L4):** the push's title is Solara's own; the body quotes the event's name, cleaned of links, domains, e-mail addresses, phone numbers and invisible formatting, and cut to 40 characters.
+- **A limiter that keeps serving newcomers (M5):** when its 10,000 exact windows are all live, new keys are counted in a fixed-size count-min sketch, which never under-counts, so throttled clients get no fresh budget and newcomers are still served.
+- **Forecast shares by network, and a reserve (L1):** an IPv4 caller also counts against its /24 at 4 shares, and the browser's forecasts may spend only two thirds of the global budget, so a flood from many networks cannot stop the calendar feed or Pro heads-ups ([DEPLOYMENT.md](DEPLOYMENT.md#forecast-proxy)).
+- **Copy and UI (L5, L6, UI items):** UV thresholds are named by band ("moderate or higher") wherever a decimal is shown, and the city table explains the WHO rounding once; briefing time ranges no longer break on phones; the consent bar is about 80 px tall on phones; alerts have their own Settings tab; the heads-up and quiet-hours hints say what heads-ups do; the Events section names every switched-on source.
+- **Harness (L7):** the fixture's live reading follows the clock, so evening and night screens show that time's UV.
+- **Not done, for later if real traffic needs it:** serving the nearest cached cell before a 503, and limited-use App Check tokens for cache misses.
+
 ## Decisions
 
 Agents never make owner decisions; they follow the recorded decision or the default.
@@ -276,6 +288,10 @@ The steps behind each one are in the [owner checklist](OWNER_CHECKLIST.md).
 | Linked calendar place lookups | Budget for looking up linked calendars' LOCATION text | Default, owner may change (2026-10-28): a budget of its own, 50 an hour and 300 a day (`EVENT_PLACE_LOOKUPS_PER_HOUR`, `EVENT_PLACE_LOOKUPS_PER_DAY`), 10 an hour per account, separate from place search's, so linked calendars cannot take place search from guests (REVIEW5 M1) |
 | Google Calendar events | Scope, refresh and limits for events already in Google Calendar | Default, owner may change (2026-10-28, item 20): `calendar.events.readonly`, plus `calendar.calendarlist.readonly` only to choose calendars, verified separately from Scheduled's scopes; client only with tokens in memory and no refresh tokens (events refresh while Solara is open); the main calendar by default, up to 10 chosen; the next 30 days; only timed, not declined events with a place or a matching activity, at most 200 a refresh, counted in the 1,000-event key list; an event already stored from a file or linked calendar is not added again; disconnect removes the events and revokes the grant; behind `GOOGLE_CALENDAR_EVENTS_ENABLED` as well as the OAuth client ID |
 | Event heads-ups | When Pro hears about a high-UV event | Default, owner may change (2026-10-28): one push per event whose peak UV at its place reaches 6, about 3 hours before the start (the evening before when that falls in quiet hours, never later than 15 minutes before), on by default for Pro (Settings turns it off), for imported and linked events alike; event forecasts count against the global upstream budget with a per-account share, at most 200 a run |
+| Heads-up scope | Which events get a heads-up, and how often | Default, owner may change (2026-10-28, item 22): only events that count as an outdoor activity (the event's activity is one of the person's; "No activity" events, such as meetings, get none); the same title starting within 30 minutes counts as one event across files, linked calendars and Google Calendar; at most one heads-up push per account every 3 hours, naming the soonest high-UV event and how many more are coming up; every qualifying event in the window is looked at; the event's name is quoted in the body only, cleaned and cut to 40 characters |
+| Limiter overflow | What the per-address limiter does when full | Default, owner may change (2026-10-28, item 22): past 10,000 live windows, new keys are counted in a 2 MB count-min sketch per limiter instead of being refused |
+| Forecast shares by network | IPv4 networks and the browser's part of the forecast budget | Default, owner may change (2026-10-28, item 22): an IPv4 /24 may use 4 caller shares (`IPV4_NETWORK_WEIGHT`), like an IPv6 /48; the browser's forecasts may spend two thirds of the global budget (`BROWSER_SHARE_OF_UPSTREAM`), the rest is kept for the calendar feed and event heads-ups |
+| UV threshold wording | How copy names the UV 3 and 8 thresholds | Default, owner may change (2026-10-28, item 22): the WHO bands stay on the rounded index; copy that sits beside one-decimal values names the band ("moderate or higher", "low", "very high or extreme") instead of "3 or more" |
 
 ### Tiers
 
