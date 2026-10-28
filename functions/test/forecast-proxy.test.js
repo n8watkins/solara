@@ -93,7 +93,7 @@ describe('forecast providers', () => {
     assert.equal(commercial.searchParams.get('forecast_days'), '10')
     assert.equal(
       commercial.searchParams.get('hourly'),
-      'uv_index,temperature_2m,weathercode,cloudcover',
+      'uv_index,uv_index_clear_sky,temperature_2m,weathercode,cloudcover',
     )
     assert.equal(commercialProvider('unset'), null)
     assert.equal(commercialProvider('  '), null)
