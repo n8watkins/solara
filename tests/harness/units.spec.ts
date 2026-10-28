@@ -6,7 +6,7 @@ import { HARNESS_MARKER } from './fixtures'
 
 // PROD-4: temperatures are stored in Celsius and shown in the person's unit, and
 // times follow their 12/24-hour clock. Both default from the browser locale and
-// can be changed under Settings > Appearance.
+// can be changed under Settings > Display.
 const SHOT_DIR = join('test-results', 'ui-harness', 'screenshots')
 
 async function open(page: Page, screen: 'dashboard' | 'settings', colorScheme = 'light') {
@@ -48,11 +48,11 @@ test.describe('British English', () => {
   })
 })
 
-test('Appearance settings switch units and the dashboard follows', async ({ page }, testInfo) => {
+test('Display settings switch units and the dashboard follows', async ({ page }, testInfo) => {
   const colorScheme = testInfo.project.use.colorScheme === 'dark' ? 'dark' : 'light'
   await open(page, 'settings', colorScheme)
   const dialog = page.getByRole('dialog')
-  await dialog.getByRole('tab', { name: /Appearance/ }).click()
+  await dialog.getByRole('tab', { name: /Display/ }).click()
   const temperature = dialog.getByLabel('Temperature')
   const clock = dialog.getByLabel('Time format')
   await expect(temperature).toHaveValue('auto')
