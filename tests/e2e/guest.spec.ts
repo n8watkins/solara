@@ -116,8 +116,8 @@ test('a guest who comes back on a later day is offered to save the plan', async 
  * analytics code and the activity plan with its slot planning (which a plan without
  * activities, like a new guest's, never needs) load on demand (lib/firebase.ts,
  * components/deferred.tsx), the boundaries are validated with Valibot, and the React
- * Compiler is off (next.config.ts); about 182 KB today, 192.7 KB before ROADMAP item
- * 38, 199 KB before #127 and over 500 KB before #83. The budget leaves about 4 KB for
+ * Compiler is off (next.config.ts); about 182 KB today, 192.1 KB before ROADMAP item
+ * 39, 199 KB before #127 and over 500 KB before #83. The budget leaves about 4 KB for
  * growth (ROADMAP decisions, "First-load budget"): raise it only with a reason.
  */
 const GUEST_FIRST_LOAD_BUDGET_KB = 186
