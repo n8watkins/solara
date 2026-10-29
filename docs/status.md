@@ -11,7 +11,7 @@ The plan for the remaining work is in [ROADMAP.md](ROADMAP.md); the owner's step
 
 Solara is served from the Firebase Hosting site `solara-uv` in project `uv-activity-planner`, on the free Spark plan.
 The original address, `https://uv-activity-planner.web.app`, permanently redirects every path to the same path on `solara-uv.web.app`, except Firebase's reserved `/__/` paths (#42, #45).
-Every merge to `main` deploys; every deploy from #126 to #144 was green (the latest checked is run 40790756032, for #144 on 2026-10-28).
+Every merge to `main` deploys; every deploy from #126 to #155 was green, the deploy for #154 was cancelled twice when the UI harness hit its 20-minute limit (REVIEW9 QA H1), and since #157 runs the harness in four parallel shards, the deploy for #157 (run 40910709133, 2026-10-29, about 8 minutes) shipped #154 and #157 (the latest checked).
 #79 and #81 fixed the findings of the first post-launch code review (Google sign-in popup and quota handling, the Scheduled list query, plan limits in the Firestore rules, the feed limiter's client address).
 
 What users get:
