@@ -506,10 +506,22 @@ service cloud.firestore {
       return timestamp.date(int(parts[0]), int(parts[1]), int(parts[2]));
     }
 
+    // Self-service deletion without Functions (lib/account-self-service.ts): the owner may
+    // delete the account document only while it holds no billing, so a Stripe customer
+    // and a paid plan are always ended by the deleteAccount Function, which also removes
+    // the server-only records. A document that does not exist may be "deleted" too, so a
+    // deletion that stopped half way can run again.
+    function withoutBilling() {
+      return resource == null
+        || (resource.data.get('tier', 'free') != 'paid'
+          && !('stripeCustomerId' in resource.data));
+    }
+
     match /users/{userId} {
       allow read: if isOwner(userId) && isActiveAccount(userId);
       allow create: if isOwner(userId) && isActiveAccount(userId) && validNewUser(userId);
       allow update: if isOwner(userId) && isActiveAccount(userId) && validUserUpdate(userId);
+      allow delete: if isOwner(userId) && isActiveAccount(userId) && withoutBilling();
 
       // At most five devices exist (MAX_NOTIFICATION_DEVICES); a list must say so, so no
       // query can read an unbounded collection.
@@ -547,10 +559,13 @@ service cloud.firestore {
               .hasOnly(feedEventClientKeys()));
       }
 
-      // The key lists behind the per-account caps (validKeyIndex), never deleted by the
-      // client, and the Google and Outlook calendars the account reads events from
-      // (validGoogleCalendarLink, validOutlookCalendarLink), deleted when the person
-      // disconnects. Account deletion removes them with the rest of users/{uid}.
+      // The key lists behind the per-account caps (validKeyIndex), and the Google and
+      // Outlook calendars the account reads events from (validGoogleCalendarLink,
+      // validOutlookCalendarLink), deleted when the person disconnects. A key list may be
+      // deleted only once it lists no key: every key leaves it only after its record is
+      // gone, so an empty list is the same as no list and the cap still holds. Account
+      // deletion empties and deletes them (lib/account-self-service.ts) or removes them
+      // with the rest of users/{uid} (the deleteAccount Function).
       match /meta/{name} {
         allow get: if isOwner(userId) && isActiveAccount(userId);
         allow create, update: if isOwner(userId) && isActiveAccount(userId)
@@ -558,7 +573,9 @@ service cloud.firestore {
             || (name == 'googleCalendar' && validGoogleCalendarLink())
             || (name == 'outlookCalendar' && validOutlookCalendarLink()));
         allow delete: if isOwner(userId) && isActiveAccount(userId)
-          && name in ['googleCalendar', 'outlookCalendar'];
+          && (name in ['googleCalendar', 'outlookCalendar']
+            || (name in ['events', 'scheduled']
+              && (resource == null || resource.data.get('ids', {}).size() == 0)));
       }
 
       // Server-written records the owner may read: the calendar feed token, and the linked
