@@ -50,7 +50,8 @@ Done 2026-10-25 in #78: the peak callout stays inside the arc's box at every wid
 ### 3. Faster app load on phones (done, #83, #93)
 
 Done 2026-10-25 in #83 and #93: Lighthouse mobile LCP for `/app/` is about 2.1 s for a guest and the same for a returning account, whose dashboard now shows from this browser's copy while Firebase loads; a guest's first load is about 196 KB gzip of JavaScript, held under 200 KB by `tests/e2e/guest.spec.ts`.
-On 2026-10-28 (#127) the install prompt and the dashboard's activity plan moved out of the first load: about 189 KB, and the budget is now 193 KB.
+On 2026-10-28 (#127) the install prompt and the dashboard's activity plan moved out of the first load: about 189 KB, and the budget became 193 KB.
+Later that day [item 39](#39-guest-first-load-headroom-budget2-built) took it from 192.1 to about 182 KB, and the budget is now 186 KB.
 
 ### 4. App-shell service worker with an offline forecast (PERF-2, PROD-6 part) (done, #94)
 
@@ -453,6 +454,29 @@ The details are in [integrations/ANDROID.md](integrations/ANDROID.md).
 - **Tests:** the moved unit tests, `sha256.test.ts`, `hermes-intl.test.ts`, `key-lists.test.ts`, `client-version.test.ts`, `lib/store-build.test.ts`, `tests/manifest.test.ts`, `tests/well-known.test.ts`, the Functions' entitlement, CORS and logging tests, the rules and alerts emulator tests, and `tests/harness/store-build.spec.ts`.
 - **Still to do for Android:** the Google Calendar and Microsoft Graph REST calls and the offline cache shapes in core, `share_target` and `screenshots` in the manifest, assetlinks.json (it needs the package name), and the same-site auth domain.
 
+### 39. Guest first-load headroom (BUDGET2, built)
+
+#149 left a guest's first load at 192.7 KB gzip of JavaScript (192.1 KB after item 38), against the 193 KB budget in `tests/e2e/guest.spec.ts`, so the next dashboard feature would not have fitted.
+It is now about 182 KB (182.0 KB for the hermetic e2e build, 182.5 KB with a Firebase config like production), and the budget is 186 KB.
+
+- **Measured first:** source maps of the first-load chunks, with the marginal gzip size of each module (what leaving it out saves).
+  React, Next.js and Turbopack's runtime are about 131 KB of it and fixed; the app's own code was about 53 KB, and the React Compiler's output was 7 KB of that.
+  Webpack instead of Turbopack was larger (194.9 KB).
+- **The React Compiler is off (8.1 KB):** compiled components are about 30% larger.
+  At 4x CPU throttling, 12 taps on the UV strip took about 110 ms of script with it and 122 ms without (about 1 ms a tap), and start-up script time and event latency were the same, so it cost more than it saved on a phone ("React Compiler" in the decisions below).
+  The code already memoizes by hand where it matters, and the react-hooks lint rules still enforce the Rules of React, so it can come back with one line.
+- **`@solara/core` is free of import side effects (0.9 KB):** first measured here, and already on main with item 38 (`"sideEffects": false`), so the bundle drops the core modules nothing in the browser uses.
+- **The slot planning loads with the activity plan (1.2 KB):** core's `next-slot`, `planner` and `scheduler` find activities' slots, and a new guest has none; the dashboard gets them from the activity plan's chunk, which it already waits for before a plan with activities paints (`useActivityPlanning` in `components/deferred.tsx`); `nowHourOf` moved to core's `zoned-time`.
+- **The analytics code loads only when it has something to do (0.7 KB):** `lib/analytics-runtime.ts` (GA4's start-up and the cookie clean-up) loads at once for someone who allowed analytics, and otherwise only while gtag.js runs or its cookies are left over; the consent banner itself is unchanged and still laid out from the first frame; the privacy page's control has its own module.
+- **Also fixed:** with browser source maps on (the deploy's Sentry upload), the step after the build removed every map, because Turbopack names a chunk's map only in its `sourceMappingURL` comment; such maps are now kept (`lib/orphan-source-maps.mts`).
+  At desktop widths the guest header's controls moved as they grew during start-up (a layout shift of 0.0006 at 1280 px); they now take the rest of the row (`components/Header.module.css`), so nothing moves.
+- **Tried and left out:** the sign-in button's click code on demand saved 0.2 KB; the scheduled-activities helpers, Stripe's return handling and the upsell card are each under 0.5 KB.
+  Further savings, if ever needed: lucide-react's runtime and icons (about 1.4 KB); the Valibot schemas (about 4 KB) read the guest plan safely and stay.
+- **Unchanged for returning visits:** the service worker, the cached account and the cached forecast work as before, and the activity plan still shows with the dashboard.
+- **Lighthouse mobile (12.8.2, simulated slow 4G and 4x CPU, HTTP/2 with Brotli, median of 9 runs interleaved before and after):** a first visit (setup) went from score 95, LCP 2.11 s, TBT 243 ms to 96, 1.97 s and 193 ms; a returning guest's dashboard from 90, 1.45 s, 399 ms to 93, 1.36 s and 309 ms; CLS is 0 in every run, before and after.
+- **Screens:** `/app/` at 320, 390 and 1280 px, light and dark, for a guest without and with an activity, is pixel-identical before and after, with CLS 0 at every width; a frame every 50 ms during load shows the same sequence (the loading screen, then the whole dashboard, the activity plan included).
+- **Tests:** the budget test at 186 KB; the activity plan's hero slot is found in the dashboard's first frame; a guest's dashboard opens without layout shifts at 320, 390 and 1280 px; without consent nothing from analytics loads and leftover `_ga` cookies are removed; `lib/orphan-source-maps.test.ts` covers maps named apart from their chunks; the signed-out e2e suites and the UI harness (0 axe violations) pass.
+
 ## Decisions
 
 Agents never make owner decisions; they follow the recorded decision or the default.
@@ -507,6 +531,8 @@ The steps behind each one are in the [owner checklist](OWNER_CHECKLIST.md).
 | Outlook account picker | When Microsoft's account picker shows in the Outlook sign-in | Default, owner may change (2026-10-28): only "Show my Outlook events" sends `prompt=select_account`, so someone with a personal and a work account picks one when connecting; Refresh and "Choose calendars" do not, so Microsoft reuses the account it has signed in (usually without a prompt) and a Refresh cannot silently switch to another account's calendar (REVIEW7 L3) |
 | Calendar link helper | Which providers the "Add a calendar from..." helper covers | Default, owner may change (2026-10-28, item 24): Apple iCloud, Google, Outlook.com and Yahoo, computer steps first and phone steps where the provider offers them; it recommends a separate calendar for outdoor plans; Yahoo ships without numbered steps if they cannot be confirmed in a real account |
 | Calendar link refusals | Which pasted links the helper holds back | Default, owner may change (2026-10-28): only links that certainly are not calendars (a provider's web page, an HTML or embed link); any other link, such as Outlook's `/OWA/` in capitals or another `yahoo.com` host, goes through with a warning; hosts are matched exactly and case-insensitively, and no secret link is ever echoed or logged (REVIEW7 L5) |
+| React Compiler | Whether the web app is built with the React Compiler | Default, owner may change (2026-10-28, item 39): off; it made a guest's first load about 8 KB gzip larger and saved about 1 ms of script per tap at 4x CPU throttling; the react-hooks lint rules still enforce the Rules of React, so `reactCompiler: true` in `next.config.ts` (with `babel-plugin-react-compiler`) turns it back on, with the first-load budget raised to match. This reverses the assessment's CQ-13 fix (#50) |
+| First-load budget | The most JavaScript a guest's first load of `/app/` may download | Default, owner may change (2026-10-28, item 39): 186 KB gzip in `tests/e2e/guest.spec.ts`, about 4 KB above today's 182 KB; new dashboard code that a new guest does not see loads on demand (`components/deferred.tsx`), and the budget is raised only with a reason |
 
 ### Tiers
 

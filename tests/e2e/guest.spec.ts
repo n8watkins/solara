@@ -112,13 +112,15 @@ test('a guest who comes back on a later day is offered to save the plan', async 
  * Gzip size budget for the JavaScript a guest downloads before the dashboard shows,
  * compressed like Firebase Hosting serves it (gzip level 9; browsers that accept
  * Brotli get about 15% less). Next.js and React are about 130 KB of it. Firebase, the
- * dialogs, setup, the location panel, the install prompt, the signed-in parts and the
- * activity plan (which a plan without activities, like a new guest's, never shows)
- * load on demand (lib/firebase.ts, components/deferred.tsx), and the boundaries are
- * validated with Valibot; about 189 KB today, 199 KB before #127 and over 500 KB
- * before #83. The budget leaves a few KB for growth: raise it only with a reason.
+ * dialogs, setup, the location panel, the install prompt, the signed-in parts, the
+ * analytics code and the activity plan with its slot planning (which a plan without
+ * activities, like a new guest's, never needs) load on demand (lib/firebase.ts,
+ * components/deferred.tsx), the boundaries are validated with Valibot, and the React
+ * Compiler is off (next.config.ts); about 182 KB today, 192.1 KB before ROADMAP item
+ * 39, 199 KB before #127 and over 500 KB before #83. The budget leaves about 4 KB for
+ * growth (ROADMAP decisions, "First-load budget"): raise it only with a reason.
  */
-const GUEST_FIRST_LOAD_BUDGET_KB = 193
+const GUEST_FIRST_LOAD_BUDGET_KB = 186
 
 test("a guest's first load stays within the JavaScript budget", async ({ page, baseURL }) => {
   await page.addInitScript(() => {
@@ -176,11 +178,57 @@ test('a guest plan with activities shows its activity cards with the dashboard',
     localStorage.setItem('solara_guest', JSON.stringify({ prefs, since: '2026-06-15' }))
   })
   await page.goto('/app/')
-  // Checked in the same frame the forecast first shows.
+  // Checked in the same frame the forecast first shows: the cards, and the hero's slot,
+  // which the slot planning (loaded with the activity plan) has already found.
   const cardWithForecast = await page.waitForFunction(() => {
     if (!document.querySelector('[aria-label="UV forecast by hour"]')) return null
-    return { card: !!document.querySelector('[data-testid="activity-card"]') }
+    return {
+      card: !!document.querySelector('[data-testid="activity-card"]'),
+      heroSlot: /Next slot for Running\D{0,6}\d/u.test(document.body.textContent ?? ''),
+    }
   })
-  expect(await cardWithForecast.jsonValue()).toEqual({ card: true })
+  expect(await cardWithForecast.jsonValue()).toEqual({ card: true, heroSlot: true })
   await expect(page.getByTestId('activity-card')).toContainText('Running')
+})
+
+test("a guest's dashboard opens without layout shifts, at every width", async ({ page }) => {
+  // Nothing that arrives during start-up may move what is already on screen: the
+  // forecast takes a moment, as on a real connection, so the header and the loading
+  // state have painted before the dashboard and the header's current-UV chip arrive.
+  await page.route('https://api.open-meteo.com/**', async route => {
+    await new Promise(resolve => setTimeout(resolve, 400))
+    await route.fulfill({ json: buildRawForecast() })
+  })
+  await page.addInitScript(() => {
+    const prefs = {
+      location: { lat: 34.05, lon: -118.24, city: 'Los Angeles', region: 'California' },
+      skinType: 'fair',
+      activities: [],
+      onboardingComplete: true,
+    }
+    localStorage.setItem('solara_guest', JSON.stringify({ prefs, since: '2026-06-15' }))
+    const shifts: string[] = []
+    Object.assign(window, { layoutShifts: shifts })
+    new PerformanceObserver(list => {
+      for (const entry of list.getEntries() as (PerformanceEntry & {
+        value: number
+        hadRecentInput: boolean
+        sources: { node?: Node }[]
+      })[]) {
+        if (entry.hadRecentInput) continue
+        const nodes = entry.sources.map(source => (source.node as Element | undefined)?.className)
+        shifts.push(`${entry.value.toFixed(4)} ${nodes.join(' ')}`)
+      }
+    }).observe({ type: 'layout-shift', buffered: true })
+  })
+  for (const width of [320, 390, 1280]) {
+    await page.setViewportSize({ width, height: 900 })
+    await page.goto('/app/')
+    await expect(page.getByRole('group', { name: 'UV forecast by hour' })).toBeVisible()
+    await page.waitForTimeout(500)
+    const shifts = await page.evaluate(
+      () => (window as unknown as { layoutShifts: string[] }).layoutShifts,
+    )
+    expect(shifts, `layout shifts at ${width} px`).toEqual([])
+  }
 })

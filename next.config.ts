@@ -14,10 +14,12 @@ const nextConfig: NextConfig = {
   output: 'export',
   trailingSlash: true,
   images: { unoptimized: true },
-  // Automatic memoization (babel-plugin-react-compiler). Components that break the
-  // Rules of React are reported by the react-hooks lint rules and skipped by the
-  // compiler instead of being miscompiled.
-  reactCompiler: true,
+  // No React Compiler: its automatic memoization made a guest's first load about 8 KB
+  // gzip larger (components compile to about 30% more code) and saved about 1 ms of
+  // script per tap on the UV strip at 4x CPU throttling (ROADMAP decisions, "React
+  // Compiler"). Components memoize by hand where it matters (useMemo, useCallback),
+  // and the react-hooks lint rules still enforce the Rules of React, so turning it
+  // back on is `reactCompiler: true` and the babel-plugin-react-compiler package.
   // @solara/core is a workspace package published as TypeScript source.
   transpilePackages: ['@solara/core'],
   productionBrowserSourceMaps: browserSourceMaps,

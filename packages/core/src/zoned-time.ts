@@ -141,3 +141,16 @@ export function shiftIsoDate(dateStr: string, days: number): string {
   const ms = Date.UTC(y ?? 1970, (m ?? 1) - 1, d ?? 1) + days * 86_400_000
   return isoDateOf(utcAsLocal(ms))
 }
+
+/** Minutes "now" is rounded up to, so a 10:32 visit offers a 10:35 start. */
+const NOW_STEP_MINUTES = 5
+
+/**
+ * The current time as fractional hours, rounded up to a 5-minute step: the earliest
+ * start a plan for today offers (next-slot.ts). Pass the forecast location's wall clock,
+ * never the device's. Use the result as `nowHour` for today; future days use -1.
+ */
+export function nowHourOf(now: { hour: number; minute: number }): number {
+  const minutes = now.hour * 60 + now.minute
+  return (Math.ceil(minutes / NOW_STEP_MINUTES) * NOW_STEP_MINUTES) / 60
+}
