@@ -420,13 +420,12 @@ jobs:
           path: test-results/ui-harness/
 
       # The same merge Playwright's global teardown makes for one run, over every
-      # shard's screens (Node runs the TypeScript file directly).
+      # shard's screens (Node runs the TypeScript directly).
       - name: Merge the axe reports
         if: env.RELEVANT == 'true'
         run: |
           set -euo pipefail
-          test -d test-results/ui-harness/axe
-          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON tests/harness/axe-summary.ts | tee -a "$GITHUB_STEP_SUMMARY"
+          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON tests/harness/merge-axe.mts | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Upload screenshots and axe report
         if: env.RELEVANT == 'true'

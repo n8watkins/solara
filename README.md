@@ -111,7 +111,7 @@ npm run test:harness
 - `npm run test:e2e:signed-in` signs in through the Auth emulator and covers the dashboard, activities, settings, calendar, sharing, Pro gating, guest-to-account carry-over, account isolation and export against the real rules and Functions.
 - `npm run test:harness` captures screenshots at desktop and phone widths in both themes, with an axe report, into `test-results/ui-harness/`: the signed-in screens and header popovers, the guest dashboard with each upsell and the plans dialog, and the pages a visitor sees before signing in (landing, sign-in, each onboarding step, legal pages, share links, the account page and the 404 page).
   `UPDATE_LANDING_SHOTS=1 npm run test:harness -- landing-shots` regenerates the landing page's screenshots in `public/landing/`.
-  CI runs it as four parallel shards (`npm run test:harness -- --shard=N/4`, each with a 15-minute limit), and the required "Signed-in UI harness" check waits for all four and merges their screenshots and axe reports into one `ui-harness` artifact; locally, `node tests/harness/axe-summary.ts` rebuilds the axe summary from `test-results/ui-harness/axe/`.
+  CI runs it as four parallel shards (`npm run test:harness -- --shard=N/4`, each with a 15-minute limit), and the required "Signed-in UI harness" check waits for all four and merges their screenshots and axe reports into one `ui-harness` artifact; `node tests/harness/merge-axe.mts` rebuilds the axe summary from `test-results/ui-harness/axe/`.
 - `npm run check:docs` checks that every relative link and backticked repository path in the Markdown docs resolves.
 
 The rules tests and the signed-in suite need Java for the Firestore emulator.
