@@ -6,6 +6,9 @@ import {
   SKIN_OPTIONS,
   fetchCurrentUV,
   geolocationErrorMessage,
+  setupBurnMinutes,
+  setupBurnNote,
+  setupBurnUV,
 } from './onboarding'
 
 function respond(body: unknown, status = 200) {
@@ -75,6 +78,21 @@ describe('setup data', () => {
       ['Olive', '~35m'],
       ['Dark', '~50m'],
     ])
+  })
+
+  it('quotes the skin step burn times at the UV setup has just shown (REVIEW8 QA L3)', () => {
+    // UV 8.2 on the preview: fair skin burns in about 18 minutes, as the dashboard says.
+    expect(setupBurnUV(8.2)).toEqual({ uv: 8.2, live: true })
+    expect(setupBurnMinutes('fair', 8.2)).toBe(18)
+    expect(setupBurnNote(setupBurnUV(8.2))).toBe(
+      'Times are rough minutes to a burn without sunscreen at UV 8.2, the UV right now.',
+    )
+    // A low or missing reading falls back to UV 10, and says so.
+    for (const uv of [null, 0, 2.9]) expect(setupBurnUV(uv)).toEqual({ uv: 10, live: false })
+    expect(setupBurnMinutes('fair', 10)).toBe(15)
+    expect(setupBurnNote(setupBurnUV(null))).toBe(
+      'Times are rough minutes to a burn without sunscreen at UV 10.0 (very high).',
+    )
   })
 
   it('keeps the UV preview on the first progress step', () => {

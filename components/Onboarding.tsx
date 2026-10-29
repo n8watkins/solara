@@ -211,6 +211,7 @@ export default function Onboarding({ user, onSignedIn, onStartAsGuest }: Props) 
           {step === 'skin' && (
             <SkinStep
               value={skinType}
+              uvNow={uvNow}
               onChange={setSkinType}
               onContinue={() => setStep('finish')}
               onBack={goBack}

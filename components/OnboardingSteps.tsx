@@ -6,7 +6,7 @@ import { ArrowLeft, ArrowRight, MapPin, Moon } from 'lucide-react'
 import { useState } from 'react'
 import clsx from 'clsx'
 import type { User } from 'firebase/auth'
-import { SKIN_OPTIONS } from '@/lib/onboarding'
+import { SKIN_OPTIONS, setupBurnMinutes, setupBurnNote, setupBurnUV } from '@/lib/onboarding'
 import SkinSwatch from './SkinSwatch'
 import { TIER_LIMITS } from '@/lib/tiers'
 import { firebaseEnabled } from '@/lib/firebase'
@@ -166,21 +166,28 @@ export function UVPreviewStep({
 
 export function SkinStep({
   value,
+  uvNow = null,
   onChange,
   onContinue,
   onBack,
 }: {
   value: SkinType
+  /** The UV reading setup has just shown, if any; the burn times use it when it is high enough. */
+  uvNow?: number | null
   onChange: (skin: SkinType) => void
   onContinue: () => void
   onBack?: () => void
 }) {
   const [quizOpen, setQuizOpen] = useState(false)
+  const burnUV = setupBurnUV(uvNow)
   return (
     <>
       <h1 className={clsx(HEADING, 'mb-1.5')}>Your skin type</h1>
-      <p className={clsx(LEAD, 'mb-4')}>
+      <p className={LEAD}>
         Personalizes your estimated burn time. The types follow the Fitzpatrick scale.
+      </p>
+      <p className="mt-1.5 mb-4 text-[12px] leading-normal text-ink-3" data-testid="skin-burn-note">
+        {setupBurnNote(burnUV)}
       </p>
       <div className="flex flex-col gap-[7px]">
         {SKIN_OPTIONS.map(o => {
@@ -206,7 +213,12 @@ export function SkinStep({
                 </p>
                 <p className="text-[12px] text-ink-3">{o.desc}</p>
               </div>
-              <span className="ml-3 text-[12px] whitespace-nowrap text-ink-3">{o.burnTime}</span>
+              <span className="ml-3 text-[12px] whitespace-nowrap text-ink-3" aria-hidden="true">
+                ~{setupBurnMinutes(o.value, burnUV.uv)} min
+              </span>
+              <span className="sr-only">
+                , about {setupBurnMinutes(o.value, burnUV.uv)} minutes
+              </span>
             </button>
           )
         })}
