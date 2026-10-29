@@ -83,12 +83,17 @@ describe('user preferences', () => {
     await assertFails(ref.delete())
   })
 
-  test('account deletion must use the recursive server endpoint', async () => {
-    await testEnv.withSecurityRulesDisabled(async context => {
-      await context.firestore().doc('users/alice').set(prefs('alice'))
-    })
-    const ref = testEnv.authenticatedContext('alice').firestore().doc('users/alice')
-    await assertFails(ref.delete())
+  test('an account with billing can only be deleted by the server endpoint', async () => {
+    // A Stripe customer or a paid plan must be ended by the deleteAccount Function; the
+    // rest is in 'self-service account deletion' below.
+    for (const billing of [
+      { tier: 'paid' },
+      { stripeCustomerId: 'cus_123' },
+      { tier: 'free', stripeCustomerId: 'cus_123', subscriptionStatus: 'canceled' },
+    ]) {
+      const ref = await seededRef('alice', billing)
+      await assertFails(ref.delete())
+    }
   })
 
   test('a deletion tombstone blocks every token until deletion completes', async () => {
@@ -1255,7 +1260,7 @@ describe('Google Calendar connection', () => {
     await assertFails(ref.set(missing))
   })
 
-  test('nobody else can read or write it, and the key lists still cannot be deleted', async () => {
+  test('nobody else can read or write it, and a key list that names a key stays', async () => {
     await testEnv.withSecurityRulesDisabled(async context => {
       await context.firestore().doc('users/alice/meta/googleCalendar').set(link())
     })
@@ -1263,7 +1268,7 @@ describe('Google Calendar connection', () => {
     await assertFails(mallory.doc('users/alice/meta/googleCalendar').get())
     await assertFails(mallory.doc('users/alice/meta/googleCalendar').set(link()))
     await assertFails(mallory.doc('users/alice/meta/googleCalendar').delete())
-    await seedKeyIndex('alice', 'events', [])
+    await seedKeyIndex('alice', 'events', ['a'.repeat(32)])
     const alice = testEnv.authenticatedContext('alice').firestore()
     await assertFails(alice.doc('users/alice/meta/events').delete())
     await assertFails(alice.doc('users/alice/meta/other').set(link()))
@@ -1476,7 +1481,7 @@ describe('per-account record caps', () => {
     // Deleting a record alone is always allowed; its key can be taken off later.
     await assertSucceeds(db.doc(`users/alice/events/${hex(9)}`).delete())
     await assertSucceeds(removeBatch(db, 'events', [hex(9)], { deleteDocs: false }))
-    // The list itself is never deleted and holds nothing else.
+    // A list that still names a key is never deleted, and it holds nothing else.
     await assertFails(index(db, 'events').delete())
     await assertFails(index(db, 'events').set({ ids: {}, removed: [], extra: 1 }, { merge: true }))
     await assertFails(index(db, 'other').set({ ids: {}, removed: [] }))
@@ -1515,5 +1520,188 @@ describe('per-account record caps', () => {
     odd.set(index(db, 'events'), { ids: { [hex(1)]: true }, removed: [] }, { merge: true })
     await assertFails(odd.commit())
     await assertSucceeds(saveEvents(db, [hex(1)]))
+  })
+})
+
+// Self-service export and deletion without Functions (lib/account-self-service.ts): on the
+// free Spark plan the browser deletes every document of users/{uid} itself, then the Auth
+// user. These are the rules each of its deletes relies on.
+describe('self-service account deletion', () => {
+  const FieldValue = firebase.firestore.FieldValue
+  const KEY = 'a'.repeat(32)
+  const KEY2 = 'b'.repeat(32)
+
+  function importedEvent(key) {
+    return {
+      key,
+      source: 'file',
+      seriesId: key,
+      title: 'Saturday 10K',
+      start: '2026-11-20T15:00:00.000Z',
+      end: '2026-11-20T16:30:00.000Z',
+      timeZone: 'America/Los_Angeles',
+      where: '',
+      lat: 34.14,
+      lon: -118.29,
+      placeLabel: 'Los Angeles, California',
+      placeGuessed: false,
+      activityId: '',
+      url: '',
+      createdAt: '2026-10-28T17:30:00.000Z',
+      updatedAt: '2026-10-28T17:30:00.000Z',
+      expireAt: new Date(Date.parse('2026-11-20T16:30:00.000Z') + 30 * 24 * 60 * 60 * 1000),
+    }
+  }
+  function scheduled(eventId) {
+    return {
+      eventId,
+      calendarId: 'primary',
+      activityId: 'run',
+      title: 'Running',
+      icon: '🏃',
+      start: '2026-11-16T01:00:00.000Z',
+      end: '2026-11-16T01:45:00.000Z',
+      timeZone: 'America/Los_Angeles',
+      htmlLink: `https://www.google.com/calendar/event?eid=${eventId}`,
+      createdAt: '2026-10-28T17:30:00.000Z',
+      updatedAt: '2026-10-28T17:30:00.000Z',
+      expireAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    }
+  }
+  const calendarLink = {
+    calendars: [{ id: 'primary', name: '' }],
+    connectedAt: '2026-10-28T17:30:00.000Z',
+    syncedAt: '',
+  }
+
+  /** An account as the app leaves it: settings, events, scheduled activities, calendars. */
+  async function seedAccount(uid) {
+    await testEnv.withSecurityRulesDisabled(async context => {
+      const db = context.firestore()
+      await db.doc(`users/${uid}`).set(prefs(uid))
+      for (const key of [KEY, KEY2])
+        await db.doc(`users/${uid}/events/${key}`).set(importedEvent(key))
+      await db
+        .doc(`users/${uid}/meta/events`)
+        .set({ ids: { [KEY]: true, [KEY2]: true }, removed: [] })
+      await db.doc(`users/${uid}/scheduled/evt1`).set(scheduled('evt1'))
+      await db.doc(`users/${uid}/meta/scheduled`).set({ ids: { evt1: true }, removed: [] })
+      await db.doc(`users/${uid}/meta/googleCalendar`).set(calendarLink)
+      await db.doc(`users/${uid}/meta/outlookCalendar`).set(calendarLink)
+    })
+  }
+
+  /** Deletes records and takes their keys off the list in one batch, as lib/key-index.ts does. */
+  function removeRecords(db, uid, name, keys) {
+    const batch = db.batch()
+    for (const key of keys) batch.delete(db.doc(`users/${uid}/${name}/${key}`))
+    batch.set(
+      db.doc(`users/${uid}/meta/${name}`),
+      { ids: Object.fromEntries(keys.map(key => [key, FieldValue.delete()])), removed: keys },
+      { merge: true },
+    )
+    return batch.commit()
+  }
+
+  test('the owner can delete every document the app writes, in the app’s order', async () => {
+    await seedAccount('alice')
+    const db = testEnv.authenticatedContext('alice').firestore()
+    await assertSucceeds(removeRecords(db, 'alice', 'events', [KEY, KEY2]))
+    await assertSucceeds(removeRecords(db, 'alice', 'scheduled', ['evt1']))
+    await assertSucceeds(db.doc('users/alice/meta/events').delete())
+    await assertSucceeds(db.doc('users/alice/meta/scheduled').delete())
+    await assertSucceeds(db.doc('users/alice/meta/googleCalendar').delete())
+    await assertSucceeds(db.doc('users/alice/meta/outlookCalendar').delete())
+    await assertSucceeds(db.doc('users/alice').delete())
+
+    await testEnv.withSecurityRulesDisabled(async context => {
+      const admin = context.firestore()
+      for (const path of ['users/alice/events', 'users/alice/scheduled', 'users/alice/meta']) {
+        const left = await admin.collection(path).get()
+        if (!left.empty) throw new Error(`${path} still holds ${left.size} documents`)
+      }
+      if ((await admin.doc('users/alice').get()).exists) throw new Error('users/alice is left')
+    })
+  })
+
+  test('a deletion that stopped half way can run again', async () => {
+    await seedAccount('alice')
+    const db = testEnv.authenticatedContext('alice').firestore()
+    await assertSucceeds(removeRecords(db, 'alice', 'events', [KEY]))
+    // Again from the start: records and keys already gone, documents already deleted.
+    await assertSucceeds(removeRecords(db, 'alice', 'events', [KEY, KEY2]))
+    await assertSucceeds(db.doc('users/alice/meta/events').delete())
+    await assertSucceeds(db.doc('users/alice/meta/events').delete())
+    await assertSucceeds(db.doc('users/alice').delete())
+    await assertSucceeds(db.doc('users/alice').delete())
+  })
+
+  test('a key list is deleted only once it names no key, so the caps still hold', async () => {
+    await seedAccount('alice')
+    const db = testEnv.authenticatedContext('alice').firestore()
+    await assertFails(db.doc('users/alice/meta/events').delete())
+    await assertFails(db.doc('users/alice/meta/scheduled').delete())
+    // Deleting the records alone does not empty the list.
+    await assertSucceeds(db.doc(`users/alice/events/${KEY}`).delete())
+    await assertFails(db.doc('users/alice/meta/events').delete())
+    await assertSucceeds(removeRecords(db, 'alice', 'events', [KEY, KEY2]))
+    await assertSucceeds(db.doc('users/alice/meta/events').delete())
+    // Taking the last key off empties the list.
+    await assertSucceeds(removeRecords(db, 'alice', 'scheduled', ['evt1']))
+    await assertSucceeds(db.doc('users/alice/meta/scheduled').delete())
+  })
+
+  test('nobody else can delete an account’s documents', async () => {
+    await seedAccount('alice')
+    await testEnv.withSecurityRulesDisabled(async context => {
+      await context.firestore().doc('users/alice/meta/scheduled').set({ ids: {}, removed: [] })
+    })
+    const mallory = testEnv.authenticatedContext('mallory').firestore()
+    for (const path of [
+      'users/alice',
+      'users/alice/meta/scheduled',
+      'users/alice/meta/googleCalendar',
+      `users/alice/events/${KEY}`,
+      'users/alice/scheduled/evt1',
+    ]) {
+      await assertFails(mallory.doc(path).delete())
+    }
+    await assertFails(testEnv.unauthenticatedContext().firestore().doc('users/alice').delete())
+  })
+
+  test('a tombstoned account cannot delete anything itself', async () => {
+    await seedAccount('alice')
+    await testEnv.withSecurityRulesDisabled(async context => {
+      await context.firestore().doc('users/alice/meta/scheduled').set({ ids: {}, removed: [] })
+      await context.firestore().doc('accountDeletionTombstones/alice').set({ revokedBefore: 200 })
+    })
+    const db = testEnv.authenticatedContext('alice').firestore()
+    await assertFails(db.doc('users/alice').delete())
+    await assertFails(db.doc('users/alice/meta/scheduled').delete())
+    await assertFails(db.doc(`users/alice/events/${KEY}`).delete())
+  })
+
+  test('server-only records stay server-only', async () => {
+    await testEnv.withSecurityRulesDisabled(async context => {
+      const db = context.firestore()
+      await db.doc('users/alice').set(prefs('alice'))
+      await db.doc('users/alice/notificationDevices/d1').set({ enabled: true })
+      await db.doc('users/alice/private/calendarFeed').set({ token: 'secret' })
+      await db.doc('users/alice/private/eventSubscriptions').set({ items: {} })
+      await db.doc('users/alice/alertState/daily').set({})
+    })
+    const db = testEnv.authenticatedContext('alice').firestore()
+    // The browser can see the first three, so it stops before deleting anything.
+    await assertSucceeds(db.collection('users/alice/notificationDevices').limit(10).get())
+    await assertSucceeds(db.doc('users/alice/private/calendarFeed').get())
+    await assertSucceeds(db.doc('users/alice/private/eventSubscriptions').get())
+    for (const path of [
+      'users/alice/notificationDevices/d1',
+      'users/alice/private/calendarFeed',
+      'users/alice/private/eventSubscriptions',
+      'users/alice/alertState/daily',
+    ]) {
+      await assertFails(db.doc(path).delete())
+    }
   })
 })

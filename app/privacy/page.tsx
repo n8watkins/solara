@@ -403,8 +403,11 @@ export default function PrivacyPage() {
           information, object to or restrict processing, and withdraw consent.
         </p>
         <p>
-          Use the <a href="/account/">Account data controls</a> page while signed in to download a
-          copy of your data or delete your account, or email <LegalDetail name="contactEmail" />.
+          While signed in, the <a href="/account/">Account data controls</a> page downloads a copy
+          of your data and deletes your account and its data right away, after you confirm with
+          Google. Deleting also removes what Solara keeps in that browser. You can also email{' '}
+          <LegalDetail name="contactEmail" /> to ask for any of these, for example if the page
+          cannot delete part of your account or you cannot sign in; we answer within 30 days.
         </p>
         <p>
           You can disconnect Google Calendar at any time in the Events section or in your{' '}

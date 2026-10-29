@@ -34,7 +34,9 @@ The default decision is a quiet launch on Spark, and Blaze with the budget kill 
 
 ### An emailed export or deletion request
 
-The [privacy policy](https://solara-uv.web.app/privacy/) offers email for these requests, and the Account page's buttons need the Functions, so answer each request by hand within 30 days.
+A signed-in person can download and delete their account themselves on the Account page, also on Spark: without the Functions the page does both in the browser and deletes exactly what the app writes (the list below up to `scheduled`), then the Auth user ([DEPLOYMENT.md](DEPLOYMENT.md#account-export-and-deletion)).
+The page sends people here by email when it cannot help: an account with billing or server-only records (written only once the Functions have run), a deletion that keeps failing, or someone who cannot sign in.
+The [privacy policy](https://solara-uv.web.app/privacy/) offers email for these requests too; answer each by hand within 30 days.
 What Solara holds for an account on Spark is the Firebase Auth user and `users/{uid}` with its subcollections, all written by the app: `events`, `meta` (`events` and `scheduled` key lists, `googleCalendar`, `outlookCalendar`), `scheduled`; and, once the Functions have ever run, `alertState`, `private`, `notificationDevices`, `billingResources` and the top-level `calendarFeeds`, `eventSubscriptions`, `notificationTokenOwners` and `notificationRegistrationLimits` records ([firestore.rules](../firestore.rules), [deletion.ts](../functions/src/account/deletion.ts)).
 `infra/account-request.mjs` walks `users/{uid}` and every subcollection it finds, plus those top-level records, so nothing is missed.
 
