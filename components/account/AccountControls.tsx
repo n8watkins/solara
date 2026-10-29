@@ -109,6 +109,7 @@ export default function AccountControls({
                   onChange={event => onConfirmationChange(event.target.value)}
                   autoComplete="off"
                   aria-describedby={hintId}
+                  className="min-w-0 grow basis-[200px] sm:grow-0 sm:basis-[236px]"
                 />
                 <button
                   className="btn border-danger/40 text-danger"

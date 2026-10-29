@@ -371,6 +371,9 @@ export function createMicrosoftAuth(deps: MicrosoftAuthDeps): MicrosoftAuth {
     const verifier = randomString(32)
     const state = randomString(16)
     const waiting = answer(popup, state, flow.signal)
+    // Handled from the start: it can end (the timeout, forget()) while the challenge below is
+    // still being worked out, before `await waiting` is reached.
+    waiting.catch(() => {})
     try {
       const codeChallenge = await codeChallengeFor(verifier)
       if (!flow.signal.aborted) {
