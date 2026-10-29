@@ -26,6 +26,7 @@
     "build:core": "node scripts/build-core.mjs",
     "start": "next start",
     "lint": "eslint . --max-warnings=0 && npm run format:check",
+    "lint:sh": "shellcheck -x infra/*.sh .github/scripts/*.sh",
     "check:docs": "node .github/scripts/check-docs.mjs",
     "typecheck": "next typegen && tsc --noEmit",
     "pretest": "npm run build --prefix functions",

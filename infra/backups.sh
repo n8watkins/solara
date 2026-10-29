@@ -14,6 +14,7 @@
 # under 1 GiB both stay under a few cents a month (docs/COSTS.md).
 #
 # Usage: infra/backups.sh (prints the commands), then infra/backups.sh --apply
+# shellcheck source=infra/lib.sh
 source "$(dirname "$0")/lib.sh"
 : "${REGION:=us-central1}"
 

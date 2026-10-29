@@ -16,6 +16,7 @@
 #   DEPLOY_SA=<deploy service account email> infra/alerts-identity.sh          # print
 #   DEPLOY_SA=<deploy service account email> infra/alerts-identity.sh --apply  # run
 # Options (environment): PROJECT_ID (default uv-activity-planner).
+# shellcheck source=infra/lib.sh
 source "$(dirname "$0")/lib.sh"
 require DEPLOY_SA
 

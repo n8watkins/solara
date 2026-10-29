@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # Shared helpers for the infra/ scripts. Source it; do not run it.
 #
 # Every script prints the gcloud commands it would run and changes nothing, unless it

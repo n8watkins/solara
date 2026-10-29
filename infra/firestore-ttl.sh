@@ -27,6 +27,7 @@
 #
 # Usage: infra/firestore-ttl.sh (prints the commands), then infra/firestore-ttl.sh --apply
 # Check with: gcloud firestore fields ttls list --project uv-activity-planner
+# shellcheck source=infra/lib.sh
 source "$(dirname "$0")/lib.sh"
 
 for group in stripeWebhookEvents stripeCheckoutCleanupTasks accountDeletionTombstones \

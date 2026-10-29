@@ -89,6 +89,7 @@ npm ci --prefix functions
 npm audit --omit=dev --audit-level=high
 npm audit --prefix functions --omit=dev --audit-level=high
 npm run lint
+npm run lint:sh   # needs shellcheck installed; CI has it
 npm run check:docs
 npm run typecheck
 npm test
