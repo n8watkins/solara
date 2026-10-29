@@ -41,6 +41,9 @@ test('edits an activity and keeps the changes', async ({ page, emulators }) => {
   await dialog.getByRole('button', { name: '+15m' }).click()
   await expect(dialog.getByRole('spinbutton', { name: 'Duration' })).toHaveValue('60')
   await dialog.getByRole('button', { name: 'SPF 30+' }).click()
+  // Rain and heat (weather-fit.ts): stored only when they differ from Running's defaults.
+  await dialog.getByRole('combobox', { name: 'Rain', exact: true }).selectOption('ok')
+  await dialog.getByRole('combobox', { name: 'Max feels-like' }).selectOption({ label: '95°F' })
   await dialog.getByRole('button', { name: 'Save activity' }).click()
   await expect(dialog).toBeHidden()
 
@@ -53,6 +56,8 @@ test('edits an activity and keeps the changes', async ({ page, emulators }) => {
         name: 'Morning run',
         durationMins: 60,
         sunscreen: true,
+        avoidRain: false,
+        maxFeelsLikeC: 35,
       }),
     ])
 
@@ -63,6 +68,10 @@ test('edits an activity and keeps the changes', async ({ page, emulators }) => {
     'aria-pressed',
     'true',
   )
+  await expect(dialog.getByRole('combobox', { name: 'Rain', exact: true })).toHaveValue('ok')
+  await expect(
+    dialog.getByRole('combobox', { name: 'Max feels-like' }).locator('option:checked'),
+  ).toHaveText('95°F')
 })
 
 test('deletes an activity after confirming', async ({ page, emulators }) => {
