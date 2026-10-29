@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { APP_PATH, SIGN_IN_PATH } from '@/lib/app-routes'
+import { SIGN_IN_PATH } from '@/lib/app-routes'
 import type { User } from 'firebase/auth'
 import { useEffect, useState } from 'react'
 import {
@@ -21,7 +21,10 @@ import {
 } from '@/lib/account-data'
 import { isSignInCancelled } from '@/lib/auth-errors'
 import { callFunction, functionsApiConfigured } from '@/lib/functions-api'
-import AccountControls, { type AccountBusy } from '@/components/account/AccountControls'
+import AccountControls, {
+  AccountPageFrame,
+  type AccountBusy,
+} from '@/components/account/AccountControls'
 
 const FUNCTIONS_READY = functionsApiConfigured()
 
@@ -242,75 +245,50 @@ export default function AccountPage() {
   }
 
   return (
-    <main className="min-h-screen bg-surface px-4 pt-8 pb-16">
-      <div className="mx-auto max-w-[680px]">
-        <Link href={APP_PATH} className="text-[14px] text-accent no-underline">
-          ← Back to Solara
-        </Link>
-        <h1 className="mt-6 mb-2 text-[clamp(28px,6vw,42px)] leading-[1.1] font-[750]">
-          Account controls
-        </h1>
-        <p className="mb-7 leading-[1.6] text-ink-2">
-          Manage billing, download a portable copy of your Solara preferences, or permanently delete
-          your account.
-        </p>
-
-        {!authReady ? (
-          <div className="card">Loading your account...</div>
-        ) : !user ? (
-          <div className="card">
-            <h2 className="mb-2 text-[18px] font-[650]">
-              {deletion === 'done'
-                ? 'Your account was deleted'
-                : deletion === 'pending'
-                  ? 'Your account deletion is in progress'
-                  : 'Sign in required'}
-            </h2>
-            <p role="status" className="mb-[18px] leading-[1.55] text-ink-2">
-              {deletion === 'done'
-                ? 'Your Solara account and its data have been removed, and nothing of it is left in this browser.'
-                : deletion === 'pending'
-                  ? 'You have been signed out while Solara finishes canceling billing and removing your account data.'
-                  : 'Return to Solara and sign in before using these controls.'}
-            </p>
-            {deletion ? (
-              <Link href="/" className="btn btn-primary no-underline">
-                Back to Solara
-              </Link>
-            ) : (
-              <Link href={SIGN_IN_PATH} className="btn btn-primary no-underline">
-                Go to sign in
-              </Link>
-            )}
-          </div>
-        ) : (
-          <AccountControls
-            billing={billing}
-            billingPortalReady={FUNCTIONS_READY}
-            canDelete={canDelete}
-            busy={busy}
-            confirmation={confirmation}
-            message={message}
-            onConfirmationChange={setConfirmation}
-            onManageBilling={() => void manageBilling()}
-            onDownload={() => void downloadData()}
-            onDelete={() => void removeAccount()}
-          />
-        )}
-
-        <p className="mt-[30px] text-[13px] text-ink-3">
-          Review the{' '}
-          <Link href="/privacy/" className="underline">
-            Privacy Policy
-          </Link>{' '}
-          and{' '}
-          <Link href="/terms/" className="underline">
-            Terms of Use
-          </Link>
-          .
-        </p>
-      </div>
-    </main>
+    <AccountPageFrame emailFallback={authReady && !deletion}>
+      {!authReady ? (
+        <div className="card">Loading your account...</div>
+      ) : !user ? (
+        <div className="card">
+          <h2 className="mb-2 text-[18px] font-[650]">
+            {deletion === 'done'
+              ? 'Your account was deleted'
+              : deletion === 'pending'
+                ? 'Your account deletion is in progress'
+                : 'Sign in required'}
+          </h2>
+          <p role="status" className="mb-[18px] leading-[1.55] text-ink-2">
+            {deletion === 'done'
+              ? 'Your Solara account and its data have been removed, and nothing of it is left in this browser.'
+              : deletion === 'pending'
+                ? 'You have been signed out while Solara finishes canceling billing and removing your account data.'
+                : 'Return to Solara and sign in before using these controls.'}
+          </p>
+          {deletion ? (
+            <Link href="/" className="btn btn-primary no-underline">
+              Back to Solara
+            </Link>
+          ) : (
+            <Link href={SIGN_IN_PATH} className="btn btn-primary no-underline">
+              Go to sign in
+            </Link>
+          )}
+        </div>
+      ) : (
+        <AccountControls
+          billing={billing}
+          billingPortalReady={FUNCTIONS_READY}
+          canDelete={canDelete}
+          busy={busy}
+          confirmation={confirmation}
+          message={message}
+          onConfirmationChange={setConfirmation}
+          onManageBilling={() => void manageBilling()}
+          onDownload={() => void downloadData()}
+          onDelete={() => void removeAccount()}
+        />
+      )}
+    </AccountPageFrame>
   )
 }
 

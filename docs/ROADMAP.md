@@ -375,6 +375,21 @@ The eighth review's findings SEC M1, M2, M3 and L7, QA H1, H2, M1 (runbook part)
 - **Costs (QA H1, SEC M1, M2, PLAN L8):** COSTS.md says that on Spark the quotas are where the site stops; "Worst case under a flood" covers a Hosting download loop and a Firestore write loop with their mitigations; a Stripe fees row and a corrected break-even (about 12 monthly subscribers for the $29 forecast plan, not 10).
 - **Tests:** `lib/privacy-policy.test.ts` checks every switch-dependent line in both states and that the page renders them; `lib/retention.test.ts`; `tests/e2e/signed-in/events-limits.e2e.ts` deletes ended events on a visit whose forecast fails (it failed before the fix).
 
+### 33. Account download and deletion without Functions (FIX8B, built)
+
+The eighth review's SEC M4, QA M1 and PLAN M4 (`handoff/review8-sec.md`, `handoff/review8-qa.md`, `handoff/review8-plan.md`): on the free Spark plan the Functions are not deployed, so the account page disabled "Download account data" and "Delete permanently" and said "Account controls will become available after the Cloud Functions and App Check are configured."
+Signed-in people could not export or delete their data, and Google Play will require a working web deletion link.
+
+- **Download in the browser:** without Functions the page reads every document of `users/{uid}` the rules let the owner read (the account, imported events, scheduled activities, the Google and Outlook connections, the linked calendars' summary, notification devices) and downloads the same file as `exportAccountData`; both build it with `@solara/core/account-export`, checked against the Function's response contract.
+- **Delete in the browser:** after "Type DELETE" and a fresh Google sign-in (`reauthenticateWithPopup`), `lib/account-self-service.ts` deletes the imported events and scheduled activities with their keys taken off the key lists in the same batches, then in one batch the emptied key lists, the Google and Outlook connections and the account document, reads everything back (running again if another tab saved meanwhile), and only then deletes the Auth user (`deleteUser`) and clears the browser (account data, guest plan, notification registration and delivery cache, every `solara_` entry but the theme and install choice).
+  A failure says what happened in plain words: nothing deleted, some data deleted (retry picks up where it stopped), or data deleted but the sign-in left.
+- **Rules (with emulator tests for every delete):** the owner may delete the account document while it holds no billing (no paid plan, no `stripeCustomerId`), and a key list once it names no key, which keeps the caps intact.
+  Server-only records stay server-only: an account with notification devices, a calendar feed or linked calendars (none of which the Spark plan writes), or with billing, is told before anything is deleted to email contact@n8builds.dev.
+- **The Functions stay the path when deployed** (`ENABLE_BLAZE_FUNCTIONS`), since they also reach server-only data and end billing.
+- **Words:** the developer notice is gone; the page offers "Something not working? Email contact@n8builds.dev ..." as the way out, and the privacy policy's "Your rights" says the page downloads and deletes right away, with email as the fallback within 30 days.
+- **Tests:** unit tests for the export builder, the browser deletion (blocked, retried, partial failure, sign-in failure) and the browser clean-up; `functions/test/emulator/firestore.rules.test.js` ("self-service account deletion"); `tests/e2e/signed-in/account-self-service.e2e.ts` creates settings, imported events and a scheduled activity in the app, downloads and checks the file, deletes the account and finds nothing left in Firestore or Auth; `tests/harness/account-controls.spec.ts` at 320, 390 and 1280 px, light and dark, with no axe violation.
+  The code loads only on the account page, on demand.
+
 ## Decisions
 
 Agents never make owner decisions; they follow the recorded decision or the default.

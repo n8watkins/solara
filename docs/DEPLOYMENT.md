@@ -507,8 +507,14 @@ Until it runs, legacy links return 404, which is harmless while Functions are no
 
 ## Account export and deletion
 
-Account export and deletion require `NEXT_PUBLIC_FUNCTIONS_URL`, an App Check site key and an authenticated account.
+Through the Functions, account export and deletion require `NEXT_PUBLIC_FUNCTIONS_URL`, an App Check site key and an authenticated account.
 Deletion additionally requires a recent Google reauthentication and the exact `DELETE` confirmation.
+
+Without the Functions (the free Spark plan), the account page does both in the browser (`lib/account-self-service.ts`, ROADMAP item 32).
+The export reads every document of `users/{uid}` the rules let the owner read and builds the same file as `exportAccountData`, with the shared builder in `@solara/core/account-export`; only the Pro alert history, which only the Functions write, is empty.
+Deletion takes the same `DELETE` confirmation and Google reauthentication, then deletes the imported events and scheduled activities with their keys taken off the key lists, the emptied key lists, the Google and Outlook connections and the account document, reads everything back, and only then deletes the Auth user and clears the browser.
+The rules allow the owner to delete the account document only while it holds no billing (no paid plan, no `stripeCustomerId`) and a key list only once it names no key, so the caps still hold.
+An account with billing or server-only records (notification devices, `private/calendarFeed`, `private/eventSubscriptions`) is told before anything is deleted to email the contact address, and a deletion that stops half way says so and finishes when retried.
 
 Deletion may return HTTP 202 and sign the user out while cleanup continues.
 The backend creates `accountDeletionTombstones/{uid}`, blocks further account access, revokes Firebase sessions, expires open checkouts and cancels subscriptions, deletes the Stripe customer once its sessions and subscriptions are done (unless a live subscription of another account shares it), removes notification ownership records and calendar feed index entries, recursively deletes the user document, and deletes the Firebase Authentication user.

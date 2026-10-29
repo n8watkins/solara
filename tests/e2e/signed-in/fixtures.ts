@@ -280,6 +280,47 @@ export class Emulators {
     return decode({ mapValue: { fields } }) as Record<string, unknown>
   }
 
+  /** Whether the Auth emulator still has the account's user. */
+  async authUserExists(account: Account): Promise<boolean> {
+    const body = (await admin(`${AUTH_URL}/v1/projects/${PROJECT}/accounts:lookup`, {
+      method: 'POST',
+      body: JSON.stringify({ localId: [account.uid] }),
+    })) as { users?: unknown[] }
+    return (body.users?.length ?? 0) > 0
+  }
+
+  /**
+   * Every document left under users/{uid}, at any depth, as paths relative to it (the
+   * account document itself as ''). Lists each subcollection the emulator knows of, so a
+   * collection the test did not think of still shows up.
+   */
+  async remainingAccountDocs(account: Account): Promise<string[]> {
+    const left: string[] = []
+    const walk = async (path: string): Promise<void> => {
+      const response = await fetch(`${FIRESTORE_API}/${path}:listCollectionIds`, {
+        method: 'POST',
+        headers: ADMIN,
+        body: JSON.stringify({ pageSize: 100 }),
+      })
+      if (!response.ok) throw new Error(`Listing ${path} failed: ${response.status}`)
+      const { collectionIds = [] } = (await response.json()) as { collectionIds?: string[] }
+      for (const id of collectionIds) {
+        const list = await fetch(`${FIRESTORE_API}/${path}/${id}?pageSize=1000&showMissing=true`, {
+          headers: ADMIN,
+        })
+        const { documents = [] } = (await list.json()) as { documents?: { name: string }[] }
+        for (const d of documents) {
+          const child = `${path}/${id}/${d.name.split('/').pop()}`
+          left.push(child.slice(`users/${account.uid}/`.length))
+          await walk(child)
+        }
+      }
+    }
+    if (await this.readPrefs(account)) left.push('')
+    await walk(`users/${account.uid}`)
+    return left
+  }
+
   /** The account document as stored, or null. */
   async readPrefs(account: Account): Promise<Record<string, unknown> | null> {
     const response = await fetch(`${FIRESTORE_API}/users/${account.uid}`, { headers: ADMIN })

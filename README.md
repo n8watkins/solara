@@ -5,7 +5,8 @@ It combines Open-Meteo forecasts with a user's location, skin profile, sunscreen
 Anyone can try it without an account: a guest plan (today's forecast, one activity) stays in the browser.
 Signing in with Google is free and syncs the plan through Firestore; Pro adds 10 days, 20 activities, family profiles, and morning and UV alerts, and is a waitlist until billing launches.
 The plans are defined once, in `lib/tiers.ts`.
-Billing (Stripe), the live calendar feed, account export and deletion, and Pro's push alerts are built as Firebase Functions but not deployed yet.
+Billing (Stripe), the live calendar feed and Pro's push alerts are built as Firebase Functions but not deployed yet.
+Until they are, the account page downloads and deletes a signed-in account in the browser; the Functions take over when deployed.
 
 Solara is a planning aid, not medical advice or a guarantee that sun exposure is safe.
 Conditions and individual sensitivity can change quickly.

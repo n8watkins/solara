@@ -2,8 +2,10 @@
 // data download and account deletion. It only shows state and reports clicks; the page
 // does the work, through the Functions or in this browser (lib/account-data.ts
 // accountControlsPath). The UI harness renders it with fixtures (app/harness/account).
+import Link from 'next/link'
 import { useId, type ReactNode } from 'react'
 import clsx from 'clsx'
+import { APP_PATH } from '@/lib/app-routes'
 import { billingStatusText, type BillingSummary } from '@/lib/billing'
 import {
   DATA_REQUEST_DAYS,
@@ -129,11 +131,54 @@ export default function AccountControls({
           {message}
         </p>
       )}
-      <p className="mt-[18px] text-[13px] leading-[1.55] text-ink-3">
-        Something not working? Email <EmailLink /> and we will send you your data or delete your
-        account within {DATA_REQUEST_DAYS} days.
-      </p>
     </>
+  )
+}
+
+/**
+ * The account page around its content: the way back, the title, and the email way out
+ * (`emailFallback`) for anyone the page cannot help.
+ */
+export function AccountPageFrame({
+  emailFallback,
+  children,
+}: {
+  emailFallback: boolean
+  children: ReactNode
+}) {
+  return (
+    <main className="min-h-screen bg-surface px-4 pt-8 pb-16">
+      <div className="mx-auto max-w-[680px]">
+        <Link href={APP_PATH} className="text-[14px] text-accent no-underline">
+          ← Back to Solara
+        </Link>
+        <h1 className="mt-6 mb-2 text-[clamp(28px,6vw,42px)] leading-[1.1] font-[750]">
+          Account controls
+        </h1>
+        <p className="mb-7 leading-[1.6] text-ink-2">
+          Manage billing, download a portable copy of your Solara preferences, or permanently delete
+          your account.
+        </p>
+        {children}
+        {emailFallback && (
+          <p className="mt-[18px] text-[13px] leading-[1.55] text-ink-3">
+            Something not working? Email <EmailLink /> and we will send you your data or delete your
+            account within {DATA_REQUEST_DAYS} days.
+          </p>
+        )}
+        <p className="mt-[30px] text-[13px] text-ink-3">
+          Review the{' '}
+          <Link href="/privacy/" className="underline">
+            Privacy Policy
+          </Link>{' '}
+          and{' '}
+          <Link href="/terms/" className="underline">
+            Terms of Use
+          </Link>
+          .
+        </p>
+      </div>
+    </main>
   )
 }
 
