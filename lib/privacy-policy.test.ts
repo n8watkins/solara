@@ -52,6 +52,18 @@ describe('privacy policy', () => {
     expect(privacy).toContain('<LegalDetail name="contactEmail" />')
   })
 
+  it('says the account page downloads and deletes, with email as the way out (REVIEW8 M4)', () => {
+    const rights = privacy
+      .slice(privacy.indexOf('<h2>Your rights</h2>'), privacy.indexOf('<h2>Security</h2>'))
+      .replace(/\s+/g, ' ')
+    expect(rights).toContain(
+      'page downloads a copy of your data and deletes your account and its data right away',
+    )
+    expect(rights).toContain('removes what Solara keeps in that browser')
+    expect(rights).toContain('<LegalDetail name="contactEmail" /> to ask for any of these')
+    expect(rights).toContain('we answer within 30 days')
+  })
+
   it('has a Google user data section naming every requested Google scope', () => {
     expect(privacy).toContain('<h2>How Solara uses Google user data</h2>')
     for (const scope of [

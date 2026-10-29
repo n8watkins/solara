@@ -3,8 +3,7 @@
 import Link from 'next/link'
 import { APP_PATH, SIGN_IN_PATH } from '@/lib/app-routes'
 import type { User } from 'firebase/auth'
-import { useEffect, useId, useState, type ReactNode } from 'react'
-import clsx from 'clsx'
+import { useEffect, useState } from 'react'
 import {
   firebaseEnabled,
   loadedFirebase,
@@ -12,30 +11,63 @@ import {
   storedSessionHint,
   storedSessionInIndexedDb,
 } from '@/lib/firebase'
+import { createBillingPortalUrl, loadBillingSummary, type BillingSummary } from '@/lib/billing'
 import {
-  billingStatusText,
-  createBillingPortalUrl,
-  loadBillingSummary,
-  type BillingSummary,
-} from '@/lib/billing'
-import { DELETION_DESCRIPTION, EXPORT_DESCRIPTION, exportedMessage } from '@/lib/account-data'
+  accountControlsPath,
+  DATA_REQUEST_DAYS,
+  DATA_REQUEST_EMAIL,
+  exportedMessage,
+  type AccountControlsPath,
+} from '@/lib/account-data'
+import { isSignInCancelled } from '@/lib/auth-errors'
 import { callFunction, functionsApiConfigured } from '@/lib/functions-api'
-import { clearGuestData } from '@/lib/guest'
-import { clearAccountData } from '@/lib/session'
-import { clearLocalNotificationState } from '@/lib/notifications'
+import AccountControls, { type AccountBusy } from '@/components/account/AccountControls'
 
 const FUNCTIONS_READY = functionsApiConfigured()
+
+/** Where a failed deletion leaves the person, in plain words. */
+const EMAIL_FALLBACK = `If it keeps failing, email ${DATA_REQUEST_EMAIL} and we will delete your account and all its data within ${DATA_REQUEST_DAYS} days.`
 
 export default function AccountPage() {
   const [user, setUser] = useState<User | null>(null)
   const [authReady, setAuthReady] = useState(false)
   const [confirmation, setConfirmation] = useState('')
-  const [busy, setBusy] = useState<'billing' | 'export' | 'delete' | null>(null)
+  const [busy, setBusy] = useState<AccountBusy>(null)
   const [message, setMessage] = useState('')
   // After a deletion: 'pending' while the server finishes, 'done' once it has.
   const [deletion, setDeletion] = useState<'pending' | 'done' | null>(null)
   // The subscription as the server last recorded it; undefined while it loads.
   const [billing, setBilling] = useState<BillingSummary | null | undefined>(undefined)
+  // Functions when this build has them, else this browser (read after hydration).
+  const [path, setPath] = useState<AccountControlsPath>('functions')
+  // Whether this page can delete the account; undefined while that is checked.
+  const [canDelete, setCanDelete] = useState<boolean | undefined>(undefined)
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Browser-only state is read after hydration so the static export's prerendered markup matches the first client render.
+    setPath(accountControlsPath(FUNCTIONS_READY))
+  }, [])
+
+  useEffect(() => {
+    if (!user) return
+    if (path === 'functions') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- The Functions handle every account; nothing to check.
+      setCanDelete(true)
+      return
+    }
+    let current = true
+    // Without Functions, this browser deletes the account unless part of it is server-only.
+    import('@/lib/account-self-service')
+      .then(async ({ readAccountRecords, selfDeletionBlocker }) =>
+        selfDeletionBlocker(await readAccountRecords(user.uid)),
+      )
+      .then(blocker => current && setCanDelete(blocker === null))
+      // Unknown: let the person try; deletion checks again before deleting anything.
+      .catch(() => current && setCanDelete(true))
+    return () => {
+      current = false
+    }
+  }, [user, path])
 
   useEffect(() => {
     if (!user) return
@@ -86,11 +118,14 @@ export default function AccountPage() {
     setMessage('')
     try {
       if (!user) throw new Error('Sign in again to download your data.')
-      const data = await callFunction(user, 'exportAccountData', {
-        method: 'GET',
-        freshIdToken: true,
-        fallbackMessage: 'The export could not be completed.',
-      })
+      const data =
+        path === 'functions'
+          ? await callFunction(user, 'exportAccountData', {
+              method: 'GET',
+              freshIdToken: true,
+              fallbackMessage: 'The export could not be completed.',
+            })
+          : await (await import('@/lib/account-self-service')).exportAccountInBrowser(user.uid)
       const url = URL.createObjectURL(
         new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }),
       )
@@ -101,7 +136,11 @@ export default function AccountPage() {
       URL.revokeObjectURL(url)
       setMessage(exportedMessage(data.truncated))
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Export failed.')
+      setMessage(
+        path === 'functions' && error instanceof Error
+          ? error.message
+          : `Your data could not be downloaded. Check your connection and try again, or email ${DATA_REQUEST_EMAIL} for a copy.`,
+      )
     } finally {
       setBusy(null)
     }
@@ -123,37 +162,83 @@ export default function AccountPage() {
     if (!user || confirmation !== 'DELETE') return
     setBusy('delete')
     setMessage('')
+    // Started first, so Google's popup opens within the click.
+    const reauthenticated = reauthenticate(user)
     try {
-      const services = loadedFirebase()
-      const googleProvider = services?.googleProvider
-      if (!services || !googleProvider) {
-        throw new Error('Google reauthentication is not configured.')
-      }
-      const { reauthenticateWithPopup, signOut } = await import('firebase/auth')
-      await reauthenticateWithPopup(user, googleProvider, services.popupRedirectResolver)
+      await reauthenticated
+    } catch (error) {
+      setMessage(
+        isSignInCancelled(error)
+          ? 'Deletion was canceled because Google did not confirm your account. Nothing was deleted.'
+          : (error as { code?: unknown } | null)?.code === 'auth/user-mismatch'
+            ? 'That was a different Google account. Confirm with the account you are signed in with. Nothing was deleted.'
+            : 'Google could not confirm your account, so nothing was deleted. Try again.',
+      )
+      setBusy(null)
+      return
+    }
+    if (path === 'functions') await deleteThroughFunctions(user)
+    else await deleteInBrowser(user)
+  }
+
+  async function reauthenticate(account: User): Promise<void> {
+    const services = loadedFirebase()
+    const googleProvider = services?.googleProvider
+    if (!services || !googleProvider) throw new Error('Google reauthentication is not configured.')
+    const { reauthenticateWithPopup } = await import('firebase/auth')
+    await reauthenticateWithPopup(account, googleProvider, services.popupRedirectResolver)
+  }
+
+  async function deleteThroughFunctions(account: User) {
+    try {
       // A limited-use App Check token is consumed by the server, so this request cannot be
       // replayed.
-      const result = await callFunction(user, 'deleteAccount', {
+      const result = await callFunction(account, 'deleteAccount', {
         method: 'DELETE',
         body: { confirmation },
         limitedUse: true,
         freshIdToken: true,
         fallbackMessage: 'Deletion could not be completed.',
       })
-      // Nothing of the deleted account may stay in this browser: its preferences,
-      // forecast cache (its places), account marker and any guest plan.
-      clearAccountData()
-      clearGuestData()
-      await clearLocalNotificationState(user.uid)
-      const auth = loadedFirebase()?.auth
-      if (auth) await signOut(auth)
-      window.location.assign(
-        result.deletionPending ? '/account/?deletion=pending' : '/account/?deletion=done',
-      )
+      await finishDeletion(account, result.deletionPending ? 'pending' : 'done')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Deletion failed.')
       setBusy(null)
     }
+  }
+
+  async function deleteInBrowser(account: User) {
+    setMessage('Deleting your data. Keep this page open.')
+    try {
+      const { deleteAccountInBrowser } = await import('@/lib/account-self-service')
+      await deleteAccountInBrowser(account)
+      await finishDeletion(account, 'done')
+    } catch (error) {
+      const stage = (error as { stage?: unknown } | null)?.stage
+      if (stage === 'blocked') setCanDelete(false)
+      setMessage(
+        stage === 'blocked'
+          ? 'Nothing was deleted: part of this account can only be removed by Solara’s servers.'
+          : stage === 'sign-in'
+            ? `Your data was deleted, but your sign-in could not be removed. Try again. ${EMAIL_FALLBACK}`
+            : `Not all of your data could be deleted, so your account is still here. Check your connection and try again; deletion picks up where it stopped. ${EMAIL_FALLBACK}`,
+      )
+      setBusy(null)
+    }
+  }
+
+  /** Nothing of the deleted account may stay in this browser, then the page says so. */
+  async function finishDeletion(account: User, state: 'pending' | 'done') {
+    const { clearDeletedAccount } = await import('@/lib/account-local')
+    await clearDeletedAccount(account.uid)
+    const auth = loadedFirebase()?.auth
+    if (auth) {
+      const { signOut } = await import('firebase/auth')
+      await signOut(auth).catch(() => undefined)
+    }
+    window.location.assign(
+      state === 'pending' ? '/account/?deletion=pending' : '/account/?deletion=done',
+    )
   }
 
   return (
@@ -199,77 +284,20 @@ export default function AccountPage() {
             )}
           </div>
         ) : (
-          <div className="grid gap-[18px]">
-            <AccountSection
-              title="Plan and billing"
-              note={
-                billing?.hasBillingAccount
-                  ? 'Change plans, update your payment method, see invoices or cancel securely through Stripe.'
-                  : undefined
-              }
-              body={
-                billing === undefined
-                  ? 'Loading your plan...'
-                  : billing === null
-                    ? 'Your plan could not be loaded. Check your connection and reload.'
-                    : billingStatusText(billing, formatDay)
-              }
-            >
-              {billing?.hasBillingAccount ? (
-                <button
-                  className="btn btn-primary"
-                  disabled={busy !== null || !FUNCTIONS_READY}
-                  onClick={() => void manageBilling()}
-                >
-                  {busy === 'billing' ? 'Opening...' : 'Manage subscription'}
-                </button>
-              ) : null}
-            </AccountSection>
-
-            <AccountSection title="Download your data" body={EXPORT_DESCRIPTION}>
-              <button
-                className="btn btn-primary"
-                disabled={busy !== null || !FUNCTIONS_READY}
-                onClick={() => void downloadData()}
-              >
-                {busy === 'export' ? 'Preparing...' : 'Download account data'}
-              </button>
-            </AccountSection>
-
-            <AccountSection danger title="Delete account" body={DELETION_DESCRIPTION}>
-              <label className="mb-2 block text-[13px] font-semibold" htmlFor="delete-confirmation">
-                Type DELETE to confirm
-              </label>
-              <div className="flex flex-wrap gap-2.5">
-                <input
-                  id="delete-confirmation"
-                  value={confirmation}
-                  onChange={event => setConfirmation(event.target.value)}
-                  autoComplete="off"
-                />
-                <button
-                  className="btn border-danger/40 text-danger"
-                  disabled={confirmation !== 'DELETE' || busy !== null || !FUNCTIONS_READY}
-                  onClick={() => void removeAccount()}
-                >
-                  {busy === 'delete' ? 'Deleting...' : 'Delete permanently'}
-                </button>
-              </div>
-            </AccountSection>
-          </div>
+          <AccountControls
+            billing={billing}
+            billingPortalReady={FUNCTIONS_READY}
+            canDelete={canDelete}
+            busy={busy}
+            confirmation={confirmation}
+            message={message}
+            onConfirmationChange={setConfirmation}
+            onManageBilling={() => void manageBilling()}
+            onDownload={() => void downloadData()}
+            onDelete={() => void removeAccount()}
+          />
         )}
 
-        {!FUNCTIONS_READY && authReady && (
-          <p className="mt-[18px] rounded-[10px] border-[0.5px] border-notice-border bg-notice p-3 text-[13px] text-notice-ink">
-            Account controls will become available after the Cloud Functions and App Check are
-            configured.
-          </p>
-        )}
-        {message && (
-          <p role="status" className="mt-[18px] text-ink-2">
-            {message}
-          </p>
-        )}
         <p className="mt-[30px] text-[13px] text-ink-3">
           Review the{' '}
           <Link href="/privacy/" className="underline">
@@ -286,39 +314,6 @@ export default function AccountPage() {
   )
 }
 
-/** A date as "Nov 3, 2026" in the reader's locale. */
-function formatDay(date: Date): string {
-  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-}
-
 function deletionState(value: string | null): 'pending' | 'done' | null {
   return value === 'pending' || value === 'done' ? value : null
-}
-
-function AccountSection({
-  title,
-  body,
-  note,
-  danger = false,
-  children,
-}: {
-  title: string
-  body: string
-  /** A smaller second line under the body. */
-  note?: string
-  danger?: boolean
-  children?: ReactNode
-}) {
-  const gap = !children ? 'mb-0' : danger ? 'mb-3.5' : 'mb-[18px]'
-  const headingId = useId()
-  return (
-    <section aria-labelledby={headingId} className={clsx('card', danger && 'border-danger/40')}>
-      <h2 id={headingId} className={clsx('mb-2 text-[18px] font-[650]', danger && 'text-danger')}>
-        {title}
-      </h2>
-      <p className={clsx('leading-[1.55] text-ink-2', note ? 'mb-1.5' : gap)}>{body}</p>
-      {note && <p className={clsx('text-[13px] leading-[1.55] text-ink-3', gap)}>{note}</p>}
-      {children}
-    </section>
-  )
 }
