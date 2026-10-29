@@ -360,7 +360,8 @@ export default function EventsSection({ uid, prefs, weather, displayTier, onUpgr
             uid={uid}
             nowMs={nowMs}
             pro={displayTier === 'paid'}
-            onUpgrade={onUpgrade}
+            // One calm Pro mention: with heads-ups on too, the note below offers both.
+            onUpgrade={eventHeadsUpsLaunched() ? undefined : onUpgrade}
           />
         </Suspense>
       )}
@@ -377,7 +378,9 @@ export default function EventsSection({ uid, prefs, weather, displayTier, onUpgr
             </>
           ) : (
             <>
-              With Pro, get a heads-up a few hours before an outdoor event with high UV.{' '}
+              {eventSubscriptionsLaunched()
+                ? 'Pro adds linked calendars and a heads-up a few hours before an outdoor event with high UV.'
+                : 'With Pro, get a heads-up a few hours before an outdoor event with high UV.'}{' '}
               <button
                 type="button"
                 className="font-semibold text-accent underline underline-offset-2"

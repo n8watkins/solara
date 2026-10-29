@@ -48,7 +48,11 @@ interface Props {
   nowMs: number
   /** Whether the account has Pro, which linked calendars are part of. */
   pro: boolean
-  onUpgrade: () => void
+  /**
+   * Opens the plans dialog from the offer a non-Pro account sees. Absent when the Events
+   * section makes one Pro offer for linked calendars and heads-ups together below.
+   */
+  onUpgrade?: () => void
 }
 
 type Busy = { kind: 'add' } | { kind: 'refresh' | 'remove'; id: string } | null
@@ -156,11 +160,13 @@ export default function EventSubscriptions({ uid, nowMs, pro, onUpgrade }: Props
           <p className="mt-1 text-[12px] leading-normal text-ink-2">
             {count > 0
               ? 'Linked calendars are part of Pro, so yours have stopped refreshing. Their events stay until they end, or remove them below.'
-              : `With Pro, paste a calendar link, such as a club or race calendar, and Solara keeps its events current, checking every ${REFRESH_HOURS} hours.`}
+              : `${onUpgrade ? 'With Pro, paste' : 'Paste'} a calendar link, such as a club or race calendar, and Solara keeps its events current, checking every ${REFRESH_HOURS} hours.`}
           </p>
-          <button type="button" className="btn mt-2 text-[12px]" onClick={onUpgrade}>
-            See Pro
-          </button>
+          {onUpgrade && (
+            <button type="button" className="btn mt-2 text-[12px]" onClick={onUpgrade}>
+              See Pro
+            </button>
+          )}
         </div>
       ) : (
         <>
