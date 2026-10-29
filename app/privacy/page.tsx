@@ -5,6 +5,7 @@ import LegalDetail from '@/components/LegalDetail'
 import { AnalyticsPreferenceControl } from '@/components/AnalyticsConsent'
 import { isAnalyticsMeasurementId } from '@/lib/analytics-consent'
 import { PRIVACY_LAST_UPDATED } from '@/lib/legal'
+import { privacySwitches, recaptchaScope, retentionLines } from '@/lib/privacy-retention'
 
 export const metadata: Metadata = {
   title: 'Privacy Policy | Solara',
@@ -14,6 +15,9 @@ export const metadata: Metadata = {
 
 export default function PrivacyPage() {
   const analyticsEnabled = isAnalyticsMeasurementId(process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID)
+  // Sentences that change with a switch (TTL, backups, the forecast proxy) come from one place.
+  const switches = privacySwitches()
+  const kept = retentionLines(switches)
 
   return (
     <LegalPage title="Privacy Policy" updated={PRIVACY_LAST_UPDATED}>
@@ -42,6 +46,11 @@ export default function PrivacyPage() {
           <li>
             <strong>Preferences.</strong> Skin profile, activities, saved places, calendar planning
             hours, appearance, notification time and other settings.
+          </li>
+          <li>
+            <strong>The Pro waitlist</strong>, only if you join it: the email address you give and
+            when you joined, kept with your account so Solara can tell you when Pro opens. To be
+            taken off the waitlist, email <LegalDetail name="contactEmail" />.
           </li>
           <li>
             <strong>Google Calendar availability</strong>, only if you connect it: the times you are
@@ -279,7 +288,7 @@ export default function PrivacyPage() {
           <li>
             <strong>Google Firebase</strong> (Google LLC): sign-in, database, hosting, cloud
             functions, push messaging and App Check, which uses Google reCAPTCHA to check that
-            requests come from the real app. reCAPTCHA runs only after you sign in; the Google{' '}
+            requests come from the real app. {recaptchaScope(switches)}; the Google{' '}
             <a href="https://policies.google.com/privacy">Privacy Policy</a> and{' '}
             <a href="https://policies.google.com/terms">Terms of Service</a> apply to it.
           </li>
@@ -338,35 +347,20 @@ export default function PrivacyPage() {
             moves into your new account, or is removed if the account already existed) or clear your
             browser data.
           </li>
-          <li>
-            Scheduled activities: until you remove the event or it is deleted in Google Calendar;
-            once an event ended more than 30 days ago, Solara deletes its record the next time you
-            open the app; and always when you delete your account.
-          </li>
-          <li>
-            Imported events: until you remove them; Firestore deletes each one automatically 30 days
-            after it ends, and always when you delete your account.
-          </li>
+          <li>{kept.scheduled}</li>
+          <li>{kept.imported}</li>
           <li>
             Linked calendars: until you remove the calendar, which also removes its events, and
             always when you delete your account.
           </li>
-          <li>
-            Events from your Google Calendar: until they are gone from your calendar or you
-            disconnect, which removes them and the list of calendars; Firestore deletes each event
-            automatically 30 days after it ends, and always when you delete your account.
-          </li>
-          <li>
-            Events from your Outlook calendar: until they are gone from your calendar or you
-            disconnect, which removes them and the list of calendars; Firestore deletes each event
-            automatically 30 days after it ends, and always when you delete your account. The
-            Microsoft access is kept only in your browser&apos;s memory, for up to an hour.
-          </li>
+          <li>{kept.google}</li>
+          <li>{kept.outlook}</li>
           <li>
             Calendar availability: only in your browser for the current session; never stored by
             Solara.
           </li>
           <li>Push registrations: until you turn notifications off or delete your account.</li>
+          <li>{kept.waitlist}</li>
           <li>
             Pro alert history (which alerts were sent on which day, and whether they arrived): 7
             days, and it is included in your data download.
@@ -382,6 +376,7 @@ export default function PrivacyPage() {
           <li>Analytics: for the retention period set in Google Analytics, at most 14 months.</li>
           <li>Error reports: 30 days in Sentry.</li>
           <li>Hosting and security logs: for the periods set by Google Cloud.</li>
+          <li>{kept.backups}</li>
         </ul>
 
         <h2>Storage on your device</h2>
