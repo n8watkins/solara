@@ -13,6 +13,7 @@
 //
 // With --expect it fails unless the resolved sites are exactly that list, in order.
 const path = require('node:path')
+const { stripVTControlCharacters } = require('node:util')
 
 const root = path.resolve(__dirname, '..', '..')
 const functionsDir = path.join(root, 'functions')
@@ -30,7 +31,12 @@ function resolveHosting({ project, only, cwd = root }) {
   const options = { cwd, projectRoot: cwd, project, only }
   options.config = Config.load(options)
   options.rc = RC.loadFile(path.join(cwd, '.firebaserc'))
-  return hostingConfig(options)
+  try {
+    return hostingConfig(options)
+  } catch (error) {
+    // firebase-tools colours its messages when the terminal (or CI) allows it.
+    throw new Error(stripVTControlCharacters(error.message), { cause: error })
+  }
 }
 
 module.exports = { resolveHosting }

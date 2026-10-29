@@ -316,7 +316,10 @@ test('refuses a staging build pointed at any production value', () => {
     ['NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET', 'uv-activity-planner.firebasestorage.app'],
   ]) {
     const { errors } = checkEnv({ ...staging, [key]: raw })
-    assert.match(errors.join('\n'), new RegExp(`${key} points at production`), `${key}=${raw}`)
+    assert.ok(
+      errors.some(error => error.startsWith(`${key} points at production`)),
+      `${key}=${raw}`,
+    )
   }
   const functions = checkEnv({
     ...staging,

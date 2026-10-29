@@ -177,6 +177,7 @@ Production's deploy (`deploy.yml`) does not change and never reads a staging set
 ### Staging settings
 
 Everything lives in the `staging` GitHub environment (Settings, Environments), whose deployment branches should be limited to `main`, so the workflow and its guards always come from `main`.
+All three jobs (configuration, build, deploy) run in that environment, so a required reviewer, if the owner adds one, approves each of them.
 Every name starts with `STAGING_`, never a production name: a job in an environment falls back to the repository's variable or secret of the same name, so a missing staging value could otherwise silently become production's.
 The workflow reads production's values only to refuse a staging value equal to one of them.
 
