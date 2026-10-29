@@ -418,7 +418,7 @@ export default function EventSubscriptions({
 
       {(pro || count > 0) && (
         <p className="mt-2.5 text-[11px] leading-normal text-ink-3">
-          The link stays private on Solara&rsquo;s server; only its site is shown here. Removing a
+          The link stays private on Solara&apos;s server; only its site is shown here. Removing a
           calendar removes its events.
         </p>
       )}

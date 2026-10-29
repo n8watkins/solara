@@ -67,8 +67,8 @@ export const DELETION_SUMMARY =
 /** What happens beyond Solara's own data when the account is deleted, one point each. */
 export const DELETION_NOTES = [
   'A subscription is canceled at once, without a refund for the current period, and your billing details are deleted at Stripe.',
-  'Events already added to your Google Calendar stay there. To end Solara’s access, remove Solara at myaccount.google.com/connections.',
-  'Events in your Outlook calendar stay there too, and Solara never kept a Microsoft token. To remove the permission you gave it, use your Microsoft account’s app permissions.',
+  "Events already added to your Google Calendar stay there. To end Solara's access, remove Solara at myaccount.google.com/connections.",
+  "Events in your Outlook calendar stay there too, and Solara never kept a Microsoft token. To remove the permission you gave it, use your Microsoft account's app permissions.",
   'If you had the free trial, a hashed record of it is kept for 2 years, so the trial is once per person.',
 ] as const
 

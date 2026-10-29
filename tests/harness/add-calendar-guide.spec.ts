@@ -218,7 +218,7 @@ test('a pasted link is recognised, and a mistake is caught before it is sent', a
 
   // Google's public address works for a public calendar: warned, but linked.
   await input.fill(GOOGLE_PUBLIC)
-  await expect(hint).toContainText('That is Google’s public address, which works only')
+  await expect(hint).toContainText("That is Google's public address, which works only")
   await panel.getByRole('button', { name: 'Link calendar' }).click()
   await expect(status).toHaveText('Linked Club rides: 3 upcoming events.')
   await expect(panel.getByTestId('event-subscription')).toHaveCount(4)

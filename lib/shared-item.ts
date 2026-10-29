@@ -13,6 +13,7 @@ import {
 import { SHARED_PARAM } from './app-routes'
 import { dayLabel } from './forecast'
 import { SHARE_CACHE, readStash, type ShareRefusal, type StashCaches } from './share-target'
+import { timeRange } from './time'
 
 /** What the app finds for a share id. */
 export type SharedItem =
@@ -98,7 +99,7 @@ export const PREVIEW_COUNT = 3
 
 /**
  * PURE. The first events of a shared file, each with when it is in the person's zone:
- * "Tomorrow · 9am – 10:30am", like an event's card.
+ * "Tomorrow · 9am–10:30am", like an event's card.
  */
 export function previewEvents(
   result: Pick<IcsParseResult, 'events'>,
@@ -117,7 +118,7 @@ export function previewEvents(
     const endDay = endDate !== startDate ? `${dayLabel(endDate, today)} ` : ''
     return {
       title: event.title || 'Untitled event',
-      when: `${dayLabel(startDate, today)} · ${at(event.start)} – ${endDay}${at(event.end)}`,
+      when: `${dayLabel(startDate, today)} · ${timeRange(at(event.start), `${endDay}${at(event.end)}`)}`,
     }
   })
 }
@@ -134,7 +135,7 @@ export function refusalMessage(reason: ShareRefusal): string {
     case 'too-large':
       return 'That file is larger than 1 MB. Export a shorter range of events, then share it again.'
     case 'not-calendar':
-      return 'Solara can import calendar (.ics) files only. On the event’s page, use “Add to calendar” or “Export” to get one, then share that file.'
+      return "Solara can import calendar (.ics) files only. On the event's page, use “Add to calendar” or “Export” to get one, then share that file."
     case 'nothing':
       return 'Nothing came through with that share. Share a calendar (.ics) file or a calendar link.'
   }

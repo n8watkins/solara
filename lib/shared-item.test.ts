@@ -100,8 +100,8 @@ describe('the hand-off from the worker to the import', () => {
       'invite.ics has 4 upcoming events.',
     )
     expect(previewEvents(result, NOW, 'America/Los_Angeles', time)).toEqual([
-      { title: 'Tuesday 10K', when: 'Tomorrow · 9am – 10:30am' },
-      { title: 'Picnic', when: 'Wed, Jun 17 · 12pm – 1:30pm' },
+      { title: 'Tuesday 10K', when: 'Tomorrow · 9am–10:30am' },
+      { title: 'Picnic', when: 'Wed, Jun 17 · 12pm–1:30pm' },
       { title: 'Untitled event', when: 'Sat, Jun 20 · 6pm – Sun, Jun 21 10am' },
     ])
   })

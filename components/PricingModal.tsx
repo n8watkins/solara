@@ -189,7 +189,7 @@ export default function PricingModal({
     footer = (
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2.5">
         <p className="min-w-45 flex-1 text-[13px] leading-[1.45] text-ink-2">
-          Sign in with Google. It’s free, and your plan comes with you.
+          Sign in with Google. It&apos;s free, and your plan comes with you.
         </p>
         <GoogleSignInButton label="Sign in free" preload />
       </div>

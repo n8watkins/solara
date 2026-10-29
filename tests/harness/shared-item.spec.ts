@@ -96,8 +96,8 @@ test('a guest sees the shared file and is asked to sign in', async ({ page }, te
   const card = await openShared(page, 'screen=dashboard&tier=guest', FILE)
   await expect(card).toContainText('invite.ics has 2 upcoming events.')
   await expect(card.getByRole('listitem')).toHaveText([
-    'Tuesday 10K Tomorrow · 9am – 10:30am',
-    'Picnic Wed, Jun 17 · 12pm – 1:30pm',
+    'Tuesday 10K Tomorrow · 9am–10:30am',
+    'Picnic Wed, Jun 17 · 12pm–1:30pm',
   ])
   await expect(card.getByRole('button', { name: 'Sign in with Google' })).toBeVisible()
   await expect(card.getByRole('button', { name: 'Not now' })).toBeVisible()
@@ -159,7 +159,7 @@ test('a calendar link on Free offers Pro', async ({ page }, testInfo) => {
     kind: 'link',
     link: 'webcal://club.example/races.ics',
   })
-  await expect(card).toContainText('Linked calendars, which keep a calendar’s events current')
+  await expect(card).toContainText("Linked calendars, which keep a calendar's events current")
   await expect(card.getByRole('button', { name: 'See Pro' })).toBeVisible()
   await captureState(page, testInfo, capture, 'shared-link-free')
 })

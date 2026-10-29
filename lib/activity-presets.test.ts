@@ -41,11 +41,11 @@ const run: Activity = {
 const hike: Activity = { ...run, id: 'hike', name: 'Hiking', durationMins: 120 }
 
 describe('formatActivityDuration', () => {
-  it('uses minutes under an hour and hours from an hour up', () => {
-    expect(formatActivityDuration(5)).toBe('5m')
-    expect(formatActivityDuration(59)).toBe('59m')
-    expect(formatActivityDuration(60)).toBe('1h')
-    expect(formatActivityDuration(90)).toBe('1.5h')
+  it('writes minutes and hours as everywhere else (REVIEW9 QA L3)', () => {
+    expect(formatActivityDuration(5)).toBe('5 min')
+    expect(formatActivityDuration(59)).toBe('59 min')
+    expect(formatActivityDuration(60)).toBe('1 h')
+    expect(formatActivityDuration(90)).toBe('1 h 30 min')
   })
 })
 

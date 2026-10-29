@@ -38,7 +38,7 @@ test('edits an activity and keeps the changes', async ({ page, emulators }) => {
   await page.getByRole('button', { name: 'Edit Running' }).click()
   const dialog = page.getByRole('dialog', { name: 'Edit activity' })
   await dialog.getByRole('textbox', { name: 'Activity name' }).fill('Morning run')
-  await dialog.getByRole('button', { name: '+15m' }).click()
+  await dialog.getByRole('button', { name: '+15 min' }).click()
   await expect(dialog.getByRole('spinbutton', { name: 'Duration' })).toHaveValue('60')
   await dialog.getByRole('button', { name: 'SPF 30+' }).click()
   // Rain and heat (weather-fit.ts): stored only when they differ from Running's defaults.

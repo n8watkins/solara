@@ -1,4 +1,5 @@
 import { formatUV } from '@solara/core'
+import { formatDuration } from '@solara/core/duration'
 import { SITE_URL } from './site'
 import type { Activity, Location, SafeActivityWindow } from './types'
 import { formatClockTime } from './units'
@@ -41,7 +42,7 @@ export const DEFAULT_SHARE_ICON = '☀️'
 
 // Letters, marks, numbers, spaces and the punctuation real activity and place
 // names use. No slash, colon or at sign, so no URLs or email addresses.
-const DISALLOWED_TEXT_CHARS = /[^\p{L}\p{M}\p{N}\p{Zs}.,'’&()!-]/gu
+const DISALLOWED_TEXT_CHARS = /[^\p{L}\p{M}\p{N}\p{Zs}.,''&()!-]/gu
 const DOMAIN_LIKE = /[\p{L}\p{N}-]+\.[\p{L}]{2,}/u
 const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/
 const HOUR = /^\d{1,2}(\.\d{1,4})?$/
@@ -165,9 +166,8 @@ export function buildActivityShareText(
   const time = (hours: number) => formatClockTime(hours, clock)
   const place = `${location.city}${location.region ? `, ${location.region}` : ''}`
   const uvCopy = typeof win.peakUV === 'number' ? ` Peak UV ${formatUV(win.peakUV)}.` : ''
-  const duration =
-    activity.durationMins < 60 ? `${activity.durationMins} min` : `${activity.durationMins / 60} hr`
-  return `Let's do ${activity.name.toLowerCase()} ${dateLabel.toLowerCase()} from ${time(win.from)}–${time(win.to)} in ${place}. Solara estimates this as a lower-UV ${duration} planning window.${uvCopy} Recheck current conditions and use sun protection.`
+  const duration = formatDuration(activity.durationMins)
+  return `Let's do ${activity.name.toLowerCase()} ${dateLabel.toLowerCase()} from ${time(win.from)} to ${time(win.to)} in ${place}. Solara estimates this as a lower-UV ${duration} planning window.${uvCopy} Recheck current conditions and use sun protection.`
 }
 
 /** Sender text for a link: sanitized, and replaced by `fallback` if it still looks unsafe. */

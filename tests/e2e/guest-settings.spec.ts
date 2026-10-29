@@ -135,7 +135,7 @@ test("setup's burn times are for the UV it has just shown", async ({ page }) => 
   await page.getByRole('button', { name: /Continue/ }).click()
   await page.getByRole('button', { name: /See today's plan/ }).click()
   await expect(page.getByTestId('burn-metric').getByTestId('metric-value')).toHaveText(
-    `${minutes}m`,
+    `${minutes} min`,
   )
 })
 

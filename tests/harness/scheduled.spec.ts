@@ -53,11 +53,11 @@ test('calendar: scheduled items read differently from suggested windows', async 
 }, testInfo) => {
   await open(page, 'screen=calendar&scheduled=synced', scheme(testInfo.project.name))
   const today = page.locator(`[data-testid="calendar-day-column"][data-date="${HARNESS_DATE}"]`)
-  const block = today.getByRole('button', { name: 'Scheduled: Running, Today, 6pm – 6:45pm' })
+  const block = today.getByRole('button', { name: 'Scheduled: Running, Today, 6pm–6:45pm' })
   await expect(block).toBeVisible()
   // The window that holds it recedes to a tint; other windows stay solid.
   await expect(
-    today.getByRole('button', { name: 'Running, Today, 6pm – 8pm, peak UV 3.1' }),
+    today.getByRole('button', { name: 'Running, Today, 6pm–8pm, peak UV 3.1' }),
   ).toHaveAttribute('data-soft', 'true')
   await expect(today.locator('[data-testid="calendar-chip"][data-soft]')).toHaveCount(1)
 
@@ -81,7 +81,7 @@ test('calendar: scheduled items read differently from suggested windows', async 
 
   await block.click()
   const sheet = page.getByRole('dialog', { name: 'Running' })
-  await expect(sheet.getByText('Today · 6pm – 6:45pm')).toBeVisible()
+  await expect(sheet.getByText('Today · 6pm–6:45pm')).toBeVisible()
   await shot(page, 'scheduled-sheet', testInfo.project.name, false)
 
   await sheet.getByRole('button', { name: 'Change time' }).click()
@@ -129,7 +129,7 @@ test('add, change time and remove from the calendar', async ({ page }, testInfo)
   const today = page.locator(`[data-testid="calendar-day-column"][data-date="${HARNESS_DATE}"]`)
 
   // Add: the hiking window becomes Scheduled at its recommended start.
-  await today.getByRole('button', { name: /^Hiking, Today, 4pm – 8pm/ }).click()
+  await today.getByRole('button', { name: /^Hiking, Today, 4pm–8pm/ }).click()
   await page
     .getByRole('dialog', { name: 'Hiking' })
     .getByRole('button', { name: /Add to Google Calendar/ })
@@ -138,18 +138,18 @@ test('add, change time and remove from the calendar', async ({ page }, testInfo)
   await expect(page.getByRole('status').filter({ hasText: 'Scheduled Hiking' })).toBeVisible()
 
   // Change time: only starts inside the day's lower-UV windows are offered.
-  await today.getByRole('button', { name: 'Scheduled: Running, Today, 6pm – 6:45pm' }).click()
+  await today.getByRole('button', { name: 'Scheduled: Running, Today, 6pm–6:45pm' }).click()
   const sheet = page.getByRole('dialog', { name: 'Running' })
   await sheet.getByRole('button', { name: 'Change time' }).click()
   const select = sheet.getByRole('combobox', { name: /New start time/ })
   const options = await select.locator('option').allTextContents()
-  expect(options[0]).toBe('6pm – 6:45pm')
-  expect(options.at(-1)).toBe('7:15pm – 8pm')
-  await select.selectOption({ label: '7pm – 7:45pm' })
+  expect(options[0]).toBe('6pm–6:45pm')
+  expect(options.at(-1)).toBe('7:15pm–8pm')
+  await select.selectOption({ label: '7pm–7:45pm' })
   await sheet.getByRole('button', { name: 'Save time' }).click()
-  await expect(sheet.getByText('Today · 7pm – 7:45pm')).toBeVisible()
+  await expect(sheet.getByText('Today · 7pm–7:45pm')).toBeVisible()
   await expect(
-    today.getByRole('button', { name: 'Scheduled: Running, Today, 7pm – 7:45pm' }),
+    today.getByRole('button', { name: 'Scheduled: Running, Today, 7pm–7:45pm' }),
   ).toBeVisible()
 
   // Remove asks first, then the block and its list row go away.

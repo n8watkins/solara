@@ -176,10 +176,11 @@ test('a burn time beside "UV too low" keeps both cards the same height', async (
   // A number card, measured once with both cards empty, sets the height to match.
   await atEachWidth(page, t, 'metrics-mixed', row, async width => {
     const { burn, vitD } = await metrics(page)
-    await expect(burn.value).toHaveText(/^\d+m$/)
+    // "45 min", "2 h 47 min": one duration style (REVIEW9 QA L3), never "167m".
+    await expect(burn.value).toHaveText(/^(\d+ h)?( ?\d+ min)?$/)
     // Spoken as minutes, not "m".
     expect(await burn.card.innerText()).not.toContain('None')
-    await expect(burn.card.getByTestId('metric-value-spoken')).toHaveText(/^\d+ minutes$/)
+    await expect(burn.card.getByTestId('metric-value-spoken')).toHaveText(/^(\d+ hours? ?)?(\d+ minutes?)?$/)
     await expect(vitD.value).toHaveText('UV too low')
     expect(burn.fontSize).toBeGreaterThan(20)
     expect(

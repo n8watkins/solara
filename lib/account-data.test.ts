@@ -86,7 +86,7 @@ describe('account data copy', () => {
     expect(notes).toContain('without a refund for the current period')
     expect(notes).toContain('Google Calendar stay there')
     expect(notes).toContain('myaccount.google.com/connections')
-    expect(notes).toContain('Microsoft account’s app permissions')
+    expect(notes).toContain("Microsoft account's app permissions")
     expect(notes).toContain('kept for 2 years')
   })
 

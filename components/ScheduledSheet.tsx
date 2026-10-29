@@ -1,4 +1,5 @@
 'use client'
+import { timeRange } from '@/lib/time'
 import { ExternalLink } from 'lucide-react'
 import { useEffect, useEffectEvent, useId, useRef, useState } from 'react'
 import type { ScheduledActivity } from '@solara/core'
@@ -130,7 +131,7 @@ export default function ScheduledSheet({
             <ScheduledPill />
           </p>
           <p className="mt-0.5 mb-0 text-[13px] text-ink-2 tabular-nums">
-            {dayLabel} · {fmt.time(span.from)} – {fmt.time(span.to)}
+            {dayLabel} · {timeRange(fmt.time(span.from), fmt.time(span.to))}
           </p>
         </div>
         <SheetClose onClose={onClose} disabled={busy} />

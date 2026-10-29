@@ -1,4 +1,5 @@
 import type { Ref } from 'react'
+import { timeRange } from '@/lib/time'
 import { formatUV } from '@solara/core'
 import clsx from 'clsx'
 import type { SafeWindow } from '@/lib/calendar'
@@ -98,7 +99,7 @@ export default function CalendarWindowChip({
       {/* The visible label is abbreviated, so the accessible name is this full
           description instead. */}
       <span data-sr-only className="sr-only">
-        {`${act.name}, ${dayLabel}, ${fmt.time(win.from)} – ${fmt.time(win.to)}, peak UV ${formatUV(win.peakUV)}`}
+        {`${act.name}, ${dayLabel}, ${timeRange(fmt.time(win.from), fmt.time(win.to))}, peak UV ${formatUV(win.peakUV)}`}
       </span>
     </button>
   )
@@ -127,7 +128,7 @@ function ChipLabel({
         </span>
         {lines >= 2 && (
           <span aria-hidden="true" className={chipTime}>
-            {startsNow ? 'now' : fmt.time(win.from)} – {fmt.time(win.to)}
+            {timeRange(startsNow ? 'now' : fmt.time(win.from), fmt.time(win.to))}
           </span>
         )}
       </>

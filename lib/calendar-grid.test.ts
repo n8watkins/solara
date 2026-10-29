@@ -109,8 +109,8 @@ describe('row colors and copy', () => {
 
   it('reads durations in minutes or hours', () => {
     expect(durationText(45)).toBe('45 min')
-    expect(durationText(60)).toBe('1 hr')
-    expect(durationText(90)).toBe('1.5 hr')
+    expect(durationText(60)).toBe('1 h')
+    expect(durationText(90)).toBe('1 h 30 min')
   })
 
   it('finds UV gaps only inside the shown hours', () => {

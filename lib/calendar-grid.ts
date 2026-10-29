@@ -1,6 +1,7 @@
 // Pure data and vertical geometry for the Calendar week grid (components/calendar/).
 // Column and lane widths live in lib/calendar-layout.ts; this file places things on
 // the hour axis and decides what each day column shows.
+import { formatDuration } from '@solara/core/duration'
 import type {
   Activity,
   DayWeather,
@@ -41,9 +42,9 @@ export function uvRowBg(uv: number | undefined): string {
   return `rgba(${band.rgb},${UV_ROW_ALPHA * band.weight})`
 }
 
-/** "45 min", "1 hr", "1.5 hr". */
+/** "45 min", "1 h", "1 h 30 min" (formatDuration). */
 export function durationText(mins: number): string {
-  return mins < 60 ? `${mins} min` : `${mins / 60} hr`
+  return formatDuration(mins)
 }
 
 export interface CalendarDay extends DayWeather {

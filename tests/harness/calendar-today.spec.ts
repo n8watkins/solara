@@ -51,7 +51,7 @@ test('today shows no elapsed window and fades the past', async ({ page }, testIn
   ).toHaveCount(0)
   // Later days keep their morning windows.
   await expect(
-    page.getByRole('button', { name: /^Running, Tomorrow, 6am – 9am/ }).first(),
+    page.getByRole('button', { name: /^Running, Tomorrow, 6am–9am/ }).first(),
   ).toBeVisible()
 
   // The faded past ends exactly at the now line.
@@ -65,7 +65,7 @@ test('a window under way starts now and links to the right moment', async ({ pag
   // 7:00 in Los Angeles: the 6am-9am run is under way (9am's clear-sky UV is over 4).
   const at = HARNESS_NOW.replace('T10:30', 'T07:00')
   await openCalendar(page, at)
-  const chip = todayColumn(page).getByRole('button', { name: /^Running, Today, 7am – 9am/ })
+  const chip = todayColumn(page).getByRole('button', { name: /^Running, Today, 7am–9am/ })
   await expect(chip).toBeVisible()
   await expect(chip).toHaveAttribute('data-from', '7')
   // The visible start of a window under way is "now", which fits the narrowest chip.

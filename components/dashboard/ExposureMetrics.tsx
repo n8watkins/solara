@@ -1,6 +1,16 @@
 import type { ReactNode } from 'react'
 import type { SkinType } from '@/lib/types'
+import { formatDuration } from '@solara/core/duration'
 import Tooltip from '../Tooltip'
+
+/** "2 hours 47 minutes", "21 minutes", for a screen reader. */
+function spokenDuration(minutes: number): string {
+  const h = Math.floor(minutes / 60)
+  const m = minutes % 60
+  const hours = h ? `${h} ${h === 1 ? 'hour' : 'hours'}` : ''
+  const mins = m || !h ? `${m} ${m === 1 ? 'minute' : 'minutes'}` : ''
+  return [hours, mins].filter(Boolean).join(' ')
+}
 
 function Metric({
   label,
@@ -42,11 +52,24 @@ function Metric({
           </span>
         ) : (
           <>
+            {/* "2 h 47 min" as everywhere else (formatDuration), with the units smaller
+                than the numbers; "167m" read as metres (REVIEW9 QA L3). */}
             <span aria-hidden="true" data-testid="metric-value">
-              {minutes}m
+              {formatDuration(minutes)
+                .split(' ')
+                .map((part, i) =>
+                  /^\d+$/.test(part) ? (
+                    <span key={i}>{part}</span>
+                  ) : (
+                    <span key={i} className="text-[15px] font-semibold text-ink-2">
+                      {' '}
+                      {part}{' '}
+                    </span>
+                  ),
+                )}
             </span>
             <span className="sr-only" data-testid="metric-value-spoken">
-              {minutes} minutes
+              {spokenDuration(minutes)}
             </span>
           </>
         )}

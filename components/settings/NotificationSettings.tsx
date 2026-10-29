@@ -145,7 +145,7 @@ function FreeAlertControls({ user, draft, onChange }: Omit<Props, 'tier'>) {
         <SettingsTitle className="mb-1">{FREE_TITLE}</SettingsTitle>
         <SettingsHint className="leading-[1.45]">
           When the UV needs sun protection, a morning push with the times and the peak. And your
-          sunscreen timer&rsquo;s reminder, even with Solara closed. Free with your account, on the
+          sunscreen timer&apos;s reminder, even with Solara closed. Free with your account, on the
           devices you turn them on for.
         </SettingsHint>
       </div>
@@ -298,7 +298,7 @@ function AlertControls({ user, draft, onChange }: Omit<Props, 'tier'>) {
       <div>
         <SettingsTitle className="mb-1">{TITLE}</SettingsTitle>
         <SettingsHint className="leading-[1.45]">
-          {what()} They reach the devices you turn them on for, as does your sunscreen timer&rsquo;s
+          {what()} They reach the devices you turn them on for, as does your sunscreen timer&apos;s
           reminder, even with Solara closed.
         </SettingsHint>
       </div>
@@ -307,7 +307,7 @@ function AlertControls({ user, draft, onChange }: Omit<Props, 'tier'>) {
 
       <MorningHourField
         label="Morning alert"
-        hint="Today’s peak UV and your best window, in your local time."
+        hint="Today's peak UV and your best window, in your local time."
         draft={draft}
         onChange={onChange}
       />
