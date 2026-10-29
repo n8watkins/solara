@@ -35,7 +35,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
     id: 'alerts',
     label: 'Alerts',
     Icon: Bell,
-    desc: 'Morning, UV and event alerts on your devices.',
+    desc: 'UV alerts and sunscreen reminders on your devices.',
   },
   {
     id: 'appearance',
