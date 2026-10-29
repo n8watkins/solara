@@ -153,6 +153,48 @@ describe('ForecastStore', () => {
     expect(forecasts.getState(LA)).toMatchObject({ data: undefined, error: true, pending: false })
   })
 
+  it('keeps trying every minute after a failure while shown, and stops when not (REVIEW8 QA L5)', async () => {
+    const { calls, fetchForecast } = controlledFetch()
+    const forecasts = store({ fetchForecast })
+    const stop = forecasts.subscribe(LA, () => {})
+    calls[0]!.reject(new Error('down'))
+    await vi.advanceTimersByTimeAsync(1000)
+    calls[1]!.reject(new Error('down'))
+    await settle()
+    expect(calls).toHaveLength(2)
+    await vi.advanceTimersByTimeAsync(59_000)
+    expect(calls).toHaveLength(2)
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(calls).toHaveLength(3)
+    // The failure stays on screen while the automatic tries run.
+    expect(forecasts.getState(LA)).toMatchObject({ error: true, pending: false })
+    calls[2]!.reject(new Error('down'))
+    await vi.advanceTimersByTimeAsync(1000)
+    calls[3]!.reject(new Error('down'))
+    await settle()
+    stop()
+    await vi.advanceTimersByTimeAsync(10 * 60_000)
+    expect(calls).toHaveLength(4)
+  })
+
+  it('a retry someone asks for shows loading until it answers, then the forecast', async () => {
+    const { calls, fetchForecast } = controlledFetch()
+    const forecasts = store({ fetchForecast })
+    forecasts.subscribe(LA, () => {})
+    calls[0]!.reject(new Error('down'))
+    await vi.advanceTimersByTimeAsync(1000)
+    calls[1]!.reject(new Error('down'))
+    await settle()
+    forecasts.refetch(LA)
+    expect(forecasts.getState(LA)).toMatchObject({ error: false, pending: true })
+    calls[2]!.resolve(forecast(T0))
+    await settle()
+    expect(forecasts.getState(LA)).toMatchObject({ error: false, pending: false, updatedAt: T0 })
+    // No automatic try is left over once it succeeded.
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(calls).toHaveLength(3)
+  })
+
   it('refreshes every stale period while shown, and stops when no longer shown', async () => {
     const { calls, fetchForecast } = controlledFetch()
     const forecasts = store({ fetchForecast, readCache: () => forecast(T0) })

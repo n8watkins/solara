@@ -33,6 +33,7 @@ import ErrorBoundary from './ErrorBoundary'
 import AppShell, { type AppView } from './AppShell'
 import AppNotice from './AppNotice'
 import ForecastNotice from './ForecastNotice'
+import ForecastUnavailable from './ForecastUnavailable'
 import { AccountLoadError, AccountLoading } from './AccountStatus'
 import ScheduledProvider from './ScheduledProvider'
 import SettingsHost from './SettingsHost'
@@ -271,7 +272,8 @@ function SignedInApp() {
                 {billingNotice}
               </AppNotice>
             )}
-            {error && (
+            {/* Without any forecast the dashboard says so in its own place (below). */}
+            {error && weather && (
               <AppNotice
                 tone="error"
                 icon="⚠️"
@@ -294,6 +296,8 @@ function SignedInApp() {
                 {syncError.message}
               </AppNotice>
             )}
+            {/* No forecast at all: the same empty state for the dashboard and the calendar. */}
+            {error && !weather && <ForecastUnavailable message={error} onRetry={refreshWeather} />}
             {effectiveView === 'dashboard' && (
               <>
                 {weatherLoading && <Skeleton />}

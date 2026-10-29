@@ -119,7 +119,7 @@ export default function Onboarding({ user, onSignedIn, onStartAsGuest }: Props) 
     setGeoError(
       reason === 'none'
         ? 'City not found. Try a different spelling.'
-        : "Place search isn't reachable right now. Check your connection and try again.",
+        : "Place search isn't answering right now. Try again in a moment, or use your location.",
     )
   }
 

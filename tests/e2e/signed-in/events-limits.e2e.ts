@@ -156,7 +156,9 @@ test('events that ended over 30 days ago are deleted on a signed-in visit, even 
   await emulators.seedEvents(account, [expired, recent, upcoming])
 
   await page.reload()
-  await expect(page.getByText('Could not load weather data.')).toBeVisible()
+  await expect(page.getByTestId('forecast-unavailable')).toContainText(
+    "The forecast service isn't answering right now.",
+  )
   await expect(eventsSection(page)).toHaveCount(0)
   // Ended more than 30 days before Monday 2026-06-15: deleted; the others are kept.
   await expect
