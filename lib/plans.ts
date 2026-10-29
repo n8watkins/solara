@@ -40,6 +40,12 @@ export function calendarFeatureLabel(
 /** The comparison row for linked calendars, which Solara keeps current on its server. */
 export const LINKED_CALENDARS_LABEL = 'Linked calendars, kept current'
 
+/** The comparison row for the free daily UV push. */
+export const DAILY_UV_PUSH_LABEL = 'Daily UV push on high-UV days'
+
+/** The comparison row for the reapply timer's push, which comes with Solara closed. */
+export const REAPPLY_PUSH_LABEL = 'Sunscreen reminders with Solara closed'
+
 /** The comparison row for family profiles and planning by the most sensitive person. */
 export const FAMILY_PROFILES_LABEL = 'Family profiles, most sensitive first'
 
@@ -79,6 +85,14 @@ export const PRO_FEATURES: ProFeature[] = [
     label: FAMILY_PROFILES_LABEL,
     ...perTier(tier => TIER_LIMITS[tier].profiles > 1),
   },
+  // The free pushes (core daily-uv.ts and reapply.ts), listed once alerts are switched on:
+  // until then nothing sends them.
+  ...(alertsLaunched()
+    ? [
+        { label: DAILY_UV_PUSH_LABEL, ...perTier(tier => TIER_LIMITS[tier].dailyUvPush) },
+        { label: REAPPLY_PUSH_LABEL, ...perTier(tier => TIER_LIMITS[tier].reapplyPush) },
+      ]
+    : []),
   {
     label: 'Morning and UV alerts',
     ...perTier(tier =>

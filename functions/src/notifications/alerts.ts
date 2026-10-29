@@ -80,7 +80,7 @@ import {
   parseImportedEvent,
   withoutDuplicates,
 } from '#core/event-import'
-import { ANDROID_ALERT_CHANNEL_ID } from '#core/push'
+import { ANDROID_ALERT_CHANNEL_ID, deliveryScope } from '#core/push'
 import { createHash, randomUUID } from 'node:crypto'
 
 import {
@@ -197,8 +197,11 @@ const DEFAULT_LIMITS: AlertLimits = {
   headsUpReserveMs: ALERTS_HEADS_UP_RESERVE_MS,
 }
 
-/** What is sent: a morning or UV alert, or an event heads-up. */
-export type SentKind = AlertKind | 'event'
+/**
+ * What is sent: a morning or UV alert, the daily UV push (daily-uv.ts), an event
+ * heads-up, or a sunscreen reapply reminder (reminders.ts).
+ */
+export type SentKind = AlertKind | 'event' | 'reapply'
 
 /** What happened for one account in one run. */
 export type AlertOutcome =
@@ -239,16 +242,14 @@ export function canSend(state: DocumentData | undefined, kind: AlertKind, day: s
 }
 
 /** The per-account value the service worker uses to show one delivery only once. */
-export function deliveryScope(uid: string): string {
-  return createHash('sha256').update(`solara-notification:${uid}`).digest('base64url').slice(0, 22)
-}
+export { deliveryScope }
 
 /** The delivery key of an alert: one per kind and local day. */
 export function deliveryKey(kind: AlertKind, day: string): string {
   return `${kind}-v1:${day}`
 }
 
-function validLocation(location: unknown): location is {
+export function validLocation(location: unknown): location is {
   lat: number
   lon: number
   city?: unknown
@@ -265,7 +266,7 @@ function validLocation(location: unknown): location is {
   )
 }
 
-interface Device {
+export interface Device {
   ref: DocumentReference
   token: string
   /** 'web', 'android' or 'ios', as registered (devices.ts); older devices have none (web). */
@@ -277,7 +278,7 @@ function cellKey(lat: number, lon: number): string {
   return `${lat.toFixed(2)},${lon.toFixed(2)}`
 }
 
-class Run {
+export class Run {
   readonly limits: AlertLimits
   readonly now: () => number
   readonly startedAt: number
@@ -360,7 +361,7 @@ class Run {
 }
 
 /** The account's devices that may receive an alert: enabled, owned and fully registered. */
-async function alertDevices(db: Firestore, userRef: DocumentReference): Promise<Device[]> {
+export async function alertDevices(db: Firestore, userRef: DocumentReference): Promise<Device[]> {
   const snapshot = await userRef
     .collection('notificationDevices')
     .where('enabled', '==', true)
@@ -391,7 +392,7 @@ async function alertDevices(db: Firestore, userRef: DocumentReference): Promise<
 }
 
 /** Removes a device whose token FCM rejected for good, unless it was registered again meanwhile. */
-async function removeDeadDevice(db: Firestore, device: Device): Promise<boolean> {
+export async function removeDeadDevice(db: Firestore, device: Device): Promise<boolean> {
   const ownerRef = db.collection('notificationTokenOwners').doc(tokenOwnerId(device.token))
   return db.runTransaction(async transaction => {
     const [deviceSnapshot, ownerSnapshot] = await Promise.all([
@@ -425,7 +426,7 @@ export function alertDayHours(
     })
 }
 
-function clockOf(user: DocumentData): '12h' | '24h' {
+export function clockOf(user: DocumentData): '12h' | '24h' {
   return user.clockFormat === '24h' ? '24h' : '12h'
 }
 
@@ -508,7 +509,7 @@ async function finish(
 }
 
 /** What one delivery is: its kind, its state field and day, and its delivery key. */
-interface Delivery {
+export interface Delivery {
   kind: SentKind
   /** The field of the state document that records it. */
   field: string
@@ -517,7 +518,7 @@ interface Delivery {
   key: string
 }
 
-function messageFor(
+export function messageFor(
   delivery: Delivery,
   uid: string,
   device: Pick<Device, 'token' | 'platform'>,
@@ -558,50 +559,55 @@ function messageFor(
   return {
     token: device.token,
     data,
-    webpush: { headers: { Urgency: kind === 'morning' ? 'normal' : 'high', TTL: '3600' } },
+    // The morning plan and the daily UV push can wait for a phone to wake; the rest are timely.
+    webpush: {
+      headers: { Urgency: kind === 'morning' || kind === 'basic' ? 'normal' : 'high', TTL: '3600' },
+    },
     android: { collapseKey: key, ttl: 3_600_000 },
     apns: { headers: { 'apns-collapse-id': key } },
   }
 }
 
+/** The parts of a run that a delivery uses and counts in. */
+export interface DeliveryRun {
+  deps: Pick<AlertsDependencies, 'db' | 'messaging' | 'appUrl'>
+  now: () => number
+  sent: Partial<Record<SentKind, number>>
+  removedDevices: number
+}
+
+/** How one send to an account's devices went. */
+export interface SendResult {
+  /** Delivered to at least one device, failed for certain on all, or not known. */
+  status: 'delivered' | 'failed' | 'unknown'
+  delivered: number
+  error?: string
+}
+
 /**
- * Sends one alert to every device and records the outcome. `claimWith` replaces the
- * daily claim (event heads-ups claim with the events they cover); `covered` are those
- * events' fields, released again when the send failed for certain.
+ * Sends one message to every device of an account, removes the devices whose token FCM
+ * rejected for good, and says how it went. An error from FCM itself means some messages
+ * may have gone out: the outcome is unknown, and the caller does not try again.
  */
-async function deliver(
-  run: Run,
-  stateRef: DocumentReference,
+export async function sendToDevices(
+  run: Pick<DeliveryRun, 'deps' | 'removedDevices'>,
   uid: string,
   devices: Device[],
   delivery: Delivery,
   alert: AlertMessage,
-  claimWith?: () => Promise<{ attemptId: string } | null>,
-  covered: readonly string[] = [],
-): Promise<AlertOutcome> {
+): Promise<SendResult> {
   const { db, messaging, appUrl } = run.deps
-  const { kind, field, day } = delivery
-  const claimed = await (claimWith ?? (() => claim(db, stateRef, field, day, run.now())))()
-  if (!claimed) return 'claim-lost'
-
   let response: BatchResponse
   try {
     response = await messaging.sendEach(
       devices.map(device => messageFor(delivery, uid, device, alert, appUrl)),
     )
   } catch (error) {
-    // Some messages may have gone out: the alert is not tried again today.
-    logger.error('alert delivery outcome unknown', { kind, error: loggableError(error) })
-    await finish(
-      db,
-      stateRef,
-      field,
-      claimed.attemptId,
-      { status: 'unknown', delivered: 0, error: String((error as Error)?.message ?? error) },
-      run.now(),
-      covered,
-    )
-    return 'unknown'
+    logger.error('alert delivery outcome unknown', {
+      kind: delivery.kind,
+      error: loggableError(error),
+    })
+    return { status: 'unknown', delivered: 0, error: String((error as Error)?.message ?? error) }
   }
 
   const codes: unknown[] = []
@@ -628,27 +634,58 @@ async function deliver(
       : codes.every(code => DEFINITE_FAILURE_CODES.has(code))
         ? 'failed'
         : 'unknown'
+  if (status === 'unknown') {
+    logger.error('alert delivery outcome unknown', {
+      kind: delivery.kind,
+      codes: codes.map(String),
+    })
+  }
+  return {
+    status,
+    delivered: response.successCount,
+    ...(codes.length ? { error: codes.map(String).join(',').slice(0, 200) } : {}),
+  }
+}
+
+/**
+ * Sends one alert to every device and records the outcome. `claimWith` replaces the
+ * daily claim (event heads-ups claim with the events they cover); `covered` are those
+ * events' fields, released again when the send failed for certain.
+ */
+export async function deliver(
+  run: DeliveryRun,
+  stateRef: DocumentReference,
+  uid: string,
+  devices: Device[],
+  delivery: Delivery,
+  alert: AlertMessage,
+  claimWith?: () => Promise<{ attemptId: string } | null>,
+  covered: readonly string[] = [],
+): Promise<AlertOutcome> {
+  const { db } = run.deps
+  const { kind, field, day } = delivery
+  const claimed = await (claimWith ?? (() => claim(db, stateRef, field, day, run.now())))()
+  if (!claimed) return 'claim-lost'
+
+  const sent = await sendToDevices(run, uid, devices, delivery, alert)
   await finish(
     db,
     stateRef,
     field,
     claimed.attemptId,
     {
-      status,
-      delivered: response.successCount,
-      ...(codes.length ? { error: codes.map(String).join(',') } : {}),
+      status: sent.status,
+      delivered: sent.delivered,
+      ...(sent.error ? { error: sent.error } : {}),
     },
     run.now(),
     covered,
   )
-  if (status === 'delivered') {
+  if (sent.status === 'delivered') {
     run.sent[kind] = (run.sent[kind] ?? 0) + 1
     return 'sent'
   }
-  if (status === 'unknown') {
-    logger.error('alert delivery outcome unknown', { kind, codes: codes.map(String) })
-  }
-  return status
+  return sent.status
 }
 
 /** The devices of an account, read once per run however many alerts look for them. */
@@ -1132,7 +1169,7 @@ async function runHeadsUps(run: Run, jobs: HeadsUpJob[]): Promise<void> {
   })
 }
 
-async function mapLimit<T>(
+export async function mapLimit<T>(
   items: readonly T[],
   limit: number,
   worker: (item: T) => Promise<void>,

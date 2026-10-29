@@ -203,7 +203,7 @@ service cloud.firestore {
         'sunscreen', 'activities', 'onboardingComplete', 'calendarHours', 'showSunPath',
         'hiddenActivitySuggestionIds', 'collapsedActivityCategories', 'upgradeInterest',
         'notificationHour', 'temperatureUnit', 'clockFormat', 'groupMode', 'groupProfileIds',
-        'uvAlertThreshold', 'quietHours', 'eventHeadsUp'
+        'uvAlertThreshold', 'quietHours', 'eventHeadsUp', 'dailyUv'
       ];
     }
 
@@ -246,7 +246,7 @@ service cloud.firestore {
         // keeps a multi-list write within the expression budget.
         && (!keys.hasAny([
             'onboardingComplete', 'showSunPath', 'upgradeInterest', 'temperatureUnit',
-            'clockFormat', 'uvAlertThreshold', 'quietHours', 'eventHeadsUp'
+            'clockFormat', 'uvAlertThreshold', 'quietHours', 'eventHeadsUp', 'dailyUv'
           ])
           || ((!('onboardingComplete' in keys) || data.onboardingComplete is bool)
             && (!('showSunPath' in keys) || data.showSunPath is bool)
@@ -259,7 +259,29 @@ service cloud.firestore {
                 && data.uvAlertThreshold >= 0
                 && data.uvAlertThreshold <= 11))
             && (!('quietHours' in keys) || validQuietHours(data.quietHours))
-            && (!('eventHeadsUp' in keys) || data.eventHeadsUp is bool)));
+            && (!('eventHeadsUp' in keys) || data.eventHeadsUp is bool)
+            && (!('dailyUv' in keys) || data.dailyUv is bool)));
+    }
+
+    // A reapply reminder (packages/core/src/reapply.ts): a random id, the timer's mode,
+    // when sunscreen was last put on (at most 12 hours ago, or a few minutes ahead for a
+    // fast clock), and the reminder time exactly that plus the mode's interval (2 hours,
+    // or 80 minutes while swimming or sweating), still ahead. `dueAt` marks it waiting;
+    // `expireAt` (a day after) is its TTL.
+    function validReapplyReminder() {
+      let data = request.resource.data;
+      let minutes = data.mode == 'water' ? 80 : 120;
+      return data.keys().hasOnly(['id', 'mode', 'appliedAt', 'remindAt', 'dueAt', 'expireAt'])
+        && data.keys().hasAll(['id', 'mode', 'appliedAt', 'remindAt', 'dueAt', 'expireAt'])
+        && data.id is string && data.id.matches('^[a-f0-9]{32}$')
+        && data.mode in ['standard', 'water']
+        && data.appliedAt is timestamp
+        && data.appliedAt <= request.time + duration.value(15, 'm')
+        && data.appliedAt >= request.time - duration.value(12, 'h')
+        && data.remindAt == data.appliedAt + duration.value(minutes, 'm')
+        && data.remindAt > request.time
+        && data.dueAt == data.remindAt
+        && data.expireAt == data.remindAt + duration.value(1, 'd');
     }
 
     function validNewUser(userId) {
@@ -596,6 +618,27 @@ service cloud.firestore {
           && (name in ['googleCalendar', 'outlookCalendar']
             || (name in ['events', 'scheduled']
               && (resource == null || resource.data.get('ids', {}).size() == 0)));
+      }
+
+      // The sunscreen reapply reminder's one "remind me at" record (doc `reapply`, so one
+      // per account): written by the browser when the timer starts, is reset or switches
+      // to swimming, and deleted when it stops (lib/reapply-reminder.ts). The server
+      // counts each schedule against a daily cap, sends one push at `remindAt` and deletes
+      // it (functions/src/notifications/reminders.ts).
+      match /reminders/{name} {
+        allow get, delete: if isOwner(userId) && isActiveAccount(userId) && name == 'reapply';
+        allow create, update: if isOwner(userId) && isActiveAccount(userId)
+          && name == 'reapply' && validReapplyReminder();
+        allow list: if false;
+      }
+
+      // Server-only: when the alerts job next looks at the account for the daily UV push
+      // (alertSchedule/dailyUv), and the alerts' delivery state (alertState).
+      match /alertSchedule/{name} {
+        allow read, write: if false;
+      }
+      match /alertState/{name} {
+        allow read, write: if false;
       }
 
       // Server-written records the owner may read: the calendar feed token, and the linked

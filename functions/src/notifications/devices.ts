@@ -1,6 +1,7 @@
 // Notification device registration.
 //
-// A paid account registers up to five devices. Each FCM token belongs to exactly one
+// An account registers up to five devices: a Pro account always, and a Free one once the
+// alerts are on (ALERTS_ENABLED), for the daily UV push and the reapply reminder. Each FCM token belongs to exactly one
 // device: `notificationTokenOwners/{sha256(token)}` points at it, so re-registering a
 // token on another account moves it (with its delivery history, so a morning is never
 // notified twice) instead of duplicating it. Legacy `users.fcmToken` holders are migrated
@@ -17,6 +18,7 @@ import { authenticate, uidLimiter } from '../shared/auth'
 import { HttpError, loggableError } from '../shared/errors'
 import { type ServerTimestamp, toMillis } from '../shared/time'
 import { RETENTION_DAYS, expiresAfter } from '../shared/ttl'
+import { dailyUvScheduleRef } from './schedule'
 
 export const MAX_NOTIFICATION_DEVICES = 5
 export const MAX_REGISTRATIONS_PER_MINUTE = 10
@@ -203,12 +205,18 @@ export async function registerNotificationDevice({
   db,
   req,
   serverTimestamp,
+  freeAccounts = false,
   nowMs = Date.now(),
 }: {
   auth: Auth
   db: Firestore
   req: Request
   serverTimestamp: ServerTimestamp
+  /**
+   * Whether a Free account may register (ALERTS_ENABLED: the daily UV push and the
+   * reapply reminder are free); otherwise only Pro.
+   */
+  freeAccounts?: boolean
   nowMs?: number
 }): Promise<{ deviceId: string; registered: true; migrationPending: boolean }> {
   const identity = await authenticate(auth, req.headers.authorization)
@@ -236,7 +244,8 @@ export async function registerNotificationDevice({
     if (userSnapshot.exists && userSnapshot.data()?.accountDeletionStartedAt) {
       throw new HttpError('deletion-in-progress', 'Account deletion is in progress')
     }
-    if (!userSnapshot.exists || userSnapshot.data()?.tier !== 'paid') {
+    const tier = userSnapshot.data()?.tier
+    if (!userSnapshot.exists || (tier !== 'paid' && !(freeAccounts && tier === 'free'))) {
       throw new HttpError('permission-denied', 'A paid subscription is required')
     }
 
@@ -321,6 +330,8 @@ export async function registerNotificationDevice({
       registrationMigrationId: migrationId,
       updatedAt: serverTimestamp(),
     })
+    // Enrols the account in the daily UV push (daily-uv.ts), checked by the next run.
+    transaction.set(dailyUvScheduleRef(userRef), { dueAt: new Date(nowMs) })
     transaction.set(limitRef, {
       count: registrationCount + 1,
       windowStartedAt: withinWindow ? windowStartedAt : nowMs,

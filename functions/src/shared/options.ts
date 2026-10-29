@@ -110,3 +110,36 @@ export function pubSubOptions(
 ): PubSubOptions {
   return { topic, retry: false, ...backgroundOptions(timeoutSeconds) }
 }
+
+/**
+ * Options for a Firestore-triggered function: one instance serving a few events at once.
+ * Failures are not retried: what it does has a backstop (the reapply reminder's sweep).
+ */
+export function documentOptions({ timeoutSeconds }: { timeoutSeconds: number }) {
+  return {
+    region: REGION,
+    memory: MEMORY,
+    cpu: 1,
+    concurrency: 20,
+    maxInstances: 1,
+    timeoutSeconds,
+    retry: false,
+  }
+}
+
+/**
+ * Options for a Cloud Tasks queue function: one instance serving a few tasks at once,
+ * with as many dispatched at a time; a failed task is retried a few times.
+ */
+export function taskQueueOptions({ timeoutSeconds }: { timeoutSeconds: number }) {
+  return {
+    region: REGION,
+    memory: MEMORY,
+    cpu: 1,
+    concurrency: 10,
+    maxInstances: 1,
+    timeoutSeconds,
+    retryConfig: { maxAttempts: 3, minBackoffSeconds: 30, maxBackoffSeconds: 300 },
+    rateLimits: { maxConcurrentDispatches: 10, maxDispatchesPerSecond: 20 },
+  }
+}

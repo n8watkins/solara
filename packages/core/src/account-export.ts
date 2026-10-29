@@ -140,7 +140,7 @@ export function safeImportedEventData(docs: readonly ExportDocument[]) {
   })
 }
 
-const ALERT_KINDS = ['morning', 'uv'] as const
+const ALERT_KINDS = ['morning', 'uv', 'basic'] as const
 
 function record(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' ? (value as Record<string, unknown>) : null

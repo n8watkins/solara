@@ -16,8 +16,11 @@ import { NOTIFICATION_HOUR, QUIET_HOURS, UV_ALERT_THRESHOLD } from './prefs'
 import type { Daylight } from './sun-times'
 import { isoDateOf, wallClockAt } from './zoned-time'
 
-/** The kinds of alert, each sent at most once per local day. */
-export const ALERT_KINDS = Object.freeze(['morning', 'uv'] as const)
+/**
+ * The kinds of alert, each sent at most once per local day: Pro's morning and UV alerts,
+ * and the daily UV push for Free accounts (daily-uv.ts).
+ */
+export const ALERT_KINDS = Object.freeze(['morning', 'uv', 'basic'] as const)
 export type AlertKind = (typeof ALERT_KINDS)[number]
 
 /** How long after the chosen hour a morning alert may still go out. */

@@ -3,6 +3,8 @@ import {
   TIER_LIMITS,
   activityLimitNote,
   canAddActivity,
+  canUseDailyUvPush,
+  canUseReapplyPush,
   canUseCalendar,
   canUseFamilyProfiles,
   canUseNotifications,
@@ -61,6 +63,15 @@ describe('free account', () => {
     expect(canUseNotifications('free')).toBe(false)
     expect(canUseFamilyProfiles('free')).toBe(false)
     expect(getProfileLimit('free')).toBe(1)
+  })
+
+  it('gets the daily UV push and reapply reminders by push, which a guest cannot', () => {
+    expect(canUseDailyUvPush('free')).toBe(true)
+    expect(canUseReapplyPush('free')).toBe(true)
+    expect(canUseDailyUvPush('paid')).toBe(true)
+    expect(canUseReapplyPush('paid')).toBe(true)
+    expect(canUseDailyUvPush('anonymous')).toBe(false)
+    expect(canUseReapplyPush('anonymous')).toBe(false)
   })
 })
 

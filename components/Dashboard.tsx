@@ -314,7 +314,9 @@ function DashboardView({
             />
           )}
 
-          {isToday && down?.phase !== 'after-sunset' && <SunscreenTimer />}
+          {isToday && down?.phase !== 'after-sunset' && (
+            <SunscreenTimer uid={user?.uid ?? null} tier={access.accessTier} />
+          )}
 
           {/* Imported events: under the conditions from 1024 px; after the activities on
               narrower screens, where the columns stack. */}

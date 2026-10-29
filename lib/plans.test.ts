@@ -97,6 +97,27 @@ describe('PRO_FEATURES', () => {
       vi.unstubAllEnvs()
     }
   })
+
+  it('lists the free daily UV push and reapply reminders only once alerts are on', async () => {
+    vi.resetModules()
+    const off = await import('./plans')
+    expect(off.PRO_FEATURES.find(f => f.label === off.DAILY_UV_PUSH_LABEL)).toBeUndefined()
+    expect(off.PRO_FEATURES.find(f => f.label === off.REAPPLY_PUSH_LABEL)).toBeUndefined()
+    vi.stubEnv('NEXT_PUBLIC_ALERTS_ENABLED', '1')
+    try {
+      vi.resetModules()
+      const on = await import('./plans')
+      for (const label of [on.DAILY_UV_PUSH_LABEL, on.REAPPLY_PUSH_LABEL]) {
+        expect(on.PRO_FEATURES.find(f => f.label === label)).toMatchObject({
+          guest: false,
+          free: true,
+          pro: true,
+        })
+      }
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
 })
 
 describe('linked calendars in the plans (REVIEW8 SEC L3)', () => {

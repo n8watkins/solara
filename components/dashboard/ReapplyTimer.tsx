@@ -1,6 +1,8 @@
 'use client'
 import { Droplets } from 'lucide-react'
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
+import { claimDelivery, releaseDelivery } from '@/lib/notification-marker'
+import { useOpenSettings } from '@/lib/open-settings'
 import {
   REAPPLY_MINUTES,
   REAPPLY_STORAGE_KEY,
@@ -11,15 +13,30 @@ import {
   markNotified,
   minutesLeft,
   reapplied,
+  reapplyReminderMessage,
   startTimer,
   saveTimer,
   shouldNotify,
   withMode,
+  withReminderTag,
   type ReapplyTimer as Timer,
 } from '@/lib/reapply'
+import {
+  cancelReapplyReminder,
+  hasNotificationDevice,
+  reapplyPushAvailable,
+  scheduleReapplyReminder,
+} from '@/lib/reapply-reminder'
+import type { TierLevel } from '@/lib/types'
 import { useUnits } from '@/lib/use-units'
 
-const TITLE = 'Time to reapply sunscreen'
+const TITLE = reapplyReminderMessage('standard').title
+
+/** Whether the server's push will also bring the reminder, as far as this tab knows. */
+type PushState = 'off' | 'pending' | 'devices' | 'no-devices' | 'failed'
+
+/** A reminder is not handed to the server when it is this close: this tab reminds already. */
+const MIN_PUSH_LEAD_MS = 60_000
 
 type Permission = NotificationPermission | 'unsupported'
 
@@ -31,9 +48,9 @@ function notificationPermission(): Permission {
  * Shows the reminder as a system notification: through the app's service worker
  * where there is one (required on Android), else with the page's Notification API.
  */
-async function showReminder(body: string): Promise<void> {
+async function showReminder(body: string, tag = 'solara-reapply'): Promise<void> {
   if (notificationPermission() !== 'granted') return
-  const options = { body, tag: 'solara-reapply', icon: '/icon-192.png', badge: '/icon-192.png' }
+  const options = { body, tag, icon: '/icon-192.png', badge: '/icon-192.png' }
   try {
     const registration = await navigator.serviceWorker?.getRegistration()
     if (registration) {
@@ -48,10 +65,32 @@ async function showReminder(body: string): Promise<void> {
   }
 }
 
+/**
+ * The reminder falling due in this tab: once per device, whether the server's push for
+ * it (same tag) or this tab gets there first. A hidden tab shows a notification; a
+ * visible one only marks it shown, since the card itself is the reminder.
+ */
+async function remindHere(timer: Timer, hidden: boolean): Promise<void> {
+  const tag = timer.reminderTag
+  if (tag && !(await claimDelivery(tag))) return
+  if (!hidden) return
+  try {
+    await showReminder(reapplyReminderMessage(timer.mode).body, tag)
+  } catch {
+    if (tag) await releaseDelivery(tag)
+  }
+}
+
 function intervalText(timer: Timer): string {
   return timer.mode === 'water'
     ? `Every ${REAPPLY_MINUTES.water} minutes while swimming or sweating`
     : `Every ${REAPPLY_MINUTES.standard / 60} hours`
+}
+
+export interface ReapplyTimerProps {
+  /** The signed-in account, whose devices can get the reminder as a push; null for a guest. */
+  uid?: string | null
+  tier?: TierLevel
 }
 
 /**
@@ -59,20 +98,78 @@ function intervalText(timer: Timer): string {
  * reminds you every 2 hours, or 80 minutes while swimming or sweating. The reminder
  * is this card, which turns into an alert, plus a system notification while Solara
  * is open in the background, where the browser allows one. Free for every plan,
- * guests included; it lives in this browser.
+ * guests included; it lives in this browser. For a signed-in account, once alerts are
+ * switched on, the server also sends it as a push to the account's devices with
+ * notifications on, so it arrives with Solara closed (lib/reapply-reminder.ts).
  */
-export default function ReapplyTimer() {
+export default function ReapplyTimer({ uid = null, tier }: ReapplyTimerProps = {}) {
   const id = useId()
   const units = useUnits()
+  const openSettings = useOpenSettings()
   const [timer, setTimer] = useState<Timer | null>(() => loadTimer())
   const [now, setNow] = useState(() => Date.now())
   const [permission, setPermission] = useState<Permission>(notificationPermission)
+  const push = uid && reapplyPushAvailable(tier) ? uid : null
+  const [pushState, setPushState] = useState<PushState>('off')
+  // Each schedule's own number, so a slow answer for an older one is ignored.
+  const scheduleRun = useRef(0)
 
   function update(next: Timer | null) {
     saveTimer(next)
     setTimer(next)
     setNow(Date.now())
   }
+
+  /**
+   * Hands the timer's next reminder to the server (or stops the server's), then keeps
+   * the push's tag with the timer so this tab and the push show one notification.
+   */
+  function syncPush(next: Timer | null) {
+    if (!push) return
+    const run = ++scheduleRun.current
+    const current = () => run === scheduleRun.current
+    if (!next || dueAt(next) - Date.now() < MIN_PUSH_LEAD_MS) {
+      setPushState('off')
+      void cancelReapplyReminder(push).catch(() => {})
+      return
+    }
+    setPushState('pending')
+    void (async () => {
+      try {
+        const { tag, committed } = await scheduleReapplyReminder(push, next)
+        if (!current()) return
+        const tagged = withReminderTag(next, tag)
+        // Kept even before the server has it: offline, Firestore sends it later.
+        update(tagged)
+        const [devices] = await Promise.all([hasNotificationDevice(push), committed])
+        if (current()) setPushState(devices ? 'devices' : 'no-devices')
+      } catch {
+        if (current()) setPushState('failed')
+      }
+    })()
+  }
+
+  function change(next: Timer | null) {
+    update(next)
+    syncPush(next)
+  }
+
+  // A timer from before this page loaded: say whether its push is coming.
+  const knownTag = timer?.reminderTag
+  useEffect(() => {
+    if (!push || !knownTag) return
+    let active = true
+    hasNotificationDevice(push).then(
+      devices => {
+        if (active)
+          setPushState(state => (state === 'off' ? (devices ? 'devices' : 'no-devices') : state))
+      },
+      () => {},
+    )
+    return () => {
+      active = false
+    }
+  }, [push, knownTag])
 
   // Another tab started, reset or stopped the timer.
   useEffect(() => {
@@ -94,13 +191,7 @@ export default function ReapplyTimer() {
       const current = Date.now()
       setNow(current)
       if (!shouldNotify(timer, current)) return
-      if (document.visibilityState === 'hidden') {
-        void showReminder(
-          timer.mode === 'water'
-            ? `It has been ${REAPPLY_MINUTES.water} minutes of swimming or sweating since you put it on.`
-            : `It has been ${REAPPLY_MINUTES.standard / 60} hours since you put it on.`,
-        )
-      }
+      void remindHere(timer, document.visibilityState === 'hidden')
       const next = markNotified(timer)
       saveTimer(next)
       setTimer(next)
@@ -113,7 +204,7 @@ export default function ReapplyTimer() {
   }, [timer])
 
   async function start() {
-    update(startTimer(Date.now()))
+    change(startTimer(Date.now()))
     // Asked inside the click, as browsers require, and only once.
     if (permission === 'default') {
       try {
@@ -149,12 +240,18 @@ export default function ReapplyTimer() {
     )
   }
 
-  const note =
+  const tabNote =
     permission === 'granted'
       ? 'You get a notification while Solara stays open in a tab.'
       : permission === 'denied'
         ? 'Notifications are blocked, so the reminder shows here.'
         : 'The reminder shows here while Solara is open.'
+  const note =
+    pushState === 'devices'
+      ? 'It also comes to your devices with alerts on, even with Solara closed.'
+      : pushState === 'no-devices'
+        ? null
+        : tabNote
 
   return (
     <section
@@ -187,7 +284,7 @@ export default function ReapplyTimer() {
         <button
           type="button"
           className={due ? 'btn btn-primary' : 'btn'}
-          onClick={() => update(reapplied(timer, Date.now()))}
+          onClick={() => change(reapplied(timer, Date.now()))}
         >
           I reapplied
         </button>
@@ -195,15 +292,32 @@ export default function ReapplyTimer() {
           type="button"
           className="btn"
           aria-pressed={timer.mode === 'water'}
-          onClick={() => update(withMode(timer, timer.mode === 'water' ? 'standard' : 'water'))}
+          onClick={() => change(withMode(timer, timer.mode === 'water' ? 'standard' : 'water'))}
         >
           Swimming or sweating
         </button>
-        <button type="button" className="btn btn-ghost" onClick={() => update(null)}>
+        <button type="button" className="btn btn-ghost" onClick={() => change(null)}>
           Stop
         </button>
       </div>
-      {!due && <p className="text-[11px] leading-[1.35] text-ink-3">{note}</p>}
+      {!due && note && <p className="text-[11px] leading-[1.35] text-ink-3">{note}</p>}
+      {!due && pushState === 'no-devices' && (
+        <p className="text-[11px] leading-[1.35] text-ink-3">
+          To get it with Solara closed,{' '}
+          {openSettings ? (
+            <button
+              type="button"
+              className="font-semibold text-accent underline underline-offset-2"
+              onClick={() => openSettings('alerts')}
+            >
+              turn on alerts
+            </button>
+          ) : (
+            'turn on alerts in Settings'
+          )}{' '}
+          for this device.
+        </p>
+      )}
     </section>
   )
 }

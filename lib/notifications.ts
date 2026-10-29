@@ -3,6 +3,7 @@ import type * as MessagingModule from 'firebase/messaging'
 import type { Messaging, MessagePayload } from 'firebase/messaging'
 import { appCheckConfigured, lazySubscription, loadFirebase } from './firebase'
 import { callFunction, functionsApiConfigured } from './functions-api'
+import { claimDelivery, releaseDelivery } from './notification-marker'
 
 interface LocalDeviceSubscription {
   deviceId: string
@@ -239,11 +240,8 @@ function handleForeground(payload: MessagePayload, callback: (payload: unknown) 
     'serviceWorker' in navigator
   ) {
     void (async () => {
-      const cache = await caches.open('solara-notification-deliveries-v1')
       const scopedKey = `${data.deliveryScope}:${data.deliveryKey}`
-      const marker = new Request(`/notification-delivery/${encodeURIComponent(scopedKey)}`)
-      if (await cache.match(marker)) return
-      await cache.put(marker, new Response('shown'))
+      if (!(await claimDelivery(scopedKey))) return
       try {
         const registration = await navigator.serviceWorker.ready
         await registration.showNotification(title, {
@@ -254,7 +252,7 @@ function handleForeground(payload: MessagePayload, callback: (payload: unknown) 
           data: { link: data.link || '/' },
         })
       } catch (error) {
-        await cache.delete(marker)
+        await releaseDelivery(scopedKey)
         throw error
       }
     })().catch(error => console.error('Foreground notification error:', error))
