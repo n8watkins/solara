@@ -45,8 +45,8 @@ function fakeDb({
   const ref = (kind, id, uid) => ({ kind, id, uid })
   const userRef = uid => ({
     ...ref('user', uid, uid),
-    collection: () => ({
-      doc: id => ref('device', id, uid),
+    collection: name => ({
+      doc: id => ref(name === 'notificationDevices' ? 'device' : name, id, uid),
       where: () => ({ limit: () => ref('device-query', 'enabled', uid) }),
     }),
   })
@@ -249,6 +249,35 @@ describe('notification device mutations', () => {
         serverTimestamp: () => 'server-time',
       }),
       error => error.status === 400,
+    )
+  })
+
+  test('registers a Free account once the alerts are on, and enrols it in the daily UV push', async () => {
+    for (const tier of ['free', 'paid']) {
+      const db = fakeDb({ tier })
+      await registerNotificationDevice({
+        auth,
+        db,
+        req: request({ deviceId: DEVICE_ID, platform: 'android', token: TOKEN }),
+        serverTimestamp: () => 'server-time',
+        freeAccounts: true,
+        nowMs: 1_750_000_000_000,
+      })
+      assert.equal(latestWrite(db, 'device').data.platform, 'android')
+      const schedule = latestWrite(db, 'alertSchedule')
+      assert.equal(schedule.ref.id, 'dailyUv')
+      assert.deepEqual(schedule.data, { dueAt: new Date(1_750_000_000_000) })
+    }
+    // A guest's anonymous tier never registers.
+    await assert.rejects(
+      registerNotificationDevice({
+        auth,
+        db: fakeDb({ tier: 'anonymous' }),
+        req: request({ deviceId: DEVICE_ID, platform: 'web', token: TOKEN }),
+        serverTimestamp: () => 'server-time',
+        freeAccounts: true,
+      }),
+      error => error.status === 403,
     )
   })
 

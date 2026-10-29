@@ -35,6 +35,7 @@ import {
   ALERT_STATE_DOC,
   EVENT_ALERT_STATE_DOC,
 } from '../notifications/alerts'
+import { REAPPLY_REMINDER_DOC, REMINDER_COLLECTION } from '../notifications/reminders'
 import { HttpError } from '../shared/errors'
 
 // The file's shape and filtering live in @solara/core/account-export, which the account
@@ -125,6 +126,7 @@ export async function exportAccountData({
   const linksRef = userRef.collection('private').doc(EVENT_SUBSCRIPTIONS_DOC)
   const googleRef = userRef.collection('meta').doc(GOOGLE_CALENDAR_LINK_DOC)
   const outlookRef = userRef.collection('meta').doc(OUTLOOK_CALENDAR_LINK_DOC)
+  const reminderRef = userRef.collection(REMINDER_COLLECTION).doc(REAPPLY_REMINDER_DOC)
   // A read-only transaction: every page comes from the same snapshot, and nothing is locked.
   const sections = await db.runTransaction(
     async transaction => {
@@ -132,18 +134,29 @@ export async function exportAccountData({
       if (tombstone.exists) {
         throw new HttpError('deletion-in-progress', 'Account deletion is in progress')
       }
-      const [account, alerts, eventAlerts, links, google, outlook, devices, scheduled, events] =
-        await Promise.all([
-          transaction.get(userRef),
-          transaction.get(alertStateRef),
-          transaction.get(eventAlertsRef),
-          transaction.get(linksRef),
-          transaction.get(googleRef),
-          transaction.get(outlookRef),
-          readPaged(transaction, userRef.collection('notificationDevices'), plain, limits),
-          readPaged(transaction, userRef.collection('scheduled'), plain, limits),
-          readPaged(transaction, userRef.collection('events'), plain, limits),
-        ])
+      const [
+        account,
+        alerts,
+        eventAlerts,
+        links,
+        google,
+        outlook,
+        reminder,
+        devices,
+        scheduled,
+        events,
+      ] = await Promise.all([
+        transaction.get(userRef),
+        transaction.get(alertStateRef),
+        transaction.get(eventAlertsRef),
+        transaction.get(linksRef),
+        transaction.get(googleRef),
+        transaction.get(outlookRef),
+        transaction.get(reminderRef),
+        readPaged(transaction, userRef.collection('notificationDevices'), plain, limits),
+        readPaged(transaction, userRef.collection('scheduled'), plain, limits),
+        readPaged(transaction, userRef.collection('events'), plain, limits),
+      ])
       return {
         account: account.exists ? (account.data() ?? {}) : null,
         alerts: alerts.exists ? (alerts.data() ?? null) : null,
@@ -151,6 +164,7 @@ export async function exportAccountData({
         links: links.exists ? (links.data() ?? null) : null,
         google: google.exists ? (google.data() ?? null) : null,
         outlook: outlook.exists ? (outlook.data() ?? null) : null,
+        reminder: reminder.exists ? (reminder.data() ?? null) : null,
         devices,
         scheduled,
         events,
@@ -170,6 +184,7 @@ export async function exportAccountData({
       links: sections.links,
       google: sections.google,
       outlook: sections.outlook,
+      reminder: sections.reminder,
       devices: sections.devices.records,
       scheduled: sections.scheduled.records,
       events: sections.events.records,

@@ -801,6 +801,7 @@ describe('account data security', () => {
           }
         }
         if (name === 'events') return eventsQuery
+        if (name === 'reminders') return { doc: id => (assert.equal(id, 'reapply'), reminderRef) }
         assert.equal(name, 'scheduled')
         return scheduledQuery
       },
@@ -808,6 +809,7 @@ describe('account data security', () => {
     const tombstoneRef = { kind: 'tombstone' }
     const googleRef = { kind: 'googleCalendar' }
     const outlookRef = { kind: 'outlookCalendar' }
+    const reminderRef = { kind: 'reminder' }
     const outlookLink = {
       calendars: [
         { id: 'default', name: '' },
@@ -855,6 +857,18 @@ describe('account data security', () => {
             }
             if (ref === googleRef) {
               return { exists: true, data: () => ({ ...googleLink, token: 'never-stored' }) }
+            }
+            if (ref === reminderRef) {
+              return {
+                exists: true,
+                data: () => ({
+                  id: 'f'.repeat(32),
+                  mode: 'water',
+                  appliedAt: new Date('2026-06-15T17:00:00.000Z'),
+                  remindAt: new Date('2026-06-15T18:20:00.000Z'),
+                  dueAt: new Date('2026-06-15T18:20:00.000Z'),
+                }),
+              }
             }
             if (ref === outlookRef) {
               return {
@@ -942,10 +956,18 @@ describe('account data security', () => {
       'links',
       'googleCalendar',
       'outlookCalendar',
+      'reminder',
       'devices',
       'scheduled',
       'events',
     ])
+    // The sunscreen reminder waiting to be sent, without its internal id.
+    assert.deepEqual(result.reapplyReminder, {
+      mode: 'water',
+      appliedAt: '2026-06-15T17:00:00.000Z',
+      remindAt: '2026-06-15T18:20:00.000Z',
+      status: 'waiting',
+    })
     // Linked calendars without their links; heads-ups without internal ids.
     assert.deepEqual(result.linkedCalendars, [link])
     // The chosen Google calendars, only the schema's fields.

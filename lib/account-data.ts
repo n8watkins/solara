@@ -13,8 +13,9 @@ export const EXPORT_SECTIONS = {
   linkedCalendars: 'your linked calendars (their site and name, not their links)',
   googleCalendar: 'the Google calendars you show events from',
   outlookCalendar: 'the Outlook calendars you show events from',
-  alerts: 'the Pro alerts sent in the last week',
+  alerts: 'the alerts sent in the last week',
   eventHeadsUps: 'the Pro event heads-ups sent in the last week',
+  reapplyReminder: 'your sunscreen reminder waiting to be sent, if any',
   notificationDevices: 'device registration metadata',
 } as const
 
@@ -32,6 +33,7 @@ export const DELETED_DATA = [
   'your calendar feed',
   'notification devices',
   'alert history',
+  'sunscreen reminders',
   'your Solara sign-in',
 ] as const
 

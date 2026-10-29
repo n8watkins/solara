@@ -143,15 +143,18 @@ async function readCollection(
 /** The account data file, read from Firestore by its owner. */
 export async function exportAccountInBrowser(uid: string): Promise<AccountExport> {
   const { db, sdk } = await firestore()
-  const [account, links, google, outlook, devices, scheduled, events] = await Promise.all([
-    readDoc(sdk, db, 'users', uid),
-    readDoc(sdk, db, 'users', uid, 'private', 'eventSubscriptions'),
-    readDoc(sdk, db, 'users', uid, 'meta', GOOGLE_CALENDAR_LINK_DOC),
-    readDoc(sdk, db, 'users', uid, 'meta', OUTLOOK_CALENDAR_LINK_DOC),
-    readCollection(sdk, db, uid, 'notificationDevices'),
-    readCollection(sdk, db, uid, 'scheduled'),
-    readCollection(sdk, db, uid, 'events'),
-  ])
+  const [account, links, google, outlook, reminder, devices, scheduled, events] = await Promise.all(
+    [
+      readDoc(sdk, db, 'users', uid),
+      readDoc(sdk, db, 'users', uid, 'private', 'eventSubscriptions'),
+      readDoc(sdk, db, 'users', uid, 'meta', GOOGLE_CALENDAR_LINK_DOC),
+      readDoc(sdk, db, 'users', uid, 'meta', OUTLOOK_CALENDAR_LINK_DOC),
+      readDoc(sdk, db, 'users', uid, 'reminders', 'reapply'),
+      readCollection(sdk, db, uid, 'notificationDevices'),
+      readCollection(sdk, db, uid, 'scheduled'),
+      readCollection(sdk, db, uid, 'events'),
+    ],
+  )
   const truncated: TruncatedSection[] = []
   if (devices.truncated) truncated.push('notificationDevices')
   if (scheduled.truncated) truncated.push('scheduledActivities')
@@ -165,6 +168,7 @@ export async function exportAccountInBrowser(uid: string): Promise<AccountExport
       links,
       google,
       outlook,
+      reminder,
       devices: devices.docs,
       scheduled: scheduled.docs,
       events: events.docs,
@@ -193,9 +197,10 @@ export async function readAccountRecords(uid: string): Promise<AccountRecords> {
 export async function remainingAccountData(uid: string): Promise<string[]> {
   const { db, sdk } = await firestore()
   const metaDocs = [...CAPPED, GOOGLE_CALENDAR_LINK_DOC, OUTLOOK_CALENDAR_LINK_DOC]
-  const [account, meta] = await Promise.all([
+  const [account, meta, reminder] = await Promise.all([
     readDoc(sdk, db, 'users', uid),
     Promise.all(metaDocs.map(name => readDoc(sdk, db, 'users', uid, 'meta', name))),
+    readDoc(sdk, db, 'users', uid, 'reminders', 'reapply'),
   ])
   const records: string[] = []
   for (const name of CAPPED) {
@@ -204,6 +209,7 @@ export async function remainingAccountData(uid: string): Promise<string[]> {
   return [
     ...(account ? [`users/${uid}`] : []),
     ...metaDocs.flatMap((name, i) => (meta[i] ? [`users/${uid}/meta/${name}`] : [])),
+    ...(reminder ? [`users/${uid}/reminders/reapply`] : []),
     ...records,
   ]
 }
@@ -220,6 +226,8 @@ async function deletePass(uid: string): Promise<void> {
   for (const name of [...CAPPED, GOOGLE_CALENDAR_LINK_DOC, OUTLOOK_CALENDAR_LINK_DOC]) {
     batch.delete(sdk.doc(db, 'users', uid, 'meta', name))
   }
+  // A sunscreen reminder's "remind me at" record (lib/reapply-reminder.ts).
+  batch.delete(sdk.doc(db, 'users', uid, 'reminders', 'reapply'))
   batch.delete(sdk.doc(db, 'users', uid))
   await batch.commit()
 }
