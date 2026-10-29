@@ -413,6 +413,26 @@ The eighth review's SEC L1-L5 and the code side of M2 (`handoff/review8-sec.md`)
 - **Per-account write rate (SEC M2):** considered and left out; [COSTS.md](COSTS.md#writing-to-firestore-in-a-loop-any-signed-in-account) says why (a rules timestamp gate covers only some write paths, still allows more than Spark's daily quota, and would break real imports), so the Firestore quota caps, the operations alert and App Check remain the defence.
 - **Tests:** `functions/test/body-limit.test.js` runs the real Functions Framework on the deploy entry point; `functions/test/hardening.test.js` floods the webhook with 570 forged requests; `functions/test/emulator/event-subscriptions.test.js` ("Pro only"); `functions/test/emulator/firestore.rules.test.js` (key lists, group selection, server-only collections and collection groups); `tests/harness/events.spec.ts` (the Free offer and a lapsed account at 390 and 1440 px, light and dark, no axe violation); `tests/e2e/signed-in/linked-calendars.e2e.ts`.
 
+### 37. Guest settings and polish from the eighth review (FIX8D, built)
+
+The eighth review's QA M3, L1-L5 and L11 (`handoff/review8-qa.md`), and a tighter account page:
+
+- **Guests can change skin type, theme and units after setup (M3):** the burn card says "Now · fair skin, no SPF · Edit", and "Edit" opens Settings on the Sun profile; a guest's header has a Settings button (the account menu's place), which reaches Display (theme, units) and every other tab.
+  Changes are kept in the guest plan on this device.
+  Settings now lives in `components/SettingsHost.tsx`, opened through a context (`lib/open-settings.ts`) from anywhere in the app; it replaced App's never-set `prefsOpen`/`prefsTab` state and the header's `forceOpenTab` path (L2).
+  The Settings sheet still loads on demand.
+- **Escape closes the header's location panel (L1)** and returns focus to the place button, as the account menu and profile switcher do; with place suggestions open, the first Escape closes only them; the button has `aria-expanded`.
+- **Setup's skin step quotes the UV it just showed (L3):** "Times are rough minutes to a burn without sunscreen at UV 7.0, the UV right now", with each type's minutes at that UV (fair skin ~21 min, as the dashboard then says); under UV 3 or without a reading it uses UV 10 and says so.
+- **Copy that reads true (L4):** the briefing says "Seek shade while UV is very high or extreme, from 11am to 5pm" (the band before the hours, also in alerts); the hero is "Next slot for Hiking" instead of "Next lower-UV slot", which a slot planned with SPF can contradict, and an activity card's "Next slot: tomorrow at 6am".
+- **Failures name the forecast service (L5):** "The forecast service isn't answering right now. Solara will try again in a minute."; the forecast store retries every minute while a screen shows the place (`errorRetryMs` in `lib/forecast-store.ts`), and "Retry" shows loading until it answers; with no forecast at all the dashboard and calendar show an empty state ("No forecast yet", "Try again now", loaded on demand) instead of a blank page; setup's place search says "Place search isn't answering right now."
+- **"CC BY 4.0" stays on one line (L11)** in setup's credits, city pages and the terms.
+- **Account page:** each action leads with one sentence ("Get a copy of your Solara data as a JSON file.", "Permanently deletes your account, its data and your Solara sign-in. This cannot be undone."), with the full lists behind "What's included" and "What's deleted, and what stays"; every fact of the old text is kept (`lib/account-data.ts`).
+- **Deferred, L6 (a cold `/app/` visit on slow 3G shows "Loading..." for about 14 s):** prerendering setup's first step is not small or clean.
+  `/app/` cannot know before its JavaScript runs whether the browser holds a guest plan or a session, so a static setup step would flash before every returning visitor's dashboard unless an inline script hid it; the step would also be dead until hydration (typing or "Use my location" would do nothing for those 14 s, or be lost), and setup itself is loaded on demand to keep it out of a returning guest's first load.
+  A better route is a smaller first load for a first visit (setup without the dashboard's code), measured with `slow3g.mjs`.
+- **First load:** a guest's first load is about 192.7 KB gzip (191.9 KB before), under the 193 KB budget.
+- **Tests:** `tests/e2e/guest-settings.spec.ts` (each finding on the real export, all failing before the fix), `lib/forecast-store.test.ts` (retries every minute, a manual retry), `lib/onboarding.test.ts`, `lib/account-data.test.ts`, the briefing and alert tests; harness screens `guest-settings-skin`, `guest-settings-display` and `account-controls-details` at 320, 390 and 1280 px, light and dark, with no axe violation.
+
 ## Decisions
 
 Agents never make owner decisions; they follow the recorded decision or the default.
