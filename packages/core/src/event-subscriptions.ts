@@ -60,6 +60,9 @@ export const SUBSCRIPTION_ERRORS = Object.freeze({
   'no-place': 'Set your place in Solara first, so events without one can use it.',
   duplicate: 'That calendar is already linked.',
   'too-many': `An account can link up to ${EVENT_SUBSCRIPTION_LIMITS.maxPerAccount} calendars. Remove one to add another.`,
+  // Linked calendars are Pro-only (REVIEW8 SEC L3): a Free account cannot add one, and a
+  // link of an account that is no longer Pro is paused until it is Pro again.
+  'pro-required': 'Linked calendars are part of Pro.',
 } as const)
 export type SubscriptionError = keyof typeof SUBSCRIPTION_ERRORS
 

@@ -6,6 +6,8 @@
 // cannot hold the scheduled run (H1), an unchanged calendar writes nothing (M2), the run
 // pages through every due link and reports how far behind it is (M4), a removal can be
 // finished after it stops halfway (L2), and nothing is written under a deleted account (L3).
+// REVIEW8 SEC L3: linking is Pro-only, and a link of an account that is no longer Pro is
+// paused without a fetch.
 const { after, afterEach, before, describe, test } = require('node:test')
 const assert = require('node:assert/strict')
 const { deleteApp, initializeApp } = require('firebase-admin/app')
@@ -105,13 +107,14 @@ function deps(files, { now = NOW, searchPlace } = {}) {
   }
 }
 
+/** A Pro account (linked calendars are Pro-only) unless `fields` say otherwise. */
 async function addUser(uid, fields = {}) {
   await db
     .collection('users')
     .doc(uid)
     .set({
       uid,
-      tier: 'free',
+      tier: 'paid',
       skinType: 'fair',
       activities: [{ id: 'run', name: 'Run', icon: '🏃', maxUV: 3, durationMins: 60 }],
       location: {
@@ -244,6 +247,80 @@ describe('adding a link', () => {
         code: 'deletion-in-progress',
       },
     )
+    assert.equal((await events('alice')).size, 0)
+  })
+})
+
+describe('Pro only (REVIEW8 SEC L3)', () => {
+  test('a Free account cannot link a calendar, and its link is never fetched', async () => {
+    await addUser('fran', { tier: 'free' })
+    const free = deps({ [LINK]: { text: calendar(RUNS) } })
+    await assert.rejects(addSubscription(free, 'fran', LINK, ''), {
+      code: 'permission-denied',
+      message: 'Linked calendars are part of Pro.',
+    })
+    // A paid tier whose subscription ended is not Pro either.
+    await addUser('ended', { subscriptionStatus: 'canceled' })
+    await assert.rejects(addSubscription(free, 'ended', LINK, ''), { code: 'permission-denied' })
+    assert.equal(free.fetchCalendar.calls.length, 0)
+    assert.equal((await db.collection(SUBSCRIPTIONS_COLLECTION).get()).size, 0)
+    assert.equal(await summary('fran'), undefined)
+    // Pro granted by hand and a live subscription can.
+    await addUser('granted')
+    await addUser('subscriber', { subscriptionStatus: 'active' })
+    await addSubscription(deps({ [LINK]: { text: calendar(RUNS) } }), 'granted', LINK, '')
+    await addSubscription(deps({ [LINK]: { text: calendar(RUNS) } }), 'subscriber', LINK, '')
+  })
+
+  test('a link of an account that is no longer Pro is paused without a fetch until it is Pro again', async () => {
+    await addUser('alice', { subscriptionStatus: 'active' })
+    const added = await addSubscription(
+      deps({ [LINK]: { text: calendar(RUNS) } }),
+      'alice',
+      LINK,
+      '',
+    )
+    await userRef('alice').set({ tier: 'free', subscriptionStatus: 'canceled' }, { merge: true })
+
+    const later = deps({ [LINK]: { text: calendar(RUNS.slice(0, 1)) } }, { now: NOW + 7 * HOUR })
+    const run = await runSubscriptionRefresh(later)
+    assert.equal(run.due, 1)
+    assert.deepEqual(run.outcomes, { paused: 1 })
+    assert.equal(later.fetchCalendar.calls.length, 0)
+    const paused = (await summary('alice')).items[added.id]
+    assert.equal(paused.status, 'paused')
+    assert.equal(paused.error, 'pro-required')
+    assert.equal(paused.nextRefreshAt, '')
+    // It leaves the queue, and its events stay until they end.
+    assert.equal((await runSubscriptionRefresh({ ...later, now: () => NOW + 30 * DAY })).due, 0)
+    assert.equal((await events('alice')).size, 3)
+
+    // A refresh is refused while the account is not Pro, and nothing is fetched.
+    await assert.rejects(refreshSubscriptionNow(later, 'alice', added.id), {
+      code: 'permission-denied',
+      message: 'Linked calendars are part of Pro.',
+    })
+    assert.equal(later.fetchCalendar.calls.length, 0)
+
+    // Pro again: a refresh resumes it.
+    await userRef('alice').set({ tier: 'paid', subscriptionStatus: 'active' }, { merge: true })
+    const resumed = await refreshSubscriptionNow(later, 'alice', added.id)
+    assert.equal(resumed.status, 'active')
+    assert.equal(resumed.error, '')
+    assert.equal(later.fetchCalendar.calls.length, 1)
+  })
+
+  test('an account that is no longer Pro can still remove its links and their events', async () => {
+    await addUser('alice')
+    const added = await addSubscription(
+      deps({ [LINK]: { text: calendar(RUNS) } }),
+      'alice',
+      LINK,
+      '',
+    )
+    await userRef('alice').set({ tier: 'free' }, { merge: true })
+    await removeSubscription(deps({}), 'alice', added.id)
+    assert.equal((await db.collection(SUBSCRIPTIONS_COLLECTION).get()).size, 0)
     assert.equal((await events('alice')).size, 0)
   })
 })
