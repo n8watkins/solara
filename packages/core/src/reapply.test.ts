@@ -8,6 +8,9 @@ import {
   minutesLeft,
   parseTimer,
   reapplied,
+  reapplyReminderMessage,
+  reapplyReminderRecord,
+  withReminderTag,
   shouldNotify,
   startTimer,
   withMode,
@@ -74,5 +77,50 @@ describe('the stored timer', () => {
   it('caps an application time from a clock that ran ahead', () => {
     const raw = { startedAt: START, appliedAt: START + 10 * MINUTE, mode: 'standard' }
     expect(parseTimer(raw, START + MINUTE)?.appliedAt).toBe(START + MINUTE)
+  })
+})
+
+describe('the reminder as a push', () => {
+  const TAG = 'abcDEF_-0123456789abcd:reapply-v1:0123456789abcdef0123456789abcdef'
+
+  it('keeps the push tag with the timer and in storage', () => {
+    const timer = withReminderTag(startTimer(START), TAG)
+    expect(timer.reminderTag).toBe(TAG)
+    expect(parseTimer(JSON.parse(JSON.stringify(timer)), START + MINUTE)?.reminderTag).toBe(TAG)
+  })
+
+  it('drops a tag the server could not have given', () => {
+    expect(withReminderTag(startTimer(START), 'solara-reapply').reminderTag).toBeUndefined()
+    expect(withReminderTag(startTimer(START), null).reminderTag).toBeUndefined()
+    const raw = { ...startTimer(START), reminderTag: '<script>' }
+    expect(parseTimer(raw, START)).not.toHaveProperty('reminderTag')
+  })
+
+  it('forgets the tag when the reminder moves, so a new push is scheduled', () => {
+    const timer = withReminderTag(startTimer(START), TAG)
+    expect(withMode(timer, 'water').reminderTag).toBeUndefined()
+    expect(reapplied(timer, START + MINUTE).reminderTag).toBeUndefined()
+  })
+
+  it('builds the record the rules accept: the reminder exactly one interval later', () => {
+    const id = '0123456789abcdef0123456789abcdef'
+    expect(reapplyReminderRecord(withMode(startTimer(START), 'water'), id)).toEqual({
+      id,
+      mode: 'water',
+      appliedAt: START,
+      remindAt: START + 80 * MINUTE,
+      dueAt: START + 80 * MINUTE,
+      expireAt: START + 80 * MINUTE + 24 * 60 * MINUTE,
+    })
+  })
+
+  it('says the same in the browser and in the push', () => {
+    expect(reapplyReminderMessage('standard')).toEqual({
+      title: 'Time to reapply sunscreen',
+      body: 'It has been 2 hours since you put it on.',
+    })
+    expect(reapplyReminderMessage('water').body).toBe(
+      'It has been 80 minutes of swimming or sweating since you put it on.',
+    )
   })
 })

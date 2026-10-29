@@ -71,6 +71,7 @@ ERROR messages and where they are handled:
 | `cost guard engaged by the budget`, `billing detached by the budget kill switch`, `billing could not be detached by the budget kill switch`, `budgetAlert ignored a notification from another budget` | [Budget kill switch](#budget-kill-switch) |
 | `account deletion gave up on a Stripe resource`, `account deletion is stalled` | [Account deletion alerts](#account-deletion-alerts) |
 | `alerts need the Open-Meteo commercial key (OPEN_METEO_API_KEY)`, `alert delivery outcome unknown`, `alert for an account failed` | [Pro alerts](#pro-alerts) |
+| `reapply reminder task not enqueued`, `reapply reminders sent by the alerts sweep`, `reapply reminder sweep failed`, `daily UV run failed` | [Daily UV push and reapply reminders](#daily-uv-push-and-reapply-reminders) |
 | `client address is a proxy address: check TRUSTED_PROXY_HOPS` | Per-address limits are keying on a Google proxy, so people share one budget; set `TRUSTED_PROXY_HOPS` as in [Check the client address](DEPLOYMENT.md#check-the-client-address-at-the-first-deploy) and redeploy the Functions |
 | `maintenance task <name> failed` | The task's own errors are in the same log entry; the next run (5 minutes) retries; if it keeps failing, see [Rollback](#rollback) |
 | `stripeWebhook failed` | Stripe retries for 3 days; fix the cause, then resend the event from the Stripe dashboard (**Developers**, **Webhooks**, the event, **Resend**) |
@@ -191,6 +192,21 @@ To stop it at once, pin the cost guard (`infra/cost-guard.sh engaged --apply`; a
 An account's alert state is `users/<uid>/alertState/daily`: `morning` and `uv` each hold the local `day`, the `status` (`claimed`, `delivered`, `failed` or `unknown`), the `attempts` and how many devices it reached.
 Event heads-ups are in `users/<uid>/alertState/events`, one field per event key, with the same states; the WARNING `alerts run reached its event forecast lookup limit` means more than 200 event places needed a forecast in one run: they were handed out one per account per round (at most 10 per account, soonest events first), and the rest wait for the next run, 15 minutes later; the run's `forecast-limit` outcome counts the accounts whose due event got no lookup, and `out-of-time` those whose heads-up waited for the next run because the run's 4 minutes ran out.
 
+### Daily UV push and reapply reminders
+
+The same `alerts` run sweeps overdue reapply reminders first and sends Free's daily UV pushes last; the reminder's on-time delivery is the `reapplyReminderScheduled` trigger and the `reapplyReminderTask` queue ([Free pushes](DEPLOYMENT.md#free-pushes-the-daily-uv-push-and-reapply-reminders)).
+`ALERTS_ENABLED=false` stops all of them; pinning the cost guard stops the sweep and the tasks too.
+
+- The WARNING `reapply reminder task not enqueued; the alerts sweep will send it`: the trigger could not create the Cloud Tasks task (the API off, or the default compute identity without `roles/cloudtasks.enqueuer`; [owner checklist](OWNER_CHECKLIST.md#at-pro-launch-blaze), step C11); reminders still arrive, up to 15 minutes late.
+- The WARNING `reapply reminders sent by the alerts sweep` (fields `checked`, `outcomes`): reminders were more than 2 minutes overdue when the job ran, so their tasks did not run; look at `reapplyReminderTask`'s logs and the queue in Cloud Tasks (`gcloud tasks queues describe reapplyReminderTask --location us-central1`).
+- `reapply reminder sweep failed`, `daily UV run failed`: the part's query failed, most often a missing collection group index right after the first deploy (`firestore.indexes.json`, `reminders.dueAt` and `alertSchedule.dueAt`); the other parts of the run carry on, and the index job of the next deploy fixes it.
+- `reapply reminder over the daily cap; not sent`: one account set more than 40 reminders in a UTC day; nothing to do unless it repeats for many accounts.
+- `reapply reminder delivery failed`: a claimed reminder hit an unexpected error; it is not sent again (at most once), and its record expires a day later.
+- The WARNINGs `daily UV run reached its account limit` and `daily UV run reached its forecast lookup limit`: more than 1,000 schedules or 300 new places were due in one run; the rest wait 15 minutes. If they appear every morning, raise `DAILY_UV_MAX_ACCOUNTS_PER_RUN` or `DAILY_UV_MAX_FORECASTS_PER_RUN` in `functions/src/notifications/daily-uv.ts`.
+
+A reminder waiting to be sent is `users/<uid>/reminders/reapply` (`dueAt` is set while it waits; `status: 'claimed'` once a task or the sweep took it); the day's counts are in `users/<uid>/alertState/reapply` (`scheduled`, `sent`).
+An account's daily UV enrolment is `users/<uid>/alertSchedule/dailyUv` (`dueAt`, the next time the job looks at it); its pushes are recorded in `alertState/daily` under `basic`.
+
 ## Linked calendars
 
 Linked calendars are fetched by the `eventSubscriptionsRefresh` job every 30 minutes and by the `eventSubscriptions` endpoint ([Linked calendars and event heads-ups](DEPLOYMENT.md#linked-calendars-and-event-heads-ups)).
@@ -231,6 +247,7 @@ The privacy policy's wording follows `PRODUCTION_DATA_STEPS` in `lib/privacy-ret
 | `forecastCache` | 1 day after the forecast was fetched (each place is refreshed hourly while in use) |
 | `forecastUpstream` | 2 days after the hour or day its counter counts (the forecast and place search upstream budgets and the callers' shares of them) |
 | `alertState` | 7 days after the account's last alert was claimed |
+| `users/{uid}/reminders` | 1 day after the reapply reminder was due (a sent one is deleted at once) |
 
 Check the policies with `gcloud firestore fields ttls list --project uv-activity-planner`.
 A finished tombstone that has expired no longer blocks a new account with the same Google sign-in, which is intended.
@@ -246,7 +263,7 @@ Every component can be put back to its last good state without a new build.
 | A single paid path | Without a deploy: `infra/cost-guard.sh engaged --apply` pins the cost guard, which pauses the feed, feed links, notification registration, Pro alerts and the forecast proxy's upstream calls within a minute |
 | Pro checkout | Set the `BILLING_ENABLED` repository variable to `false` and rerun the deploy: the plans dialog goes back to the waitlist and checkout refuses; subscriptions, the webhook and the portal keep working |
 | Forecast proxy | Set `FORECAST_PROXY_ENABLED` to `false` and rerun the deploy: the app calls Open-Meteo directly again, for forecasts and place search |
-| Pro alerts | Set `ALERTS_ENABLED` to `false` and rerun the deploy: the `alerts` job sends nothing and Settings says alerts are coming; registered devices stay registered |
+| Pro alerts, the daily UV push and reapply reminders | Set `ALERTS_ENABLED` to `false` and rerun the deploy: the `alerts` job, the reminder trigger and its tasks send nothing, Settings says alerts are coming and the timer reminds in the tab only; registered devices stay registered |
 | Linked calendars and event heads-ups | Set `EVENTS_SUBSCRIPTIONS_ENABLED` to `false` and rerun the deploy, or pin the cost guard to stop fetches at once ([Linked calendars](#linked-calendars)); heads-ups stop only when `GOOGLE_CALENDAR_EVENTS_ENABLED` and `OUTLOOK_CALENDAR_EVENTS_ENABLED` are `false` too (or `ALERTS_ENABLED`, which stops every alert) |
 | Firestore rules | Firebase console, **Firestore**, **Rules**, the history, restore the previous version; then revert on `main` |
 | Firestore indexes | Revert the change on `main`; a removed index is not deleted by the deploy (it would need `--force`) |

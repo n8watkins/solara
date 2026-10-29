@@ -20,6 +20,8 @@ export interface SettingsDraft {
   quietHours: { from: number; to: number }
   /** Pro heads-ups before high-UV events (on unless turned off). */
   eventHeadsUp: boolean
+  /** The daily UV push for Free accounts (on unless turned off). */
+  dailyUv: boolean
   /** 'auto' follows the browser locale. */
   temperatureUnit: NonNullable<UserPreferences['temperatureUnit']>
   /** 'auto' follows the browser locale. */
@@ -36,6 +38,7 @@ const DRAFT_FIELDS = [
   'uvAlertThreshold',
   'quietHours',
   'eventHeadsUp',
+  'dailyUv',
   'temperatureUnit',
   'clockFormat',
 ] as const satisfies readonly (keyof SettingsDraft)[]
@@ -55,6 +58,7 @@ export function settingsDraftFrom(prefs: UserPreferences): SettingsDraft {
     uvAlertThreshold: prefs.uvAlertThreshold ?? UV_ALERT_THRESHOLD.off,
     quietHours: prefs.quietHours ?? { ...QUIET_HOURS.default },
     eventHeadsUp: prefs.eventHeadsUp !== false,
+    dailyUv: prefs.dailyUv !== false,
     temperatureUnit: prefs.temperatureUnit ?? 'auto',
     clockFormat: prefs.clockFormat ?? 'auto',
   }

@@ -370,6 +370,8 @@ describe('deployed entry point', () => {
       'forecast',
       'maintenance',
       'placeSearch',
+      'reapplyReminderScheduled',
+      'reapplyReminderTask',
       'registerNotificationDevice',
       'removeNotificationDevice',
       'revokeCalendarFeed',

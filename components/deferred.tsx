@@ -22,6 +22,7 @@ import {
 import { installEnvironment, installPromptKind } from '@/lib/install-prompt'
 import { AccountLoading } from './AccountStatus'
 import type * as ActivityPlanModule from './dashboard/activity-plan'
+import type { ReapplyTimerProps } from './dashboard/ReapplyTimer'
 
 type Loader<P> = () => Promise<{ default: ComponentType<P> }>
 
@@ -222,17 +223,20 @@ export function ActivityPlanGate({
 function ReapplyTimerSpace() {
   return <div aria-hidden="true" className="min-h-16" />
 }
-const ReapplyTimer = deferred(() => import('./dashboard/ReapplyTimer'), ReapplyTimerSpace)
+const ReapplyTimer = deferred<ReapplyTimerProps>(
+  () => import('./dashboard/ReapplyTimer'),
+  ReapplyTimerSpace,
+)
 
 /**
  * The sunscreen reapply timer on today's dashboard (components/dashboard/ReapplyTimer.tsx).
  * It appears once the page has loaded and the browser is idle, like the preloads below,
  * so none of it is part of a guest's first load.
  */
-export function SunscreenTimer() {
+export function SunscreenTimer(props: ReapplyTimerProps) {
   const [ready, setReady] = useState(false)
   useEffect(() => afterPageLoad(() => setReady(true)), [])
-  return ready ? <ReapplyTimer /> : <ReapplyTimerSpace />
+  return ready ? <ReapplyTimer {...props} /> : <ReapplyTimerSpace />
 }
 /** The sign-in screen (the landing page's "Sign in"); the loading screen shows until it has arrived. */
 export const SignInScreen = deferred(() => import('./SignInScreen'), AccountLoading)

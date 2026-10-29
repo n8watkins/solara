@@ -57,6 +57,8 @@ export interface AccountExportSources {
   google: Data | null
   /** users/{uid}/meta/outlookCalendar. */
   outlook: Data | null
+  /** users/{uid}/reminders/reapply: the sunscreen reminder waiting to be sent, if any. */
+  reminder?: Data | null
   devices: readonly ExportDocument[]
   scheduled: readonly ExportDocument[]
   events: readonly ExportDocument[]
@@ -140,7 +142,7 @@ export function safeImportedEventData(docs: readonly ExportDocument[]) {
   })
 }
 
-const ALERT_KINDS = ['morning', 'uv'] as const
+const ALERT_KINDS = ['morning', 'uv', 'basic'] as const
 
 function record(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' ? (value as Record<string, unknown>) : null
@@ -190,6 +192,20 @@ export function eventHeadsUpHistory(data: Data | null | undefined) {
   })
 }
 
+/**
+ * The sunscreen reminder waiting to be sent as a push (`reminders/reapply`, deleted once
+ * sent): its mode and when it is due, without its internal id.
+ */
+export function reapplyReminderSummary(data: Data | null | undefined) {
+  if (!data || (data.mode !== 'standard' && data.mode !== 'water')) return null
+  return {
+    mode: data.mode,
+    appliedAt: isoDate(data.appliedAt),
+    remindAt: isoDate(data.remindAt),
+    status: data.dueAt === undefined ? 'sending' : 'waiting',
+  }
+}
+
 /** The downloadable file: the same sections in the same order wherever it is built. */
 export function buildAccountExport(sources: AccountExportSources, exportedAt: Date) {
   return {
@@ -202,6 +218,7 @@ export function buildAccountExport(sources: AccountExportSources, exportedAt: Da
     alerts: alertHistory(sources.alerts),
     importedEvents: safeImportedEventData(sources.events),
     eventHeadsUps: eventHeadsUpHistory(sources.eventAlerts),
+    reapplyReminder: reapplyReminderSummary(sources.reminder),
     // Linked calendars without their links, which may hold private tokens.
     linkedCalendars: parseSubscriptionSummaries(sources.links),
     // The Google calendars events are read from (no token is ever stored), or null.

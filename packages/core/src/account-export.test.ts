@@ -195,6 +195,7 @@ describe('account export', () => {
       'alerts',
       'importedEvents',
       'eventHeadsUps',
+      'reapplyReminder',
       'linkedCalendars',
       'googleCalendar',
       'outlookCalendar',

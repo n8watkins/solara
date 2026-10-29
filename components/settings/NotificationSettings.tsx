@@ -30,7 +30,7 @@ const DAY_HOURS = Array.from({ length: 24 }, (_, hour) => hour)
 
 export type AlertDraft = Pick<
   SettingsDraft,
-  'notificationHour' | 'uvAlertThreshold' | 'quietHours' | 'eventHeadsUp'
+  'notificationHour' | 'uvAlertThreshold' | 'quietHours' | 'eventHeadsUp' | 'dailyUv'
 >
 
 interface Props {
@@ -55,7 +55,11 @@ function what(): string {
     : 'A morning summary of your UV day, and a heads-up when the UV gets high.'
 }
 
-/** Pro's push alerts: the account's alert settings and this device's subscription. */
+/**
+ * The alerts tab: Pro's push alerts with the account's alert settings and this device's
+ * subscription; for a Free account once alerts are on, the free daily UV push and the
+ * reapply reminder's push, with Pro's alerts offered below.
+ */
 export default function NotificationSettings({
   tier,
   user,
@@ -65,47 +69,74 @@ export default function NotificationSettings({
   onSeePlans,
 }: Props) {
   const included = TIER_LIMITS[tier].notifications
-  if (!alertsLaunched() || !included) {
+  if (alertsLaunched() && !included && TIER_LIMITS[tier].dailyUvPush) {
     return (
-      <SettingsCard className="flex flex-col gap-1.5">
-        <div className="flex items-start justify-between gap-3.5">
-          <SettingsTitle>{TITLE}</SettingsTitle>
-          {!included && (
-            <span className="text-[11px] font-bold tracking-[0.05em] whitespace-nowrap text-accent uppercase">
-              Pro
-            </span>
-          )}
-        </div>
-        <SettingsHint className="leading-[1.45]">
-          {what()} {alertsLaunched() ? 'Included with Pro.' : 'Coming soon with Pro.'}
-        </SettingsHint>
-        {/* Like every other Pro offer, it has a way to Pro (REVIEW6 L7). */}
-        {!included && onSeePlans && (
-          <button
-            type="button"
-            className="btn btn-primary mt-1.5 self-start text-[12px] whitespace-nowrap"
-            onClick={onSeePlans}
-          >
-            {waitlisted ? '✓ On waitlist' : 'See Pro plans'}
-          </button>
-        )}
-      </SettingsCard>
+      <div className="flex flex-col gap-3">
+        <FreeAlertControls user={user} draft={draft} onChange={onChange} />
+        <ProAlertsOffer included={false} waitlisted={waitlisted} onSeePlans={onSeePlans} />
+      </div>
     )
+  }
+  if (!alertsLaunched() || !included) {
+    return <ProAlertsOffer included={included} waitlisted={waitlisted} onSeePlans={onSeePlans} />
   }
   return <AlertControls user={user} draft={draft} onChange={onChange} />
 }
 
-function AlertControls({ user, draft, onChange }: Omit<Props, 'tier'>) {
-  const id = useId()
-  const units = useUnits()
-  const quietId = `${id}-quiet`
+/** Pro's alerts, offered (or coming soon) where they are not on. */
+function ProAlertsOffer({
+  included,
+  waitlisted,
+  onSeePlans,
+}: {
+  included: boolean
+  waitlisted: boolean
+  onSeePlans?: () => void
+}) {
+  return (
+    <SettingsCard className="flex flex-col gap-1.5">
+      <div className="flex items-start justify-between gap-3.5">
+        <SettingsTitle>{TITLE}</SettingsTitle>
+        {!included && (
+          <span className="text-[11px] font-bold tracking-[0.05em] whitespace-nowrap text-accent uppercase">
+            Pro
+          </span>
+        )}
+      </div>
+      <SettingsHint className="leading-[1.45]">
+        {what()} {alertsLaunched() ? 'Included with Pro.' : 'Coming soon with Pro.'}
+      </SettingsHint>
+      {/* Like every other Pro offer, it has a way to Pro (REVIEW6 L7). */}
+      {!included && onSeePlans && (
+        <button
+          type="button"
+          className="btn btn-primary mt-1.5 self-start text-[12px] whitespace-nowrap"
+          onClick={onSeePlans}
+        >
+          {waitlisted ? '✓ On waitlist' : 'See Pro plans'}
+        </button>
+      )}
+    </SettingsCard>
+  )
+}
 
+const FREE_TITLE = 'Daily UV and sunscreen reminders'
+
+/**
+ * A Free account's pushes (core daily-uv.ts, reapply.ts): the daily UV push at the
+ * morning hour, outside quiet hours, and the sunscreen timer's reminder with Solara
+ * closed, both to the devices turned on here.
+ */
+function FreeAlertControls({ user, draft, onChange }: Omit<Props, 'tier'>) {
+  const id = useId()
   return (
     <SettingsCard className="flex flex-col gap-4">
       <div>
-        <SettingsTitle className="mb-1">{TITLE}</SettingsTitle>
+        <SettingsTitle className="mb-1">{FREE_TITLE}</SettingsTitle>
         <SettingsHint className="leading-[1.45]">
-          {what()} They reach the devices you turn them on for.
+          When the UV needs sun protection, a morning push with the times and the peak. And your
+          sunscreen timer&rsquo;s reminder, even with Solara closed. Free with your account, on the
+          devices you turn them on for.
         </SettingsHint>
       </div>
 
@@ -114,26 +145,162 @@ function AlertControls({ user, draft, onChange }: Omit<Props, 'tier'>) {
       <SettingsField>
         <div>
           <SettingsTitle className="mb-1">
-            <label htmlFor={`${id}-morning`}>Morning alert</label>
+            <label htmlFor={`${id}-daily`}>Daily UV</label>
           </SettingsTitle>
-          <SettingsHint id={`${id}-morning-desc`} className="leading-[1.45]">
-            Today&rsquo;s peak UV and your best window, in your local time.
+          <SettingsHint id={`${id}-daily-desc`} className="leading-[1.45]">
+            Only on days the UV reaches moderate or higher.
           </SettingsHint>
         </div>
         <select
-          id={`${id}-morning`}
-          aria-describedby={`${id}-morning-desc`}
-          value={draft.notificationHour}
-          onChange={event => onChange({ notificationHour: Number(event.target.value) })}
+          id={`${id}-daily`}
+          aria-describedby={`${id}-daily-desc`}
+          value={draft.dailyUv ? 'on' : 'off'}
+          onChange={event => onChange({ dailyUv: event.target.value === 'on' })}
           className={FIELD_CONTROL}
         >
-          {MORNING_HOURS.map(hour => (
+          <option value="on">On</option>
+          <option value="off">Off</option>
+        </select>
+      </SettingsField>
+
+      {draft.dailyUv && (
+        <MorningHourField
+          label="Daily UV at"
+          hint="In your local time, or when your quiet hours end."
+          draft={draft}
+          onChange={onChange}
+        />
+      )}
+
+      <QuietHoursField
+        hint="The daily UV waits until they end. Sunscreen reminders come when they are due."
+        draft={draft}
+        onChange={onChange}
+      />
+    </SettingsCard>
+  )
+}
+
+/** The hour of the morning push: Pro's morning plan, or Free's daily UV. */
+function MorningHourField({
+  label,
+  hint,
+  draft,
+  onChange,
+}: {
+  label: string
+  hint: string
+  draft: AlertDraft
+  onChange: (patch: Partial<AlertDraft>) => void
+}) {
+  const id = useId()
+  const units = useUnits()
+  return (
+    <SettingsField>
+      <div>
+        <SettingsTitle className="mb-1">
+          <label htmlFor={`${id}-morning`}>{label}</label>
+        </SettingsTitle>
+        <SettingsHint id={`${id}-morning-desc`} className="leading-[1.45]">
+          {hint}
+        </SettingsHint>
+      </div>
+      <select
+        id={`${id}-morning`}
+        aria-describedby={`${id}-morning-desc`}
+        value={draft.notificationHour}
+        onChange={event => onChange({ notificationHour: Number(event.target.value) })}
+        className={FIELD_CONTROL}
+      >
+        {MORNING_HOURS.map(hour => (
+          <option key={hour} value={hour}>
+            {units.hour(hour)}
+          </option>
+        ))}
+      </select>
+    </SettingsField>
+  )
+}
+
+/** Quiet hours: when the pushes that can wait do wait. */
+function QuietHoursField({
+  hint,
+  draft,
+  onChange,
+}: {
+  hint: string
+  draft: AlertDraft
+  onChange: (patch: Partial<AlertDraft>) => void
+}) {
+  const id = useId()
+  const units = useUnits()
+  const quietId = `${id}-quiet`
+  return (
+    <SettingsField role="group" aria-labelledby={`${quietId}-title`}>
+      <div>
+        <SettingsTitle id={`${quietId}-title`} className="mb-1">
+          Quiet hours
+        </SettingsTitle>
+        <SettingsHint className="leading-[1.45]">{hint}</SettingsHint>
+      </div>
+      <div className="flex shrink-0 items-center gap-2">
+        <select
+          aria-label="Quiet from"
+          value={draft.quietHours.from}
+          onChange={event =>
+            onChange({ quietHours: { ...draft.quietHours, from: Number(event.target.value) } })
+          }
+          className="w-24 text-[14px] max-sm:w-auto max-sm:min-w-0 max-sm:flex-1"
+        >
+          {DAY_HOURS.map(hour => (
             <option key={hour} value={hour}>
               {units.hour(hour)}
             </option>
           ))}
         </select>
-      </SettingsField>
+        <span className="text-[13px] text-ink-3" aria-hidden="true">
+          to
+        </span>
+        <select
+          aria-label="Quiet until"
+          value={draft.quietHours.to}
+          onChange={event =>
+            onChange({ quietHours: { ...draft.quietHours, to: Number(event.target.value) } })
+          }
+          className="w-24 text-[14px] max-sm:w-auto max-sm:min-w-0 max-sm:flex-1"
+        >
+          {DAY_HOURS.map(hour => (
+            <option key={hour} value={hour}>
+              {units.hour(hour)}
+            </option>
+          ))}
+        </select>
+      </div>
+    </SettingsField>
+  )
+}
+
+function AlertControls({ user, draft, onChange }: Omit<Props, 'tier'>) {
+  const id = useId()
+
+  return (
+    <SettingsCard className="flex flex-col gap-4">
+      <div>
+        <SettingsTitle className="mb-1">{TITLE}</SettingsTitle>
+        <SettingsHint className="leading-[1.45]">
+          {what()} They reach the devices you turn them on for, as does your sunscreen timer&rsquo;s
+          reminder, even with Solara closed.
+        </SettingsHint>
+      </div>
+
+      <DeviceRow user={user} />
+
+      <MorningHourField
+        label="Morning alert"
+        hint="Today’s peak UV and your best window, in your local time."
+        draft={draft}
+        onChange={onChange}
+      />
 
       <SettingsField>
         <div>
@@ -183,52 +350,15 @@ function AlertControls({ user, draft, onChange }: Omit<Props, 'tier'>) {
         </SettingsField>
       )}
 
-      <SettingsField role="group" aria-labelledby={`${quietId}-title`}>
-        <div>
-          <SettingsTitle id={`${quietId}-title`} className="mb-1">
-            Quiet hours
-          </SettingsTitle>
-          <SettingsHint className="leading-[1.45]">
-            The UV alert waits until they end.{' '}
-            {eventHeadsUpsLaunched() &&
-              'An event heads-up that would fall in them comes the evening before. '}
-            The morning alert comes at its own hour.
-          </SettingsHint>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <select
-            aria-label="Quiet from"
-            value={draft.quietHours.from}
-            onChange={event =>
-              onChange({ quietHours: { ...draft.quietHours, from: Number(event.target.value) } })
-            }
-            className="w-24 text-[14px] max-sm:w-auto max-sm:min-w-0 max-sm:flex-1"
-          >
-            {DAY_HOURS.map(hour => (
-              <option key={hour} value={hour}>
-                {units.hour(hour)}
-              </option>
-            ))}
-          </select>
-          <span className="text-[13px] text-ink-3" aria-hidden="true">
-            to
-          </span>
-          <select
-            aria-label="Quiet until"
-            value={draft.quietHours.to}
-            onChange={event =>
-              onChange({ quietHours: { ...draft.quietHours, to: Number(event.target.value) } })
-            }
-            className="w-24 text-[14px] max-sm:w-auto max-sm:min-w-0 max-sm:flex-1"
-          >
-            {DAY_HOURS.map(hour => (
-              <option key={hour} value={hour}>
-                {units.hour(hour)}
-              </option>
-            ))}
-          </select>
-        </div>
-      </SettingsField>
+      <QuietHoursField
+        hint={`The UV alert waits until they end. ${
+          eventHeadsUpsLaunched()
+            ? 'An event heads-up that would fall in them comes the evening before. '
+            : ''
+        }The morning alert comes at its own hour.`}
+        draft={draft}
+        onChange={onChange}
+      />
     </SettingsCard>
   )
 }

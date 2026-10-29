@@ -31,6 +31,7 @@ describe('settingsDraftFrom', () => {
       uvAlertThreshold: 0,
       quietHours: { from: 21, to: 7 },
       eventHeadsUp: true,
+      dailyUv: true,
       temperatureUnit: 'auto',
       clockFormat: 'auto',
     })

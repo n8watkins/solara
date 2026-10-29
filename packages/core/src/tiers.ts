@@ -12,8 +12,19 @@ export interface TierLimits {
   activities: number
   /** Google Calendar booking, scheduled activities, the live feed and the .ics export. */
   calendar: boolean
-  /** Morning sun alerts (Pro, relaunching with billing). */
+  /** Pro's alerts: the personalised morning plan, UV alerts and event heads-ups. */
   notifications: boolean
+  /**
+   * The basic daily UV push ("Protect from 10:10am to 3:40pm today"), sent by the same
+   * scheduled job once alerts are switched on (core daily-uv.ts). Pro's morning plan
+   * takes its place for Pro.
+   */
+  dailyUvPush: boolean
+  /**
+   * The sunscreen reapply reminder as a push, so it arrives with Solara closed (a
+   * safety feature, free with any account). The timer itself works on every plan.
+   */
+  reapplyPush: boolean
   /** Forecast days the plan can see, today included. */
   futureDays: number
   /** Places kept for quick switching, the active one included. */
@@ -33,6 +44,7 @@ export interface TierLimits {
  * | Activities          | 1                  | 3                  | 20      |
  * | Storage             | This device only   | Synced             | Synced  |
  * | Calendar sync       | -                  | Yes                | Yes     |
+ * | Daily UV push, reapply push | -          | Yes                | Yes     |
  * | Alerts, family profiles | -              | -                  | Yes     |
  */
 export const TIER_LIMITS: Readonly<Record<TierLevel, TierLimits>> = {
@@ -40,6 +52,9 @@ export const TIER_LIMITS: Readonly<Record<TierLevel, TierLimits>> = {
     activities: 1,
     calendar: false,
     notifications: false,
+    // Pushes need an account to reach: a guest's timer reminds in the open tab only.
+    dailyUvPush: false,
+    reapplyPush: false,
     futureDays: PLAN_FORECAST_DAYS.anonymous,
     savedLocations: 1,
     profiles: 1,
@@ -50,6 +65,8 @@ export const TIER_LIMITS: Readonly<Record<TierLevel, TierLimits>> = {
     // Owner decision 2026-10-24: Google Calendar adding and Scheduled stay free.
     calendar: true,
     notifications: false,
+    dailyUvPush: true,
+    reapplyPush: true,
     futureDays: PLAN_FORECAST_DAYS.free,
     savedLocations: 3,
     profiles: 1,
@@ -59,6 +76,8 @@ export const TIER_LIMITS: Readonly<Record<TierLevel, TierLimits>> = {
     activities: 20,
     calendar: true,
     notifications: true,
+    dailyUvPush: true,
+    reapplyPush: true,
     futureDays: PLAN_FORECAST_DAYS.paid,
     savedLocations: 12,
     profiles: 6,
@@ -83,6 +102,16 @@ export function canUseCalendar(tier: TierLevel): boolean {
 
 export function canUseNotifications(tier: TierLevel): boolean {
   return TIER_LIMITS[tier].notifications
+}
+
+/** Whether the plan gets the daily UV push (Pro gets the morning plan in its place). */
+export function canUseDailyUvPush(tier: TierLevel): boolean {
+  return TIER_LIMITS[tier].dailyUvPush
+}
+
+/** Whether the plan's reapply timer can also remind by push, with Solara closed. */
+export function canUseReapplyPush(tier: TierLevel): boolean {
+  return TIER_LIMITS[tier].reapplyPush
 }
 
 export function canUseFamilyProfiles(tier: TierLevel): boolean {

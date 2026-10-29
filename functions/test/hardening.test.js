@@ -135,6 +135,23 @@ describe('deployed runtime ceilings', () => {
     assert.notEqual(typeof alerts.__endpoint.serviceAccountEmail, 'string')
   })
 
+  test('the reapply reminder runs on one instance: a trigger that is not retried, a task queue that is', () => {
+    const { reapplyReminderScheduled, reapplyReminderTask } = functions
+    const trigger = reapplyReminderScheduled.__endpoint
+    assert.equal(trigger.maxInstances, 1)
+    assert.equal(trigger.eventTrigger.retry, false)
+    assert.equal(
+      trigger.eventTrigger.eventFilterPathPatterns.document,
+      'users/{uid}/reminders/reapply',
+    )
+    const task = reapplyReminderTask.__endpoint
+    assert.equal(task.maxInstances, 1)
+    assert.equal(task.taskQueueTrigger.retryConfig.maxAttempts, 3)
+    assert.equal(task.taskQueueTrigger.rateLimits.maxConcurrentDispatches, 10)
+    // The default runtime identity until ALERTS_SERVICE_ACCOUNT names one.
+    assert.notEqual(typeof task.serviceAccountEmail, 'string')
+  })
+
   test('every HTTP function verifies App Check, except the two token-checked ones', () => {
     const { APP_CHECK_ENDPOINTS } = require('../lib/shared/browser-api')
     const http = Object.entries(functions)

@@ -435,6 +435,8 @@ export const PREFERENCES_SHAPE = {
   quietHours: v.fallback(v.optional(record({ from: quietHour, to: quietHour })), undefined),
   /** Pro heads-ups before high-UV events (core event-heads-up.ts); undefined means on. */
   eventHeadsUp: v.fallback(v.optional(v.boolean()), undefined),
+  /** The daily UV push for Free accounts (core daily-uv.ts); undefined means on. */
+  dailyUv: v.fallback(v.optional(v.boolean()), undefined),
   /** Temperature display unit; see TEMPERATURE_UNIT_PREFERENCES. */
   temperatureUnit: v.fallback(v.optional(v.picklist(TEMPERATURE_UNIT_PREFERENCES)), undefined),
   /** 12- or 24-hour clock; see CLOCK_FORMAT_PREFERENCES. */

@@ -107,6 +107,12 @@ export default function PrivacyPage() {
             token and your device&apos;s push notification registration.
           </li>
           <li>
+            <strong>Sunscreen reminders</strong>, if you start the sunscreen timer while signed in
+            and alerts are available: when you last put sunscreen on, whether the timer is set for
+            swimming or sweating, and when the reminder is due, so it can reach your devices as a
+            push with Solara closed. Guests&apos; timers stay only in their browser.
+          </li>
+          <li>
             <strong>Subscription records</strong>, if you subscribe: plan, status and the Stripe
             customer and subscription identifiers. Card details go to Stripe and never reach Solara.
           </li>
@@ -360,10 +366,14 @@ export default function PrivacyPage() {
             Solara.
           </li>
           <li>Push registrations: until you turn notifications off or delete your account.</li>
+          <li>
+            A sunscreen reminder: until it is sent or you stop the timer, and at most a day after it
+            was due; how many reminders were set and sent that day: 7 days.
+          </li>
           <li>{kept.waitlist}</li>
           <li>
-            Pro alert history (which alerts were sent on which day, and whether they arrived): 7
-            days, and it is included in your data download.
+            Alert history (which alerts and daily UV pushes were sent on which day, and whether they
+            arrived): 7 days, and it is included in your data download.
           </li>
           <li>
             The free-trial record: 2 years after the trial, including after you delete your account,
