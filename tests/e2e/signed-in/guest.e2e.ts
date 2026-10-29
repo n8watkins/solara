@@ -19,7 +19,7 @@ import type { Page } from './fixtures'
 async function addRunning(page: Page) {
   await page.getByRole('button', { name: '+ Add Activity' }).first().click()
   const add = page.getByRole('dialog', { name: 'Add activity' })
-  await add.getByRole('button', { name: /^Running 45m/ }).click()
+  await add.getByRole('button', { name: /^Running 45 min/ }).click()
   await add.getByRole('button', { name: 'Done' }).click()
   await expect(page.getByRole('button', { name: 'Edit Running' })).toBeVisible()
 }

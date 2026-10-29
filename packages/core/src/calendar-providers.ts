@@ -39,7 +39,7 @@ export const CALENDAR_LINK_PROBLEMS = Object.freeze({
   'icloud-website': 'That is the iCloud website. Turn on Public Calendar and copy its link.',
   // A club's public Google calendar does work, so this one is a warning, not a refusal.
   'google-public':
-    'That is Google’s public address, which works only for a public calendar. For your own, copy the Secret address in iCal format.',
+    "That is Google's public address, which works only for a public calendar. For your own, copy the Secret address in iCal format.",
   'google-page': 'That is a Google Calendar page. Copy the Secret address in iCal format.',
   'outlook-html': 'That is the HTML link. Copy the ICS link instead.',
   'outlook-website': 'That is the Outlook website. Publish the calendar and copy its ICS link.',

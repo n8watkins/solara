@@ -51,7 +51,7 @@ test('a guest plans today with one activity, kept on this device', async ({ page
 
   await page.getByRole('button', { name: '+ Add Activity' }).first().click()
   const add = page.getByRole('dialog', { name: 'Add activity' })
-  await add.getByRole('button', { name: /^Running 45m/ }).click()
+  await add.getByRole('button', { name: /^Running 45 min/ }).click()
   await expect(
     add.getByText('Guests can plan 1 activity. Sign in free to plan up to 3.'),
   ).toBeVisible()
@@ -88,7 +88,7 @@ test('the locked tab and the morning alert open the Pro plans', async ({ page })
 
   await page.getByRole('button', { name: '+ Add Activity' }).first().click()
   const add = page.getByRole('dialog', { name: 'Add activity' })
-  await add.getByRole('button', { name: /^Running 45m/ }).click()
+  await add.getByRole('button', { name: /^Running 45 min/ }).click()
   await add.getByRole('button', { name: 'Done' }).click()
   await page.getByRole('button', { name: /Get this as a morning alert/ }).click()
   await expect(page.getByRole('dialog', { name: 'Solara Pro' })).toBeVisible()

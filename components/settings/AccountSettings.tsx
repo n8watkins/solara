@@ -73,21 +73,24 @@ export default function AccountSettings({
 
       <div className="flex flex-col gap-2 rounded-[10px] bg-surface-metric px-3.5 py-3">
         <p className="text-[12px] font-[650] tracking-[0.06em] text-ink-2 uppercase">Plan limits</p>
-        {planLimitRows(tier, prefs.activities.length).map(({ label, value }) => (
-          <div key={label} className="flex justify-between text-[13px]">
-            <span className="text-ink-2">{label}</span>
-            <span className={clsx('font-semibold', value === false ? 'text-ink-3' : 'text-ink')}>
-              {typeof value === 'string' ? (
-                value
-              ) : (
-                <>
-                  <span aria-hidden="true">{value ? '✓' : '–'}</span>
-                  <span className="sr-only">{value ? 'Included' : 'Not included'}</span>
-                </>
-              )}
-            </span>
-          </div>
-        ))}
+        {/* A store build lists what the account has, not what a plan would add (REVIEW9 QA L5). */}
+        {planLimitRows(tier, prefs.activities.length)
+          .filter(({ value }) => !store || value !== false)
+          .map(({ label, value }) => (
+            <div key={label} className="flex justify-between text-[13px]">
+              <span className="text-ink-2">{label}</span>
+              <span className={clsx('font-semibold', value === false ? 'text-ink-3' : 'text-ink')}>
+                {typeof value === 'string' ? (
+                  value
+                ) : (
+                  <>
+                    <span aria-hidden="true">{value ? '✓' : '–'}</span>
+                    <span className="sr-only">{value ? 'Included' : 'Not included'}</span>
+                  </>
+                )}
+              </span>
+            </div>
+          ))}
       </div>
 
       {user ? (

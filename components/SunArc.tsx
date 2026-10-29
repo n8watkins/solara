@@ -108,8 +108,11 @@ export default function SunArc({ hourly, nowHour, focused, onSelectHour, sunDown
     right: Math.min(width - BORDER_INSET, view.right - inset),
   }
   const pointer = peakOffView(peakPoint.x, view)
+  // After sunset the strip still holds today's hours while the card speaks of tomorrow,
+  // so the callout says whose peak it is (REVIEW9 QA L8).
+  const peakWord = sunDown === 'after-sunset' ? "Today's peak" : 'Peak'
   const labelText = peak
-    ? `${pointer === 'left' ? '← ' : ''}Peak ${formatUV(peak.uv)} · ${fmt.hour(peak.hour)}${pointer === 'right' ? ' →' : ''}`
+    ? `${pointer === 'left' ? '← ' : ''}${peakWord} ${formatUV(peak.uv)} · ${fmt.hour(peak.hour)}${pointer === 'right' ? ' →' : ''}`
     : ''
 
   // The callout is placed from its rendered size, so measure it whenever its text

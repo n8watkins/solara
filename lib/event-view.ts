@@ -1,6 +1,7 @@
 // Pure view logic for an imported event's card (components/events/EventCard.tsx): when
 // it is, the UV during it, the burn estimate and sunscreen timing, as words. Kept free
 // of React so it is unit tested.
+import { formatDuration } from '@solara/core/duration'
 import {
   eventBurn,
   eventUV,
@@ -14,7 +15,7 @@ import { confidenceNote, forecastConfidence } from '@solara/core'
 import { exposureSummary } from './activity-exposure'
 import { dayLabel } from './forecast'
 import { SKIN_TYPE_LABELS } from './profiles'
-import { daysBetween, formatDate } from './time'
+import { daysBetween, formatDate, timeRange } from './time'
 import type { Activity, Profile, SkinType, WeatherResponse } from './types'
 import type { UnitFormatters } from './units'
 import { formatUV, uvBand, uvLabel, type UVBand } from './weather'
@@ -35,7 +36,7 @@ export interface EventCardInput {
 }
 
 export interface EventCardView {
-  /** "Today · 8am – 9:30am" in the event place's time. */
+  /** "Today · 8am–9:30am" in the event place's time (timeRange). */
   when: string
   uv: EventUV | null
   /** The peak as a badge, when there is a forecast. */
@@ -57,13 +58,9 @@ function localHours(ms: number, timeZone: string): number {
   return local.hour + local.minute / 60
 }
 
-/** "1 h 30 min", "45 min", "2 h". */
+/** "1 h 30 min", "45 min", "2 h", from milliseconds (formatDuration). */
 export function durationText(ms: number): string {
-  const minutes = Math.round(ms / 60_000)
-  const h = Math.floor(minutes / 60)
-  const m = minutes % 60
-  if (!h) return `${m} min`
-  return m ? `${h} h ${m} min` : `${h} h`
+  return formatDuration(ms / 60_000)
 }
 
 function list(items: string[]): string {
@@ -91,7 +88,7 @@ export function eventCardView({
   const endDate = zonedDate(end, zone)
   const day = dayLabel(startDate, today)
   const endDay = endDate !== startDate ? `${dayLabel(endDate, today)} ` : ''
-  const when = `${day} · ${time(start)} – ${endDay}${time(end)}`
+  const when = `${day} · ${timeRange(time(start), `${endDay}${time(end)}`)}`
   const setting = {
     shade: activity?.shade,
     surface: activity?.surface,
@@ -143,7 +140,7 @@ export function eventCardView({
         (burnInfo.outlasts ? `; the event lasts ${durationText(end - start)}.` : '.')
   const timing = sunscreenTiming(start, end, uv.peakUV)
   const sunscreen = timing
-    ? `Sunscreen: apply ${time(timing.applyFrom)} – ${time(timing.applyBy)}` +
+    ? `Sunscreen: apply ${timeRange(time(timing.applyFrom), time(timing.applyBy))}` +
       (timing.reapplyAt.length
         ? `, reapply at ${list(timing.reapplyAt.map(time))}, and after swimming or heavy sweating.`
         : `; reapply after swimming or heavy sweating.`)

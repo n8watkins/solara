@@ -109,7 +109,7 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
               className="btn"
               onClick={() => update({ durationMins: clampDuration(form.durationMins - 15) })}
             >
-              −15m
+              −15 min
             </button>
             <input
               type="number"
@@ -127,7 +127,7 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
               className="btn"
               onClick={() => update({ durationMins: form.durationMins + 15 })}
             >
-              +15m
+              +15 min
             </button>
           </div>
         </ActivityEditSection>

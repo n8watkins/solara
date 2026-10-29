@@ -60,12 +60,12 @@ describe('eventCardView', () => {
       item: item('2026-06-16T16:00:00.000Z', '2026-06-16T21:00:00.000Z'),
     })
     expect(view).toMatchObject({
-      when: 'Tomorrow · 9am – 2pm',
+      when: 'Tomorrow · 9am–2pm',
       badge: { value: '9.4', label: 'Very high', band: 'very-high' },
       peak: 'Peak UV 9.4 at 12pm · average 7.5',
       burn: 'Unprotected, fair skin could burn in about 16 min at the peak; the event lasts 5 h.',
       sunscreen:
-        'Sunscreen: apply 8:30am – 8:45am, reapply at 11am and 1pm, and after swimming or heavy sweating.',
+        'Sunscreen: apply 8:30am–8:45am, reapply at 11am and 1pm, and after swimming or heavy sweating.',
       later: null,
     })
   })
@@ -92,7 +92,7 @@ describe('eventCardView', () => {
       'Unprotected, Mia (very fair skin, the most sensitive) could burn in about 21 min at the peak; the event lasts 30 min.',
     )
     expect(view.sunscreen).toBe(
-      'Sunscreen: apply 11:30am – 11:45am; reapply after swimming or heavy sweating.',
+      'Sunscreen: apply 11:30am–11:45am; reapply after swimming or heavy sweating.',
     )
   })
 
@@ -101,7 +101,7 @@ describe('eventCardView', () => {
       ...base,
       item: item('2026-06-16T02:00:00.000Z', '2026-06-16T03:30:00.000Z'),
     })
-    expect(view).toMatchObject({ when: 'Today · 7pm – 8:30pm', sunscreen: null })
+    expect(view).toMatchObject({ when: 'Today · 7pm–8:30pm', sunscreen: null })
     expect(view.peak).toBe('UV stays near 0 during the event.')
     expect(view.burn).toBeNull()
   })
@@ -120,7 +120,7 @@ describe('eventCardView', () => {
       item: item('2026-06-20T15:00:00.000Z', '2026-06-20T16:30:00.000Z'),
     })
     expect(view).toMatchObject({
-      when: 'Sat, Jun 20 · 8am – 9:30am',
+      when: 'Sat, Jun 20 · 8am–9:30am',
       later: 'Forecast from Fri, Jun 19',
       badge: null,
       burn: null,
@@ -150,7 +150,7 @@ describe('eventCardView', () => {
       weather: null,
       item: item('2026-06-16T16:00:00.000Z', '2026-06-16T17:00:00.000Z'),
     })
-    expect(view).toMatchObject({ when: 'Tomorrow · 9am – 10am', uv: null, later: null })
+    expect(view).toMatchObject({ when: 'Tomorrow · 9am–10am', uv: null, later: null })
   })
 
   it('formats durations', () => {

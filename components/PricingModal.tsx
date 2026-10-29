@@ -11,7 +11,7 @@ import {
   createCheckoutUrl,
   type BillingPlan,
 } from '@/lib/billing'
-import { alertsLaunched, calendarFeatureLabel } from '@/lib/plans'
+import { alertsLaunched } from '@/lib/plans'
 import { isStoreBuild } from '@/lib/store-build'
 import { TIER_LIMITS } from '@solara/core/tiers'
 
@@ -189,7 +189,7 @@ export default function PricingModal({
     footer = (
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2.5">
         <p className="min-w-45 flex-1 text-[13px] leading-[1.45] text-ink-2">
-          Sign in with Google. It’s free, and your plan comes with you.
+          Sign in with Google. It&apos;s free, and your plan comes with you.
         </p>
         <GoogleSignInButton label="Sign in free" preload />
       </div>
@@ -257,7 +257,8 @@ export default function PricingModal({
       description={
         store
           ? `A free account keeps your plan on every device, plans up to ${TIER_LIMITS.free.activities} activities and shows tomorrow too.`
-          : `10 days of planning, up to 20 activities, ${calendarFeatureLabel().toLowerCase()}, family profiles that plan for the most sensitive person, and morning and UV alerts${alertsLaunched() ? '' : ' (coming soon)'}.`
+          : // Only what Pro adds: calendar export is Free too (REVIEW9 QA L7).
+            `10 days of planning, up to 20 activities, family profiles that plan for the most sensitive person, and morning and UV alerts${alertsLaunched() ? '' : ' (coming soon)'}.`
       }
       onClose={onClose}
       footer={footer}

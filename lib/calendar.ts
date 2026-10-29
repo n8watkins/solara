@@ -1,4 +1,5 @@
 import { windowEventTitle } from '@solara/core'
+import { formatDuration } from '@solara/core/duration'
 import type { Activity } from './types'
 import { effectiveMaxUV, findRecommendationWindows } from './recommendation'
 import { fmtClock, gcalTimestamp } from './weather'
@@ -44,7 +45,7 @@ export function gcalWindowLink(
   const planningUVLimit = effectiveMaxUV(activity)
   const title = encodeURIComponent(windowEventTitle(activity.name))
   const details = encodeURIComponent(
-    `Estimated lower-UV window for ${activity.name}. Forecast UV stays at or below the planning limit of ${planningUVLimit} from ${fmtClock(window.from)}–${fmtClock(window.to)}${activity.sunscreen ? ' assuming SPF 30+.' : '.'} Schedule your ${activity.durationMins < 60 ? activity.durationMins + 'min' : activity.durationMins / 60 + 'hr'} session in this range. Recheck conditions and use sun protection; this is not medical advice.`,
+    `Estimated lower-UV window for ${activity.name}. Forecast UV stays at or below the planning limit of ${planningUVLimit} from ${fmtClock(window.from)} to ${fmtClock(window.to)}${activity.sunscreen ? ' assuming SPF 30+.' : '.'} Schedule your ${formatDuration(activity.durationMins)} session in this range. Recheck conditions and use sun protection; this is not medical advice.`,
   )
   return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${gcalTimestamp(start)}/${gcalTimestamp(end)}&details=${details}`
 }

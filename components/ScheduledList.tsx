@@ -1,4 +1,5 @@
 'use client'
+import { timeRange } from '@/lib/time'
 import type { ScheduledActivity } from '@solara/core'
 import { activityColor } from '@/lib/activity-colors'
 import { scheduledSpan, upcomingScheduled } from '@/lib/scheduled'
@@ -77,7 +78,7 @@ export default function ScheduledList({ activities, timeZone, nowMs, dayLabel, o
             const span = scheduledSpan(item, timeZone)
             const activity = activities.find(a => a.id === item.activityId)
             const name = activity?.name ?? item.title
-            const when = `${dayLabel(span.date)} · ${fmt.time(span.from)} – ${fmt.time(span.to)}`
+            const when = `${dayLabel(span.date)} · ${timeRange(fmt.time(span.from), fmt.time(span.to))}`
             return (
               <li key={item.eventId}>
                 <button

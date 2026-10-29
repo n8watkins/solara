@@ -1,4 +1,5 @@
 import { Fragment } from 'react'
+import { formatDuration } from '@solara/core/duration'
 import { cloudEffect, forecastConfidence } from '@solara/core'
 import type { HourlyForecast } from '@/lib/types'
 import { dayHourText, uvNumberTone, type SunDown, type UVReadout } from '@/lib/dashboard-view'
@@ -93,7 +94,7 @@ export default function UVCard({
               parts={[
                 headTemp === undefined ? '--' : fmt.temp(headTemp),
                 conditions,
-                headBurn ? `burn ~${headBurn}m` : null,
+                headBurn ? `burn ~${formatDuration(headBurn)}` : null,
               ]}
             />
           </>

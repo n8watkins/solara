@@ -197,7 +197,7 @@ describe('building share links', () => {
         },
         '12h',
       ),
-    ).toContain('7:30am–8:30am')
+    ).toContain('from 7:30am to 8:30am')
   })
 
   it("writes shared windows in the sender's clock format", () => {
@@ -206,6 +206,6 @@ describe('building share links', () => {
         { activity: run, window: { from: 7.5, to: 18 }, location: pasadena, dateLabel: 'Today' },
         '24h',
       ),
-    ).toContain('from 07:30–18:00 in Pasadena')
+    ).toContain('from 07:30 to 18:00 in Pasadena')
   })
 })

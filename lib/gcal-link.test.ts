@@ -43,6 +43,6 @@ describe('gcalWindowLink', () => {
       'America/Los_Angeles',
     )
     expect(dates(url)).toBe('20260615T173500Z/20260615T200000Z')
-    expect(new URL(url).searchParams.get('details')).toContain('from 10:35am–1pm')
+    expect(new URL(url).searchParams.get('details')).toContain('from 10:35am to 1pm')
   })
 })

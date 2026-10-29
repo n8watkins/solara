@@ -12,13 +12,14 @@ import { ChevronDown } from 'lucide-react'
 import {
   DATA_REQUEST_DAYS,
   DATA_REQUEST_EMAIL,
-  DELETED_DATA,
-  DELETION_NOTES,
   DELETION_SUMMARY,
   EXPORT_EXCLUDED,
-  EXPORT_SECTIONS,
   EXPORT_SUMMARY,
+  buildAccountFeatures,
   capitalized,
+  deletedDataShown,
+  deletionNotesShown,
+  exportSectionsShown,
 } from '@/lib/account-data'
 
 export type AccountBusy = 'billing' | 'export' | 'delete' | null
@@ -58,6 +59,8 @@ export default function AccountControls({
   const hintId = useId()
   // The Stripe portal sells plan changes, so an app store build never offers it.
   const portal = !!billing?.hasBillingAccount && !isStoreBuild()
+  // The lists name only what this build can hold (REVIEW9 QA L6).
+  const features = buildAccountFeatures()
   return (
     <>
       <div className="grid gap-[18px]">
@@ -91,8 +94,8 @@ export default function AccountControls({
           title="Download your data"
           body={EXPORT_SUMMARY}
           details={
-            <Disclosure summary="What’s included">
-              <DetailList items={Object.values(EXPORT_SECTIONS)} />
+            <Disclosure summary="What's included">
+              <DetailList items={exportSectionsShown(features)} />
               <p className="mt-2">{EXPORT_EXCLUDED}</p>
             </Disclosure>
           }
@@ -107,19 +110,19 @@ export default function AccountControls({
           title="Delete account"
           body={DELETION_SUMMARY}
           details={
-            <Disclosure summary="What’s deleted, and what stays">
+            <Disclosure summary="What's deleted, and what stays">
               <p className="mb-1 font-semibold text-ink-2">Deleted from Solara</p>
-              <DetailList items={DELETED_DATA} />
+              <DetailList items={deletedDataShown(features)} />
               <p className="mt-2.5 mb-1 font-semibold text-ink-2">Outside Solara</p>
-              <DetailList items={DELETION_NOTES} />
+              <DetailList items={deletionNotesShown(features)} />
             </Disclosure>
           }
         >
           {canDelete === false ? (
             <p className="rounded-[10px] border-[0.5px] border-notice-border bg-notice p-3 text-[14px] leading-[1.55] text-notice-ink">
-              Part of this account can only be removed by Solara’s servers, which are not running
-              yet. To delete it, email <EmailLink /> and we will delete your account and all its
-              data within {DATA_REQUEST_DAYS} days.
+              Part of this account can only be removed by Solara&apos;s servers, which are not
+              running yet. To delete it, email <EmailLink /> and we will delete your account and all
+              its data within {DATA_REQUEST_DAYS} days.
             </p>
           ) : (
             <>

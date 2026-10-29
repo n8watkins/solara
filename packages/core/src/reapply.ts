@@ -102,13 +102,8 @@ export function minutesLeft(timer: ReapplyTimer, now: number): number {
   return Math.max(0, Math.ceil((dueAt(timer) - now) / MINUTE))
 }
 
-/** "1 h 20 min", "45 min", "1 h". */
-export function formatDuration(minutes: number): string {
-  const h = Math.floor(minutes / 60)
-  const m = minutes % 60
-  if (h === 0) return `${m} min`
-  return m === 0 ? `${h} h` : `${h} h ${m} min`
-}
+/** "1 h 20 min", "45 min", "1 h": the one duration style (duration.ts). */
+export { formatDuration } from './duration'
 
 /** A stored timer, or null when there is none, it is malformed, or it is too old. */
 export function parseTimer(raw: unknown, now: number): ReapplyTimer | null {

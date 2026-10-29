@@ -214,11 +214,11 @@ B4. **Stripe test mode: product, webhook first, then its secrets (30 minutes, fr
 B5. **The other Functions secrets in staging (5 minutes).**
    - Where: `npx firebase functions:secrets:set OPEN_METEO_API_KEY --project solara-staging` (type `unset`), and `openssl rand -base64 48 | npx firebase functions:secrets:set TRIAL_HISTORY_KEY --data-file=- --project solara-staging`.
    - Cost: Secret Manager keeps 6 secret versions free, then about $0.06 per version a month.
-   - Then: grant the staging deploy identity the [extra roles for Functions](WIF_SETUP.md#extra-roles-when-functions-are-enabled) in the staging project, set `STAGING_ENABLE_BLAZE_FUNCTIONS=true` in the `staging` environment, and run **Deploy staging** again; set `STAGING_BILLING_ENABLED=true` (and the other `STAGING_` switches) when B6 needs them.
-   - Verify: the first staging Functions deploy succeeds (a deploy fails while any secret is missing).
+   - Then: grant the staging deploy identity the [extra roles for Functions](WIF_SETUP.md#extra-roles-when-functions-are-enabled) in the staging project, including the Cloud Tasks and Eventarc part for the alerts (the staging project is new, so its default compute identity is not an Editor and needs the roles listed there), and check that its Firestore database is in `nam5` or `us-central1`; then set `STAGING_ENABLE_BLAZE_FUNCTIONS=true` in the `staging` environment, and run **Deploy staging** again; set `STAGING_BILLING_ENABLED=true` (and the other `STAGING_` switches) when B6 needs them.
+   - Verify: the first staging Functions deploy succeeds (a deploy fails while any secret is missing), and with `STAGING_ALERTS_ENABLED=true` the next one creates the `reapplyReminderTask` queue (Cloud Tasks, **Queues**).
 
 B6. **Run the staging checks (2-3 hours with the agent, cents).**
-   - With the agent: the [Functions and Stripe](#functions-and-stripe), [Notifications](#notifications) and [Linked calendars](#linked-calendars) checks, `infra/check-client-address.sh` (it must end with `OK`), each `infra/` script from C8 with `PROJECT_ID=solara-staging` (and `SITE_HOST=solara-staging.web.app` for `infra/monitoring.sh`), one alert fired from a forced failure, the budget kill switch fired once at a tiny budget, and one restore drill recorded in the [runbook](RUNBOOK.md#backups-and-restore).
+   - With the agent: the [Functions and Stripe](#functions-and-stripe), [Notifications](#notifications) (alerts on in staging, including the free daily UV push and a reapply reminder that arrives on time through Cloud Tasks, not 15 minutes late through the `alerts` job) and [Linked calendars](#linked-calendars) checks, `infra/check-client-address.sh` (it must end with `OK`), each `infra/` script from C8 with `PROJECT_ID=solara-staging` (and `SITE_HOST=solara-staging.web.app` for `infra/monitoring.sh`), one alert fired from a forced failure, the budget kill switch fired once at a tiny budget, and one restore drill recorded in the [runbook](RUNBOOK.md#backups-and-restore).
    - Verify: every check in those sections is ticked.
 
 ### At Pro launch: Blaze
@@ -315,7 +315,7 @@ Group D: each optional feature, what it needs first and how to switch it on.
 | Events from Google Calendar | A6 verified | [Events from Google Calendar](#events-from-google-calendar) items 1-6: two more scopes, a video on a preview or staging build, verification | Variable `GOOGLE_CALENDAR_EVENTS_ENABLED=true`, no Blaze | 20 min, then days to weeks | Free | Item 7 there |
 | Events from Outlook | Nothing else | [Events from Outlook](#events-from-outlook-only-for-the-outlook-connection) items 1-10: free Azure account, app registration, a dev registration and the live checks (`npm ci` and `npm ci --prefix functions` first) | Variables `MICROSOFT_CLIENT_ID`, then `OUTLOOK_CALENDAR_EVENTS_ENABLED=true`, no Blaze | 45 min | Free (a temporary $1 card hold) | Items 9-11 there |
 | Linked calendars and heads-ups | C7, C11 | [Linked calendars](#linked-calendars) checks in staging | Variable `EVENTS_SUBSCRIPTIONS_ENABLED=true` | 10 min | Cents | Those checks on production |
-| Pro alerts | C7, C9 (the key) | C11 | Variable `ALERTS_ENABLED=true` | 10 min | Free | [Notifications](#notifications) |
+| Alerts and free pushes (Pro's morning and UV alerts, the free daily UV push, the reapply reminder push) | C7, C9 (the key) | C11 | Variable `ALERTS_ENABLED=true` | 10 min | Free | [Notifications](#notifications) |
 
 Values with no owner step, fine as they are: `NEXT_PUBLIC_FIREBASE_APP_CHECK_PROVIDER` (leave unset), `COST_GUARD_DETACH_BILLING` (optional), and the committed per-hour and per-day limits in `functions/.env`.
 
@@ -428,14 +428,14 @@ Everything in this section waits for the Pro launch (roadmap item 9); see [Fireb
 Pro's morning and UV alerts, and the free daily UV push and reapply reminder, are built and switched off (`ALERTS_ENABLED`, [Pro alerts](DEPLOYMENT.md#pro-alerts)); record this real-device evidence in staging before switching them on in production.
 
 - [ ] Provide a real phone that can receive web push and a controlled Pro test account; on an iPhone, add Solara to the Home Screen and open it from there.
-- [ ] In Settings, **Sun profile**, turn alerts on for the phone, then set **Morning alert** to the current hour.
+- [ ] In Settings, **Alerts**, turn alerts on for the phone, then set **Morning alert** to the current hour.
 - [ ] Within 15 minutes exactly one notification appears while the app is in the background, and tapping it opens the app.
 - [ ] Wait for two more runs: no second morning alert arrives, and `users/<uid>/alertState/daily` shows `morning.status` `delivered`.
 - [ ] Choose a **UV alert** level today's forecast reaches, with quiet hours that do not cover now: exactly one UV alert arrives that day.
 - [ ] Register the same phone to a second controlled account; ownership moves instead of producing two deliveries.
 - [ ] Move the test account to Free (or cancel its test subscription): no alert arrives the next morning.
 - [ ] Turn alerts off on the phone, then sign out; the device record is gone either time.
-- [ ] With a controlled Free account: turn alerts on for the phone in Settings, **Alerts**; the next morning exactly one daily UV push arrives at the chosen hour on a day the UV reaches 3, and none on a low day.
+- [ ] With a controlled Free account: turn alerts on for the phone in Settings, **Alerts**; the next morning exactly one daily UV push arrives at the chosen hour on a day the UV reaches 3 (or would under a clear sky), with the same protection times as the dashboard's briefing, and none on a day that stays low even under a clear sky.
 - [ ] With that account, start the sunscreen timer, close every Solara tab and wait 2 hours: exactly one "Time to reapply sunscreen" notification arrives within a minute of the time the card showed; with the tab left open and visible, the phone gets the push and the computer shows only the card.
 - [ ] Start it again and press **Stop**: no notification comes, and `users/<uid>/reminders/reapply` is gone.
 

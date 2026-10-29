@@ -89,7 +89,7 @@ async function labelProblems(page: Page): Promise<string[]> {
     }
     // Readable: the full text, not squeezed or hidden.
     const content = text.textContent ?? ''
-    if (!/^(← )?Peak \d+\.\d · \d{1,2}(:\d{2})?(am|pm)?( →)?$/.test(content.trim()))
+    if (!/^(← )?(Today's peak|Peak) \d+\.\d · \d{1,2}(:\d{2})?(am|pm)?( →)?$/.test(content.trim()))
       problems.push(`unexpected callout text "${content}"`)
     return problems
   })
