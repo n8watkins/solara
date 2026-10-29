@@ -30,7 +30,7 @@ Conditions and individual sensitivity can change quickly.
 
 ## Stack
 
-- Next.js 16 App Router with static export, React 19 with the React Compiler, TypeScript 6.
+- Next.js 16 App Router with static export, React 19 (without the React Compiler, which cost about 8 KB of a guest's first load; ROADMAP decisions), TypeScript 6.
 - A small forecast store for forecast data (`lib/forecast-store.ts`: one request per place, background refresh, persisted cache), Valibot for every external boundary (`packages/core/src/schema.ts`).
 - Firebase Authentication, Firestore, Hosting, Cloud Messaging and Functions (TypeScript on Node.js 24).
 - Tailwind CSS 4, configured in `app/globals.css` (`@theme`) on CSS custom-property design tokens, which also define the one UV palette.
@@ -65,7 +65,7 @@ The repository is an npm workspace.
 - Two service workers are built into the export after `next build` by `scripts/build-sw.mjs`.
   `/sw.js` (`scripts/sw/shell.ts`, rules in `lib/sw-shell.mts`) is the app shell: `app/app/layout.tsx` registers it after the page loads, it precaches `/` and `/app/` with every file they load, and the app opens offline with the last forecast from `lib/cache.ts` and an offline notice (`components/ForecastNotice.tsx`, which also says when the forecast proxy served an earlier copy).
   `/firebase-messaging-sw.js` (`scripts/sw/firebase-messaging-sw.ts`) handles push and is registered by Firebase Messaging, under its own scope, only when someone turns on notifications.
-- The app's first load carries only the dashboard (about 189 KB gzip of JavaScript for a guest; `tests/e2e/guest.spec.ts` holds it under 193 KB).
+- The app's first load carries only the dashboard (about 182 KB gzip of JavaScript for a guest; `tests/e2e/guest.spec.ts` holds it under 186 KB).
   Firebase loads on demand: `lib/firebase.ts` is the only way to it, and `loadFirebase()` loads the SDK (`lib/firebase-services.ts`) when someone reaches for "Sign in" or the browser already holds a session, so a guest never downloads it.
   An ESLint rule keeps static Firebase imports out of the app; modules that need the SDK use `await import('firebase/...')`.
   Auth starts without its sign-in popup helper; sign-in buttons start it (`prepareSignInPopup`), and every `*WithPopup` call passes it.

@@ -35,7 +35,7 @@ These are facts that rarely change and are not tracked elsewhere.
 
 - No release tagging: `package.json` stays at `0.1.0` and the site ships by deploy, not by release.
   Solara is not on release-kit (`github:n8watkins/release-kit`, the owner's release tool used by most of their repos); adopt it as its own change once there is a mobile build to version.
-- The guest first load has a tight budget: `tests/e2e/guest.spec.ts` holds it under 193 KB gzip, so new dashboard code that a new guest does not see should load on demand (`components/deferred.tsx`).
+- The guest first load has a tight budget: `tests/e2e/guest.spec.ts` holds it under 186 KB gzip (about 182 KB today), so new dashboard code that a new guest does not see should load on demand (`components/deferred.tsx`).
 - The Lab entry on n8builds.dev says "no sign-up", while Solara has a Pro plan; "free to start" would be exact, and that copy lives in the n8builds.dev repository, not here.
 - Deferred feature ideas are in [ROADMAP item 12](ROADMAP.md#12-wave-5-features) (an AI-written briefing, Strava, a returning visitor's plan over a city link) and in [EVENTS.md](integrations/EVENTS.md) (a Web Share Target for .ics files, a "better window" for events the person controls).
 - The Android plan is [integrations/ANDROID.md](integrations/ANDROID.md) ([ROADMAP item 13](ROADMAP.md#13-wave-6-mobile-app-owners-learning-project)).
