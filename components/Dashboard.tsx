@@ -13,8 +13,7 @@ import { useUnits } from '@/lib/use-units'
 import { useOpenSettings } from '@/lib/open-settings'
 import { useStatusFlash } from '@/hooks/useStatusFlash'
 import { useCalendarBusy } from '@/hooks/useCalendarBusy'
-import { nowHourOf, planActivityDay, soonestPlan } from '@solara/core/next-slot'
-import { nextSlotAfterToday } from '@solara/core/planner'
+import { nowHourOf } from '@solara/core/zoned-time'
 import { sunPhaseAt } from '@solara/core'
 import {
   busyByDate,
@@ -37,6 +36,7 @@ import {
   PricingModal,
   ScheduledDetails,
   SunscreenTimer,
+  useActivityPlanning,
 } from './deferred'
 import ActivitiesSection from './dashboard/ActivitiesSection'
 import DailyBriefing from './dashboard/DailyBriefing'
@@ -90,6 +90,8 @@ function DashboardView({
   const fmt = useUnits()
   const openSettings = useOpenSettings()
   const scheduled = useScheduled()
+  // Finds the activities' slots; with activities it has loaded before this paints.
+  const planner = useActivityPlanning()
   const [openEventId, setOpenEventId] = useState<string | null>(null)
   // "Now" is the forecast location's wall clock, never the device's. The
   // fractional "now" (rounded up to 5 minutes) is the earliest start any
@@ -126,28 +128,31 @@ function DashboardView({
   const busy = busyByDate(calendar.busy, visibleForecast, weather.timezone)
   // One plan per activity for the selected day; the hero, the cards and their share
   // and calendar buttons all read from it, and PlanAhead runs the same function.
-  const dayPlans = prefs.activities.map(a =>
-    planActivityDay(hourly, a, planning.skinType, {
-      nowHour: isToday ? nowHour : -1,
-      busy: busy[activeDateStr] ?? [],
-      daylight,
-    }),
-  )
-  const heroPlan = soonestPlan(dayPlans)
+  const dayPlans = planner
+    ? prefs.activities.map(a =>
+        planner.planActivityDay(hourly, a, planning.skinType, {
+          nowHour: isToday ? nowHour : -1,
+          busy: busy[activeDateStr] ?? [],
+          daylight,
+        }),
+      )
+    : []
+  const heroPlan = planner ? planner.soonestPlan(dayPlans) : null
   const allElapsed = isToday && dayPlans.some(p => p.elapsed) && !heroPlan
   // Once today is done, the hero names the next slot the plan can see (never a
   // section the plan does not show).
   const laterDaysVisible = accessibleDays > 1
   const hasActivities = prefs.activities.length > 0
-  const nextSlot = allElapsed
-    ? nextSlotAfterToday(
-        weather.forecast,
-        prefs.activities,
-        planning.skinType,
-        accessibleDays,
-        busy,
-      )
-    : null
+  const nextSlot =
+    allElapsed && planner
+      ? planner.nextSlotAfterToday(
+          weather.forecast,
+          prefs.activities,
+          planning.skinType,
+          accessibleDays,
+          busy,
+        )
+      : null
   // After dark (or before sunrise) today: the readout and metrics say so and when UV
   // comes back, instead of a bare "0.0 Low" and dashes. Whether the sun is up comes
   // from the place's sunrise and sunset, not from the UV (REVIEW6 L7).

@@ -11,9 +11,17 @@
 //
 // Import these instead of the modules themselves; each renders nothing (or its
 // fallback) until its chunk has arrived.
-import { useEffect, useState, type ComponentProps, type ComponentType, type ReactNode } from 'react'
+import {
+  useEffect,
+  useState,
+  useSyncExternalStore,
+  type ComponentProps,
+  type ComponentType,
+  type ReactNode,
+} from 'react'
 import { installEnvironment, installPromptKind } from '@/lib/install-prompt'
 import { AccountLoading } from './AccountStatus'
+import type * as ActivityPlanModule from './dashboard/activity-plan'
 
 type Loader<P> = () => Promise<{ default: ComponentType<P> }>
 
@@ -109,8 +117,42 @@ export function InstallPrompt() {
 }
 
 // The dashboard's activity plan (components/dashboard/activity-plan.ts), one chunk.
-const activityPlan = () => import('./dashboard/activity-plan')
-type ActivityPlan = Awaited<ReturnType<typeof activityPlan>>
+type ActivityPlan = typeof ActivityPlanModule
+let activityPlanLoaded: ActivityPlan | null = null
+const activityPlanListeners = new Set<() => void>()
+const activityPlan = () =>
+  import('./dashboard/activity-plan').then(module => {
+    if (!activityPlanLoaded) {
+      activityPlanLoaded = module
+      for (const listener of activityPlanListeners) listener()
+    }
+    return module
+  })
+
+/** Finds each activity's slots (@solara/core next-slot and planner), with the activity plan. */
+export type ActivityPlanning = Pick<
+  ActivityPlan,
+  'planActivityDay' | 'soonestPlan' | 'nextSlotAfterToday'
+>
+
+function onActivityPlanLoad(listener: () => void): () => void {
+  activityPlanListeners.add(listener)
+  return () => activityPlanListeners.delete(listener)
+}
+
+/**
+ * The activity plan's planning once its chunk has loaded, else null; the caller renders
+ * again when it arrives. Only a plan with activities has slots to find, and
+ * ActivityPlanGate loads it before such a dashboard first paints (an activity added
+ * later finds its slots as soon as its card's chunk, the same one, arrives).
+ */
+export function useActivityPlanning(): ActivityPlanning | null {
+  return useSyncExternalStore(
+    onActivityPlanLoad,
+    () => activityPlanLoaded,
+    () => null,
+  )
+}
 export const HeroSlot = deferred<ComponentProps<ActivityPlan['HeroSlot']>>(() =>
   activityPlan().then(parts => ({ default: parts.HeroSlot })),
 )

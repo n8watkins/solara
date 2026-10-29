@@ -6,7 +6,6 @@ import type { ActivityDayPlan } from '@solara/core/next-slot'
 import type { BusyInterval, SlotRecommendation } from '@solara/core/scheduler'
 import { scheduledOn, type ScheduledActivity } from '@/lib/scheduled-view'
 import { isCalendarConfigured } from '@/lib/gcal-view'
-import { nextSlotAfterToday } from '@solara/core/planner'
 import { canAddActivity, canUseCalendar, TIER_LIMITS } from '@solara/core/tiers'
 import { isReturningGuest } from '@/lib/guest'
 import { useUpsellDismissal } from '@/lib/upsell'
@@ -19,6 +18,7 @@ import {
   CalendarConnectBanner,
   CalendarFeed,
   PlanAhead,
+  useActivityPlanning,
 } from '../deferred'
 import ActivitiesIntro from './ActivitiesIntro'
 import ActivityEmptyState from './ActivityEmptyState'
@@ -66,6 +66,7 @@ export default function ActivitiesSection({
   onUpgrade: () => void
   onPrefsUpdate: (prefs: UserPreferences) => void
 }) {
+  const planner = useActivityPlanning()
   const [modal, setModal] = useState<'add' | 'manage' | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const hasActivities = prefs.activities.length > 0
@@ -152,13 +153,13 @@ export default function ActivitiesSection({
           onOpenScheduled={onOpenScheduled}
           laterDaysVisible={access.accessibleDays > 1}
           nextSlotFor={activity =>
-            nextSlotAfterToday(
+            planner?.nextSlotAfterToday(
               weather.forecast,
               [activity],
               skinType,
               access.accessibleDays,
               busyByDate,
-            )
+            ) ?? null
           }
         />
       ) : (

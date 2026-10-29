@@ -19,18 +19,9 @@ import { getActivityWindow } from './weather'
 import type { BusyInterval, SlotRecommendation } from './scheduler'
 import { recommendSlot } from './scheduler'
 
-/** Minutes "now" is rounded up to, so a 10:32 visit offers a 10:35 start. */
-const NOW_STEP_MINUTES = 5
-
-/**
- * The current time as fractional hours, rounded up to a 5-minute step. Pass the
- * forecast location's wall clock (lib/time.ts zonedNow), never the device's.
- * Use the result as `nowHour` for today; future days use -1.
- */
-export function nowHourOf(now: { hour: number; minute: number }): number {
-  const minutes = now.hour * 60 + now.minute
-  return (Math.ceil(minutes / NOW_STEP_MINUTES) * NOW_STEP_MINUTES) / 60
-}
+// In zoned-time.ts, so the web dashboard has it without this module, which it loads
+// with the activity plan (components/dashboard/activity-plan.ts).
+export { nowHourOf } from './zoned-time'
 
 /**
  * Trim safe windows to what is still actionable: from `nowHour` (today; -1 for
