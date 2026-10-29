@@ -1,5 +1,7 @@
 // Playwright global teardown for the UI harness: merges the per-screen axe JSON
 // files into test-results/ui-harness/axe-summary.{json,md}. Report-only.
+// CI runs the harness in shards and runs this file directly
+// (`node tests/harness/axe-summary.ts`) over every shard's reports.
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
@@ -81,3 +83,5 @@ export default function axeSummary() {
     `UI harness: ${reports.length} screens scanned, ${rules.size} axe rules with violations. See ${join(OUTPUT_DIR, 'axe-summary.md')}`,
   )
 }
+
+if (import.meta.main) axeSummary()

@@ -129,7 +129,7 @@ The project stays on Spark until Pro launches ([COSTS.md](COSTS.md)).
 
 ## CI/CD
 
-- **Repository:** public, with the "Protect main" ruleset: pull requests only, squash merges only, no force pushes or deletion, and 8 required checks from `quality.yml` (lint, types and unit tests; browser tests on the static export; signed-in UI harness; signed-in browser tests on emulators; Functions and Firestore rules; workflow and secret scanning; dependency review; browser tests with Sentry and App Check switched on).
+- **Repository:** public, with the "Protect main" ruleset: pull requests only, squash merges only, no force pushes or deletion, and 8 required checks from `quality.yml` (lint, types and unit tests; browser tests on the static export; signed-in UI harness, which waits for the harness's four parallel shards; signed-in browser tests on emulators; Functions and Firestore rules; workflow and secret scanning; dependency review; browser tests with Sentry and App Check switched on).
   Dependabot alerts and security updates, secret scanning with push protection, and CodeQL are on; three alerts are open and are false positives for the owner to close (CodeQL #22 and #23, secret scanning #1, the public Firebase web key; [A19](OWNER_CHECKLIST.md#anytime-free-no-blaze)).
   The ruleset does not yet require up-to-date branches or the CodeQL checks, and private vulnerability reporting is off ([A17, A18](OWNER_CHECKLIST.md#anytime-free-no-blaze)).
   There is no `production` environment yet; the deploy jobs that receive credentials run only from `main`, even when started by hand on another branch ([owner checklist](OWNER_CHECKLIST.md#repository)).
