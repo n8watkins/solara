@@ -527,6 +527,14 @@ describe('typed and size-capped preference fields', () => {
     await assertFails(ref.update({ eventHeadsUp: 0 }))
   })
 
+  test('the daily UV push is on or off', async () => {
+    const ref = await ownerRef()
+    await assertSucceeds(ref.update({ dailyUv: false }))
+    await assertSucceeds(ref.update({ dailyUv: true }))
+    await assertFails(ref.update({ dailyUv: 'off' }))
+    await assertFails(ref.update({ dailyUv: 1 }))
+  })
+
   test('quiet hours are a from/to pair of whole hours', async () => {
     const ref = await ownerRef()
     await assertSucceeds(ref.update({ quietHours: { from: 21, to: 7 } }))
@@ -1797,6 +1805,8 @@ describe('server-only collections and collection groups', () => {
   const UNDER_ACCOUNT = [
     'users/alice/billingResources/customer_1',
     'users/alice/alertState/daily',
+    'users/alice/alertState/reapply',
+    'users/alice/alertSchedule/dailyUv',
     'users/alice/somethingNew/doc',
   ]
 
@@ -1844,6 +1854,8 @@ describe('server-only collections and collection groups', () => {
       'private',
       'notificationDevices',
       'alertState',
+      'alertSchedule',
+      'reminders',
       'billingResources',
       'billingCleanupResources',
       ...TOP_LEVEL.map(path => path.split('/').at(-2)),
@@ -1859,5 +1871,93 @@ describe('server-only collections and collection groups', () => {
         )
       }
     }
+  })
+})
+
+// The sunscreen reapply reminder's "remind me at" record (functions/src/notifications/
+// reminders.ts): one per account, written by its owner in exactly the shape the server
+// sends from, and read or deleted only by its owner.
+describe('reapply reminder record', () => {
+  const MINUTE = 60_000
+  const ID = '0123456789abcdef0123456789abcdef'
+  const { Timestamp } = firebase.firestore
+
+  function reminder({ mode = 'standard', appliedAt = Date.now(), minutes, ...rest } = {}) {
+    const interval = minutes ?? (mode === 'water' ? 80 : 120)
+    const remindAt = appliedAt + interval * MINUTE
+    return {
+      id: ID,
+      mode,
+      appliedAt: Timestamp.fromMillis(appliedAt),
+      remindAt: Timestamp.fromMillis(remindAt),
+      dueAt: Timestamp.fromMillis(remindAt),
+      expireAt: Timestamp.fromMillis(remindAt + 24 * 60 * MINUTE),
+      ...rest,
+    }
+  }
+
+  async function aliceReminder() {
+    await seededRef('alice')
+    return testEnv.authenticatedContext('alice').firestore().doc('users/alice/reminders/reapply')
+  }
+
+  test('the owner schedules, replaces, reads and cancels it', async () => {
+    const ref = await aliceReminder()
+    await assertSucceeds(ref.set(reminder()))
+    await assertSucceeds(ref.set(reminder({ mode: 'water', id: 'f'.repeat(32) })))
+    await assertSucceeds(ref.get())
+    await assertSucceeds(ref.delete())
+  })
+
+  test('one per account: no other document, and no listing', async () => {
+    const ref = await aliceReminder()
+    const db = testEnv.authenticatedContext('alice').firestore()
+    await assertFails(db.doc('users/alice/reminders/second').set(reminder()))
+    await assertFails(db.collection('users/alice/reminders').limit(1).get())
+  })
+
+  test('nobody else can read, write or cancel it', async () => {
+    const ref = await aliceReminder()
+    await assertSucceeds(ref.set(reminder()))
+    const mallory = testEnv.authenticatedContext('mallory').firestore()
+    const signedOut = testEnv.unauthenticatedContext().firestore()
+    for (const db of [mallory, signedOut]) {
+      const theirs = db.doc('users/alice/reminders/reapply')
+      await assertFails(theirs.get())
+      await assertFails(theirs.set(reminder()))
+      await assertFails(theirs.delete())
+    }
+  })
+
+  test('the reminder is exactly the mode’s interval after the application, still ahead', async () => {
+    const ref = await aliceReminder()
+    await assertFails(ref.set(reminder({ minutes: 5 })))
+    await assertFails(ref.set(reminder({ mode: 'water', minutes: 120 })))
+    await assertFails(ref.set(reminder({ mode: 'sauna' })))
+    // Applied 3 hours ago: its reminder is already past.
+    await assertFails(ref.set(reminder({ appliedAt: Date.now() - 180 * MINUTE })))
+    // Applied in the future, beyond a clock that runs a little fast.
+    await assertFails(ref.set(reminder({ appliedAt: Date.now() + 60 * MINUTE })))
+    await assertSucceeds(ref.set(reminder({ appliedAt: Date.now() + 2 * MINUTE })))
+  })
+
+  test('only the fields the server reads, typed', async () => {
+    const ref = await aliceReminder()
+    const base = reminder()
+    await assertFails(ref.set({ ...base, status: 'claimed' }))
+    await assertFails(ref.set({ ...base, id: 'not-hex' }))
+    await assertFails(ref.set({ ...base, appliedAt: Date.now() }))
+    await assertFails(ref.set({ ...base, dueAt: Timestamp.fromMillis(Date.now() + MINUTE) }))
+    await assertFails(ref.set({ ...base, expireAt: base.remindAt }))
+    const { dueAt: _dueAt, ...missing } = base
+    await assertFails(ref.set(missing))
+  })
+
+  test('an account being deleted cannot schedule one', async () => {
+    const ref = await aliceReminder()
+    await testEnv.withSecurityRulesDisabled(async context => {
+      await context.firestore().doc('accountDeletionTombstones/alice').set({ revokedBefore: 200 })
+    })
+    await assertFails(ref.set(reminder()))
   })
 })
