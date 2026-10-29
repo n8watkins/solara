@@ -180,7 +180,9 @@ test('a burn time beside "UV too low" keeps both cards the same height', async (
     await expect(burn.value).toHaveText(/^(\d+ h)?( ?\d+ min)?$/)
     // Spoken as minutes, not "m".
     expect(await burn.card.innerText()).not.toContain('None')
-    await expect(burn.card.getByTestId('metric-value-spoken')).toHaveText(/^(\d+ hours? ?)?(\d+ minutes?)?$/)
+    await expect(burn.card.getByTestId('metric-value-spoken')).toHaveText(
+      /^(\d+ hours? ?)?(\d+ minutes?)?$/,
+    )
     await expect(vitD.value).toHaveText('UV too low')
     expect(burn.fontSize).toBeGreaterThan(20)
     expect(
