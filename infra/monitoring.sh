@@ -36,6 +36,9 @@
 # shellcheck source=infra/lib.sh
 source "$(dirname "$0")/lib.sh"
 : "${REGION:=us-central1}"
+# The app's host for its uptime check: production's site unless set, for example
+# SITE_HOST=solara-staging.web.app with PROJECT_ID=solara-staging.
+: "${SITE_HOST:=solara-uv.web.app}"
 
 SITE=true
 FUNCTIONS=true
@@ -69,7 +72,7 @@ if [ "$SITE" = true ]; then
   fi
   run gcloud monitoring uptime create "Solara app" --project "$PROJECT_ID" \
     --resource-type uptime-url \
-    --resource-labels "host=solara-uv.web.app,project_id=$PROJECT_ID" \
+    --resource-labels "host=$SITE_HOST,project_id=$PROJECT_ID" \
     --protocol https --path /app/ --period 5 --timeout 10
 else
   # The channel the --site-only run created.
