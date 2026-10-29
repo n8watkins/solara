@@ -94,8 +94,12 @@ test('a Free account sees linked calendars as part of Pro and sends nothing', as
   await openDashboard(page, account)
 
   const panel = page.getByTestId('event-subscriptions')
+  // With alerts on in this build, one Pro offer below names linked calendars and heads-ups.
   await expect(panel.getByTestId('event-subscriptions-offer')).toContainText(
-    'With Pro, paste a calendar link',
+    'Paste a calendar link',
+  )
+  await expect(page.getByTestId('event-heads-up-note')).toContainText(
+    'Pro adds linked calendars and a heads-up a few hours before an outdoor event with high UV.',
   )
   await expect(panel.getByRole('textbox', { name: 'Calendar link' })).toHaveCount(0)
   expect(calls).toEqual([])
