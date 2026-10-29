@@ -1,4 +1,5 @@
 import { formatUV } from '@solara/core'
+import { SITE_URL } from './site'
 import type { Activity, Location, SafeActivityWindow } from './types'
 import { formatClockTime } from './units'
 import type { ClockFormat } from './units'
@@ -179,7 +180,8 @@ export function buildActivityShareUrl(
   { activity, window: win, location, dayOffset = 0, isoDate }: ActivitySharePayload,
   origin?: string,
 ): string {
-  const base = origin || 'https://solara-uv.web.app'
+  // The build's own site (staging's on staging), never a hard-coded production address.
+  const base = origin || SITE_URL
   const params = new URLSearchParams({
     a: shareText(activity.name, SHARE_LIMITS.activity, 'Outdoor activity'),
     icon: readIcon(activity.icon),

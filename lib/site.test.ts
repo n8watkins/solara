@@ -32,3 +32,19 @@ describe('site', () => {
     expect(robots).toEqual({ rules: { userAgent: '*', disallow: '/' } })
   })
 })
+
+describe('share links', () => {
+  it("fall back to the build's own site, not production's", async () => {
+    vi.stubEnv('NEXT_PUBLIC_SITE_URL', 'https://solara-staging.web.app')
+    vi.resetModules()
+    const { buildActivityShareUrl } = await import('./share')
+    const url = buildActivityShareUrl({
+      activity: { name: 'Run', icon: 'run', durationMins: 30 } as never,
+      window: { from: 7, to: 8, peakUV: 2 } as never,
+      location: { city: 'Austin', region: 'TX' } as never,
+      isoDate: '2026-10-28',
+      dateLabel: 'Today',
+    })
+    expect(url.startsWith('https://solara-staging.web.app/share/?')).toBe(true)
+  })
+})
