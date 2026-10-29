@@ -464,6 +464,15 @@ describe('typed and size-capped preference fields', () => {
       ref.update({ groupProfileIds: Array.from({ length: 13 }, (_, i) => `profile_${i}`) }),
     )
     await assertFails(ref.update({ groupProfileIds: 'profile_0' }))
+    // Their ids take at most 12 x 64 characters in all (REVIEW8 SEC L4).
+    await assertSucceeds(
+      ref.update({ groupProfileIds: Array.from({ length: 12 }, (_, i) => `${i}`.padEnd(64, 'p')) }),
+    )
+    await assertFails(
+      ref.update({ groupProfileIds: Array.from({ length: 12 }, () => 'x'.repeat(60_000)) }),
+    )
+    await assertFails(ref.update({ groupProfileIds: ['x'.repeat(769)] }))
+    await assertFails(ref.update({ groupProfileIds: [{ id: 'x'.repeat(1000) }] }))
   })
 
   test('showSunPath is a boolean', async () => {
@@ -1435,6 +1444,44 @@ describe('per-account record caps', () => {
     )
   })
 
+  test('a key list holds only record keys mapped to true (REVIEW8 SEC L4)', async () => {
+    const db = testEnv.authenticatedContext('alice').firestore()
+    const write = (name, ids) => index(db, name).set({ ids, removed: [] }, { merge: true })
+    await assertSucceeds(write('events', { [hex(1)]: true }))
+    // Scheduled keys average at most 1,024 characters, commas included.
+    await assertFails(write('scheduled', { [`${'e'.repeat(700)},${'f'.repeat(700)}`]: true }))
+    await assertSucceeds(write('scheduled', { evt_1: true, 'a-B_9': true }))
+    // The probe's inflation: 1,000 keys of the wrong shape with 900-character values.
+    const big = 'x'.repeat(900)
+    await assertFails(
+      write('events', Object.fromEntries(Array.from({ length: 1000 }, (_, i) => [`k${i}`, big]))),
+    )
+    await assertFails(write('events', { [hex(2)]: big }))
+    await assertFails(write('events', { [hex(2)]: false }))
+    await assertFails(write('events', { [hex(2)]: 1 }))
+    await assertFails(write('events', { ['x'.repeat(900)]: true }))
+    await assertFails(write('events', { ['A'.repeat(32)]: true }))
+    await assertFails(write('events', { [`${hex(2)},${hex(3)}`]: true }))
+    await assertFails(write('scheduled', { ['e'.repeat(1025)]: true }))
+    await assertFails(write('scheduled', { 'evt 1': true }))
+    // A key holding commas would read as several keys; its length gives it away.
+    await assertFails(
+      write('events', { [Array.from({ length: 40 }, (_, i) => hex(i + 10)).join(',')]: true }),
+    )
+    // A key list already holding a bad entry (written before these checks) refuses every
+    // write until it is cleaned, so a list never grows past one.
+    await testEnv.withSecurityRulesDisabled(async context => {
+      await context
+        .firestore()
+        .doc('users/alice/meta/scheduled')
+        .set({
+          ids: { evt_1: true, bad: 'x'.repeat(900) },
+          removed: [],
+        })
+    })
+    await assertFails(write('scheduled', { evt_2: true }))
+  })
+
   test('an account holds at most 1,000 imported events', async () => {
     const db = testEnv.authenticatedContext('alice').firestore()
     const keys = Array.from({ length: 1000 }, (_, i) => hex(i + 1))
@@ -1702,6 +1749,97 @@ describe('self-service account deletion', () => {
       'users/alice/alertState/daily',
     ]) {
       await assertFails(db.doc(path).delete())
+    }
+  })
+})
+
+// Every collection only the server writes, and every collection group, refuse every client
+// (REVIEW8 SEC L5): today the catch-all `match /{document=**}` does it, and these tests fail
+// if a later rule, such as one for `{path=**}/events/{id}`, opens any of them.
+describe('server-only collections and collection groups', () => {
+  // Top-level collections the Functions own (functions/src), each with a sample document.
+  const TOP_LEVEL = [
+    'calendarFeeds/0123abcd',
+    'eventSubscriptions/0123abcd',
+    'systemFlags/costGuard',
+    'systemMigrations/feedTokens',
+    'trialHistory/0123abcd',
+    'forecastUpstream/day-2026-10-28',
+    'forecastCache/grid-34.06--118.24',
+    'stripeWebhookEvents/evt_1',
+    'stripeSubscriptionOwners/sub_1',
+    'stripeCheckoutCleanupTasks/cs_1',
+    'notificationTokenOwners/0123abcd',
+    'notificationRegistrationLimits/alice',
+    'alertDispatch/state',
+    'accountDeletionTombstones/alice',
+    'accountDeletionTombstones/alice/billingCleanupResources/customer_1',
+  ]
+  // Server-only records under the owner's own account.
+  const UNDER_ACCOUNT = [
+    'users/alice/billingResources/customer_1',
+    'users/alice/alertState/daily',
+    'users/alice/somethingNew/doc',
+  ]
+
+  beforeEach(async () => {
+    await testEnv.withSecurityRulesDisabled(async context => {
+      const db = context.firestore()
+      await db.doc('users/alice').set(prefs('alice'))
+      for (const path of [...TOP_LEVEL, ...UNDER_ACCOUNT]) {
+        await db.doc(path).set({ uid: 'alice', owner: 'alice' })
+      }
+    })
+  })
+
+  test('no client can read, list or write any of them, even the account they name', async () => {
+    const alice = testEnv.authenticatedContext('alice').firestore()
+    const anonymous = testEnv.unauthenticatedContext().firestore()
+    for (const db of [alice, anonymous]) {
+      for (const path of [...TOP_LEVEL, ...UNDER_ACCOUNT]) {
+        const ref = db.doc(path)
+        await assertFails(ref.get(), path)
+        await assertFails(ref.parent.limit(1).get(), path)
+        await assertFails(ref.parent.where('uid', '==', 'alice').limit(1).get(), path)
+        await assertFails(ref.set({ uid: 'alice' }), path)
+        await assertFails(ref.update({ owner: 'mallory' }), path)
+        await assertFails(ref.delete(), path)
+        await assertFails(ref.parent.doc('new').set({ uid: 'alice' }), path)
+      }
+    }
+  })
+
+  test('no collection group query reaches anyone’s documents, even filtered to the caller', async () => {
+    await testEnv.withSecurityRulesDisabled(async context => {
+      const db = context.firestore()
+      await db.doc('users/alice/meta/events').set({ ids: {}, removed: [] })
+      await db.doc('users/alice/private/calendarFeed').set({ uid: 'alice' })
+      await db.doc('users/alice/notificationDevices/d1').set({ uid: 'alice' })
+      await db.doc('users/alice/scheduled/evt1').set({ uid: 'alice' })
+      await db.doc('users/alice/events/0123').set({ uid: 'alice' })
+    })
+    const groups = [
+      'users',
+      'events',
+      'scheduled',
+      'meta',
+      'private',
+      'notificationDevices',
+      'alertState',
+      'billingResources',
+      'billingCleanupResources',
+      ...TOP_LEVEL.map(path => path.split('/').at(-2)),
+    ]
+    const alice = testEnv.authenticatedContext('alice').firestore()
+    const anonymous = testEnv.unauthenticatedContext().firestore()
+    for (const db of [alice, anonymous]) {
+      for (const group of new Set(groups)) {
+        await assertFails(db.collectionGroup(group).limit(1).get(), group)
+        await assertFails(
+          db.collectionGroup(group).where('uid', '==', 'alice').limit(1).get(),
+          group,
+        )
+      }
     }
   })
 })

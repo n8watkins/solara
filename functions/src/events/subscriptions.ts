@@ -64,6 +64,7 @@ import {
 } from 'firebase-admin/firestore'
 import { logger } from 'firebase-functions/logger'
 
+import { hasProEntitlement } from '../billing/entitlement'
 import { HttpError, loggableError } from '../shared/errors'
 import { toMillis } from '../shared/time'
 import { claimFields, claimState, releaseFields } from './lease'
@@ -724,6 +725,21 @@ async function claimLink(
       const due = toMillis(data.due)
       return { kind: 'removing', uid, abandoned: !Number.isFinite(due) || due <= now }
     }
+    if (!hasProEntitlement(user.data(), now)) {
+      // Linked calendars are Pro-only (REVIEW8 SEC L3): the link of an account that is no
+      // longer Pro is paused without a fetch and leaves the refresh queue; its events stay
+      // until they end, and a refresh once the account is Pro again resumes it.
+      const update: DocumentData = {
+        status: 'paused',
+        error: 'pro-required',
+        due: FieldValue.delete(),
+        ...releaseFields(),
+      }
+      transaction.set(linkRef, update, { merge: true })
+      const summary = summaryOf(id, merged(data, update))
+      transaction.set(summaryRef(db, uid), { items: { [id]: summary } }, { merge: true })
+      return { kind: 'paused', summary }
+    }
     const claim = claimState(data, now, CLAIM_HOLD_MS)
     if (claim === 'held') return { kind: 'busy', uid, data }
     let update: DocumentData = claim === 'abandoned' ? failureState(data, 'timeout', now) : {}
@@ -900,9 +916,9 @@ export async function refreshSubscription(
 // ---- Add and remove ------------------------------------------------------------------
 
 /**
- * Links a calendar: checks the link, the account's cap and duplicates, fetches it once
- * (a link that cannot be read is refused, so nothing is stored for it), stores it and
- * writes its events.
+ * Links a calendar for a Pro account: checks the link, the plan, the account's cap and
+ * duplicates, fetches it once (a link that cannot be read is refused, so nothing is
+ * stored for it), stores it and writes its events.
  */
 export async function addSubscription(
   deps: SubscriptionDeps,
@@ -916,8 +932,16 @@ export async function addSubscription(
     const status = error === 'duplicate' || error === 'too-many' ? 'conflict' : 'invalid-argument'
     throw new HttpError(status, SUBSCRIPTION_ERRORS[error])
   }
+  const proRequired = () => {
+    throw new HttpError('permission-denied', SUBSCRIPTION_ERRORS['pro-required'])
+  }
   const normalized = normalizeSubscriptionUrl(rawUrl)
   if (!normalized.ok) return refuse(normalized.error)
+  // Pro-only (REVIEW8 SEC L3): checked before the link is fetched, and again when it is
+  // stored.
+  if (!hasProEntitlement((await db.collection('users').doc(uid).get()).data(), now)) {
+    return proRequired()
+  }
   const hash = urlHash(normalized.url)
   const owned = db.collection(SUBSCRIPTIONS_COLLECTION).where('uid', '==', uid)
   const existing = await owned.limit(EVENT_SUBSCRIPTION_LIMITS.maxPerAccount + 1).get()
@@ -948,6 +972,7 @@ export async function addSubscription(
     if (tombstone.exists || !user.exists) {
       throw new HttpError('deletion-in-progress', 'Account deletion is in progress')
     }
+    if (!hasProEntitlement(user.data(), now)) proRequired()
     if (current.docs.some(doc => doc.data().urlHash === hash)) refuse('duplicate')
     if (current.size >= EVENT_SUBSCRIPTION_LIMITS.maxPerAccount) refuse('too-many')
     const data = {
@@ -1056,8 +1081,8 @@ export async function removeSubscription(
 }
 
 /**
- * A refresh the person asked for: allowed once per manualRefreshMinutes per link, and it
- * resumes a paused link.
+ * A refresh the person asked for: Pro only, allowed once per manualRefreshMinutes per
+ * link, and it resumes a paused link.
  */
 export async function refreshSubscriptionNow(
   deps: SubscriptionDeps,
@@ -1072,6 +1097,10 @@ export async function refreshSubscriptionNow(
     const data = link.data()
     if (!link.exists || data?.uid !== uid || data?.removing === true) {
       throw new HttpError('not-found', 'That calendar is not linked.')
+    }
+    const user = await transaction.get(db.collection('users').doc(uid))
+    if (!hasProEntitlement(user.data(), now)) {
+      throw new HttpError('permission-denied', SUBSCRIPTION_ERRORS['pro-required'])
     }
     const last = toMillis(data.manualRefreshAt)
     if (

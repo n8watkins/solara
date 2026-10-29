@@ -211,10 +211,11 @@ It replaces the manual GitHub Actions notifier, which was retired.
 
 ## Linked calendars and event heads-ups
 
-Phase 2 of [integrations/EVENTS.md](integrations/EVENTS.md#phase-2-as-built): a signed-in account links an https or webcal calendar address, Solara's servers fetch it now and every 6 hours, and Pro accounts get a heads-up before an imported or linked event with high UV.
+Phase 2 of [integrations/EVENTS.md](integrations/EVENTS.md#phase-2-as-built): a Pro account links an https or webcal calendar address, Solara's servers fetch it now and every 6 hours, and Pro accounts get a heads-up before an imported or linked event with high UV.
 Both deploy with the other Functions; linked calendars stay off until the `EVENTS_SUBSCRIPTIONS_ENABLED` repository variable is `true`, and heads-ups until it, `GOOGLE_CALENDAR_EVENTS_ENABLED` or `OUTLOOK_CALENDAR_EVENTS_ENABLED` is (REVIEW6 L1); heads-ups also need `ALERTS_ENABLED`, because the `alerts` job sends them.
 
 - **Endpoint:** `eventSubscriptions` (POST, `functions/src/events/endpoint.ts`) adds, refreshes or removes a link for the signed-in account, behind App Check, 20 requests a minute per address, 6 a minute and 20 fetches an hour per account, and the cost guard (`eventSubscriptions` feature).
+  Adding and refreshing need Pro (`403 permission-denied` otherwise, before any fetch), and the scheduled job pauses the links of an account that is no longer Pro without fetching them (`error: 'pro-required'`); removing works on any plan (REVIEW8 SEC L3).
 - **Fetcher** (`functions/src/events/safe-fetch.ts`): https on port 443 only (webcal is rewritten), no user name or password in the address; every host name is resolved by the Function and the connection goes to the checked address, so DNS cannot change between the check and the connection; every address must be public (no loopback, private, carrier-grade NAT, link-local or metadata, multicast, reserved or documentation ranges; IPv6 only global unicast outside its special blocks, so IPv4-mapped, NAT64 and 6to4 addresses are refused); at most 3 redirects, each checked the same way; 10 seconds for the whole fetch, decompression included, after which it settles whatever the site does; 1 MB of body on the wire and after decompression, read as one stream pipeline so a corrupt or oversized compressed body fails only that fetch (REVIEW5 H1); an allowlisted content type and a body that starts with `BEGIN:VCALENDAR`.
   No cookies or credentials are sent, conditional requests use the stored `ETag` and `Last-Modified`, and the address is never logged.
 - **Parsing:** the same bounded parser as the file import (`packages/core/src/ics-parse.ts`, REVIEW4 M2), at most 200 events per link.
@@ -302,7 +303,7 @@ Every browser-called endpoint also, in this order, so a rejected request costs a
 
 1. refuses a foreign origin or another method;
 2. turns away more than 60 requests a minute from one client address (`perAddressPerMinute`; 120 for the forecast proxy);
-3. refuses a body over 8 KiB with `413 payload-too-large`;
+3. refuses a body over 8 KiB with `413 payload-too-large` (a second check: see the body limit below);
 4. refuses a request without an App Check token;
 5. answers `503 unavailable` while the cost guard is engaged, for the endpoints it guards, before verifying the token (the guard is read from Firestore at most once a minute per instance);
 6. verifies App Check; `functions/test/hardening.test.js` fails when an HTTP function other than `stripeWebhook` (Stripe signature) and `calendarFeed` (feed token, rate limited) skips it;
@@ -312,7 +313,13 @@ None of steps 1-4 reads Firestore or calls another service.
 Rejections are logged once a minute per endpoint and kind of rejection, with the number held back since the last line (`functions/src/shared/log-throttle.ts`), so a flood writes a few lines a minute instead of one per request.
 `infra/logging.sh` also drops 99% of Cloud Run's own request logs for 4xx answers, and every feed request log ([Keep feed tokens out of request logs](#keep-feed-tokens-out-of-request-logs)).
 
-The Stripe webhook refuses bodies over 256 KiB and more than 300 requests a minute from one address before checking the signature.
+Before any of that, every HTTP function refuses a body over its limit (8 KiB, 256 KiB for the Stripe webhook; `MAX_BODY_BYTES` in `functions/src/shared/body-limit.ts`) before the Functions Framework reads it (REVIEW8 SEC L1).
+The framework itself parses any body Cloud Run passes, up to 32 MiB, before a function runs, and one 30 MB JSON body took a 256 MiB instance from about 135 MB to over 400 MB.
+So the deploy entry point (`functions/src/index.ts`) guards the server the framework creates: a declared length over the limit is answered 413 at once without reading the body, and a body without a length is held back until it is complete and within the limit, or answered 413 the moment it passes it; either way the connection is closed and the function never runs.
+`functions/test/body-limit.test.js` runs the real Functions Framework (`@google-cloud/functions-framework`, a pinned dependency so the deployed build runs the tested version instead of the one the build would add on its own) on the deploy entry point to prove it.
+
+The Stripe webhook refuses more than 60 requests a minute from one address and bodies over 256 KiB before checking the signature, and builds the Stripe client only for a verified event; its rejections are logged once a minute per kind like the others (REVIEW8 SEC L2).
+Stripe sends from a few addresses, far fewer than one event a second each, and retries a refused delivery for three days.
 
 The client address is the `X-Forwarded-For` entry Google's front end appends (`clientAddress` in `functions/src/shared/client-address.ts`).
 IPv6 addresses are counted by their /64 prefix, because one ordinary connection is given a whole /64 and could otherwise use a new address for every request; an IPv4-mapped IPv6 address counts as its IPv4 address.

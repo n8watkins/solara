@@ -33,7 +33,8 @@ test('a recognised Google link goes through the add flow and is named on its car
   page.on('console', message => logged.push(message.text()))
   const calls = subscriptionCalls(page)
   const account = await emulators.createAccount('Ola Reyes')
-  await emulators.seedPrefs(account, { activities: [RUNNING] })
+  // Linked calendars are Pro-only (REVIEW8 SEC L3).
+  await emulators.seedPrefs(account, { tier: 'paid', activities: [RUNNING] })
   await openDashboard(page, account)
 
   const panel = page.getByTestId('event-subscriptions')
@@ -81,4 +82,21 @@ test('a recognised Google link goes through the add flow and is named on its car
   // The link is never written back into the page or the console.
   expect(await page.content()).not.toContain(TOKEN)
   expect(logged.join('\n')).not.toContain(TOKEN)
+})
+
+test('a Free account sees linked calendars as part of Pro and sends nothing', async ({
+  page,
+  emulators,
+}) => {
+  const calls = subscriptionCalls(page)
+  const account = await emulators.createAccount('Fran Free')
+  await emulators.seedPrefs(account, { activities: [RUNNING] })
+  await openDashboard(page, account)
+
+  const panel = page.getByTestId('event-subscriptions')
+  await expect(panel.getByTestId('event-subscriptions-offer')).toContainText(
+    'With Pro, paste a calendar link',
+  )
+  await expect(panel.getByRole('textbox', { name: 'Calendar link' })).toHaveCount(0)
+  expect(calls).toEqual([])
 })

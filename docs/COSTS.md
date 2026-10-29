@@ -98,11 +98,14 @@ Free quotas protect nothing once billing is attached, so the Functions are built
 
 - every function has a small fixed size and a launch-sized instance cap (16 HTTP instances in all), so CPU-seconds and billed requests cannot grow without limit;
 - every browser endpoint needs App Check and has per-address and per-account rate limits and a body size cap, and turns a request away before any Firestore read or upstream call;
+- every HTTP function refuses a body over its limit (8 KiB, 256 KiB for the Stripe webhook) before the Functions Framework reads it, so a few 30 MB bodies cannot run a 256 MiB instance out of memory (REVIEW8 SEC L1);
+- the Stripe webhook takes at most 60 requests a minute from one address and logs forged ones once a minute, so a flood of fake webhooks stays cheap and quiet (REVIEW8 SEC L2);
 - rejections are logged once a minute, not once per request, and `infra/logging.sh` drops 99% of Cloud Run's request logs for rejected requests;
 - the forecast proxy, the calendar feed and the alerts share one cache per place and hour, so traffic does not multiply upstream calls, and a global budget caps the paid forecast calls of the proxy, the feed and event heads-ups at 1,500 an hour and 20,000 a day (about 60% of the Standard plan), so a script walking new places cannot spend the plan's quota;
 - that budget has two sides, each allowed at most two thirds of it (1,000 an hour, 13,333 a day): the browser's forecasts, and the server's own work for accounts (the calendar feed and event heads-ups), so a flood of browser callers cannot stop the feed or Pro heads-ups, and the server side cannot leave guests without forecasts for new places (REVIEW5 L1, REVIEW6 L3);
 - within each budget every caller (an IPv4 address and its /24 at 4 times as much, or an IPv6 /64 and its /48 at 4 times as much, or an account for heads-ups) may cause only 20 paid calls an hour, so one caller or one network cannot spend everyone's hour, and place search has its own budget (200 an hour, 2,000 a day, about 6% of the plan), so searches and forecasts cannot starve each other; while a budget is spent, people get the last good forecast up to 12 hours old instead of an error (REVIEW4 H1);
-- the Firestore rules cap list sizes, and every server-owned record and scheduled activity expires;
+- the Firestore rules cap list sizes, hold the key lists to record keys mapped to `true` and the group selection to 768 characters (REVIEW8 SEC L4), and every server-owned record and scheduled activity expires;
+- linked calendars are Pro-only (REVIEW8 SEC L3, default, owner may change): a Free account cannot link one, and the link of an account that is no longer Pro is paused without a fetch, so their cost grows with paying accounts, not with free Google accounts;
 - linked calendars are bounded per account: at most 5 links, each fetched every 6 hours by the refresh job and within 10 seconds and 1 MB; adding or refreshing by hand is limited to 20 fetches an hour per account; their place lookups have their own budget (50 an hour, 300 a day), so they cannot take place search from guests.
 
 The budget kill switch is the last line ([runbook](RUNBOOK.md#budget-kill-switch)), with three tiers (defaults, owner may change):
@@ -136,7 +139,17 @@ Firestore's free quota is 20,000 writes, 20,000 deletes and 50,000 reads a day f
 
 - On Spark: a few minutes of such a loop use the day's quota, and then everyone's settings, events and scheduled activities stop saving, and later loading, until midnight Pacific time.
 - On Blaze: it costs about $0.09 per 100,000 writes and $0.03 per 100,000 reads (us-central1, the rates above), with no limit until the kill switch detaches billing (the worst month below applies), and then it stops as on Spark.
-- Mitigations: App Check enforcement for Firestore ([owner checklist step A7](OWNER_CHECKLIST.md#anytime-free-no-blaze)), which stops scripts outside a real browser, though not a loop inside a real browser tab; caps on the Firestore API's requests per minute in Google Cloud, **IAM and admin**, **Quotas** (`firestore.googleapis.com`), set well above real use, which bound any flood for the whole project; a Cloud Monitoring alert on Firestore document writes and reads per minute that emails the owner within minutes; and, later, a per-account write rate in the rules or bulk event writes behind a Function with a per-account limit.
+- Mitigations: App Check enforcement for Firestore ([owner checklist step A7](OWNER_CHECKLIST.md#anytime-free-no-blaze)), which stops scripts outside a real browser, though not a loop inside a real browser tab; caps on the Firestore API's requests per minute in Google Cloud, **IAM and admin**, **Quotas** (`firestore.googleapis.com`), set well above real use, which bound any flood for the whole project; a Cloud Monitoring alert on Firestore document writes and reads per minute that emails the owner within minutes; and, if an attack ever happens, bulk event writes behind a Function with a per-account limit.
+
+A per-account write rate in the rules was considered and left out (REVIEW8 SEC M2), because it would be fragile and would not protect the quota:
+
+- Rules can only gate a write on a timestamp the same write sets, for example the event key list's `updatedAt` at least a second older than `request.time`.
+  That gates only batches that touch the key list: deleting an event, rewriting an event already listed, and every settings write never touch it, so a loop simply moves to one of those, and gating each of them too would add a second billed write to every save.
+- Even a working gate of one write a second lets one account make 86,400 writes a day, more than Spark's 20,000 for the whole project, while a gate tight enough to protect the quota (a few writes a minute) would break real use: a 1,000-event import is three batches, a Google Calendar or Outlook refresh writes up to 200 events, and the retention clean-up on each visit and "Remove all" write their own batches.
+- Two tabs saving within the same second would fail each other's writes, which the app would have to retry everywhere.
+- Reads cannot be gated at all.
+
+So the defence is the project-wide one: the Firestore quota caps and the operations alert (owner steps), App Check, and on Blaze the budget kill switch.
 
 ### Flooding the Functions (Blaze, from many addresses)
 
@@ -151,7 +164,7 @@ What an attacker can make Solara spend by flooding the Functions from many addre
 - Firestore, Stripe and the forecast provider: nothing, because no rejected request reaches them.
 - Accepted cache misses: each one charges a caller's share in one Firestore transaction (two reads and writes: the address and its /24 or /48; one for an account), and every 10 misses take a lease from the budget's counters in one more (four reads and writes with the side's own counters); the misses are bounded by the forecast, place search and linked calendar place lookup budgets (at most 1,750 an hour: 1,500, 200 and 50), so a few cents a day; a caller past its share costs one more transaction per instance and hour, then nothing.
 - Linked calendars, which an account can drive by hand (REVIEW5 M2): the worst is an account with 5 links whose site changes every one of 200 events on every fetch, refreshed 20 times an hour, which makes about 100,000 Firestore reads and 100,000 writes a day (about $0.25 a day); unchanged calendars write nothing.
-  This grows with the number of Google accounts an attacker signs in, not with requests, and is the reason linking could be limited to Pro if it is ever abused.
+  This grew with the number of Google accounts an attacker signs in, not with requests (100 free accounts with 5 such links each could reach the $25 budget in about a day and pause linked calendars, the feed and notification registration for everyone, REVIEW8 SEC L3), so linking is Pro-only: each such account now costs its owner a Pro subscription.
 
 So a sustained, distributed flood of the Functions costs at most about $590 a day, about $25 an hour, against $1,900 a day or more before these limits (37 instances and a log line per request).
 The budget kill switch is what ends it ([above](#abuse-and-the-kill-switch)): billing is detached once the month's spend reaches $75, and since Cloud Billing reports spend hours late (often 6-24 hours), the worst month is roughly $75 plus that lag at $25 an hour, about $225-$675, before nothing more can be billed.

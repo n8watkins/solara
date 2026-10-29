@@ -5,8 +5,14 @@
 // modules is deployed under its exported name: renaming one deletes the old function and
 // creates a new one, and only Cloud Functions may be exported from them.
 
+import { installRequestBodyLimit } from './shared/body-limit'
+
 // Stack traces point at the TypeScript source (lib/ ships with source maps).
 process.setSourceMapsEnabled(true)
+
+// Bodies over an endpoint's limit are refused before the Functions Framework reads them
+// (REVIEW8 SEC L1); the framework creates its server after loading this module.
+installRequestBodyLimit()
 
 export * from './account/functions'
 export * from './billing/functions'

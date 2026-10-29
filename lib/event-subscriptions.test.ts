@@ -65,6 +65,10 @@ describe('subscriptionView', () => {
     expect(paused.problem).toMatch(
       /^Paused after a week of failed checks\..*Refresh to try again\.$/,
     )
+    // Paused by the server while the account was not Pro (REVIEW8 SEC L3).
+    expect(
+      subscriptionView({ ...base, status: 'paused', error: 'pro-required' }, NOW).problem,
+    ).toBe('Paused: linked calendars are part of Pro. With Pro, refresh to start it again.')
     expect(subscriptionView({ ...base, refused: 3 }, NOW).refused).toMatch(/^3 events did not fit/)
   })
 })

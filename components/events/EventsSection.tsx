@@ -209,7 +209,7 @@ export default function EventsSection({ uid, prefs, weather, displayTier, onUpgr
         />
       </div>
       <p className="mt-1 text-[13px] leading-normal text-ink-3">
-        The UV during events you plan to go to, {eventSources()}.
+        The UV during events you plan to go to, {eventSources(displayTier === 'paid')}.
       </p>
 
       {(progress || status || loadError) && (
@@ -356,7 +356,12 @@ export default function EventsSection({ uid, prefs, weather, displayTier, onUpgr
 
       {eventSubscriptionsLaunched() && (
         <Suspense fallback={null}>
-          <EventSubscriptions uid={uid} nowMs={nowMs} />
+          <EventSubscriptions
+            uid={uid}
+            nowMs={nowMs}
+            pro={displayTier === 'paid'}
+            onUpgrade={onUpgrade}
+          />
         </Suspense>
       )}
 
@@ -395,13 +400,13 @@ export default function EventsSection({ uid, prefs, weather, displayTier, onUpgr
 }
 
 /**
- * Where events come from, as switched on: "from a calendar (.ics) file, a calendar link,
- * Google Calendar or Outlook".
+ * Where events come from, as switched on and in the plan: "from a calendar (.ics) file, a
+ * calendar link, Google Calendar or Outlook". Calendar links are Pro's (REVIEW8 SEC L3).
  */
-function eventSources(): string {
+function eventSources(pro: boolean): string {
   const sources = [
     'a calendar (.ics) file',
-    ...(eventSubscriptionsLaunched() ? ['a calendar link'] : []),
+    ...(eventSubscriptionsLaunched() && pro ? ['a calendar link'] : []),
     ...(googleCalendarEventsLaunched() ? ['Google Calendar'] : []),
     ...(outlookCalendarEventsLaunched() ? ['Outlook'] : []),
   ]

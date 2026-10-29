@@ -37,6 +37,9 @@ export function calendarFeatureLabel(
   return env.googleClientId || feed ? 'Calendar sync' : 'Calendar export'
 }
 
+/** The comparison row for linked calendars, which Solara keeps current on its server. */
+export const LINKED_CALENDARS_LABEL = 'Linked calendars, kept current'
+
 /** The comparison row for family profiles and planning by the most sensitive person. */
 export const FAMILY_PROFILES_LABEL = 'Family profiles, most sensitive first'
 
@@ -66,6 +69,10 @@ export const PRO_FEATURES: ProFeature[] = [
   { label: calendarFeatureLabel(), ...perTier(tier => TIER_LIMITS[tier].calendar) },
   // Imported events need an account to keep them (docs/integrations/EVENTS.md).
   { label: 'UV at your events (.ics)', ...perTier(tier => tier !== 'anonymous') },
+  // Linked calendars are Pro-only (REVIEW8 SEC L3), listed once they are switched on.
+  ...(eventSubscriptionsLaunched()
+    ? [{ label: LINKED_CALENDARS_LABEL, ...perTier(tier => tier === 'paid') }]
+    : []),
   {
     // Group planning by the most sensitive person comes with family profiles
     // (planningFor in packages/core/src/prefs.ts).
