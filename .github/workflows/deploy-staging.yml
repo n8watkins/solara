@@ -1,0 +1,327 @@
+# Staging deploy, run by hand: deploys a ref (main by default) to the staging Firebase
+# project, or only its site to a 7-day preview channel there (docs/DEPLOYMENT.md,
+# Staging). Production's deploy (deploy.yml) is separate and never runs from here.
+#
+# Every setting is a STAGING_* variable (and the STAGING_FIREBASE_SERVICE_ACCOUNT
+# secret, until Workload Identity Federation) in the `staging` GitHub environment.
+# Names never match production's, because an environment falls back to the
+# repository's variable or secret of the same name: a missing staging value stays
+# missing instead of becoming production's. .github/scripts/staging-target.mjs
+# resolves them and refuses production's project, sites, hosts, keys and service
+# accounts; until STAGING_FIREBASE_PROJECT_ID is set the run skips with a notice.
+#
+# The workflow itself always comes from main (each job checks the ref, and the staging
+# environment should allow only main), so its guards cannot be edited by the branch
+# being deployed; the `ref` input chooses the code. The ref is resolved to one commit
+# first, so the build and the deploy use the same code.
+name: Deploy staging
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch, tag or commit to deploy
+        required: true
+        default: main
+        type: string
+      channel:
+        description: "live for the staging site, or a preview channel id (such as pr-152): the site only, for 7 days"
+        required: true
+        default: live
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+jobs:
+  config:
+    name: Staging configuration
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: staging
+    permissions:
+      contents: read
+    outputs:
+      configured: ${{ steps.target.outputs.configured }}
+      commit: ${{ steps.commit.outputs.sha }}
+      project: ${{ steps.target.outputs.project }}
+      site: ${{ steps.target.outputs.site }}
+      app-url: ${{ steps.target.outputs.app-url }}
+      channel: ${{ steps.target.outputs.channel }}
+      functions: ${{ steps.target.outputs.functions }}
+      build-env: ${{ steps.target.outputs.build-env }}
+    steps:
+      # The checks come from main, the workflow's own commit.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check out the ref to deploy
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+          path: target
+          persist-credentials: false
+
+      - name: Resolve the commit
+        id: commit
+        run: |
+          sha=$(git -C target rev-parse HEAD)
+          if [ ! -f target/.github/scripts/staging-target.mjs ]; then
+            echo "::error::Commit $sha predates the staging deploy and cannot be deployed to staging."
+            exit 1
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "Deploying commit $sha."
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+
+      - name: Check the staging configuration
+        id: target
+        env:
+          VARS: ${{ toJSON(vars) }}
+          HAS_STAGING_KEY: ${{ secrets.STAGING_FIREBASE_SERVICE_ACCOUNT != '' }}
+          COMMIT: ${{ steps.commit.outputs.sha }}
+          CHANNEL: ${{ inputs.channel }}
+        run: node .github/scripts/staging-target.mjs --check --commit "$COMMIT" --channel "$CHANNEL"
+
+  build:
+    name: Build staging artifact
+    needs: config
+    if: github.ref == 'refs/heads/main' && needs.config.outputs.configured == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    outputs:
+      site-sha256: ${{ steps.package.outputs.sha256 }}
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.config.outputs.commit }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+
+      - name: Install dependencies
+        run: |
+          npm ci --ignore-scripts
+          npm ci --prefix functions --ignore-scripts
+
+      # Only the names staging-target.mjs writes, one value per line.
+      - name: Load the staging build configuration
+        env:
+          BUILD_ENV: ${{ needs.config.outputs.build-env }}
+        run: |
+          pattern='^(FIREBASE_PROJECT_ID|ENABLE_BLAZE_FUNCTIONS|NEXT_PUBLIC_[A-Z0-9_]+)=[^[:cntrl:]]*$'
+          while IFS= read -r line; do
+            if [[ ! "$line" =~ $pattern ]]; then
+              echo "::error::Unexpected staging build setting: ${line%%=*}"
+              exit 1
+            fi
+            echo "$line" >> "$GITHUB_ENV"
+          done <<< "$BUILD_ENV"
+
+      - name: Check the public build configuration
+        run: node .github/scripts/check-public-env.mjs
+
+      - name: Build the static export
+        run: npm run build
+
+      # Also fails on production's project id or a production host in the export.
+      - name: Check the configuration compiled into the export
+        run: node .github/scripts/check-public-env.mjs --built out
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Smoke-test the artifact on the Hosting emulator
+        run: npx playwright test --grep @smoke
+        env:
+          E2E_SITE_DIR: out
+
+      - name: Package the artifact
+        id: package
+        env:
+          COMMIT: ${{ needs.config.outputs.commit }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          tar --sort=name --mtime='@0' --owner=0 --group=0 --numeric-owner \
+            -czf dist/site.tar.gz -C out .
+          sha256=$(sha256sum dist/site.tar.gz | cut -d' ' -f1)
+          echo "sha256=$sha256" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Staging artifact"
+            echo "- Commit: \`$COMMIT\`"
+            echo "- \`site.tar.gz\` SHA-256: \`$sha256\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: staging-site
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload the smoke-test report
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: staging-smoke-report
+          path: playwright-report/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  deploy:
+    name: Deploy to staging
+    needs: [config, build]
+    if: github.ref == 'refs/heads/main' && needs.config.outputs.configured == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    environment:
+      name: staging
+      url: ${{ needs.config.outputs.app-url }}
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      STAGING_PROJECT: ${{ needs.config.outputs.project }}
+      STAGING_SITE: ${{ needs.config.outputs.site }}
+      CHANNEL: ${{ needs.config.outputs.channel }}
+      COMMIT: ${{ needs.config.outputs.commit }}
+      FIREBASE: functions/node_modules/.bin/firebase
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.config.outputs.commit }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+
+      # Again before any credential, now also against production's public values that
+      # are still repository secrets; writes the Functions params with APP_URL.
+      - name: Check staging against production and write the Functions params
+        env:
+          VARS: ${{ toJSON(vars) }}
+          HAS_STAGING_KEY: ${{ secrets.STAGING_FIREBASE_SERVICE_ACCOUNT != '' }}
+          PRODUCTION_NEXT_PUBLIC_FIREBASE_API_KEY: ${{ secrets.NEXT_PUBLIC_FIREBASE_API_KEY }}
+          PRODUCTION_NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ secrets.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}
+          PRODUCTION_NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
+          PRODUCTION_NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ${{ secrets.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET }}
+          PRODUCTION_NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
+          PRODUCTION_NEXT_PUBLIC_FIREBASE_APP_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_APP_ID }}
+          PRODUCTION_NEXT_PUBLIC_FIREBASE_VAPID_KEY: ${{ secrets.NEXT_PUBLIC_FIREBASE_VAPID_KEY }}
+          PRODUCTION_NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY: ${{ secrets.NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY }}
+          PRODUCTION_NEXT_PUBLIC_SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL }}
+          PRODUCTION_NEXT_PUBLIC_FUNCTIONS_URL: ${{ secrets.NEXT_PUBLIC_FUNCTIONS_URL }}
+          PRODUCTION_NEXT_PUBLIC_GA_MEASUREMENT_ID: ${{ secrets.NEXT_PUBLIC_GA_MEASUREMENT_ID }}
+        run: node .github/scripts/staging-target.mjs --functions-env "functions/.env.$STAGING_PROJECT"
+
+      - name: Check the staging key is not production's
+        if: vars.STAGING_GCP_WORKLOAD_IDENTITY_PROVIDER == ''
+        env:
+          KEY: ${{ secrets.STAGING_FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          production=$(jq -r .projectId .github/scripts/production.json)
+          project=$(jq -r '.project_id // empty' <<< "$KEY")
+          email=$(jq -r '.client_email // empty' <<< "$KEY")
+          if [ "$project" = "$production" ] || [[ "$email" == *"@$production.iam.gserviceaccount.com" ]]; then
+            echo "::error::STAGING_FIREBASE_SERVICE_ACCOUNT is a production key; create a deploy key in the staging project."
+            exit 1
+          fi
+
+      - uses: ./.github/actions/firebase-cli
+        with:
+          workload-identity-provider: ${{ vars.STAGING_GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service-account: ${{ vars.STAGING_GCP_DEPLOY_SERVICE_ACCOUNT }}
+          credentials-json: ${{ secrets.STAGING_FIREBASE_SERVICE_ACCOUNT }}
+
+      # .firebaserc maps the app target for the default staging project; this maps it
+      # for the configured one (only in this runner) and proves where Hosting will go.
+      - name: Point the app target at the staging site
+        run: |
+          "$FIREBASE" target:clear hosting app --project "$STAGING_PROJECT"
+          "$FIREBASE" target:apply hosting app "$STAGING_SITE" --project "$STAGING_PROJECT"
+          node .github/scripts/check-hosting-target.js "$STAGING_PROJECT" hosting:app --expect "$STAGING_SITE"
+
+      - name: Deploy Firestore indexes
+        if: env.CHANNEL == 'live'
+        run: |
+          if ! "$FIREBASE" deploy --only firestore:indexes --project "$STAGING_PROJECT" --non-interactive; then
+            echo "::error::Firestore indexes were not deployed to staging. The staging deploy identity needs roles/datastore.indexAdmin."
+            exit 1
+          fi
+
+      - name: Deploy Firestore rules
+        if: env.CHANNEL == 'live'
+        run: '"$FIREBASE" deploy --only firestore:rules --project "$STAGING_PROJECT" --non-interactive'
+
+      - name: Build the Functions
+        if: env.CHANNEL == 'live' && needs.config.outputs.functions == 'true'
+        run: |
+          npm ci --ignore-scripts
+          npm run build --prefix functions
+
+      - name: Check Functions params
+        if: env.CHANNEL == 'live' && needs.config.outputs.functions == 'true'
+        run: node .github/scripts/check-functions-params.js "$STAGING_PROJECT"
+
+      - name: Check the Functions deploy payload
+        if: env.CHANNEL == 'live' && needs.config.outputs.functions == 'true'
+        run: node .github/scripts/check-functions-payload.js
+
+      - name: Deploy Functions
+        if: env.CHANNEL == 'live' && needs.config.outputs.functions == 'true'
+        run: '"$FIREBASE" deploy --only functions --project "$STAGING_PROJECT" --non-interactive --force'
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: staging-site
+          path: ${{ runner.temp }}/dist
+
+      - name: Verify and unpack the tested artifact
+        env:
+          EXPECTED_SHA256: ${{ needs.build.outputs.site-sha256 }}
+          DIST: ${{ runner.temp }}/dist
+        run: |
+          set -euo pipefail
+          echo "${EXPECTED_SHA256}  $DIST/site.tar.gz" | sha256sum --check --strict
+          mkdir out
+          tar -xzf "$DIST/site.tar.gz" -C out
+
+      - name: Deploy Hosting
+        if: env.CHANNEL == 'live'
+        env:
+          SITE_SHA256: ${{ needs.build.outputs.site-sha256 }}
+        run: |
+          "$FIREBASE" deploy --only hosting:app --project "$STAGING_PROJECT" --non-interactive \
+            --message "$COMMIT (site.tar.gz sha256 $SITE_SHA256)"
+          echo "Deployed commit \`$COMMIT\` to staging: https://$STAGING_SITE.web.app" >> "$GITHUB_STEP_SUMMARY"
+
+      # Signed-out review only: sign-in, App Check and the Functions allow the live
+      # staging origin, not a channel's own address.
+      - name: Deploy a preview channel
+        if: env.CHANNEL != 'live'
+        run: |
+          set -euo pipefail
+          "$FIREBASE" hosting:channel:deploy "$CHANNEL" --only app --expires 7d \
+            --no-authorized-domains --project "$STAGING_PROJECT" --non-interactive --json > channel.json
+          url=$(jq -r '[.result[]?.url] | join(" ")' channel.json)
+          echo "Preview of \`$COMMIT\` for 7 days: $url" | tee -a "$GITHUB_STEP_SUMMARY"

@@ -38,7 +38,7 @@ describe('Hosting targets', () => {
   })
 
   it('never maps a production site to another project', () => {
-    const production = Object.values(rc.targets['uv-activity-planner'].hosting).flat()
+    const production = Object.values(rc.targets['uv-activity-planner']!.hosting).flat()
     for (const [project, targets] of Object.entries(rc.targets)) {
       if (project === 'uv-activity-planner') continue
       for (const site of Object.values(targets.hosting).flat()) {

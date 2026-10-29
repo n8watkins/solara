@@ -65,3 +65,62 @@ for (const file of ['deploy.yml']) {
     assert.deepEqual(unguardedJobs(workflow), [])
   })
 }
+
+// The staging deploy: its workflow also comes only from main, each credentialed job is
+// in the staging environment and waits for a configured staging target, it reads only
+// STAGING_* settings (production's public values only to refuse them), and every
+// Firebase command names the staging project and only the app's Hosting target.
+const staging = readFileSync(new URL('../workflows/deploy-staging.yml', import.meta.url), 'utf8')
+const production = readFileSync(new URL('../workflows/deploy.yml', import.meta.url), 'utf8')
+
+test('deploy-staging.yml uses credentials only on main, in the staging environment', () => {
+  assert.deepEqual(unguardedJobs(staging), [])
+  for (const [name, block] of Object.entries(jobs(staging))) {
+    if (!/secrets\.|id-token: write/.test(block)) continue
+    assert.match(block, /^ {4}environment:(?: staging| *\n {6}name: staging)$/m, name)
+  }
+})
+
+test('deploy-staging.yml deploys only once staging is configured', () => {
+  for (const [name, block] of Object.entries(jobs(staging))) {
+    if (name === 'config') continue
+    assert.match(jobCondition(block), /needs\.config\.outputs\.configured == 'true'/, name)
+  }
+})
+
+test('deploy-staging.yml reads only staging settings and credentials', () => {
+  const variables = [...staging.matchAll(/\bvars\.([A-Z0-9_]+)/g)].map(match => match[1])
+  assert.deepEqual(
+    variables.filter(name => !name.startsWith('STAGING_')),
+    [],
+  )
+  for (const [, env, name] of staging.matchAll(
+    /^ +([A-Z0-9_]+): \$\{\{ secrets\.([A-Z0-9_]+) \}\}$/gm,
+  )) {
+    if (name.startsWith('STAGING_')) continue
+    // Production's public build values, passed only to be refused.
+    assert.ok(name.startsWith('NEXT_PUBLIC_') && env === `PRODUCTION_${name}`, `${env}: ${name}`)
+  }
+  const secrets = [...staging.matchAll(/\bsecrets\.([A-Z0-9_]+)/g)].map(match => match[1])
+  assert.deepEqual(
+    secrets.filter(name => !name.startsWith('STAGING_') && !name.startsWith('NEXT_PUBLIC_')),
+    [],
+  )
+})
+
+test('every Firebase command in deploy-staging.yml targets the staging project', () => {
+  // Shell continuation lines joined, so each command is one line.
+  const commands = staging.replace(/\\\n\s*/g, ' ').match(/"\$FIREBASE" [^\n]*/g) ?? []
+  assert.ok(commands.length >= 6)
+  for (const command of commands) {
+    assert.match(command, /--project "\$STAGING_PROJECT"/, command)
+    if (/deploy --only hosting|channel:deploy/.test(command)) {
+      assert.match(command, /--only (hosting:)?app /, command)
+    }
+  }
+  assert.doesNotMatch(staging, /--project "?\$FIREBASE_PROJECT_ID/)
+})
+
+test('deploy.yml never reads a staging setting', () => {
+  assert.doesNotMatch(production, /STAGING_|deploy-staging|environment: staging/)
+})
