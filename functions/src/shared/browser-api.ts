@@ -5,6 +5,7 @@ import type { FunctionName, FunctionResponse } from '#core'
 import { getAppCheck } from 'firebase-admin/app-check'
 import { defineString } from 'firebase-functions/params'
 
+import { maxBodyBytesFor } from './body-limit'
 import { CostGuard } from './cost-guard'
 import { db } from './firebase'
 import { type ApiHandlerOptions, type HttpHandler, createApiHandler } from './http'
@@ -44,6 +45,7 @@ export function browserApi<Name extends FunctionName>(
 ): HttpHandler {
   APP_CHECK_ENDPOINTS.add(options.name)
   return createApiHandler({
+    maxBodyBytes: maxBodyBytesFor(options.name),
     ...options,
     allowedOrigin: appOrigin,
     appCheck: () => getAppCheck(),

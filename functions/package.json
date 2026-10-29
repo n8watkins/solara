@@ -35,6 +35,7 @@
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "^6.0.0",
+    "@google-cloud/functions-framework": "5.0.5",
     "@types/node": "^24.19.2",
     "firebase": "^13.1.0",
     "firebase-tools": "^15.34.1",

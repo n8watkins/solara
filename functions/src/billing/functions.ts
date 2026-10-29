@@ -6,6 +6,7 @@ import { logger } from 'firebase-functions/logger'
 import { onRequest } from 'firebase-functions/v2/https'
 import type Stripe from 'stripe'
 
+import { maxBodyBytesFor } from '../shared/body-limit'
 import { appOrigin, browserApi } from '../shared/browser-api'
 import { loggableError } from '../shared/errors'
 import { db, serverTimestamp } from '../shared/firebase'
@@ -78,7 +79,7 @@ export const createBillingPortalSession = onRequest(
 )
 
 /** Stripe's event payloads are a few KiB; anything far larger is not from Stripe. */
-const WEBHOOK_MAX_BODY_BYTES = 256 * 1024
+const WEBHOOK_MAX_BODY_BYTES = maxBodyBytesFor('stripeWebhook')
 /**
  * Stripe sends from a few addresses and retries with backoff, so this only stops a
  * flood of forged requests, each of which would otherwise cost a signature check.

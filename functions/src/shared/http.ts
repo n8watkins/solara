@@ -15,6 +15,7 @@ import type { AppCheck } from 'firebase-admin/app-check'
 import type { Request, Response } from 'firebase-functions/v2/https'
 
 import { type AppCheckMode, verifyAppCheck } from './app-check'
+import { DEFAULT_MAX_BODY_BYTES } from './body-limit'
 import { ProxyHopMonitor, clientScopes } from './client-address'
 import type { CostFeature } from './cost-guard'
 import { HttpError, loggableError, publicError } from './errors'
@@ -40,7 +41,11 @@ export interface ApiHandlerOptions<T> {
    * App Check so floods are turned away at the cheapest point. Default 60.
    */
   perAddressPerMinute?: number
-  /** The largest request body accepted, in bytes. Default 8 KiB (every body is tiny JSON). */
+  /**
+   * The largest request body accepted, in bytes. Default 8 KiB (every body is tiny JSON).
+   * The deploy entry point refuses larger bodies before they are read (shared/body-limit.ts);
+   * this check is the second line, for any path that skips that guard.
+   */
   maxBodyBytes?: number
   /** Turns the endpoint off while the cost guard is engaged (shared/cost-guard.ts). */
   costFeature?: CostFeature
@@ -90,13 +95,15 @@ export function setApiHeaders(res: Response): void {
 }
 
 export const DEFAULT_PER_ADDRESS_PER_MINUTE = 60
-export const DEFAULT_MAX_BODY_BYTES = 8 * 1024
+export { DEFAULT_MAX_BODY_BYTES }
 
-/** The size of a request body: the bytes received, or the declared length. */
+/** The size of a request body: the larger of the bytes received and the declared length. */
 export function requestBodyBytes(req: Request): number {
-  if (req.rawBody) return req.rawBody.length
   const declared = Number(req.headers['content-length'])
-  return Number.isFinite(declared) && declared > 0 ? declared : 0
+  return Math.max(
+    req.rawBody?.length ?? 0,
+    Number.isFinite(declared) && declared > 0 ? declared : 0,
+  )
 }
 
 /**
