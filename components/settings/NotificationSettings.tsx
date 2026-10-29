@@ -8,6 +8,7 @@ import { TIER_LIMITS } from '@solara/core/tiers'
 import { alertsLaunched, eventHeadsUpsLaunched } from '@/lib/plans'
 import { eventHeadsUpSentence } from '@/lib/event-heads-up-copy'
 import { installEnvironment, pushNeedsHomeScreen } from '@/lib/install-prompt'
+import { isStoreBuild } from '@/lib/store-build'
 import { notificationRegistrationConfigured } from '@/lib/notifications'
 import { useNotificationToggle } from '@/lib/use-notification-toggle'
 import { useUnits } from '@/lib/use-units'
@@ -93,18 +94,27 @@ function ProAlertsOffer({
   waitlisted: boolean
   onSeePlans?: () => void
 }) {
+  // An app store build names no plan to buy (lib/store-build.ts, REVIEW9 QA L5).
+  const store = isStoreBuild()
+  const when = alertsLaunched()
+    ? store
+      ? 'Included with a Pro account.'
+      : 'Included with Pro.'
+    : store
+      ? 'Coming soon.'
+      : 'Coming soon with Pro.'
   return (
     <SettingsCard className="flex flex-col gap-1.5">
       <div className="flex items-start justify-between gap-3.5">
         <SettingsTitle>{TITLE}</SettingsTitle>
-        {!included && (
+        {!included && !store && (
           <span className="text-[11px] font-bold tracking-[0.05em] whitespace-nowrap text-accent uppercase">
             Pro
           </span>
         )}
       </div>
       <SettingsHint className="leading-[1.45]">
-        {what()} {alertsLaunched() ? 'Included with Pro.' : 'Coming soon with Pro.'}
+        {what()} {when}
       </SettingsHint>
       {/* Like every other Pro offer, it has a way to Pro (REVIEW6 L7). */}
       {!included && onSeePlans && (
@@ -148,7 +158,7 @@ function FreeAlertControls({ user, draft, onChange }: Omit<Props, 'tier'>) {
             <label htmlFor={`${id}-daily`}>Daily UV</label>
           </SettingsTitle>
           <SettingsHint id={`${id}-daily-desc`} className="leading-[1.45]">
-            Only on days the UV reaches moderate or higher.
+            Only on days the UV reaches moderate or higher, or would under a clear sky.
           </SettingsHint>
         </div>
         <select

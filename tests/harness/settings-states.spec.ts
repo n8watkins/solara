@@ -184,6 +184,11 @@ const STATES: State[] = [
     act: async page => {
       await openTab(page, 'Alerts')
       await expect(settings(page).getByText(/Coming soon with Pro\./)).toBeVisible()
+      // Nothing is promised that is switched off (REVIEW9 QA L1).
+      await expect(
+        settings(page).getByText('Morning and UV alerts on your devices, coming soon.'),
+      ).toBeVisible()
+      await expect(settings(page).getByText(/sunscreen reminders/)).toHaveCount(0)
     },
   },
   {

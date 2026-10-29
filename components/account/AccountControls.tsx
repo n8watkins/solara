@@ -12,13 +12,14 @@ import { ChevronDown } from 'lucide-react'
 import {
   DATA_REQUEST_DAYS,
   DATA_REQUEST_EMAIL,
-  DELETED_DATA,
-  DELETION_NOTES,
   DELETION_SUMMARY,
   EXPORT_EXCLUDED,
-  EXPORT_SECTIONS,
   EXPORT_SUMMARY,
+  buildAccountFeatures,
   capitalized,
+  deletedDataShown,
+  deletionNotesShown,
+  exportSectionsShown,
 } from '@/lib/account-data'
 
 export type AccountBusy = 'billing' | 'export' | 'delete' | null
@@ -58,6 +59,8 @@ export default function AccountControls({
   const hintId = useId()
   // The Stripe portal sells plan changes, so an app store build never offers it.
   const portal = !!billing?.hasBillingAccount && !isStoreBuild()
+  // The lists name only what this build can hold (REVIEW9 QA L6).
+  const features = buildAccountFeatures()
   return (
     <>
       <div className="grid gap-[18px]">
@@ -92,7 +95,7 @@ export default function AccountControls({
           body={EXPORT_SUMMARY}
           details={
             <Disclosure summary="What’s included">
-              <DetailList items={Object.values(EXPORT_SECTIONS)} />
+              <DetailList items={exportSectionsShown(features)} />
               <p className="mt-2">{EXPORT_EXCLUDED}</p>
             </Disclosure>
           }
@@ -109,9 +112,9 @@ export default function AccountControls({
           details={
             <Disclosure summary="What’s deleted, and what stays">
               <p className="mb-1 font-semibold text-ink-2">Deleted from Solara</p>
-              <DetailList items={DELETED_DATA} />
+              <DetailList items={deletedDataShown(features)} />
               <p className="mt-2.5 mb-1 font-semibold text-ink-2">Outside Solara</p>
-              <DetailList items={DELETION_NOTES} />
+              <DetailList items={deletionNotesShown(features)} />
             </Disclosure>
           }
         >

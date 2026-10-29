@@ -26,8 +26,10 @@ test.describe('logic checks', () => {
     await expect(briefing).toContainText('UV peaks at 10.3 (Very high) around 1pm')
     await expect(briefing).toContainText('Lowest-UV window: Running 6pm–8pm')
     await expect(briefing).toContainText('can burn in about 15 min')
+    // At 10:30am the UV has just reached very high (7.5 between 10am and 11am, the shared
+    // protection times in packages/core/src/protection.ts).
     await expect(briefing).toContainText(
-      'Seek shade while UV is very high or extreme, from 11am to 5pm',
+      'Seek shade while UV is very high or extreme, until 4:15pm',
     )
   })
 

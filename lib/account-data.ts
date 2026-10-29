@@ -3,6 +3,13 @@
 // that the page names every section the download really has (REVIEW4 L4).
 
 import { LEGAL_DETAILS } from './legal'
+import {
+  alertsLaunched,
+  eventHeadsUpsLaunched,
+  eventSubscriptionsLaunched,
+  googleCalendarEventsLaunched,
+  outlookCalendarEventsLaunched,
+} from './plans'
 
 /** Each section of the JSON export, as the account page describes it. */
 export const EXPORT_SECTIONS = {
@@ -64,6 +71,95 @@ export const DELETION_NOTES = [
   'Events in your Outlook calendar stay there too, and Solara never kept a Microsoft token. To remove the permission you gave it, use your Microsoft account’s app permissions.',
   'If you had the free trial, a hashed record of it is kept for 2 years, so the trial is once per person.',
 ] as const
+
+/**
+ * The features this build has switched on that leave data of their own. The account page
+ * lists only what can exist (REVIEW9 QA L6): a Free account on a build without linked
+ * calendars or alerts is not told about its linked calendars or Pro heads-ups. The
+ * download itself always has every section (`EXPORT_SECTIONS`), empty when unused.
+ */
+export interface AccountFeatures {
+  billing: boolean
+  linkedCalendars: boolean
+  googleCalendar: boolean
+  outlookCalendar: boolean
+  calendarFeed: boolean
+  alerts: boolean
+  eventHeadsUps: boolean
+}
+
+type Feature = keyof AccountFeatures
+
+/** What this build has switched on (the same switches as the plan lists, lib/plans.ts). */
+export function buildAccountFeatures(): AccountFeatures {
+  const functions = !!process.env.NEXT_PUBLIC_FUNCTIONS_URL
+  return {
+    billing: functions && process.env.NEXT_PUBLIC_BILLING_ENABLED === '1',
+    linkedCalendars: eventSubscriptionsLaunched(),
+    // The OAuth client ID alone already adds events to Google Calendar (Scheduled).
+    googleCalendar:
+      !!process.env.NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID || googleCalendarEventsLaunched(),
+    outlookCalendar: outlookCalendarEventsLaunched(),
+    calendarFeed: functions,
+    alerts: alertsLaunched(),
+    eventHeadsUps: eventHeadsUpsLaunched(),
+  }
+}
+
+/** The feature each export section needs; a section not listed is always there. */
+const SECTION_FEATURE: Partial<Record<keyof typeof EXPORT_SECTIONS, Feature>> = {
+  billing: 'billing',
+  linkedCalendars: 'linkedCalendars',
+  googleCalendar: 'googleCalendar',
+  outlookCalendar: 'outlookCalendar',
+  alerts: 'alerts',
+  eventHeadsUps: 'eventHeadsUps',
+  reapplyReminder: 'alerts',
+  notificationDevices: 'alerts',
+}
+
+/** The feature each deleted item needs, by its words in DELETED_DATA. */
+const DELETED_FEATURE: Partial<Record<(typeof DELETED_DATA)[number], Feature>> = {
+  'linked calendars': 'linkedCalendars',
+  'your Google Calendar choices': 'googleCalendar',
+  'your Outlook calendar choices': 'outlookCalendar',
+  'your calendar feed': 'calendarFeed',
+  'notification devices': 'alerts',
+  'alert history': 'alerts',
+  'sunscreen reminders': 'alerts',
+}
+
+/** The feature each note in DELETION_NOTES needs, in order. */
+const NOTE_FEATURES: readonly Feature[] = [
+  'billing',
+  'googleCalendar',
+  'outlookCalendar',
+  'billing',
+]
+
+/** The export's sections this build can fill, as the page lists them. */
+export function exportSectionsShown(features: AccountFeatures): string[] {
+  return (Object.keys(EXPORT_SECTIONS) as (keyof typeof EXPORT_SECTIONS)[]).flatMap(key => {
+    const feature = SECTION_FEATURE[key]
+    return !feature || features[feature] ? [EXPORT_SECTIONS[key]] : []
+  })
+}
+
+/** What deletion removes in this build, in the page's order. */
+export function deletedDataShown(features: AccountFeatures): string[] {
+  return DELETED_DATA.filter(item => {
+    const feature = DELETED_FEATURE[item]
+    return !feature || features[feature]
+  })
+}
+
+/** What happens outside Solara in this build. */
+export function deletionNotesShown(features: AccountFeatures): string[] {
+  return DELETION_NOTES.filter((_, i) => {
+    const feature = NOTE_FEATURES[i]
+    return !feature || features[feature]
+  })
+}
 
 /** A list item's words as a line of its own: "Your imported events". */
 export function capitalized(text: string): string {

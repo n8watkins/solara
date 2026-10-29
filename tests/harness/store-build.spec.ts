@@ -80,12 +80,23 @@ test('the Free calendar has no Pro note', async ({ page }, testInfo) => {
 })
 
 test('Free settings have no way to Pro', async ({ page }, testInfo) => {
-  await preparePage(page, testInfo)
+  const capture = await preparePage(page, testInfo)
   for (const tab of ['alerts', 'account']) {
     await open(page, `screen=settings&tier=free&tab=${tab}`)
-    await expect(page.getByRole('dialog')).toBeVisible()
+    const dialog = page.getByRole('dialog')
+    await expect(dialog).toBeVisible()
     await expect(page.getByRole('button', { name: /See Pro plans|On waitlist/ })).toHaveCount(0)
     await expectNoOffer(page)
+    // Nor a plan to buy by name: no "with Pro" alerts and no rows the account lacks
+    // (REVIEW9 QA L5).
+    await expect(dialog).not.toContainText(/with Pro|Not included/)
+    if (tab === 'alerts') {
+      await expect(dialog.getByText('Coming soon.', { exact: false })).toBeVisible()
+      await captureScreen(page, testInfo, capture, {
+        name: 'store-settings-alerts',
+        fullPage: false,
+      })
+    }
   }
 })
 
