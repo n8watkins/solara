@@ -1,6 +1,6 @@
 import { PRO_TRIAL_DAYS } from '@solara/core'
 import { describe, expect, it, vi } from 'vitest'
-import { FAMILY_PROFILES_LABEL, PRO_FEATURES, PRO_PLAN } from './plans'
+import { calendarFeatureLabel, FAMILY_PROFILES_LABEL, PRO_FEATURES, PRO_PLAN } from './plans'
 
 describe('PRO_PLAN', () => {
   it('prices Pro monthly or yearly with a 7-day free trial', () => {
@@ -36,8 +36,25 @@ describe('PRO_FEATURES', () => {
     })
   })
 
-  it('keeps calendar sync on Free for now, and family profiles and alerts for Pro', () => {
-    expect(row('Calendar sync')).toMatchObject({ guest: false, free: true, pro: true })
+  it('names calendar sync only when something syncs (REVIEW8 QA L7)', () => {
+    // This build has neither Google Calendar nor the feed: downloads only.
+    expect(calendarFeatureLabel()).toBe('Calendar export')
+    expect(calendarFeatureLabel({})).toBe('Calendar export')
+    expect(calendarFeatureLabel({ googleClientId: 'id.apps.googleusercontent.com' })).toBe(
+      'Calendar sync',
+    )
+    expect(calendarFeatureLabel({ functionsUrl: 'https://fn.example', appCheck: 'key' })).toBe(
+      'Calendar sync',
+    )
+    expect(calendarFeatureLabel({ functionsUrl: 'https://fn.example', emulators: '1' })).toBe(
+      'Calendar sync',
+    )
+    // Functions without App Check cannot serve the feed.
+    expect(calendarFeatureLabel({ functionsUrl: 'https://fn.example' })).toBe('Calendar export')
+  })
+
+  it('keeps the calendar feature on Free for now, and family profiles and alerts for Pro', () => {
+    expect(row('Calendar export')).toMatchObject({ guest: false, free: true, pro: true })
     expect(row('UV at your events (.ics)')).toMatchObject({ guest: false, free: true, pro: true })
     for (const label of [FAMILY_PROFILES_LABEL, 'Morning and UV alerts']) {
       expect(row(label)).toMatchObject({ guest: false, free: false })

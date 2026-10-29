@@ -138,3 +138,28 @@ test('re-importing a calendar removes events cancelled or dropped at the source'
     eventsSection(page).getByRole('listitem', { name: 'Tuesday 10K, Griffith Park' }),
   ).toHaveCount(0)
 })
+
+test('events that ended over 30 days ago are deleted on a signed-in visit, even when the Events section never shows (REVIEW8 SEC M3)', async ({
+  page,
+  emulators,
+}) => {
+  const account = await emulators.createAccount('Rosa Ilves')
+  await emulators.seedPrefs(account, { activities: [RUNNING] })
+  await openDashboard(page, account)
+
+  // The next visit gets no forecast, so the dashboard and its Events section never show.
+  await page.route('https://api.open-meteo.com/**', route => route.fulfill({ status: 503 }))
+  await page.evaluate(() => localStorage.removeItem('solara_forecast'))
+  const expired = stored(1, 'Spring race', '2026-05-01T16:00:00.000Z', '2026-05-01T18:00:00.000Z')
+  const recent = stored(2, 'June swim', '2026-06-01T16:00:00.000Z', '2026-06-01T17:00:00.000Z')
+  const upcoming = stored(3, 'Summer hike', '2026-06-20T16:00:00.000Z', '2026-06-20T20:00:00.000Z')
+  await emulators.seedEvents(account, [expired, recent, upcoming])
+
+  await page.reload()
+  await expect(page.getByText('Could not load weather data.')).toBeVisible()
+  await expect(eventsSection(page)).toHaveCount(0)
+  // Ended more than 30 days before Monday 2026-06-15: deleted; the others are kept.
+  await expect
+    .poll(async () => Object.keys(await emulators.readEvents(account)).sort(), { timeout: 15_000 })
+    .toEqual([recent.key, upcoming.key].sort())
+})

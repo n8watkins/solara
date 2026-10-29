@@ -11,6 +11,7 @@ import {
   createCheckoutUrl,
   type BillingPlan,
 } from '@/lib/billing'
+import { alertsLaunched, calendarFeatureLabel } from '@/lib/plans'
 
 interface Props {
   /** The signed-in account; null or absent for a guest, who is offered sign-in first. */
@@ -228,7 +229,7 @@ export default function PricingModal({
   return (
     <ActivityModalShell
       title="Solara Pro"
-      description="10 days of planning, up to 20 activities, calendar sync, family profiles that plan for the most sensitive person, and morning and UV alerts."
+      description={`10 days of planning, up to 20 activities, ${calendarFeatureLabel().toLowerCase()}, family profiles that plan for the most sensitive person, and morning and UV alerts${alertsLaunched() ? '' : ' (coming soon)'}.`}
       onClose={onClose}
       footer={footer}
     >

@@ -2,12 +2,59 @@
 
 _Last reviewed: 2026-10-28_
 
-What to do when something goes wrong in production, once the Functions run on the Blaze plan.
+What to do when something goes wrong in production.
+Today Solara runs on the free Spark plan with no Functions: start with [Free stage (Spark)](#free-stage-spark); the sections after it apply once the Functions run on the Blaze plan.
 How deploys work is in [DEPLOYMENT.md](DEPLOYMENT.md); what each thing costs is in [COSTS.md](COSTS.md); the owner's one-time setup steps are in the [owner checklist](OWNER_CHECKLIST.md#at-pro-launch-blaze).
+
+## Free stage (Spark)
+
+What exists today: Firebase Hosting, Google sign-in, Firestore with its rules, and the static app; no Functions, no budget, no backups, no TTL deletes.
+On Spark a free quota that runs out stops that service until it resets (Firestore at midnight Pacific time, Hosting transfer for the day or the month), instead of costing money ([COSTS.md](COSTS.md#how-many-users-before-blaze-costs-money)).
+The default decision is a quiet launch on Spark, and Blaze with the budget kill switch before any promotion ([ROADMAP decisions](ROADMAP.md#decisions)).
+
+### Watching the site
+
+- **Uptime check (free):** `ALERT_EMAIL=you@example.com infra/monitoring.sh --site-only` prints the commands for one uptime check on `https://solara-uv.web.app/app/` every 5 minutes and the "Solara: site or Functions down" email alert; run it again with `--apply` from a shell signed in as the owner (`gcloud auth login`).
+  It needs no Functions; if Google Cloud asks for a billing account anyway, use any free external monitor on the same page with an email alert instead.
+  At the Pro launch, `CHANNEL=<the channel's name> infra/monitoring.sh --functions-only --apply` adds the Functions' check and the error alert to the same email (`gcloud beta monitoring channels list --project uv-activity-planner` shows the name).
+- **Error reports:** once the `NEXT_PUBLIC_SENTRY_DSN` variable is set ([owner checklist step 6](OWNER_CHECKLIST.md#now-free-no-blaze)), browser errors arrive in Sentry with the deploy's release; until then a JavaScript error is invisible.
+- **Deploys:** Firebase console, **Hosting**, the `solara-uv` site: the release history shows every deploy and its time; each one is a `main` merge (GitHub, **Actions**, **Deploy**).
+- **Quotas:** Firebase console, **Usage and billing**, and **Firestore**, **Usage**: reads, writes and deletes a day against 50,000, 20,000 and 20,000; **Hosting**, **Usage**: transfer against 360 MB a day.
+  A sudden climb with no matching rise in sign-ins is a scripted client ([COSTS.md](COSTS.md#worst-case-under-a-flood)).
+- **Sign-in:** if nobody can sign in, check Authentication, **Settings**, **Authorized domains** (`solara-uv.web.app` must be listed) and that the OAuth consent screen is published (Google Cloud, **APIs and Services**, **OAuth consent screen**).
+
+### Rolling back on Spark
+
+| What broke | How to roll back |
+| --- | --- |
+| The site (a bad deploy) | Firebase console, **Hosting**, the `solara-uv` release history, **Roll back** on the last good release (takes effect in about a minute); then revert the change on `main`, or the next deploy brings it back |
+| Firestore rules | Firebase console, **Firestore**, **Rules**, the history, open the last good version and **Publish** it; then revert the change on `main` |
+| Firestore indexes | Revert the change on `main`; a removed index is not deleted by the deploy |
+| Data written wrongly by a client bug | No backups exist on Spark, so data cannot be restored; fix the bug, roll the site back, and ask affected people to check their settings |
+
+### An emailed export or deletion request
+
+The [privacy policy](https://solara-uv.web.app/privacy/) offers email for these requests, and the Account page's buttons need the Functions, so answer each request by hand within 30 days.
+What Solara holds for an account on Spark is the Firebase Auth user and `users/{uid}` with its subcollections, all written by the app: `events`, `meta` (`events` and `scheduled` key lists, `googleCalendar`, `outlookCalendar`), `scheduled`; and, once the Functions have ever run, `alertState`, `private`, `notificationDevices`, `billingResources` and the top-level `calendarFeeds`, `eventSubscriptions`, `notificationTokenOwners` and `notificationRegistrationLimits` records ([firestore.rules](../firestore.rules), [deletion.ts](../functions/src/account/deletion.ts)).
+`infra/account-request.mjs` walks `users/{uid}` and every subcollection it finds, plus those top-level records, so nothing is missed.
+
+1. Check who is asking: the request must come from the account's own email address.
+   Find the account in Firebase console, **Authentication**, **Users**, by that email, and copy its **User UID**.
+   If the address has no account, reply that Solara holds nothing for it (a guest's plan lives only in their browser).
+2. Once, on your computer: `npm ci --prefix functions` in the repository, and `gcloud auth application-default login` as the project owner.
+3. For a copy of the data: `node infra/account-request.mjs export <uid> > solara-<uid>.json`.
+   It only reads, and leaves out a linked calendar's address (it can hold a private token, and the person has it).
+   Reply with the file attached, and delete your local copy once it is sent.
+4. For deletion: `node infra/account-request.mjs delete <uid>` lists every document and the Auth user it would delete, and changes nothing.
+   Check the list, then run it again with `--apply`; it deletes `users/{uid}` recursively, the top-level records and the Auth user, then checks that nothing is left.
+   It refuses an account with billing records: once Pro is on sale, delete those with the Account page's **Delete account** (the `deleteAccount` Function), which also cancels Stripe.
+5. Without the script: Firebase console, **Firestore**, **Data**, `users`, the uid, the three-dot menu, **Delete document** with **Delete all nested documents** checked (or `npx firebase firestore:delete users/<uid> --recursive --project uv-activity-planner`), then **Authentication**, **Users**, the account's menu, **Delete account**.
+6. Reply that the account is deleted, and that the person's browser still keeps its own copy of their plan until they clear the site's data.
+7. Note the date, the uid (not the email) and what was done in your own request log, as a record that the request was handled.
 
 ## Alerts
 
-`infra/monitoring.sh` sets these up; each email names the policy.
+`infra/monitoring.sh` sets these up at the Pro launch (`--site-only` on Spark, [above](#watching-the-site)); each email names the policy.
 
 | Alert | Fires when | First look |
 | --- | --- | --- |
@@ -166,7 +213,9 @@ To switch the feature off, set `EVENTS_SUBSCRIPTIONS_ENABLED` to `false` and rer
 
 ## Record retention
 
-Firestore deletes these records some time after their `expireAt` passes, once `infra/firestore-ttl.sh` has turned the policies on (after Blaze):
+Firestore deletes these records some time after their `expireAt` passes, once `infra/firestore-ttl.sh` has turned the policies on (after Blaze).
+Until then, the app itself deletes an account's events and scheduled activities that ended more than 30 days ago on each signed-in visit (`lib/retention.ts`), and nothing deletes the rest.
+The privacy policy's wording follows `PRODUCTION_DATA_STEPS` in `lib/privacy-retention.ts`: after `infra/firestore-ttl.sh --apply` (or `infra/backups.sh --apply`) has run and been checked, set `firestoreTtl` (or `backups`) to `true` and update `PRIVACY_LAST_UPDATED` in the same pull request.
 
 | Collection group | Kept for |
 | --- | --- |
@@ -175,6 +224,7 @@ Firestore deletes these records some time after their `expireAt` passes, once `i
 | `accountDeletionTombstones`, `billingCleanupResources`, `stripeSubscriptionOwners` | 90 days after the account's deletion finished |
 | `notificationRegistrationLimits` | 1 day after the rate-limit window |
 | `users/{uid}/scheduled` | 30 days after the scheduled event ends |
+| `users/{uid}/events` | 30 days after the event ends (imported files, linked calendars, Google Calendar and Outlook) |
 | `forecastCache` | 1 day after the forecast was fetched (each place is refreshed hourly while in use) |
 | `forecastUpstream` | 2 days after the hour or day its counter counts (the forecast and place search upstream budgets and the callers' shares of them) |
 | `alertState` | 7 days after the account's last alert was claimed |
@@ -194,7 +244,7 @@ Every component can be put back to its last good state without a new build.
 | Pro checkout | Set the `BILLING_ENABLED` repository variable to `false` and rerun the deploy: the plans dialog goes back to the waitlist and checkout refuses; subscriptions, the webhook and the portal keep working |
 | Forecast proxy | Set `FORECAST_PROXY_ENABLED` to `false` and rerun the deploy: the app calls Open-Meteo directly again, for forecasts and place search |
 | Pro alerts | Set `ALERTS_ENABLED` to `false` and rerun the deploy: the `alerts` job sends nothing and Settings says alerts are coming; registered devices stay registered |
-| Linked calendars and event heads-ups | Set `EVENTS_SUBSCRIPTIONS_ENABLED` to `false` and rerun the deploy, or pin the cost guard to stop fetches at once ([Linked calendars](#linked-calendars)); heads-ups stop only when `GOOGLE_CALENDAR_EVENTS_ENABLED` is `false` too (or `ALERTS_ENABLED`, which stops every alert) |
+| Linked calendars and event heads-ups | Set `EVENTS_SUBSCRIPTIONS_ENABLED` to `false` and rerun the deploy, or pin the cost guard to stop fetches at once ([Linked calendars](#linked-calendars)); heads-ups stop only when `GOOGLE_CALENDAR_EVENTS_ENABLED` and `OUTLOOK_CALENDAR_EVENTS_ENABLED` are `false` too (or `ALERTS_ENABLED`, which stops every alert) |
 | Firestore rules | Firebase console, **Firestore**, **Rules**, the history, restore the previous version; then revert on `main` |
 | Firestore indexes | Revert the change on `main`; a removed index is not deleted by the deploy (it would need `--force`) |
 | Stripe webhook | In Stripe, **Developers**, **Webhooks**, disable the endpoint; Stripe keeps the events and retries them for 3 days once it is enabled again |

@@ -15,44 +15,86 @@
 # two use about 52,000); alerting policies are free until September 1, 2027, then
 # $0.35 a month per metric reference (docs/COSTS.md).
 #
-# Usage:
-#   ALERT_EMAIL=you@example.com infra/monitoring.sh           # print the commands
-#   ALERT_EMAIL=you@example.com infra/monitoring.sh --apply   # run them
+# Two parts, for the two stages (REVIEW8 QA H2):
+# - --site-only, for the free (Spark) plan before any Functions exist (Cloud Monitoring
+#   needs no billing for this; if Google Cloud asks for a billing account anyway, use a
+#   free external monitor on the same page, docs/RUNBOOK.md "Free stage"): only the
+#   email channel, the app page's uptime check and the uptime alert policy.
+# - --functions-only, at the Pro launch after a --site-only run: the Functions' uptime
+#   check and the error alert policy, sent to the channel the first part created
+#   (CHANNEL=projects/<project>/notificationChannels/<id>, from
+#   `gcloud beta monitoring channels list --project uv-activity-planner`). The uptime
+#   policy already covers every uptime check, the Functions' one included.
+# With neither, it creates everything at once.
+#
+# Usage (each prints the commands; add --apply to run them):
+#   ALERT_EMAIL=you@example.com infra/monitoring.sh
+#   ALERT_EMAIL=you@example.com infra/monitoring.sh --site-only
+#   CHANNEL=projects/uv-activity-planner/notificationChannels/123 infra/monitoring.sh --functions-only
 # The `gcloud beta monitoring` commands need the beta component (gcloud components
 # install beta). Check each command with --help if gcloud reports an unknown flag.
+# shellcheck source=infra/lib.sh
 source "$(dirname "$0")/lib.sh"
-require ALERT_EMAIL
 : "${REGION:=us-central1}"
 
-run gcloud services enable monitoring.googleapis.com logging.googleapis.com --project "$PROJECT_ID"
-
-CHANNEL="projects/$PROJECT_ID/notificationChannels/<channel-id>"
-if [ "$APPLY" = true ]; then
-  CHANNEL="$(gcloud beta monitoring channels create --project "$PROJECT_ID" \
-    --display-name "Solara owner" --type email \
-    --channel-labels "email_address=$ALERT_EMAIL" --format 'value(name)')"
-else
-  run gcloud beta monitoring channels create --project "$PROJECT_ID" \
-    --display-name "Solara owner" --type email --channel-labels "email_address=$ALERT_EMAIL"
+SITE=true
+FUNCTIONS=true
+for arg in "$@"; do
+  case "$arg" in
+    --site-only) FUNCTIONS=false ;;
+    --functions-only) SITE=false ;;
+    --apply) ;;
+    *)
+      echo "Unknown option: $arg (use --site-only or --functions-only, and --apply)" >&2
+      exit 2
+      ;;
+  esac
+done
+if [ "$SITE" = false ] && [ "$FUNCTIONS" = false ]; then
+  echo "Use --site-only or --functions-only, not both" >&2
+  exit 2
 fi
 
-run gcloud monitoring uptime create "Solara app" --project "$PROJECT_ID" \
-  --resource-type uptime-url \
-  --resource-labels "host=solara-uv.web.app,project_id=$PROJECT_ID" \
-  --protocol https --path /app/ --period 5 --timeout 10
-run gcloud monitoring uptime create "Solara Functions" --project "$PROJECT_ID" \
-  --resource-type uptime-url \
-  --resource-labels "host=$REGION-$PROJECT_ID.cloudfunctions.net,project_id=$PROJECT_ID" \
-  --protocol https --path /stripeWebhook --period 5 --timeout 10 --status-codes 405
+if [ "$SITE" = true ]; then
+  require ALERT_EMAIL
+  run gcloud services enable monitoring.googleapis.com --project "$PROJECT_ID"
+  CHANNEL="projects/$PROJECT_ID/notificationChannels/<channel-id>"
+  if [ "$APPLY" = true ]; then
+    CHANNEL="$(gcloud beta monitoring channels create --project "$PROJECT_ID" \
+      --display-name "Solara owner" --type email \
+      --channel-labels "email_address=$ALERT_EMAIL" --format 'value(name)')"
+  else
+    run gcloud beta monitoring channels create --project "$PROJECT_ID" \
+      --display-name "Solara owner" --type email --channel-labels "email_address=$ALERT_EMAIL"
+  fi
+  run gcloud monitoring uptime create "Solara app" --project "$PROJECT_ID" \
+    --resource-type uptime-url \
+    --resource-labels "host=solara-uv.web.app,project_id=$PROJECT_ID" \
+    --protocol https --path /app/ --period 5 --timeout 10
+else
+  # The channel the --site-only run created.
+  require CHANNEL
+fi
 
-for policy in errors uptime; do
+POLICIES=()
+if [ "$SITE" = true ]; then POLICIES+=(uptime); fi
+if [ "$FUNCTIONS" = true ]; then
+  run gcloud services enable monitoring.googleapis.com logging.googleapis.com --project "$PROJECT_ID"
+  run gcloud monitoring uptime create "Solara Functions" --project "$PROJECT_ID" \
+    --resource-type uptime-url \
+    --resource-labels "host=$REGION-$PROJECT_ID.cloudfunctions.net,project_id=$PROJECT_ID" \
+    --protocol https --path /stripeWebhook --period 5 --timeout 10 --status-codes 405
+  POLICIES+=(errors)
+fi
+
+for policy in "${POLICIES[@]}"; do
   file="$(dirname "$0")/alerts/$policy.json"
   if [ "$APPLY" = true ]; then
     sed "s#\"CHANNEL\"#\"$CHANNEL\"#" "$file" >"${TMPDIR:-/tmp}/solara-alert-$policy.json"
     gcloud beta monitoring policies create --project "$PROJECT_ID" \
       --policy-from-file "${TMPDIR:-/tmp}/solara-alert-$policy.json"
   else
-    echo "# $file, with \"CHANNEL\" replaced by the channel created above:"
+    echo "# $file, with \"CHANNEL\" replaced by the channel ${CHANNEL}:"
     run gcloud beta monitoring policies create --project "$PROJECT_ID" --policy-from-file "$file"
   fi
 done

@@ -140,7 +140,7 @@ test('pricing: named dialog with a real comparison table', async ({ page }) => {
   await expect(dialog).toBeFocused()
   const table = dialog.getByRole('table', { name: 'Free and Pro plan features' })
   await expect(table.getByRole('columnheader', { name: 'Pro' })).toBeVisible()
-  await expect(table.getByRole('rowheader', { name: 'Calendar sync' })).toBeVisible()
+  await expect(table.getByRole('rowheader', { name: 'Calendar export' })).toBeVisible()
   await expect(dialog.getByRole('textbox', { name: 'Email for early access' })).toBeVisible()
 
   await expectFocusTrapped(page, dialog)

@@ -111,6 +111,10 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      # shellcheck comes with GitHub's Ubuntu runners.
+      - name: Lint shell scripts
+        run: npm run lint:sh
+
       - name: Docs links and paths
         run: npm run check:docs
 

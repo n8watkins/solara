@@ -29,6 +29,7 @@
 # Options (environment): PROJECT_ID (default uv-activity-planner), BUDGET_AMOUNT
 # (default 25USD), DETACH_BILLING (default true; false leaves out the billing role, and
 # then also set the COST_GUARD_DETACH_BILLING repository variable to false).
+# shellcheck source=infra/lib.sh
 source "$(dirname "$0")/lib.sh"
 require BILLING_ACCOUNT
 require DEPLOY_SA
@@ -56,7 +57,7 @@ BUDGET_ARGS=(
   --threshold-rule percent=0.9
   --threshold-rule percent=1.0
   --threshold-rule percent=3.0
-  --threshold-rule percent=1.0,basis=forecasted-spend
+  --threshold-rule "percent=1.0,basis=forecasted-spend"
   --notifications-rule-pubsub-topic "projects/$PROJECT_ID/topics/$TOPIC"
 )
 BUDGET_ID="<budget-id>"

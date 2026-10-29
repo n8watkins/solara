@@ -17,7 +17,6 @@ import { syncWithGoogle } from '@/lib/google-calendar-sync'
 import {
   assertScheduledRoom,
   deleteScheduled,
-  pruneExpiredScheduled,
   recordFromEvent,
   saveScheduled,
   subscribeScheduled,
@@ -59,11 +58,8 @@ export function useGoogleCalendar(
       },
       error => console.error('Scheduled activities failed to load:', error),
     )
-    // Records that ended over 30 days ago are only history, and the privacy policy says
-    // they are deleted; this reaches every one, not only those in the capped live list.
-    pruneExpiredScheduled(uid, Date.now()).catch(error =>
-      console.error('Pruning scheduled activities failed:', error),
-    )
+    // Records that ended over 30 days ago are pruned on every signed-in visit by
+    // components/App.tsx (lib/retention.ts), with or without Google Calendar set up.
     return () => {
       unsubscribe()
       // The Google token belongs to this account's session only.

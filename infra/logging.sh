@@ -18,6 +18,7 @@
 #   infra/logging.sh --apply   # run them
 # Options (environment): PROJECT_ID (default uv-activity-planner), FEED_SERVICE (the
 # feed's Cloud Run service name, default calendarfeed; Functions v2 lowercases it).
+# shellcheck source=infra/lib.sh
 source "$(dirname "$0")/lib.sh"
 : "${FEED_SERVICE:=calendarfeed}"
 

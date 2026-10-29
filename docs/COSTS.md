@@ -26,6 +26,12 @@ On Blaze, every product keeps its free quota; you pay only for usage above it.
 The free quotas on Blaze, and the daily active users (DAU) at which each one runs out, with the assumptions below.
 Quotas marked "per billing account" are shared by every project on that billing account.
 
+**On Spark, these numbers are where the site stops, not where it starts costing.**
+Spark has the same free quotas but nothing after them: when one runs out, that service stops for everyone until the quota resets.
+Firestore's daily quota resets at midnight Pacific time, so past about 2,200 signed-in users in a day, settings, events and sign-in stop saving and loading for the rest of the day; past about 1,000 daily users the Hosting transfer runs out and the site stops loading, for the day or, against the 10 GB a month, possibly the rest of the month (check the Firebase usage page for how it is enforced).
+A flood reaches these limits much sooner ([Worst case under a flood](#worst-case-under-a-flood)).
+That is why the default is a quiet launch on Spark and Blaze with the budget kill switch before any promotion ([ROADMAP decisions](ROADMAP.md#decisions)): on Blaze the same overflow costs cents instead of an outage.
+
 | Product | Free quota | Solara's use | Free up to about | Then |
 | --- | --- | --- | --- | --- |
 | reCAPTCHA (App Check) | 10,000 assessments a month, per organization | About 1 per signed-in session-hour; with the forecast proxy on, guests count too | 330 DAU | $8 a month flat up to 100,000 (about 3,300 DAU), then $1 per 1,000 |
@@ -40,6 +46,7 @@ Quotas marked "per billing account" are shared by every project on that billing 
 | Cloud Logging | 50 GiB ingested a month, per project | Structured logs; the calendar feed's request logs are excluded | Far beyond any plan here | $0.50 per GiB |
 | Cloud Monitoring | Uptime checks: 1 million executions a month per project; alerting: free until September 1, 2027 | 2 uptime checks every 5 minutes (about 52,000 executions); 2 alert policies | Never for uptime | Alerting: $0.35 a month per metric reference from September 2027 (about $0.35-0.70) |
 | Firestore TTL deletes, PITR, backups | No free quota | TTL deletes of expired records; PITR and daily backups of a database well under 1 GiB | Cents from the first month | $0.01 per 100,000 TTL deletes; PITR and backups by GiB stored |
+| Stripe (card payments and Stripe Billing) | No free quota; billed per payment, not by Google | One payment a month per monthly Pro subscriber, one a year per yearly one | From the first payment | 2.9% + $0.30 per US card payment plus 0.7% for Stripe Billing: about $0.41 of each $2.99 (net $2.58) and $1.02 of each $19.99 (net $18.97, about $1.58 a month); international cards add 1.5% and currency conversion 1% |
 
 So the first Google bill comes from reCAPTCHA at roughly 330 daily users (once App Check is on), then Hosting transfer around 1,000, Firestore around 2,200 and Functions around 5,000.
 Below about 300 daily users the expected Google bill is a few cents a month (Artifact Registry, PITR and backups).
@@ -73,8 +80,17 @@ The Open-Meteo commercial plan ($29 a month, below) is a fixed cost on top, paid
 
 ## Break-even
 
-At $2.99 per month, about 5 Pro subscribers per 100 daily active users covers every row above.
-The Open-Meteo commercial plan alone ($29 per month) is covered by about 10 subscribers.
+After Stripe's fees, a monthly subscriber brings in about $2.58 a month and a yearly one about $1.58 a month (REVIEW8 PLAN L8; the Stripe row above).
+Monthly subscribers needed to cover each row of the table above, from the top of its range:
+
+| Daily active users | Estimated total | Monthly subscribers needed | Share of daily users |
+| --- | --- | --- | --- |
+| 100 | about $29 (the forecast plan) | 12 | 12% |
+| 1,000 | about $40 | 16 | 1.6% |
+| 5,000 | about $110 | 43 | 0.9% |
+
+The Open-Meteo commercial plan alone ($29 a month) is covered by about 12 monthly subscribers, or 19 yearly ones; a mix in between needs between the two.
+So the fixed forecast plan is the hard part at a small scale, and above about 1,000 daily users 2 subscribers per 100 daily users cover everything.
 
 ## Abuse and the kill switch
 
@@ -101,8 +117,30 @@ Budget data arrives hours after the usage, so the switch caps a runaway bill rat
 
 ## Worst case under a flood
 
-What an attacker can make Solara spend by flooding the Functions from many addresses (finding H1 of the October 2026 security review), with the limits above.
+Three kinds of flood, each with what it does on Spark today and on Blaze, and what limits it.
 These are planning estimates from public list prices, not measurements on a deployed project.
+
+### Downloading the site in a loop (Hosting)
+
+One uncached download of `/app/` transfers about 220 KB compressed (REVIEW8 SEC M1, measured on the live site), so about 1,600 downloads use up Spark's 360 MB a day.
+A `curl` loop from one computer does that in a minute or two, with no sign-in; Firebase Hosting has no rate limit by address and no App Check.
+
+- On Spark: the site stops loading for everyone until the quota resets (the next day, or later against the 10 GB a month).
+- On Blaze: it costs $0.15 per GB instead, about $1.50 for every 10 GB, until the budget kill switch detaches billing at $75, after which Hosting is back on Spark's quota and stops as above.
+- Mitigations, in order: accept the risk knowingly for a quiet launch (there is no Hosting setting against it); move to Blaze with the kill switch before any promotion, so a flood costs a few dollars instead of an outage; for a real defence, serve the site from a custom domain behind a CDN with free rate limiting (for example Cloudflare in front of Firebase Hosting, with a rate-limiting rule on `/` and `/app/` and long caching of the hashed assets).
+
+### Writing to Firestore in a loop (any signed-in account)
+
+The rules check who may write what, not how often (REVIEW8 SEC M2): one signed-in account can create and delete the same event in a loop from the browser console.
+Firestore's free quota is 20,000 writes, 20,000 deletes and 50,000 reads a day for the whole project.
+
+- On Spark: a few minutes of such a loop use the day's quota, and then everyone's settings, events and scheduled activities stop saving, and later loading, until midnight Pacific time.
+- On Blaze: it costs about $0.09 per 100,000 writes and $0.03 per 100,000 reads (us-central1, the rates above), with no limit until the kill switch detaches billing (the worst month below applies), and then it stops as on Spark.
+- Mitigations: App Check enforcement for Firestore ([owner checklist step 5](OWNER_CHECKLIST.md#now-free-no-blaze)), which stops scripts outside a real browser, though not a loop inside a real browser tab; caps on the Firestore API's requests per minute in Google Cloud, **IAM and admin**, **Quotas** (`firestore.googleapis.com`), set well above real use, which bound any flood for the whole project; a Cloud Monitoring alert on Firestore document writes and reads per minute that emails the owner within minutes; and, later, a per-account write rate in the rules or bulk event writes behind a Function with a per-account limit.
+
+### Flooding the Functions (Blaze, from many addresses)
+
+What an attacker can make Solara spend by flooding the Functions from many addresses (finding H1 of the October 2026 security review), with the limits above.
 
 - Rejecting a request costs about 10 microseconds of the handler's CPU (measured locally), so the instances' throughput, not their CPU bill, is the ceiling.
   Assuming a conservative 1,000 requests a second per instance, the 16 HTTP instances serve at most about 16,000 a second, or 1.4 billion a day.
@@ -115,7 +153,7 @@ These are planning estimates from public list prices, not measurements on a depl
 - Linked calendars, which an account can drive by hand (REVIEW5 M2): the worst is an account with 5 links whose site changes every one of 200 events on every fetch, refreshed 20 times an hour, which makes about 100,000 Firestore reads and 100,000 writes a day (about $0.25 a day); unchanged calendars write nothing.
   This grows with the number of Google accounts an attacker signs in, not with requests, and is the reason linking could be limited to Pro if it is ever abused.
 
-So a sustained, distributed flood costs at most about $590 a day, about $25 an hour, against $1,900 a day or more before these limits (37 instances and a log line per request).
+So a sustained, distributed flood of the Functions costs at most about $590 a day, about $25 an hour, against $1,900 a day or more before these limits (37 instances and a log line per request).
 The budget kill switch is what ends it ([above](#abuse-and-the-kill-switch)): billing is detached once the month's spend reaches $75, and since Cloud Billing reports spend hours late (often 6-24 hours), the worst month is roughly $75 plus that lag at $25 an hour, about $225-$675, before nothing more can be billed.
 A cheaper first line in front of the Functions (Cloud Armor rate limiting on an external HTTPS load balancer, from about $18 a month plus per-request fees, or API Gateway quotas) is the next step if a real attack ever happens, and needs `TRUSTED_PROXY_HOPS` changed with it ([DEPLOYMENT.md](DEPLOYMENT.md#check-the-client-address-at-the-first-deploy)).
 

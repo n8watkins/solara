@@ -17,6 +17,26 @@ export const PRO_PLAN = Object.freeze({
   yearlySavingPercent: Math.floor((1 - 19.99 / (2.99 * 12)) * 100),
 })
 
+/**
+ * What the plans' calendar feature is called in this build (REVIEW8 QA L7): "Calendar
+ * sync" once something keeps a calendar up to date, adding to Google Calendar (the OAuth
+ * client ID, which also shows Scheduled) or the live feed (the Functions, with App Check);
+ * until then the feature is downloads only (the .ics export and "Add to Calendar").
+ * Free of Firebase like the rest of this module, so it reads the build variables itself,
+ * as isCalendarConfigured (lib/gcal-view.ts) and isFeedConfigured (lib/feed.ts) do.
+ */
+export function calendarFeatureLabel(
+  env: { googleClientId?: string; functionsUrl?: string; appCheck?: string; emulators?: string } = {
+    googleClientId: process.env.NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID,
+    functionsUrl: process.env.NEXT_PUBLIC_FUNCTIONS_URL,
+    appCheck: process.env.NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY,
+    emulators: process.env.NEXT_PUBLIC_FIREBASE_EMULATORS,
+  },
+): 'Calendar sync' | 'Calendar export' {
+  const feed = !!env.functionsUrl && (env.emulators === '1' || !!env.appCheck)
+  return env.googleClientId || feed ? 'Calendar sync' : 'Calendar export'
+}
+
 /** The comparison row for family profiles and planning by the most sensitive person. */
 export const FAMILY_PROFILES_LABEL = 'Family profiles, most sensitive first'
 
@@ -43,7 +63,7 @@ export const PRO_FEATURES: ProFeature[] = [
     label: 'Your plan',
     ...perTier(tier => (TIER_LIMITS[tier].storage === 'device' ? 'This device' : 'Synced')),
   },
-  { label: 'Calendar sync', ...perTier(tier => TIER_LIMITS[tier].calendar) },
+  { label: calendarFeatureLabel(), ...perTier(tier => TIER_LIMITS[tier].calendar) },
   // Imported events need an account to keep them (docs/integrations/EVENTS.md).
   { label: 'UV at your events (.ics)', ...perTier(tier => tier !== 'anonymous') },
   {

@@ -14,6 +14,7 @@
 #   infra/cost-guard.sh released            # print what would be sent
 #   infra/cost-guard.sh released --apply    # send it
 # Options (environment): PROJECT_ID (default uv-activity-planner).
+# shellcheck source=infra/lib.sh
 source "$(dirname "$0")/lib.sh"
 
 MODE="${1:-}"

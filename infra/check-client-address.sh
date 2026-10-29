@@ -16,6 +16,7 @@
 #   infra/check-client-address.sh
 # Options (environment): PROJECT_ID (default uv-activity-planner), FUNCTIONS_URL
 # (default https://us-central1-<project>.cloudfunctions.net).
+# shellcheck source=infra/lib.sh
 source "$(dirname "$0")/lib.sh"
 : "${FUNCTIONS_URL:=https://us-central1-${PROJECT_ID}.cloudfunctions.net}"
 

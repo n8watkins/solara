@@ -2,6 +2,7 @@
 // draft it edits, whether that draft has unsaved changes, and the plan limits
 // it lists on the Account tab.
 import { QUIET_HOURS, UV_ALERT_THRESHOLD } from '@solara/core'
+import { calendarFeatureLabel } from './plans'
 import { TIER_LIMITS } from './tiers'
 import type { Location, SkinType, TierLevel, UserPreferences } from './types'
 
@@ -85,7 +86,7 @@ export function planLimitRows(tier: TierLevel, activityCount: number): PlanLimit
       label: 'Activities',
       value: `${activityCount} / ${TIER_LIMITS[tier].activities}`,
     },
-    { label: 'Calendar sync', value: TIER_LIMITS[tier].calendar },
+    { label: calendarFeatureLabel(), value: TIER_LIMITS[tier].calendar },
     { label: '10-day forecast', value: tier === 'paid' },
   ]
 }
