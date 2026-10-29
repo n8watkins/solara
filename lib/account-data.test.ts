@@ -2,34 +2,44 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
   accountControlsPath,
+  capitalized,
   DATA_REQUEST_EMAIL,
-  DELETION_DESCRIPTION,
-  DELETION_DETAILS,
-  EXPORT_DESCRIPTION,
+  DELETED_DATA,
+  DELETION_NOTES,
+  DELETION_SUMMARY,
+  EXPORT_EXCLUDED,
   EXPORT_SECTIONS,
+  EXPORT_SUMMARY,
   exportedMessage,
   listInWords,
 } from './account-data'
 
 describe('account data copy', () => {
-  it('names every export section, imported events included', () => {
-    for (const phrase of Object.values(EXPORT_SECTIONS)) {
-      expect(EXPORT_DESCRIPTION).toContain(phrase)
-    }
-    expect(EXPORT_DESCRIPTION).toContain('imported events')
-    expect(EXPORT_DESCRIPTION).toMatch(/^The JSON export includes your preferences \(/)
+  it('names every export section, imported events included, and what is left out', () => {
+    expect(Object.values(EXPORT_SECTIONS)).toContain('your imported events')
+    expect(EXPORT_SUMMARY).toBe('Get a copy of your Solara data as a JSON file.')
+    expect(EXPORT_EXCLUDED).toContain('calendar feed address')
+    expect(EXPORT_EXCLUDED).toContain('payment-provider identifiers')
   })
 
-  it('says deletion removes imported events and the calendar feed', () => {
-    expect(DELETION_DESCRIPTION).toMatch(/^This permanently removes your Solara preferences/)
-    expect(DELETION_DESCRIPTION).toContain('imported events')
-    expect(DELETION_DESCRIPTION).toContain('your calendar feed')
-    expect(DELETION_DESCRIPTION).toContain('your Google Calendar choices')
-    expect(DELETION_DESCRIPTION).toContain('your Outlook calendar choices')
-    expect(DELETION_DESCRIPTION).toMatch(/your Solara sign-in\.$/)
-    expect(DELETION_DETAILS).toContain('Google Calendar stay there')
-    expect(DELETION_DETAILS).toContain('myaccount.google.com/connections')
-    expect(DELETION_DETAILS).toContain('Microsoft account’s app permissions')
+  it('says deletion removes imported events and the calendar feed, and what stays', () => {
+    expect(DELETION_SUMMARY).toMatch(/^Permanently deletes your account/)
+    expect(DELETED_DATA).toContain('imported events')
+    expect(DELETED_DATA).toContain('your calendar feed')
+    expect(DELETED_DATA).toContain('your Google Calendar choices')
+    expect(DELETED_DATA).toContain('your Outlook calendar choices')
+    expect(DELETED_DATA.at(-1)).toBe('your Solara sign-in')
+    const notes = DELETION_NOTES.join(' ')
+    expect(notes).toContain('without a refund for the current period')
+    expect(notes).toContain('Google Calendar stay there')
+    expect(notes).toContain('myaccount.google.com/connections')
+    expect(notes).toContain('Microsoft account’s app permissions')
+    expect(notes).toContain('kept for 2 years')
+  })
+
+  it('starts each listed item with a capital', () => {
+    expect(capitalized('your imported events')).toBe('Your imported events')
+    expect(capitalized('')).toBe('')
   })
 
   it('sends data requests to the operator’s contact address', () => {

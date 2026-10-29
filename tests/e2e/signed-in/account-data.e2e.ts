@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises'
-import { EXPORT_METADATA_FIELDS, EXPORT_SECTIONS } from '../../../lib/account-data'
+import { capitalized, EXPORT_METADATA_FIELDS, EXPORT_SECTIONS } from '../../../lib/account-data'
 import {
   completeGoogleSignIn,
   expect,
@@ -19,10 +19,10 @@ test('downloads a copy of the account data', async ({ page, emulators }) => {
   // The page names every section the download has, imported events included (REVIEW4 L4).
   const exportSection = page.getByRole('region', { name: 'Download your data' })
   for (const phrase of Object.values(EXPORT_SECTIONS)) {
-    await expect(exportSection).toContainText(phrase)
+    await expect(exportSection).toContainText(capitalized(phrase))
   }
   await expect(page.getByRole('region', { name: 'Delete account' })).toContainText(
-    'imported events',
+    'Imported events',
   )
 
   // Served by the exportAccountData Function, called with the user's ID token and an

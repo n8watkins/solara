@@ -41,14 +41,32 @@ export function listInWords(items: readonly string[]): string {
   return `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`
 }
 
-export const EXPORT_DESCRIPTION = `The JSON export includes ${listInWords(
-  Object.values(EXPORT_SECTIONS),
-)}. Capability tokens, such as your calendar feed address, and payment-provider identifiers are excluded for security.`
+// The page leads with one short sentence for each action and keeps the details in a
+// "What's included" disclosure, so a phone shows the controls instead of a wall of text.
 
-export const DELETION_DESCRIPTION = `This permanently removes ${listInWords(DELETED_DATA)}.`
+/** The download's lead sentence. */
+export const EXPORT_SUMMARY = 'Get a copy of your Solara data as a JSON file.'
 
-/** The smaller print under the deletion description. */
-export const DELETION_DETAILS = `A subscription is canceled at once, without a refund for the current period, and your billing details are deleted at Stripe. Events already added to your Google Calendar stay there; to end Solara’s access to your Google Calendar, remove Solara at myaccount.google.com/connections. Events in your Outlook calendar stay there too, and Solara never kept a Microsoft token; to remove the permission you gave it, use your Microsoft account’s app permissions. If you had the free trial, a hashed record of it is kept for 2 years so the trial is once per person.`
+/** What the download leaves out, under its list of sections. */
+export const EXPORT_EXCLUDED =
+  'Left out for security: capability tokens, such as your calendar feed address, and payment-provider identifiers.'
+
+/** The deletion's lead sentence. */
+export const DELETION_SUMMARY =
+  'Permanently deletes your account, its data and your Solara sign-in. This cannot be undone.'
+
+/** What happens beyond Solara's own data when the account is deleted, one point each. */
+export const DELETION_NOTES = [
+  'A subscription is canceled at once, without a refund for the current period, and your billing details are deleted at Stripe.',
+  'Events already added to your Google Calendar stay there. To end Solara’s access, remove Solara at myaccount.google.com/connections.',
+  'Events in your Outlook calendar stay there too, and Solara never kept a Microsoft token. To remove the permission you gave it, use your Microsoft account’s app permissions.',
+  'If you had the free trial, a hashed record of it is kept for 2 years, so the trial is once per person.',
+] as const
+
+/** A list item's words as a line of its own: "Your imported events". */
+export function capitalized(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1)
+}
 
 /** Where data requests go when the page cannot handle them (lib/legal.ts). */
 export const DATA_REQUEST_EMAIL = LEGAL_DETAILS.contactEmail ?? 'contact@n8builds.dev'

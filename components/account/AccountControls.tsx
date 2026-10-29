@@ -7,12 +7,17 @@ import { useId, type ReactNode } from 'react'
 import clsx from 'clsx'
 import { APP_PATH } from '@/lib/app-routes'
 import { billingStatusText, type BillingSummary } from '@/lib/billing'
+import { ChevronDown } from 'lucide-react'
 import {
   DATA_REQUEST_DAYS,
   DATA_REQUEST_EMAIL,
-  DELETION_DESCRIPTION,
-  DELETION_DETAILS,
-  EXPORT_DESCRIPTION,
+  DELETED_DATA,
+  DELETION_NOTES,
+  DELETION_SUMMARY,
+  EXPORT_EXCLUDED,
+  EXPORT_SECTIONS,
+  EXPORT_SUMMARY,
+  capitalized,
 } from '@/lib/account-data'
 
 export type AccountBusy = 'billing' | 'export' | 'delete' | null
@@ -79,7 +84,16 @@ export default function AccountControls({
           ) : null}
         </AccountSection>
 
-        <AccountSection title="Download your data" body={EXPORT_DESCRIPTION}>
+        <AccountSection
+          title="Download your data"
+          body={EXPORT_SUMMARY}
+          details={
+            <Disclosure summary="What’s included">
+              <DetailList items={Object.values(EXPORT_SECTIONS)} />
+              <p className="mt-2">{EXPORT_EXCLUDED}</p>
+            </Disclosure>
+          }
+        >
           <button className="btn btn-primary" disabled={busy !== null} onClick={onDownload}>
             {busy === 'export' ? 'Preparing...' : 'Download account data'}
           </button>
@@ -88,8 +102,15 @@ export default function AccountControls({
         <AccountSection
           danger
           title="Delete account"
-          body={DELETION_DESCRIPTION}
-          note={DELETION_DETAILS}
+          body={DELETION_SUMMARY}
+          details={
+            <Disclosure summary="What’s deleted, and what stays">
+              <p className="mb-1 font-semibold text-ink-2">Deleted from Solara</p>
+              <DetailList items={DELETED_DATA} />
+              <p className="mt-2.5 mb-1 font-semibold text-ink-2">Outside Solara</p>
+              <DetailList items={DELETION_NOTES} />
+            </Disclosure>
+          }
         >
           {canDelete === false ? (
             <p className="rounded-[10px] border-[0.5px] border-notice-border bg-notice p-3 text-[14px] leading-[1.55] text-notice-ink">
@@ -157,8 +178,7 @@ export function AccountPageFrame({
           Account controls
         </h1>
         <p className="mb-7 leading-[1.6] text-ink-2">
-          Manage billing, download a portable copy of your Solara preferences, or permanently delete
-          your account.
+          Manage your plan, download your data or delete your account.
         </p>
         {children}
         {emailFallback && (
@@ -196,10 +216,41 @@ function formatDay(date: Date): string {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
+/**
+ * The details behind a section's lead sentence, closed until asked for, so a phone
+ * shows the controls instead of a wall of text.
+ */
+function Disclosure({ summary, children }: { summary: string; children: ReactNode }) {
+  return (
+    <details className="group mt-1.5 text-[13px] leading-[1.55] text-ink-3">
+      <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded-md font-semibold text-accent [&::-webkit-details-marker]:hidden">
+        {summary}
+        <ChevronDown
+          size={15}
+          aria-hidden="true"
+          className="transition-transform duration-150 group-open:rotate-180"
+        />
+      </summary>
+      <div className="mt-2">{children}</div>
+    </details>
+  )
+}
+
+function DetailList({ items }: { items: readonly string[] }) {
+  return (
+    <ul className="m-0 list-disc space-y-0.5 pl-[18px]">
+      {items.map(item => (
+        <li key={item}>{capitalized(item)}</li>
+      ))}
+    </ul>
+  )
+}
+
 function AccountSection({
   title,
   body,
   note,
+  details,
   danger = false,
   children,
 }: {
@@ -207,6 +258,8 @@ function AccountSection({
   body: string
   /** A smaller second line under the body. */
   note?: string
+  /** A disclosure with the details behind the body (components below). */
+  details?: ReactNode
   danger?: boolean
   children?: ReactNode
 }) {
@@ -217,8 +270,11 @@ function AccountSection({
       <h2 id={headingId} className={clsx('mb-2 text-[18px] font-[650]', danger && 'text-danger')}>
         {title}
       </h2>
-      <p className={clsx('leading-[1.55] text-ink-2', note ? 'mb-1.5' : gap)}>{body}</p>
-      {note && <p className={clsx('text-[13px] leading-[1.55] text-ink-3', gap)}>{note}</p>}
+      <p className={clsx('leading-[1.55] text-ink-2', note || details ? 'mb-1.5' : gap)}>{body}</p>
+      {note && (
+        <p className={clsx('text-[13px] leading-[1.55] text-ink-3', !details && gap)}>{note}</p>
+      )}
+      {details && <div className={gap}>{details}</div>}
       {children}
     </section>
   )
