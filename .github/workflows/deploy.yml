@@ -294,10 +294,11 @@ jobs:
           service-account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
           credentials-json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
 
-      # functions/.env holds the committed defaults. The Pro prices, the billing, alerts and
-      # events switches, the alerts' and the budget kill switch's runtime identities and the
-      # budget's id are per project. Detaching billing (the kill switch's hard stop) is on
-      # unless the COST_GUARD_DETACH_BILLING repository variable is false.
+      # functions/.env holds the committed defaults and functions/.env.<project id> the
+      # project's committed APP_URL; this appends to the latter. The Pro prices, the billing,
+      # alerts and events switches, the alerts' and the budget kill switch's runtime
+      # identities and the budget's id are per project. Detaching billing (the kill switch's
+      # hard stop) is on unless the COST_GUARD_DETACH_BILLING repository variable is false.
       - name: Write project-specific Functions params
         env:
           STRIPE_PRICE_ID: ${{ vars.STRIPE_PRICE_ID || secrets.STRIPE_PRICE_ID }}
@@ -336,7 +337,7 @@ jobs:
             printf 'EVENTS_SUBSCRIPTIONS_ENABLED=%s\n' "$EVENTS_SUBSCRIPTIONS_ENABLED"
             printf 'GOOGLE_CALENDAR_EVENTS_ENABLED=%s\n' "$GOOGLE_CALENDAR_EVENTS_ENABLED"
             printf 'OUTLOOK_CALENDAR_EVENTS_ENABLED=%s\n' "$OUTLOOK_CALENDAR_EVENTS_ENABLED"
-          } > "functions/.env.$FIREBASE_PROJECT_ID"
+          } >> "functions/.env.$FIREBASE_PROJECT_ID"
 
       # The deploy uploads compiled code: @solara/core in functions/core and the
       # Functions TypeScript in functions/lib, both inside the uploaded source.

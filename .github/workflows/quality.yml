@@ -441,10 +441,13 @@ jobs:
         run: npm test --prefix functions
 
       # Loads the compiled entry point (built by the tests above) and resolves its
-      # params exactly as a non-interactive `firebase deploy --only functions` would.
+      # params exactly as a non-interactive `firebase deploy --only functions` would,
+      # for production and for the default staging project, each with its own APP_URL.
       - name: Functions deploy params
         if: env.RELEVANT == 'true'
-        run: node .github/scripts/check-functions-params.js uv-activity-planner
+        run: |
+          node .github/scripts/check-functions-params.js uv-activity-planner
+          node .github/scripts/check-functions-params.js solara-staging
 
       # Packages functions/ the way `firebase deploy` does and loads it from a
       # clean copy, so the deployed source never depends on the workspace.

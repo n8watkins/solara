@@ -10,7 +10,9 @@ import { CostGuard } from './cost-guard'
 import { db } from './firebase'
 import { type ApiHandlerOptions, type HttpHandler, createApiHandler } from './http'
 
-const APP_URL = defineString('APP_URL', { default: 'https://solara-uv.web.app' })
+// Per project, from functions/.env.<project id>, with no default: a project without its
+// own value fails to deploy rather than allow, and return checkout to, another origin.
+const APP_URL = defineString('APP_URL')
 
 /** The web app origin, without a trailing slash. */
 export const appOrigin = (): string => APP_URL.value().replace(/\/$/, '')
