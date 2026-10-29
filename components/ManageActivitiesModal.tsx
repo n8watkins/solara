@@ -1,6 +1,7 @@
 'use client'
 import type { Activity, TierLevel } from '@/lib/types'
-import { activityLimitNote, canAddActivity, effectiveMaxUV } from '@/lib/tiers'
+import { activityLimitNote, canAddActivity, effectiveMaxUV } from '@solara/core/tiers'
+import { isStoreBuild } from '@/lib/store-build'
 import { duplicateActivity, formatActivityDuration, removeActivity } from '@/lib/activity-presets'
 import ActivityModalShell from './ActivityModalShell'
 
@@ -24,7 +25,7 @@ export default function ManageActivitiesModal({
   // At the plan's limit there is nothing to duplicate into, so the button goes
   // away (instead of a grey, disabled-looking one) and a note says why.
   const atLimit = !canAddActivity(tier, activities.length)
-  const limitNote = atLimit ? activityLimitNote(tier) : null
+  const limitNote = atLimit ? activityLimitNote(tier, { offerPro: !isStoreBuild() }) : null
 
   return (
     <ActivityModalShell

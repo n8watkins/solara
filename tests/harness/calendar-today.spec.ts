@@ -3,7 +3,7 @@ import { HARNESS_DATE, HARNESS_NOW, startClock } from './clock'
 import { HARNESS_MARKER } from './fixtures'
 
 // The calendar's "today" offers the same actionable windows as the dashboard
-// (lib/next-slot.ts planActivityDay): nothing that has already passed, and a
+// (packages/core/src/next-slot.ts planActivityDay): nothing that has already passed, and a
 // window already under way starts now. Calendar links point at the right moment
 // in the forecast location's zone.
 

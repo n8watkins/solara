@@ -1,10 +1,10 @@
 import { exposureSummary } from '@/lib/activity-exposure'
 import { Pencil } from 'lucide-react'
 import type { SafeActivityWindow } from '@/lib/types'
-import type { ActivityDayPlan } from '@/lib/next-slot'
+import type { ActivityDayPlan } from '@solara/core/next-slot'
 import type { ScheduledActivity, ScheduledSpan } from '@/lib/scheduled'
-import { recommendSlot, type SlotRecommendation } from '@/lib/scheduler'
-import { effectiveMaxUV } from '@/lib/tiers'
+import { recommendSlot, type SlotRecommendation } from '@solara/core/scheduler'
+import { effectiveMaxUV } from '@solara/core/tiers'
 import { fmtDays } from '@/lib/weather'
 import { useUnits } from '@/lib/use-units'
 import {

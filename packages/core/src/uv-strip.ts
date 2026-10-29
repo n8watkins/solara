@@ -1,7 +1,7 @@
 // Pure layout and wording for the hourly UV strip (components/UVTimeline.tsx) and
 // the sun path drawn above it (components/SunArc.tsx), which share its geometry.
-import type { HourlyForecast } from './types'
-import { fmtHour, formatUV, uvBand, uvLabel } from './weather'
+import type { HourlyForecast } from './forecast-days'
+import { formatUV, uvBand, uvLabel } from './uv-scale'
 
 /** Space between bars, in px. SunArc uses it to put each hour above its bar. */
 export const UV_BAR_GAP = 4
@@ -54,12 +54,20 @@ export function missingRuns(slots: HourSlot[]): Array<[number, number]> {
   return runs
 }
 
+/** A whole hour on the 12-hour clock ("9am", "12pm"), the default label. */
+function hour12(hour: number): string {
+  const h = hour % 24
+  if (h === 0) return '12am'
+  if (h === 12) return '12pm'
+  return h < 12 ? `${h}am` : `${h - 12}pm`
+}
+
 const HIGH_OR_ABOVE = new Set(['high', 'very-high', 'extreme'])
 
 /** One-sentence summary of the day for screen readers (the strip's description). */
 export function uvDaySummary(
   hourly: HourlyForecast[],
-  formatHour: (hour: number) => string = fmtHour,
+  formatHour: (hour: number) => string = hour12,
 ): string {
   const first = hourly[0]
   if (!first) return 'No UV forecast for this day.'

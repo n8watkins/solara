@@ -12,6 +12,8 @@ import {
   type BillingPlan,
 } from '@/lib/billing'
 import { alertsLaunched, calendarFeatureLabel } from '@/lib/plans'
+import { isStoreBuild } from '@/lib/store-build'
+import { TIER_LIMITS } from '@solara/core/tiers'
 
 interface Props {
   /** The signed-in account; null or absent for a guest, who is offered sign-in first. */
@@ -130,6 +132,10 @@ function PriceCard({
  * switches billing on (isCheckoutConfigured); then the account picks monthly or
  * yearly and starts the free trial in Stripe Checkout. A guest is offered free
  * sign-in first, since a subscription or the waitlist belongs to an account.
+ *
+ * An app store build (lib/store-build.ts) sells nothing: a guest sees only free sign-in
+ * and what it adds, with no Pro column, price or waitlist, and a signed-in account sees
+ * nothing (no Pro offer opens it there).
  */
 export default function PricingModal({
   user,
@@ -139,14 +145,22 @@ export default function PricingModal({
   onClose,
   checkoutAvailable,
 }: Props) {
-  const checkoutReady = checkoutAvailable ?? isCheckoutConfigured()
+  const store = isStoreBuild()
+  const checkoutReady = !store && (checkoutAvailable ?? isCheckoutConfigured())
   const guest = !user
   const [plan, setPlan] = useState<BillingPlan>('monthly')
   const [waitEmail, setWaitEmail] = useState(email ?? '')
   const [joined, setJoined] = useState(false)
   const [checkoutLoading, setCheckoutLoading] = useState(false)
   const [checkoutError, setCheckoutError] = useState<string | null>(null)
-  const columns: Column[] = guest ? ['guest', 'free', 'pro'] : ['free', 'pro']
+  const columns: Column[] = store
+    ? ['guest', 'free']
+    : guest
+      ? ['guest', 'free', 'pro']
+      : ['free', 'pro']
+  // The store build compares only what free sign-in adds.
+  const rows = store ? PRO_FEATURES.filter(f => f.free !== false) : PRO_FEATURES
+  const wide = columns.length === 3
 
   async function upgrade() {
     if (!user) return
@@ -168,8 +182,19 @@ export default function PricingModal({
     setJoined(true)
   }
 
+  if (store && !guest) return null
+
   let footer
-  if (guest) {
+  if (store) {
+    footer = (
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2.5">
+        <p className="min-w-45 flex-1 text-[13px] leading-[1.45] text-ink-2">
+          Sign in with Google. It’s free, and your plan comes with you.
+        </p>
+        <GoogleSignInButton label="Sign in free" preload />
+      </div>
+    )
+  } else if (guest) {
     footer = (
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2.5">
         <p className="min-w-45 flex-1 text-[13px] leading-[1.45] text-ink-2">
@@ -228,13 +253,17 @@ export default function PricingModal({
 
   return (
     <ActivityModalShell
-      title="Solara Pro"
-      description={`10 days of planning, up to 20 activities, ${calendarFeatureLabel().toLowerCase()}, family profiles that plan for the most sensitive person, and morning and UV alerts${alertsLaunched() ? '' : ' (coming soon)'}.`}
+      title={store ? 'Sign in free' : 'Solara Pro'}
+      description={
+        store
+          ? `A free account keeps your plan on every device, plans up to ${TIER_LIMITS.free.activities} activities and shows tomorrow too.`
+          : `10 days of planning, up to 20 activities, ${calendarFeatureLabel().toLowerCase()}, family profiles that plan for the most sensitive person, and morning and UV alerts${alertsLaunched() ? '' : ' (coming soon)'}.`
+      }
       onClose={onClose}
       footer={footer}
     >
       <div className="flex flex-col gap-3.5">
-        {!checkoutReady && (
+        {!checkoutReady && !store && (
           <div className={`${NOTICE} text-ink-2`}>
             Pro is launching soon. Join the waitlist to be first in line for the{' '}
             {PRO_PLAN.trialDays}-day free trial.
@@ -246,44 +275,50 @@ export default function PricingModal({
           </p>
         )}
 
-        <div>
-          {checkoutReady && !guest ? (
-            <fieldset>
-              <legend className="sr-only">Choose how to pay</legend>
+        {!store && (
+          <div>
+            {checkoutReady && !guest ? (
+              <fieldset>
+                <legend className="sr-only">Choose how to pay</legend>
+                <div className="grid grid-cols-2 gap-2.5">
+                  {PLAN_OPTIONS.map(option => (
+                    <PriceCard
+                      key={option.plan}
+                      option={option}
+                      selected={plan === option.plan}
+                      onSelect={setPlan}
+                    />
+                  ))}
+                </div>
+              </fieldset>
+            ) : (
               <div className="grid grid-cols-2 gap-2.5">
                 {PLAN_OPTIONS.map(option => (
-                  <PriceCard
-                    key={option.plan}
-                    option={option}
-                    selected={plan === option.plan}
-                    onSelect={setPlan}
-                  />
+                  <PriceCard key={option.plan} option={option} />
                 ))}
               </div>
-            </fieldset>
-          ) : (
-            <div className="grid grid-cols-2 gap-2.5">
-              {PLAN_OPTIONS.map(option => (
-                <PriceCard key={option.plan} option={option} />
-              ))}
-            </div>
-          )}
-          <p className="mt-2 text-[12px] text-ink-3">
-            {checkoutReady
-              ? `New subscribers start with a ${PRO_PLAN.trialDays}-day free trial. Stripe asks for a card and charges nothing until it ends.`
-              : `Both start with a ${PRO_PLAN.trialDays}-day free trial. Cancel anytime.`}
-          </p>
-        </div>
+            )}
+            <p className="mt-2 text-[12px] text-ink-3">
+              {checkoutReady
+                ? `New subscribers start with a ${PRO_PLAN.trialDays}-day free trial. Stripe asks for a card and charges nothing until it ends.`
+                : `Both start with a ${PRO_PLAN.trialDays}-day free trial. Cancel anytime.`}
+            </p>
+          </div>
+        )}
 
         <div className="metric-card overflow-hidden p-0">
           <table className="w-full table-fixed border-collapse">
             <caption className="sr-only">
-              {guest ? 'Guest, Free and Pro plan features' : 'Free and Pro plan features'}
+              {store
+                ? 'Guest and Free plan features'
+                : guest
+                  ? 'Guest, Free and Pro plan features'
+                  : 'Free and Pro plan features'}
             </caption>
             <colgroup>
-              <col className={guest ? 'w-[31%]' : 'w-[40%]'} />
+              <col className={wide ? 'w-[31%]' : 'w-[40%]'} />
               {columns.map(column => (
-                <col key={column} className={guest ? 'w-[23%]' : 'w-[30%]'} />
+                <col key={column} className={wide ? 'w-[23%]' : 'w-[30%]'} />
               ))}
             </colgroup>
             <thead>
@@ -304,7 +339,7 @@ export default function PricingModal({
               </tr>
             </thead>
             <tbody>
-              {PRO_FEATURES.map(f => (
+              {rows.map(f => (
                 <tr key={f.label}>
                   <th scope="row" className={`${BODY_CELL} px-3 text-left text-[13px] text-ink`}>
                     {f.label}

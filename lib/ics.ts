@@ -1,5 +1,5 @@
 import { windowEventSummary, windowEventUid } from '@solara/core'
-import type { SlotRecommendation } from './scheduler'
+import type { SlotRecommendation } from '@solara/core/scheduler'
 import type { Activity } from './types'
 import { buildEventDescription } from './gcal-view'
 

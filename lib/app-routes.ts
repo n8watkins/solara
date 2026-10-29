@@ -22,10 +22,5 @@ export const SIGN_IN_PATH = `${APP_PATH}?${SIGN_IN_PARAM}`
  */
 export const ACCOUNT_OWNER_KEY = 'solara_account_owner'
 
-/**
- * The landing page's only script, inline and run before the page paints: a browser
- * with a Solara account goes straight to the app, so bookmarks of `/` from before the
- * app moved to `/app/` (and Stripe or notification links to `/`) keep working. The
- * query and hash are kept. Anything that goes wrong leaves the landing page as is.
- */
-export const LANDING_REDIRECT_SCRIPT = `try{if(localStorage.getItem(${JSON.stringify(ACCOUNT_OWNER_KEY)}))location.replace(${JSON.stringify(APP_PATH)}+location.search+location.hash)}catch(e){}`
+/** sessionStorage key for a session opened by an app store app (lib/store-build.ts). */
+export const STORE_SESSION_KEY = 'solara_store_session'

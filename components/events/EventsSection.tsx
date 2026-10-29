@@ -26,7 +26,7 @@ import {
   outlookCalendarEventsLaunched,
 } from '@/lib/plans'
 import { eventHeadsUpRule } from '@/lib/event-heads-up-copy'
-import { getFutureDays } from '@/lib/tiers'
+import { getFutureDays } from '@solara/core/tiers'
 import type { Location, TierLevel, UserPreferences, WeatherResponse } from '@/lib/types'
 import EventCard from './EventCard'
 
@@ -54,7 +54,8 @@ interface Props {
   weather: WeatherResponse
   /** The tier whose forecast days apply (a preview tier may override the account's). */
   displayTier: TierLevel
-  onUpgrade: () => void
+  /** Opens the Pro plans; absent in an app store build, which offers nothing to buy. */
+  onUpgrade?: () => void
 }
 
 export default function EventsSection({ uid, prefs, weather, displayTier, onUpgrade }: Props) {
@@ -366,7 +367,7 @@ export default function EventsSection({ uid, prefs, weather, displayTier, onUpgr
         </Suspense>
       )}
 
-      {eventHeadsUpsLaunched() && (
+      {eventHeadsUpsLaunched() && (displayTier === 'paid' || onUpgrade) && (
         <p
           className="mt-3 rounded-[10px] bg-surface-metric px-3 py-2 text-[12px] leading-normal text-ink-2"
           data-testid="event-heads-up-note"

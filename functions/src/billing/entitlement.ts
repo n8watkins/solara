@@ -10,7 +10,13 @@
 // - any other status (`canceled`, `unpaid`, `incomplete`, ...): not Pro.
 // - no subscription at all: Pro granted by the owner by hand (`tier` set in the console).
 // - an account being deleted: never.
+//
+// The statuses are Stripe's: `subscriptionProvider` names where the subscription was
+// bought, and is read as Stripe when absent (every account so far). A provider this code
+// does not know (a Play or App Store source not built yet) grants nothing until its own
+// check is added here.
 
+import { subscriptionProviderOf } from '#core/subscription'
 import type { DocumentData } from 'firebase-admin/firestore'
 
 import { toMillis } from '../shared/time'
@@ -22,6 +28,7 @@ export function hasProEntitlement(
   now: number = Date.now(),
 ): boolean {
   if (!user || user.tier !== 'paid' || user.accountDeletionStartedAt) return false
+  if (subscriptionProviderOf(user) !== 'stripe') return false
   const status = user.subscriptionStatus
   if (status === undefined || status === null) return true
   if (ACTIVE_SUBSCRIPTION_STATUSES.has(status)) return true

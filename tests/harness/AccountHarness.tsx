@@ -16,6 +16,7 @@ const FREE: BillingSummary = {
   trialEndsAt: null,
   periodEndsAt: null,
   cancelAtPeriodEnd: false,
+  provider: 'stripe',
   hasBillingAccount: false,
 }
 
@@ -26,6 +27,7 @@ const PRO: BillingSummary = {
   trialEndsAt: null,
   periodEndsAt: new Date('2027-06-15T12:00:00Z'),
   cancelAtPeriodEnd: false,
+  provider: 'stripe',
   hasBillingAccount: true,
 }
 

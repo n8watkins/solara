@@ -57,6 +57,15 @@ describe('authenticated checkout', () => {
     )
   })
 
+  it('offers no checkout in an app store build', async () => {
+    process.env.NEXT_PUBLIC_FUNCTIONS_URL = 'https://functions.example.test/'
+    vi.stubEnv('NEXT_PUBLIC_STORE_BUILD', '1')
+    const { isBillingManagementConfigured, isCheckoutConfigured } = await freshBilling()
+    expect(isCheckoutConfigured()).toBe(false)
+    // The summary still loads, so Pro bought on the web shows as Pro.
+    expect(isBillingManagementConfigured()).toBe(true)
+  })
+
   it('creates checkout with a freshly issued Firebase ID token', async () => {
     process.env.NEXT_PUBLIC_FUNCTIONS_URL = 'https://functions.example.test/'
     const fetchMock = vi.fn().mockResolvedValue({
@@ -257,11 +266,46 @@ describe('billing summary', () => {
       trialEndsAt: new Date('2026-11-03T12:00:00Z'),
       periodEndsAt: new Date('2026-11-03T12:00:00Z'),
       cancelAtPeriodEnd: false,
+      provider: 'stripe',
       hasBillingAccount: true,
     })
     expect(JSON.stringify(summary)).not.toMatch(/cus_|sub_/)
     expect(billingSummary(undefined)).toMatchObject({ pro: false, hasBillingAccount: false })
     expect(billingSummary({ subscriptionPlan: 'lifetime' }).plan).toBeNull()
+  })
+
+  it('reads an account without subscriptionProvider as Stripe', async () => {
+    const { billingSummary } = await freshBilling()
+    const raw = { tier: 'paid', subscriptionStatus: 'active', stripeCustomerId: 'cus_1' }
+    expect(billingSummary(raw)).toMatchObject({ provider: 'stripe', hasBillingAccount: true })
+    expect(billingSummary({ ...raw, subscriptionProvider: null }).provider).toBe('stripe')
+    expect(billingSummary({ ...raw, subscriptionProvider: 'stripe' }).provider).toBe('stripe')
+  })
+
+  it('offers no Stripe portal for a store it does not know', async () => {
+    const { billingStatusText, billingSummary } = await freshBilling()
+    const summary = billingSummary({
+      tier: 'paid',
+      subscriptionStatus: 'active',
+      subscriptionProvider: 'google-play',
+      stripeCustomerId: 'cus_1',
+    })
+    expect(summary).toMatchObject({ provider: null, hasBillingAccount: false })
+    expect(billingStatusText(summary, () => '')).toBe(
+      'Pro. Manage it in the store you subscribed through.',
+    )
+  })
+
+  it('asks for no payment in an app store build', async () => {
+    const { billingStatusText, billingSummary } = await freshBilling()
+    const pastDue = billingSummary({
+      tier: 'paid',
+      subscriptionPlan: 'monthly',
+      subscriptionStatus: 'past_due',
+    })
+    expect(billingStatusText(pastDue, () => '', { store: true })).toBe(
+      'Pro, monthly. Your last payment failed.',
+    )
   })
 
   it('says what happens next in one sentence', async () => {

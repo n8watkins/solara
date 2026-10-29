@@ -10,14 +10,11 @@
 //   - is long enough for the activity,
 //   - lies in daylight: between the place's sunrise and sunset on that day (Solara plans
 //     outdoor time in daylight only; the UV of 0 in the dark is not a "lower-UV slot").
-import {
-  effectiveMaxUV,
-  lowestUVWindow,
-  planningUV,
-  summarizeWindow,
-  type Daylight,
-} from '@solara/core'
-import type { Activity, HourlyForecast, SafeActivityWindow, SkinType } from './types'
+import type { HourlyForecast, SafeActivityWindow } from './forecast-days'
+import { planningUV } from './forecast-quality'
+import type { Activity } from './prefs'
+import { effectiveMaxUV, lowestUVWindow, summarizeWindow, type SkinType } from './recommendation'
+import type { Daylight } from './sun-times'
 import { getActivityWindow } from './weather'
 import type { BusyInterval, SlotRecommendation } from './scheduler'
 import { recommendSlot } from './scheduler'

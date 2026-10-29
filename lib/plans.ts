@@ -1,7 +1,7 @@
 // The plans as people see them: Pro pricing and the Guest / Free / Pro comparison.
 // Free of Firebase so the static landing page (app/page.tsx) can render it; the
 // billing UI reads it through lib/billing.ts.
-import { TIER_LIMITS, forecastLabel } from './tiers'
+import { TIER_LIMITS, forecastLabel } from '@solara/core/tiers'
 import type { TierLevel } from './types'
 
 /**
@@ -57,7 +57,7 @@ function perTier(value: (tier: TierLevel) => string | boolean) {
 
 /**
  * Single source of truth for the plan comparison in the pricing dialog and on the
- * landing page, derived from the tier rules in lib/tiers.ts.
+ * landing page, derived from the tier rules in packages/core/src/tiers.ts.
  */
 export const PRO_FEATURES: ProFeature[] = [
   { label: 'Forecast', ...perTier(forecastLabel) },

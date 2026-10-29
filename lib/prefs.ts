@@ -7,7 +7,7 @@ import {
 } from '@solara/core'
 import { loadFirebase } from './firebase'
 import type { UserPreferences, Location } from './types'
-import { PRESET_ACTIVITIES, ACTIVITY_CATEGORIES, TIER_LIMITS } from './tiers'
+import { PRESET_ACTIVITIES, ACTIVITY_CATEGORIES, TIER_LIMITS } from '@solara/core/tiers'
 
 // The document schema, its versions and migrations live in @solara/core
 // (packages/core/src/prefs.ts). This module adds what depends on the app's activity

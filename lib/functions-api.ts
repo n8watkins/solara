@@ -1,3 +1,4 @@
+import { CLIENT_VERSION_HEADER, clientVersionHeader } from '@solara/core/client-version'
 import {
   parseFunctionError,
   parseFunctionResponse,
@@ -8,10 +9,19 @@ import type { User } from 'firebase/auth'
 import { appCheckConfigured, appCheckToken } from './firebase'
 
 // One client for the browser-called Cloud Functions. Each request carries the user's
-// Firebase ID token and an App Check token; the server answers errors as
+// Firebase ID token, an App Check token and the build's version (X-Solara-Client,
+// packages/core/src/client-version.ts); the server answers errors as
 // `{ error, code }` with a code from a fixed allowlist (functions/src/shared/errors.ts).
 // Success bodies are validated against the endpoint's contract in @solara/core
 // (FUNCTION_RESPONSES), so callers get typed data or a FunctionsApiError.
+
+/**
+ * This build's `X-Solara-Client` value: `web/` and the commit it was built from
+ * (NEXT_PUBLIC_CLIENT_VERSION, set in next.config.ts), or `web/dev` for a local build.
+ */
+export function clientVersion(): string {
+  return clientVersionHeader('web', process.env.NEXT_PUBLIC_CLIENT_VERSION || 'dev') ?? 'web/dev'
+}
 
 export function functionsBaseUrl(): string | null {
   return process.env.NEXT_PUBLIC_FUNCTIONS_URL?.replace(/\/$/, '') || null
@@ -64,6 +74,7 @@ export async function callFunction<Name extends FunctionName>(
     headers: {
       Authorization: `Bearer ${idToken}`,
       'X-Firebase-AppCheck': appCheck,
+      [CLIENT_VERSION_HEADER]: clientVersion(),
       ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
     },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),

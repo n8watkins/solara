@@ -5,7 +5,7 @@ import { syncErrorFor, type SyncError } from '@/lib/sync-error'
 import { SIGN_IN_PARAM } from '@/lib/app-routes'
 import { loadGuestPrefs, saveGuestPrefs } from '@/lib/guest'
 import { SignedInContext } from '@/lib/signed-in-context'
-import { canUseCalendar } from '@/lib/tiers'
+import { canUseCalendar } from '@solara/core/tiers'
 import { screenAfterOnboarding } from '@/lib/account-screen'
 import { useAccount } from '@/lib/use-account'
 import { useCheckoutReturn } from '@/lib/use-checkout-return'
@@ -220,7 +220,7 @@ function SignedInApp() {
       onSignedIn={handleSignedIn}
       units={units}
       // Scheduled activities (Google Calendar) come with every account, Free included
-      // (canUseCalendar in lib/tiers.ts).
+      // (canUseCalendar in packages/core/src/tiers.ts).
       uid={user && canUseCalendar(prefs.tier) ? user.uid : null}
       activities={prefs.activities}
     >

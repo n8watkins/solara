@@ -2,7 +2,7 @@
 import { useId, useState } from 'react'
 import clsx from 'clsx'
 import { FITZPATRICK_TYPES } from '@solara/core'
-import { SKIN_QUIZ, skinTypeFromQuiz, type SkinQuizAnswers } from '@/lib/skin-quiz'
+import { SKIN_QUIZ, skinTypeFromQuiz, type SkinQuizAnswers } from '@solara/core/skin-quiz'
 import { SKIN_TYPE_LABELS } from '@/lib/profiles'
 import type { SkinType } from '@/lib/types'
 import ActivityModalShell from './ActivityModalShell'
@@ -16,7 +16,7 @@ interface Props {
 
 /**
  * The optional skin type quiz: five questions from the standard Fitzpatrick skin type
- * questionnaire (lib/skin-quiz.ts), reachable from setup and Settings. It only
+ * questionnaire (packages/core/src/skin-quiz.ts), reachable from setup and Settings. It only
  * suggests a type; nothing changes until the person chooses to use it.
  */
 export default function SkinTypeQuiz({ onUse, onClose }: Props) {

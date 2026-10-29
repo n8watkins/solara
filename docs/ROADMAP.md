@@ -147,7 +147,7 @@ Candidates, roughly ranked by impact over effort:
 - **Steps:** an Expo app in the repo using `packages/core`; Firebase sign-in on device with the same Firestore; native push for Pro alerts; TestFlight and a Google Play internal test track; a home-screen UV widget.
 - **Crash reporting:** Sentry's React Native SDK in the same Sentry account as the web app; Firebase Crashlytics can be added later for deep native crash data.
 - **Depends on:** an Apple Developer account ($99 per year) and a Google Play developer account ($25 once); native push needs item 10.
-- **Android readiness:** [integrations/ANDROID.md](integrations/ANDROID.md) has what the web app and backend need first: Pro stays bought on the web and the app is consumption only (default, owner may change, 2026-10-28), native OAuth clients, Play Integrity for App Check, Android push payloads, assetlinks.json, a Trusted Web Activity as the first Play listing, and the 12-testers-for-14-days rule.
+- **Android readiness:** the web-side groundwork is built ([item 38](#38-android-groundwork-in-the-web-repo-androidprep-built)); [integrations/ANDROID.md](integrations/ANDROID.md) has what the web app and backend need first: Pro stays bought on the web and the app is consumption only (default, owner may change, 2026-10-28), native OAuth clients, Play Integrity for App Check, Android push payloads, assetlinks.json, a Trusted Web Activity as the first Play listing, and the 12-testers-for-14-days rule.
 - **Size:** L.
 
 ### 14. Cost and abuse fixes from the third review (FIX3A, built, #118-#121)
@@ -314,7 +314,7 @@ What lane FIX6C found on the dashboard and left for later, through a day in Los 
   An activity whose preferred hours are all in the dark gets no slot, and the hero says so ("No daylight in your hours").
   "% of daylight hours fit" now counts only hours with the sun up.
 - **One notion of "today is over":** at 5:20pm the briefing had turned to "Tomorrow at a glance" (no UV left) while the hero still offered a run this evening.
-  Both now go by the place's sunset (`todayOver` in `lib/dashboard-view.ts`): until sunset the briefing covers today and the hero stays, and both say no slot is left when the daylight is too short for the activity.
+  Both now go by the place's sunset (`todayOver` in `packages/core/src/day-view.ts`): until sunset the briefing covers today and the hero stays, and both say no slot is left when the daylight is too short for the activity.
 - **Tests:** unit tests for the daylight bounds, the briefing day, the plans, the alert and the feed; harness screens (`tests/harness/dashboard-hero.spec.ts`) at dawn, morning, evening and night at 320, 390 and 1280-1440 px, light and dark.
 
 ### 29. Outlook sign-in fixes from the seventh review (FIX7A, built)
@@ -435,6 +435,24 @@ The eighth review's QA M3, L1-L5 and L11 (`handoff/review8-qa.md`), and a tighte
 - **First load:** a guest's first load is about 192.7 KB gzip (191.9 KB before), under the 193 KB budget.
 - **Tests:** `tests/e2e/guest-settings.spec.ts` (each finding on the real export, all failing before the fix), `lib/forecast-store.test.ts` (retries every minute, a manual retry), `lib/onboarding.test.ts`, `lib/account-data.test.ts`, the briefing and alert tests; harness screens `guest-settings-skin`, `guest-settings-display` and `account-controls-details` at 320, 390 and 1280 px, light and dark, with no axe violation.
 
+### 38. Android groundwork in the web repo (ANDROIDPREP, built)
+
+The eighth review's Android readiness list (REVIEW8 PLAN part 3, "Small changes worth making in the web repo now"), items 2-8, so the owner's Expo app ([item 13](#13-wave-6-mobile-app-owners-learning-project)) and a first Trusted Web Activity start from shared code; the web app behaves as before.
+The details are in [integrations/ANDROID.md](integrations/ANDROID.md).
+
+- **Planning logic in `packages/core`:** plan limits, per-day activity windows, the next slot, the scheduler, the planner, today's state (`todayOver`), the skin quiz, the reapply timer, the UV strip and the key-list maths moved from `lib/` with their tests, each its own entry point (`@solara/core/<module>`) that the web app imports directly; `lib/` keeps the browser-only code.
+  One source of truth: the record caps live in `record-caps.ts`, the linked-calendar Function uses core's `fitToCap` instead of its own copy, and a test holds `PREFS_LIMITS` to `TIER_LIMITS`.
+  `packages/core/src/portable.test.ts` keeps core free of browser and Node globals.
+- **Hermes:** imported event keys use core's own SHA-256 (identical digests, proven against Node and Web Crypto), and core reads time zones without `formatToParts` where an engine lacks it, tested on an Intl limited to what Hermes documents.
+- **Entitlement:** a server-owned `subscriptionProvider` (`stripe`, read as `stripe` when absent) that `hasProEntitlement`, the account page and the export read; an unknown provider grants nothing.
+- **Push:** Android devices get `android.notification` on the `solara-alerts` channel with high priority and the same collapse key; the web stays data-only.
+- **Store build:** `NEXT_PUBLIC_STORE_BUILD=1`, or a session opened by an Android app (`android-app://` referrer or `?source=twa`), hides every price, upsell and checkout; a guest may still sign in free.
+- **Client version:** Function calls send `X-Solara-Client: web/<commit>`, which the Functions validate and log, ready to refuse a too-old native build later.
+- **Manifest:** an `id` and two `shortcuts`; the export and Hosting upload of `/.well-known/` files are checked, ready for assetlinks.json.
+- **First load:** `@solara/core` is marked free of import side effects (as BUDGET2 also does), so unused barrel modules leave the first load; a guest's first load measured 192.1 KB gzip, against 192.7 KB on `main` before, with the store check included.
+- **Tests:** the moved unit tests, `sha256.test.ts`, `hermes-intl.test.ts`, `key-lists.test.ts`, `client-version.test.ts`, `lib/store-build.test.ts`, `tests/manifest.test.ts`, `tests/well-known.test.ts`, the Functions' entitlement, CORS and logging tests, the rules and alerts emulator tests, and `tests/harness/store-build.spec.ts`.
+- **Still to do for Android:** the Google Calendar and Microsoft Graph REST calls and the offline cache shapes in core, `share_target` and `screenshots` in the manifest, assetlinks.json (it needs the package name), and the same-site auth domain.
+
 ## Decisions
 
 Agents never make owner decisions; they follow the recorded decision or the default.
@@ -500,7 +518,7 @@ The steps behind each one are in the [owner checklist](OWNER_CHECKLIST.md).
 | Calendar sync (Google Calendar adding, Scheduled, live feed, .ics export) | - | Yes | Yes |
 | Family profiles, morning alerts | - | - | Yes |
 
-Google Calendar adding and Scheduled stay available on Free accounts by owner decision (2026-10-24); `lib/tiers.ts` keeps `calendar` on for Free, and that one flag also covers the live feed and the .ics export.
+Google Calendar adding and Scheduled stay available on Free accounts by owner decision (2026-10-24); `packages/core/src/tiers.ts` keeps `calendar` on for Free, and that one flag also covers the live feed and the .ics export.
 Morning alerts are Pro-only and launch with Pro.
 Upsell moments: "Save your plan, sign in free" when a guest adds a second activity or returns on a later day; "See the next 10 days with Pro" on the forecast tabs; "Get this as a morning alert" on the recommendation card.
 No pop-ups on first arrival.

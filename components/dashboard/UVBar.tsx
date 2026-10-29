@@ -6,7 +6,7 @@ import VisuallyHidden from '../VisuallyHidden'
 import { UV_BG } from './uv-classes'
 
 // One hour on the UV strip. Bars grow to fill the strip and never get narrower
-// than UV_BAR_MIN_WIDTH (42px, lib/uv-strip.ts); below that the strip scrolls.
+// than UV_BAR_MIN_WIDTH (42px, packages/core/src/uv-strip.ts); below that the strip scrolls.
 // Bars snap to the middle, and the end bars to their edge, so the strip can rest
 // at either end (where it sits before sunrise and after sunset).
 const SLOT =

@@ -457,7 +457,7 @@ Use an organization auth token (Sentry **Settings**, **Developer Settings**, **O
 Calendar feed links are capability URLs, so the server mints their tokens (32 random bytes, base64url) through `rotateCalendarFeed` and revokes them through `revokeCalendarFeed`.
 Each live token is indexed by its SHA-256 hash in the server-only `calendarFeeds/{hash}` collection, and the feed resolves a token with one document read.
 The owner reads the current link from `users/{uid}/private/calendarFeed`, which clients cannot write.
-A feed covers the forecast days the account's plan shows in the app: today and tomorrow on Free, 10 days on Pro (`PLAN_FORECAST_DAYS` in `packages/core/src/plans.ts`, which `lib/tiers.ts` also reads).
+A feed covers the forecast days the account's plan shows in the app: today and tomorrow on Free, 10 days on Pro (`PLAN_FORECAST_DAYS` in `packages/core/src/plans.ts`, which `packages/core/src/tiers.ts` also reads).
 The plan is read from the server-owned `tier` field on every request, so a feed grows when an account upgrades and shrinks when it returns to Free.
 Feed responses are `Cache-Control: private, max-age=900` with a weak `ETag`, and both a single feed and an address that keeps requesting unknown tokens are rate limited.
 The per-address limit keys on the `X-Forwarded-For` entry that Google's front end appends, never on the entries a client can send (`TRUSTED_PROXY_HOPS` in `functions/src/shared/client-address.ts`).

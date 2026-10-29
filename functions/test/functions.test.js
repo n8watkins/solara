@@ -1596,7 +1596,7 @@ describe('browser API CORS', () => {
     assert.equal(allowed.headers['Access-Control-Allow-Origin'], 'https://app.example.com')
     assert.equal(
       allowed.headers['Access-Control-Allow-Headers'],
-      'Authorization, Content-Type, X-Firebase-AppCheck',
+      'Authorization, Content-Type, X-Firebase-AppCheck, X-Solara-Client',
     )
     assert.equal(allowed.headers['Access-Control-Allow-Methods'], 'POST')
 
@@ -3025,6 +3025,7 @@ describe('Stripe fulfillment security', () => {
     assert.equal(db.userData.tier, 'paid')
     assert.equal(db.userData.subscriptionStatus, 'trialing')
     assert.equal(db.userData.subscriptionPlan, 'yearly')
+    assert.equal(db.userData.subscriptionProvider, 'stripe')
     assert.equal(db.userData.stripeTrialUsed, true)
     assert.equal(db.userData.subscriptionTrialEnd.getTime(), 1_790_604_800_000)
     assert.equal(db.userData.subscriptionCurrentPeriodEnd.getTime(), 1_790_604_800_000)

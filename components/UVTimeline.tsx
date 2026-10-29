@@ -12,7 +12,7 @@ import {
 } from 'react'
 import type { HourlyForecast } from '@/lib/types'
 import { useUnits } from '@/lib/use-units'
-import { UV_STRIP_EDGE_FADE, hourSlots, uvDaySummary } from '@/lib/uv-strip'
+import { UV_STRIP_EDGE_FADE, hourSlots, uvDaySummary } from '@solara/core/uv-strip'
 import VisuallyHidden from './VisuallyHidden'
 import { UVBar, UVGap } from './dashboard/UVBar'
 import UVScaleLegend from './dashboard/UVScaleLegend'

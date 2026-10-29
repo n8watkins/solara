@@ -1,6 +1,9 @@
-import { PLAN_FORECAST_DAYS } from '@solara/core'
-
-import type { TierLevel, Activity } from './types'
+// The three plans and what each includes: the one source of truth for plan limits.
+// The web app (lib/tiers.ts re-exports this), the stored-preferences caps (prefs.ts
+// PREFS_LIMITS) and a native client read it; firestore.rules repeat the list caps, and
+// lib/firestore-rules.test.ts checks that they match.
+import { PLAN_FORECAST_DAYS } from './plans'
+import type { Activity, TierLevel } from './prefs'
 import { effectiveMaxUV as sharedEffectiveMaxUV } from './recommendation'
 
 /** What each plan includes. Every tier rule in the app reads from here. */
@@ -32,7 +35,7 @@ export interface TierLimits {
  * | Calendar sync       | -                  | Yes                | Yes     |
  * | Alerts, family profiles | -              | -                  | Yes     |
  */
-export const TIER_LIMITS: Record<TierLevel, TierLimits> = {
+export const TIER_LIMITS: Readonly<Record<TierLevel, TierLimits>> = {
   anonymous: {
     activities: 1,
     calendar: false,
@@ -111,13 +114,20 @@ export function forecastLabel(tier: TierLevel): string {
   return `${days} days`
 }
 
-/** The activity-limit note for a plan that is full, pointing at the next plan up. */
-export function activityLimitNote(tier: TierLevel): string | null {
+/**
+ * The activity-limit note for a plan that is full, pointing at the next plan up. With
+ * `offerPro: false` (an app store build, which sells nothing) it names no Pro upgrade.
+ */
+export function activityLimitNote(
+  tier: TierLevel,
+  { offerPro = true }: { offerPro?: boolean } = {},
+): string | null {
   if (tier === 'anonymous') {
     return `Guests can plan ${TIER_LIMITS.anonymous.activities} activity. Sign in free to plan up to ${TIER_LIMITS.free.activities}.`
   }
   if (tier === 'free') {
-    return `Free plan: up to ${TIER_LIMITS.free.activities} activities. Upgrade to Pro for up to ${TIER_LIMITS.paid.activities}.`
+    const note = `Free plan: up to ${TIER_LIMITS.free.activities} activities.`
+    return offerPro ? `${note} Upgrade to Pro for up to ${TIER_LIMITS.paid.activities}.` : note
   }
   return null
 }

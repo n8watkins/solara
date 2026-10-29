@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { HEAD_FIRST_PAGES, stripFrameworkScripts } from './static-pages.mts'
-import { LANDING_REDIRECT_SCRIPT } from './app-routes'
+import { LANDING_REDIRECT_SCRIPT } from './landing-redirect'
 
 const page = (body: string) => `<!DOCTYPE html><html><head>
 <link rel="preload" href="/_next/static/media/inter.woff2" as="font" type="font/woff2"/>

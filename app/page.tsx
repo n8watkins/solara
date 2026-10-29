@@ -2,7 +2,8 @@ import { Check, Clock, Footprints, MapPin, type LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import Link from 'next/link'
 import DataAttribution from '@/components/DataAttribution'
-import { APP_PATH, LANDING_REDIRECT_SCRIPT, SIGN_IN_PATH } from '@/lib/app-routes'
+import { APP_PATH, SIGN_IN_PATH } from '@/lib/app-routes'
+import { LANDING_REDIRECT_SCRIPT } from '@/lib/landing-redirect'
 import { CITIES, cityPath } from '@/lib/city-pages'
 import { PRO_FEATURES, PRO_PLAN, type ProFeature } from '@/lib/plans'
 import SolaraMark from '@/components/SolaraMark'
@@ -41,6 +42,8 @@ function planFeatures(column: Column): string[] {
     return [`${feature.label}: ${value}`]
   })
 }
+
+const STORE_BUILD = process.env.NEXT_PUBLIC_STORE_BUILD === '1'
 
 const BUTTON = 'btn justify-center px-5 py-3 text-[15px] font-semibold no-underline'
 
@@ -176,57 +179,64 @@ export default function Landing() {
             </div>
           </section>
 
-          <section aria-labelledby="plans-heading" id="plans">
-            <div className="mx-auto max-w-[1080px] px-4 py-16 sm:px-6 md:py-20">
-              <h2 id="plans-heading" className="text-[28px] font-[750] tracking-[-0.01em] text-ink">
-                Start free, upgrade when you want more
-              </h2>
-              <p className="mt-2 max-w-[600px] text-[15px] leading-[1.6] text-ink-2">
-                Try Solara without an account. Sign in free to keep your plan on every device.
-              </p>
-              <div className="mt-8 grid gap-4 md:grid-cols-3">
-                <PlanCard
-                  name="Guest"
-                  column="guest"
-                  price={<span className="text-[28px] font-extrabold">$0</span>}
-                  note="No sign-in. Your plan stays on this device."
-                  action={
-                    <a href={APP_PATH} className={`${BUTTON} btn-primary w-full`}>
-                      Try it now
-                    </a>
-                  }
-                />
-                <PlanCard
-                  name="Free account"
-                  column="free"
-                  price={<span className="text-[28px] font-extrabold">$0</span>}
-                  note="Sign in with Google. Synced everywhere."
-                  action={
-                    <a href={SIGN_IN_PATH} className={`${BUTTON} w-full bg-surface-card`}>
-                      Sign in free
-                    </a>
-                  }
-                />
-                <PlanCard
-                  name="Pro"
-                  column="pro"
-                  featured
-                  price={
-                    <>
-                      <span className="text-[28px] font-extrabold">{PRO_PLAN.monthly}</span>
-                      <span className="text-[14px] text-ink-3"> / month</span>
-                    </>
-                  }
-                  note={`or ${PRO_PLAN.yearly} a year. ${PRO_PLAN.trialDays}-day free trial. Coming soon: sign in to join the waitlist.`}
-                  action={
-                    <a href={SIGN_IN_PATH} className={`${BUTTON} w-full bg-surface-card`}>
-                      Join the waitlist
-                    </a>
-                  }
-                />
+          {/* A store build (lib/store-build.ts) shows no prices; its landing page also
+              goes straight to the app. */}
+          {!STORE_BUILD && (
+            <section aria-labelledby="plans-heading" id="plans">
+              <div className="mx-auto max-w-[1080px] px-4 py-16 sm:px-6 md:py-20">
+                <h2
+                  id="plans-heading"
+                  className="text-[28px] font-[750] tracking-[-0.01em] text-ink"
+                >
+                  Start free, upgrade when you want more
+                </h2>
+                <p className="mt-2 max-w-[600px] text-[15px] leading-[1.6] text-ink-2">
+                  Try Solara without an account. Sign in free to keep your plan on every device.
+                </p>
+                <div className="mt-8 grid gap-4 md:grid-cols-3">
+                  <PlanCard
+                    name="Guest"
+                    column="guest"
+                    price={<span className="text-[28px] font-extrabold">$0</span>}
+                    note="No sign-in. Your plan stays on this device."
+                    action={
+                      <a href={APP_PATH} className={`${BUTTON} btn-primary w-full`}>
+                        Try it now
+                      </a>
+                    }
+                  />
+                  <PlanCard
+                    name="Free account"
+                    column="free"
+                    price={<span className="text-[28px] font-extrabold">$0</span>}
+                    note="Sign in with Google. Synced everywhere."
+                    action={
+                      <a href={SIGN_IN_PATH} className={`${BUTTON} w-full bg-surface-card`}>
+                        Sign in free
+                      </a>
+                    }
+                  />
+                  <PlanCard
+                    name="Pro"
+                    column="pro"
+                    featured
+                    price={
+                      <>
+                        <span className="text-[28px] font-extrabold">{PRO_PLAN.monthly}</span>
+                        <span className="text-[14px] text-ink-3"> / month</span>
+                      </>
+                    }
+                    note={`or ${PRO_PLAN.yearly} a year. ${PRO_PLAN.trialDays}-day free trial. Coming soon: sign in to join the waitlist.`}
+                    action={
+                      <a href={SIGN_IN_PATH} className={`${BUTTON} w-full bg-surface-card`}>
+                        Join the waitlist
+                      </a>
+                    }
+                  />
+                </div>
               </div>
-            </div>
-          </section>
+            </section>
+          )}
 
           <section
             aria-labelledby="cities-heading"

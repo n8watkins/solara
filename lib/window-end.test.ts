@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { getSafeWindowsForActivity } from '@/lib/calendar'
-import { planActivityDay } from '@/lib/next-slot'
+import { planActivityDay } from '@solara/core/next-slot'
 import type { Activity, HourlyForecast } from '@/lib/types'
 
 /* eslint-disable @typescript-eslint/no-require-imports */

@@ -1,9 +1,11 @@
-import { lowestUVWindow } from '@solara/core'
-import type { DayWeather, Activity, SkinType, SafeActivityWindow } from './types'
-import { getActivityWindow } from './weather'
-import type { SlotRecommendation, BusyInterval } from './scheduler'
+// The plan across the forecast horizon: the best upcoming window and slot per activity,
+// and the next slot after today. Pure; the web app re-exports it from lib/planner.ts.
+import type { DayWeather, SafeActivityWindow } from './forecast-days'
 import { planActivityDay } from './next-slot'
-import { activityRunsOnDate } from './recommendation'
+import type { Activity } from './prefs'
+import { lowestUVWindow, runsOn, type SkinType } from './recommendation'
+import type { BusyInterval, SlotRecommendation } from './scheduler'
+import { getActivityWindow } from './weather'
 
 export interface UpcomingWindow {
   activity: Activity
@@ -19,7 +21,7 @@ export interface UpcomingWindow {
  * No restriction (undefined/empty) means it runs every day.
  */
 export function activityRunsOn(activity: Activity, dateStr: string): boolean {
-  return activityRunsOnDate(activity, dateStr)
+  return runsOn(activity, dateStr)
 }
 
 /**

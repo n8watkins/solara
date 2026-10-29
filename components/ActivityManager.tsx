@@ -2,7 +2,8 @@
 import clsx from 'clsx'
 import { useState } from 'react'
 import type { Activity, TierLevel } from '@/lib/types'
-import { activityLimitNote, canAddActivity } from '@/lib/tiers'
+import { activityLimitNote, canAddActivity } from '@solara/core/tiers'
+import { isStoreBuild } from '@/lib/store-build'
 import { activityFromPreset, removeActivity, type Preset } from '@/lib/activity-presets'
 import { useTransient } from '@/lib/use-transient'
 import ActivityCustomForm from './ActivityCustomForm'
@@ -83,9 +84,9 @@ export default function ActivityManager({
 
       {mode === 'browse' && (
         <>
-          {atLimit && activityLimitNote(tier) && (
+          {atLimit && activityLimitNote(tier, { offerPro: !isStoreBuild() }) && (
             <div className="rounded-[10px] border-[0.5px] border-notice-border bg-notice px-3.5 py-2.5 text-[13px] text-ink-2">
-              {activityLimitNote(tier)}
+              {activityLimitNote(tier, { offerPro: !isStoreBuild() })}
             </div>
           )}
 

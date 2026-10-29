@@ -1,8 +1,8 @@
 // Pure view logic for one activity card (components/dashboard/ActivityCard.tsx):
 // its status badge, labels and whether its recommendation is already scheduled.
-import type { ActivityDayPlan } from './next-slot'
+import type { ActivityDayPlan } from '@solara/core/next-slot'
 import type { ScheduledSpan } from './scheduled'
-import type { SlotRecommendation } from './scheduler'
+import type { SlotRecommendation } from '@solara/core/scheduler'
 
 export type ActivityStatus = 'safe' | 'caution' | 'avoid' | 'done'
 

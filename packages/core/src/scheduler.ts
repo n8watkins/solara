@@ -1,4 +1,7 @@
-import type { SafeActivityWindow, TimePreference } from './types'
+// Fitting an activity into a day's safe windows around calendar busy blocks, honoring
+// its time-of-day preference. Pure; the web app re-exports it from lib/scheduler.ts.
+import type { SafeActivityWindow } from './forecast-days'
+import type { TimePreference } from './prefs'
 
 /** A busy block from the calendar, in fractional hours within a single day: [start, end). */
 export interface BusyInterval {

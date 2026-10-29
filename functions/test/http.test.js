@@ -88,6 +88,43 @@ function post(headers = {}) {
   }
 }
 
+describe('client version header', () => {
+  test('a verified call logs its client build once a minute, validated', async () => {
+    const { calls, handle } = api()
+    for (const client of ['web/1a2b3c4d5e6f', 'web/1a2b3c4d5e6f', 'android/1.4.0']) {
+      await handle(post({ 'x-solara-client': client }), responseRecorder())
+    }
+    await handle(post({ 'x-solara-client': 'web/1\nforged line' }), responseRecorder())
+    assert.equal(calls.length, 4)
+    const seen = logs.entries.filter(entry => entry.message === 'testEndpoint client')
+    assert.deepEqual(
+      seen.map(entry => [entry.severity, entry.fields.client]),
+      [
+        ['INFO', 'web/1a2b3c4d5e6f'],
+        ['INFO', 'android/1.4.0'],
+        ['INFO', 'unknown'],
+      ],
+    )
+    assert.doesNotMatch(JSON.stringify(logs.entries), /forged/)
+  })
+
+  test('a rejection names the client, and CORS allows the header', async () => {
+    const { handle } = api()
+    await handle(
+      post({ 'x-firebase-appcheck': undefined, 'x-solara-client': 'android/2.0.0' }),
+      responseRecorder(),
+    )
+    const rejected = logs.entries.find(entry => entry.message === 'testEndpoint rejected')
+    assert.equal(rejected.fields.client, 'android/2.0.0')
+    // An unverified request never logs its client line.
+    assert.equal(logs.entries.filter(entry => entry.message === 'testEndpoint client').length, 0)
+
+    const preflight = responseRecorder()
+    await handle({ method: 'OPTIONS', headers: { origin: ORIGIN } }, preflight)
+    assert.match(preflight.headers['Access-Control-Allow-Headers'], /\bX-Solara-Client\b/)
+  })
+})
+
 describe('allowlisted errors', () => {
   test('only allowlisted codes can be constructed, and each fixes its status', () => {
     assert.throws(() => new HttpError(/** @type {any} */ ('teapot'), 'nope'), TypeError)
@@ -188,7 +225,9 @@ describe('browser API pipeline', () => {
 
     // A 4xx is a warning and a 5xx an error, each with structured fields.
     assert.deepEqual(
-      logs.entries.map(({ severity, message, fields }) => [severity, message, fields]),
+      logs.entries
+        .filter(entry => !entry.message.endsWith(' client'))
+        .map(({ severity, message, fields }) => [severity, message, fields]),
       [
         [
           'WARNING',
@@ -196,6 +235,7 @@ describe('browser API pipeline', () => {
           {
             function: 'testEndpoint',
             status: 409,
+            client: 'unknown',
             error: {
               name: 'HttpError',
               code: 'conflict',
@@ -210,6 +250,7 @@ describe('browser API pipeline', () => {
           {
             function: 'testEndpoint',
             status: 500,
+            client: 'unknown',
             error: { name: 'Error', message: 'internal path /srv/secret' },
             suppressed: 0,
           },

@@ -19,9 +19,9 @@ export interface BriefingViewInput {
   weather: Pick<WeatherResponse, 'now' | 'today' | 'tomorrow' | 'forecast'>
   /** A later day picked in the day picker, else null (today). */
   selectedDay: Pick<DayWeather, 'dateStr' | 'label' | 'hourly' | 'daylight'> | null
-  /** Fractional "now" in the forecast's zone (lib/next-slot.ts nowHourOf). */
+  /** Fractional "now" in the forecast's zone (packages/core/src/next-slot.ts nowHourOf). */
   nowHour: number
-  /** Today is over at the place (lib/dashboard-view.ts todayOver): brief tomorrow. */
+  /** Today is over at the place (packages/core/src/day-view.ts todayOver): brief tomorrow. */
   todayOver: boolean
   activities: readonly Activity[]
   skinType: SkinType

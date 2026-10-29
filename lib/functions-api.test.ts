@@ -6,7 +6,7 @@ vi.mock('@/lib/firebase', () => ({
   appCheckToken: vi.fn(async () => 'app-check'),
 }))
 
-import { callFunction, FunctionsApiError } from '@/lib/functions-api'
+import { callFunction, clientVersion, FunctionsApiError } from '@/lib/functions-api'
 
 const user = { getIdToken: vi.fn(async () => 'id-token') } as unknown as User
 
@@ -43,6 +43,22 @@ describe('callFunction', () => {
       'https://functions.example.test/revokeCalendarFeed',
       expect.objectContaining({ method: 'DELETE' }),
     )
+  })
+
+  it('names the client build on every call', async () => {
+    vi.stubEnv('NEXT_PUBLIC_CLIENT_VERSION', '1a2b3c4d5e6f')
+    respond(200, { revoked: true })
+    await revoke()
+    expect(fetch).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        headers: expect.objectContaining({ 'X-Solara-Client': 'web/1a2b3c4d5e6f' }),
+      }),
+    )
+    vi.stubEnv('NEXT_PUBLIC_CLIENT_VERSION', '')
+    expect(clientVersion()).toBe('web/dev')
+    vi.stubEnv('NEXT_PUBLIC_CLIENT_VERSION', 'not a version')
+    expect(clientVersion()).toBe('web/dev')
   })
 
   it('rejects a success body that breaks the contract', async () => {

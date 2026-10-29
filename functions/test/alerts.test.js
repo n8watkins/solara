@@ -54,6 +54,27 @@ describe('Pro entitlement', () => {
     )
     assert.equal(hasProEntitlement(undefined, NOW), false)
   })
+
+  test('reads an account without subscriptionProvider as Stripe', () => {
+    for (const subscriptionProvider of [undefined, null, 'stripe']) {
+      const user = { tier: 'paid', subscriptionStatus: 'active', subscriptionProvider }
+      assert.equal(hasProEntitlement(user, NOW), true)
+      assert.equal(hasProEntitlement({ ...user, subscriptionStatus: 'canceled' }, NOW), false)
+    }
+  })
+
+  test('a provider this code does not know grants nothing', () => {
+    for (const subscriptionProvider of ['google-play', 'app-store', '', 42]) {
+      assert.equal(
+        hasProEntitlement(
+          { tier: 'paid', subscriptionStatus: 'active', subscriptionProvider },
+          NOW,
+        ),
+        false,
+      )
+      assert.equal(hasProEntitlement({ tier: 'paid', subscriptionProvider }, NOW), false)
+    }
+  })
 })
 
 describe('alert state', () => {

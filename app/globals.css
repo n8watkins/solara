@@ -448,7 +448,7 @@
     -webkit-tap-highlight-color: transparent;
   }
   @media (max-width: 560px) {
-    /* The 16px fade is UV_STRIP_EDGE_FADE (lib/uv-strip.ts); the sun path keeps its
+    /* The 16px fade is UV_STRIP_EDGE_FADE (packages/core/src/uv-strip.ts); the sun path keeps its
        peak callout out of it. UVTimeline narrows each side's fade to the distance
        left to scroll that way, so a strip resting at an end shows that bar whole. */
     .uv-strip {

@@ -14,9 +14,10 @@ import {
 import { groupMembers, planningFor } from '@solara/core'
 import { newProfileDraft, removeProfilePatch, saveProfilePatch } from '@/lib/profile-patches'
 import { isCheckoutConfigured } from '@/lib/billing'
-import { TIER_LIMITS, canUseFamilyProfiles, getProfileLimit } from '@/lib/tiers'
+import { TIER_LIMITS, canUseFamilyProfiles, getProfileLimit } from '@solara/core/tiers'
 import ProfileEditor from './ProfileEditor'
 import { PricingModal } from './deferred'
+import { isStoreBuild } from '@/lib/store-build'
 
 interface Props {
   prefs: UserPreferences
@@ -291,7 +292,7 @@ export default function ProfileSwitcher({ prefs, tier, user, onApply }: Props) {
                 </p>
               )}
 
-              {!family && <FamilyOffer onSeePro={() => setShowPricing(true)} />}
+              {!family && !isStoreBuild() && <FamilyOffer onSeePro={() => setShowPricing(true)} />}
             </>
           )}
         </div>

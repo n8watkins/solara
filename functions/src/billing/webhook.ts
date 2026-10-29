@@ -90,6 +90,8 @@ export function billingSummaryFields(
     .map(item => epochSecondsToDate(item?.current_period_end))
     .filter((date): date is Date => date !== null)
   return {
+    // Where the subscription is bought (#core SUBSCRIPTION_PROVIDERS); hasProEntitlement reads it.
+    subscriptionProvider: 'stripe',
     subscriptionPlan: plan,
     subscriptionCurrentPeriodEnd: periodEnds.length
       ? new Date(Math.max(...periodEnds.map(date => date.getTime())))

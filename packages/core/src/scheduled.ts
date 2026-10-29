@@ -7,6 +7,7 @@
 // lib/firestore-rules.test.ts fails when the two drift.
 
 import * as v from 'valibot'
+import { RECORD_CAPS, RECORD_LIST_LIMITS } from './record-caps'
 import { record } from './schema'
 
 /** Storage caps, mirrored by firestore.rules. */
@@ -20,12 +21,12 @@ export const SCHEDULED_LIMITS = Object.freeze({
   timezoneLength: 64,
   linkLength: 2048,
   /** Most records one list query may return (rules check `request.query.limit`). */
-  listLimit: 100,
+  listLimit: RECORD_LIST_LIMITS.scheduled,
   /**
    * Most records one account may hold (REVIEW4 M4; default, owner may change). The rules
-   * enforce it through users/{uid}/meta/scheduled (lib/key-index.ts).
+   * enforce it through users/{uid}/meta/scheduled (key-lists.ts).
    */
-  maxStored: 500,
+  maxStored: RECORD_CAPS.scheduled,
 })
 
 /** Fields of a stored scheduled activity, in the order firestore.rules lists them. */

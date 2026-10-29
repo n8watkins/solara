@@ -14,6 +14,7 @@
 import type { AppCheck } from 'firebase-admin/app-check'
 import type { Request, Response } from 'firebase-functions/v2/https'
 
+import { CLIENT_VERSION_HEADER, parseClientVersion } from '#core/client-version'
 import { type AppCheckMode, verifyAppCheck } from './app-check'
 import { DEFAULT_MAX_BODY_BYTES } from './body-limit'
 import { ProxyHopMonitor, clientScopes } from './client-address'
@@ -70,7 +71,10 @@ export function handleCors(
     res.set('Vary', 'Origin')
   }
   if (req.method === 'OPTIONS') {
-    res.set('Access-Control-Allow-Headers', 'Authorization, Content-Type, X-Firebase-AppCheck')
+    res.set(
+      'Access-Control-Allow-Headers',
+      `Authorization, Content-Type, X-Firebase-AppCheck, ${CLIENT_VERSION_HEADER}`,
+    )
     res.set('Access-Control-Allow-Methods', methods.join(', '))
     res.set('Access-Control-Max-Age', '3600')
     res.status(origin && origin !== allowedOrigin ? 403 : 204).send('')
@@ -135,6 +139,7 @@ export function createApiHandler<T>({
   if (costFeature && !costGuard) throw new TypeError(`${name}: costFeature needs a costGuard`)
   const addressLimiter = new FixedWindowLimiter({ limit: perAddressPerMinute, windowMs: 60_000 })
   const rejections = new ThrottledLog()
+  const clients = new ThrottledLog()
   const proxyHops = new ProxyHopMonitor(name)
   return async (req, res) => {
     setApiHeaders(res)
@@ -149,6 +154,10 @@ export function createApiHandler<T>({
       return
     }
     proxyHops.observe(req)
+    // The client build (#core/client-version), validated so a log carries no arbitrary
+    // text. Logged now; a too-old native build can be refused here later.
+    const parsed = parseClientVersion(req.headers[CLIENT_VERSION_HEADER.toLowerCase()])
+    const client = parsed ? `${parsed.platform}/${parsed.version}` : 'unknown'
     try {
       const budget = addressLimiter.take(clientScopes(req))
       if (!budget.allowed) {
@@ -168,11 +177,13 @@ export function createApiHandler<T>({
         })
       }
       await verifyAppCheck(appCheck(), token, appCheckMode)
+      // Only verified requests, once a minute per build and instance.
+      clients.log('info', client, `${name} client`, { function: name, client })
       const result = await handler(req)
       res.status(result.status ?? 200).json(result.body)
     } catch (error) {
       const { status, body } = publicError(error, fallbackMessage)
-      const fields = { function: name, status, error: loggableError(error) }
+      const fields = { function: name, status, client, error: loggableError(error) }
       // An allowlisted rejection (including 503 `unavailable` while a feature is paused)
       // is expected and a WARNING; anything else is a failure and an ERROR. Either way
       // a flood logs one line a minute per kind, with the count of lines it held back.

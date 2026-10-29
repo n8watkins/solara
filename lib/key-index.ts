@@ -1,77 +1,33 @@
-// Per-account record caps (REVIEW4 M4). Security rules cannot count a collection, so
-// users/{uid}/meta/{collection} lists the key of every record in users/{uid}/{collection}
-// (`ids`, a map of key to true), and firestore.rules hold the two together:
+// Per-account record caps (REVIEW4 M4), kept in Firestore. The key-list rules and the
+// pure maths (caps, what fits, how to reconcile) are in @solara/core
+// (packages/core/src/key-lists.ts), shared with the Functions and a native client; this
+// module reads and writes the list document and the records in batched writes.
 //
-// - a record can be created or rewritten only in a batched write that lists its key;
-// - the list holds at most the collection's cap (KEY_INDEX_CAPS);
-// - a key leaves the list only in a write that names it in `removed` (at most
-//   KEY_INDEX_MAX_REMOVED keys) and after which its record does not exist.
-//
-// So an account never holds more records than the cap, whatever it writes. Records
-// Firestore's TTL policy deletes stay listed until `reconcile` takes their keys off,
-// which happens when a save would otherwise not fit; `reconcile` also lists records
-// stored before the list existed (the Events section runs it when it sees one). Functions write with the Admin
-// SDK, which skips the rules; one that adds or removes these records must update the
-// list the same way (phase 2 of docs/integrations/EVENTS.md).
+// Records Firestore's TTL policy deletes stay listed until `reconcile` takes their keys
+// off, which happens when a save would otherwise not fit; `reconcile` also lists records
+// stored before the list existed (the Events section runs it when it sees one). Functions
+// write with the Admin SDK, which skips the rules; one that adds or removes these records
+// must update the list the same way (phase 2 of docs/integrations/EVENTS.md).
 //
 // Only the lazily loaded event and scheduled-activity storage imports this; it loads
 // Firestore on demand.
-import { IMPORTED_EVENT_LIMITS } from '@solara/core/event-import'
-import { SCHEDULED_LIMITS } from '@solara/core'
+import {
+  KEY_INDEX_CAPS,
+  KEY_INDEX_DOC,
+  KEY_INDEX_LIST_LIMITS,
+  KEY_INDEX_MAX_REMOVED,
+  KEY_INDEX_PUT_BATCH,
+  chunks,
+  fitToCap,
+  listedKeysOf,
+  reconcilePlan,
+} from '@solara/core/key-lists'
 import type { QuerySnapshot } from 'firebase/firestore'
 import { loadFirebase } from './firebase'
 import { RecordCapError, type CappedCollection } from './record-cap'
 
 export { RecordCapError, type CappedCollection }
-
-/** Most records each collection may hold per account (firestore.rules repeats these). */
-export const KEY_INDEX_CAPS: Readonly<Record<CappedCollection, number>> = Object.freeze({
-  events: IMPORTED_EVENT_LIMITS.maxStored,
-  scheduled: SCHEDULED_LIMITS.maxStored,
-})
-
-/** Most keys one write may take off the list (firestore.rules checks each one). */
-export const KEY_INDEX_MAX_REMOVED = 8
-
-/** Most record writes in one batch (Firestore allows 500 operations, the list is one). */
-const PUT_BATCH = 400
-
-/** Largest list query each collection's rules allow. */
-const LIST_LIMITS: Readonly<Record<CappedCollection, number>> = {
-  events: IMPORTED_EVENT_LIMITS.listLimit,
-  scheduled: SCHEDULED_LIMITS.listLimit,
-}
-
-/** PURE. Splits `items` into equal-size chunks (the last may be shorter). */
-export function chunks<T>(items: readonly T[], size: number): T[][] {
-  const out: T[][] = []
-  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size))
-  return out
-}
-
-/**
- * PURE. Which items fit under the cap: every item already listed (a rewrite), then new
- * ones in the order given until the list is full.
- */
-export function fitToCap<T>(
-  items: readonly T[],
-  keyOf: (item: T) => string,
-  listed: ReadonlySet<string>,
-  cap: number,
-): { fit: T[]; refused: T[] } {
-  const fit: T[] = []
-  const refused: T[] = []
-  const added = new Set<string>()
-  for (const item of items) {
-    const key = keyOf(item)
-    if (listed.has(key) || added.has(key)) fit.push(item)
-    else if (listed.size + added.size < cap) {
-      added.add(key)
-      fit.push(item)
-    } else refused.push(item)
-  }
-  return { fit, refused }
-}
+export { KEY_INDEX_CAPS, KEY_INDEX_MAX_REMOVED, chunks, fitToCap }
 
 /** The list document and the records of one collection, with the Firestore functions. */
 async function open(uid: string, name: CappedCollection) {
@@ -81,7 +37,7 @@ async function open(uid: string, name: CappedCollection) {
   return {
     firestore,
     db,
-    index: firestore.doc(db, 'users', uid, 'meta', name),
+    index: firestore.doc(db, 'users', uid, 'meta', KEY_INDEX_DOC[name]),
     records: firestore.collection(db, 'users', uid, name),
   }
 }
@@ -90,11 +46,10 @@ async function open(uid: string, name: CappedCollection) {
 export async function listedKeys(uid: string, name: CappedCollection): Promise<Set<string>> {
   const { firestore, index } = await open(uid, name)
   const snapshot = await firestore.getDoc(index)
-  const ids: unknown = snapshot.data()?.ids
-  return new Set(ids && typeof ids === 'object' ? Object.keys(ids) : [])
+  return listedKeysOf(snapshot.data())
 }
 
-/** Writes records with their keys listed, in batches of PUT_BATCH. */
+/** Writes records with their keys listed, in batches of KEY_INDEX_PUT_BATCH. */
 export async function putRecords(
   uid: string,
   name: CappedCollection,
@@ -102,7 +57,7 @@ export async function putRecords(
 ): Promise<void> {
   const { firestore, db, index, records: collection } = await open(uid, name)
   await Promise.all(
-    chunks(records, PUT_BATCH).map(slice => {
+    chunks(records, KEY_INDEX_PUT_BATCH).map(slice => {
       const batch = firestore.writeBatch(db)
       for (const { key, data } of slice) batch.set(firestore.doc(collection, key), data)
       const ids = Object.fromEntries(slice.map(({ key }) => [key, true]))
@@ -139,7 +94,7 @@ export async function removeRecords(
 export async function storedKeys(uid: string, name: CappedCollection): Promise<Set<string>> {
   const { firestore, records } = await open(uid, name)
   const { documentId, getDocs, limit, orderBy, query, startAfter } = firestore
-  const pageSize = LIST_LIMITS[name]
+  const pageSize = KEY_INDEX_LIST_LIMITS[name]
   const keys = new Set<string>()
   let last: string | null = null
   for (;;) {
@@ -163,11 +118,8 @@ export async function storedKeys(uid: string, name: CappedCollection): Promise<S
  */
 export async function reconcile(uid: string, name: CappedCollection): Promise<Set<string>> {
   const [listed, stored] = await Promise.all([listedKeys(uid, name), storedKeys(uid, name)])
-  const gone = [...listed].filter(key => !stored.has(key))
+  const { gone, kept, unlisted } = reconcilePlan(listed, stored, KEY_INDEX_CAPS[name])
   if (gone.length) await removeRecords(uid, name, gone, { deleteRecords: false })
-  const kept = [...listed].filter(key => stored.has(key))
-  const room = Math.max(0, KEY_INDEX_CAPS[name] - kept.length)
-  const unlisted = [...stored].filter(key => !listed.has(key)).slice(0, room)
   if (unlisted.length) {
     const { firestore, index } = await open(uid, name)
     const ids = Object.fromEntries(unlisted.map(key => [key, true]))

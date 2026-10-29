@@ -86,6 +86,7 @@ describe('account export', () => {
   it('summarises billing without Stripe identifiers', () => {
     expect(exportBillingSummary(null)).toEqual({
       plan: 'free',
+      provider: 'stripe',
       interval: null,
       status: null,
       proSince: null,
@@ -102,7 +103,14 @@ describe('account export', () => {
       proSince: new Date('2026-01-02T00:00:00.000Z'),
       stripeCustomerId: 'cus_secret',
     })
-    expect(paid).toMatchObject({ plan: 'pro', interval: 'yearly', status: 'active' })
+    expect(paid).toMatchObject({
+      plan: 'pro',
+      provider: 'stripe',
+      interval: 'yearly',
+      status: 'active',
+    })
+    // A store this build does not know is named as unknown, never as Stripe.
+    expect(exportBillingSummary({ subscriptionProvider: 'app-store' }).provider).toBeNull()
     expect(paid.proSince).toBe('2026-01-02T00:00:00.000Z')
     expect(JSON.stringify(paid)).not.toContain('cus_')
   })

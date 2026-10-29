@@ -62,7 +62,7 @@ export const EVENT_HEADS_UP = Object.freeze({
 /**
  * Whether an event counts as an outdoor activity, the only kind that gets a heads-up
  * (REVIEW5 M3). Every Solara activity is something done outside (the presets in
- * lib/tiers.ts, and the person's own), so an event counts when its `activityId` names
+ * tiers.ts, and the person's own), so an event counts when its `activityId` names
  * one of the person's activities: set by the title matcher when it was imported
  * (`matchActivity`: "Saturday 10K" is Running) or chosen by the person on the event.
  * An event with no activity ('', "No activity" in the app), or with an activity the

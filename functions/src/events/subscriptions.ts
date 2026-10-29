@@ -51,6 +51,7 @@ import {
   parseImportedEvent,
   subscriptionLabel,
 } from '#core/event-import'
+import { KEY_INDEX_CAPS, KEY_INDEX_DOC, fitToCap, listedKeysOf } from '#core/key-lists'
 import { createHash, randomBytes } from 'node:crypto'
 
 import {
@@ -465,11 +466,6 @@ function eventDocument(item: ImportedEvent): Record<string, unknown> {
   return { ...item, expireAt: importedEventExpiry(item) }
 }
 
-function listedIds(data: DocumentData | undefined): Set<string> {
-  const ids: unknown = data?.ids
-  return new Set(ids && typeof ids === 'object' ? Object.keys(ids) : [])
-}
-
 /**
  * Takes keys off the account's list whose records no longer exist (Firestore's TTL
  * policy deleted them), as the app's `reconcile` does, so a refresh can use the room.
@@ -477,8 +473,8 @@ function listedIds(data: DocumentData | undefined): Set<string> {
  */
 async function dropDanglingKeys(db: Firestore, uid: string): Promise<void> {
   const userRef = db.collection('users').doc(uid)
-  const indexRef = userRef.collection('meta').doc('events')
-  const listed = listedIds((await indexRef.get()).data())
+  const indexRef = userRef.collection('meta').doc(KEY_INDEX_DOC.events)
+  const listed = listedKeysOf((await indexRef.get()).data())
   if (listed.size === 0) return
   const refs = [...listed].map(key => userRef.collection('events').doc(key))
   const gone: string[] = []
@@ -552,7 +548,7 @@ async function writeFeedEvents(
   state: (result: WriteResult, full: boolean) => DocumentData,
 ): Promise<{ result: WriteResult; full: boolean } | null> {
   const userRef = db.collection('users').doc(uid)
-  const indexRef = userRef.collection('meta').doc('events')
+  const indexRef = userRef.collection('meta').doc(KEY_INDEX_DOC.events)
   const linkRef = db.collection(SUBSCRIPTIONS_COLLECTION).doc(feedId)
   const storedQuery = feedEventsQuery(db, uid, feedId).limit(IMPORTED_EVENT_LIMITS.maxStored)
   return db.runTransaction(async transaction => {
@@ -568,7 +564,7 @@ async function writeFeedEvents(
       if (item && item.key === doc.id) previous.set(doc.id, item)
     }
     const records = build(previous)
-    const listedBefore = listedIds(index.data())
+    const listedBefore = listedKeysOf(index.data())
     const listed = new Set(listedBefore)
     const keep = new Set(records.map(item => item.key))
     // Upcoming events the link no longer has; past ones expire like imported events.
@@ -576,15 +572,14 @@ async function writeFeedEvents(
       .filter(doc => !keep.has(doc.id) && Date.parse(String(doc.data().end)) > nowMs)
       .map(doc => doc.id)
     for (const key of stale) listed.delete(key)
-    const fit: ImportedEvent[] = []
-    let refused = 0
-    for (const item of records) {
-      if (listed.has(item.key)) fit.push(item)
-      else if (listed.size < IMPORTED_EVENT_LIMITS.maxStored) {
-        listed.add(item.key)
-        fit.push(item)
-      } else refused += 1
-    }
+    // The same cap maths as the app's saves (#core/key-lists).
+    const { fit, refused: over } = fitToCap(
+      records,
+      item => item.key,
+      listed,
+      KEY_INDEX_CAPS.events,
+    )
+    const refused = over.length
     const changed = fit.filter(item => {
       const before = previous.get(item.key)
       return !(before && listedBefore.has(item.key) && sameEvent(before, item))
@@ -1009,7 +1004,7 @@ export async function deleteFeedEvents(
   feedId: string,
 ): Promise<number> {
   const userRef = db.collection('users').doc(uid)
-  const indexRef = userRef.collection('meta').doc('events')
+  const indexRef = userRef.collection('meta').doc(KEY_INDEX_DOC.events)
   let deleted = 0
   for (;;) {
     const page = await userRef.collection('events').where('feedId', '==', feedId).limit(200).get()

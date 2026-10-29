@@ -3,7 +3,7 @@ import { ChevronDown } from 'lucide-react'
 import { useId } from 'react'
 import type { ReactNode } from 'react'
 import type { UserPreferences } from '@/lib/types'
-import { ACTIVITY_CATEGORIES } from '@/lib/tiers'
+import { ACTIVITY_CATEGORIES } from '@solara/core/tiers'
 import { hiddenPresetsFor, toggleInList } from '@/lib/activity-presets'
 
 interface Props {

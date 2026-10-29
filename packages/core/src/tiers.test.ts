@@ -12,6 +12,7 @@ import {
   getSavedLocationLimit,
   isDeviceOnly,
 } from './tiers'
+import { PREFS_LIMITS } from './prefs'
 
 // The plans decided on 2026-10-23 (D7): Guest = today, 1 activity, this device only;
 // Free account = today and tomorrow, 3 activities, synced; Pro = 10 days, 20
@@ -101,5 +102,21 @@ describe('activityLimitNote', () => {
       'Free plan: up to 3 activities. Upgrade to Pro for up to 20.',
     )
     expect(activityLimitNote('paid')).toBeNull()
+  })
+
+  it('offers no Pro upgrade in an app store build', () => {
+    const store = { offerPro: false }
+    expect(activityLimitNote('free', store)).toBe('Free plan: up to 3 activities.')
+    expect(activityLimitNote('anonymous', store)).toBe(
+      'Guests can plan 1 activity. Sign in free to plan up to 3.',
+    )
+  })
+})
+
+describe('the stored preferences caps', () => {
+  it("are Pro's list limits, so a Pro account's lists always fit", () => {
+    expect(PREFS_LIMITS.activities).toBe(TIER_LIMITS.paid.activities)
+    expect(PREFS_LIMITS.savedLocations).toBe(TIER_LIMITS.paid.savedLocations)
+    expect(PREFS_LIMITS.profiles).toBeGreaterThanOrEqual(TIER_LIMITS.paid.profiles)
   })
 })

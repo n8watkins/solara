@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import type { IcsEvent } from '@/lib/ics'
 import { buildICS, recToIcsEvent } from '@/lib/ics'
-import type { SlotRecommendation } from '@/lib/scheduler'
+import type { SlotRecommendation } from '@solara/core/scheduler'
 import type { Activity } from '@/lib/types'
 
 /* eslint-disable @typescript-eslint/no-require-imports */

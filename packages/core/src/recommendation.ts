@@ -31,7 +31,7 @@ export type FitzpatrickType = 'I' | 'II' | 'III' | 'IV' | 'V-VI'
  * and practicality of sun-reactive skin types I through VI", Arch Dermatol 1988;
  * 124:869-871). Types V and VI share one skin type and its burn estimate, the more
  * cautious type V one; the standard questionnaire's scoring groups them the same way
- * (lib/skin-quiz.ts).
+ * (skin-quiz.ts).
  */
 export const FITZPATRICK_TYPES: Readonly<Record<SkinType, FitzpatrickType>> = Object.freeze({
   'very-fair': 'I',

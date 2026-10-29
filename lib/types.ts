@@ -1,4 +1,3 @@
-import type { Activity, Daylight, RecommendationWindow } from '@solara/core'
 import type { ZonedNow } from './time'
 
 // Preference types are inferred from the Valibot schema in @solara/core (packages/core/src/prefs.ts),
@@ -15,33 +14,16 @@ export type {
   UserPreferences,
 } from '@solara/core'
 
-export interface HourlyForecast {
-  date?: string
-  hour: number
-  uv: number
-  /** Air temperature in Celsius; convert only for display (lib/units.ts). */
-  tempC: number
-  condition: string
-  cloudCover?: number // % cloud cover (0–100); used by cloud-sensitive exposure
-  /** UV under a cloudless sky (never below `uv`, which includes the forecast clouds). */
-  clearSkyUV?: number
-}
-
-/** One forecast day as fetched: the provider's local date and its daytime hours. */
-export interface ForecastDay {
-  dateStr: string
-  hourly: HourlyForecast[]
-}
-
-/** A forecast day labeled for display ("Today", "Tomorrow", "Wed, Jun 17"). */
-export interface DayWeather extends ForecastDay {
-  label: string
-  /**
-   * The day's hours with the sun up at the forecast's place (@solara/core daylightHours),
-   * which bound every slot offered on it; absent or null when the place is unknown.
-   */
-  daylight?: Daylight | null
-}
+// The forecast day shapes the planning code works on live in @solara/core, shared with a
+// native client.
+export type {
+  ActivityWindow,
+  DayWeather,
+  ForecastDay,
+  HourlyForecast,
+  SafeActivityWindow,
+} from '@solara/core/forecast-days'
+import type { DayWeather, ForecastDay, HourlyForecast } from '@solara/core/forecast-days'
 
 export interface CurrentConditions {
   uv: number
@@ -78,15 +60,4 @@ export interface WeatherResponse {
   today: HourlyForecast[]
   tomorrow: HourlyForecast[]
   forecast: DayWeather[] // all available days starting from today
-}
-
-export type SafeActivityWindow = RecommendationWindow
-
-export interface ActivityWindow {
-  activity: Activity
-  bestWindow: { from: number; to: number } | null
-  allWindows: SafeActivityWindow[]
-  safeNow: boolean
-  pctDaySafe: number
-  burnMins: number | null
 }

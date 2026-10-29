@@ -13,8 +13,8 @@ import { useUnits } from '@/lib/use-units'
 import { useOpenSettings } from '@/lib/open-settings'
 import { useStatusFlash } from '@/hooks/useStatusFlash'
 import { useCalendarBusy } from '@/hooks/useCalendarBusy'
-import { nowHourOf, planActivityDay, soonestPlan } from '@/lib/next-slot'
-import { nextSlotAfterToday } from '@/lib/planner'
+import { nowHourOf, planActivityDay, soonestPlan } from '@solara/core/next-slot'
+import { nextSlotAfterToday } from '@solara/core/planner'
 import { sunPhaseAt } from '@solara/core'
 import {
   busyByDate,
@@ -28,7 +28,7 @@ import {
 } from '@/lib/dashboard-view'
 import { briefingView } from '@/lib/briefing-view'
 import { buildEventDescription } from '@/lib/gcal-view'
-import type { SlotRecommendation } from '@/lib/scheduler'
+import type { SlotRecommendation } from '@solara/core/scheduler'
 import { useScheduled } from '@/lib/scheduled-context'
 import {
   ActivityPlanGate,
@@ -45,6 +45,7 @@ import ExposureMetrics from './dashboard/ExposureMetrics'
 import { planningFor } from '@solara/core'
 import UVCard from './dashboard/UVCard'
 import Skeleton from './Skeleton'
+import { isStoreBuild } from '@/lib/store-build'
 
 interface Props {
   /** The signed-in account, for checkout from the Pro plans dialog. */
@@ -175,6 +176,9 @@ function DashboardView({
   }
   // Every upsell opens the same plans dialog.
   const openPlans = () => setShowPricing(true)
+  // Pro offers open the plans; an app store build sells nothing, so it has none
+  // (lib/store-build.ts). Free sign-in for a guest still opens the dialog.
+  const offerPro = isStoreBuild() ? undefined : openPlans
 
   // Scheduled activities are checked against Google when a token is already in memory.
   const scheduledEnabled = scheduled.enabled
@@ -259,7 +263,7 @@ function DashboardView({
               next={nextSlot}
               laterDaysVisible={laterDaysVisible}
               onPlanTomorrow={openPlans}
-              onMorningAlert={access.activityTier === 'paid' ? undefined : openPlans}
+              onMorningAlert={access.activityTier === 'paid' ? undefined : offerPro}
             />
           )}
 
@@ -316,7 +320,7 @@ function DashboardView({
                 prefs={prefs}
                 weather={weather}
                 displayTier={access.accessTier}
-                onUpgrade={openPlans}
+                onUpgrade={offerPro}
               />
             </div>
           )}

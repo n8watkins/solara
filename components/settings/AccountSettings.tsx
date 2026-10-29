@@ -7,9 +7,10 @@ import { firebaseEnabled } from '@/lib/firebase'
 import { signOutAndClear } from '@/lib/session'
 import { goToLanding } from '@/lib/app-routes'
 import { planLimitRows } from '@/lib/settings'
-import { TIER_LIMITS } from '@/lib/tiers'
+import { TIER_LIMITS } from '@solara/core/tiers'
 import GoogleSignInButton from '../GoogleSignInButton'
 import { SettingsCard, SettingsError, SettingsHint } from './SettingsCard'
+import { isStoreBuild } from '@/lib/store-build'
 
 interface Props {
   tier: TierLevel
@@ -46,6 +47,7 @@ export default function AccountSettings({
     goToLanding()
   }
 
+  const store = isStoreBuild()
   return (
     <div className="flex flex-col gap-4">
       <SettingsCard className="flex items-center justify-between gap-3">
@@ -57,13 +59,14 @@ export default function AccountSettings({
             {tier === 'paid' ? 'Pro' : user ? 'Free' : 'Not signed in'}
           </p>
         </div>
-        {tier !== 'paid' && (
+        {/* An app store build sells nothing: a guest may still sign in free. */}
+        {tier !== 'paid' && !(store && user) && (
           <button
             type="button"
             className="btn btn-primary text-[12px] whitespace-nowrap"
             onClick={onSeePlans}
           >
-            {waitlisted ? '✓ On waitlist' : 'See Pro plans'}
+            {store ? 'Sign in free' : waitlisted ? '✓ On waitlist' : 'See Pro plans'}
           </button>
         )}
       </SettingsCard>

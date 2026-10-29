@@ -2,7 +2,7 @@
 // configured, busy periods as hours of a day, and the description of a scheduled
 // event. The Google Identity Services and Calendar API code in lib/gcal.ts loads only
 // when someone connects or schedules; it re-exports these.
-import type { BusyInterval, SlotRecommendation } from './scheduler'
+import type { BusyInterval, SlotRecommendation } from '@solara/core/scheduler'
 import type { Activity } from './types'
 import { fmtClock, formatUV } from './weather'
 import { addDays, isIsoDate, zonedInstant } from './time'

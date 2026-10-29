@@ -7,6 +7,7 @@ import { useId, type ReactNode } from 'react'
 import clsx from 'clsx'
 import { APP_PATH } from '@/lib/app-routes'
 import { billingStatusText, type BillingSummary } from '@/lib/billing'
+import { isStoreBuild } from '@/lib/store-build'
 import { ChevronDown } from 'lucide-react'
 import {
   DATA_REQUEST_DAYS,
@@ -55,13 +56,15 @@ export default function AccountControls({
   onDelete,
 }: AccountControlsProps) {
   const hintId = useId()
+  // The Stripe portal sells plan changes, so an app store build never offers it.
+  const portal = !!billing?.hasBillingAccount && !isStoreBuild()
   return (
     <>
       <div className="grid gap-[18px]">
         <AccountSection
           title="Plan and billing"
           note={
-            billing?.hasBillingAccount
+            portal
               ? 'Change plans, update your payment method, see invoices or cancel securely through Stripe.'
               : undefined
           }
@@ -70,10 +73,10 @@ export default function AccountControls({
               ? 'Loading your plan...'
               : billing === null
                 ? 'Your plan could not be loaded. Check your connection and reload.'
-                : billingStatusText(billing, formatDay)
+                : billingStatusText(billing, formatDay, { store: isStoreBuild() })
           }
         >
-          {billing?.hasBillingAccount ? (
+          {portal ? (
             <button
               className="btn btn-primary"
               disabled={busy !== null || !billingPortalReady}

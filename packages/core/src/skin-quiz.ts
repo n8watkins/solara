@@ -12,8 +12,12 @@
 // (times 10 / 5) and read against the same bands.
 //
 // It is a planning estimate, not a medical assessment; the quiz says so.
-import { FITZPATRICK_TYPES, SKIN_TYPES, type FitzpatrickType } from '@solara/core'
-import type { SkinType } from './types'
+import {
+  FITZPATRICK_TYPES,
+  SKIN_TYPES,
+  type FitzpatrickType,
+  type SkinType,
+} from './recommendation'
 
 export interface SkinQuizQuestion {
   id: string
