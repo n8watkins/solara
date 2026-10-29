@@ -153,7 +153,7 @@ describe('morning alert message', () => {
       body:
         'Today in Austin: UV peaks at 8.0 (Very high) around 11am. Lowest-UV window: Run 6am–9am. ' +
         'At the peak, unprotected skin like yours can burn in about 19 min. ' +
-        'Seek shade from 11am to 1pm, when UV is very high or extreme. Recheck current conditions.',
+        'Seek shade while UV is very high or extreme, from 11am to 1pm. Recheck current conditions.',
     })
   })
 

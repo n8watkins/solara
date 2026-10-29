@@ -54,7 +54,7 @@ export const SHADE_FROM_UV = 8
 // The thresholds in words (REVIEW5 L5): the bands read the whole-number index (WHO), so
 // a forecast of 2.8 shows in a Moderate chip; copy that said "when UV is 3 or more"
 // beside it read as a contradiction. Naming the bands, as the chips do, never does.
-// In a sentence the band names are lower case ("when UV is moderate or higher").
+// In a sentence the band names are lower case ("while UV is moderate or higher").
 const band = (uv: number) => uvLabel(uv).toLowerCase()
 /** "moderate or higher": UV from PROTECT_FROM_UV on. */
 const PROTECT_TEXT = `${band(PROTECT_FROM_UV)} or higher`
@@ -283,10 +283,12 @@ export function dailyBriefing({
     span.from <= from ? `until${NBSP}${formatTime(span.to)}` : fromTo(span)
   const shade = spanAtOrAbove(hourly, SHADE_FROM_UV, from)
   const protect = spanAtOrAbove(hourly, PROTECT_FROM_UV, from)
+  // The band first, then the hours: "seek shade from 11am to 5pm, when UV is very high"
+  // read as if 5pm itself were very high (REVIEW8 QA L4).
   const tip = shade
-    ? `seek shade ${during(shade)}, when UV is ${SHADE_TEXT}`
+    ? `seek shade while UV is ${SHADE_TEXT}, ${during(shade)}`
     : protect
-      ? `use sun protection ${during(protect)}, when UV is ${PROTECT_TEXT}`
+      ? `use sun protection while UV is ${PROTECT_TEXT}, ${during(protect)}`
       : peak && index(peak.uv) >= PROTECT_FROM_UV
         ? 'UV stays low for the rest of the day'
         : 'most people need little sun protection today'

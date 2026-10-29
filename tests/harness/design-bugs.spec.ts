@@ -50,7 +50,7 @@ test.describe('logic checks', () => {
     await expect(hero).toContainText('Next: Running tomorrow at 6am')
     await expect(hero).not.toContainText(/best day/i)
     const card = page.getByTestId('activity-card').filter({ hasText: 'Running' })
-    await expect(card).toContainText('Next lower-UV slot: tomorrow at 6am')
+    await expect(card).toContainText('Next slot: tomorrow at 6am')
   })
 })
 

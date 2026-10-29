@@ -60,12 +60,12 @@ describe('dailyBriefing', () => {
       peak: 'UV peaks at 9.3 (Very high) around 1pm',
       window: 'Lowest-UV window: Running 6am–10am',
       burn: 'At the peak, unprotected skin like yours can burn in about 16 min',
-      tip: 'Seek shade from 12pm\u00a0to\u00a04pm, when UV is very high or extreme',
+      tip: 'Seek shade while UV is very high or extreme, from 12pm\u00a0to\u00a04pm',
     })
     expect(briefing.text).toBe(
       'Tomorrow: UV peaks at 9.3 (Very high) around 1pm. Lowest-UV window: Running 6am–10am. ' +
         'At the peak, unprotected skin like yours can burn in about 16 min. ' +
-        'Seek shade from 12pm to 4pm, when UV is very high or extreme.',
+        'Seek shade while UV is very high or extreme, from 12pm to 4pm.',
     )
   })
 
@@ -82,7 +82,7 @@ describe('dailyBriefing', () => {
     expect(briefing.window?.spans).toEqual([{ from: 18, to: 20 }])
     // 4pm's 7.7 already reads as 8 (Very high) on the whole-number scale.
     expect(briefing.lines.tip).toBe(
-      'Seek shade from 11am\u00a0to\u00a05pm, when UV is very high or extreme',
+      'Seek shade while UV is very high or extreme, from 11am\u00a0to\u00a05pm',
     )
   })
 
@@ -98,7 +98,7 @@ describe('dailyBriefing', () => {
     expect(briefing.burnMins).toBeNull()
     expect(briefing.lines.burn).toBeNull()
     expect(briefing.lines.tip).toBe(
-      'Use sun protection until\u00a07pm, when UV is moderate or higher',
+      'Use sun protection while UV is moderate or higher, until\u00a07pm',
     )
   })
 

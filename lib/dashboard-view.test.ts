@@ -216,7 +216,7 @@ describe('windowsPassedNote', () => {
 
   it('names the next slot the plan can see', () => {
     expect(windowsPassedNote({ label: 'Tomorrow', slot }, true, time)).toBe(
-      'Next lower-UV slot: tomorrow at 6am.',
+      'Next slot: tomorrow at 6am.',
     )
     expect(windowsPassedNote({ label: 'Wed, Jun 17', slot }, true, time)).toContain(
       'on Wed, Jun 17 at 6am',

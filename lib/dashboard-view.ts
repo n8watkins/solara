@@ -219,7 +219,7 @@ export function windowsPassedNote(
 ): string {
   if (!laterDaysVisible) return 'Sign in free to plan tomorrow.'
   if (!next) return 'No later forecast day has a lower-UV slot for it.'
-  return `Next lower-UV slot: ${dayPhrase(false, next.label)} at ${formatTime(next.slot.start)}.`
+  return `Next slot: ${dayPhrase(false, next.label)} at ${formatTime(next.slot.start)}.`
 }
 
 /** An hour on today (tomorrow: false) or tomorrow. */
