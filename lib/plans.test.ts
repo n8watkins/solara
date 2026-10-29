@@ -1,6 +1,12 @@
 import { PRO_TRIAL_DAYS } from '@solara/core'
 import { describe, expect, it, vi } from 'vitest'
-import { calendarFeatureLabel, FAMILY_PROFILES_LABEL, PRO_FEATURES, PRO_PLAN } from './plans'
+import {
+  calendarFeatureLabel,
+  FAMILY_PROFILES_LABEL,
+  LINKED_CALENDARS_LABEL,
+  PRO_FEATURES,
+  PRO_PLAN,
+} from './plans'
 
 describe('PRO_PLAN', () => {
   it('prices Pro monthly or yearly with a 7-day free trial', () => {
@@ -87,6 +93,27 @@ describe('PRO_FEATURES', () => {
       const fresh = await import('./plans')
       expect(fresh.alertsLaunched()).toBe(true)
       expect(fresh.PRO_FEATURES.find(f => f.label === 'Morning and UV alerts')?.pro).toBe(true)
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+})
+
+describe('linked calendars in the plans (REVIEW8 SEC L3)', () => {
+  it('are not listed while switched off', () => {
+    expect(PRO_FEATURES.find(f => f.label === LINKED_CALENDARS_LABEL)).toBeUndefined()
+  })
+
+  it('are listed as Pro only once switched on', async () => {
+    vi.stubEnv('NEXT_PUBLIC_EVENTS_SUBSCRIPTIONS_ENABLED', '1')
+    try {
+      vi.resetModules()
+      const fresh = await import('./plans')
+      expect(fresh.PRO_FEATURES.find(f => f.label === LINKED_CALENDARS_LABEL)).toMatchObject({
+        guest: false,
+        free: false,
+        pro: true,
+      })
     } finally {
       vi.unstubAllEnvs()
     }

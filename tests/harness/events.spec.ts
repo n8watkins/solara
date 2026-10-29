@@ -298,17 +298,24 @@ test('linked calendars on Pro: every state, link, refresh and remove', async ({
   await expect(panel.getByTestId('event-subscription')).toHaveCount(3)
 })
 
-test('linked calendars on Free offer Pro heads-ups', async ({ page }, testInfo) => {
+test('linked calendars on Free are a Pro offer, with Pro heads-ups', async ({ page }, testInfo) => {
   const capture = await preparePage(page, testInfo, answerOpenMeteo)
   await page.goto('/harness/?screen=dashboard&tier=free&subscriptions=on&alerts=on')
   await expect(page.getByTestId(HARNESS_MARKER)).toBeVisible()
   const panel = page.getByTestId('event-subscriptions')
-  await expect(panel.getByText('0 of 5')).toBeVisible()
-  await expect(panel.getByRole('button', { name: 'Link calendar' })).toBeDisabled()
+  // Linked calendars are Pro-only (REVIEW8 SEC L3): what they do and a way to Pro.
+  await expect(panel.getByTestId('event-subscriptions-offer')).toHaveText(
+    'With Pro, paste a calendar link, such as a club or race calendar, and Solara keeps its events current, checking every 6 hours.See Pro',
+  )
+  await expect(panel.getByText('Pro', { exact: true })).toBeVisible()
+  await expect(panel.getByRole('textbox', { name: 'Calendar link' })).toHaveCount(0)
+  await expect(panel.getByRole('button', { name: 'Link calendar' })).toHaveCount(0)
+  await expect(panel.getByRole('button', { name: 'Add a calendar from…' })).toHaveCount(0)
+  await expect(page.getByTestId('events-section')).toContainText('from a calendar (.ics) file.')
   await expect(page.getByTestId('event-heads-up-note')).toContainText(
     'With Pro, get a heads-up a few hours before an outdoor event with high UV.',
   )
-  await expect(page.getByRole('button', { name: 'See Pro' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'See Pro' })).toHaveCount(2)
   // The whole page from the top: scrolled, the sticky header would partly cover a
   // dashboard button above the section, which axe counts as a small target.
   await page.evaluate(() => window.scrollTo(0, 0))
@@ -318,4 +325,32 @@ test('linked calendars on Free offer Pro heads-ups', async ({ page }, testInfo) 
     await page.setViewportSize({ width: 1280, height: 900 })
     await sectionShot(page, testInfo, 'events-section-links-free-1280')
   }
+})
+
+test('linked calendars of an account that is no longer Pro can only be removed', async ({
+  page,
+}, testInfo) => {
+  const capture = await preparePage(page, testInfo, answerOpenMeteo)
+  await page.goto('/harness/?screen=dashboard&tier=free&links=sample&subscriptions=on')
+  await expect(page.getByTestId(HARNESS_MARKER)).toBeVisible()
+  const panel = page.getByTestId('event-subscriptions')
+  await expect(panel.getByTestId('event-subscription')).toHaveCount(3)
+  await expect(panel.getByTestId('event-subscriptions-offer')).toContainText(
+    'Linked calendars are part of Pro, so yours have stopped refreshing. Their events stay until they end, or remove them below.',
+  )
+  await expect(panel.getByRole('button', { name: /^Refresh/ })).toHaveCount(0)
+  await expect(panel.getByRole('textbox', { name: 'Calendar link' })).toHaveCount(0)
+  // No row promises a retry that will not happen.
+  await expect(panel.getByText(/try again/)).toHaveCount(0)
+  await panel.scrollIntoViewIfNeeded()
+  await captureScreen(page, testInfo, capture, { name: 'events-links-lapsed', fullPage: false })
+  await sectionShot(page, testInfo, 'events-section-links-lapsed')
+
+  const club = panel.getByRole('listitem', { name: 'LA Trail Runners' })
+  await club.getByRole('button', { name: 'Remove LA Trail Runners' }).click()
+  await club.getByRole('button', { name: 'Remove', exact: true }).click()
+  await expect(page.getByTestId('event-subscriptions-status')).toHaveText(
+    'Removed LA Trail Runners and its events.',
+  )
+  await expect(panel.getByTestId('event-subscription')).toHaveCount(2)
 })

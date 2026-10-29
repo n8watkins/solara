@@ -145,7 +145,10 @@ export function subscriptionView(item: SubscriptionSummary, nowMs: number): Subs
   if (item.lastSuccessAt) parts.push(plural(item.eventCount, 'upcoming event'))
   const reason = subscriptionErrorMessage(item.error)
   let problem: string | null = null
-  if (item.status === 'paused') {
+  if (item.status === 'paused' && item.error === 'pro-required') {
+    // Paused by the server while the account was not Pro (REVIEW8 SEC L3).
+    problem = 'Paused: linked calendars are part of Pro. With Pro, refresh to start it again.'
+  } else if (item.status === 'paused') {
     problem = `Paused after a week of failed checks. ${reason} Refresh to try again.`
   } else if (item.status === 'failing') {
     problem = `The last check failed. ${reason} Solara will try again automatically.`
