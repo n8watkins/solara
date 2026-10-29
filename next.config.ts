@@ -23,7 +23,12 @@ const nextConfig: NextConfig = {
   productionBrowserSourceMaps: browserSourceMaps,
   // Always compiled in (as '' outside a harness build), so harness-only branches in
   // app code (lib/plans.ts alertsLaunched) are removed from production bundles.
-  env: { NEXT_PUBLIC_UI_HARNESS: uiHarness ? '1' : '' },
+  env: {
+    NEXT_PUBLIC_UI_HARNESS: uiHarness ? '1' : '',
+    // The build's version on Function calls (X-Solara-Client, lib/functions-api.ts): the
+    // commit GitHub Actions builds, or 'dev' locally.
+    NEXT_PUBLIC_CLIENT_VERSION: (process.env.GITHUB_SHA ?? '').slice(0, 12) || 'dev',
+  },
   compiler: {
     // Strip the Sentry SDK's debug logging and tracing code (lib/sentry-options.ts
     // turns tracing off), as Sentry's bundle size options do.
