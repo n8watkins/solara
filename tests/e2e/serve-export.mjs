@@ -30,11 +30,12 @@ if (!Number.isInteger(port) || port <= 0) {
   process.exit(2)
 }
 
-// firebase.json lists the app site first; the second site only redirects the old
-// address. Serve one site's headers, rewrites, redirects and caching rules.
-const { site: _site, ...hosting } = JSON.parse(readFileSync('firebase.json', 'utf8')).hosting[
-  redirectSite ? 1 : 0
-]
+// firebase.json names each Hosting config by its deploy target (.firebaserc maps it to
+// a site per project): `app`, and `redirect`, which only redirects the old address.
+// Serve one config's headers, rewrites, redirects and caching rules.
+const { target: _target, ...hosting } = JSON.parse(
+  readFileSync('firebase.json', 'utf8'),
+).hosting.find(config => config.target === (redirectSite ? 'redirect' : 'app'))
 // Production Hosting matches `regex` redirects with RE2, and so does the emulator
 // when the optional `re2` native module loaded. CI installs with --ignore-scripts, so
 // the emulator falls back to JavaScript RegExp, which spells a named group `(?<name>`

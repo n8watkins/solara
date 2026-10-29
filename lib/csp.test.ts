@@ -298,7 +298,7 @@ interface HostingRule {
   headers: Array<{ key: string; value: string }>
 }
 interface HostingSite {
-  site: string
+  target: string
   headers: HostingRule[]
   rewrites?: unknown[]
   redirects?: Array<{ source?: string; regex?: string; destination: string; type: number }>
@@ -309,7 +309,8 @@ const sites = (
     hosting: HostingSite[]
   }
 ).hosting
-const hosting = sites.find(site => site.site === 'solara-uv')!
+// Each config names a deploy target; .firebaserc maps it to a site per project.
+const hosting = sites.find(site => site.target === 'app')!
 
 describe('isSiteVerificationFile', () => {
   it('matches only exact Google Search Console ownership files', () => {
@@ -347,7 +348,7 @@ describe('firebase.json hosting', () => {
   })
 
   it('permanently redirects the old address to the same path on the app site', () => {
-    const old = sites.find(site => site.site === 'uv-activity-planner')
+    const old = sites.find(site => site.target === 'redirect')
     expect(old?.redirects?.[0]).toEqual({
       source: '/',
       destination: 'https://solara-uv.web.app/',

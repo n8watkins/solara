@@ -9,7 +9,7 @@
   },
   "hosting": [
     {
-      "site": "solara-uv",
+      "target": "app",
       "public": "out",
       "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
       "headers": [
@@ -98,7 +98,7 @@
       "trailingSlash": true
     },
     {
-      "site": "uv-activity-planner",
+      "target": "redirect",
       "public": "hosting-redirect",
       "redirects": [
         {
