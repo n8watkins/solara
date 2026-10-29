@@ -512,7 +512,7 @@ REVIEW8 PLAN part 2's first "strong next" feature: outdoor plans fail on rain an
   The free daily UV push (item 40) stays as it is on purpose: it plans no activity, so there is no slot for the weather to move, its forecast UV already counts a rainy day's clouds, so "protect from ... to ..." holds in the rain, and a general heat warning without an activity's limit would be a new kind of alert, not a change to this one.
   The UV readout shows "80% rain" in place of the sky's label for an hour with likely rain; the hour strip itself is unchanged, to keep it clean at 320 px.
 - **Tests:** `weather-fit.test.ts`, the rain and heat cases in `next-slot.test.ts`, `briefing.test.ts`, `alerts.test.ts`, `events.test.ts` and `event-heads-up.test.ts`, the parsers and caches (`core.test.ts`, `lib/forecast.test.ts`, `lib/cache.test.ts`, `lib/prefs.test.ts`), the feed (`functions/test/feed-sun.test.js`), the rules, and `tests/harness/rain-heat.spec.ts` (fixtures in `rain-heat-fixtures.ts`) at 320, 390 and 1280 px.
-- **First load:** the rain and heat logic in core and the briefing and readout lines add about 1.4 KB gzip to a guest's first load (183.4 KB, budget 186 KB); the settings, card and hero notes load with the activity plan and the dialogs.
+- **First load:** the rain and heat logic in core and the briefing and readout lines add about 1.4 KB gzip to a guest's first load (183.8 KB on the base with items 40 and 42, budget 186 KB); the settings, card and hero notes load with the activity plan and the dialogs.
 - **Also fixed:** the Edit activity dialog's grid overflowed at 320 px (its 300 px column minimum), and a briefing line could break inside a time range.
 
 ### 42. Share a calendar file or link to Solara (SHARETARGET, built)
