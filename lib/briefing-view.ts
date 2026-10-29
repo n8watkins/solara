@@ -29,6 +29,8 @@ export interface BriefingViewInput {
   laterDaysVisible: boolean
   city: string
   formatTime: (hours: number) => string
+  /** A Celsius temperature in the display unit, for heat ("feels like 97°F"). */
+  formatTemp?: (celsius: number) => string
 }
 
 /**
@@ -45,6 +47,7 @@ export function briefingView({
   laterDaysVisible,
   city,
   formatTime,
+  formatTemp,
 }: BriefingViewInput): DailyBriefingView {
   const picked = selectedDay
     ? {
@@ -72,6 +75,7 @@ export function briefingView({
     activities,
     skinType,
     formatTime,
+    ...(formatTemp && { formatTemp }),
     daylight: daylight ?? null,
   }
   const where = city ? ` in ${city}` : ''

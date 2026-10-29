@@ -261,3 +261,49 @@ describe('alert preferences', () => {
     expect(prefs?.quietHours).toEqual({ from: 23, to: 0 })
   })
 })
+
+describe('morning alert with rain and heat', () => {
+  const hourly = day({
+    6: 1,
+    7: 2,
+    8: 3,
+    9: 5,
+    10: 7,
+    11: 8,
+    12: 8,
+    13: 7,
+    14: 5,
+    15: 3,
+    16: 2,
+    17: 1,
+  })
+  const run = { id: 'run', name: 'Run', icon: '🏃', maxUV: 3, durationMins: 60 }
+
+  it('skips a rainy morning and says so in the body', () => {
+    const wet = hourly.map(h => ({ ...h, rainChance: h.hour < 9 ? 70 : 0 }))
+    const message = morningAlertMessage({
+      date: '2026-06-15',
+      city: 'Austin',
+      hourly: wet,
+      activities: [run],
+      skinType: 'fair',
+    })
+    expect(message.title).toBe('🏃 Run: 3pm to 5pm')
+    expect(message.body).toContain('Rain likely 6am–9am.')
+  })
+
+  it('names the heat in the account’s unit', () => {
+    const hot = hourly.map(h => ({ ...h, feelsC: 34 }))
+    const body = (temperature?: 'celsius' | 'fahrenheit') =>
+      morningAlertMessage({
+        date: '2026-06-15',
+        city: 'Austin',
+        hourly: hot,
+        activities: [run],
+        skinType: 'fair',
+        temperature,
+      }).body
+    expect(body('celsius')).toContain('feels like 34°C')
+    expect(body()).toContain('feels like 93°F')
+  })
+})

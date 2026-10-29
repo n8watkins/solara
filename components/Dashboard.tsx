@@ -183,6 +183,7 @@ function DashboardView({
     laterDaysVisible,
     city: prefs.location?.city ?? '',
     formatTime: fmt.time,
+    formatTemp: fmt.temp,
   })
   const showHero = hasActivities && !(isToday && over)
   const fromHour = (test: (uv: number) => boolean) => {

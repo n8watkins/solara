@@ -88,6 +88,8 @@ describe('parseHourlyRows', () => {
         tempF: null,
         weatherCode: null,
         cloudCover: null,
+        rainChance: null,
+        feelsC: null,
       },
       {
         date: '2026-06-15',
@@ -97,6 +99,8 @@ describe('parseHourlyRows', () => {
         tempF: 68,
         weatherCode: 0,
         cloudCover: null,
+        rainChance: null,
+        feelsC: null,
       },
     ])
   })

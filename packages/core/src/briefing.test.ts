@@ -59,6 +59,7 @@ describe('dailyBriefing', () => {
     expect(briefing.lines).toEqual({
       peak: 'UV peaks at 9.3 (Very high) around 1pm',
       window: 'Lowest-UV window: Running 6am–10am',
+      weather: null,
       burn: 'At the peak, unprotected skin like yours can burn in about 16 min',
       tip: 'Seek shade while UV is very high or extreme, from 12pm\u00a0to\u00a04pm',
     })
@@ -318,5 +319,62 @@ describe('dailyBriefing and clouds', () => {
     const briefing = dailyBriefing({ day: hazy, dayLabel: 'Thu', activities: [], skinType: 'fair' })
     expect(briefing.cloud).toBeNull()
     expect(briefing.lines.peak).toBe('UV peaks at 10.3 (Very high) around 1pm')
+  })
+})
+
+describe('dailyBriefing with rain and heat', () => {
+  // UV 1 until 9am, 2 from 4pm and high in between: the morning is the lowest.
+  const uv = (hour: number) => (hour < 9 ? 1 : hour >= 16 ? 2 : 7)
+  const hours = (weather: (hour: number) => object) =>
+    Array.from({ length: 15 }, (_, i) => ({ hour: 6 + i, uv: uv(6 + i), ...weather(6 + i) }))
+  const walk = { id: 'walk', name: 'Walking', maxUV: 3, durationMins: 60 }
+
+  it('tells the rain that moved the window, and only then', () => {
+    // From 7am the morning is wet, so the window moves to the evening.
+    const wet = hours(h => ({ rainChance: h < 9 ? 80 : 10 }))
+    const briefing = dailyBriefing({
+      day: { date: '2026-06-15', hourly: wet },
+      dayLabel: 'Today',
+      activities: [walk],
+      skinType: 'fair',
+    })
+    expect(briefing.lines.window).toBe('Lowest-UV window: Walking 4pm–8pm')
+    expect(briefing.lines.weather).toBe('Rain likely 6am–9am')
+    expect(briefing.weather).toEqual({ kind: 'rain', from: 6, to: 9 })
+    expect(briefing.text).toContain('Lowest-UV window: Walking 4pm–8pm. Rain likely 6am–9am. ')
+
+    // Rain at midday, when the UV rules the walk out anyway, changes nothing.
+    const midday = dailyBriefing({
+      day: { date: '2026-06-15', hourly: hours(h => ({ rainChance: h >= 11 && h < 14 ? 90 : 0 })) },
+      dayLabel: 'Today',
+      activities: [walk],
+      skinType: 'fair',
+    })
+    expect(midday.lines.weather).toBeNull()
+    expect(midday.text).not.toMatch(/rain/i)
+  })
+
+  it('says when the heat leaves no window, in the display unit', () => {
+    const hot = hours(() => ({ feelsC: 39 }))
+    const briefing = dailyBriefing({
+      day: { date: '2026-06-15', hourly: hot },
+      dayLabel: 'Today',
+      activities: [walk],
+      skinType: 'fair',
+      formatTemp: celsius => `${Math.round(celsius)}°C`,
+    })
+    expect(briefing.window).toBeNull()
+    expect(briefing.lines.window).toBe('No lower-UV window for Walking without the heat')
+    expect(briefing.lines.weather).toBe('Too hot 6am–9am, feels like 39°C')
+  })
+
+  it('reads Fahrenheit by default', () => {
+    const briefing = dailyBriefing({
+      day: { date: '2026-06-15', hourly: hours(() => ({ feelsC: 39 })) },
+      dayLabel: 'Today',
+      activities: [walk],
+      skinType: 'fair',
+    })
+    expect(briefing.lines.weather).toBe('Too hot 6am–9am, feels like 102°F')
   })
 })

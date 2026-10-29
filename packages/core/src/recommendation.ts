@@ -79,12 +79,14 @@ export interface RecommendationWindow {
 /**
  * One hourly sample. `planningUV` may hold a conservative adjustment (for
  * example cloud cover) while `uv` always remains the forecast value reported in
- * window summaries.
+ * window summaries. `blocked` marks an hour the activity skips whatever its UV
+ * (likely rain or too much heat, weather-fit.ts).
  */
 export interface RecommendationHour {
   hour: number
   uv: number
   planningUV?: number
+  blocked?: boolean
 }
 
 export interface UVLimitedActivity {
@@ -202,6 +204,7 @@ export function findWindows(
       planningUV !== null &&
       Number.isFinite(planningUV) &&
       planningUV <= maxUV &&
+      !current.blocked &&
       hourAllowed(current.hour, preferredHours)
     const continues = qualifies && previous !== undefined && current.hour === previous.hour + 1
 

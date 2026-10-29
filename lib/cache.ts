@@ -28,6 +28,10 @@ const hourSchema = record({
   condition: v.string(),
   cloudCover: v.optional(finite),
   clearSkyUV: v.optional(v.pipe(finite, v.minValue(0))),
+  // Added later without a version bump: optional, so a forecast cached before them still
+  // loads (and plans on UV alone until the next refresh).
+  rainChance: v.optional(v.pipe(finite, v.minValue(0), v.maxValue(100))),
+  feelsC: v.optional(finite),
 })
 
 const forecastSchema = record({

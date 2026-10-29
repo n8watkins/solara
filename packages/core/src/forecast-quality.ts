@@ -10,6 +10,7 @@
 
 import { exposedUV, type ExposureSetting } from './exposure'
 import { formatUV } from './uv-scale'
+import { weatherIn, weatherLimits, type WeatherHour, type WeatherSetting } from './weather-fit'
 
 /**
  * Forecast confidence by lead time: the first three days (today, tomorrow and the
@@ -98,4 +99,27 @@ export function planningUV(
   activity: { cloudSensitive?: boolean | null } & ExposureSetting,
 ): number {
   return exposedUV(skyUV(hour, activity.cloudSensitive), activity)
+}
+
+/** The parts of an activity that decide how it plans each hour. */
+export type PlanningActivity = { cloudSensitive?: boolean | null } & ExposureSetting &
+  WeatherSetting
+
+/**
+ * Each hour as an activity plans it: the UV it is judged by (planningUV) and, unless
+ * `weather` is false, `blocked` when likely rain or too much heat rules the hour out for
+ * it (weather-fit.ts). Every planner (the app, the briefing and the calendar feed) builds
+ * its hours here, so they all skip the same hours.
+ */
+export function planningHours<H extends SkyHour & Partial<WeatherHour>>(
+  hourly: readonly H[],
+  activity: PlanningActivity,
+  weather = true,
+): (H & { planningUV: number; blocked?: true })[] {
+  const limits = weather ? weatherLimits(activity) : null
+  return hourly.map(h => ({
+    ...h,
+    planningUV: planningUV(h, activity),
+    ...(limits && weatherIn(h, limits) && { blocked: true as const }),
+  }))
 }

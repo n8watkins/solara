@@ -14,12 +14,21 @@ import {
   type SkinType,
 } from './recommendation'
 import type { ExposureSetting } from './exposure'
-import { cloudEffect, planningUV, type CloudEffect } from './forecast-quality'
+import { cloudEffect, planningHours, type CloudEffect } from './forecast-quality'
 import { formatUV, uvLabel } from './uv-scale'
 import type { Daylight } from './sun-times'
+import {
+  formatTemperature,
+  weatherLimits,
+  weatherSpans,
+  weatherText,
+  type WeatherHour,
+  type WeatherSetting,
+  type WeatherSpan,
+} from './weather-fit'
 
-/** One forecast hour of the briefed day (local hour, forecast UV). */
-export interface BriefingHour {
+/** One forecast hour of the briefed day (local hour, forecast UV, rain and heat). */
+export interface BriefingHour extends Partial<WeatherHour> {
   hour: number
   uv: number
   /** UV under a clear sky, when the forecast has it (see skyUV). */
@@ -33,7 +42,7 @@ export interface BriefingDay {
 }
 
 /** The parts of an activity the briefing plans with. */
-export interface BriefingActivity {
+export interface BriefingActivity extends WeatherSetting {
   name: string
   maxUV?: number | null
   sunscreen?: boolean | null
@@ -97,6 +106,8 @@ export interface BriefingInput {
   skinType: SkinType
   /** Formats a fractional local hour ("6:45am"); default 12-hour. */
   formatTime?: (hours: number) => string
+  /** Formats a Celsius temperature ("97°F"); default Fahrenheit. */
+  formatTemp?: (celsius: number) => string
   /**
    * The day's hours with the sun up (sun-times.ts daylightHours): windows and low-UV
    * spans stay inside them, never in the dark. Omit when the place is unknown.
@@ -124,8 +135,14 @@ export interface DailyBriefing {
    * the peak line then says what UV reaches if the sky clears. Null otherwise.
    */
   cloud: CloudEffect | null
-  /** The sentences, each without a final period. */
-  lines: { peak: string; window: string; burn: string | null; tip: string }
+  /** The rain or heat that moved the activity window or took it away (lines.weather), or null. */
+  weather: WeatherSpan | null
+  /**
+   * The sentences, each without a final period. `weather` names the rain or heat that
+   * moved or took away the activity window ("Rain likely 2pm–5pm"), and is null when the
+   * weather changes nothing.
+   */
+  lines: { peak: string; window: string; weather: string | null; burn: string | null; tip: string }
   /** One paragraph for a share or a notification. */
   text: string
 }
@@ -140,6 +157,11 @@ export function formatBriefingTime(hours: number): string {
   return `${h12}${minute ? `:${String(minute).padStart(2, '0')}` : ''}${suffix}`
 }
 
+interface ActivityPick {
+  activity: BriefingActivity
+  window: RecommendationWindow
+}
+
 /** The lowest window of each activity that runs on the day, trimmed to `from`; the best wins. */
 function activityWindow(
   hourly: readonly BriefingHour[],
@@ -147,13 +169,15 @@ function activityWindow(
   date: string,
   from: number,
   daylight: Daylight | null,
-): { activity: string; window: RecommendationWindow } | null {
-  let best: { activity: string; window: RecommendationWindow } | null = null
+  weather = true,
+): ActivityPick | null {
+  let best: ActivityPick | null = null
   for (const activity of activities) {
     if (!runsOn(activity, date)) continue
     const duration = activity.durationMins ?? 0
-    // Judged like the app's plans (planningUV): clouds counted once, shade and surface.
-    const planned = hourly.map(h => ({ ...h, planningUV: planningUV(h, activity) }))
+    // Judged like the app's plans (planningHours): clouds counted once, shade and
+    // surface, and the hours its rain and heat limits rule out skipped.
+    const planned = planningHours(hourly, activity, weather)
     const windows = findWindows(
       planned,
       effectiveMaxUV(activity),
@@ -167,10 +191,33 @@ function activityWindow(
     })
     const window = lowestUVWindow(windows)
     if (window && (!best || window.avgUV < best.window.avgUV)) {
-      best = { activity: activity.name, window }
+      best = { activity, window }
     }
   }
   return best
+}
+
+/**
+ * The rain or heat that moved the lowest-UV window, or took it away: the first weather
+ * span inside the window the UV alone would pick. Null when the weather changes nothing.
+ */
+function weatherChange(
+  hourly: readonly BriefingHour[],
+  activities: readonly BriefingActivity[],
+  date: string,
+  from: number,
+  daylight: Daylight | null,
+  best: ActivityPick | null,
+) {
+  const uvOnly = activityWindow(hourly, activities, date, from, daylight, false)
+  if (!uvOnly) return null
+  const same =
+    best &&
+    best.activity === uvOnly.activity &&
+    best.window.from === uvOnly.window.from &&
+    best.window.to === uvOnly.window.to
+  if (same) return null
+  return weatherSpans(hourly, weatherLimits(uvOnly.activity), [uvOnly.window])[0] ?? null
 }
 
 /**
@@ -223,6 +270,7 @@ export function dailyBriefing({
   activities,
   skinType,
   formatTime = formatBriefingTime,
+  formatTemp = celsius => formatTemperature(celsius, 'fahrenheit'),
   daylight = null,
 }: BriefingInput): DailyBriefing {
   const from = nowHour ?? -1
@@ -250,17 +298,23 @@ export function dailyBriefing({
   const running = activities.filter(a => runsOn(a, day.date))
   let window: BriefingWindow | null = null
   let windowLine: string
+  let weather: WeatherSpan | null = null
   if (running.length) {
     const best = activityWindow(hourly, running, day.date, from, daylight)
     window = best
-      ? { activity: best.activity, spans: [{ from: best.window.from, to: best.window.to }] }
+      ? { activity: best.activity.name, spans: [{ from: best.window.from, to: best.window.to }] }
       : null
     const who = running.length === 1 ? running[0]!.name : 'your activities'
+    // Rain and heat are told only when they moved the window or took it away.
+    weather = weatherChange(hourly, running, day.date, from, daylight, best)
+    const left = from >= 0 ? 'left ' : ''
     windowLine = best
       ? // "Lowest", not "best": the dashboard's hero names the soonest slot, which can
         // be another window, and both must read as true at once.
-        `lowest-UV window: ${best.activity} ${range(best.window)}`
-      : `no lower-UV window ${from >= 0 ? 'left ' : ''}for ${who}`
+        `lowest-UV window: ${best.activity.name} ${range(best.window)}`
+      : weather
+        ? `no lower-UV window ${left}for ${who} without ${weather.kind === 'rain' ? 'rain' : 'the heat'}`
+        : `no lower-UV window ${left}for ${who}`
   } else {
     const spans = lowSpans(hourly, from, daylight)
     window = spans.length ? { activity: null, spans } : null
@@ -293,16 +347,27 @@ export function dailyBriefing({
         ? 'UV stays low for the rest of the day'
         : 'most people need little sun protection today'
 
+  const weatherLine = weather && weatherText(weather, formatTime, formatTemp)
   const lines = {
     peak: sentence(peakLine),
     window: sentence(windowLine),
+    weather: weatherLine && sentence(weatherLine),
     burn: burnLine && sentence(burnLine),
     tip: sentence(tip),
   }
-  const text = [`${dayLabel}: ${peakLine}`, windowLine, burnLine, tip]
+  const text = [`${dayLabel}: ${peakLine}`, windowLine, weatherLine, burnLine, tip]
     .filter(Boolean)
     .map(part => sentence(part!))
     .join('. ')
     .replaceAll(NBSP, ' ')
-  return { date: day.date, peak, window, burnMins: burn, cloud, lines, text: `${text}.` }
+  return {
+    date: day.date,
+    peak,
+    window,
+    burnMins: burn,
+    cloud,
+    weather,
+    lines,
+    text: `${text}.`,
+  }
 }

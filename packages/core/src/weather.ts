@@ -2,7 +2,7 @@
 // whether now is one, and the minutes to vitamin D. Pure, so the web app (lib/weather.ts
 // re-exports it with its display helpers) and a native client plan the same way.
 import type { ActivityWindow, HourlyForecast } from './forecast-days'
-import { planningUV } from './forecast-quality'
+import { planningHours } from './forecast-quality'
 import type { Activity } from './prefs'
 import {
   SKIN_BURN_BASE,
@@ -39,6 +39,11 @@ function withinPreferredHours(hour: number, activity: Activity): boolean {
   return hourAllowed(hour, activity.preferredHours)
 }
 
+export interface ActivityWindowOptions {
+  /** Skip hours with likely rain or too much heat for the activity (default true). */
+  weather?: boolean
+}
+
 export function getActivityWindow(
   hourly: HourlyForecast[],
   activity: Activity,
@@ -46,19 +51,17 @@ export function getActivityWindow(
   skinType: SkinType = 'fair',
   /** The day's hours with the sun up (DayWeather.daylight): no window in the dark. */
   daylight: Daylight | null = null,
+  { weather = true }: ActivityWindowOptions = {},
 ): ActivityWindow {
   const maxUV = effectiveMaxUV(activity)
   // Planning judges each hour by the UV the activity's skin is expected to get: the
   // clear-sky UV, or the forecast's (which already includes its clouds) when the
   // activity accounts for cloud cover, then its shade and surface reflection
-  // (planningUV). The reported window UV stays the forecast value.
-  const exposureUV = (h: HourlyForecast) => planningUV(h, activity)
-  const planningHours = hourly.map(hour => ({
-    ...hour,
-    planningUV: exposureUV(hour),
-  }))
+  // (planningUV), and skips the hours its rain and heat limits rule out. The reported
+  // window UV stays the forecast value.
+  const planned = planningHours(hourly, activity, weather)
   const allWindows = findWindows(
-    planningHours,
+    planned,
     maxUV,
     activity.durationMins,
     activity.preferredHours,
@@ -67,18 +70,16 @@ export function getActivityWindow(
   const best = lowestUVWindow(allWindows)
 
   const bestWindow = best ? { from: best.from, to: best.to } : null
-  const current = hourly.find(h => h.hour === currentHour)
-  const safeNow = current
-    ? exposureUV(current) <= maxUV && withinPreferredHours(current.hour, activity)
-    : false
+  const fits = (h: (typeof planned)[number]) =>
+    h.planningUV <= maxUV && !h.blocked && withinPreferredHours(h.hour, activity)
+  const current = planned.find(h => h.hour === currentHour)
+  const safeNow = current ? fits(current) : false
   // "% of daylight hours fit": an hour counts as daylight when the sun is up at its
   // middle, so the dark hours at either end of the forecast day count for nothing.
   const daylit = daylight
-    ? hourly.filter(h => h.hour + 0.5 >= daylight.from && h.hour + 0.5 < daylight.to)
-    : hourly
-  const qualifyingHours = daylit.filter(
-    hour => exposureUV(hour) <= maxUV && withinPreferredHours(hour.hour, activity),
-  ).length
+    ? planned.filter(h => h.hour + 0.5 >= daylight.from && h.hour + 0.5 < daylight.to)
+    : planned
+  const qualifyingHours = daylit.filter(fits).length
   const pctDaySafe = daylit.length ? Math.round((qualifyingHours / daylit.length) * 100) : 0
   const burn = burnMins(maxUV, skinType)
 

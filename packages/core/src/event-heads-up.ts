@@ -247,6 +247,11 @@ export interface EventHeadsUpInput {
   nowMs: number
   clock?: '12h' | '24h'
   /**
+   * The highest feels-like temperature during the event, already formatted ("97°F"), when
+   * it is above the activity's heat limit (weather-fit.ts); the body then adds a line.
+   */
+  hotFeelsLike?: string
+  /**
    * Other high-UV events this push stands for: those due now, and those that could not
    * get a heads-up of their own after it (`eventHeadsUpLaterPossible`).
    */
@@ -267,6 +272,7 @@ export function eventHeadsUpMessage({
   peakAtMs,
   nowMs,
   clock,
+  hotFeelsLike,
   more = 0,
 }: EventHeadsUpInput): AlertMessage {
   const local = (ms: number) => localTime(new Date(ms), timeZone)
@@ -294,6 +300,7 @@ export function eventHeadsUpMessage({
       `${name ? `Event: “${name}”. ` : ''}` +
       `${place ? `Forecast for ${place}: ` : ''}UV peaks at ${formatUV(peakUV)} around ${time(peakAtMs)}. ` +
       `Apply sunscreen 15 to 30 minutes before you go, reapply every 2 hours, and plan for shade.` +
+      (hotFeelsLike ? ` It may feel like ${hotFeelsLike}: bring water and take breaks.` : '') +
       others,
   }
 }

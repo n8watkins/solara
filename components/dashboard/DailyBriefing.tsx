@@ -1,4 +1,13 @@
-import { Clock, Share2, ShieldCheck, Sun, Timer, type LucideIcon } from 'lucide-react'
+import {
+  Clock,
+  CloudRain,
+  Share2,
+  ShieldCheck,
+  Sun,
+  Thermometer,
+  Timer,
+  type LucideIcon,
+} from 'lucide-react'
 import type * as ShareCode from '@/lib/share'
 import { useStatusFlash } from '@/hooks/useStatusFlash'
 import type { DailyBriefingView } from '@/lib/briefing-view'
@@ -50,6 +59,11 @@ export default function DailyBriefing({
     : [
         { id: 'peak', icon: Sun, text: briefing.lines.peak },
         { id: 'window', icon: Clock, text: briefing.lines.window },
+        {
+          id: 'weather',
+          icon: briefing.weather?.kind === 'heat' ? Thermometer : CloudRain,
+          text: briefing.lines.weather,
+        },
         { id: 'burn', icon: Timer, text: briefing.lines.burn },
         { id: 'tip', icon: ShieldCheck, text: briefing.lines.tip },
       ]

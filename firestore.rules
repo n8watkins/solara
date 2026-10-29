@@ -16,11 +16,11 @@ rules_version = '2';
 // evaluation stops at the list's real length.
 //
 // Accepted gap: the other activity fields (durationMins, maxUV, preferredHours, daysOfWeek,
-// shade, surface and the rest) are only allowlisted, not typed. Even one more check per activity breaks
-// the budget at 20 activities in the realistic multi-list write tested in
-// functions/test/emulator/firestore.rules.test.js. A bad value only affects its own
-// account: the client parser falls back to defaults, and the document stays under
-// Firestore's 1 MiB limit.
+// shade, surface, avoidRain, maxFeelsLikeC and the rest) are only allowlisted, not typed.
+// Even one more check per activity breaks the budget at 20 activities in the realistic
+// multi-list write tested in functions/test/emulator/firestore.rules.test.js. A bad value
+// only affects its own account: the client parser falls back to defaults, and the
+// document stays under Firestore's 1 MiB limit.
 //
 // The group selection (`groupProfileIds`) is a list of profile ids checked as a list of at
 // most 12 entries whose ids together take at most 12 x 64 characters (REVIEW8 SEC L4), not
@@ -131,7 +131,8 @@ service cloud.firestore {
       let n = list.size();
       let k = [
         'id', 'name', 'icon', 'durationMins', 'maxUV', 'sunscreen', 'custom',
-        'preferredHours', 'timePreference', 'daysOfWeek', 'cloudSensitive', 'shade', 'surface'
+        'preferredHours', 'timePreference', 'daysOfWeek', 'cloudSensitive', 'shade', 'surface',
+        'avoidRain', 'maxFeelsLikeC'
       ];
       return n <= 20
         && validActivityBlock(list, k, n, 0)

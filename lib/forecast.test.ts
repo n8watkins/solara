@@ -121,6 +121,26 @@ describe('parseForecast', () => {
     // Without the series there is no clear-sky value.
     expect(parseForecast(raw, { days: 1 }).days[0]!.hourly[0]!.clearSkyUV).toBeUndefined()
   })
+
+  it('keeps the chance of rain and the feels-like temperature, omitting unknown ones', () => {
+    const raw = rawPayload(1)
+    const rain = raw.hourly.uv_index.map((_, i) => (i === 10 ? null : i === 11 ? 104 : 40))
+    const feels = raw.hourly.uv_index.map((_, i) => (i === 10 ? null : 30.04))
+    const r = parseForecast(
+      {
+        ...raw,
+        hourly: { ...raw.hourly, precipitation_probability: rain, apparent_temperature: feels },
+      },
+      { days: 1 },
+    )
+    const at = (hour: number) => r.days[0]!.hourly.find(h => h.hour === hour)!
+    expect(at(9)).toMatchObject({ rainChance: 40, feelsC: 30 })
+    expect(at(10)).not.toHaveProperty('rainChance')
+    expect(at(10)).not.toHaveProperty('feelsC')
+    expect(at(11).rainChance).toBe(100)
+    // Without the series (an older proxy copy) neither is set.
+    expect(parseForecast(raw, { days: 1 }).days[0]!.hourly[0]).not.toHaveProperty('rainChance')
+  })
 })
 
 describe('forecastView', () => {

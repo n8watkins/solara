@@ -262,6 +262,8 @@ describe('firestore.rules match the preferences schema', () => {
           cloudSensitive: true,
           shade: 'full',
           surface: 'snow',
+          avoidRain: false,
+          maxFeelsLikeC: null,
         },
       ],
       calendarHours: { from: 6, to: 20 },

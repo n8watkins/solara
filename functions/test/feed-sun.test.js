@@ -126,4 +126,45 @@ describe('calendar feed windows', () => {
     const days = parseSunForecast(response, 1)
     assert.deepEqual(days, [{ dateStr: '2026-06-15', hourly: [{ hour: 9, uv: 3, clearSkyUV: 5 }] }])
   })
+
+  test('skip likely rain and too much heat for the activity, as the app does', () => {
+    const day = {
+      dateStr: '2026-06-15',
+      hourly: [6, 7, 8, 9, 10, 11].map(hour => ({
+        hour,
+        uv: 2,
+        rainChance: hour < 8 ? 70 : 0,
+        feelsC: hour >= 10 ? 36 : 25,
+      })),
+    }
+    // Walking skips the rain (6-8); 36°C is under its 38°C limit.
+    const [walking] = buildSunEvents({ activities: [walk] }, [day])
+    assert.equal(walking.start, 8)
+    assert.match(walking.description, /8:00–11:00/)
+    // Running also stops at a feels-like 32°C.
+    const [running] = buildSunEvents({ activities: [{ ...walk, id: 'run' }] }, [day])
+    assert.match(running.description, /8:00–10:00/)
+    // Swimming goes ahead in the rain.
+    const [swimming] = buildSunEvents({ activities: [{ ...walk, id: 'swim' }] }, [day])
+    assert.equal(swimming.start, 6)
+  })
+
+  test('read the chance of rain and the feels-like temperature from the forecast', () => {
+    const days = parseSunForecast(
+      {
+        timezone: 'UTC',
+        hourly: {
+          time: ['2026-06-15T09:00', '2026-06-15T10:00'],
+          uv_index: [3, 4],
+          precipitation_probability: [55, null],
+          apparent_temperature: [31.26, null],
+        },
+      },
+      1,
+    )
+    assert.deepEqual(days[0].hourly, [
+      { hour: 9, uv: 3, rainChance: 55, feelsC: 31.3 },
+      { hour: 10, uv: 4 },
+    ])
+  })
 })

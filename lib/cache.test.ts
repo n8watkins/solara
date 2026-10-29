@@ -69,6 +69,25 @@ describe('forecast cache', () => {
     expect(getCachedForecast(51.5, -0.12)).toEqual(forecast({ timezone: 'Europe/London' }))
   })
 
+  it('keeps the chance of rain and the feels-like temperature, and still loads a copy without them', () => {
+    const hour = { date: '2026-06-15', hour: 10, uv: 6.2, tempC: 24.5, condition: 'Rainy' }
+    const wet = forecast({
+      days: [{ dateStr: '2026-06-15', hourly: [{ ...hour, rainChance: 80, feelsC: 26.1 }] }],
+    })
+    setCachedForecast(34.05, -118.24, wet)
+    expect(getCachedForecast(34.05, -118.24)).toEqual(wet)
+    // A store written before these fields existed has the same version and still loads.
+    const older = forecast({ days: [{ dateStr: '2026-06-15', hourly: [hour] }] })
+    storage.set(
+      CACHE_KEY,
+      JSON.stringify({
+        version: CACHE_VERSION,
+        entries: [{ key: locationKey(34.05, -118.24), data: older }],
+      }),
+    )
+    expect(getCachedForecast(34.05, -118.24)).toEqual(older)
+  })
+
   it('drops entries past the maximum age', () => {
     setCachedForecast(34.05, -118.24, forecast())
     expect(getCachedForecast(34.05, -118.24, NOW + MAX_AGE_MS + 1)).toBeNull()

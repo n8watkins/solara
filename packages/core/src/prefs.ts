@@ -94,6 +94,9 @@ export const CALENDAR_HOUR_BOUNDS = Object.freeze({
   to: { min: 1, max: 24 },
 })
 
+/** The feels-like limits an activity may set, in Celsius (about 59-122°F). */
+export const FEELS_LIKE_LIMITS = Object.freeze({ min: 15, max: 50 })
+
 const ACTIVITY_DEFAULTS = Object.freeze({
   name: 'Outdoor activity',
   icon: '☀️',
@@ -289,6 +292,28 @@ export const ACTIVITY_SHAPE = {
   shade: v.fallback(v.optional(v.picklist(SHADE_LEVELS)), undefined),
   /** The ground around it, for reflected UV (exposure.ts); undefined adds nothing. */
   surface: v.fallback(v.optional(v.picklist(SURFACES)), undefined),
+  /**
+   * Skip hours with likely rain (weather-fit.ts); undefined follows the activity's
+   * default. Added without a version bump: optional, and older clients keep it as is.
+   */
+  avoidRain: v.fallback(v.optional(v.boolean()), undefined),
+  /**
+   * Skip hours whose feels-like temperature is above this (Celsius, FEELS_LIKE_LIMITS);
+   * null is no limit, undefined follows the activity's default.
+   */
+  maxFeelsLikeC: v.fallback(
+    v.optional(
+      v.nullable(
+        v.pipe(
+          finiteNumber,
+          v.transform(
+            c => Math.round(clamp(c, FEELS_LIKE_LIMITS.min, FEELS_LIKE_LIMITS.max) * 10) / 10,
+          ),
+        ),
+      ),
+    ),
+    undefined,
+  ),
 }
 
 export const ActivitySchema = v.pipe(

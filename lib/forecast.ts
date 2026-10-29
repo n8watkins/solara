@@ -40,10 +40,7 @@ export type RawForecast = OpenMeteoPayload & {
   hourly: Required<Pick<OpenMeteoPayload['hourly'], 'uv_index' | 'temperature_2m' | 'weathercode'>>
 } & Pick<ServedForecast, 'stale' | 'fetchedAt'>
 
-/** A Celsius value rounded to 0.1, or null when the provider has no finite value. */
-function roundCelsius(value: unknown): number | null {
-  return typeof value === 'number' && Number.isFinite(value) ? Math.round(value * 10) / 10 : null
-}
+const roundCelsius = core.roundCelsius
 
 interface Row {
   date: string
@@ -53,6 +50,8 @@ interface Row {
   tempC: number | null
   weatherCode: number | null
   cloudCover: number | null
+  rainChance: number | null
+  feelsC: number | null
 }
 
 function rowsOf({ hourly }: OpenMeteoResponse): Row[] {
@@ -61,6 +60,7 @@ function rowsOf({ hourly }: OpenMeteoResponse): Row[] {
     const at = core.splitTime(time)
     if (!at) return
     const cloud = hourly.cloudcover?.[index]
+    const rain = hourly.precipitation_probability?.[index]
     rows.push({
       date: at.date,
       hour: at.hour,
@@ -69,6 +69,8 @@ function rowsOf({ hourly }: OpenMeteoResponse): Row[] {
       tempC: roundCelsius(hourly.temperature_2m?.[index]),
       weatherCode: hourly.weathercode?.[index] ?? null,
       cloudCover: cloud == null ? null : Math.round(cloud),
+      rainChance: rain == null ? null : Math.min(100, Math.max(0, Math.round(rain))),
+      feelsC: roundCelsius(hourly.apparent_temperature?.[index]),
     })
   })
   return rows
@@ -93,6 +95,9 @@ function daytimeHours(rows: Row[], dateStr: string): HourlyForecast[] {
       cloudCover: row.cloudCover ?? undefined,
       // Never below the cloud-aware value, so a provider rounding gap reads as no effect.
       clearSkyUV: row.clearSkyUV === null ? undefined : Math.max(row.clearSkyUV, row.uv),
+      // Rain and heat (weather-fit.ts); absent when the provider gave none.
+      ...(row.rainChance !== null && { rainChance: row.rainChance }),
+      ...(row.feelsC !== null && { feelsC: row.feelsC }),
     })
   }
   return hours
