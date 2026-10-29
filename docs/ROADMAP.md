@@ -440,8 +440,8 @@ The eighth review's QA M3, L1-L5 and L11 (`handoff/review8-qa.md`), and a tighte
 The eighth review's Android readiness list (REVIEW8 PLAN part 3, "Small changes worth making in the web repo now"), items 2-8, so the owner's Expo app ([item 13](#13-wave-6-mobile-app-owners-learning-project)) and a first Trusted Web Activity start from shared code; the web app behaves as before.
 The details are in [integrations/ANDROID.md](integrations/ANDROID.md).
 
-- **Planning logic in `packages/core`:** plan limits, per-day activity windows, the next slot, the scheduler, the planner, today's state (`todayOver`), the skin quiz, the reapply timer, the UV strip and the key-list maths moved from `lib/` with their tests, each its own entry point (`@solara/core/<module>`); `lib/` keeps thin re-exports and the browser-only code.
-  One source of truth: `PREFS_LIMITS` takes its list caps from `TIER_LIMITS`, and the linked-calendar Function uses core's `fitToCap` instead of its own copy.
+- **Planning logic in `packages/core`:** plan limits, per-day activity windows, the next slot, the scheduler, the planner, today's state (`todayOver`), the skin quiz, the reapply timer, the UV strip and the key-list maths moved from `lib/` with their tests, each its own entry point (`@solara/core/<module>`) that the web app imports directly; `lib/` keeps the browser-only code.
+  One source of truth: the record caps live in `record-caps.ts`, the linked-calendar Function uses core's `fitToCap` instead of its own copy, and a test holds `PREFS_LIMITS` to `TIER_LIMITS`.
   `packages/core/src/portable.test.ts` keeps core free of browser and Node globals.
 - **Hermes:** imported event keys use core's own SHA-256 (identical digests, proven against Node and Web Crypto), and core reads time zones without `formatToParts` where an engine lacks it, tested on an Intl limited to what Hermes documents.
 - **Entitlement:** a server-owned `subscriptionProvider` (`stripe`, read as `stripe` when absent) that `hasProEntitlement`, the account page and the export read; an unknown provider grants nothing.
@@ -449,7 +449,7 @@ The details are in [integrations/ANDROID.md](integrations/ANDROID.md).
 - **Store build:** `NEXT_PUBLIC_STORE_BUILD=1`, or a session opened by an Android app (`android-app://` referrer or `?source=twa`), hides every price, upsell and checkout; a guest may still sign in free.
 - **Client version:** Function calls send `X-Solara-Client: web/<commit>`, which the Functions validate and log, ready to refuse a too-old native build later.
 - **Manifest:** an `id` and two `shortcuts`; the export and Hosting upload of `/.well-known/` files are checked, ready for assetlinks.json.
-- **First load:** nothing new on a guest's first load beyond the store check.
+- **First load:** `@solara/core` is marked free of import side effects (as BUDGET2 also does), so unused barrel modules leave the first load; a guest's first load measured 192.1 KB gzip, against 192.7 KB on `main` before, with the store check included.
 - **Tests:** the moved unit tests, `sha256.test.ts`, `hermes-intl.test.ts`, `key-lists.test.ts`, `client-version.test.ts`, `lib/store-build.test.ts`, `tests/manifest.test.ts`, `tests/well-known.test.ts`, the Functions' entitlement, CORS and logging tests, the rules and alerts emulator tests, and `tests/harness/store-build.spec.ts`.
 - **Still to do for Android:** the Google Calendar and Microsoft Graph REST calls and the offline cache shapes in core, `share_target` and `screenshots` in the manifest, assetlinks.json (it needs the package name), and the same-site auth domain.
 
