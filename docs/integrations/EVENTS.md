@@ -44,7 +44,12 @@ _Built 2026-10-27 by lane EVENTS._
 
 _Built 2026-10-28 by lane EVENTS2, switched off behind `EVENTS_SUBSCRIPTIONS_ENABLED` ([DEPLOYMENT.md](../DEPLOYMENT.md#linked-calendars-and-event-heads-ups))._
 
-- **Who:** every signed-in account can link calendars, like the file import (the plan's default for who gets event linking); heads-ups are Pro, with the morning and UV alerts.
+- **Who:** Pro accounts (REVIEW8 SEC L3, default, owner may change (2026-10-28)); heads-ups are Pro too, with the morning and UV alerts.
+  Linking was first open to every signed-in account, like the file import, but each link is fetched on the server every 6 hours, so many free Google accounts could spend the shared $25 budget and pause linked calendars, the feed and notification registration for everyone ([COSTS.md](../COSTS.md#flooding-the-functions-blaze-from-many-addresses)).
+  The `eventSubscriptions` endpoint refuses `add` and `refresh` for an account without Pro (`hasProEntitlement`, so a paid tier whose subscription ended does not count) with `403 permission-denied` before anything is fetched; `remove` works on any plan.
+  The scheduled refresh pauses the link of an account that is no longer Pro without fetching it (`status: 'paused'`, `error: 'pro-required'`, out of the refresh queue); its events stay until they end, and a refresh once the account is Pro again resumes it.
+  The rules need no change for this: links and their events are written only by the server.
+  A Free account sees "Linked calendars" with a Pro tag, what they do and "See Pro" instead of the form; one that was Pro keeps its links' list with Remove only and a note that they have stopped refreshing; the plan comparison lists "Linked calendars, kept current" for Pro once the feature is on.
 - **Where it shows:** "Linked calendars" at the bottom of the Events section (`components/events/EventSubscriptions.tsx`), loaded only when the feature is on, so neither the guest's nor the signed-in first load grows (the guest first load measured 189.1 KB, as on `main`).
   Each link shows its label (the person's, else the calendar's `X-WR-CALNAME`, else its host), its host, when it was last updated and how many upcoming events it holds, and what went wrong if a check failed.
   Events from a link say "From a linked calendar" and have no remove button of their own, because the next refresh would bring them back; removing the link removes them.
@@ -277,7 +282,7 @@ Decisions, with the default agents follow until the owner says otherwise:
 | Decision | Default |
 | --- | --- |
 | Approve the phased plan and the ICS-first approach | Phase 1 is buildable now; later phases wait for this approval |
-| Who gets event linking | Every signed-in person; the existing forecast horizon (Free two days, Pro 10 days) and Pro-only push are the upsell, so no new gate |
+| Who gets event linking | Every signed-in person for file imports and Google Calendar and Outlook events (read in the browser); linked calendars, which Solara fetches on its servers, are Pro-only (default, owner may change (2026-10-28), REVIEW8 SEC L3) |
 | Add `calendar.events.readonly` to the pending Calendar verification | No; request it separately once phase 2b is built |
 | Build the Strava integration | Only after phases 1 and 2 show use, and only with the owner's Strava subscription |
 

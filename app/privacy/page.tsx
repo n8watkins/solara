@@ -71,11 +71,11 @@ export default function PrivacyPage() {
             attendees in it are never stored or sent anywhere.
           </li>
           <li>
-            <strong>Linked calendars</strong>, where offered, if you link a calendar address
-            (https:// or webcal://): the address, kept on Solara&apos;s servers and never shown back
-            to the app because it can contain a private token; its site name and label; and when it
-            was last checked and how that went. Solara&apos;s servers fetch the address every few
-            hours from Google Cloud and store its upcoming events like imported ones.
+            <strong>Linked calendars</strong>, where offered (with Pro), if you link a calendar
+            address (https:// or webcal://): the address, kept on Solara&apos;s servers and never
+            shown back to the app because it can contain a private token; its site name and label;
+            and when it was last checked and how that went. Solara&apos;s servers fetch the address
+            every few hours from Google Cloud and store its upcoming events like imported ones.
           </li>
           <li>
             <strong>Events from your Google Calendar</strong>, where offered, if you turn this on:
