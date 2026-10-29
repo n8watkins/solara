@@ -1,6 +1,7 @@
 'use client'
 import { Settings } from 'lucide-react'
 import { useState } from 'react'
+import clsx from 'clsx'
 import type { User } from 'firebase/auth'
 import type { AccountIdentity } from './AccountMenu'
 import { goToLanding } from '@/lib/app-routes'
@@ -99,7 +100,7 @@ export default function Header({
             />
           </div>
 
-          <div className={styles.right} data-header-controls>
+          <div className={clsx(styles.right, !account && styles.guest)} data-header-controls>
             {tier !== 'anonymous' && (
               <ProfileSwitcher
                 prefs={prefs}
@@ -146,17 +147,17 @@ export default function Header({
                     onClick={() => openSettings()}
                     aria-label="Settings"
                     title="Settings"
-                    className="flex size-8 shrink-0 items-center justify-center rounded-full text-ink-2 transition-colors duration-100 hover:bg-surface-metric max-[359px]:size-7"
+                    className="flex size-8 shrink-0 items-center justify-center rounded-full text-ink-2 transition-colors duration-100 hover:bg-surface-metric max-sm:size-7"
                   >
                     <Settings size={18} />
                   </button>
                 )}
-                {/* Under 360 px both controls tighten a little, so a two-line place
+                {/* On phones both controls tighten a little, so a two-line place
                     name ("San Luis Obispo, California") still reads in full. */}
                 <GoogleSignInButton
                   label="Sign in"
                   size="sm"
-                  className="max-[359px]:gap-1.5 max-[359px]:px-2.5"
+                  className="max-sm:gap-1.5 max-sm:px-2.5"
                 />
               </>
             )}

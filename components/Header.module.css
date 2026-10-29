@@ -73,9 +73,9 @@
   }
 
   /* The guest header holds Settings and Sign in; a little less space between them keeps
-     the place its room on the narrowest phones. */
-  @media (max-width: 359px) {
-    .right {
+     the place its room on phones ("San Luis Obispo, California" on two lines). */
+  @media (max-width: 639px) {
+    .guest {
       gap: 2px;
     }
   }
