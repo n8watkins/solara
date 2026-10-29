@@ -1,4 +1,4 @@
-import type { Browser } from '@playwright/test'
+import type { Browser, Page } from '@playwright/test'
 import { type Account, type Emulators, expect, openDashboard, preparePage, test } from './fixtures'
 import { FakeGoogleCalendar } from './fake-google-calendar'
 
@@ -136,7 +136,7 @@ async function seedDevice(emulators: Emulators, account: Account) {
   })
 }
 
-function timer(page: import('@playwright/test').Page) {
+function timer(page: Page) {
   return page.getByRole('region', { name: /Sunscreen timer|Reapply sunscreen|Time to reapply/ })
 }
 

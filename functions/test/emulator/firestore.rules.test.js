@@ -1910,7 +1910,7 @@ describe('reapply reminder record', () => {
   })
 
   test('one per account: no other document, and no listing', async () => {
-    const ref = await aliceReminder()
+    await aliceReminder()
     const db = testEnv.authenticatedContext('alice').firestore()
     await assertFails(db.doc('users/alice/reminders/second').set(reminder()))
     await assertFails(db.collection('users/alice/reminders').limit(1).get())
