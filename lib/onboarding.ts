@@ -6,7 +6,10 @@ import {
   SKIN_BURN_BASE,
   SKIN_TYPES,
   appForecastRequest,
+  burnMins,
   fetchJson,
+  formatUV,
+  uvLabel,
   fetchProviderForecast,
   roundCoordinate,
 } from '@solara/core'
@@ -86,6 +89,32 @@ export const SKIN_OPTIONS: readonly SkinOption[] = SKIN_TYPES.map(value => ({
   fitzpatrick: `Type ${FITZPATRICK_TYPES[value]}`,
   burnTime: `~${SKIN_BURN_BASE[value]}m`,
 }))
+
+/** The UV setup's burn times use when the live reading is too low to say much (Very high). */
+export const SETUP_REFERENCE_UV = 10
+
+/**
+ * The UV setup's skin step quotes burn times at: the reading setup has just shown, when
+ * it is moderate or higher, so the two screens agree with each other and with the
+ * dashboard (REVIEW8 QA L3); otherwise, or without a reading, the reference UV 10.
+ */
+export function setupBurnUV(uvNow: number | null): { uv: number; live: boolean } {
+  return uvNow !== null && uvNow >= 3
+    ? { uv: uvNow, live: true }
+    : { uv: SETUP_REFERENCE_UV, live: false }
+}
+
+/** The skin step's line saying which UV its burn times are for. */
+export function setupBurnNote({ uv, live }: { uv: number; live: boolean }): string {
+  return live
+    ? `Times are rough minutes to a burn without sunscreen at UV ${formatUV(uv)}, the UV right now.`
+    : `Times are rough minutes to a burn without sunscreen at UV ${formatUV(uv)} (${uvLabel(uv).toLowerCase()}).`
+}
+
+/** Rough minutes to a burn for `skin` at `uv`, without sunscreen. */
+export function setupBurnMinutes(skin: SkinType, uv: number): number {
+  return burnMins(Math.max(uv, 0.5), skin) ?? 0
+}
 
 /**
  * The forecast proxy, when this build uses it (NEXT_PUBLIC_FORECAST_PROXY, fixed at build

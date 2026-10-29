@@ -42,7 +42,7 @@ test.describe('logic checks', () => {
   test('a signed-in card names the next slot instead', async ({ page }) => {
     await openDashboard(page, { at: NIGHT_MS, tier: 'free', edit: atNight })
     const card = page.getByTestId('activity-card').filter({ hasText: 'Running' })
-    await expect(card).toContainText('Next lower-UV slot: tomorrow at 6am.')
+    await expect(card).toContainText('Next slot: tomorrow at 6am.')
     expect((await card.innerText()).match(/today/gi)).toHaveLength(1)
   })
 

@@ -1,6 +1,6 @@
 'use client'
 import { MapPin } from 'lucide-react'
-import { useState, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Location } from '@/lib/types'
 import { useOutsideClick } from '@/lib/use-outside-click'
 import { LocationPanel } from './deferred'
@@ -17,11 +17,30 @@ interface Props {
 export default function LocationPopover({ location, savedLocations, limit, onApply }: Props) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
   useOutsideClick(ref, open, () => setOpen(false))
+
+  // Escape closes the panel and returns focus to the place button, as the account menu
+  // and the profile switcher do. The place search's own Escape (closing its suggestion
+  // list) comes first: it marks the key handled, and only a second Escape gets here.
+  useEffect(() => {
+    if (!open) return
+    function onKey(event: KeyboardEvent) {
+      if (event.key !== 'Escape' || event.defaultPrevented) return
+      event.preventDefault()
+      setOpen(false)
+      triggerRef.current?.focus()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [open])
 
   return (
     <div ref={ref} className="relative inline-block">
       <button
+        ref={triggerRef}
+        type="button"
+        aria-expanded={open}
         className="flex max-w-full items-center gap-1 rounded-md px-[7px] py-[3px] text-[13px] text-ink-3 transition-colors duration-100 hover:bg-surface-metric"
         onClick={() => setOpen(o => !o)}
       >

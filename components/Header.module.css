@@ -71,4 +71,12 @@
       display: none;
     }
   }
+
+  /* The guest header holds Settings and Sign in; a little less space between them keeps
+     the place its room on phones ("San Luis Obispo, California" on two lines). */
+  @media (max-width: 639px) {
+    .guest {
+      gap: 2px;
+    }
+  }
 }

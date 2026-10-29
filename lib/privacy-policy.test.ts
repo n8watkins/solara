@@ -239,7 +239,7 @@ describe('retention promises match what production does (REVIEW8 SEC M3, QA M2)'
 describe('terms of use', () => {
   it('states the governing law and data licenses', () => {
     expect(terms).toContain('<LegalDetail name="jurisdiction" />')
-    expect(terms).toContain('CC BY 4.0')
+    expect(terms).toContain('CC&nbsp;BY&nbsp;4.0')
     expect(terms).toContain('Open Database License')
     expect(terms).toContain('https://www.geonames.org/')
   })

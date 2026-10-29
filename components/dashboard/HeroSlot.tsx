@@ -58,8 +58,12 @@ export default function HeroSlot({
             and stays on one line from 320 px; the detail line wraps between its parts
             rather than cutting any of them off. */}
         <div className="flex min-h-[18px] items-center justify-between gap-2">
-          <p className="section-label text-accent">
-            {isToday ? 'Next lower-UV slot' : `Lower-UV slot · ${dateLabel}`}
+          {/* Named for the activity, not "lower-UV": with SPF an activity's slot can
+              peak at High, and the label must stay true (REVIEW8 QA L4). */}
+          <p className="section-label min-w-0 text-accent">
+            {isToday
+              ? `Next slot for ${activity.name}`
+              : `Slot for ${activity.name} · ${dateLabel}`}
           </p>
           {plan.startsNow && <span className="badge badge-safe shrink-0">Start now</span>}
         </div>
@@ -75,15 +79,14 @@ export default function HeroSlot({
               {fmt.time(slot.start)}–{fmt.time(slot.end)}
             </p>
             <p data-testid="hero-detail" className="mt-[3px] text-[13px] leading-[1.35] text-ink-2">
-              {/* Each part stays whole; a line can break only after a dot. */}
-              {[activity.name, slot.windowLabel, `Peak UV ${formatUV(slot.peakUV)}`].map(
-                (part, i) => (
-                  <Fragment key={i}>
-                    {i > 0 && '\u00a0· '}
-                    <span className="whitespace-nowrap">{part}</span>
-                  </Fragment>
-                ),
-              )}
+              {/* Each part stays whole; a line can break only after a dot. The label
+                  above names the activity. */}
+              {[slot.windowLabel, `Peak UV ${formatUV(slot.peakUV)}`].map((part, i) => (
+                <Fragment key={i}>
+                  {i > 0 && '\u00a0· '}
+                  <span className="whitespace-nowrap">{part}</span>
+                </Fragment>
+              ))}
             </p>
           </div>
         </div>

@@ -43,7 +43,9 @@ async function atEachWidth(page: Page, t: TestInfo, name: string) {
     // Every card's content stays inside the card.
     const deleteCard = page.getByRole('region', { name: 'Delete account' })
     const card = (await deleteCard.boundingBox()) as Box
-    for (const control of await deleteCard.locator('input, button, p').all()) {
+    for (const control of await deleteCard.locator('input, button, p, summary, li').all()) {
+      // A closed disclosure's content has no box.
+      if (!(await control.isVisible())) continue
       const box = (await control.boundingBox()) as Box
       expect(box.x, `${name} at ${width} px`).toBeGreaterThanOrEqual(card.x)
       expect(box.x + box.width, `${name} at ${width} px`).toBeLessThanOrEqual(card.x + card.width)
@@ -91,6 +93,23 @@ test('account-controls-ready', async ({ page }, t) => {
     'mailto:contact@n8builds.dev',
   )
   await captureClean(page, t, capture, 'account-controls-ready')
+})
+
+test('account-controls-details', async ({ page }, t) => {
+  // Each action leads with one short sentence; the details sit behind a disclosure
+  // (REVIEW8 follow-up: the page read as a wall of text at 320 px).
+  const capture = await open(page, t, 'ready')
+  const download = page.getByRole('region', { name: 'Download your data' })
+  const remove = page.getByRole('region', { name: 'Delete account' })
+  await expect(download).toContainText('Get a copy of your Solara data as a JSON file.')
+  await expect(download.getByText('Your imported events', { exact: true })).toBeHidden()
+  await download.getByText('What’s included').click()
+  await expect(download.getByText('Your imported events', { exact: true })).toBeVisible()
+  await expect(download.getByText(/Left out for security/)).toBeVisible()
+  await remove.getByText('What’s deleted, and what stays').click()
+  await expect(remove.getByText('Your Solara sign-in', { exact: true })).toBeVisible()
+  await expect(remove.getByText(/myaccount\.google\.com\/connections/)).toBeVisible()
+  await captureClean(page, t, capture, 'account-controls-details')
 })
 
 test('account-controls-confirmed', async ({ page }, t) => {

@@ -220,7 +220,7 @@ export default async function CityUVPage({ params }: Props) {
             rel="noopener noreferrer"
             className="text-inherit underline"
           >
-            CC BY 4.0
+            CC&nbsp;BY&nbsp;4.0
           </a>
           ), for the city center, in local time. They describe a typical day, not any one day: the
           UV on a given day can be higher or lower, so check the forecast before you go. Solara is a

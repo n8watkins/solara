@@ -83,7 +83,7 @@ test('the day picker lists the days', async ({ page }, testInfo) => {
 
   await dialog.getByRole('button', { name: /Tomorrow/ }).click()
   await expect(dialog).toBeHidden()
-  await expect(page.getByTestId('hero-slot')).toContainText('Lower-UV slot · Tomorrow')
+  await expect(page.getByTestId('hero-slot')).toContainText(/Slot for .+ · Tomorrow/)
   await expect(page.getByRole('button', { name: 'Tomorrow' })).toBeVisible()
   expect(errors).toEqual([])
 })
@@ -113,7 +113,7 @@ test('the free plan shows the Plan ahead upsell', async ({ page }, testInfo) => 
 test('another day shows its own hero and cards', async ({ page }, testInfo) => {
   const errors = await open(page, '', scheme(testInfo.project.use.colorScheme))
   await page.getByRole('button', { name: 'Tomorrow' }).click()
-  await expect(page.getByTestId('hero-slot')).toContainText('Lower-UV slot · Tomorrow')
+  await expect(page.getByTestId('hero-slot')).toContainText(/Slot for .+ · Tomorrow/)
   await expect(page.getByTestId('uv-readout')).toContainText('peak')
   // A whole-page shot: check the time-dependent pixels (see freeze.ts).
   await freezeScreen(page)

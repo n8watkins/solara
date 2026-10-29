@@ -305,7 +305,7 @@ test('linked calendars on Free are a Pro offer, with Pro heads-ups', async ({ pa
   const panel = page.getByTestId('event-subscriptions')
   // Linked calendars are Pro-only (REVIEW8 SEC L3): what they do and a way to Pro.
   await expect(panel.getByTestId('event-subscriptions-offer')).toHaveText(
-    'With Pro, paste a calendar link, such as a club or race calendar, and Solara keeps its events current, checking every 6 hours.See Pro',
+    'Paste a calendar link, such as a club or race calendar, and Solara keeps its events current, checking every 6 hours.',
   )
   await expect(panel.getByText('Pro', { exact: true })).toBeVisible()
   await expect(panel.getByRole('textbox', { name: 'Calendar link' })).toHaveCount(0)
@@ -313,9 +313,11 @@ test('linked calendars on Free are a Pro offer, with Pro heads-ups', async ({ pa
   await expect(panel.getByRole('button', { name: 'Add a calendar from…' })).toHaveCount(0)
   await expect(page.getByTestId('events-section')).toContainText('from a calendar (.ics) file.')
   await expect(page.getByTestId('event-heads-up-note')).toContainText(
-    'With Pro, get a heads-up a few hours before an outdoor event with high UV.',
+    'Pro adds linked calendars and a heads-up a few hours before an outdoor event with high UV.',
   )
-  await expect(page.getByRole('button', { name: 'See Pro' })).toHaveCount(2)
+  // One calm Pro offer for both, not two stacked ones.
+  await expect(page.getByRole('button', { name: 'See Pro' })).toHaveCount(1)
+  await expect(panel.getByRole('button', { name: 'See Pro' })).toHaveCount(0)
   // The whole page from the top: scrolled, the sticky header would partly cover a
   // dashboard button above the section, which axe counts as a small target.
   await page.evaluate(() => window.scrollTo(0, 0))

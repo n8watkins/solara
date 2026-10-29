@@ -44,6 +44,7 @@ import { useMemo, useState } from 'react'
 import type { DayWeather, TierLevel, UserPreferences } from '@/lib/types'
 import AppShell, { type AppView } from '@/components/AppShell'
 import Header from '@/components/Header'
+import SettingsHost from '@/components/SettingsHost'
 import Dashboard from '@/components/Dashboard'
 import CalendarView from '@/components/CalendarView'
 import PricingModal from '@/components/PricingModal'
@@ -201,7 +202,6 @@ function Harness() {
     initial.screen === 'calendar' ? 'calendar' : 'dashboard',
   )
   const [selectedDay, setSelectedDay] = useState<DayWeather | null>(null)
-  const [settingsOpen, setSettingsOpen] = useState(initial.screen === 'settings')
   const [pricingOpen, setPricingOpen] = useState(
     initial.screen === 'pricing' || initial.screen === 'pricing-checkout',
   )
@@ -213,75 +213,80 @@ function Harness() {
   return (
     <UnitsContext value={units}>
       <div data-testid={HARNESS_MARKER} data-screen={initial.screen}>
-        <AppShell
-          header={
-            <Header
-              user={user}
-              prefs={prefs}
-              displayTier={displayTier}
-              onPrefsUpdate={setPrefs}
-              forceOpenTab={settingsOpen ? initial.tab : undefined}
-              onModalClose={() => setSettingsOpen(false)}
-              onGoHome={() => {
-                setView('dashboard')
-                setSelectedDay(null)
-              }}
-              currentUV={weather?.current.uv}
-            />
-          }
-          view={view}
-          onViewChange={displayTier === 'anonymous' ? undefined : setView}
-          after={
-            pricingOpen && (
-              <PricingModal
-                user={user}
-                email={user?.email ?? undefined}
-                onJoinWaitlist={() => {}}
-                onClose={() => setPricingOpen(false)}
-                // The harness build has no Functions; this screen shows Pro once billing is on.
-                checkoutAvailable={initial.screen === 'pricing-checkout' || undefined}
-              />
-            )
-          }
+        <SettingsHost
+          prefs={prefs}
+          user={user}
+          onSave={setPrefs}
+          initialTab={initial.screen === 'settings' ? initial.tab : null}
         >
-          {/* Shown offline (tests/harness/offline.spec.ts) or for the proxy's earlier
-              copy (stale-forecast.spec.ts). The fixtures were "fetched" 75 minutes
-              before the frozen now. */}
-          <ForecastNotice
-            weather={weather}
-            updatedAt={initial.live ? live.updatedAt : HARNESS_NOW_MS - 75 * 60_000}
-            stale={initial.live && live.stale && !live.error}
-          />
-          {user && <GuestPlanNotice uid={user.uid} />}
-          {initial.live && live.error && (
-            <p role="alert" data-testid="weather-error">
-              {live.error}
-            </p>
-          )}
-          {live.loading && <Skeleton />}
-          {view === 'dashboard' && weather && (
-            <Dashboard
-              user={user}
-              weather={weather}
-              prefs={prefs}
-              displayTier={displayTier}
-              onPrefsUpdate={setPrefs}
-              onRefresh={live.refresh}
-              selectedDay={selectedDay}
-              onSelectDay={setSelectedDay}
-            />
-          )}
-          {view === 'calendar' && weather && (
-            <div className="card">
-              <CalendarView
+          <AppShell
+            header={
+              <Header
+                user={user}
                 prefs={prefs}
                 displayTier={displayTier}
-                weather={weather}
                 onPrefsUpdate={setPrefs}
+                onGoHome={() => {
+                  setView('dashboard')
+                  setSelectedDay(null)
+                }}
+                currentUV={weather?.current.uv}
               />
-            </div>
-          )}
-        </AppShell>
+            }
+            view={view}
+            onViewChange={displayTier === 'anonymous' ? undefined : setView}
+            after={
+              pricingOpen && (
+                <PricingModal
+                  user={user}
+                  email={user?.email ?? undefined}
+                  onJoinWaitlist={() => {}}
+                  onClose={() => setPricingOpen(false)}
+                  // The harness build has no Functions; this screen shows Pro once billing is on.
+                  checkoutAvailable={initial.screen === 'pricing-checkout' || undefined}
+                />
+              )
+            }
+          >
+            {/* Shown offline (tests/harness/offline.spec.ts) or for the proxy's earlier
+              copy (stale-forecast.spec.ts). The fixtures were "fetched" 75 minutes
+              before the frozen now. */}
+            <ForecastNotice
+              weather={weather}
+              updatedAt={initial.live ? live.updatedAt : HARNESS_NOW_MS - 75 * 60_000}
+              stale={initial.live && live.stale && !live.error}
+            />
+            {user && <GuestPlanNotice uid={user.uid} />}
+            {initial.live && live.error && (
+              <p role="alert" data-testid="weather-error">
+                {live.error}
+              </p>
+            )}
+            {live.loading && <Skeleton />}
+            {view === 'dashboard' && weather && (
+              <Dashboard
+                user={user}
+                weather={weather}
+                prefs={prefs}
+                displayTier={displayTier}
+                onPrefsUpdate={setPrefs}
+                onRefresh={live.refresh}
+                selectedDay={selectedDay}
+                onSelectDay={setSelectedDay}
+              />
+            )}
+            {view === 'calendar' && weather && (
+              <div className="card">
+                <CalendarView
+                  prefs={prefs}
+                  displayTier={displayTier}
+                  weather={weather}
+                  onPrefsUpdate={setPrefs}
+                />
+              </div>
+            )}
+          </AppShell>
+        </SettingsHost>
       </div>
     </UnitsContext>
   )

@@ -27,7 +27,7 @@ test.describe('logic checks', () => {
     await expect(briefing).toContainText('Lowest-UV window: Running 6pm–8pm')
     await expect(briefing).toContainText('can burn in about 15 min')
     await expect(briefing).toContainText(
-      'Seek shade from 11am to 5pm, when UV is very high or extreme',
+      'Seek shade while UV is very high or extreme, from 11am to 5pm',
     )
   })
 
@@ -135,7 +135,7 @@ test.describe('consistency checks (REVIEW4)', () => {
   }) => {
     await openDashboard(page, { at: DAWN_MS, tier: 'free' })
     const hero = page.getByTestId('hero-slot')
-    await expect(hero).toContainText('Next lower-UV slot')
+    await expect(hero).toContainText(/Next slot for /)
     await expect(page.getByTestId('daily-briefing')).toContainText(/Lowest-UV window: /)
     await expect(page.getByText(/best lower-UV window/i)).toHaveCount(0)
   })

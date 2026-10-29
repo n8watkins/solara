@@ -20,6 +20,7 @@ import Header from './Header'
 import Skeleton from './Skeleton'
 import {
   CalendarView,
+  ForecastUnavailable,
   GuestPlanNotice,
   InstallPrompt,
   Onboarding,
@@ -35,6 +36,7 @@ import AppNotice from './AppNotice'
 import ForecastNotice from './ForecastNotice'
 import { AccountLoadError, AccountLoading } from './AccountStatus'
 import ScheduledProvider from './ScheduledProvider'
+import SettingsHost from './SettingsHost'
 
 // A browser holding a session opens on the signed-in screen, which waits for these
 // parts (lib/use-account.ts), and a guest plan with activities opens on a dashboard
@@ -66,8 +68,6 @@ function SignedInApp() {
   const [view, setView] = useState<AppView>('dashboard')
   const [selectedDay, setSelectedDay] = useState<DayWeather | null>(null)
   const [tierOverride, setTierOverride] = useState<TierLevel | null>(null)
-  const [prefsOpen, setPrefsOpen] = useState(false)
-  const [prefsTab] = useState<'general' | 'activities' | 'location'>('general')
   const [syncError, setSyncError] = useState<SyncError | null>(null)
   const [foregroundNotice, setForegroundNotice] = useState(false)
   const [billingNotice, setBillingNotice] = useState<string | null>(null)
@@ -224,113 +224,120 @@ function SignedInApp() {
       uid={user && canUseCalendar(prefs.tier) ? user.uid : null}
       activities={prefs.activities}
     >
-      {/* Until Auth confirms the account shown from this browser's copy and its saved
+      <SettingsHost prefs={prefs} user={user} onSave={savePrefs}>
+        {/* Until Auth confirms the account shown from this browser's copy and its saved
           plan has loaded, nothing on screen can be changed (lib/use-account.ts). */}
-      <div className="contents" inert={!!pending} aria-busy={pending ? true : undefined}>
-        <AppShell
-          header={
-            <Header
-              user={user}
-              account={user ?? pending}
-              prefs={prefs}
-              displayTier={displayTier}
-              onPrefsUpdate={savePrefs}
-              forceOpenTab={prefsOpen ? prefsTab : undefined}
-              onModalClose={() => setPrefsOpen(false)}
-              onGoHome={() => {
-                setView('dashboard')
-                setSelectedDay(null)
-              }}
-              currentUV={weather?.current.uv}
+        <div className="contents" inert={!!pending} aria-busy={pending ? true : undefined}>
+          <AppShell
+            header={
+              <Header
+                user={user}
+                account={user ?? pending}
+                prefs={prefs}
+                displayTier={displayTier}
+                onPrefsUpdate={savePrefs}
+                onGoHome={() => {
+                  setView('dashboard')
+                  setSelectedDay(null)
+                }}
+                currentUV={weather?.current.uv}
+              />
+            }
+            view={effectiveView}
+            onViewChange={displayTier !== 'anonymous' ? setView : undefined}
+            after={isDev && <DevPanel currentTier={displayTier} onOverride={setTierOverride} />}
+          >
+            <InstallPrompt />
+            {/* A failed refresh has its own notice below, which also says the forecast is old. */}
+            <ForecastNotice
+              weather={weather}
+              updatedAt={weatherUpdatedAt}
+              stale={weatherStale && !error}
+              readOnly={!!pending}
             />
-          }
-          view={effectiveView}
-          onViewChange={displayTier !== 'anonymous' ? setView : undefined}
-          after={isDev && <DevPanel currentTier={displayTier} onOverride={setTierOverride} />}
-        >
-          <InstallPrompt />
-          {/* A failed refresh has its own notice below, which also says the forecast is old. */}
-          <ForecastNotice
-            weather={weather}
-            updatedAt={weatherUpdatedAt}
-            stale={weatherStale && !error}
-            readOnly={!!pending}
-          />
-          {foregroundNotice && (
-            <AppNotice
-              tone="notice"
-              role="status"
-              icon="🔔"
-              action={{ label: 'Dismiss', onClick: () => setForegroundNotice(false) }}
-            >
-              Your latest local-morning planning summary is ready.
-            </AppNotice>
-          )}
-          {/* Keyed by account so a later account never sees the previous one's notice. */}
-          {user && !pending && <GuestPlanNotice key={user.uid} uid={user.uid} />}
-          {billingNotice && (
-            <AppNotice tone="info" role="status">
-              {billingNotice}
-            </AppNotice>
-          )}
-          {error && (
-            <AppNotice tone="error" icon="⚠️" action={{ label: 'Retry', onClick: refreshWeather }}>
-              {error}
-            </AppNotice>
-          )}
-          {syncError && (
-            <AppNotice
-              tone="notice"
-              role="alert"
-              icon="☁️"
-              action={
-                syncError.reload
-                  ? { label: 'Reload', onClick: () => window.location.reload() }
-                  : { label: 'Retry sync', onClick: () => savePrefs(prefs) }
-              }
-            >
-              {syncError.message}
-            </AppNotice>
-          )}
-          {effectiveView === 'dashboard' && (
-            <>
-              {weatherLoading && <Skeleton />}
-              {weather && (
-                <ErrorBoundary label="the dashboard" onReset={refreshWeather}>
-                  <Dashboard
-                    user={user}
-                    weather={weather}
-                    prefs={prefs}
-                    displayTier={displayTier}
-                    onPrefsUpdate={savePrefs}
-                    onRefresh={refreshWeather}
-                    selectedDay={selectedDay}
-                    onSelectDay={setSelectedDay}
-                  />
-                </ErrorBoundary>
-              )}
-            </>
-          )}
-          {effectiveView === 'calendar' && (weather || weatherLoading) && (
-            <div className="card">
-              {weather ? (
-                <ErrorBoundary label="the calendar" onReset={refreshWeather}>
-                  <CalendarView
-                    prefs={prefs}
-                    displayTier={displayTier}
-                    weather={weather}
-                    onPrefsUpdate={savePrefs}
-                  />
-                </ErrorBoundary>
-              ) : (
-                <p role="status" className="m-0 py-12 text-center text-[14px] text-ink-3">
-                  Loading forecast…
-                </p>
-              )}
-            </div>
-          )}
-        </AppShell>
-      </div>
+            {foregroundNotice && (
+              <AppNotice
+                tone="notice"
+                role="status"
+                icon="🔔"
+                action={{ label: 'Dismiss', onClick: () => setForegroundNotice(false) }}
+              >
+                Your latest local-morning planning summary is ready.
+              </AppNotice>
+            )}
+            {/* Keyed by account so a later account never sees the previous one's notice. */}
+            {user && !pending && <GuestPlanNotice key={user.uid} uid={user.uid} />}
+            {billingNotice && (
+              <AppNotice tone="info" role="status">
+                {billingNotice}
+              </AppNotice>
+            )}
+            {/* Without any forecast the dashboard says so in its own place (below). */}
+            {error && weather && (
+              <AppNotice
+                tone="error"
+                icon="⚠️"
+                action={{ label: 'Retry', onClick: refreshWeather }}
+              >
+                {error}
+              </AppNotice>
+            )}
+            {syncError && (
+              <AppNotice
+                tone="notice"
+                role="alert"
+                icon="☁️"
+                action={
+                  syncError.reload
+                    ? { label: 'Reload', onClick: () => window.location.reload() }
+                    : { label: 'Retry sync', onClick: () => savePrefs(prefs) }
+                }
+              >
+                {syncError.message}
+              </AppNotice>
+            )}
+            {/* No forecast at all: the same empty state for the dashboard and the calendar. */}
+            {error && !weather && <ForecastUnavailable message={error} onRetry={refreshWeather} />}
+            {effectiveView === 'dashboard' && (
+              <>
+                {weatherLoading && <Skeleton />}
+                {weather && (
+                  <ErrorBoundary label="the dashboard" onReset={refreshWeather}>
+                    <Dashboard
+                      user={user}
+                      weather={weather}
+                      prefs={prefs}
+                      displayTier={displayTier}
+                      onPrefsUpdate={savePrefs}
+                      onRefresh={refreshWeather}
+                      selectedDay={selectedDay}
+                      onSelectDay={setSelectedDay}
+                    />
+                  </ErrorBoundary>
+                )}
+              </>
+            )}
+            {effectiveView === 'calendar' && (weather || weatherLoading) && (
+              <div className="card">
+                {weather ? (
+                  <ErrorBoundary label="the calendar" onReset={refreshWeather}>
+                    <CalendarView
+                      prefs={prefs}
+                      displayTier={displayTier}
+                      weather={weather}
+                      onPrefsUpdate={savePrefs}
+                    />
+                  </ErrorBoundary>
+                ) : (
+                  <p role="status" className="m-0 py-12 text-center text-[14px] text-ink-3">
+                    Loading forecast…
+                  </p>
+                )}
+              </div>
+            )}
+          </AppShell>
+        </div>
+      </SettingsHost>
     </AccountContexts>
   )
 }

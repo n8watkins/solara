@@ -10,6 +10,7 @@ import type {
   HourlyForecast,
 } from '@/lib/types'
 import { useUnits } from '@/lib/use-units'
+import { useOpenSettings } from '@/lib/open-settings'
 import { useStatusFlash } from '@/hooks/useStatusFlash'
 import { useCalendarBusy } from '@/hooks/useCalendarBusy'
 import { nowHourOf, planActivityDay, soonestPlan } from '@/lib/next-slot'
@@ -86,6 +87,7 @@ function DashboardView({
   // either keeps both in sync. null falls back to "now" (today) or the day's peak.
   const [focusedHour, setFocusedHour] = useState<HourlyForecast | null>(null)
   const fmt = useUnits()
+  const openSettings = useOpenSettings()
   const scheduled = useScheduled()
   const [openEventId, setOpenEventId] = useState<string | null>(null)
   // "Now" is the forecast location's wall clock, never the device's. The
@@ -295,6 +297,11 @@ function DashboardView({
               mostSensitive={planning.mostSensitive?.name}
               burnFrom={readout.burn === null ? fromHour(uv => uv >= 0.5) : null}
               vitDFrom={readout.vitD === null ? fromHour(uv => uv >= 1) : null}
+              onEditSkin={
+                access.accessTier === 'anonymous' && openSettings
+                  ? () => openSettings('general')
+                  : undefined
+              }
             />
           )}
 

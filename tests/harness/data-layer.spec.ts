@@ -145,7 +145,7 @@ test('a failed refresh keeps the last forecast on screen', async ({ context, pag
   await openLive(later, NOW_MS + 45 * MINUTE)
   await expect(later.getByTestId('hero-slot')).toBeVisible()
   await expect(later.getByTestId('weather-error')).toHaveText(
-    'Could not refresh weather data. Showing the last forecast.',
+    "The forecast service isn't answering, so this is the last forecast Solara got. It will try again in a minute.",
     { timeout: 15_000 },
   )
   await expect(later.getByTestId('hero-slot')).toBeVisible()

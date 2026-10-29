@@ -18,10 +18,11 @@ What users get:
 
 - A static landing page at `/` (no framework JavaScript, nothing from Firebase) and the app at `/app/`; a browser with a signed-in account that opens `/` goes to the app (#71).
 - Guest mode: the app works without signing in, on the guest plan (today's forecast, one activity, kept only in this browser).
+  A guest changes skin type, theme, units and the rest of Settings from the header's Settings button or "Edit" beside the skin type on the burn card (ROADMAP item 37).
   Google sign-in is free and syncs to Firestore; a guest plan carries into a brand-new account on its first sign-in and never into an existing one.
   A guest who signs in to an existing account is told once that the account kept its own plan, and which activities, place and skin type from the guest plan were not added.
 - A guest never downloads Firebase: the dashboard shows from the guest plan and cached forecast at once, and Firebase loads only when someone reaches for "Sign in" or the browser already holds a session (#83).
-  Lighthouse mobile LCP for `/app/` is about 2.1 s (was 4.4-6.3 s), and a guest's first load is about 189 KB gzip of JavaScript (was over 500 KB), with Valibot instead of Zod, a small forecast store instead of TanStack Query and more parts loaded on demand (#83, #93), including the install prompt and the dashboard's activity plan, which a new guest's plan never shows (#127).
+  Lighthouse mobile LCP for `/app/` is about 2.1 s (was 4.4-6.3 s), and a guest's first load is about 192.7 KB gzip of JavaScript (was over 500 KB), with Valibot instead of Zod, a small forecast store instead of TanStack Query and more parts loaded on demand (#83, #93), including the install prompt and the dashboard's activity plan, which a new guest's plan never shows (#127).
   `tests/e2e/guest.spec.ts` holds it under 193 KB.
 - A returning account's dashboard shows at once from this browser's copy of it while Firebase loads and Auth confirms the session, and accepts no input until then; signed-in start-up LCP went from about 5.5 s to the same as a guest's (#93).
   Auth's sign-in popup helper (an iframe and Google's scripts) starts only when a sign-in or reauthentication is about to happen.
@@ -36,11 +37,12 @@ What users get:
 - A sunscreen reapply timer on today's dashboard, free on every plan including guests (`components/dashboard/ReapplyTimer.tsx`, `lib/reapply.ts`): started when heading out, it reminds every 2 hours, or every 80 minutes while swimming or sweating.
   It lives in this browser; the reminder is the card itself, which turns into an alert, plus a system notification while Solara is open in the background where the browser allows one (no push, so nothing arrives once every Solara tab is closed).
 - UV and weather forecasts from Open-Meteo, in the location's time zone, with Celsius or Fahrenheit and 12- or 24-hour time chosen from the locale or in Settings.
+  When Open-Meteo does not answer, the app says the forecast service is not answering and tries again every minute; without any forecast the dashboard shows "No forecast yet" with "Try again now" (ROADMAP item 37).
 - Personalized activity windows on the dashboard and in the week calendar, within each plan's days.
   Each activity can account for its typical shade and the surface around it (grass, pavement, water, sand, snow), which scale the UV it is planned against with cited, cautious factors; the card says so ("Sand, some shade · 90% of forecast UV").
   Plans assume a clear sky, which stays safe if forecast clouds break; an activity with "Account for cloud cover" on plans with the forecast's clouds instead, counted once (#114), and the calendar feed plans the same way.
 - A daily briefing at the top of the dashboard (#108): the day's peak UV and time (and the clear-sky peak when clouds lower it), the lowest-UV window for the plan, the burn time at the peak and one line of advice, shareable; after sunset it briefs tomorrow (on the guest plan it offers sign-in instead).
-  The hero above the UV card names the next lower-UV slot, so the two never both claim to be the "best".
+  The hero above the UV card names the activity's next slot ("Next slot for Running"), so the two never both claim to be the "best".
   Both turn the page at the same moment, the place's sunset (`todayOver` in `lib/dashboard-view.ts`, ROADMAP item 28): until then the briefing covers today and the hero stays.
   The hero's time stays on one line and its detail line reads in full from 320 px, with "Start now" on the label's row.
   The UV card's line under its reading wraps after a dot instead of cutting the weather off at 320 px, and the current hour's chip shows the live reading as "Now", the same value as the reading above it (ROADMAP item 30).
@@ -67,6 +69,7 @@ What users get:
 - Opt-in Google Analytics 4, asked by a banner at the top of the app's pages, in the page flow, so it never covers anything.
 - The privacy policy and terms with the operator details (#46), the Google user data section (#48) and the Sentry and reCAPTCHA notices (#70); each has its own last-updated date (`lib/legal.ts`).
 - Firestore rules and indexes, deployed by every push to `main`.
+  Since #148 (ROADMAP item 36) the rules also bound key lists to record keys and group selection to 768 characters, and tests prove every server-only collection and collection group is refused to clients.
   The rules also hold each account's activities, saved places and profiles to its plan (Free 3, 3 and 1; Pro 20, 12 and 6), so the limits do not depend on the client; an account back on Free keeps and can shrink what it saved on Pro.
 
 ## Built but switched off
@@ -96,7 +99,8 @@ The signed-in suite covers Scheduled and events from Google Calendar with a fake
   Nothing has been sent since 2026-07-15; the manual GitHub Actions notifier is retired.
 
 - **Linked calendars and Pro event heads-ups** (Wave 5 item 9, phase 2): built and switched off until the `EVENTS_SUBSCRIPTIONS_ENABLED` variable is set ([Linked calendars and event heads-ups](DEPLOYMENT.md#linked-calendars-and-event-heads-ups)).
-  A signed-in account links up to 5 https or webcal calendar addresses in the Events section; the `eventSubscriptions` Function fetches each one with SSRF guards (public addresses only, checked after DNS and on every redirect, 10 seconds, 1 MB, calendar content only) and the `eventSubscriptionsRefresh` job every 6 hours, with backoff and a pause after a week of failures; the address stays server-only.
+  Linked calendars are part of Pro since #148 (ROADMAP item 36, REVIEW8 SEC L3): the Functions refuse adding and refreshing for an account without Pro, the scheduled refresh pauses a lapsed account's links without fetching them, and removing works on any plan; a Free account sees one Pro offer in the Events section, which also names the event heads-ups when alerts are on.
+  A Pro account links up to 5 https or webcal calendar addresses in the Events section; the `eventSubscriptions` Function fetches each one with SSRF guards (public addresses only, checked after DNS and on every redirect, 10 seconds, 1 MB, calendar content only) and the `eventSubscriptionsRefresh` job every 6 hours, with backoff and a pause after a week of failures; the address stays server-only.
   "Add a calendar from..." under Linked calendars (item 24, [CALENDAR_LINKS.md](integrations/CALENDAR_LINKS.md#as-built)) shows how to copy a calendar link from Apple iCloud, Google, Outlook.com and Yahoo, names the provider of a pasted link and catches common mistakes (a provider's website, Outlook's HTML link) before anything is sent; it loads only when opened.
   It holds back only links that certainly are not calendars and lets any other link on a provider's host through with a warning (ROADMAP item 30).
   Hardened after the fifth review (item 21): hostile bodies fail only their own fetch, each link is claimed before it is fetched so none can hold the refresh job, refreshes write only changed events, place lookups have their own budget, and the job takes every due link and emails the owner when it falls behind.
@@ -105,7 +109,7 @@ The signed-in suite covers Scheduled and events from Google Calendar with a fake
   When the proxy serves its last good copy while its budget is spent (`stale: true` with `fetchedAt`), the app keeps that copy's real age and the dashboard says so in a small note, "Showing the forecast updated at 9:40am. A newer one will load by itself.", in the place's own clock (`components/ForecastNotice.tsx`, which also holds the offline notice; only one of them shows at a time).
   A forecast without the two fields reads exactly as before.
   Each caller's share of the paid calls also counts its IPv4 /24 (or IPv6 /48), and the budget has two sides, the browser's forecasts and the server's (the calendar feed and Pro heads-ups), each allowed at most two thirds, so neither can starve the other (REVIEW5 L1, REVIEW6 L3); the per-address limits keep serving new visitors when full (REVIEW5 M5).
-- **Operations:** every Function has instance (16 HTTP instances in all), memory and timeout caps, rate limits that reject before any Firestore read, App Check, and a global budget for paid forecast calls with a fair share per caller and a guaranteed part for the browser and for the server, a separate place search budget and one for linked calendars' place lookups; a budget kill switch ($25 budget: warn at 50%, cost guard at 100%, detach billing at 300%) and cost guard, alerts, uptime checks, backups and TTL policies are in code and `infra/` scripts, applied by the owner at the Pro launch ([RUNBOOK.md](RUNBOOK.md)).
+- **Operations:** every Function has instance (16 HTTP instances in all), memory and timeout caps, a request body limit checked before the body is parsed (8 KiB, 256 KiB for the Stripe webhook, #148), forged webhook requests logged at most once a minute per kind, rate limits that reject before any Firestore read, App Check, and a global budget for paid forecast calls with a fair share per caller and a guaranteed part for the browser and for the server, a separate place search budget and one for linked calendars' place lookups; a budget kill switch ($25 budget: warn at 50%, cost guard at 100%, detach billing at 300%) and cost guard, alerts, uptime checks, backups and TTL policies are in code and `infra/` scripts, applied by the owner at the Pro launch ([RUNBOOK.md](RUNBOOK.md)).
 
 The project stays on Spark until Pro launches ([COSTS.md](COSTS.md)).
 

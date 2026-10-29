@@ -88,6 +88,8 @@ export const DayDialog = deferred(() => import('./dashboard/DayDialog'))
 /** The "UV scale" disclosure's bands, once it is opened. */
 export const UVScaleBands = deferred(() => import('./dashboard/UVScaleBands'))
 export const LocationPanel = deferred(() => import('./LocationPanel'))
+/** The dashboard's empty state when no forecast has loaded and the last request failed. */
+export const ForecastUnavailable = deferred(() => import('./ForecastUnavailable'))
 
 /**
  * The "Add to home screen" prompt (components/InstallPrompt.tsx), which floats over the

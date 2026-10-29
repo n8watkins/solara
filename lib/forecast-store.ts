@@ -5,8 +5,9 @@
 // - a forecast older than `staleMs` is refreshed in the background while the cached
 //   one stays on screen: when a screen starts showing it, every `staleMs` while one
 //   does, and when the page becomes visible again or the browser comes back online;
-// - a failed request is tried once more after `retryDelayMs`; offline, nothing is
-//   requested until the browser is back online;
+// - a failed request is tried once more after `retryDelayMs`, then, while a screen
+//   shows the location, again every `errorRetryMs` until one succeeds (the screens say
+//   so); offline, nothing is requested until the browser is back online;
 // - each entry starts from the persisted cache (lib/cache.ts), so a reload or a
 //   location switch paints the last known forecast at once.
 //
@@ -36,8 +37,10 @@ export interface ForecastStoreOptions {
   keyOf: (location: Location) => string
   /** A forecast older than this is refreshed. */
   staleMs: number
-  /** Wait before the one retry of a failed request. */
+  /** Wait before the one quick retry of a failed request. */
   retryDelayMs?: number
+  /** After a request and its quick retry failed: wait before trying again. */
+  errorRetryMs?: number
   /** An entry no screen has shown for this long is dropped from memory. */
   gcMs?: number
   now?: () => number
@@ -53,6 +56,8 @@ interface Entry {
   waitingForNetwork: boolean
   listeners: Set<() => void>
   refreshTimer: ReturnType<typeof setInterval> | null
+  /** The next try after a failure, while a screen shows the location. */
+  retryTimer: ReturnType<typeof setTimeout> | null
   gcTimer: ReturnType<typeof setTimeout> | null
 }
 
@@ -70,7 +75,13 @@ export class ForecastStore {
   private watching = false
 
   constructor(options: ForecastStoreOptions) {
-    this.options = { retryDelayMs: 1000, gcMs: 30 * 60 * 1000, now: Date.now, ...options }
+    this.options = {
+      retryDelayMs: 1000,
+      errorRetryMs: 60_000,
+      gcMs: 30 * 60 * 1000,
+      now: Date.now,
+      ...options,
+    }
   }
 
   /** The current state for `location`. Stable until it changes. */
@@ -97,6 +108,7 @@ export class ForecastStore {
       if (!entry.listeners.delete(listener) || entry.listeners.size > 0) return
       if (entry.refreshTimer) clearInterval(entry.refreshTimer)
       entry.refreshTimer = null
+      this.cancelRetry(entry)
       // Nobody needs the answer any more.
       entry.request?.abort()
       entry.request = null
@@ -108,9 +120,16 @@ export class ForecastStore {
     }
   }
 
-  /** Fetches `location` now, unless a request for it is already in flight. */
+  /**
+   * Fetches `location` now, unless a request for it is already in flight (someone asked:
+   * "Retry", or a new day). A failure on screen gives way to loading until it answers.
+   */
   refetch(location: Location): void {
-    this.fetch(this.entry(location))
+    const entry = this.entry(location)
+    if (entry.state.error && online()) {
+      this.set(entry, { ...entry.state, error: false, pending: !entry.state.data })
+    }
+    this.fetch(entry)
   }
 
   /**
@@ -123,6 +142,7 @@ export class ForecastStore {
     for (const old of previous) {
       old.request?.abort()
       if (old.refreshTimer) clearInterval(old.refreshTimer)
+      this.cancelRetry(old)
       if (old.gcTimer) clearTimeout(old.gcTimer)
       if (old.listeners.size === 0) continue
       // Hand the screens over to a fresh entry for the same place.
@@ -148,6 +168,7 @@ export class ForecastStore {
         waitingForNetwork: false,
         listeners: new Set(),
         refreshTimer: null,
+        retryTimer: null,
         gcTimer: null,
       }
       this.entries.set(key, entry)
@@ -164,8 +185,14 @@ export class ForecastStore {
     for (const listener of [...entry.listeners]) listener()
   }
 
+  private cancelRetry(entry: Entry): void {
+    if (entry.retryTimer) clearTimeout(entry.retryTimer)
+    entry.retryTimer = null
+  }
+
   private fetch(entry: Entry): void {
     if (entry.request || this.entries.get(entry.key) !== entry) return
+    this.cancelRetry(entry)
     if (!online()) {
       entry.waitingForNetwork = true
       return
@@ -208,6 +235,12 @@ export class ForecastStore {
         }
         entry.request = null
         this.set(entry, { ...entry.state, error: true, pending: false })
+        if (entry.listeners.size > 0) {
+          entry.retryTimer = setTimeout(() => {
+            entry.retryTimer = null
+            this.fetch(entry)
+          }, this.options.errorRetryMs)
+        }
         return
       }
     }

@@ -76,6 +76,20 @@ export function useForecast(location: Location | null | undefined) {
   return { ...state, refetch }
 }
 
+/**
+ * What the screens say when the forecast does not load. The browser is online (offline,
+ * nothing is requested), so the forecast service is the likely cause, not the person's
+ * connection, and the store tries again every minute while the screen shows
+ * (lib/forecast-store.ts errorRetryMs) (REVIEW8 QA L5).
+ */
+export const FORECAST_ERROR = {
+  /** No forecast to show. */
+  load: "The forecast service isn't answering right now. Solara will try again in a minute.",
+  /** The last forecast stays on screen. */
+  refresh:
+    "The forecast service isn't answering, so this is the last forecast Solara got. It will try again in a minute.",
+} as const
+
 export interface WeatherState {
   /** The forecast as seen now in the location's zone, or null until one is loaded. */
   weather: WeatherResponse | null
@@ -113,11 +127,7 @@ export function useWeather(location: Location | null | undefined): WeatherState 
   return {
     weather,
     loading: !weather && forecast.pending && !!location,
-    error: forecast.error
-      ? weather
-        ? 'Could not refresh weather data. Showing the last forecast.'
-        : 'Could not load weather data.'
-      : null,
+    error: forecast.error ? (weather ? FORECAST_ERROR.refresh : FORECAST_ERROR.load) : null,
     updatedAt: forecast.updatedAt,
     stale: !!data?.stale,
     refresh: refetch,

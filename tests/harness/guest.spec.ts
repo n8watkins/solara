@@ -80,6 +80,33 @@ const SCREENS: Screen[] = [
     },
   },
   {
+    // A guest changes the skin type after setup from "Edit" on the burn card (REVIEW8 QA M3).
+    name: 'guest-settings-skin',
+    query: 'tier=guest',
+    fullPage: false,
+    reach: async page => {
+      await page.getByTestId('burn-metric').getByRole('button', { name: 'Edit skin type' }).click()
+      const dialog = page.getByRole('dialog', { name: 'Settings' })
+      await expect(dialog.getByRole('tab', { name: 'Sun profile' })).toHaveAttribute(
+        'aria-selected',
+        'true',
+      )
+      return dialog.getByLabel('Skin type')
+    },
+  },
+  {
+    // ... and theme and units from the header's Settings button.
+    name: 'guest-settings-display',
+    query: 'tier=guest',
+    fullPage: false,
+    reach: async page => {
+      await page.getByRole('banner').getByRole('button', { name: 'Settings' }).click()
+      const dialog = page.getByRole('dialog', { name: 'Settings' })
+      await dialog.getByRole('tab', { name: 'Display' }).click()
+      return dialog.getByLabel('Temperature')
+    },
+  },
+  {
     name: 'pricing-free',
     query: 'tier=free',
     fullPage: false,
