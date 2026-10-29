@@ -190,6 +190,16 @@ test('a Sentry release only with a DSN, and preview channel names', () => {
   assert.match(errorsOf(minimal, { channel: 'PR 152' }), /preview channel/)
 })
 
+test('only main deploys the live staging site; any branch a preview', () => {
+  assert.equal(errorsOf(minimal, { ref: 'refs/heads/main' }), '')
+  assert.match(errorsOf(minimal, { ref: 'refs/heads/feature' }), /Only main deploys the live/)
+  assert.match(
+    errorsOf(minimal, { ref: 'refs/heads/feature', channel: ' live ' }),
+    /Only main deploys the live/,
+  )
+  assert.equal(errorsOf(minimal, { ref: 'refs/heads/feature', channel: 'pr-152' }), '')
+})
+
 test('refuses line breaks, which could add lines to the build environment', () => {
   assert.match(
     errorsOf({ ...minimal, STAGING_NEXT_PUBLIC_FIREBASE_API_KEY: 'a\nNODE_OPTIONS=--x' }),

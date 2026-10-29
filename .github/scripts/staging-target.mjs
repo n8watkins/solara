@@ -10,7 +10,7 @@
 // staging value that equals one of them.
 //
 // Usage (in the workflow):
-//   node .github/scripts/staging-target.mjs --check [--commit <sha>] [--channel <id>]
+//   node .github/scripts/staging-target.mjs --check [--commit <sha>] [--ref <ref>] [--channel <id>]
 //       writes configured, project, site, app-url, functions, channel and build-env to
 //       $GITHUB_OUTPUT; exits 0 with configured=false when staging is not set up
 //   node .github/scripts/staging-target.mjs --functions-env <file>
@@ -59,7 +59,7 @@ const REQUIRED = ['NEXT_PUBLIC_FIREBASE_API_KEY', 'NEXT_PUBLIC_FIREBASE_APP_ID']
  * Resolves the staging target. Pure, for tests.
  * @param {Record<string, string | undefined>} vars the variables (toJSON(vars))
  * @param {{ production?: Record<string, string | undefined>, hasKey?: boolean,
- *   commit?: string, channel?: string }} [options]
+ *   commit?: string, ref?: string, channel?: string }} [options]
  *   production: production's public values from secrets, by NEXT_PUBLIC_* name
  */
 export function resolve(vars, options = {}) {
@@ -92,6 +92,12 @@ export function resolve(vars, options = {}) {
   const appUrl = `https://${site}.web.app`
 
   const channel = options.channel?.trim() || 'live'
+  // The live staging site takes only main; any branch may deploy a preview channel.
+  if (channel === 'live' && options.ref !== undefined && options.ref !== 'refs/heads/main') {
+    errors.push(
+      `Only main deploys the live staging site; ${options.ref} may deploy a preview channel.`,
+    )
+  }
   if (channel !== 'live' && !CHANNEL.test(channel)) {
     errors.push(
       `The preview channel "${channel}" must be up to 20 lowercase letters, digits and hyphens.`,
@@ -256,6 +262,7 @@ function main(argv) {
     production: productionFromEnv(process.env),
     hasKey: process.env.HAS_STAGING_KEY === 'true',
     commit: arg('--commit'),
+    ref: arg('--ref'),
     channel: arg('--channel'),
   })
   if (!result.configured) {

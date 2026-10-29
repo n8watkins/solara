@@ -73,8 +73,14 @@ for (const file of ['deploy.yml']) {
 const staging = readFileSync(new URL('../workflows/deploy-staging.yml', import.meta.url), 'utf8')
 const production = readFileSync(new URL('../workflows/deploy.yml', import.meta.url), 'utf8')
 
-test('deploy-staging.yml uses credentials only on main, in the staging environment', () => {
-  assert.deepEqual(unguardedJobs(staging), [])
+const LIVE_FROM_MAIN = "(github.ref == 'refs/heads/main' || inputs.channel != 'live')"
+
+test('deploy-staging.yml deploys live only from main, credentials only in the staging environment', () => {
+  for (const [name, block] of Object.entries(jobs(staging))) {
+    const condition = jobCondition(block)
+    assert.ok(condition.includes(LIVE_FROM_MAIN.replace(/^\(|\)$/g, '')), name)
+  }
+  assert.doesNotMatch(staging, /inputs\.ref|ref: \$\{\{/)
   for (const [name, block] of Object.entries(jobs(staging))) {
     if (!/secrets\.|id-token: write/.test(block)) continue
     assert.match(block, /^ {4}environment:(?: staging| *\n {6}name: staging)$/m, name)

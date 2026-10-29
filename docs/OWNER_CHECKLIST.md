@@ -175,7 +175,7 @@ Optional at any time: [Events from Outlook](#events-from-outlook-only-for-the-ou
 
 ### Staging: before the Pro launch
 
-B0, the staging deploy, is built ([ROADMAP item 34](ROADMAP.md#34-staging-deploy-before-the-pro-launch-built)): **Deploy staging** (`.github/workflows/deploy-staging.yml`) deploys a ref to the staging project by hand, or only its site to a 7-day preview channel ([DEPLOYMENT.md, Staging](DEPLOYMENT.md#staging)).
+B0, the staging deploy, is built ([ROADMAP item 34](ROADMAP.md#34-staging-deploy-before-the-pro-launch-built)): **Deploy staging** (`.github/workflows/deploy-staging.yml`) deploys `main` to the staging project by hand, or only a branch's site to a 7-day preview channel ([DEPLOYMENT.md, Staging](DEPLOYMENT.md#staging)).
 Every staging setting goes into the `staging` GitHub environment under a `STAGING_` name, never into production's repository variables; until `STAGING_FIREBASE_PROJECT_ID` is set, a run ends with "Staging is not set up" and deploys nothing.
 The steps below use `solara-staging` as the project id; with another id, use it everywhere and also set `STAGING_FIREBASE_PROJECT_ID` to it (the site defaults to the same name, or set `STAGING_HOSTING_SITE`).
 
@@ -185,10 +185,10 @@ B1. **Create the staging Firebase project on Blaze (15 minutes, free within quot
    - Verify: the project is listed with the Blaze plan.
 
 B1a. **The `staging` environment and its first variables (10 minutes, free).**
-   - Where: https://github.com/n8watkins/solara/settings/environments, **New environment** `staging`; under **Deployment branches and tags** choose **Selected branches** and add `main`.
+   - Where: https://github.com/n8watkins/solara/settings/environments, **New environment** `staging`; under **Deployment branches and tags** choose **Selected branches** and add `main` (add other branches, or allow all, only if you want preview channels from them).
    - Copy, from `firebase apps:sdkconfig web --project solara-staging`, as environment variables (`gh variable set <name> --env staging --repo n8watkins/solara --body <value>`): `STAGING_FIREBASE_PROJECT_ID` (`solara-staging`), `STAGING_NEXT_PUBLIC_FIREBASE_API_KEY` (`apiKey`), `STAGING_NEXT_PUBLIC_FIREBASE_APP_ID` (`appId`) and `STAGING_NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` (`messagingSenderId`).
    - Credentials: a staging deploy identity, [WIF_SETUP.md, Staging deploy identity](WIF_SETUP.md#staging-deploy-identity), which sets `STAGING_GCP_WORKLOAD_IDENTITY_PROVIDER` and `STAGING_GCP_DEPLOY_SERVICE_ACCOUNT` in the environment (or, until then, a key of a deploy service account in the staging project as the environment secret `STAGING_FIREBASE_SERVICE_ACCOUNT`).
-   - Run: Actions, **Deploy staging**, **Run workflow** on `main` (`ref` `main`, `channel` `live`), or `gh workflow run deploy-staging.yml --repo n8watkins/solara --ref main`.
+   - Run: Actions, **Deploy staging**, **Run workflow** from `main` with `channel` `live`, or `gh workflow run deploy-staging.yml --repo n8watkins/solara --ref main`.
    - Verify: the run is green, its summary says "Deployed commit ... to staging", and https://solara-staging.web.app shows the landing page (signed out) and is not indexed (`robots.txt` disallows everything).
 
 B2. **Budget for staging (10 minutes, free).**

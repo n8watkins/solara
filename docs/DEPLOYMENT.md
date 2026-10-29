@@ -166,18 +166,22 @@ For the staging project, use the staging workflow below rather than a manual dep
 
 ## Staging
 
-`.github/workflows/deploy-staging.yml` deploys a ref (`main` by default) to a separate staging Firebase project, so Stripe test mode, alerts, linked calendars and the `infra/` scripts can be tried before production ([owner checklist group B](OWNER_CHECKLIST.md#staging-before-the-pro-launch)).
-It runs only by hand: Actions, **Deploy staging**, **Run workflow** on `main`, with two inputs:
+`.github/workflows/deploy-staging.yml` deploys `main` to a separate staging Firebase project, so Stripe test mode, alerts, linked calendars and the `infra/` scripts can be tried before production ([owner checklist group B](OWNER_CHECKLIST.md#staging-before-the-pro-launch)).
+It runs only by hand: Actions, **Deploy staging**, **Run workflow**, choosing the branch in **Use workflow from**, with one input, `channel`:
 
-- `ref`: the branch, tag or commit to deploy; it is resolved to one commit first, so the build and the deploy use the same code (only commits that include the staging deploy can be deployed).
-- `channel`: `live` deploys Firestore indexes and rules, the Functions (when switched on) and the site; any other id (such as `pr-152`) deploys only the site to a [preview channel](#preview-channels) that expires after 7 days.
+- `live` (from `main` only) deploys Firestore indexes and rules, the Functions (when switched on) and the site.
+- Any other id (such as `pr-152`), from any branch, deploys only that branch's site to a [preview channel](#preview-channels) that expires after 7 days.
+
+Every job checks out the commit the run started from, so the build and the deploy use the same code, and a branch's run writes only to that branch's own Actions cache scope, never `main`'s.
 
 Production's deploy (`deploy.yml`) does not change and never reads a staging setting; the staging workflow never reads a production credential.
 
 ### Staging settings
 
-Everything lives in the `staging` GitHub environment (Settings, Environments), whose deployment branches should be limited to `main`, so the workflow and its guards always come from `main`.
-All three jobs (configuration, build, deploy) run in that environment, so a required reviewer, if the owner adds one, approves each of them.
+Everything lives in the `staging` GitHub environment (Settings, Environments).
+Its deployment branches decide who can use it: `main` only allows just the live site, and adding the branches that need previews (or all branches) allows preview channels too.
+A preview run uses its branch's own copy of the workflow, so allowing a branch trusts that branch's authors (repository writers) with the staging credentials, never production's.
+The configuration and deploy jobs run in that environment, so a required reviewer, if the owner adds one, approves each of them.
 Every name starts with `STAGING_`, never a production name: a job in an environment falls back to the repository's variable or secret of the same name, so a missing staging value could otherwise silently become production's.
 The workflow reads production's values only to refuse a staging value equal to one of them.
 

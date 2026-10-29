@@ -1,6 +1,6 @@
-# Staging deploy, run by hand: deploys a ref (main by default) to the staging Firebase
-# project, or only its site to a 7-day preview channel there (docs/DEPLOYMENT.md,
-# Staging). Production's deploy (deploy.yml) is separate and never runs from here.
+# Staging deploy, run by hand: deploys main to the staging Firebase project, or only a
+# branch's site to a 7-day preview channel there (docs/DEPLOYMENT.md, Staging).
+# Production's deploy (deploy.yml) is separate and never runs from here.
 #
 # Every setting is a STAGING_* variable (and the STAGING_FIREBASE_SERVICE_ACCOUNT
 # secret, until Workload Identity Federation) in the `staging` GitHub environment.
@@ -10,22 +10,17 @@
 # resolves them and refuses production's project, sites, hosts, keys and service
 # accounts; until STAGING_FIREBASE_PROJECT_ID is set the run skips with a notice.
 #
-# The workflow itself always comes from main (each job checks the ref, and the staging
-# environment should allow only main), so its guards cannot be edited by the branch
-# being deployed; the `ref` input chooses the code. The ref is resolved to one commit
-# first, so the build and the deploy use the same code.
+# Each run deploys the commit it runs from ("Use workflow from"): the live staging site
+# only from main, a preview channel from any branch. Every job checks out exactly that
+# commit, so the build and the deploy use the same code, and a branch's run stays in
+# that branch's own cache scope.
 name: Deploy staging
 
 on:
   workflow_dispatch:
     inputs:
-      ref:
-        description: Branch, tag or commit to deploy
-        required: true
-        default: main
-        type: string
       channel:
-        description: "live for the staging site, or a preview channel id (such as pr-152): the site only, for 7 days"
+        description: "live for the staging site (main only), or a preview channel id (such as pr-152): this branch's site only, for 7 days"
         required: true
         default: live
         type: string
@@ -39,7 +34,7 @@ concurrency:
 jobs:
   config:
     name: Staging configuration
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' || inputs.channel != 'live'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     environment: staging
@@ -47,7 +42,6 @@ jobs:
       contents: read
     outputs:
       configured: ${{ steps.target.outputs.configured }}
-      commit: ${{ steps.commit.outputs.sha }}
       project: ${{ steps.target.outputs.project }}
       site: ${{ steps.target.outputs.site }}
       app-url: ${{ steps.target.outputs.app-url }}
@@ -55,28 +49,9 @@ jobs:
       functions: ${{ steps.target.outputs.functions }}
       build-env: ${{ steps.target.outputs.build-env }}
     steps:
-      # The checks come from main, the workflow's own commit.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-
-      - name: Check out the ref to deploy
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ inputs.ref }}
-          path: target
-          persist-credentials: false
-
-      - name: Resolve the commit
-        id: commit
-        run: |
-          sha=$(git -C target rev-parse HEAD)
-          if [ ! -f target/.github/scripts/staging-target.mjs ]; then
-            echo "::error::Commit $sha predates the staging deploy and cannot be deployed to staging."
-            exit 1
-          fi
-          echo "sha=$sha" >> "$GITHUB_OUTPUT"
-          echo "Deploying commit $sha."
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -88,19 +63,15 @@ jobs:
         env:
           VARS: ${{ toJSON(vars) }}
           HAS_STAGING_KEY: ${{ secrets.STAGING_FIREBASE_SERVICE_ACCOUNT != '' }}
-          COMMIT: ${{ steps.commit.outputs.sha }}
           CHANNEL: ${{ inputs.channel }}
-        run: node .github/scripts/staging-target.mjs --check --commit "$COMMIT" --channel "$CHANNEL"
+        run: node .github/scripts/staging-target.mjs --check --commit "$GITHUB_SHA" --ref "$GITHUB_REF" --channel "$CHANNEL"
 
   build:
     name: Build staging artifact
     needs: config
-    if: github.ref == 'refs/heads/main' && needs.config.outputs.configured == 'true'
+    if: (github.ref == 'refs/heads/main' || inputs.channel != 'live') && needs.config.outputs.configured == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    # It runs the chosen ref's code in main's context, so it is gated by the staging
-    # environment like the other jobs (and reads no secret).
-    environment: staging
     permissions:
       contents: read
     outputs:
@@ -110,7 +81,6 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.config.outputs.commit }}
           persist-credentials: false
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -157,8 +127,6 @@ jobs:
 
       - name: Package the artifact
         id: package
-        env:
-          COMMIT: ${{ needs.config.outputs.commit }}
         run: |
           set -euo pipefail
           mkdir -p dist
@@ -168,7 +136,7 @@ jobs:
           echo "sha256=$sha256" >> "$GITHUB_OUTPUT"
           {
             echo "### Staging artifact"
-            echo "- Commit: \`$COMMIT\`"
+            echo "- Commit: \`$GITHUB_SHA\`"
             echo "- \`site.tar.gz\` SHA-256: \`$sha256\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -192,7 +160,7 @@ jobs:
   deploy:
     name: Deploy to staging
     needs: [config, build]
-    if: github.ref == 'refs/heads/main' && needs.config.outputs.configured == 'true'
+    if: (github.ref == 'refs/heads/main' || inputs.channel != 'live') && needs.config.outputs.configured == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 40
     environment:
@@ -205,12 +173,11 @@ jobs:
       STAGING_PROJECT: ${{ needs.config.outputs.project }}
       STAGING_SITE: ${{ needs.config.outputs.site }}
       CHANNEL: ${{ needs.config.outputs.channel }}
-      COMMIT: ${{ needs.config.outputs.commit }}
+      COMMIT: ${{ github.sha }}
       FIREBASE: functions/node_modules/.bin/firebase
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.config.outputs.commit }}
           persist-credentials: false
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0

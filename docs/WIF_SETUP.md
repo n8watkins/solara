@@ -143,12 +143,12 @@ If a deploy now fails with "No Google Cloud credentials", a WIF variable is miss
 ## Staging deploy identity
 
 The staging workflow (`.github/workflows/deploy-staging.yml`, [DEPLOYMENT.md](DEPLOYMENT.md#staging)) deploys with its own identity in the staging project, so production's deploy identity never gains access to staging, nor the reverse.
-Repeat steps 1-4 in the staging project, with two changes:
+Repeat steps 1-4 in the staging project, with these changes:
 
 - Start with `PROJECT_ID=solara-staging` (the staging project's id) and its `PROJECT_NUMBER`; the pool, provider and `solara-deploy` service account are created in that project.
 - In step 4, let only the staging workflow impersonate it: `--member "${PRINCIPALS}/attribute.workflow/deploy-staging.yml"`.
 
-The provider's condition still admits only `main`, which is where the staging workflow runs from.
+- For preview channels from other branches, create the staging provider without `&& assertion.ref == 'refs/heads/main'` in its condition; only the staging workflow can still impersonate the identity, and only in the staging project. Keep the condition to deploy the live staging site from `main` only.
 Grant the extra roles for Functions only when `STAGING_ENABLE_BLAZE_FUNCTIONS` is about to be set to `true`.
 Then set the two variables in the `staging` environment, not the repository:
 
