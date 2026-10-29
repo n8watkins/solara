@@ -16,6 +16,7 @@ import {
 import { formatActivityDuration } from '@/lib/activity-presets'
 import RecommendedSlot from './RecommendedSlot'
 import ScheduledCardRow from './ScheduledCardRow'
+import WeatherNote from './WeatherNote'
 import WindowRow from './WindowRow'
 
 const MATCH_BAR = { success: 'bg-success', warning: 'bg-warning', danger: 'bg-danger' } as const
@@ -138,8 +139,12 @@ export default function ActivityCard({
       </div>
 
       {plan.elapsed ? (
-        // The badge already says today is done; this names what comes next.
-        passedNote && <p className="text-[12px] leading-[1.45] text-ink-3">{passedNote}</p>
+        // The badge already says today is done; this names what comes next, after the
+        // rain or heat that took what was left of today.
+        <div className="flex flex-col gap-1.5">
+          <WeatherNote spans={plan.weather} />
+          {passedNote && <p className="text-[12px] leading-[1.45] text-ink-3">{passedNote}</p>}
+        </div>
       ) : (
         <div className="flex flex-col gap-[7px]">
           <p className="text-[11px] font-bold tracking-[0.055em] text-ink-3 uppercase">
@@ -147,6 +152,9 @@ export default function ActivityCard({
           </p>
           {windows.length > 0 ? (
             <div className="flex flex-col gap-1.5">
+              {/* What the weather took from the windows below, so a gap reads as rain or
+                  heat, not as UV. */}
+              <WeatherNote spans={plan.weather} className="mb-0.5" />
               {windows.map((win, i) => (
                 <WindowRow
                   key={`${win.from}-${win.to}`}
@@ -170,6 +178,15 @@ export default function ActivityCard({
                 />
               ))}
             </div>
+          ) : plan.weather.length > 0 ? (
+            <>
+              <WeatherNote spans={plan.weather} />
+              <p className="text-[12px] leading-[1.45] text-ink-3">
+                No lower-UV window {isToday ? 'is left today' : 'fits this day'} outside the{' '}
+                {plan.weather.some(s => s.kind === 'rain') ? 'rain' : 'heat'}. Rain and heat limits
+                are in this activity&apos;s settings.
+              </p>
+            </>
           ) : (
             <p className="text-[12px] leading-[1.45] text-ink-3">
               No forecast window matches this activity {isToday ? 'today' : 'this day'}. Try

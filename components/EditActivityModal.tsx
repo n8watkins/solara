@@ -8,6 +8,7 @@ import { effectiveMaxUV } from '@solara/core/tiers'
 import { SunscreenChoice } from './ActivityChoice'
 import { ActivityEditSection, SectionToggle } from './ActivityEditSection'
 import { ActivityExposureSection } from './ActivityExposureSection'
+import { ActivityWeatherSection } from './ActivityWeatherSection'
 import ActivityIconButton from './ActivityIconButton'
 import ActivityModalShell from './ActivityModalShell'
 import { DaysSection, PreferredHoursSection, PreferredTimeSection } from './ActivityScheduleFields'
@@ -32,6 +33,7 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
     spf: `${id}-spf`,
     cloud: `${id}-cloud`,
     exposure: `${id}-exposure`,
+    weather: `${id}-weather`,
     uv: `${id}-uv`,
   }
 
@@ -74,7 +76,7 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
         </div>
       }
     >
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-3.5">
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(min(300px,100%),1fr))] gap-3.5">
         <div className="metric-card col-span-full flex items-center gap-3">
           <ActivityIconButton
             value={form.icon}
@@ -174,6 +176,13 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
               {form.cloudSensitive ? 'On' : 'Off'}
             </SectionToggle>
           }
+        />
+
+        <ActivityWeatherSection
+          id={ids.weather}
+          avoidRain={form.avoidRain}
+          maxFeelsLikeC={form.maxFeelsLikeC}
+          onChange={update}
         />
 
         <ActivityExposureSection

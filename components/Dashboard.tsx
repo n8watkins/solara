@@ -288,6 +288,7 @@ function DashboardView({
               dateLabel={dateLabel}
               allElapsed={allElapsed}
               hoursInDark={dayPlans.length > 0 && dayPlans.every(p => p.hoursInDark)}
+              weather={heroPlan ? [] : (dayPlans.find(p => p.weatherMoved)?.weather ?? [])}
               dayPhrase={dayPhrase(isToday, dateLabel)}
               next={nextSlot}
               laterDaysVisible={laterDaysVisible}

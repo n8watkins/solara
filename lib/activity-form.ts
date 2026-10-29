@@ -1,4 +1,5 @@
 import type { ShadeLevel, Surface } from '@solara/core'
+import { weatherDefaults, weatherLimits } from '@solara/core/weather-fit'
 import type { Activity, TimePreference } from './types'
 import { clampDuration } from './activity-presets'
 
@@ -19,6 +20,10 @@ export interface ActivityForm {
   shade: ShadeLevel | null
   /** null: not set. */
   surface: Surface | null
+  /** Skip hours with likely rain (the activity's setting, else its default). */
+  avoidRain: boolean
+  /** Feels-like limit in Celsius, or null for none (the setting, else the default). */
+  maxFeelsLikeC: number | null
 }
 
 /** The form for editing `activity`, with defaults for the fields it leaves out. */
@@ -37,6 +42,7 @@ export function activityForm(activity: Activity): ActivityForm {
     cloudSensitive: activity.cloudSensitive ?? false,
     shade: activity.shade ?? null,
     surface: activity.surface ?? null,
+    ...weatherLimits(activity),
   }
 }
 
@@ -59,10 +65,11 @@ export function normalizedDays(days: readonly number[]): number[] | undefined {
 
 /**
  * `activity` with the form applied. Defaults are stored as absent ('earliest'
- * time, no cloud adjustment, every day, open sun, no surface), matching the
- * preferences normalizer.
+ * time, no cloud adjustment, every day, open sun, no surface, the activity's own rain
+ * and heat defaults), matching the preferences normalizer.
  */
 export function activityFromForm(activity: Activity, form: ActivityForm): Activity {
+  const weather = weatherDefaults(activity.id)
   return {
     ...activity,
     name: form.name.trim() || activity.name,
@@ -78,6 +85,8 @@ export function activityFromForm(activity: Activity, form: ActivityForm): Activi
     cloudSensitive: form.cloudSensitive || undefined,
     shade: form.shade ?? undefined,
     surface: form.surface ?? undefined,
+    avoidRain: form.avoidRain === weather.avoidRain ? undefined : form.avoidRain,
+    maxFeelsLikeC: form.maxFeelsLikeC === weather.maxFeelsLikeC ? undefined : form.maxFeelsLikeC,
   }
 }
 

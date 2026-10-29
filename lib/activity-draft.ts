@@ -1,9 +1,10 @@
+import { weatherLimits } from '@solara/core/weather-fit'
 import type { Activity } from './types'
 
 /**
  * The fields of an activity the editor can change, in the normalized form a
- * saved draft takes: the 'earliest' time preference, no cloud adjustment and
- * "every day" are all stored as absent. Comparing this form, instead of the
+ * saved draft takes: the 'earliest' time preference, no cloud adjustment,
+ * "every day" and the rain and heat defaults are all stored as absent. Comparing this form, instead of the
  * raw objects, keeps an untouched activity from looking edited.
  */
 export function editableActivityFields(a: Activity) {
@@ -21,6 +22,8 @@ export function editableActivityFields(a: Activity) {
     cloudSensitive: !!a.cloudSensitive,
     shade: a.shade ?? null,
     surface: a.surface ?? null,
+    // Unset and the activity's default read the same.
+    ...weatherLimits(a),
   }
 }
 

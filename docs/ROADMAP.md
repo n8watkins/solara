@@ -497,6 +497,22 @@ The details are in [Free pushes](DEPLOYMENT.md#free-pushes-the-daily-uv-push-and
 - **Tests:** core (`daily-uv.test.ts`, `reapply.test.ts`, `push.test.ts`, `tiers.test.ts`), Functions (`reminders.test.js`, registration and runtime options), rules (`reapply reminder record`), emulator (`test/emulator/reminders.test.js`: delivery once by task or sweep, caps, Stop, a day of daily UV runs across time zones), signed-in e2e (`reapply-reminder.e2e.ts`) and harness states at 320, 390 and 1280 px (`reapply-reminders.spec.ts`).
 - **Owner, at switch-on (step C11):** enable the Cloud Tasks API, give the deploy identity `roles/cloudtasks.queueAdmin`, and run `infra/firestore-ttl.sh` again for the `reminders` TTL ([owner checklist](OWNER_CHECKLIST.md#at-pro-launch-blaze)).
 
+### 41. Rain and heat in activity windows (RAINHEAT, built)
+
+REVIEW8 PLAN part 2's first "strong next" feature: outdoor plans fail on rain and heat, not only UV.
+
+- **Forecast:** `precipitation_probability` and `apparent_temperature` join the one app forecast request (`appForecastRequest`), so the proxy, the calendar feed and the alerts read them with no extra call.
+  Both are optional everywhere (the validated parser, the proxy's cache and the browser's forecast cache), so a forecast cached before them still loads and plans on UV alone until it refreshes.
+  The precipitation amount is not requested: the chance of rain decides, and the request stays at 10 variables, one Open-Meteo call ([COSTS.md](COSTS.md#forecast-providers)).
+- **Planning (`packages/core/src/weather-fit.ts`):** an hour is skipped for an activity when rain is likely (50% or more) and it avoids rain, or when it feels hotter than its limit.
+  Defaults by preset: swimming and surfing go ahead in rain, water sports have no heat limit, strenuous activities (running, cycling, hiking, court sports, golf, dog walks) stop at a feels-like 32°C (90°F) and everything else at 38°C (100°F).
+  Every planner builds its hours through `planningHours` (the app's windows and next slot, the planner, the calendar view, the briefing, the morning alert and the calendar feed), so they skip the same hours.
+- **Settings:** each activity's "Rain and heat" section has "Avoid rain" or "Go ahead" and a "Max feels-like" in the display unit (or "No limit"), stored as `avoidRain` and `maxFeelsLikeC` (Celsius) only when they differ from the defaults; `firestore.rules` allowlists both keys, with the rules and emulator tests updated.
+- **Words:** `ActivityDayPlan.weather` lists only the hours the UV alone would have offered that the weather takes away, so rain and heat are named only where they change the advice: the hero when the slot moved or is gone, the card above its windows, the briefing's line after the window ("Rain likely 6pm–7pm"), the morning alert's body, and an event heads-up's line when the event feels too hot ("It may feel like 97°F: bring water and take breaks").
+  The UV readout shows "80% rain" in place of the sky's label for an hour with likely rain; the hour strip itself is unchanged, to keep it clean at 320 px.
+- **Tests:** `weather-fit.test.ts`, the rain and heat cases in `next-slot.test.ts`, `briefing.test.ts`, `alerts.test.ts`, `events.test.ts` and `event-heads-up.test.ts`, the parsers and caches (`core.test.ts`, `lib/forecast.test.ts`, `lib/cache.test.ts`, `lib/prefs.test.ts`), the feed (`functions/test/feed-sun.test.js`), the rules, and `tests/harness/rain-heat.spec.ts` (fixtures in `rain-heat-fixtures.ts`) at 320, 390 and 1280 px.
+- **Also fixed:** the Edit activity dialog's grid overflowed at 320 px (its 300 px column minimum), and a briefing line could break inside a time range.
+
 ### 42. Share a calendar file or link to Solara (SHARETARGET, built)
 
 The deferred Web Share Target from events phase 1 (`handoff/events.md`, REVIEW8 PLAN part 2 "Strong next features", [integrations/ANDROID.md](integrations/ANDROID.md) item 8): on Android, the installed app (and a Trusted Web Activity later) is in the share sheet, so an invite from Gmail, an .ics file from Meetup or a ticket app, or a calendar link goes straight into Solara's existing import.

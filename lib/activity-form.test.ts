@@ -35,7 +35,25 @@ describe('activityForm', () => {
       cloudSensitive: false,
       shade: null,
       surface: null,
+      // The activity's own rain and heat defaults (weather-fit.ts).
+      avoidRain: true,
+      maxFeelsLikeC: 32,
     })
+  })
+
+  it('stores rain and heat only when they differ from the activity defaults', () => {
+    const saved = activityFromForm(run, activityForm(run))
+    expect(saved.avoidRain).toBeUndefined()
+    expect(saved.maxFeelsLikeC).toBeUndefined()
+    const changed = activityFromForm(run, {
+      ...activityForm(run),
+      avoidRain: false,
+      maxFeelsLikeC: null,
+    })
+    expect(changed.avoidRain).toBe(false)
+    expect(changed.maxFeelsLikeC).toBeNull()
+    expect(activityEdited(run, changed)).toBe(true)
+    expect(activityEdited(run, saved)).toBe(false)
   })
 
   it('round-trips an untouched activity without looking edited', () => {
