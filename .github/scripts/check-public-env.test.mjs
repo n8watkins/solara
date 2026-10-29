@@ -3,7 +3,14 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
-import { checkEnv, checkExport, exportContains, isSentryDsn } from './check-public-env.mjs'
+import {
+  checkEnv,
+  checkExport,
+  checkStagingExport,
+  exportContains,
+  isSentryDsn,
+  pointsAtProduction,
+} from './check-public-env.mjs'
 import { removeSourceMaps, stripSourceMapComments } from './remove-source-maps.mjs'
 
 const complete = {
@@ -262,4 +269,119 @@ test('refuses Sentry code in a build without a DSN, and a DSN that was not compi
     ),
     [],
   )
+})
+
+const staging = {
+  FIREBASE_PROJECT_ID: 'solara-staging',
+  NEXT_PUBLIC_DEPLOY_ENVIRONMENT: 'staging',
+  NEXT_PUBLIC_FIREBASE_API_KEY: 'AIza-staging-web-key',
+  NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: 'solara-staging.firebaseapp.com',
+  NEXT_PUBLIC_FIREBASE_PROJECT_ID: 'solara-staging',
+  NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: 'solara-staging.firebasestorage.app',
+  NEXT_PUBLIC_FIREBASE_APP_ID: '1:456:web:def',
+  NEXT_PUBLIC_SITE_URL: 'https://solara-staging.web.app',
+  PRODUCTION_NEXT_PUBLIC_FIREBASE_API_KEY: 'AIza-public-web-key',
+  PRODUCTION_NEXT_PUBLIC_FIREBASE_APP_ID: '1:123:web:abc',
+}
+
+test('accepts a complete staging configuration', () => {
+  assert.deepEqual(checkEnv(staging), { errors: [], warnings: [] })
+  assert.deepEqual(
+    checkEnv({
+      ...staging,
+      ENABLE_BLAZE_FUNCTIONS: 'true',
+      NEXT_PUBLIC_FUNCTIONS_URL: 'https://us-central1-solara-staging.cloudfunctions.net',
+      NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY: '6Lstaging',
+    }).errors,
+    [],
+  )
+})
+
+test('refuses a staging build that deploys to production', () => {
+  const { errors } = checkEnv({
+    ...staging,
+    FIREBASE_PROJECT_ID: 'uv-activity-planner',
+    NEXT_PUBLIC_FIREBASE_PROJECT_ID: 'uv-activity-planner',
+  })
+  assert.match(errors.join('\n'), /cannot deploy to production's project uv-activity-planner/)
+})
+
+test('refuses a staging build pointed at any production value', () => {
+  for (const [key, raw] of [
+    ['NEXT_PUBLIC_SITE_URL', 'https://solara-uv.web.app'],
+    ['NEXT_PUBLIC_SITE_URL', 'https://uv-activity-planner.web.app/'],
+    ['NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN', 'uv-activity-planner.firebaseapp.com'],
+    ['NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN', 'solara-uv.firebaseapp.com'],
+    ['NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET', 'uv-activity-planner.appspot.com'],
+    ['NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET', 'uv-activity-planner.firebasestorage.app'],
+  ]) {
+    const { errors } = checkEnv({ ...staging, [key]: raw })
+    assert.match(errors.join('\n'), new RegExp(`${key} points at production`), `${key}=${raw}`)
+  }
+  const functions = checkEnv({
+    ...staging,
+    ENABLE_BLAZE_FUNCTIONS: 'true',
+    NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY: '6Lstaging',
+    NEXT_PUBLIC_FUNCTIONS_URL: 'https://europe-west1-uv-activity-planner.cloudfunctions.net',
+  }).errors.join('\n')
+  assert.match(functions, /NEXT_PUBLIC_FUNCTIONS_URL points at production/)
+  assert.match(functions, /not this build's project solara-staging/)
+})
+
+test("refuses a staging build that reuses production's keys", () => {
+  const { errors } = checkEnv({
+    ...staging,
+    NEXT_PUBLIC_FIREBASE_API_KEY: 'AIza-public-web-key',
+    NEXT_PUBLIC_FIREBASE_APP_ID: '1:123:web:abc',
+  })
+  assert.match(errors.join('\n'), /NEXT_PUBLIC_FIREBASE_API_KEY is production's value/)
+  assert.match(errors.join('\n'), /NEXT_PUBLIC_FIREBASE_APP_ID is production's value/)
+})
+
+test('a staging build must name its own site', () => {
+  const { errors } = checkEnv({ ...staging, NEXT_PUBLIC_SITE_URL: '' })
+  assert.match(errors.join('\n'), /a staging build must name its own site/)
+})
+
+test('staging names may contain production names without being production', () => {
+  assert.equal(pointsAtProduction('https://solara-uv-staging.web.app'), false)
+  assert.equal(pointsAtProduction('uv-activity-planner-staging'), false)
+  assert.equal(
+    pointsAtProduction('https://us-central1-uv-activity-planner.cloudfunctions.net'),
+    true,
+  )
+  assert.equal(pointsAtProduction('uv-activity-planner'), true)
+})
+
+test('only staging or production may be named as the deploy environment', () => {
+  assert.match(
+    checkEnv({ ...staging, NEXT_PUBLIC_DEPLOY_ENVIRONMENT: 'preview' }).errors.join('\n'),
+    /must be 'staging' or empty/,
+  )
+  assert.match(
+    checkEnv({ ...complete, NEXT_PUBLIC_DEPLOY_ENVIRONMENT: 'production' }).errors.join('\n'),
+    /must be 'staging' or empty/,
+  )
+})
+
+test("refuses a production build that calls another project's Functions", () => {
+  const { errors } = checkEnv({
+    ...complete,
+    ENABLE_BLAZE_FUNCTIONS: 'true',
+    NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY: '6Lproduction',
+    NEXT_PUBLIC_FUNCTIONS_URL: 'https://us-central1-solara-staging.cloudfunctions.net',
+  })
+  assert.match(errors.join('\n'), /not this build's project uv-activity-planner/)
+})
+
+test('finds production values compiled into a staging export', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'staging-export-'))
+  try {
+    writeFileSync(join(dir, 'index.html'), '<a href="https://solara-staging.web.app/">x</a>')
+    assert.deepEqual(checkStagingExport(dir), [])
+    writeFileSync(join(dir, 'app.js'), 'const c={projectId:"uv-activity-planner"}')
+    assert.match(checkStagingExport(dir).join('\n'), /contains production's uv-activity-planner/)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
 })
