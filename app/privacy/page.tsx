@@ -402,6 +402,11 @@ export default function PrivacyPage() {
           from Open-Meteo and OpenStreetMap as described above.
         </p>
         <p>
+          When you share a calendar file or link to the installed app, it is kept in this
+          browser&apos;s storage for up to 30 minutes, so you can review it and sign in first. It is
+          sent nowhere unless you import it, and it is removed once you import or dismiss it.
+        </p>
+        <p>
           Google Analytics cookies (<code>_ga</code> and <code>_ga_*</code>) are set only after you
           allow analytics and are deleted when you decline.
         </p>

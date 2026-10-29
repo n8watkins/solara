@@ -53,13 +53,24 @@ interface Props {
    * section makes one Pro offer for linked calendars and heads-ups together below.
    */
   onUpgrade?: () => void
+  /**
+   * A calendar link shared to the app (components/events/SharedItem.tsx): it fills the
+   * link field and opens "Add a calendar from..." at the link's provider.
+   */
+  sharedLink?: string | null
 }
 
 type Busy = { kind: 'add' } | { kind: 'refresh' | 'remove'; id: string } | null
 
 const SMALL_BUTTON = 'btn px-2.5 py-[5px] text-[12px]'
 
-export default function EventSubscriptions({ uid, nowMs, pro, onUpgrade }: Props) {
+export default function EventSubscriptions({
+  uid,
+  nowMs,
+  pro,
+  onUpgrade,
+  sharedLink = null,
+}: Props) {
   const store = useContext(SubscriptionsStoreContext) ?? serverSubscriptionsStore
   const id = useId()
   const [items, setItems] = useState<SubscriptionSummary[] | null>(null)
@@ -75,6 +86,14 @@ export default function EventSubscriptions({ uid, nowMs, pro, onUpgrade }: Props
   } | null>(null)
   const [confirming, setConfirming] = useState<string | null>(null)
   const [guideOpen, setGuideOpen] = useState(false)
+  // A newly shared link replaces what is in the field and opens the helper.
+  const [appliedLink, setAppliedLink] = useState<string | null>(null)
+  if (sharedLink && sharedLink !== appliedLink && pro) {
+    setAppliedLink(sharedLink)
+    setUrl(sharedLink)
+    setGuideOpen(true)
+    setStatus(null)
+  }
   // What the pasted link looks like, worked out here and never sent or logged.
   const recognised = useMemo(() => recogniseCalendarLink(url), [url])
   const linkHint = calendarLinkHint(recognised)
@@ -191,7 +210,11 @@ export default function EventSubscriptions({ uid, nowMs, pro, onUpgrade }: Props
           <div id={guideId} hidden={!guideOpen}>
             {guideOpen && (
               <Suspense fallback={null}>
-                <AddCalendarGuide googleEvents={googleCalendarEventsLaunched()} />
+                <AddCalendarGuide
+                  googleEvents={googleCalendarEventsLaunched()}
+                  // A shared link opens the helper at its provider's steps.
+                  initialProvider={appliedLink ? recogniseCalendarLink(appliedLink).provider : null}
+                />
               </Suspense>
             )}
           </div>

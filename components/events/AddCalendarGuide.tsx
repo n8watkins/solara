@@ -11,11 +11,13 @@ import { CALENDAR_GUIDES, GOOGLE_EVENTS_NOTE, SHARED_NOTES } from '@/lib/calenda
 interface Props {
   /** Whether events from Google Calendar are switched on (the Google choice mentions them). */
   googleEvents: boolean
+  /** The provider whose steps show first (a shared link's), if known. */
+  initialProvider?: CalendarProvider | null
 }
 
-export default function AddCalendarGuide({ googleEvents }: Props) {
+export default function AddCalendarGuide({ googleEvents, initialProvider = null }: Props) {
   const id = useId()
-  const [provider, setProvider] = useState<CalendarProvider | null>(null)
+  const [provider, setProvider] = useState<CalendarProvider | null>(initialProvider)
   const guide = provider ? CALENDAR_GUIDES[provider] : null
   const legendId = `${id}-legend`
   const notes = guide

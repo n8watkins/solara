@@ -38,7 +38,33 @@ _Built 2026-10-27 by lane EVENTS._
   Keys of records Firestore's TTL policy deleted are taken off when a save would otherwise not fit; the Events section says when the account is at the cap, and an import says how many events did not fit.
   A phase 2 Function writes with the Admin SDK, which skips the rules, so it must keep the list the same way.
 - **List and "Remove all" (REVIEW4 M3):** the section reads the 200 soonest-ending events that have not ended, however many later ones are stored, and "Remove all" deletes every stored event, page by page (since REVIEW5 L2 it is "Remove imported events" and keeps linked and Google Calendar events, which come back at their next refresh).
-- **Not in phase 1:** sharing a file to the installed app (Web Share Target), the "better window" suggestion for events the person controls, and keeping recurring events current beyond 10 days without importing again (phase 2's subscriptions do that).
+- **Not in phase 1:** sharing a file to the installed app (Web Share Target, since built: [Sharing to Solara](#sharing-to-solara-as-built)), the "better window" suggestion for events the person controls, and keeping recurring events current beyond 10 days without importing again (phase 2's subscriptions do that).
+
+## Sharing to Solara (as built)
+
+_Built 2026-10-29 by lane SHARETARGET ([ROADMAP item 42](../ROADMAP.md#42-share-a-calendar-file-or-link-to-solara-sharetarget-built))._
+
+On Android, the installed app (and a Trusted Web Activity later) appears in the share sheet, so a calendar invite from Gmail, an .ics file from a ticket or race app, or a calendar link can be shared straight to Solara.
+What is shared goes through the same import as "Import .ics".
+
+- **Manifest:** `share_target` in `public/manifest.webmanifest` posts to `/app/share-target/` as `multipart/form-data`: files in `calendar` (`text/calendar`, `application/ics`, `text/x-vcalendar` or a name ending in .ics), and `title`, `text` and `url` for links.
+  Chrome adds the share target to an installed app when it next updates the app from the manifest, which can take a day.
+- **Service worker:** Hosting only serves static files, so the app-shell worker (`scripts/sw/shell.ts`) answers that POST with `receiveShare` (`lib/share-target.ts`).
+  It reads at most 1 MB plus 32 KB of the body (a declared length over that is refused before anything is read), keeps one calendar file of at most 1 MB (the import's own cap) or one https or webcal link, and redirects with a 303 to `/app/?shared=<id>`.
+  The file is kept as plain bytes (`application/octet-stream`) in its own Cache Storage cache, `solara-share-v1`, with a description in a header; a newer share replaces it, nothing is run or shown from it, and it is never served by the worker.
+  A file of another type, one over the cap, or a share with nothing usable keeps only the reason, so the app can say why.
+  A POST whose referrer is another website keeps nothing and just opens the app; a site can hide its referrer, so the real protection is that nothing is imported without the person's confirmation.
+- **Expiry:** a share waits 30 minutes (long enough to sign in); the app removes it once imported or dismissed, an expired one is removed whenever the app opens, and the version cleanup of the shell's caches leaves `solara-share-v1` alone.
+- **Existing installs:** the worker's file changes, so the next visit installs it as for any deploy; until then (or in the first moments after installing) the POST reaches Hosting, which serves a static page at `/app/share-target/` asking to share again.
+  The offline shell is unchanged: a share made offline is kept, and the app opens from the cache and shows it once back online.
+- **The app:** with `?shared=<id>`, the dashboard loads "Shared with Solara" (`components/events/SharedItem.tsx` and `lib/shared-item.ts`, a chunk nothing preloads, so no first load carries it) at the top.
+  A file is read in the parser's Web Worker with every limit of a picked file, and the card lists its first three upcoming events with their times and how many more there are.
+  Signed in, "Import N events" runs `importIcsFile` (places, caps, re-import rules); the summary is the Events section's, and the share is removed.
+  A guest is told that events are kept with an account, with "Sign in with Google"; the share waits through the sign-in, and the card then offers the import to the account.
+- **Links:** a calendar link (a known provider's calendar address, webcal, or a path ending in .ics) on Pro, with linked calendars switched on, fills the linked calendars field and opens "Add a calendar from..." at the link's provider (`AddCalendarGuide`'s `initialProvider`), focused, for the person to check and press Link calendar.
+  On Free it offers Pro (linked calendars are Pro-only, ROADMAP item 36), a guest is asked to sign in, and while linked calendars are off the card says to share the calendar as a file.
+  A web page (a Meetup event page, a provider's website) is not a calendar: the card explains how to get the .ics file instead.
+- **Tests:** `lib/share-target.test.ts` and `lib/shared-item.test.ts` (the manifest, limits, types, links, the stash and its expiry, the hand-off to the parser), `tests/e2e/share-target.spec.ts` (the worker on the export served by the Hosting emulator with `firebase.json`'s headers: a POSTed file, refusals, a web page link, offline, another website, and the page without a worker), `tests/e2e/signed-in/share-target.e2e.ts` (the import on the emulators, a guest signing in from the card, a link on Pro and on Free) and `tests/harness/shared-item.spec.ts` (every state at 320, 390, 1280 and 1440 px, light and dark, with axe).
 
 ## Phase 2 as built
 

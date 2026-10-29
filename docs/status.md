@@ -1,6 +1,6 @@
 # Solara status
 
-_Last reviewed: 2026-10-28_
+_Last reviewed: 2026-10-29_
 
 This is the single page for the current state of Solara: what is live, what is built but switched off, how CI/CD runs, and which owner actions are done or open.
 Facts were checked against the code, the workflows, GitHub (`gh`) and the live site on the date above.
@@ -29,7 +29,7 @@ What users get:
   Auth's sign-in popup helper (an iframe and Google's scripts) starts only when a sign-in or reauthentication is about to happen.
 - The installed app opens offline (#94): the app-shell service worker (`/sw.js`) precaches `/` and `/app/` with every file they load, and the app shows the last forecast for the place from this browser's cache with an offline notice that says when it was updated.
   A signed-in account opens read-only from this browser's copy and goes live once the browser is back online.
-  Pages always come from the network while online, a deploy installs a new worker that takes over at once and deletes the old caches, and the worker never handles or stores anything cross-origin (Open-Meteo, Firestore, Auth, Functions) or account-specific.
+  Pages always come from the network while online, a deploy installs a new worker that takes over at once and deletes the old caches, and the worker never handles or stores anything cross-origin (Open-Meteo, Firestore, Auth, Functions) or account-specific; the one thing it keeps besides the shell is a calendar file or link shared to the app, for up to 30 minutes (ROADMAP item 42).
   Lighthouse 11's installability and PWA checks pass.
 - The confirmed plans from `packages/core/src/tiers.ts`: Guest (today, 1 activity, this device), Free (today and tomorrow, 3 activities, synced, calendar sync, and once alerts are on the daily UV push and reapply reminders by push) and Pro (10 days, 20 activities, calendar sync, family profiles, morning alerts).
   Pro shows $2.99 a month or $19.99 a year with a 7-day free trial, as a waitlist until billing launches.
@@ -65,6 +65,7 @@ What users get:
 - Imported events for signed-in accounts (Wave 5 item 9, phase 1): the dashboard's Events section imports an .ics file (Meetup, Eventbrite, race sites, any calendar), read in the browser, and shows each upcoming event with the UV during it at its place, the burn time for the planning skin type (the most sensitive person in a group), the activity's shade and surface, and sunscreen timing.
   Places come from the event's coordinates or its location text at city level, else the person's place with a "Set the place" fix; events are kept in `users/{uid}/events` (rules-checked, in the account export, deleted with the account, and expiring 30 days after they end).
   The file is parsed in a Web Worker within a fixed work allowance, so no file can freeze the page; an account keeps at most 1,000 imported events (and 500 scheduled activities), enforced by the rules; the list shows the soonest upcoming events however many are stored, "Remove imported events" removes every imported one (keeping linked and Google Calendar events, which their next refresh would bring back, REVIEW5 L2), and a re-import removes events the calendar cancelled (REVIEW4 M2, M3, M4, L1-L3).
+  On Android, an .ics file or a calendar link can be shared to the installed app from Gmail, a ticket app or any other (ROADMAP item 42, [EVENTS.md](integrations/EVENTS.md#sharing-to-solara-as-built)): the service worker keeps it on the device for up to 30 minutes, and the dashboard shows its events for the person to import (a guest signs in first, and the file waits); a calendar link fills the linked calendars form on Pro.
   On Pro, "Plan for a group" makes plans and burn estimates use the most sensitive of the people ticked; the profile switcher is in the header on phones too, and on Free it explains family profiles and offers the Pro waitlist.
 - Self-service account data (ROADMAP item 33): a signed-in person can download a JSON copy of their account and delete it from the account page, with no Functions deployed.
   The download is the same file the `exportAccountData` Function makes; deletion asks them to type DELETE and confirm with Google again, deletes every document of `users/{uid}`, then their sign-in, and clears what Solara kept in that browser.
