@@ -67,6 +67,7 @@ export default function ExposureMetrics({
   mostSensitive,
   burnFrom,
   vitDFrom,
+  onEditSkin,
 }: {
   burn: number | null
   vitD: number | null
@@ -78,6 +79,11 @@ export default function ExposureMetrics({
   burnFrom: string | null
   /** With no vitamin D estimate now: when UV is next high enough for one. */
   vitDFrom: string | null
+  /**
+   * Opens the skin type setting, offered beside the skin type it names (a guest's only
+   * way to change it after setup, REVIEW8 QA M3); absent where Settings is elsewhere.
+   */
+  onEditSkin?: () => void
 }) {
   // In group mode the estimate is the most sensitive person's.
   const whose = mostSensitive
@@ -96,9 +102,26 @@ export default function ExposureMetrics({
         minutes={burn}
         empty="No burn risk"
         detail={
-          burn || !burnFrom
-            ? `${isToday ? 'Now' : 'At peak'} · ${who}, no SPF`
-            : `Until ${burnFrom}`
+          burn || !burnFrom ? (
+            <>
+              {`${isToday ? 'Now' : 'At peak'} · ${who}, no SPF`}
+              {onEditSkin && (
+                <>
+                  {'\u00a0· '}
+                  <button
+                    type="button"
+                    onClick={onEditSkin}
+                    aria-label="Edit skin type"
+                    className="font-semibold text-accent underline-offset-2 hover:underline"
+                  >
+                    Edit
+                  </button>
+                </>
+              )}
+            </>
+          ) : (
+            `Until ${burnFrom}`
+          )
         }
       />
       <Metric

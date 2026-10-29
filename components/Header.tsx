@@ -1,4 +1,5 @@
 'use client'
+import { Settings } from 'lucide-react'
 import { useState } from 'react'
 import type { User } from 'firebase/auth'
 import type { AccountIdentity } from './AccountMenu'
@@ -7,8 +8,8 @@ import type { UserPreferences, TierLevel } from '@/lib/types'
 import { getSavedLocationLimit } from '@/lib/tiers'
 import { headerUV } from '@/lib/header-display'
 import { uvBandColor } from '@/lib/weather'
-import { AccountMenu, PreferencesModal, ProfileSwitcher } from './deferred'
-import type { SettingsTab } from './settings/SettingsTabs'
+import { useOpenSettings } from '@/lib/open-settings'
+import { AccountMenu, ProfileSwitcher } from './deferred'
 import LocationPopover from './LocationPopover'
 import GoogleSignInButton from './GoogleSignInButton'
 import SolaraMark from './SolaraMark'
@@ -24,8 +25,6 @@ interface Props {
   prefs: UserPreferences
   onPrefsUpdate: (p: UserPreferences) => void
   onGoHome: () => void
-  forceOpenTab?: SettingsTab
-  onModalClose?: () => void
   /** Current UV index at the active location; hidden when unknown. */
   currentUV?: number | null
   displayTier?: TierLevel
@@ -37,21 +36,13 @@ export default function Header({
   prefs,
   onPrefsUpdate,
   onGoHome,
-  forceOpenTab,
-  onModalClose,
   currentUV,
   displayTier,
 }: Props) {
-  const [showPrefs, setShowPrefs] = useState(false)
   const [signOutError, setSignOutError] = useState<string | null>(null)
-
-  // Open settings whenever a new tab is forced open (including on mount), adjusting
-  // state during render rather than in an effect.
-  const [seenForceOpenTab, setSeenForceOpenTab] = useState<typeof forceOpenTab>(undefined)
-  if (forceOpenTab !== seenForceOpenTab) {
-    setSeenForceOpenTab(forceOpenTab)
-    if (forceOpenTab) setShowPrefs(true)
-  }
+  // Settings (components/SettingsHost.tsx), for accounts from the account menu and for
+  // guests from their own button.
+  const openSettings = useOpenSettings()
 
   async function handleSignOut() {
     setSignOutError(null)
@@ -78,12 +69,6 @@ export default function Header({
         ? 'Sign-out paused because notifications could not be disabled. Check your connection and try again.'
         : 'Could not sign out. Check your connection and try again.',
     )
-  }
-
-  function handlePrefsUpdate(updated: UserPreferences) {
-    onPrefsUpdate(updated)
-    setShowPrefs(false)
-    onModalClose?.()
   }
 
   const tier = displayTier || prefs.tier || 'anonymous'
@@ -148,11 +133,26 @@ export default function Header({
             {account ? (
               <AccountMenu
                 user={account}
-                onOpenSettings={() => setShowPrefs(true)}
+                onOpenSettings={() => openSettings?.()}
                 onSignOut={() => void handleSignOut()}
               />
             ) : (
-              <GoogleSignInButton label="Sign in" size="sm" />
+              <>
+                {/* A guest has no account menu: skin type, theme and units stay one tap
+                    away here (REVIEW8 QA M3). */}
+                {openSettings && (
+                  <button
+                    type="button"
+                    onClick={() => openSettings()}
+                    aria-label="Settings"
+                    title="Settings"
+                    className="flex size-8 shrink-0 items-center justify-center rounded-full text-ink-2 transition-colors duration-100 hover:bg-surface-metric"
+                  >
+                    <Settings size={18} />
+                  </button>
+                )}
+                <GoogleSignInButton label="Sign in" size="sm" />
+              </>
             )}
           </div>
         </div>
@@ -165,19 +165,6 @@ export default function Header({
         >
           {signOutError}
         </div>
-      )}
-
-      {showPrefs && (
-        <PreferencesModal
-          prefs={prefs}
-          user={user}
-          onSave={handlePrefsUpdate}
-          onClose={() => {
-            setShowPrefs(false)
-            onModalClose?.()
-          }}
-          initialTab={forceOpenTab}
-        />
       )}
     </>
   )
