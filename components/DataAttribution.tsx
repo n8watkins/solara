@@ -37,7 +37,7 @@ export default function DataAttribution({
         rel="noopener noreferrer"
         className={LINK}
       >
-        CC BY 4.0
+        CC&nbsp;BY&nbsp;4.0
       </a>
       ),{' '}
       <a
