@@ -17,7 +17,7 @@ The default decision is a quiet launch on Spark, and Blaze with the budget kill 
 - **Uptime check (free):** `ALERT_EMAIL=you@example.com infra/monitoring.sh --site-only` prints the commands for one uptime check on `https://solara-uv.web.app/app/` every 5 minutes and the "Solara: site or Functions down" email alert; run it again with `--apply` from a shell signed in as the owner (`gcloud auth login`).
   It needs no Functions; if Google Cloud asks for a billing account anyway, use any free external monitor on the same page with an email alert instead.
   At the Pro launch, `CHANNEL=<the channel's name> infra/monitoring.sh --functions-only --apply` adds the Functions' check and the error alert to the same email (`gcloud beta monitoring channels list --project uv-activity-planner` shows the name).
-- **Error reports:** once the `NEXT_PUBLIC_SENTRY_DSN` variable is set ([owner checklist step 6](OWNER_CHECKLIST.md#now-free-no-blaze)), browser errors arrive in Sentry with the deploy's release; until then a JavaScript error is invisible.
+- **Error reports:** once the `NEXT_PUBLIC_SENTRY_DSN` variable is set ([owner checklist step A8](OWNER_CHECKLIST.md#anytime-free-no-blaze)), browser errors arrive in Sentry with the deploy's release; until then a JavaScript error is invisible.
 - **Deploys:** Firebase console, **Hosting**, the `solara-uv` site: the release history shows every deploy and its time; each one is a `main` merge (GitHub, **Actions**, **Deploy**).
 - **Quotas:** Firebase console, **Usage and billing**, and **Firestore**, **Usage**: reads, writes and deletes a day against 50,000, 20,000 and 20,000; **Hosting**, **Usage**: transfer against 360 MB a day.
   A sudden climb with no matching rise in sign-ins is a scripted client ([COSTS.md](COSTS.md#worst-case-under-a-flood)).
@@ -181,7 +181,7 @@ Account deletion never stalls on Stripe ([Account export and deletion](DEPLOYMEN
 The `alerts` job sends Pro's morning and UV alerts every 15 minutes ([Pro alerts](DEPLOYMENT.md#pro-alerts)).
 To stop it at once, pin the cost guard (`infra/cost-guard.sh engaged --apply`; a guard the budget engaged does not pause alerts); to switch it off, set the `ALERTS_ENABLED` repository variable to `false` and rerun the deploy.
 
-- `alerts need the Open-Meteo commercial key (OPEN_METEO_API_KEY)`: alerts are on but the secret still holds `unset`; set the key ([owner checklist](OWNER_CHECKLIST.md#at-pro-launch-blaze), step 17) or switch alerts off.
+- `alerts need the Open-Meteo commercial key (OPEN_METEO_API_KEY)`: alerts are on but the secret still holds `unset`; set the key ([owner checklist](OWNER_CHECKLIST.md#at-pro-launch-blaze), step C9) or switch alerts off.
 - `alert delivery outcome unknown` (field `kind`, and `codes` or `error`): FCM answered with something other than a success or a definite failure, or did not answer.
   The alert is not sent again that day, so nobody gets it twice; if it repeats for many accounts, check the FCM status page and the Functions' service account roles.
 - `alert for an account failed`: an unexpected error for one account; the run carries on with the others and the next run tries that account again.

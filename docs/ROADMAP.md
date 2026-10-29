@@ -9,23 +9,14 @@ Finding IDs such as `BE-9` or `PROD-6` refer to the [archived October 2026 asses
 ## Owner steps first
 
 The owner's steps unblock most of the engineering items below, so they come first.
-The full, numbered list with exact console links is [Next steps, in order](OWNER_CHECKLIST.md#next-steps-in-order); in short:
+The full, ordered list with exact console links, values, times, costs and checks is [Next steps, in order](OWNER_CHECKLIST.md#next-steps-in-order); in short:
 
-1. Turn on Google Calendar: enable the Calendar API and set the OAuth web client ID.
-2. Resubmit the OAuth branding review.
-3. Publish the sign-in app.
-4. Request verification for the two calendar scopes.
-5. Turn on App Check with a reCAPTCHA v3 key, watch for a week, then enforce Firestore.
-6. Create the Sentry project and set the DSN.
-7. Keyless deploys (Workload Identity Federation), then delete the old service-account key.
-8. Move the public build values to repository variables.
-9. Delete the unused `NEXT_PUBLIC_PRO_PRICE` secret.
-10. Counsel review of the governing-law language.
-11. Local branch and worktree cleanup.
+- **A, anytime (free, no Blaze):** confirm a non-test Google account can sign in, then Google Calendar (API and OAuth client ID), branding, publishing and the two scope verifications, App Check, Sentry and a free uptime check, locking down the browser API key and Firebase Auth, Firestore quota caps and a traffic alert, trying the TTL policies, the `production` environment and keyless deploys, moving public values to variables, ruleset hardening, private vulnerability reporting, closing the open alerts, small clean-ups and counsel review.
+- **B, staging:** after the staging deploy is built ([item 34](#34-staging-deploy-before-the-pro-launch-next-up)), a staging project on Blaze with its own budget, keys and Stripe test mode, and the staging checks.
+- **C, Pro launch:** Blaze, the budget kill switch, the Stripe webhook endpoint before the first Functions deploy, the first Functions deploy, monitoring and backups, the Open-Meteo key before billing, then billing, alerts and the release checks.
+- **D, per feature switch:** Events from Google Calendar, events from Outlook, linked calendars and Pro alerts.
 
-Steps 12-18 (Blaze with the budget kill switch, staging and Stripe test mode, the first Functions deploy, monitoring and backups, switching billing on, the Open-Meteo commercial plan, release checks) come at the Pro launch.
-
-## Where we are (2026-10-28, through #136)
+## Where we are (2026-10-28, through #147)
 
 | Wave | State | PRs |
 | --- | --- | --- |
@@ -34,18 +25,19 @@ Steps 12-18 (Blaze with the budget kill switch, staging and Stripe test mode, th
 | 2 - shared core, data layer, signed-in e2e | Done 2026-10-23 | #44, #47, #49-#52 |
 | 4 - Tailwind 4, restyle and split, upgrades | Done 2026-10-24 (ESLint 10 and TypeScript 7 deferred, see Next up) | #57-#67 |
 | 3 phase 1 - free launch (no Blaze) | Done 2026-10-24; Sentry and App Check wait for the owner's keys | #70, #71 |
-| 3 phase 2 - Pro launch (Blaze) | Built and switched off (items 6, 9, 10, 11), hardened after the third, fourth and fifth reviews (items 14-18, 21, 22) and the sixth (items 25, 26); waits for the owner's Pro launch steps | #99, #102, #104, #106, #107, #118-#124, #126, #128-#130, #133, #134, #136 |
-| 5 - features | Done: scheduled activities, the reapply timer and UV alert, the daily briefing, family profiles, cloud-aware forecasts, skin typing, city pages, shade and surface, and .ics event import (events phase 1). Built and switched off: linked calendars with Pro event heads-ups (events phase 2, item 19), events already in Google Calendar (phase 2b, item 20) and events from Outlook (item 23). Built and switched off with linked calendars: the "Add a calendar from..." helper (item 24) | #55, #56, #103, #105, #108-#112, #114, #115, #117, #131, #132, #135 |
+| 3 phase 2 - Pro launch (Blaze) | Built and switched off (items 6, 9, 10, 11), hardened after the third, fourth and fifth reviews (items 14-18, 21, 22) and the sixth (items 25, 26); waits for the owner's Pro launch steps | #99, #102, #104, #106, #107, #118-#124, #126, #128-#130, #133, #134, #136, #138 |
+| 5 - features | Done: scheduled activities, the reapply timer and UV alert, the daily briefing, family profiles, cloud-aware forecasts, skin typing, city pages, shade and surface, and .ics event import (events phase 1). Built and switched off: linked calendars with Pro event heads-ups (events phase 2, item 19), events already in Google Calendar (phase 2b, item 20) and events from Outlook (item 23). Built and switched off with linked calendars: the "Add a calendar from..." helper (item 24). Done: the dashboard hero, daylight-only slots and WHO wording (item 28), and 320 px polish (item 31) | #55, #56, #103, #105, #108-#112, #114, #115, #117, #131, #132, #135, #137, #139-#144 |
 | 6 - mobile app | Not started | - |
 
 Also done: the move to `solara-uv.web.app` (#42, #45), Search Console verification (#43), the legal operator details (#46), the privacy policy's Google user data section (#48), the docs consolidation (#53), the costs page and Wave 3 decisions (#68), the new-user sign-in race and test flake fixes (#69), every CodeQL alert (#72, #73), the "fast checks locally, full suites on CI" agent contract (#74), the plan docs refresh (#75), and the fixes from the first post-launch code review (client findings in #79, server and rules findings in #81).
 The Wave 4 lane details were removed now that the lanes are merged; what each lane changed is in PRs #57-#67.
+The eighth review (REVIEW8, 2026-10-28: owner steps and Android readiness, security, delivery readiness; no critical findings) is fixed in three parallel lanes: FIX8A (privacy promises, the runbook's free-stage section, costs and site-only monitoring; done in #146, [item 32](#32-privacy-promises-free-stage-runbook-and-costs-from-the-eighth-review-fix8a-built)), FIX8B (account download and deletion in the browser on Spark; done in #147, [item 33](#33-account-download-and-deletion-without-functions-fix8b-built)) and FIX8C (the owner steps, the deploy env guards and docs, [item 35](#35-owner-steps-deploy-guards-and-docs-from-the-eighth-review-fix8c-built)).
 The repository is public, with the "Protect main" ruleset (pull requests, squash merges only, 8 required checks), Dependabot alerts and security updates, secret scanning with push protection, and CodeQL.
 
 ## Next up
 
 Each item lists its goal, scope, the files or areas it owns, acceptance criteria, what it depends on and a rough size (S: under a day of agent time, M: one to three days, L: more).
-Items 1-8 need no Blaze and can start now; items 9-11 wait for the Pro launch.
+Items 1-8 need no Blaze and can start now; items 9-11 wait for the Pro launch, and item 34 must come before the owner's staging steps.
 
 ### 1. Change-aware CI (done, #76)
 
@@ -73,7 +65,7 @@ Settings' Location tab uses the same search (#95), and the data credits name Geo
 ### 6. Forecast proxy and licensing (BE-12, with D5) (built, #106)
 
 Built 2026-10-27 in #106 and switched off: one provider adapter (`packages/core/src/forecast.ts`) behind the shared validated parser, and the `forecast` Function, which keeps the Open-Meteo commercial key on the server and caches per place (0.02 degree since item 14) and hour, with a 5 s timeout and a 6-hour last-good fallback ([DEPLOYMENT.md](DEPLOYMENT.md#forecast-proxy)).
-The browser keeps calling Open-Meteo directly until the owner buys the plan (D5) and sets `FORECAST_PROXY_ENABLED` ([owner checklist step 17](OWNER_CHECKLIST.md#at-pro-launch-blaze)).
+The browser keeps calling Open-Meteo directly until the owner buys the plan (D5) and sets `FORECAST_PROXY_ENABLED` ([owner checklist step C9](OWNER_CHECKLIST.md#at-pro-launch-blaze)).
 
 ### 7. ESLint 10 (done)
 
@@ -102,7 +94,7 @@ Built 2026-10-27 and switched off behind `BILLING_ENABLED`; closes BE-9, BE-10 a
 - #102: checkout for $2.99 a month or $19.99 a year with a once-per-account 7-day trial, the plans dialog's plan choice, the account page's billing summary and portal, tested end to end against a fake Stripe that delivers signed webhooks.
 - #104: refunds for server-initiated cancellations, refunds and disputes ending Pro, a 7-day `past_due` grace period, deleting the Stripe customer, deletion that never stalls (missing resources count as done, a retry cap with an ERROR alert), TTLs on server-owned records and on Scheduled records, and a billing summary in the export.
 
-Left for the owner: the Stripe test-mode run on the staging project, then the [Functions and Stripe](OWNER_CHECKLIST.md#functions-and-stripe) checks and switching billing on ([steps 13-16](OWNER_CHECKLIST.md#at-pro-launch-blaze)).
+Left for the owner: the Stripe test-mode run on the staging project, then the [Functions and Stripe](OWNER_CHECKLIST.md#functions-and-stripe) checks and switching billing on ([steps B4-C10](OWNER_CHECKLIST.md#at-pro-launch-blaze)).
 
 ### 10. Wave 3 phase 2: Pro-only morning alerts (W3-B) (built)
 
@@ -111,13 +103,13 @@ The scheduled `alerts` Function (`functions/src/notifications/`) runs every 15 m
 Its own least-privilege identity is created by `infra/alerts-identity.sh` and named by `ALERTS_SERVICE_ACCOUNT`.
 The emulator test (`functions/test/emulator/alerts.test.js`) simulates a day of runs across time zones: one alert per entitled account per local morning, none to Free, canceled, lapsed or deleting accounts.
 The GitHub Actions notifier is retired.
-Left for the owner: the real-device checks in the [owner checklist](OWNER_CHECKLIST.md#notifications), then switching alerts on (step 17).
+Left for the owner: the real-device checks in the [owner checklist](OWNER_CHECKLIST.md#notifications), then switching alerts on (step C11).
 The morning alert's text is built in `packages/core/src/alerts.ts` with the daily briefing's inputs, so it can switch to the briefing's text once that lands.
 
 ### 11. Wave 3 phase 2: operations (rest of W3-D, at Pro launch) (code built, #99, #107)
 
 - **Built:** cost and abuse limits on every Function, the cost guard and the budget kill switch (#99); uptime checks and alert policies as code (`infra/monitoring.sh`, `infra/alerts/`), PITR, delete protection, daily backups and the image cleanup policy (`infra/backups.sh`), TTL policies (`infra/firestore-ttl.sh`), and [RUNBOOK.md](RUNBOOK.md) with alerts, rollback per component, restore steps and the secret rotation table (#107).
-- **Left:** the owner applies the scripts ([steps 12-15](OWNER_CHECKLIST.md#at-pro-launch-blaze)); each alert fired once in staging from a forced failure, and a restore drill recorded in the runbook; PR preview channels and staging promotion in the deploy workflow (D9), with the CI owner.
+- **Left:** the staging deploy ([item 34](#34-staging-deploy-before-the-pro-launch-next-up)); then the owner applies the scripts ([steps C2-C8](OWNER_CHECKLIST.md#at-pro-launch-blaze)), each alert is fired once in staging from a forced failure, and a restore drill is recorded in the runbook.
 - **Closes:** OPS-15 (alerts and uptime) and OPS-17 in code; OPS-16 once the backups are on; OPS-12 with the staging project.
 
 ### 12. Wave 5: features
@@ -155,6 +147,7 @@ Candidates, roughly ranked by impact over effort:
 - **Steps:** an Expo app in the repo using `packages/core`; Firebase sign-in on device with the same Firestore; native push for Pro alerts; TestFlight and a Google Play internal test track; a home-screen UV widget.
 - **Crash reporting:** Sentry's React Native SDK in the same Sentry account as the web app; Firebase Crashlytics can be added later for deep native crash data.
 - **Depends on:** an Apple Developer account ($99 per year) and a Google Play developer account ($25 once); native push needs item 10.
+- **Android readiness:** [integrations/ANDROID.md](integrations/ANDROID.md) has what the web app and backend need first: Pro stays bought on the web and the app is consumption only (default, owner may change, 2026-10-28), native OAuth clients, Play Integrity for App Check, Android push payloads, assetlinks.json, a Trusted Web Activity as the first Play listing, and the 12-testers-for-14-days rule.
 - **Size:** L.
 
 ### 14. Cost and abuse fixes from the third review (FIX3A, built, #118-#121)
@@ -215,7 +208,7 @@ Built 2026-10-28 by lane EVENTS2 and switched off behind `EVENTS_SUBSCRIPTIONS_E
 - **Heads-ups:** the `alerts` job sends Pro a push about 3 hours before an imported or linked event with UV 6 or higher, outside quiet hours, once per event; Settings has an "Event heads-up" switch.
 - **Removal and accounts:** removing a link deletes its events and their keys; account deletion removes the account's links; the export lists linked calendars without their addresses and the heads-ups sent.
 - **Tests:** unit tests for the URL rules, backoff, heads-up timing and wording, and the fetcher's SSRF, redirect, size, time and content checks; emulator tests for adding, refreshing, backoff and pause, the caps, removal, the rules, and a day of heads-ups; harness screens at 390 and 1440 px, light and dark.
-- **Left for the owner:** the [Linked calendars](OWNER_CHECKLIST.md#linked-calendars) checks in staging, then `EVENTS_SUBSCRIPTIONS_ENABLED` (step 17).
+- **Left for the owner:** the [Linked calendars](OWNER_CHECKLIST.md#linked-calendars) checks in staging, then `EVENTS_SUBSCRIPTIONS_ENABLED` ([group D](OWNER_CHECKLIST.md#per-feature-switch)).
 - **Not done:** Strava (phase 3); reverse lookups of unnamed `GEO` points on the server; showing which linked calendar an event came from by name.
 
 ### 20. Events already in Google Calendar (Wave 5 item 9, phase 2b, built and switched off)
@@ -390,6 +383,22 @@ Signed-in people could not export or delete their data, and Google Play will req
 - **Tests:** unit tests for the export builder, the browser deletion (blocked, retried, partial failure, sign-in failure) and the browser clean-up; `functions/test/emulator/firestore.rules.test.js` ("self-service account deletion"); `tests/e2e/signed-in/account-self-service.e2e.ts` creates settings, imported events and a scheduled activity in the app, downloads and checks the file, deletes the account and finds nothing left in Firestore or Auth; `tests/harness/account-controls.spec.ts` at 320, 390 and 1280 px, light and dark, with no axe violation.
   The code loads only on the account page, on demand.
 
+### 34. Staging deploy before the Pro launch (next up)
+
+The owner's staging steps ([B1-B6](OWNER_CHECKLIST.md#staging-before-the-pro-launch)) cannot be done yet, because nothing can deploy to a second Firebase project (REVIEW8 PLAN H1).
+
+- **Why:** `firebase.json` fixes the Hosting site to `solara-uv`, a global site name that belongs to production; `.firebaserc` and `deploy.yml` know only the production project; `functions/.env` hard-codes `APP_URL=https://solara-uv.web.app`, so the Functions' exact-origin CORS (`functions/src/shared/browser-api.ts`) would refuse a staging site.
+- **Scope:** Hosting targets per project in `firebase.json` and `.firebaserc`; `APP_URL` per project (`functions/.env.<project id>`, which the Functions CLI reads for that project); a workflow, run by hand or after each deploy to production, that builds `main` with the staging project's public values (a `staging` GitHub environment holding its variables and credentials) and deploys rules, indexes, Functions and Hosting to it; PR preview channels (D9); docs in DEPLOYMENT.md and WIF_SETUP.md (a staging deploy identity).
+- **Acceptance:** with the owner's B1-B3 done, one run deploys `main` to the staging project and the staging site signs in; production's deploy is unchanged; `check-functions-params.js` resolves both projects' params.
+- **Depends on:** nothing for the code; the owner's B1-B3 to try it for real.
+- **Size:** M.
+
+### 35. Owner steps, deploy guards and docs from the eighth review (FIX8C, built)
+
+- **Owner steps:** [Next steps, in order](OWNER_CHECKLIST.md#next-steps-in-order) is one verified list in four groups (anytime, staging, Pro launch, per feature switch), each step with what it unlocks, the console page, what to copy where, time, cost and how to check it; it adds the security steps the review found missing (website restriction on the browser key, `localhost` out of Auth, only Google as a provider, Firestore quota caps and a traffic alert, ruleset hardening, private reporting, closing the open alerts, trying TTL now) and a first check that a non-test Google account can sign in; the Open-Meteo key now comes before billing and the Stripe webhook endpoint before the first Functions deploy (REVIEW8 PLAN H1, M1, M2, L1-L3, L5, L6, L9; SEC L6, L8, M2, M3; QA M5, L8).
+- **Deploy guards (PLAN M3, SEC L9):** `.github/scripts/check-public-env.mjs` fails the build when Functions are on without the App Check site key, when alerts are on without the VAPID key, and when an App Check debug token is set, including one in the `.env` files the build reads.
+- **Docs:** `docs/HANDOFF.md` points at status.md and the handoff process instead of keeping its own state; SECURITY.md is current; `.env.local.example` lists every switch; [integrations/ANDROID.md](integrations/ANDROID.md) holds the Android readiness assessment.
+
 ## Decisions
 
 Agents never make owner decisions; they follow the recorded decision or the default.
@@ -401,16 +410,16 @@ The steps behind each one are in the [owner checklist](OWNER_CHECKLIST.md).
 | D2 | Make the repository public | Done 2026-10-23: public, "Protect main" ruleset with 8 required checks, squash merges only, Dependabot, secret scanning with push protection, CodeQL |
 | D3 | Firestore index role for the deploy identity | Done 2026-10-23 |
 | D4 | Workload Identity Federation, then delete the service-account key | Open; the key stays as the fallback until done |
-| D5 | Forecast licensing | Decided 2026-10-23: Open-Meteo free tier until Pro launches, then the commercial plan (about $29 a month) from the first revenue |
+| D5 | Forecast licensing | Decided 2026-10-23: Open-Meteo free tier until Pro launches, then the commercial plan (about $29 a month); its key is set with or just before `BILLING_ENABLED`, not after the first subscriber, or the free calendar feed fails in between (REVIEW8 PLAN M1) |
 | D6 | Morning alerts | Decided 2026-10-23: Pro-only, relaunch with Pro on one scheduled Function for every time zone |
 | D7 | Guest mode | Decided 2026-10-23, shipped in #71 |
 | D8 | Operator, contact, jurisdiction, license | Done 2026-10-23 (#46) |
-| D9 | Staging project and Stripe test mode | Decided 2026-10-23: set up at Pro launch, before billing work |
+| D9 | Staging project and Stripe test mode | Decided 2026-10-23: set up at Pro launch, before billing work; needs the staging deploy (item 34) first |
 | D10 | Error reporting | Decided 2026-10-23: Sentry; code shipped in #70, waits for the owner's DSN |
 | D11 | Bot protection | Decided 2026-10-23: App Check with reCAPTCHA v3; works without code changes, waits for the owner's site key |
-| D12 | Local branch and worktree cleanup on the owner's machine | Open, any time |
+| D12 | Local branch and worktree cleanup on the owner's machine | Done by 2026-10-28: only the main clone and the current review worktrees remain |
 | Blaze | Billing plan | Decided 2026-10-23: stay on Spark until Pro launches, then Blaze with a budget and its kill switch ([COSTS.md](COSTS.md)) |
-| Launch stage | How far to promote the free launch on Spark | Default, owner may change (2026-10-28): a quiet free launch on Spark now; move to Blaze with the budget kill switch (`infra/budget.sh`, owner checklist step 12, without Functions) before any promotion, because on Spark a used-up quota stops the site instead of costing money (REVIEW8 QA H1, SEC M1 and M2; [COSTS.md](COSTS.md#how-many-users-before-blaze-costs-money)) |
+| Launch stage | How far to promote the free launch on Spark | Default, owner may change (2026-10-28): a quiet free launch on Spark now; move to Blaze with the budget kill switch (`infra/budget.sh`, owner checklist steps C2 and C3, without Functions) before any promotion, because on Spark a used-up quota stops the site instead of costing money (REVIEW8 QA H1, SEC M1 and M2; [COSTS.md](COSTS.md#how-many-users-before-blaze-costs-money)) |
 | Forecast calls | Paid forecast API budget and cache grid | Default, owner may change (2026-10-27, item 14): 1,500 upstream calls an hour and 20,000 a day for the proxy, the feed and event heads-ups (`FORECAST_UPSTREAM_PER_HOUR`, `FORECAST_UPSTREAM_PER_DAY`), 4 an hour per calendar feed, a 0.02 degree cache grid |
 | Budget | Budget and kill switch tiers | Default, owner may change (2026-10-27, item 14): $25 a month; warn at 50%, cost guard at 100% until the next period, detach billing at 300% (on by default, `COST_GUARD_DETACH_BILLING=false` turns it off); the scheduled Pro alerts are never paused by the budget |
 | Price | Pro price | Decided 2026-10-24: $2.99 a month or $19.99 a year, 7-day free trial, waitlist until billing launches |
@@ -429,7 +438,7 @@ The steps behind each one are in the [owner checklist](OWNER_CHECKLIST.md).
 | Event heads-ups | When Pro hears about a high-UV event | Default, owner may change (2026-10-28): a push about 3 hours before an outdoor event whose peak UV at its place reaches 6 (the evening before when that falls in quiet hours, never later than 15 minutes before), on by default for Pro (Settings turns it off), for imported, linked and Google Calendar events alike; at most one push every 3 hours, which covers the later events it names ("Heads-up scope", "Heads-up coverage" and "Heads-up switch" below); event forecasts come from the server's side of the forecast budget with a per-account share, at most 200 a run and 10 per account |
 | Heads-up scope | Which events get a heads-up, and how often | Default, owner may change (2026-10-28, item 22): only events that count as an outdoor activity (the event's activity is one of the person's; "No activity" events, such as meetings, get none); the same title starting within 30 minutes counts as one event across files, linked calendars and Google Calendar; at most one heads-up push per account every 3 hours, naming the soonest high-UV event and how many more are coming up; every qualifying event in the window is looked at; the event's name is quoted in the body only, cleaned and cut to 40 characters |
 | Heads-up lookups per account | How many event forecasts one account's heads-up may look up per alerts run | Default, owner may change (2026-10-28, item 25): at most 10 (`ALERTS_MAX_EVENT_FORECASTS_PER_ACCOUNT`), its soonest events first, places already looked up in the run free; the run's 200 are handed out one per account per round, the account whose next event starts soonest first (REVIEW6 M1) |
-| Heads-up switch | Which switches turn event heads-ups on | Default, owner may change (2026-10-28, item 25): `ALERTS_ENABLED` and any events switch, linked calendars (`EVENTS_SUBSCRIPTIONS_ENABLED`), events from Google Calendar (`GOOGLE_CALENDAR_EVENTS_ENABLED`) or events from Outlook (`OUTLOOK_CALENDAR_EVENTS_ENABLED`), for every stored event alike (REVIEW6 L1, REVIEW8 QA M6) |
+| Heads-up switch | Which switches turn event heads-ups on | Default, owner may change (2026-10-28, item 25): `ALERTS_ENABLED` and any events switch, linked calendars (`EVENTS_SUBSCRIPTIONS_ENABLED`), events from Google Calendar (`GOOGLE_CALENDAR_EVENTS_ENABLED`) or events from Outlook (`OUTLOOK_CALENDAR_EVENTS_ENABLED`, item 23), for every stored event alike (REVIEW6 L1); to stop heads-ups, turn off `ALERTS_ENABLED` or all three (REVIEW8 QA M6) |
 | Heads-up coverage | Which later events a heads-up push stands for | Default, owner may change (2026-10-28, item 25): every high-UV outdoor event that could not get a heads-up of its own after the 3-hour gap, counted in "N more"; later events that still can get their own (REVIEW6 L2) |
 | Limiter overflow | What the per-address limiter does when full | Default, owner may change (2026-10-28, item 22): past 10,000 live windows, new keys are counted in a 2 MB count-min sketch per limiter instead of being refused |
 | Forecast shares by network | IPv4 networks and the browser's part of the forecast budget | Default, owner may change (2026-10-28, item 22): an IPv4 /24 may use 4 caller shares (`IPV4_NETWORK_WEIGHT`), like an IPv6 /48; the browser's part of the budget is now the "Forecast budget sides" row |

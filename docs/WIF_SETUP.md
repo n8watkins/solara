@@ -60,7 +60,7 @@ gcloud iam workload-identity-pools providers create-oidc "$PROVIDER" \
   --attribute-condition "assertion.repository_owner_id == '${OWNER_ID}' && assertion.repository_id == '${REPO_ID}' && assertion.ref == 'refs/heads/main'"
 ```
 
-## 3. Create the two service accounts and grant their roles
+## 3. Create the deploy service account and grant its roles
 
 The deploy identity can publish Hosting, rules and indexes, and nothing else until Functions are enabled:
 

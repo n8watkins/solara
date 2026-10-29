@@ -12,7 +12,7 @@ What is actually deployed and configured today is in [status.md](status.md), and
 
 Firebase Hosting, Authentication, Firestore, and Cloud Messaging can operate on the Spark plan within their quotas.
 Deploying Firebase Functions requires the Blaze plan and an attached billing account.
-Set up the budget and its kill switch (`infra/budget.sh`) the day Blaze is enabled; the `infra/` scripts print their gcloud commands and change nothing without `--apply` ([owner checklist steps 12-15](OWNER_CHECKLIST.md#at-pro-launch-blaze)).
+Set up the budget and its kill switch (`infra/budget.sh`) the day Blaze is enabled; the `infra/` scripts print their gcloud commands and change nothing without `--apply` ([owner checklist steps C2-C8](OWNER_CHECKLIST.md#at-pro-launch-blaze)).
 
 ## Local environment
 
@@ -35,11 +35,13 @@ Required for every Function-backed surface (checkout, billing portal, export, de
 Optional App Check settings:
 
 - `NEXT_PUBLIC_FIREBASE_APP_CHECK_PROVIDER` selects `recaptcha-enterprise` or `recaptcha-v3` (the default).
-- `NEXT_PUBLIC_FIREBASE_APP_CHECK_DEBUG_TOKEN` registers an App Check debug token for local or staging builds; never set it for production.
+- `NEXT_PUBLIC_FIREBASE_APP_CHECK_DEBUG_TOKEN` registers an App Check debug token for local builds only; a token in a deployed bundle would let anyone pass App Check, so the deploy's env check (`.github/scripts/check-public-env.mjs`, which also reads the `.env` files the build reads) refuses it.
 
 Required in addition for push registration:
 
 - `NEXT_PUBLIC_FIREBASE_VAPID_KEY`
+
+The deploy's env check fails a build with `ENABLE_BLAZE_FUNCTIONS=true` and no App Check site key, and one with alerts on and no VAPID key, because the deploy would be green while every Function, or every alert registration, refused the app.
 
 Every browser-called Function verifies a Firebase ID token and an App Check token before doing any work.
 Checkout and account deletion require a limited-use App Check token, which the server consumes so a captured request cannot be replayed.
@@ -269,6 +271,7 @@ cd functions
 npx firebase functions:secrets:set STRIPE_SECRET_KEY --project <project-id>
 npx firebase functions:secrets:set STRIPE_WEBHOOK_SECRET --project <project-id>
 openssl rand -base64 48 | npx firebase functions:secrets:set TRIAL_HISTORY_KEY --data-file=- --project <project-id>
+npx firebase functions:secrets:set OPEN_METEO_API_KEY --project <project-id>   # type unset until the plan is bought
 npx firebase deploy --only functions --project <project-id>
 ```
 
@@ -348,7 +351,8 @@ The Functions emulator alone may point Stripe at that fake (`STRIPE_API_BASE`); 
 - **A full refund issued in Stripe, or a dispute, ends the subscription it paid for** (`charge.refunded`, `charge.dispute.created`); the `customer.subscription.deleted` event that follows takes Pro away. Partial refunds change nothing.
 - **A failed renewal keeps Pro for 7 days** (`PAST_DUE_GRACE_DAYS` in `functions/src/billing/grace.ts`) from the first `past_due` event, while Stripe retries the card; the account page asks for a new payment method. After the grace period the `maintenance` job moves the account to Free, and a successful retry restores Pro.
 
-Register the deployed Stripe webhook URL in Stripe test mode first.
+Create the Stripe webhook endpoint before the first Functions deploy, in test mode first: its address is known in advance (`https://us-central1-<project-id>.cloudfunctions.net/stripeWebhook`), and its `whsec_` signing secret, shown only once the endpoint exists, is the `STRIPE_WEBHOOK_SECRET` the deploy needs.
+Until the deploy, Stripe's deliveries to it fail and are retried, which is harmless while no checkout exists.
 Subscribe the endpoint to `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `customer.subscription.updated`, `customer.subscription.deleted`, `charge.refunded`, and `charge.dispute.created`.
 Create the endpoint with API version `2026-09-30.endive`, the version pinned as `STRIPE_API_VERSION` in `functions/src/billing/config.ts`, so event payloads match the types the Functions were built against.
 When a Stripe SDK upgrade moves that pin, update the endpoint's API version in the same release.

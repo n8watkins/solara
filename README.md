@@ -15,7 +15,7 @@ Conditions and individual sensitivity can change quickly.
 
 | Document | What it covers |
 | --- | --- |
-| [docs/HANDOFF.md](docs/HANDOFF.md) | Start here: current state, open problems, owner blockers and next steps |
+| [docs/HANDOFF.md](docs/HANDOFF.md) | Start here: what Solara is, which doc holds the current state, and how work is handed off |
 | [docs/status.md](docs/status.md) | What is live today, what is not, the CI/CD shape, and which owner actions are done or open |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Open work in waves of parallel lanes, the owner decisions they need, and feature candidates |
 | [docs/OWNER_CHECKLIST.md](docs/OWNER_CHECKLIST.md) | Steps only the owner can do, and the manual checks for a release |
