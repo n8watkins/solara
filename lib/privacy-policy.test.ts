@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { SCHEDULED_RETENTION_DAYS } from '@solara/core'
 import { IMPORTED_EVENT_RETENTION_DAYS } from '@solara/core/event-import'
 import { LEGAL_DETAILS } from './legal'
+import * as shareTarget from './share-target'
 import {
   PRODUCTION_DATA_STEPS,
   privacySwitches,
@@ -95,6 +96,14 @@ describe('privacy policy', () => {
     expect(privacy).toContain('<strong>Imported events</strong>')
     expect(privacy).toContain('The file is read in your')
     expect(keptToday).toContain('Imported events: until you remove them')
+  })
+
+  it('says how long a file or link shared to the app stays in the browser (ROADMAP item 42)', () => {
+    const { SHARE_KEEP_MS } = shareTarget
+    expect(SHARE_KEEP_MS).toBe(30 * 60_000)
+    expect(privacy).toContain('share a calendar file or link to the installed app')
+    expect(privacy).toContain('for up to 30 minutes')
+    expect(privacy).toContain('sent nowhere unless you import it')
   })
 
   it('says what Solara keeps about events from Google Calendar, and for how long', () => {

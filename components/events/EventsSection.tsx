@@ -56,9 +56,18 @@ interface Props {
   displayTier: TierLevel
   /** Opens the Pro plans; absent in an app store build, which offers nothing to buy. */
   onUpgrade?: () => void
+  /** A calendar link shared to the app (components/events/SharedItem.tsx), for the form. */
+  sharedLink?: string | null
 }
 
-export default function EventsSection({ uid, prefs, weather, displayTier, onUpgrade }: Props) {
+export default function EventsSection({
+  uid,
+  prefs,
+  weather,
+  displayTier,
+  onUpgrade,
+  sharedLink,
+}: Props) {
   const store = useContext(EventsStoreContext) ?? firestoreEventsStore
   const headingId = useId()
   const fileRef = useRef<HTMLInputElement>(null)
@@ -361,6 +370,7 @@ export default function EventsSection({ uid, prefs, weather, displayTier, onUpgr
             uid={uid}
             nowMs={nowMs}
             pro={displayTier === 'paid'}
+            sharedLink={sharedLink}
             // One calm Pro mention: with heads-ups on too, the note below offers both.
             onUpgrade={eventHeadsUpsLaunched() ? undefined : onUpgrade}
           />

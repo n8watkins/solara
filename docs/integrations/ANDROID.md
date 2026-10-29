@@ -88,7 +88,7 @@ What the PWA needs first:
   It is on for a build with `NEXT_PUBLIC_STORE_BUILD=1`, or for a session whose first page had a referrer starting with `android-app://` or `?source=twa` in its URL (use `/app/?source=twa` as the TWA's start URL), remembered in sessionStorage for the session.
   Then the plans dialog offers a guest only free sign-in (no Pro column, price or waitlist) and never opens for an account; the locked forecast days, "Get this as a morning alert", the family profiles offer, the events' "See Pro", the Calendar's "Go Pro" note, Settings' "See Pro plans", the activity limit's "Upgrade to Pro", checkout and the account page's Stripe portal are gone; the landing page goes straight to `/app/`.
   Pro bought on the web still shows and unlocks everything; `tests/harness/store-build.spec.ts` checks each surface against the same screen on the web.
-- Manifest: built, an `id` (`/app/`, the start URL browsers used as the id before, so existing installs stay the same app) and `shortcuts` (today's plan, typical UV by city), checked by `tests/manifest.test.ts`; still to do, `share_target` (which also gives the deferred Web Share Target for .ics files) and `screenshots`.
+- Manifest: built, an `id` (`/app/`, the start URL browsers used as the id before, so existing installs stay the same app) and `shortcuts` (today's plan, typical UV by city), checked by `tests/manifest.test.ts`; `share_target` built (ROADMAP item 42): sharing a calendar file or link to the installed app imports it through the app-shell worker ([Sharing to Solara](EVENTS.md#sharing-to-solara-as-built)), and a TWA gets it from the same manifest; still to do, `screenshots`.
 - Optionally a same-site auth domain: setting `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` to `solara-uv.web.app` (Hosting serves `/__/auth/` on every site of the project) plus the redirect URI `https://solara-uv.web.app/__/auth/handler` on the OAuth client makes sign-in same-site, which helps inside Custom Tabs and Safari.
 - Account deletion from the web without the app, which Play requires as well as an in-app option: the account page does it in the browser on Spark, and through the Functions once they run ([ROADMAP item 33](../ROADMAP.md#33-account-download-and-deletion-without-functions-fix8b-built)).
 
@@ -122,5 +122,5 @@ These join the [owner checklist](../OWNER_CHECKLIST.md#later-mobile-app-wave-6) 
 5. Done (item 38): platform-aware push payloads for Android tokens, tested in the alerts emulator test.
 6. Done (item 38): a store build flag that hides every price, upsell and checkout.
 7. Done (item 38): a client version header on Function calls, logged now.
-8. Done (item 38): manifest `id` and `shortcuts`, and checks that the export and the upload ship `/.well-known/` files as JSON; still to do, `share_target` and `screenshots`.
+8. Done (items 38 and 42): manifest `id`, `shortcuts` and `share_target`, and checks that the export and the upload ship `/.well-known/` files as JSON; still to do, `screenshots`.
 9. The same-site auth domain, an owner step plus one variable.

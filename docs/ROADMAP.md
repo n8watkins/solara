@@ -497,6 +497,24 @@ The details are in [Free pushes](DEPLOYMENT.md#free-pushes-the-daily-uv-push-and
 - **Tests:** core (`daily-uv.test.ts`, `reapply.test.ts`, `push.test.ts`, `tiers.test.ts`), Functions (`reminders.test.js`, registration and runtime options), rules (`reapply reminder record`), emulator (`test/emulator/reminders.test.js`: delivery once by task or sweep, caps, Stop, a day of daily UV runs across time zones), signed-in e2e (`reapply-reminder.e2e.ts`) and harness states at 320, 390 and 1280 px (`reapply-reminders.spec.ts`).
 - **Owner, at switch-on (step C11):** enable the Cloud Tasks API, give the deploy identity `roles/cloudtasks.queueAdmin`, and run `infra/firestore-ttl.sh` again for the `reminders` TTL ([owner checklist](OWNER_CHECKLIST.md#at-pro-launch-blaze)).
 
+### 42. Share a calendar file or link to Solara (SHARETARGET, built)
+
+The deferred Web Share Target from events phase 1 (`handoff/events.md`, REVIEW8 PLAN part 2 "Strong next features", [integrations/ANDROID.md](integrations/ANDROID.md) item 8): on Android, the installed app (and a Trusted Web Activity later) is in the share sheet, so an invite from Gmail, an .ics file from Meetup or a ticket app, or a calendar link goes straight into Solara's existing import.
+The details are in [integrations/EVENTS.md](integrations/EVENTS.md#sharing-to-solara-as-built).
+
+- **Reproduced first:** a multipart POST to the app, as the share sheet sends it, against the export served by the Hosting emulator with the worker running, showed "Page not found"; `tests/e2e/share-target.spec.ts` now passes on the same setup.
+- **Manifest and worker:** `share_target` posts files (`calendar`) and links (`title`, `text`, `url`) to `/app/share-target/`; the app-shell worker takes that POST (`lib/share-target.ts`), reads at most 1 MB plus 32 KB of it, keeps one calendar file of at most 1 MB or one https or webcal link as plain bytes in its own cache for 30 minutes, and redirects to `/app/?shared=<id>`.
+  Other file types, larger files and empty shares keep only the reason; a POST from another website keeps nothing; the shell's version cleanup leaves the share's cache alone, and an expired share is removed whenever the app opens.
+- **Existing installs:** a worker from before this sends the POST to Hosting, which now serves a static `/app/share-target/` page asking to share again; the offline shell is unchanged, and a share made offline is kept and shown once back online.
+- **The app:** `?shared=<id>` loads "Shared with Solara" at the top of the dashboard, in a chunk nothing preloads: the file is read in the parser's Web Worker with every limit of a picked file and previewed (its first three events and how many more), and "Import N events" runs the same import as "Import .ics" after the person confirms; a guest is asked to sign in, and the file waits through the sign-in.
+  A calendar link fills the linked calendars field and opens "Add a calendar from..." at its provider on Pro (Pro-only since item 36), offers Pro on Free, and a web page link explains how to get the .ics file.
+- **Security:** only the expected types and sizes are kept, nothing shared is run, rendered or sent before the person imports it, the stash is cleared after use or 30 minutes, and the Content-Security-Policy is unchanged.
+- **First load:** a guest's first load measured 182.4 KB gzip on the hermetic e2e build (182.0 KB before), within the 186 KB budget; the card and its code load only with `?shared=`.
+  Parts loaded on demand (`components/deferred.tsx`) now try again once the browser is back online, so a part first needed offline appears when the network returns.
+- **Privacy:** the policy's "Storage on your device" says a shared file or link stays in the browser for up to 30 minutes and is sent nowhere unless imported.
+- **Tests:** `lib/share-target.test.ts`, `lib/shared-item.test.ts`, `tests/e2e/share-target.spec.ts` (with the service worker, on the Hosting emulator), `tests/e2e/signed-in/share-target.e2e.ts` (the import on the emulators, a guest signing in from the card, links on Pro and Free) and `tests/harness/shared-item.spec.ts` (each state at 320, 390, 1280 and 1440 px, light and dark, 0 axe violations).
+- **Not done:** sharing several files at once keeps the first calendar file; iOS has no Web Share Target.
+
 ## Decisions
 
 Agents never make owner decisions; they follow the recorded decision or the default.

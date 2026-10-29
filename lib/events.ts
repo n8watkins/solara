@@ -450,33 +450,47 @@ export interface ImportContext {
 
 const TOO_LARGE = 'That file is larger than 1 MB. Export a shorter range of events.'
 
+/** What to tell the person when a calendar file could not be read (from readIcsFile). */
+export function readErrorMessage(error: unknown): string {
+  if (error instanceof IcsImportError) {
+    return error.code === 'too-large'
+      ? TOO_LARGE
+      : 'That file is not a calendar (.ics) file. Use "Add to calendar" or "Export" on the event page to get one.'
+  }
+  if (error instanceof IcsTimeoutError) {
+    return 'That file took too long to read. Export a shorter range.'
+  }
+  return 'Could not read that file.'
+}
+
+/**
+ * Reads a calendar file's upcoming events (in a Web Worker by default). Throws what
+ * readErrorMessage explains; a file over the size cap is refused before it is read.
+ */
+export async function readIcsFile(
+  file: Pick<File, 'size' | 'text'>,
+  context: Pick<ImportContext, 'home' | 'nowMs' | 'parse'>,
+): Promise<IcsParseResult> {
+  if (file.size > ICS_IMPORT_LIMITS.maxBytes) {
+    throw new IcsImportError('too-large', 'The file is larger than the import allows')
+  }
+  const parse = context.parse ?? parseIcsOffThread
+  return parse(await file.text(), {
+    now: context.nowMs,
+    defaultTimeZone: resolveTimeZone(context.home.timezone),
+  })
+}
+
 /** Reads a picked file and stores its upcoming events. Never throws. */
 export async function importIcsFile(
   file: Pick<File, 'size' | 'text'>,
   context: ImportContext,
 ): Promise<ImportOutcome> {
-  if (file.size > ICS_IMPORT_LIMITS.maxBytes) return { ok: false, message: TOO_LARGE }
   let result: IcsParseResult
   try {
-    const parse = context.parse ?? parseIcsOffThread
-    result = await parse(await file.text(), {
-      now: context.nowMs,
-      defaultTimeZone: resolveTimeZone(context.home.timezone),
-    })
+    result = await readIcsFile(file, context)
   } catch (error) {
-    if (error instanceof IcsImportError) {
-      return {
-        ok: false,
-        message:
-          error.code === 'too-large'
-            ? TOO_LARGE
-            : 'That file is not a calendar (.ics) file. Use "Add to calendar" or "Export" on the event page to get one.',
-      }
-    }
-    if (error instanceof IcsTimeoutError) {
-      return { ok: false, message: 'That file took too long to read. Export a shorter range.' }
-    }
-    return { ok: false, message: 'Could not read that file.' }
+    return { ok: false, message: readErrorMessage(error) }
   }
   try {
     const seriesIds = await affectedSeries(result)

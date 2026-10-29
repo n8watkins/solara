@@ -36,6 +36,12 @@ const PRELOAD_DELAY_MS = 1500
 function deferred<P extends object>(
   load: Loader<P>,
   Fallback: ComponentType<P> | null = null,
+  {
+    preloaded = true,
+  }: {
+    /** Fetched with the rest after the page has loaded (preloadDeferred). */
+    preloaded?: boolean
+  } = {},
 ): ComponentType<P> & { preload: () => Promise<unknown>; loaded: () => boolean } {
   let loaded: ComponentType<P> | null = null
   let pending: Promise<ComponentType<P>> | null = null
@@ -50,20 +56,26 @@ function deferred<P extends object>(
     )
     return pending
   }
-  loaders.add(preload)
+  if (preloaded) loaders.add(preload)
   function Deferred(props: P) {
     const [Component, setComponent] = useState<ComponentType<P> | null>(() => loaded)
     useEffect(() => {
       if (Component) return
       let active = true
-      preload().then(
-        loadedComponent => {
-          if (active) setComponent(() => loadedComponent)
-        },
-        error => console.error('Could not load part of the app:', error),
-      )
+      const attempt = () => {
+        preload().then(
+          loadedComponent => {
+            if (active) setComponent(() => loadedComponent)
+          },
+          error => console.error('Could not load part of the app:', error),
+        )
+      }
+      attempt()
+      // A part never fetched cannot load offline; it is tried again once back online.
+      window.addEventListener('online', attempt)
       return () => {
         active = false
+        window.removeEventListener('online', attempt)
       }
     }, [Component])
     if (Component) return <Component {...props} />
@@ -250,6 +262,13 @@ export const GuestPlanNotice = deferred(() => import('./GuestPlanNotice'))
 export const AccountScheduled = deferred(() => import('./scheduled/AccountScheduled'))
 /** Imported .ics events with the UV during each (signed-in accounts only). */
 export const EventsSection = deferred(() => import('./events/EventsSection'))
+/**
+ * What someone shared to the installed app (lib/share-target.ts): only when the app opens
+ * with `?shared=<id>`, so it is never preloaded and no first load carries it.
+ */
+export const SharedItem = deferred(() => import('./events/SharedItem'), null, {
+  preloaded: false,
+})
 
 /**
  * Loads the signed-in parts now, for a session about to show (a stored session at

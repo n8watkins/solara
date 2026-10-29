@@ -12,7 +12,8 @@
  * - `/_next/static/` files (content-hashed, immutable): from the cache, else fetched
  *   and kept for this version;
  * - the other precached files (manifest, icons, landing images): from the cache.
- * Everything else (cross-origin requests such as Open-Meteo, Firestore, Auth and
+ * The worker also takes the share sheet's POST to /app/share-target/ (lib/share-target.ts),
+ * before these rules. Everything else (cross-origin requests such as Open-Meteo, Firestore, Auth and
  * Functions; Firebase's reserved `/__/` paths; other pages; anything but GET) goes to
  * the network untouched and is never stored. The forecast offline comes from the
  * app's own validated cache in localStorage (lib/cache.ts), not from the worker.

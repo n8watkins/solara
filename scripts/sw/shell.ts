@@ -8,6 +8,13 @@
 // the new files, takes over at once (skipWaiting and clients.claim) and deletes the
 // previous version's caches. Pages are always fetched from the network first, so even
 // an old worker never pins anyone to an old page.
+//
+// Shares: Android's share sheet POSTs a shared calendar file or link to
+// /app/share-target/ (the manifest's share_target). This worker takes that one POST,
+// keeps what was shared in its own cache (`solara-share-v1`, which version changes leave
+// alone) and redirects to the app, which shows it (lib/share-target.ts). A worker from
+// before this existed sends the POST to Hosting, which serves the static
+// /app/share-target/ page asking to share again; by then the new worker has installed.
 import {
   NAVIGATION_TIMEOUT_MS,
   cacheNames,
@@ -17,6 +24,7 @@ import {
   type ShellRoute,
 } from '../../lib/sw-shell.mts'
 import { chooseWindowClient, safeNotificationUrl } from '../../lib/notification-link'
+import { isSharePost, pruneStash, receiveShare } from '../../lib/share-target'
 
 // Replaced at bundle time.
 declare const __SHELL__: { version: string; pages: string[]; assets: string[] }
@@ -152,8 +160,18 @@ function answer(event: FetchEventLike, route: NonNullable<ShellRoute>): Promise<
 }
 
 sw.addEventListener('fetch', event => {
-  const route = routeRequest(event.request, sw.location.origin, precached)
-  if (route) event.respondWith(answer(event, route))
+  const origin = sw.location.origin
+  // A file or link shared to the installed app (the manifest's share_target): kept on
+  // this device for a short while and handed to the app (lib/share-target.ts).
+  if (isSharePost(event.request, origin)) {
+    event.respondWith(receiveShare(event.request, origin, caches, Date.now()))
+    return
+  }
+  const route = routeRequest(event.request, origin, precached)
+  if (!route) return
+  event.respondWith(answer(event, route))
+  // Opening the app removes a shared item that has waited too long.
+  if (route.kind === 'page') event.waitUntil(pruneStash(caches, Date.now()).catch(() => {}))
 })
 
 /** Focuses an open Solara window on the link (or the app), or opens one. */

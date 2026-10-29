@@ -35,6 +35,7 @@ import {
   HeroSlot,
   PricingModal,
   ScheduledDetails,
+  SharedItem,
   SunscreenTimer,
   useActivityPlanning,
 } from './deferred'
@@ -46,6 +47,12 @@ import { planningFor } from '@solara/core'
 import UVCard from './dashboard/UVCard'
 import Skeleton from './Skeleton'
 import { isStoreBuild } from '@/lib/store-build'
+import { SHARED_PARAM, sharedId } from '@/lib/app-routes'
+
+/** The share id the app was opened with, if any. */
+function sharedIdInUrl(): string | null {
+  return sharedId(new URLSearchParams(window.location.search).get(SHARED_PARAM))
+}
 
 interface Props {
   /** The signed-in account, for checkout from the Pro plans dialog. */
@@ -93,6 +100,9 @@ function DashboardView({
   // Finds the activities' slots; with activities it has loaded before this paints.
   const planner = useActivityPlanning()
   const [openEventId, setOpenEventId] = useState<string | null>(null)
+  const [shareId, setShareId] = useState(sharedIdInUrl)
+  // A shared calendar link, for the linked calendars form (on Pro).
+  const [sharedLink, setSharedLink] = useState<string | null>(null)
   // "Now" is the forecast location's wall clock, never the device's. The
   // fractional "now" (rounded up to 5 minutes) is the earliest start any
   // recommendation on today may offer, and where the sun sits on the arc.
@@ -235,6 +245,19 @@ function DashboardView({
 
   return (
     <div className="dash-stack">
+      {/* What someone shared to the installed app, above everything else. */}
+      {shareId && (
+        <SharedItem
+          id={shareId}
+          uid={user?.uid ?? null}
+          prefs={prefs}
+          pro={access.accessTier === 'paid'}
+          onUpgrade={offerPro}
+          onLink={setSharedLink}
+          onClose={() => setShareId(null)}
+        />
+      )}
+
       <DayPicker
         access={access}
         onSelectDay={onSelectDay}
@@ -328,6 +351,7 @@ function DashboardView({
                 weather={weather}
                 displayTier={access.accessTier}
                 onUpgrade={offerPro}
+                sharedLink={sharedLink}
               />
             </div>
           )}
