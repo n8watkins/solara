@@ -75,7 +75,13 @@ export class ForecastStore {
   private watching = false
 
   constructor(options: ForecastStoreOptions) {
-    this.options = { retryDelayMs: 1000, errorRetryMs: 60_000, gcMs: 30 * 60 * 1000, now: Date.now, ...options }
+    this.options = {
+      retryDelayMs: 1000,
+      errorRetryMs: 60_000,
+      gcMs: 30 * 60 * 1000,
+      now: Date.now,
+      ...options,
+    }
   }
 
   /** The current state for `location`. Stable until it changes. */

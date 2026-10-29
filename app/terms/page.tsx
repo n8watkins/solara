@@ -66,7 +66,8 @@ export default function TermsPage() {
         <p>
           Forecasts and place search use data from <a href="https://open-meteo.com/">Open-Meteo</a>,
           whose place search is based on <a href="https://www.geonames.org/">GeoNames</a>, both
-          licensed under <a href="https://creativecommons.org/licenses/by/4.0/">CC&nbsp;BY&nbsp;4.0</a>.
+          licensed under{' '}
+          <a href="https://creativecommons.org/licenses/by/4.0/">CC&nbsp;BY&nbsp;4.0</a>.
         </p>
         <p>
           Place names for your device location come from{' '}
