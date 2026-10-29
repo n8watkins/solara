@@ -2,7 +2,7 @@ import type { Browser } from '@playwright/test'
 import { type Account, type Emulators, expect, openDashboard, preparePage, test } from './fixtures'
 import { FakeGoogleCalendar } from './fake-google-calendar'
 
-// The sunscreen timer's reminder with Solara closed (ROADMAP item 39): for a signed-in
+// The sunscreen timer's reminder with Solara closed (ROADMAP item 40): for a signed-in
 // account, Start writes one "remind me at" record the rules accept and the server's
 // trigger counts, which the push is sent from (functions/src/notifications/reminders.ts);
 // a mode switch replaces it, and Stop deletes it, so no push comes. Before this, the

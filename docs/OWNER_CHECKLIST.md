@@ -297,8 +297,10 @@ C10. **Switch Pro billing on (2 minutes).**
 
 C11. **Pro alerts (10 minutes, FCM is free).**
    - Optionally give them their own least-privilege identity: `DEPLOY_SA=<deploy service account email> infra/alerts-identity.sh` (print, read, then `--apply`) and `gh variable set ALERTS_SERVICE_ACCOUNT --repo n8watkins/solara --body solara-alerts@uv-activity-planner.iam.gserviceaccount.com`.
-   - Then `gh variable set ALERTS_ENABLED --repo n8watkins/solara --body true` and let the next deploy run ([Pro alerts](DEPLOYMENT.md#pro-alerts)); the env check refuses it without the VAPID key.
-   - Verify: a real phone gets exactly one morning alert ([Notifications](#notifications)).
+   - The same switch turns on the free daily UV push and the reapply reminder's push ([Free pushes](DEPLOYMENT.md#free-pushes-the-daily-uv-push-and-reapply-reminders)), which add a Firestore trigger and a Cloud Tasks queue. Before the deploy: enable the Cloud Tasks API (`gcloud services enable cloudtasks.googleapis.com --project uv-activity-planner`) and give the deploy identity `roles/cloudtasks.queueAdmin` (`gcloud projects add-iam-policy-binding uv-activity-planner --member serviceAccount:<deploy service account email> --role roles/cloudtasks.queueAdmin --condition None`), so it can create the `reapplyReminderTask` queue; the trigger needs the (default) Firestore database in `nam5` or `us-central1` (Firestore, **Database**, Location).
+   - If the project's default compute identity is not an Editor (newer projects), grant it `roles/cloudtasks.enqueuer`, `roles/run.invoker` and `roles/iam.serviceAccountUser` on itself, so the trigger can enqueue the task; until then reminders still arrive through the `alerts` job, up to 15 minutes late, with the WARNING `reapply reminder task not enqueued`.
+   - Then `gh variable set ALERTS_ENABLED --repo n8watkins/solara --body true` and let the next deploy run ([Pro alerts](DEPLOYMENT.md#pro-alerts)); the env check refuses it without the VAPID key. Run `infra/firestore-ttl.sh` again (print, read, then `--apply`) for the new `reminders` TTL.
+   - Verify: a real phone gets exactly one morning alert, and a Free account's phone one daily UV push and one reapply reminder with Solara closed ([Notifications](#notifications)).
 
 C12. **Release checks (30 minutes).**
    Run [Release verification](#release-verification), plus [Functions and Stripe](#functions-and-stripe) and [Notifications](#notifications) on production.
@@ -423,7 +425,7 @@ Everything in this section waits for the Pro launch (roadmap item 9); see [Fireb
 
 ## Notifications
 
-Pro's morning and UV alerts are built and switched off (`ALERTS_ENABLED`, [Pro alerts](DEPLOYMENT.md#pro-alerts)); record this real-device evidence in staging before switching them on in production.
+Pro's morning and UV alerts, and the free daily UV push and reapply reminder, are built and switched off (`ALERTS_ENABLED`, [Pro alerts](DEPLOYMENT.md#pro-alerts)); record this real-device evidence in staging before switching them on in production.
 
 - [ ] Provide a real phone that can receive web push and a controlled Pro test account; on an iPhone, add Solara to the Home Screen and open it from there.
 - [ ] In Settings, **Sun profile**, turn alerts on for the phone, then set **Morning alert** to the current hour.
@@ -433,6 +435,9 @@ Pro's morning and UV alerts are built and switched off (`ALERTS_ENABLED`, [Pro a
 - [ ] Register the same phone to a second controlled account; ownership moves instead of producing two deliveries.
 - [ ] Move the test account to Free (or cancel its test subscription): no alert arrives the next morning.
 - [ ] Turn alerts off on the phone, then sign out; the device record is gone either time.
+- [ ] With a controlled Free account: turn alerts on for the phone in Settings, **Alerts**; the next morning exactly one daily UV push arrives at the chosen hour on a day the UV reaches 3, and none on a low day.
+- [ ] With that account, start the sunscreen timer, close every Solara tab and wait 2 hours: exactly one "Time to reapply sunscreen" notification arrives within a minute of the time the card showed; with the tab left open and visible, the phone gets the push and the computer shows only the card.
+- [ ] Start it again and press **Stop**: no notification comes, and `users/<uid>/reminders/reapply` is gone.
 
 ## Events from Google Calendar
 

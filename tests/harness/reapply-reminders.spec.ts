@@ -3,7 +3,7 @@ import { expect, test, type Locator, type Page, type TestInfo } from '@playwrigh
 import { captureScreen, preparePage } from './capture'
 import { HARNESS_MARKER } from './fixtures'
 
-// The free pushes once alerts are on (ROADMAP item 39; ?alerts=on stands in for
+// The free pushes once alerts are on (ROADMAP item 40; ?alerts=on stands in for
 // NEXT_PUBLIC_ALERTS_ENABLED, ?reminders= for the account's devices):
 // - the sunscreen timer of a signed-in account says its reminder also comes with Solara
 //   closed, or how to get that (turn alerts on for this device);

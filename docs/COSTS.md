@@ -20,6 +20,7 @@ On Blaze, every product keeps its free quota; you pay only for usage above it.
 | Cloud Functions: billing, account export and deletion, calendar feed, notification registration, forecast proxy and place search, maintenance job, budget kill switch | No | Yes |
 | Firestore TTL deletes, point-in-time recovery and backups | No | Yes |
 | Pro-only morning and UV alerts (scheduled Function plus Cloud Messaging) | No | Yes |
+| Free daily UV push and sunscreen reapply reminders by push (the same job, a Firestore trigger and Cloud Tasks) | No | Yes |
 
 ## How many users before Blaze costs money
 
@@ -38,10 +39,11 @@ That is why the default is a quiet launch on Spark and Blaze with the budget kil
 | Hosting | 10 GB storage; 360 MB a day transfer | About 0.35 MB a day per active user (first visits download about 0.5 MB, repeat visits are mostly cached) | 1,000 DAU | $0.15 per GB |
 | Cloud Firestore | 50,000 reads, 20,000 writes and 20,000 deletes a day; 1 GiB stored; 10 GiB a month egress | About 22 reads and 4 writes per active user a day, plus about 1,200 reads a day for the maintenance job; the forecast proxy adds one read per cache miss and one write per place and hour | 2,200 DAU (reads run out first) | $0.03 per 100,000 reads, $0.09 per 100,000 writes (us-central1) |
 | Cloud Functions (Cloud Run functions) | 2 million requests, 180,000 vCPU-seconds and 360,000 GiB-seconds a month, per billing account | About 6 requests per active user a day with the forecast proxy on (3 without), at about 0.2 vCPU-seconds each; the maintenance job uses about 3,000 vCPU-seconds a month | 5,000 DAU (CPU runs out first) | Tier 1 rates per vCPU-second and GiB-second |
-| Cloud Scheduler | 3 jobs a month, per billing account | 3 jobs (`maintenance`, `alerts` and `eventSubscriptionsRefresh`) | Never | $0.10 per job a month |
+| Cloud Scheduler | 3 jobs a month, per billing account | 3 jobs (`maintenance`, `alerts` and `eventSubscriptionsRefresh`); the daily UV push and the reminders' backstop run inside `alerts` | Never | $0.10 per job a month |
 | Pub/Sub | 10 GiB of message delivery a month, per billing account | A few budget notifications a day for the kill switch | Never | Per GiB |
 | Artifact Registry (Functions container images) | 0.5 GB of storage, per billing account | One image per function; the cleanup policy keeps 1 day of images (set by the deploy, or `infra/backups.sh`) | Usually within it; at most about $0.10 a month | About $0.10 per GB a month |
-| Cloud Messaging (push) | No charge | Pro morning and UV alerts | Never | - |
+| Cloud Messaging (push) | No charge | Pro morning and UV alerts, the daily UV push and reapply reminders | Never | - |
+| Cloud Tasks | 1 million billable operations a month, per billing account | About 2 per reapply reminder (the enqueue and the dispatch) | About 16,000 reminders a day | $0.40 per million operations |
 | Authentication | 50,000 monthly active users | Google sign-in only | 50,000 MAU | Per MAU |
 | Cloud Logging | 50 GiB ingested a month, per project | Structured logs; the calendar feed's request logs are excluded | Far beyond any plan here | $0.50 per GiB |
 | Cloud Monitoring | Uptime checks: 1 million executions a month per project; alerting: free until September 1, 2027 | 2 uptime checks every 5 minutes (about 52,000 executions); 2 alert policies | Never for uptime | Alerting: $0.35 a month per metric reference from September 2027 (about $0.35-0.70) |
@@ -67,6 +69,12 @@ The Open-Meteo commercial plan ($29 a month, below) is a fixed cost on top, paid
   Capacity (REVIEW5 M4): every 30 minutes the refresh job takes every due link, oldest due first, 16 at a time for up to 200 seconds and 3,000 links a run; at about 2 seconds a link that is about 1,600 links a run, enough for roughly 19,000 links on the 6-hour cycle.
   The scale point is the job's fractional CPU when many large calendars change at once (about 3 seconds a 1 MB parse); when a link waits a whole extra 6 hours, the job logs the ERROR `linked calendar refresh is falling behind`, which emails the owner ([RUNBOOK.md](RUNBOOK.md#linked-calendars)), and the lever is a larger CPU for that one job.
   Pro event heads-ups add one state read and one events query per Pro account per alerts run (at least 192 reads a day per Pro account, plus one read per event starting in the next 3 hours; none for 3 hours after a heads-up) and a cached forecast per event place.
+- The free daily UV push (switched off with the other alerts until `ALERTS_ENABLED`) does not walk every Free account each run, which would cost 96 reads a day per enrolled account and slow every run as Free grows: each run reads only the enrolments that are due (`alertSchedule.dueAt`, ROADMAP item 40), and each account is due at most twice a day (5am, then its morning hour).
+  That is about 10 reads and 4 writes per enrolled account a day with one device (two more reads per extra device), plus one cached forecast lookup per place and day within the server's side of the forecast budget and the account's own share; and 96 reads a day in all for the run's query when nothing is due.
+  At 1,000 enrolled Free accounts that is about 10,000 reads and 4,000 writes a day, inside the free quota; at 10,000 about 100,000 reads (about $0.02 a day above it).
+- Sunscreen reapply reminders by push: each reminder costs one browser write, about 7 reads and 5 writes on the server (the trigger counts it, the task claims, sends and deletes it), 3 short Function invocations and 2 Cloud Tasks operations; an account may set at most 40 and receive at most 12 a day.
+  The sweep in each alerts run costs 1 read when nothing is overdue (96 a day).
+  1,000 reminders a day are about 7,000 reads, 6,000 writes and 3,000 invocations, all free.
 - App Check tokens are cached for about an hour, and App Check starts only after sign-in (or, with the forecast proxy on, at a guest's first forecast fetch), so reCAPTCHA assessments roughly equal session-hours.
 - Function requests are small (under 300 ms of CPU each) and share instances (concurrency 20-40); background jobs run on a fractional CPU.
 
@@ -203,6 +211,7 @@ Checked 2026-10-27:
 - [Firestore pricing](https://cloud.google.com/firestore/pricing): daily free quota, us-central1 rates, and that TTL deletes, PITR and backups have no free usage.
 - [Cloud Run pricing](https://cloud.google.com/run/pricing): the request-based free tier (2 million requests, 180,000 vCPU-seconds, 360,000 GiB-seconds a month) that Cloud Functions (2nd gen) use.
 - [Cloud Scheduler pricing](https://cloud.google.com/scheduler/pricing): 3 free jobs a month per billing account, $0.10 per job after.
+- [Cloud Tasks pricing](https://cloud.google.com/tasks/pricing): the first million billable operations a month free per billing account, then $0.40 per million.
 - [Artifact Registry pricing](https://cloud.google.com/artifact-registry/pricing): 0.5 GiB free storage per billing account.
 - [Pub/Sub pricing](https://cloud.google.com/pubsub/pricing): the first 10 GiB of message delivery a month free.
 - [Google Cloud Observability pricing](https://cloud.google.com/stackdriver/pricing): 50 GiB of logs a month, 1 million uptime check executions, alerting charges from September 1, 2027.

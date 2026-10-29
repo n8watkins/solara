@@ -272,6 +272,22 @@ It deploys with the other Functions and sends nothing until the `ALERTS_ENABLED`
 The real-device checks that must pass before `ALERTS_ENABLED` is switched on are in the [owner checklist](OWNER_CHECKLIST.md#notifications).
 It replaces the manual GitHub Actions notifier, which was retired.
 
+### Free pushes: the daily UV push and reapply reminders
+
+With `ALERTS_ENABLED`, two pushes are free for every signed-in account (ROADMAP item 40), and a Free account may register notification devices (`registerNotificationDevice`, which still requires Pro for anything else).
+
+- **Daily UV push** (`functions/src/notifications/daily-uv.ts`, rules in `packages/core/src/daily-uv.ts`): "Protect from 10:10am to 3:40pm today", with the peak, once per local day at the account's morning hour (`notificationHour`), or when its quiet hours end, and only while protection is still needed; nothing on a day the UV index stays under 3, nothing for Pro (the morning plan takes its place) or with `dailyUv: false`.
+  Registering a device creates `users/{uid}/alertSchedule/dailyUv` with `dueAt`; each `alerts` run, after Pro's alerts, reads only the schedules that are due (a collection group query on `dueAt`, at most 1,000 a run, 60 seconds) and moves each one to its next check, at most two a day; an account without devices leaves it.
+  Its forecasts count against the server's side of the upstream budget and a per-account share of their own (`daily-uv` scope), at most 300 new places a run; a place that cannot be looked up waits 15 minutes.
+  It is claimed in `alertState/daily` under `basic` (`basic-v1:<date>`), like the morning alert.
+- **Reapply reminder** (`functions/src/notifications/reminders.ts`): the browser writes `users/{uid}/reminders/reapply` (one per account, validated by `firestore.rules`) when the timer starts, is reset or switches to swimming, and deletes it on Stop.
+  The `reapplyReminderScheduled` Firestore trigger counts each new schedule (at most 40 a UTC day per account) and enqueues a Cloud Tasks task for its time; `reapplyReminderTask` sends it once (at most 12 a day per account) and deletes the record.
+  Every `alerts` run also sweeps reminders more than 2 minutes overdue, so one whose task never ran arrives within 15 minutes; the task and the sweep claim the record in a transaction, so only one sends.
+  The push carries the tag `<deliveryScope>:reapply-v1:<id>`, which the browser's own reminder uses too, so a device shows it once.
+- **Why Cloud Tasks:** the scheduled job alone would deliver a reminder up to 15 minutes late, about a fifth of an 80-minute swimming interval, for a safety reminder; a task arrives on time, and the sweep keeps the job's reliability as the backstop.
+  Cost: Cloud Tasks' first million operations a month are free (one enqueue and one dispatch per reminder), so about 20,000 reminders a day stay free ([COSTS.md](COSTS.md)).
+- **Indexes and TTL:** `firestore.indexes.json` adds collection group indexes on `reminders.dueAt` and `alertSchedule.dueAt`; `infra/firestore-ttl.sh` adds the `reminders` TTL (a day after the reminder was due).
+
 ## Linked calendars and event heads-ups
 
 Phase 2 of [integrations/EVENTS.md](integrations/EVENTS.md#phase-2-as-built): a Pro account links an https or webcal calendar address, Solara's servers fetch it now and every 6 hours, and Pro accounts get a heads-up before an imported or linked event with high UV.
