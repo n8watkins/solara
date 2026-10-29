@@ -1,6 +1,6 @@
 # Solara Deployment Guide
 
-_Last reviewed: 2026-10-27_
+_Last reviewed: 2026-10-28_
 
 Solara exports a static Next.js site to `out/` and hosts it on Firebase Hosting.
 Firebase Functions provide trusted server behavior for billing, account data, notification registration, Pro alerts, scheduled cleanup, and calendar feeds.
@@ -88,7 +88,7 @@ Repository variables:
 - `COST_GUARD_DETACH_BILLING` (optional): the budget kill switch detaches billing at 300% of the budget unless this is `false` ([Cost guard and budget kill switch](#cost-guard-and-budget-kill-switch)).
 - `BUDGET_ID` and `BUDGET_SERVICE_ACCOUNT` (set after `infra/budget.sh`, which prints both): the budget the kill switch acts on, and the identity `budgetAlert` runs as, the only one allowed to detach billing.
 - `GCP_WORKLOAD_IDENTITY_PROVIDER` and `GCP_DEPLOY_SERVICE_ACCOUNT`: Workload Identity Federation ([WIF_SETUP.md](WIF_SETUP.md)).
-- `FIREBASE_PROJECT_ID` (optional): the deploy target, `uv-activity-planner` by default.
+- `FIREBASE_PROJECT_ID` (optional): the deploy target, `uv-activity-planner` by default; another project would also need its Hosting targets in `.firebaserc` and its own `functions/.env.<project id>` (staging has [its own workflow](#staging)).
 - `NEXT_PUBLIC_SENTRY_DSN` (optional): the Sentry public DSN; read from variables only.
 - `SENTRY_ORG` and `SENTRY_PROJECT` (optional): the Sentry organization and project slugs for the source map upload.
 
@@ -101,14 +101,16 @@ Repository secrets:
 
 Server configuration for Functions:
 
-- `functions/.env` holds the non-secret params (`APP_URL`, an empty `STRIPE_PRICE_ID` default, and the kill switch thresholds), because non-interactive deploys resolve params only from `functions/.env*` files.
+- `functions/.env` holds the shared non-secret params (an empty `STRIPE_PRICE_ID` default and the kill switch thresholds), because non-interactive deploys resolve params only from `functions/.env*` files.
+- `functions/.env.<project id>` holds each project's own params, read after `functions/.env` for that project: `APP_URL` (the web app's origin, the only one the Functions' CORS allows, and where checkout returns) is `https://solara-uv.web.app` in `functions/.env.uv-activity-planner` and `https://solara-staging.web.app` in `functions/.env.solara-staging`.
+  `APP_URL` has no default, so a deploy to a project without its own file fails instead of borrowing production's origin; the deploy jobs append the prices and switches to that file.
   `.github/scripts/check-functions-params.js` resolves them exactly as a deploy does, and runs in CI.
 - Firebase Secret Manager stores `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `TRIAL_HISTORY_KEY` (the HMAC key of the [trial history](#trial-history)) and `OPEN_METEO_API_KEY` (the value `unset` until the commercial plan is bought); a Functions deploy fails while any of them is missing.
 
 ## Firebase console setup
 
 1. Enable Google Authentication.
-2. Add the production and preview domains to Authentication Authorized domains.
+2. Add the production domain to Authentication Authorized domains (each project its own site; see [Staging](#staging) for preview channels).
 3. Create Firestore and deploy the repository rules.
 4. Enable Cloud Messaging and generate a Web Push VAPID key.
 5. Register the web app for App Check with reCAPTCHA v3 (decision D11), set the site key, monitor the metrics, and then enforce Firestore (see [App Check](#app-check)).
@@ -137,6 +139,10 @@ The "Protect main" ruleset requires a pull request and the required checks for e
 A manual run of `deploy.yml` (`workflow_dispatch`) may pick any branch, so every job that receives credentials or a deploy token runs only when the ref is `main`; from another branch only the quality checks run.
 Until Workload Identity Federation replaces the key secret, that job condition is the only thing keeping other branches away from production credentials; a `production` environment limited to `main` would add a second guard ([owner checklist](OWNER_CHECKLIST.md#repository)).
 
+`firebase.json` names its two Hosting configs by deploy target, `app` (the static export) and `redirect` (the old address, `hosting-redirect/`), and `.firebaserc` maps them to sites per project: `solara-uv` and `uv-activity-planner` for production, and only `app` to `solara-staging` for staging.
+So `firebase deploy --only hosting --project uv-activity-planner` publishes exactly the two production sites, while the same command for staging fails (staging has no redirect site) and staging deploys `--only hosting:app`.
+`.github/scripts/check-hosting-target.js` prints which sites a command would publish, resolved by the locked firebase-tools, without deploying.
+
 ### Manual deploy
 
 For a controlled manual deployment, use the locked Firebase CLI, an explicit project ID and the same order as the workflow.
@@ -154,8 +160,65 @@ FIREBASE=functions/node_modules/.bin/firebase
 "$FIREBASE" deploy --only hosting --project "$PROJECT_ID"
 ```
 
-For a manual Functions deploy, put `STRIPE_PRICE_ID=<monthly price id>`, `STRIPE_YEARLY_PRICE_ID=<yearly price id>` and `BILLING_ENABLED=true` in `functions/.env.<project-id>`; `APP_URL` comes from `functions/.env`.
+For a manual Functions deploy, add `STRIPE_PRICE_ID=<monthly price id>`, `STRIPE_YEARLY_PRICE_ID=<yearly price id>` and `BILLING_ENABLED=true` to `functions/.env.<project-id>`, which already sets that project's `APP_URL`; `node .github/scripts/check-functions-params.js <project-id>` proves the params resolve and that `APP_URL` is the project's own.
 Deploy Hosting only from the `out/` of a production build (`npm run build`), because the CSP and public configuration are baked in at build time.
+For the staging project, use the staging workflow below rather than a manual deploy; by hand, deploy Hosting with `--only hosting:app`.
+
+## Staging
+
+`.github/workflows/deploy-staging.yml` deploys `main` to a separate staging Firebase project, so Stripe test mode, alerts, linked calendars and the `infra/` scripts can be tried before production ([owner checklist group B](OWNER_CHECKLIST.md#staging-before-the-pro-launch)).
+It runs only by hand: Actions, **Deploy staging**, **Run workflow**, choosing the branch in **Use workflow from**, with one input, `channel`:
+
+- `live` (from `main` only) deploys Firestore indexes and rules, the Functions (when switched on) and the site.
+- Any other id (such as `pr-152`), from any branch, deploys only that branch's site to a [preview channel](#preview-channels) that expires after 7 days.
+
+Every job checks out the commit the run started from, so the build and the deploy use the same code, and a branch's run writes only to that branch's own Actions cache scope, never `main`'s.
+
+Production's deploy (`deploy.yml`) does not change and never reads a staging setting; the staging workflow never reads a production credential.
+
+### Staging settings
+
+Everything lives in the `staging` GitHub environment (Settings, Environments).
+Its deployment branches decide who can use it: `main` only allows just the live site, and adding the branches that need previews (or all branches) allows preview channels too.
+A preview run uses its branch's own copy of the workflow, so allowing a branch trusts that branch's authors (repository writers) with the staging credentials, never production's.
+The configuration and deploy jobs run in that environment, so a required reviewer, if the owner adds one, approves each of them.
+Every name starts with `STAGING_`, never a production name: a job in an environment falls back to the repository's variable or secret of the same name, so a missing staging value could otherwise silently become production's.
+The workflow reads production's values only to refuse a staging value equal to one of them.
+
+Required variables:
+
+- `STAGING_FIREBASE_PROJECT_ID`: the staging project id, for example `solara-staging`; until it is set every run ends green with the notice "Staging is not set up" and deploys nothing.
+- `STAGING_NEXT_PUBLIC_FIREBASE_API_KEY` and `STAGING_NEXT_PUBLIC_FIREBASE_APP_ID`, and optionally `STAGING_NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`, from `firebase apps:sdkconfig web --project <staging project id>`.
+- Credentials: `STAGING_GCP_WORKLOAD_IDENTITY_PROVIDER` and `STAGING_GCP_DEPLOY_SERVICE_ACCOUNT` ([WIF_SETUP.md](WIF_SETUP.md#staging-deploy-identity)), or until then the `STAGING_FIREBASE_SERVICE_ACCOUNT` secret, a key of a deploy service account in the staging project.
+
+Derived from the project unless set:
+
+- `STAGING_HOSTING_SITE` (default: the project id); the site URL, `NEXT_PUBLIC_SITE_URL` and the Functions' `APP_URL` are `https://<site>.web.app`.
+- `STAGING_NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` (default `<project>.firebaseapp.com`) and `STAGING_NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` (default `<project>.firebasestorage.app`).
+- The Functions URL is always `https://us-central1-<project>.cloudfunctions.net` when they are on.
+
+Optional, each the staging twin of the production setting of the same name without `STAGING_` ([GitHub Actions configuration](#github-actions-configuration)):
+
+- Keys: `STAGING_NEXT_PUBLIC_FIREBASE_VAPID_KEY`, `STAGING_NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY`, `STAGING_NEXT_PUBLIC_FIREBASE_APP_CHECK_PROVIDER`, `STAGING_NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID`, `STAGING_NEXT_PUBLIC_GA_MEASUREMENT_ID` (best left empty), `STAGING_NEXT_PUBLIC_SENTRY_DSN`, `STAGING_MICROSOFT_CLIENT_ID`.
+- Switches: `STAGING_ENABLE_BLAZE_FUNCTIONS`, `STAGING_BILLING_ENABLED`, `STAGING_FORECAST_PROXY_ENABLED`, `STAGING_ALERTS_ENABLED`, `STAGING_EVENTS_SUBSCRIPTIONS_ENABLED`, `STAGING_GOOGLE_CALENDAR_EVENTS_ENABLED`, `STAGING_OUTLOOK_CALENDAR_EVENTS_ENABLED`, `STAGING_COST_GUARD_DETACH_BILLING`.
+- Functions params: `STAGING_STRIPE_PRICE_ID` and `STAGING_STRIPE_YEARLY_PRICE_ID` (Stripe test mode), `STAGING_BUDGET_ID`, `STAGING_BUDGET_SERVICE_ACCOUNT`, `STAGING_ALERTS_SERVICE_ACCOUNT`.
+
+The staging project's Functions secrets (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `TRIAL_HISTORY_KEY`, `OPEN_METEO_API_KEY`) live in its own Secret Manager, set with `--project <staging project id>`, never in GitHub.
+
+### What keeps staging and production apart
+
+- `.github/scripts/staging-target.mjs` resolves the settings and fails the run when the project or site is production's (`.github/scripts/production.json`), a value points at a production host or Functions host, a key equals production's, or a deploy, budget or alerts service account belongs to production; a key secret whose project is production's is refused before authenticating.
+- The build runs `check-public-env.mjs` with `NEXT_PUBLIC_DEPLOY_ENVIRONMENT=staging`, which refuses the same values, and after the build refuses an export that contains production's project id or hosts.
+- Every Firebase command names the staging project, and Hosting deploys only the `app` target, which the job maps to the staging site and checks with `check-hosting-target.js` before deploying; the Functions get `APP_URL` from the staging site, and `check-functions-params.js` refuses production's origin for any other project.
+- A staging build sets `noindex` and a `robots.txt` that disallows crawling, so the copy never competes with the real site in search.
+- `.github/scripts/production-guards.test.mjs` fails CI if the staging workflow reads a non-staging credential or setting, deploys outside the staging project or environment, or if `deploy.yml` reads a staging setting.
+
+### Preview channels
+
+A preview channel serves one build of the site at its own address (`https://<site>--<channel>-<hash>.web.app`) for 7 days, for reviewing a branch's UI before it merges (D9).
+They run on the staging project, not production: on production every pull request's code would need production's deploy credentials, which only `main` may use, and the preview would talk to production's data.
+Channels are for signed-out review: their addresses are not authorized for Firebase sign-in (the workflow passes `--no-authorized-domains`, so the staging deploy identity needs no Auth admin role), and Google OAuth origins, the reCAPTCHA key's domains and the Functions' exact-origin CORS (`APP_URL`) allow only the live staging site.
+Sign-in, App Check and the Functions work on the live staging site.
 
 ## Service workers
 

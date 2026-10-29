@@ -11,7 +11,7 @@ When an item is done, tell the repository agent which section changed, without t
 
 ## Next steps, in order
 
-_As of 2026-10-28, checked against `deploy.yml`, `check-public-env.mjs`, `functions/.env` and the live GitHub variables and secrets (REVIEW8)._
+_As of 2026-10-28, checked against `deploy.yml`, `deploy-staging.yml`, `check-public-env.mjs`, `functions/.env*` and the live GitHub variables and secrets (REVIEW8)._
 Do these from the top, in four groups: **A** anytime (free, no Blaze), **B** staging (before the Pro launch), **C** the Pro launch in production, and **D** one row per feature switch.
 Each step says what it unlocks, where to go, what to copy where, how long it takes, what it costs and how to check it worked.
 Everything sent to the agent here is a public identifier, not a secret.
@@ -175,29 +175,37 @@ Optional at any time: [Events from Outlook](#events-from-outlook-only-for-the-ou
 
 ### Staging: before the Pro launch
 
-**B0 is engineering, not an owner step, and must be done first.**
-Today nothing can deploy to a second project: `firebase.json` fixes the Hosting site to production's `solara-uv`, `.firebaserc` and `deploy.yml` know one project, and `functions/.env` hard-codes production's `APP_URL`, so the Functions' exact-origin CORS would refuse a staging site (REVIEW8 PLAN H1).
-Ask an agent for [ROADMAP item 34](ROADMAP.md#34-staging-deploy-before-the-pro-launch-next-up) (a Hosting target and `APP_URL` per project, and a workflow that deploys `main` to the staging project), plus PR preview channels (D9); "test in staging first" means testing in production until it is merged.
+B0, the staging deploy, is built ([ROADMAP item 34](ROADMAP.md#34-staging-deploy-before-the-pro-launch-built)): **Deploy staging** (`.github/workflows/deploy-staging.yml`) deploys `main` to the staging project by hand, or only a branch's site to a 7-day preview channel ([DEPLOYMENT.md, Staging](DEPLOYMENT.md#staging)).
+Every staging setting goes into the `staging` GitHub environment under a `STAGING_` name, never into production's repository variables; until `STAGING_FIREBASE_PROJECT_ID` is set, a run ends with "Staging is not set up" and deploys nothing.
+The steps below use `solara-staging` as the project id; with another id, use it everywhere and also set `STAGING_FIREBASE_PROJECT_ID` to it (the site defaults to the same name, or set `STAGING_HOSTING_SITE`).
 
 B1. **Create the staging Firebase project on Blaze (15 minutes, free within quotas).**
    - Where: https://console.firebase.google.com, **Add project** (for example `solara-staging`), then **Upgrade** to Blaze with the same billing account.
-   - Copy: its web app config (`firebase apps:sdkconfig web --project solara-staging`) to the agent, as staging values, never as production's repository variables.
+   - Then: add a web app in Project settings if it has none, and enable **Hosting** (its default site is `solara-staging`).
    - Verify: the project is listed with the Blaze plan.
+
+B1a. **The `staging` environment and its first variables (10 minutes, free).**
+   - Where: https://github.com/n8watkins/solara/settings/environments, **New environment** `staging`; under **Deployment branches and tags** choose **Selected branches** and add `main` (add other branches, or allow all, only if you want preview channels from them).
+   - Copy, from `firebase apps:sdkconfig web --project solara-staging`, as environment variables (`gh variable set <name> --env staging --repo n8watkins/solara --body <value>`): `STAGING_FIREBASE_PROJECT_ID` (`solara-staging`), `STAGING_NEXT_PUBLIC_FIREBASE_API_KEY` (`apiKey`), `STAGING_NEXT_PUBLIC_FIREBASE_APP_ID` (`appId`) and `STAGING_NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` (`messagingSenderId`).
+   - Credentials: a staging deploy identity, [WIF_SETUP.md, Staging deploy identity](WIF_SETUP.md#staging-deploy-identity), which sets `STAGING_GCP_WORKLOAD_IDENTITY_PROVIDER` and `STAGING_GCP_DEPLOY_SERVICE_ACCOUNT` in the environment (or, until then, a key of a deploy service account in the staging project as the environment secret `STAGING_FIREBASE_SERVICE_ACCOUNT`).
+   - Run: Actions, **Deploy staging**, **Run workflow** from `main` with `channel` `live`, or `gh workflow run deploy-staging.yml --repo n8watkins/solara --ref main`.
+   - Verify: the run is green, its summary says "Deployed commit ... to staging", and https://solara-staging.web.app shows the landing page (signed out) and is not indexed (`robots.txt` disallows everything).
 
 B2. **Budget for staging (10 minutes, free).**
    - Where: `PROJECT_ID=solara-staging BILLING_ACCOUNT=<billing account id> DEPLOY_SA=<staging deploy service account> infra/budget.sh`, read the commands, then the same with `--apply`.
-   - Copy: the two printed values go into the staging configuration the agent sets up in B0, not production's variables.
+   - Copy: the two printed values into the `staging` environment variables `STAGING_BUDGET_ID` and `STAGING_BUDGET_SERVICE_ACCOUNT`, not production's variables.
    - Verify: the budget is listed at https://console.cloud.google.com/billing.
 
 B3. **Staging sign-in and keys (20 minutes, free).**
    - Where: in the staging project, Firebase **Authentication** (enable only the **Google** provider, add the staging site as an authorized domain), App Check (its own reCAPTCHA v3 key for the staging domain, as in A7) and **Cloud Messaging** (its own Web Push certificate, the VAPID key).
-   - Copy: the reCAPTCHA site key and the VAPID key to the agent; the reCAPTCHA secret key goes only into the staging App Check page.
-   - Verify: sign-in works on the staging site.
+   - Copy: the reCAPTCHA site key to `STAGING_NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY` and the VAPID key to `STAGING_NEXT_PUBLIC_FIREBASE_VAPID_KEY` in the `staging` environment; the reCAPTCHA secret key goes only into the staging App Check page.
+     For Google Calendar in staging, add `https://solara-staging.web.app` as an authorized JavaScript origin of an OAuth web client and put its client ID in `STAGING_NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID`.
+   - Verify: after another **Deploy staging** run, sign-in works on the staging site.
 
 B4. **Stripe test mode: product, webhook first, then its secrets (30 minutes, free in test mode).**
    - Where: https://dashboard.stripe.com/test/products and https://dashboard.stripe.com/test/webhooks.
    - Copy, in this order:
-     1. Product **Solara Pro** with two recurring prices, **$2.99 per month** and **$19.99 per year** (no trial on the prices; checkout adds the 7-day trial); the two price ids to the agent for staging.
+     1. Product **Solara Pro** with two recurring prices, **$2.99 per month** and **$19.99 per year** (no trial on the prices; checkout adds the 7-day trial); the two price ids to `STAGING_STRIPE_PRICE_ID` and `STAGING_STRIPE_YEARLY_PRICE_ID` in the `staging` environment.
      2. **Add endpoint** before any Functions deploy: its address is known in advance, `https://us-central1-solara-staging.cloudfunctions.net/stripeWebhook` (use the staging project's id), API version `2026-09-30.endive`, and the seven events listed in [DEPLOYMENT.md](DEPLOYMENT.md#refunds-disputes-and-failed-payments).
         Deliveries fail until the Functions exist, which is harmless while there is no checkout.
      3. Copy the endpoint's **Signing secret** (`whsec_...`) and the test **Secret key** (`sk_test_...`) into the staging project's Secret Manager: `npx firebase functions:secrets:set STRIPE_WEBHOOK_SECRET --project solara-staging` and the same for `STRIPE_SECRET_KEY`.
@@ -206,10 +214,11 @@ B4. **Stripe test mode: product, webhook first, then its secrets (30 minutes, fr
 B5. **The other Functions secrets in staging (5 minutes).**
    - Where: `npx firebase functions:secrets:set OPEN_METEO_API_KEY --project solara-staging` (type `unset`), and `openssl rand -base64 48 | npx firebase functions:secrets:set TRIAL_HISTORY_KEY --data-file=- --project solara-staging`.
    - Cost: Secret Manager keeps 6 secret versions free, then about $0.06 per version a month.
+   - Then: grant the staging deploy identity the [extra roles for Functions](WIF_SETUP.md#extra-roles-when-functions-are-enabled) in the staging project, set `STAGING_ENABLE_BLAZE_FUNCTIONS=true` in the `staging` environment, and run **Deploy staging** again; set `STAGING_BILLING_ENABLED=true` (and the other `STAGING_` switches) when B6 needs them.
    - Verify: the first staging Functions deploy succeeds (a deploy fails while any secret is missing).
 
 B6. **Run the staging checks (2-3 hours with the agent, cents).**
-   - With the agent: the [Functions and Stripe](#functions-and-stripe), [Notifications](#notifications) and [Linked calendars](#linked-calendars) checks, `infra/check-client-address.sh` (it must end with `OK`), each `infra/` script from C8, one alert fired from a forced failure, the budget kill switch fired once at a tiny budget, and one restore drill recorded in the [runbook](RUNBOOK.md#backups-and-restore).
+   - With the agent: the [Functions and Stripe](#functions-and-stripe), [Notifications](#notifications) and [Linked calendars](#linked-calendars) checks, `infra/check-client-address.sh` (it must end with `OK`), each `infra/` script from C8 with `PROJECT_ID=solara-staging` (and `SITE_HOST=solara-staging.web.app` for `infra/monitoring.sh`), one alert fired from a forced failure, the budget kill switch fired once at a tiny budget, and one restore drill recorded in the [runbook](RUNBOOK.md#backups-and-restore).
    - Verify: every check in those sections is ticked.
 
 ### At Pro launch: Blaze
@@ -377,7 +386,7 @@ Decision D10 is Sentry; the steps are [A8](#anytime-free-no-blaze) above, and ho
 Everything in this section waits for the Pro launch (roadmap item 9); see [Firebase Functions and Stripe](DEPLOYMENT.md#firebase-functions-and-stripe) for the commands.
 
 - [ ] Upgrade `uv-activity-planner` to Blaze, attach the billing account, and create the budget and the kill switch's identity first (`infra/budget.sh`, C2 and C3).
-- [ ] D9: the staging deploy is built (B0), the staging project exists and Stripe test mode runs there first (B1-B6).
+- [ ] D9: the staging project exists, deploys from **Deploy staging**, and Stripe test mode runs there first (B1-B6; the staging deploy, B0, is built).
 - [ ] Grant the deploy identity the extra Functions roles ([WIF_SETUP.md](WIF_SETUP.md#extra-roles-when-functions-are-enabled)).
 - [ ] In Stripe (test mode first), create the product **Solara Pro** with two recurring prices, **$2.99 per month** and **$19.99 per year** (no trial on the prices; checkout adds the 7-day trial), and set their ids as the `STRIPE_PRICE_ID` (monthly) and `STRIPE_YEARLY_PRICE_ID` (yearly) repository variables.
 - [ ] Create the webhook endpoint before the first Functions deploy (its address is known in advance: `https://us-central1-<project id>.cloudfunctions.net/stripeWebhook`), with API version `2026-09-30.endive` and the events listed in DEPLOYMENT.md (seven, including `charge.refunded` and `charge.dispute.created`); its signing secret is `STRIPE_WEBHOOK_SECRET`.

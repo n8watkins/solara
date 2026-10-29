@@ -4,7 +4,7 @@ import { inter } from './fonts'
 import AnalyticsConsent from '@/components/AnalyticsConsent'
 import ThemeInit from '@/components/ThemeInit'
 import { ANALYTICS_CONSENT_INIT_SCRIPT, isAnalyticsMeasurementId } from '@/lib/analytics-consent'
-import { SITE_URL } from '@/lib/site'
+import { IS_STAGING, SITE_URL } from '@/lib/site'
 import { THEME_INIT_SCRIPT } from '@/lib/theme'
 
 // Refuse anything that is not a plain GA4 measurement id: it ends up in the
@@ -18,6 +18,8 @@ export const metadata: Metadata = {
   description:
     'Forecast-based, lower-UV activity planning personalized for your skin profile and location.',
   applicationName: 'Solara',
+  // Pages that set their own robots (share links, the 404 page) keep them.
+  ...(IS_STAGING && { robots: { index: false, follow: false } }),
   manifest: '/manifest.webmanifest',
   icons: {
     icon: '/icon-192.png',

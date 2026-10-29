@@ -1,5 +1,19 @@
 {
   "projects": {
-    "default": "uv-activity-planner"
+    "default": "uv-activity-planner",
+    "staging": "solara-staging"
+  },
+  "targets": {
+    "uv-activity-planner": {
+      "hosting": {
+        "app": ["solara-uv"],
+        "redirect": ["uv-activity-planner"]
+      }
+    },
+    "solara-staging": {
+      "hosting": {
+        "app": ["solara-staging"]
+      }
+    }
   }
 }

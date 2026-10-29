@@ -1,0 +1,6 @@
+{
+  "projectId": "uv-activity-planner",
+  "appUrl": "https://solara-uv.web.app",
+  "hostingSites": ["solara-uv", "uv-activity-planner"],
+  "functionsUrl": "https://us-central1-uv-activity-planner.cloudfunctions.net"
+}

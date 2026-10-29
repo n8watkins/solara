@@ -1,5 +1,7 @@
 #!/usr/bin/env node
-// Checks the public NEXT_PUBLIC_* build configuration for a production build.
+// Checks the public NEXT_PUBLIC_* build configuration for a deployed build:
+// production (deploy.yml) or staging (deploy-staging.yml, which sets
+// NEXT_PUBLIC_DEPLOY_ENVIRONMENT=staging).
 //
 // A static export bakes NEXT_PUBLIC_* values in at build time, so a missing or
 // wrong value ships silently. Run this before `npm run build` with the same
@@ -23,6 +25,10 @@
 //   NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY  required with Functions, which refuse requests without App Check
 //   NEXT_PUBLIC_FIREBASE_VAPID_KEY  required with alerts, which need web push
 //   NEXT_PUBLIC_FIREBASE_APP_CHECK_DEBUG_TOKEN  refused: it would let anyone pass App Check
+//   NEXT_PUBLIC_DEPLOY_ENVIRONMENT  'staging' for a staging build, empty for production;
+//                           a staging build is refused when it points at production
+//                           (production.json), or reuses a value from PRODUCTION_<key>
+//   PRODUCTION_NEXT_PUBLIC_*  production's values, which a staging build must not reuse
 //   NEXT_PUBLIC_*           the values compiled into the bundle
 //
 // The .env files `next build` reads count too (same resolution as the build), so
@@ -44,6 +50,69 @@ export const REQUIRED = [
 ]
 
 export const URL_KEYS = ['NEXT_PUBLIC_SITE_URL', 'NEXT_PUBLIC_FUNCTIONS_URL']
+
+/** Production's project, sites and origins (also read by the Functions params check). */
+export const PRODUCTION = JSON.parse(
+  readFileSync(new URL('./production.json', import.meta.url), 'utf8'),
+)
+
+/**
+ * Hosts that belong to production: each Hosting site's two domains (the project's own
+ * site included, which is also its default auth domain) and its storage buckets.
+ */
+export const PRODUCTION_HOSTS = new Set([
+  ...[...PRODUCTION.hostingSites, PRODUCTION.projectId].flatMap(name => [
+    `${name}.web.app`,
+    `${name}.firebaseapp.com`,
+  ]),
+  `${PRODUCTION.projectId}.firebasestorage.app`,
+  `${PRODUCTION.projectId}.appspot.com`,
+])
+
+/**
+ * Values that identify a Firebase project, its site or its keys. A staging build must
+ * not share any of them with production (PRODUCTION_<key> in the environment). The
+ * Sentry DSN and the Google and Microsoft client IDs may be shared on purpose.
+ */
+export const PROJECT_VALUE_KEYS = [
+  'NEXT_PUBLIC_FIREBASE_API_KEY',
+  'NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN',
+  'NEXT_PUBLIC_FIREBASE_PROJECT_ID',
+  'NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET',
+  'NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID',
+  'NEXT_PUBLIC_FIREBASE_APP_ID',
+  'NEXT_PUBLIC_FIREBASE_VAPID_KEY',
+  'NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY',
+  'NEXT_PUBLIC_SITE_URL',
+  'NEXT_PUBLIC_FUNCTIONS_URL',
+  'NEXT_PUBLIC_GA_MEASUREMENT_ID',
+]
+
+/** The host a value names: a URL's hostname, or the value itself (a bucket or domain). */
+function hostOf(raw) {
+  try {
+    return new URL(raw).hostname
+  } catch {
+    return raw.toLowerCase()
+  }
+}
+
+/**
+ * Whether a public value points at production: its project id, one of its hosts, or
+ * its Cloud Functions host in any region.
+ * @param {string} raw
+ */
+export function pointsAtProduction(raw) {
+  const host = hostOf(raw)
+  return (
+    raw === PRODUCTION.projectId ||
+    PRODUCTION_HOSTS.has(host) ||
+    host.endsWith(`-${PRODUCTION.projectId}.cloudfunctions.net`)
+  )
+}
+
+/** Deploy environments a build may name in NEXT_PUBLIC_DEPLOY_ENVIRONMENT ('' is production). */
+export const DEPLOY_ENVIRONMENTS = ['', 'staging']
 
 /** An Entra ID Application (client) ID: a GUID. */
 export const MICROSOFT_CLIENT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -174,6 +243,26 @@ export function checkEnv(env) {
     )
   }
 
+  // A Cloud Functions URL names its project; a build must call its own project's.
+  const functionsUrl = value('NEXT_PUBLIC_FUNCTIONS_URL')
+  if (project && functionsUrl) {
+    const host = hostOf(functionsUrl)
+    if (host.endsWith('.cloudfunctions.net') && !host.endsWith(`-${project}.cloudfunctions.net`)) {
+      errors.push(`NEXT_PUBLIC_FUNCTIONS_URL is ${host}, not this build's project ${project}.`)
+    }
+  }
+
+  const environment = value('NEXT_PUBLIC_DEPLOY_ENVIRONMENT')
+  if (!DEPLOY_ENVIRONMENTS.includes(environment)) {
+    errors.push(`NEXT_PUBLIC_DEPLOY_ENVIRONMENT must be 'staging' or empty (production).`)
+  } else if (environment === 'staging') {
+    errors.push(...checkStaging(env, project))
+  } else if (project === PRODUCTION.projectId && environment) {
+    errors.push(
+      `NEXT_PUBLIC_DEPLOY_ENVIRONMENT is ${environment}, but this build deploys to production.`,
+    )
+  }
+
   const dsn = value('NEXT_PUBLIC_SENTRY_DSN')
   if (dsn && !isSentryDsn(dsn)) {
     errors.push(
@@ -194,6 +283,37 @@ export function checkEnv(env) {
   }
 
   return { errors, warnings }
+}
+
+/**
+ * The problems with a staging build: anything that would send staging's visitors, data
+ * or keys to production. Pure, for tests.
+ * @param {Record<string, string | undefined>} env
+ * @param {string} project the FIREBASE_PROJECT_ID this build deploys to
+ * @returns {string[]}
+ */
+export function checkStaging(env, project) {
+  const errors = []
+  const value = key => (env[key] ?? '').trim()
+  if (project === PRODUCTION.projectId) {
+    errors.push(`A staging build cannot deploy to production's project ${PRODUCTION.projectId}.`)
+  }
+  if (!value('NEXT_PUBLIC_SITE_URL')) {
+    errors.push('NEXT_PUBLIC_SITE_URL is empty; a staging build must name its own site.')
+  }
+  for (const [key, raw] of Object.entries(env)) {
+    if (!key.startsWith('NEXT_PUBLIC_') || !raw?.trim()) continue
+    if (pointsAtProduction(raw.trim())) {
+      errors.push(`${key} points at production (${raw.trim()}) in a staging build.`)
+    }
+  }
+  for (const key of PROJECT_VALUE_KEYS) {
+    const production = value(`PRODUCTION_${key}`)
+    if (production && value(key) === production) {
+      errors.push(`${key} is production's value in a staging build; use the staging project's own.`)
+    }
+  }
+  return errors
 }
 
 /**
@@ -255,6 +375,18 @@ export function checkExport(dir, env) {
   return errors
 }
 
+/**
+ * Problems with a built staging export: production's project id or a production host
+ * compiled into it.
+ * @param {string} dir
+ * @returns {string[]}
+ */
+export function checkStagingExport(dir) {
+  return [PRODUCTION.projectId, ...PRODUCTION_HOSTS]
+    .filter(needle => exportContains(dir, needle))
+    .map(needle => `${dir} is a staging build but contains production's ${needle}.`)
+}
+
 async function main(argv) {
   const builtIndex = argv.indexOf('--built')
   const builtDir = builtIndex === -1 ? null : argv[builtIndex + 1]
@@ -272,6 +404,9 @@ async function main(argv) {
       }
     }
     errors.push(...checkExport(builtDir, process.env))
+    if ((process.env.NEXT_PUBLIC_DEPLOY_ENVIRONMENT ?? '').trim() === 'staging') {
+      errors.push(...checkStagingExport(builtDir))
+    }
   }
 
   for (const warning of warnings) console.log(`::warning::${warning}`)

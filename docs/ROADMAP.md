@@ -12,7 +12,7 @@ The owner's steps unblock most of the engineering items below, so they come firs
 The full, ordered list with exact console links, values, times, costs and checks is [Next steps, in order](OWNER_CHECKLIST.md#next-steps-in-order); in short:
 
 - **A, anytime (free, no Blaze):** confirm a non-test Google account can sign in, then Google Calendar (API and OAuth client ID), branding, publishing and the two scope verifications, App Check, Sentry and a free uptime check, locking down the browser API key and Firebase Auth, Firestore quota caps and a traffic alert, trying the TTL policies, the `production` environment and keyless deploys, moving public values to variables, ruleset hardening, private vulnerability reporting, closing the open alerts, small clean-ups and counsel review.
-- **B, staging:** after the staging deploy is built ([item 34](#34-staging-deploy-before-the-pro-launch-next-up)), a staging project on Blaze with its own budget, keys and Stripe test mode, and the staging checks.
+- **B, staging:** the staging deploy is built ([item 34](#34-staging-deploy-before-the-pro-launch-built)); a staging project on Blaze with its own budget, keys and Stripe test mode, and the staging checks.
 - **C, Pro launch:** Blaze, the budget kill switch, the Stripe webhook endpoint before the first Functions deploy, the first Functions deploy, monitoring and backups, the Open-Meteo key before billing, then billing, alerts and the release checks.
 - **D, per feature switch:** Events from Google Calendar, events from Outlook, linked calendars and Pro alerts.
 
@@ -37,7 +37,7 @@ The repository is public, with the "Protect main" ruleset (pull requests, squash
 ## Next up
 
 Each item lists its goal, scope, the files or areas it owns, acceptance criteria, what it depends on and a rough size (S: under a day of agent time, M: one to three days, L: more).
-Items 1-8 need no Blaze and can start now; items 9-11 wait for the Pro launch, and item 34 must come before the owner's staging steps.
+Items 1-8 need no Blaze and can start now; items 9-11 wait for the Pro launch; item 34 (built) unblocks the owner's staging steps.
 
 ### 1. Change-aware CI (done, #76)
 
@@ -109,7 +109,7 @@ The morning alert's text is built in `packages/core/src/alerts.ts` with the dail
 ### 11. Wave 3 phase 2: operations (rest of W3-D, at Pro launch) (code built, #99, #107)
 
 - **Built:** cost and abuse limits on every Function, the cost guard and the budget kill switch (#99); uptime checks and alert policies as code (`infra/monitoring.sh`, `infra/alerts/`), PITR, delete protection, daily backups and the image cleanup policy (`infra/backups.sh`), TTL policies (`infra/firestore-ttl.sh`), and [RUNBOOK.md](RUNBOOK.md) with alerts, rollback per component, restore steps and the secret rotation table (#107).
-- **Left:** the staging deploy ([item 34](#34-staging-deploy-before-the-pro-launch-next-up)); then the owner applies the scripts ([steps C2-C8](OWNER_CHECKLIST.md#at-pro-launch-blaze)), each alert is fired once in staging from a forced failure, and a restore drill is recorded in the runbook.
+- **Left:** with the staging deploy built ([item 34](#34-staging-deploy-before-the-pro-launch-built)), the owner applies the scripts ([steps C2-C8](OWNER_CHECKLIST.md#at-pro-launch-blaze)), each alert is fired once in staging from a forced failure, and a restore drill is recorded in the runbook.
 - **Closes:** OPS-15 (alerts and uptime) and OPS-17 in code; OPS-16 once the backups are on; OPS-12 with the staging project.
 
 ### 12. Wave 5: features
@@ -383,15 +383,15 @@ Signed-in people could not export or delete their data, and Google Play will req
 - **Tests:** unit tests for the export builder, the browser deletion (blocked, retried, partial failure, sign-in failure) and the browser clean-up; `functions/test/emulator/firestore.rules.test.js` ("self-service account deletion"); `tests/e2e/signed-in/account-self-service.e2e.ts` creates settings, imported events and a scheduled activity in the app, downloads and checks the file, deletes the account and finds nothing left in Firestore or Auth; `tests/harness/account-controls.spec.ts` at 320, 390 and 1280 px, light and dark, with no axe violation.
   The code loads only on the account page, on demand.
 
-### 34. Staging deploy before the Pro launch (next up)
+### 34. Staging deploy before the Pro launch (built)
 
-The owner's staging steps ([B1-B6](OWNER_CHECKLIST.md#staging-before-the-pro-launch)) cannot be done yet, because nothing can deploy to a second Firebase project (REVIEW8 PLAN H1).
+Built for REVIEW8 PLAN H1, so the owner's staging steps ([B1-B6](OWNER_CHECKLIST.md#staging-before-the-pro-launch)) can run on a second Firebase project ([DEPLOYMENT.md, Staging](DEPLOYMENT.md#staging)).
 
-- **Why:** `firebase.json` fixes the Hosting site to `solara-uv`, a global site name that belongs to production; `.firebaserc` and `deploy.yml` know only the production project; `functions/.env` hard-codes `APP_URL=https://solara-uv.web.app`, so the Functions' exact-origin CORS (`functions/src/shared/browser-api.ts`) would refuse a staging site.
-- **Scope:** Hosting targets per project in `firebase.json` and `.firebaserc`; `APP_URL` per project (`functions/.env.<project id>`, which the Functions CLI reads for that project); a workflow, run by hand or after each deploy to production, that builds `main` with the staging project's public values (a `staging` GitHub environment holding its variables and credentials) and deploys rules, indexes, Functions and Hosting to it; PR preview channels (D9); docs in DEPLOYMENT.md and WIF_SETUP.md (a staging deploy identity).
-- **Acceptance:** with the owner's B1-B3 done, one run deploys `main` to the staging project and the staging site signs in; production's deploy is unchanged; `check-functions-params.js` resolves both projects' params.
-- **Depends on:** nothing for the code; the owner's B1-B3 to try it for real.
-- **Size:** M.
+- **Hosting:** `firebase.json` names its configs by target (`app`, `redirect`) and `.firebaserc` maps them per project (production's two sites unchanged; `app` to `solara-staging`); `check-hosting-target.js` resolves them with the locked firebase-tools, and a full Hosting deploy to staging fails by design.
+- **Functions:** `APP_URL` moved to `functions/.env.uv-activity-planner` and `functions/.env.solara-staging`, with no code default, and `check-functions-params.js` refuses production's origin for any other project (CI resolves both projects' params); production's resolved params are unchanged.
+- **Workflow:** `deploy-staging.yml`, by hand, deploys the commit it runs from (the live site only from `main`), reads only `STAGING_*` settings from the `staging` environment, skips with a notice until `STAGING_FIREBASE_PROJECT_ID` is set, builds and smoke-tests the export, and deploys indexes, rules, Functions (when switched on) and the app target to staging, or only a branch's site to a 7-day preview channel (D9 previews; production previews are not safe, see DEPLOYMENT.md).
+- **Guards:** `staging-target.mjs` and the staging mode of `check-public-env.mjs` (`NEXT_PUBLIC_DEPLOY_ENVIRONMENT=staging`) refuse production's project, sites, hosts, Functions host, keys and service accounts, also inside the built export (which found share links falling back to production's address; they now use the build's own site); staging builds are `noindex`; guard tests keep the two workflows apart.
+- **Left for the owner:** B1-B6, starting with the `staging` environment and its variables (B1a); promoting a tested staging commit to production stays a merge to `main`.
 
 ### 35. Owner steps, deploy guards and docs from the eighth review (FIX8C, built)
 
@@ -468,7 +468,7 @@ The steps behind each one are in the [owner checklist](OWNER_CHECKLIST.md).
 | D6 | Morning alerts | Decided 2026-10-23: Pro-only, relaunch with Pro on one scheduled Function for every time zone |
 | D7 | Guest mode | Decided 2026-10-23, shipped in #71 |
 | D8 | Operator, contact, jurisdiction, license | Done 2026-10-23 (#46) |
-| D9 | Staging project and Stripe test mode | Decided 2026-10-23: set up at Pro launch, before billing work; needs the staging deploy (item 34) first |
+| D9 | Staging project and Stripe test mode | Decided 2026-10-23: set up at Pro launch, before billing work; the staging deploy and preview channels on staging are built (item 34) |
 | D10 | Error reporting | Decided 2026-10-23: Sentry; code shipped in #70, waits for the owner's DSN |
 | D11 | Bot protection | Decided 2026-10-23: App Check with reCAPTCHA v3; works without code changes, waits for the owner's site key |
 | D12 | Local branch and worktree cleanup on the owner's machine | Done by 2026-10-28: only the main clone and the current review worktrees remain |
