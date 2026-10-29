@@ -79,7 +79,10 @@ class FakeMessaging {
   }
 }
 
-async function addUser(uid, { zone = 'America/Los_Angeles', devices = 1, ...fields } = {}) {
+async function addUser(
+  uid,
+  { zone = 'America/Los_Angeles', devices = 1, platforms = [], ...fields } = {},
+) {
   const place = PLACES[zone]
   await db
     .collection('users')
@@ -102,7 +105,7 @@ async function addUser(uid, { zone = 'America/Los_Angeles', devices = 1, ...fiel
       .doc(uid)
       .collection('notificationDevices')
       .doc(deviceId)
-      .set({ token, enabled: true, platform: 'web' })
+      .set({ token, enabled: true, platform: platforms[index] ?? 'web' })
     await db.collection('notificationTokenOwners').doc(tokenOwnerId(token)).set({ uid, deviceId })
   }
 }
@@ -382,6 +385,42 @@ describe('UV alerts', () => {
     assert.equal(quiet.messages[0].data.title, '☀️ UV is 6 or higher now')
 
     assert.equal(uvSends('uv-never').length, 0)
+  })
+})
+
+describe('push payloads by platform', () => {
+  test('an Android device gets a high-priority notification, the web stays data-only', async () => {
+    await addUser('mixed', { devices: 2, platforms: ['web', 'android'], uvAlertThreshold: 6 })
+    const messaging = new FakeMessaging()
+    const sends = recording(messaging)
+    await runRecordedDay(messaging)
+
+    const mine = sends.filter(send => send.messages[0].token.startsWith('mixed-token-'))
+    const kinds = mine.map(send => send.messages[0].data.deliveryKey.split('-')[0]).sort()
+    assert.deepEqual(kinds, ['morning', 'uv'])
+    for (const { messages } of mine) {
+      const web = messages.find(message => message.token === 'mixed-token-0')
+      const android = messages.find(message => message.token === 'mixed-token-1')
+      const key = web.data.deliveryKey
+      // The web push worker shows the message itself, so it carries no notification.
+      assert.equal(web.notification, undefined)
+      assert.deepEqual(web.android, { collapseKey: key, ttl: 3_600_000 })
+      assert.equal(web.webpush.headers.TTL, '3600')
+      // Android shows it from the system tray, on time through Doze, replacing a resent copy.
+      assert.deepEqual(android.android, {
+        collapseKey: key,
+        ttl: 3_600_000,
+        priority: 'high',
+        notification: {
+          title: web.data.title,
+          body: web.data.body,
+          channelId: 'solara-alerts',
+          tag: key,
+        },
+      })
+      assert.equal(android.webpush, undefined)
+      assert.deepEqual(android.data, web.data)
+    }
   })
 })
 

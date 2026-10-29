@@ -80,6 +80,7 @@ import {
   parseImportedEvent,
   withoutDuplicates,
 } from '#core/event-import'
+import { ANDROID_ALERT_CHANNEL_ID } from '#core/push'
 import { createHash, randomUUID } from 'node:crypto'
 
 import {
@@ -267,6 +268,8 @@ function validLocation(location: unknown): location is {
 interface Device {
   ref: DocumentReference
   token: string
+  /** 'web', 'android' or 'ios', as registered (devices.ts); older devices have none (web). */
+  platform: string
 }
 
 /** The run's key for a place's forecast. */
@@ -376,7 +379,13 @@ async function alertDevices(db: Firestore, userRef: DocumentReference): Promise<
   return candidates.flatMap((doc, index) => {
     const owner = owners[index]?.data()
     return owner?.uid === userRef.id && owner.deviceId === doc.id
-      ? [{ ref: doc.ref, token: doc.data().token as string }]
+      ? [
+          {
+            ref: doc.ref,
+            token: doc.data().token as string,
+            platform: typeof doc.data().platform === 'string' ? doc.data().platform : 'web',
+          },
+        ]
       : []
   })
 }
@@ -511,22 +520,44 @@ interface Delivery {
 function messageFor(
   delivery: Delivery,
   uid: string,
-  token: string,
+  device: Pick<Device, 'token' | 'platform'>,
   alert: AlertMessage,
   appUrl: string,
 ): Message {
   const { kind, key } = delivery
+  const data = {
+    title: alert.title,
+    body: alert.body,
+    deliveryKey: key,
+    deliveryScope: deliveryScope(uid),
+    link: `${appUrl}/app/`,
+  }
+  if (device.platform === 'android') {
+    // A native Android app: Android shows a notification message itself, even when the
+    // app was swiped away or the phone is in battery saver, and high priority gets it
+    // through Doze on time. The tag and collapse key replace a resent copy instead of
+    // stacking it. The data stays for the app's tap handler.
+    return {
+      token: device.token,
+      data,
+      android: {
+        collapseKey: key,
+        ttl: 3_600_000,
+        priority: 'high',
+        notification: {
+          title: alert.title,
+          body: alert.body,
+          channelId: ANDROID_ALERT_CHANNEL_ID,
+          tag: key,
+        },
+      },
+    }
+  }
   // Data only: the push worker (scripts/sw/firebase-messaging-sw.ts) shows it once per
   // account and key, so a resent message never shows twice on one device.
   return {
-    token,
-    data: {
-      title: alert.title,
-      body: alert.body,
-      deliveryKey: key,
-      deliveryScope: deliveryScope(uid),
-      link: `${appUrl}/app/`,
-    },
+    token: device.token,
+    data,
     webpush: { headers: { Urgency: kind === 'morning' ? 'normal' : 'high', TTL: '3600' } },
     android: { collapseKey: key, ttl: 3_600_000 },
     apns: { headers: { 'apns-collapse-id': key } },
@@ -556,7 +587,7 @@ async function deliver(
   let response: BatchResponse
   try {
     response = await messaging.sendEach(
-      devices.map(device => messageFor(delivery, uid, device.token, alert, appUrl)),
+      devices.map(device => messageFor(delivery, uid, device, alert, appUrl)),
     )
   } catch (error) {
     // Some messages may have gone out: the alert is not tried again today.
