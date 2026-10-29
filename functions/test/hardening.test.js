@@ -157,6 +157,37 @@ describe('deployed runtime ceilings', () => {
     )
     assert.equal(big.statusCode, 413)
   })
+
+  test('a flood of forged Stripe webhooks logs once a minute and is limited per address', async () => {
+    process.env.STRIPE_WEBHOOK_SECRET ??= 'whsec_test_flood'
+    const post = (address, signature) => ({
+      method: 'POST',
+      headers: { 'x-forwarded-for': address, 'stripe-signature': signature },
+      rawBody: Buffer.from('{"id":"evt_forged","object":"event"}'),
+    })
+    const statuses = []
+    for (let i = 0; i < 500; i += 1) {
+      const res = responseRecorder()
+      // 10 addresses, each sending a well-formed forged signature or a malformed header.
+      const signature =
+        i % 2 ? `t=${Math.floor(Date.now() / 1000)},v1=${'0'.repeat(64)}` : 'nonsense'
+      await functions.stripeWebhook(post(`203.0.113.${i % 10}`, signature), res)
+      statuses.push(res.statusCode)
+    }
+    assert.deepEqual([...new Set(statuses)], [400])
+    // One address gets 60 a minute (Stripe sends far fewer); the rest are turned away.
+    const one = []
+    for (let i = 0; i < 70; i += 1) {
+      const res = responseRecorder()
+      await functions.stripeWebhook(post('198.51.100.77', 'nonsense'), res)
+      one.push(res.statusCode)
+    }
+    assert.deepEqual(one.slice(0, 60), Array(60).fill(400))
+    assert.deepEqual(one.slice(60), Array(10).fill(429))
+    const rejected = logs.entries.filter(entry => entry.message.startsWith('stripeWebhook'))
+    assert.ok(rejected.length <= 2, `${rejected.length} webhook log lines for a flood of 570`)
+    for (const entry of rejected) assert.equal(entry.severity, 'WARNING')
+  })
 })
 
 describe('browser endpoint limits', () => {

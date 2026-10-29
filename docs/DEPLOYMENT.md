@@ -302,7 +302,7 @@ Every browser-called endpoint also, in this order, so a rejected request costs a
 
 1. refuses a foreign origin or another method;
 2. turns away more than 60 requests a minute from one client address (`perAddressPerMinute`; 120 for the forecast proxy);
-3. refuses a body over 8 KiB with `413 payload-too-large`;
+3. refuses a body over 8 KiB with `413 payload-too-large` (a second check: see the body limit below);
 4. refuses a request without an App Check token;
 5. answers `503 unavailable` while the cost guard is engaged, for the endpoints it guards, before verifying the token (the guard is read from Firestore at most once a minute per instance);
 6. verifies App Check; `functions/test/hardening.test.js` fails when an HTTP function other than `stripeWebhook` (Stripe signature) and `calendarFeed` (feed token, rate limited) skips it;
@@ -312,7 +312,13 @@ None of steps 1-4 reads Firestore or calls another service.
 Rejections are logged once a minute per endpoint and kind of rejection, with the number held back since the last line (`functions/src/shared/log-throttle.ts`), so a flood writes a few lines a minute instead of one per request.
 `infra/logging.sh` also drops 99% of Cloud Run's own request logs for 4xx answers, and every feed request log ([Keep feed tokens out of request logs](#keep-feed-tokens-out-of-request-logs)).
 
-The Stripe webhook refuses bodies over 256 KiB and more than 300 requests a minute from one address before checking the signature.
+Before any of that, every HTTP function refuses a body over its limit (8 KiB, 256 KiB for the Stripe webhook; `MAX_BODY_BYTES` in `functions/src/shared/body-limit.ts`) before the Functions Framework reads it (REVIEW8 SEC L1).
+The framework itself parses any body Cloud Run passes, up to 32 MiB, before a function runs, and one 30 MB JSON body took a 256 MiB instance from about 135 MB to over 400 MB.
+So the deploy entry point (`functions/src/index.ts`) guards the server the framework creates: a declared length over the limit is answered 413 at once without reading the body, and a body without a length is held back until it is complete and within the limit, or answered 413 the moment it passes it; either way the connection is closed and the function never runs.
+`functions/test/body-limit.test.js` runs the real Functions Framework (`@google-cloud/functions-framework`, pinned as a dev dependency at the version the Cloud Functions build uses) on the deploy entry point to prove it.
+
+The Stripe webhook refuses more than 60 requests a minute from one address and bodies over 256 KiB before checking the signature, and builds the Stripe client only for a verified event; its rejections are logged once a minute per kind like the others (REVIEW8 SEC L2).
+Stripe sends from a few addresses, far fewer than one event a second each, and retries a refused delivery for three days.
 
 The client address is the `X-Forwarded-For` entry Google's front end appends (`clientAddress` in `functions/src/shared/client-address.ts`).
 IPv6 addresses are counted by their /64 prefix, because one ordinary connection is given a whole /64 and could otherwise use a new address for every request; an IPv4-mapped IPv6 address counts as its IPv4 address.
