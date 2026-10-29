@@ -41,7 +41,9 @@ export function ActivityWeatherSection({
       title="Rain and heat"
       description={`Skips hours with a ${RAIN_LIKELY_PERCENT}% or higher chance of rain, or that feel hotter than the limit (humidity and wind counted).`}
     >
-      <div className="grid grid-cols-2 gap-2.5">
+      {/* Side by side from 360 px; stacked on the narrowest phones, so no choice is cut off
+          under its select's arrow. */}
+      <div className="grid gap-2.5 min-[360px]:grid-cols-2">
         <label className={field}>
           Rain
           <select

@@ -1,4 +1,4 @@
-import { expect, test, type Page, type TestInfo } from '@playwright/test'
+import { expect, test, type Locator, type Page, type TestInfo } from '@playwright/test'
 import { captureScreen, preparePage } from './capture'
 import { HARNESS_MARKER } from './fixtures'
 
@@ -15,6 +15,25 @@ function widths(testInfo: TestInfo): number[] {
 async function open(page: Page, fixture: string, query = '') {
   await page.goto(`/harness/?screen=dashboard&fixture=${fixture}${query}`)
   await expect(page.getByTestId(HARNESS_MARKER)).toBeVisible()
+}
+
+/** Room Chromium's drop-down arrow takes inside a select, beside its padding. */
+const ARROW_PX = 20
+
+/**
+ * How far the widest option's text overflows a select's text box (its width minus the
+ * padding and Chromium's drop-down arrow), in px; 0 or less means every option fits.
+ */
+function widestOptionOverflow(select: Locator): Promise<number> {
+  return select.evaluate((el: HTMLSelectElement, arrow: number) => {
+    const style = getComputedStyle(el)
+    const context = document.createElement('canvas').getContext('2d')!
+    context.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`
+    const widest = Math.max(...[...el.options].map(o => context.measureText(o.text).width))
+    const box =
+      el.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight) - arrow
+    return widest - box
+  }, ARROW_PX)
 }
 
 const card = (page: Page, id: string) =>
@@ -100,7 +119,11 @@ test('rain and heat settings in the activity dialog', async ({ page }, testInfo)
   await expect(heat.locator('option:checked')).toHaveText('90°F')
   for (const width of widths(testInfo)) {
     await page.setViewportSize({ width, height: testInfo.project.use.isMobile ? 844 : 900 })
-    await edit.getByRole('heading', { name: 'Rain and heat' }).scrollIntoViewIfNeeded()
+    // The whole section in view: on the narrowest phones the selects stack.
+    await heat.scrollIntoViewIfNeeded()
+    // Every choice fits its select's text box, so none is cut off under the chevron.
+    for (const select of [rain, heat])
+      expect(await widestOptionOverflow(select)).toBeLessThanOrEqual(0)
     await captureScreen(page, testInfo, capture, {
       name: `rain-heat-settings-${width}`,
       fullPage: false,
