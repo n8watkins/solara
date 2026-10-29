@@ -130,7 +130,9 @@ The project stays on Spark until Pro launches ([COSTS.md](COSTS.md)).
 - **Pull requests** run `.github/workflows/ci.yml`, which calls the reusable `quality.yml` once per commit (older runs are cancelled).
 - **Pushes to `main`** run `deploy.yml`: the same quality workflow, then one production build that is checked, smoke-tested on the Hosting emulator and packaged with its SHA-256, SBOMs and a provenance record and attestation.
   Separate jobs then deploy Firestore rules, Firestore indexes, Functions (only when `ENABLE_BLAZE_FUNCTIONS` is `true`) and Hosting, which receives exactly the tested artifact.
-- **Build guards:** the deploy's `.github/scripts/check-public-env.mjs` refuses a build whose public values contradict each other: Functions on without the App Check site key, alerts on without the VAPID key, an App Check debug token (also from the `.env` files the build reads), a Functions URL without Functions, a secret-shaped public value (REVIEW8 PLAN M3, SEC L9).
+- **Staging:** `deploy-staging.yml`, run by hand from `main`, deploys a chosen ref to the staging project (or only its site to a 7-day preview channel) from the `staging` environment's `STAGING_*` settings; no staging project or environment exists yet, so a run skips with a notice ([DEPLOYMENT.md, Staging](DEPLOYMENT.md#staging)).
+  Hosting configs are named by target per project, each project has its own Functions `APP_URL`, and the guards refuse any production value in a staging build (item 34).
+- **Build guards:** the deploy's `.github/scripts/check-public-env.mjs` refuses a build whose public values contradict each other: Functions on without the App Check site key, alerts on without the VAPID key, an App Check debug token (also from the `.env` files the build reads), a Functions URL without Functions or of another project, a secret-shaped public value (REVIEW8 PLAN M3, SEC L9), and in a staging build any production value.
 - **Credentials:** deploys still use the long-lived `FIREBASE_SERVICE_ACCOUNT` key, because Workload Identity Federation is not set up yet.
 - **Configuration:** `NEXT_PUBLIC_SITE_URL` is a repository variable; the other public `NEXT_PUBLIC_*` values are still repository secrets, which the build reads as a fallback.
   The `NEXT_PUBLIC_PRO_PRICE` secret is unused since #71 (prices live in `lib/plans.ts`).
@@ -164,7 +166,7 @@ How deploys work and how to configure them is in [DEPLOYMENT.md](DEPLOYMENT.md).
 
 The ordered list is [Next steps, in order](OWNER_CHECKLIST.md#next-steps-in-order), checked against the live GitHub settings on 2026-10-28.
 Anytime (group A): confirming that a non-test Google account can sign in (REVIEW8 QA M5), the Google Calendar client ID, OAuth branding resubmission and publishing, calendar scope verification, App Check, Sentry, the browser key's website restriction and Auth clean-up, Firestore quota caps and a traffic alert, trying the TTL policies, the `production` environment, Workload Identity Federation (D4), moving the public build values to variables and deleting `NEXT_PUBLIC_PRO_PRICE`, ruleset hardening, private vulnerability reporting, closing three alerts, small clean-ups and counsel review of the governing-law language.
-The staging steps (group B, D9) wait for the staging deploy ([ROADMAP item 34](ROADMAP.md#34-staging-deploy-before-the-pro-launch-next-up)); Blaze, the Stripe live setup, the Open-Meteo commercial plan (D5, now before billing) and the switches come at the Pro launch (groups C and D).
+The staging steps (group B, D9) can start: the staging deploy is built ([ROADMAP item 34](ROADMAP.md#34-staging-deploy-before-the-pro-launch-built)) and waits for the staging project and the `staging` environment; Blaze, the Stripe live setup, the Open-Meteo commercial plan (D5, now before billing) and the switches come at the Pro launch (groups C and D).
 
 ## Known test boundary
 

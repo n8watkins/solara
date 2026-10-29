@@ -140,6 +140,27 @@ gh secret delete FIREBASE_SERVICE_ACCOUNT -R "$REPO"
 The Admin SDK service account itself stays: Firebase uses it internally.
 If a deploy now fails with "No Google Cloud credentials", a WIF variable is missing.
 
+## Staging deploy identity
+
+The staging workflow (`.github/workflows/deploy-staging.yml`, [DEPLOYMENT.md](DEPLOYMENT.md#staging)) deploys with its own identity in the staging project, so production's deploy identity never gains access to staging, nor the reverse.
+Repeat steps 1-4 in the staging project, with two changes:
+
+- Start with `PROJECT_ID=solara-staging` (the staging project's id) and its `PROJECT_NUMBER`; the pool, provider and `solara-deploy` service account are created in that project.
+- In step 4, let only the staging workflow impersonate it: `--member "${PRINCIPALS}/attribute.workflow/deploy-staging.yml"`.
+
+The provider's condition still admits only `main`, which is where the staging workflow runs from.
+Grant the extra roles for Functions only when `STAGING_ENABLE_BLAZE_FUNCTIONS` is about to be set to `true`.
+Then set the two variables in the `staging` environment, not the repository:
+
+```bash
+gh variable set STAGING_GCP_WORKLOAD_IDENTITY_PROVIDER -R "$REPO" --env staging \
+  --body "projects/${PROJECT_NUMBER}/locations/global/workloadIdentityPools/${POOL}/providers/${PROVIDER}"
+gh variable set STAGING_GCP_DEPLOY_SERVICE_ACCOUNT -R "$REPO" --env staging --body "$DEPLOY_SA"
+```
+
+The staging run logs "Authenticating with Workload Identity Federation as solara-deploy@solara-staging...".
+The workflow refuses a production service account here.
+
 ## Rollback
 
 While the key still exists, `gh variable delete GCP_WORKLOAD_IDENTITY_PROVIDER -R "$REPO"` returns deploys to the key.

@@ -20,8 +20,8 @@ Conditions and individual sensitivity can change quickly.
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Open work in waves of parallel lanes, the owner decisions they need, and feature candidates |
 | [docs/OWNER_CHECKLIST.md](docs/OWNER_CHECKLIST.md) | Steps only the owner can do, and the manual checks for a release |
 | [docs/COSTS.md](docs/COSTS.md) | Running-cost estimates by user count, free-tier limits and forecast provider options |
-| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Environment variables, GitHub configuration, how a deploy runs, and Functions, App Check, feed, notification and Calendar setup |
-| [docs/WIF_SETUP.md](docs/WIF_SETUP.md) | Replacing the deploy key with Workload Identity Federation, and moving public values to variables |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Environment variables, GitHub configuration, how a deploy runs, the staging deploy and preview channels, and Functions, App Check, feed, notification and Calendar setup |
+| [docs/WIF_SETUP.md](docs/WIF_SETUP.md) | Replacing the deploy key with Workload Identity Federation (production and staging), and moving public values to variables |
 | [docs/integrations/EVENTS.md](docs/integrations/EVENTS.md) | Scoping for linking events from calendars, Strava and Meetup (Wave 5 item 9) |
 | [docs/DEPENDENCY_RISK.md](docs/DEPENDENCY_RISK.md) | Accepted development-dependency advisories and the audit policy |
 | [docs/CONTRIBUTING-AGENTS.md](docs/CONTRIBUTING-AGENTS.md) | How roadmap lanes run in parallel: ownership, agent contract, merge protocol |
