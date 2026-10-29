@@ -147,7 +147,7 @@ Candidates, roughly ranked by impact over effort:
 - **Steps:** an Expo app in the repo using `packages/core`; Firebase sign-in on device with the same Firestore; native push for Pro alerts; TestFlight and a Google Play internal test track; a home-screen UV widget.
 - **Crash reporting:** Sentry's React Native SDK in the same Sentry account as the web app; Firebase Crashlytics can be added later for deep native crash data.
 - **Depends on:** an Apple Developer account ($99 per year) and a Google Play developer account ($25 once); native push needs item 10.
-- **Android readiness:** [integrations/ANDROID.md](integrations/ANDROID.md) has what the web app and backend need first: Pro stays bought on the web and the app is consumption only (default, owner may change, 2026-10-28), native OAuth clients, Play Integrity for App Check, Android push payloads, assetlinks.json, a Trusted Web Activity as the first Play listing, and the 12-testers-for-14-days rule.
+- **Android readiness:** the web-side groundwork is built ([item 38](#38-android-groundwork-in-the-web-repo-androidprep-built)); [integrations/ANDROID.md](integrations/ANDROID.md) has what the web app and backend need first: Pro stays bought on the web and the app is consumption only (default, owner may change, 2026-10-28), native OAuth clients, Play Integrity for App Check, Android push payloads, assetlinks.json, a Trusted Web Activity as the first Play listing, and the 12-testers-for-14-days rule.
 - **Size:** L.
 
 ### 14. Cost and abuse fixes from the third review (FIX3A, built, #118-#121)
@@ -434,6 +434,24 @@ The eighth review's QA M3, L1-L5 and L11 (`handoff/review8-qa.md`), and a tighte
   A better route is a smaller first load for a first visit (setup without the dashboard's code), measured with the review's slow 3G probe (`handoff/review8-probes/QA/` on the owner's machine).
 - **First load:** a guest's first load is about 192.7 KB gzip (191.9 KB before), under the 193 KB budget.
 - **Tests:** `tests/e2e/guest-settings.spec.ts` (each finding on the real export, all failing before the fix), `lib/forecast-store.test.ts` (retries every minute, a manual retry), `lib/onboarding.test.ts`, `lib/account-data.test.ts`, the briefing and alert tests; harness screens `guest-settings-skin`, `guest-settings-display` and `account-controls-details` at 320, 390 and 1280 px, light and dark, with no axe violation.
+
+### 38. Android groundwork in the web repo (ANDROIDPREP, built)
+
+The eighth review's Android readiness list (REVIEW8 PLAN part 3, "Small changes worth making in the web repo now"), items 2-8, so the owner's Expo app ([item 13](#13-wave-6-mobile-app-owners-learning-project)) and a first Trusted Web Activity start from shared code; the web app behaves as before.
+The details are in [integrations/ANDROID.md](integrations/ANDROID.md).
+
+- **Planning logic in `packages/core`:** plan limits, per-day activity windows, the next slot, the scheduler, the planner, today's state (`todayOver`), the skin quiz, the reapply timer, the UV strip and the key-list maths moved from `lib/` with their tests, each its own entry point (`@solara/core/<module>`); `lib/` keeps thin re-exports and the browser-only code.
+  One source of truth: `PREFS_LIMITS` takes its list caps from `TIER_LIMITS`, and the linked-calendar Function uses core's `fitToCap` instead of its own copy.
+  `packages/core/src/portable.test.ts` keeps core free of browser and Node globals.
+- **Hermes:** imported event keys use core's own SHA-256 (identical digests, proven against Node and Web Crypto), and core reads time zones without `formatToParts` where an engine lacks it, tested on an Intl limited to what Hermes documents.
+- **Entitlement:** a server-owned `subscriptionProvider` (`stripe`, read as `stripe` when absent) that `hasProEntitlement`, the account page and the export read; an unknown provider grants nothing.
+- **Push:** Android devices get `android.notification` on the `solara-alerts` channel with high priority and the same collapse key; the web stays data-only.
+- **Store build:** `NEXT_PUBLIC_STORE_BUILD=1`, or a session opened by an Android app (`android-app://` referrer or `?source=twa`), hides every price, upsell and checkout; a guest may still sign in free.
+- **Client version:** Function calls send `X-Solara-Client: web/<commit>`, which the Functions validate and log, ready to refuse a too-old native build later.
+- **Manifest:** an `id` and two `shortcuts`; the export and Hosting upload of `/.well-known/` files are checked, ready for assetlinks.json.
+- **First load:** nothing new on a guest's first load beyond the store check.
+- **Tests:** the moved unit tests, `sha256.test.ts`, `hermes-intl.test.ts`, `key-lists.test.ts`, `client-version.test.ts`, `lib/store-build.test.ts`, `tests/manifest.test.ts`, `tests/well-known.test.ts`, the Functions' entitlement, CORS and logging tests, the rules and alerts emulator tests, and `tests/harness/store-build.spec.ts`.
+- **Still to do for Android:** the Google Calendar and Microsoft Graph REST calls and the offline cache shapes in core, `share_target` and `screenshots` in the manifest, assetlinks.json (it needs the package name), and the same-site auth domain.
 
 ## Decisions
 

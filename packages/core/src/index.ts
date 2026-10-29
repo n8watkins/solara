@@ -4,7 +4,10 @@
 //
 // Imported events and the .ics reader are a separate entry point,
 // `@solara/core/event-import` (event-import.ts), because bundlers keep every module a
-// barrel re-exports, and they must stay out of a guest's first load.
+// barrel re-exports, and they must stay out of a guest's first load. Every other module
+// is an entry point of its own too (`@solara/core/<module>`, `#core/<module>` in the
+// Functions): the planning modules moved from the web app (tiers, planner, next-slot,
+// ...) are imported that way, so each screen's bundle keeps only what it uses.
 
 export * from './alerts'
 export * from './briefing'
