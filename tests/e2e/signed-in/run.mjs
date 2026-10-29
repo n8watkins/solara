@@ -158,6 +158,9 @@ function buildSite() {
     // Microsoft (fake-microsoft.ts) with a placeholder Application ID.
     NEXT_PUBLIC_MICROSOFT_CLIENT_ID: '00000000-0000-4000-8000-00000000e2e0',
     NEXT_PUBLIC_OUTLOOK_CALENDAR_EVENTS_ENABLED: '1',
+    // Alerts too, with the Functions switch below: the sunscreen timer's reminder push
+    // and Free's daily UV push (the scheduled job itself does not run in the emulator).
+    NEXT_PUBLIC_ALERTS_ENABLED: '1',
     NEXT_PUBLIC_GA_MEASUREMENT_ID: '',
     NEXT_PUBLIC_SENTRY_DSN: '',
     NEXT_PUBLIC_UI_HARNESS: '',
@@ -266,6 +269,7 @@ writeFileSync(
     'BILLING_ENABLED=true',
     'FORECAST_PROXY_ENABLED=true',
     'EVENTS_SUBSCRIPTIONS_ENABLED=true',
+    'ALERTS_ENABLED=true',
     '',
   ].join('\n'),
 )

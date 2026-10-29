@@ -143,17 +143,26 @@ export interface SeedOptions {
   activeProfileId?: string
   /** Written by a newer client: a later schema version and fields this one does not know. */
   newerClient?: { schemaVersion: number; fields: Record<string, unknown> }
+  /** The saved place; Los Angeles, which the harness forecast is shaped for, by default. */
+  location?: typeof LOS_ANGELES
 }
 
 /** A saved account document, as the app writes it after onboarding. */
 export function accountPrefs(
   uid: string,
-  { tier = 'free', activities = [], profiles, activeProfileId, newerClient }: SeedOptions = {},
+  {
+    tier = 'free',
+    activities = [],
+    profiles,
+    activeProfileId,
+    newerClient,
+    location = LOS_ANGELES,
+  }: SeedOptions = {},
 ) {
   return {
     uid,
     schemaVersion: 2,
-    location: LOS_ANGELES,
+    location,
     savedLocations: [],
     skinType: 'fair',
     sunscreen: false,
@@ -196,6 +205,15 @@ export class Emulators {
       fields: Record<string, FirestoreValue>
     }
     await admin(`${FIRESTORE_API}/users/${account.uid}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ fields }),
+    })
+  }
+
+  /** Writes one document under users/{uid} (`path` such as 'notificationDevices/d1'), as the server would. */
+  async seedDoc(account: Account, path: string, record: Record<string, unknown>) {
+    const { fields } = encode(record).mapValue as { fields: Record<string, FirestoreValue> }
+    await admin(`${FIRESTORE_API}/users/${account.uid}/${path}`, {
       method: 'PATCH',
       body: JSON.stringify({ fields }),
     })
@@ -395,13 +413,14 @@ async function stubNetwork(
   blocked: string[],
   calendar: FakeGoogleCalendar,
   microsoft: FakeMicrosoft,
+  forecast: () => unknown = () => buildRawForecast(),
 ): Promise<void> {
   await page.context().route(
     url => url.origin !== origin,
     async route => {
       const url = new URL(route.request().url())
       if (url.origin === 'https://api.open-meteo.com') {
-        await route.fulfill({ json: buildRawForecast() })
+        await route.fulfill({ json: forecast() })
         return
       }
       if (url.origin === 'https://geocoding-api.open-meteo.com') {
@@ -496,9 +515,14 @@ export async function preparePage(
   blocked: string[],
   calendar: FakeGoogleCalendar,
   microsoft: FakeMicrosoft = new FakeMicrosoft(),
+  /**
+   * A clock and forecast of the page's own, for a test whose server checks the real time
+   * (the reapply reminder's rules): `at` starts the clock, `forecast` answers Open-Meteo.
+   */
+  live?: { at: number; forecast: () => unknown },
 ): Promise<void> {
-  await stubNetwork(page, new URL(baseURL).origin, blocked, calendar, microsoft)
-  await startClock(page)
+  await stubNetwork(page, new URL(baseURL).origin, blocked, calendar, microsoft, live?.forecast)
+  await startClock(page, live?.at)
 }
 
 export const test = base.extend<{

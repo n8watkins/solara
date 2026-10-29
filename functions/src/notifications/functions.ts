@@ -198,7 +198,7 @@ export const reapplyReminderScheduled = onDocumentWritten(
   },
   async event => {
     const uid = event.params.uid
-    await reminderWritten({
+    const outcome = await reminderWritten({
       db,
       uid,
       before: event.data?.before.data(),
@@ -210,6 +210,9 @@ export const reapplyReminderScheduled = onDocumentWritten(
           .enqueue(task, { scheduleTime: at, dispatchDeadlineSeconds: 60 })
       },
     })
+    if (outcome === 'scheduled' || outcome === 'capped' || outcome === 'invalid') {
+      logger.info('reapply reminder written', { outcome })
+    }
   },
 )
 
