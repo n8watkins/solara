@@ -11,7 +11,7 @@ The plan for the remaining work is in [ROADMAP.md](ROADMAP.md); the owner's step
 
 Solara is served from the Firebase Hosting site `solara-uv` in project `uv-activity-planner`, on the free Spark plan.
 The original address, `https://uv-activity-planner.web.app`, permanently redirects every path to the same path on `solara-uv.web.app`, except Firebase's reserved `/__/` paths (#42, #45).
-Every merge to `main` deploys; the deploys for #76, #78, #80, #79, #81 and #83 were green (the latest is run 40183440542).
+Every merge to `main` deploys; every deploy from #126 to #144 was green (the latest checked is run 40790756032, for #144 on 2026-10-28).
 #79 and #81 fixed the findings of the first post-launch code review (Google sign-in popup and quota handling, the Scheduled list query, plan limits in the Firestore rules, the feed limiter's client address).
 
 What users get:
@@ -75,11 +75,11 @@ These are in the code and tested in CI; each waits for an owner step, not engine
 
 | Feature | Switched on by | Owner step |
 | --- | --- | --- |
-| Google Calendar connect, adding events and **Scheduled** activities (#55, #56) | `NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID` (not set; no client ID in the live bundle) | [Steps 1-4](OWNER_CHECKLIST.md#next-steps-in-order) |
-| **Events from Google Calendar** (events phase 2b): the Events section reads the next 30 days of chosen calendars in the browser with a read-only scope and shows the UV at events with an address (only its town is searched, never names, rooms or dial-ins) or an activity; a disconnect on one device wins over a refresh on another (the rules refuse Google events without the connection), and counts and duplicates cover every stored event (REVIEW6 M2, L4, L5) | `NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_CALENDAR_EVENTS_ENABLED` (neither set) | [Events from Google Calendar](OWNER_CHECKLIST.md#events-from-google-calendar), after steps 1-4 |
+| Google Calendar connect, adding events and **Scheduled** activities (#55, #56) | `NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID` (not set; no client ID in the live bundle) | [Steps A2-A6](OWNER_CHECKLIST.md#anytime-free-no-blaze) |
+| **Events from Google Calendar** (events phase 2b): the Events section reads the next 30 days of chosen calendars in the browser with a read-only scope and shows the UV at events with an address (only its town is searched, never names, rooms or dial-ins) or an activity; a disconnect on one device wins over a refresh on another (the rules refuse Google events without the connection), and counts and duplicates cover every stored event (REVIEW6 M2, L4, L5) | `NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_CALENDAR_EVENTS_ENABLED` (neither set) | [Events from Google Calendar](OWNER_CHECKLIST.md#events-from-google-calendar), after steps A2-A6 |
 | **Events from Outlook** (ROADMAP item 23): the Events section signs in to Microsoft in a popup (PKCE by hand, `Calendars.ReadBasic` only, no refresh token, the token in memory only) and reads the next 30 days of up to 10 own calendars from Microsoft Graph in the browser, with the same UV cards, caps, duplicate rules, place rule and connection check as Google Calendar events (`source: 'outlook'`, `users/{uid}/meta/outlookCalendar`) | `MICROSOFT_CLIENT_ID` and `OUTLOOK_CALENDAR_EVENTS_ENABLED` (neither set) | [Events from Outlook](OWNER_CHECKLIST.md#events-from-outlook-only-for-the-outlook-connection): register the free Azure app, then the live check, including one sign-in with production's headers, the cache cleared and the network throttled (REVIEW7 M1, fixed in ROADMAP item 29) |
-| **App Check** with reCAPTCHA v3, for signed-in users only | `NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY` (not set) | [Step 5](OWNER_CHECKLIST.md#next-steps-in-order) |
-| **Sentry** error reporting, scrubbed in the browser (#70) | `NEXT_PUBLIC_SENTRY_DSN` (not set; the bundle then contains no Sentry code) | [Step 6](OWNER_CHECKLIST.md#next-steps-in-order) |
+| **App Check** with reCAPTCHA v3, for signed-in users only | `NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY` (not set) | [Step A7](OWNER_CHECKLIST.md#anytime-free-no-blaze) |
+| **Sentry** error reporting, scrubbed in the browser (#70) | `NEXT_PUBLIC_SENTRY_DSN` (not set; the bundle then contains no Sentry code) | [Step A8](OWNER_CHECKLIST.md#anytime-free-no-blaze) |
 
 The integrations browser suite (`npm run test:e2e:integrations`) builds the export with a fake site key and DSN and proves that signed-out pages make no reCAPTCHA request, that signing in loads reCAPTCHA and exchanges its token, that Firestore sends the App Check token, and that the CSP allows exactly what reCAPTCHA v3 and Sentry need.
 The signed-in suite covers Scheduled and events from Google Calendar with a faked Google Calendar, and events from Outlook with a faked Microsoft sign-in and Graph (the real popup, redirect page and rules).
@@ -112,13 +112,15 @@ The project stays on Spark until Pro launches ([COSTS.md](COSTS.md)).
 ## CI/CD
 
 - **Repository:** public, with the "Protect main" ruleset: pull requests only, squash merges only, no force pushes or deletion, and 8 required checks from `quality.yml` (lint, types and unit tests; browser tests on the static export; signed-in UI harness; signed-in browser tests on emulators; Functions and Firestore rules; workflow and secret scanning; dependency review; browser tests with Sentry and App Check switched on).
-  Dependabot alerts and security updates, secret scanning with push protection, and CodeQL are on; CodeQL has no open alerts (#72, #73).
+  Dependabot alerts and security updates, secret scanning with push protection, and CodeQL are on; three alerts are open and are false positives for the owner to close (CodeQL #22 and #23, secret scanning #1, the public Firebase web key; [A19](OWNER_CHECKLIST.md#anytime-free-no-blaze)).
+  The ruleset does not yet require up-to-date branches or the CodeQL checks, and private vulnerability reporting is off ([A17, A18](OWNER_CHECKLIST.md#anytime-free-no-blaze)).
   There is no `production` environment yet; the deploy jobs that receive credentials run only from `main`, even when started by hand on another branch ([owner checklist](OWNER_CHECKLIST.md#repository)).
 - **Testing policy (#74):** agents run the fast checks locally (lint, typecheck, docs check, unit tests, build and the suites their files touch); the full browser and emulator suites run on GitHub Actions.
   CI runs only the suites a pull request's files can affect (#76); every required check still reports, and the others pass in seconds ([change-aware checks](../README.md#change-aware-checks)).
 - **Pull requests** run `.github/workflows/ci.yml`, which calls the reusable `quality.yml` once per commit (older runs are cancelled).
 - **Pushes to `main`** run `deploy.yml`: the same quality workflow, then one production build that is checked, smoke-tested on the Hosting emulator and packaged with its SHA-256, SBOMs and a provenance record and attestation.
   Separate jobs then deploy Firestore rules, Firestore indexes, Functions (only when `ENABLE_BLAZE_FUNCTIONS` is `true`) and Hosting, which receives exactly the tested artifact.
+- **Build guards:** the deploy's `.github/scripts/check-public-env.mjs` refuses a build whose public values contradict each other: Functions on without the App Check site key, alerts on without the VAPID key, an App Check debug token (also from the `.env` files the build reads), a Functions URL without Functions, a secret-shaped public value (REVIEW8 PLAN M3, SEC L9).
 - **Credentials:** deploys still use the long-lived `FIREBASE_SERVICE_ACCOUNT` key, because Workload Identity Federation is not set up yet.
 - **Configuration:** `NEXT_PUBLIC_SITE_URL` is a repository variable; the other public `NEXT_PUBLIC_*` values are still repository secrets, which the build reads as a fallback.
   The `NEXT_PUBLIC_PRO_PRICE` secret is unused since #71 (prices live in `lib/plans.ts`).
@@ -146,11 +148,13 @@ How deploys work and how to configure them is in [DEPLOYMENT.md](DEPLOYMENT.md).
 | OAuth scopes (`openid`, email, profile, `calendar.freebusy`, `calendar.events.owned`) | Added, owner reported |
 | Price and tiers | Confirmed 2026-10-24 ([ROADMAP.md](ROADMAP.md#decisions)) |
 | Dependabot alerts and security updates | On |
+| D12 Local branch and worktree clean-up | Done by 2026-10-28: only the main clone and the current review worktrees remain |
 
 ### Open
 
-The ordered list is [Next steps, in order](OWNER_CHECKLIST.md#next-steps-in-order): Google Calendar client ID, OAuth branding resubmission and publishing, calendar scope verification, App Check, Sentry, Workload Identity Federation (D4), moving the public build values to variables and deleting `NEXT_PUBLIC_PRO_PRICE`, counsel review of the governing-law language, and local worktree cleanup (D12).
-Blaze, staging and Stripe test mode (D9) and the Open-Meteo commercial plan (D5) come at the Pro launch.
+The ordered list is [Next steps, in order](OWNER_CHECKLIST.md#next-steps-in-order), checked against the live GitHub settings on 2026-10-28.
+Anytime (group A): confirming that a non-test Google account can sign in (REVIEW8 QA M5), the Google Calendar client ID, OAuth branding resubmission and publishing, calendar scope verification, App Check, Sentry, the browser key's website restriction and Auth clean-up, Firestore quota caps and a traffic alert, trying the TTL policies, the `production` environment, Workload Identity Federation (D4), moving the public build values to variables and deleting `NEXT_PUBLIC_PRO_PRICE`, ruleset hardening, private vulnerability reporting, closing three alerts, small clean-ups and counsel review of the governing-law language.
+The staging steps (group B, D9) wait for the staging deploy ([ROADMAP item 34](ROADMAP.md#34-staging-deploy-before-the-pro-launch-next-up)); Blaze, the Stripe live setup, the Open-Meteo commercial plan (D5, now before billing) and the switches come at the Pro launch (groups C and D).
 
 ## Known test boundary
 

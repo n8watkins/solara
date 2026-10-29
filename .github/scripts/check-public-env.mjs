@@ -20,7 +20,13 @@
 //   NEXT_PUBLIC_GOOGLE_CALENDAR_EVENTS_ENABLED  '1' when it shows events from Google Calendar
 //   NEXT_PUBLIC_MICROSOFT_CLIENT_ID  the Azure app's (public) Application ID, a GUID
 //   NEXT_PUBLIC_OUTLOOK_CALENDAR_EVENTS_ENABLED  '1' when it shows events from Outlook
+//   NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY  required with Functions, which refuse requests without App Check
+//   NEXT_PUBLIC_FIREBASE_VAPID_KEY  required with alerts, which need web push
+//   NEXT_PUBLIC_FIREBASE_APP_CHECK_DEBUG_TOKEN  refused: it would let anyone pass App Check
 //   NEXT_PUBLIC_*           the values compiled into the bundle
+//
+// The .env files `next build` reads count too (same resolution as the build), so
+// a value committed to .env.production cannot slip past the check.
 //
 // With --built it also refuses source maps (the deploy workflow uploads them to
 // Sentry and deletes them first) and, when NEXT_PUBLIC_SENTRY_DSN is empty, any
@@ -110,6 +116,24 @@ export function checkEnv(env) {
   }
   if (env.ENABLE_BLAZE_FUNCTIONS !== 'true' && value('NEXT_PUBLIC_FUNCTIONS_URL')) {
     errors.push('NEXT_PUBLIC_FUNCTIONS_URL is set but Functions are not deployed.')
+  }
+  // Every browser-called Function requires an App Check token
+  // (functions/src/shared/app-check.ts), so without the site key checkout, export,
+  // deletion, feeds and alerts would all answer "App verification required".
+  if (env.ENABLE_BLAZE_FUNCTIONS === 'true' && !value('NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY')) {
+    errors.push(
+      'ENABLE_BLAZE_FUNCTIONS is true but NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY is empty; every Function would refuse the app (OWNER_CHECKLIST step A7).',
+    )
+  }
+  if (value('NEXT_PUBLIC_ALERTS_ENABLED') === '1' && !value('NEXT_PUBLIC_FIREBASE_VAPID_KEY')) {
+    errors.push(
+      'NEXT_PUBLIC_ALERTS_ENABLED is set but NEXT_PUBLIC_FIREBASE_VAPID_KEY is empty, so no browser could register for alerts.',
+    )
+  }
+  if (value('NEXT_PUBLIC_FIREBASE_APP_CHECK_DEBUG_TOKEN')) {
+    errors.push(
+      'NEXT_PUBLIC_FIREBASE_APP_CHECK_DEBUG_TOKEN is set; a debug token in a deployed bundle lets anyone pass App Check. Use it only for local builds.',
+    )
   }
   for (const key of [
     'NEXT_PUBLIC_BILLING_ENABLED',
@@ -231,9 +255,14 @@ export function checkExport(dir, env) {
   return errors
 }
 
-function main(argv) {
+async function main(argv) {
   const builtIndex = argv.indexOf('--built')
   const builtDir = builtIndex === -1 ? null : argv[builtIndex + 1]
+  // Same env resolution as `next build` (process.env wins over the files). Imported
+  // here, not at the top, so the pure checks load without node_modules (the workflow
+  // script tests run before any install).
+  const { default: nextEnv } = await import('@next/env')
+  nextEnv.loadEnvConfig(process.cwd(), false, { info: () => {}, error: console.error })
   const { errors, warnings } = checkEnv(process.env)
 
   if (builtDir && errors.length === 0) {
@@ -255,4 +284,4 @@ function main(argv) {
   )
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) main(process.argv.slice(2))
+if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) await main(process.argv.slice(2))

@@ -67,6 +67,53 @@ test('ties the Functions URL to the Functions deployment switch', () => {
   )
 })
 
+const functionsOn = {
+  ...complete,
+  ENABLE_BLAZE_FUNCTIONS: 'true',
+  NEXT_PUBLIC_FUNCTIONS_URL: 'https://us-central1-uv-activity-planner.cloudfunctions.net',
+  NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY: '6Lc-public-site-key',
+}
+
+test('refuses Functions without the App Check site key (REVIEW8 PLAN M3)', () => {
+  assert.deepEqual(checkEnv(functionsOn), { errors: [], warnings: [] })
+  assert.match(
+    checkEnv({ ...functionsOn, NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY: ' ' }).errors.join('\n'),
+    /ENABLE_BLAZE_FUNCTIONS is true but NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY is empty/,
+  )
+  // A site key without Functions is fine: App Check protects Firestore on its own.
+  assert.deepEqual(
+    checkEnv({ ...complete, NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY: '6Lc-public-site-key' })
+      .errors,
+    [],
+  )
+})
+
+test('refuses alerts without the web push (VAPID) key (REVIEW8 PLAN M3)', () => {
+  const alertsOn = { ...functionsOn, NEXT_PUBLIC_ALERTS_ENABLED: '1' }
+  assert.match(
+    checkEnv(alertsOn).errors.join('\n'),
+    /NEXT_PUBLIC_ALERTS_ENABLED is set but NEXT_PUBLIC_FIREBASE_VAPID_KEY is empty/,
+  )
+  assert.deepEqual(
+    checkEnv({ ...alertsOn, NEXT_PUBLIC_FIREBASE_VAPID_KEY: 'BPublicVapidKey' }).errors,
+    [],
+  )
+})
+
+test('refuses an App Check debug token in a deployed build (REVIEW8 SEC L9)', () => {
+  assert.match(
+    checkEnv({
+      ...functionsOn,
+      NEXT_PUBLIC_FIREBASE_APP_CHECK_DEBUG_TOKEN: 'debug-uuid',
+    }).errors.join('\n'),
+    /NEXT_PUBLIC_FIREBASE_APP_CHECK_DEBUG_TOKEN is set/,
+  )
+  assert.deepEqual(
+    checkEnv({ ...complete, NEXT_PUBLIC_FIREBASE_APP_CHECK_DEBUG_TOKEN: '' }).errors,
+    [],
+  )
+})
+
 test('shows events from Google Calendar only with the OAuth client ID', () => {
   const on = { ...complete, NEXT_PUBLIC_GOOGLE_CALENDAR_EVENTS_ENABLED: '1' }
   assert.match(
