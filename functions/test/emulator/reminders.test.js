@@ -276,22 +276,28 @@ describe('reapply reminder push', () => {
 describe('daily UV push for Free accounts', () => {
   const DAY_START = Date.parse('2026-06-15T00:00:00Z')
 
-  /** UV peaks at 8 at 1pm local, 6.5 at noon and 2pm; `low` keeps it under 3 all day. */
-  function forecastFor(place, now, low = false) {
+  /**
+   * UV peaks at 8 at 1pm local, 6.5 at noon and 2pm. `low` keeps it under 3 all day, even
+   * under a clear sky; `overcast` keeps the forecast under 3 with clouds that a clear sky
+   * would take away (a quarter of the clear-sky UV, which is the full curve).
+   */
+  function forecastFor(place, now, low = false, overcast = false) {
     const timezone = Object.keys(PLACES).find(zone => PLACES[zone].lat === place.lat)
     const today = localTime(new Date(now), timezone).date
     const time = []
     const uv = []
+    const clearSky = []
     for (const offset of [-1, 0, 1]) {
       const [y, m, d] = today.split('-').map(Number)
       const date = new Date(Date.UTC(y, m - 1, d + offset)).toISOString().slice(0, 10)
       for (let hour = 0; hour < 24; hour++) {
         time.push(`${date}T${String(hour).padStart(2, '0')}:00`)
         const value = Math.max(0, 8 - Math.abs(hour - 13) * 1.5)
-        uv.push(low ? Math.min(value, 2) : value)
+        uv.push(low ? Math.min(value, 2) : overcast ? value / 4 : value)
+        clearSky.push(low ? Math.min(value, 2) : value)
       }
     }
-    return { timezone, hourly: { time, uv_index: uv } }
+    return { timezone, hourly: { time, uv_index: uv, uv_index_clear_sky: clearSky } }
   }
 
   async function enrol(uid, options) {
@@ -301,7 +307,7 @@ describe('daily UV push for Free accounts', () => {
   }
 
   /** A day of runs every 15 minutes; returns the messaging fake and each run's result. */
-  async function simulateDay({ low = new Set(), lookups = [] } = {}) {
+  async function simulateDay({ low = new Set(), overcast = new Set(), lookups = [] } = {}) {
     const messaging = new FakeMessaging()
     const results = []
     for (let now = DAY_START; now < DAY_START + 86_400_000; now += QUARTER_HOUR) {
@@ -314,7 +320,7 @@ describe('daily UV push for Free accounts', () => {
           now: () => now,
           forecast: async (place, uid) => {
             lookups.push(uid)
-            return forecastFor(place, now, low.has(uid))
+            return forecastFor(place, now, low.has(uid), overcast.has(uid))
           },
         }),
       )
@@ -337,7 +343,7 @@ describe('daily UV push for Free accounts', () => {
         assert.ok(local.hour >= 7 && local.hour < 16, `${uid} at ${local.hour}`)
         const [message] = send.messages
         assert.match(message.data.title, /^☀️ Protect (from|until) /)
-        assert.match(message.data.body, /UV peaks at 8\.0 \(very high\) around 1pm/)
+        assert.match(message.data.body, /UV peaks at 8\.0 \(Very high\) around 1pm/)
         assert.equal(message.data.deliveryKey, `basic-v1:${local.date}`)
       }
       // Every local 7am inside the simulated day got its push within the quarter hour.
@@ -363,6 +369,20 @@ describe('daily UV push for Free accounts', () => {
     assert.equal(messaging.sentTo('off').length, 0)
     assert.equal(messaging.sentTo('cloudy').length, 0)
     assert.equal(messaging.sentTo('sunny').length, 1)
+  })
+
+  test('still goes out on an overcast day whose clouds may break (REVIEW9 QA M2)', async () => {
+    await enrol('overcast')
+    const { messaging } = await simulateDay({ overcast: new Set(['overcast']) })
+    const sends = messaging.sentTo('overcast')
+    assert.equal(sends.length, 1)
+    const [message] = sends[0].messages
+    // The times are the clear sky's, and the cloudy forecast stays as context.
+    assert.match(message.data.title, /^☀️ Protect from 9:20am to 4:40pm today$/)
+    assert.match(
+      message.data.body,
+      /UV peaks at 2\.0 \(Low\) around 1pm in Los Angeles, or 8\.0 if the sky clears\. Sunscreen, a hat and shade in case the sky clears\./,
+    )
   })
 
   test('waits for quiet hours to end, and follows the chosen hour', async () => {

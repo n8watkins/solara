@@ -84,12 +84,14 @@ describe('UV alert plan', () => {
     15: 3.3,
   })
 
-  it('starts at the first hour whose UV index reaches the threshold', () => {
-    // 5.6 reads as UV index 6, as on the dashboard's scale.
+  it('starts when the UV index reaches the threshold, read between the hours', () => {
+    // 5.6 reads as UV index 6, as on the dashboard's scale: 5.5 falls between 9am's 4.4
+    // and 10am's 5.6 (9:55am) and between 1pm's 6.4 and 2pm's 5.1 (1:42pm, so 1:45pm),
+    // as the protection times read it (protection.ts).
     expect(planUvAlert(hourly, 6)).toEqual({
       threshold: 6,
-      from: 10,
-      to: 14,
+      from: 9 + 55 / 60,
+      to: 13.75,
       peak: { uv: 7.2, hour: 12 },
     })
   })
@@ -104,8 +106,8 @@ describe('UV alert plan', () => {
     const quiet = { from: 21, to: 7 }
     expect(uvAlertDue(plan, 8.9, quiet)).toBe(false)
     expect(uvAlertDue(plan, 9, quiet)).toBe(true)
-    expect(uvAlertDue(plan, 13.9, quiet)).toBe(true)
-    expect(uvAlertDue(plan, 14, quiet)).toBe(false)
+    expect(uvAlertDue(plan, 13.7, quiet)).toBe(true)
+    expect(uvAlertDue(plan, 13.75, quiet)).toBe(false)
     // Quiet until 11: the alert waits for the end of quiet hours.
     expect(uvAlertDue(plan, 10, { from: 22, to: 11 })).toBe(false)
     expect(uvAlertDue(plan, 11, { from: 22, to: 11 })).toBe(true)
@@ -114,14 +116,14 @@ describe('UV alert plan', () => {
   it('says when the UV reaches the threshold, or that it already has', () => {
     const plan = planUvAlert(hourly, 6)!
     expect(uvAlertMessage({ plan, city: 'Austin', localHour: 9.25 })).toEqual({
-      title: '☀️ UV reaches 6 around 10am',
-      body: 'Forecast for Austin: UV 6+ until about 2pm, peaking at 7.2 around 12pm. Plan shade and sun protection, and recheck current conditions.',
+      title: '☀️ UV reaches 6 around 9:55am',
+      body: 'Forecast for Austin: UV 6+ until about 1:45pm, peaking at 7.2 around 12pm. Plan shade and sun protection, and recheck current conditions.',
     })
     expect(uvAlertMessage({ plan, city: '', localHour: 11, clock: '24h' }).title).toBe(
       '☀️ UV is 6 or higher now',
     )
     expect(uvAlertMessage({ plan, city: '', localHour: 11, clock: '24h' }).body).toContain(
-      'your area: UV 6+ until about 14:00',
+      'your area: UV 6+ until about 13:45',
     )
   })
 
@@ -153,7 +155,7 @@ describe('morning alert message', () => {
       body:
         'Today in Austin: UV peaks at 8.0 (Very high) around 11am. Lowest-UV window: Run 6am–9am. ' +
         'At the peak, unprotected skin like yours can burn in about 19 min. ' +
-        'Seek shade while UV is very high or extreme, from 11am to 1pm. Recheck current conditions.',
+        'Seek shade while UV is very high or extreme, from 10:30am to 12:30pm. Recheck current conditions.',
     })
   })
 
@@ -196,7 +198,7 @@ describe('morning alert message', () => {
     expect(message.title).toBe('☀️ UV today in Austin')
     // No activity runs on a Monday: the briefing gives the low-UV hours instead.
     expect(message.body).toContain('Today in Austin: UV peaks at 8.0 (Very high) around 11:00.')
-    expect(message.body).toContain('UV is low from 06:00 to 08:00.')
+    expect(message.body).toContain('UV is low from 06:00 to 07:30.')
   })
 
   it('counts the forecast clouds once, like the app', () => {

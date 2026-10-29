@@ -353,7 +353,8 @@ describe('morning alerts', () => {
 describe('UV alerts', () => {
   test('once a day when the UV reaches the threshold, outside quiet hours, apart from the morning alert', async () => {
     await addUser('uv', { uvAlertThreshold: 6, notificationHour: 10 })
-    // Quiet until noon: the UV reaches 6 (6.5) at noon, so the alert may go from 11, but waits.
+    // Quiet until noon: the UV reaches 6 (5.5, between 11am's 5 and noon's 6.5) at 11:20am,
+    // so the alert may go from 10:20, but waits.
     await addUser('uv-quiet', { uvAlertThreshold: 6, quietHours: { from: 22, to: 12 } })
     await addUser('uv-never', { uvAlertThreshold: 9 })
     const messaging = new FakeMessaging()
@@ -369,7 +370,7 @@ describe('UV alerts', () => {
     const [first] = uvSends('uv')
     assert.equal(uvSends('uv').length, 1)
     const at = localTime(new Date(first.at), 'America/Los_Angeles').hour
-    assert.ok(at >= 11 && at < 15, `uv at ${at}`)
+    assert.ok(at >= 10 && at < 14, `uv at ${at}`)
     // The morning alert (10:00) and the UV alert never go out in the same run.
     const morning = sends.find(
       send =>
@@ -377,7 +378,7 @@ describe('UV alerts', () => {
         send.messages[0].data.deliveryKey.startsWith('morning-'),
     )
     assert.notEqual(morning.at, first.at)
-    assert.equal(first.messages[0].data.title, '☀️ UV reaches 6 around 12pm')
+    assert.equal(first.messages[0].data.title, '☀️ UV reaches 6 around 11:20am')
 
     const [quiet] = uvSends('uv-quiet')
     assert.equal(uvSends('uv-quiet').length, 1)
