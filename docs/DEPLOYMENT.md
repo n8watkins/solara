@@ -510,7 +510,7 @@ Until it runs, legacy links return 404, which is harmless while Functions are no
 Through the Functions, account export and deletion require `NEXT_PUBLIC_FUNCTIONS_URL`, an App Check site key and an authenticated account.
 Deletion additionally requires a recent Google reauthentication and the exact `DELETE` confirmation.
 
-Without the Functions (the free Spark plan), the account page does both in the browser (`lib/account-self-service.ts`, ROADMAP item 32).
+Without the Functions (the free Spark plan), the account page does both in the browser (`lib/account-self-service.ts`, ROADMAP item 33).
 The export reads every document of `users/{uid}` the rules let the owner read and builds the same file as `exportAccountData`, with the shared builder in `@solara/core/account-export`; only the Pro alert history, which only the Functions write, is empty.
 Deletion takes the same `DELETE` confirmation and Google reauthentication, then deletes the imported events and scheduled activities with their keys taken off the key lists, the emptied key lists, the Google and Outlook connections and the account document, reads everything back, and only then deletes the Auth user and clears the browser.
 The rules allow the owner to delete the account document only while it holds no billing (no paid plan, no `stripeCustomerId`) and a key list only once it names no key, so the caps still hold.

@@ -4,7 +4,7 @@ import { accountMenu, completeGoogleSignIn, expect, openDashboard, RUNNING, test
 import type { Account, Emulators, Page } from './fixtures'
 
 // Account download and deletion without Cloud Functions (the free Spark plan, ROADMAP
-// item 32): the account page does both in the browser, against the emulators' Auth and
+// item 33): the account page does both in the browser, against the emulators' Auth and
 // Firestore with the real rules. This build has Functions, so each test takes the path a
 // build without them takes, with the emulator-only switch that accountControlsPath
 // (lib/account-data.ts) reads. account-data.e2e.ts covers the Functions path.

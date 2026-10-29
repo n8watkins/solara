@@ -1,5 +1,5 @@
 // Account export and deletion in the browser, for builds without Cloud Functions (the free
-// Spark plan, ROADMAP item 32). When the Functions are deployed they stay the path
+// Spark plan, ROADMAP item 33). When the Functions are deployed they stay the path
 // (exportAccountData, deleteAccount): they also see server-only records and end billing.
 //
 // Export reads every document of users/{uid} the rules let the owner read and builds the

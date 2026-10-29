@@ -4,7 +4,7 @@ import { expect, test, type Page, type TestInfo } from '@playwright/test'
 import { captureScreen, preparePage } from './capture'
 import { HARNESS_MARKER } from './fixtures'
 
-// The account page's signed-in controls (ROADMAP item 32): download and deletion work
+// The account page's signed-in controls (ROADMAP item 33): download and deletion work
 // without Cloud Functions, so the controls are live on the free plan, with plain words
 // and an email way out instead of the old "after the Cloud Functions and App Check are
 // configured" notice. Each state at 320, 390 and 1280 px, light and dark, with no
