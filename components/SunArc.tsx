@@ -5,7 +5,7 @@ import { formatUV, uvColor } from '@/lib/weather'
 import { useElementWidth } from '@/hooks/useElementWidth'
 import { useVisibleSpan } from '@/hooks/useVisibleSpan'
 import { useUnits } from '@/lib/use-units'
-import { UV_STRIP_EDGE_FADE, hourSlots } from '@/lib/uv-strip'
+import { UV_STRIP_EDGE_FADE, hourSlots } from '@solara/core/uv-strip'
 import {
   FOCUS_MARKER_RADIUS,
   FocusMarker,

@@ -2,7 +2,7 @@
 import { useId, useState } from 'react'
 import clsx from 'clsx'
 import { FITZPATRICK_TYPES } from '@solara/core'
-import { SKIN_QUIZ, skinTypeFromQuiz, type SkinQuizAnswers } from '@/lib/skin-quiz'
+import { SKIN_QUIZ, skinTypeFromQuiz, type SkinQuizAnswers } from '@solara/core/skin-quiz'
 import { SKIN_TYPE_LABELS } from '@/lib/profiles'
 import type { SkinType } from '@/lib/types'
 import ActivityModalShell from './ActivityModalShell'

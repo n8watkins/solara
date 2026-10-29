@@ -25,6 +25,9 @@ const nextConfig: NextConfig = {
   // app code (lib/plans.ts alertsLaunched) are removed from production bundles.
   env: {
     NEXT_PUBLIC_UI_HARNESS: uiHarness ? '1' : '',
+    // Always compiled in, so the web build drops the store build's branches
+    // (lib/store-build.ts); '1' for an app store build.
+    NEXT_PUBLIC_STORE_BUILD: process.env.NEXT_PUBLIC_STORE_BUILD === '1' ? '1' : '',
     // The build's version on Function calls (X-Solara-Client, lib/functions-api.ts): the
     // commit GitHub Actions builds, or 'dev' locally.
     NEXT_PUBLIC_CLIENT_VERSION: (process.env.GITHUB_SHA ?? '').slice(0, 12) || 'dev',

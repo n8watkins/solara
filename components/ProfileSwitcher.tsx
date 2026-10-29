@@ -14,7 +14,7 @@ import {
 import { groupMembers, planningFor } from '@solara/core'
 import { newProfileDraft, removeProfilePatch, saveProfilePatch } from '@/lib/profile-patches'
 import { isCheckoutConfigured } from '@/lib/billing'
-import { TIER_LIMITS, canUseFamilyProfiles, getProfileLimit } from '@/lib/tiers'
+import { TIER_LIMITS, canUseFamilyProfiles, getProfileLimit } from '@solara/core/tiers'
 import ProfileEditor from './ProfileEditor'
 import { PricingModal } from './deferred'
 import { isStoreBuild } from '@/lib/store-build'

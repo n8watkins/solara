@@ -1,4 +1,5 @@
-import { subscriptionProviderOf, type BillingPlan, type SubscriptionProvider } from '@solara/core'
+import type { BillingPlan } from '@solara/core'
+import { subscriptionProviderOf, type SubscriptionProvider } from '@solara/core/subscription'
 import type { User } from 'firebase/auth'
 import { lazySubscription, loadFirebase } from './firebase'
 import { callFunction, functionsApiConfigured } from './functions-api'

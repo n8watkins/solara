@@ -15,6 +15,7 @@ import { burnMins, type SkinType } from './recommendation'
 import { finiteNumber, record } from './schema'
 import { isIanaTimeZone, wallClockAt, isoDateOf } from './zoned-time'
 import { DAY_END_HOUR, DAY_START_HOUR } from './forecast'
+import { RECORD_CAPS, RECORD_LIST_LIMITS } from './record-caps'
 import { sha256Hex } from './sha256'
 
 /** Storage caps, mirrored by firestore.rules. */
@@ -29,12 +30,12 @@ export const IMPORTED_EVENT_LIMITS = Object.freeze({
   activityIdLength: 64,
   urlLength: 2048,
   /** Most records one list query may return (rules check `request.query.limit`). */
-  listLimit: 200,
+  listLimit: RECORD_LIST_LIMITS.events,
   /**
    * Most records one account may hold (REVIEW4 M4; default, owner may change). The rules
    * enforce it through users/{uid}/meta/events (key-lists.ts).
    */
-  maxStored: 1000,
+  maxStored: RECORD_CAPS.events,
 })
 
 /**

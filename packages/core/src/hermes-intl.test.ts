@@ -10,9 +10,11 @@
 //   so it is not relied on.
 // - The `timeZone` option is supported (the IANA names come from the platform's ICU).
 //
-// This test swaps in an Intl.DateTimeFormat with only that surface (no formatToParts,
-// `hourCycle` ignored, the unsupported options refused) and checks that every
-// zone-dependent function in core gives the same answers as with the full Intl.
+// zoned-time.ts therefore reads `format()` only. This test checks that reading against
+// `formatToParts` (what core used before, and what browsers and Node have), then swaps in
+// an Intl.DateTimeFormat with only Hermes's surface (no formatToParts, `hourCycle`
+// ignored, the unsupported options refused) and checks that every zone-dependent function
+// in core gives the same answers as with the full Intl.
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import type * as AlertsModule from './alerts'
 import type * as SunModule from './sun-times'
@@ -98,6 +100,28 @@ describe('core time zones on a Hermes-like Intl', () => {
     const formatter = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC' })
     expect('formatToParts' in formatter).toBe(false)
     expect(() => new Intl.DateTimeFormat('en-US', { dayPeriod: 'short' })).toThrow(TypeError)
+  })
+
+  it.each(ZONES)('reads the wall clock formatToParts gives in %s', zone => {
+    const reference = new RealDateTimeFormat('en-CA', {
+      timeZone: zone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hourCycle: 'h23',
+    })
+    for (const ms of INSTANTS) {
+      const parts = Object.fromEntries(
+        reference
+          .formatToParts(new Date(ms))
+          .filter(part => part.type !== 'literal')
+          .map(part => [part.type, Number(part.value)]),
+      )
+      expect(full.zoned.wallClockAt(ms, zone)).toEqual({ ...parts, hour: parts.hour! % 24 })
+    }
   })
 
   it.each(ZONES)('reads the same wall clock and local time in %s', zone => {

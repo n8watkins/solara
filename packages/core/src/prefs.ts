@@ -22,15 +22,18 @@ import {
   type SkinType,
 } from './recommendation'
 import { finiteNumber, isPlainRecord, record } from './schema'
-import { TIER_LIMITS } from './tiers'
 
 /** The document shape this code reads and writes. Bump it with a new MIGRATIONS entry. */
 export const PREFS_SCHEMA_VERSION = 2
 
-/** Storage caps, mirrored by firestore.rules. The list caps are Pro's (tiers.ts). */
+/**
+ * Storage caps, mirrored by firestore.rules. The list caps are Pro's (TIER_LIMITS.paid in
+ * tiers.ts, checked by tiers.test.ts); they are written out here because importing
+ * tiers.ts would tie the plan data into every bundle that parses preferences.
+ */
 export const PREFS_LIMITS = Object.freeze({
-  activities: TIER_LIMITS.paid.activities,
-  savedLocations: TIER_LIMITS.paid.savedLocations,
+  activities: 20,
+  savedLocations: 12,
   profiles: 12,
   activityNameLength: 100,
   profileNameLength: 40,

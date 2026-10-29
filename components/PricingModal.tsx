@@ -13,7 +13,7 @@ import {
 } from '@/lib/billing'
 import { alertsLaunched, calendarFeatureLabel } from '@/lib/plans'
 import { isStoreBuild } from '@/lib/store-build'
-import { TIER_LIMITS } from '@/lib/tiers'
+import { TIER_LIMITS } from '@solara/core/tiers'
 
 interface Props {
   /** The signed-in account; null or absent for a guest, who is offered sign-in first. */

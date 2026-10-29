@@ -5,6 +5,10 @@
 // in Tokyo looking at a Los Angeles forecast sees Los Angeles "today" and
 // "now". Calendar dates travel as plain 'YYYY-MM-DD' strings and are only ever
 // turned into instants through `zonedInstant`, never through the device zone.
+//
+// The wall clock itself is read by @solara/core (zoned-time.ts wallClockAt), which the
+// Functions and a native client share.
+import { wallClockAt as wallClock } from '@solara/core/zoned-time'
 
 /** A calendar date and wall-clock time in one time zone. */
 export interface ZonedNow {
@@ -20,26 +24,6 @@ export interface ZonedNow {
   epochMs: number
 }
 
-const formatters = new Map<string, Intl.DateTimeFormat>()
-
-function partsFormatter(timeZone: string): Intl.DateTimeFormat {
-  let formatter = formatters.get(timeZone)
-  if (!formatter) {
-    formatter = new Intl.DateTimeFormat('en-CA', {
-      timeZone,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hourCycle: 'h23',
-    })
-    formatters.set(timeZone, formatter)
-  }
-  return formatter
-}
-
 /** The device's IANA zone, or UTC when the runtime cannot say. */
 export function deviceTimeZone(): string {
   try {
@@ -53,7 +37,7 @@ export function deviceTimeZone(): string {
 export function isValidTimeZone(timeZone: unknown): timeZone is string {
   if (typeof timeZone !== 'string' || !timeZone) return false
   try {
-    partsFormatter(timeZone)
+    wallClock(0, timeZone)
     return true
   } catch {
     return false
@@ -64,31 +48,6 @@ export function isValidTimeZone(timeZone: unknown): timeZone is string {
 export function resolveTimeZone(...candidates: unknown[]): string {
   for (const candidate of candidates) if (isValidTimeZone(candidate)) return candidate
   return deviceTimeZone()
-}
-
-interface WallClock {
-  year: number
-  month: number
-  day: number
-  hour: number
-  minute: number
-  second: number
-}
-
-function wallClock(epochMs: number, timeZone: string): WallClock {
-  const values: Partial<Record<Intl.DateTimeFormatPartTypes, number>> = {}
-  for (const part of partsFormatter(timeZone).formatToParts(new Date(epochMs))) {
-    if (part.type !== 'literal') values[part.type] = Number(part.value)
-  }
-  return {
-    year: values.year ?? 1970,
-    month: values.month ?? 1,
-    day: values.day ?? 1,
-    // Some runtimes print midnight as 24 even with h23.
-    hour: (values.hour ?? 0) % 24,
-    minute: values.minute ?? 0,
-    second: values.second ?? 0,
-  }
 }
 
 const pad = (n: number, width = 2) => String(n).padStart(width, '0')

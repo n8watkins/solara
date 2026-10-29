@@ -5,7 +5,7 @@
 // an account that already exists keeps its own plan, and the guest plan is dropped
 // either way (lib/session.ts loadAccountPrefs).
 import { normalizePrefs } from './prefs'
-import { TIER_LIMITS } from './tiers'
+import { TIER_LIMITS } from '@solara/core/tiers'
 import type { UserPreferences } from './types'
 
 export const GUEST_KEY = 'solara_guest'

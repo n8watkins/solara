@@ -19,7 +19,7 @@ import {
   requestWriteToken,
   revokeCalendarAccess,
 } from '@/lib/gcal'
-import type { SlotRecommendation } from '@/lib/scheduler'
+import type { SlotRecommendation } from '@solara/core/scheduler'
 import type { Activity } from '@/lib/types'
 
 // Busy periods are absolute instants (Google returns them with an offset); days are

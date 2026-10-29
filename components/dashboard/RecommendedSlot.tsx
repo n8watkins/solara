@@ -1,5 +1,5 @@
 import { CalendarPlus } from 'lucide-react'
-import type { SlotRecommendation } from '@/lib/scheduler'
+import type { SlotRecommendation } from '@solara/core/scheduler'
 import { useUnits } from '@/lib/use-units'
 
 const ACTION = 'btn mt-2 w-full justify-center text-[12px]'

@@ -2,7 +2,7 @@ import { planningFor } from '@solara/core'
 import type { UserPreferences, WeatherResponse } from '@/lib/types'
 import type { ScheduledActivity } from '@/lib/scheduled'
 import { scheduledSpan } from '@/lib/scheduled-view'
-import { planActivityDay } from '@/lib/next-slot'
+import { planActivityDay } from '@solara/core/next-slot'
 import { activityColor } from '@/lib/activity-colors'
 import { ScheduledSheet } from '../deferred'
 

@@ -9,12 +9,12 @@
 // - a key leaves the list only in a write that names it in `removed` (at most
 //   KEY_INDEX_MAX_REMOVED keys) and after which its record does not exist.
 //
-// This module is pure: the web app's Firestore code (lib/key-index.ts), the Functions
-// that write linked calendars' events (functions/src/events/subscriptions.ts) and a
-// native client share it. firestore.rules repeat the numbers, and
-// lib/firestore-rules.test.ts checks that they match.
-import { IMPORTED_EVENT_LIMITS } from './events'
-import { SCHEDULED_LIMITS } from './scheduled'
+// The caps themselves are in record-caps.ts. This module is pure and imports nothing
+// else, so it adds no record schemas to a bundle: the web app's Firestore code
+// (lib/key-index.ts), the Functions that write linked calendars' events
+// (functions/src/events/subscriptions.ts) and a native client share it. firestore.rules
+// repeat the numbers, and lib/firestore-rules.test.ts checks that they match.
+import { RECORD_CAPS, RECORD_LIST_LIMITS } from './record-caps'
 
 /** Collections with a per-account cap. */
 export type CappedCollection = 'events' | 'scheduled'
@@ -26,10 +26,7 @@ export const KEY_INDEX_DOC: Readonly<Record<CappedCollection, string>> = Object.
 })
 
 /** Most records each collection may hold per account (firestore.rules repeats these). */
-export const KEY_INDEX_CAPS: Readonly<Record<CappedCollection, number>> = Object.freeze({
-  events: IMPORTED_EVENT_LIMITS.maxStored,
-  scheduled: SCHEDULED_LIMITS.maxStored,
-})
+export const KEY_INDEX_CAPS: Readonly<Record<CappedCollection, number>> = RECORD_CAPS
 
 /** Most keys one write may take off the list (firestore.rules checks each one). */
 export const KEY_INDEX_MAX_REMOVED = 8
@@ -38,10 +35,7 @@ export const KEY_INDEX_MAX_REMOVED = 8
 export const KEY_INDEX_PUT_BATCH = 400
 
 /** Largest list query each collection's rules allow. */
-export const KEY_INDEX_LIST_LIMITS: Readonly<Record<CappedCollection, number>> = Object.freeze({
-  events: IMPORTED_EVENT_LIMITS.listLimit,
-  scheduled: SCHEDULED_LIMITS.listLimit,
-})
+export const KEY_INDEX_LIST_LIMITS: Readonly<Record<CappedCollection, number>> = RECORD_LIST_LIMITS
 
 /** The keys a stored list document holds (its `ids` map); empty for none or a bad shape. */
 export function listedKeysOf(data: { ids?: unknown } | null | undefined): Set<string> {

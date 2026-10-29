@@ -26,7 +26,7 @@ import {
   outlookCalendarEventsLaunched,
 } from '@/lib/plans'
 import { eventHeadsUpRule } from '@/lib/event-heads-up-copy'
-import { getFutureDays } from '@/lib/tiers'
+import { getFutureDays } from '@solara/core/tiers'
 import type { Location, TierLevel, UserPreferences, WeatherResponse } from '@/lib/types'
 import EventCard from './EventCard'
 

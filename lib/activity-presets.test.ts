@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Activity } from './types'
-import type { PresetCategory } from './tiers'
+import type { PresetCategory } from '@solara/core/tiers'
 import {
   activityFromPreset,
   clampDuration,

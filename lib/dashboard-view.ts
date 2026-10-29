@@ -10,11 +10,11 @@ import type {
   WeatherResponse,
 } from './types'
 import type { BusyPeriod } from './gcal-view'
-import type { BusyInterval } from './scheduler'
-import type { UpcomingSlot } from './planner'
+import type { BusyInterval } from '@solara/core/scheduler'
+import type { UpcomingSlot } from '@solara/core/planner'
 import { busyIntervalsForDay } from './gcal-view'
 import { isStoreBuild } from './store-build'
-import { getFutureDays } from './tiers'
+import { getFutureDays } from '@solara/core/tiers'
 import { burnMins, uvBand, vitDMins, type UVBand } from './weather'
 import { dayPhrase } from '@solara/core/day-view'
 

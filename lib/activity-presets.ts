@@ -1,5 +1,5 @@
 import type { Activity } from './types'
-import { ACTIVITY_CATEGORIES, type PresetCategory } from './tiers'
+import { ACTIVITY_CATEGORIES, type PresetCategory } from '@solara/core/tiers'
 
 /** A preset suggestion: an activity without the fields a person sets. */
 export type Preset = PresetCategory['activities'][number]

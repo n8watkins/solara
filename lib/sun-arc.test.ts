@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { HourlyForecast } from './types'
-import { hourSlots, uvBarCenter } from './uv-strip'
+import { hourSlots, uvBarCenter } from '@solara/core/uv-strip'
 import {
   SUN_ARC_APEX_Y,
   SUN_ARC_BASELINE_Y,

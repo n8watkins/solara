@@ -3,11 +3,11 @@
 // runs the same in browsers and Node. The web app's own screens use lib/time.ts, which
 // follows the same rules.
 //
-// React Native's Hermes engine documents a smaller Intl (hermes doc/IntlAPIs.md):
-// DateTimeFormat has `format` and `resolvedOptions` but no `formatToParts` listed, and
-// options such as `hourCycle` are not promised. So where `formatToParts` is missing the
-// wall clock is read from `format()` of a fixed en-US numeric pattern instead, with
-// `hour12: false`; hermes-intl.test.ts runs core's time zone code against such an Intl.
+// The wall clock is read from `format()` of one fixed en-US numeric pattern, not from
+// `formatToParts`: React Native's Hermes engine documents a smaller Intl (hermes
+// doc/IntlAPIs.md) with DateTimeFormat's `format` and `resolvedOptions` but no
+// `formatToParts`, and does not promise `hourCycle`. hermes-intl.test.ts runs core's time
+// zone code on such an Intl and checks it against `formatToParts` where that exists.
 
 /** A wall-clock date and time with no zone attached. */
 export interface LocalDateTime {
@@ -24,40 +24,9 @@ export interface LocalDateTime {
 
 const formatters = new Map<string, Intl.DateTimeFormat>()
 
-function partsFormatter(timeZone: string): Intl.DateTimeFormat {
+/** "06/15/2026, 17:05:09": en-US with Latin digits, the one pattern read here. */
+function clockFormatter(timeZone: string): Intl.DateTimeFormat {
   let formatter = formatters.get(timeZone)
-  if (!formatter) {
-    formatter = new Intl.DateTimeFormat('en-CA', {
-      timeZone,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hourCycle: 'h23',
-    })
-    formatters.set(timeZone, formatter)
-  }
-  return formatter
-}
-
-/** True when `timeZone` is an IANA zone (or UTC) this runtime understands. */
-export function isIanaTimeZone(timeZone: unknown): timeZone is string {
-  if (typeof timeZone !== 'string' || !timeZone || timeZone.length > 64) return false
-  try {
-    partsFormatter(timeZone)
-    return true
-  } catch {
-    return false
-  }
-}
-
-const formatFallbacks = new Map<string, Intl.DateTimeFormat>()
-
-/** "06/15/2026, 17:05:09": en-US with Latin digits, the pattern `format()` is read in. */
-function formatFallback(timeZone: string): Intl.DateTimeFormat {
-  let formatter = formatFallbacks.get(timeZone)
   if (!formatter) {
     formatter = new Intl.DateTimeFormat('en-US-u-nu-latn', {
       timeZone,
@@ -69,37 +38,39 @@ function formatFallback(timeZone: string): Intl.DateTimeFormat {
       second: '2-digit',
       hour12: false,
     })
-    formatFallbacks.set(timeZone, formatter)
+    formatters.set(timeZone, formatter)
   }
   return formatter
 }
 
-const FALLBACK_PATTERN = /^(\d{1,2})\/(\d{1,2})\/(\d{1,6}),?\s+(\d{1,2}):(\d{2}):(\d{2})/
+/** True when `timeZone` is an IANA zone (or UTC) this runtime understands. */
+export function isIanaTimeZone(timeZone: unknown): timeZone is string {
+  if (typeof timeZone !== 'string' || !timeZone || timeZone.length > 64) return false
+  try {
+    clockFormatter(timeZone)
+    return true
+  } catch {
+    return false
+  }
+}
+
+const CLOCK_PATTERN = /(\d+)\/(\d+)\/(\d+)\D+(\d+):(\d+):(\d+)/
 
 /** The wall clock in `timeZone` at `epochMs`. */
 export function wallClockAt(epochMs: number, timeZone: string): LocalDateTime {
-  const parts: Record<string, number> = {}
-  const formatter = partsFormatter(timeZone)
-  if (typeof formatter.formatToParts === 'function') {
-    for (const part of formatter.formatToParts(new Date(epochMs))) {
-      if (part.type !== 'literal') parts[part.type] = Number(part.value)
-    }
-  } else {
-    const text = formatFallback(timeZone).format(new Date(epochMs))
-    const match = FALLBACK_PATTERN.exec(text.replace(/[\u200e\u200f\u202f]/g, ' '))
-    if (!match) throw new RangeError(`Unreadable date in ${timeZone}: ${text}`)
-    const [month, day, year, hour, minute, second] = match.slice(1).map(Number)
-    Object.assign(parts, { year, month, day, hour, minute, second })
-  }
-  return {
-    year: parts.year ?? 1970,
-    month: parts.month ?? 1,
-    day: parts.day ?? 1,
-    // Some engines write midnight as 24 even with h23.
-    hour: (parts.hour ?? 0) % 24,
-    minute: parts.minute ?? 0,
-    second: parts.second ?? 0,
-  }
+  const text = clockFormatter(timeZone).format(new Date(epochMs))
+  const match = CLOCK_PATTERN.exec(text)
+  if (!match) throw new RangeError(`Unreadable date in ${timeZone}: ${text}`)
+  const [month, day, year, hour, minute, second] = match.slice(1).map(Number) as [
+    number,
+    number,
+    number,
+    number,
+    number,
+    number,
+  ]
+  // Some engines write midnight as 24 with a 24-hour clock.
+  return { year, month, day, hour: hour % 24, minute, second }
 }
 
 /** A wall-clock time read as if it were UTC (ms), for arithmetic on local times. */

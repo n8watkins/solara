@@ -14,9 +14,9 @@ import {
   type CloudEffect,
   type ForecastConfidence,
 } from '@solara/core'
-import { planActivityDay } from './next-slot'
+import { planActivityDay } from '@solara/core/next-slot'
 import { activityRunsOnDate } from './recommendation'
-import { recommendSlot, type SlotRecommendation } from './scheduler'
+import { recommendSlot, type SlotRecommendation } from '@solara/core/scheduler'
 import { scheduledOn, type ScheduledActivity, type ScheduledSpan } from './scheduled'
 import { formatDate, zonedNow } from './time'
 import { uvBand } from './calendar-layout'

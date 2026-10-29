@@ -1,3 +1,0 @@
-// Moved to @solara/core (packages/core/src/next-slot.ts), shared with a native client.
-// This re-export keeps the web app's imports unchanged.
-export * from '@solara/core/next-slot'

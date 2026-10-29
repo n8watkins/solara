@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { planActivityDay } from './next-slot'
-import { bestUpcomingSlot } from './planner'
+import { planActivityDay } from '@solara/core/next-slot'
+import { bestUpcomingSlot } from '@solara/core/planner'
 import { buildPrefs, buildWeather } from '@/tests/harness/fixtures'
 import { HARNESS_NOW } from '@/tests/harness/clock'
 

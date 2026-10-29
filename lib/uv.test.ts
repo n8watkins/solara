@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { burnMins, uvLabel, fmtClock, fmtHour, formatUV } from '@/lib/weather'
-import { effectiveMaxUV } from '@/lib/tiers'
+import { effectiveMaxUV } from '@solara/core/tiers'
 import type { Activity } from '@/lib/types'
 
 // ---------------------------------------------------------------------------

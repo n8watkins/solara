@@ -21,7 +21,7 @@ import { parseOutlookCalendarLink } from './outlook-calendar-events'
 import { parseScheduledActivity } from './scheduled'
 import { parseSubscriptionSummaries } from './event-subscriptions'
 import { PREFERENCE_FIELDS } from './prefs'
-import { subscriptionProviderOf } from './plans'
+import { subscriptionProviderOf } from './subscription'
 
 /** Raises when a section's fields or meaning change; readers can tell files apart. */
 export const ACCOUNT_EXPORT_FORMAT_VERSION = 1

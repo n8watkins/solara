@@ -3,7 +3,7 @@
 // it lists on the Account tab.
 import { QUIET_HOURS, UV_ALERT_THRESHOLD } from '@solara/core'
 import { calendarFeatureLabel } from './plans'
-import { TIER_LIMITS } from './tiers'
+import { TIER_LIMITS } from '@solara/core/tiers'
 import type { Location, SkinType, TierLevel, UserPreferences } from './types'
 
 /** The preferences the Settings dialog edits, with every default filled in. */

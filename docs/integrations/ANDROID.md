@@ -16,7 +16,7 @@ _Default, owner may change (2026-10-28)._
 - In the United States, since the Epic ruling took effect in October 2025, apps may also link out to web payments, with a Google service fee on those transactions from mid-2026; other regions (the EEA, the UK) have their own alternative billing programs with fees.
   The details differ between sources, so check Google's Play Console help pages before choosing anything other than consumption only.
 - If in-app purchase is wanted later: Play Billing (or RevenueCat on top of it) plus a Function that verifies purchases and Play's real-time notifications and writes the same entitlement.
-  Built: the account has a server-owned `subscriptionProvider` (`SUBSCRIPTION_PROVIDERS` in `packages/core/src/plans.ts`), which the Stripe webhook writes as `stripe` and every reader takes as `stripe` when it is absent.
+  Built: the account has a server-owned `subscriptionProvider` (`SUBSCRIPTION_PROVIDERS` in `packages/core/src/subscription.ts`), which the Stripe webhook writes as `stripe` and every reader takes as `stripe` when it is absent.
   `hasProEntitlement` (`functions/src/billing/entitlement.ts`) applies Stripe's statuses only to a Stripe subscription and grants nothing for a provider it does not know, so a Play or Apple source needs its own check there and an entry in that list.
   The account page offers the Stripe portal only for a Stripe subscription, and the export names the provider, to catch someone subscribed on both; the rules keep the field server-only.
 

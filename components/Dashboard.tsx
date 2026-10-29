@@ -13,8 +13,8 @@ import { useUnits } from '@/lib/use-units'
 import { useOpenSettings } from '@/lib/open-settings'
 import { useStatusFlash } from '@/hooks/useStatusFlash'
 import { useCalendarBusy } from '@/hooks/useCalendarBusy'
-import { nowHourOf, planActivityDay, soonestPlan } from '@/lib/next-slot'
-import { nextSlotAfterToday } from '@/lib/planner'
+import { nowHourOf, planActivityDay, soonestPlan } from '@solara/core/next-slot'
+import { nextSlotAfterToday } from '@solara/core/planner'
 import { sunPhaseAt } from '@solara/core'
 import {
   busyByDate,
@@ -28,7 +28,7 @@ import {
 } from '@/lib/dashboard-view'
 import { briefingView } from '@/lib/briefing-view'
 import { buildEventDescription } from '@/lib/gcal-view'
-import type { SlotRecommendation } from '@/lib/scheduler'
+import type { SlotRecommendation } from '@solara/core/scheduler'
 import { useScheduled } from '@/lib/scheduled-context'
 import {
   ActivityPlanGate,

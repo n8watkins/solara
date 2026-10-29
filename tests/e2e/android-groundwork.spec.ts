@@ -6,9 +6,7 @@ import { expect, test } from '@playwright/test'
 // firebase.json (ROADMAP item 38, docs/integrations/ANDROID.md).
 
 test.describe('a session opened by a Trusted Web Activity', () => {
-  test('goes from the landing page to the app, which shows no price', async ({
-    page,
-  }) => {
+  test('goes from the landing page to the app, which shows no price', async ({ page }) => {
     // A TWA's start URL carries ?source=twa; the landing page's prices never show.
     await page.goto('/?source=twa')
     await expect(page).toHaveURL(/\/app\/\?source=twa$/)

@@ -2,7 +2,7 @@
 import clsx from 'clsx'
 import { useState } from 'react'
 import type { Activity, TierLevel } from '@/lib/types'
-import { activityLimitNote, canAddActivity } from '@/lib/tiers'
+import { activityLimitNote, canAddActivity } from '@solara/core/tiers'
 import { isStoreBuild } from '@/lib/store-build'
 import { activityFromPreset, removeActivity, type Preset } from '@/lib/activity-presets'
 import { useTransient } from '@/lib/use-transient'

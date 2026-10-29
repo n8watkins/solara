@@ -4,7 +4,7 @@
 // is off and the app falls back to plain "add to calendar" links.
 import { createContext, useContext } from 'react'
 import type { ScheduledActivity } from '@solara/core'
-import type { SlotRecommendation } from './scheduler'
+import type { SlotRecommendation } from '@solara/core/scheduler'
 import type { Activity } from './types'
 
 export type SyncState =

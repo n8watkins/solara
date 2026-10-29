@@ -1,6 +1,6 @@
 'use client'
 import type { Activity, TierLevel } from '@/lib/types'
-import { activityLimitNote, canAddActivity, effectiveMaxUV } from '@/lib/tiers'
+import { activityLimitNote, canAddActivity, effectiveMaxUV } from '@solara/core/tiers'
 import { isStoreBuild } from '@/lib/store-build'
 import { duplicateActivity, formatActivityDuration, removeActivity } from '@/lib/activity-presets'
 import ActivityModalShell from './ActivityModalShell'

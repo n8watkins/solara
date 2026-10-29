@@ -1,7 +1,7 @@
 // The plans as people see them: Pro pricing and the Guest / Free / Pro comparison.
 // Free of Firebase so the static landing page (app/page.tsx) can render it; the
 // billing UI reads it through lib/billing.ts.
-import { TIER_LIMITS, forecastLabel } from './tiers'
+import { TIER_LIMITS, forecastLabel } from '@solara/core/tiers'
 import type { TierLevel } from './types'
 
 /**

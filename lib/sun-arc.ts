@@ -1,7 +1,7 @@
 // Pure geometry for the sun path (components/SunArc.tsx). The SVG is drawn in real
 // pixels at the UV strip's width, so every hour's x is the center of its bar.
 import type { HourlyForecast } from './types'
-import { UV_BAR_GAP, missingRuns, uvBarCenter, type HourSlot } from './uv-strip'
+import { UV_BAR_GAP, missingRuns, uvBarCenter, type HourSlot } from '@solara/core/uv-strip'
 
 export const SUN_ARC_HEIGHT = 124
 export const SUN_ARC_BASELINE_Y = 112

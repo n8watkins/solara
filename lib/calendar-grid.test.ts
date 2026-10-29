@@ -18,7 +18,7 @@ import {
   windowBlock,
   windowSlot,
 } from './calendar-grid'
-import { nowHourOf } from './next-slot'
+import { nowHourOf } from '@solara/core/next-slot'
 import { buildPrefs, buildWeather } from '@/tests/harness/fixtures'
 import { HARNESS_DATE, HARNESS_NOW, HARNESS_TIMEZONE } from '@/tests/harness/clock'
 

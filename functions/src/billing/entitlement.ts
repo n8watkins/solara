@@ -16,7 +16,7 @@
 // does not know (a Play or App Store source not built yet) grants nothing until its own
 // check is added here.
 
-import { subscriptionProviderOf } from '#core'
+import { subscriptionProviderOf } from '#core/subscription'
 import type { DocumentData } from 'firebase-admin/firestore'
 
 import { toMillis } from '../shared/time'

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { LANDING_REDIRECT_SCRIPT } from './app-routes'
+import { LANDING_REDIRECT_SCRIPT } from './landing-redirect'
 import {
   STORE_SESSION_KEY,
   isStoreBuild,
