@@ -29,7 +29,7 @@
   }
 
   .location {
-    flex: 1 1 auto;
+    flex: 0 1 auto;
     min-width: 0;
   }
 
@@ -38,11 +38,15 @@
     max-width: 100%;
   }
 
+  /* The controls take the rest of the row and sit at its end, so their box starts
+     where the place ends: when they grow during start-up (the current-UV chip arrives
+     with the forecast), nothing moves (this was a layout shift at desktop widths). */
   .right {
     display: flex;
+    flex: 1 0 auto;
+    justify-content: flex-end;
     align-items: center;
     gap: 6px;
-    flex-shrink: 0;
   }
 
   .uv {
