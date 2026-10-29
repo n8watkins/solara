@@ -3,7 +3,6 @@
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import type { AnalyticsConsent as AnalyticsConsentValue } from '@/lib/analytics-consent'
-import { clearAnalyticsCookies, GTAG_CONSENT_DEFAULTS, gtagConfig, gtagPageParams } from '@/lib/ga'
 import styles from './AnalyticsConsent.module.css'
 import {
   ANALYTICS_CONSENT_EVENT,
@@ -15,13 +14,15 @@ import {
   readAnalyticsConsent,
 } from '@/lib/analytics-consent'
 
-function announceConsent(consent: Exclude<AnalyticsConsentValue, 'unset'>) {
+/** Records a choice: in this browser, on <html> (which hides the banner) and for listeners. */
+export function announceConsent(consent: Exclude<AnalyticsConsentValue, 'unset'>) {
   persistAnalyticsConsent(window.localStorage, consent)
   markAnalyticsConsent(document.documentElement, consent)
   window.dispatchEvent(new CustomEvent(ANALYTICS_CONSENT_EVENT, { detail: consent }))
 }
 
-function useAnalyticsConsent() {
+/** The stored choice, null until hydration; follows changes here and in other tabs. */
+export function useAnalyticsConsent() {
   const [consent, setConsent] = useState<AnalyticsConsentValue | null>(null)
 
   useEffect(() => {
@@ -53,42 +54,14 @@ function useAnalyticsConsent() {
   return consent
 }
 
-declare global {
-  interface Window {
-    dataLayer?: unknown[]
-    gtag?: (...args: unknown[]) => void
-  }
-}
-
-const GTAG_SCRIPT_ID = 'ga-library'
+/** GA4 itself and the cookie clean-up, loaded only when there is something to do. */
+const loadRuntime = () => import('@/lib/analytics-runtime')
 
 /**
- * Start GA4 without any inline script, so the page CSP needs no hash for it:
- * the dataLayer queue is set up here and gtag.js is loaded from its origin.
+ * Cookies gtag.js may have left (isAnalyticsCookie in lib/ga.ts names them exactly):
+ * they are removed when someone has not allowed analytics.
  */
-function startAnalytics(measurementId: string) {
-  if (document.getElementById(GTAG_SCRIPT_ID)) return
-  window.dataLayer = window.dataLayer || []
-  // gtag.js reads `arguments` objects from the queue, not arrays.
-  window.gtag = function gtag() {
-    // eslint-disable-next-line prefer-rest-params -- gtag.js requires the Arguments object.
-    window.dataLayer!.push(arguments)
-  }
-  window.gtag('consent', 'default', GTAG_CONSENT_DEFAULTS)
-  window.gtag('js', new Date())
-  window.gtag('config', measurementId, gtagConfig(window.location.href, document.referrer))
-
-  const script = document.createElement('script')
-  script.id = GTAG_SCRIPT_ID
-  script.async = true
-  script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(measurementId)}`
-  document.head.appendChild(script)
-}
-
-/** gtag.js honors `window['ga-disable-<id>']` as a kill switch. */
-function setAnalyticsDisabled(measurementId: string, disabled: boolean) {
-  ;(window as unknown as Record<string, boolean>)[`ga-disable-${measurementId}`] = disabled
-}
+const LEFTOVER_ANALYTICS_COOKIE = /(?:^|;\s*)_g(?:a|id|at)/
 
 export default function AnalyticsConsent({ measurementId }: { measurementId?: string }) {
   const consent = useAnalyticsConsent()
@@ -96,15 +69,34 @@ export default function AnalyticsConsent({ measurementId }: { measurementId?: st
 
   useEffect(() => {
     if (!measurementId || consent === null) return
-    setAnalyticsDisabled(measurementId, consent !== 'accepted')
-    if (consent === 'accepted') startAnalytics(measurementId)
-    else clearAnalyticsCookies(document, window.location.hostname)
+    // Without consent there is nothing to do unless analytics already ran here (a choice
+    // changed in another tab) or left cookies behind.
+    if (
+      consent !== 'accepted' &&
+      !window.gtag &&
+      !LEFTOVER_ANALYTICS_COOKIE.test(document.cookie)
+    ) {
+      return
+    }
+    let current = true
+    loadRuntime().then(
+      runtime => {
+        if (current) runtime.applyAnalyticsConsent(measurementId, consent)
+      },
+      error => console.error('Could not load analytics:', error),
+    )
+    return () => {
+      current = false
+    }
   }, [consent, measurementId])
 
   // Keep the page URL current for later events, still without the query string.
   useEffect(() => {
     if (consent === 'accepted' && window.gtag) {
-      window.gtag('set', { page_location: gtagPageParams(window.location.href, '').page_location })
+      loadRuntime().then(
+        runtime => runtime.updateAnalyticsPage(),
+        () => {},
+      )
     }
   }, [consent, pathname])
 
@@ -146,51 +138,5 @@ export default function AnalyticsConsent({ measurementId }: { measurementId?: st
         </div>
       </div>
     </section>
-  )
-}
-
-export function AnalyticsPreferenceControl({ enabled }: { enabled: boolean }) {
-  const consent = useAnalyticsConsent()
-
-  if (!enabled) {
-    return <p>Optional analytics is not configured for this deployment.</p>
-  }
-
-  const choose = (nextConsent: Exclude<AnalyticsConsentValue, 'unset'>) => {
-    const shouldReload = consent === 'accepted' && nextConsent === 'declined'
-    announceConsent(nextConsent)
-    if (nextConsent === 'declined') clearAnalyticsCookies(document, window.location.hostname)
-    // gtag.js cannot be unloaded, so a reload guarantees it stops running.
-    if (shouldReload) window.location.reload()
-  }
-
-  const status =
-    consent === 'accepted' ? 'Allowed' : consent === 'declined' ? 'Not allowed' : 'No choice saved'
-
-  return (
-    <div className="analytics-preference" aria-labelledby="analytics-preference-title">
-      <h3 id="analytics-preference-title">Optional analytics</h3>
-      <p>
-        Current choice: <strong role="status">{status}</strong>. You can change this at any time.
-      </p>
-      <div className="analytics-preference-actions">
-        <button
-          className="btn"
-          type="button"
-          aria-pressed={consent === 'accepted'}
-          onClick={() => choose('accepted')}
-        >
-          Allow analytics
-        </button>
-        <button
-          className="btn"
-          type="button"
-          aria-pressed={consent === 'declined'}
-          onClick={() => choose('declined')}
-        >
-          Do not allow
-        </button>
-      </div>
-    </div>
   )
 }

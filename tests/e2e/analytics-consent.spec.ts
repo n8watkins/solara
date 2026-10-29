@@ -71,6 +71,32 @@ test('loads analytics only after consent and lets the user revoke it', async ({
   await expect.poll(async () => (await context.cookies()).map(c => c.name)).toEqual([])
 })
 
+test('without consent, analytics loads nothing and its leftover cookies are removed', async ({
+  page,
+  context,
+  baseURL,
+}) => {
+  const libraryRequests: string[] = []
+  await page.route('https://www.googletagmanager.com/**', route => {
+    libraryRequests.push(route.request().url())
+    return route.abort()
+  })
+  // Someone who allowed analytics earlier, then declined it in another tab whose page
+  // never removed the cookies.
+  await context.addCookies([
+    { name: '_ga', value: 'GA1.1.left', url: baseURL! },
+    { name: '_ga_TEST123', value: 'GS1.1.left', url: baseURL! },
+    { name: 'other', value: 'kept', url: baseURL! },
+  ])
+  await page.addInitScript(() => localStorage.setItem('solara.analytics-consent.v1', 'declined'))
+  await page.goto('/app/')
+  await expect(page.getByRole('heading', { name: 'Where are you?' })).toBeVisible()
+  await expect.poll(async () => (await context.cookies()).map(c => c.name)).toEqual(['other'])
+  await expect(page.getByRole('region', { name: 'Help improve Solara' })).toHaveCount(0)
+  await expect(page.locator('script[src*="googletagmanager.com"]')).toHaveCount(0)
+  expect(libraryRequests).toHaveLength(0)
+})
+
 test.describe('on the dashboard', () => {
   test.use({ timezoneId: 'America/Los_Angeles' })
 
