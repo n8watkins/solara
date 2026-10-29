@@ -43,7 +43,9 @@ export default function UVCard({
   cloudToldAbove?: boolean
 }) {
   const fmt = useUnits()
-  const { headUV, headTemp, headCond, headSuffix, headBurn } = readout
+  const { headUV, headTemp, headCond, headSuffix, headBurn, headRain } = readout
+  // Likely rain is the condition that matters, and keeps the line short at 320 px.
+  const conditions = headRain === null ? headCond || null : `${headRain}% rain`
   const cloud = cloudToldAbove ? null : cloudEffect(hourly)
   const confidence = forecastConfidence(daysAhead)
   return (
@@ -70,7 +72,7 @@ export default function UVCard({
                   ? `UV returns about ${dayHourText(sunDown.uvReturns, fmt.hour)}`
                   : `UV ${formatUV(headUV)}`,
                 headTemp === undefined ? null : fmt.temp(headTemp),
-                headCond || null,
+                conditions,
               ]}
             />
           </>
@@ -90,7 +92,7 @@ export default function UVCard({
             <DetailLine
               parts={[
                 headTemp === undefined ? '--' : fmt.temp(headTemp),
-                headCond || null,
+                conditions,
                 headBurn ? `burn ~${headBurn}m` : null,
               ]}
             />

@@ -217,6 +217,25 @@ describe('eventHeadsUpMessage', () => {
     )
   })
 
+  it('adds a line about the heat only when it is given', () => {
+    const message = eventHeadsUpMessage({
+      title: 'Saturday 10K',
+      placeLabel: '',
+      startMs: la(16, 8),
+      timeZone: ZONE,
+      peakUV: 7.24,
+      peakAtMs: la(16, 10),
+      nowMs: la(15, 20),
+      clock: '12h',
+      hotFeelsLike: '97°F',
+    })
+    expect(message.body).toBe(
+      'Event: “Saturday 10K”. UV peaks at 7.2 around 10am. ' +
+        'Apply sunscreen 15 to 30 minutes before you go, reapply every 2 hours, and plan for shade. ' +
+        'It may feel like 97°F: bring water and take breaks.',
+    )
+  })
+
   it('works without a title or place', () => {
     const message = eventHeadsUpMessage({
       title: ' ',

@@ -45,11 +45,13 @@
 
 import {
   APP_FORECAST_DAYS,
+  type AlertHour,
   type AlertKind,
   type AlertMessage,
   type OpenMeteoResponse,
   type QuietHours,
   daylightHours,
+  formatTemperature,
   hourlyRows,
   inQuietHours,
   isPlannableHour,
@@ -63,6 +65,7 @@ import {
   uvAlertDue,
   uvAlertMessage,
   uvAlertThreshold,
+  weatherLimits,
 } from '#core'
 import {
   EVENT_HEADS_UP,
@@ -412,22 +415,29 @@ export async function removeDeadDevice(db: Firestore, device: Device): Promise<b
  * A day's daytime hours with a known UV, in the place's local time, with the clear-sky
  * UV (never below the forecast's) so the morning alert plans like the app.
  */
-export function alertDayHours(
-  forecast: OpenMeteoResponse,
-  date: string,
-): { hour: number; uv: number; clearSkyUV?: number }[] {
+export function alertDayHours(forecast: OpenMeteoResponse, date: string): AlertHour[] {
   return hourlyRows(forecast)
     .filter(row => row.date === date && isPlannableHour(row))
     .map(row => {
       const uv = row.uv as number
-      return row.clearSkyUV === null
-        ? { hour: row.hour, uv }
-        : { hour: row.hour, uv, clearSkyUV: Math.max(row.clearSkyUV, uv) }
+      return {
+        hour: row.hour,
+        uv,
+        ...(row.clearSkyUV !== null && { clearSkyUV: Math.max(row.clearSkyUV, uv) }),
+        // Rain and heat, so the morning alert skips the hours the app skips (weather-fit.ts).
+        ...(row.rainChance !== null && { rainChance: row.rainChance }),
+        ...(row.feelsC !== null && { feelsC: row.feelsC }),
+      }
     })
 }
 
 export function clockOf(user: DocumentData): '12h' | '24h' {
   return user.clockFormat === '24h' ? '24h' : '12h'
+}
+
+/** The account's temperature unit; 'auto' (the browser's locale) reads as Fahrenheit here. */
+function temperatureOf(user: DocumentData): 'celsius' | 'fahrenheit' {
+  return user.temperatureUnit === 'celsius' ? 'celsius' : 'fahrenheit'
 }
 
 /**
@@ -795,6 +805,7 @@ async function dailyAlert(
       activities: planning.activities,
       skinType: planningFor(planning).skinType,
       clock,
+      temperature: temperatureOf(user),
       // As in the app, no window before sunrise or after sunset, however low its UV.
       daylight: daylightHours({ lat, lon }, local.date, timeZone),
     })
@@ -1084,7 +1095,14 @@ async function sendHeadsUp(run: Run, job: HeadsUpJob): Promise<AlertOutcome | nu
   const { doc, now, activities, stateRef, devices } = job
   const user = doc.data()
   // The UV at each one, soonest first; the push names the soonest high one due now.
-  const worthy: { item: HeadsUpCandidate; zone: string; peakUV: number; peakAt: number }[] = []
+  const worthy: {
+    item: HeadsUpCandidate
+    zone: string
+    peakUV: number
+    peakAt: number
+    /** The event's feels-like peak when it is above the activity's heat limit. */
+    hotC?: number
+  }[] = []
   for (const item of job.candidates.slice(0, job.looked)) {
     const lookup = run.eventForecast(item.lat, item.lon, doc.id)
     const forecast = lookup ? await lookup : null
@@ -1112,7 +1130,16 @@ async function sendHeadsUp(run: Run, job: HeadsUpJob): Promise<AlertOutcome | nu
         : {},
     })
     if (uv.kind === 'forecast' && eventHeadsUpWorthy(uv.peakUV)) {
-      worthy.push({ item, zone, peakUV: uv.peakUV, peakAt: uv.peakAt })
+      // Heat changes the advice (water and breaks), so it is told when over the limit.
+      const heatLimit = weatherLimits(activity ?? {}).maxFeelsLikeC
+      const hot = heatLimit !== null && uv.peakFeelsC !== undefined && uv.peakFeelsC > heatLimit
+      worthy.push({
+        item,
+        zone,
+        peakUV: uv.peakUV,
+        peakAt: uv.peakAt,
+        ...(hot && { hotC: uv.peakFeelsC }),
+      })
     }
   }
   const first = worthy.find(entry => entry.item.due)
@@ -1131,6 +1158,9 @@ async function sendHeadsUp(run: Run, job: HeadsUpJob): Promise<AlertOutcome | nu
     peakAtMs: first.peakAt,
     nowMs: now,
     clock: clockOf(user),
+    ...(first.hotC !== undefined && {
+      hotFeelsLike: formatTemperature(first.hotC, temperatureOf(user)),
+    }),
     more: others.length,
   })
   const covered = others.map(other => other.item)

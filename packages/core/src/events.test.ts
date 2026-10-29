@@ -197,6 +197,17 @@ describe('eventUV', () => {
     })
   })
 
+  it('reports the hottest feels-like temperature during the event, when known', () => {
+    const hot = june.map(h => ({ ...h, feelsC: 25 + h.hour / 2 }))
+    const uv = eventUV({
+      ...base,
+      hoursOn: () => hot,
+      start: at('2026-06-16T08:30'),
+      end: at('2026-06-16T10:30'),
+    })
+    expect(uv).toMatchObject({ kind: 'forecast', peakFeelsC: 30 })
+  })
+
   it('applies the activity’s shade and surface', () => {
     const uv = eventUV({
       ...base,

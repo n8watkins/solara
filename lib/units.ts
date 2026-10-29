@@ -15,6 +15,7 @@ export {
   type TemperatureUnitPreference,
 } from '@solara/core'
 import type { ClockFormatPreference, TemperatureUnitPreference } from '@solara/core'
+import { formatTemperature } from '@solara/core/weather-fit'
 
 export interface DisplayUnits {
   temperature: TemperatureUnit
@@ -115,12 +116,7 @@ export function celsiusToFahrenheit(celsius: number): number {
 }
 
 /** A Celsius reading in the display unit, rounded to a whole degree: "29°C", "84°F". */
-export function formatTemperature(celsius: number, unit: TemperatureUnit): string {
-  if (!Number.isFinite(celsius)) return '--'
-  const value = Math.round(unit === 'fahrenheit' ? celsiusToFahrenheit(celsius) : celsius)
-  // Never print "-0°".
-  return `${value === 0 ? 0 : value}°${unit === 'fahrenheit' ? 'F' : 'C'}`
-}
+export { formatTemperature }
 
 /** Split fractional hours into whole hour and minute (10.5 -> 10:30), rounding to a minute. */
 function hourMinute(hours: number): { hour: number; minute: number } {

@@ -228,3 +228,100 @@ describe('needsClouds', () => {
     expect(plan.cloudDependent).toEqual([false])
   })
 })
+
+describe('planActivityDay with rain and heat', () => {
+  const walk: Activity = {
+    id: 'walk',
+    name: 'Walking',
+    icon: '🚶',
+    durationMins: 60,
+    maxUV: 4,
+    sunscreen: false,
+  }
+  /** Low UV before 10 and from 15; high at midday. `weather` sets each hour's rain and heat. */
+  function weatherDay(weather: (h: number) => Partial<HourlyForecast>) {
+    return day(h => (h >= 10 && h < 15 ? 8 : 2)).map(h => ({
+      ...h,
+      rainChance: 5,
+      feelsC: 20,
+      ...weather(h.hour),
+    }))
+  }
+  const rainyAfternoon = weatherDay(h => (h >= 15 && h < 19 ? { rainChance: 80 } : {}))
+
+  // The gap this closes: the afternoon's low UV was recommended though rain was likely.
+  it('moves the slot past a rainy afternoon and says why', () => {
+    const plan = planActivityDay(rainyAfternoon, walk, 'fair', { nowHour: 12 })
+    expect(plan.slot).toMatchObject({ start: 19, end: 20 })
+    expect(plan.windows.map(w => [w.from, w.to])).toEqual([[19, 20]])
+    expect(plan.weather).toEqual([{ kind: 'rain', from: 15, to: 19 }])
+    expect(plan.weatherMoved).toBe(true)
+  })
+
+  it('takes the slot away when rain covers every lower-UV hour', () => {
+    const wet = weatherDay(h => (h >= 15 ? { rainChance: 70 } : {}))
+    const plan = planActivityDay(wet, walk, 'fair', { nowHour: 12 })
+    expect(plan.slot).toBeNull()
+    expect(plan.weather).toEqual([{ kind: 'rain', from: 15, to: 20 }])
+    expect(plan.weatherMoved).toBe(true)
+  })
+
+  it('mentions rain that does not move the slot, without calling it moved', () => {
+    const plan = planActivityDay(rainyAfternoon, walk, 'fair')
+    expect(plan.slot).toMatchObject({ start: 6, end: 7 })
+    expect(plan.weather).toEqual([{ kind: 'rain', from: 15, to: 19 }])
+    expect(plan.weatherMoved).toBe(false)
+  })
+
+  it('says nothing about rain in hours the UV already rules out', () => {
+    const middayRain = weatherDay(h => (h >= 11 && h < 14 ? { rainChance: 90 } : {}))
+    const plan = planActivityDay(middayRain, walk, 'fair')
+    expect(plan.weather).toEqual([])
+    expect(plan.weatherMoved).toBe(false)
+  })
+
+  it('skips hours that feel too hot for a run but not for a walk', () => {
+    const hot = weatherDay(h => (h >= 15 && h < 18 ? { feelsC: 35 } : {}))
+    const runPlan = planActivityDay(hot, { ...walk, id: 'run' }, 'fair', { nowHour: 12 })
+    expect(runPlan.slot).toMatchObject({ start: 18 })
+    expect(runPlan.weather).toEqual([{ kind: 'heat', from: 15, to: 18, feelsC: 35 }])
+    const walkPlan = planActivityDay(hot, walk, 'fair', { nowHour: 12 })
+    expect(walkPlan.slot).toMatchObject({ start: 15 })
+    expect(walkPlan.weather).toEqual([])
+  })
+
+  it("follows the activity's own settings", () => {
+    const plan = planActivityDay(rainyAfternoon, { ...walk, avoidRain: false }, 'fair', {
+      nowHour: 12,
+    })
+    expect(plan.slot).toMatchObject({ start: 15 })
+    expect(plan.weather).toEqual([])
+    const hot = weatherDay(h => (h >= 15 ? { feelsC: 27 } : {}))
+    expect(
+      planActivityDay(hot, { ...walk, maxFeelsLikeC: 26 }, 'fair', { nowHour: 12 }).slot,
+    ).toBeNull()
+  })
+
+  it('counts skipped hours out of the share of daylight that fits', () => {
+    const dry = planActivityDay(
+      weatherDay(() => ({})),
+      walk,
+      'fair',
+    )
+    const wet = planActivityDay(rainyAfternoon, walk, 'fair')
+    expect(wet.pctDaySafe).toBeLessThan(dry.pctDaySafe)
+  })
+
+  it('plans on UV alone with a forecast cached before rain and heat were fetched', () => {
+    const plan = planActivityDay(
+      day(h => (h >= 10 && h < 15 ? 8 : 2)),
+      walk,
+      'fair',
+      {
+        nowHour: 12,
+      },
+    )
+    expect(plan.slot).toMatchObject({ start: 15 })
+    expect(plan.weather).toEqual([])
+  })
+})

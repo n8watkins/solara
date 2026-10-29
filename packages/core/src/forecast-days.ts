@@ -15,6 +15,10 @@ export interface HourlyForecast {
   cloudCover?: number // % cloud cover (0-100); used by cloud-sensitive exposure
   /** UV under a cloudless sky (never below `uv`, which includes the forecast clouds). */
   clearSkyUV?: number
+  /** Chance of rain in the hour, percent (weather-fit.ts); absent in older forecasts. */
+  rainChance?: number
+  /** Feels-like temperature in Celsius (weather-fit.ts); absent in older forecasts. */
+  feelsC?: number
 }
 
 /** One forecast day as fetched: the provider's local date and its daytime hours. */

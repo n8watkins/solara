@@ -183,6 +183,7 @@ function DashboardView({
     laterDaysVisible,
     city: prefs.location?.city ?? '',
     formatTime: fmt.time,
+    formatTemp: fmt.temp,
   })
   const showHero = hasActivities && !(isToday && over)
   const fromHour = (test: (uv: number) => boolean) => {
@@ -287,6 +288,7 @@ function DashboardView({
               dateLabel={dateLabel}
               allElapsed={allElapsed}
               hoursInDark={dayPlans.length > 0 && dayPlans.every(p => p.hoursInDark)}
+              weather={heroPlan ? [] : (dayPlans.find(p => p.weatherMoved)?.weather ?? [])}
               dayPhrase={dayPhrase(isToday, dateLabel)}
               next={nextSlot}
               laterDaysVisible={laterDaysVisible}

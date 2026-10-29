@@ -108,6 +108,20 @@ describe('normalizePrefs — activity routine + cloud fields', () => {
     expect(act(false).cloudSensitive).toBeUndefined()
     expect(act('yes').cloudSensitive).toBeUndefined()
   })
+
+  it('keeps the rain and heat settings, unset meaning the defaults', () => {
+    const act = (fields: Record<string, unknown>) =>
+      base({ activities: [{ id: 'run', name: 'Run', ...fields }] }).activities[0]!
+    expect(act({}).avoidRain).toBeUndefined()
+    expect(act({}).maxFeelsLikeC).toBeUndefined()
+    expect(act({ avoidRain: false }).avoidRain).toBe(false)
+    expect(act({ avoidRain: 'no' }).avoidRain).toBeUndefined()
+    // Celsius to 0.1, inside 15-50; null is "no limit"; anything else is unset.
+    expect(act({ maxFeelsLikeC: 35.04 }).maxFeelsLikeC).toBe(35)
+    expect(act({ maxFeelsLikeC: 80 }).maxFeelsLikeC).toBe(50)
+    expect(act({ maxFeelsLikeC: null }).maxFeelsLikeC).toBeNull()
+    expect(act({ maxFeelsLikeC: '35' }).maxFeelsLikeC).toBeUndefined()
+  })
 })
 
 describe('limits shared with the Firestore rules', () => {

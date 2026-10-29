@@ -250,6 +250,8 @@ function fullActivity(index) {
     cloudSensitive: true,
     shade: 'partial',
     surface: 'sand',
+    avoidRain: false,
+    maxFeelsLikeC: 35,
   })
 }
 

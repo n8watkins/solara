@@ -90,6 +90,8 @@ describe('Open-Meteo parsing', () => {
         tempF: null,
         weatherCode: 1.5,
         cloudCover: null,
+        rainChance: null,
+        feelsC: null,
       },
     ])
   })

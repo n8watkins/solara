@@ -201,6 +201,9 @@ Free alternatives that allow commercial use, kept as fallback options:
 | [uvindexapi.com](https://uvindexapi.com/) | Free commercial use, hourly UV forecast | UV only, no temperature or conditions; attribution required |
 | [currentuvindex.com](https://currentuvindex.com/api) | Free commercial use, about 120 hours of hourly UV | UV only; 500 requests per IP per day; attribution required |
 
+Rain and heat in the activity windows (ROADMAP item 41) cost nothing: `precipitation_probability` and `apparent_temperature` ride on the one forecast request the app, the proxy, the feed and the alerts already make, so there are no extra calls and the proxy's cache stores one entry per place and hour as before.
+That request now asks for 10 variables (7 hourly, 3 current); Open-Meteo counts a request of up to 10 variables and two weeks as one call, so adding another variable later would make each request count as more than one call on the commercial plan.
+
 A new provider is one more adapter in `packages/core/src/forecast.ts` that answers in the same shape; re-check every provider's current terms before switching.
 
 ## Sources

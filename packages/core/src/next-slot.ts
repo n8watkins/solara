@@ -9,7 +9,8 @@
 //     the engine in @solara/core already ends every window there),
 //   - is long enough for the activity,
 //   - lies in daylight: between the place's sunrise and sunset on that day (Solara plans
-//     outdoor time in daylight only; the UV of 0 in the dark is not a "lower-UV slot").
+//     outdoor time in daylight only; the UV of 0 in the dark is not a "lower-UV slot"),
+//   - skips hours with likely rain or too much heat for the activity (weather-fit.ts).
 import type { HourlyForecast, SafeActivityWindow } from './forecast-days'
 import { planningUV } from './forecast-quality'
 import type { Activity } from './prefs'
@@ -18,6 +19,7 @@ import type { Daylight } from './sun-times'
 import { getActivityWindow } from './weather'
 import type { BusyInterval, SlotRecommendation } from './scheduler'
 import { recommendSlot } from './scheduler'
+import { weatherIn, weatherLimits, weatherSpans, type WeatherSpan } from './weather-fit'
 
 // In zoned-time.ts, so the web dashboard has it without this module, which it loads
 // with the activity plan (components/dashboard/activity-plan.ts).
@@ -72,6 +74,13 @@ export interface ActivityDayPlan {
    * accounts for cloud cover and a clear sky would put an hour over its limit).
    */
   cloudDependent: boolean[]
+  /**
+   * The hours the UV alone would have offered that likely rain or too much heat takes
+   * away (weather-fit.ts weatherSpans); empty when the weather changes nothing.
+   */
+  weather: WeatherSpan[]
+  /** True when the weather moved the recommended slot, or took it away. */
+  weatherMoved: boolean
 }
 
 /**
@@ -134,6 +143,7 @@ export function planActivityDay(
     -1,
     hourly,
   )
+  const weather = weatherEffect(hourly, activity, skinType, slot, { nowHour, busy, daylight })
   const elapsed =
     nowHour >= 0 &&
     windows.length === 0 &&
@@ -149,7 +159,33 @@ export function planActivityDay(
     pctDaySafe,
     burnMins,
     cloudDependent: windows.map(w => needsClouds(w, hourly, activity)),
+    ...weather,
   }
+}
+
+/** What the weather took from a day's plan: compared with the plan on UV alone. */
+function weatherEffect(
+  hourly: HourlyForecast[],
+  activity: Activity,
+  skinType: SkinType,
+  slot: SlotRecommendation | null,
+  { nowHour, busy, daylight }: Required<PlanOptions>,
+): Pick<ActivityDayPlan, 'weather' | 'weatherMoved'> {
+  const limits = weatherLimits(activity)
+  if (!hourly.some(h => weatherIn(h, limits))) return { weather: [], weatherMoved: false }
+  const uvOnly = getActivityWindow(hourly, activity, -1, skinType, daylight, { weather: false })
+  const uvWindows = actionableWindows(uvOnly.allWindows, hourly, activity.durationMins, nowHour)
+  const weather = weatherSpans(hourly, limits, uvWindows)
+  if (!weather.length) return { weather, weatherMoved: false }
+  const uvSlot = recommendSlot(
+    uvWindows,
+    busy,
+    activity.durationMins,
+    activity.timePreference ?? 'earliest',
+    -1,
+    hourly,
+  )
+  return { weather, weatherMoved: uvSlot?.start !== slot?.start || uvSlot?.end !== slot?.end }
 }
 
 /**

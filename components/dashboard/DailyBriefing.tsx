@@ -1,7 +1,19 @@
-import { Clock, Share2, ShieldCheck, Sun, Timer, type LucideIcon } from 'lucide-react'
+import {
+  Clock,
+  CloudRain,
+  Share2,
+  ShieldCheck,
+  Sun,
+  Thermometer,
+  Timer,
+  type LucideIcon,
+} from 'lucide-react'
 import type * as ShareCode from '@/lib/share'
 import { useStatusFlash } from '@/hooks/useStatusFlash'
 import type { DailyBriefingView } from '@/lib/briefing-view'
+
+/** A time range in a briefing line, kept by split() as its own part. */
+const RANGE = /(\S+–\S+)/
 
 /**
  * "Today at a glance": the day's peak UV, the best lower-UV window for the plan,
@@ -50,6 +62,11 @@ export default function DailyBriefing({
     : [
         { id: 'peak', icon: Sun, text: briefing.lines.peak },
         { id: 'window', icon: Clock, text: briefing.lines.window },
+        {
+          id: 'weather',
+          icon: briefing.weather?.kind === 'heat' ? Thermometer : CloudRain,
+          text: briefing.lines.weather,
+        },
         { id: 'burn', icon: Timer, text: briefing.lines.burn },
         { id: 'tip', icon: ShieldCheck, text: briefing.lines.tip },
       ]
@@ -99,7 +116,18 @@ export default function DailyBriefing({
                 className="flex items-start gap-2.5 text-[14px] leading-[1.4] text-ink-2"
               >
                 <Icon size={17} aria-hidden className="mt-px shrink-0 text-accent" />
-                <span className="min-w-0">{text}</span>
+                <span className="min-w-0">
+                  {/* A time range ("7pm–8pm") never breaks at its dash. */}
+                  {text.split(RANGE).map((part, i) =>
+                    i % 2 ? (
+                      <span key={i} className="whitespace-nowrap">
+                        {part}
+                      </span>
+                    ) : (
+                      part
+                    ),
+                  )}
+                </span>
               </li>
             ) : null,
           )}

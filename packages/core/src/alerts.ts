@@ -14,6 +14,7 @@ import type { ExposureSetting } from './exposure'
 import { isSkinType, type PreferredHours, type SkinType } from './recommendation'
 import { NOTIFICATION_HOUR, QUIET_HOURS, UV_ALERT_THRESHOLD } from './prefs'
 import type { Daylight } from './sun-times'
+import { formatTemperature, type WeatherHour, type WeatherSetting } from './weather-fit'
 import { isoDateOf, wallClockAt } from './zoned-time'
 
 /**
@@ -87,8 +88,8 @@ export function inQuietHours(localHour: number, quiet: QuietHours): boolean {
     : localHour >= quiet.from || localHour < quiet.to
 }
 
-/** One forecast hour of the alert's day, in local time. */
-export interface AlertHour {
+/** One forecast hour of the alert's day, in local time, with its rain chance and feels-like. */
+export interface AlertHour extends Partial<WeatherHour> {
   hour: number
   uv: number
   /** UV under a clear sky, when the forecast has it: morning plans count clouds once (planningUV). */
@@ -148,8 +149,8 @@ export function formatAlertTime(hours: number, clock: '12h' | '24h' = '12h'): st
   return `${h12}${minute ? `:${String(minute).padStart(2, '0')}` : ''}${suffix}`
 }
 
-/** The parts of an activity the morning alert plans with. */
-export interface AlertActivity {
+/** The parts of an activity the morning alert plans with (with its rain and heat limits). */
+export interface AlertActivity extends WeatherSetting {
   name: string
   icon?: string | null
   maxUV?: number | null
@@ -171,6 +172,8 @@ export interface MorningAlertInput {
   activities: readonly AlertActivity[]
   skinType: unknown
   clock?: '12h' | '24h'
+  /** The unit for a heat note ("feels like 97°F"); default Fahrenheit. */
+  temperature?: 'celsius' | 'fahrenheit'
   /** The day's hours with the sun up at the place (daylightHours): no window in the dark. */
   daylight?: Daylight | null
 }
@@ -190,6 +193,7 @@ export function morningAlertMessage(input: MorningAlertInput): AlertMessage {
     activities: input.activities,
     skinType,
     formatTime: time,
+    formatTemp: celsius => formatTemperature(celsius, input.temperature ?? 'fahrenheit'),
     daylight: input.daylight,
   })
   const body = `${briefing.text} Recheck current conditions.`

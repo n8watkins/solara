@@ -7,6 +7,7 @@ import {
   type IcsEvent,
   type PreferredHours,
   type RecommendationHour,
+  type WeatherHour,
   bestWindow,
   daylightHours,
   effectiveMaxUV,
@@ -17,7 +18,7 @@ import {
   isPlannableHour,
   parseOpenMeteoResponse,
   parsePlanningPreferences,
-  planningUV,
+  planningHours,
   runsOn,
   validActivityId,
   windowEventSummary,
@@ -26,8 +27,11 @@ import {
 
 export interface SunForecastDay {
   dateStr: string
-  /** UV with the forecast clouds, and under a clear sky when the provider gave it. */
-  hourly: (RecommendationHour & { clearSkyUV?: number })[]
+  /**
+   * UV with the forecast clouds, and under a clear sky when the provider gave it, with the
+   * hour's chance of rain and feels-like temperature (weather-fit.ts) when known.
+   */
+  hourly: (RecommendationHour & { clearSkyUV?: number } & Partial<WeatherHour>)[]
   /** The day's hours with the sun up at the place, which bound its windows, as in the app. */
   daylight?: Daylight | null
 }
@@ -72,6 +76,8 @@ export function parseSunForecast(
           ...(row.clearSkyUV === null
             ? {}
             : { clearSkyUV: Math.max(row.clearSkyUV, row.uv as number) }),
+          ...(row.rainChance !== null && { rainChance: row.rainChance }),
+          ...(row.feelsC !== null && { feelsC: row.feelsC }),
         })),
     }))
 }
@@ -95,8 +101,9 @@ export function buildSunEvents(user: unknown, forecast: SunForecastDay[]): IcsEv
   for (const day of forecast) {
     for (const act of activities) {
       if (!runsOn(act, day.dateStr)) continue
-      // Each hour is judged as in the app: clouds counted once, then shade and surface.
-      const hourly = day.hourly.map(hour => ({ ...hour, planningUV: planningUV(hour, act) }))
+      // Each hour is judged as in the app: clouds counted once, then shade and surface,
+      // and the hours with likely rain or too much heat for the activity skipped.
+      const hourly = planningHours(day.hourly, act)
       const win = bestWindow(
         hourly,
         effectiveMaxUV(act),

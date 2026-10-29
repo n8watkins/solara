@@ -17,6 +17,7 @@ import { isStoreBuild } from './store-build'
 import { getFutureDays } from '@solara/core/tiers'
 import { burnMins, uvBand, vitDMins, type UVBand } from './weather'
 import { dayPhrase } from '@solara/core/day-view'
+import { RAIN_LIKELY_PERCENT } from '@solara/core/weather-fit'
 
 // Today's state at the place (todayOver, sunDown, when UV returns) is pure and shared
 // with a native client, in @solara/core (packages/core/src/day-view.ts).
@@ -129,6 +130,11 @@ export interface UVReadout {
   /** " at 2pm" for a focused hour, else " now" (today) or " peak". */
   headSuffix: string
   headBurn: number | null
+  /**
+   * The readout hour's chance of rain (percent) when rain is likely (weather-fit.ts
+   * RAIN_LIKELY_PERCENT), else null. "Now" reads the current hour's forecast.
+   */
+  headRain: number | null
   /** Burn and vitamin D minutes at currentUV, for the metric cards. */
   burn: number | null
   vitD: number | null
@@ -163,6 +169,8 @@ export function uvReadout(
   const peakHour = hourly.find(h => h.uv === peakUV)?.hour ?? 12
   const shown = focused && !(isToday && focused.hour === weather.now.hour) ? focused : null
   const headUV = shown ? shown.uv : currentUV
+  const rainHour = shown ?? (isToday ? hourly.find(h => h.hour === weather.now.hour) : peakEntry)
+  const rain = rainHour?.rainChance ?? 0
   return {
     currentUV,
     peakUV,
@@ -172,6 +180,7 @@ export function uvReadout(
     headCond: shown ? shown.condition : currentCond,
     headSuffix: shown ? ` at ${formatHour(shown.hour)}` : isToday ? ' now' : ' peak',
     headBurn: burnMins(headUV, skinType),
+    headRain: rain >= RAIN_LIKELY_PERCENT ? rain : null,
     burn: burnMins(currentUV, skinType),
     vitD: vitDMins(currentUV, skinType),
   }

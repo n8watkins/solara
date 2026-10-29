@@ -10,6 +10,7 @@
 //            (settings only; REVIEW6 L7 added alerts, appearance and account)
 //   fixture = default (default) | uv-gaps   (see uv-gap-fixtures.ts)
 //            | peak-early | peak-late   (see sun-peak-fixtures.ts)
+//            | rain-heat | rain-late   (see rain-heat-fixtures.ts)
 //   scheduled = none (default) | synced | reconnect: in-memory scheduled activities
 //            (see scheduled-fixtures.tsx), shown as synced or awaiting reconnect
 //   activities = comma-separated activity ids to keep from the plan (default: all)
@@ -59,6 +60,7 @@ import { HARNESS_NOW_MS } from './clock'
 import { HARNESS_MARKER, HARNESS_PLACES, buildPrefs, buildUser, buildWeather } from './fixtures'
 import { buildGapWeather } from './uv-gap-fixtures'
 import { buildSunPeakWeather, isSunPeakFixture, type SunPeakFixture } from './sun-peak-fixtures'
+import { buildRainHeatWeather, isRainHeatFixture, type RainHeatFixture } from './rain-heat-fixtures'
 import { HarnessScheduledProvider } from './scheduled-fixtures'
 import {
   EventsStoreContext,
@@ -96,8 +98,10 @@ const SCREENS: HarnessScreen[] = [
 ]
 const TABS: readonly SettingsTab[] = SETTINGS_SECTIONS.map(section => section.id)
 
-function readFixture(name: string | null): 'default' | 'uv-gaps' | SunPeakFixture {
-  if (name === 'uv-gaps' || isSunPeakFixture(name)) return name
+function readFixture(
+  name: string | null,
+): 'default' | 'uv-gaps' | SunPeakFixture | RainHeatFixture {
+  if (name === 'uv-gaps' || isSunPeakFixture(name) || isRainHeatFixture(name)) return name
   return 'default'
 }
 
@@ -185,7 +189,9 @@ function Harness() {
         ? buildGapWeather()
         : initial.fixture === 'default'
           ? buildWeather(openedAt)
-          : buildSunPeakWeather(initial.fixture),
+          : isRainHeatFixture(initial.fixture)
+            ? buildRainHeatWeather(initial.fixture, openedAt)
+            : buildSunPeakWeather(initial.fixture),
     [initial.fixture, openedAt],
   )
   const [prefs, setPrefs] = useState<UserPreferences>(() => {

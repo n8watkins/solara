@@ -58,6 +58,10 @@ export interface OpenMeteoPayload {
     temperature_2m?: (number | null)[]
     weathercode?: (number | null)[]
     cloudcover?: (number | null)[]
+    /** Chance of rain (or snow) in the hour, percent. */
+    precipitation_probability?: (number | null)[]
+    /** "Feels like" temperature (humidity and wind counted), Celsius. */
+    apparent_temperature?: (number | null)[]
   }
 }
 
@@ -88,6 +92,8 @@ const openMeteoEntries = {
     temperature_2m: series,
     weathercode: series,
     cloudcover: series,
+    precipitation_probability: series,
+    apparent_temperature: series,
   }),
 }
 
@@ -153,6 +159,12 @@ export function toFahrenheit(celsius: unknown): number | null {
   return c === null ? null : Math.round((c * 9) / 5 + 32)
 }
 
+/** A Celsius value rounded to 0.1, or null when the provider has no finite value. */
+export function roundCelsius(input: unknown): number | null {
+  const c = finiteOrNull(input)
+  return c === null ? null : Math.round(c * 10) / 10
+}
+
 function roundPercent(input: number | null | undefined): number | null {
   return input == null ? null : Math.round(input)
 }
@@ -177,6 +189,10 @@ export interface OpenMeteoHourlyRow {
   tempF: number | null
   weatherCode: number | null
   cloudCover: number | null
+  /** Chance of rain in the hour (percent). */
+  rainChance: number | null
+  /** Feels-like temperature, Celsius rounded to 0.1. */
+  feelsC: number | null
 }
 
 /**
@@ -202,6 +218,8 @@ export function hourlyRows({ hourly }: OpenMeteoResponse): OpenMeteoHourlyRow[] 
       tempF: toFahrenheit(hourly.temperature_2m?.[index]),
       weatherCode: hourly.weathercode?.[index] ?? null,
       cloudCover: roundPercent(hourly.cloudcover?.[index]),
+      rainChance: roundPercent(hourly.precipitation_probability?.[index]),
+      feelsC: roundCelsius(hourly.apparent_temperature?.[index]),
     })
   })
   return rows
@@ -245,7 +263,8 @@ export const APP_FORECAST_DAYS = 10
 
 /**
  * The one forecast the app asks for at a place: ten days of hourly UV, temperature,
- * weather code and cloud cover, and the current reading. The forecast proxy fetches
+ * weather code, cloud cover, chance of rain and feels-like temperature (weather-fit.ts),
+ * and the current reading. The forecast proxy fetches
  * exactly this and nothing else, so its cache serves every account at a place.
  */
 export function appForecastRequest(lat: number, lon: number): ForecastRequest {
@@ -253,7 +272,15 @@ export function appForecastRequest(lat: number, lon: number): ForecastRequest {
     lat,
     lon,
     days: APP_FORECAST_DAYS,
-    hourly: ['uv_index', 'uv_index_clear_sky', 'temperature_2m', 'weathercode', 'cloudcover'],
+    hourly: [
+      'uv_index',
+      'uv_index_clear_sky',
+      'temperature_2m',
+      'weathercode',
+      'cloudcover',
+      'precipitation_probability',
+      'apparent_temperature',
+    ],
     current: ['uv_index', 'temperature_2m', 'weathercode'],
   }
 }

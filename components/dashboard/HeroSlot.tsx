@@ -3,9 +3,11 @@ import { Fragment } from 'react'
 import { Bell, CloudSun, X } from 'lucide-react'
 import type { ActivityDayPlan } from '@solara/core/next-slot'
 import type { UpcomingSlot } from '@solara/core/planner'
+import type { WeatherSpan } from '@solara/core/weather-fit'
 import { dayPhrase as phraseForDay } from '@/lib/dashboard-view'
 import { useUnits } from '@/lib/use-units'
 import { useUpsellDismissal } from '@/lib/upsell'
+import WeatherNote from './WeatherNote'
 
 /**
  * The dashboard's lead: the selected day's best window, or a clear "no
@@ -18,6 +20,7 @@ export default function HeroSlot({
   dateLabel,
   allElapsed,
   hoursInDark = false,
+  weather = [],
   dayPhrase,
   next,
   laterDaysVisible,
@@ -32,6 +35,11 @@ export default function HeroSlot({
   allElapsed: boolean
   /** Every activity's preferred hours fall in the dark on this day (ActivityDayPlan.hoursInDark). */
   hoursInDark?: boolean
+  /**
+   * With no slot: the rain or heat that took an activity's slot away
+   * (ActivityDayPlan.weather of a plan the weather left without one); empty otherwise.
+   */
+  weather?: readonly WeatherSpan[]
   dayPhrase: string
   /** Once today's windows have passed: the soonest slot on a later visible day. */
   next: UpcomingSlot | null
@@ -90,6 +98,8 @@ export default function HeroSlot({
             </p>
           </div>
         </div>
+        {/* Only when the weather moved the slot: the reason it is not the lowest-UV hour. */}
+        {plan.weatherMoved && <WeatherNote spans={plan.weather} className="mt-2.5" />}
         {onMorningAlert && !alertDismissed && (
           <div
             role="status"
@@ -129,10 +139,15 @@ export default function HeroSlot({
   }
   // The briefing above names the day's peak, so this card only says what to do:
   // once today is over (the label says so), what comes next.
+  const rain = weather.some(span => span.kind === 'rain')
   const title = !allElapsed
     ? hoursInDark
       ? 'No daylight in your hours'
-      : 'UV stays above your limits'
+      : weather.length
+        ? rain
+          ? 'Rain likely in the lower\u2011UV hours'
+          : 'Too hot in the lower\u2011UV hours'
+        : 'UV stays above your limits'
     : next
       ? `Next: ${next.activity.name} ${phraseForDay(false, next.label)} at ${fmt.time(next.slot.start)}`
       : laterDaysVisible
@@ -144,7 +159,9 @@ export default function HeroSlot({
     ? null
     : hoursInDark
       ? 'Solara plans between sunrise and sunset. Move the hours to get a slot.'
-      : 'Check early morning or evening instead.'
+      : weather.length
+        ? null
+        : 'Check early morning or evening instead.'
   return (
     <div
       className="card border-[0.5px] border-line-strong bg-surface-metric"
@@ -158,6 +175,8 @@ export default function HeroSlot({
         <div className="min-w-0 flex-1">
           <p className="text-[18px] leading-[1.15] font-bold text-ink">{title}</p>
           {body && <p className="mt-[3px] text-[13px] leading-[1.4] text-ink-3">{body}</p>}
+          {/* Why the rest of the day has no slot: rain or heat, not the UV. */}
+          {!hoursInDark && <WeatherNote spans={weather} className="mt-1.5" />}
           {allElapsed && !laterDaysVisible && (
             <button
               type="button"

@@ -344,6 +344,8 @@ export function matchActivity(
 /** One forecast hour: `uv` includes the forecast clouds; `clearSkyUV` is a cloudless sky. */
 export interface HourUV extends SkyHour {
   hour: number
+  /** Feels-like temperature, Celsius (weather-fit.ts), when the forecast has it. */
+  feelsC?: number | null
 }
 
 export type EventUV =
@@ -361,6 +363,8 @@ export type EventUV =
       peakAt: number
       /** The sky UV at the peak hour, before shade and surface. */
       forecastPeakUV: number
+      /** The highest feels-like temperature during the event (Celsius), when known. */
+      peakFeelsC?: number
     }
   /** The event is past the forecast the person can see; it becomes live on `fromDate`. */
   | { kind: 'later'; fromDate: string }
@@ -411,6 +415,7 @@ export function eventUV({
   let weighted = 0
   let minutes = 0
   let peak: { uv: number; at: number; forecast: number } | null = null
+  let peakFeelsC: number | undefined
   // Walk the event hour by hour in the place's wall clock.
   let t = start
   let steps = 0
@@ -433,6 +438,8 @@ export function eventUV({
       weighted += uv * span
       minutes += span
       if (!peak || uv > peak.uv) peak = { uv, at: t, forecast }
+      if (typeof found?.feelsC === 'number')
+        peakFeelsC = Math.max(peakFeelsC ?? -Infinity, found.feelsC)
     }
     t = next
   }
@@ -443,6 +450,7 @@ export function eventUV({
     avgUV: Math.round((weighted / minutes) * 10) / 10,
     peakAt: peak.at,
     forecastPeakUV: peak.forecast,
+    ...(peakFeelsC !== undefined && { peakFeelsC }),
   }
 }
 
