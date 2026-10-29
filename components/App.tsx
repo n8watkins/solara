@@ -20,6 +20,7 @@ import Header from './Header'
 import Skeleton from './Skeleton'
 import {
   CalendarView,
+  ForecastUnavailable,
   GuestPlanNotice,
   InstallPrompt,
   Onboarding,
@@ -33,7 +34,6 @@ import ErrorBoundary from './ErrorBoundary'
 import AppShell, { type AppView } from './AppShell'
 import AppNotice from './AppNotice'
 import ForecastNotice from './ForecastNotice'
-import ForecastUnavailable from './ForecastUnavailable'
 import { AccountLoadError, AccountLoading } from './AccountStatus'
 import ScheduledProvider from './ScheduledProvider'
 import SettingsHost from './SettingsHost'
