@@ -116,6 +116,22 @@ function SignedInApp() {
     )
   }, [user])
 
+  // Records that ended over 30 days ago are deleted once per signed-in visit, whatever
+  // shows (even with no forecast), as the privacy policy says (lib/privacy-retention.ts).
+  const signedInUid = user?.uid ?? null
+  useEffect(() => {
+    if (!signedInUid) return
+    const uid = signedInUid
+    import('@/lib/retention')
+      .then(({ pruneEndedRecords }) => pruneEndedRecords(uid, Date.now()))
+      .then(outcome => {
+        for (const [records, result] of Object.entries(outcome)) {
+          if (result instanceof Error) console.error(`Pruning ended ${records} failed:`, result)
+        }
+      })
+      .catch(error => console.error('Pruning ended records failed:', error))
+  }, [signedInUid])
+
   useCheckoutReturn(user, { onNotice: setBillingNotice, onPaid: setPrefs })
 
   // Once the first screen shows, fetch the dialogs and views it can open (deferred.tsx).

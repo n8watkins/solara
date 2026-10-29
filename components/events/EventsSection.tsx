@@ -81,10 +81,8 @@ export default function EventsSection({ uid, prefs, weather, displayTier, onUpgr
       ),
     [store, uid],
   )
-  // Events that ended a while ago are removed (Firestore's TTL policy does it too).
-  useEffect(() => {
-    store.prune(uid, Date.now()).catch(() => {})
-  }, [store, uid])
+  // Events that ended over 30 days ago are pruned on every signed-in visit by
+  // components/App.tsx (lib/retention.ts), not only when this section shows.
 
   const nowMs = weather.now.epochMs
   const items = snapshot?.items ?? null
