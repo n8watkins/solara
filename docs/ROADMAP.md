@@ -496,6 +496,7 @@ The details are in [Free pushes](DEPLOYMENT.md#free-pushes-the-daily-uv-push-and
 - **Data:** the download includes the waiting reminder (`reapplyReminder`) and the daily UV pushes in the alert history; the privacy policy says what the reminder stores and for how long; browser deletion removes the record.
 - **Tests:** core (`daily-uv.test.ts`, `reapply.test.ts`, `push.test.ts`, `tiers.test.ts`), Functions (`reminders.test.js`, registration and runtime options), rules (`reapply reminder record`), emulator (`test/emulator/reminders.test.js`: delivery once by task or sweep, caps, Stop, a day of daily UV runs across time zones), signed-in e2e (`reapply-reminder.e2e.ts`) and harness states at 320, 390 and 1280 px (`reapply-reminders.spec.ts`).
 - **Owner, at switch-on (step C11):** enable the Cloud Tasks API, give the deploy identity `roles/cloudtasks.queueAdmin`, and run `infra/firestore-ttl.sh` again for the `reminders` TTL ([owner checklist](OWNER_CHECKLIST.md#at-pro-launch-blaze)).
+
 ### 42. Share a calendar file or link to Solara (SHARETARGET, built)
 
 The deferred Web Share Target from events phase 1 (`handoff/events.md`, REVIEW8 PLAN part 2 "Strong next features", [integrations/ANDROID.md](integrations/ANDROID.md) item 8): on Android, the installed app (and a Trusted Web Activity later) is in the share sheet, so an invite from Gmail, an .ics file from Meetup or a ticket app, or a calendar link goes straight into Solara's existing import.
