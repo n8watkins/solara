@@ -106,7 +106,7 @@ Free quotas protect nothing once billing is attached, so the Functions are built
 
 - every function has a small fixed size and a launch-sized instance cap (16 HTTP instances in all), so CPU-seconds and billed requests cannot grow without limit;
 - every browser endpoint needs App Check and has per-address and per-account rate limits and a body size cap, and turns a request away before any Firestore read or upstream call;
-- every HTTP function refuses a body over its limit (8 KiB, 256 KiB for the Stripe webhook) before the Functions Framework reads it, so a few 30 MB bodies cannot run a 256 MiB instance out of memory (REVIEW8 SEC L1);
+- every HTTP function refuses a body over its limit (8 KiB, 256 KiB for the Stripe webhook) before the Functions Framework reads it, and any compressed body at all, so neither a few 30 MB bodies nor a 334-byte brotli body that unpacks to 200 MB can run a 256 MiB instance out of memory (REVIEW8 SEC L1, REVIEW9 SEC9 H1);
 - the Stripe webhook takes at most 60 requests a minute from one address and logs forged ones once a minute, so a flood of fake webhooks stays cheap and quiet (REVIEW8 SEC L2);
 - rejections are logged once a minute, not once per request, and `infra/logging.sh` drops 99% of Cloud Run's request logs for rejected requests;
 - the forecast proxy, the calendar feed and the alerts share one cache per place and hour, so traffic does not multiply upstream calls, and a global budget caps the paid forecast calls of the proxy, the feed and event heads-ups at 1,500 an hour and 20,000 a day (about 60% of the Standard plan), so a script walking new places cannot spend the plan's quota;

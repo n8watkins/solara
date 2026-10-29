@@ -18,6 +18,7 @@ export const ERROR_CODES = Object.freeze({
   'method-not-allowed': 405,
   conflict: 409,
   'payload-too-large': 413,
+  'unsupported-encoding': 415,
   'deletion-in-progress': 409,
   'rate-limited': 429,
   internal: 500,
