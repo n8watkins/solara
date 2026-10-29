@@ -1,8 +1,9 @@
-import type { BillingPlan } from '@solara/core'
+import { subscriptionProviderOf, type BillingPlan, type SubscriptionProvider } from '@solara/core'
 import type { User } from 'firebase/auth'
 import { lazySubscription, loadFirebase } from './firebase'
 import { callFunction, functionsApiConfigured } from './functions-api'
 import { normalizePrefs } from './prefs'
+import { isStoreBuild } from './store-build'
 import type { UserPreferences } from './types'
 
 // Prices and the plan comparison live in lib/plans.ts (no Firebase), shared with the
@@ -17,10 +18,15 @@ export type { BillingPlan }
  * variable). Until then the plans dialog offers the waitlist.
  */
 export function isCheckoutConfigured(): boolean {
-  return functionsApiConfigured() && process.env.NEXT_PUBLIC_BILLING_ENABLED === '1'
+  return (
+    functionsApiConfigured() && process.env.NEXT_PUBLIC_BILLING_ENABLED === '1' && !isStoreBuild()
+  )
 }
 
-/** Whether the billing portal and the account's billing summary can be offered. */
+/**
+ * Whether the billing portal and the account's billing summary can be offered. A store
+ * build shows the summary but never the Stripe portal (lib/store-build.ts).
+ */
 export function isBillingManagementConfigured(): boolean {
   return functionsApiConfigured()
 }
@@ -107,7 +113,12 @@ export interface BillingSummary {
   trialEndsAt: Date | null
   periodEndsAt: Date | null
   cancelAtPeriodEnd: boolean
-  /** Whether a Stripe customer exists, so the billing portal has something to manage. */
+  /**
+   * Where the subscription was bought (`subscriptionProvider`, Stripe when absent), or null
+   * for a store this build does not know.
+   */
+  provider: SubscriptionProvider | null
+  /** Whether a Stripe customer exists, so the Stripe billing portal has something to manage. */
   hasBillingAccount: boolean
 }
 
@@ -124,6 +135,7 @@ function toDate(value: unknown): Date | null {
 /** The billing summary from the server-owned fields of `users/{uid}` (functions/src/billing/webhook.ts). */
 export function billingSummary(raw: Record<string, unknown> | undefined): BillingSummary {
   const plan = raw?.subscriptionPlan
+  const provider = subscriptionProviderOf(raw)
   return {
     pro: raw?.tier === 'paid',
     plan: plan === 'monthly' || plan === 'yearly' ? plan : null,
@@ -131,7 +143,9 @@ export function billingSummary(raw: Record<string, unknown> | undefined): Billin
     trialEndsAt: toDate(raw?.subscriptionTrialEnd),
     periodEndsAt: toDate(raw?.subscriptionCurrentPeriodEnd),
     cancelAtPeriodEnd: raw?.subscriptionCancelAtPeriodEnd === true,
-    hasBillingAccount: typeof raw?.stripeCustomerId === 'string' && !!raw.stripeCustomerId,
+    provider,
+    hasBillingAccount:
+      provider === 'stripe' && typeof raw?.stripeCustomerId === 'string' && !!raw.stripeCustomerId,
   }
 }
 
@@ -139,6 +153,8 @@ export function billingSummary(raw: Record<string, unknown> | undefined): Billin
 export function billingStatusText(
   summary: BillingSummary,
   formatDay: (date: Date) => string,
+  /** An app store build (lib/store-build.ts): no call to pay. */
+  { store = false }: { store?: boolean } = {},
 ): string {
   if (!summary.pro) {
     return summary.status === 'canceled' || summary.status === 'unpaid'
@@ -146,8 +162,12 @@ export function billingStatusText(
       : 'You are on the Free plan.'
   }
   const plan = summary.plan === 'yearly' ? 'Pro, yearly' : summary.plan ? 'Pro, monthly' : 'Pro'
+  // A store this build does not know: its dates and statuses are not Stripe's to read.
+  if (summary.provider === null) return 'Pro. Manage it in the store you subscribed through.'
   if (summary.status === 'past_due') {
-    return `${plan}. Your last payment failed: update your payment method to keep Pro.`
+    return store
+      ? `${plan}. Your last payment failed.`
+      : `${plan}. Your last payment failed: update your payment method to keep Pro.`
   }
   if (summary.status === 'trialing' && summary.trialEndsAt) {
     return summary.cancelAtPeriodEnd

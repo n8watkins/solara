@@ -114,13 +114,20 @@ export function forecastLabel(tier: TierLevel): string {
   return `${days} days`
 }
 
-/** The activity-limit note for a plan that is full, pointing at the next plan up. */
-export function activityLimitNote(tier: TierLevel): string | null {
+/**
+ * The activity-limit note for a plan that is full, pointing at the next plan up. With
+ * `offerPro: false` (an app store build, which sells nothing) it names no Pro upgrade.
+ */
+export function activityLimitNote(
+  tier: TierLevel,
+  { offerPro = true }: { offerPro?: boolean } = {},
+): string | null {
   if (tier === 'anonymous') {
     return `Guests can plan ${TIER_LIMITS.anonymous.activities} activity. Sign in free to plan up to ${TIER_LIMITS.free.activities}.`
   }
   if (tier === 'free') {
-    return `Free plan: up to ${TIER_LIMITS.free.activities} activities. Upgrade to Pro for up to ${TIER_LIMITS.paid.activities}.`
+    const note = `Free plan: up to ${TIER_LIMITS.free.activities} activities.`
+    return offerPro ? `${note} Upgrade to Pro for up to ${TIER_LIMITS.paid.activities}.` : note
   }
   return null
 }

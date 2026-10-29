@@ -18,6 +18,7 @@ import LocationSettings from './settings/LocationSettings'
 import NotificationSettings from './settings/NotificationSettings'
 import SettingsTabs, { settingsSection, type SettingsTab } from './settings/SettingsTabs'
 import SunProfileSettings from './settings/SunProfileSettings'
+import { isStoreBuild } from '@/lib/store-build'
 
 interface Props {
   prefs: UserPreferences
@@ -107,7 +108,7 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
                 draft={draft}
                 onChange={update}
                 waitlisted={waitlisted}
-                onSeePlans={() => setShowPricing(true)}
+                onSeePlans={isStoreBuild() ? undefined : () => setShowPricing(true)}
               />
             )}
             {tab === 'appearance' && <AppearanceSettings draft={draft} onChange={update} />}

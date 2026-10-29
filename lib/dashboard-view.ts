@@ -13,6 +13,7 @@ import type { BusyPeriod } from './gcal-view'
 import type { BusyInterval } from './scheduler'
 import type { UpcomingSlot } from './planner'
 import { busyIntervalsForDay } from './gcal-view'
+import { isStoreBuild } from './store-build'
 import { getFutureDays } from './tiers'
 import { burnMins, uvBand, vitDMins, type UVBand } from './weather'
 import { dayPhrase } from '@solara/core/day-view'
@@ -65,7 +66,10 @@ export function dashboardAccess(
     selectedDay && visibleForecast.some(day => day.dateStr === selectedDay.dateStr)
       ? selectedDay
       : null
-  const lockedForecastCount = Math.max(0, weather.forecast.length - visibleForecast.length)
+  // A store build offers no Pro days to buy (lib/store-build.ts): no locked tab or upsell.
+  const lockedForecastCount = isStoreBuild()
+    ? 0
+    : Math.max(0, weather.forecast.length - visibleForecast.length)
   const upgradeCopy = lockedForecastCount > 0 ? UPGRADE_COPY : null
   return {
     accessTier,

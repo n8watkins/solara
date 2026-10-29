@@ -28,6 +28,7 @@ import { useGridViewport } from './calendar/useGridViewport'
 import { useWindowSheet } from './calendar/useWindowSheet'
 import ScheduledList from './ScheduledList'
 import { EditActivityModal, ScheduledSheet } from './deferred'
+import { isStoreBuild } from '@/lib/store-build'
 
 interface Props {
   prefs: UserPreferences
@@ -76,7 +77,7 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
   const lockedCopy =
     tier === 'anonymous'
       ? 'Sign in to see tomorrow in Calendar.'
-      : tier === 'free'
+      : tier === 'free' && !isStoreBuild()
         ? 'Go Pro for the full 10-day Calendar view.'
         : null
 

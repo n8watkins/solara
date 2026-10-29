@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { DayWeather, HourlyForecast, UserPreferences, WeatherResponse } from './types'
 import {
   UPGRADE_COPY,
@@ -54,6 +54,23 @@ describe('dashboardAccess', () => {
     expect(guest.lockedForecastCount).toBe(9)
     expect(guest.activityTier).toBe('anonymous')
     expect(guest.showDayTabs).toBe(true)
+  })
+
+  it('offers no locked days or upgrade in an app store build', () => {
+    vi.stubEnv('NEXT_PUBLIC_STORE_BUILD', '1')
+    try {
+      for (const tier of [undefined, 'free'] as const) {
+        const access = dashboardAccess(weather(), prefs(tier), undefined, null)
+        expect(access.lockedForecastCount).toBe(0)
+        expect(access.upgradeCopy).toBeNull()
+        expect(dayChips(access).lockedDays).toBe(0)
+      }
+      // Free still sees today and tomorrow, and Pro bought on the web its 10 days.
+      expect(dashboardAccess(weather(), prefs('free'), undefined, null).showDayTabs).toBe(true)
+      expect(dashboardAccess(weather(), prefs('paid'), undefined, null).accessibleDays).toBe(10)
+    } finally {
+      vi.unstubAllEnvs()
+    }
   })
 
   it('lets a preview tier widen the days but not the activity plan', () => {

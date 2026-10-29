@@ -102,4 +102,12 @@ describe('activityLimitNote', () => {
     )
     expect(activityLimitNote('paid')).toBeNull()
   })
+
+  it('offers no Pro upgrade in an app store build', () => {
+    const store = { offerPro: false }
+    expect(activityLimitNote('free', store)).toBe('Free plan: up to 3 activities.')
+    expect(activityLimitNote('anonymous', store)).toBe(
+      'Guests can plan 1 activity. Sign in free to plan up to 3.',
+    )
+  })
 })
