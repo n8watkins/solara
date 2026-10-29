@@ -1,7 +1,13 @@
 // Wall-clock time in an IANA time zone, for code shared by the app and Functions
-// (the .ics importer and imported events). It uses only Intl, so it runs the same in
-// browsers and Node. The web app's own screens use lib/time.ts, which follows the
-// same rules.
+// (the .ics importer, imported events, alerts and heads-ups). It uses only Intl, so it
+// runs the same in browsers and Node. The web app's own screens use lib/time.ts, which
+// follows the same rules.
+//
+// React Native's Hermes engine documents a smaller Intl (hermes doc/IntlAPIs.md):
+// DateTimeFormat has `format` and `resolvedOptions` but no `formatToParts` listed, and
+// options such as `hourCycle` are not promised. So where `formatToParts` is missing the
+// wall clock is read from `format()` of a fixed en-US numeric pattern instead, with
+// `hour12: false`; hermes-intl.test.ts runs core's time zone code against such an Intl.
 
 /** A wall-clock date and time with no zone attached. */
 export interface LocalDateTime {
@@ -47,11 +53,43 @@ export function isIanaTimeZone(timeZone: unknown): timeZone is string {
   }
 }
 
+const formatFallbacks = new Map<string, Intl.DateTimeFormat>()
+
+/** "06/15/2026, 17:05:09": en-US with Latin digits, the pattern `format()` is read in. */
+function formatFallback(timeZone: string): Intl.DateTimeFormat {
+  let formatter = formatFallbacks.get(timeZone)
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat('en-US-u-nu-latn', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    })
+    formatFallbacks.set(timeZone, formatter)
+  }
+  return formatter
+}
+
+const FALLBACK_PATTERN = /^(\d{1,2})\/(\d{1,2})\/(\d{1,6}),?\s+(\d{1,2}):(\d{2}):(\d{2})/
+
 /** The wall clock in `timeZone` at `epochMs`. */
 export function wallClockAt(epochMs: number, timeZone: string): LocalDateTime {
   const parts: Record<string, number> = {}
-  for (const part of partsFormatter(timeZone).formatToParts(new Date(epochMs))) {
-    if (part.type !== 'literal') parts[part.type] = Number(part.value)
+  const formatter = partsFormatter(timeZone)
+  if (typeof formatter.formatToParts === 'function') {
+    for (const part of formatter.formatToParts(new Date(epochMs))) {
+      if (part.type !== 'literal') parts[part.type] = Number(part.value)
+    }
+  } else {
+    const text = formatFallback(timeZone).format(new Date(epochMs))
+    const match = FALLBACK_PATTERN.exec(text.replace(/[\u200e\u200f\u202f]/g, ' '))
+    if (!match) throw new RangeError(`Unreadable date in ${timeZone}: ${text}`)
+    const [month, day, year, hour, minute, second] = match.slice(1).map(Number)
+    Object.assign(parts, { year, month, day, hour, minute, second })
   }
   return {
     year: parts.year ?? 1970,

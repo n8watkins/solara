@@ -57,7 +57,7 @@ function perTier(value: (tier: TierLevel) => string | boolean) {
 
 /**
  * Single source of truth for the plan comparison in the pricing dialog and on the
- * landing page, derived from the tier rules in lib/tiers.ts.
+ * landing page, derived from the tier rules in packages/core/src/tiers.ts.
  */
 export const PRO_FEATURES: ProFeature[] = [
   { label: 'Forecast', ...perTier(forecastLabel) },

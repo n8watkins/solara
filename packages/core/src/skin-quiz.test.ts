@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { FITZPATRICK_TYPES, SKIN_TYPES } from '@solara/core'
+import { FITZPATRICK_TYPES, SKIN_TYPES } from './recommendation'
 import {
   SKIN_QUIZ,
   fitzpatrickTypeForScore,
@@ -7,7 +7,7 @@ import {
   skinQuizScore,
   skinTypeFromQuiz,
   type SkinQuizAnswers,
-} from '@/lib/skin-quiz'
+} from './skin-quiz'
 
 /** Every question answered with the same score. */
 const all = (score: number): SkinQuizAnswers =>

@@ -161,7 +161,8 @@ service cloud.firestore {
         && (!('email' in interest) || (interest.email is string && interest.email.size() <= 254));
     }
 
-    // Must match PRESET_ACTIVITIES ids in lib/tiers.ts (checked by lib/firestore-rules.test.ts).
+    // Must match PRESET_ACTIVITIES ids in packages/core/src/tiers.ts (checked by
+    // lib/firestore-rules.test.ts).
     function presetActivityIds() {
       return [
         'run', 'jog', 'cycle', 'mtb', 'sprint',
@@ -172,14 +173,15 @@ service cloud.firestore {
       ];
     }
 
-    // Must match ACTIVITY_CATEGORIES names in lib/tiers.ts (checked by lib/firestore-rules.test.ts).
+    // Must match ACTIVITY_CATEGORIES names in packages/core/src/tiers.ts (checked by
+    // lib/firestore-rules.test.ts).
     function activityCategoryNames() {
       return [
         'Running & cycling', 'Water sports', 'Outdoor leisure', 'Sports & courts', 'Quick breaks'
       ];
     }
 
-    // The plan's cap for a list (lib/tiers.ts TIER_LIMITS, checked by
+    // The plan's cap for a list (packages/core/src/tiers.ts TIER_LIMITS, checked by
     // lib/firestore-rules.test.ts): Pro's on a paid account, Free's on any other. `tier`
     // is server-owned, so the stored value is the one that counts. A list may also stay
     // as long as it already is (`prior` is the stored document, or {} on create), so an

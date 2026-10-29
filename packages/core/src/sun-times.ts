@@ -132,7 +132,7 @@ export interface Daylight {
   to: number
 }
 
-/** Slots start and end on 5-minute steps (lib/next-slot.ts nowHourOf): 12 an hour. */
+/** Slots start and end on 5-minute steps (next-slot.ts nowHourOf): 12 an hour. */
 const STEPS = 12
 
 /** A local fractional hour on `dateStr` for an instant (24 for the next midnight). */

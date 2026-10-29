@@ -14,6 +14,7 @@ import type { ExposureSetting } from './exposure'
 import { isSkinType, type PreferredHours, type SkinType } from './recommendation'
 import { NOTIFICATION_HOUR, QUIET_HOURS, UV_ALERT_THRESHOLD } from './prefs'
 import type { Daylight } from './sun-times'
+import { isoDateOf, wallClockAt } from './zoned-time'
 
 /** The kinds of alert, each sent at most once per local day. */
 export const ALERT_KINDS = Object.freeze(['morning', 'uv'] as const)
@@ -33,21 +34,8 @@ export interface LocalTime {
 /** The local date and time of `now` in an IANA time zone, or null for an unknown zone. */
 export function localTime(now: Date, timeZone: string): LocalTime | null {
   try {
-    const parts = new Intl.DateTimeFormat('en-US', {
-      timeZone,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      hourCycle: 'h23',
-    }).formatToParts(now)
-    const part = (type: Intl.DateTimeFormatPartTypes) =>
-      parts.find(item => item.type === type)?.value ?? ''
-    const hour = Number(part('hour'))
-    const minute = Number(part('minute'))
-    if (!Number.isFinite(hour) || !Number.isFinite(minute)) return null
-    return { date: `${part('year')}-${part('month')}-${part('day')}`, hour: hour + minute / 60 }
+    const local = wallClockAt(now.getTime(), timeZone)
+    return { date: isoDateOf(local), hour: local.hour + local.minute / 60 }
   } catch {
     return null
   }

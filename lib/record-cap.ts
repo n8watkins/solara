@@ -2,8 +2,10 @@
 // may keep (lib/key-index.ts, REVIEW4 M4). Kept apart from key-index.ts so a screen can
 // recognise it without loading the Firestore code.
 
+import type { CappedCollection } from '@solara/core/key-lists'
+
 /** Collections with a per-account cap. */
-export type CappedCollection = 'events' | 'scheduled'
+export type { CappedCollection }
 
 const NOUNS: Readonly<Record<CappedCollection, string>> = {
   events: 'imported events',

@@ -1,8 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import type { BusyInterval } from '@/lib/scheduler'
-import { recommendSlot } from '@/lib/scheduler'
-import { fmtClock } from '@/lib/weather'
-import type { SafeActivityWindow } from '@/lib/types'
+import type { SafeActivityWindow } from './forecast-days'
+import { recommendSlot, type BusyInterval } from './scheduler'
 
 const morning: SafeActivityWindow = { from: 6, to: 10, label: 'Morning', peakUV: 1, avgUV: 1 }
 const evening: SafeActivityWindow = { from: 17, to: 21, label: 'Evening', peakUV: 2, avgUV: 2 }
@@ -144,16 +142,5 @@ describe('recommendSlot — occupancy UV (hourly provided)', () => {
     const r = recommendSlot([wide], [{ start: 9, end: 10 }], 60, 'sunniest', -1, hourly)!
     expect(r.start).toBe(10)
     expect(r.avgUV).toBe(7)
-  })
-})
-
-describe('fmtClock', () => {
-  it('formats whole and fractional hours', () => {
-    expect(fmtClock(17)).toBe('5pm')
-    expect(fmtClock(6.75)).toBe('6:45am')
-    expect(fmtClock(9.5)).toBe('9:30am')
-    expect(fmtClock(12)).toBe('12pm')
-    expect(fmtClock(0)).toBe('12am')
-    expect(fmtClock(13)).toBe('1pm')
   })
 })

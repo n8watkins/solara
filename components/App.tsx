@@ -220,7 +220,7 @@ function SignedInApp() {
       onSignedIn={handleSignedIn}
       units={units}
       // Scheduled activities (Google Calendar) come with every account, Free included
-      // (canUseCalendar in lib/tiers.ts).
+      // (canUseCalendar in packages/core/src/tiers.ts).
       uid={user && canUseCalendar(prefs.tier) ? user.uid : null}
       activities={prefs.activities}
     >

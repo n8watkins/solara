@@ -1,27 +1,15 @@
-import {
-  hourAllowed,
-  planningUV,
-  lowestUVWindow,
-  uvBand,
-  windowEventTitle,
-  type Daylight,
-  type UVBand,
-} from '@solara/core'
-import type { HourlyForecast, Activity, ActivityWindow, SkinType } from './types'
-import { burnMins, effectiveMaxUV, findRecommendationWindows } from './recommendation'
+import { uvBand, windowEventTitle, type UVBand } from '@solara/core'
 import { zonedInstant } from './time'
+
+// Per-day activity planning lives in @solara/core (packages/core/src/weather.ts), shared
+// with a native client; this module adds the web's display helpers (CSS colors, the
+// Google Calendar link).
+export { fmtDays, getActivityWindow, vitDMins } from '@solara/core/weather'
 
 /** 12-hour hour and time labels; components use useUnits() for the person's clock. */
 export { formatHour as fmtHour, formatClockTime as fmtClock } from './units'
 
 export { burnMins, SKIN_BURN_BASE } from './recommendation'
-import { SKIN_BURN_BASE } from './recommendation'
-
-export function vitDMins(uv: number, skinType: SkinType): number | null {
-  if (uv < 1) return null
-  const base = SKIN_BURN_BASE[skinType]
-  return Math.max(1, Math.round((base * 0.3 * 10) / uv))
-}
 
 /** The WHO UV scale lives in @solara/core so briefings and alerts name levels the same. */
 export { UV_BANDS, formatUV, uvBand, uvLabel, type UVBand } from '@solara/core'
@@ -49,20 +37,6 @@ export function uvTextColor(_uv: number): string {
   return 'var(--color-uv-ink)'
 }
 
-const DAY_ABBR = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-
-/** Short label for an activity's weekday restriction; null when it runs every day. */
-export function fmtDays(days?: number[]): string | null {
-  if (!days || days.length === 0 || days.length === 7) return null
-  const set = new Set(days)
-  if (set.size === 5 && [1, 2, 3, 4, 5].every(d => set.has(d))) return 'Weekdays'
-  if (set.size === 2 && set.has(0) && set.has(6)) return 'Weekends'
-  return [...days]
-    .sort((a, b) => a - b)
-    .map(d => DAY_ABBR[d])
-    .join(', ')
-}
-
 /** Google Calendar's compact UTC timestamp, e.g. 20260615T173000Z. */
 export function gcalTimestamp(epochMs: number): string {
   return new Date(epochMs).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
@@ -87,54 +61,4 @@ export function gcalLink(
     'Forecast-based lower-UV planning estimate from Solara. Recheck current UV and use sun protection.',
   )
   return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${gcalTimestamp(start)}/${gcalTimestamp(end)}&details=${details}`
-}
-
-function withinPreferredHours(hour: number, activity: Activity): boolean {
-  return hourAllowed(hour, activity.preferredHours)
-}
-
-export function getActivityWindow(
-  hourly: HourlyForecast[],
-  activity: Activity,
-  currentHour: number,
-  skinType: SkinType = 'fair',
-  /** The day's hours with the sun up (DayWeather.daylight): no window in the dark. */
-  daylight: Daylight | null = null,
-): ActivityWindow {
-  const maxUV = effectiveMaxUV(activity)
-  // Planning judges each hour by the UV the activity's skin is expected to get: the
-  // clear-sky UV, or the forecast's (which already includes its clouds) when the
-  // activity accounts for cloud cover, then its shade and surface reflection
-  // (@solara/core planningUV). The reported window UV stays the forecast value.
-  const exposureUV = (h: HourlyForecast) => planningUV(h, activity)
-  const planningHours = hourly.map(hour => ({
-    ...hour,
-    planningUV: exposureUV(hour),
-  }))
-  const allWindows = findRecommendationWindows(
-    planningHours,
-    maxUV,
-    activity.durationMins,
-    activity.preferredHours,
-    daylight,
-  )
-  const best = lowestUVWindow(allWindows)
-
-  const bestWindow = best ? { from: best.from, to: best.to } : null
-  const current = hourly.find(h => h.hour === currentHour)
-  const safeNow = current
-    ? exposureUV(current) <= maxUV && withinPreferredHours(current.hour, activity)
-    : false
-  // "% of daylight hours fit": an hour counts as daylight when the sun is up at its
-  // middle, so the dark hours at either end of the forecast day count for nothing.
-  const daylit = daylight
-    ? hourly.filter(h => h.hour + 0.5 >= daylight.from && h.hour + 0.5 < daylight.to)
-    : hourly
-  const qualifyingHours = daylit.filter(
-    hour => exposureUV(hour) <= maxUV && withinPreferredHours(hour.hour, activity),
-  ).length
-  const pctDaySafe = daylit.length ? Math.round((qualifyingHours / daylit.length) * 100) : 0
-  const burn = burnMins(maxUV, skinType)
-
-  return { activity, bestWindow, allWindows, safeNow, pctDaySafe, burnMins: burn }
 }

@@ -30,7 +30,7 @@ What users get:
   A signed-in account opens read-only from this browser's copy and goes live once the browser is back online.
   Pages always come from the network while online, a deploy installs a new worker that takes over at once and deletes the old caches, and the worker never handles or stores anything cross-origin (Open-Meteo, Firestore, Auth, Functions) or account-specific.
   Lighthouse 11's installability and PWA checks pass.
-- The confirmed plans from `lib/tiers.ts`: Guest (today, 1 activity, this device), Free (today and tomorrow, 3 activities, synced, calendar sync) and Pro (10 days, 20 activities, calendar sync, family profiles, morning alerts).
+- The confirmed plans from `packages/core/src/tiers.ts`: Guest (today, 1 activity, this device), Free (today and tomorrow, 3 activities, synced, calendar sync) and Pro (10 days, 20 activities, calendar sync, family profiles, morning alerts).
   Pro shows $2.99 a month or $19.99 a year with a 7-day free trial, as a waitlist until billing launches.
   Gentle upsells ("Save your plan, sign in free", "See the next 10 days with Pro", "Get this as a morning alert") open the sign-in or plans dialog and stay dismissed per device.
 - Skin types named by the Fitzpatrick scale (types I to V-VI) in setup, Settings and profiles, with an optional five-question quiz from the standard Fitzpatrick questionnaire that suggests one and says it is an estimate, not medical advice.
@@ -43,7 +43,7 @@ What users get:
   Plans assume a clear sky, which stays safe if forecast clouds break; an activity with "Account for cloud cover" on plans with the forecast's clouds instead, counted once (#114), and the calendar feed plans the same way.
 - A daily briefing at the top of the dashboard (#108): the day's peak UV and time (and the clear-sky peak when clouds lower it), the lowest-UV window for the plan, the burn time at the peak and one line of advice, shareable; after sunset it briefs tomorrow (on the guest plan it offers sign-in instead).
   The hero above the UV card names the activity's next slot ("Next slot for Running"), so the two never both claim to be the "best".
-  Both turn the page at the same moment, the place's sunset (`todayOver` in `lib/dashboard-view.ts`, ROADMAP item 28): until then the briefing covers today and the hero stays.
+  Both turn the page at the same moment, the place's sunset (`todayOver` in `packages/core/src/day-view.ts`, ROADMAP item 28): until then the briefing covers today and the hero stays.
   The hero's time stays on one line and its detail line reads in full from 320 px, with "Start now" on the label's row.
   The UV card's line under its reading wraps after a dot instead of cutting the weather off at 320 px, and the current hour's chip shows the live reading as "Now", the same value as the reading above it (ROADMAP item 30).
 - From 320 px (ROADMAP item 31): the header's place name wraps to a second line instead of being cut off ("San Luis Obispo, California" reads in full; under 360 px the header shows the Solara mark without its wordmark), the day chips share one row with the refresh button, and "Best day this week" never splits a time range.

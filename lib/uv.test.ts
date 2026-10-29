@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { burnMins, vitDMins, uvLabel, fmtHour, formatUV, getActivityWindow } from '@/lib/weather'
+import { burnMins, uvLabel, fmtClock, fmtHour, formatUV } from '@/lib/weather'
 import { effectiveMaxUV } from '@/lib/tiers'
-import type { HourlyForecast, Activity } from '@/lib/types'
+import type { Activity } from '@/lib/types'
 
 // ---------------------------------------------------------------------------
 // burnMins — time-to-burn estimate. A wrong value here is genuinely unsafe
@@ -27,23 +27,6 @@ describe('burnMins', () => {
 
   it('rounds to whole minutes', () => {
     expect(burnMins(3, 'dark')).toBe(167) // (50*10)/3 = 166.67
-  })
-})
-
-// ---------------------------------------------------------------------------
-// vitDMins — time to a vitamin D dose. Needs UV >= 1, floored at 1 minute.
-// ---------------------------------------------------------------------------
-describe('vitDMins', () => {
-  it('returns null below UV 1 (no vitamin D synthesis)', () => {
-    expect(vitDMins(0.9, 'fair')).toBeNull()
-  })
-
-  it('computes a sensible dose time', () => {
-    expect(vitDMins(5, 'fair')).toBe(9) // (15*0.3*10)/5 = 9
-  })
-
-  it('never returns less than 1 minute even at extreme UV', () => {
-    expect(vitDMins(50, 'fair')).toBe(1)
   })
 })
 
@@ -118,80 +101,13 @@ describe('formatUV', () => {
   })
 })
 
-// ---------------------------------------------------------------------------
-// getActivityWindow — the core recommendation. Build a controlled day:
-// safe morning (6–9), unsafe midday (10–16), safe evening (17–20).
-// ---------------------------------------------------------------------------
-function buildDay(): HourlyForecast[] {
-  const hours: HourlyForecast[] = []
-  for (let h = 6; h <= 20; h++) {
-    let uv: number
-    if (h <= 9) uv = 1
-    else if (h <= 16) uv = 8
-    else uv = 2
-    hours.push({ hour: h, uv, tempC: 21, condition: 'Clear' })
-  }
-  return hours
-}
-
-const runActivity: Activity = {
-  id: 'run',
-  name: 'Running',
-  icon: '🏃',
-  durationMins: 60,
-  maxUV: 4,
-  sunscreen: false,
-}
-
-describe('getActivityWindow', () => {
-  it('finds both safe windows and skips the unsafe midday block', () => {
-    const w = getActivityWindow(buildDay(), runActivity, 7, 'fair')
-    expect(w.allWindows).toHaveLength(2)
-    expect(w.allWindows[0]).toMatchObject({ from: 6, to: 10, peakUV: 1 })
-    expect(w.allWindows[1]).toMatchObject({ from: 17, to: 20, peakUV: 2 })
-  })
-
-  it('picks the lowest-average-UV window as best', () => {
-    const w = getActivityWindow(buildDay(), runActivity, 7, 'fair')
-    expect(w.bestWindow).toEqual({ from: 6, to: 10 })
-  })
-
-  it('reports safeNow based on the current hour', () => {
-    expect(getActivityWindow(buildDay(), runActivity, 7, 'fair').safeNow).toBe(true)
-    expect(getActivityWindow(buildDay(), runActivity, 12, 'fair').safeNow).toBe(false)
-  })
-
-  it('computes percent of the visible day that is safe', () => {
-    // 8 safe hours of 15 → 53%
-    expect(getActivityWindow(buildDay(), runActivity, 7, 'fair').pctDaySafe).toBe(53)
-  })
-
-  it('uses the selected skin type for burn estimate (not hard-coded fair)', () => {
-    const fair = getActivityWindow(buildDay(), runActivity, 7, 'fair').burnMins
-    const dark = getActivityWindow(buildDay(), runActivity, 7, 'dark').burnMins
-    expect(dark!).toBeGreaterThan(fair!)
-  })
-
-  it('drops windows shorter than the activity duration', () => {
-    const longActivity: Activity = { ...runActivity, durationMins: 300 } // 5h, neither block fits
-    const w = getActivityWindow(buildDay(), longActivity, 7, 'fair')
-    expect(w.allWindows).toHaveLength(0)
-    expect(w.bestWindow).toBeNull()
-  })
-
-  it('respects preferredHours — excludes safe windows outside the preferred range', () => {
-    const morningOnly: Activity = { ...runActivity, preferredHours: { from: 6, to: 10 } }
-    const w = getActivityWindow(buildDay(), morningOnly, 7, 'fair')
-    expect(w.allWindows).toHaveLength(1)
-    expect(w.allWindows[0]).toMatchObject({ from: 6, to: 10 })
-  })
-
-  it('raises the effective threshold with sunscreen, unlocking the midday block', () => {
-    const spf: Activity = { ...runActivity, sunscreen: true } // effectiveMaxUV = 10, so uv 8 is now safe
-    const w = getActivityWindow(buildDay(), spf, 12, 'fair')
-    expect(w.safeNow).toBe(true)
-    // whole 6–20 range is now under threshold → one continuous window
-    expect(w.allWindows).toHaveLength(1)
-    expect(w.allWindows[0]).toMatchObject({ from: 6, to: 20 })
+describe('fmtClock', () => {
+  it('formats whole and fractional hours', () => {
+    expect(fmtClock(17)).toBe('5pm')
+    expect(fmtClock(6.75)).toBe('6:45am')
+    expect(fmtClock(9.5)).toBe('9:30am')
+    expect(fmtClock(12)).toBe('12pm')
+    expect(fmtClock(0)).toBe('12am')
+    expect(fmtClock(13)).toBe('1pm')
   })
 })

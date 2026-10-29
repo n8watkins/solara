@@ -6,8 +6,9 @@ import {
   planUpcomingSlots,
   activityRunsOn,
   nextSlotAfterToday,
-} from '@/lib/planner'
-import type { DayWeather, Activity, HourlyForecast } from '@/lib/types'
+} from './planner'
+import type { DayWeather, HourlyForecast } from './forecast-days'
+import type { Activity } from './prefs'
 
 function day(dateStr: string, label: string, uvByHour: (h: number) => number): DayWeather {
   const hourly: HourlyForecast[] = []

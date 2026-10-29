@@ -23,7 +23,7 @@ export const SCHEDULED_LIMITS = Object.freeze({
   listLimit: 100,
   /**
    * Most records one account may hold (REVIEW4 M4; default, owner may change). The rules
-   * enforce it through users/{uid}/meta/scheduled (lib/key-index.ts).
+   * enforce it through users/{uid}/meta/scheduled (key-lists.ts).
    */
   maxStored: 500,
 })

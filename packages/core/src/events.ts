@@ -15,6 +15,7 @@ import { burnMins, type SkinType } from './recommendation'
 import { finiteNumber, record } from './schema'
 import { isIanaTimeZone, wallClockAt, isoDateOf } from './zoned-time'
 import { DAY_END_HOUR, DAY_START_HOUR } from './forecast'
+import { sha256Hex } from './sha256'
 
 /** Storage caps, mirrored by firestore.rules. */
 export const IMPORTED_EVENT_LIMITS = Object.freeze({
@@ -31,7 +32,7 @@ export const IMPORTED_EVENT_LIMITS = Object.freeze({
   listLimit: 200,
   /**
    * Most records one account may hold (REVIEW4 M4; default, owner may change). The rules
-   * enforce it through users/{uid}/meta/events (lib/key-index.ts).
+   * enforce it through users/{uid}/meta/events (key-lists.ts).
    */
   maxStored: 1000,
 })
@@ -164,14 +165,12 @@ export function parseImportedEvent(raw: unknown): ImportedEvent | null {
 
 // ---- Keys ----------------------------------------------------------------------------
 
-async function sha256Hex(text: string): Promise<string> {
-  const digest = await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))
-  return [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, '0')).join('')
-}
+// Keys are SHA-256 digests from core's own hasher (sha256.ts): Web Crypto is missing on
+// React Native's Hermes. They stay async so callers need not change if that ever moves.
 
 /** The id shared by every occurrence of one event from one source. */
 export async function importedSeriesId(source: ImportedEventSource, uid: string): Promise<string> {
-  return (await sha256Hex(`${source}\n${uid}`)).slice(0, IMPORTED_EVENT_LIMITS.keyLength)
+  return sha256Hex(`${source}\n${uid}`).slice(0, IMPORTED_EVENT_LIMITS.keyLength)
 }
 
 /** The document key of one event (one occurrence of a recurring event). */
@@ -181,7 +180,7 @@ export async function importedEventKey(
   recurrenceId: string | null,
 ): Promise<string> {
   const text = `${source}\n${uid}\n${recurrenceId ?? ''}`
-  return (await sha256Hex(text)).slice(0, IMPORTED_EVENT_LIMITS.keyLength)
+  return sha256Hex(text).slice(0, IMPORTED_EVENT_LIMITS.keyLength)
 }
 
 /**
@@ -190,7 +189,7 @@ export async function importedEventKey(
  * stored records.
  */
 export async function feedSeriesId(feedId: string, uid: string): Promise<string> {
-  return (await sha256Hex(`feed\n${feedId}\n${uid}`)).slice(0, IMPORTED_EVENT_LIMITS.keyLength)
+  return sha256Hex(`feed\n${feedId}\n${uid}`).slice(0, IMPORTED_EVENT_LIMITS.keyLength)
 }
 
 /** The document key of one event (or occurrence) from a linked calendar. */
@@ -200,7 +199,7 @@ export async function feedEventKey(
   recurrenceId: string | null,
 ): Promise<string> {
   const text = `feed\n${feedId}\n${uid}\n${recurrenceId ?? ''}`
-  return (await sha256Hex(text)).slice(0, IMPORTED_EVENT_LIMITS.keyLength)
+  return sha256Hex(text).slice(0, IMPORTED_EVENT_LIMITS.keyLength)
 }
 
 // ---- Places --------------------------------------------------------------------------
@@ -253,7 +252,7 @@ export function distanceKm(
 // ---- Matching an event to an activity ------------------------------------------------
 
 /**
- * Words that name each preset activity (lib/tiers.ts ACTIVITY_CATEGORIES) in event
+ * Words that name each preset activity (tiers.ts ACTIVITY_CATEGORIES) in event
  * titles, so "Saturday 10K" counts as Running and "Beach volleyball" as nothing.
  */
 export const ACTIVITY_KEYWORDS: Readonly<Record<string, readonly string[]>> = Object.freeze({

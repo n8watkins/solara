@@ -1,4 +1,4 @@
-// Forecast days per plan, shared by the app (lib/tiers.ts TIER_LIMITS) and the live
+// Forecast days per plan, shared by the app (tiers.ts TIER_LIMITS) and the live
 // calendar feed, so the feed never shows more or fewer days than the app does.
 
 /** Forecast days each plan sees, today included. */

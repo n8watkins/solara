@@ -559,7 +559,7 @@ describe('typed and size-capped preference fields', () => {
   })
 })
 
-describe('plan limits (lib/tiers.ts TIER_LIMITS)', () => {
+describe('plan limits (packages/core/src/tiers.ts TIER_LIMITS)', () => {
   const activities = n => Array.from({ length: n }, (_, i) => fullActivity(i))
   const places = n =>
     Array.from({ length: n }, (_, i) => ({ lat: i, lon: i, city: `City ${i}`, region: 'WA' }))

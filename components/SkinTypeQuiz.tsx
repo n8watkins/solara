@@ -16,7 +16,7 @@ interface Props {
 
 /**
  * The optional skin type quiz: five questions from the standard Fitzpatrick skin type
- * questionnaire (lib/skin-quiz.ts), reachable from setup and Settings. It only
+ * questionnaire (packages/core/src/skin-quiz.ts), reachable from setup and Settings. It only
  * suggests a type; nothing changes until the person chooses to use it.
  */
 export default function SkinTypeQuiz({ onUse, onClose }: Props) {

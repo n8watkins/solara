@@ -314,7 +314,7 @@ What lane FIX6C found on the dashboard and left for later, through a day in Los 
   An activity whose preferred hours are all in the dark gets no slot, and the hero says so ("No daylight in your hours").
   "% of daylight hours fit" now counts only hours with the sun up.
 - **One notion of "today is over":** at 5:20pm the briefing had turned to "Tomorrow at a glance" (no UV left) while the hero still offered a run this evening.
-  Both now go by the place's sunset (`todayOver` in `lib/dashboard-view.ts`): until sunset the briefing covers today and the hero stays, and both say no slot is left when the daylight is too short for the activity.
+  Both now go by the place's sunset (`todayOver` in `packages/core/src/day-view.ts`): until sunset the briefing covers today and the hero stays, and both say no slot is left when the daylight is too short for the activity.
 - **Tests:** unit tests for the daylight bounds, the briefing day, the plans, the alert and the feed; harness screens (`tests/harness/dashboard-hero.spec.ts`) at dawn, morning, evening and night at 320, 390 and 1280-1440 px, light and dark.
 
 ### 29. Outlook sign-in fixes from the seventh review (FIX7A, built)
@@ -500,7 +500,7 @@ The steps behind each one are in the [owner checklist](OWNER_CHECKLIST.md).
 | Calendar sync (Google Calendar adding, Scheduled, live feed, .ics export) | - | Yes | Yes |
 | Family profiles, morning alerts | - | - | Yes |
 
-Google Calendar adding and Scheduled stay available on Free accounts by owner decision (2026-10-24); `lib/tiers.ts` keeps `calendar` on for Free, and that one flag also covers the live feed and the .ics export.
+Google Calendar adding and Scheduled stay available on Free accounts by owner decision (2026-10-24); `packages/core/src/tiers.ts` keeps `calendar` on for Free, and that one flag also covers the live feed and the .ics export.
 Morning alerts are Pro-only and launch with Pro.
 Upsell moments: "Save your plan, sign in free" when a guest adds a second activity or returns on a later day; "See the next 10 days with Pro" on the forecast tabs; "Get this as a morning alert" on the recommendation card.
 No pop-ups on first arrival.
