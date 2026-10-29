@@ -227,6 +227,7 @@ describe('billing summary in the account export', () => {
     })
     assert.deepEqual(summary, {
       plan: 'pro',
+      provider: 'stripe',
       interval: 'yearly',
       status: 'past_due',
       proSince: '2026-10-01T00:00:00.000Z',
@@ -242,6 +243,7 @@ describe('billing summary in the account export', () => {
   test('is a plain Free summary for an account that never paid', () => {
     assert.deepEqual(billingSummary(null), {
       plan: 'free',
+      provider: 'stripe',
       interval: null,
       status: null,
       proSince: null,

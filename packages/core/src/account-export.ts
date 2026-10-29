@@ -21,6 +21,7 @@ import { parseOutlookCalendarLink } from './outlook-calendar-events'
 import { parseScheduledActivity } from './scheduled'
 import { parseSubscriptionSummaries } from './event-subscriptions'
 import { PREFERENCE_FIELDS } from './prefs'
+import { subscriptionProviderOf } from './plans'
 
 /** Raises when a section's fields or meaning change; readers can tell files apart. */
 export const ACCOUNT_EXPORT_FORMAT_VERSION = 1
@@ -97,6 +98,8 @@ export function exportBillingSummary(data: Data | null | undefined) {
   const interval = data?.subscriptionPlan
   return {
     plan: data?.tier === 'paid' ? 'pro' : 'free',
+    /** Where the subscription is bought: 'stripe' (also when unset), or null for an unknown store. */
+    provider: subscriptionProviderOf(data),
     interval: interval === 'monthly' || interval === 'yearly' ? interval : null,
     status: typeof data?.subscriptionStatus === 'string' ? data.subscriptionStatus : null,
     proSince: isoDate(data?.proSince),

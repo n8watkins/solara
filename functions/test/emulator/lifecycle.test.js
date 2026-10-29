@@ -180,6 +180,7 @@ describe('subscription lifecycle', () => {
     const account = (await db.doc('users/alice').get()).data()
     assert.equal(account.tier, 'paid')
     assert.equal(account.subscriptionPlan, 'monthly')
+    assert.equal(account.subscriptionProvider, 'stripe')
     const events = await db.collection('stripeWebhookEvents').get()
     assert.equal(events.size, 1)
     assertExpiresInDays(events.docs[0].get('expireAt'), 90)

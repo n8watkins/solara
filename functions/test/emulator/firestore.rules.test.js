@@ -207,6 +207,24 @@ describe('user preferences', () => {
     await assertFails(ref.update({ stripeCustomerId: 'cus_attacker' }))
     await assertFails(ref.update({ subscriptionStatus: 'canceled' }))
   })
+
+  test('only the server names where a subscription was bought', async () => {
+    // subscriptionProvider decides which store's entitlement check applies
+    // (functions/src/billing/entitlement.ts), so a client may never set or change it.
+    await testEnv.withSecurityRulesDisabled(async context => {
+      await context
+        .firestore()
+        .doc('users/alice')
+        .set(prefs('alice', { tier: 'paid', subscriptionProvider: 'stripe' }))
+    })
+    const ref = testEnv.authenticatedContext('alice').firestore().doc('users/alice')
+    await assertSucceeds(ref.update({ skinType: 'medium' }))
+    await assertFails(ref.update({ subscriptionProvider: 'google-play' }))
+    await assertFails(ref.update({ subscriptionProvider: null }))
+    const bob = testEnv.authenticatedContext('bob').firestore().doc('users/bob')
+    await assertFails(bob.set({ ...prefs('bob'), subscriptionProvider: 'stripe' }))
+    await assertSucceeds(bob.set(prefs('bob')))
+  })
 })
 
 function activity(overrides = {}) {
