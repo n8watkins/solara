@@ -321,25 +321,84 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  # The harness is the longest suite (about 17 minutes in one job, which met the
+  # job's 20-minute limit and cancelled a production deploy, REVIEW9 QA H1), so it
+  # runs as four Playwright shards in parallel. Each shard builds the harness
+  # export and captures its share of the screens; `ui-harness` below keeps the
+  # required check's name, waits for every shard and merges their screenshots and
+  # axe reports into one `ui-harness` artifact.
+  ui-harness-shard:
+    name: UI harness shard ${{ matrix.shard }} of 4
+    needs: changes
+    # Skipped when nothing relevant changed; a failed `changes` (empty outputs)
+    # still runs every shard.
+    if: ${{ !cancelled() && needs.changes.outputs.harness != 'false' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    env:
+      SHARD: ${{ matrix.shard }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      # Writes screenshots and axe reports to test-results/ui-harness/. Axe
+      # violations are reported, not failed; a broken screen still fails the shard.
+      - name: UI harness
+        run: npm run test:harness -- --shard="$SHARD/4"
+
+      - name: Upload this shard's screenshots and axe reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ui-harness-shard-${{ matrix.shard }}
+          path: |
+            test-results/ui-harness/
+            !test-results/ui-harness/site/
+            !test-results/ui-harness/axe-summary.*
+          if-no-files-found: error
+          retention-days: 7
+
   ui-harness:
     name: Signed-in UI harness
-    needs: changes
-    # Always report (required check), even if `changes` failed.
+    needs: [changes, ui-harness-shard]
+    # Always report (required check), even if `changes` or a shard failed.
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
     permissions:
       contents: read
     env:
       RELEVANT: ${{ needs.changes.outputs.harness != 'false' }}
       REASON: ${{ needs.changes.outputs.harness_reason }}
+      SHARDS: ${{ needs.ui-harness-shard.result }}
     steps:
-      - name: Check for relevant changes
+      - name: Check the shards
         run: |
-          if [ "$RELEVANT" = true ]; then
-            echo "The UI harness tests run: $REASON."
-          else
+          if [ "$RELEVANT" != true ]; then
             echo "No relevant changes: $REASON." | tee -a "$GITHUB_STEP_SUMMARY"
+          elif [ "$SHARDS" != success ]; then
+            echo "::error::The UI harness shards ended with '$SHARDS'; see the failed shard's log."
+            exit 1
+          else
+            echo "The UI harness tests ran in four shards: $REASON."
           fi
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -351,30 +410,29 @@ jobs:
         if: env.RELEVANT == 'true'
         with:
           node-version-file: .nvmrc
-          cache: npm
+          package-manager-cache: false
 
-      - name: Install dependencies
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         if: env.RELEVANT == 'true'
-        run: npm ci --ignore-scripts
+        with:
+          pattern: ui-harness-shard-*
+          merge-multiple: true
+          path: test-results/ui-harness/
 
-      - name: Install Chromium
+      # The same merge Playwright's global teardown makes for one run, over every
+      # shard's screens (Node runs the TypeScript directly).
+      - name: Merge the axe reports
         if: env.RELEVANT == 'true'
-        run: npx playwright install --with-deps chromium
-
-      # Writes screenshots and an axe report to test-results/ui-harness/. Axe
-      # violations are reported, not failed; a broken screen still fails the job.
-      - name: UI harness
-        if: env.RELEVANT == 'true'
-        run: npm run test:harness
+        run: |
+          set -euo pipefail
+          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON tests/harness/merge-axe.mts | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Upload screenshots and axe report
-        if: ${{ !cancelled() && env.RELEVANT == 'true' }}
+        if: env.RELEVANT == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ui-harness
-          path: |
-            test-results/ui-harness/
-            !test-results/ui-harness/site/
+          path: test-results/ui-harness/
           if-no-files-found: error
           retention-days: 14
 

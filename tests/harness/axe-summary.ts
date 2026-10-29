@@ -1,5 +1,6 @@
 // Playwright global teardown for the UI harness: merges the per-screen axe JSON
 // files into test-results/ui-harness/axe-summary.{json,md}. Report-only.
+// CI runs the harness in shards and merges every shard's reports with merge-axe.mts.
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
