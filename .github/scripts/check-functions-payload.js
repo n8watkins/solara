@@ -13,7 +13,11 @@
 // on deploy): it compiles @solara/core into functions/core and the TypeScript source
 // into functions/lib.
 //
-// Usage: node .github/scripts/check-functions-payload.js
+// With --set=budget-guard it loads the entry point as the budget guard deploy does
+// (SOLARA_FUNCTION_SET=budget-guard) and requires that it exports budgetAlert and
+// nothing else.
+//
+// Usage: node .github/scripts/check-functions-payload.js [--set=all|budget-guard]
 const { execFileSync } = require('node:child_process')
 const fs = require('node:fs')
 const os = require('node:os')
@@ -23,10 +27,18 @@ const root = path.resolve(__dirname, '..', '..')
 const functionsDir = path.join(root, 'functions')
 const fromFunctions = request => require(require.resolve(request, { paths: [functionsDir] }))
 
-/** Exports a deploy must find: a sample of HTTP, scheduled and feed functions. */
-const EXPECTED_EXPORTS = ['calendarFeed', 'deleteAccount', 'maintenance', 'stripeWebhook']
+const set = process.argv.find(arg => arg.startsWith('--set='))?.slice('--set='.length) || 'all'
+/**
+ * Exports a deploy must find: for every Function a sample of HTTP, scheduled, feed and
+ * Pub/Sub functions; for the budget guard exactly its one function.
+ */
+const EXPECTED_EXPORTS = {
+  all: ['budgetAlert', 'calendarFeed', 'deleteAccount', 'maintenance', 'stripeWebhook'],
+  'budget-guard': ['budgetAlert'],
+}[set]
 
 async function main() {
+  if (!EXPECTED_EXPORTS) throw new Error(`unknown Functions set ${set}`)
   const firebaseJson = JSON.parse(fs.readFileSync(path.join(root, 'firebase.json'), 'utf8'))
   const config = [firebaseJson.functions].flat()[0]
   if (config?.source !== 'functions')
@@ -69,13 +81,20 @@ async function main() {
         '-e',
         `const f = require(${JSON.stringify(payload)}); console.log(JSON.stringify(Object.keys(f)))`,
       ],
-      { cwd: payload, encoding: 'utf8', env: { ...process.env, NODE_PATH: '' } },
+      {
+        cwd: payload,
+        encoding: 'utf8',
+        env: { ...process.env, NODE_PATH: '', SOLARA_FUNCTION_SET: set },
+      },
     )
     const exported = JSON.parse(loaded.trim().split('\n').at(-1))
     const missing = EXPECTED_EXPORTS.filter(name => !exported.includes(name))
     if (missing.length) throw new Error(`${main} does not export ${missing.join(', ')}`)
+    if (set === 'budget-guard' && exported.length !== EXPECTED_EXPORTS.length) {
+      throw new Error(`the budget guard set exports more than budgetAlert: ${exported.join(', ')}`)
+    }
     console.log(
-      `The Functions payload loads on its own and exports ${exported.length} functions: ${exported.join(', ')}.`,
+      `The Functions payload loads on its own and its ${set} set exports ${exported.length} function${exported.length === 1 ? '' : 's'}: ${exported.join(', ')}.`,
     )
   } finally {
     fs.rmSync(payload, { recursive: true, force: true })

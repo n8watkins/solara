@@ -318,12 +318,9 @@ jobs:
             echo "::error::Set the STRIPE_PRICE_ID and STRIPE_YEARLY_PRICE_ID repository variables before switching billing on."
             exit 1
           fi
-          if [ "$COST_GUARD_DETACH_BILLING" = true ] && [ -z "$BUDGET_SERVICE_ACCOUNT" ]; then
-            echo "::warning::The budget kill switch cannot detach billing until infra/budget.sh has run and the BUDGET_SERVICE_ACCOUNT repository variable is set (docs/RUNBOOK.md, Budget kill switch)."
-          fi
-          if [ -z "$BUDGET_ID" ]; then
-            echo "::warning::Set the BUDGET_ID repository variable so the budget kill switch acts only on Solara's budget (infra/budget.sh prints it)."
-          fi
+          # Every Function includes the budget kill switch, which needs its budget id and
+          # its own identity (infra/budget.sh); without them, no Functions deploy.
+          node .github/scripts/budget-guard-env.mjs "$FIREBASE_PROJECT_ID"
           {
             printf 'STRIPE_PRICE_ID=%s\n' "$STRIPE_PRICE_ID"
             printf 'STRIPE_YEARLY_PRICE_ID=%s\n' "$STRIPE_YEARLY_PRICE_ID"
@@ -348,8 +345,9 @@ jobs:
           npm ci --ignore-scripts
           npm run build --prefix functions
 
+      # --expect-set=all: this deploy prunes with --force, so it must load every Function.
       - name: Check Functions params
-        run: node .github/scripts/check-functions-params.js "$FIREBASE_PROJECT_ID"
+        run: node .github/scripts/check-functions-params.js "$FIREBASE_PROJECT_ID" --expect-set=all
 
       - name: Check the Functions deploy payload
         run: node .github/scripts/check-functions-payload.js
@@ -360,11 +358,79 @@ jobs:
       - name: Deploy Functions
         run: functions/node_modules/.bin/firebase deploy --only functions --project "$FIREBASE_PROJECT_ID" --non-interactive --force
 
+  # The budget kill switch on its own (docs/DEPLOYMENT.md, "Budget guard on its own"): on
+  # Blaze before the other Functions, so the project has a real spending limit from the
+  # day billing is attached. Only `budgetAlert` deploys, from the entry point's
+  # budget-guard set, which declares none of the other Functions' secrets. Once
+  # ENABLE_BLAZE_FUNCTIONS is on, the Cloud Functions job ships it with everything else
+  # and this job steps aside.
+  #
+  # Trade-off (default, owner may change): Hosting does not wait for this job. A failed
+  # guard deploy fails the run (GitHub emails the owner) and leaves the last deployed
+  # guard running, but never holds back a site fix; the static site does not depend on
+  # the guard.
+  budget-guard:
+    name: Budget guard
+    if: >-
+      github.ref == 'refs/heads/main'
+      && vars.ENABLE_BUDGET_GUARD == 'true'
+      && vars.ENABLE_BLAZE_FUNCTIONS != 'true'
+    needs: [quality]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/firebase-cli
+        with:
+          workload-identity-provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service-account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          credentials-json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      # Refuses to deploy without BUDGET_ID and BUDGET_SERVICE_ACCOUNT (infra/budget.sh
+      # prints both), and writes them with SOLARA_FUNCTION_SET=budget-guard to the
+      # project's Functions params.
+      - name: Write the budget guard's params
+        env:
+          COST_GUARD_DETACH_BILLING: ${{ vars.COST_GUARD_DETACH_BILLING == 'false' && 'false' || 'true' }}
+          BUDGET_ID: ${{ vars.BUDGET_ID }}
+          BUDGET_SERVICE_ACCOUNT: ${{ vars.BUDGET_SERVICE_ACCOUNT }}
+        run: node .github/scripts/budget-guard-env.mjs "$FIREBASE_PROJECT_ID" --write
+
+      - name: Build the Functions
+        run: |
+          npm ci --ignore-scripts
+          npm run build --prefix functions
+
+      # The deploy must analyze the guard alone, with no secret declared.
+      - name: Check the budget guard's params
+        run: node .github/scripts/check-functions-params.js "$FIREBASE_PROJECT_ID" --expect-set=budget-guard
+
+      - name: Check the budget guard's deploy payload
+        run: node .github/scripts/check-functions-payload.js --set=budget-guard
+
+      # --only functions:budgetAlert limits the deploy, and with it --force, to that one
+      # function: no other function is created, updated or deleted. --force only creates
+      # the missing Artifact Registry cleanup policy (keep 1 day) instead of failing.
+      - name: Deploy the budget guard
+        run: |
+          if ! functions/node_modules/.bin/firebase deploy --only functions:budgetAlert --project "$FIREBASE_PROJECT_ID" --non-interactive --force; then
+            echo "::error::The budget guard (budgetAlert) did not deploy, so Blaze may have no automatic spending limit. Hosting deploys on its own; see docs/RUNBOOK.md, Budget kill switch."
+            exit 1
+          fi
+          echo "Deployed the budget guard (\`budgetAlert\`) on its own from commit \`$GITHUB_SHA\`." >> "$GITHUB_STEP_SUMMARY"
+
   hosting:
     name: Hosting
     # Waits for Functions only when they deploy: without Functions, a failed index
     # job never blocks the static site; with them, the bundle that calls them
     # ships only after they deploy.
+    # Never waits for the budget guard job (see the trade-off there).
     needs: [quality, build, firestore-rules, functions]
     if: >-
       !cancelled()
