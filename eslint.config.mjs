@@ -2,6 +2,7 @@ import { defineConfig, globalIgnores } from 'eslint/config'
 import nextVitals from 'eslint-config-next/core-web-vitals'
 import nextTypeScript from 'eslint-config-next/typescript'
 import prettier from 'eslint-config-prettier/flat'
+import noLiteralUiText from './scripts/eslint/no-literal-ui-text.mjs'
 
 export default defineConfig([
   ...nextVitals,
@@ -72,6 +73,26 @@ export default defineConfig([
         },
       ],
     },
+  },
+  {
+    // User-visible text comes from the message catalogues (messages/, docs/i18n/README.md).
+    // The landing, legal and city pages are static English pages for now (ROADMAP item 46),
+    // and the UI harness and the dev panel are tools, not the app.
+    files: ['app/**/*.tsx', 'components/**/*.tsx'],
+    ignores: [
+      'app/page.tsx',
+      'app/privacy/**',
+      'app/terms/**',
+      'app/uv/**',
+      'app/harness/**',
+      'components/city/**',
+      'components/LegalPage.tsx',
+      'components/LegalDetail.tsx',
+      'components/AnalyticsPreferenceControl.tsx',
+      'components/DevPanel.tsx',
+    ],
+    plugins: { solara: { rules: { 'no-literal-ui-text': noLiteralUiText } } },
+    rules: { 'solara/no-literal-ui-text': 'error' },
   },
   {
     files: ['**/*.js'],

@@ -89,7 +89,7 @@ Tick the boxes as you go and tell me when a group is done, so I can do my follow
 
 ## Later, no rush
 
-- Find a native Spanish speaker to review the safety wording (burn times, SPF advice, "seek shade") once the Spanish translation is ready; the language plan is [ROADMAP item 46](ROADMAP.md#46-languages-planned-next).
+- Find a native Spanish speaker to review the safety wording (burn times, SPF advice, "seek shade") once the Spanish translation is ready; the language plan is [ROADMAP item 46](ROADMAP.md#46-languages-setup-and-the-app-in-spanish-built); the sheet to review is [i18n/es-review.md](i18n/es-review.md).
 
 - A lawyer reviews the governing-law terms.
 - Pick the next feature after languages: a sun exposure log with a vitamin D tally.

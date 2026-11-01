@@ -22,9 +22,9 @@ What users get:
   Google sign-in is free and syncs to Firestore; a guest plan carries into a brand-new account on its first sign-in and never into an existing one.
   A guest who signs in to an existing account is told once that the account kept its own plan, and which activities, place and skin type from the guest plan were not added.
 - A guest never downloads Firebase: the dashboard shows from the guest plan and cached forecast at once, and Firebase loads only when someone reaches for "Sign in" or the browser already holds a session (#83).
-  Lighthouse mobile LCP for `/app/` is 2.2-2.4 s on the live site (measured 2026-10-29; was 4.4-6.3 s), and a guest's first load is about 182 KB gzip of JavaScript (was over 500 KB; 192.1 KB after ROADMAP item 38), with Valibot instead of Zod, a small forecast store instead of TanStack Query and more parts loaded on demand (#83, #93), including the install prompt and the dashboard's activity plan, which a new guest's plan never shows (#127).
+  Lighthouse mobile LCP for `/app/` is 2.2-2.4 s on the live site (measured 2026-10-29; was 4.4-6.3 s), and a guest's first load is about 189 KB gzip of JavaScript (about 185 KB before the language setup) (was over 500 KB; 192.1 KB after ROADMAP item 38), with Valibot instead of Zod, a small forecast store instead of TanStack Query and more parts loaded on demand (#83, #93), including the install prompt and the dashboard's activity plan, which a new guest's plan never shows (#127).
   ROADMAP item 39 took off about 10 KB: the React Compiler is off (8 KB), the slot planning loads with the activity plan and the analytics code loads only when it has something to do.
-  `tests/e2e/guest.spec.ts` holds it under 186 KB.
+  `tests/e2e/guest.spec.ts` holds it under 192 KB.
 - A returning account's dashboard shows at once from this browser's copy of it while Firebase loads and Auth confirms the session, and accepts no input until then; signed-in start-up LCP went from about 5.5 s to the same as a guest's (#93).
   Auth's sign-in popup helper (an iframe and Google's scripts) starts only when a sign-in or reauthentication is about to happen.
 - The installed app opens offline (#94): the app-shell service worker (`/sw.js`) precaches `/` and `/app/` with every file they load, and the app shows the last forecast for the place from this browser's cache with an offline notice that says when it was updated.
@@ -41,6 +41,10 @@ What users get:
   Until `ALERTS_ENABLED` is on, nothing arrives once every Solara tab is closed.
 - Sunscreen coaching (ROADMAP item 45, `packages/core/src/sunscreen.ts`, sources in [SUNSCREEN.md](SUNSCREEN.md)): the timer's "How much sunscreen?" gives today's SPF for the skin type (SPF 30+ broad spectrum from UV 3, SPF 50+ from UV 8 or for types I and II), about a teaspoon per body part and 7 (35 mL) for the whole body, and when to reapply; each activity card planned for UV 3 or more says how much its usual clothing leaves to cover ("about 5 tsp for face, arms, legs"), and Settings, Sun profile, gives the SPF rule for the chosen skin type.
   Nothing new is stored.
+- Languages (ROADMAP item 46, [how it works](i18n/README.md)): the app, the account page and shared plans in English and Latin American Spanish, from the device's language or the choice in Settings, Display (synced for an account).
+  English is built into the code; Spanish downloads its own translations before the app shows, so nothing changes language on screen.
+  The landing, legal and city pages and server-written text (alerts, pushes, the calendar feed) are still English; they follow in the item's second part.
+  The Spanish safety wording waits for a native speaker's review ([es-review.md](i18n/es-review.md)).
 - UV and weather forecasts from Open-Meteo, in the location's time zone, with Celsius or Fahrenheit and 12- or 24-hour time chosen from the locale or in Settings.
   When Open-Meteo does not answer, the app says the forecast service is not answering and tries again every minute; without any forecast the dashboard shows "No forecast yet" with "Try again now" (ROADMAP item 37).
 - Personalized activity windows on the dashboard and in the week calendar, within each plan's days.

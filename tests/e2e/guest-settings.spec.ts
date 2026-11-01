@@ -71,7 +71,7 @@ test('a guest changes skin type, theme and units after setup', async ({ page }) 
   await settings.getByLabel('Skin type').selectOption('very-fair')
   await settings.getByRole('button', { name: 'Save settings' }).click()
   await expect(settings).toHaveCount(0)
-  await expect(burn).toContainText('very-fair skin, no SPF')
+  await expect(burn).toContainText('very fair skin, no SPF')
   expect(Number.parseInt(await burn.getByTestId('metric-value').innerText())).toBeLessThan(
     Number.parseInt(before),
   )
@@ -87,7 +87,7 @@ test('a guest changes skin type, theme and units after setup', async ({ page }) 
 
   // All of it is kept in the guest plan on this device.
   await page.reload()
-  await expect(page.getByTestId('burn-metric')).toContainText('very-fair skin')
+  await expect(page.getByTestId('burn-metric')).toContainText('very fair skin')
   await expect(page.getByTestId('uv-readout')).toContainText('°C')
 })
 
