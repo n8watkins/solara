@@ -68,7 +68,7 @@ test('import an .ics file, fix a place, change an activity, remove and re-import
   const raceCard = section.getByRole('listitem', { name: 'Tuesday 10K, Griffith Park' })
   await expect(raceCard.getByText('Tomorrow · 9am–10:30am')).toBeVisible()
   await expect(raceCard.getByText(/^Peak UV \d+\.\d at 10am · average/)).toBeVisible()
-  await expect(raceCard.getByText(/fair skin could burn in about \d+ min/)).toBeVisible()
+  await expect(raceCard.getByText(/fair skin could burn in about \d+\smin/)).toBeVisible()
   await expect(raceCard.getByText(/^Sunscreen: apply 8:30am–8:45am/)).toBeVisible()
   // Free shows today and tomorrow; Wednesday's ride says when its forecast starts.
   await section.getByRole('button', { name: 'Show all 6 events' }).click()

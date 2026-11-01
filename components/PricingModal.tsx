@@ -41,8 +41,10 @@ function Cell({ value }: { value: string | boolean }) {
 }
 
 const HEADER_CELL = 'px-1.5 py-2.5 text-center text-[13px]'
+// A long word ("Sincronizado" at 320 px) hyphenates, or breaks, inside its column instead
+// of running into the next one.
 const BODY_CELL =
-  'border-t-[0.5px] border-line-strong py-[11px] text-[12px] leading-[1.3] font-normal'
+  'border-t-[0.5px] border-line-strong py-[11px] text-[12px] leading-[1.3] font-normal hyphens-auto [overflow-wrap:anywhere]'
 const NOTICE =
   'rounded-[10px] border-[0.5px] border-notice-border bg-notice px-3 py-2.5 text-[13px]'
 
@@ -87,7 +89,10 @@ function PriceCardBody({ period, price, per, badge }: PlanOption) {
         )}
       </span>
       <span className="text-ink">
-        <span className="text-[22px] font-extrabold">{price}</span>
+        {/* "US$19.99" in Spanish fits the half-width card from 320 px (REVIEW10 QA L4). */}
+        <span className="text-[clamp(15px,calc(9.4vw-15px),22px)] font-extrabold whitespace-nowrap">
+          {price}
+        </span>
         <span className="text-[13px] text-ink-3"> / {per}</span>
       </span>
     </>

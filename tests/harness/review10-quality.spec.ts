@@ -20,18 +20,20 @@ const LANGUAGES = [
   {
     code: 'en',
     warning: 'Longer than your burn time',
-    dose: /≈1,000 IU · arms \+ legs/,
+    dose: /≈1,000 IU · arms\u00a0\+\u00a0legs/,
     price: '$2.99',
     notFoundTitle: 'Page not found | Solara',
     skinHeading: 'Your skin type',
+    timer: 'Sunscreen timer',
   },
   {
     code: 'es',
     warning: 'Dura más que tu tiempo hasta quemarte',
-    dose: /≈1[,.]?000 UI · brazos \+ piernas/,
+    dose: /≈1[,.]?000 UI · brazos\u00a0\+\u00a0piernas/,
     price: 'US$2.99',
     notFoundTitle: 'Página no encontrada | Solara',
     skinHeading: 'Tu tipo de piel',
+    timer: 'Temporizador de protector solar',
   },
 ] as const
 
@@ -106,6 +108,8 @@ for (const lang of LANGUAGES) {
       await page.evaluate(async () => {
         await document.fonts.ready
       })
+      // The sunscreen timer shows once the page has loaded and the browser is idle.
+      await expect(page.getByRole('region', { name: lang.timer })).toBeVisible()
       await atEachWidth(page, testInfo, `dashboard-${lang.code}`, true)
     })
 
@@ -115,6 +119,19 @@ for (const lang of LANGUAGES) {
       await expect(page.getByTestId(HARNESS_MARKER)).toBeVisible()
       await expect(page.getByRole('dialog').getByText(lang.price, { exact: true })).toBeVisible()
       await atEachWidth(page, testInfo, `pricing-${lang.code}`, false)
+      // Each price stays inside its card at every width.
+      for (const width of widths(testInfo)) {
+        await page.setViewportSize({ width, height: mobile(testInfo) ? 844 : 900 })
+        const spills = await page.getByRole('dialog').evaluate(dialog =>
+          [...dialog.querySelectorAll('.metric-card')].flatMap(card => {
+            const right = card.getBoundingClientRect().right
+            return [...card.querySelectorAll('span')]
+              .filter(span => span.getBoundingClientRect().right > right + 0.5)
+              .map(span => span.textContent)
+          }),
+        )
+        expect(spills, `text spills out of a card of the plans at ${width} px`).toEqual([])
+      }
     })
 
     test("setup lists each skin type's burn time in the duration style", async ({

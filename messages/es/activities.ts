@@ -61,7 +61,7 @@ export default {
   burnTimeAt: uv => `Tiempo hasta quemarte con UV ${uv}`,
   outlastsBurn:
     'Dura más que tu tiempo hasta quemarte: usa protector solar o planifica para un UV más\u00a0bajo.',
-  aboutMinutes: minutes => `unos ${minutes}\u00a0min`,
+  aboutMinutes: minutes => `unos\u00a0${minutes}\u00a0min`,
   daylightFit: percent => `${percent}% de las horas de luz encajan`,
   windowsLeftToday: 'Horarios de UV más bajo que quedan hoy',
   windowsEstimated: 'Horarios estimados de UV más bajo',
