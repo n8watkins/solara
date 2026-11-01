@@ -11,6 +11,8 @@
 // Deploying the switch without them would look like a working spending limit and not be
 // one.
 //
+// Messages never repeat the variables' values, so nothing from the environment is logged.
+//
 // Usage (in the workflow, with BUDGET_ID, BUDGET_SERVICE_ACCOUNT and
 // COST_GUARD_DETACH_BILLING in the environment):
 //   node .github/scripts/budget-guard-env.mjs <projectId>
@@ -35,7 +37,9 @@ export function budgetGuardProblems({ projectId, budgetId = '', budgetServiceAcc
       'Set the BUDGET_ID repository variable (infra/budget.sh prints it) before deploying the budget kill switch; without it the switch would act on any budget.',
     )
   } else if (!/^(billingAccounts\/[A-Z0-9-]+\/budgets\/)?[A-Za-z0-9-]+$/.test(id)) {
-    problems.push(`BUDGET_ID (${id}) is not a budget id or budget name.`)
+    problems.push(
+      'BUDGET_ID is not a budget id or budget name; use the value infra/budget.sh printed.',
+    )
   }
   if (!account) {
     problems.push(
@@ -43,7 +47,7 @@ export function budgetGuardProblems({ projectId, budgetId = '', budgetServiceAcc
     )
   } else if (!account.endsWith(`@${projectId}.iam.gserviceaccount.com`)) {
     problems.push(
-      `BUDGET_SERVICE_ACCOUNT (${account}) is not a service account of ${projectId}; use the one infra/budget.sh printed.`,
+      `BUDGET_SERVICE_ACCOUNT is not a service account of ${projectId}; use the one infra/budget.sh printed.`,
     )
   }
   return problems
