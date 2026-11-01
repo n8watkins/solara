@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   CLIENT_PREFERENCE_FIELDS,
   clientPreferencesUpdate,
+  DEVICE_LANGUAGES,
+  LANGUAGE_PREFERENCES,
   isWritablePreferences,
   MIGRATIONS,
   NewerPreferencesVersionError,
@@ -12,6 +14,7 @@ import {
   storedSchemaVersion,
   type UserPreferences,
 } from '@solara/core'
+import { LOCALES } from '@solara/core/i18n'
 
 // Documents as each past client version wrote them (shapes from git history), plus what
 // production documents carry today. Every one must load, and loading must be a fixed point.
@@ -309,6 +312,20 @@ describe('parsePreferences: leniency', () => {
     expect(prefs.location.timezone).toBeUndefined()
     expect(prefs.upgradeInterest).toBeUndefined()
     expect(prefs).not.toHaveProperty('activeProfileId')
+  })
+
+  it("keeps the device's language only as a language Solara speaks", () => {
+    expect(parsePreferences({ location: LA, deviceLanguage: 'es' })?.deviceLanguage).toBe('es')
+    for (const bad of ['auto', 'es-MX', ['es'], 7]) {
+      expect(parsePreferences({ location: LA, deviceLanguage: bad })?.deviceLanguage).toBe(
+        undefined,
+      )
+    }
+    // Clients write it with the rest of the plan (firestore.rules checks it).
+    expect(CLIENT_PREFERENCE_FIELDS).toContain('deviceLanguage')
+    // Every language Solara speaks, and the choices other than Automatic.
+    expect([...DEVICE_LANGUAGES]).toEqual([...LOCALES])
+    expect([...DEVICE_LANGUAGES]).toEqual(LANGUAGE_PREFERENCES.filter(l => l !== 'auto'))
   })
 })
 

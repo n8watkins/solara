@@ -77,6 +77,13 @@ export default function PrivacyPage() {
             opciones de configuración.
           </li>
           <li>
+            <strong>Idioma.</strong> El idioma que eliges en Configuración o, con Automático, el que
+            Solara deduce de tu dispositivo (inglés o español, nunca la lista completa de idiomas de
+            tu dispositivo), guardado con tu cuenta para escribir en él las notificaciones, los
+            recordatorios y el calendario suscrito. Con Automático, lo fija el último dispositivo en
+            que abres Solara.
+          </li>
+          <li>
             <strong>La lista de espera de Pro</strong>, solo si te unes: la dirección de correo que
             indicas y cuándo te uniste, guardadas con tu cuenta para que Solara pueda avisarte
             cuando Pro esté disponible. Para salir de la lista de espera, escribe a{' '}

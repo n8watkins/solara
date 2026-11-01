@@ -1689,10 +1689,12 @@ describe("calendar feed in the account's language (ROADMAP item 46)", () => {
 
   afterEach(() => clearFeedRateLimits())
 
-  async function feedFor(language) {
+  async function feedFor(language, deviceLanguage) {
     const db = feedDb({
       feeds: { [feedTokenHash(TOKEN)]: { uid: 'ana' } },
-      users: { ana: { location: { lat: 1, lon: 2 }, activities: [walk], language } },
+      users: {
+        ana: { location: { lat: 1, lon: 2 }, activities: [walk], language, deviceLanguage },
+      },
     })
     const handler = createCalendarFeedHandler({
       buildICS,
@@ -1709,21 +1711,40 @@ describe("calendar feed in the account's language (ROADMAP item 46)", () => {
   }
 
   test('a Spanish account gets its events and the calendar name in Spanish', async () => {
-    const ics = await feedFor('es')
-    assert.match(ics, /\r\nX-WR-CALNAME:Plan solar de Solara\r\n/)
-    assert.match(ics, /\r\nSUMMARY:🚶 Caminata: horario de UV más bajo\r\n/)
-    assert.match(
-      ics,
-      /\r\nDESCRIPTION:Horario estimado de UV más bajo 6:00–9:00 \(UV promedio 3\.6\)\\, sin protector solar\. Es solo una estimación basada en el pronóstico\. /,
-    )
+    // Chosen in Settings (over an English device), or Automatic on a Spanish device.
+    for (const [language, device] of [
+      ['es', undefined],
+      ['es', 'en'],
+      ['auto', 'es'],
+      [undefined, 'es'],
+    ]) {
+      const ics = await feedFor(language, device)
+      const label = `${language} on a ${device} device`
+      assert.match(ics, /\r\nX-WR-CALNAME:Plan solar de Solara\r\n/, label)
+      assert.match(ics, /\r\nSUMMARY:🚶 Caminata: horario de UV más bajo\r\n/, label)
+      assert.match(
+        ics,
+        /\r\nDESCRIPTION:Horario estimado de UV más bajo 6:00–9:00 \(UV promedio 3\.6\)\\, sin protector solar\. Es solo una estimación basada en el pronóstico\. /,
+        label,
+      )
+    }
   })
 
-  test('English, and an account that follows its device, stay in English', async () => {
-    for (const language of [undefined, 'en', 'auto', 'fr']) {
-      const ics = await feedFor(language)
-      assert.match(ics, /\r\nX-WR-CALNAME:Solara Sun Plan\r\n/, String(language))
-      assert.match(ics, /\r\nSUMMARY:🚶 Caminata: lower-UV window\r\n/, String(language))
-      assert.match(ics, /\r\nDESCRIPTION:Estimated lower-UV window 6:00–9:00 /, String(language))
+  test('English when chosen, or on Automatic with an English or unknown device', async () => {
+    for (const [language, device] of [
+      [undefined, undefined],
+      ['en', undefined],
+      ['en', 'es'],
+      ['auto', undefined],
+      ['auto', 'en'],
+      ['auto', 'fr'],
+      ['fr', undefined],
+    ]) {
+      const ics = await feedFor(language, device)
+      const label = `${language} on a ${device} device`
+      assert.match(ics, /\r\nX-WR-CALNAME:Solara Sun Plan\r\n/, label)
+      assert.match(ics, /\r\nSUMMARY:🚶 Caminata: lower-UV window\r\n/, label)
+      assert.match(ics, /\r\nDESCRIPTION:Estimated lower-UV window 6:00–9:00 /, label)
     }
   })
 })

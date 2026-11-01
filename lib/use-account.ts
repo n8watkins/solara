@@ -186,6 +186,14 @@ export function useAccount({
       setScreen('dashboard')
       // This browser's copy, for the next start (lib/cached-account.ts).
       saveLocalPrefs({ ...loaded, uid: u.uid })
+      // On Automatic, the account keeps the language this device resolves, so its pushes
+      // are written in it; only when it changes, so the last device to open the app wins.
+      // (lib/device-language.ts, in the signed-in account code).
+      void import('./session').then(({ syncDeviceLanguage }) =>
+        syncDeviceLanguage(u.uid, loaded, deviceLanguage => {
+          if (!isStale()) setPrefs(p => p && { ...p, deviceLanguage })
+        }),
+      )
       if (loaded.tier === 'paid') {
         import('./notifications')
           .then(async notifications => {

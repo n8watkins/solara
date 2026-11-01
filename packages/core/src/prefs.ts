@@ -74,6 +74,12 @@ export type ClockFormatPreference = (typeof CLOCK_FORMAT_PREFERENCES)[number]
  */
 export const LANGUAGE_PREFERENCES = Object.freeze(['auto', 'en', 'es'] as const)
 export type LanguagePreference = (typeof LANGUAGE_PREFERENCES)[number]
+/**
+ * The languages a device's language is kept as (`deviceLanguage`): the choices other
+ * than Automatic, which are i18n.ts LOCALES (prefs.test.ts checks). Listed here rather
+ * than imported, so the preferences code does not pull the catalogue code into a chunk.
+ */
+export const DEVICE_LANGUAGES = Object.freeze(['en', 'es'] as const)
 
 /** Morning notification hour: allowed range and default. */
 export const NOTIFICATION_HOUR = Object.freeze({ min: 5, max: 10, default: 7 })
@@ -479,6 +485,12 @@ export const PREFERENCES_SHAPE = {
   clockFormat: v.fallback(v.optional(v.picklist(CLOCK_FORMAT_PREFERENCES)), undefined),
   /** The app's language, and the account's pushes and alerts; see LANGUAGE_PREFERENCES. */
   language: v.fallback(v.optional(v.picklist(LANGUAGE_PREFERENCES)), undefined),
+  /**
+   * The language the app last resolved from a device while `language` was 'auto' (a
+   * supported language, never the device's own list), so the server writes pushes in it
+   * (server-language.ts). The last device to open the app sets it (lib/device-language.ts).
+   */
+  deviceLanguage: v.fallback(v.optional(v.picklist(DEVICE_LANGUAGES)), undefined),
 }
 
 const DocumentSchema = record(PREFERENCES_SHAPE)
@@ -504,7 +516,18 @@ export const PREFERENCE_FIELDS = Object.freeze(
 /** Fields only the server may change once the account exists. */
 export const SERVER_OWNED_FIELDS = Object.freeze(['uid', 'tier'] as const)
 
-/** Fields a signed-in client may update (firestore.rules `preferenceKeys()`). */
+/**
+ * Fields a client writes only once the account exists, never when creating it
+ * (firestore.rules `validUserUpdate`): the device's language, which the app saves once the
+ * account has loaded (lib/device-language.ts). Keeping its check off the create keeps a full new
+ * document within the rules' expression budget.
+ */
+export const UPDATE_ONLY_FIELDS = Object.freeze(['deviceLanguage'] as const)
+
+/**
+ * Fields a signed-in client may update (firestore.rules `preferenceKeys()`, plus
+ * UPDATE_ONLY_FIELDS on an update).
+ */
 export const CLIENT_PREFERENCE_FIELDS = Object.freeze(
   PREFERENCE_FIELDS.filter(
     field => !(SERVER_OWNED_FIELDS as readonly string[]).includes(field),

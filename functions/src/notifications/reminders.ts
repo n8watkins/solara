@@ -256,7 +256,9 @@ export async function deliverReapplyReminder(
       },
       { merge: true },
     )
-    return { id: waiting.id, mode: waiting.mode, language: user.data()?.language }
+    // The fields that pick the push's language (server-language.ts).
+    const { language, deviceLanguage } = user.data() ?? {}
+    return { id: waiting.id, mode: waiting.mode, account: { language, deviceLanguage } }
   })
   if (typeof claimed === 'string') return claimed
 
@@ -278,7 +280,7 @@ export async function deliverReapplyReminder(
         devices,
         delivery,
         // In the account's language, as the timer showed it.
-        inAccountLanguage(claimed.language, () => reapplyReminderMessage(claimed.mode)),
+        inAccountLanguage(claimed.account, () => reapplyReminderMessage(claimed.mode)),
       )
     }
   } catch (error) {

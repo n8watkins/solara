@@ -210,6 +210,25 @@ describe('reapply reminder push', () => {
     assert.equal(message.data.body, 'Han pasado 2 horas desde que te lo aplicaste.')
   })
 
+  test('on Automatic, it is in the language of the device the app last saw, else English', async () => {
+    await addUser('lucia', { language: 'auto', deviceLanguage: 'es' })
+    await addUser('nora', { language: 'auto' })
+    await addUser('emma', { language: 'en', deviceLanguage: 'es' })
+    const due = NOW + 120 * MINUTE
+    const titles = {}
+    for (const uid of ['lucia', 'nora', 'emma']) {
+      await schedule(uid, reminder())
+      const messaging = new FakeMessaging()
+      assert.equal(await deliverReapplyReminder(deps(messaging, due), uid, ID), 'sent')
+      titles[uid] = messaging.batches[0].messages[0].data.title
+    }
+    assert.deepEqual(titles, {
+      lucia: 'Es hora de volver a aplicar protector solar',
+      nora: 'Time to reapply sunscreen',
+      emma: 'Time to reapply sunscreen',
+    })
+  })
+
   test('the reminder does not wait for the tab: with no task, the alerts sweep sends it once', async () => {
     await addUser('alice')
     await schedule('alice', reminder())
@@ -421,8 +440,15 @@ describe('daily UV push for Free accounts', () => {
   test("is in the account's language (ROADMAP item 46)", async () => {
     await enrol('es', { language: 'es' })
     await enrol('es-overcast', { language: 'es', zone: 'Europe/London' })
+    await enrol('auto-es', { language: 'auto', deviceLanguage: 'es' })
+    await enrol('auto', { language: 'auto' })
     const { messaging } = await simulateDay({ overcast: new Set(['es-overcast']) })
     const [message] = messaging.sentTo('es')[0].messages
+    // Automatic follows the device the app last saw; without one, English.
+    const [device] = messaging.sentTo('auto-es')[0].messages
+    assert.equal(device.data.title, message.data.title)
+    const [english] = messaging.sentTo('auto')[0].messages
+    assert.match(english.data.title, /^☀️ Protect /)
     assert.equal(message.data.title, '☀️ Protégete hoy de 9:20\u00a0a.m. a 4:40\u00a0p.m.')
     assert.equal(
       message.data.body,

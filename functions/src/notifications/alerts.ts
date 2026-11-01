@@ -798,7 +798,7 @@ async function dailyAlert(
     // Read as the app reads them, and planned for whom the dashboard plans for: one
     // person, or a group's most sensitive member (packages/core/src/planning.ts).
     const planning = parsePlanningPreferences(user)
-    const alert = inAccountLanguage(user.language, () =>
+    const alert = inAccountLanguage(user, () =>
       morningAlertMessage({
         date: local.date,
         city,
@@ -816,7 +816,7 @@ async function dailyAlert(
   }
   const plan = threshold === null ? null : planUvAlert(hourly, threshold)
   if (!plan || !uvAlertDue(plan, local.hour, quiet)) return 'not-due'
-  const alert = inAccountLanguage(user.language, () =>
+  const alert = inAccountLanguage(user, () =>
     uvAlertMessage({ plan, city, localHour: local.hour, clock }),
   )
   return deliver(run, stateRef, doc.id, devices, daily('uv'), alert)
@@ -1154,7 +1154,7 @@ async function sendHeadsUp(run: Run, job: HeadsUpJob): Promise<AlertOutcome | nu
   }
   const others = worthy.filter(entry => entry !== first)
 
-  const alert = inAccountLanguage(user.language, () =>
+  const alert = inAccountLanguage(user, () =>
     eventHeadsUpMessage({
       title: first.item.title,
       placeLabel: first.item.placeLabel,

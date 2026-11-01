@@ -97,6 +97,17 @@ describe('applySettingsDraft', () => {
     expect(saved.tier).toBe('paid')
     expect(saved.activities).toBe(p.activities)
   })
+
+  it("keeps this device's language when set to Automatic, and only then", () => {
+    const spanish = prefs({ language: 'es', deviceLanguage: 'en' })
+    const draft = settingsDraftFrom(spanish)
+    expect(applySettingsDraft(spanish, draft, ['en-US']).deviceLanguage).toBe('en')
+    const automatic = applySettingsDraft(spanish, { ...draft, language: 'auto' }, ['es-MX'])
+    expect(automatic).toMatchObject({ language: 'auto', deviceLanguage: 'es' })
+    expect(applySettingsDraft(automatic, settingsDraftFrom(automatic), ['es-MX'])).toEqual(
+      automatic,
+    )
+  })
 })
 
 describe('planLimitRows', () => {

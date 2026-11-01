@@ -564,6 +564,43 @@ describe('typed and size-capped preference fields', () => {
     await assertFails(ref.update({ language: true }))
   })
 
+  test("the device's language is a language Solara speaks, written only by the owner", async () => {
+    const ref = await ownerRef()
+    await assertSucceeds(ref.update({ deviceLanguage: 'es' }))
+    await assertSucceeds(ref.update({ deviceLanguage: 'en' }))
+    // The language the app resolved, never 'auto' or the device's own list or tags.
+    for (const bad of ['auto', 'fr', 'es-MX', 'es-MX,en', ['es'], true, null]) {
+      await assertFails(ref.update({ deviceLanguage: bad }))
+    }
+    // Alongside the choice in Settings, as the app saves them together.
+    await assertSucceeds(ref.update({ language: 'auto', deviceLanguage: 'es' }))
+    const mallory = testEnv.authenticatedContext('mallory').firestore().doc('users/alice')
+    await assertFails(mallory.update({ deviceLanguage: 'en' }))
+    const anonymous = testEnv.unauthenticatedContext().firestore().doc('users/alice')
+    await assertFails(anonymous.update({ deviceLanguage: 'en' }))
+  })
+
+  test("the device's language comes after the account exists, within the expression budget", async () => {
+    // Never on create (the app writes it once the account has loaded), which keeps the
+    // create of a full document within the budget.
+    const fresh = testEnv.authenticatedContext('bob').firestore().doc('users/bob')
+    await assertFails(fresh.set(prefs('bob', { deviceLanguage: 'es' })))
+    await assertSucceeds(fresh.set(prefs('bob')))
+    // A Pro account changing several lists together with both languages still fits.
+    const ref = await seededRef('alice', { tier: 'paid' })
+    const location = { lat: 1, lon: 2, city: 'Seattle', region: 'WA', timezone: 'UTC' }
+    await assertSucceeds(
+      ref.update({
+        activities: Array.from({ length: 8 }, (_, i) => fullActivity(i)),
+        savedLocations: Array.from({ length: 4 }, () => location),
+        hiddenActivitySuggestionIds: ['run', 'jog'],
+        calendarHours: { from: 6, to: 20 },
+        language: 'auto',
+        deviceLanguage: 'es',
+      }),
+    )
+  })
+
   test('the UV alert threshold is a whole UV index from 1 to 11, or 0 for off', async () => {
     const ref = await ownerRef()
     await assertSucceeds(ref.update({ uvAlertThreshold: 6 }))

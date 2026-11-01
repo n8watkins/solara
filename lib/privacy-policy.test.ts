@@ -9,6 +9,7 @@ import {
   TRANSLATED_FROM,
   legalDate,
 } from './legal'
+import { DOCUMENT_CHANGES } from '@/messages/review-sheet'
 import * as shareTarget from './share-target'
 import {
   PRODUCTION_DATA_STEPS,
@@ -260,6 +261,43 @@ describe('terms of use', () => {
   })
 })
 
+describe('the account language', () => {
+  it('says the account keeps a language, and never the device list, for notifications', () => {
+    const text = privacy.replace(/\s+/g, ' ')
+    expect(text).toContain('<strong>Language.</strong> The language you choose in Settings')
+    expect(text).toContain('never your device&apos;s full list of languages')
+    expect(text).toContain('so notifications, reminders and the calendar feed are written in it')
+  })
+})
+
+describe("the review sheet's added legal lines", () => {
+  /** A list item's text as a reader sees it: no bold markup, entities or line breaks. */
+  const read = (source: string) =>
+    source
+      .replaceAll('<strong>', '')
+      .replaceAll('</strong>', '')
+      .replaceAll('&apos;', "'")
+      .replace(/\s+/g, ' ')
+  const pages: Record<string, { en: string; es: string }> = {
+    '/es/privacy/': {
+      en: privacy,
+      es: readFileSync(new URL('../app/es/privacy/page.tsx', import.meta.url), 'utf8'),
+    },
+  }
+
+  it('quotes each line as both pages write it, in a version the translation covers', () => {
+    expect(DOCUMENT_CHANGES.length).toBeGreaterThan(0)
+    for (const change of DOCUMENT_CHANGES) {
+      const page = pages[change.page]!
+      expect(read(page.en)).toContain(change.english)
+      expect(read(page.es)).toContain(change.spanish)
+      expect(Date.parse(change.version)).toBeLessThanOrEqual(
+        Date.parse(TRANSLATED_FROM.es!.privacy),
+      )
+    }
+  })
+})
+
 describe('last updated dates', () => {
   it('dates each document on its own, so a change to one never re-dates the other', () => {
     expect(privacy).toContain('updated={PRIVACY_LAST_UPDATED}')
@@ -291,7 +329,7 @@ describe('the Spanish privacy policy and terms', () => {
       privacy: PRIVACY_LAST_UPDATED,
       terms: TERMS_LAST_UPDATED,
     })
-    expect(legalDate(PRIVACY_LAST_UPDATED, 'es')).toBe('29 de octubre de 2026')
+    expect(legalDate(PRIVACY_LAST_UPDATED, 'es')).toBe('1 de noviembre de 2026')
     expect(legalDate(PRIVACY_LAST_UPDATED, 'en')).toBe(PRIVACY_LAST_UPDATED)
   })
 
