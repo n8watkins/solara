@@ -8,6 +8,7 @@ import { onMessagePublished } from 'firebase-functions/v2/pubsub'
 import { onSchedule } from 'firebase-functions/v2/scheduler'
 
 import { processPendingAccountDeletions } from '../account/deletion'
+import { pruneSelfDeletionMarkers } from '../account/self-deletion'
 import { backfillBillingResourcePage } from '../billing/backfill'
 import { endExpiredGracePeriods } from '../billing/grace'
 import { processPendingCheckoutCleanups } from '../billing/checkout'
@@ -35,6 +36,11 @@ export const maintenance = onSchedule(
         // Finishes account deletions, Stripe cancellation and data cleanup.
         name: 'accountDeletions',
         run: () => processPendingAccountDeletions({ auth: getAuth(), db, stripe }),
+      },
+      {
+        // Removes the browser deletions' day-old "just deleted" markers.
+        name: 'selfDeletionMarkers',
+        run: () => pruneSelfDeletionMarkers({ db }),
       },
       {
         // Neutralizes Checkout Sessions a failed request could not clean up.

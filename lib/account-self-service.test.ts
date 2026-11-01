@@ -54,6 +54,7 @@ vi.mock('firebase/firestore', () => {
   type Constraint = { kind: 'limit'; n: number } | { kind: 'after'; id: string } | { kind: 'x' }
   return {
     deleteField: () => DELETE,
+    serverTimestamp: () => 'server-time',
     doc: (parent: unknown, ...segments: string[]) => ref(parent, segments),
     collection: (parent: unknown, ...segments: string[]) => ref(parent, segments),
     documentId: () => '__name__',
@@ -173,6 +174,8 @@ function seed(account: Record<string, unknown> = {}) {
   put(`users/${UID}/meta/scheduled`, { ids: { evt1: true }, removed: [] })
   put(`users/${UID}/meta/googleCalendar`, link)
   put(`users/${UID}/meta/outlookCalendar`, link)
+  put(`users/${UID}/reminders/reapply`, { id: hex(7), mode: 'standard' })
+  put(`users/${UID}/reminders/writes`, { writtenAt: 'earlier' })
   // Another account's data is never touched.
   put('users/u2', { uid: 'u2', tier: 'free' })
   put(`users/u2/events/${hex(1)}`, event(hex(1)))
@@ -233,6 +236,10 @@ describe('deleteAccountInBrowser', () => {
     seed()
     await deleteAccountInBrowser(user)
     expect(accountPaths()).toEqual([])
+    // Marked as just deleted, in the batch that deleted the account document, so no other
+    // tab can bring it back (firestore.rules notJustDeleted), at the server's time.
+    expect(mocks.store.get(`accountSelfDeletions/${UID}`)).toEqual({ deletedAt: 'server-time' })
+    expect(mocks.store.has('accountSelfDeletions/u2')).toBe(false)
     expect(mocks.store.has('users/u2')).toBe(true)
     expect(mocks.store.has(`users/u2/events/${hex(1)}`)).toBe(true)
     expect(mocks.deleteUser).toHaveBeenCalledWith(user)
@@ -251,7 +258,12 @@ describe('deleteAccountInBrowser', () => {
     mocks.store.delete(`users/${UID}/notificationDevices/d1`)
     mocks.store.set(`users/${UID}/private/calendarFeed`, { token: 'x' })
     await expect(deleteAccountInBrowser(user)).rejects.toMatchObject({ stage: 'blocked' })
+    mocks.store.delete(`users/${UID}/private/calendarFeed`)
+    // Devices registered once leave a marker the rules check (REVIEW9 SEC9 L1).
+    mocks.store.set(`users/${UID}/private/notificationDevices`, { registeredAt: 'x' })
+    await expect(deleteAccountInBrowser(user)).rejects.toMatchObject({ stage: 'blocked' })
     expect(mocks.deleteUser).not.toHaveBeenCalled()
+    expect(mocks.store.has(`accountSelfDeletions/${UID}`)).toBe(false)
   })
 
   it('runs again when a write fails or another tab saves in between', async () => {
@@ -299,6 +311,8 @@ describe('deleteAccountInBrowser', () => {
         `users/${UID}/meta/googleCalendar`,
         `users/${UID}/events/${hex(99)}`,
         `users/${UID}/scheduled/evt1`,
+        `users/${UID}/reminders/reapply`,
+        `users/${UID}/reminders/writes`,
       ]),
     )
   })

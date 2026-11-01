@@ -177,11 +177,23 @@ test('a signed-in timer schedules its reminder as a push, and Stop cancels it', 
   const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('solara_reapply')!))
   expect(stored.reminderTag).toMatch(new RegExp(`:reapply-v1:${record!.id}$`))
 
-  // Swimming: a new schedule 80 minutes after the application replaces the old one.
+  // Each write is stamped with the server's time, and the rules refuse another within
+  // 10 seconds (REVIEW9 SEC9 M1).
+  const stamp = await emulators.readDoc(account, 'reminders/writes')
+  expect(Math.abs(millis(stamp!.writtenAt) - startedAt)).toBeLessThan(MINUTE)
+
+  // Swimming: a new schedule 80 minutes after the application replaces the old one. It
+  // comes within seconds of Start, so the app holds it until the rules' gap has passed.
+  const switchedAt = Date.now()
   await timer(page).getByRole('button', { name: 'Swimming or sweating' }).click()
   await expect
-    .poll(async () => (await emulators.readDoc(account, 'reminders/reapply'))?.mode)
+    .poll(async () => (await emulators.readDoc(account, 'reminders/reapply'))?.mode, {
+      timeout: 20_000,
+    })
     .toBe('water')
+  const waterStamp = await emulators.readDoc(account, 'reminders/writes')
+  expect(millis(waterStamp!.writtenAt) - millis(stamp!.writtenAt)).toBeGreaterThanOrEqual(10_000)
+  expect(Date.now() - switchedAt).toBeLessThan(20_000)
   const water = await emulators.readDoc(account, 'reminders/reapply')
   expect(water!.id).not.toBe(record!.id)
   expect(millis(water!.remindAt) - millis(water!.appliedAt)).toBe(80 * MINUTE)

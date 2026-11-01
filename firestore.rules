@@ -17,10 +17,17 @@ rules_version = '2';
 //
 // Accepted gap: the other activity fields (durationMins, maxUV, preferredHours, daysOfWeek,
 // shade, surface, avoidRain, maxFeelsLikeC and the rest) are only allowlisted, not typed.
-// Even one more check per activity breaks the budget at 20 activities in the realistic
-// multi-list write tested in functions/test/emulator/firestore.rules.test.js. A bad value
-// only affects its own account: the client parser falls back to defaults, and the
-// document stays under Firestore's 1 MiB limit.
+// The budget is spent by the unrolled lists, not by how long they are: re-measured for
+// REVIEW9 SEC9 I5, one more check per activity (even the single call
+// `[activity.get('avoidRain', false)].hasOnly([true, false])`) takes a create with three
+// activities, the realistic multi-list write and each list at its cap over the 1,000
+// expressions (functions/test/emulator/firestore.rules.test.js). A bad value only affects
+// its own account: the client parser falls back to defaults (packages/core/src/prefs.ts),
+// and the document stays under Firestore's 1 MiB limit.
+//
+// A refused write may be reported as reaching the expression limit rather than as false
+// (REVIEW9 SEC9 I6): the engine goes on evaluating a request it has already refused. It is
+// refused either way, and the type checks are what refuse it (tested per field).
 //
 // The group selection (`groupProfileIds`) is a list of profile ids checked as a list of at
 // most 12 entries whose ids together take at most 12 x 64 characters (REVIEW8 SEC L4), not
@@ -550,21 +557,78 @@ service cloud.firestore {
     }
 
     // Self-service deletion without Functions (lib/account-self-service.ts): the owner may
-    // delete the account document only while it holds no billing, so a Stripe customer
-    // and a paid plan are always ended by the deleteAccount Function, which also removes
-    // the server-only records. A document that does not exist may be "deleted" too, so a
+    // delete the account document only while it holds nothing the browser cannot remove
+    // (REVIEW9 SEC9 L1). A Stripe customer or a paid plan is always ended by the
+    // deleteAccount Function, which also removes the server-only records; so are the
+    // server-written records the rules can see: a calendar feed, linked calendars, and
+    // notification devices, whose registration also writes private/notificationDevices
+    // (functions/src/notifications/devices.ts), since rules cannot tell whether a
+    // collection is empty. A document that does not exist may be "deleted" too, so a
     // deletion that stopped half way can run again.
-    function withoutBilling() {
+    function onlyClientRecords(userId) {
       return resource == null
         || (resource.data.get('tier', 'free') != 'paid'
-          && !('stripeCustomerId' in resource.data));
+          && !('stripeCustomerId' in resource.data)
+          && !exists(/databases/$(database)/documents/users/$(userId)/private/calendarFeed)
+          && !exists(/databases/$(database)/documents/users/$(userId)/private/eventSubscriptions)
+          && !exists(/databases/$(database)/documents/users/$(userId)/private/notificationDevices));
+    }
+
+    // Deleting the account document needs a sign-in from the last 10 minutes (REVIEW9 SEC9
+    // L2): the account page asks Google to confirm the account just before, so a session
+    // left open (or a token from another tab, valid for an hour) cannot delete it alone.
+    function recentSignIn() {
+      return request.auth.token.auth_time is int
+        && request.auth.token.auth_time * 1000 > request.time.toMillis() - 10 * 60 * 1000;
+    }
+
+    // The browser's deletion marks the account as just deleted in the same batch
+    // (accountSelfDeletions/{uid}), and for an hour after, longer than any ID token from
+    // before the deletion lives, nothing can bring the account back: another open tab
+    // saving a setting would otherwise recreate the account document, or a key list or the
+    // reminder bookkeeping, with no sign-in behind it (REVIEW9 SEC9 L3). A sign-in whose
+    // Auth user could not be deleted can use the account again after the hour.
+    function selfDeletionPath(userId) {
+      return /databases/$(database)/documents/accountSelfDeletions/$(userId);
+    }
+
+    function markedDeletedNow(userId) {
+      return getAfter(selfDeletionPath(userId)).data.get('deletedAt', null) == request.time;
+    }
+
+    function notJustDeleted(userId) {
+      return !exists(selfDeletionPath(userId))
+        || get(selfDeletionPath(userId)).data.deletedAt + duration.value(1, 'h') <= request.time;
+    }
+
+    // ---- Reapply reminder write rate ---------------------------------------------------
+
+    // Every write of users/{uid}/reminders/reapply starts a Cloud Function, so the browser
+    // may write it at most once every 10 seconds (REVIEW9 SEC9 M1): each create or update
+    // also stamps users/{uid}/reminders/writes with the server's time in the same batch,
+    // and the stamp it replaces must be at least 10 seconds old. The stamp outlives the
+    // reminder (Stop deletes only the reminder) and the owner can delete it only with the
+    // account, so stopping and starting again is held to the same rate. Real use writes a
+    // few times a day; lib/reapply-reminder.ts spaces a quick Start, "I reapplied" and
+    // "Swimming" itself.
+    function reminderWritesPath(userId) {
+      return /databases/$(database)/documents/users/$(userId)/reminders/writes;
+    }
+
+    function spacedReminderWrite(userId) {
+      return getAfter(reminderWritesPath(userId)).data.get('writtenAt', null) == request.time
+        && (!exists(reminderWritesPath(userId))
+          || get(reminderWritesPath(userId)).data.writtenAt + duration.value(10, 's')
+            <= request.time);
     }
 
     match /users/{userId} {
       allow read: if isOwner(userId) && isActiveAccount(userId);
-      allow create: if isOwner(userId) && isActiveAccount(userId) && validNewUser(userId);
+      allow create: if isOwner(userId) && isActiveAccount(userId) && validNewUser(userId)
+        && notJustDeleted(userId);
       allow update: if isOwner(userId) && isActiveAccount(userId) && validUserUpdate(userId);
-      allow delete: if isOwner(userId) && isActiveAccount(userId) && withoutBilling();
+      allow delete: if isOwner(userId) && isActiveAccount(userId) && recentSignIn()
+        && onlyClientRecords(userId) && markedDeletedNow(userId);
 
       // At most five devices exist (MAX_NOTIFICATION_DEVICES); a list must say so, so no
       // query can read an unbounded collection.
@@ -612,6 +676,7 @@ service cloud.firestore {
       match /meta/{name} {
         allow get: if isOwner(userId) && isActiveAccount(userId);
         allow create, update: if isOwner(userId) && isActiveAccount(userId)
+          && (resource != null || notJustDeleted(userId))
           && ((name in ['events', 'scheduled'] && validKeyIndex(userId, name, keyIndexCap(name)))
             || (name == 'googleCalendar' && validGoogleCalendarLink())
             || (name == 'outlookCalendar' && validOutlookCalendarLink()));
@@ -625,11 +690,21 @@ service cloud.firestore {
       // per account): written by the browser when the timer starts, is reset or switches
       // to swimming, and deleted when it stops (lib/reapply-reminder.ts). The server
       // counts each schedule against a daily cap, sends one push at `remindAt` and deletes
-      // it (functions/src/notifications/reminders.ts).
+      // it (functions/src/notifications/reminders.ts). Each write is spaced from the last
+      // (spacedReminderWrite, with doc `writes`) and carries a new id, so a reminder the
+      // server already claimed cannot be armed again under its id (REVIEW9 SEC9 I3).
       match /reminders/{name} {
-        allow get, delete: if isOwner(userId) && isActiveAccount(userId) && name == 'reapply';
+        allow get: if isOwner(userId) && isActiveAccount(userId) && name in ['reapply', 'writes'];
         allow create, update: if isOwner(userId) && isActiveAccount(userId)
-          && name == 'reapply' && validReapplyReminder();
+          && ((name == 'reapply' && validReapplyReminder() && spacedReminderWrite(userId)
+              && (resource == null || request.resource.data.id != resource.data.id))
+            || (name == 'writes' && notJustDeleted(userId)
+              && request.resource.data.keys().hasOnly(['writtenAt'])
+              && request.resource.data.writtenAt == request.time));
+        allow delete: if isOwner(userId) && isActiveAccount(userId)
+          && (name == 'reapply'
+            || (name == 'writes'
+              && !existsAfter(/databases/$(database)/documents/users/$(userId))));
         allow list: if false;
       }
 
@@ -648,6 +723,18 @@ service cloud.firestore {
         allow read: if isOwner(userId) && isActiveAccount(userId);
         allow write: if false;
       }
+    }
+
+    // The browser's own deletion marker (notJustDeleted): written only in the batch that
+    // deletes the account document, with the server's time only (a device's clock may be
+    // far off), never read or removed by a client. The maintenance job removes markers a
+    // day old (functions/src/account/self-deletion.ts).
+    match /accountSelfDeletions/{userId} {
+      allow create, update: if isOwner(userId)
+        && request.resource.data.keys().hasOnly(['deletedAt'])
+        && request.resource.data.deletedAt == request.time
+        && !existsAfter(/databases/$(database)/documents/users/$(userId));
+      allow read, delete: if false;
     }
 
     // Feed token hash index: server-only.

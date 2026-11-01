@@ -11,16 +11,22 @@
 // 1. Stops before deleting anything when the account holds what only the server may
 //    remove (selfDeletionBlocker): a Stripe customer or paid plan, notification
 //    devices, or a calendar feed or linked calendar record. Without the Functions none of
-//    them is ever written, so this only guards data from an earlier setup.
+//    them is ever written, so this only guards data from an earlier setup. The rules
+//    refuse the account document's delete in these cases too (REVIEW9 SEC9 L1).
 // 2. Deletes every imported event and scheduled activity with its key taken off the key
 //    list in the same batch (lib/key-index.ts), as the rules require, then in one batch
-//    the emptied key lists, the Google and Outlook connections and the account document.
+//    the emptied key lists, the Google and Outlook connections, the sunscreen reminder
+//    and its write stamp, and the account document, with the account marked as just
+//    deleted (accountSelfDeletions/{uid}), so for an hour no other open tab can bring any
+//    of it back (REVIEW9 SEC9 L3). The rules also want a sign-in from the last 10 minutes
+//    for this batch (REVIEW9 SEC9 L2), which the account page's fresh Google sign-in is.
 // 3. Reads everything back, and runs again if anything reappeared (another open tab
 //    can still be saving); only when nothing is left does it delete the Auth user.
 // Each step can run again, so a deletion that stopped half way is finished by retrying.
 //
 // Loaded only by the account page, on demand.
 import { SCHEDULED_LIMITS } from '@solara/core'
+import { REAPPLY_REMINDER_WRITES_DOC } from '@solara/core/reapply'
 import {
   buildAccountExport,
   EXPORT_COLLECTION_LIMIT,
@@ -41,8 +47,12 @@ import { listedKeys, removeRecords, storedKeys, type CappedCollection } from './
 /** Why this browser cannot delete the account itself; the account page offers email. */
 export type SelfDeletionBlocker = 'billing' | 'server-records'
 
-/** Server-written records under users/{uid}/private that the owner can read. */
-const PRIVATE_DOCS = ['calendarFeed', 'eventSubscriptions'] as const
+/**
+ * Server-written records under users/{uid}/private that the owner can read: the calendar
+ * feed, the linked calendars, and the marker that the account has registered
+ * notification devices (functions/src/notifications/schedule.ts).
+ */
+const PRIVATE_DOCS = ['calendarFeed', 'eventSubscriptions', 'notificationDevices'] as const
 
 /** Largest list query the rules allow, per collection. */
 const LIST_LIMITS = {
@@ -197,10 +207,11 @@ export async function readAccountRecords(uid: string): Promise<AccountRecords> {
 export async function remainingAccountData(uid: string): Promise<string[]> {
   const { db, sdk } = await firestore()
   const metaDocs = [...CAPPED, GOOGLE_CALENDAR_LINK_DOC, OUTLOOK_CALENDAR_LINK_DOC]
-  const [account, meta, reminder] = await Promise.all([
+  const reminderDocs = ['reapply', REAPPLY_REMINDER_WRITES_DOC]
+  const [account, meta, reminders] = await Promise.all([
     readDoc(sdk, db, 'users', uid),
     Promise.all(metaDocs.map(name => readDoc(sdk, db, 'users', uid, 'meta', name))),
-    readDoc(sdk, db, 'users', uid, 'reminders', 'reapply'),
+    Promise.all(reminderDocs.map(name => readDoc(sdk, db, 'users', uid, 'reminders', name))),
   ])
   const records: string[] = []
   for (const name of CAPPED) {
@@ -209,7 +220,7 @@ export async function remainingAccountData(uid: string): Promise<string[]> {
   return [
     ...(account ? [`users/${uid}`] : []),
     ...metaDocs.flatMap((name, i) => (meta[i] ? [`users/${uid}/meta/${name}`] : [])),
-    ...(reminder ? [`users/${uid}/reminders/reapply`] : []),
+    ...reminderDocs.flatMap((name, i) => (reminders[i] ? [`users/${uid}/reminders/${name}`] : [])),
     ...records,
   ]
 }
@@ -226,9 +237,13 @@ async function deletePass(uid: string): Promise<void> {
   for (const name of [...CAPPED, GOOGLE_CALENDAR_LINK_DOC, OUTLOOK_CALENDAR_LINK_DOC]) {
     batch.delete(sdk.doc(db, 'users', uid, 'meta', name))
   }
-  // A sunscreen reminder's "remind me at" record (lib/reapply-reminder.ts).
+  // A sunscreen reminder's "remind me at" record and its write stamp
+  // (lib/reapply-reminder.ts); the rules let the stamp go only with the account document.
   batch.delete(sdk.doc(db, 'users', uid, 'reminders', 'reapply'))
+  batch.delete(sdk.doc(db, 'users', uid, 'reminders', REAPPLY_REMINDER_WRITES_DOC))
   batch.delete(sdk.doc(db, 'users', uid))
+  // Nothing of the account can come back for an hour (firestore.rules notJustDeleted).
+  batch.set(sdk.doc(db, 'accountSelfDeletions', uid), { deletedAt: sdk.serverTimestamp() })
   await batch.commit()
 }
 

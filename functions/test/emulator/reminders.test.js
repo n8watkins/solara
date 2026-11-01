@@ -159,6 +159,27 @@ describe('reapply reminder push', () => {
     assert.equal(again, 'unchanged')
   })
 
+  test('a claimed reminder armed again under its id is not a new schedule (REVIEW9 SEC9 I3)', async () => {
+    await addUser('alice')
+    await schedule('alice', reminder())
+    const messaging = new FakeMessaging()
+    const due = NOW + 120 * MINUTE
+    // The task claims it (dueAt removed) and is sending; the owner writes it back.
+    const { dueAt: _dueAt, ...claimed } = reminder()
+    const outcome = await reminderWritten({
+      db,
+      uid: 'alice',
+      before: { ...claimed, status: 'claimed', claimedAt: Timestamp.fromMillis(due) },
+      after: reminder(),
+      enabled: true,
+      nowMs: due,
+      enqueue: () => assert.fail('enqueued again'),
+    })
+    assert.equal(outcome, 'unchanged')
+    assert.equal(await deliverReapplyReminder(deps(messaging, due), 'alice', ID), 'sent')
+    assert.equal(messaging.sentTo('alice').length, 1)
+  })
+
   test('its task sends one push with the tag the browser uses, then the record is gone', async () => {
     await addUser('alice', { devices: 2 })
     await schedule('alice', reminder({ mode: 'water' }))

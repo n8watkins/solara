@@ -1,4 +1,5 @@
 const { after, afterEach, before, beforeEach, describe, test } = require('node:test')
+const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const firebase = require('firebase/compat/app')
 require('firebase/compat/firestore')
@@ -57,6 +58,29 @@ async function seedKeyIndex(uid, name, keys) {
   })
 }
 
+/**
+ * The batch that ends the browser's own account deletion (lib/account-self-service.ts):
+ * the account document and the reminder's write stamp go, and the account is marked as
+ * just deleted (REVIEW9 SEC9 L3).
+ */
+function deleteAccountBatch(db, uid, { mark = { deletedAt: serverTime() } } = {}) {
+  const batch = db.batch()
+  batch.delete(db.doc(`users/${uid}/reminders/writes`))
+  batch.delete(db.doc(`users/${uid}`))
+  if (mark) batch.set(db.doc(`accountSelfDeletions/${uid}`), mark)
+  return batch.commit()
+}
+
+function serverTime() {
+  return firebase.firestore.FieldValue.serverTimestamp()
+}
+
+/** The owner's Firestore with a sign-in `minutesAgo` minutes old. */
+function signedInAgo(uid, minutesAgo) {
+  const authTime = Math.floor(Date.now() / 1000) - minutesAgo * 60
+  return testEnv.authenticatedContext(uid, { auth_time: authTime }).firestore()
+}
+
 describe('user preferences', () => {
   test('an owner can create and update allowlisted preference fields', async () => {
     const db = testEnv.authenticatedContext('alice').firestore()
@@ -91,8 +115,9 @@ describe('user preferences', () => {
       { stripeCustomerId: 'cus_123' },
       { tier: 'free', stripeCustomerId: 'cus_123', subscriptionStatus: 'canceled' },
     ]) {
-      const ref = await seededRef('alice', billing)
-      await assertFails(ref.delete())
+      await seededRef('alice', billing)
+      const db = signedInAgo('alice', 0)
+      await assertFails(deleteAccountBatch(db, 'alice'))
     }
   })
 
@@ -336,6 +361,26 @@ describe('typed and size-capped preference fields', () => {
         groupProfileIds: ['profile_0', 'profile_2'],
       }),
     )
+  })
+
+  test('I5 (accepted gap): the rain and heat limits are only allowlisted, and stay within the document', async () => {
+    // One more check per activity breaks the expression budget (see "Accepted gap" in
+    // firestore.rules); the allowlist and Firestore's 1 MiB document limit bound them.
+    const ref = await seededRef('alice', { tier: 'paid' })
+    await assertSucceeds(
+      ref.update({ activities: [{ ...fullActivity(0), avoidRain: true, maxFeelsLikeC: 26.7 }] }),
+    )
+    await assertFails(ref.update({ activities: [{ ...fullActivity(0), avoidRainy: true }] }))
+  })
+
+  test('I6: a wrongly typed dailyUv is refused, a boolean is accepted', async () => {
+    const ref = await seededRef('alice')
+    for (const bad of ['yes', 1, null, { on: true }, [true]]) {
+      await assertFails(ref.update({ dailyUv: bad }))
+    }
+    // The same write with a boolean fits the budget, so the type check is what refuses.
+    await assertSucceeds(ref.update({ dailyUv: false }))
+    await assertSucceeds(ref.update({ dailyUv: true }))
   })
 
   test('core fields are required on create', async () => {
@@ -1680,14 +1725,14 @@ describe('self-service account deletion', () => {
 
   test('the owner can delete every document the app writes, in the app’s order', async () => {
     await seedAccount('alice')
-    const db = testEnv.authenticatedContext('alice').firestore()
+    const db = signedInAgo('alice', 0)
     await assertSucceeds(removeRecords(db, 'alice', 'events', [KEY, KEY2]))
     await assertSucceeds(removeRecords(db, 'alice', 'scheduled', ['evt1']))
     await assertSucceeds(db.doc('users/alice/meta/events').delete())
     await assertSucceeds(db.doc('users/alice/meta/scheduled').delete())
     await assertSucceeds(db.doc('users/alice/meta/googleCalendar').delete())
     await assertSucceeds(db.doc('users/alice/meta/outlookCalendar').delete())
-    await assertSucceeds(db.doc('users/alice').delete())
+    await assertSucceeds(deleteAccountBatch(db, 'alice'))
 
     await testEnv.withSecurityRulesDisabled(async context => {
       const admin = context.firestore()
@@ -1701,19 +1746,19 @@ describe('self-service account deletion', () => {
 
   test('a deletion that stopped half way can run again', async () => {
     await seedAccount('alice')
-    const db = testEnv.authenticatedContext('alice').firestore()
+    const db = signedInAgo('alice', 0)
     await assertSucceeds(removeRecords(db, 'alice', 'events', [KEY]))
     // Again from the start: records and keys already gone, documents already deleted.
     await assertSucceeds(removeRecords(db, 'alice', 'events', [KEY, KEY2]))
     await assertSucceeds(db.doc('users/alice/meta/events').delete())
     await assertSucceeds(db.doc('users/alice/meta/events').delete())
-    await assertSucceeds(db.doc('users/alice').delete())
-    await assertSucceeds(db.doc('users/alice').delete())
+    await assertSucceeds(deleteAccountBatch(db, 'alice'))
+    await assertSucceeds(deleteAccountBatch(db, 'alice'))
   })
 
   test('a key list is deleted only once it names no key, so the caps still hold', async () => {
     await seedAccount('alice')
-    const db = testEnv.authenticatedContext('alice').firestore()
+    const db = signedInAgo('alice', 0)
     await assertFails(db.doc('users/alice/meta/events').delete())
     await assertFails(db.doc('users/alice/meta/scheduled').delete())
     // Deleting the records alone does not empty the list.
@@ -1750,8 +1795,8 @@ describe('self-service account deletion', () => {
       await context.firestore().doc('users/alice/meta/scheduled').set({ ids: {}, removed: [] })
       await context.firestore().doc('accountDeletionTombstones/alice').set({ revokedBefore: 200 })
     })
-    const db = testEnv.authenticatedContext('alice').firestore()
-    await assertFails(db.doc('users/alice').delete())
+    const db = signedInAgo('alice', 0)
+    await assertFails(deleteAccountBatch(db, 'alice'))
     await assertFails(db.doc('users/alice/meta/scheduled').delete())
     await assertFails(db.doc(`users/alice/events/${KEY}`).delete())
   })
@@ -1765,7 +1810,7 @@ describe('self-service account deletion', () => {
       await db.doc('users/alice/private/eventSubscriptions').set({ items: {} })
       await db.doc('users/alice/alertState/daily').set({})
     })
-    const db = testEnv.authenticatedContext('alice').firestore()
+    const db = signedInAgo('alice', 0)
     // The browser can see the first three, so it stops before deleting anything.
     await assertSucceeds(db.collection('users/alice/notificationDevices').limit(10).get())
     await assertSucceeds(db.doc('users/alice/private/calendarFeed').get())
@@ -1778,6 +1823,110 @@ describe('self-service account deletion', () => {
     ]) {
       await assertFails(db.doc(path).delete())
     }
+  })
+})
+
+describe('self-service account deletion: what the rules enforce (REVIEW9 SEC9 L1-L3)', () => {
+  test('the account document goes only with the deletion marker, written in the same batch', async () => {
+    await seededRef('alice')
+    const db = signedInAgo('alice', 0)
+    await assertFails(db.doc('users/alice').delete())
+    await assertFails(deleteAccountBatch(db, 'alice', { mark: false }))
+    // The marker is the browser's to write only while deleting the account document.
+    await assertFails(db.doc('accountSelfDeletions/alice').set({ deletedAt: serverTime() }))
+    // The server's time and nothing else: a device clock may be far off.
+    const { Timestamp } = firebase.firestore
+    await assertFails(
+      deleteAccountBatch(db, 'alice', { mark: { deletedAt: Timestamp.fromMillis(Date.now()) } }),
+    )
+    await assertFails(
+      deleteAccountBatch(db, 'alice', { mark: { deletedAt: serverTime(), note: 'x' } }),
+    )
+    await assertSucceeds(deleteAccountBatch(db, 'alice'))
+    // Never read, removed or written for someone else by a client.
+    await assertFails(db.doc('accountSelfDeletions/alice').get())
+    await assertFails(db.doc('accountSelfDeletions/alice').delete())
+    const mallory = testEnv.authenticatedContext('mallory').firestore()
+    await assertFails(mallory.doc('accountSelfDeletions/alice').set({ deletedAt: serverTime() }))
+  })
+
+  test('L1: nothing server-written may be left behind: devices, a feed or linked calendars', async () => {
+    for (const record of [
+      'private/notificationDevices',
+      'private/calendarFeed',
+      'private/eventSubscriptions',
+    ]) {
+      await seededRef('alice')
+      await testEnv.withSecurityRulesDisabled(async context => {
+        await context.firestore().doc(`users/alice/${record}`).set({ x: 1 })
+      })
+      const db = signedInAgo('alice', 0)
+      await assertFails(deleteAccountBatch(db, 'alice'), record)
+      // ...which the owner cannot delete either: only the deleteAccount Function can.
+      await assertFails(db.doc(`users/alice/${record}`).delete(), record)
+      await testEnv.clearFirestore()
+    }
+    await seededRef('alice')
+    await assertSucceeds(deleteAccountBatch(signedInAgo('alice', 0), 'alice'))
+  })
+
+  test('L2: deleting the account document needs a sign-in from the last 10 minutes', async () => {
+    await seededRef('alice')
+    await assertFails(deleteAccountBatch(signedInAgo('alice', 50), 'alice'))
+    await assertFails(deleteAccountBatch(signedInAgo('alice', 11), 'alice'))
+    await assertSucceeds(deleteAccountBatch(signedInAgo('alice', 2), 'alice'))
+  })
+
+  test('L2: an old sign-in can still change settings and delete records, just not the account', async () => {
+    await seededRef('alice')
+    const db = signedInAgo('alice', 50)
+    await assertSucceeds(db.doc('users/alice').update({ skinType: 'dark' }))
+    await assertSucceeds(db.doc('users/alice/meta/googleCalendar').delete())
+  })
+
+  test('L3: for an hour after, another tab cannot bring the account back', async () => {
+    await seededRef('alice')
+    const db = signedInAgo('alice', 0)
+    await assertSucceeds(deleteAccountBatch(db, 'alice'))
+    // The other tab saves a setting, a key list, a calendar link or the reminder.
+    await assertFails(db.doc('users/alice').set(prefs('alice')))
+    await assertFails(db.doc('users/alice/meta/events').set({ ids: {}, removed: [] }))
+    await assertFails(
+      db.doc('users/alice/meta/googleCalendar').set({
+        calendars: [{ id: 'primary', name: '' }],
+        connectedAt: '2026-10-28T17:30:00.000Z',
+        syncedAt: '',
+      }),
+    )
+    await assertFails(
+      db.doc('users/alice/reminders/writes').set({
+        writtenAt: firebase.firestore.FieldValue.serverTimestamp(),
+      }),
+    )
+  })
+
+  test('L3: after the hour, a sign-in whose Auth user was not deleted can start again', async () => {
+    await testEnv.withSecurityRulesDisabled(async context => {
+      await context
+        .firestore()
+        .doc('accountSelfDeletions/alice')
+        .set({
+          deletedAt: firebase.firestore.Timestamp.fromMillis(Date.now() - 61 * 60 * 1000),
+        })
+      await context
+        .firestore()
+        .doc('accountSelfDeletions/bob')
+        .set({
+          deletedAt: firebase.firestore.Timestamp.fromMillis(Date.now() - 59 * 60 * 1000),
+        })
+    })
+    const alice = signedInAgo('alice', 0)
+    await assertSucceeds(alice.doc('users/alice').set(prefs('alice')))
+    const bob = testEnv.authenticatedContext('bob').firestore()
+    await assertFails(bob.doc('users/bob').set(prefs('bob')))
+    // Another account is never affected.
+    const carol = testEnv.authenticatedContext('carol').firestore()
+    await assertSucceeds(carol.doc('users/carol').set(prefs('carol')))
   })
 })
 
@@ -1882,7 +2031,7 @@ describe('server-only collections and collection groups', () => {
 describe('reapply reminder record', () => {
   const MINUTE = 60_000
   const ID = '0123456789abcdef0123456789abcdef'
-  const { Timestamp } = firebase.firestore
+  const { FieldValue, Timestamp } = firebase.firestore
 
   function reminder({ mode = 'standard', appliedAt = Date.now(), minutes, ...rest } = {}) {
     const interval = minutes ?? (mode === 'water' ? 80 : 120)
@@ -1898,68 +2047,186 @@ describe('reapply reminder record', () => {
     }
   }
 
-  async function aliceReminder() {
+  const hexId = i => i.toString(16).padStart(32, '0')
+
+  /** Writes the record with its write stamp, as lib/reapply-reminder.ts does. */
+  function write(db, data, { stamp = true } = {}) {
+    const batch = db.batch()
+    batch.set(db.doc('users/alice/reminders/reapply'), data)
+    if (stamp)
+      batch.set(db.doc('users/alice/reminders/writes'), { writtenAt: FieldValue.serverTimestamp() })
+    return batch.commit()
+  }
+
+  /** The last write was `seconds` ago (the stamp, as the server stores it). */
+  async function lastWriteAgo(seconds, uid = 'alice') {
+    await testEnv.withSecurityRulesDisabled(async context => {
+      await context
+        .firestore()
+        .doc(`users/${uid}/reminders/writes`)
+        .set({ writtenAt: Timestamp.fromMillis(Date.now() - seconds * 1000) })
+    })
+  }
+
+  /** Writes the record as if the last write was long ago. */
+  async function armed(db, data) {
+    await lastWriteAgo(60)
+    return write(db, data)
+  }
+
+  async function alice() {
     await seededRef('alice')
-    return testEnv.authenticatedContext('alice').firestore().doc('users/alice/reminders/reapply')
+    return testEnv.authenticatedContext('alice').firestore()
   }
 
   test('the owner schedules, replaces, reads and cancels it', async () => {
-    const ref = await aliceReminder()
-    await assertSucceeds(ref.set(reminder()))
-    await assertSucceeds(ref.set(reminder({ mode: 'water', id: 'f'.repeat(32) })))
+    const db = await alice()
+    const ref = db.doc('users/alice/reminders/reapply')
+    await assertSucceeds(write(db, reminder()))
+    await assertSucceeds(armed(db, reminder({ mode: 'water', id: 'f'.repeat(32) })))
     await assertSucceeds(ref.get())
+    // Stop is never held back.
     await assertSucceeds(ref.delete())
   })
 
   test('one per account: no other document, and no listing', async () => {
-    await aliceReminder()
-    const db = testEnv.authenticatedContext('alice').firestore()
+    const db = await alice()
     await assertFails(db.doc('users/alice/reminders/second').set(reminder()))
     await assertFails(db.collection('users/alice/reminders').limit(1).get())
+    // The write stamp is the owner's to read (the deletion's read-back looks for it).
+    await assertSucceeds(db.doc('users/alice/reminders/writes').get())
+    await assertFails(
+      testEnv.authenticatedContext('mallory').firestore().doc('users/alice/reminders/writes').get(),
+    )
   })
 
   test('nobody else can read, write or cancel it', async () => {
-    const ref = await aliceReminder()
-    await assertSucceeds(ref.set(reminder()))
+    const db = await alice()
+    await assertSucceeds(write(db, reminder()))
     const mallory = testEnv.authenticatedContext('mallory').firestore()
     const signedOut = testEnv.unauthenticatedContext().firestore()
-    for (const db of [mallory, signedOut]) {
-      const theirs = db.doc('users/alice/reminders/reapply')
+    for (const other of [mallory, signedOut]) {
+      const theirs = other.doc('users/alice/reminders/reapply')
       await assertFails(theirs.get())
       await assertFails(theirs.set(reminder()))
       await assertFails(theirs.delete())
+      await assertFails(
+        other.doc('users/alice/reminders/writes').set({ writtenAt: FieldValue.serverTimestamp() }),
+      )
+      await assertFails(other.doc('users/alice/reminders/writes').delete())
     }
   })
 
   test('the reminder is exactly the mode’s interval after the application, still ahead', async () => {
-    const ref = await aliceReminder()
-    await assertFails(ref.set(reminder({ minutes: 5 })))
-    await assertFails(ref.set(reminder({ mode: 'water', minutes: 120 })))
-    await assertFails(ref.set(reminder({ mode: 'sauna' })))
+    const db = await alice()
+    await assertFails(armed(db, reminder({ minutes: 5 })))
+    await assertFails(armed(db, reminder({ mode: 'water', minutes: 120 })))
+    await assertFails(armed(db, reminder({ mode: 'sauna' })))
     // Applied 3 hours ago: its reminder is already past.
-    await assertFails(ref.set(reminder({ appliedAt: Date.now() - 180 * MINUTE })))
+    await assertFails(armed(db, reminder({ appliedAt: Date.now() - 180 * MINUTE })))
     // Applied in the future, beyond a clock that runs a little fast.
-    await assertFails(ref.set(reminder({ appliedAt: Date.now() + 60 * MINUTE })))
-    await assertSucceeds(ref.set(reminder({ appliedAt: Date.now() + 2 * MINUTE })))
+    await assertFails(armed(db, reminder({ appliedAt: Date.now() + 60 * MINUTE })))
+    await assertSucceeds(armed(db, reminder({ appliedAt: Date.now() + 2 * MINUTE })))
   })
 
   test('only the fields the server reads, typed', async () => {
-    const ref = await aliceReminder()
+    const db = await alice()
     const base = reminder()
-    await assertFails(ref.set({ ...base, status: 'claimed' }))
-    await assertFails(ref.set({ ...base, id: 'not-hex' }))
-    await assertFails(ref.set({ ...base, appliedAt: Date.now() }))
-    await assertFails(ref.set({ ...base, dueAt: Timestamp.fromMillis(Date.now() + MINUTE) }))
-    await assertFails(ref.set({ ...base, expireAt: base.remindAt }))
+    await assertFails(armed(db, { ...base, status: 'claimed' }))
+    await assertFails(armed(db, { ...base, id: 'not-hex' }))
+    await assertFails(armed(db, { ...base, appliedAt: Date.now() }))
+    await assertFails(armed(db, { ...base, dueAt: Timestamp.fromMillis(Date.now() + MINUTE) }))
+    await assertFails(armed(db, { ...base, expireAt: base.remindAt }))
     const { dueAt: _dueAt, ...missing } = base
-    await assertFails(ref.set(missing))
+    await assertFails(armed(db, missing))
   })
 
   test('an account being deleted cannot schedule one', async () => {
-    const ref = await aliceReminder()
+    const db = await alice()
     await testEnv.withSecurityRulesDisabled(async context => {
       await context.firestore().doc('accountDeletionTombstones/alice').set({ revokedBefore: 200 })
     })
-    await assertFails(ref.set(reminder()))
+    await assertFails(armed(db, reminder()))
+  })
+
+  test('M1: 150 rapid rewrites are refused but the first, each write starting the trigger', async () => {
+    const db = await alice()
+    let accepted = 0
+    for (let i = 0; i < 150; i++) {
+      const data = reminder({ id: hexId(i + 1), appliedAt: Date.now() - i * 1000 })
+      try {
+        await write(db, data)
+        accepted++
+      } catch (error) {
+        assert.equal(error.code, 'permission-denied')
+      }
+    }
+    assert.equal(accepted, 1)
+  })
+
+  test('M1: Stop and Start again is held to the same rate, Stop never is', async () => {
+    const db = await alice()
+    const ref = db.doc('users/alice/reminders/reapply')
+    for (let i = 0; i < 5; i++) {
+      // The first round starts from no stamp at all.
+      const started = write(db, reminder({ id: hexId(i + 1) }))
+      if (i === 0) await assertSucceeds(started)
+      else await assertFails(started)
+      await assertSucceeds(ref.delete())
+    }
+    // The stamp outlives the reminder, and goes only with the account document.
+    await assertFails(db.doc('users/alice/reminders/writes').delete())
+  })
+
+  test('M1: a write needs its stamp, at the server’s time, and the last one 10 seconds old', async () => {
+    const db = await alice()
+    await assertFails(write(db, reminder(), { stamp: false }))
+    const batch = db.batch()
+    batch.set(db.doc('users/alice/reminders/reapply'), reminder())
+    batch.set(db.doc('users/alice/reminders/writes'), {
+      writtenAt: Timestamp.fromMillis(Date.now() - 60 * MINUTE),
+    })
+    await assertFails(batch.commit())
+    await assertFails(
+      db.doc('users/alice/reminders/writes').set({
+        writtenAt: FieldValue.serverTimestamp(),
+        extra: 1,
+      }),
+    )
+    await lastWriteAgo(8)
+    await assertFails(write(db, reminder({ id: hexId(2) })))
+    await lastWriteAgo(11)
+    await assertSucceeds(write(db, reminder({ id: hexId(3) })))
+  })
+
+  test('M1: the real flows still work: Start, "I reapplied", "Swimming" a gap apart, and Stop', async () => {
+    const db = await alice()
+    const ref = db.doc('users/alice/reminders/reapply')
+    await assertSucceeds(write(db, reminder({ id: hexId(1) })))
+    await lastWriteAgo(10)
+    await assertSucceeds(write(db, reminder({ id: hexId(2), appliedAt: Date.now() })))
+    await lastWriteAgo(10)
+    await assertSucceeds(write(db, reminder({ id: hexId(3), mode: 'water' })))
+    await assertSucceeds(ref.delete())
+    await lastWriteAgo(10)
+    await assertSucceeds(write(db, reminder({ id: hexId(4) })))
+  })
+
+  test('I3: a record is never written again under the same id, so a claimed one cannot be re-armed', async () => {
+    const db = await alice()
+    const waiting = reminder()
+    await assertSucceeds(write(db, waiting))
+    // The server's claim: dueAt removed, status and claimedAt added.
+    const { dueAt: _dueAt, ...claimed } = waiting
+    await testEnv.withSecurityRulesDisabled(async context => {
+      await context
+        .firestore()
+        .doc('users/alice/reminders/reapply')
+        .set({ ...claimed, status: 'claimed', claimedAt: Timestamp.now() })
+    })
+    await assertFails(armed(db, waiting))
+    await assertSucceeds(armed(db, reminder({ id: 'e'.repeat(32) })))
+    // Nor rewritten as it is.
+    await assertFails(armed(db, reminder({ id: 'e'.repeat(32) })))
   })
 })

@@ -267,6 +267,10 @@ describe('notification device mutations', () => {
       const schedule = latestWrite(db, 'alertSchedule')
       assert.equal(schedule.ref.id, 'dailyUv')
       assert.deepEqual(schedule.data, { dueAt: new Date(1_750_000_000_000) })
+      // The marker that keeps the browser's own account deletion away (firestore.rules).
+      const marker = latestWrite(db, 'private')
+      assert.equal(marker.ref.id, 'notificationDevices')
+      assert.deepEqual(marker.data, { registeredAt: 'server-time' })
     }
     // A guest's anonymous tier never registers.
     await assert.rejects(
