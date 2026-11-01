@@ -17,3 +17,29 @@ export default function StaticText({ text }: { text: Readonly<Record<Locale, str
     </>
   )
 }
+
+/**
+ * A link whose address and words follow the page's language, as StaticText does: the
+ * privacy policy is /privacy/ in English and /es/privacy/ in Spanish. Only the page's
+ * language shows; the others are display: none, so they are never focused or read.
+ */
+export function StaticLink({
+  href,
+  text,
+  className,
+}: {
+  href: Readonly<Record<Locale, string>>
+  text: Readonly<Record<Locale, string>>
+  className?: string
+}) {
+  return (
+    <>
+      <a data-lang="en" lang="en" href={href.en} className={className}>
+        {text.en}
+      </a>
+      <a data-lang="es" lang="es" href={href.es} className={className}>
+        {text.es}
+      </a>
+    </>
+  )
+}

@@ -8,17 +8,45 @@
 import { SCRIPT_TAG, hasAttribute } from './csp.mts'
 import cities from './cities/cities.json' with { type: 'json' }
 
-/**
- * Pages served without the framework, relative to the export directory: the landing
- * page, the city pages (app/uv/), and the Microsoft sign-in redirect page
- * (app/auth/microsoft/), whose address carries a one-time code no other script may see.
- */
-export const STATIC_PAGES = [
+/** The landing page and the city pages, in one language, relative to its address prefix. */
+const CONTENT_PAGES = [
   'index.html',
   'uv/index.html',
-  'auth/microsoft/index.html',
   ...cities.map(city => `uv/${city.slug}/index.html`),
 ]
+
+/**
+ * Pages served without the framework, relative to the export directory: the landing
+ * page and the city pages (app/uv/) in each language (Spanish under es/, ROADMAP item 46),
+ * and the Microsoft sign-in redirect page (app/auth/microsoft/), whose address carries a
+ * one-time code no other script may see.
+ */
+export const STATIC_PAGES = [
+  ...CONTENT_PAGES,
+  ...CONTENT_PAGES.map(page => `es/${page}`),
+  'auth/microsoft/index.html',
+]
+
+/**
+ * The language of each exported page by its address (lib/page-language.ts): under es/ it
+ * is Spanish, elsewhere the root layout's English.
+ */
+export function pageLanguage(page: string): 'en' | 'es' {
+  return /^es[\\/]/.test(page) ? 'es' : 'en'
+}
+
+const HTML_LANG = /(<html\b[^>]*?\blang=")en(")/i
+
+/**
+ * Writes the page's language into `<html lang>`. The one root layout writes English; a
+ * page under /es/ is Spanish, so search engines, screen readers and the CSS that shows
+ * static text in the page's language (StaticText) read it as Spanish from the first byte.
+ * Throws when the export no longer starts `<html lang="en"`.
+ */
+export function withDocumentLanguage(html: string, lang: 'en' | 'es'): string {
+  if (!HTML_LANG.test(html)) throw new Error('no <html lang="en"> to set the language on')
+  return lang === 'en' ? html : html.replace(HTML_LANG, `$1${lang}$2`)
+}
 
 /** Inline scripts Next.js writes: the RSC payload, the chunk list and their bootstrap. */
 const FRAMEWORK_INLINE =

@@ -68,6 +68,7 @@ export interface ConsentCopy {
   title: ReactNode
   long: ReactNode
   short: ReactNode
+  /** The link to the privacy policy, in the page's language (StaticLink). */
   privacy: ReactNode
   allow: ReactNode
   notNow: ReactNode
@@ -137,8 +138,7 @@ export default function AnalyticsConsent({
           {/* Phones get the short sentence, so the bar stays about two rows tall. */}
           <p className={styles.text}>
             <span className={styles.long}>{copy.long}</span>
-            <span className={styles.short}>{copy.short}</span>{' '}
-            <a href="/privacy/">{copy.privacy}</a>
+            <span className={styles.short}>{copy.short}</span> {copy.privacy}
           </p>
         </div>
         <div className={styles.actions}>

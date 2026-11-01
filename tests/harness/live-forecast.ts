@@ -74,7 +74,10 @@ export async function prepareLiveDashboard(
   )
   await page.goto(`/harness/?screen=dashboard&data=live&tier=${tier}${query}`)
   await expect(page.getByTestId(HARNESS_MARKER)).toBeVisible()
-  await expect(page.getByRole('group', { name: 'UV forecast by hour' })).toBeVisible()
+  // In English or Spanish (landing-shots.spec.ts takes the app in each).
+  await expect(
+    page.getByRole('group', { name: /^(?:UV forecast by hour|Pronóstico UV por hora)$/ }),
+  ).toBeVisible()
   return capture
 }
 

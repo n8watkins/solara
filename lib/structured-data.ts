@@ -4,7 +4,10 @@
 // of the export into the page's Content-Security-Policy at build time, this one too,
 // so there is no hash to keep in step by hand.
 
-import { cityDescription, cityPath, cityPlace, cityTitle, type CityPage } from './city-pages'
+import { currentLocale } from '@solara/core/i18n'
+import m from '@/messages/city-pages'
+import { cityPath, cityPlace, type CityPage } from './city-pages'
+import { localePath } from './page-language'
 import { SITE_URL } from './site'
 
 /**
@@ -18,19 +21,24 @@ export function jsonLd(data: unknown): string {
   )
 }
 
-/** A city page as a schema.org WebPage about the city, with its breadcrumb trail. */
+/**
+ * A city page as a schema.org WebPage about the city, with its breadcrumb trail, in the
+ * active language (a Spanish page builds it inside inPageLanguage, lib/page-language.ts).
+ */
 export function cityStructuredData(page: CityPage) {
   const { city } = page
-  const url = `${SITE_URL}${cityPath(city.slug)}`
+  const locale = currentLocale()
+  const address = (path: string) => `${SITE_URL}${localePath(path, locale)}`
+  const url = address(cityPath(city.slug))
   const region = city.region && city.region !== city.name ? city.region : undefined
   const webPage = {
     '@type': 'WebPage',
     '@id': url,
     url,
-    name: cityTitle(page),
-    description: cityDescription(page),
-    inLanguage: 'en',
-    isPartOf: { '@type': 'WebSite', name: 'Solara', url: `${SITE_URL}/` },
+    name: page.title,
+    description: page.description,
+    inLanguage: locale,
+    isPartOf: { '@type': 'WebSite', name: 'Solara', url: address('/') },
     breadcrumb: { '@id': `${url}#breadcrumb` },
     about: {
       '@type': 'Place',
@@ -48,8 +56,8 @@ export function cityStructuredData(page: CityPage) {
     '@type': 'BreadcrumbList',
     '@id': `${url}#breadcrumb`,
     itemListElement: [
-      { '@type': 'ListItem', position: 1, name: 'Solara', item: `${SITE_URL}/` },
-      { '@type': 'ListItem', position: 2, name: 'UV by city', item: `${SITE_URL}/uv/` },
+      { '@type': 'ListItem', position: 1, name: 'Solara', item: address('/') },
+      { '@type': 'ListItem', position: 2, name: m.uvByCity, item: address('/uv/') },
       { '@type': 'ListItem', position: 3, name: city.name, item: url },
     ],
   }

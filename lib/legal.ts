@@ -1,3 +1,5 @@
+import type { Locale } from '@solara/core/i18n'
+
 /**
  * Operator details shown in the privacy policy and terms (owner decision D8 in
  * docs/status.md). A null value renders a clearly marked
@@ -26,6 +28,31 @@ export const LEGAL_DETAILS: Readonly<{
 export const PRIVACY_LAST_UPDATED = 'October 29, 2026'
 export const TERMS_LAST_UPDATED = 'October 25, 2026'
 
+/**
+ * The English version each translation translates (ROADMAP item 46): a change to the
+ * English text changes its date above, and lib/privacy-policy.test.ts then fails until the
+ * translation (app/es/privacy/page.tsx, app/es/terms/page.tsx) says the same again and its
+ * date here is moved to match. The English version prevails, as each translation states.
+ */
+export const TRANSLATED_FROM: Readonly<
+  Partial<Record<Locale, { privacy: string; terms: string }>>
+> = {
+  es: { privacy: 'October 29, 2026', terms: 'October 25, 2026' },
+}
+
+/** A document date ("October 29, 2026") as the language writes it ("29 de octubre de 2026"). */
+export function legalDate(date: string, locale: Locale): string {
+  const parsed = new Date(`${date} 12:00 UTC`)
+  if (Number.isNaN(parsed.getTime())) throw new Error(`Not a document date: ${date}`)
+  if (locale === 'en') return date
+  return parsed.toLocaleDateString(locale === 'es' ? 'es-419' : locale, {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    timeZone: 'UTC',
+  })
+}
+
 export type LegalDetail = keyof typeof LEGAL_DETAILS
 
 export const LEGAL_PLACEHOLDER_LABELS: Readonly<Record<LegalDetail, string>> = {
@@ -33,4 +60,14 @@ export const LEGAL_PLACEHOLDER_LABELS: Readonly<Record<LegalDetail, string>> = {
   contactEmail: 'contact email',
   jurisdiction: 'governing jurisdiction',
   codeLicense: 'source code license',
+}
+
+/** The details that read differently in another language (names and the address stay). */
+export const LEGAL_DETAILS_TRANSLATED: Readonly<
+  Partial<Record<Locale, Partial<Record<LegalDetail, string>>>>
+> = {
+  es: {
+    jurisdiction: 'California, Estados Unidos',
+    codeLicense: 'Todos los derechos reservados',
+  },
 }

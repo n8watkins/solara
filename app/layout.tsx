@@ -4,7 +4,7 @@ import { inter } from './fonts'
 import AnalyticsConsent from '@/components/AnalyticsConsent'
 import ThemeInit from '@/components/ThemeInit'
 import { ANALYTICS_CONSENT_INIT_SCRIPT, isAnalyticsMeasurementId } from '@/lib/analytics-consent'
-import StaticText from '@/components/StaticText'
+import StaticText, { StaticLink } from '@/components/StaticText'
 import { LANGUAGE_INIT_SCRIPT } from '@/lib/i18n'
 import { IS_STAGING, SITE_URL } from '@/lib/site'
 import * as staticText from '@/messages/static'
@@ -45,6 +45,11 @@ export const metadata: Metadata = {
   },
 }
 
+// The legal pages in each language (lib/page-language.ts); every page links the one in
+// its own language.
+const PRIVACY = { en: '/privacy/', es: '/es/privacy/' } as const
+const TERMS = { en: '/terms/', es: '/es/terms/' } as const
+
 export const viewport: Viewport = {
   themeColor: [
     { media: '(prefers-color-scheme: light)', color: '#F97316' },
@@ -78,7 +83,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             title: <StaticText text={staticText.consentTitle} />,
             long: <StaticText text={staticText.consentLong} />,
             short: <StaticText text={staticText.consentShort} />,
-            privacy: <StaticText text={staticText.consentPrivacy} />,
+            privacy: <StaticLink href={PRIVACY} text={staticText.consentPrivacy} />,
             allow: <StaticText text={staticText.consentAllow} />,
             notNow: <StaticText text={staticText.consentNotNow} />,
           }}
@@ -86,13 +91,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ThemeInit />
         {children}
         <footer className="bg-surface px-4 py-5 text-center text-[12px] text-ink-3">
-          <a href="/privacy/" className="text-inherit">
-            <StaticText text={staticText.footerPrivacy} />
-          </a>
+          <StaticLink href={PRIVACY} text={staticText.footerPrivacy} className="text-inherit" />
           <span aria-hidden="true"> · </span>
-          <a href="/terms/" className="text-inherit">
-            <StaticText text={staticText.footerTerms} />
-          </a>
+          <StaticLink href={TERMS} text={staticText.footerTerms} className="text-inherit" />
           <span aria-hidden="true"> · </span>
           <a href="/account/" className="text-inherit">
             <StaticText text={staticText.footerAccountData} />

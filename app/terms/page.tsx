@@ -3,15 +3,18 @@ import LegalPage from '@/components/LegalPage'
 import styles from '@/components/LegalPolicy.module.css'
 import LegalDetail from '@/components/LegalDetail'
 import { TERMS_LAST_UPDATED } from '@/lib/legal'
+import { languageAlternates } from '@/lib/page-language'
 
 export const metadata: Metadata = {
   title: 'Terms of Use | Solara',
   description: 'Terms, safety limitations, subscriptions, and acceptable use for Solara.',
+  // In Spanish at /es/terms/ (app/es/terms/page.tsx).
+  alternates: languageAlternates('/terms/', 'en'),
 }
 
 export default function TermsPage() {
   return (
-    <LegalPage title="Terms of Use" updated={TERMS_LAST_UPDATED}>
+    <LegalPage title="Terms of Use" updated={TERMS_LAST_UPDATED} path="/terms/">
       <div className={styles.policy}>
         <h2>Who provides Solara</h2>
         <p>

@@ -9,6 +9,7 @@ import { SERVER_TRANSLATIONS } from '@solara/core/server-language'
 import * as staticText from './static'
 import initial from './es/initial'
 import rest from './es/rest'
+import pages from './es/pages'
 import { reviewSheet } from './review-sheet'
 
 // Every English namespace registers when its module loads.
@@ -24,7 +25,7 @@ const SERVER_ONLY = ['server']
 const server = Object.fromEntries(
   Object.entries(SERVER_TRANSLATIONS.es).filter(([namespace]) => SERVER_ONLY.includes(namespace)),
 )
-const spanish: Record<string, Messages> = { ...initial, ...rest, ...server }
+const spanish: Record<string, Messages> = { ...initial, ...rest, ...server, ...pages }
 const sources = registeredNamespaces()
 
 /** Calls a message with numbered values in every parameter (numbers, then string lists). */
@@ -57,6 +58,8 @@ describe('message catalogues', () => {
   it('translates every namespace into Spanish, once', () => {
     expect(Object.keys(initial).filter(ns => ns in rest)).toEqual([])
     expect(SERVER_ONLY.filter(ns => ns in initial || ns in rest)).toEqual([])
+    // The static pages' own words are built into their HTML, never the app's chunks.
+    expect(Object.keys(pages).filter(ns => ns in initial || ns in rest)).toEqual([])
     expect(Object.keys(spanish).sort()).toEqual([...sources.keys()].sort())
   })
 
