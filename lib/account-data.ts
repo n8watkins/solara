@@ -50,6 +50,9 @@ export const EXPORT_SECTIONS = {
   get notificationDevices() {
     return m.sectionDevices
   },
+  get bookkeeping() {
+    return m.sectionBookkeeping
+  },
 }
 
 /** The export's bookkeeping fields, which are not sections of the person's data. */
@@ -151,6 +154,7 @@ const SECTION_FEATURE: Partial<Record<keyof typeof EXPORT_SECTIONS, Feature>> = 
   eventHeadsUps: 'eventHeadsUps',
   reapplyReminder: 'alerts',
   notificationDevices: 'alerts',
+  bookkeeping: 'alerts',
 }
 
 /** The feature each deleted item needs, by its words in DELETED_DATA. */
