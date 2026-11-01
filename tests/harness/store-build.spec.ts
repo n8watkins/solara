@@ -1,12 +1,14 @@
 import { expect, test, type Page } from '@playwright/test'
 import { captureScreen, preparePage } from './capture'
 import { HARNESS_MARKER } from './fixtures'
+import { asAppWindow } from '../app-window'
 
 // The app store build (lib/store-build.ts, docs/integrations/ANDROID.md): inside a
 // Trusted Web Activity, Solara shows no price, upsell or checkout, as Play's payments
 // policy asks of an app that does not sell through Play. Each surface that offers Pro on
 // the web is checked with `?source=twa` (a TWA's start URL; its `android-app://`
-// referrer is covered by lib/store-build.test.ts), next to the same screen on the web.
+// referrer is covered by lib/store-build.test.ts) in an app window, as a TWA shows it,
+// next to the same screen on the web.
 
 /**
  * Words that offer Pro or name a price anywhere on the page. Saying what Pro includes
@@ -16,6 +18,7 @@ const OFFER =
   /\$\d|waitlist|See Pro|See it now with Pro|Go Pro|Upgrade to Pro|Start free trial|Manage subscription|through Stripe|Get this as a morning/i
 
 async function open(page: Page, query: string, store = true) {
+  if (store) await asAppWindow(page)
   await page.goto(`/harness/?${query}${store ? '&source=twa' : ''}`)
   await expect(page.getByTestId(HARNESS_MARKER)).toBeVisible()
 }
@@ -118,11 +121,21 @@ test('a signed-in account never sees the plans dialog', async ({ page }, testInf
 
 test('Pro bought on the web shows, without the Stripe portal', async ({ page }, testInfo) => {
   await preparePage(page, testInfo)
+  await asAppWindow(page)
   await page.goto('/harness/account/?state=pro&source=twa')
   await expect(page.getByTestId(HARNESS_MARKER)).toBeVisible()
   await expect(page.getByText(/^Pro, yearly\./)).toBeVisible()
   await expect(page.getByRole('button', { name: 'Manage subscription' })).toHaveCount(0)
   await expectNoOffer(page)
+})
+
+test('a ?source=twa link in a browser tab keeps a web subscriber’s billing (REVIEW9 SEC9 L8)', async ({
+  page,
+}, testInfo) => {
+  await preparePage(page, testInfo)
+  await page.goto('/harness/account/?state=pro&source=twa')
+  await expect(page.getByTestId(HARNESS_MARKER)).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Manage subscription' })).toBeVisible()
 })
 
 test('the session stays in store mode on later pages', async ({ page }, testInfo) => {

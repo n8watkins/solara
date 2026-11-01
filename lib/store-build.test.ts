@@ -18,8 +18,8 @@ function memoryStorage(initial: Record<string, string> = {}) {
 }
 
 /** A page opened with this referrer and query, with this session storage. */
-function page(referrer: string, search: string, storage = memoryStorage()) {
-  vi.stubGlobal('window', {})
+function page(referrer: string, search: string, storage = memoryStorage(), appWindow = true) {
+  vi.stubGlobal('window', { matchMedia: () => ({ matches: appWindow }) })
   vi.stubGlobal('document', { referrer })
   vi.stubGlobal('location', { search })
   vi.stubGlobal('sessionStorage', storage)
@@ -34,16 +34,18 @@ afterEach(() => {
 })
 
 describe('openedFromStoreApp', () => {
-  it('knows a Trusted Web Activity by its referrer or start URL', () => {
-    expect(openedFromStoreApp('android-app://dev.n8builds.solara/', '')).toBe(true)
-    expect(openedFromStoreApp('', '?source=twa')).toBe(true)
-    expect(openedFromStoreApp('', '?signin&source=twa')).toBe(true)
+  it('knows a Trusted Web Activity by its referrer, or its start URL in an app window', () => {
+    expect(openedFromStoreApp('android-app://dev.n8builds.solara/', '', false)).toBe(true)
+    expect(openedFromStoreApp('', '?source=twa', true)).toBe(true)
+    expect(openedFromStoreApp('', '?signin&source=twa', true)).toBe(true)
   })
 
-  it('leaves the web alone', () => {
-    expect(openedFromStoreApp('', '')).toBe(false)
-    expect(openedFromStoreApp('https://www.google.com/', '?source=web')).toBe(false)
-    expect(openedFromStoreApp('https://solara-uv.web.app/android-app://', '')).toBe(false)
+  it('leaves the web alone, even for a link with ?source=twa in a browser tab (REVIEW9 SEC9 L8)', () => {
+    expect(openedFromStoreApp('', '', true)).toBe(false)
+    expect(openedFromStoreApp('https://www.google.com/', '?source=web', true)).toBe(false)
+    expect(openedFromStoreApp('https://solara-uv.web.app/android-app://', '', true)).toBe(false)
+    expect(openedFromStoreApp('', '?source=twa', false)).toBe(false)
+    expect(openedFromStoreApp('https://mail.example/', '?source=twa', false)).toBe(false)
   })
 })
 
@@ -68,6 +70,12 @@ describe('isStoreBuild', () => {
     expect(isStoreBuild()).toBe(true)
   })
 
+  it('stays off in a browser tab opened from a ?source=twa link, and remembers nothing', () => {
+    const storage = page('https://mail.example/', '?source=twa', memoryStorage(), false)
+    expect(isStoreBuild()).toBe(false)
+    expect(storage.store.has(STORE_SESSION_KEY)).toBe(false)
+  })
+
   it('still works for the page itself when session storage is off', () => {
     page('', '?source=twa', {
       ...memoryStorage(),
@@ -83,16 +91,24 @@ describe('isStoreBuild', () => {
 })
 
 describe('the landing page in a store session', () => {
-  function runLanding(referrer: string, search: string, storage = memoryStorage()) {
+  function runLanding(
+    referrer: string,
+    search: string,
+    storage = memoryStorage(),
+    appWindow = true,
+  ) {
     const replace = vi.fn()
     const run = new Function(
       'document',
       'location',
       'localStorage',
       'sessionStorage',
+      'matchMedia',
       LANDING_REDIRECT_SCRIPT,
     )
-    run({ referrer }, { search, hash: '', replace }, memoryStorage(), storage)
+    run({ referrer }, { search, hash: '', replace }, memoryStorage(), storage, () => ({
+      matches: appWindow,
+    }))
     return { replace, storage }
   }
 
@@ -105,7 +121,10 @@ describe('the landing page in a store session', () => {
     expect(runLanding('https://solara-uv.web.app/app/', '', storage).replace).toHaveBeenCalled()
   })
 
-  it('stays for a web visitor', () => {
+  it('stays for a web visitor, also one sent a ?source=twa link', () => {
     expect(runLanding('https://www.google.com/', '').replace).not.toHaveBeenCalled()
+    const link = runLanding('https://mail.example/', '?source=twa', memoryStorage(), false)
+    expect(link.replace).not.toHaveBeenCalled()
+    expect(link.storage.store.has(STORE_SESSION_KEY)).toBe(false)
   })
 })
