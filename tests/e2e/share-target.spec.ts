@@ -130,14 +130,12 @@ test('sharing works offline: the worker keeps the file, and the app shows it onc
   await expect(sharedCard(page)).toContainText('invite.ics has 2 upcoming events')
 })
 
-test('a share posted from another website keeps nothing and just opens the app', async ({
-  page,
-  baseURL,
-}) => {
-  await openInstalledApp(page)
-  // Another site's page with a form that posts a file to Solara's share address.
+/** Posts a calendar file to Solara's share address from a page on another site. */
+async function postFromOtherSite(page: Page, baseURL: string, referrerPolicy: string) {
+  // A referrer policy of `no-referrer` hides the site's address (REVIEW9 SEC9 L6).
+  const meta = referrerPolicy ? `<meta name="referrer" content="${referrerPolicy}">` : ''
   await page.route('http://other.example/', route =>
-    route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>Other</title>' }),
+    route.fulfill({ contentType: 'text/html', body: `<!doctype html>${meta}<title>Other</title>` }),
   )
   await page.goto('http://other.example/')
   await page.evaluate(
@@ -158,10 +156,33 @@ test('a share posted from another website keeps nothing and just opens the app',
     },
     { action: `${baseURL}/app/share-target/`, text: INVITE },
   )
+}
+
+test('a share posted from another website keeps nothing and just opens the app', async ({
+  page,
+  baseURL,
+}) => {
+  await openInstalledApp(page)
+  await postFromOtherSite(page, baseURL!, '')
   await page.waitForURL(/\/app\/$/)
   await expect(page.getByRole('group', { name: 'UV forecast by hour' })).toBeVisible()
   await expect(sharedCard(page)).toHaveCount(0)
   expect(await page.evaluate(() => caches.has('solara-share-v1'))).toBe(false)
+})
+
+test('another website that hides its address can only offer the file, never import it', async ({
+  page,
+  baseURL,
+}) => {
+  await openInstalledApp(page)
+  // With its address hidden, the worker sees no referrer and `Origin: null` (Chromium
+  // gives the worker no Sec-Fetch-Site), as a share from the share sheet may look; so the
+  // card still asks before anything is kept (REVIEW9 SEC9 L6).
+  await postFromOtherSite(page, baseURL!, 'no-referrer')
+  await page.waitForURL(/\/app\/\?shared=[a-z0-9]+$/)
+  const card = sharedCard(page)
+  await expect(card).toContainText('invite.ics has 2 upcoming events')
+  await expect(card).toContainText('Sign in to keep them')
 })
 
 test.describe('before the worker runs', () => {

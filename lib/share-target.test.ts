@@ -12,6 +12,7 @@ import {
   SHARE_STASH_PATH,
   SHARE_TARGET_PATH,
   crossSiteReferrer,
+  crossSiteShare,
   decodeShareMeta,
   displayFileName,
   encodeShareMeta,
@@ -125,6 +126,36 @@ describe('isSharePost', () => {
     expect(isSharePost({ ...post, url: `https://other.example${SHARE_TARGET_PATH}` }, ORIGIN)).toBe(
       false,
     )
+  })
+})
+
+describe('crossSiteShare (REVIEW9 SEC9 L6)', () => {
+  const request = (referrer: string, headers: Record<string, string> = {}) => ({
+    referrer,
+    headers: new Headers(headers),
+  })
+
+  it('takes the share sheet: no referrer, user-initiated, no origin or a null one', () => {
+    expect(crossSiteShare(request(''), ORIGIN)).toBe(false)
+    expect(crossSiteShare(request('', { 'Sec-Fetch-Site': 'none' }), ORIGIN)).toBe(false)
+    expect(crossSiteShare(request('', { Origin: 'null' }), ORIGIN)).toBe(false)
+    expect(crossSiteShare(request('android-app://com.google.android.gm/'), ORIGIN)).toBe(false)
+    expect(
+      crossSiteShare(
+        request(`${ORIGIN}/app/`, { 'Sec-Fetch-Site': 'same-origin', Origin: ORIGIN }),
+        ORIGIN,
+      ),
+    ).toBe(false)
+  })
+
+  it('refuses another site, even with its address hidden', () => {
+    expect(crossSiteShare(request('https://other.example/'), ORIGIN)).toBe(true)
+    expect(crossSiteShare(request('', { 'Sec-Fetch-Site': 'cross-site' }), ORIGIN)).toBe(true)
+    expect(crossSiteShare(request('', { 'Sec-Fetch-Site': 'Cross-Site' }), ORIGIN)).toBe(true)
+    // Another *.web.app site is another site (web.app is a public suffix).
+    expect(crossSiteShare(request('', { 'Sec-Fetch-Site': 'same-site' }), ORIGIN)).toBe(true)
+    expect(crossSiteShare(request('', { Origin: 'https://other.example' }), ORIGIN)).toBe(true)
+    expect(crossSiteShare(request('', { Origin: 'https://evil.web.app' }), ORIGIN)).toBe(true)
   })
 })
 
