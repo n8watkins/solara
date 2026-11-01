@@ -93,6 +93,25 @@ test('the locked tab and the morning alert open the Pro plans', async ({ page })
   await expect(page.getByRole('dialog', { name: 'Solara Pro' })).toBeVisible()
 })
 
+test('setting up as a guest asks the browser to keep its storage', async ({ page }) => {
+  // REVIEW10 VERIFY10 N4: a request the browser decides on (lib/guest.ts), counted here.
+  await page.addInitScript(() => {
+    const w = window as unknown as { __persistCalls: number }
+    w.__persistCalls = 0
+    const original = navigator.storage.persist.bind(navigator.storage)
+    navigator.storage.persist = () => {
+      w.__persistCalls += 1
+      return original()
+    }
+  })
+  await startAsGuest(page)
+  await expect
+    .poll(() =>
+      page.evaluate(() => (window as unknown as { __persistCalls: number }).__persistCalls),
+    )
+    .toBe(1)
+})
+
 test('the hourly strip is one Tab stop, with the arrow keys between hours', async ({ page }) => {
   // REVIEW10 VERIFY10 N6: the strip was 15 Tab stops; it is a toolbar with a roving
   // tabindex. The frozen clock is 10:30, so the strip's stop is the current hour's bar,

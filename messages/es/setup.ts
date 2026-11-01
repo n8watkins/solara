@@ -28,7 +28,7 @@ export default {
   finishSetup: 'Terminar',
   allSet: '¡Todo listo!',
   allSetLead:
-    'Mira ahora los horarios de UV más bajo de hoy. Tu plan se queda en este dispositivo hasta que inicies sesión.',
+    'Mira ahora los horarios de UV más bajo de hoy. Tu plan se guarda en este navegador; inicia sesión para tenerlo en todos tus dispositivos.',
   seeTodaysPlan: 'Ver el plan de hoy',
   signInToSolara: 'Inicia sesión en Solara',
   signInLead: 'Recupera tu plan guardado y tus horarios de sol en cualquier dispositivo.',

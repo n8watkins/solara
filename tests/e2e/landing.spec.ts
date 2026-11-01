@@ -36,6 +36,11 @@ test('offers the app, sign-in, the plans, the legal pages and the data credits',
   await expect(main.getByText('$2.99')).toBeVisible()
   await expect(main.getByText(/\$19\.99 a year\. 7-day free trial/)).toBeVisible()
   await expect(main.getByText('Morning and UV alerts (coming soon)')).toBeVisible()
+  // No promise that the browser keeps a guest plan (REVIEW10 VERIFY10 N4).
+  await expect(
+    main.getByText('No sign-in. Your plan is saved in this browser; sign in to keep it safe.'),
+  ).toBeVisible()
+  await expect(main).not.toContainText('stays on this device')
   await expect(page.getByRole('link', { name: 'Privacy' })).toHaveAttribute('href', '/privacy/')
   await expect(page.getByRole('link', { name: 'Terms' })).toHaveAttribute('href', '/terms/')
   await expect(page.getByRole('link', { name: 'Open-Meteo' })).toHaveAttribute(

@@ -3,7 +3,7 @@ import { useEffect, useEffectEvent, useState, type ReactNode } from 'react'
 import { saveLocalPrefs } from '@/lib/prefs'
 import { syncErrorFor, type SyncError } from '@/lib/sync-error'
 import { SIGN_IN_PARAM } from '@/lib/app-routes'
-import { loadGuestPrefs, saveGuestPrefs } from '@/lib/guest'
+import { loadGuestPrefs, requestPersistentStorage, saveGuestPrefs } from '@/lib/guest'
 import { SignedInContext } from '@/lib/signed-in-context'
 import { canUseCalendar } from '@solara/core/tiers'
 import { screenAfterOnboarding } from '@/lib/account-screen'
@@ -200,6 +200,7 @@ function SignedInApp() {
 
   function handleStartAsGuest(answers: UserPreferences) {
     saveGuestPrefs(answers)
+    void requestPersistentStorage()
     setPrefs(loadGuestPrefs() ?? answers)
     setScreen('dashboard')
   }
