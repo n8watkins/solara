@@ -48,6 +48,7 @@ export default {
   clearSky: 'Cielo despejado',
   moderateOrHigher: 'Moderado o más',
   rarely: 'Rara vez',
+  someDays: 'Algunos días',
   aboutHeading: 'Sobre estos números',
   aboutSource: (first, last) =>
     `Promedios de todos los días de ${first} a ${last} en el modelo global de composición atmosférica del `,

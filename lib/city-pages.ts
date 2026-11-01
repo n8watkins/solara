@@ -143,8 +143,17 @@ export interface CityMonth extends MonthUV {
   /** The typical peak and clear-sky peak, written as the app writes UV. */
   peakText: string
   clearSkyText: string
-  /** When UV is usually moderate or higher ("10am" to "3pm"), or null when it rarely is. */
+  /**
+   * When UV is usually moderate or higher ("10am" to "3pm"), or null when the month's
+   * typical peak is Low: the hours and the category come from the same typical day, so a
+   * "Low" month never lists moderate hours (REVIEW10 N9).
+   */
   hours: { from: string; to: string } | null
+  /**
+   * A Low month in which more than half the days still reach UV 3 (a typical peak just
+   * under 2.5): its hours column says "Some days" rather than "Rarely".
+   */
+  someDays: boolean
 }
 
 export interface CityPage {
@@ -193,25 +202,28 @@ export function cityPage(slug: string): CityPage | null {
   if (!city || !data) return null
   const names = monthNames()
   const shorts = shortMonthNames()
-  const months: CityMonth[] = data.months.map((month, i) => ({
-    ...month,
-    month: names[i]!,
-    short: shorts[i]!,
-    band: uvBand(month.peak),
-    label: uvLabel(month.peak),
-    peakText: formatUV(month.peak),
-    clearSkyText: formatUV(month.clearSky),
-    hours:
-      month.from !== null && month.to !== null
-        ? { from: hourText(month.from), to: hourText(month.to) }
-        : null,
-  }))
+  const months: CityMonth[] = data.months.map((month, i) => {
+    const moderate = index(month.peak) >= 3
+    const reached = month.from !== null && month.to !== null
+    return {
+      ...month,
+      month: names[i]!,
+      short: shorts[i]!,
+      band: uvBand(month.peak),
+      label: uvLabel(month.peak),
+      peakText: formatUV(month.peak),
+      clearSkyText: formatUV(month.clearSky),
+      hours:
+        moderate && reached ? { from: hourText(month.from!), to: hourText(month.to!) } : null,
+      someDays: !moderate && reached,
+    }
+  })
   const top = months.reduce((best, month) => (month.peak > best.peak ? month : best), months[0]!)
   const reaches3 = months.map(month => index(month.peak) >= 3)
   const season = monthSpan(reaches3)
   const lowSpan = monthSpan(reaches3.map(reached => !reached))
   const facts: string[] = [m.factPeak(city.name, top.month, top.peakText, top.label)]
-  if (top.from !== null && top.to !== null) {
+  if (top.hours && top.from !== null && top.to !== null) {
     facts.push(m.factHours(top.month, hourText(top.from), hourText(top.to), Math.round(top.hours3)))
   }
   if (season) facts.push(season === m.allYear ? m.factAllYear : m.factSeason(season))

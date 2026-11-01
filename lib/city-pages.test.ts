@@ -195,3 +195,26 @@ describe('the city pages in Spanish (ROADMAP item 46)', () => {
     expect(cityPage('paris')!.city.name).toBe('Paris')
   })
 })
+
+describe('the hours column agrees with the category (REVIEW10 N9)', () => {
+  it('never lists moderate hours for a month whose typical peak is Low', () => {
+    for (const { slug } of CITIES) {
+      for (const month of cityPage(slug)!.months) {
+        if (month.label === 'Low') expect(month.hours, `${slug} ${month.month}`).toBeNull()
+        if (month.hours) expect(month.someDays).toBe(false)
+      }
+    }
+  })
+
+  it('says "Some days" for a Low month most of whose days reach UV 3 (Sydney in July)', () => {
+    const july = cityPage('sydney')!.months[6]!
+    expect([july.peakText, july.label, july.hours, july.someDays]).toEqual([
+      '2.4',
+      'Low',
+      null,
+      true,
+    ])
+    const june = cityPage('sydney')!.months[5]!
+    expect([june.label, june.hours, june.someDays]).toEqual(['Low', null, false])
+  })
+})

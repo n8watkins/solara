@@ -195,6 +195,8 @@ export default function CityPageView({ slug, locale }: { slug: string; locale: L
                         {m.hours.from}-<wbr />
                         {m.hours.to}
                       </>
+                    ) : m.someDays ? (
+                      t.someDays
                     ) : (
                       t.rarely
                     )}
