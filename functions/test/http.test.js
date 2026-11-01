@@ -89,23 +89,31 @@ function post(headers = {}) {
 }
 
 describe('client version header', () => {
-  test('a verified call logs its client build once a minute, validated', async () => {
+  test('a verified call logs its client build once a minute per function, validated', async () => {
     const { calls, handle } = api()
-    for (const client of ['web/1a2b3c4d5e6f', 'web/1a2b3c4d5e6f', 'android/1.4.0']) {
-      await handle(post({ 'x-solara-client': client }), responseRecorder())
-    }
     await handle(post({ 'x-solara-client': 'web/1\nforged line' }), responseRecorder())
-    assert.equal(calls.length, 4)
+    // A new version on every call still logs one line a minute (REVIEW9 SEC9 I1).
+    for (let i = 0; i < 50; i++) {
+      await handle(
+        post({ 'x-solara-client': `web/${i.toString(16).padStart(12, 'a')}` }),
+        responseRecorder(),
+      )
+    }
+    await handle(post({ 'x-solara-client': 'android/1.4.0' }), responseRecorder())
+    assert.equal(calls.length, 52)
     const seen = logs.entries.filter(entry => entry.message === 'testEndpoint client')
     assert.deepEqual(
       seen.map(entry => [entry.severity, entry.fields.client]),
-      [
-        ['INFO', 'web/1a2b3c4d5e6f'],
-        ['INFO', 'android/1.4.0'],
-        ['INFO', 'unknown'],
-      ],
+      [['INFO', 'unknown']],
     )
     assert.doesNotMatch(JSON.stringify(logs.entries), /forged/)
+  })
+
+  test('the client line names a valid build', async () => {
+    const { handle } = api()
+    await handle(post({ 'x-solara-client': 'android/1.4.0' }), responseRecorder())
+    const [line] = logs.entries.filter(entry => entry.message === 'testEndpoint client')
+    assert.equal(line.fields.client, 'android/1.4.0')
   })
 
   test('a rejection names the client, and CORS allows the header', async () => {

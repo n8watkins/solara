@@ -177,8 +177,11 @@ export function createApiHandler<T>({
         })
       }
       await verifyAppCheck(appCheck(), token, appCheckMode)
-      // Only verified requests, once a minute per build and instance.
-      clients.log('info', client, `${name} client`, { function: name, client })
+      // Only verified requests, once a minute per function and instance, whatever the
+      // build: the version part is the caller's choice, so a line per value could be
+      // made to log every request (REVIEW9 SEC9 I1). The line carries the build and how
+      // many calls it stands for.
+      clients.log('info', 'client', `${name} client`, { function: name, client })
       const result = await handler(req)
       res.status(result.status ?? 200).json(result.body)
     } catch (error) {
