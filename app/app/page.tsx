@@ -1,9 +1,14 @@
 'use client'
 
-import { useSyncExternalStore } from 'react'
+import { useEffect, useSyncExternalStore } from 'react'
 import App from '@/components/App'
 import { AccountLoading } from '@/components/AccountStatus'
-import { initialMessagesReady, loadInitialMessages, subscribeMessages } from '@/lib/i18n'
+import {
+  initialMessagesReady,
+  loadInitialMessages,
+  localizeTitle,
+  subscribeMessages,
+} from '@/lib/i18n'
 
 // The app (guest or signed in). Client-only: it reads the browser's auth session,
 // the guest plan and the clock, none of which exist at build time, so the exported
@@ -24,5 +29,8 @@ export default function AppPage() {
     () => false,
   )
   const messagesReady = useSyncExternalStore(subscribeMessages, initialMessagesReady, () => false)
+  useEffect(() => {
+    if (messagesReady) localizeTitle()
+  }, [messagesReady])
   return inBrowser && messagesReady ? <App /> : <AccountLoading />
 }

@@ -142,8 +142,12 @@ export function loadInitialMessages(): Promise<void> {
   return initial
 }
 
-/** The page's title in its language (the static HTML carries the English one). */
-function localizeTitle() {
+/**
+ * The page's title in its language (the static HTML carries the English one). Called once
+ * the translations have arrived and again after the page renders, since Next.js sets the
+ * title from the page's metadata as it hydrates.
+ */
+export function localizeTitle() {
   if (currentLocale() === 'en') return
   const path = window.location.pathname
   if (path.startsWith('/app/')) document.title = appText.documentTitle

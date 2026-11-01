@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState, type ReactNode } from 'react'
-import { loadAllMessages, loadInitialMessages } from '@/lib/i18n'
+import { loadAllMessages, loadInitialMessages, localizeTitle } from '@/lib/i18n'
 
 /**
  * Shows `children` once the page's language has every translation (lib/i18n.ts): for the
@@ -18,7 +18,11 @@ export default function MessagesGate({
   const [ready, setReady] = useState(false)
   useEffect(() => {
     let active = true
-    const show = () => active && setReady(true)
+    const show = () => {
+      if (!active) return
+      setReady(true)
+      localizeTitle()
+    }
     loadInitialMessages()
       .then(loadAllMessages)
       .then(show, error => {

@@ -145,9 +145,7 @@ describe('firestore.rules match the preferences schema', () => {
   })
 
   it('accepts every language choice, and only those', () => {
-    expect(sorted(listAfter(preferences, 'data.language in'))).toEqual(
-      sorted(LANGUAGE_PREFERENCES),
-    )
+    expect(sorted(listAfter(preferences, 'data.language in'))).toEqual(sorted(LANGUAGE_PREFERENCES))
   })
 
   it('accepts the current schema version and the allowed hours', () => {
