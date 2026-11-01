@@ -85,7 +85,7 @@ describe('message catalogues', () => {
     for (const [namespace, source] of sources) {
       for (const [key, message] of Object.entries({ ...source, ...spanish[namespace] })) {
         const text = render(message, typeof message === 'function' ? message.length : 0, 0)
-        expect(text, `${namespace}.${key}`).not.toContain('—')
+        expect(text, `${namespace}.${key}`).not.toContain('\u2014')
       }
     }
   })
