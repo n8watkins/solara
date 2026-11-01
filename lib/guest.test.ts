@@ -7,9 +7,9 @@ import {
   isReturningGuest,
   loadGuestPrefs,
   localDay,
-  requestPersistentStorage,
   saveGuestPrefs,
 } from './guest'
+import { requestPersistentStorage } from './persistent-storage'
 import type { Activity, Location, UserPreferences } from './types'
 
 const storage = new Map<string, string>()

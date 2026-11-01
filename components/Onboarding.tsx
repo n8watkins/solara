@@ -3,6 +3,7 @@ import { useEffect, useEffectEvent, useState } from 'react'
 import clsx from 'clsx'
 import type { User } from 'firebase/auth'
 import { createAccountPrefs } from '@/lib/account-prefs'
+import { requestPersistentStorage } from '@/lib/persistent-storage'
 import { defaultPrefs } from '@/lib/prefs'
 import type { UserPreferences, Location, SkinType } from '@/lib/types'
 import { CITY_PARAM, cityParam, loadCityLocation } from '@/lib/city-preset'
@@ -219,7 +220,11 @@ export default function Onboarding({ user, onSignedIn, onStartAsGuest }: Props) 
             <FinishStep
               user={user}
               answers={answers}
-              onStartAsGuest={() => onStartAsGuest({ ...answers, tier: 'anonymous' })}
+              onStartAsGuest={() => {
+                // Asks the browser to keep the guest plan (REVIEW10 VERIFY10 N4).
+                void requestPersistentStorage()
+                onStartAsGuest({ ...answers, tier: 'anonymous' })
+              }}
               onCreateAccount={async signedInUser =>
                 onSignedIn(await createAccountPrefs(signedInUser.uid, answers))
               }

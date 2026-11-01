@@ -309,6 +309,12 @@ export const AccountMenu = deferred(() => withMessages(['setup'], () => import('
 export const ProfileSwitcher = deferred(() =>
   withMessages(['pricing', 'profiles', 'setup'], () => import('./ProfileSwitcher')),
 )
+/** After this tab reloaded to a newer version: why (lib/stale-build.ts). Never preloaded. */
+export const UpdateNotice = deferred(
+  () => withMessages(['updates'], () => import('./UpdateNotice')),
+  null,
+  { preloaded: false },
+)
 /** After a guest signs in to an existing account: what the guest plan held that was not kept. */
 export const GuestPlanNotice = deferred(() =>
   withMessages(['setup'], () => import('./GuestPlanNotice')),

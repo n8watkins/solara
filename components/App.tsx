@@ -3,7 +3,7 @@ import { useEffect, useEffectEvent, useState, type ReactNode } from 'react'
 import { saveLocalPrefs } from '@/lib/prefs'
 import { syncErrorFor, type SyncError } from '@/lib/sync-error'
 import { SIGN_IN_PARAM } from '@/lib/app-routes'
-import { loadGuestPrefs, requestPersistentStorage, saveGuestPrefs } from '@/lib/guest'
+import { loadGuestPrefs, saveGuestPrefs } from '@/lib/guest'
 import { SignedInContext } from '@/lib/signed-in-context'
 import { takeUpdateNotice } from '@/lib/stale-build'
 import { canUseCalendar } from '@solara/core/tiers'
@@ -23,6 +23,7 @@ import {
   CalendarView,
   ForecastUnavailable,
   GuestPlanNotice,
+  UpdateNotice,
   InstallPrompt,
   Onboarding,
   SignInScreen,
@@ -75,7 +76,7 @@ function SignedInApp() {
   const [foregroundNotice, setForegroundNotice] = useState(false)
   const [billingNotice, setBillingNotice] = useState<string | null>(null)
   // Set when this tab has just reloaded to a newer version (lib/stale-build.ts).
-  const [updateNotice, setUpdateNotice] = useState(takeUpdateNotice)
+  const [updateNotice] = useState(takeUpdateNotice)
   const isDev = process.env.NODE_ENV === 'development'
 
   const {
@@ -203,7 +204,6 @@ function SignedInApp() {
 
   function handleStartAsGuest(answers: UserPreferences) {
     saveGuestPrefs(answers)
-    void requestPersistentStorage()
     setPrefs(loadGuestPrefs() ?? answers)
     setScreen('dashboard')
   }
@@ -290,15 +290,7 @@ function SignedInApp() {
             )}
             {/* Keyed by account so a later account never sees the previous one's notice. */}
             {user && !pending && <GuestPlanNotice key={user.uid} uid={user.uid} />}
-            {updateNotice && (
-              <AppNotice
-                tone="info"
-                role="status"
-                action={{ label: t.dismiss, onClick: () => setUpdateNotice(null) }}
-              >
-                {updateNotice === 'sign-in' ? t.updatedReloadedSignIn : t.updatedReloaded}
-              </AppNotice>
-            )}
+            {updateNotice && <UpdateNotice reason={updateNotice} />}
             {billingNotice && (
               <AppNotice tone="info" role="status">
                 {billingNotice}

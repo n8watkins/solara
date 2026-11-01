@@ -19,6 +19,7 @@ import profiles from './profiles'
 import settings from './settings'
 import setup from './setup'
 import share from './share'
+import updates from './updates'
 
 export default {
   account,
@@ -35,6 +36,7 @@ export default {
   settings,
   setup,
   share,
+  updates,
   skinQuiz,
   sunscreen,
 } satisfies Overlay

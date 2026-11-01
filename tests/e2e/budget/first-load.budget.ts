@@ -19,8 +19,12 @@ import { buildRawForecast } from '../../harness/fixtures'
 // The budgets leave room for growth (ROADMAP decisions, "First-load budget"): raise one
 // only with a reason written here. History: 199 KB before #127, 192.1 KB before ROADMAP
 // item 39, over 500 KB before #83; REVIEW10 QA M1 measured 192.40 KB (English) and
-// 218.54 KB (Spanish) on the live site against these same budgets.
-const BUDGET_KB = { en: 192, es: 218 } as const
+// 218.54 KB (Spanish) on the live site against these same budgets. English went from 192 to
+// 193 KB with ROADMAP item 51 (190.7 to 192.2 KB): reading forecast hours on the place's
+// clock across daylight saving changes, recovering a tab left open across a deploy (which
+// cannot load on demand, since that code is what fails) and the hourly strip's keyboard
+// all run on the opening screen.
+const BUDGET_KB = { en: 193, es: 218 } as const
 
 const GUEST = JSON.stringify({
   prefs: {
