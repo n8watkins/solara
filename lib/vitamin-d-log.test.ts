@@ -1,4 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const persist = vi.hoisted(() => vi.fn(async () => true))
+vi.mock('./persistent-storage', () => ({ requestPersistentStorage: persist }))
 import type { VitaminDEntry } from '@solara/core/vitamin-d-log'
 import {
   clearVitaminDLog,
@@ -85,6 +88,15 @@ describe('the vitamin D log in this browser', () => {
   it('says when the browser refuses to save', () => {
     failWrites = true
     expect(() => saveVitaminDLog(null, [entry()], TODAY)).toThrow(LogStorageError)
+  })
+
+  it("asks the browser to keep the site's storage on the log's first save only", () => {
+    persist.mockClear()
+    saveVitaminDLog(null, [], TODAY)
+    expect(persist).not.toHaveBeenCalled()
+    saveVitaminDLog(null, [entry()], TODAY)
+    saveVitaminDLog(null, [entry(), entry({ id: 'b' })], TODAY)
+    expect(persist).toHaveBeenCalledOnce()
   })
 
   it('clears the log', () => {

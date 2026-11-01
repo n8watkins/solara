@@ -4,6 +4,7 @@
 // entries from the last year (@solara/core/vitamin-d-log keptEntries), so old sessions
 // are pruned without a job. Loaded only with the log and the account page's download.
 import { keptEntries, parseLog, storedLog, type VitaminDEntry } from '@solara/core/vitamin-d-log'
+import { requestPersistentStorage } from './persistent-storage'
 import { clearVitaminDLog, vitaminDLogKey, type LogOwner } from './vitamin-d-switch'
 
 export { clearVitaminDLog }
@@ -37,12 +38,17 @@ export function saveVitaminDLog(
 ): VitaminDEntry[] {
   const kept = keptEntries(entries, today)
   const key = vitaminDLogKey(owner)
+  let first = false
   try {
+    first = localStorage.getItem(key) === null
     if (kept.length === 0) localStorage.removeItem(key)
     else localStorage.setItem(key, JSON.stringify(storedLog(kept)))
   } catch (error) {
     throw new LogStorageError({ cause: error })
   }
+  // The log's first session asks the browser to keep this site's storage, as setup does
+  // for the guest plan (#170): the log has no other copy.
+  if (first && kept.length > 0) void requestPersistentStorage()
   return kept
 }
 
