@@ -2,7 +2,6 @@
 // loading the translations and following the plan's preference.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { setLocale } from '@solara/core/i18n'
-import { PREFS_SCHEMA_VERSION } from '@solara/core/prefs'
 
 interface FakePage {
   root: { lang: string }
@@ -174,43 +173,5 @@ describe('followLanguagePreference', () => {
     await i18n.loadInitialMessages()
     expect(i18n.followLanguagePreference('es')).toBe(false)
     expect(page.reload).not.toHaveBeenCalled()
-  })
-})
-
-describe('deviceLanguageToSave', () => {
-  const V = PREFS_SCHEMA_VERSION
-
-  it("keeps an Automatic account's device language to the one this device resolves", async () => {
-    fakePage()
-    const { deviceLanguageToSave } = await freshModule()
-    // A Spanish device on an account that has none yet, or another device's English.
-    expect(deviceLanguageToSave({ schemaVersion: V, language: 'auto' }, ['es-MX', 'en'])).toBe('es')
-    expect(deviceLanguageToSave({ schemaVersion: V }, ['es-MX'])).toBe('es')
-    expect(
-      deviceLanguageToSave({ schemaVersion: V, language: 'auto', deviceLanguage: 'en' }, ['es-AR']),
-    ).toBe('es')
-    // A supported language only, never the device's list: French and German read as English.
-    expect(
-      deviceLanguageToSave({ schemaVersion: V, language: 'auto', deviceLanguage: 'es' }, [
-        'fr-FR',
-        'de',
-      ]),
-    ).toBe('en')
-    expect(deviceLanguageToSave({ schemaVersion: V, language: 'auto' }, [])).toBe('en')
-  })
-
-  it('writes nothing when it is unchanged or a language is chosen in Settings', async () => {
-    fakePage()
-    const { deviceLanguageToSave } = await freshModule()
-    expect(
-      deviceLanguageToSave({ schemaVersion: V, language: 'auto', deviceLanguage: 'es' }, ['es-MX']),
-    ).toBeNull()
-    expect(deviceLanguageToSave({ schemaVersion: V, deviceLanguage: 'en' }, ['en-GB'])).toBeNull()
-    expect(deviceLanguageToSave({ schemaVersion: V, language: 'en' }, ['es-MX'])).toBeNull()
-    expect(
-      deviceLanguageToSave({ schemaVersion: V, language: 'es', deviceLanguage: 'en' }, ['es-MX']),
-    ).toBeNull()
-    // A document from a newer Solara is never written by this one.
-    expect(deviceLanguageToSave({ schemaVersion: V + 1 }, ['es-MX'])).toBeNull()
   })
 })

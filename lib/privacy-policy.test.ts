@@ -271,11 +271,12 @@ describe('the account language', () => {
 })
 
 describe("the review sheet's added legal lines", () => {
-  /** A page's text as a reader sees it: no tags, entities or line breaks. */
+  /** A list item's text as a reader sees it: no bold markup, entities or line breaks. */
   const read = (source: string) =>
     source
-      .replace(/<[^>]+>/g, '')
-      .replace(/&apos;/g, "'")
+      .replaceAll('<strong>', '')
+      .replaceAll('</strong>', '')
+      .replaceAll('&apos;', "'")
       .replace(/\s+/g, ' ')
   const pages: Record<string, { en: string; es: string }> = {
     '/es/privacy/': {

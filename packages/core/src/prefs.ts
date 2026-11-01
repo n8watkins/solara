@@ -483,7 +483,7 @@ export const PREFERENCES_SHAPE = {
   /**
    * The language the app last resolved from a device while `language` was 'auto' (a
    * supported language, never the device's own list), so the server writes pushes in it
-   * (server-language.ts). The last device to open the app sets it (lib/i18n.ts).
+   * (server-language.ts). The last device to open the app sets it (lib/device-language.ts).
    */
   deviceLanguage: v.fallback(v.optional(v.picklist(LOCALES)), undefined),
 }
@@ -514,7 +514,7 @@ export const SERVER_OWNED_FIELDS = Object.freeze(['uid', 'tier'] as const)
 /**
  * Fields a client writes only once the account exists, never when creating it
  * (firestore.rules `validUserUpdate`): the device's language, which the app saves once the
- * account has loaded (lib/i18n.ts). Keeping its check off the create keeps a full new
+ * account has loaded (lib/device-language.ts). Keeping its check off the create keeps a full new
  * document within the rules' expression budget.
  */
 export const UPDATE_ONLY_FIELDS = Object.freeze(['deviceLanguage'] as const)
