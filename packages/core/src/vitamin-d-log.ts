@@ -7,6 +7,7 @@
 import * as v from 'valibot'
 import { SKIN_TYPES, type SkinType } from './recommendation'
 import { finiteNumber, record } from './schema'
+import type { BodyArea } from './sunscreen'
 import {
   estimateSession,
   roundIu,
@@ -152,6 +153,18 @@ export function dailyTotals(
     total.sessions += 1
   }
   return totals
+}
+
+/**
+ * The skin preset closest to the parts an activity usually leaves in the sun
+ * (activityBodyAreas in sunscreen.ts): every part is swimwear, legs make a T-shirt and
+ * shorts, arms short sleeves, and anything less the face and hands.
+ */
+export function exposureForAreas(areas: readonly BodyArea[]): SkinExposure {
+  if (areas.includes('torso')) return 'swimwear'
+  if (areas.includes('legs')) return 'arms-legs'
+  if (areas.includes('arms')) return 'face-arms'
+  return 'face-hands'
 }
 
 /** A start time (HH:MM) as a fractional hour (9:30 is 9.5). */

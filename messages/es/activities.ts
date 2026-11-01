@@ -19,6 +19,8 @@ export default {
   uvAboveLimits: 'El UV se mantiene por encima de tus límites',
   noLaterDay: 'Ningún día posterior del pronóstico tiene uno',
   doneForToday: 'Terminado por hoy',
+  logIt: 'Registrar',
+  logItNamed: name => `Registrar ${name} en el registro de vitamina D`,
   plansInDaylight:
     'Solara planifica entre el amanecer y el atardecer. Cambia el horario para obtener uno.',
   checkEarlyLate: 'Revisa temprano en la mañana o al atardecer.',

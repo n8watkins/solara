@@ -125,7 +125,12 @@ describe('estimateSession', () => {
   })
 
   it('gives nothing for an empty session, and no burn time with no UV', () => {
-    const none = estimateSession({ spans: [], skinType: 'dark', exposure: 'swimwear', sunscreen: true })
+    const none = estimateSession({
+      spans: [],
+      skinType: 'dark',
+      exposure: 'swimwear',
+      sunscreen: true,
+    })
     expect(none).toMatchObject({ iu: 0, burnShare: 0, minutes: 0, burnMinutes: null, meanUv: 0 })
     expect(session(30, 0).burnMinutes).toBeNull()
   })

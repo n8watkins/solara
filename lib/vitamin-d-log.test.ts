@@ -67,10 +67,7 @@ describe('the vitamin D log in this browser', () => {
   })
 
   it('drops a broken entry, never the whole log', () => {
-    store.set(
-      VITAMIN_D_LOG_KEY,
-      JSON.stringify({ version: 1, entries: [{ id: 'x' }, entry()] }),
-    )
+    store.set(VITAMIN_D_LOG_KEY, JSON.stringify({ version: 1, entries: [{ id: 'x' }, entry()] }))
     expect(loadVitaminDLog(TODAY)).toEqual([entry()])
   })
 

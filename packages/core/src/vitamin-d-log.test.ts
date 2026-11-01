@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   dailyTotals,
   entryEstimate,
+  exposureForAreas,
   isVitaminDEntry,
   keptEntries,
   LOG_MAX_ENTRIES,
@@ -12,6 +13,7 @@ import {
   type VitaminDEntry,
 } from './vitamin-d-log'
 import { estimateSession, VITD_DOSE_IU } from './vitamin-d'
+import { activityBodyAreas } from './sunscreen'
 
 const TODAY = '2026-06-15'
 
@@ -89,10 +91,7 @@ describe('keeping and pruning', () => {
 
   it('prunes entries dated more than a year before today', () => {
     const kept = keptEntries(
-      [
-        entry({ id: 'year', date: '2025-06-15' }),
-        entry({ id: 'older', date: '2025-06-14' }),
-      ],
+      [entry({ id: 'year', date: '2025-06-15' }), entry({ id: 'older', date: '2025-06-14' })],
       TODAY,
     )
     expect(kept.map(e => e.id)).toEqual(['year'])
@@ -155,5 +154,15 @@ describe('logExport', () => {
       estimatedIu: 3350,
       shareOfBurnTime: 1.33,
     })
+  })
+})
+
+describe('exposureForAreas', () => {
+  it("follows the clothing an activity's preset implies", () => {
+    expect(exposureForAreas(activityBodyAreas('swim'))).toBe('swimwear')
+    expect(exposureForAreas(activityBodyAreas('run'))).toBe('arms-legs')
+    expect(exposureForAreas(activityBodyAreas('coffee'))).toBe('face-arms')
+    expect(exposureForAreas(activityBodyAreas(undefined))).toBe('arms-legs')
+    expect(exposureForAreas(['face'])).toBe('face-hands')
   })
 })

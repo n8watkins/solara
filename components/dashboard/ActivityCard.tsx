@@ -1,5 +1,5 @@
 import { exposureSummary } from '@/lib/activity-exposure'
-import { Pencil } from 'lucide-react'
+import { NotebookPen, Pencil } from 'lucide-react'
 import type { SafeActivityWindow } from '@/lib/types'
 import type { ActivityDayPlan } from '@solara/core/next-slot'
 import type { ScheduledActivity, ScheduledSpan } from '@/lib/scheduled'
@@ -7,7 +7,12 @@ import { recommendSlot, type SlotRecommendation } from '@solara/core/scheduler'
 import { effectiveMaxUV } from '@solara/core/tiers'
 import { outlastsBurnTime } from '@solara/core/recommendation'
 import { PROTECT_FROM_UV } from '@solara/core/protection'
-import { activityBodyAreas, sunscreenAmount, sunscreenAmountShort } from '@solara/core/sunscreen'
+import {
+  activityBodyAreas,
+  sunscreenAmount,
+  sunscreenAmountShort,
+  type BodyArea,
+} from '@solara/core/sunscreen'
 import { fmtDays } from '@/lib/weather'
 import { useUnits } from '@/lib/use-units'
 import {
@@ -47,6 +52,7 @@ export default function ActivityCard({
   onShare,
   onEdit,
   onOpenScheduled,
+  onLog,
   passedNote,
 }: {
   plan: ActivityDayPlan
@@ -59,6 +65,11 @@ export default function ActivityCard({
   onShare: (win: SafeActivityWindow) => void
   onEdit?: () => void
   onOpenScheduled?: (item: ScheduledActivity) => void
+  /**
+   * Logs the activity in the vitamin D log once today's windows have passed ("Log it"),
+   * with the parts it usually leaves in the sun.
+   */
+  onLog?: (areas: readonly BodyArea[]) => void
   /** What comes next once today's windows have passed (see windowsPassedNote). */
   passedNote?: string
 }) {
@@ -166,6 +177,19 @@ export default function ActivityCard({
         <div className="flex flex-col gap-1.5">
           <WeatherNote spans={plan.weather} />
           {passedNote && <p className="text-[12px] leading-[1.45] text-ink-3">{passedNote}</p>}
+          {isToday && onLog && (
+            <button
+              type="button"
+              className="btn self-start px-2.5 py-1 text-[12px]"
+              aria-haspopup="dialog"
+              aria-label={m.logItNamed(activity.name)}
+              data-testid="vitd-log-it"
+              onClick={() => onLog(activityBodyAreas(activity.id))}
+            >
+              <NotebookPen size={13} aria-hidden="true" />
+              {m.logIt}
+            </button>
+          )}
         </div>
       ) : (
         <div className="flex flex-col gap-[7px]">

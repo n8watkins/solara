@@ -2,12 +2,7 @@
 // (lib/guest.ts), under its own `solara_` key. Every read and write keeps only valid
 // entries from the last year (@solara/core/vitamin-d-log keptEntries), so old sessions
 // are pruned without a job. Loaded only with the log and the account page's download.
-import {
-  keptEntries,
-  parseLog,
-  storedLog,
-  type VitaminDEntry,
-} from '@solara/core/vitamin-d-log'
+import { keptEntries, parseLog, storedLog, type VitaminDEntry } from '@solara/core/vitamin-d-log'
 import { clearVitaminDLog, VITAMIN_D_LOG_KEY } from './vitamin-d-switch'
 
 export { clearVitaminDLog }

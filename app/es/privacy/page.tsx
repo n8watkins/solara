@@ -485,6 +485,12 @@ export default function PrivacyPage() {
           siguen viniendo de Open-Meteo y OpenStreetMap, como se describe arriba.
         </p>
         <p>
+          Si usas el registro de vitamina D, sus sesiones (cuándo, cuánto tiempo, la piel al sol, el
+          protector solar y el UV) se guardan solo en este navegador y nunca se envían a Solara. Se
+          eliminan después de un año, cuando las borras en el registro, cuando cierras sesión y
+          cuando eliminas tu cuenta, y la descarga de datos de la cuenta las incluye.
+        </p>
+        <p>
           Cuando compartes un archivo o un enlace de calendario con la app instalada, se guarda en
           el almacenamiento de este navegador durante 30 minutos como máximo, para que puedas
           revisarlo e iniciar sesión primero. No se envía a ningún lugar salvo que lo importes, y se

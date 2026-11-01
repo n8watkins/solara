@@ -19,6 +19,8 @@ export default defineMessages('activities', {
   uvAboveLimits: 'UV stays above your limits',
   noLaterDay: 'No later forecast day has one either',
   doneForToday: 'Done for today',
+  logIt: 'Log it',
+  logItNamed: (name: string) => `Log ${name} in the vitamin D log`,
   plansInDaylight: 'Solara plans between sunrise and sunset. Move the hours to get a slot.',
   checkEarlyLate: 'Check early morning or evening instead.',
   signInPlanTomorrow: 'Sign in free to plan tomorrow',

@@ -417,6 +417,12 @@ export default function PrivacyPage() {
           from Open-Meteo and OpenStreetMap as described above.
         </p>
         <p>
+          If you use the vitamin D log, its sessions (when, how long, the skin in the sun, sunscreen
+          and the UV) are kept only in this browser and are never sent to Solara. They are removed
+          after a year, when you delete them in the log, when you sign out and when you delete your
+          account, and the account data download includes them.
+        </p>
+        <p>
           When you share a calendar file or link to the installed app, it is kept in this
           browser&apos;s storage for up to 30 minutes, so you can review it and sign in first. It is
           sent nowhere unless you import it, and it is removed once you import or dismiss it.

@@ -37,11 +37,16 @@ import {
   SharedItem,
   SunscreenTimer,
   useActivityPlanning,
+  VitaminDLog,
 } from './deferred'
 import ActivitiesSection from './dashboard/ActivitiesSection'
 import DailyBriefing from './dashboard/DailyBriefing'
 import DayPicker from './dashboard/DayPicker'
 import ExposureMetrics from './dashboard/ExposureMetrics'
+import VitaminDLogButton from './dashboard/VitaminDLogButton'
+import { vitaminDLogEnabled } from '@/lib/vitamin-d-switch'
+import type { ActivityToLog } from '@/lib/vitamin-d-view'
+import type { BodyArea } from '@solara/core/sunscreen'
 import { planningFor } from '@solara/core'
 import UVCard from './dashboard/UVCard'
 import Skeleton from './Skeleton'
@@ -102,6 +107,8 @@ function DashboardView({
   // Finds the activities' slots; with activities it has loaded before this paints.
   const planner = useActivityPlanning()
   const [openEventId, setOpenEventId] = useState<string | null>(null)
+  // The vitamin D log while open, with the finished activity its "Log it" logs, if any.
+  const [vitaminDLog, setVitaminDLog] = useState<{ activity: ActivityToLog | null } | null>(null)
   const [shareId, setShareId] = useState(sharedIdInUrl)
   // A shared calendar link, for the linked calendars form (on Pro).
   const [sharedLink, setSharedLink] = useState<string | null>(null)
@@ -231,6 +238,31 @@ function DashboardView({
     }
   }
 
+  /**
+   * "Log it" on a finished activity: the log opens with it logged at the slot the plan
+   * recommended for it today (ignoring "now", which has passed it).
+   */
+  function logActivity(activity: Activity, areas: readonly BodyArea[]) {
+    const fullDay = planner?.planActivityDay(weather.today, activity, planning.skinType, {
+      daylight,
+    })
+    const startHour =
+      fullDay?.slot?.start ??
+      fullDay?.windows[0]?.from ??
+      Math.max(0, nowHour - activity.durationMins / 60)
+    setVitaminDLog({
+      activity: {
+        id: activity.id,
+        name: activity.name,
+        startHour,
+        durationMins: activity.durationMins,
+        sunscreen: activity.sunscreen,
+        areas,
+      },
+    })
+  }
+  const vitaminDLogOn = vitaminDLogEnabled()
+
   // The scheduled event whose details are open; it closes when the event goes away.
   const openItem = openEventId
     ? (scheduled.items.find(item => item.eventId === openEventId) ?? null)
@@ -341,6 +373,9 @@ function DashboardView({
             />
           )}
 
+          {/* The log stays reachable after dark, when the day's sessions are written down. */}
+          {vitaminDLogOn && <VitaminDLogButton onOpen={() => setVitaminDLog({ activity: null })} />}
+
           {isToday && down?.phase !== 'after-sunset' && (
             <SunscreenTimer
               uid={user?.uid ?? null}
@@ -383,9 +418,21 @@ function DashboardView({
             onOpenScheduled={item => setOpenEventId(item.eventId)}
             onUpgrade={openPlans}
             onPrefsUpdate={onPrefsUpdate}
+            onLogActivity={vitaminDLogOn && isToday ? logActivity : undefined}
           />
         </div>
       </div>
+
+      {vitaminDLog && (
+        <VitaminDLog
+          today={weather.now.date}
+          nowHour={nowHour}
+          hourly={weather.today}
+          skinType={prefs.skinType}
+          logActivity={vitaminDLog.activity}
+          onClose={() => setVitaminDLog(null)}
+        />
+      )}
 
       {openItem && (
         <ScheduledDetails

@@ -45,6 +45,8 @@ export default defineMessages('dashboard', {
   vitdDose: (dose: string) => `≈${dose} IU · arms\u00a0+\u00a0legs`,
   uvTooLow: 'UV too low',
   needsUv1: 'Needs UV 1 or more',
+  vitdLog: 'Vitamin D log',
+  vitdLogHint: 'Write down time in the sun',
 
   shareFailed: 'Could not share. Check your connection and try again.',
   sharedBriefing: 'Shared the briefing.',
