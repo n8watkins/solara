@@ -78,6 +78,8 @@ export default defineMessages('account', {
   sectionHeadsUps: 'the Pro event heads-ups sent in the last week',
   sectionReminder: 'your sunscreen reminder waiting to be sent, if any',
   sectionDevices: 'device registration metadata',
+  sectionBookkeeping:
+    "the times and counts Solara keeps for its own limits (when a reminder or a device was last saved, the day's reminder counts)",
   /** DELETED_DATA in order, joined by "|". */
   deletedItems:
     'your Solara preferences, profiles and activities|scheduled activities|imported events|linked calendars|your Google Calendar choices|your Outlook calendar choices|your calendar feed|notification devices|alert history|sunscreen reminders|your Solara sign-in',

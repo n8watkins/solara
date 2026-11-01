@@ -50,21 +50,14 @@ export const EXPORT_SECTIONS = {
   get notificationDevices() {
     return m.sectionDevices
   },
+  /** The times and counts Solara keeps for its own limits (REVIEW10 SEC10 I3). */
+  get bookkeeping() {
+    return m.sectionBookkeeping
+  },
 }
 
-/**
- * The export's fields the page does not list as sections: the file's own bookkeeping, and
- * `bookkeeping`, the times and counts Solara keeps for its own limits (when the sunscreen
- * reminder was last written, the day's reminder counts, when a device was last
- * registered; REVIEW10 SEC10 I3), which the page's reminder and device sections cover.
- * Naming it on its own would put the Spanish first load over its budget (REVIEW10 QA10 M1).
- */
-export const EXPORT_METADATA_FIELDS = [
-  'formatVersion',
-  'exportedAt',
-  'truncated',
-  'bookkeeping',
-] as const
+/** The export's own bookkeeping fields, which are not sections of the person's data. */
+export const EXPORT_METADATA_FIELDS = ['formatVersion', 'exportedAt', 'truncated'] as const
 
 /**
  * What deleting the account removes from Solara, in the order the page lists it. These
@@ -162,6 +155,8 @@ const SECTION_FEATURE: Partial<Record<keyof typeof EXPORT_SECTIONS, Feature>> = 
   eventHeadsUps: 'eventHeadsUps',
   reapplyReminder: 'alerts',
   notificationDevices: 'alerts',
+  // Its times and counts are those of the reminders and devices, which come with alerts.
+  bookkeeping: 'alerts',
 }
 
 /** The feature each deleted item needs, by its words in DELETED_DATA. */
