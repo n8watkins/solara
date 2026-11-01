@@ -31,7 +31,8 @@ export default {
   plansIntro:
     'Prueba Solara sin una cuenta. Inicia sesión gratis para tener tu plan en todos tus dispositivos.',
   guest: 'Invitado',
-  guestNote: 'Sin iniciar sesión. Tu plan se queda en este dispositivo.',
+  guestNote:
+    'Sin iniciar sesión. Tu plan se guarda en este navegador; inicia sesión para no perderlo.',
   freeAccount: 'Cuenta gratis',
   freeNote: 'Inicia sesión con Google. Sincronizado en todas partes.',
   signInFree: 'Inicia sesión gratis',

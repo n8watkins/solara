@@ -75,7 +75,14 @@ export function languageAlternates(path: string, locale: Locale): Metadata['alte
   }
 }
 
-const OG_IMAGE = { url: '/og-image.png', width: 1200, height: 630 }
+/**
+ * Each language's social card (drawn by scripts/og-images.mjs), so a Spanish link shared
+ * in a chat shows a Spanish card (REVIEW10 VERIFY10 N3).
+ */
+export const OG_IMAGES: Readonly<Record<Locale, { url: string; width: number; height: number }>> = {
+  en: { url: '/og-image.png', width: 1200, height: 630 },
+  es: { url: '/og-image-es.png', width: 1200, height: 630 },
+}
 
 /**
  * Title, description, canonical address, hreflang alternates and social cards for a
@@ -99,6 +106,7 @@ export function pageMetadata({
   locale: Locale
 }): Metadata {
   const alt = pageText(locale).site.ogImageAlt
+  const image = OG_IMAGES[locale]
   return {
     title,
     description,
@@ -111,13 +119,13 @@ export function pageMetadata({
       siteName: 'Solara',
       locale: OG_LOCALE[locale],
       alternateLocale: LOCALES.filter(l => l !== locale).map(l => OG_LOCALE[l]),
-      images: [{ ...OG_IMAGE, alt }],
+      images: [{ ...image, alt }],
     },
     twitter: {
       card: 'summary_large_image',
       title: socialTitle,
       description: socialDescription,
-      images: [OG_IMAGE.url],
+      images: [image.url],
     },
   }
 }

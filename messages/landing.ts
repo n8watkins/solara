@@ -31,7 +31,9 @@ export default defineMessages('landing', {
   plansHeading: 'Start free, upgrade when you want more',
   plansIntro: 'Try Solara without an account. Sign in free to keep your plan on every device.',
   guest: 'Guest',
-  guestNote: 'No sign-in. Your plan stays on this device.',
+  // Saved in the browser, which may clear it (Safari after 7 days without a visit), so
+  // the note does not promise it stays (REVIEW10 VERIFY10 N4).
+  guestNote: 'No sign-in. Your plan is saved in this browser; sign in to keep it safe.',
   freeAccount: 'Free account',
   freeNote: 'Sign in with Google. Synced everywhere.',
   signInFree: 'Sign in free',

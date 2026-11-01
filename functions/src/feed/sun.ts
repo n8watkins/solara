@@ -14,6 +14,7 @@ import {
   findWindows,
   formatUV,
   forecastDates,
+  forecastPlannableHours,
   hourlyRows,
   isPlannableHour,
   parseOpenMeteoResponse,
@@ -49,7 +50,8 @@ export function safeWindows(
 }
 
 /**
- * Daytime (06-20) hours with a known UV, grouped by date. Unknown hours are omitted.
+ * Plannable hours with a known UV (6:00-20:59, widened to every hour the sun is up,
+ * forecastPlannableHours), grouped by date. Unknown hours are omitted.
  * With the forecast's `place`, each day also carries its daylight (sunrise to sunset in
  * the forecast's zone), so no window is offered in the dark, as in the app.
  */
@@ -61,6 +63,8 @@ export function parseSunForecast(
   const response = parseOpenMeteoResponse(raw)
   const rows = hourlyRows(response)
   const zone = response.timezone
+  // The sun's times at the subscriber's place when known, else at the forecast's cell.
+  const position = place ? { ...response, latitude: place.lat, longitude: place.lon } : response
   const sunUp = (dateStr: string) =>
     place && zone ? { daylight: daylightHours(place, dateStr, zone) } : {}
   return forecastDates(rows)
@@ -69,7 +73,10 @@ export function parseSunForecast(
       dateStr,
       ...sunUp(dateStr),
       hourly: rows
-        .filter(row => row.date === dateStr && isPlannableHour(row))
+        .filter(
+          row =>
+            row.date === dateStr && isPlannableHour(row, forecastPlannableHours(position, dateStr)),
+        )
         .map(row => ({
           hour: row.hour,
           uv: row.uv as number,

@@ -52,6 +52,7 @@ import {
   type QuietHours,
   daylightHours,
   formatTemperature,
+  forecastPlannableHours,
   hourlyRows,
   inQuietHours,
   isPlannableHour,
@@ -417,8 +418,9 @@ export async function removeDeadDevice(db: Firestore, device: Device): Promise<b
  * UV (never below the forecast's) so the morning alert plans like the app.
  */
 export function alertDayHours(forecast: OpenMeteoResponse, date: string): AlertHour[] {
+  const plannable = forecastPlannableHours(forecast, date)
   return hourlyRows(forecast)
-    .filter(row => row.date === date && isPlannableHour(row))
+    .filter(row => row.date === date && isPlannableHour(row, plannable))
     .map(row => {
       const uv = row.uv as number
       return {

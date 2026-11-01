@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defaultPrefs } from './prefs'
 import {
   GUEST_KEY,
@@ -9,6 +9,7 @@ import {
   localDay,
   saveGuestPrefs,
 } from './guest'
+import { requestPersistentStorage } from './persistent-storage'
 import type { Activity, Location, UserPreferences } from './types'
 
 const storage = new Map<string, string>()
@@ -111,5 +112,43 @@ describe('isReturningGuest', () => {
 describe('localDay', () => {
   it('is the device-local date', () => {
     expect(localDay(new Date(2026, 5, 9, 23, 59))).toBe('2026-06-09')
+  })
+})
+
+describe('requestPersistentStorage (REVIEW10 VERIFY10 N4)', () => {
+  const chrome = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/141.0 Safari/537.36'
+  const storage = (persisted: boolean, granted: boolean) => ({
+    persisted: vi.fn(async () => persisted),
+    persist: vi.fn(async () => granted),
+  })
+
+  it('asks a browser that decides on its own, once storage is not yet persistent', async () => {
+    const s = storage(false, true)
+    expect(await requestPersistentStorage({ storage: s, userAgent: chrome } as never)).toBe(true)
+    expect(s.persist).toHaveBeenCalledOnce()
+  })
+
+  it('does not ask again when storage is already persistent', async () => {
+    const s = storage(true, true)
+    expect(await requestPersistentStorage({ storage: s, userAgent: chrome } as never)).toBe(true)
+    expect(s.persist).not.toHaveBeenCalled()
+  })
+
+  it('never asks Firefox, which would prompt, nor a browser without the API', async () => {
+    const s = storage(false, true)
+    const firefox = 'Mozilla/5.0 (X11; Linux x86_64; rv:144.0) Gecko/20100101 Firefox/144.0'
+    expect(await requestPersistentStorage({ storage: s, userAgent: firefox } as never)).toBe(false)
+    expect(s.persist).not.toHaveBeenCalled()
+    expect(await requestPersistentStorage({ userAgent: chrome } as never)).toBe(false)
+  })
+
+  it('reads a refusal or an error as not persistent', async () => {
+    const failing = {
+      persisted: async () => false,
+      persist: async () => Promise.reject(new Error('no')),
+    }
+    expect(await requestPersistentStorage({ storage: failing, userAgent: chrome } as never)).toBe(
+      false,
+    )
   })
 })

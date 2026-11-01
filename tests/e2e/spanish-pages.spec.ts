@@ -127,6 +127,27 @@ test('the Spanish landing page leads into the app and to the Spanish city pages'
   await expect(page).toHaveURL(/\/app\/$/)
 })
 
+test('each language has its own social card (REVIEW10 VERIFY10 N3)', async ({ page, request }) => {
+  for (const [path, image] of [
+    ['/', '/og-image.png'],
+    ['/es/', '/og-image-es.png'],
+    ['/es/uv/sydney/', '/og-image-es.png'],
+  ] as const) {
+    await page.goto(path)
+    const head = page.locator('head')
+    await expect(head.locator('meta[property="og:image"]')).toHaveAttribute(
+      'content',
+      new RegExp(`${image.replace('.', '\\.')}$`),
+    )
+    await expect(head.locator('meta[name="twitter:image"]')).toHaveAttribute(
+      'content',
+      new RegExp(`${image.replace('.', '\\.')}$`),
+    )
+    const card = await request.get(image)
+    expect(card.headers()['content-type']).toBe('image/png')
+  }
+})
+
 test('the sitemap lists every page in both languages, with its alternates', async ({ request }) => {
   const sitemap = await (await request.get('/sitemap.xml')).text()
   for (const path of ['/', '/privacy/', '/terms/', '/uv/', '/uv/tokyo/']) {
@@ -135,4 +156,8 @@ test('the sitemap lists every page in both languages, with its alternates', asyn
     expect(sitemap).toMatch(new RegExp(`hreflang="es" href="[^"]+/es${path}"`))
   }
   expect(sitemap).toContain('hreflang="x-default"')
+  // The account page is for signed-in people only, and marked noindex (REVIEW10 N8).
+  expect(sitemap).not.toContain('/account/')
+  const account = await (await request.get('/account/')).text()
+  expect(account).toContain('<meta name="robots" content="noindex, nofollow"/>')
 })

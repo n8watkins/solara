@@ -6,7 +6,7 @@ import { NIGHT_MS, NOW_MS, atNight, openDashboard, prepareLiveDashboard } from '
 // and the hour strip opens on the hours when UV returns, not on a midday that is
 // over. By day the strip still opens on the current hour.
 
-const strip = (page: Page) => page.getByRole('group', { name: 'UV forecast by hour' })
+const strip = (page: Page) => page.getByRole('toolbar', { name: 'UV forecast by hour' })
 
 /** The hours whose bars' centers are inside the strip's visible area. */
 async function visibleHours(page: Page): Promise<number[]> {

@@ -157,7 +157,7 @@ test('a forecast service that does not answer is named, with a retrying empty st
     route.fulfill({ json: buildRawForecast() }),
   )
   await empty.getByRole('button', { name: 'Try again now' }).click()
-  await expect(page.getByRole('group', { name: 'UV forecast by hour' })).toBeVisible()
+  await expect(page.getByRole('toolbar', { name: 'UV forecast by hour' })).toBeVisible()
   await expect(empty).toHaveCount(0)
 })
 

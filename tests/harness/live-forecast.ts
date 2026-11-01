@@ -30,7 +30,7 @@ export async function openDashboard(
   await page.clock.install({ time: at })
   await page.goto(`/harness/?screen=dashboard&data=live&tier=${tier}`)
   await expect(page.getByTestId(HARNESS_MARKER)).toBeVisible()
-  await expect(page.getByRole('group', { name: 'UV forecast by hour' })).toBeVisible()
+  await expect(page.getByRole('toolbar', { name: 'UV forecast by hour' })).toBeVisible()
 }
 
 /** Sets the live reading, and the first forecast day's UV at `hour` (local), to `uv`. */
@@ -76,7 +76,7 @@ export async function prepareLiveDashboard(
   await expect(page.getByTestId(HARNESS_MARKER)).toBeVisible()
   // In English or Spanish (landing-shots.spec.ts takes the app in each).
   await expect(
-    page.getByRole('group', { name: /^(?:UV forecast by hour|Pronóstico UV por hora)$/ }),
+    page.getByRole('toolbar', { name: /^(?:UV forecast by hour|Pronóstico UV por hora)$/ }),
   ).toBeVisible()
   return capture
 }

@@ -21,12 +21,12 @@ describe('burnMins', () => {
 
   it('reflects skin type — darker skin burns slower at the same UV', () => {
     expect(burnMins(5, 'very-fair')).toBe(20) // (10*10)/5
-    expect(burnMins(5, 'dark')).toBe(100) // (50*10)/5
+    expect(burnMins(5, 'dark')).toBe(80) // (40*10)/5
     expect(burnMins(5, 'dark')!).toBeGreaterThan(burnMins(5, 'very-fair')!)
   })
 
   it('rounds to whole minutes', () => {
-    expect(burnMins(3, 'dark')).toBe(167) // (50*10)/3 = 166.67
+    expect(burnMins(3, 'dark')).toBe(133) // (40*10)/3 = 133.33
   })
 })
 

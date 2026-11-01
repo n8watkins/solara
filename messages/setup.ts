@@ -27,7 +27,8 @@ export default defineMessages('setup', {
   finishSettingUp: 'Finish setting up',
   finishSetup: 'Finish setup',
   allSet: "You're all set",
-  allSetLead: "See today's lower-UV windows now. Your plan stays on this device until you sign in.",
+  allSetLead:
+    "See today's lower-UV windows now. Your plan is saved in this browser; sign in to keep it on every device.",
   seeTodaysPlan: "See today's plan",
   signInToSolara: 'Sign in to Solara',
   signInLead: 'Pick up your saved plan and sun windows on any device.',

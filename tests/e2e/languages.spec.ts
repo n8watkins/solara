@@ -129,7 +129,7 @@ test.describe('a device set to Spanish', () => {
   test("shows a guest's dashboard in Spanish, with Spanish dates and times", async ({ page }) => {
     await prepare(page)
     await page.goto('/app/')
-    await expect(page.getByRole('group', { name: 'Pronóstico UV por hora' })).toBeVisible()
+    await expect(page.getByRole('toolbar', { name: 'Pronóstico UV por hora' })).toBeVisible()
     await expect(page.getByRole('heading', { name: /Hoy de un vistazo/i })).toBeVisible()
     await expect(page.getByTestId('burn-metric')).toContainText('piel clara, sin FPS')
     await expect(page.getByTestId('daily-briefing')).toContainText('p.m.')
@@ -188,7 +188,7 @@ test('a guest switches to Spanish in Settings and back to the device language', 
 }) => {
   await prepare(page)
   await page.goto('/app/')
-  await expect(page.getByRole('group', { name: 'UV forecast by hour' })).toBeVisible()
+  await expect(page.getByRole('toolbar', { name: 'UV forecast by hour' })).toBeVisible()
 
   await page.getByRole('banner').getByRole('button', { name: 'Settings' }).click()
   const settings = page.getByRole('dialog', { name: 'Settings' })
@@ -198,9 +198,9 @@ test('a guest switches to Spanish in Settings and back to the device language', 
 
   // The page reloads in Spanish and stays in it.
   await expect(page.locator('html')).toHaveAttribute('lang', 'es')
-  await expect(page.getByRole('group', { name: 'Pronóstico UV por hora' })).toBeVisible()
+  await expect(page.getByRole('toolbar', { name: 'Pronóstico UV por hora' })).toBeVisible()
   await page.reload()
-  await expect(page.getByRole('group', { name: 'Pronóstico UV por hora' })).toBeVisible()
+  await expect(page.getByRole('toolbar', { name: 'Pronóstico UV por hora' })).toBeVisible()
 
   await page.getByRole('banner').getByRole('button', { name: 'Configuración' }).click()
   const ajustes = page.getByRole('dialog', { name: 'Configuración' })
@@ -208,5 +208,5 @@ test('a guest switches to Spanish in Settings and back to the device language', 
   await ajustes.getByLabel('Idioma').selectOption('auto')
   await ajustes.getByRole('button', { name: 'Guardar' }).click()
   await expect(page.locator('html')).toHaveAttribute('lang', 'en')
-  await expect(page.getByRole('group', { name: 'UV forecast by hour' })).toBeVisible()
+  await expect(page.getByRole('toolbar', { name: 'UV forecast by hour' })).toBeVisible()
 })

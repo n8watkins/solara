@@ -76,7 +76,7 @@ describe('setup data', () => {
       ['Fair', '~15\u00a0min'],
       ['Medium', '~25\u00a0min'],
       ['Olive', '~35\u00a0min'],
-      ['Dark', '~50\u00a0min'],
+      ['Dark', '~40\u00a0min'],
     ])
   })
 

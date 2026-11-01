@@ -25,6 +25,7 @@ export function UVBar({
   isNow,
   liveUV,
   selected,
+  tabStop,
   onSelect,
   ref,
 }: {
@@ -32,6 +33,8 @@ export function UVBar({
   isNow: boolean
   liveUV?: number
   selected: boolean
+  /** The strip's one Tab stop (a roving tabindex); the arrow keys reach the others. */
+  tabStop: boolean
   onSelect: () => void
   ref?: Ref<HTMLButtonElement>
 }) {
@@ -43,6 +46,7 @@ export function UVBar({
       data-hour={hour.hour}
       ref={ref}
       onClick={onSelect}
+      tabIndex={tabStop ? 0 : -1}
       aria-pressed={selected}
       className={`uv-bar ${SLOT} cursor-pointer border-2 text-uv-ink transition-[border-color] duration-[120ms] ${UV_BG[uvBand(uv)]} ${
         selected ? 'border-ink' : 'border-transparent'

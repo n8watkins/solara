@@ -34,7 +34,18 @@ export default defineMessages('app', {
   continueWithGoogle: 'Continue with Google',
   signingIn: 'Signing in...',
   popupBlocked: 'Your browser blocked the sign-in window. Try again to continue.',
-  signInFailed: 'Could not finish signing in. Check your connection and try again.',
+  signInFailed: 'Could not finish signing in. Try again.',
+  /** Offline, or Google could not be reached (auth/network-request-failed). */
+  signInNoConnection: 'Could not reach Google to sign in. Check your connection and try again.',
+  /** A newer version is live and this tab already reloaded for it (lib/stale-build.ts). */
+  signInUpdated: 'Solara was just updated. Reload the page to sign in.',
+  /**
+   * The notice after this tab reloaded to a newer version (lib/stale-build.ts). In the
+   * opening screen's text: the reloaded page may not be able to load anything on demand.
+   */
+  updatedReloaded: 'Solara was updated while this page was open, so it reloaded.',
+  updatedReloadedSignIn:
+    'Solara was updated while this page was open, so it reloaded. Choose Sign in again to continue.',
   notNow: 'Not now',
   loadingForecast: 'Loading the forecast…',
   dismiss: 'Dismiss',

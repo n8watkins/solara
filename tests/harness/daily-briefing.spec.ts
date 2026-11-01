@@ -141,12 +141,12 @@ test.describe('consistency checks (REVIEW4)', () => {
     await openDashboard(page, { at: NOW_MS, tier: 'free' })
     await expect(page.getByTestId('daily-briefing')).toContainText('UV peaks at 10.3')
     const chip = page
-      .getByRole('group', { name: 'UV forecast by hour' })
+      .getByRole('toolbar', { name: 'UV forecast by hour' })
       .locator('[data-hour="13"]')
     await expect(chip).toContainText('10.3')
     // Every chip keeps its decimal, double digits too (no "10" beside "9.5").
     const values = await page
-      .getByRole('group', { name: 'UV forecast by hour' })
+      .getByRole('toolbar', { name: 'UV forecast by hour' })
       .locator('button[data-hour] > span:first-child')
       .allInnerTexts()
     expect(values.length).toBeGreaterThan(10)

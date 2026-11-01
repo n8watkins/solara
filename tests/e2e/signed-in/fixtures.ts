@@ -620,7 +620,7 @@ export async function startAsGuest(page: Page, options: { skinType?: string } = 
 
 /** The dashboard's hourly UV strip, present once the forecast has rendered. */
 export function uvStrip(page: Page) {
-  return page.getByRole('group', { name: 'UV forecast by hour' })
+  return page.getByRole('toolbar', { name: 'UV forecast by hour' })
 }
 
 /** Signs a returning account in from setup and waits for its dashboard. */

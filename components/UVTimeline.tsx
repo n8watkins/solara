@@ -7,6 +7,7 @@ import {
   useEffectEvent,
   useId,
   useLayoutEffect,
+  type KeyboardEvent,
   type ReactNode,
   type Ref,
 } from 'react'
@@ -201,6 +202,36 @@ export default function UVTimeline({
     })
   }
 
+  // One Tab stop for the whole strip (a toolbar with a roving tabindex, REVIEW10
+  // VERIFY10 N6): the highlighted hour, else the current one, else the first. The arrow
+  // keys, Home and End move between hours and select the one they land on, as a tap does.
+  const tabHour =
+    active?.hour ?? hourly.find(h => h.hour === currentHour)?.hour ?? hourly[0]?.hour ?? null
+
+  function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    const from = hourly.findIndex(h => h.hour === tabHour)
+    const to =
+      event.key === 'ArrowRight'
+        ? Math.min(hourly.length - 1, from + 1)
+        : event.key === 'ArrowLeft'
+          ? Math.max(0, from - 1)
+          : event.key === 'Home'
+            ? 0
+            : event.key === 'End'
+              ? hourly.length - 1
+              : null
+    if (to === null || from === -1) return
+    event.preventDefault()
+    const next = hourly[to]
+    if (!next) return
+    selectHour(next)
+    const bar = stripRef.current?.querySelector<HTMLElement>(`button[data-hour="${next.hour}"]`)
+    if (bar) {
+      bar.focus({ preventScroll: true })
+      centerHour(bar)
+    }
+  }
+
   useEffect(
     () => () => {
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
@@ -223,7 +254,8 @@ export default function UVTimeline({
         className="uv-strip relative"
         ref={stripRef}
         onScroll={onScroll}
-        role="group"
+        onKeyDown={onKeyDown}
+        role="toolbar"
         aria-label={m.uvForecastByHour}
         aria-describedby={summaryId}
       >
@@ -243,6 +275,7 @@ export default function UVTimeline({
                   isNow={isNow}
                   liveUV={isNow ? nowUV : undefined}
                   selected={active?.hour === h.hour}
+                  tabStop={h.hour === tabHour}
                   onSelect={() => selectHour(h)}
                   ref={isNow ? (nowRef as Ref<HTMLButtonElement>) : undefined}
                 />

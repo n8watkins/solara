@@ -124,6 +124,6 @@ describe('the briefing for a group', () => {
         formatTime: h => `${h}`,
       }).text
     expect(briefing(planning.skinType)).toMatch(/burn in about 13 min/)
-    expect(briefing('dark')).toMatch(/burn in about 63 min/)
+    expect(briefing('dark')).toMatch(/burn in about 50 min/)
   })
 })

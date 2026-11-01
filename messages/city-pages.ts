@@ -51,6 +51,8 @@ export default defineMessages('cityPages', {
   clearSky: 'Clear sky',
   moderateOrHigher: 'Moderate or higher',
   rarely: 'Rarely',
+  /** A Low month in which about half the days reach UV 3 (lib/city-pages.ts someDays). */
+  someDays: 'Some days',
   aboutHeading: 'About these numbers',
   /** Before the link to the Copernicus service. */
   aboutSource: (first: number, last: number) =>
