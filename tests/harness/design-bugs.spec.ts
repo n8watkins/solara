@@ -127,7 +127,7 @@ for (const screen of SCREENS) {
       // After sunset the card briefs tomorrow, so the strip's callout says its peak is
       // today's (REVIEW9 QA L8).
       await expect(page.getByTestId('uv-readout')).toContainText(/tomorrow/)
-      await expect(page.locator('svg text').filter({ hasText: /Peak/ }).first()).toHaveText(
+      await expect(page.getByTestId('sun-arc-peak-label')).toHaveText(
         /^(← )?Today's peak \d+\.\d · /,
       )
     }
