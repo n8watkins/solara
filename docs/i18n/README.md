@@ -10,8 +10,11 @@ English is the source of truth; every other language is a translation of it.
 - Each translation is typed against its English module (`satisfies Translation<typeof en>`), so a missing or extra key, or a message with other parameters, fails the typecheck.
 - Code reads the English object (`m.title`); switching the language copies the translation's strings into it (`packages/core/src/i18n.ts`), so English needs no lookup and no extra download.
 - The language is chosen before first paint by `LANGUAGE_INIT_SCRIPT` (`lib/i18n.ts`): the choice in Settings, Display (kept in this browser and synced to a signed-in account as `language`), else the first supported language in `navigator.languages`, else English.
-- Another language downloads only its own translations, in two chunks: `messages/es/initial.ts` (everything the opening screen shows; the app renders once it has arrived, so nothing changes language on screen) and `messages/es/rest.ts` (everything that loads on demand; `components/deferred.tsx` waits for it).
-  A rarely opened part may fetch its own words only when it opens (`loadOnDemandMessages` in `lib/i18n.ts`): the icon picker's search words (`messages/icon-search.ts`), which the picker reads in English until they arrive.
+- Another language downloads only its own translations: `messages/es/initial.ts` (everything the opening screen shows; the app renders once it has arrived, so nothing changes language on screen), and every other namespace as a chunk of its own, fetched with the part that reads it (REVIEW10 QA M1).
+  A part that loads on demand names the namespaces its code reads: `withMessages([...], () => import('...'))` in `lib/i18n.ts` (the deferred parts in `components/deferred.tsx`, and every other dynamic import of a module that shows text), and a page outside the app names them on its `MessagesGate`.
+  `messages/i18n.test.ts` follows each dynamic import's static imports and fails when a part names more or fewer namespaces than it reads, so a part never shows English on a Spanish page and never downloads text it does not show.
+  The per-namespace loaders are in `messages/es/lazy.ts`, which only a Spanish page downloads.
+  The icon picker's search words (`messages/icon-search.ts`) load when the picker opens (`loadMessages(['iconSearch'])`), and the picker reads them in English until they arrive.
 - Text in a page's static HTML (the loading screen, the footer, the consent banner, the pages without JavaScript) is written in every language at once with `components/StaticText.tsx` and `messages/static.ts`; CSS shows the page's language.
 - Dates and numbers follow the language through `intlTag()` (the device's own tag for that language, else `en-US` or `es-419`); the 12-hour clock is a message (`9am`, `9 a.m.`).
 - The Functions write an account's pushes and calendar feed in its language: `users/{uid}.language` when it is a language (`en`, `es`), else, for an account on Automatic, `users/{uid}.deviceLanguage`, else English (decision "Server language").
@@ -35,7 +38,7 @@ English is the source of truth; every other language is a translation of it.
 
 1. Add its code to `LOCALES` and its default tag to `DEFAULT_TAGS` in `packages/core/src/i18n.ts`, to `LANGUAGE_PREFERENCES` in `packages/core/src/prefs.ts`, to `LANGUAGE_NAMES` in `lib/i18n.ts`, to the language list in `LANGUAGE_INIT_SCRIPT` and to the `language` and `deviceLanguage` checks in `firestore.rules` (with a rules test).
 2. Copy `messages/es/` and `packages/core/src/messages/es/` to the new code and translate every message; the typecheck lists anything missing.
-3. Add the language's chunks to `TRANSLATIONS` in `lib/i18n.ts`, its static texts to `messages/static.ts`, and its CSS rule next to the Spanish one in `app/globals.css`.
+3. Add the language's opening screen chunk to `INITIAL` and its loaders (a copy of `messages/es/lazy.ts`) to `LAZY` in `lib/i18n.ts`, its static texts to `messages/static.ts`, and its CSS rule next to the Spanish one in `app/globals.css`.
 4. For the server: add its translations of every core namespace to `SERVER_TRANSLATIONS` in `packages/core/src/server-language.ts`.
 5. For the static pages: add its address prefix and Open Graph locale to `lib/page-language.ts`, its pages under `app/<code>/` (the legal pages translated whole, with an entry in `TRANSLATED_FROM` and in the review sheet), its city names to `lib/cities/names.ts`, its `<html lang>` rule to `lib/static-pages.mts` and its pages to `STATIC_PAGES`, and its landing screenshots.
 6. Keep each translation's `needsReview` list for every message that gives health or safety guidance (burn times, SPF, shade, UV categories, sunscreen amounts), and generate its review sheet like `docs/i18n/es-review.md`.
@@ -47,6 +50,7 @@ English is the source of truth; every other language is a translation of it.
 - Add the English message, then its Spanish translation in the same change; mark safety wording in `needsReview` and run `UPDATE_I18N_REVIEW=1 npx vitest run messages` to refresh the review sheet.
 - Read messages when the text is shown, never into a module-level constant, which would keep English after the language switches.
 - A namespace a first-load module reads goes into `messages/es/initial.ts`; the test says which.
+  Any other namespace is fetched by the part that shows it: when the test names a dynamic import, add the namespaces it lists to that import's `withMessages`.
 
 ## Native review
 
