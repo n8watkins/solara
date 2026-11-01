@@ -13,11 +13,9 @@
 // in localStorage (lib/reapply.ts), a native client in its own store.
 
 import m from './messages/sunscreen'
-/** Minutes between reminders. */
-export const REAPPLY_MINUTES = Object.freeze({ standard: 120, water: 80 })
+import { REAPPLY_MINUTES, type ReapplyMode } from './reapply-interval'
 
-/** 'standard' reminds every 2 hours, 'water' every 80 minutes. */
-export type ReapplyMode = 'standard' | 'water'
+export { REAPPLY_MINUTES, type ReapplyMode }
 
 export interface ReapplyTimer {
   /** When the timer was started (epoch ms). */
