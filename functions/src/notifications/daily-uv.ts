@@ -265,7 +265,7 @@ async function processSchedule(run: DailyRun, doc: QueryDocumentSnapshot): Promi
     return 'not-due'
   }
 
-  const alert = inAccountLanguage(user.language, () =>
+  const alert = inAccountLanguage(user, () =>
     dailyUvMessage({
       window,
       city: typeof user.location.city === 'string' ? user.location.city : '',

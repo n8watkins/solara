@@ -22,6 +22,7 @@ import {
   type SkinType,
 } from './recommendation'
 import { finiteNumber, isPlainRecord, record } from './schema'
+import { LOCALES } from './i18n'
 import m from './messages/core'
 
 /** The document shape this code reads and writes. Bump it with a new MIGRATIONS entry. */
@@ -479,6 +480,12 @@ export const PREFERENCES_SHAPE = {
   clockFormat: v.fallback(v.optional(v.picklist(CLOCK_FORMAT_PREFERENCES)), undefined),
   /** The app's language, and the account's pushes and alerts; see LANGUAGE_PREFERENCES. */
   language: v.fallback(v.optional(v.picklist(LANGUAGE_PREFERENCES)), undefined),
+  /**
+   * The language the app last resolved from a device while `language` was 'auto' (a
+   * supported language, never the device's own list), so the server writes pushes in it
+   * (server-language.ts). The last device to open the app sets it (lib/i18n.ts).
+   */
+  deviceLanguage: v.fallback(v.optional(v.picklist(LOCALES)), undefined),
 }
 
 const DocumentSchema = record(PREFERENCES_SHAPE)
@@ -504,7 +511,18 @@ export const PREFERENCE_FIELDS = Object.freeze(
 /** Fields only the server may change once the account exists. */
 export const SERVER_OWNED_FIELDS = Object.freeze(['uid', 'tier'] as const)
 
-/** Fields a signed-in client may update (firestore.rules `preferenceKeys()`). */
+/**
+ * Fields a client writes only once the account exists, never when creating it
+ * (firestore.rules `validUserUpdate`): the device's language, which the app saves once the
+ * account has loaded (lib/i18n.ts). Keeping its check off the create keeps a full new
+ * document within the rules' expression budget.
+ */
+export const UPDATE_ONLY_FIELDS = Object.freeze(['deviceLanguage'] as const)
+
+/**
+ * Fields a signed-in client may update (firestore.rules `preferenceKeys()`, plus
+ * UPDATE_ONLY_FIELDS on an update).
+ */
 export const CLIENT_PREFERENCE_FIELDS = Object.freeze(
   PREFERENCE_FIELDS.filter(
     field => !(SERVER_OWNED_FIELDS as readonly string[]).includes(field),

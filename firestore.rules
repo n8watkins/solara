@@ -312,9 +312,13 @@ service cloud.firestore {
       // calendar feed tokens are now minted by the server (functions/src/feed/tokens.ts).
       // A stored schemaVersion never goes down, so an older client cannot downgrade a
       // document that a newer one migrated.
-      return written.hasOnly(preferenceKeys())
+      // `deviceLanguage`, the language the app resolved from the device (never the
+      // device's own list), is written only once the account exists (lib/i18n.ts), so
+      // creating an account never pays for its check.
+      return written.hasOnly(preferenceKeys().concat(['deviceLanguage']))
         && changed.removedKeys().hasOnly(['calendarFeedToken'])
         && validPreferences(data, written, resource.data)
+        && (!('deviceLanguage' in written) || data.deviceLanguage in ['en', 'es'])
         && (!('schemaVersion' in resource.data)
           || data.schemaVersion >= resource.data.schemaVersion);
     }

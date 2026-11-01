@@ -168,9 +168,7 @@ export function createCalendarFeedHandler<Forecast>({
         ? await fetchForecast(user.location, days, { mayFetch })
         : null
       // The events' words and the calendar's name are in the account's language.
-      const events = forecast
-        ? inAccountLanguage(user.language, () => buildSunEvents(user, forecast))
-        : []
+      const events = forecast ? inAccountLanguage(user, () => buildSunEvents(user, forecast)) : []
       const etag = feedEtag(events)
       res.set('Cache-Control', `private, max-age=${FEED_MAX_AGE_SECONDS}`)
       res.set('ETag', etag)
@@ -179,7 +177,7 @@ export function createCalendarFeedHandler<Forecast>({
         return
       }
       if (req.method === 'HEAD') res.status(200).send('')
-      else res.status(200).send(inAccountLanguage(user.language, () => buildICS(events)))
+      else res.status(200).send(inAccountLanguage(user, () => buildICS(events)))
     } catch (error) {
       // Never log the token or the account's location.
       if (error instanceof HttpError && error.code === 'unavailable') {

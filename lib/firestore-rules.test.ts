@@ -21,8 +21,10 @@ import {
   SKIN_TYPES,
   TEMPERATURE_UNIT_PREFERENCES,
   TIER_LEVELS,
+  UPDATE_ONLY_FIELDS,
   UV_ALERT_THRESHOLD,
 } from '@solara/core'
+import { LOCALES } from '@solara/core/i18n'
 import {
   CLIENT_EVENT_SOURCES,
   FEED_EVENT_CLIENT_FIELDS,
@@ -115,7 +117,11 @@ describe('firestore.rules match the preferences schema', () => {
   const preferences = rulesFunction('validPreferences')
 
   it('lets clients write exactly the schema fields the server does not own', () => {
-    expect(sorted(rulesList('preferenceKeys'))).toEqual(sorted(CLIENT_PREFERENCE_FIELDS))
+    const updateOnly = listAfter(rulesFunction('validUserUpdate'), 'preferenceKeys().concat(')
+    expect(updateOnly).toEqual([...UPDATE_ONLY_FIELDS])
+    expect(sorted([...rulesList('preferenceKeys'), ...updateOnly])).toEqual(
+      sorted(CLIENT_PREFERENCE_FIELDS),
+    )
     const newUser = rulesFunction('validNewUser')
     expect(sorted(listAfter(newUser, 'keys.removeAll('))).toEqual(sorted(SERVER_OWNED_FIELDS))
   })
@@ -124,6 +130,16 @@ describe('firestore.rules match the preferences schema', () => {
     const newUser = rulesFunction('validNewUser')
     const fresh = newAccountPrefs('uid', defaultPrefs({ lat: 1, lon: 2, city: 'c', region: '' }))!
     expect(Object.keys(fresh)).toEqual(expect.arrayContaining(listAfter(newUser, 'hasAll(')))
+    // A new account never carries a field the rules accept only on an update, whatever
+    // the setup answers or guest plan it starts from hold.
+    const seed = {
+      ...defaultPrefs({ lat: 1, lon: 2, city: 'c', region: '' }),
+      deviceLanguage: 'es',
+    }
+    for (const source of ['setup', 'guest'] as const) {
+      const created = newAccountPrefs('uid', seed, source)!
+      for (const field of UPDATE_ONLY_FIELDS) expect(created).not.toHaveProperty(field)
+    }
     expect(listAfter(newUser, 'data.tier in')).toContain(fresh.tier)
     for (const tier of listAfter(newUser, 'data.tier in')) expect(TIER_LEVELS).toContain(tier)
     expect(listAfter(rulesFunction('validUserUpdate'), 'removedKeys().hasOnly(')).toEqual([
@@ -146,6 +162,10 @@ describe('firestore.rules match the preferences schema', () => {
 
   it('accepts every language choice, and only those', () => {
     expect(sorted(listAfter(preferences, 'data.language in'))).toEqual(sorted(LANGUAGE_PREFERENCES))
+    // The device's language is one Solara speaks, never 'auto'.
+    expect(sorted(listAfter(rulesFunction('validUserUpdate'), 'data.deviceLanguage in'))).toEqual(
+      sorted(LOCALES),
+    )
   })
 
   it('accepts the current schema version and the allowed hours', () => {

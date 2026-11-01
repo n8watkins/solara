@@ -310,6 +310,17 @@ describe('parsePreferences: leniency', () => {
     expect(prefs.upgradeInterest).toBeUndefined()
     expect(prefs).not.toHaveProperty('activeProfileId')
   })
+
+  it("keeps the device's language only as a language Solara speaks", () => {
+    expect(parsePreferences({ location: LA, deviceLanguage: 'es' })?.deviceLanguage).toBe('es')
+    for (const bad of ['auto', 'es-MX', ['es'], 7]) {
+      expect(parsePreferences({ location: LA, deviceLanguage: bad })?.deviceLanguage).toBe(
+        undefined,
+      )
+    }
+    // Clients write it with the rest of the plan (firestore.rules checks it).
+    expect(CLIENT_PREFERENCE_FIELDS).toContain('deviceLanguage')
+  })
 })
 
 describe('newer schema versions', () => {

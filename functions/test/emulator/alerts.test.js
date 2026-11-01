@@ -393,6 +393,20 @@ describe("alerts in the account's language (ROADMAP item 46)", () => {
   test('a Spanish account gets its morning and UV alerts in Spanish, an English one in English', async () => {
     await addUser('es', { language: 'es', uvAlertThreshold: 6, notificationHour: 10 })
     await addUser('auto', { language: 'auto', uvAlertThreshold: 6, notificationHour: 10 })
+    // Automatic on a Spanish device (the app saves the language it resolved from it).
+    await addUser('auto-es', {
+      language: 'auto',
+      deviceLanguage: 'es',
+      uvAlertThreshold: 6,
+      notificationHour: 10,
+    })
+    // English chosen in Settings wins over a Spanish device.
+    await addUser('en-es', {
+      language: 'en',
+      deviceLanguage: 'es',
+      uvAlertThreshold: 6,
+      notificationHour: 10,
+    })
     const messaging = new FakeMessaging()
     const sends = recording(messaging)
     await runRecordedDay(messaging)
@@ -410,9 +424,16 @@ describe("alerts in the account's language (ROADMAP item 46)", () => {
     const uv = of('es', 'uv')
     assert.equal(uv.title, '☀️ El UV llega a 6 hacia las 11:20\u00a0a.m.')
     assert.match(uv.body, /^Pronóstico para Los Angeles: UV de 6 o más hasta cerca de las 2:40/)
-    // 'auto' follows a device the server never sees: English.
+    // Automatic follows the device the app last saw: Spanish here, English without one.
+    for (const kind of ['morning', 'uv']) {
+      const spanish = of('es', kind)
+      const device = of('auto-es', kind)
+      assert.deepEqual([device.title, device.body], [spanish.title, spanish.body], kind)
+    }
     assert.match(of('auto', 'morning').body, /^Today in Los Angeles: UV peaks at 8\.0/)
     assert.equal(of('auto', 'uv').title, '☀️ UV reaches 6 around 11:20am')
+    assert.match(of('en-es', 'morning').body, /^Today in Los Angeles: UV peaks at 8\.0/)
+    assert.equal(of('en-es', 'uv').title, '☀️ UV reaches 6 around 11:20am')
   })
 })
 
