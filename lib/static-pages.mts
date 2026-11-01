@@ -48,6 +48,25 @@ export function withDocumentLanguage(html: string, lang: 'en' | 'es'): string {
   return lang === 'en' ? html : html.replace(HTML_LANG, `$1${lang}$2`)
 }
 
+/** The app's font preload, as Next.js writes it in a page's <head>. */
+const FONT_PRELOAD = /<link rel="preload" href="[^"]+\.woff2" as="font"[^>]*\/>/
+
+/** Pages Next.js exports without the font preload the others carry (its not-found page). */
+export const FONT_PRELOAD_PAGES = ['404.html', '404/index.html']
+
+/**
+ * The page with the font preload of `reference` (a page that has it) added to its <head>,
+ * unchanged when it has one. Without it the 404 page painted in the fallback font and moved
+ * when Inter arrived, with the consent banner above it (REVIEW10 QA L2).
+ */
+export function withFontPreload(html: string, reference: string): string {
+  if (FONT_PRELOAD.test(html)) return html
+  const preload = FONT_PRELOAD.exec(reference)?.[0]
+  if (!preload) throw new Error('the reference page has no font preload to copy')
+  if (!html.includes('<head>')) throw new Error('no <head> to add the font preload to')
+  return html.replace('<head>', `<head>${preload}`)
+}
+
 /** Inline scripts Next.js writes: the RSC payload, the chunk list and their bootstrap. */
 const FRAMEWORK_INLINE =
   /self\.__next_[a-z]|__next_s|globalThis\["TURBOPACK"\]|\$RC\b|\$RS\b|\$RX\b/

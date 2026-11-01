@@ -271,9 +271,20 @@ function AccountPage() {
   }
 
   return (
-    <AccountPageFrame emailFallback={authReady && !deletion}>
+    <AccountPageFrame emailFallback={!deletion}>
       {!authReady ? (
-        <div className="card">{m.loadingAccount}</div>
+        // Until the session is known: the signed-out card's place, invisible, so the page
+        // does not move when it turns out to be that card (REVIEW10 QA L1).
+        <div className="card">
+          <p role="status" className="sr-only">
+            {m.loadingAccount}
+          </p>
+          <div aria-hidden="true" className="invisible">
+            <h2 className="mb-2 text-[18px] font-[650]">{m.signInRequired}</h2>
+            <p className="mb-[18px] leading-[1.55]">{m.signInRequiredBody}</p>
+            <span className="btn btn-primary">{m.goToSignIn}</span>
+          </div>
+        </div>
       ) : !user ? (
         <div className="card">
           <h2 className="mb-2 text-[18px] font-[650]">

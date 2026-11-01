@@ -20,11 +20,13 @@
 import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import {
+  FONT_PRELOAD_PAGES,
   HEAD_FIRST_PAGES,
   STATIC_PAGES,
   pageLanguage,
   stripFrameworkScripts,
   withDocumentLanguage,
+  withFontPreload,
 } from '../lib/static-pages.mts'
 
 const dir = process.argv[2] || 'out'
@@ -74,6 +76,21 @@ for (const page of translated) {
 }
 if (translated.length)
   console.log(`static-pages: ${translated.length} pages under es/ are in Spanish.`)
+
+// The not-found page preloads the font like every other page (REVIEW10 QA L2).
+const reference = join(dir, 'app', 'index.html')
+for (const page of FONT_PRELOAD_PAGES) {
+  const file = join(dir, page)
+  if (!existsSync(file) || !existsSync(reference)) continue
+  try {
+    writeFileSync(
+      file,
+      withFontPreload(readFileSync(file, 'utf8'), readFileSync(reference, 'utf8')),
+    )
+  } catch (error) {
+    problems.push(`${page}: ${error.message}`)
+  }
+}
 
 if (problems.length) {
   console.error('static-pages: could not make every page static:')

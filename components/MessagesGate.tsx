@@ -15,8 +15,21 @@ import {
  * (messages/i18n.test.ts checks them), or 'all' (the UI harness). In English that is at
  * once; `fallback` shows meanwhile, and for good if they cannot load, after which the page
  * shows in English. The fallback is as tall as the screen by default, so the footer below
- * never paints at the top and jumps down when the page arrives (REVIEW10 QA L1).
+ * never paints at the top and jumps down when the page arrives, and the page waits for its
+ * font too (FONT_WAIT_MS at most), so its text never reflows when the font swaps in
+ * (REVIEW10 QA L1).
  */
+const FONT_WAIT_MS = 1000
+
+/** Resolves once the page's fonts have loaded, or after FONT_WAIT_MS. */
+function fontsReady(): Promise<void> {
+  if (typeof document === 'undefined' || !document.fonts) return Promise.resolve()
+  return Promise.race([
+    document.fonts.ready.then(() => {}),
+    new Promise<void>(resolve => setTimeout(resolve, FONT_WAIT_MS)),
+  ])
+}
+
 export default function MessagesGate({
   children,
   messages,
@@ -36,12 +49,15 @@ export default function MessagesGate({
       setReady(true)
       localizeTitle()
     }
-    loadInitialMessages()
-      .then(() => (wanted === 'all' ? loadAllMessages() : loadMessages(wanted)))
-      .then(show, error => {
-        console.error('Could not load the translations:', error)
-        show()
-      })
+    Promise.all([
+      loadInitialMessages().then(() =>
+        wanted === 'all' ? loadAllMessages() : loadMessages(wanted),
+      ),
+      fontsReady(),
+    ]).then(show, error => {
+      console.error('Could not load the translations:', error)
+      show()
+    })
     return () => {
       active = false
     }

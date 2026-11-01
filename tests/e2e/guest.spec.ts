@@ -160,7 +160,10 @@ async function recordLayoutShifts(page: Page) {
         sources: { node?: Node }[]
       })[]) {
         if (entry.hadRecentInput) continue
-        const nodes = entry.sources.map(source => (source.node as Element | undefined)?.tagName)
+        const nodes = entry.sources.map(source => {
+          const node = source.node as Element | undefined
+          return `${node?.tagName}(${node?.textContent?.slice(0, 40)})`
+        })
         shifts.push(`${entry.value.toFixed(4)} ${nodes.join(' ')}`)
       }
     }).observe({ type: 'layout-shift', buffered: true })
