@@ -5,7 +5,7 @@ import Tooltip from '../Tooltip'
 import t from '@/messages/dashboard'
 import { skinTypeSkin } from '@solara/core/recommendation'
 import { formatNumber } from '@solara/core/i18n'
-import { VITD_DOSE_IU } from '@solara/core/weather'
+import { VITD_DOSE_IU } from '@solara/core/vitamin-d'
 
 /** "2 hours 47 minutes", "21 minutes", for a screen reader. */
 function spokenDuration(minutes: number): string {
