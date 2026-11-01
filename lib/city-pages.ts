@@ -213,8 +213,7 @@ export function cityPage(slug: string): CityPage | null {
       label: uvLabel(month.peak),
       peakText: formatUV(month.peak),
       clearSkyText: formatUV(month.clearSky),
-      hours:
-        moderate && reached ? { from: hourText(month.from!), to: hourText(month.to!) } : null,
+      hours: moderate && reached ? { from: hourText(month.from!), to: hourText(month.to!) } : null,
       someDays: !moderate && reached,
     }
   })
