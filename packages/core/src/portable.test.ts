@@ -5,7 +5,9 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
 const dir = new URL('./', import.meta.url)
-const sources = readdirSync(dir)
+// The modules and their message catalogues (messages/, messages/<language>/).
+const sources = readdirSync(dir, { recursive: true })
+  .map(String)
   .filter(name => name.endsWith('.ts') && !name.endsWith('.test.ts'))
   .map(name => ({ name, text: readFileSync(new URL(name, dir), 'utf8') }))
 
@@ -44,6 +46,9 @@ describe('core stays portable', () => {
     const imports = [...text.matchAll(/^\s*(?:import|export)[^'"]*from\s+'([^']+)'/gm)].map(
       match => match[1],
     )
-    for (const spec of imports) expect(spec).toMatch(/^(?:\.\/[a-z0-9-]+|valibot)$/)
+    // Relative imports stay inside the package (src/ holds no folder but messages/).
+    for (const spec of imports) {
+      expect(spec).toMatch(/^(?:(?:\.\.?\/)+(?:messages\/(?:[a-z]{2}\/)?)?[a-z0-9-]+|valibot)$/)
+    }
   })
 })

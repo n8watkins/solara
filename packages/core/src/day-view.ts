@@ -3,6 +3,7 @@
 // (lib/dashboard-view.ts) re-exports it, and a native client reads the same notions.
 import type { HourlyForecast } from './forecast-days'
 import type { SunPhase } from './sun-times'
+import m from './messages/core'
 
 /** The parts of a day's forecast these read: today's and tomorrow's hours, and the live UV. */
 export interface DayForecastView {
@@ -13,8 +14,8 @@ export interface DayForecastView {
 
 /** "today", "tomorrow" or "on Wed 17", for sentences about the selected day. */
 export function dayPhrase(isToday: boolean, dateLabel: string): string {
-  if (isToday) return 'today'
-  return dateLabel === 'Tomorrow' ? 'tomorrow' : `on ${dateLabel}`
+  if (isToday) return m.todayLower
+  return dateLabel === m.tomorrow ? m.tomorrowLower : m.onDate(dateLabel)
 }
 
 /** An hour on today (tomorrow: false) or tomorrow. */
@@ -40,7 +41,7 @@ export function nextHourWhere(
 
 /** "7am" today, "7am tomorrow". */
 export function dayHourText(at: DayHour, formatHour: (hour: number) => string): string {
-  return at.tomorrow ? `${formatHour(at.hour)} tomorrow` : formatHour(at.hour)
+  return at.tomorrow ? m.timeTomorrow(formatHour(at.hour)) : formatHour(at.hour)
 }
 
 export interface SunDown {

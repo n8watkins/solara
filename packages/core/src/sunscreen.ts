@@ -19,6 +19,8 @@ import { formatDuration } from './duration'
 import { PROTECT_FROM_UV, SHADE_FROM_UV } from './protection'
 import { REAPPLY_MINUTES } from './reapply'
 import { FITZPATRICK_TYPES, type SkinType } from './recommendation'
+import core from './messages/core'
+import m from './messages/sunscreen'
 import { formatUV, uvLabel } from './uv-scale'
 
 /** The parts sunscreen amounts are counted in; `face` takes in the neck and ears. */
@@ -39,11 +41,11 @@ export const AREA_TEASPOONS: Readonly<Record<BodyArea, number>> = Object.freeze(
 export const TEASPOON_ML = 5
 
 /** What the words call each part. */
-const AREA_WORDS: Readonly<Record<BodyArea, string>> = Object.freeze({
-  face: 'face',
-  arms: 'arms',
-  legs: 'legs',
-  torso: 'body',
+const AREA_WORDS: Readonly<Record<BodyArea, () => string>> = Object.freeze({
+  face: () => m.areaFace,
+  arms: () => m.areaArms,
+  legs: () => m.areaLegs,
+  torso: () => m.areaTorso,
 })
 
 // Preset activity ids (tiers.ts ACTIVITY_CATEGORIES). Swimwear for the water; long
@@ -81,40 +83,28 @@ export function sunscreenAmount(areas: readonly BodyArea[]): SunscreenAmount {
   }
 }
 
-/** "face", "face and arms", "face, arms and legs". */
-function listAreas(areas: readonly BodyArea[]): string {
-  const words = areas.map(area => AREA_WORDS[area])
-  if (words.length <= 1) return words.join('')
-  return `${words.slice(0, -1).join(', ')} and ${words.at(-1)}`
-}
-
-function teaspoonsWord(n: number): string {
-  return n === 1 ? 'teaspoon' : 'teaspoons'
-}
-
 /**
  * The amount in a sentence: "About 5 teaspoons (25 mL) for your face, arms and legs",
  * "About 7 teaspoons (35 mL), a shot glass, for your whole body".
  */
 export function sunscreenAmountText(amount: SunscreenAmount): string {
   const { teaspoons, ml } = amount
-  const how = `About ${teaspoons} ${teaspoonsWord(teaspoons)} (${ml}\u00a0mL)`
   return amount.wholeBody
-    ? `${how}, a shot glass, for your whole body`
-    : `${how} for your ${listAreas(amount.areas)}`
+    ? m.amountTextWholeBody(teaspoons, ml)
+    : m.amountText(teaspoons, ml, core.listAnd(amount.areas.map(area => AREA_WORDS[area]())))
 }
 
 /** The amount for a card's row: "about 5 tsp for face, arms, legs", "about 7 tsp, whole body". */
 export function sunscreenAmountShort(amount: SunscreenAmount): string {
-  const how = `about ${amount.teaspoons} tsp`
   return amount.wholeBody
-    ? `${how}, whole body`
-    : `${how} for ${amount.areas.map(a => AREA_WORDS[a]).join(', ')}`
+    ? m.amountShortWholeBody(amount.teaspoons)
+    : m.amountShort(amount.teaspoons, m.amountShortList(amount.areas.map(a => AREA_WORDS[a]())))
 }
 
 /** The teaspoon rule, part by part. */
-export const TEASPOON_RULE =
-  'About 1 teaspoon (5\u00a0mL) for each part: face, neck and ears; each arm; each leg; the front of your body; the back of your body.'
+export function teaspoonRule(): string {
+  return m.teaspoonRule
+}
 
 /** Why an SPF is advised. */
 export type SpfReason = 'low-uv' | 'standard' | 'very-high-uv' | 'fair-skin'
@@ -151,24 +141,24 @@ export function spfAdviceText(advice: SpfAdvice, uv: number, skin: SkinType): st
   const reading = `${formatUV(uv)} (${uvLabel(uv)})`
   switch (advice.reason) {
     case 'low-uv':
-      return `UV peaks at ${reading} today: most people need no sunscreen below UV ${PROTECT_FROM_UV}.`
+      return m.spfLowUv(reading, PROTECT_FROM_UV)
     case 'very-high-uv':
-      return `SPF 50+ broad spectrum: UV reaches ${reading} today.`
+      return m.spfVeryHigh(reading)
     case 'fair-skin':
-      return `SPF 50+ broad spectrum: UV reaches ${reading} today, and type ${FITZPATRICK_TYPES[skin]} skin burns easily.`
+      return m.spfFairSkin(reading, FITZPATRICK_TYPES[skin])
     case 'standard':
-      return `SPF 30+ broad spectrum: UV reaches ${reading} today.`
+      return m.spfStandard(reading)
   }
 }
 
 /** The rule for a skin type on any day, for Settings: no UV reading needed. */
 export function spfRuleText(skin: SkinType): string {
   return burnsEasily(skin)
-    ? `With type ${FITZPATRICK_TYPES[skin]} skin, use SPF 50+ broad spectrum whenever UV is ${PROTECT_FROM_UV} or more.`
-    : `Use SPF 30+ broad spectrum whenever UV is ${PROTECT_FROM_UV} or more, and SPF 50+ when it reaches ${SHADE_FROM_UV}.`
+    ? m.spfRuleFair(FITZPATRICK_TYPES[skin], PROTECT_FROM_UV)
+    : m.spfRule(PROTECT_FROM_UV, SHADE_FROM_UV)
 }
 
 /** When to put it on and again: "Put it on 20 min before you go out. Reapply every 2 h, ..." */
-export const REAPPLY_RULE = `Put it on ${formatDuration(20)} before you go out. Reapply every ${formatDuration(
-  REAPPLY_MINUTES.standard,
-)}, and straight after swimming, sweating or towelling off.`
+export function reapplyRule(): string {
+  return m.reapplyRule(formatDuration(20), formatDuration(REAPPLY_MINUTES.standard))
+}

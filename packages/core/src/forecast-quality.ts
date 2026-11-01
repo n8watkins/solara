@@ -9,6 +9,7 @@
 // the sky stays clear.
 
 import { exposedUV, type ExposureSetting } from './exposure'
+import m from './messages/core'
 import { formatUV } from './uv-scale'
 import { weatherIn, weatherLimits, type WeatherHour, type WeatherSetting } from './weather-fit'
 
@@ -32,8 +33,8 @@ export function forecastConfidence(daysAhead: number): ForecastConfidence {
 
 /** One line on a fair or low confidence day; null for high confidence. */
 export function confidenceNote(confidence: ForecastConfidence): string | null {
-  if (confidence === 'fair') return 'Fair confidence: UV and the best times can still change'
-  if (confidence === 'low') return 'Low confidence: a rough guide, check again closer to the day'
+  if (confidence === 'fair') return m.confidenceFair
+  if (confidence === 'low') return m.confidenceLow
   return null
 }
 
@@ -68,7 +69,7 @@ export function cloudEffect(
 
 /** "Clouds may cut UV to 4.3 from a clear-sky 6.8". */
 export function cloudNote({ uv, clearSky }: CloudEffect): string {
-  return `Clouds may cut UV to ${formatUV(uv)} from a clear-sky ${formatUV(clearSky)}`
+  return m.cloudNote(formatUV(uv), formatUV(clearSky))
 }
 
 /** One hour of forecast: UV with the forecast clouds, and under a clear sky when known. */

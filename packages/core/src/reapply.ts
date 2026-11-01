@@ -12,6 +12,7 @@
 // Free for every plan (a safety feature). This is the pure timer; the web app keeps it
 // in localStorage (lib/reapply.ts), a native client in its own store.
 
+import m from './messages/sunscreen'
 /** Minutes between reminders. */
 export const REAPPLY_MINUTES = Object.freeze({ standard: 120, water: 80 })
 
@@ -36,11 +37,11 @@ export interface ReapplyTimer {
 /** The reminder's words, the same in the browser's notification and the server's push. */
 export function reapplyReminderMessage(mode: ReapplyMode): { title: string; body: string } {
   return {
-    title: 'Time to reapply sunscreen',
+    title: m.reminderTitle,
     body:
       mode === 'water'
-        ? `It has been ${REAPPLY_MINUTES.water} minutes of swimming or sweating since you put it on.`
-        : `It has been ${REAPPLY_MINUTES.standard / 60} hours since you put it on.`,
+        ? m.reminderWater(REAPPLY_MINUTES.water)
+        : m.reminderStandard(REAPPLY_MINUTES.standard / 60),
   }
 }
 

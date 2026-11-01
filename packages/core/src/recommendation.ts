@@ -2,6 +2,7 @@
 // notification worker. Keep it free of Firebase, browser and Node-only APIs so
 // every delivery surface runs exactly the same calculations.
 import type { Daylight } from './sun-times'
+import m from './messages/core'
 
 export type SkinType = 'very-fair' | 'fair' | 'medium' | 'olive' | 'dark'
 
@@ -133,6 +134,35 @@ export function runsOn(
   if (!Array.isArray(activity.daysOfWeek) || activity.daysOfWeek.length === 0) return true
   const weekday = weekdayForDate(dateStr)
   return weekday !== null && activity.daysOfWeek.includes(weekday)
+}
+
+const WINDOW_LABEL_TEXT: Readonly<Record<WindowLabel, () => string>> = Object.freeze({
+  Morning: () => m.windowMorning,
+  Midday: () => m.windowMidday,
+  Afternoon: () => m.windowAfternoon,
+  Evening: () => m.windowEvening,
+  'All day': () => m.windowAllDay,
+})
+
+/** A window's part of the day in the page's language ("Morning", "Mañana"). */
+export function windowLabelText(label: WindowLabel): string {
+  return WINDOW_LABEL_TEXT[label]()
+}
+
+const SKIN_NAMES: Readonly<Record<SkinType, () => string>> = Object.freeze({
+  'very-fair': () => m.skinVeryFair,
+  fair: () => m.skinFair,
+  medium: () => m.skinMedium,
+  olive: () => m.skinOlive,
+  dark: () => m.skinDark,
+})
+
+/** A skin type's name in a sentence ("fair"), and with its noun ("fair skin"). */
+export function skinTypeName(skin: SkinType): string {
+  return SKIN_NAMES[skin]()
+}
+export function skinTypeSkin(skin: SkinType): string {
+  return m.skinOf(SKIN_NAMES[skin]())
 }
 
 /** The part of the day a [from, to) window covers. */

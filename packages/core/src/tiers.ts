@@ -5,6 +5,7 @@
 import { PLAN_FORECAST_DAYS } from './plans'
 import type { Activity, TierLevel } from './prefs'
 import { effectiveMaxUV as sharedEffectiveMaxUV } from './recommendation'
+import m from './messages/plans'
 
 /** What each plan includes. Every tier rule in the app reads from here. */
 export interface TierLimits {
@@ -86,10 +87,16 @@ export const TIER_LIMITS: Readonly<Record<TierLevel, TierLimits>> = {
 }
 
 /** Display names for the plans. */
-export const TIER_NAMES: Record<TierLevel, string> = {
-  anonymous: 'Guest',
-  free: 'Free',
-  paid: 'Pro',
+export const TIER_NAMES: Readonly<Record<TierLevel, string>> = {
+  get anonymous() {
+    return m.tierGuest
+  },
+  get free() {
+    return m.tierFree
+  },
+  get paid() {
+    return m.tierPro
+  },
 }
 
 export function canAddActivity(tier: TierLevel, currentCount: number): boolean {
@@ -138,9 +145,9 @@ export function isDeviceOnly(tier: TierLevel): boolean {
 /** The forecast a plan sees, in words: "Today", "Today and tomorrow", "10 days". */
 export function forecastLabel(tier: TierLevel): string {
   const days = getFutureDays(tier)
-  if (days === 1) return 'Today'
-  if (days === 2) return 'Today and tomorrow'
-  return `${days} days`
+  if (days === 1) return m.forecastToday
+  if (days === 2) return m.forecastTodayTomorrow
+  return m.forecastDays(days)
 }
 
 /**
@@ -152,11 +159,11 @@ export function activityLimitNote(
   { offerPro = true }: { offerPro?: boolean } = {},
 ): string | null {
   if (tier === 'anonymous') {
-    return `Guests can plan ${TIER_LIMITS.anonymous.activities} activity. Sign in free to plan up to ${TIER_LIMITS.free.activities}.`
+    return m.limitGuest(TIER_LIMITS.anonymous.activities, TIER_LIMITS.free.activities)
   }
   if (tier === 'free') {
-    const note = `Free plan: up to ${TIER_LIMITS.free.activities} activities.`
-    return offerPro ? `${note} Upgrade to Pro for up to ${TIER_LIMITS.paid.activities}.` : note
+    const note = m.limitFree(TIER_LIMITS.free.activities)
+    return offerPro ? m.limitFreeUpgrade(note, TIER_LIMITS.paid.activities) : note
   }
   return null
 }
@@ -168,70 +175,104 @@ export function effectiveMaxUV(activity: Activity): number {
 }
 
 export interface PresetCategory {
+  /** The category's stable name, kept with collapsed categories (English). */
   name: string
+  /** The name shown, in the page's language. */
+  readonly label: string
   emoji: string
   activities: Omit<Activity, 'sunscreen' | 'custom'>[]
+}
+
+type Preset = PresetCategory['activities'][number]
+
+/** A preset activity whose name reads in the page's language (plans messages). */
+function preset(id: keyof typeof m, fields: Omit<Preset, 'id' | 'name'>): Preset {
+  return Object.defineProperty({ id, ...fields }, 'name', {
+    get: () => m[id],
+    enumerable: true,
+  }) as Preset
 }
 
 export const ACTIVITY_CATEGORIES: PresetCategory[] = [
   {
     name: 'Running & cycling',
+    get label() {
+      return m.categoryRunning
+    },
     emoji: '🏃',
     activities: [
-      { id: 'run', name: 'Running', icon: '🏃', durationMins: 45, maxUV: 4 },
-      { id: 'jog', name: 'Jogging', icon: '🏃', durationMins: 30, maxUV: 5 },
-      { id: 'cycle', name: 'Cycling', icon: '🚴', durationMins: 60, maxUV: 4 },
-      { id: 'mtb', name: 'Mountain biking', icon: '🚵', durationMins: 90, maxUV: 3 },
-      { id: 'sprint', name: 'Sprint workout', icon: '💨', durationMins: 20, maxUV: 6 },
+      preset('run', { icon: '🏃', durationMins: 45, maxUV: 4 }),
+      preset('jog', { icon: '🏃', durationMins: 30, maxUV: 5 }),
+      preset('cycle', { icon: '🚴', durationMins: 60, maxUV: 4 }),
+      preset('mtb', { icon: '🚵', durationMins: 90, maxUV: 3 }),
+      preset('sprint', { icon: '💨', durationMins: 20, maxUV: 6 }),
     ],
   },
   {
     name: 'Water sports',
+    get label() {
+      return m.categoryWater
+    },
     emoji: '🏊',
     activities: [
-      { id: 'swim', name: 'Swimming', icon: '🏊', durationMins: 60, maxUV: 3 },
-      { id: 'surf', name: 'Surfing', icon: '🏄', durationMins: 90, maxUV: 3 },
-      { id: 'kayak', name: 'Kayaking', icon: '🚣', durationMins: 60, maxUV: 3 },
-      { id: 'paddle', name: 'Paddleboarding', icon: '🛶', durationMins: 60, maxUV: 3 },
+      preset('swim', { icon: '🏊', durationMins: 60, maxUV: 3 }),
+      preset('surf', { icon: '🏄', durationMins: 90, maxUV: 3 }),
+      preset('kayak', { icon: '🚣', durationMins: 60, maxUV: 3 }),
+      preset('paddle', { icon: '🛶', durationMins: 60, maxUV: 3 }),
     ],
   },
   {
     name: 'Outdoor leisure',
+    get label() {
+      return m.categoryLeisure
+    },
     emoji: '🧺',
     activities: [
-      { id: 'walk', name: 'Walking', icon: '🚶', durationMins: 30, maxUV: 5 },
-      { id: 'hike', name: 'Hiking', icon: '🥾', durationMins: 120, maxUV: 3 },
-      { id: 'picnic', name: 'Picnic', icon: '🧺', durationMins: 90, maxUV: 4 },
-      { id: 'garden', name: 'Gardening', icon: '🌱', durationMins: 60, maxUV: 3 },
-      { id: 'photo', name: 'Photography', icon: '📸', durationMins: 90, maxUV: 4 },
-      { id: 'read', name: 'Reading outside', icon: '📖', durationMins: 60, maxUV: 5 },
+      preset('walk', { icon: '🚶', durationMins: 30, maxUV: 5 }),
+      preset('hike', { icon: '🥾', durationMins: 120, maxUV: 3 }),
+      preset('picnic', { icon: '🧺', durationMins: 90, maxUV: 4 }),
+      preset('garden', { icon: '🌱', durationMins: 60, maxUV: 3 }),
+      preset('photo', { icon: '📸', durationMins: 90, maxUV: 4 }),
+      preset('read', { icon: '📖', durationMins: 60, maxUV: 5 }),
     ],
   },
   {
     name: 'Sports & courts',
+    get label() {
+      return m.categorySports
+    },
     emoji: '🎾',
     activities: [
-      { id: 'golf', name: 'Golf', icon: '⛳', durationMins: 240, maxUV: 2 },
-      { id: 'tennis', name: 'Tennis', icon: '🎾', durationMins: 60, maxUV: 4 },
-      { id: 'soccer', name: 'Soccer', icon: '⚽', durationMins: 90, maxUV: 3 },
-      { id: 'baseball', name: 'Baseball', icon: '⚾', durationMins: 120, maxUV: 3 },
-      { id: 'yoga', name: 'Outdoor yoga', icon: '🧘', durationMins: 45, maxUV: 4 },
-      { id: 'bball', name: 'Basketball', icon: '🏀', durationMins: 60, maxUV: 4 },
+      preset('golf', { icon: '⛳', durationMins: 240, maxUV: 2 }),
+      preset('tennis', { icon: '🎾', durationMins: 60, maxUV: 4 }),
+      preset('soccer', { icon: '⚽', durationMins: 90, maxUV: 3 }),
+      preset('baseball', { icon: '⚾', durationMins: 120, maxUV: 3 }),
+      preset('yoga', { icon: '🧘', durationMins: 45, maxUV: 4 }),
+      preset('bball', { icon: '🏀', durationMins: 60, maxUV: 4 }),
     ],
   },
   {
     name: 'Quick breaks',
+    get label() {
+      return m.categoryBreaks
+    },
     emoji: '☀️',
     activities: [
-      { id: 'break', name: 'Sun break', icon: '☀️', durationMins: 5, maxUV: 8 },
-      { id: 'lunch', name: 'Lunch outside', icon: '🥗', durationMins: 30, maxUV: 5 },
-      { id: 'coffee', name: 'Morning coffee', icon: '☕', durationMins: 15, maxUV: 6 },
-      { id: 'dog', name: 'Dog walk', icon: '🐕', durationMins: 30, maxUV: 5 },
+      preset('break', { icon: '☀️', durationMins: 5, maxUV: 8 }),
+      preset('lunch', { icon: '🥗', durationMins: 30, maxUV: 5 }),
+      preset('coffee', { icon: '☕', durationMins: 15, maxUV: 6 }),
+      preset('dog', { icon: '🐕', durationMins: 30, maxUV: 5 }),
     ],
   },
 ]
 
 // Flat list for preference migrations and backwards compatibility.
+// Each keeps its name's getter, so the name reads in the page's language when used.
 export const PRESET_ACTIVITIES = ACTIVITY_CATEGORIES.flatMap(c =>
-  c.activities.map(a => ({ ...a, sunscreen: false as const })),
+  c.activities.map(a =>
+    Object.defineProperty({ ...a, sunscreen: false as const }, 'name', {
+      get: () => a.name,
+      enumerable: true,
+    }),
+  ),
 )

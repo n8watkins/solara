@@ -4,6 +4,7 @@
 // Times are floating local (no TZ): the hour numbers come from Open-Meteo's
 // timezone=auto, so they render correctly in the subscriber's local calendar.
 
+import m from './messages/core'
 export interface IcsEvent {
   uid: string
   summary: string
@@ -29,7 +30,7 @@ export function windowEventUid(dateStr: string, activityId: string, start: numbe
 
 /** Calendar event title for an activity's lower-UV window. */
 export function windowEventTitle(activityName: string): string {
-  return `${activityName}: lower-UV window`
+  return m.windowEventTitle(activityName)
 }
 
 /** Calendar event summary: the title led by the activity's icon. */

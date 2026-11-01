@@ -10,6 +10,7 @@
 // Weather Service's "extreme caution" band starts there), and everything else at 38°C
 // (about 100°F, near its "danger" band). An hour without a value (an older cached
 // forecast) is never skipped for it.
+import m from './messages/core'
 
 /** A chance of rain (percent) from which an hour counts as "rain likely". */
 export const RAIN_LIKELY_PERCENT = 50
@@ -144,9 +145,7 @@ export function weatherText(
   formatTemp: (celsius: number) => string,
 ): string {
   const range = `${formatTime(span.from)}–${formatTime(span.to)}`
-  return span.kind === 'rain'
-    ? `Rain likely ${range}`
-    : `Too hot ${range}, feels like ${formatTemp(span.feelsC ?? 0)}`
+  return span.kind === 'rain' ? m.rainLikely(range) : m.tooHot(range, formatTemp(span.feelsC ?? 0))
 }
 
 /** A Celsius reading in a unit, rounded to a whole degree: "29°C", "84°F". */

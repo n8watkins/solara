@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { ACTIVITY_CATEGORIES } from './tiers'
 import {
   BODY_AREAS,
-  REAPPLY_RULE,
-  TEASPOON_RULE,
+  reapplyRule,
+  teaspoonRule,
   activityBodyAreas,
   spfAdvice,
   spfAdviceText,
@@ -46,7 +46,7 @@ describe('sunscreenAmount', () => {
       'About 7 teaspoons (35\u00a0mL), a shot glass, for your whole body',
     )
     expect(sunscreenAmountShort(whole)).toBe('about 7 tsp, whole body')
-    expect(TEASPOON_RULE).toContain('About 1 teaspoon (5\u00a0mL) for each part')
+    expect(teaspoonRule()).toContain('About 1 teaspoon (5\u00a0mL) for each part')
   })
 })
 
@@ -111,9 +111,9 @@ describe('spfAdvice', () => {
   })
 })
 
-describe('REAPPLY_RULE', () => {
+describe('reapplyRule', () => {
   it('uses the one duration style', () => {
-    expect(REAPPLY_RULE).toBe(
+    expect(reapplyRule()).toBe(
       'Put it on 20 min before you go out. Reapply every 2 h, and straight after swimming, sweating or towelling off.',
     )
   })

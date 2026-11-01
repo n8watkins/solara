@@ -2,6 +2,7 @@
 // from the forecast and the person's plan. It is deterministic (the same input
 // always gives the same words) and free of Firebase, browser and Node-only APIs,
 // so the dashboard card, a share and a future morning push all say the same.
+import { formatClock12 } from './clock'
 import {
   burnMins,
   effectiveMaxUV,
@@ -15,6 +16,7 @@ import {
 } from './recommendation'
 import type { ExposureSetting } from './exposure'
 import { cloudEffect, planningHours, type CloudEffect } from './forecast-quality'
+import m from './messages/briefing'
 import { formatUV, uvLabel } from './uv-scale'
 import {
   PROTECT_FROM_UV,
@@ -66,13 +68,14 @@ export interface BriefingActivity extends WeatherSetting {
 // a forecast of 2.8 shows in a Moderate chip; copy that said "when UV is 3 or more"
 // beside it read as a contradiction. Naming the bands, as the chips do, never does.
 // In a sentence the band names are lower case ("while UV is moderate or higher").
+// Read when the text is built, in the active language.
 const band = (uv: number) => uvLabel(uv).toLowerCase()
 /** "moderate or higher": UV from PROTECT_FROM_UV on. */
-const PROTECT_TEXT = `${band(PROTECT_FROM_UV)} or higher`
+const protectText = () => m.orHigher(band(PROTECT_FROM_UV))
 /** "low": UV below PROTECT_FROM_UV. */
-const BELOW_PROTECT = band(PROTECT_FROM_UV - 1)
+const belowProtect = () => band(PROTECT_FROM_UV - 1)
 /** "very high or extreme": UV from SHADE_FROM_UV on. */
-const SHADE_TEXT = `${band(SHADE_FROM_UV)} or ${band(11)}`
+const shadeText = () => m.orBand(band(SHADE_FROM_UV), band(11))
 const NBSP = '\u00a0'
 /** Below this the sun is down or UV is negligible (no burn estimate). */
 const SUN_UP_UV = 0.5
@@ -151,12 +154,7 @@ export interface DailyBriefing {
 
 /** "6am", "6:45am", "12pm": the default 12-hour clock. */
 export function formatBriefingTime(hours: number): string {
-  const total = Math.round(hours * 60)
-  const hour = Math.floor(total / 60) % 24
-  const minute = total % 60
-  const suffix = hour < 12 ? 'am' : 'pm'
-  const h12 = hour % 12 === 0 ? 12 : hour % 12
-  return `${h12}${minute ? `:${String(minute).padStart(2, '0')}` : ''}${suffix}`
+  return formatClock12(hours)
 }
 
 interface ActivityPick {
@@ -271,16 +269,21 @@ export function dailyBriefing({
   // A time range never breaks inside ("5pm to 8pm" stays on one line, REVIEW5 UI 3);
   // the shared text and the alert get plain spaces back below.
   const fromTo = (span: { from: number; to: number }) =>
-    `from ${formatTime(span.from)}${NBSP}to${NBSP}${formatTime(span.to)}`
+    m.fromTo(formatTime(span.from), formatTime(span.to))
   const range = (span: { from: number; to: number }) =>
     `${formatTime(span.from)}–${formatTime(span.to)}`
 
   // Clouds are among the least predictable parts of a forecast, so a coming peak they
   // lower also says what a clear sky would bring; a passed peak is history.
   const cloud = peak && !peak.passed ? cloudEffect(hourly) : null
-  const peakLine = peak
-    ? `${peak.passed ? 'UV peaked' : 'UV peaks'} at ${formatUV(peak.uv)} (${uvLabel(peak.uv)}) around ${formatTime(peak.hour)}${cloud ? `, or ${formatUV(cloud.clearSky)} if the sky clears` : ''}`
-    : 'UV stays near zero'
+  const peakAt =
+    peak &&
+    (peak.passed ? m.peaked : m.peaks)(formatUV(peak.uv), uvLabel(peak.uv), formatTime(peak.hour))
+  const peakLine = peakAt
+    ? cloud
+      ? m.ifSkyClears(peakAt, formatUV(cloud.clearSky))
+      : peakAt
+    : m.nearZero
 
   // When protection is needed, shared with the pushes and alerts (protection.ts): judged
   // under a clear sky, so clouds that may break never relax the advice (REVIEW9 QA M2).
@@ -297,52 +300,58 @@ export function dailyBriefing({
     window = best
       ? { activity: best.activity.name, spans: [{ from: best.window.from, to: best.window.to }] }
       : null
-    const who = running.length === 1 ? running[0]!.name : 'your activities'
+    const who = running.length === 1 ? running[0]!.name : m.yourActivities
     // Rain and heat are told only when they moved the window or took it away.
     weather = weatherChange(hourly, running, day.date, from, daylight, best)
-    const left = from >= 0 ? 'left ' : ''
+    const left = from >= 0
     windowLine = best
       ? // "Lowest", not "best": the dashboard's hero names the soonest slot, which can
         // be another window, and both must read as true at once.
-        `lowest-UV window: ${best.activity.name} ${range(best.window)}`
+        m.lowestWindow(best.activity.name, range(best.window))
       : weather
-        ? `no lower-UV window ${left}for ${who} without ${weather.kind === 'rain' ? 'rain' : 'the heat'}`
-        : `no lower-UV window ${left}for ${who}`
+        ? (weather.kind === 'rain' ? m.noWindowRain : m.noWindowHeat)(who, left)
+        : m.noWindow(who, left)
   } else {
     const spans = protectAhead ? lowSpans(hourly, protectAhead, from, daylight) : []
     window = spans.length ? { activity: null, spans } : null
-    const rest = from >= 0 ? 'the rest of the day' : 'all day'
+    const rest = from >= 0 ? m.restOfDay : m.allDay
     windowLine = !protectAhead
-      ? `UV stays ${BELOW_PROTECT} ${rest}`
+      ? m.staysBand(belowProtect(), rest)
       : !protectAhead.forecastReaches
-        ? `UV stays ${BELOW_PROTECT} ${rest} unless the sky clears`
+        ? m.staysBandUnlessClear(belowProtect(), rest)
         : spans.length
-          ? `UV is ${BELOW_PROTECT} ${spans.map((span, i) => (i ? `${formatTime(span.from)}${NBSP}to${NBSP}${formatTime(span.to)}` : fromTo(span))).join(' and ')}`
-          : `UV stays ${PROTECT_TEXT} ${rest}`
+          ? m.isBandDuring(
+              belowProtect(),
+              spans
+                .map((span, i) =>
+                  i ? m.andTo(formatTime(span.from), formatTime(span.to)) : fromTo(span),
+                )
+                .join(m.spansJoin),
+            )
+          : m.staysBand(protectText(), rest)
   }
 
   // A passed peak's burn time is history; the dashboard's burn card has the current one.
   const burn = peak && !peak.passed ? burnMins(peak.uv, skinType) : null
-  const burnLine =
-    burn === null ? null : `at the peak, unprotected skin like yours can burn in about ${burn} min`
+  const burnLine = burn === null ? null : m.burn(burn)
 
   // From "now" on when today is under way: "until 5pm" once the span has begun.
   const during = (span: { from: number; to: number }) =>
-    span.from <= from ? `until${NBSP}${formatTime(span.to)}` : fromTo(span)
+    span.from <= from ? m.untilTime(formatTime(span.to)) : fromTo(span)
   // The band first, then the hours: "seek shade from 11am to 5pm, when UV is very high"
   // read as if 5pm itself were very high (REVIEW8 QA L4). When only a clear sky would
   // reach the band, the advice still stands and says why.
   const tip = shade
     ? shade.forecastReaches
-      ? `seek shade while UV is ${SHADE_TEXT}, ${during(shade)}`
-      : `seek shade ${during(shade)}, as UV can be ${SHADE_TEXT} if the sky clears`
+      ? m.seekShade(shadeText(), during(shade))
+      : m.seekShadeIfClear(during(shade), shadeText())
     : protectAhead
       ? protectAhead.forecastReaches
-        ? `use sun protection while UV is ${PROTECT_TEXT}, ${during(protectAhead)}`
-        : `use sun protection ${during(protectAhead)}, as UV can be ${PROTECT_TEXT} if the sky clears`
+        ? m.protect(protectText(), during(protectAhead))
+        : m.protectIfClear(during(protectAhead), protectText())
       : protect
-        ? 'UV stays low for the rest of the day'
-        : 'most people need little sun protection today'
+        ? m.lowRestOfDay
+        : m.littleProtection
 
   const weatherLine = weather && weatherText(weather, formatTime, formatTemp)
   const lines = {
@@ -352,7 +361,7 @@ export function dailyBriefing({
     burn: burnLine && sentence(burnLine),
     tip: sentence(tip),
   }
-  const text = [`${dayLabel}: ${peakLine}`, windowLine, weatherLine, burnLine, tip]
+  const text = [m.paragraphStart(dayLabel, peakLine), windowLine, weatherLine, burnLine, tip]
     .filter(Boolean)
     .map(part => sentence(part!))
     .join('. ')

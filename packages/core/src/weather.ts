@@ -14,6 +14,7 @@ import {
   type SkinType,
 } from './recommendation'
 import type { Daylight } from './sun-times'
+import m from './messages/core'
 
 export function vitDMins(uv: number, skinType: SkinType): number | null {
   if (uv < 1) return null
@@ -21,17 +22,16 @@ export function vitDMins(uv: number, skinType: SkinType): number | null {
   return Math.max(1, Math.round((base * 0.3 * 10) / uv))
 }
 
-const DAY_ABBR = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-
 /** Short label for an activity's weekday restriction; null when it runs every day. */
 export function fmtDays(days?: number[]): string | null {
   if (!days || days.length === 0 || days.length === 7) return null
   const set = new Set(days)
-  if (set.size === 5 && [1, 2, 3, 4, 5].every(d => set.has(d))) return 'Weekdays'
-  if (set.size === 2 && set.has(0) && set.has(6)) return 'Weekends'
+  if (set.size === 5 && [1, 2, 3, 4, 5].every(d => set.has(d))) return m.weekdays
+  if (set.size === 2 && set.has(0) && set.has(6)) return m.weekends
+  const names = m.weekdaysShort.split(',')
   return [...days]
     .sort((a, b) => a - b)
-    .map(d => DAY_ABBR[d])
+    .map(d => names[d])
     .join(', ')
 }
 

@@ -22,6 +22,7 @@ import {
   type SkinType,
 } from './recommendation'
 import { finiteNumber, isPlainRecord, record } from './schema'
+import m from './messages/core'
 
 /** The document shape this code reads and writes. Bump it with a new MIGRATIONS entry. */
 export const PREFS_SCHEMA_VERSION = 2
@@ -67,6 +68,13 @@ export type TemperatureUnitPreference = (typeof TEMPERATURE_UNIT_PREFERENCES)[nu
 export const CLOCK_FORMAT_PREFERENCES = Object.freeze(['auto', '12h', '24h'] as const)
 export type ClockFormatPreference = (typeof CLOCK_FORMAT_PREFERENCES)[number]
 
+/**
+ * The language (ROADMAP item 46): 'auto' (or a missing field) follows the device's
+ * language; otherwise one of i18n.ts LOCALES. Added without a version bump, like the units.
+ */
+export const LANGUAGE_PREFERENCES = Object.freeze(['auto', 'en', 'es'] as const)
+export type LanguagePreference = (typeof LANGUAGE_PREFERENCES)[number]
+
 /** Morning notification hour: allowed range and default. */
 export const NOTIFICATION_HOUR = Object.freeze({ min: 5, max: 10, default: 7 })
 
@@ -98,7 +106,10 @@ export const CALENDAR_HOUR_BOUNDS = Object.freeze({
 export const FEELS_LIKE_LIMITS = Object.freeze({ min: 15, max: 50 })
 
 const ACTIVITY_DEFAULTS = Object.freeze({
-  name: 'Outdoor activity',
+  /** The page's language (core messages): an activity saved without a name. */
+  get name() {
+    return m.defaultActivityName
+  },
   icon: '☀️',
   durationMins: 30,
   maxUV: 4,
@@ -466,6 +477,8 @@ export const PREFERENCES_SHAPE = {
   temperatureUnit: v.fallback(v.optional(v.picklist(TEMPERATURE_UNIT_PREFERENCES)), undefined),
   /** 12- or 24-hour clock; see CLOCK_FORMAT_PREFERENCES. */
   clockFormat: v.fallback(v.optional(v.picklist(CLOCK_FORMAT_PREFERENCES)), undefined),
+  /** The app's language, and the account's pushes and alerts; see LANGUAGE_PREFERENCES. */
+  language: v.fallback(v.optional(v.picklist(LANGUAGE_PREFERENCES)), undefined),
 }
 
 const DocumentSchema = record(PREFERENCES_SHAPE)
@@ -574,10 +587,7 @@ export function isWritablePreferences(prefs: Pick<UserPreferences, 'schemaVersio
 
 export class NewerPreferencesVersionError extends Error {
   constructor(readonly schemaVersion: number) {
-    super(
-      `These settings were saved by a newer version of Solara (schema ${schemaVersion}). ` +
-        'Reload to update before changing them.',
-    )
+    super(m.newerSettings(schemaVersion))
     this.name = 'NewerPreferencesVersionError'
   }
 }

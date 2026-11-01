@@ -1,6 +1,8 @@
 // Pure layout and wording for the hourly UV strip (components/UVTimeline.tsx) and
 // the sun path drawn above it (components/SunArc.tsx), which share its geometry.
 import type { HourlyForecast } from './forecast-days'
+import { formatClock12 } from './clock'
+import m from './messages/core'
 import { formatUV, uvBand, uvLabel } from './uv-scale'
 
 /** Space between bars, in px. SunArc uses it to put each hour above its bar. */
@@ -55,12 +57,7 @@ export function missingRuns(slots: HourSlot[]): Array<[number, number]> {
 }
 
 /** A whole hour on the 12-hour clock ("9am", "12pm"), the default label. */
-function hour12(hour: number): string {
-  const h = hour % 24
-  if (h === 0) return '12am'
-  if (h === 12) return '12pm'
-  return h < 12 ? `${h}am` : `${h - 12}pm`
-}
+const hour12 = (hour: number) => formatClock12(hour)
 
 const HIGH_OR_ABOVE = new Set(['high', 'very-high', 'extreme'])
 
@@ -70,26 +67,24 @@ export function uvDaySummary(
   formatHour: (hour: number) => string = hour12,
 ): string {
   const first = hourly[0]
-  if (!first) return 'No UV forecast for this day.'
+  if (!first) return m.stripNoForecast
   const peak = hourly.reduce((best, h) => (h.uv > best.uv ? h : best), first)
-  const parts = [
-    `UV peaks at ${formatUV(peak.uv)}, ${uvLabel(peak.uv)}, at ${formatHour(peak.hour)}.`,
-  ]
+  const parts = [m.stripPeak(formatUV(peak.uv), uvLabel(peak.uv), formatHour(peak.hour))]
   const high = hourly.filter(h => HIGH_OR_ABOVE.has(uvBand(h.uv)))
   const firstHigh = high[0]
   const lastHigh = high.at(-1)
   if (firstHigh && lastHigh) {
     parts.push(
       firstHigh === lastHigh
-        ? `High or above at ${formatHour(firstHigh.hour)}.`
-        : `High or above from ${formatHour(firstHigh.hour)} to ${formatHour(lastHigh.hour)}.`,
+        ? m.stripHighAt(formatHour(firstHigh.hour))
+        : m.stripHighFromTo(formatHour(firstHigh.hour), formatHour(lastHigh.hour)),
     )
   }
   for (const [from, to] of missingRuns(hourSlots(hourly))) {
     parts.push(
       from === to
-        ? `No UV data at ${formatHour(from)}.`
-        : `No UV data from ${formatHour(from)} to ${formatHour(to)}.`,
+        ? m.stripNoDataAt(formatHour(from))
+        : m.stripNoDataFromTo(formatHour(from), formatHour(to)),
     )
   }
   return parts.join(' ')
