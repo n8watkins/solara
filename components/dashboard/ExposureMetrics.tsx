@@ -2,13 +2,15 @@ import type { ReactNode } from 'react'
 import type { SkinType } from '@/lib/types'
 import { formatDuration } from '@solara/core/duration'
 import Tooltip from '../Tooltip'
+import t from '@/messages/dashboard'
+import { skinTypeSkin } from '@solara/core/recommendation'
 
 /** "2 hours 47 minutes", "21 minutes", for a screen reader. */
 function spokenDuration(minutes: number): string {
   const h = Math.floor(minutes / 60)
   const m = minutes % 60
-  const hours = h ? `${h} ${h === 1 ? 'hour' : 'hours'}` : ''
-  const mins = m || !h ? `${m} ${m === 1 ? 'minute' : 'minutes'}` : ''
+  const hours = h ? t.spokenHours(h) : ''
+  const mins = m || !h ? t.spokenMinutes(m) : ''
   return [hours, mins].filter(Boolean).join(' ')
 }
 
@@ -112,10 +114,9 @@ export default function ExposureMetrics({
   onEditSkin?: () => void
 }) {
   // In group mode the estimate is the most sensitive person's.
-  const whose = mostSensitive
-    ? `${mostSensitive}'s ${skinType} skin, the most sensitive in your group,`
-    : `${skinType} skin`
-  const who = mostSensitive ? `${mostSensitive} (most sensitive)` : `${skinType} skin`
+  const skin = skinTypeSkin(skinType)
+  const whose = mostSensitive ? t.burnWhoseGroup(mostSensitive, skin) : skin
+  const who = mostSensitive ? t.burnWhoGroup(mostSensitive) : skin
   return (
     <div
       className="grid grid-cols-[repeat(auto-fit,minmax(130px,1fr))] gap-2.5"
@@ -123,40 +124,40 @@ export default function ExposureMetrics({
     >
       <Metric
         testId="burn-metric"
-        label="Estimated burn time"
-        help={`A rough estimate for ${whose} without sunscreen at this UV level. Do not use it as a timer for unprotected exposure.`}
+        label={t.burnTitle}
+        help={t.burnHelp(whose)}
         minutes={burn}
-        empty="No burn risk"
+        empty={t.noBurnRisk}
         detail={
           burn || !burnFrom ? (
             <>
-              {`${isToday ? 'Now' : 'At peak'} · ${who}, no SPF`}
+              {isToday ? t.burnNow(who) : t.burnAtPeak(who)}
               {onEditSkin && (
                 <>
                   {'\u00a0· '}
                   <button
                     type="button"
                     onClick={onEditSkin}
-                    aria-label="Edit skin type"
+                    aria-label={t.editSkinType}
                     className="font-semibold text-accent underline-offset-2 hover:underline"
                   >
-                    Edit
+                    {t.edit}
                   </button>
                 </>
               )}
             </>
           ) : (
-            `Until ${burnFrom}`
+            t.until(burnFrom)
           )
         }
       />
       <Metric
         testId="vitd-metric"
-        label="Vitamin D estimate"
-        help="A rough model, not a recommended exposure target. Vitamin D needs and production vary widely; ask a clinician if you are concerned."
+        label={t.vitdTitle}
+        help={t.vitdHelp}
         minutes={vitD}
-        empty="UV too low"
-        detail={vitD ? 'Arms + legs' : vitDFrom ? `Until ${vitDFrom}` : 'Needs UV 1 or more'}
+        empty={t.uvTooLow}
+        detail={vitD ? t.armsLegs : vitDFrom ? t.until(vitDFrom) : t.needsUv1}
       />
     </div>
   )

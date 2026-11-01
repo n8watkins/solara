@@ -13,6 +13,9 @@ import type { UserPreferences } from '@/lib/types'
 import type { StatusFlash } from '@/hooks/useStatusFlash'
 import BottomSheet, { SheetActions, SheetClose, sheetAction } from '../BottomSheet'
 import type { WindowSelection } from './useWindowSheet'
+import m from '@/messages/calendar'
+import dash from '@/messages/dashboard'
+import activityText from '@/messages/activities'
 
 /**
  * Details of a lower-UV window: its peak UV, and adding it to Google Calendar,
@@ -61,16 +64,13 @@ export default function CalendarWindowSheet({
         timeZone,
       })
       onClose()
-      status.flash(
-        `Scheduled ${act.name} for ${fmt.time(slot.start)}. It is on your Google Calendar.`,
-        5000,
-      )
+      status.flash(dash.scheduledOnCalendar(act.name, fmt.time(slot.start)), 5000)
     } catch (error) {
       status.flash(
         // A RecordCapError (lib/record-cap.ts), matched by name to keep it out of this bundle.
         error instanceof Error && error.name === 'RecordCapError'
           ? error.message
-          : 'Could not add to Google Calendar. Nothing was saved; try again.',
+          : dash.addToCalendarFailed,
         5000,
       )
     } finally {
@@ -90,17 +90,13 @@ export default function CalendarWindowSheet({
     const url = buildActivityShareUrl(payload, window.location.origin)
     let result: Awaited<ReturnType<typeof shareOrCopy>>
     try {
-      result = await shareOrCopy(`${act.name} sun window`, text, url)
+      result = await shareOrCopy(activityText.sunWindowTitle(act.name), text, url)
     } catch {
       status.clear()
       return
     }
     status.flash(
-      result === 'shared'
-        ? 'Shared activity window.'
-        : result === 'copied'
-          ? 'Copied share text and link.'
-          : `${text} ${url}`,
+      result === 'shared' ? m.sharedWindow : result === 'copied' ? m.copiedShare : `${text} ${url}`,
       4500,
     )
   }
@@ -126,19 +122,14 @@ export default function CalendarWindowSheet({
         <SheetClose onClose={onClose} />
       </div>
       <p className="mt-3 text-[13px] leading-[1.5] text-ink-2">
-        Estimated lower-UV window with a forecast peak of UV{' '}
-        <strong className="text-ink">{formatUV(win.peakUV)}</strong>. Schedule your{' '}
-        <strong className="text-ink">{durationText(act.durationMins)}</strong> session anywhere in
-        this range.
+        {m.sheetPeakStart} <strong className="text-ink">{formatUV(win.peakUV)}</strong>
+        {m.sheetScheduleStart}{' '}
+        <strong className="text-ink">{durationText(act.durationMins)}</strong> {m.sheetScheduleEnd}
       </p>
       <ForecastNotes
         cloud={
           day.cloud
-            ? `${cloudNote(day.cloud)}. ${
-                act.cloudSensitive
-                  ? 'This activity plans with those clouds, so a clearer sky means higher UV.'
-                  : 'Planned for a clear sky, so the window holds if the clouds break.'
-              }`
+            ? `${cloudNote(day.cloud)}. ${act.cloudSensitive ? m.plansWithClouds : m.plansClearSky}`
             : null
         }
         confidence={confidenceNote(day.confidence)}
@@ -152,10 +143,10 @@ export default function CalendarWindowSheet({
             onClick={() => void schedule()}
           >
             {adding ? (
-              'Adding to Google Calendar…'
+              m.addingToGoogle
             ) : (
               <>
-                <CalendarPlus size={15} /> Add to Google Calendar
+                <CalendarPlus size={15} /> {m.addToGoogle}
               </>
             )}
           </button>
@@ -165,21 +156,21 @@ export default function CalendarWindowSheet({
             href={gcalWindowLink(act, win, day.dateStr, timeZone)}
             target="_blank"
             rel="noopener noreferrer"
-            onClick={() => status.flash('Opened Google Calendar in a new tab.')}
+            onClick={() => status.flash(m.openedGoogle)}
           >
-            <CalendarPlus size={15} /> Add to Google Calendar
+            <CalendarPlus size={15} /> {m.addToGoogle}
           </a>
         ) : (
           <span className="col-span-full inline-flex items-center justify-center gap-1.5 text-[12px] text-ink-3">
-            <Lock size={13} /> Sign in to add to Calendar
+            <Lock size={13} /> {m.signInToAdd}
           </span>
         )}
         <button type="button" className={sheetAction} onClick={() => void share()}>
-          <Share2 size={15} /> Share
+          <Share2 size={15} /> {m.share}
         </button>
         {onEdit && (
           <button type="button" className={sheetAction} onClick={onEdit}>
-            Edit activity
+            {m.editActivity}
           </button>
         )}
       </SheetActions>

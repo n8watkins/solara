@@ -32,6 +32,7 @@ import type { PlaceName, PlaceSuggestion } from './geocoding'
 import { capMessage } from './record-cap'
 import { resolveTimeZone } from './time'
 import type { Activity, Location } from './types'
+import m from '@/messages/events'
 
 export type { ImportedEvent }
 
@@ -448,19 +449,15 @@ export interface ImportContext {
   onProgress?: (message: string) => void
 }
 
-const TOO_LARGE = 'That file is larger than 1 MB. Export a shorter range of events.'
-
 /** What to tell the person when a calendar file could not be read (from readIcsFile). */
 export function readErrorMessage(error: unknown): string {
   if (error instanceof IcsImportError) {
-    return error.code === 'too-large'
-      ? TOO_LARGE
-      : 'That file is not a calendar (.ics) file. Use "Add to calendar" or "Export" on the event page to get one.'
+    return error.code === 'too-large' ? m.fileTooLarge : m.notCalendarFile
   }
   if (error instanceof IcsTimeoutError) {
-    return 'That file took too long to read. Export a shorter range.'
+    return m.fileTooSlow
   }
-  return 'Could not read that file.'
+  return m.couldNotRead
 }
 
 /**
@@ -515,11 +512,11 @@ export async function importIcsFile(
         !before || before.where !== capText(event.location ?? '', IMPORTED_EVENT_LIMITS.whereLength)
       )
     })
-    if (toPlace.length) context.onProgress?.('Finding the places…')
+    if (toPlace.length) context.onProgress?.(m.findingPlaces)
     const places = await resolvePlaces(toPlace, context.home, await context.lookups(), {
       known: knownPlaces(context.existing),
       onProgress: (done, total) =>
-        total > 1 && context.onProgress?.(`Finding the places… ${done} of ${total}`),
+        total > 1 && context.onProgress?.(m.findingPlacesOf(done, total)),
     })
     const records = await recordsFromImport(result.events, {
       places,
@@ -528,48 +525,36 @@ export async function importIcsFile(
       previous,
       now: new Date(context.nowMs).toISOString(),
     })
-    context.onProgress?.('Saving…')
+    context.onProgress?.(m.saving)
     const refused = new Set((await context.save(records)).map(item => item.key))
     const saved = records.filter(item => !refused.has(item.key))
     return { ok: true, saved, refused: refused.size, removed: stale.length, result }
   } catch {
-    return { ok: false, message: 'Could not save the events. Try again.' }
+    return { ok: false, message: m.couldNotSaveEvents }
   }
 }
-
-const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
 
 /** PURE. What an import did, in a few sentences. */
 export function importSummary(outcome: Extract<ImportOutcome, { ok: true }>): string {
   const { saved, result, refused, removed } = outcome
   const { skipped } = result
   const notes: string[] = []
-  if (skipped.allDay) notes.push(plural(skipped.allDay, 'all-day event'))
-  if (skipped.past) notes.push(plural(skipped.past, 'past event'))
-  if (skipped.cancelled) notes.push(plural(skipped.cancelled, 'cancelled event'))
-  if (skipped.tooFar) notes.push(`${plural(skipped.tooFar, 'event')} more than a year away`)
-  if (skipped.tooLong) notes.push(`${plural(skipped.tooLong, 'event')} longer than a week`)
-  if (skipped.invalid) notes.push(plural(skipped.invalid, 'unreadable event'))
+  if (skipped.allDay) notes.push(m.skippedAllDay(skipped.allDay))
+  if (skipped.past) notes.push(m.skippedPast(skipped.past))
+  if (skipped.cancelled) notes.push(m.skippedCancelled(skipped.cancelled))
+  if (skipped.tooFar) notes.push(m.skippedTooFar(skipped.tooFar))
+  if (skipped.tooLong) notes.push(m.skippedTooLong(skipped.tooLong))
+  if (skipped.invalid) notes.push(m.skippedInvalid(skipped.invalid))
   if (skipped.overLimit)
-    notes.push(`${skipped.overLimit} more past the ${ICS_IMPORT_LIMITS.maxEvents}-event limit`)
-  if (result.tooComplex) {
-    notes.push(`${plural(result.tooComplex, 'repeating event')} too complex to read`)
-  }
-  const head = saved.length
-    ? `Imported ${plural(saved.length, 'event')}.`
-    : refused
-      ? 'No events were imported.'
-      : 'No upcoming events with a start time were found in that file.'
+    notes.push(m.skippedOverLimit(skipped.overLimit, ICS_IMPORT_LIMITS.maxEvents))
+  if (result.tooComplex) notes.push(m.skippedTooComplex(result.tooComplex))
+  const head = saved.length ? m.imported(saved.length) : refused ? m.noneImported : m.noneFound
   const guessed = saved.filter(e => e.placeGuessed).length
   const tail = [
-    removed ? `Removed ${plural(removed, 'event')} cancelled or no longer in the calendar.` : '',
-    refused
-      ? `${plural(refused, 'event')} did not fit. ${capMessage('events', IMPORTED_EVENT_LIMITS.maxStored)}`
-      : '',
-    notes.length ? `Skipped ${notes.join(', ')}.` : '',
-    guessed
-      ? `${plural(guessed, 'event')} had no place Solara could find; set it on the event.`
-      : '',
+    removed ? m.removedStale(removed) : '',
+    refused ? m.refused(refused, capMessage('events', IMPORTED_EVENT_LIMITS.maxStored)) : '',
+    notes.length ? m.skipped(notes.join(', ')) : '',
+    guessed ? m.guessed(guessed) : '',
   ]
   return [head, ...tail].filter(Boolean).join(' ')
 }

@@ -10,26 +10,55 @@ import {
   googleCalendarEventsLaunched,
   outlookCalendarEventsLaunched,
 } from './plans'
+import m from '@/messages/account'
+import core from '@solara/core/messages/core'
+import { formatNumber } from '@solara/core/i18n'
 
 /** Each section of the JSON export, as the account page describes it. */
+// Read when shown, in the page's language.
 export const EXPORT_SECTIONS = {
-  account: 'your preferences (places, skin type, profiles and activities)',
-  billing: 'a summary of your plan and billing dates',
-  scheduledActivities: 'your scheduled activities',
-  importedEvents: 'your imported events',
-  linkedCalendars: 'your linked calendars (their site and name, not their links)',
-  googleCalendar: 'the Google calendars you show events from',
-  outlookCalendar: 'the Outlook calendars you show events from',
-  alerts: 'the alerts sent in the last week',
-  eventHeadsUps: 'the Pro event heads-ups sent in the last week',
-  reapplyReminder: 'your sunscreen reminder waiting to be sent, if any',
-  notificationDevices: 'device registration metadata',
-} as const
+  get account() {
+    return m.sectionAccount
+  },
+  get billing() {
+    return m.sectionBilling
+  },
+  get scheduledActivities() {
+    return m.sectionScheduled
+  },
+  get importedEvents() {
+    return m.sectionImported
+  },
+  get linkedCalendars() {
+    return m.sectionLinked
+  },
+  get googleCalendar() {
+    return m.sectionGoogle
+  },
+  get outlookCalendar() {
+    return m.sectionOutlook
+  },
+  get alerts() {
+    return m.sectionAlerts
+  },
+  get eventHeadsUps() {
+    return m.sectionHeadsUps
+  },
+  get reapplyReminder() {
+    return m.sectionReminder
+  },
+  get notificationDevices() {
+    return m.sectionDevices
+  },
+}
 
 /** The export's bookkeeping fields, which are not sections of the person's data. */
 export const EXPORT_METADATA_FIELDS = ['formatVersion', 'exportedAt', 'truncated'] as const
 
-/** What deleting the account removes from Solara, in the order the page lists it. */
+/**
+ * What deleting the account removes from Solara, in the order the page lists it. These
+ * English words are the items' keys; deletedDataShown gives them in the page's language.
+ */
 export const DELETED_DATA = [
   'your Solara preferences, profiles and activities',
   'scheduled activities',
@@ -44,27 +73,33 @@ export const DELETED_DATA = [
   'your Solara sign-in',
 ] as const
 
-/** "a, b and c". */
+/** "a, b and c", in the page's language. */
 export function listInWords(items: readonly string[]): string {
-  if (items.length <= 1) return items.join('')
-  return `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`
+  return core.listAnd([...items])
 }
 
 // The page leads with one short sentence for each action and keeps the details in a
 // "What's included" disclosure, so a phone shows the controls instead of a wall of text.
 
 /** The download's lead sentence. */
-export const EXPORT_SUMMARY = 'Get a copy of your Solara data as a JSON file.'
+export function exportSummary(): string {
+  return m.exportSummary
+}
 
 /** What the download leaves out, under its list of sections. */
-export const EXPORT_EXCLUDED =
-  'Left out for security: capability tokens, such as your calendar feed address, and payment-provider identifiers.'
+export function exportExcluded(): string {
+  return m.exportExcluded
+}
 
 /** The deletion's lead sentence. */
-export const DELETION_SUMMARY =
-  'Permanently deletes your account, its data and your Solara sign-in. This cannot be undone.'
+export function deletionSummary(): string {
+  return m.deletionSummary
+}
 
-/** What happens beyond Solara's own data when the account is deleted, one point each. */
+/**
+ * What happens beyond Solara's own data when the account is deleted, one point each, in
+ * English; deletionNotesShown gives them in the page's language.
+ */
 export const DELETION_NOTES = [
   'A subscription is canceled at once, without a refund for the current period, and your billing details are deleted at Stripe.',
   "Events already added to your Google Calendar stay there. To end Solara's access, remove Solara at myaccount.google.com/connections.",
@@ -147,17 +182,18 @@ export function exportSectionsShown(features: AccountFeatures): string[] {
 
 /** What deletion removes in this build, in the page's order. */
 export function deletedDataShown(features: AccountFeatures): string[] {
-  return DELETED_DATA.filter(item => {
+  return DELETED_DATA.flatMap((item, i) => {
     const feature = DELETED_FEATURE[item]
-    return !feature || features[feature]
+    return !feature || features[feature] ? [m.deletedItems.split('|')[i] ?? item] : []
   })
 }
 
 /** What happens outside Solara in this build. */
 export function deletionNotesShown(features: AccountFeatures): string[] {
-  return DELETION_NOTES.filter((_, i) => {
+  const notes = [m.noteBilling, m.noteGoogle, m.noteOutlook, m.noteTrial]
+  return DELETION_NOTES.flatMap((note, i) => {
     const feature = NOTE_FEATURES[i]
-    return !feature || features[feature]
+    return !feature || features[feature] ? [notes[i] ?? note] : []
   })
 }
 
@@ -192,10 +228,10 @@ export function accountControlsPath(functionsReady: boolean): AccountControlsPat
   return functionsReady ? 'functions' : 'browser'
 }
 
-const SECTION_NAMES: Record<string, string> = {
-  notificationDevices: 'devices',
-  scheduledActivities: 'scheduled activities',
-  importedEvents: 'imported events',
+const SECTION_NAMES: Record<string, () => string> = {
+  notificationDevices: () => m.truncatedDevices,
+  scheduledActivities: () => m.truncatedScheduled,
+  importedEvents: () => m.truncatedImported,
 }
 
 /**
@@ -206,9 +242,9 @@ const SECTION_NAMES: Record<string, string> = {
 export function exportedMessage(truncated: unknown): string {
   const sections = Array.isArray(truncated)
     ? truncated.flatMap(section =>
-        typeof section === 'string' && SECTION_NAMES[section] ? [SECTION_NAMES[section]] : [],
+        typeof section === 'string' && SECTION_NAMES[section] ? [SECTION_NAMES[section]()] : [],
       )
     : []
-  if (sections.length === 0) return 'Your account data was downloaded.'
-  return `Your account data was downloaded. It holds the first 5,000 records of ${listInWords(sections)}; the privacy policy says how to ask for the rest.`
+  if (sections.length === 0) return m.downloaded
+  return m.downloadedTruncated(formatNumber(5000), listInWords(sections))
 }

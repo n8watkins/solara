@@ -2,6 +2,7 @@
 import type { ErrorInfo, ReactNode } from 'react'
 import { Component } from 'react'
 import { reportError } from '@/lib/error-reporting'
+import m from '@/messages/app'
 
 interface Props {
   children: ReactNode
@@ -43,20 +44,15 @@ export default class ErrorBoundary extends Component<Props, State> {
 
   override render() {
     if (this.state.error) {
-      const what = this.props.label ?? 'this section'
+      const what = this.props.label ?? m.errorThisSection
       return (
         <div className="card mx-auto my-6 max-w-[480px] px-[22px] py-7 text-center">
           <p className="mb-2.5 text-[34px]">🌥️</p>
-          <h2 className="mb-2 text-[18px] font-[750] text-ink">
-            Something went wrong loading {what}
-          </h2>
-          <p className="mb-[18px] text-[14px] leading-normal text-ink-3">
-            This usually clears up on a retry. If it keeps happening, your saved data may be out of
-            date.
-          </p>
+          <h2 className="mb-2 text-[18px] font-[750] text-ink">{m.errorTitle(what)}</h2>
+          <p className="mb-[18px] text-[14px] leading-normal text-ink-3">{m.errorBody}</p>
           <div className="flex flex-wrap justify-center gap-2.5">
             <button className="btn btn-primary" onClick={this.handleReset}>
-              Try again
+              {m.tryAgain}
             </button>
             <button
               className="btn"
@@ -64,7 +60,7 @@ export default class ErrorBoundary extends Component<Props, State> {
                 if (typeof window !== 'undefined') window.location.reload()
               }}
             >
-              Reload app
+              {m.reloadApp}
             </button>
           </div>
         </div>

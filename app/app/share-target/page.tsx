@@ -1,4 +1,6 @@
 import type { Metadata } from 'next'
+import StaticText from '@/components/StaticText'
+import * as staticText from '@/messages/static'
 
 export const metadata: Metadata = {
   title: 'Share again | Solara',
@@ -18,13 +20,14 @@ export default function ShareTargetFallback() {
         <p className="mb-3 text-[42px]" aria-hidden="true">
           🌤️
         </p>
-        <h1 className="mb-2.5 text-[26px] font-[750] text-ink">Share it again</h1>
+        <h1 className="mb-2.5 text-[26px] font-[750] text-ink">
+          <StaticText text={staticText.shareAgainTitle} />
+        </h1>
         <p className="mb-[22px] text-[15px] leading-[1.55] text-ink-2">
-          Solara was still getting ready and did not receive what you shared. Open Solara once, then
-          share the calendar file or link again.
+          <StaticText text={staticText.shareAgainBody} />
         </p>
         <a href="/app/" className="btn btn-primary justify-center px-[18px] py-[11px] no-underline">
-          Open Solara
+          <StaticText text={staticText.openSolara} />
         </a>
       </div>
     </main>

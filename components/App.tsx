@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useEffectEvent, useState, type ReactNode } from 'react'
 import { saveLocalPrefs, saveFirestorePrefs } from '@/lib/prefs'
 import { syncErrorFor, type SyncError } from '@/lib/sync-error'
 import { SIGN_IN_PARAM } from '@/lib/app-routes'
@@ -37,6 +37,8 @@ import ForecastNotice from './ForecastNotice'
 import { AccountLoadError, AccountLoading } from './AccountStatus'
 import ScheduledProvider from './ScheduledProvider'
 import SettingsHost from './SettingsHost'
+import { followLanguagePreference } from '@/lib/i18n'
+import t from '@/messages/app'
 
 // A browser holding a session opens on the signed-in screen, which waits for these
 // parts (lib/use-account.ts), and a guest plan with activities opens on a dashboard
@@ -134,6 +136,16 @@ function SignedInApp() {
 
   useCheckoutReturn(user, { onNotice: setBillingNotice, onPaid: setPrefs })
 
+  // The language of the plan that opened (a signed-in account's synced choice, which
+  // may come from another device, or the guest plan's): the page reloads in it when it
+  // differs from the one this page opened in (lib/i18n.ts). Saving Settings follows it
+  // in handlePrefsUpdate, once the save has gone through.
+  const planReady = prefs !== null
+  const followLanguage = useEffectEvent(() => followLanguagePreference(prefs?.language))
+  useEffect(() => {
+    if (planReady) followLanguage()
+  }, [planReady, signedInUid])
+
   // Once the first screen shows, fetch the dialogs and views it can open (deferred.tsx).
   const shown = screen !== 'loading'
   useEffect(() => (shown ? preloadDeferred() : undefined), [shown])
@@ -157,6 +169,7 @@ function SignedInApp() {
     // A guest's plan stays in this browser (lib/guest.ts).
     if (!user) {
       saveGuestPrefs(updated)
+      followLanguagePreference(updated.language)
       return
     }
     saveLocalPrefs({ ...updated, uid: user.uid })
@@ -165,6 +178,8 @@ function SignedInApp() {
     } catch (error) {
       setSyncError(syncErrorFor(error))
     }
+    // After the save, so a reload into the new language never cuts it short.
+    followLanguagePreference(updated.language)
   }
 
   function handleSignedIn(account: UserPreferences | null) {
@@ -260,9 +275,9 @@ function SignedInApp() {
                 tone="notice"
                 role="status"
                 icon="🔔"
-                action={{ label: 'Dismiss', onClick: () => setForegroundNotice(false) }}
+                action={{ label: t.dismiss, onClick: () => setForegroundNotice(false) }}
               >
-                Your latest local-morning planning summary is ready.
+                {t.morningSummaryReady}
               </AppNotice>
             )}
             {/* Keyed by account so a later account never sees the previous one's notice. */}
@@ -277,7 +292,7 @@ function SignedInApp() {
               <AppNotice
                 tone="error"
                 icon="⚠️"
-                action={{ label: 'Retry', onClick: refreshWeather }}
+                action={{ label: t.retry, onClick: refreshWeather }}
               >
                 {error}
               </AppNotice>
@@ -289,8 +304,8 @@ function SignedInApp() {
                 icon="☁️"
                 action={
                   syncError.reload
-                    ? { label: 'Reload', onClick: () => window.location.reload() }
-                    : { label: 'Retry sync', onClick: () => savePrefs(prefs) }
+                    ? { label: t.reload, onClick: () => window.location.reload() }
+                    : { label: t.retrySync, onClick: () => savePrefs(prefs) }
                 }
               >
                 {syncError.message}
@@ -302,7 +317,7 @@ function SignedInApp() {
               <>
                 {weatherLoading && <Skeleton />}
                 {weather && (
-                  <ErrorBoundary label="the dashboard" onReset={refreshWeather}>
+                  <ErrorBoundary label={t.errorDashboard} onReset={refreshWeather}>
                     <Dashboard
                       user={user}
                       weather={weather}
@@ -320,7 +335,7 @@ function SignedInApp() {
             {effectiveView === 'calendar' && (weather || weatherLoading) && (
               <div className="card">
                 {weather ? (
-                  <ErrorBoundary label="the calendar" onReset={refreshWeather}>
+                  <ErrorBoundary label={t.errorCalendar} onReset={refreshWeather}>
                     <CalendarView
                       prefs={prefs}
                       displayTier={displayTier}
@@ -330,7 +345,7 @@ function SignedInApp() {
                   </ErrorBoundary>
                 ) : (
                   <p role="status" className="m-0 py-12 text-center text-[14px] text-ink-3">
-                    Loading forecast…
+                    {t.loadingForecast}
                   </p>
                 )}
               </div>

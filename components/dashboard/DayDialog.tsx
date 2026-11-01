@@ -2,6 +2,7 @@ import { Check } from 'lucide-react'
 import type { DayWeather } from '@/lib/types'
 import type { DashboardAccess } from '@/lib/dashboard-view'
 import ActivityModalShell from '../ActivityModalShell'
+import m from '@/messages/activities'
 
 /** The day picker's "More days" dialog: every visible day of the forecast. */
 export default function DayDialog({
@@ -15,11 +16,7 @@ export default function DayDialog({
 }) {
   const { visibleForecast, selectedDay } = access
   return (
-    <ActivityModalShell
-      title="Choose a day"
-      description="Pick any day in your forecast."
-      onClose={onClose}
-    >
+    <ActivityModalShell title={m.chooseDay} description={m.chooseDayLead} onClose={onClose}>
       <div className="flex flex-col gap-2">
         {visibleForecast.map((day, i) => {
           const active = i === 0 ? !selectedDay : selectedDay?.dateStr === day.dateStr

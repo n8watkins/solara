@@ -1,0 +1,37 @@
+// Family profiles: the profile switcher and the profile editor.
+import { defineMessages } from '@solara/core/i18n'
+
+export default defineMessages('profiles', {
+  switchProfile: 'Switch profile',
+  profiles: 'Profiles',
+  tickWho: "Tick who's going. Plans and burn times follow whoever burns fastest.",
+  mostSensitive: 'Most sensitive',
+  active: 'Active',
+  addPerson: '＋ Add person or pet',
+  planForGroup: 'Plan for a group',
+  groupHint: "Use the most sensitive person's skin for every plan.",
+  addSomeone: 'Add someone to plan for a group by its most sensitive person.',
+  familyComesWithPro: 'Family profiles come with Pro',
+  icon: 'Icon',
+  name: 'Name',
+  namePlaceholder: 'Name (e.g. Ava, Rex)',
+  skinType: 'Skin type',
+  delete: 'Delete',
+  cancel: 'Cancel',
+  groupOf: (n: number) => `Group of ${n}`,
+  profileGroup: (n: number, person: string) => `Profile: group of ${n}, planned for ${person}`,
+  profileNamed: (name: string) => `Profile: ${name}`,
+  limitReached: (limit: number) => `Profile limit reached (${limit}).`,
+  onChecked: '✓ On',
+  off: 'Off',
+  skinOf: (skin: string) => `${skin} skin`,
+  familyOffer: (people: number) =>
+    `Plan for up to ${people} people and pets, each with their own skin type, and plan a family day around whoever burns fastest.`,
+  notOnSale: ' Pro is not on sale yet: join the waitlist to hear when it opens.',
+  joinWaitlist: 'Join the Pro waitlist',
+  seePro: 'See Pro',
+  editNamed: (name: string) => `Edit ${name}`,
+  skinOption: (skin: string, type: string) => `${skin} skin (Type ${type})`,
+  add: 'Add',
+  save: 'Save',
+})

@@ -10,6 +10,8 @@ import Tooltip from '../Tooltip'
 import UVTimeline from '../UVTimeline'
 import { ForecastNotes } from '../deferred'
 import { UV_NUMBER_TEXT } from './uv-classes'
+import m from '@/messages/dashboard'
+import { weatherConditionText } from '@solara/core/forecast'
 
 /**
  * "UV by hour": the focused hour's readout above the sun path and the hourly
@@ -46,15 +48,16 @@ export default function UVCard({
   const fmt = useUnits()
   const { headUV, headTemp, headCond, headSuffix, headBurn, headRain } = readout
   // Likely rain is the condition that matters, and keeps the line short at 320 px.
-  const conditions = headRain === null ? headCond || null : `${headRain}% rain`
+  const conditions =
+    headRain === null
+      ? (headCond && weatherConditionText(headCond)) || null
+      : m.rainChance(headRain)
   const cloud = cloudToldAbove ? null : cloudEffect(hourly)
   const confidence = forecastConfidence(daysAhead)
   return (
     <div className="card">
       <p className="mb-3 text-[16px] font-[650] text-ink">
-        <Tooltip text="Each bar shows the UV index for that hour. Hover or tap to see burn time and conditions.">
-          UV by hour
-        </Tooltip>
+        <Tooltip text={m.uvByHourHelp}>{m.uvByHour}</Tooltip>
       </p>
 
       {/* The one readout for the focused hour. It sits above the arc and strip so a
@@ -65,13 +68,13 @@ export default function UVCard({
         {sunDown && !focused ? (
           <>
             <p className="flex min-h-10 items-center text-[28px] leading-none font-bold text-ink-2">
-              {sunDown.phase === 'after-sunset' ? 'Sun is down' : 'Before sunrise'}
+              {sunDown.phase === 'after-sunset' ? m.sunIsDown : m.beforeSunrise}
             </p>
             <DetailLine
               parts={[
                 sunDown.uvReturns
-                  ? `UV returns about ${dayHourText(sunDown.uvReturns, fmt.hour)}`
-                  : `UV ${formatUV(headUV)}`,
+                  ? m.uvReturnsAbout(dayHourText(sunDown.uvReturns, fmt.hour))
+                  : m.uvValue(formatUV(headUV)),
                 headTemp === undefined ? null : fmt.temp(headTemp),
                 conditions,
               ]}
@@ -94,7 +97,7 @@ export default function UVCard({
               parts={[
                 headTemp === undefined ? '--' : fmt.temp(headTemp),
                 conditions,
-                headBurn ? `burn ~${formatDuration(headBurn)}` : null,
+                headBurn ? m.burnAbout(formatDuration(headBurn)) : null,
               ]}
             />
           </>

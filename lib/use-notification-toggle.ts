@@ -6,6 +6,7 @@ import {
   enableNotifications,
   notificationsEnabledLocally,
 } from './notifications'
+import m from '@/messages/settings'
 
 /** Whether this device gets morning notifications, could, or never can. */
 export type NotificationStatus = 'enabled' | 'blocked' | 'default'
@@ -61,7 +62,7 @@ export function useNotificationToggle(user: User | null | undefined) {
     status,
     loading,
     error,
-    enable: () => run(enableNotifications, 'Could not enable notifications'),
-    disable: () => run(disableNotifications, 'Could not disable notifications'),
+    enable: () => run(enableNotifications, m.notifEnableFailed),
+    disable: () => run(disableNotifications, m.notifDisableFailed),
   }
 }

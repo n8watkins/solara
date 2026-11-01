@@ -1,5 +1,6 @@
 // The notice shown after Stripe Checkout sends the visitor back to the app.
 import type { CheckoutResult } from './billing'
+import m from '@/messages/dashboard'
 
 export type CheckoutReturn =
   { kind: 'canceled' } | { kind: 'succeeded'; sessionId: string | null } | null
@@ -12,15 +13,30 @@ export function checkoutReturn(params: URLSearchParams): CheckoutReturn {
   return null
 }
 
+// Read when shown, in the page's language.
 export const CHECKOUT_NOTICES = {
-  canceled: 'Checkout was canceled. You were not charged.',
-  noSession: 'Checkout returned successfully. Refresh to confirm your subscription.',
-  confirming: 'Confirming your subscription...',
-  pending: 'Your payment is still processing. Pro will activate automatically when it completes.',
-  failed: 'Your payment did not complete. You can try again from the Pro plans.',
-  succeeded: 'Pro is active on your account.',
-  unreachable: 'Could not confirm your subscription. Check your connection and refresh.',
-} as const
+  get canceled() {
+    return m.checkoutCanceled
+  },
+  get noSession() {
+    return m.checkoutNoSession
+  },
+  get confirming() {
+    return m.checkoutConfirming
+  },
+  get pending() {
+    return m.checkoutPending
+  },
+  get failed() {
+    return m.checkoutFailed
+  },
+  get succeeded() {
+    return m.checkoutSucceeded
+  },
+  get unreachable() {
+    return m.checkoutUnreachable
+  },
+}
 
 /** The notice for a checkout session's state, or null while it is not written yet. */
 export function checkoutResultNotice(result: CheckoutResult): string | null {

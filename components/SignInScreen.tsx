@@ -2,6 +2,8 @@
 import { firebaseEnabled } from '@/lib/firebase'
 import GoogleSignInButton from './GoogleSignInButton'
 import SolaraMark from './SolaraMark'
+import m from '@/messages/setup'
+import app from '@/messages/app'
 
 /**
  * The landing page's "Sign in": Google sign-in for a returning account, or a way to
@@ -13,26 +15,26 @@ export default function SignInScreen({ onContinueAsGuest }: { onContinueAsGuest:
       <div className="card mx-auto w-full max-w-[420px] text-center sm:px-8 sm:py-7">
         <SolaraMark size={38} className="mx-auto" />
         <h1 className="mt-3 mb-2 text-[22px] leading-tight font-[650] text-ink">
-          Sign in to Solara
+          {m.signInToSolara}
         </h1>
         <p className="mx-auto mb-6 max-w-[300px] text-[14px] leading-normal text-ink-2">
-          Pick up your saved plan and sun windows on any device.
+          {m.signInLead}
         </p>
         {firebaseEnabled ? (
-          <GoogleSignInButton label="Continue with Google" size="lg" preload />
+          <GoogleSignInButton label={app.continueWithGoogle} size="lg" preload />
         ) : (
           <p role="status" className="text-[13px] text-ink-3">
-            Sign-in is not available in this build.
+            {m.signInUnavailable}
           </p>
         )}
         <div className="mt-5 border-t-[0.5px] border-line-strong pt-4">
-          <p className="mb-1 text-[13px] text-ink-3">No account needed to start.</p>
+          <p className="mb-1 text-[13px] text-ink-3">{m.noAccountNeeded}</p>
           <button
             type="button"
             className="btn btn-ghost mx-auto justify-center text-[14px] font-semibold text-accent"
             onClick={onContinueAsGuest}
           >
-            Continue without signing in →
+            {m.continueWithout}
           </button>
         </div>
       </div>

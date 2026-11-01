@@ -14,7 +14,7 @@ import { loadGuestPrefs } from './guest'
 import { saveLocalPrefs } from './prefs'
 import { useForecastStore } from './use-forecast'
 import {
-  ACCOUNT_LOAD_ERROR,
+  accountLoadError,
   accountErrorMessage,
   screenWhenNeedsOnboarding,
   screenWhenSignedOut,
@@ -22,6 +22,7 @@ import {
 } from './account-screen'
 import type { AccountLoadResult } from './session'
 import type { UserPreferences } from './types'
+import m from '@/messages/dashboard'
 
 /** How long a stored session's start-up waits for the signed-in parts before Auth. */
 const SIGNED_IN_PARTS_WAIT_MS = 3000
@@ -42,7 +43,7 @@ async function loadSignedInAccount(
     return {
       status: 'error',
       stage: 'load',
-      error: error instanceof Error ? error : new Error('Could not load the account'),
+      error: error instanceof Error ? error : new Error(m.accountLoadFailed),
     }
   }
 }
@@ -233,7 +234,7 @@ export function useAccount({
           console.error('Account load failed:', error)
           showingCached = false
           setPending(null)
-          setAccountError(ACCOUNT_LOAD_ERROR)
+          setAccountError(accountLoadError())
           setScreen('loading')
         })
       }

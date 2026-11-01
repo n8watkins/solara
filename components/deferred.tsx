@@ -19,6 +19,7 @@ import {
   type ComponentType,
   type ReactNode,
 } from 'react'
+import { loadAllMessages } from '@/lib/i18n'
 import { installEnvironment, installPromptKind } from '@/lib/install-prompt'
 import { AccountLoading } from './AccountStatus'
 import type * as ActivityPlanModule from './dashboard/activity-plan'
@@ -46,8 +47,9 @@ function deferred<P extends object>(
   let loaded: ComponentType<P> | null = null
   let pending: Promise<ComponentType<P>> | null = null
   const preload = () => {
-    pending ??= load().then(
-      module => (loaded = module.default),
+    // A part shows in the page's language: it waits for the rest of the translations too.
+    pending ??= Promise.all([load(), loadAllMessages()]).then(
+      ([module]) => (loaded = module.default),
       error => {
         // A failed load (offline, or a deploy in between) is tried again next time.
         pending = null
@@ -134,7 +136,7 @@ type ActivityPlan = typeof ActivityPlanModule
 let activityPlanLoaded: ActivityPlan | null = null
 const activityPlanListeners = new Set<() => void>()
 const activityPlan = () =>
-  import('./dashboard/activity-plan').then(module => {
+  Promise.all([import('./dashboard/activity-plan'), loadAllMessages()]).then(([module]) => {
     if (!activityPlanLoaded) {
       activityPlanLoaded = module
       for (const listener of activityPlanListeners) listener()

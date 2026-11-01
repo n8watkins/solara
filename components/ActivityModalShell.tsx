@@ -3,6 +3,7 @@ import { X } from 'lucide-react'
 import { useId, useRef } from 'react'
 import type { ReactNode } from 'react'
 import Dialog, { useKeyboardScrollable } from './Dialog'
+import m from '@/messages/editor'
 
 interface Props {
   title: string
@@ -49,7 +50,7 @@ export default function ActivityModalShell({
           type="button"
           onClick={onClose}
           className="flex size-8 shrink-0 items-center justify-center rounded-full bg-surface-metric text-[18px] text-ink-2"
-          aria-label="Close"
+          aria-label={m.close}
         >
           <X size={18} />
         </button>

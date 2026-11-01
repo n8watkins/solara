@@ -1,6 +1,8 @@
 import { CalendarPlus } from 'lucide-react'
 import type { SlotRecommendation } from '@solara/core/scheduler'
 import { useUnits } from '@/lib/use-units'
+import { windowLabelText } from '@solara/core/recommendation'
+import m from '@/messages/activities'
 
 const ACTION = 'btn mt-2 w-full justify-center text-[12px]'
 
@@ -28,9 +30,9 @@ export default function RecommendedSlot({
     >
       <div className="flex items-baseline justify-between gap-2">
         <span className="text-[10px] font-[750] tracking-[0.05em] text-accent uppercase">
-          Recommended
+          {m.recommended}
         </span>
-        <span className="text-[10px] text-ink-3">{rec.windowLabel}</span>
+        <span className="text-[10px] text-ink-3">{windowLabelText(rec.windowLabel)}</span>
       </div>
       <p className="mt-[3px] text-[15px] font-[750] text-ink">
         {fmt.time(rec.start)}–{fmt.time(rec.end)}
@@ -39,17 +41,22 @@ export default function RecommendedSlot({
         {rec.reason}
         {rec.latestStart > rec.earliestStart && (
           <>
-            . Could start anytime{' '}
+            {m.couldStartAnytime}{' '}
             <span className="whitespace-nowrap">
               {fmt.time(rec.earliestStart)}–{fmt.time(rec.latestStart)}
             </span>
           </>
         )}
-        .
+        {/* The sentence's period, unless a time such as "7:15 p.m." already closes it. */}
+        {(rec.latestStart > rec.earliestStart ? fmt.time(rec.latestStart) : rec.reason).endsWith(
+          '.',
+        )
+          ? null
+          : '.'}
       </p>
       {onBook ? (
         <button className={ACTION} onClick={onBook}>
-          <CalendarPlus size={15} /> Add to Google Calendar
+          <CalendarPlus size={15} /> {m.addToGoogleCalendar}
         </button>
       ) : (
         calendarHref && (
@@ -59,7 +66,7 @@ export default function RecommendedSlot({
             target="_blank"
             rel="noopener noreferrer"
           >
-            <CalendarPlus size={15} /> Add to Calendar
+            <CalendarPlus size={15} /> {m.addToCalendar}
           </a>
         )
       )}

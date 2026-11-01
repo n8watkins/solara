@@ -20,6 +20,8 @@ import RecommendedSlot from './RecommendedSlot'
 import ScheduledCardRow from './ScheduledCardRow'
 import WeatherNote from './WeatherNote'
 import WindowRow from './WindowRow'
+import { timeRange } from '@/lib/time'
+import m from '@/messages/activities'
 
 const MATCH_BAR = { success: 'bg-success', warning: 'bg-warning', danger: 'bg-danger' } as const
 
@@ -88,8 +90,8 @@ export default function ActivityCard({
           <button
             className="btn btn-ghost ml-auto shrink-0 px-2 py-1 text-[13px]"
             onClick={onEdit}
-            aria-label={`Edit ${activity.name}`}
-            title="Edit activity"
+            aria-label={m.editNamed(activity.name)}
+            title={m.editActivity}
           >
             <Pencil size={15} />
           </button>
@@ -116,24 +118,27 @@ export default function ActivityCard({
 
       <div className="flex flex-col gap-[5px]">
         <Stat
-          label="Planned for"
-          val={`UV ${safeUv} or lower${activity.sunscreen ? ' with SPF' : ''}`}
+          label={m.plannedForLabel}
+          val={activity.sunscreen ? m.plannedForSpf(safeUv) : m.plannedFor(safeUv)}
         />
-        <Stat label="Duration" val={formatActivityDuration(activity.durationMins)} />
+        <Stat label={m.duration} val={formatActivityDuration(activity.durationMins)} />
         {activity.preferredHours && (
           <Stat
-            label="Preferred"
-            val={`${fmt.hour(activity.preferredHours.from)}–${fmt.hour(activity.preferredHours.to)}`}
+            label={m.preferred}
+            val={timeRange(
+              fmt.hour(activity.preferredHours.from),
+              fmt.hour(activity.preferredHours.to),
+            )}
           />
         )}
-        {days && <Stat label="Days" val={days} />}
-        {exposure && <Stat label="Setting" val={exposure} />}
+        {days && <Stat label={m.days} val={days} />}
+        {exposure && <Stat label={m.setting} val={exposure} />}
         {burnMins !== null && burnMins !== undefined && (
-          <Stat label={`Burn time at UV ${safeUv}`} val={`about ${burnMins} min`} />
+          <Stat label={m.burnTimeAt(safeUv)} val={m.aboutMinutes(burnMins)} />
         )}
-        {sunscreen && <Stat label="Sunscreen" val={sunscreen} />}
+        {sunscreen && <Stat label={m.sunscreen} val={sunscreen} />}
         {bestLabel !== null && (
-          <Stat label="Best window" val={bestLabel} tone={bestWindow ? 'success' : 'danger'} />
+          <Stat label={m.bestWindow} val={bestLabel} tone={bestWindow ? 'success' : 'danger'} />
         )}
       </div>
 
@@ -144,7 +149,7 @@ export default function ActivityCard({
             style={{ width: `${pctDaySafe}%` }}
           />
         </div>
-        <p className="mt-1 text-[11px] text-ink-3">{pctDaySafe}% of daylight hours fit</p>
+        <p className="mt-1 text-[11px] text-ink-3">{m.daylightFit(pctDaySafe)}</p>
       </div>
 
       {plan.elapsed ? (
@@ -157,7 +162,7 @@ export default function ActivityCard({
       ) : (
         <div className="flex flex-col gap-[7px]">
           <p className="text-[11px] font-bold tracking-[0.055em] text-ink-3 uppercase">
-            {isToday ? 'Lower-UV windows left today' : 'Estimated lower-UV windows'}
+            {isToday ? m.windowsLeftToday : m.windowsEstimated}
           </p>
           {windows.length > 0 ? (
             <div className="flex flex-col gap-1.5">
@@ -191,16 +196,13 @@ export default function ActivityCard({
             <>
               <WeatherNote spans={plan.weather} />
               <p className="text-[12px] leading-[1.45] text-ink-3">
-                No lower-UV window {isToday ? 'is left today' : 'fits this day'} outside the{' '}
-                {plan.weather.some(s => s.kind === 'rain') ? 'rain' : 'heat'}. Rain and heat limits
-                are in this activity&apos;s settings.
+                {(plan.weather.some(s => s.kind === 'rain') ? m.noWindowRain : m.noWindowHeat)(
+                  isToday,
+                )}
               </p>
             </>
           ) : (
-            <p className="text-[12px] leading-[1.45] text-ink-3">
-              No forecast window matches this activity {isToday ? 'today' : 'this day'}. Try
-              shortening the duration, widening preferred hours, or adjusting the planning UV limit.
-            </p>
+            <p className="text-[12px] leading-[1.45] text-ink-3">{m.noWindowMatches(isToday)}</p>
           )}
         </div>
       )}

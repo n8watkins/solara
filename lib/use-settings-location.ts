@@ -3,6 +3,7 @@ import { useState } from 'react'
 import type { PlaceSearchMiss } from '@/components/PlaceSearch'
 import { locationFromCoordinates } from './geocoding'
 import type { Location } from './types'
+import m from '@/messages/setup'
 
 /**
  * Place search (components/PlaceSearch.tsx) and "use current location" for
@@ -26,14 +27,14 @@ export function useSettingsLocation(onFound: (location: Location) => void) {
   }
 
   function missed(reason: PlaceSearchMiss) {
-    setError(reason === 'none' ? 'City not found.' : 'Search is unavailable. Try again.')
+    setError(reason === 'none' ? m.cityNotFound : m.searchUnavailable)
   }
 
   async function resolve({ coords }: GeolocationPosition) {
     try {
       onFound(await locationFromCoordinates(coords.latitude, coords.longitude))
     } catch {
-      setError('Could not look up your location. Search for a city instead.')
+      setError(m.lookupFailed)
     } finally {
       setLoading(false)
     }
@@ -45,7 +46,7 @@ export function useSettingsLocation(onFound: (location: Location) => void) {
     navigator.geolocation.getCurrentPosition(
       position => void resolve(position),
       () => {
-        setError('Location access is off. Search for a city instead.')
+        setError(m.locationOff)
         setLoading(false)
       },
     )

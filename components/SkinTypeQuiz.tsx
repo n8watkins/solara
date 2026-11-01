@@ -7,6 +7,7 @@ import { SKIN_TYPE_LABELS } from '@/lib/profiles'
 import type { SkinType } from '@/lib/types'
 import ActivityModalShell from './ActivityModalShell'
 import SkinSwatch from './SkinSwatch'
+import m from '@/messages/setup'
 
 interface Props {
   /** Called with the suggested skin type when the person chooses to use it. */
@@ -27,8 +28,8 @@ export default function SkinTypeQuiz({ onUse, onClose }: Props) {
 
   return (
     <ActivityModalShell
-      title="Find your skin type"
-      description="Five quick questions from the Fitzpatrick skin type questionnaire."
+      title={m.findSkinType}
+      description={m.findSkinTypeLead}
       variant="narrow"
       onClose={onClose}
       footer={
@@ -38,26 +39,21 @@ export default function SkinTypeQuiz({ onUse, onClose }: Props) {
               <div className="flex items-center gap-2.5">
                 <SkinSwatch skin={suggested} size={24} />
                 <p>
-                  Your answers suggest{' '}
+                  {m.answersSuggest}{' '}
                   <strong className="font-semibold text-ink">
-                    Type {FITZPATRICK_TYPES[suggested]}, {SKIN_TYPE_LABELS[suggested]}
+                    {m.typeNamed(FITZPATRICK_TYPES[suggested], SKIN_TYPE_LABELS[suggested])}
                   </strong>
                   .
                 </p>
               </div>
             ) : (
-              <p>
-                {answered} of {SKIN_QUIZ.length} answered.
-              </p>
+              <p>{m.answeredOf(answered, SKIN_QUIZ.length)}</p>
             )}
           </div>
-          <p className="text-[12px] leading-[1.5] text-ink-3">
-            This is an estimate for planning, not medical advice. If you burn more easily than it
-            suggests, choose a lighter type.
-          </p>
+          <p className="text-[12px] leading-[1.5] text-ink-3">{m.quizDisclaimer}</p>
           <div className="flex justify-end gap-2">
             <button type="button" className="btn text-[13px]" onClick={onClose}>
-              Cancel
+              {m.cancel}
             </button>
             <button
               type="button"
@@ -65,7 +61,7 @@ export default function SkinTypeQuiz({ onUse, onClose }: Props) {
               disabled={!suggested}
               onClick={() => suggested && onUse(suggested)}
             >
-              {suggested ? `Use ${SKIN_TYPE_LABELS[suggested]}` : 'Use this type'}
+              {suggested ? m.useType(SKIN_TYPE_LABELS[suggested]) : m.useThisType}
             </button>
           </div>
         </div>

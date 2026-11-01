@@ -1,5 +1,6 @@
 import { CalendarDays } from 'lucide-react'
 import type { CalendarBusyStatus } from '@/hooks/useCalendarBusy'
+import m from '@/messages/activities'
 
 /** Offers to schedule recommendations around Google Calendar free/busy. */
 export default function CalendarConnectBanner({
@@ -14,25 +15,20 @@ export default function CalendarConnectBanner({
       <CalendarDays size={17} className="shrink-0 text-ink-3" />
       {status === 'connected' ? (
         <p className="flex-1 text-[13px] text-ink-2">
-          Recommendations now schedule around your calendar.{' '}
-          <span className="text-ink-3">
-            Solara sees only when you&apos;re busy, never event details.
-          </span>
+          {m.calendarConnected} <span className="text-ink-3">{m.calendarPrivacy}</span>
         </p>
       ) : (
         <>
           <p className="flex-1 text-[13px] text-ink-2">
-            Connect Google Calendar to schedule activities around your real availability.
-            {status === 'error' && (
-              <span className="text-danger"> Couldn&apos;t connect. Try again.</span>
-            )}
+            {m.connectPrompt}
+            {status === 'error' && <span className="text-danger"> {m.couldNotConnect}</span>}
           </p>
           <button
             className="btn shrink-0 text-[12px] whitespace-nowrap"
             onClick={onConnect}
             disabled={status === 'connecting'}
           >
-            {status === 'connecting' ? 'Connecting…' : 'Connect calendar'}
+            {status === 'connecting' ? m.connecting : m.connectCalendar}
           </button>
         </>
       )}

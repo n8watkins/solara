@@ -5,7 +5,7 @@ import DataAttribution from '@/components/DataAttribution'
 import { APP_PATH, SIGN_IN_PATH } from '@/lib/app-routes'
 import { LANDING_REDIRECT_SCRIPT } from '@/lib/landing-redirect'
 import { CITIES, cityPath } from '@/lib/city-pages'
-import { PRO_FEATURES, PRO_PLAN, type ProFeature } from '@/lib/plans'
+import { proFeatures, PRO_PLAN, type ProFeature } from '@/lib/plans'
 import SolaraMark from '@/components/SolaraMark'
 
 // The landing page: static HTML and CSS only. scripts/static-pages.mjs strips the
@@ -35,7 +35,7 @@ type Column = 'guest' | 'free' | 'pro'
 
 /** A plan's features, from the same comparison the pricing dialog shows. */
 function planFeatures(column: Column): string[] {
-  return PRO_FEATURES.flatMap((feature: ProFeature) => {
+  return proFeatures().flatMap((feature: ProFeature) => {
     const value = feature[column]
     if (value === false) return []
     if (value === true) return [feature.label]

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
-  ACCOUNT_CREATE_ERROR,
-  ACCOUNT_LOAD_ERROR,
+  accountCreateError,
+  accountLoadError,
   accountErrorMessage,
   screenAfterOnboarding,
   screenWhenNeedsOnboarding,
@@ -63,7 +63,7 @@ describe('account screen transitions', () => {
   })
 
   it('says whether loading or creating the account failed', () => {
-    expect(accountErrorMessage('load')).toBe(ACCOUNT_LOAD_ERROR)
-    expect(accountErrorMessage('create')).toBe(ACCOUNT_CREATE_ERROR)
+    expect(accountErrorMessage('load')).toBe(accountLoadError())
+    expect(accountErrorMessage('create')).toBe(accountCreateError())
   })
 })

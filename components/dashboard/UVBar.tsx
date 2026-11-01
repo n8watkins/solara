@@ -4,6 +4,7 @@ import { formatUV, uvBand, uvLabel } from '@/lib/weather'
 import { useUnits } from '@/lib/use-units'
 import VisuallyHidden from '../VisuallyHidden'
 import { UV_BG } from './uv-classes'
+import m from '@/messages/dashboard'
 
 // One hour on the UV strip. Bars grow to fill the strip and never get narrower
 // than UV_BAR_MIN_WIDTH (42px, packages/core/src/uv-strip.ts); below that the strip scrolls.
@@ -50,17 +51,17 @@ export function UVBar({
       {/* Read as "UV 6.0, High, at 10am, current hour" (or "UV 0.1, Low, Now"): hidden
           words fill in around the visible number and hour so the name contains both. */}
       <span className="text-[13px] font-bold leading-none">
-        <VisuallyHidden>UV </VisuallyHidden>
+        <VisuallyHidden>{m.chipUv}</VisuallyHidden>
         {formatUV(uv)}
-        <VisuallyHidden>, {uvLabel(uv)}, </VisuallyHidden>
+        <VisuallyHidden>{m.chipLevel(uvLabel(uv))}</VisuallyHidden>
       </span>
       {live ? (
-        <span className="text-[10px] leading-none">Now</span>
+        <span className="text-[10px] leading-none">{m.chipNow}</span>
       ) : (
         <span className="text-[10px] leading-none">
-          <VisuallyHidden>at </VisuallyHidden>
+          <VisuallyHidden>{m.chipAt(fmt.hour(hour.hour))}</VisuallyHidden>
           {fmt.hour(hour.hour)}
-          {isNow && <VisuallyHidden>, current hour</VisuallyHidden>}
+          {isNow && <VisuallyHidden>{m.chipCurrentHour}</VisuallyHidden>}
         </span>
       )}
     </button>
@@ -89,11 +90,11 @@ export function UVGap({
     >
       <span className="text-[13px] font-bold leading-none">
         <span aria-hidden="true">–</span>
-        <VisuallyHidden>No UV data at </VisuallyHidden>
+        <VisuallyHidden>{m.chipNoData(fmt.hour(hour))}</VisuallyHidden>
       </span>
       <span className="text-[10px] leading-none">
         {fmt.hour(hour)}
-        {isNow && <VisuallyHidden>, current hour</VisuallyHidden>}
+        {isNow && <VisuallyHidden>{m.chipCurrentHour}</VisuallyHidden>}
       </span>
     </div>
   )

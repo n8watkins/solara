@@ -3,6 +3,7 @@ import { formatUV } from '@solara/core'
 import type { LabelPlacement, Point } from '@/lib/sun-arc'
 import { SUN_ARC_BASELINE_Y } from '@/lib/sun-arc'
 import { useUnits } from '@/lib/use-units'
+import m from '@/messages/dashboard'
 
 // Markers drawn on the sun path (components/SunArc.tsx), in SVG user space.
 
@@ -23,7 +24,7 @@ export function PeakMarker({
   label,
   pointer = null,
   labelRef,
-  word = 'Peak',
+  word = m.peak,
 }: {
   point: Point
   uv: number

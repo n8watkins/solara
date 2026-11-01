@@ -4,6 +4,7 @@ import {
   CALENDAR_HOUR_BOUNDS,
   CLIENT_PREFERENCE_FIELDS,
   CLOCK_FORMAT_PREFERENCES,
+  LANGUAGE_PREFERENCES,
   LOCATION_SHAPE,
   NOTIFICATION_HOUR,
   PREFS_LIMITS,
@@ -143,18 +144,29 @@ describe('firestore.rules match the preferences schema', () => {
     )
   })
 
+  it('accepts every language choice, and only those', () => {
+    expect(sorted(listAfter(preferences, 'data.language in'))).toEqual(
+      sorted(LANGUAGE_PREFERENCES),
+    )
+  })
+
   it('accepts the current schema version and the allowed hours', () => {
     expect(numberIn(preferences, /schemaVersion >= (\d+)/)).toBeLessThanOrEqual(1)
     expect(numberIn(preferences, /schemaVersion <= (\d+)/)).toBeGreaterThanOrEqual(
       PREFS_SCHEMA_VERSION,
     )
-    expect(numberIn(preferences, /notificationHour >= (\d+)/)).toBe(NOTIFICATION_HOUR.min)
-    expect(numberIn(preferences, /notificationHour <= (\d+)/)).toBe(NOTIFICATION_HOUR.max)
-    const hours = rulesFunction('validCalendarHours')
-    expect(numberIn(hours, /hours\.from >= (\d+)/)).toBe(CALENDAR_HOUR_BOUNDS.from.min)
-    expect(numberIn(hours, /hours\.from <= (\d+)/)).toBe(CALENDAR_HOUR_BOUNDS.from.max)
-    expect(numberIn(hours, /hours\.to >= (\d+)/)).toBe(CALENDAR_HOUR_BOUNDS.to.min)
-    expect(numberIn(hours, /hours\.to <= (\d+)/)).toBe(CALENDAR_HOUR_BOUNDS.to.max)
+    // The morning hours are listed one by one (a cheaper check than the bounds).
+    const listed = /notificationHour in \[([\d, ]+)\]/.exec(preferences)?.[1]
+    const hours = Array.from(
+      { length: NOTIFICATION_HOUR.max - NOTIFICATION_HOUR.min + 1 },
+      (_, i) => NOTIFICATION_HOUR.min + i,
+    )
+    expect(listed?.split(', ').map(Number)).toEqual(hours)
+    const calendarHours = rulesFunction('validCalendarHours')
+    expect(numberIn(calendarHours, /hours\.from >= (\d+)/)).toBe(CALENDAR_HOUR_BOUNDS.from.min)
+    expect(numberIn(calendarHours, /hours\.from <= (\d+)/)).toBe(CALENDAR_HOUR_BOUNDS.from.max)
+    expect(numberIn(calendarHours, /hours\.to >= (\d+)/)).toBe(CALENDAR_HOUR_BOUNDS.to.min)
+    expect(numberIn(calendarHours, /hours\.to <= (\d+)/)).toBe(CALENDAR_HOUR_BOUNDS.to.max)
     expect(numberIn(preferences, /uvAlertThreshold >= (\d+)/)).toBe(UV_ALERT_THRESHOLD.off)
     expect(numberIn(preferences, /uvAlertThreshold <= (\d+)/)).toBe(UV_ALERT_THRESHOLD.max)
     const quiet = rulesFunction('validQuietHours')

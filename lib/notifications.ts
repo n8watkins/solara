@@ -4,6 +4,7 @@ import type { Messaging, MessagePayload } from 'firebase/messaging'
 import { appCheckConfigured, lazySubscription, loadFirebase } from './firebase'
 import { callFunction, functionsApiConfigured } from './functions-api'
 import { claimDelivery, releaseDelivery } from './notification-marker'
+import m from '@/messages/settings'
 
 interface LocalDeviceSubscription {
   deviceId: string
@@ -80,13 +81,13 @@ async function mutateRemoteDevice<
   body: Record<string, string>,
 ): Promise<FunctionResponse<Name>> {
   const user = (await loadFirebase())?.auth?.currentUser
-  if (!functionsApiConfigured()) throw new Error('Notification registration is not configured')
-  if (!user || user.uid !== uid) throw new Error('Sign in again to manage notifications')
+  if (!functionsApiConfigured()) throw new Error(m.notifNotConfigured)
+  if (!user || user.uid !== uid) throw new Error(m.notifSignInAgain)
 
   return callFunction(user, path, {
     method,
     body,
-    fallbackMessage: 'Could not update notification registration',
+    fallbackMessage: m.notifUpdateFailed,
   })
 }
 
@@ -135,16 +136,15 @@ export function notificationsEnabledLocally(uid: string): boolean {
 }
 
 export async function enableNotifications(uid: string): Promise<void> {
-  if (!notificationRegistrationConfigured())
-    throw new Error('Notification registration is not configured')
+  if (!notificationRegistrationConfigured()) throw new Error(m.notifNotConfigured)
   const token = await requestNotificationPermission()
-  if (!token) throw new Error('Notification permission was not granted')
+  if (!token) throw new Error(m.notifPermission)
 
   const existing = readLocalSubscription(uid)
   const deviceId = existing?.deviceId || randomDeviceId()
   const subscription = { deviceId, token }
   const completed = await completeRemoteRegistration(uid, subscription)
-  if (!completed) throw new Error('Notification setup is still being finalized. Try again shortly.')
+  if (!completed) throw new Error(m.notifFinalizing)
   writeLocalSubscription(uid, subscription)
   try {
     localStorage.removeItem('solara_fcm_token')
@@ -160,8 +160,7 @@ export async function migrateLegacyNotificationToken(uid: string): Promise<boole
   }
   if (existing?.migrationPending) {
     const completed = await completeRemoteRegistration(uid, existing)
-    if (!completed)
-      throw new Error('Notification setup is still being finalized. Try again shortly.')
+    if (!completed) throw new Error(m.notifFinalizing)
     writeLocalSubscription(uid, { deviceId: existing.deviceId, token: existing.token })
     return true
   }
@@ -174,7 +173,7 @@ export async function migrateLegacyNotificationToken(uid: string): Promise<boole
 
   const deviceId = randomDeviceId()
   const completed = await completeRemoteRegistration(uid, { deviceId, token })
-  if (!completed) throw new Error('Notification setup is still being finalized. Try again shortly.')
+  if (!completed) throw new Error(m.notifFinalizing)
   writeLocalSubscription(uid, { deviceId, token })
   try {
     localStorage.removeItem('solara_fcm_token')

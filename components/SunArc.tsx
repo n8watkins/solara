@@ -24,6 +24,7 @@ import {
   sunArcGeometry,
   type LabelSize,
 } from '@/lib/sun-arc'
+import m from '@/messages/dashboard'
 
 /** Inset (px) that keeps the peak callout off the arc's rounded border. */
 const BORDER_INSET = 8
@@ -110,7 +111,7 @@ export default function SunArc({ hourly, nowHour, focused, onSelectHour, sunDown
   const pointer = peakOffView(peakPoint.x, view)
   // After sunset the strip still holds today's hours while the card speaks of tomorrow,
   // so the callout says whose peak it is (REVIEW9 QA L8).
-  const peakWord = sunDown === 'after-sunset' ? "Today's peak" : 'Peak'
+  const peakWord = sunDown === 'after-sunset' ? m.todaysPeak : m.peak
   const labelText = peak
     ? `${pointer === 'left' ? '← ' : ''}${peakWord} ${formatUV(peak.uv)} · ${fmt.hour(peak.hour)}${pointer === 'right' ? ' →' : ''}`
     : ''
@@ -295,7 +296,7 @@ export default function SunArc({ hourly, nowHour, focused, onSelectHour, sunDown
                 fontSize="10.5"
                 fontWeight="600"
               >
-                No data
+                {m.noData}
               </text>
             )
           })}

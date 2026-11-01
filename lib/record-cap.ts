@@ -3,19 +3,17 @@
 // recognise it without loading the Firestore code.
 
 import type { CappedCollection } from '@solara/core/key-lists'
+import { formatNumber } from '@solara/core/i18n'
+import m from '@/messages/editor'
 
 /** Collections with a per-account cap. */
 export type { CappedCollection }
 
-const NOUNS: Readonly<Record<CappedCollection, string>> = {
-  events: 'imported events',
-  scheduled: 'scheduled activities',
-}
-
 /** "You have 500 scheduled activities, the most an account can keep. …" */
 export function capMessage(collection: CappedCollection, cap: number): string {
-  const action = collection === 'events' ? 'import more' : 'add more'
-  return `You have ${cap.toLocaleString('en-US')} ${NOUNS[collection]}, the most an account can keep. Remove some to ${action}.`
+  return collection === 'events'
+    ? m.capEvents(formatNumber(cap))
+    : m.capScheduled(formatNumber(cap))
 }
 
 export class RecordCapError extends Error {

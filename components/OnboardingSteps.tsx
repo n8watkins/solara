@@ -16,6 +16,8 @@ import DataAttribution from './DataAttribution'
 import GoogleSignInButton from './GoogleSignInButton'
 import PlaceSearch, { type PlaceSearchMiss } from './PlaceSearch'
 import { SkinTypeQuiz } from './deferred'
+import m from '@/messages/setup'
+import app from '@/messages/app'
 
 const PRIMARY = 'btn btn-primary w-full justify-center p-[13px] text-[14px] font-semibold'
 const HEADING = 'text-[20px] leading-tight font-[650] text-ink'
@@ -29,7 +31,7 @@ function BackButton({ onBack }: { onBack?: () => void }) {
       className="btn btn-ghost mt-2 w-full justify-center text-[13px] text-ink-3"
       onClick={onBack}
     >
-      <ArrowLeft size={15} /> Back
+      <ArrowLeft size={15} /> {m.back}
     </button>
   )
 }
@@ -63,15 +65,15 @@ export function LocationStep({
 }) {
   return (
     <>
-      <h1 className={clsx(HEADING, 'mb-1.5')}>Where are you?</h1>
-      <p className={clsx(LEAD, 'mb-5')}>We&apos;ll show the live UV index for your area.</p>
+      <h1 className={clsx(HEADING, 'mb-1.5')}>{m.whereAreYou}</h1>
+      <p className={clsx(LEAD, 'mb-5')}>{m.whereLead}</p>
       <label htmlFor="onboarding-city" className="text-[13px] font-semibold text-ink">
-        City or location
+        {m.cityOrLocation}
       </label>
       <div className="mt-1.5">
         <PlaceSearch
           id="onboarding-city"
-          placeholder="Type a city, e.g. Los Angeles"
+          placeholder={m.cityPlaceholder}
           value={city}
           onValueChange={onCityChange}
           onSelect={onSelectPlace}
@@ -86,7 +88,7 @@ export function LocationStep({
       )}
       <div className="my-4 flex items-center gap-3 text-[12px] text-ink-3" aria-hidden="true">
         <span className="h-px flex-1 bg-line-strong" />
-        or
+        {m.or}
         <span className="h-px flex-1 bg-line-strong" />
       </div>
       <button className={PRIMARY} onClick={onGeolocate} disabled={loading}>
@@ -94,7 +96,7 @@ export function LocationStep({
           'Detecting…'
         ) : (
           <>
-            <MapPin size={16} /> Use my location
+            <MapPin size={16} /> {m.useMyLocation}
           </>
         )}
       </button>
@@ -125,7 +127,7 @@ export function UVPreviewStep({
       <div className="flex flex-col items-center pt-2 pb-1 text-center">
         <h1>
           <span className="mb-0.5 block text-[13px] font-normal text-ink-3">
-            UV index right now in
+            {m.uvIndexRightNowIn}
           </span>
           <span className="mb-3.5 block text-[16px] font-[650] text-ink">{city}</span>
         </h1>
@@ -133,8 +135,8 @@ export function UVPreviewStep({
           // After dark (or before sunrise) a giant "0.0 Low" says nothing useful.
           <>
             <Moon size={44} strokeWidth={1.75} className="mb-2.5 text-ink-3" />
-            <p className="mb-2 text-[30px] leading-none font-[750] text-ink">Sun is down</p>
-            <p className="mb-[18px] text-[14px] text-ink-3">UV {formatUV(uv)} right now</p>
+            <p className="mb-2 text-[30px] leading-none font-[750] text-ink">{m.sunIsDown}</p>
+            <p className="mb-[18px] text-[14px] text-ink-3">{m.uvRightNow(formatUV(uv))}</p>
           </>
         ) : (
           <>
@@ -151,13 +153,11 @@ export function UVPreviewStep({
           </>
         )}
         <p className="max-w-[320px] text-[14px] leading-[1.55] text-ink-2">
-          {sunDown
-            ? 'Solara plans around the hours when the sun is up. Next, set your skin type so it can personalize its estimates.'
-            : 'Next, set your skin type so Solara can personalize its planning estimates.'}
+          {sunDown ? m.nextSunDown : m.nextSkin}
         </p>
       </div>
       <button className={clsx(PRIMARY, 'mt-5')} onClick={onContinue}>
-        Continue <ArrowRight size={16} />
+        {m.continue} <ArrowRight size={16} />
       </button>
       <BackButton onBack={onBack} />
     </>
@@ -182,10 +182,8 @@ export function SkinStep({
   const burnUV = setupBurnUV(uvNow)
   return (
     <>
-      <h1 className={clsx(HEADING, 'mb-1.5')}>Your skin type</h1>
-      <p className={LEAD}>
-        Personalizes your estimated burn time. The types follow the Fitzpatrick scale.
-      </p>
+      <h1 className={clsx(HEADING, 'mb-1.5')}>{m.yourSkinType}</h1>
+      <p className={LEAD}>{m.skinLead}</p>
       <p className="mt-1.5 mb-4 text-[12px] leading-normal text-ink-3" data-testid="skin-burn-note">
         {setupBurnNote(burnUV)}
       </p>
@@ -214,10 +212,10 @@ export function SkinStep({
                 <p className="text-[12px] text-ink-3">{o.desc}</p>
               </div>
               <span className="ml-3 text-[12px] whitespace-nowrap text-ink-3" aria-hidden="true">
-                ~{setupBurnMinutes(o.value, burnUV.uv)} min
+                ~{m.minutesShort(setupBurnMinutes(o.value, burnUV.uv))}
               </span>
               <span className="sr-only">
-                , about {setupBurnMinutes(o.value, burnUV.uv)} minutes
+                {m.aboutMinutes(setupBurnMinutes(o.value, burnUV.uv))}
               </span>
             </button>
           )
@@ -228,7 +226,7 @@ export function SkinStep({
         className="btn btn-ghost mt-2.5 w-full justify-center text-[13px] text-accent"
         onClick={() => setQuizOpen(true)}
       >
-        Not sure? Answer 5 quick questions
+        {m.answer5}
       </button>
       {quizOpen && (
         <SkinTypeQuiz
@@ -240,7 +238,7 @@ export function SkinStep({
         />
       )}
       <button className={clsx(PRIMARY, 'mt-3')} onClick={onContinue}>
-        Continue <ArrowRight size={16} />
+        {m.continue} <ArrowRight size={16} />
       </button>
       <BackButton onBack={onBack} />
     </>
@@ -277,7 +275,7 @@ export function FinishStep({
       await onCreateAccount(signedInUser)
     } catch (e) {
       console.error('Account setup failed:', e)
-      setError('Could not save your setup. Check your connection and try again.')
+      setError(m.setupSaveFailed)
       setSaving(false)
     }
   }
@@ -286,11 +284,9 @@ export function FinishStep({
     return (
       <>
         <div className="flex flex-col items-center pt-2 pb-1 text-center">
-          <h1 className={clsx(HEADING, 'mb-2')}>Finish setting up</h1>
+          <h1 className={clsx(HEADING, 'mb-2')}>{m.finishSettingUp}</h1>
           <p className={clsx(LEAD, 'max-w-[320px]')}>
-            Solara saves your setup to your account
-            {user.email ? <> ({user.email})</> : null}, so your sun windows are ready on every
-            device.
+            {user.email ? m.savesSetupEmail(user.email) : m.savesSetup}
           </p>
         </div>
         {error && (
@@ -307,7 +303,7 @@ export function FinishStep({
             'Saving…'
           ) : (
             <>
-              Finish setup <ArrowRight size={16} />
+              {m.finishSetup} <ArrowRight size={16} />
             </>
           )}
         </button>
@@ -319,22 +315,19 @@ export function FinishStep({
   return (
     <>
       <div className="flex flex-col items-center pt-2 pb-1 text-center">
-        <h1 className={clsx(HEADING, 'mb-2')}>You&apos;re all set</h1>
-        <p className={clsx(LEAD, 'max-w-[330px]')}>
-          See today&apos;s lower-UV windows now. Your plan stays on this device until you sign in.
-        </p>
+        <h1 className={clsx(HEADING, 'mb-2')}>{m.allSet}</h1>
+        <p className={clsx(LEAD, 'max-w-[330px]')}>{m.allSetLead}</p>
       </div>
       <button className={clsx(PRIMARY, 'mt-5')} onClick={onStartAsGuest}>
-        See today&apos;s plan <ArrowRight size={16} />
+        {m.seeTodaysPlan} <ArrowRight size={16} />
       </button>
       {firebaseEnabled && (
         <div className="mt-4 border-t-[0.5px] border-line-strong pt-4">
           <p className="mb-2.5 text-center text-[13px] leading-normal text-ink-2">
-            Or sign in free to save your plan, see tomorrow too and plan up to{' '}
-            {TIER_LIMITS.free.activities} activities.
+            {m.orSignInFree(TIER_LIMITS.free.activities)}
           </p>
           <GoogleSignInButton
-            label="Continue with Google"
+            label={app.continueWithGoogle}
             seedPrefs={answers}
             onSignedIn={(_user, account) => onSignedIn(account)}
             size="lg"

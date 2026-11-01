@@ -6,6 +6,7 @@ import {
   type GeocodingResult,
 } from '@solara/core'
 import type { Location } from './types'
+import m from '@/messages/setup'
 
 const REGION_ABBREVIATIONS: Readonly<Record<string, string>> = {
   ab: 'alberta',
@@ -327,7 +328,13 @@ export interface PlaceName {
   region: string
 }
 
-const FALLBACK_PLACE: PlaceName = { city: 'Your location', region: '' }
+/** A place without a name: read when used, in the page's language. */
+const FALLBACK_PLACE: PlaceName = {
+  get city() {
+    return m.yourLocation
+  },
+  region: '',
+}
 /** Nominatim's usage policy allows at most one request per second per app. */
 export const REVERSE_GEOCODE_MIN_INTERVAL_MS = 1100
 const REVERSE_GEOCODE_CACHE_LIMIT = 50

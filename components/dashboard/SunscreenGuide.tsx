@@ -3,14 +3,15 @@ import { protectionUV } from '@solara/core/protection'
 import type { SkinType } from '@solara/core/recommendation'
 import {
   BODY_AREAS,
-  REAPPLY_RULE,
-  TEASPOON_RULE,
+  reapplyRule,
+  teaspoonRule,
   spfAdvice,
   spfAdviceText,
   sunscreenAmount,
   sunscreenAmountText,
 } from '@solara/core/sunscreen'
 import type { SkyHour } from '@solara/core/forecast-quality'
+import m from '@/messages/activities'
 
 /** The day's peak UV as protection advice judges it (the clear sky), or null without hours. */
 function peakProtectionUV(hours: readonly SkyHour[]): number | null {
@@ -37,9 +38,9 @@ export default function SunscreenGuide({
   const peak = today && skinType ? peakProtectionUV(today) : null
   const lines = [
     peak !== null && skinType ? spfAdviceText(spfAdvice(peak, skinType), peak, skinType) : null,
-    TEASPOON_RULE,
+    teaspoonRule(),
     `${sunscreenAmountText(sunscreenAmount(BODY_AREAS))}.`,
-    REAPPLY_RULE,
+    reapplyRule(),
   ].filter((line): line is string => line !== null)
 
   return (
@@ -47,7 +48,7 @@ export default function SunscreenGuide({
       <summary
         className={`inline-flex cursor-pointer list-none items-center gap-1 rounded-md font-semibold [&::-webkit-details-marker]:hidden ${onTint ? 'text-accent-hover' : 'text-accent'}`}
       >
-        How much sunscreen?
+        {m.howMuchSunscreen}
         <ChevronDown
           size={14}
           aria-hidden="true"

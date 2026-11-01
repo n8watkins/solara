@@ -19,6 +19,7 @@ import NotificationSettings from './settings/NotificationSettings'
 import SettingsTabs, { settingsSection, type SettingsTab } from './settings/SettingsTabs'
 import SunProfileSettings from './settings/SunProfileSettings'
 import { isStoreBuild } from '@/lib/store-build'
+import m from '@/messages/settings'
 
 interface Props {
   prefs: UserPreferences
@@ -53,7 +54,7 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
   }
 
   function requestClose() {
-    if (dirty && !window.confirm('Discard unsaved settings changes?')) return
+    if (dirty && !window.confirm(m.discardConfirm)) return
     onClose()
   }
 
@@ -70,13 +71,13 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
       <div className="flex min-h-0 flex-1 flex-col">
         <div className="flex shrink-0 items-center justify-between border-b-[0.5px] border-line-strong px-5.5 pt-4.5 pb-3.5 max-sm:px-4 max-sm:pt-[max(14px,env(safe-area-inset-top))]">
           <h2 id={titleId} className="text-[18px] font-bold text-ink">
-            Settings
+            {m.settings}
           </h2>
           <button
             type="button"
             onClick={requestClose}
             className="flex size-8 shrink-0 items-center justify-center rounded-full bg-surface-metric text-[18px] text-ink-2"
-            aria-label="Close settings"
+            aria-label={m.closeSettings}
           >
             <X size={18} />
           </button>
@@ -144,14 +145,14 @@ export default function PreferencesModal({ prefs, onSave, onClose, initialTab, u
 
         <div className="flex shrink-0 gap-2.5 border-t-[0.5px] border-line-strong px-5.5 py-[15px] max-sm:px-4 max-sm:pt-3 max-sm:pb-[max(12px,env(safe-area-inset-bottom))]">
           <button type="button" className="btn flex-1 justify-center" onClick={requestClose}>
-            {dirty ? 'Discard' : 'Cancel'}
+            {dirty ? m.discard : m.cancel}
           </button>
           <button
             type="button"
             className="btn btn-primary flex-1 justify-center"
             onClick={() => onSave(updated)}
           >
-            Save settings
+            {m.saveSettings}
           </button>
         </div>
       </div>

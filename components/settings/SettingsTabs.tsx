@@ -4,6 +4,7 @@ import { useRef } from 'react'
 import type { KeyboardEvent } from 'react'
 import { alertsLaunched } from '@/lib/plans'
 import { nextIndex } from '@/lib/roving-focus'
+import m from '@/messages/settings'
 
 export type SettingsTab =
   'general' | 'alerts' | 'appearance' | 'activities' | 'location' | 'account'
@@ -20,58 +21,86 @@ export interface SettingsSection {
   desc: string
 }
 
+// Read when drawn, in the page's language. A phone label shorter than the label shows in
+// the six-column bar on phones; the tab's name stays the label, which starts with it.
+function section(
+  id: SettingsTab,
+  Icon: LucideIcon,
+  label: () => string,
+  desc: () => string,
+  phoneLabel?: () => string,
+): SettingsSection {
+  return {
+    id,
+    Icon,
+    get label() {
+      return label()
+    },
+    get desc() {
+      return desc()
+    },
+    get phoneLabel() {
+      const phone = phoneLabel?.()
+      return phone && phone !== label() ? phone : undefined
+    },
+  }
+}
+
 export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
-  {
-    id: 'general',
-    label: 'Sun profile',
-    // "Sun profile" filled its sixth of a 390 px bar, leaving the selected pill no side
-    // padding (REVIEW6 L7).
-    phoneLabel: 'Sun',
-    Icon: Sun,
-    desc: 'Skin type and the assumptions behind your exposure estimates.',
-  },
-  {
-    // Its own tab (REVIEW5): under Sun profile, the alerts showed with that tab selected
-    // and were hard to find.
-    id: 'alerts',
-    label: 'Alerts',
-    Icon: Bell,
-    desc: 'UV alerts and sunscreen reminders on your devices.',
-  },
-  {
-    id: 'appearance',
-    // Short enough for six columns on a 320 px phone.
-    label: 'Display',
-    Icon: Palette,
-    desc: 'Theme, units and what the dashboard shows.',
-  },
-  {
-    id: 'activities',
-    label: 'Activities',
-    Icon: Footprints,
-    desc: 'Suggestion and category preferences.',
-  },
-  {
-    id: 'location',
-    label: 'Location',
-    Icon: MapPin,
-    desc: 'Where Solara checks the UV forecast.',
-  },
-  {
-    id: 'account',
-    label: 'Account',
-    Icon: UserRound,
-    desc: 'Plan, sign-in, and cross-device sync.',
-  },
+  // "Sun profile" filled its sixth of a 390 px bar, leaving the selected pill no side
+  // padding (REVIEW6 L7). Alerts are their own tab (REVIEW5): under Sun profile they
+  // showed with that tab selected and were hard to find. Every label fits six columns on
+  // a 320 px phone.
+  section(
+    'general',
+    Sun,
+    () => m.tabSun,
+    () => m.tabSunDesc,
+    () => m.tabSunPhone,
+  ),
+  section(
+    'alerts',
+    Bell,
+    () => m.tabAlerts,
+    () => m.tabAlertsDesc,
+    () => m.tabAlertsPhone,
+  ),
+  section(
+    'appearance',
+    Palette,
+    () => m.tabDisplay,
+    () => m.tabDisplayDesc,
+    () => m.tabDisplayPhone,
+  ),
+  section(
+    'activities',
+    Footprints,
+    () => m.tabActivities,
+    () => m.tabActivitiesDesc,
+    () => m.tabActivitiesPhone,
+  ),
+  section(
+    'location',
+    MapPin,
+    () => m.tabLocation,
+    () => m.tabLocationDesc,
+    () => m.tabLocationPhone,
+  ),
+  section(
+    'account',
+    UserRound,
+    () => m.tabAccount,
+    () => m.tabAccountDesc,
+    () => m.tabAccountPhone,
+  ),
 ]
 
 /** The Alerts tab's line until alerts are switched on: no reminders to promise yet (REVIEW9 QA L1). */
-const ALERTS_COMING_DESC = 'Morning and UV alerts on your devices, coming soon.'
 
 export function settingsSection(tab: SettingsTab): SettingsSection {
   const section = SETTINGS_SECTIONS.find(s => s.id === tab) ?? SETTINGS_SECTIONS[0]!
   return section.id === 'alerts' && !alertsLaunched()
-    ? { ...section, desc: ALERTS_COMING_DESC }
+    ? { ...section, desc: m.tabAlertsComingDesc }
     : section
 }
 
@@ -107,7 +136,7 @@ export default function SettingsTabs({ tab, onTabChange, tabId, panelId }: Props
   return (
     <div
       role="tablist"
-      aria-label="Settings sections"
+      aria-label={m.sections}
       className="flex w-47 shrink-0 flex-col gap-0.5 overflow-y-auto border-r-[0.5px] border-line-strong px-2.5 py-3.5 max-sm:grid max-sm:w-auto max-sm:grid-cols-6 max-sm:gap-0.5 max-sm:overflow-visible max-sm:border-r-0 max-sm:border-b-[0.5px] max-sm:px-3 max-sm:py-2"
     >
       {SETTINGS_SECTIONS.map(s => (

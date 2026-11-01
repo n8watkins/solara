@@ -4,6 +4,8 @@
 import { briefingDay, dailyBriefing, type DailyBriefing } from '@solara/core'
 import type { Activity, DayWeather, SkinType, WeatherResponse } from './types'
 import { addDays } from './time'
+import m from '@/messages/dashboard'
+import core from '@solara/core/messages/core'
 
 export interface DailyBriefingView {
   /** "Today at a glance", "Tomorrow at a glance", "Wed, Jun 17 at a glance". */
@@ -62,9 +64,9 @@ export function briefingView({
       )
   const dayWord =
     picked.which === 'today'
-      ? 'Today'
+      ? core.today
       : picked.which === 'tomorrow'
-        ? 'Tomorrow'
+        ? core.tomorrow
         : selectedDay!.label
   const daylight = selectedDay
     ? selectedDay.daylight
@@ -78,12 +80,12 @@ export function briefingView({
     ...(formatTemp && { formatTemp }),
     daylight: daylight ?? null,
   }
-  const where = city ? ` in ${city}` : ''
+
   return {
-    heading: `${dayWord} at a glance`,
+    heading: m.atAGlance(dayWord),
     briefing: dailyBriefing({ ...input, dayLabel: dayWord }),
     locked: picked.which === 'tomorrow' && !laterDaysVisible,
-    shareTitle: `${dayWord} at a glance - Solara`,
-    shareText: dailyBriefing({ ...input, dayLabel: `${dayWord}${where}` }).text,
+    shareTitle: m.atAGlanceShareTitle(dayWord),
+    shareText: dailyBriefing({ ...input, dayLabel: city ? m.dayIn(dayWord, city) : dayWord }).text,
   }
 }

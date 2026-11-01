@@ -3,6 +3,7 @@
 // billing UI reads it through lib/billing.ts.
 import { TIER_LIMITS, forecastLabel } from '@solara/core/tiers'
 import type { TierLevel } from './types'
+import m from '@/messages/pricing'
 
 /**
  * Pro pricing (confirmed 2026-10-24). Shown as a waitlist until the owner switches
@@ -32,25 +33,25 @@ export function calendarFeatureLabel(
     appCheck: process.env.NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY,
     emulators: process.env.NEXT_PUBLIC_FIREBASE_EMULATORS,
   },
-): 'Calendar sync' | 'Calendar export' {
+): string {
   const feed = !!env.functionsUrl && (env.emulators === '1' || !!env.appCheck)
-  return env.googleClientId || feed ? 'Calendar sync' : 'Calendar export'
+  return env.googleClientId || feed ? m.calendarSync : m.calendarExport
 }
 
 /** The comparison row for linked calendars, which Solara keeps current on its server. */
-export const LINKED_CALENDARS_LABEL = 'Linked calendars, kept current'
+export const LINKED_CALENDARS_LABEL = () => m.linkedCalendars
 
 /**
  * The comparison row for the free daily UV push, which goes out on days the UV reaches
  * moderate, the WHO's level for sun protection (REVIEW9 QA L2: not "high-UV days").
  */
-export const DAILY_UV_PUSH_LABEL = 'Daily UV push on days you need protection'
+export const DAILY_UV_PUSH_LABEL = () => m.dailyUvPush
 
 /** The comparison row for the reapply timer's push, which comes with Solara closed. */
-export const REAPPLY_PUSH_LABEL = 'Sunscreen reminders with Solara closed'
+export const REAPPLY_PUSH_LABEL = () => m.reapplyPush
 
 /** The comparison row for family profiles and planning by the most sensitive person. */
-export const FAMILY_PROFILES_LABEL = 'Family profiles, most sensitive first'
+export const FAMILY_PROFILES_LABEL = () => m.familyProfiles
 
 /** One row of the plan comparison: what each plan gets, or whether it is included. */
 export interface ProFeature {
@@ -68,41 +69,43 @@ function perTier(value: (tier: TierLevel) => string | boolean) {
  * Single source of truth for the plan comparison in the pricing dialog and on the
  * landing page, derived from the tier rules in packages/core/src/tiers.ts.
  */
-export const PRO_FEATURES: ProFeature[] = [
-  { label: 'Forecast', ...perTier(forecastLabel) },
-  { label: 'Activities', ...perTier(tier => String(TIER_LIMITS[tier].activities)) },
-  {
-    label: 'Your plan',
-    ...perTier(tier => (TIER_LIMITS[tier].storage === 'device' ? 'This device' : 'Synced')),
-  },
-  { label: calendarFeatureLabel(), ...perTier(tier => TIER_LIMITS[tier].calendar) },
-  // Imported events need an account to keep them (docs/integrations/EVENTS.md).
-  { label: 'UV at your events (.ics)', ...perTier(tier => tier !== 'anonymous') },
-  // Linked calendars are Pro-only (REVIEW8 SEC L3), listed once they are switched on.
-  ...(eventSubscriptionsLaunched()
-    ? [{ label: LINKED_CALENDARS_LABEL, ...perTier(tier => tier === 'paid') }]
-    : []),
-  {
-    // Group planning by the most sensitive person comes with family profiles
-    // (planningFor in packages/core/src/prefs.ts).
-    label: FAMILY_PROFILES_LABEL,
-    ...perTier(tier => TIER_LIMITS[tier].profiles > 1),
-  },
-  // The free pushes (core daily-uv.ts and reapply.ts), listed once alerts are switched on:
-  // until then nothing sends them.
-  ...(alertsLaunched()
-    ? [
-        { label: DAILY_UV_PUSH_LABEL, ...perTier(tier => TIER_LIMITS[tier].dailyUvPush) },
-        { label: REAPPLY_PUSH_LABEL, ...perTier(tier => TIER_LIMITS[tier].reapplyPush) },
-      ]
-    : []),
-  {
-    label: 'Morning and UV alerts',
-    ...perTier(tier =>
-      TIER_LIMITS[tier].notifications ? (alertsLaunched() ? true : 'Coming soon') : false,
-    ),
-  },
-]
+export function proFeatures(): ProFeature[] {
+  return [
+    { label: m.forecast, ...perTier(forecastLabel) },
+    { label: m.activities, ...perTier(tier => String(TIER_LIMITS[tier].activities)) },
+    {
+      label: m.yourPlan,
+      ...perTier(tier => (TIER_LIMITS[tier].storage === 'device' ? m.thisDevice : m.synced)),
+    },
+    { label: calendarFeatureLabel(), ...perTier(tier => TIER_LIMITS[tier].calendar) },
+    // Imported events need an account to keep them (docs/integrations/EVENTS.md).
+    { label: m.uvAtEvents, ...perTier(tier => tier !== 'anonymous') },
+    // Linked calendars are Pro-only (REVIEW8 SEC L3), listed once they are switched on.
+    ...(eventSubscriptionsLaunched()
+      ? [{ label: LINKED_CALENDARS_LABEL(), ...perTier(tier => tier === 'paid') }]
+      : []),
+    {
+      // Group planning by the most sensitive person comes with family profiles
+      // (planningFor in packages/core/src/prefs.ts).
+      label: FAMILY_PROFILES_LABEL(),
+      ...perTier(tier => TIER_LIMITS[tier].profiles > 1),
+    },
+    // The free pushes (core daily-uv.ts and reapply.ts), listed once alerts are switched on:
+    // until then nothing sends them.
+    ...(alertsLaunched()
+      ? [
+          { label: DAILY_UV_PUSH_LABEL(), ...perTier(tier => TIER_LIMITS[tier].dailyUvPush) },
+          { label: REAPPLY_PUSH_LABEL(), ...perTier(tier => TIER_LIMITS[tier].reapplyPush) },
+        ]
+      : []),
+    {
+      label: m.morningAlerts,
+      ...perTier(tier =>
+        TIER_LIMITS[tier].notifications ? (alertsLaunched() ? true : m.comingSoon) : false,
+      ),
+    },
+  ]
+}
 
 /**
  * Whether Pro's morning and UV alerts are switched on: the deploy sets

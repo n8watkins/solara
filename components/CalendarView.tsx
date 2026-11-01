@@ -29,6 +29,7 @@ import { useWindowSheet } from './calendar/useWindowSheet'
 import ScheduledList from './ScheduledList'
 import { EditActivityModal, ScheduledSheet } from './deferred'
 import { isStoreBuild } from '@/lib/store-build'
+import m from '@/messages/calendar'
 
 interface Props {
   prefs: UserPreferences
@@ -76,9 +77,9 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
     : null
   const lockedCopy =
     tier === 'anonymous'
-      ? 'Sign in to see tomorrow in Calendar.'
+      ? m.signInTomorrow
       : tier === 'free' && !isStoreBuild()
-        ? 'Go Pro for the full 10-day Calendar view.'
+        ? m.goProCalendar
         : null
 
   const colorFor = (act: Pick<Activity, 'id'>) => activityColor(prefs.activities, act.id)
@@ -207,10 +208,7 @@ export default function CalendarView({ prefs, weather, displayTier, onPrefsUpdat
         showNoData={hasUVGaps(days, axis)}
       />
 
-      <p className="mt-2.5 text-[11px] leading-[1.45] text-ink-3">
-        Select a window to share it or add it to your calendar. Forecast-based planning estimate
-        only; recheck current UV and use appropriate sun protection.
-      </p>
+      <p className="mt-2.5 text-[11px] leading-[1.45] text-ink-3">{m.selectWindow}</p>
 
       {selected && (
         <CalendarWindowSheet

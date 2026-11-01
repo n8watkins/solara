@@ -8,6 +8,8 @@ import { dayPhrase as phraseForDay } from '@/lib/dashboard-view'
 import { useUnits } from '@/lib/use-units'
 import { useUpsellDismissal } from '@/lib/upsell'
 import WeatherNote from './WeatherNote'
+import { windowLabelText } from '@solara/core/recommendation'
+import m from '@/messages/activities'
 
 /**
  * The dashboard's lead: the selected day's best window, or a clear "no
@@ -69,11 +71,9 @@ export default function HeroSlot({
           {/* Named for the activity, not "lower-UV": with SPF an activity's slot can
               peak at High, and the label must stay true (REVIEW8 QA L4). */}
           <p className="section-label min-w-0 text-accent">
-            {isToday
-              ? `Next slot for ${activity.name}`
-              : `Slot for ${activity.name} · ${dateLabel}`}
+            {isToday ? m.nextSlotFor(activity.name) : m.slotForOn(activity.name, dateLabel)}
           </p>
-          {plan.startsNow && <span className="badge badge-safe shrink-0">Start now</span>}
+          {plan.startsNow && <span className="badge badge-safe shrink-0">{m.startNow}</span>}
         </div>
         <div className="mt-2 flex items-center gap-3.5">
           <span className="shrink-0 text-[32px]" aria-hidden="true">
@@ -89,12 +89,14 @@ export default function HeroSlot({
             <p data-testid="hero-detail" className="mt-[3px] text-[13px] leading-[1.35] text-ink-2">
               {/* Each part stays whole; a line can break only after a dot. The label
                   above names the activity. */}
-              {[slot.windowLabel, `Peak UV ${formatUV(slot.peakUV)}`].map((part, i) => (
-                <Fragment key={i}>
-                  {i > 0 && '\u00a0· '}
-                  <span className="whitespace-nowrap">{part}</span>
-                </Fragment>
-              ))}
+              {[windowLabelText(slot.windowLabel), m.peakUv(formatUV(slot.peakUV))].map(
+                (part, i) => (
+                  <Fragment key={i}>
+                    {i > 0 && '\u00a0· '}
+                    <span className="whitespace-nowrap">{part}</span>
+                  </Fragment>
+                ),
+              )}
             </p>
           </div>
         </div>
@@ -114,11 +116,11 @@ export default function HeroSlot({
               {/* One run of text, so on a narrow phone it wraps with "Pro" beside the
                   last word instead of leaving the badge stranded on its own. */}
               <span>
-                Get this as a morning{' '}
+                {m.morningAlertStart}{' '}
                 <span className="whitespace-nowrap">
-                  alert{' '}
+                  {m.morningAlertEnd}{' '}
                   <span className="ml-0.5 inline-block rounded-full bg-accent-soft px-1.5 py-px align-[1px] text-[10px] leading-[1.4] font-extrabold tracking-[0.05em] uppercase">
-                    Pro
+                    {m.pro}
                   </span>
                 </span>
               </span>
@@ -126,8 +128,8 @@ export default function HeroSlot({
             <button
               type="button"
               onClick={dismissAlert}
-              aria-label="Not now: morning alerts"
-              title="Not now"
+              aria-label={m.notNowMorningAlerts}
+              title={m.notNow}
               className="flex size-8 shrink-0 items-center justify-center rounded-full text-[17px] text-ink-3"
             >
               <X size={17} />
@@ -142,33 +144,37 @@ export default function HeroSlot({
   const rain = weather.some(span => span.kind === 'rain')
   const title = !allElapsed
     ? hoursInDark
-      ? 'No daylight in your hours'
+      ? m.noDaylight
       : weather.length
         ? rain
-          ? 'Rain likely in the lower\u2011UV hours'
-          : 'Too hot in the lower\u2011UV hours'
-        : 'UV stays above your limits'
+          ? m.rainInLowHours
+          : m.heatInLowHours
+        : m.uvAboveLimits
     : next
-      ? `Next: ${next.activity.name} ${phraseForDay(false, next.label)} at ${fmt.time(next.slot.start)}`
+      ? m.nextActivity(
+          next.activity.name,
+          phraseForDay(false, next.label),
+          fmt.time(next.slot.start),
+        )
       : laterDaysVisible
-        ? 'No later forecast day has one either'
-        : 'Done for today'
+        ? m.noLaterDay
+        : m.doneForToday
   // Solara plans outdoor time in daylight only, so hours before sunrise or after sunset
   // never get a slot, however low their UV.
   const body = allElapsed
     ? null
     : hoursInDark
-      ? 'Solara plans between sunrise and sunset. Move the hours to get a slot.'
+      ? m.plansInDaylight
       : weather.length
         ? null
-        : 'Check early morning or evening instead.'
+        : m.checkEarlyLate
   return (
     <div
       className="card border-[0.5px] border-line-strong bg-surface-metric"
       data-testid="hero-empty"
     >
       <p className="section-label">
-        {allElapsed ? 'No lower-UV slot left today' : `No matching lower-UV slot ${dayPhrase}`}
+        {allElapsed ? m.noSlotLeftToday : m.noMatchingSlot(dayPhrase)}
       </p>
       <div className="mt-[9px] flex items-center gap-3.5">
         <CloudSun size={30} strokeWidth={1.75} className="shrink-0 text-ink-3" />
@@ -183,7 +189,7 @@ export default function HeroSlot({
               onClick={onPlanTomorrow}
               className="mt-1 -ml-1 flex min-h-8 items-center rounded-lg px-1 text-left text-[13px] font-semibold text-accent"
             >
-              Sign in free to plan tomorrow
+              {m.signInPlanTomorrow}
             </button>
           )}
         </div>

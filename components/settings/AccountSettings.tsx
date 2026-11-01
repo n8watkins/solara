@@ -11,6 +11,7 @@ import { TIER_LIMITS } from '@solara/core/tiers'
 import GoogleSignInButton from '../GoogleSignInButton'
 import { SettingsCard, SettingsError, SettingsHint } from './SettingsCard'
 import { isStoreBuild } from '@/lib/store-build'
+import m from '@/messages/settings'
 
 interface Props {
   tier: TierLevel
@@ -40,7 +41,7 @@ export default function AccountSettings({
       await signOutAndClear(user?.uid)
     } catch (error) {
       console.error('Sign-out failed:', error)
-      setSignOutError('Could not safely sign out. Check your connection and try again.')
+      setSignOutError(m.signOutFailed)
       return
     }
     onSignedOut()
@@ -52,11 +53,11 @@ export default function AccountSettings({
     <div className="flex flex-col gap-4">
       <SettingsCard className="flex items-center justify-between gap-3">
         <div>
-          <p className="mb-[3px] text-[12px] text-ink-3">Current plan</p>
+          <p className="mb-[3px] text-[12px] text-ink-3">{m.currentPlan}</p>
           <p
             className={clsx('text-[17px] font-bold', tier === 'paid' ? 'text-accent' : 'text-ink')}
           >
-            {tier === 'paid' ? 'Pro' : user ? 'Free' : 'Not signed in'}
+            {tier === 'paid' ? m.planPro : user ? m.planFree : m.notSignedIn}
           </p>
         </div>
         {/* An app store build sells nothing: a guest may still sign in free. */}
@@ -66,13 +67,15 @@ export default function AccountSettings({
             className="btn btn-primary text-[12px] whitespace-nowrap"
             onClick={onSeePlans}
           >
-            {store ? 'Sign in free' : waitlisted ? '✓ On waitlist' : 'See Pro plans'}
+            {store ? m.signInFree : waitlisted ? m.onWaitlist : m.seeProPlans}
           </button>
         )}
       </SettingsCard>
 
       <div className="flex flex-col gap-2 rounded-[10px] bg-surface-metric px-3.5 py-3">
-        <p className="text-[12px] font-[650] tracking-[0.06em] text-ink-2 uppercase">Plan limits</p>
+        <p className="text-[12px] font-[650] tracking-[0.06em] text-ink-2 uppercase">
+          {m.planLimits}
+        </p>
         {/* A store build lists what the account has, not what a plan would add (REVIEW9 QA L5). */}
         {planLimitRows(tier, prefs.activities.length)
           .filter(({ value }) => !store || value !== false)
@@ -85,7 +88,7 @@ export default function AccountSettings({
                 ) : (
                   <>
                     <span aria-hidden="true">{value ? '✓' : '–'}</span>
-                    <span className="sr-only">{value ? 'Included' : 'Not included'}</span>
+                    <span className="sr-only">{value ? m.included : m.notIncluded}</span>
                   </>
                 )}
               </span>
@@ -96,7 +99,7 @@ export default function AccountSettings({
       {user ? (
         <div className="flex flex-col gap-2">
           <SettingsCard>
-            <p className="mb-0.5 text-[12px] text-ink-3">Signed in as</p>
+            <p className="mb-0.5 text-[12px] text-ink-3">{m.signedInAs}</p>
             <p className="text-[14px] font-semibold text-ink">{user.displayName || user.email}</p>
           </SettingsCard>
           <button
@@ -104,22 +107,17 @@ export default function AccountSettings({
             className="btn justify-center border-danger/30 text-danger"
             onClick={() => void signOut()}
           >
-            Sign out
+            {m.signOut}
           </button>
           {signOutError && <SettingsError>{signOutError}</SettingsError>}
         </div>
       ) : (
         <div className="flex flex-col gap-2">
-          <SettingsHint>
-            Sign in to track {TIER_LIMITS.free.activities} activities free and sync preferences
-            across devices.
-          </SettingsHint>
+          <SettingsHint>{m.signInToTrack(TIER_LIMITS.free.activities)}</SettingsHint>
           {firebaseEnabled ? (
             <GoogleSignInButton />
           ) : (
-            <p className="text-[12px] text-ink-3 italic">
-              Sign-in is not available in this build. Settings stay on this device.
-            </p>
+            <p className="text-[12px] text-ink-3 italic">{m.signInUnavailable}</p>
           )}
         </div>
       )}

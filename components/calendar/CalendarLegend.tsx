@@ -1,6 +1,8 @@
 import { NO_DATA_BG } from '@/lib/calendar-grid'
 import { UV_BANDS } from '@/lib/calendar-layout'
 import type { Activity } from '@/lib/types'
+import { uvBandLabel } from '@solara/core/uv-scale'
+import m from '@/messages/calendar'
 
 const uvKey = 'flex items-center gap-[5px] text-[11px] text-ink-3'
 const uvSwatch = 'size-2.5 rounded-[2px]'
@@ -29,7 +31,7 @@ export default function CalendarLegend({
         {UV_BANDS.filter(b => b.label).map(b => (
           <span key={b.label} className={uvKey}>
             <span className={uvSwatch} style={{ background: `rgba(${b.rgb},0.45)` }} />
-            {b.label} UV
+            {m.legendBand(uvBandLabel(b.band))}
           </span>
         ))}
         {showNoData && (
@@ -38,7 +40,7 @@ export default function CalendarLegend({
               className={`${uvSwatch} shadow-[inset_0_0_0_0.5px_var(--border-md)]`}
               style={{ background: NO_DATA_BG }}
             />
-            No UV data
+            {m.noUvData}
           </span>
         )}
       </div>

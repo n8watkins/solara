@@ -9,6 +9,7 @@ import { createAccountPrefs } from '@/lib/prefs'
 import { SignedInContext } from '@/lib/signed-in-context'
 import type { UserPreferences } from '@/lib/types'
 import { preloadSignedInParts } from './deferred'
+import m from '@/messages/app'
 
 interface Props {
   label?: string
@@ -76,7 +77,7 @@ export function GoogleIcon({ size = 16 }: { size?: number }) {
 }
 
 export default function GoogleSignInButton({
-  label = 'Continue with Google',
+  label = m.continueWithGoogle,
   seedPrefs,
   onSignedIn,
   size = 'md',
@@ -128,8 +129,8 @@ export default function GoogleSignInButton({
         // The first sign-in on a slow connection can take longer than the browser
         // allows a click to open a window; by now everything has loaded.
         (e as { code?: unknown } | null)?.code === 'auth/popup-blocked'
-          ? 'Your browser blocked the sign-in window. Try again to continue.'
-          : 'Could not finish signing in. Check your connection and try again.',
+          ? m.popupBlocked
+          : m.signInFailed,
       )
     } finally {
       setLoading(false)
@@ -151,7 +152,7 @@ export default function GoogleSignInButton({
           className,
         )}
       >
-        <GoogleIcon /> {loading ? 'Signing in...' : label}
+        <GoogleIcon /> {loading ? m.signingIn : label}
       </button>
       {error && (
         <p role="alert" className="mt-2 text-center text-[12px] text-danger">

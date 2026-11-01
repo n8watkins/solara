@@ -2,9 +2,13 @@
  * The icons the activity emoji picker offers, in groups, each with search
  * keywords. An emoji can appear in more than one group.
  */
+import m from '@/messages/editor'
+
 export interface EmojiGroup {
-  /** Group name, shown with `icon` as the heading. */
+  /** Group name, a stable key (English). */
   name: string
+  /** The name shown with `icon` as the heading, in the page's language. */
+  readonly label: string
   icon: string
   /** [emoji, space-separated keywords]. */
   emojis: readonly (readonly [string, string])[]
@@ -13,6 +17,9 @@ export interface EmojiGroup {
 export const EMOJI_GROUPS: readonly EmojiGroup[] = [
   {
     name: 'Active',
+    get label() {
+      return m.groupActive
+    },
     icon: '🏃',
     emojis: [
       ['🏃', 'run running jog'],
@@ -39,6 +46,9 @@ export const EMOJI_GROUPS: readonly EmojiGroup[] = [
   },
   {
     name: 'Sports',
+    get label() {
+      return m.groupSports
+    },
     icon: '⚽',
     emojis: [
       ['⚽', 'soccer football ball'],
@@ -64,6 +74,9 @@ export const EMOJI_GROUPS: readonly EmojiGroup[] = [
   },
   {
     name: 'Nature',
+    get label() {
+      return m.groupNature
+    },
     icon: '🌿',
     emojis: [
       ['🌿', 'herb leaf plant'],
@@ -90,6 +103,9 @@ export const EMOJI_GROUPS: readonly EmojiGroup[] = [
   },
   {
     name: 'Sun & sky',
+    get label() {
+      return m.groupSunSky
+    },
     icon: '☀️',
     emojis: [
       ['☀️', 'sun sunny'],
@@ -116,6 +132,9 @@ export const EMOJI_GROUPS: readonly EmojiGroup[] = [
   },
   {
     name: 'Animals',
+    get label() {
+      return m.groupAnimals
+    },
     icon: '🐾',
     emojis: [
       ['🐕', 'dog walk'],
@@ -142,6 +161,9 @@ export const EMOJI_GROUPS: readonly EmojiGroup[] = [
   },
   {
     name: 'Food & drink',
+    get label() {
+      return m.groupFood
+    },
     icon: '🥗',
     emojis: [
       ['🥗', 'salad'],
@@ -168,6 +190,9 @@ export const EMOJI_GROUPS: readonly EmojiGroup[] = [
   },
   {
     name: 'Gear',
+    get label() {
+      return m.groupGear
+    },
     icon: '🎒',
     emojis: [
       ['🎒', 'backpack bag'],
@@ -194,6 +219,9 @@ export const EMOJI_GROUPS: readonly EmojiGroup[] = [
   },
   {
     name: 'Other',
+    get label() {
+      return m.groupOther
+    },
     icon: '✨',
     emojis: [
       ['✨', 'sparkles'],

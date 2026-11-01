@@ -1,6 +1,7 @@
 import clsx from 'clsx'
 import { VIEWS, type ViewKey } from '@/lib/calendar-layout'
 import type { Activity } from '@/lib/types'
+import m from '@/messages/calendar'
 
 export interface Pager {
   /** "Jun 15 – 21": the days in view. */
@@ -34,7 +35,7 @@ export default function CalendarToolbar({
     <div className="mb-3 flex flex-wrap items-center gap-x-2.5 gap-y-2">
       <label className="flex items-center gap-2" htmlFor="calendar-activity-filter">
         <span className="text-[11px] font-semibold tracking-[0.06em] text-ink-3 uppercase">
-          Show
+          {m.show}
         </span>
         <select
           id="calendar-activity-filter"
@@ -42,7 +43,7 @@ export default function CalendarToolbar({
           onChange={e => onActivity(e.target.value)}
           className="px-2 py-1.5 text-[13px]"
         >
-          <option value="all">All activities</option>
+          <option value="all">{m.allActivities}</option>
           {activities.map(a => (
             <option key={a.id} value={a.id}>
               {a.icon} {a.name}
@@ -52,7 +53,7 @@ export default function CalendarToolbar({
       </label>
       <div
         role="group"
-        aria-label="Hours shown"
+        aria-label={m.hoursShown}
         className="inline-flex gap-0.5 rounded-[10px] border-[0.5px] border-line-strong bg-surface-subtle p-[3px]"
       >
         {VIEWS.map(v => {
@@ -70,7 +71,7 @@ export default function CalendarToolbar({
                   : 'bg-transparent font-medium text-ink-2',
               )}
             >
-              {v.label}
+              {v.label()}
             </button>
           )
         })}
@@ -80,7 +81,7 @@ export default function CalendarToolbar({
           <button
             type="button"
             className={pagerButton}
-            aria-label="Earlier days"
+            aria-label={m.earlierDays}
             disabled={!pager.canBack}
             onClick={() => pager.onPage(-1)}
           >
@@ -95,7 +96,7 @@ export default function CalendarToolbar({
           <button
             type="button"
             className={pagerButton}
-            aria-label="Later days"
+            aria-label={m.laterDays}
             disabled={!pager.canForward}
             onClick={() => pager.onPage(1)}
           >

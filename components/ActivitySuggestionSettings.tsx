@@ -5,6 +5,7 @@ import type { ReactNode } from 'react'
 import type { UserPreferences } from '@/lib/types'
 import { ACTIVITY_CATEGORIES } from '@solara/core/tiers'
 import { hiddenPresetsFor, toggleInList } from '@/lib/activity-presets'
+import m from '@/messages/settings'
 
 interface Props {
   prefs: UserPreferences
@@ -27,28 +28,23 @@ export default function ActivitySuggestionSettings({ prefs, onChange }: Props) {
   return (
     <div className="flex flex-col gap-3.5">
       <div className="metric-card flex flex-col gap-2">
-        <h4 className="text-[14px] font-bold text-ink">Activity suggestions</h4>
-        <p className="text-[13px] leading-normal text-ink-3">
-          Add and edit your activities from the dashboard. These settings control which preset
-          suggestions the Add activity picker shows.
-        </p>
+        <h4 className="text-[14px] font-bold text-ink">{m.activitySuggestions}</h4>
+        <p className="text-[13px] leading-normal text-ink-3">{m.activitySuggestionsHint}</p>
       </div>
 
       <SettingsCard
-        title="Hidden suggestions"
-        summary={`${hiddenPresets.length} hidden`}
+        title={m.hiddenSuggestions}
+        summary={m.hiddenCount(hiddenPresets.length)}
         action={
           hiddenPresets.length > 0 && (
             <button type="button" className="btn text-[12px]" onClick={() => setHidden([])}>
-              Restore all
+              {m.restoreAll}
             </button>
           )
         }
       >
         {hiddenPresets.length === 0 ? (
-          <p className="text-[13px] leading-[1.45] text-ink-3">
-            Nothing hidden yet. To hide a preset, select Hide next to it in the Add activity picker.
-          </p>
+          <p className="text-[13px] leading-[1.45] text-ink-3">{m.nothingHidden}</p>
         ) : (
           <div className="flex flex-col gap-[7px]">
             {hiddenPresets.map(activity => (
@@ -61,11 +57,11 @@ export default function ActivitySuggestionSettings({ prefs, onChange }: Props) {
                 </div>
                 <button
                   type="button"
-                  aria-label={`Restore ${activity.name}`}
+                  aria-label={m.restoreNamed(activity.name)}
                   className="btn px-[9px] py-[5px] text-[12px]"
                   onClick={() => setHidden(hiddenIds.filter(id => id !== activity.id))}
                 >
-                  Restore
+                  {m.restore}
                 </button>
               </div>
             ))}
@@ -74,22 +70,22 @@ export default function ActivitySuggestionSettings({ prefs, onChange }: Props) {
       </SettingsCard>
 
       <SettingsCard
-        title="Preset categories"
-        summary={`${collapsed.length} collapsed`}
+        title={m.presetCategories}
+        summary={m.collapsedCount(collapsed.length)}
         action={
           collapsed.length > 0 && (
             <button type="button" className="btn text-[12px]" onClick={() => setCollapsed([])}>
-              Expand all
+              {m.expandAll}
             </button>
           )
         }
       >
         <p className="sr-only" id={hintId}>
-          Pressed categories start expanded in the Add activity picker.
+          {m.pressedCategories}
         </p>
         <div
           role="group"
-          aria-label="Preset categories"
+          aria-label={m.presetCategories}
           aria-describedby={hintId}
           className="flex flex-col gap-[7px]"
         >
@@ -111,11 +107,11 @@ export default function ActivitySuggestionSettings({ prefs, onChange }: Props) {
                     />
                     {category.emoji}
                   </span>{' '}
-                  {category.name}
+                  {category.label}
                 </span>
                 <span className="text-[11px] text-ink-3">
                   {category.activities.length}
-                  <span className="sr-only"> presets</span>
+                  <span className="sr-only">{m.presetsSuffix}</span>
                 </span>
               </button>
             )

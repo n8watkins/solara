@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { DayWeather, HourlyForecast, UserPreferences, WeatherResponse } from './types'
 import {
-  UPGRADE_COPY,
+  upgradeCopy,
   busyByDate,
   dashboardAccess,
   dayChips,
@@ -40,7 +40,7 @@ describe('dashboardAccess', () => {
     const free = dashboardAccess(weather(), prefs('free'), undefined, null)
     expect(free.visibleForecast).toHaveLength(2)
     expect(free.lockedForecastCount).toBe(8)
-    expect(free.upgradeCopy).toBe(UPGRADE_COPY)
+    expect(free.upgradeCopy).toBe(upgradeCopy())
     expect(free.showDayTabs).toBe(true)
 
     const paid = dashboardAccess(weather(), prefs('paid'), undefined, null)

@@ -11,6 +11,7 @@ import {
 import type * as ShareCode from '@/lib/share'
 import { useStatusFlash } from '@/hooks/useStatusFlash'
 import type { DailyBriefingView } from '@/lib/briefing-view'
+import m from '@/messages/dashboard'
 
 /** A time range in a briefing line, kept by split() as its own part. */
 const RANGE = /(\S+–\S+)/
@@ -38,7 +39,7 @@ export default function DailyBriefing({
     try {
       code = await import('@/lib/share')
     } catch {
-      status.flash('Could not share. Check your connection and try again.')
+      status.flash(m.shareFailed)
       return
     }
     let result: Awaited<ReturnType<typeof code.shareOrCopy>>
@@ -50,10 +51,10 @@ export default function DailyBriefing({
     }
     status.flash(
       result === 'shared'
-        ? 'Shared the briefing.'
+        ? m.sharedBriefing
         : result === 'copied'
-          ? 'Copied the briefing and link.'
-          : 'Sharing is not supported here.',
+          ? m.copiedBriefing
+          : m.shareUnsupported,
     )
   }
 
@@ -89,21 +90,19 @@ export default function DailyBriefing({
             className="-mr-1.5 flex min-h-8 items-center gap-1.5 rounded-lg px-1.5 text-[13px] font-semibold text-accent"
           >
             <Share2 size={15} aria-hidden />
-            Share
+            {m.share}
           </button>
         )}
       </div>
       {locked ? (
         <div className="mt-1">
-          <p className="text-[14px] leading-[1.45] text-ink-2">
-            Tomorrow&apos;s peak UV, best window and burn time come with a free account.
-          </p>
+          <p className="text-[14px] leading-[1.45] text-ink-2">{m.briefingLocked}</p>
           <button
             type="button"
             onClick={onSignIn}
             className="mt-1 -ml-1 flex min-h-8 items-center rounded-lg px-1 text-left text-[13px] font-semibold text-accent"
           >
-            Sign in free to plan tomorrow
+            {m.signInToPlanTomorrow}
           </button>
         </div>
       ) : (

@@ -11,6 +11,7 @@ import {
   watchFeedToken,
 } from '@/lib/feed'
 import type { UserPreferences } from '@/lib/types'
+import m from '@/messages/calendar'
 
 interface Props {
   prefs: UserPreferences
@@ -43,13 +44,7 @@ function CalendarFeedPanel({ uid }: { uid: string }) {
   const [message, setMessage] = useState('')
   const [copied, setCopied] = useState(false)
 
-  useEffect(
-    () =>
-      watchFeedToken(uid, setFeed, () =>
-        setMessage('Could not load your feed link. Reload to try again.'),
-      ),
-    [uid],
-  )
+  useEffect(() => watchFeedToken(uid, setFeed, () => setMessage(m.feedLoadFailed)), [uid])
 
   const token = feed.status === 'ready' ? feed.token : null
   const url = token ? buildFeedUrl(token) : null
@@ -57,7 +52,7 @@ function CalendarFeedPanel({ uid }: { uid: string }) {
   function currentUser() {
     // Only a signed-in account sees the feed, so Firebase has loaded.
     const user = loadedFirebase()?.auth?.currentUser
-    if (!user || user.uid !== uid) throw new Error('Sign in again to manage your feed.')
+    if (!user || user.uid !== uid) throw new Error(m.feedSignInAgain)
     return user
   }
 
@@ -68,7 +63,7 @@ function CalendarFeedPanel({ uid }: { uid: string }) {
     try {
       await action()
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Something went wrong.')
+      setMessage(error instanceof Error ? error.message : m.somethingWrong)
     } finally {
       setBusy(null)
     }
@@ -79,17 +74,12 @@ function CalendarFeedPanel({ uid }: { uid: string }) {
   }
 
   function regenerate() {
-    if (
-      !confirm(
-        'Regenerate the feed link? Your existing subscription will stop updating until you re-subscribe with the new link.',
-      )
-    )
-      return
+    if (!confirm(m.feedRegenerateConfirm)) return
     void run('regenerate', () => rotateFeedToken(currentUser()))
   }
 
   function revoke() {
-    if (!confirm('Turn off the feed? Calendars subscribed to this link will stop updating.')) return
+    if (!confirm(m.feedTurnOffConfirm)) return
     void run('revoke', () => revokeFeedToken(currentUser()))
   }
 
@@ -109,25 +99,23 @@ function CalendarFeedPanel({ uid }: { uid: string }) {
       <RefreshCw size={16} className="mt-0.5 shrink-0 text-ink-3" />
       <div className="min-w-0 flex-1">
         {feed.status === 'loading' ? (
-          <p className={hint}>Loading your calendar feed…</p>
+          <p className={hint}>{m.feedLoading}</p>
         ) : !url ? (
           <>
-            <p className={hint}>
-              Subscribe your calendar to a live sun-plan feed that updates as the forecast changes.
-            </p>
+            <p className={hint}>{m.feedPitch}</p>
             <button
               type="button"
               className={`${small} mt-2`}
               onClick={create}
               disabled={busy !== null}
             >
-              {busy === 'create' ? 'Creating…' : 'Create feed link'}
+              {busy === 'create' ? m.creating : m.createFeed}
             </button>
           </>
         ) : (
           <>
             <label htmlFor="calendar-feed-url" className={`${hint} block`}>
-              Add this URL in your calendar app as a subscribed calendar (Google, Apple or Outlook):
+              {m.feedAddUrl}
             </label>
             <input
               id="calendar-feed-url"
@@ -144,7 +132,7 @@ function CalendarFeedPanel({ uid }: { uid: string }) {
                 onClick={() => void copy()}
                 disabled={busy !== null}
               >
-                {copied ? '✓ Copied' : 'Copy link'}
+                {copied ? m.copied : m.copyLink}
               </button>
               <button
                 type="button"
@@ -152,7 +140,7 @@ function CalendarFeedPanel({ uid }: { uid: string }) {
                 onClick={regenerate}
                 disabled={busy !== null}
               >
-                {busy === 'regenerate' ? 'Regenerating…' : 'Regenerate'}
+                {busy === 'regenerate' ? m.regenerating : m.regenerate}
               </button>
               <button
                 type="button"
@@ -160,12 +148,10 @@ function CalendarFeedPanel({ uid }: { uid: string }) {
                 onClick={revoke}
                 disabled={busy !== null}
               >
-                {busy === 'revoke' ? 'Turning off…' : 'Turn off'}
+                {busy === 'revoke' ? m.turningOff : m.turnOff}
               </button>
             </div>
-            <p className="mt-2 text-[11px] text-ink-3">
-              Anyone with this link can see your plan - keep it private. Regenerate to revoke it.
-            </p>
+            <p className="mt-2 text-[11px] text-ink-3">{m.feedPrivate}</p>
           </>
         )}
         {message && (

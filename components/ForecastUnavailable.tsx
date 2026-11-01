@@ -1,4 +1,5 @@
 import { CloudOff, RotateCw } from 'lucide-react'
+import m from '@/messages/setup'
 
 /**
  * The dashboard when no forecast has loaded and the last request failed (REVIEW8 QA L5):
@@ -18,12 +19,12 @@ export default function ForecastUnavailable({
       data-testid="forecast-unavailable"
     >
       <CloudOff size={36} strokeWidth={1.75} className="mb-3 text-ink-3" aria-hidden="true" />
-      <h2 className="mb-1.5 text-[18px] font-[650] text-ink">No forecast yet</h2>
+      <h2 className="mb-1.5 text-[18px] font-[650] text-ink">{m.noForecastYet}</h2>
       <p role="alert" className="mb-5 max-w-[340px] text-[14px] leading-normal text-ink-2">
         {message}
       </p>
       <button type="button" className="btn btn-primary" onClick={onRetry}>
-        <RotateCw size={15} aria-hidden="true" /> Try again now
+        <RotateCw size={15} aria-hidden="true" /> {m.tryAgainNow}
       </button>
     </div>
   )

@@ -45,6 +45,7 @@ import {
 import type { EventsStore } from './events'
 import { resolveTimeZone } from './time'
 import type { Activity } from './types'
+import m from '@/messages/connections'
 
 export { calendarsText, isMeetingLocation, syncedText } from './calendar-events'
 export type { SyncOutcome } from './calendar-events'
@@ -249,7 +250,7 @@ export function calendarChoices(list: readonly CalendarListEntry[]): GoogleCalen
   const primary = list.filter(c => c.primary).map(() => ({ id: 'primary', name: '' }))
   const others = list
     .filter(c => !c.primary && c.id.length <= GOOGLE_EVENT_LIMITS.calendarIdLength)
-    .map(c => ({ id: c.id, name: cap(stripInvisibleFormatting(c.name)) || 'Calendar' }))
+    .map(c => ({ id: c.id, name: cap(stripInvisibleFormatting(c.name)) || m.calendarFallback }))
     .sort((a, b) => a.name.localeCompare(b.name))
   return [...(primary.length ? primary.slice(0, 1) : [{ id: 'primary', name: '' }]), ...others]
 }
@@ -277,7 +278,7 @@ export async function syncGoogleEvents(context: SyncContext): Promise<SyncOutcom
   const fallbackTimeZone = resolveTimeZone(home.timezone)
   const read = emptyRead()
 
-  context.onProgress?.('Reading your Google Calendar…')
+  context.onProgress?.(m.readingGoogle)
   for (const calendar of link.calendars) {
     let pageToken: string | undefined
     for (let page = 0; page < GOOGLE_EVENT_LIMITS.maxPagesPerCalendar; page++) {
@@ -358,7 +359,7 @@ export function removeGoogleEvents(
 /** PURE. What a refresh did, in a sentence or two. */
 export function syncSummary(outcome: SyncOutcome): string {
   return calendarSyncSummary(outcome, {
-    service: 'Google Calendar',
+    service: m.googleCalendar,
     windowDays: GOOGLE_EVENT_LIMITS.windowDays,
   })
 }

@@ -11,6 +11,7 @@
 import { sameLocation } from '@solara/core'
 import { SKIN_TYPE_LABELS } from './profiles'
 import type { SkinType, UserPreferences } from './types'
+import m from '@/messages/setup'
 
 export const GUEST_REPLACED_KEY = 'solara_guest_replaced'
 
@@ -59,11 +60,10 @@ export function replacedGuestPlan(
 export function replacedGuestPlanLines(replaced: ReplacedGuestPlan): string[] {
   const lines: string[] = []
   if (replaced.activities.length) {
-    const label = replaced.activities.length === 1 ? 'Activity' : 'Activities'
-    lines.push(`${label}: ${replaced.activities.join(', ')}`)
+    lines.push(m.replacedActivities(replaced.activities))
   }
-  if (replaced.place) lines.push(`Place: ${replaced.place}`)
-  if (replaced.skinType) lines.push(`Skin type: ${SKIN_TYPE_LABELS[replaced.skinType]}`)
+  if (replaced.place) lines.push(m.replacedPlace(replaced.place))
+  if (replaced.skinType) lines.push(m.replacedSkinType(SKIN_TYPE_LABELS[replaced.skinType]))
   return lines
 }
 

@@ -73,6 +73,13 @@
     color: #9ca3af;
   }
 
+  /* Static text written in every language (components/StaticText.tsx): only the page's
+     language shows, from the first frame (lib/i18n.ts sets <html lang> before paint). */
+  html:not(:lang(es)) [data-lang='es'],
+  html:lang(es) [data-lang='en'] {
+    display: none;
+  }
+
   /* Tailwind 4 leaves buttons with the default cursor. */
   button:not(:disabled),
   [role='button']:not(:disabled) {

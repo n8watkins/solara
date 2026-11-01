@@ -4,6 +4,7 @@ import { activityLimitNote, canAddActivity, effectiveMaxUV } from '@solara/core/
 import { isStoreBuild } from '@/lib/store-build'
 import { duplicateActivity, formatActivityDuration, removeActivity } from '@/lib/activity-presets'
 import ActivityModalShell from './ActivityModalShell'
+import m from '@/messages/editor'
 
 interface Props {
   activities: Activity[]
@@ -29,20 +30,20 @@ export default function ManageActivitiesModal({
 
   return (
     <ActivityModalShell
-      title="Manage activities"
-      description="Edit, duplicate or remove your saved activities. To browse presets, use Add another."
+      title={m.manageActivities}
+      description={m.manageLead}
       onClose={onClose}
       footer={
         <div className="flex flex-wrap justify-between gap-2.5">
           <button type="button" className="btn" onClick={onAddActivity}>
-            + Add another
+            {m.addAnother}
           </button>
           <button
             type="button"
             className="btn btn-primary min-w-[120px] justify-center"
             onClick={onClose}
           >
-            Done
+            {m.done}
           </button>
         </div>
       }
@@ -52,12 +53,10 @@ export default function ManageActivitiesModal({
           <p aria-hidden="true" className="mb-2.5 text-[32px]">
             🏃
           </p>
-          <h3 className="mb-1.5 text-[16px] font-bold text-ink">No activities yet</h3>
-          <p className="mb-[18px] text-[13px] leading-normal text-ink-3">
-            Add an activity first, then come back here to manage it.
-          </p>
+          <h3 className="mb-1.5 text-[16px] font-bold text-ink">{m.noActivitiesYet}</h3>
+          <p className="mb-[18px] text-[13px] leading-normal text-ink-3">{m.addFirst}</p>
           <button type="button" className="btn btn-primary" onClick={onAddActivity}>
-            + Add activity
+            {m.addActivityPlus}
           </button>
         </div>
       ) : (
@@ -80,38 +79,37 @@ export default function ManageActivitiesModal({
                   <h3 className="text-[14px] font-bold text-ink">{activity.name}</h3>
                   <p className="mt-[3px] text-[12px] text-ink-3">
                     {formatActivityDuration(activity.durationMins)} ·{' '}
-                    {activity.sunscreen ? 'SPF 30+' : 'No SPF'} · UV limit{' '}
-                    {effectiveMaxUV(activity)}
+                    {activity.sunscreen ? m.spf30 : m.noSpf} · {m.uvLimit(effectiveMaxUV(activity))}
                   </p>
                 </div>
                 <div className="ml-auto flex flex-wrap gap-2">
                   <button
                     type="button"
-                    aria-label={`Edit ${activity.name}`}
+                    aria-label={m.editNamed(activity.name)}
                     className="btn btn-primary text-[12px]"
                     onClick={() => onEditActivity(activity)}
                   >
-                    Edit
+                    {m.edit}
                   </button>
                   {!atLimit && (
                     <button
                       type="button"
-                      aria-label={`Duplicate ${activity.name}`}
+                      aria-label={m.duplicateNamed(activity.name)}
                       className="btn text-[12px]"
                       onClick={() =>
                         onActivitiesChange([...activities, duplicateActivity(activity, Date.now())])
                       }
                     >
-                      Duplicate
+                      {m.duplicate}
                     </button>
                   )}
                   <button
                     type="button"
-                    aria-label={`Remove ${activity.name}`}
+                    aria-label={m.removeNamed(activity.name)}
                     className="btn border-danger/30 text-[12px] text-danger"
                     onClick={() => onActivitiesChange(removeActivity(activities, activity.id))}
                   >
-                    Remove
+                    {m.remove}
                   </button>
                 </div>
               </li>

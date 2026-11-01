@@ -29,6 +29,8 @@ import { eventHeadsUpRule } from '@/lib/event-heads-up-copy'
 import { getFutureDays } from '@solara/core/tiers'
 import type { Location, TierLevel, UserPreferences, WeatherResponse } from '@/lib/types'
 import EventCard from './EventCard'
+import core from '@solara/core/messages/core'
+import m from '@/messages/events'
 
 // Linked calendars load only where they are switched on (docs/integrations/EVENTS.md).
 const EventSubscriptions = lazy(() => import('./EventSubscriptions'))
@@ -39,9 +41,9 @@ const OutlookCalendarEvents = lazy(() => import('./OutlookCalendarEvents'))
 
 /** How the note under "Remove imported events" names the calendars whose events stay. */
 const KEPT_SOURCE_NAMES = {
-  feed: 'linked calendars',
-  google: 'Google Calendar',
-  outlook: 'Outlook',
+  feed: () => m.linkedCalendars,
+  google: () => m.googleCalendar,
+  outlook: () => m.outlook,
 } as const
 
 /** Events shown before "Show all". */
@@ -110,11 +112,11 @@ export default function EventsSection({
   // The calendars whose events "Remove imported events" keeps, as the loaded events show them.
   const keptSources = (['feed', 'google', 'outlook'] as const)
     .filter(source => (items ?? []).some(item => item.source === source))
-    .map(source => KEPT_SOURCE_NAMES[source])
+    .map(source => KEPT_SOURCE_NAMES[source]())
 
   async function importFile(file: File) {
     setStatus(null)
-    setProgress('Reading the file…')
+    setProgress(m.readingFile)
     const outcome = await importIcsFile(file, {
       home: location,
       activities: prefs.activities,
@@ -144,10 +146,7 @@ export default function EventsSection({
       series.map(other => withPlace(other, place, now)),
     )
     setStatus({
-      text:
-        series.length > 1
-          ? `Place set to ${place.city} for ${series.length} events.`
-          : `Place set to ${place.city}.`,
+      text: series.length > 1 ? m.placeSetFor(place.city, series.length) : m.placeSet(place.city),
     })
   }
 
@@ -159,7 +158,7 @@ export default function EventsSection({
         seriesOf(item).map(other => ({ ...other, activityId, updatedAt: now })),
       )
     } catch {
-      setStatus({ text: 'Could not save that change. Try again.', error: true })
+      setStatus({ text: m.couldNotSaveChange, error: true })
     }
   }
 
@@ -168,7 +167,7 @@ export default function EventsSection({
       await store.remove(uid, keys)
       setStatus({ text: done })
     } catch {
-      setStatus({ text: 'Could not remove that. Try again.', error: true })
+      setStatus({ text: m.couldNotRemove, error: true })
     }
   }
 
@@ -178,12 +177,12 @@ export default function EventsSection({
    */
   async function removeImported() {
     setStatus(null)
-    setProgress('Removing your events…')
+    setProgress(m.removingEvents)
     try {
       await store.removeImported(uid)
-      setStatus({ text: 'Removed every imported event.' })
+      setStatus({ text: m.removedAllImported })
     } catch {
-      setStatus({ text: 'Could not remove every event. Try again.', error: true })
+      setStatus({ text: m.couldNotRemoveAll, error: true })
     } finally {
       setProgress(null)
     }
@@ -193,7 +192,7 @@ export default function EventsSection({
     <section className="card" aria-labelledby={headingId} data-testid="events-section">
       <div className="flex items-center justify-between gap-3">
         <h2 id={headingId} className="text-[16px] font-bold text-ink">
-          Events
+          {m.events}
         </h2>
         <button
           type="button"
@@ -202,14 +201,14 @@ export default function EventsSection({
           onClick={() => fileRef.current?.click()}
         >
           <CalendarPlus size={15} aria-hidden="true" />
-          Import .ics
+          {m.importIcs}
         </button>
         <input
           ref={fileRef}
           type="file"
           accept=".ics,text/calendar"
           hidden
-          aria-label="Calendar file to import"
+          aria-label={m.fileToImport}
           data-testid="events-file"
           onChange={e => {
             const file = e.target.files?.[0]
@@ -219,7 +218,7 @@ export default function EventsSection({
         />
       </div>
       <p className="mt-1 text-[13px] leading-normal text-ink-3">
-        The UV during events you plan to go to, {eventSources(displayTier === 'paid')}.
+        {m.eventsLead(eventSources(displayTier === 'paid'))}
       </p>
 
       {(progress || status || loadError) && (
@@ -232,7 +231,7 @@ export default function EventsSection({
               : 'bg-brand/8 text-ink-2'
           }`}
         >
-          {progress ?? status?.text ?? 'Could not load your events. Check your connection.'}
+          {progress ?? status?.text ?? m.couldNotLoad}
         </p>
       )}
 
@@ -246,14 +245,11 @@ export default function EventsSection({
       )}
 
       {items !== null && upcoming.length === 0 && (
-        <p className="mt-3 text-[13px] leading-normal text-ink-2">
-          No upcoming events yet. On Meetup, Eventbrite, a race page or your calendar, use “Add to
-          calendar” or “Export” to download an .ics file, then import it here.
-        </p>
+        <p className="mt-3 text-[13px] leading-normal text-ink-2">{m.noUpcoming}</p>
       )}
 
       {upcoming.length > 0 && (
-        <ul className="mt-3.5 flex flex-col gap-2.5" aria-label="Upcoming events">
+        <ul className="mt-3.5 flex flex-col gap-2.5" aria-label={m.upcomingEvents}>
           {shown.map(item => (
             <EventCard
               key={item.key}
@@ -268,7 +264,9 @@ export default function EventsSection({
               onUpgrade={displayTier === 'paid' ? undefined : onUpgrade}
               onSetPlace={setPlace}
               onSetActivity={setActivity}
-              onRemove={event => void remove([event.key], `Removed ${event.title || 'the event'}.`)}
+              onRemove={event =>
+                void remove([event.key], m.removedEvent(event.title || m.theEvent))
+              }
             />
           ))}
         </ul>
@@ -283,14 +281,14 @@ export default function EventsSection({
               aria-expanded={showAll}
               onClick={() => setShowAll(!showAll)}
             >
-              {showAll ? 'Show fewer' : `Show all ${upcoming.length} events`}
+              {showAll ? m.showFewer : m.showAll(upcoming.length)}
             </button>
           ) : (
             <span />
           )}
           {!mayHoldImported ? null : confirmingClear ? (
             <span className="flex flex-wrap items-center justify-end gap-2">
-              <span className="text-[12px] text-ink-2">Remove every imported event?</span>
+              <span className="text-[12px] text-ink-2">{m.removeAllConfirm}</span>
               <button
                 type="button"
                 className="btn px-3 py-1.5 text-[12px] text-danger"
@@ -299,14 +297,14 @@ export default function EventsSection({
                   void removeImported()
                 }}
               >
-                Remove
+                {m.remove}
               </button>
               <button
                 type="button"
                 className="btn px-3 py-1.5 text-[12px]"
                 onClick={() => setConfirmingClear(false)}
               >
-                Keep
+                {m.keep}
               </button>
             </span>
           ) : (
@@ -316,12 +314,12 @@ export default function EventsSection({
               disabled={busy}
               onClick={() => setConfirmingClear(true)}
             >
-              Remove imported events
+              {m.removeImported}
             </button>
           )}
           {confirmingClear && keptSources.length > 0 && (
             <p className="w-full text-right text-[12px] leading-normal text-ink-3">
-              Events from {listInWords(keptSources)} stay; remove those with their calendar below.
+              {m.keptStay(listInWords(keptSources))}
             </p>
           )}
         </div>
@@ -358,8 +356,7 @@ export default function EventsSection({
             className="mt-2.5 text-[11px] leading-normal text-ink-3"
             data-testid="calendar-refresh-note"
           >
-            Events update while Solara is open: by themselves for an hour after you connect or
-            refresh, otherwise when you press Refresh.
+            {m.refreshNote}
           </p>
         </Suspense>
       )}
@@ -383,21 +380,16 @@ export default function EventsSection({
           data-testid="event-heads-up-note"
         >
           {displayTier === 'paid' ? (
-            <>
-              Pro sends a heads-up {eventHeadsUpRule()}, to the devices you turned alerts on for.
-              Change it in Settings.
-            </>
+            <>{m.proSendsHeadsUp(eventHeadsUpRule())}</>
           ) : (
             <>
-              {eventSubscriptionsLaunched()
-                ? 'Pro adds linked calendars and a heads-up a few hours before an outdoor event with high UV.'
-                : 'With Pro, get a heads-up a few hours before an outdoor event with high UV.'}{' '}
+              {eventSubscriptionsLaunched() ? m.proAddsLinked : m.withProHeadsUp}{' '}
               <button
                 type="button"
                 className="font-semibold text-accent underline underline-offset-2"
                 onClick={onUpgrade}
               >
-                See Pro
+                {m.seePro}
               </button>
             </>
           )}
@@ -406,8 +398,8 @@ export default function EventsSection({
 
       <p className="mt-3 text-[11px] leading-normal text-ink-3">
         {googleCalendarEventsLaunched() || outlookCalendarEventsLaunched()
-          ? "Only each event's title, time and place, and the link a calendar file or linked calendar gives, are kept, and only until 30 days after it ends."
-          : "Only each event's title, time, place and link are kept, and only until 30 days after it ends."}
+          ? m.keptDataLinked
+          : m.keptData}
       </p>
     </section>
   )
@@ -419,10 +411,10 @@ export default function EventsSection({
  */
 function eventSources(pro: boolean): string {
   const sources = [
-    'a calendar (.ics) file',
-    ...(eventSubscriptionsLaunched() && pro ? ['a calendar link'] : []),
-    ...(googleCalendarEventsLaunched() ? ['Google Calendar'] : []),
-    ...(outlookCalendarEventsLaunched() ? ['Outlook'] : []),
+    m.sourceFile,
+    ...(eventSubscriptionsLaunched() && pro ? [m.sourceLink] : []),
+    ...(googleCalendarEventsLaunched() ? [m.googleCalendar] : []),
+    ...(outlookCalendarEventsLaunched() ? [m.outlook] : []),
   ]
-  return `from ${sources.length > 1 ? `${sources.slice(0, -1).join(', ')} or ${sources.at(-1)}` : sources[0]}`
+  return m.fromSources(core.listOr(sources))
 }

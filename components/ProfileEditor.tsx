@@ -3,6 +3,7 @@ import clsx from 'clsx'
 import type { Profile, SkinType } from '@/lib/types'
 import { FITZPATRICK_TYPES } from '@solara/core'
 import { SKIN_TYPE_LABELS } from '@/lib/profiles'
+import m from '@/messages/profiles'
 
 const SKIN_TYPES = Object.keys(SKIN_TYPE_LABELS) as SkinType[]
 const ICON_CHOICES = ['🧑', '👧', '👦', '👩', '👨', '👴', '👵', '🐕', '🐈']
@@ -31,7 +32,7 @@ export default function ProfileEditor({
 }: Props) {
   return (
     <div className="flex flex-col gap-2.5">
-      <div role="group" aria-label="Icon" className="flex flex-wrap gap-1.5">
+      <div role="group" aria-label={m.icon} className="flex flex-wrap gap-1.5">
         {ICON_CHOICES.map(icon => {
           const selected = draft.icon === icon
           return (
@@ -53,18 +54,18 @@ export default function ProfileEditor({
         })}
       </div>
       <label className="sr-only" htmlFor={`${labelPrefix}-name`}>
-        Name
+        {m.name}
       </label>
       <input
         id={`${labelPrefix}-name`}
         value={draft.name}
         onChange={e => onChange({ ...draft, name: e.target.value })}
-        placeholder="Name (e.g. Ava, Rex)"
+        placeholder={m.namePlaceholder}
         autoFocus
         className="box-border w-full px-2.5 py-2 text-[14px]"
       />
       <label className="sr-only" htmlFor={`${labelPrefix}-skin`}>
-        Skin type
+        {m.skinType}
       </label>
       <select
         id={`${labelPrefix}-skin`}
@@ -74,7 +75,7 @@ export default function ProfileEditor({
       >
         {SKIN_TYPES.map(skinType => (
           <option key={skinType} value={skinType}>
-            {SKIN_TYPE_LABELS[skinType]} skin (Type {FITZPATRICK_TYPES[skinType]})
+            {m.skinOption(SKIN_TYPE_LABELS[skinType], FITZPATRICK_TYPES[skinType])}
           </option>
         ))}
       </select>
@@ -85,12 +86,12 @@ export default function ProfileEditor({
             className="btn border-danger/30 text-[12px] text-danger"
             onClick={onDelete}
           >
-            Delete
+            {m.delete}
           </button>
         )}
         <div className="ml-auto flex gap-2">
           <button type="button" className="btn text-[12px]" onClick={onCancel}>
-            Cancel
+            {m.cancel}
           </button>
           <button
             type="button"
@@ -98,7 +99,7 @@ export default function ProfileEditor({
             onClick={onSave}
             disabled={!draft.name.trim()}
           >
-            {isNew ? 'Add' : 'Save'}
+            {isNew ? m.add : m.save}
           </button>
         </div>
       </div>

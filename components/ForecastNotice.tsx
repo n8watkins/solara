@@ -4,6 +4,7 @@ import { forecastStamp, useOnline } from '@/lib/offline'
 import type { WeatherResponse } from '@/lib/types'
 import { useUnits } from '@/lib/use-units'
 import AppNotice from './AppNotice'
+import m from '@/messages/app'
 
 /**
  * Says when the forecast on screen is not a current one, and how old it is, in the
@@ -41,7 +42,7 @@ export default function ForecastNotice({
         role="status"
         icon={<History aria-hidden="true" size={16} strokeWidth={2.25} />}
       >
-        Showing the forecast updated at {stamp}. A newer one will load by itself.
+        {m.forecastStale(stamp)}
       </AppNotice>
     )
   }
@@ -51,10 +52,8 @@ export default function ForecastNotice({
       role="status"
       icon={<WifiOff aria-hidden="true" size={16} strokeWidth={2.25} />}
     >
-      {stamp
-        ? `You're offline. Showing the forecast updated at ${stamp}.`
-        : "You're offline. The forecast will load when you're back online."}
-      {readOnly && " You can make changes once you're back online."}
+      {stamp ? m.offlineWithForecast(stamp) : m.offlineNoForecast}
+      {readOnly && m.offlineReadOnly}
     </AppNotice>
   )
 }

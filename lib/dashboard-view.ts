@@ -18,6 +18,7 @@ import { getFutureDays } from '@solara/core/tiers'
 import { burnMins, uvBand, vitDMins, type UVBand } from './weather'
 import { dayPhrase } from '@solara/core/day-view'
 import { RAIN_LIKELY_PERCENT } from '@solara/core/weather-fit'
+import m from '@/messages/dashboard'
 
 // Today's state at the place (todayOver, sunDown, when UV returns) is pure and shared
 // with a native client, in @solara/core (packages/core/src/day-view.ts).
@@ -33,10 +34,14 @@ export {
 } from '@solara/core/day-view'
 
 /** The planning upsell shown to plans with locked forecast days. */
-export const UPGRADE_COPY = 'Go Pro for 10-day planning'
+export function upgradeCopy(): string {
+  return m.goPro10Days
+}
 
 /** The locked forecast tab's upsell (its accessible name). */
-export const LOCKED_DAYS_UPSELL = 'See the next 10 days with Pro'
+export function lockedDaysUpsell(): string {
+  return m.seeNext10Days
+}
 
 export interface DashboardAccess {
   /** Tier that decides how many forecast days show (a preview tier may override). */
@@ -71,7 +76,7 @@ export function dashboardAccess(
   const lockedForecastCount = isStoreBuild()
     ? 0
     : Math.max(0, weather.forecast.length - visibleForecast.length)
-  const upgradeCopy = lockedForecastCount > 0 ? UPGRADE_COPY : null
+  const upgrade = lockedForecastCount > 0 ? upgradeCopy() : null
   return {
     accessTier,
     activityTier,
@@ -79,7 +84,7 @@ export function dashboardAccess(
     visibleForecast,
     selectedDay: allowed,
     lockedForecastCount,
-    upgradeCopy,
+    upgradeCopy: upgrade,
     showDayTabs: visibleForecast.length > 1 || lockedForecastCount > 0,
   }
 }
@@ -112,7 +117,7 @@ export function dayChips(
     tomorrowActive,
     more:
       visibleForecast.length > 2
-        ? { label: beyond ? beyond.label : 'More days', active: !!beyond }
+        ? { label: beyond ? beyond.label : m.moreDays, active: !!beyond }
         : null,
     lockedDays: lockedForecastCount,
   }
@@ -178,7 +183,7 @@ export function uvReadout(
     headUV,
     headTemp: shown ? shown.tempC : currentTemp,
     headCond: shown ? shown.condition : currentCond,
-    headSuffix: shown ? ` at ${formatHour(shown.hour)}` : isToday ? ' now' : ' peak',
+    headSuffix: shown ? m.headAt(formatHour(shown.hour)) : isToday ? m.headNow : m.headPeak,
     headBurn: burnMins(headUV, skinType),
     headRain: rain >= RAIN_LIKELY_PERCENT ? rain : null,
     burn: burnMins(currentUV, skinType),
@@ -237,7 +242,7 @@ export function windowsPassedNote(
   laterDaysVisible: boolean,
   formatTime: (hour: number) => string,
 ): string {
-  if (!laterDaysVisible) return 'Sign in free to plan tomorrow.'
-  if (!next) return 'No later forecast day has a lower-UV slot for it.'
-  return `Next slot: ${dayPhrase(false, next.label)} at ${formatTime(next.slot.start)}.`
+  if (!laterDaysVisible) return m.windowsPassedSignIn
+  if (!next) return m.windowsPassedNone
+  return m.windowsPassedNext(dayPhrase(false, next.label), formatTime(next.slot.start))
 }

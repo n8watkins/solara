@@ -3,6 +3,7 @@ import { CircleHelp } from 'lucide-react'
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { shiftIntoView } from '@/lib/roving-focus'
+import m from '@/messages/dashboard'
 
 interface Props {
   text: string
@@ -62,7 +63,7 @@ export default function Tooltip({ text, children }: Props) {
         // A 24 px target (WCAG 2.5.8) around the 15 px icon; the negative
         // margin keeps the text layout as tight as the icon alone.
         className="-m-[4.5px] inline-flex size-6 shrink-0 cursor-help items-center justify-center rounded-full"
-        aria-label="More info"
+        aria-label={m.moreInfo}
         aria-describedby={id}
         aria-expanded={show}
         onFocus={() => setShow(true)}

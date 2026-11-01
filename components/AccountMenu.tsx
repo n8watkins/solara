@@ -7,6 +7,7 @@ import clsx from 'clsx'
 import { accountInitial } from '@/lib/header-display'
 import { nextIndex } from '@/lib/roving-focus'
 import { useOutsideClick } from '@/lib/use-outside-click'
+import m from '@/messages/setup'
 
 /** The account menu's items, in order. */
 function menuItems(list: HTMLElement | null): HTMLElement[] {
@@ -98,8 +99,8 @@ export default function AccountMenu({ user, onOpenSettings, onSignOut }: Props) 
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? 'account-menu' : undefined}
-        aria-label="Account menu"
-        title={user.displayName ?? user.email ?? 'Account'}
+        aria-label={m.accountMenu}
+        title={user.displayName ?? user.email ?? m.account}
         className={clsx(
           'flex size-[30px] shrink-0 items-center justify-center overflow-hidden rounded-full border-[0.5px] border-line-strong p-0',
           user.photoURL ? 'bg-surface-metric' : 'bg-accent',
@@ -109,7 +110,7 @@ export default function AccountMenu({ user, onOpenSettings, onSignOut }: Props) 
           // eslint-disable-next-line @next/next/no-img-element -- Remote account avatar in a static export with images.unoptimized; next/image would add nothing.
           <img
             src={user.photoURL}
-            alt={user.displayName ?? 'Account'}
+            alt={user.displayName ?? m.account}
             referrerPolicy="no-referrer"
             className="size-full object-cover"
           />
@@ -152,7 +153,7 @@ export default function AccountMenu({ user, onOpenSettings, onSignOut }: Props) 
               }}
               className="hdr-menu-item"
             >
-              <Settings size={16} /> Settings
+              <Settings size={16} /> {m.settings}
             </button>
             <a
               role="menuitem"
@@ -160,7 +161,7 @@ export default function AccountMenu({ user, onOpenSettings, onSignOut }: Props) 
               href="/account/"
               className="hdr-menu-item no-underline"
             >
-              <UserRound size={16} /> Account & billing
+              <UserRound size={16} /> {m.accountBilling}
             </a>
             <button
               role="menuitem"
@@ -171,7 +172,7 @@ export default function AccountMenu({ user, onOpenSettings, onSignOut }: Props) 
               }}
               className="hdr-menu-item text-danger"
             >
-              <LogOut size={16} /> Sign out
+              <LogOut size={16} /> {m.signOut}
             </button>
           </div>
         </div>

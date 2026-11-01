@@ -5,6 +5,8 @@
 // it that cannot get their own (REVIEW6 L2).
 import { EVENT_HEADS_UP } from '@solara/core/event-import'
 import { eventSubscriptionsLaunched, googleCalendarEventsLaunched } from './plans'
+import core from '@solara/core/messages/core'
+import m from '@/messages/events'
 
 /** PURE. "a calendar file, a linked calendar or Google Calendar", as switched on. */
 export function headsUpSources(
@@ -12,13 +14,11 @@ export function headsUpSources(
   google = googleCalendarEventsLaunched(),
 ): string {
   const sources = [
-    'a calendar file',
-    ...(linked ? ['a linked calendar'] : []),
-    ...(google ? ['Google Calendar'] : []),
+    m.headsUpSourceFile,
+    ...(linked ? [m.headsUpSourceLinked] : []),
+    ...(google ? [m.googleCalendar] : []),
   ]
-  return sources.length > 1
-    ? `${sources.slice(0, -1).join(', ')} or ${sources.at(-1)}`
-    : sources[0]!
+  return core.listOr(sources)
 }
 
 /**
@@ -27,10 +27,11 @@ export function headsUpSources(
  * one every 3 hours (it also counts the others coming up)".
  */
 export function eventHeadsUpRule(sources = headsUpSources()): string {
-  return (
-    `about ${EVENT_HEADS_UP.leadHours} hours before an outdoor event (one with an activity ` +
-    `set) with UV ${EVENT_HEADS_UP.uv} or higher, from ${sources}, at most one every ` +
-    `${EVENT_HEADS_UP.minGapHours} hours (it also counts the others coming up)`
+  return m.headsUpRule(
+    EVENT_HEADS_UP.leadHours,
+    EVENT_HEADS_UP.uv,
+    sources,
+    EVENT_HEADS_UP.minGapHours,
   )
 }
 

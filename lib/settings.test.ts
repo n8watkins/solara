@@ -21,6 +21,7 @@ describe('settingsDraftFrom', () => {
     delete p.showSunPath
     delete p.temperatureUnit
     delete p.clockFormat
+    delete p.language
     expect(settingsDraftFrom(p)).toEqual({
       skinType: p.skinType,
       location: LA,
@@ -34,6 +35,7 @@ describe('settingsDraftFrom', () => {
       dailyUv: true,
       temperatureUnit: 'auto',
       clockFormat: 'auto',
+      language: 'auto',
     })
   })
 

@@ -9,6 +9,7 @@ import { useTransient } from '@/lib/use-transient'
 import ActivityCustomForm from './ActivityCustomForm'
 import ActivityPresetBrowser from './ActivityPresetBrowser'
 import ActivitySelectedList from './ActivitySelectedList'
+import t from '@/messages/editor'
 
 interface Props {
   selected: Activity[]
@@ -59,7 +60,7 @@ export default function ActivityManager({
     <div className="flex flex-col gap-3.5">
       <div
         role="group"
-        aria-label="View"
+        aria-label={t.view}
         className="flex gap-1 rounded-[10px] bg-surface-metric p-[3px]"
       >
         {(['browse', 'manage'] as const).map(m => (
@@ -75,9 +76,7 @@ export default function ActivityManager({
                 : 'text-ink-3',
             )}
           >
-            {m === 'browse'
-              ? 'Browse'
-              : `My activities${selected.length ? ` (${selected.length})` : ''}`}
+            {m === 'browse' ? t.browse : t.myActivities(selected.length)}
           </button>
         ))}
       </div>
@@ -95,7 +94,7 @@ export default function ActivityManager({
           <div role="status" className="contents">
             {addedName && (
               <div className="rounded-[9px] border-[0.5px] border-success/30 bg-success/10 px-3 py-2 text-[13px] text-success">
-                ✓ {addedName} added
+                {t.added(addedName)}
               </div>
             )}
           </div>

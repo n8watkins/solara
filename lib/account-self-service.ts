@@ -43,6 +43,7 @@ import type { User } from 'firebase/auth'
 import type { DocumentData, Firestore, QuerySnapshot } from 'firebase/firestore'
 import { loadFirebase } from './firebase'
 import { listedKeys, removeRecords, storedKeys, type CappedCollection } from './key-index'
+import m from '@/messages/account'
 
 /** Why this browser cannot delete the account itself; the account page offers email. */
 export type SelfDeletionBlocker = 'billing' | 'server-records'
@@ -105,7 +106,7 @@ export class SelfDeletionError extends Error {
 
 async function firestore() {
   const db = (await loadFirebase())?.db
-  if (!db) throw new Error('Account services are not available.')
+  if (!db) throw new Error(m.servicesUnavailable)
   return { db, sdk: await import('firebase/firestore') }
 }
 
@@ -268,18 +269,18 @@ export async function deleteAccountInBrowser(user: User): Promise<void> {
       if (left.length === 0) break
     }
   } catch (error) {
-    throw new SelfDeletionError('data', 'Some account data could not be deleted.', {
+    throw new SelfDeletionError('data', m.someDataLeft, {
       cause: error,
     })
   }
   if (left.length) {
-    throw new SelfDeletionError('data', `${left.length} account documents are left.`)
+    throw new SelfDeletionError('data', m.documentsLeft(left.length))
   }
 
   const { deleteUser } = await import('firebase/auth')
   try {
     await deleteUser(user)
   } catch (error) {
-    throw new SelfDeletionError('sign-in', 'The sign-in could not be deleted.', { cause: error })
+    throw new SelfDeletionError('sign-in', m.signInNotDeleted, { cause: error })
   }
 }

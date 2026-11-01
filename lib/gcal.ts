@@ -11,13 +11,9 @@ import {
 import type { Activity } from './types'
 import { addDays } from './time'
 import type { BusyPeriod } from './gcal-view'
+export { buildEventDescription } from './event-description'
 
-export {
-  busyIntervalsForDay,
-  buildEventDescription,
-  isCalendarConfigured,
-  type BusyPeriod,
-} from './gcal-view'
+export { busyIntervalsForDay, isCalendarConfigured, type BusyPeriod } from './gcal-view'
 
 // Google Calendar access for a static app: the browser gets a short-lived OAuth
 // access token via Google Identity Services (incremental authorization, decoupled

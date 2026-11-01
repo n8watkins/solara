@@ -10,6 +10,7 @@ import { isValidFeedToken } from '@solara/core'
 import type { User } from 'firebase/auth'
 import { lazySubscription, loadFirebase } from './firebase'
 import { callFunction, functionsApiConfigured, functionsBaseUrl } from './functions-api'
+import m from '@/messages/calendar'
 
 /** Whether the feed functions are deployed and callable from this build. */
 export function isFeedConfigured(): boolean {
@@ -64,7 +65,7 @@ export function watchFeedToken(
 
 /** Creates a feed link, replacing (and revoking) any previous one. */
 export async function rotateFeedToken(user: User): Promise<string> {
-  const fallbackMessage = 'Could not create a feed link. Try again shortly.'
+  const fallbackMessage = m.feedCreateFailed
   const { token } = await callFunction(user, 'rotateCalendarFeed', {
     method: 'POST',
     body: {},
@@ -77,6 +78,6 @@ export async function rotateFeedToken(user: User): Promise<string> {
 export async function revokeFeedToken(user: User): Promise<void> {
   await callFunction(user, 'revokeCalendarFeed', {
     method: 'DELETE',
-    fallbackMessage: 'Could not turn off the feed. Try again shortly.',
+    fallbackMessage: m.feedTurnOffFailed,
   })
 }

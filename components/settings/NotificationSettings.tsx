@@ -20,6 +20,7 @@ import {
   SettingsHint,
   SettingsTitle,
 } from './SettingsCard'
+import m from '@/messages/settings'
 
 const MORNING_HOURS = Array.from(
   { length: NOTIFICATION_HOUR.max - NOTIFICATION_HOUR.min + 1 },
@@ -45,15 +46,12 @@ interface Props {
   onSeePlans?: () => void
 }
 
-const TITLE = 'Morning and UV alerts'
 /**
  * What the alerts are; with linked calendars or Google Calendar on, the event heads-ups
  * too (REVIEW5 L6, REVIEW6 L1).
  */
 function what(): string {
-  return eventHeadsUpsLaunched()
-    ? 'A morning summary of your UV day, and a heads-up when the UV gets high and before your outdoor events.'
-    : 'A morning summary of your UV day, and a heads-up when the UV gets high.'
+  return eventHeadsUpsLaunched() ? m.alertsWhatEvents : m.alertsWhat
 }
 
 /**
@@ -98,15 +96,15 @@ function ProAlertsOffer({
   const store = isStoreBuild()
   const when = alertsLaunched()
     ? store
-      ? 'Included with a Pro account.'
-      : 'Included with Pro.'
+      ? m.includedWithProAccount
+      : m.includedWithPro
     : store
-      ? 'Coming soon.'
-      : 'Coming soon with Pro.'
+      ? m.comingSoon
+      : m.comingSoonWithPro
   return (
     <SettingsCard className="flex flex-col gap-1.5">
       <div className="flex items-start justify-between gap-3.5">
-        <SettingsTitle>{TITLE}</SettingsTitle>
+        <SettingsTitle>{m.alertsTitle}</SettingsTitle>
         {!included && !store && (
           <span className="text-[11px] font-bold tracking-[0.05em] whitespace-nowrap text-accent uppercase">
             Pro
@@ -123,14 +121,12 @@ function ProAlertsOffer({
           className="btn btn-primary mt-1.5 self-start text-[12px] whitespace-nowrap"
           onClick={onSeePlans}
         >
-          {waitlisted ? '✓ On waitlist' : 'See Pro plans'}
+          {waitlisted ? m.onWaitlist : m.seeProPlans}
         </button>
       )}
     </SettingsCard>
   )
 }
-
-const FREE_TITLE = 'Daily UV and sunscreen reminders'
 
 /**
  * A Free account's pushes (core daily-uv.ts, reapply.ts): the daily UV push at the
@@ -142,12 +138,8 @@ function FreeAlertControls({ user, draft, onChange }: Omit<Props, 'tier'>) {
   return (
     <SettingsCard className="flex flex-col gap-4">
       <div>
-        <SettingsTitle className="mb-1">{FREE_TITLE}</SettingsTitle>
-        <SettingsHint className="leading-[1.45]">
-          When the UV needs sun protection, a morning push with the times and the peak. And your
-          sunscreen timer&apos;s reminder, even with Solara closed. Free with your account, on the
-          devices you turn them on for.
-        </SettingsHint>
+        <SettingsTitle className="mb-1">{m.freeAlertsTitle}</SettingsTitle>
+        <SettingsHint className="leading-[1.45]">{m.freeAlertsHint}</SettingsHint>
       </div>
 
       <DeviceRow user={user} />
@@ -155,10 +147,10 @@ function FreeAlertControls({ user, draft, onChange }: Omit<Props, 'tier'>) {
       <SettingsField>
         <div>
           <SettingsTitle className="mb-1">
-            <label htmlFor={`${id}-daily`}>Daily UV</label>
+            <label htmlFor={`${id}-daily`}>{m.dailyUv}</label>
           </SettingsTitle>
           <SettingsHint id={`${id}-daily-desc`} className="leading-[1.45]">
-            Only on days the UV reaches moderate or higher, or would under a clear sky.
+            {m.dailyUvHint}
           </SettingsHint>
         </div>
         <select
@@ -168,25 +160,21 @@ function FreeAlertControls({ user, draft, onChange }: Omit<Props, 'tier'>) {
           onChange={event => onChange({ dailyUv: event.target.value === 'on' })}
           className={FIELD_CONTROL}
         >
-          <option value="on">On</option>
-          <option value="off">Off</option>
+          <option value="on">{m.on}</option>
+          <option value="off">{m.off}</option>
         </select>
       </SettingsField>
 
       {draft.dailyUv && (
         <MorningHourField
-          label="Daily UV at"
-          hint="In your local time, or when your quiet hours end."
+          label={m.dailyUvAt}
+          hint={m.dailyUvAtHint}
           draft={draft}
           onChange={onChange}
         />
       )}
 
-      <QuietHoursField
-        hint="The daily UV waits until they end. Sunscreen reminders come when they are due."
-        draft={draft}
-        onChange={onChange}
-      />
+      <QuietHoursField hint={m.quietHintFree} draft={draft} onChange={onChange} />
     </SettingsCard>
   )
 }
@@ -249,13 +237,13 @@ function QuietHoursField({
     <SettingsField role="group" aria-labelledby={`${quietId}-title`}>
       <div>
         <SettingsTitle id={`${quietId}-title`} className="mb-1">
-          Quiet hours
+          {m.quietHours}
         </SettingsTitle>
         <SettingsHint className="leading-[1.45]">{hint}</SettingsHint>
       </div>
       <div className="flex shrink-0 items-center gap-2">
         <select
-          aria-label="Quiet from"
+          aria-label={m.quietFrom}
           value={draft.quietHours.from}
           onChange={event =>
             onChange({ quietHours: { ...draft.quietHours, from: Number(event.target.value) } })
@@ -269,10 +257,10 @@ function QuietHoursField({
           ))}
         </select>
         <span className="text-[13px] text-ink-3" aria-hidden="true">
-          to
+          {m.quietTo}
         </span>
         <select
-          aria-label="Quiet until"
+          aria-label={m.quietUntil}
           value={draft.quietHours.to}
           onChange={event =>
             onChange({ quietHours: { ...draft.quietHours, to: Number(event.target.value) } })
@@ -296,18 +284,17 @@ function AlertControls({ user, draft, onChange }: Omit<Props, 'tier'>) {
   return (
     <SettingsCard className="flex flex-col gap-4">
       <div>
-        <SettingsTitle className="mb-1">{TITLE}</SettingsTitle>
+        <SettingsTitle className="mb-1">{m.alertsTitle}</SettingsTitle>
         <SettingsHint className="leading-[1.45]">
-          {what()} They reach the devices you turn them on for, as does your sunscreen timer&apos;s
-          reminder, even with Solara closed.
+          {what()} {m.alertsReach}
         </SettingsHint>
       </div>
 
       <DeviceRow user={user} />
 
       <MorningHourField
-        label="Morning alert"
-        hint="Today's peak UV and your best window, in your local time."
+        label={m.morningAlert}
+        hint={m.morningAlertHint}
         draft={draft}
         onChange={onChange}
       />
@@ -315,10 +302,10 @@ function AlertControls({ user, draft, onChange }: Omit<Props, 'tier'>) {
       <SettingsField>
         <div>
           <SettingsTitle className="mb-1">
-            <label htmlFor={`${id}-uv`}>UV alert</label>
+            <label htmlFor={`${id}-uv`}>{m.uvAlert}</label>
           </SettingsTitle>
           <SettingsHint id={`${id}-uv-desc`} className="leading-[1.45]">
-            Once a day, about an hour before the forecast UV reaches this level.
+            {m.uvAlertHint}
           </SettingsHint>
         </div>
         <select
@@ -328,10 +315,10 @@ function AlertControls({ user, draft, onChange }: Omit<Props, 'tier'>) {
           onChange={event => onChange({ uvAlertThreshold: Number(event.target.value) })}
           className={FIELD_CONTROL}
         >
-          <option value={UV_ALERT_THRESHOLD.off}>Off</option>
+          <option value={UV_ALERT_THRESHOLD.off}>{m.off}</option>
           {UV_THRESHOLDS.map(uv => (
             <option key={uv} value={uv}>
-              UV {uv} or higher
+              {m.uvOrHigher(uv)}
             </option>
           ))}
         </select>
@@ -341,7 +328,7 @@ function AlertControls({ user, draft, onChange }: Omit<Props, 'tier'>) {
         <SettingsField>
           <div>
             <SettingsTitle className="mb-1">
-              <label htmlFor={`${id}-events`}>Event heads-up</label>
+              <label htmlFor={`${id}-events`}>{m.eventHeadsUp}</label>
             </SettingsTitle>
             <SettingsHint id={`${id}-events-desc`} className="leading-[1.45]">
               {eventHeadsUpSentence()}
@@ -354,18 +341,14 @@ function AlertControls({ user, draft, onChange }: Omit<Props, 'tier'>) {
             onChange={event => onChange({ eventHeadsUp: event.target.value === 'on' })}
             className={FIELD_CONTROL}
           >
-            <option value="on">On</option>
-            <option value="off">Off</option>
+            <option value="on">{m.on}</option>
+            <option value="off">{m.off}</option>
           </select>
         </SettingsField>
       )}
 
       <QuietHoursField
-        hint={`The UV alert waits until they end. ${
-          eventHeadsUpsLaunched()
-            ? 'An event heads-up that would fall in them comes the evening before. '
-            : ''
-        }The morning alert comes at its own hour.`}
+        hint={eventHeadsUpsLaunched() ? m.quietHintProEvents : m.quietHintPro}
         draft={draft}
         onChange={onChange}
       />
@@ -384,46 +367,32 @@ function DeviceRow({ user }: { user?: User | null }) {
   if (status === 'enabled') {
     body = (
       <>
-        <p className="text-[13px] font-semibold text-accent">On for this device</p>
+        <p className="text-[13px] font-semibold text-accent">{m.onForDevice}</p>
         <button
           type="button"
           className="btn self-start"
           onClick={() => void disable()}
           disabled={loading}
         >
-          {loading ? 'Turning off...' : 'Turn off on this device'}
+          {loading ? m.turningOff : m.turnOff}
         </button>
       </>
     )
   } else if (homeScreenFirst) {
-    body = (
-      <SettingsHint className="leading-[1.45]">
-        On iPhone and iPad, alerts need Solara on your Home Screen: tap Share, then Add to Home
-        Screen, open Solara from there and turn alerts on.
-      </SettingsHint>
-    )
+    body = <SettingsHint className="leading-[1.45]">{m.iosHomeScreen}</SettingsHint>
   } else if (status === 'blocked') {
-    body = (
-      <SettingsHint className="leading-[1.45]">
-        Notifications are blocked for this site. Allow them in your browser settings to get alerts
-        here.
-      </SettingsHint>
-    )
+    body = <SettingsHint className="leading-[1.45]">{m.notificationsBlocked}</SettingsHint>
   } else {
     body = (
       <>
-        <SettingsHint className="leading-[1.45]">Off for this device.</SettingsHint>
+        <SettingsHint className="leading-[1.45]">{m.offForDevice}</SettingsHint>
         <button
           type="button"
           className="btn btn-primary self-start whitespace-nowrap"
           onClick={() => void enable()}
           disabled={loading || !configured}
         >
-          {loading
-            ? 'Turning on...'
-            : configured
-              ? 'Turn on for this device'
-              : 'Alerts unavailable here'}
+          {loading ? m.turningOn : configured ? m.turnOn : m.alertsUnavailable}
         </button>
       </>
     )

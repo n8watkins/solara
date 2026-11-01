@@ -6,13 +6,13 @@ import {
   DATA_REQUEST_EMAIL,
   DELETED_DATA,
   DELETION_NOTES,
-  DELETION_SUMMARY,
+  deletionSummary,
   deletedDataShown,
   deletionNotesShown,
-  EXPORT_EXCLUDED,
+  exportExcluded,
   exportSectionsShown,
   EXPORT_SECTIONS,
-  EXPORT_SUMMARY,
+  exportSummary,
   exportedMessage,
   listInWords,
 } from './account-data'
@@ -70,13 +70,13 @@ describe('the lists follow the switches (REVIEW9 QA L6)', () => {
 describe('account data copy', () => {
   it('names every export section, imported events included, and what is left out', () => {
     expect(Object.values(EXPORT_SECTIONS)).toContain('your imported events')
-    expect(EXPORT_SUMMARY).toBe('Get a copy of your Solara data as a JSON file.')
-    expect(EXPORT_EXCLUDED).toContain('calendar feed address')
-    expect(EXPORT_EXCLUDED).toContain('payment-provider identifiers')
+    expect(exportSummary()).toBe('Get a copy of your Solara data as a JSON file.')
+    expect(exportExcluded()).toContain('calendar feed address')
+    expect(exportExcluded()).toContain('payment-provider identifiers')
   })
 
   it('says deletion removes imported events and the calendar feed, and what stays', () => {
-    expect(DELETION_SUMMARY).toMatch(/^Permanently deletes your account/)
+    expect(deletionSummary()).toMatch(/^Permanently deletes your account/)
     expect(DELETED_DATA).toContain('imported events')
     expect(DELETED_DATA).toContain('your calendar feed')
     expect(DELETED_DATA).toContain('your Google Calendar choices')

@@ -8,6 +8,7 @@ import {
   updateActivity,
 } from '@/lib/activity-presets'
 import { SunscreenChoice } from './ActivityChoice'
+import m from '@/messages/editor'
 
 interface Props {
   activities: Activity[]
@@ -23,9 +24,9 @@ export default function ActivitySelectedList({ activities, onChange, onBrowse }:
   if (activities.length === 0) {
     return (
       <div className="p-6 text-center">
-        <p className="mb-2.5 text-[13px] text-ink-3">No activities added yet.</p>
+        <p className="mb-2.5 text-[13px] text-ink-3">{m.noneAdded}</p>
         <button type="button" onClick={onBrowse} className="text-[13px] font-semibold text-accent">
-          Browse suggestions →
+          {m.browseSuggestions}
         </button>
       </div>
     )
@@ -49,7 +50,7 @@ export default function ActivitySelectedList({ activities, onChange, onBrowse }:
             <div className="flex items-center gap-1">
               <button
                 type="button"
-                aria-label={`${a.name}: 5 minutes shorter`}
+                aria-label={m.shorter5(a.name)}
                 onClick={() => setDuration(a, a.durationMins - 5)}
                 className={STEP_BUTTON}
               >
@@ -60,14 +61,14 @@ export default function ActivitySelectedList({ activities, onChange, onBrowse }:
                 min={MIN_DURATION_MINS}
                 step="5"
                 value={a.durationMins}
-                aria-label={`${a.name} duration in minutes`}
+                aria-label={m.durationOf(a.name)}
                 onChange={e => setDuration(a, parseInt(e.target.value))}
                 className="w-11 rounded-[5px] px-1 py-0.5 text-center text-[12px]"
               />
-              <span className="text-[11px] text-ink-3">min</span>
+              <span className="text-[11px] text-ink-3">{m.min}</span>
               <button
                 type="button"
-                aria-label={`${a.name}: 5 minutes longer`}
+                aria-label={m.longer5(a.name)}
                 onClick={() => setDuration(a, a.durationMins + 5)}
                 className={STEP_BUTTON}
               >
@@ -76,7 +77,7 @@ export default function ActivitySelectedList({ activities, onChange, onBrowse }:
             </div>
             <button
               type="button"
-              aria-label={`Remove ${a.name}`}
+              aria-label={m.removeNamed(a.name)}
               onClick={() => onChange(removeActivity(activities, a.id))}
               className="flex size-6 items-center justify-center text-ink-3"
             >
@@ -84,7 +85,7 @@ export default function ActivitySelectedList({ activities, onChange, onBrowse }:
             </button>
           </div>
           <SunscreenChoice
-            aria-label={`${a.name} sun protection`}
+            aria-label={m.sunProtectionOf(a.name)}
             value={a.sunscreen}
             onChange={sunscreen => onChange(updateActivity(activities, a.id, { sunscreen }))}
             compact

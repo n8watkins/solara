@@ -26,7 +26,6 @@ import {
   uvReadout,
 } from '@/lib/dashboard-view'
 import { briefingView } from '@/lib/briefing-view'
-import { buildEventDescription } from '@/lib/gcal-view'
 import type { SlotRecommendation } from '@solara/core/scheduler'
 import { useScheduled } from '@/lib/scheduled-context'
 import {
@@ -48,6 +47,8 @@ import UVCard from './dashboard/UVCard'
 import Skeleton from './Skeleton'
 import { isStoreBuild } from '@/lib/store-build'
 import { SHARED_PARAM, sharedId } from '@/lib/app-routes'
+import m from '@/messages/dashboard'
+import core from '@solara/core/messages/core'
 
 /** The share id the app was opened with, if any. */
 function sharedIdInUrl(): string | null {
@@ -133,7 +134,7 @@ function DashboardView({
   const readout = uvReadout(weather, hourly, isToday, focused, planning.skinType, fmt.hour)
   const { peakUV, peakHour } = readout
 
-  const dateLabel = day?.label ?? 'Today'
+  const dateLabel = day?.label ?? core.today
   const activeDateStr = day?.dateStr ?? weather.forecast[0]?.dateStr ?? ''
   const busy = busyByDate(calendar.busy, visibleForecast, weather.timezone)
   // One plan per activity for the selected day; the hero, the cards and their share
@@ -205,7 +206,7 @@ function DashboardView({
 
   async function bookSlotOn(activity: Activity, rec: SlotRecommendation, dateStr: string) {
     // Shown until the result replaces it; the minute is only a safety net.
-    status.flash('Adding to your Google Calendar…', 60_000)
+    status.flash(m.addingToCalendar, 60_000)
     // For a future day the "peak" context belongs to that day, not today's reading.
     const peak = dateStr === activeDateStr ? { peakUV, peakHour } : { peakUV: rec.peakUV }
     try {
@@ -213,18 +214,20 @@ function DashboardView({
         activity,
         dateStr,
         slot: rec,
-        description: buildEventDescription(rec, activity, peak),
+        description: (await import('@/lib/event-description')).buildEventDescription(
+          rec,
+          activity,
+          peak,
+        ),
         timeZone: weather.timezone,
       })
-      status.flash(
-        `✓ Scheduled ${activity.name} for ${fmt.time(rec.start)}. It is on your Google Calendar.`,
-      )
+      status.flash(m.scheduledOnCalendar(activity.name, fmt.time(rec.start)))
     } catch (error) {
       status.flash(
         // A RecordCapError (lib/record-cap.ts), matched by name to keep it out of this bundle.
         error instanceof Error && error.name === 'RecordCapError'
           ? error.message
-          : 'Could not add to Google Calendar. Nothing was saved; try again.',
+          : m.addToCalendarFailed,
       )
     }
   }
@@ -238,8 +241,8 @@ function DashboardView({
     return (
       <div className="card p-12 text-center">
         <p className="mb-2 text-[34px]">🌙</p>
-        <p className="mb-1 text-[16px] font-semibold text-ink">No UV data for this period</p>
-        <p className="text-[14px] text-ink-3">UV data is available between 6am and 8pm.</p>
+        <p className="mb-1 text-[16px] font-semibold text-ink">{m.noUvDataTitle}</p>
+        <p className="text-[14px] text-ink-3">{m.noUvDataBody(fmt.hour(6), fmt.hour(20))}</p>
       </div>
     )
   }
@@ -398,10 +401,7 @@ function DashboardView({
       )}
 
       {/* The one caveat on the dashboard (the metric tooltips carry their own). */}
-      <p className="mx-0.5 text-[11px] leading-normal text-ink-3 max-lg:order-2">
-        Forecast-based planning estimates, not medical advice. Conditions can change; use sun
-        protection.
-      </p>
+      <p className="mx-0.5 text-[11px] leading-normal text-ink-3 max-lg:order-2">{m.disclaimer}</p>
 
       {showPricing && (
         <PricingModal

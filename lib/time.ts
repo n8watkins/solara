@@ -8,6 +8,7 @@
 //
 // The wall clock itself is read by @solara/core (zoned-time.ts wallClockAt), which the
 // Functions and a native client share.
+import { intlTag } from '@solara/core/i18n'
 import { wallClockAt as wallClock } from '@solara/core/zoned-time'
 
 /** A calendar date and wall-clock time in one time zone. */
@@ -111,13 +112,14 @@ export function dayOfMonth(dateStr: string): number {
 }
 
 /**
- * Format a calendar date. The date is a label, not an instant, so it is formatted
- * in UTC from UTC midnight and the device zone can never shift it to another day.
+ * Format a calendar date in the page's language (Spanish: "mié, 17 jun"). The date is a
+ * label, not an instant, so it is formatted in UTC from UTC midnight and the device zone
+ * can never shift it to another day.
  */
 export function formatDate(
   dateStr: string,
   options: Intl.DateTimeFormatOptions,
-  locale: string | string[] = 'en-US',
+  locale: string | string[] = intlTag(),
 ): string {
   const date = utcDate(dateStr)
   if (!date) return dateStr

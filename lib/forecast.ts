@@ -10,6 +10,7 @@ import type {
   WeatherResponse,
 } from './types'
 import { addDays, formatDate, resolveTimeZone, zonedNow, type ZonedNow } from './time'
+import coreText from '@solara/core/messages/core'
 
 // The same Valibot-validated parser the calendar feed and notifier use, so every
 // surface reads Open-Meteo identically (including how missing values are handled).
@@ -166,8 +167,8 @@ export function parseForecast(input: RawForecast, opts: ParseOptions = {}): Fore
 
 /** "Today", "Tomorrow" or "Wed, Jun 17", relative to `today`. */
 export function dayLabel(dateStr: string, today: string): string {
-  if (dateStr === today) return 'Today'
-  if (dateStr === addDays(today, 1)) return 'Tomorrow'
+  if (dateStr === today) return coreText.today
+  if (dateStr === addDays(today, 1)) return coreText.tomorrow
   return formatDate(dateStr, { weekday: 'short', month: 'short', day: 'numeric' })
 }
 

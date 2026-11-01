@@ -1,12 +1,24 @@
 import { groupMembers, type GroupPreferences } from '@solara/core'
 import type { Profile, SkinType, UserPreferences } from './types'
+import m from '@/messages/setup'
 
-export const SKIN_TYPE_LABELS: Record<SkinType, string> = {
-  'very-fair': 'Very fair',
-  fair: 'Fair',
-  medium: 'Medium',
-  olive: 'Olive',
-  dark: 'Dark',
+/** Each skin type's name, in the page's language when read. */
+export const SKIN_TYPE_LABELS: Readonly<Record<SkinType, string>> = {
+  get 'very-fair'() {
+    return m.skinVeryFair
+  },
+  get fair() {
+    return m.skinFair
+  },
+  get medium() {
+    return m.skinMedium
+  },
+  get olive() {
+    return m.skinOlive
+  },
+  get dark() {
+    return m.skinDark
+  },
 }
 
 /** The implicit "Me" profile seeded from the current skin type when none are saved. */

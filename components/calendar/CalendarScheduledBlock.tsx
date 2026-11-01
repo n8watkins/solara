@@ -6,6 +6,7 @@ import type { ScheduledActivity, ScheduledSpan } from '@/lib/scheduled'
 import type { UnitFormatters } from '@/lib/units'
 import type { Activity } from '@/lib/types'
 import { chipBase, chipTime, chipTitle } from './CalendarWindowChip'
+import m from '@/messages/calendar'
 
 /** A scheduled activity in its lane: solid, with a check, above the suggested windows. */
 export default function CalendarScheduledBlock({
@@ -47,7 +48,7 @@ export default function CalendarScheduledBlock({
       data-to={span.to}
       aria-haspopup="dialog"
       aria-expanded={expanded}
-      title={`Scheduled: ${act.name} · ${fmt.time(span.from)}–${fmt.time(span.to)}`}
+      title={m.scheduledTitle(act.name, timeRange(fmt.time(span.from), fmt.time(span.to)))}
       onClick={onOpen}
       style={{
         top: block.top,
@@ -59,7 +60,7 @@ export default function CalendarScheduledBlock({
       }}
     >
       <span aria-hidden="true" className={`${chipTitle} font-[750]`}>
-        {full ? '✓ Scheduled' : '✓'}
+        {full ? m.scheduledPill : '✓'}
       </span>
       {block.lines >= 2 && (
         <span aria-hidden="true" className={chipTime}>
@@ -67,7 +68,7 @@ export default function CalendarScheduledBlock({
         </span>
       )}
       <span data-sr-only className="sr-only">
-        {`Scheduled: ${act.name}, ${dayLabel}, ${timeRange(fmt.time(span.from), fmt.time(span.to))}`}
+        {m.scheduledSr(act.name, dayLabel, timeRange(fmt.time(span.from), fmt.time(span.to)))}
       </span>
     </button>
   )

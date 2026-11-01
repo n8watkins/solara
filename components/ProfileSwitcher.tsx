@@ -18,6 +18,7 @@ import { TIER_LIMITS, canUseFamilyProfiles, getProfileLimit } from '@solara/core
 import ProfileEditor from './ProfileEditor'
 import { PricingModal } from './deferred'
 import { isStoreBuild } from '@/lib/store-build'
+import m from '@/messages/profiles'
 
 interface Props {
   prefs: UserPreferences
@@ -94,10 +95,10 @@ export default function ProfileSwitcher({ prefs, tier, user, onApply }: Props) {
     setEditing(null)
   }
 
-  const triggerName = planning.group ? `Group of ${planning.group.length}` : active.name
+  const triggerName = planning.group ? m.groupOf(planning.group.length) : active.name
   const triggerLabel = planning.group
-    ? `Profile: group of ${planning.group.length}, planned for ${planning.mostSensitive?.name}`
-    : `Profile: ${active.name}`
+    ? m.profileGroup(planning.group.length, planning.mostSensitive?.name ?? '')
+    : m.profileNamed(active.name)
 
   return (
     <div
@@ -125,7 +126,7 @@ export default function ProfileSwitcher({ prefs, tier, user, onApply }: Props) {
         aria-controls={open ? panelId : undefined}
         aria-label={triggerLabel}
         onClick={() => setOpen(o => !o)}
-        title="Switch profile"
+        title={m.switchProfile}
         className="flex items-center gap-[5px] rounded-full border-[0.5px] border-line-strong bg-surface-metric py-1 pr-[9px] pl-[7px] text-[12px] whitespace-nowrap text-ink-2"
       >
         {planning.group ? (
@@ -151,7 +152,7 @@ export default function ProfileSwitcher({ prefs, tier, user, onApply }: Props) {
             id={titleId}
             className="mb-2 text-[12px] font-semibold tracking-[0.06em] text-ink uppercase"
           >
-            Profiles
+            {m.profiles}
           </h2>
 
           {editing ? (
@@ -169,9 +170,7 @@ export default function ProfileSwitcher({ prefs, tier, user, onApply }: Props) {
           ) : (
             <>
               {grouped && canGroup && (
-                <p className="mb-2 text-[12px] leading-[1.45] text-ink-3">
-                  Tick who&apos;s going. Plans and burn times follow whoever burns fastest.
-                </p>
+                <p className="mb-2 text-[12px] leading-[1.45] text-ink-3">{m.tickWho}</p>
               )}
               <div className="mb-2 flex flex-col gap-[3px]">
                 {list.map(p => {
@@ -208,7 +207,7 @@ export default function ProfileSwitcher({ prefs, tier, user, onApply }: Props) {
                           <ProfileText profile={p} />
                           {leads && (
                             <span className="text-[11px] font-bold whitespace-nowrap text-accent">
-                              Most sensitive
+                              {m.mostSensitive}
                             </span>
                           )}
                         </button>
@@ -228,7 +227,7 @@ export default function ProfileSwitcher({ prefs, tier, user, onApply }: Props) {
                           <ProfileText profile={p} />
                           {isActive && (
                             <span aria-hidden="true" className="text-[11px] font-bold text-accent">
-                              Active
+                              {m.active}
                             </span>
                           )}
                         </button>
@@ -237,7 +236,7 @@ export default function ProfileSwitcher({ prefs, tier, user, onApply }: Props) {
                         <button
                           type="button"
                           onClick={() => setEditing(p)}
-                          aria-label={`Edit ${p.name}`}
+                          aria-label={m.editNamed(p.name)}
                           className="min-h-7 min-w-7 rounded-[7px] p-1 text-[13px] text-ink-3"
                         >
                           <Pencil size={14} />
@@ -254,23 +253,21 @@ export default function ProfileSwitcher({ prefs, tier, user, onApply }: Props) {
                   className="btn w-full justify-center text-[13px]"
                   onClick={() => setEditing(newProfileDraft(prefs))}
                 >
-                  ＋ Add person or pet
+                  {m.addPerson}
                 </button>
               )}
               {family && !canAdd && (
-                <p className="text-[12px] leading-[1.45] text-ink-3">
-                  Profile limit reached ({limit}).
-                </p>
+                <p className="text-[12px] leading-[1.45] text-ink-3">{m.limitReached(limit)}</p>
               )}
 
               {canGroup && (
                 <div className="mt-3 flex items-center justify-between gap-3 border-t-[0.5px] border-line-strong pt-3">
                   <div className="min-w-0">
                     <p id={`${id}-group`} className="text-[13px] font-semibold text-ink">
-                      Plan for a group
+                      {m.planForGroup}
                     </p>
                     <p id={groupHintId} className="mt-0.5 text-[11px] leading-[1.4] text-ink-3">
-                      Use the most sensitive person&apos;s skin for every plan.
+                      {m.groupHint}
                     </p>
                   </div>
                   <button
@@ -282,14 +279,12 @@ export default function ProfileSwitcher({ prefs, tier, user, onApply }: Props) {
                     onClick={() => onApply({ groupMode: !grouped })}
                     className="btn shrink-0 text-[12px] whitespace-nowrap"
                   >
-                    {grouped ? '✓ On' : 'Off'}
+                    {grouped ? m.onChecked : m.off}
                   </button>
                 </div>
               )}
               {family && saved.length < 2 && (
-                <p className="mt-2.5 text-[11px] leading-[1.45] text-ink-3">
-                  Add someone to plan for a group by its most sensitive person.
-                </p>
+                <p className="mt-2.5 text-[11px] leading-[1.45] text-ink-3">{m.addSomeone}</p>
               )}
 
               {!family && !isStoreBuild() && <FamilyOffer onSeePro={() => setShowPricing(true)} />}
@@ -326,7 +321,7 @@ function ProfileText({ profile }: { profile: Profile }) {
     <span className="min-w-0 flex-1">
       <span className="block text-[13px] font-semibold text-ink">{profile.name}</span>
       <span className="block text-[11px] text-ink-3">
-        {SKIN_TYPE_LABELS[profile.skinType]} skin
+        {m.skinOf(SKIN_TYPE_LABELS[profile.skinType])}
       </span>
     </span>
   )
@@ -340,14 +335,13 @@ function FamilyOffer({ onSeePro }: { onSeePro: () => void }) {
   const waitlist = !isCheckoutConfigured()
   return (
     <div className="mt-1 rounded-[10px] border-[0.5px] border-brand/30 bg-[linear-gradient(180deg,rgba(249,115,22,0.09),rgba(249,115,22,0.03))] px-3 py-2.5">
-      <p className="text-[13px] font-semibold text-ink">Family profiles come with Pro</p>
+      <p className="text-[13px] font-semibold text-ink">{m.familyComesWithPro}</p>
       <p className="mt-1 text-[12px] leading-[1.45] text-ink-2">
-        Plan for up to {TIER_LIMITS.paid.profiles} people and pets, each with their own skin type,
-        and plan a family day around whoever burns fastest.
-        {waitlist && ' Pro is not on sale yet: join the waitlist to hear when it opens.'}
+        {m.familyOffer(TIER_LIMITS.paid.profiles)}
+        {waitlist && m.notOnSale}
       </p>
       <button type="button" className="btn mt-2 text-[12px]" onClick={onSeePro}>
-        {waitlist ? 'Join the Pro waitlist' : 'See Pro'}
+        {waitlist ? m.joinWaitlist : m.seePro}
       </button>
     </div>
   )

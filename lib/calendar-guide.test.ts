@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { CALENDAR_PROVIDERS } from '@solara/core/event-import'
-import { CALENDAR_GUIDES, GOOGLE_EVENTS_NOTE, SHARED_NOTES } from './calendar-guide'
+import { CALENDAR_GUIDES, googleEventsNote, SHARED_NOTES } from './calendar-guide'
 
 const EM_DASH = String.fromCharCode(0x2014)
 
@@ -27,7 +27,7 @@ describe('CALENDAR_GUIDES', () => {
       if (guide.summary) oneSentence(guide.summary)
     }
     Object.values(SHARED_NOTES).forEach(oneSentence)
-    oneSentence(GOOGLE_EVENTS_NOTE)
+    oneSentence(googleEventsNote())
   })
 
   it('gives numbered steps that end at the link field, or one sentence for Yahoo', () => {

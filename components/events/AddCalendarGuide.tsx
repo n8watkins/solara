@@ -6,7 +6,8 @@
 import { useId, useState } from 'react'
 import { Clock, KeyRound } from 'lucide-react'
 import { CALENDAR_PROVIDERS, type CalendarProvider } from '@solara/core/event-import'
-import { CALENDAR_GUIDES, GOOGLE_EVENTS_NOTE, SHARED_NOTES } from '@/lib/calendar-guide'
+import { CALENDAR_GUIDES, googleEventsNote, SHARED_NOTES } from '@/lib/calendar-guide'
+import m from '@/messages/events'
 
 interface Props {
   /** Whether events from Google Calendar are switched on (the Google choice mentions them). */
@@ -21,7 +22,7 @@ export default function AddCalendarGuide({ googleEvents, initialProvider = null 
   const guide = provider ? CALENDAR_GUIDES[provider] : null
   const legendId = `${id}-legend`
   const notes = guide
-    ? [...guide.notes, ...(provider === 'google' && googleEvents ? [GOOGLE_EVENTS_NOTE] : [])]
+    ? [...guide.notes, ...(provider === 'google' && googleEvents ? [googleEventsNote()] : [])]
     : []
 
   return (
@@ -30,7 +31,7 @@ export default function AddCalendarGuide({ googleEvents, initialProvider = null 
       data-testid="add-calendar-guide"
     >
       <p id={legendId} className="text-[12px] leading-normal text-ink-2">
-        Where is the calendar?
+        {m.whereIsCalendar}
       </p>
       {/* Native radios: arrow keys, focus and screen-reader semantics come for free. */}
       <fieldset
@@ -54,7 +55,9 @@ export default function AddCalendarGuide({ googleEvents, initialProvider = null 
 
       {guide && provider && (
         <div className="mt-3" data-testid="add-calendar-steps" data-provider={provider}>
-          <h4 className="sr-only">How to copy the link from {guide.label}</h4>
+          <h4 className="sr-only">
+            {m.howToCopy} {guide.label}
+          </h4>
           {guide.summary && <p className="text-[13px] leading-normal text-ink">{guide.summary}</p>}
           {guide.ways.length > 0 && (
             <div

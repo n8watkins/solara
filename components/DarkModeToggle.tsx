@@ -7,11 +7,12 @@ import {
   subscribeToTheme,
   type ThemePreference,
 } from '@/lib/theme'
+import m from '@/messages/settings'
 
-const LABELS: Record<ThemePreference, string> = {
-  system: 'System',
-  light: 'Light',
-  dark: 'Dark',
+const LABELS: Record<ThemePreference, () => string> = {
+  system: () => m.themeSystem,
+  light: () => m.themeLight,
+  dark: () => m.themeDark,
 }
 
 // The static export renders the default; the stored choice takes over during
@@ -22,7 +23,7 @@ const getServerPreference = (): ThemePreference => 'system'
  * System / Light / Dark theme picker: a segmented control built on native radio
  * inputs, so arrow keys, focus and screen-reader semantics come for free.
  */
-export default function DarkModeToggle({ label = 'Theme' }: { label?: string }) {
+export default function DarkModeToggle({ label = m.theme }: { label?: string }) {
   const name = useId()
   const preference = useSyncExternalStore(subscribeToTheme, getThemePreference, getServerPreference)
 
@@ -38,7 +39,7 @@ export default function DarkModeToggle({ label = 'Theme' }: { label?: string }) 
             checked={preference === value}
             onChange={() => setThemePreference(value)}
           />
-          <span>{LABELS[value]}</span>
+          <span>{LABELS[value]()}</span>
         </label>
       ))}
     </fieldset>

@@ -18,6 +18,7 @@ import {
 import { FinishStep, LocationStep, SkinStep, UVPreviewStep } from './OnboardingSteps'
 import type { PlaceSearchMiss } from './PlaceSearch'
 import SolaraMark from './SolaraMark'
+import m from '@/messages/setup'
 
 interface Props {
   /** The signed-in account that has no saved plan yet, or null for a visitor. */
@@ -116,11 +117,7 @@ export default function Onboarding({ user, onSignedIn, onStartAsGuest }: Props) 
   }, [initialCity])
 
   function handlePlaceMiss(reason: PlaceSearchMiss) {
-    setGeoError(
-      reason === 'none'
-        ? 'City not found. Try a different spelling.'
-        : "Place search isn't answering right now. Try again in a moment, or use your location.",
-    )
+    setGeoError(reason === 'none' ? m.cityNotFoundSpelling : m.placeSearchDown)
   }
 
   // The live UV is a preview only: when it cannot load, setup moves on to skin type.
@@ -165,11 +162,11 @@ export default function Onboarding({ user, onSignedIn, onStartAsGuest }: Props) 
           </a>
           <div
             role="progressbar"
-            aria-label="Setup progress"
+            aria-label={m.setupProgress}
             aria-valuemin={1}
             aria-valuemax={3}
             aria-valuenow={progress}
-            aria-valuetext={`Step ${progress} of 3`}
+            aria-valuetext={m.stepOf(progress, 3)}
             className="mt-2.5 flex justify-center gap-1.5"
           >
             {[1, 2, 3].map(i => (

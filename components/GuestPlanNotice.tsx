@@ -8,6 +8,7 @@ import {
   replacedGuestPlanLines,
 } from '@/lib/guest-replaced'
 import { NOTICE_TONES } from './AppNotice'
+import m from '@/messages/setup'
 
 /**
  * Tells someone who signed in from guest mode to an account that already existed that
@@ -36,24 +37,22 @@ export default function GuestPlanNotice({ uid }: { uid: string }) {
       <UserRoundCheck aria-hidden="true" size={18} strokeWidth={2.25} className="mt-px" />
       <div className="min-w-0">
         <p id={titleId} className="font-semibold">
-          Welcome back. Your account kept its own plan.
+          {m.welcomeBack}
         </p>
-        <p className="mt-1 leading-[1.45]">
-          The guest plan from this device wasn&apos;t added to it, so these weren&apos;t saved:
-        </p>
+        <p className="mt-1 leading-[1.45]">{m.guestNotAdded}</p>
         <ul className="mt-1.5 list-disc pl-5 leading-[1.45]">
           {lines.map(line => (
             <li key={line}>{line}</li>
           ))}
         </ul>
-        <p className="mt-1.5 leading-[1.45]">You can add any of them again whenever you like.</p>
+        <p className="mt-1.5 leading-[1.45]">{m.addAgain}</p>
       </div>
       <button
         type="button"
         className="btn col-start-2 justify-self-start text-[12px] sm:col-start-3 sm:row-start-1"
         onClick={() => setReplaced(null)}
       >
-        Got it
+        {m.gotIt}
       </button>
     </div>
   )
