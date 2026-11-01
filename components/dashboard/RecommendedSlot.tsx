@@ -1,5 +1,6 @@
 import { CalendarPlus } from 'lucide-react'
 import type { SlotRecommendation } from '@solara/core/scheduler'
+import { closingPeriod } from '@/lib/activity-card-view'
 import { useUnits } from '@/lib/use-units'
 import { windowLabelText } from '@solara/core/recommendation'
 import m from '@/messages/activities'
@@ -48,11 +49,9 @@ export default function RecommendedSlot({
           </>
         )}
         {/* The sentence's period, unless a time such as "7:15 p.m." already closes it. */}
-        {(rec.latestStart > rec.earliestStart ? fmt.time(rec.latestStart) : rec.reason).endsWith(
-          '.',
-        )
-          ? null
-          : '.'}
+        {closingPeriod(
+          rec.latestStart > rec.earliestStart ? fmt.time(rec.latestStart) : rec.reason,
+        )}
       </p>
       {onBook ? (
         <button className={ACTION} onClick={onBook}>

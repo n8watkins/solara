@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  closingPeriod,
   activityBadge,
   bestWindowLabel,
   isRecommendationScheduled,
@@ -57,5 +58,15 @@ describe('isRecommendationScheduled', () => {
     expect(isRecommendationScheduled(rec, [])).toBe(false)
     expect(isRecommendationScheduled(rec, [{ span: { from: 18, to: 19 } }])).toBe(false)
     expect(isRecommendationScheduled(rec, [{ span: { from: 17.5, to: 19 } }])).toBe(true)
+  })
+})
+
+describe('closingPeriod', () => {
+  it('closes a sentence once, also after a Spanish time ("entre 6 p.m.–7:15 p.m.")', () => {
+    expect(closingPeriod('7:15pm')).toBe('.')
+    expect(closingPeriod('7:15\u00a0p.m.')).toBe('')
+    expect(
+      `Podrías empezar cuando quieras entre 6 p.m.–7:15\u00a0p.m.${closingPeriod('7:15\u00a0p.m.')}`,
+    ).not.toMatch(/\.\.$/)
   })
 })

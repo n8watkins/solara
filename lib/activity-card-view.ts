@@ -53,3 +53,12 @@ export function isRecommendationScheduled(
 ): boolean {
   return !!rec && scheduled.some(({ span }) => span.from < rec.end && span.to > rec.start)
 }
+
+/**
+ * The period that closes a sentence ending in `last`, or nothing when `last` already ends
+ * in one: a Spanish time ends in an abbreviation ("7:15 p.m."), whose period closes the
+ * sentence too.
+ */
+export function closingPeriod(last: string): '.' | '' {
+  return last.endsWith('.') ? '' : '.'
+}

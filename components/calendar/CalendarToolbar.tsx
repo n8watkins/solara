@@ -54,7 +54,9 @@ export default function CalendarToolbar({
       <div
         role="group"
         aria-label={m.hoursShown}
-        className="inline-flex gap-0.5 rounded-[10px] border-[0.5px] border-line-strong bg-surface-subtle p-[3px]"
+        // Never wider than the card: tighter on narrow phones, and wrapping as a last resort
+        // (a language with longer words, or a large text size).
+        className="inline-flex max-w-full flex-wrap gap-0.5 rounded-[10px] border-[0.5px] border-line-strong bg-surface-subtle p-[3px]"
       >
         {VIEWS.map(v => {
           const active = v.key === view
@@ -65,7 +67,7 @@ export default function CalendarToolbar({
               aria-pressed={active}
               onClick={() => onView(v.key)}
               className={clsx(
-                'min-h-7 rounded-[7px] border-none px-2.5 py-[5px] text-[12px] whitespace-nowrap',
+                'min-h-7 rounded-[7px] border-none px-1.5 py-[5px] text-[12px] whitespace-nowrap min-[400px]:px-2.5',
                 active
                   ? 'bg-surface-card font-semibold text-ink shadow-[0_1px_2px_rgba(0,0,0,0.12)]'
                   : 'bg-transparent font-medium text-ink-2',

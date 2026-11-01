@@ -17,6 +17,7 @@ import es from './messages/es/core'
 import { formatDuration } from './duration'
 import { uvLabel, formatUV } from './uv-scale'
 import { formatClock12 } from './clock'
+import { las, punto } from './messages/es/grammar'
 
 afterEach(() => setLocale('en'))
 
@@ -104,5 +105,19 @@ describe('plurals and numbers', () => {
     expect(formatUV(10.34)).toBe('10.3')
     expect(formatClock12(13)).toBe('1pm')
     expect(formatNumber(5000)).toBe('5,000')
+  })
+})
+
+describe('Spanish grammar helpers', () => {
+  it('closes a sentence once after a time that ends in an abbreviation', () => {
+    expect(punto('Alto o más a las 3\u00a0p.m.')).toBe('Alto o más a las 3\u00a0p.m.')
+    expect(punto('Alto o más a las 15:00')).toBe('Alto o más a las 15:00.')
+  })
+
+  it('uses "la" for one o\'clock and "las" for every other hour', () => {
+    expect(las('1\u00a0p.m.')).toBe('la 1\u00a0p.m.')
+    expect(las('1:30\u00a0p.m.')).toBe('la 1:30\u00a0p.m.')
+    expect(las('11\u00a0a.m.')).toBe('las 11\u00a0a.m.')
+    expect(las('13:00')).toBe('las 13:00')
   })
 })

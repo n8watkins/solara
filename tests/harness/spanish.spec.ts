@@ -55,6 +55,13 @@ for (const screen of SCREENS) {
       await document.fonts.ready
     })
     await page.waitForLoadState('networkidle')
+    // Today's dashboard keeps the sunscreen timer's place until it loads, after the page;
+    // wait for it, as a person would see it a moment after opening.
+    if (screen.name.startsWith('dashboard')) {
+      await expect(
+        page.getByRole('region', { name: /Temporizador de protector solar/ }),
+      ).toBeVisible()
+    }
 
     for (const width of widths(testInfo)) {
       await page.setViewportSize({ width, height: mobile(testInfo) ? 844 : 900 })
@@ -88,6 +95,22 @@ for (const screen of SCREENS) {
           .map(el => el.textContent!.trim().slice(0, 60)),
       )
       expect(clipped, `${screen.name} at ${width} px cuts text off`).toEqual([])
+      // Nothing pokes out of its card (the calendar's view switch once did at 320 px).
+      const outside = await page.evaluate(() =>
+        [...document.querySelectorAll<HTMLElement>('.card button, .card [role="group"]')]
+          .filter(el => {
+            const cardEl = el.closest('.card')!
+            // Inside a scrolling area (the calendar's days, the hourly strip) by design.
+            for (let p = el.parentElement; p && p !== cardEl; p = p.parentElement) {
+              if (/auto|scroll|hidden/.test(getComputedStyle(p).overflowX)) return false
+            }
+            const card = cardEl.getBoundingClientRect()
+            const box = el.getBoundingClientRect()
+            return box.width > 0 && (box.right > card.right + 0.5 || box.left < card.left - 0.5)
+          })
+          .map(el => (el.getAttribute('aria-label') ?? el.textContent ?? '').trim().slice(0, 40)),
+      )
+      expect(outside, `${screen.name} at ${width} px runs past a card`).toEqual([])
     }
 
     const leftovers = await page.evaluate(source => {
