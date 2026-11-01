@@ -586,11 +586,12 @@ service cloud.firestore {
     }
 
     // The browser's deletion marks the account as just deleted in the same batch
-    // (accountSelfDeletions/{uid}), and for an hour after, longer than any ID token from
-    // before the deletion lives, nothing can bring the account back: another open tab
-    // saving a setting would otherwise recreate the account document, or a key list or the
-    // reminder bookkeeping, with no sign-in behind it (REVIEW9 SEC9 L3). A sign-in whose
-    // Auth user could not be deleted can use the account again after the hour.
+    // (accountSelfDeletions/{uid}), and for 75 minutes after, longer than any ID token from
+    // before the deletion lives (an hour) with a margin for clock leeway (REVIEW10 SEC10
+    // I4), nothing can bring the account back: another open tab saving a setting would
+    // otherwise recreate the account document, or a key list or the reminder bookkeeping,
+    // with no sign-in behind it (REVIEW9 SEC9 L3). A sign-in whose Auth user could not be
+    // deleted can use the account again after that.
     function selfDeletionPath(userId) {
       return /databases/$(database)/documents/accountSelfDeletions/$(userId);
     }
@@ -601,7 +602,7 @@ service cloud.firestore {
 
     function notJustDeleted(userId) {
       return !exists(selfDeletionPath(userId))
-        || get(selfDeletionPath(userId)).data.deletedAt + duration.value(1, 'h') <= request.time;
+        || get(selfDeletionPath(userId)).data.deletedAt + duration.value(75, 'm') <= request.time;
     }
 
     // ---- Reapply reminder write rate ---------------------------------------------------
@@ -611,9 +612,14 @@ service cloud.firestore {
     // also stamps users/{uid}/reminders/writes with the server's time in the same batch,
     // and the stamp it replaces must be at least 10 seconds old. The stamp outlives the
     // reminder (Stop deletes only the reminder) and the owner can delete it only with the
-    // account, so stopping and starting again is held to the same rate. Real use writes a
-    // few times a day; lib/reapply-reminder.ts spaces a quick Start, "I reapplied" and
-    // "Swimming" itself.
+    // account document, so stopping and starting again is held to the same rate. Real use
+    // writes a few times a day; lib/reapply-reminder.ts spaces a quick Start, "I
+    // reapplied" and "Swimming" itself.
+    //
+    // The reminder also needs the account document to exist (REVIEW10 SEC10 M1): without
+    // one, "deleted with the account document" holds for any write, so a sign-in that never
+    // saved its settings could delete the stamp and write again at once. The app shows the
+    // timer's push only to an account it has loaded or created (lib/session.ts).
     function reminderWritesPath(userId) {
       return /databases/$(database)/documents/users/$(userId)/reminders/writes;
     }
@@ -699,7 +705,8 @@ service cloud.firestore {
       match /reminders/{name} {
         allow get: if isOwner(userId) && isActiveAccount(userId) && name in ['reapply', 'writes'];
         allow create, update: if isOwner(userId) && isActiveAccount(userId)
-          && ((name == 'reapply' && validReapplyReminder() && spacedReminderWrite(userId)
+          && ((name == 'reapply' && exists(/databases/$(database)/documents/users/$(userId))
+              && validReapplyReminder() && spacedReminderWrite(userId)
               && (resource == null || request.resource.data.id != resource.data.id))
             || (name == 'writes' && notJustDeleted(userId)
               && request.resource.data.keys().hasOnly(['writtenAt'])
@@ -730,12 +737,17 @@ service cloud.firestore {
 
     // The browser's own deletion marker (notJustDeleted): written only in the batch that
     // deletes the account document, with the server's time only (a device's clock may be
-    // far off), never read or removed by a client. The maintenance job removes markers a
-    // day old (functions/src/account/self-deletion.ts).
+    // far off), never read or removed by a client. It expires a day after the sign-in that
+    // deleted the account (REVIEW10 SEC10 L1): `expireAt` is the token's `auth_time` plus
+    // a day, so no device clock is trusted, and the recent sign-in keeps it well past the
+    // 75 minutes; Firestore's TTL policy removes it (infra/firestore-ttl.sh), and the
+    // maintenance job removes markers a day old (functions/src/account/self-deletion.ts).
     match /accountSelfDeletions/{userId} {
-      allow create, update: if isOwner(userId)
-        && request.resource.data.keys().hasOnly(['deletedAt'])
+      allow create, update: if isOwner(userId) && recentSignIn()
+        && request.resource.data.keys().hasOnly(['deletedAt', 'expireAt'])
         && request.resource.data.deletedAt == request.time
+        && request.resource.data.expireAt
+          == timestamp.value(request.auth.token.auth_time * 1000) + duration.value(1, 'd')
         && !existsAfter(/databases/$(database)/documents/users/$(userId));
       allow read, delete: if false;
     }

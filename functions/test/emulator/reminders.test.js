@@ -160,6 +160,15 @@ describe('reapply reminder push', () => {
     assert.equal(again, 'unchanged')
   })
 
+  test('a reminder without an account document is not counted or sent (REVIEW10 SEC10 M1)', async () => {
+    const { outcome, enqueued } = await schedule('mallory', reminder())
+    assert.equal(outcome, 'no-account')
+    assert.deepEqual(enqueued, [])
+    // Nothing counted against a cap, and the record is left to its TTL.
+    assert.equal((await db.doc('users/mallory/alertState/reapply').get()).exists, false)
+    assert.equal((await reminderRef('mallory').get()).exists, true)
+  })
+
   test('a claimed reminder armed again under its id is not a new schedule (REVIEW9 SEC9 I3)', async () => {
     await addUser('alice')
     await schedule('alice', reminder())

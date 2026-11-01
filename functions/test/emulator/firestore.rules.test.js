@@ -63,7 +63,7 @@ async function seedKeyIndex(uid, name, keys) {
  * the account document and the reminder's write stamp go, and the account is marked as
  * just deleted (REVIEW9 SEC9 L3).
  */
-function deleteAccountBatch(db, uid, { mark = { deletedAt: serverTime() } } = {}) {
+function deleteAccountBatch(db, uid, { mark = deletionMark(db) } = {}) {
   const batch = db.batch()
   batch.delete(db.doc(`users/${uid}/reminders/writes`))
   batch.delete(db.doc(`users/${uid}`))
@@ -75,10 +75,25 @@ function serverTime() {
   return firebase.firestore.FieldValue.serverTimestamp()
 }
 
-/** The owner's Firestore with a sign-in `minutesAgo` minutes old. */
+const DAY_MS = 24 * 60 * 60 * 1000
+
+/**
+ * The "just deleted" marker as lib/account-self-service.ts writes it: the server's time,
+ * and an `expireAt` a day after the sign-in's `auth_time` (REVIEW10 SEC10 L1).
+ */
+function deletionMark(db) {
+  return {
+    deletedAt: serverTime(),
+    expireAt: firebase.firestore.Timestamp.fromMillis(db.authTime * 1000 + DAY_MS),
+  }
+}
+
+/** The owner's Firestore with a sign-in `minutesAgo` minutes old (its `authTime` in seconds). */
 function signedInAgo(uid, minutesAgo) {
   const authTime = Math.floor(Date.now() / 1000) - minutesAgo * 60
-  return testEnv.authenticatedContext(uid, { auth_time: authTime }).firestore()
+  const db = testEnv.authenticatedContext(uid, { auth_time: authTime }).firestore()
+  db.authTime = authTime
+  return db
 }
 
 describe('user preferences', () => {
@@ -1884,11 +1899,11 @@ describe('self-service account deletion: what the rules enforce (REVIEW9 SEC9 L1
     // The server's time and nothing else: a device clock may be far off.
     const { Timestamp } = firebase.firestore
     await assertFails(
-      deleteAccountBatch(db, 'alice', { mark: { deletedAt: Timestamp.fromMillis(Date.now()) } }),
+      deleteAccountBatch(db, 'alice', {
+        mark: { ...deletionMark(db), deletedAt: Timestamp.fromMillis(Date.now()) },
+      }),
     )
-    await assertFails(
-      deleteAccountBatch(db, 'alice', { mark: { deletedAt: serverTime(), note: 'x' } }),
-    )
+    await assertFails(deleteAccountBatch(db, 'alice', { mark: { ...deletionMark(db), note: 'x' } }))
     await assertSucceeds(deleteAccountBatch(db, 'alice'))
     // Never read, removed or written for someone else by a client.
     await assertFails(db.doc('accountSelfDeletions/alice').get())
@@ -1931,7 +1946,7 @@ describe('self-service account deletion: what the rules enforce (REVIEW9 SEC9 L1
     await assertSucceeds(db.doc('users/alice/meta/googleCalendar').delete())
   })
 
-  test('L3: for an hour after, another tab cannot bring the account back', async () => {
+  test('L3: for 75 minutes after, another tab cannot bring the account back', async () => {
     await seededRef('alice')
     const db = signedInAgo('alice', 0)
     await assertSucceeds(deleteAccountBatch(db, 'alice'))
@@ -1952,19 +1967,45 @@ describe('self-service account deletion: what the rules enforce (REVIEW9 SEC9 L1
     )
   })
 
-  test('L3: after the hour, a sign-in whose Auth user was not deleted can start again', async () => {
+  test('L1: the marker expires a day after the sign-in that deleted the account, by the token’s time', async () => {
+    await seededRef('alice')
+    const db = signedInAgo('alice', 3)
+    const { Timestamp } = firebase.firestore
+    const at = ms => ({ ...deletionMark(db), expireAt: Timestamp.fromMillis(ms) })
+    // Without it, or set from a device clock (a minute off), or for longer.
+    const { expireAt: _expireAt, ...noExpiry } = deletionMark(db)
+    await assertFails(deleteAccountBatch(db, 'alice', { mark: noExpiry }))
+    await assertFails(deleteAccountBatch(db, 'alice', { mark: at(Date.now() + DAY_MS) }))
+    await assertFails(
+      deleteAccountBatch(db, 'alice', { mark: at(db.authTime * 1000 + 2 * DAY_MS) }),
+    )
+    await assertFails(
+      deleteAccountBatch(db, 'alice', { mark: { ...deletionMark(db), expireAt: 1 } }),
+    )
+    await assertSucceeds(deleteAccountBatch(db, 'alice'))
+    let stored
+    await testEnv.withSecurityRulesDisabled(async context => {
+      stored = (await context.firestore().doc('accountSelfDeletions/alice').get()).data()
+    })
+    assert.equal(stored.expireAt.toMillis(), db.authTime * 1000 + DAY_MS)
+    // Never from an old sign-in, whose day could end within the protected window.
+    const old = signedInAgo('alice', 23 * 60 + 30)
+    await assertFails(old.doc('accountSelfDeletions/alice').set(deletionMark(old)))
+  })
+
+  test('L3: after 75 minutes, a sign-in whose Auth user was not deleted can start again', async () => {
     await testEnv.withSecurityRulesDisabled(async context => {
       await context
         .firestore()
         .doc('accountSelfDeletions/alice')
         .set({
-          deletedAt: firebase.firestore.Timestamp.fromMillis(Date.now() - 61 * 60 * 1000),
+          deletedAt: firebase.firestore.Timestamp.fromMillis(Date.now() - 76 * 60 * 1000),
         })
       await context
         .firestore()
         .doc('accountSelfDeletions/bob')
         .set({
-          deletedAt: firebase.firestore.Timestamp.fromMillis(Date.now() - 59 * 60 * 1000),
+          deletedAt: firebase.firestore.Timestamp.fromMillis(Date.now() - 74 * 60 * 1000),
         })
     })
     const alice = signedInAgo('alice', 0)
@@ -2209,6 +2250,36 @@ describe('reapply reminder record', () => {
       }
     }
     assert.equal(accepted, 1)
+  })
+
+  test('REVIEW10 SEC10 M1: without an account document the reminder cannot be written, so its stamp cannot be reset', async () => {
+    // A Google sign-in whose client never saves preferences: no users/mallory. Before the
+    // fix, the stamp could be deleted (only the account deletion may, and with no account
+    // document every write "deleted" it) and the reminder written again at once, each
+    // write starting the trigger: 50 in under a second in the review's probe.
+    const db = testEnv.authenticatedContext('mallory').firestore()
+    const stamp = db.doc('users/mallory/reminders/writes')
+    let accepted = 0
+    for (let i = 0; i < 5; i++) {
+      await stamp.delete().catch(() => {})
+      const batch = db.batch()
+      batch.set(db.doc('users/mallory/reminders/reapply'), reminder({ id: hexId(i + 1) }))
+      batch.set(stamp, { writtenAt: FieldValue.serverTimestamp() })
+      try {
+        await batch.commit()
+        accepted++
+      } catch (error) {
+        assert.equal(error.code, 'permission-denied')
+      }
+    }
+    assert.equal(accepted, 0)
+    // Once the app has created the account document, the first write goes through.
+    await seededRef('mallory')
+    const batch = db.batch()
+    batch.set(db.doc('users/mallory/reminders/reapply'), reminder({ id: hexId(9) }))
+    batch.set(stamp, { writtenAt: FieldValue.serverTimestamp() })
+    await assertSucceeds(batch.commit())
+    await assertFails(stamp.delete())
   })
 
   test('M1: Stop and Start again is held to the same rate, Stop never is', async () => {

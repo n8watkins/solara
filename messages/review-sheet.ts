@@ -53,6 +53,15 @@ export const DOCUMENT_CHANGES = [
     spanish:
       'Idioma. El idioma que eliges en Configuración o, con Automático, el que Solara deduce de tu dispositivo (inglés o español, nunca la lista completa de idiomas de tu dispositivo), guardado con tu cuenta para escribir en él las notificaciones, los recordatorios y el calendario suscrito. Con Automático, lo fija el último dispositivo en que abres Solara.',
   },
+  {
+    page: '/es/privacy/',
+    version: 'November 1, 2026',
+    section: 'Cuánto tiempo se guarda la información',
+    english:
+      "A note that an account was deleted on the Account data controls page (its former account id and the time, linked to no sign-in), so another open tab cannot bring the account back: a day, once Solara's automatic clean-up is switched on, and until then it stays.",
+    spanish:
+      'Una nota de que una cuenta se eliminó en la página de controles de datos de la cuenta (su identificador anterior y la hora, sin vínculo con ningún inicio de sesión), para que otra pestaña abierta no pueda recuperar la cuenta: un día, cuando se active la limpieza automática de Solara, y hasta entonces se conserva.',
+  },
 ]
 
 /** A message with its parameters shown as {1}, {2}, ... (a list as one value). */

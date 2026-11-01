@@ -451,6 +451,12 @@ export default function PrivacyPage() {
             elimines tu cuenta, para evitar pruebas gratis repetidas.
           </li>
           <li>
+            Una nota de que una cuenta se eliminó en la página de controles de datos de la cuenta
+            (su identificador anterior y la hora, sin vínculo con ningún inicio de sesión), para que
+            otra pestaña abierta no pueda recuperar la cuenta: un día, cuando se active la limpieza
+            automática de Solara, y hasta entonces se conserva.
+          </li>
+          <li>
             Registros de pago: el tiempo que exija la legislación fiscal y contable, incluso después
             de eliminar la cuenta. Stripe guarda sus propios registros según su política de
             privacidad.

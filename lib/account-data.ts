@@ -52,8 +52,19 @@ export const EXPORT_SECTIONS = {
   },
 }
 
-/** The export's bookkeeping fields, which are not sections of the person's data. */
-export const EXPORT_METADATA_FIELDS = ['formatVersion', 'exportedAt', 'truncated'] as const
+/**
+ * The export's fields the page does not list as sections: the file's own bookkeeping, and
+ * `bookkeeping`, the times and counts Solara keeps for its own limits (when the sunscreen
+ * reminder was last written, the day's reminder counts, when a device was last
+ * registered; REVIEW10 SEC10 I3), which the page's reminder and device sections cover.
+ * Naming it on its own would put the Spanish first load over its budget (REVIEW10 QA10 M1).
+ */
+export const EXPORT_METADATA_FIELDS = [
+  'formatVersion',
+  'exportedAt',
+  'truncated',
+  'bookkeeping',
+] as const
 
 /**
  * What deleting the account removes from Solara, in the order the page lists it. These

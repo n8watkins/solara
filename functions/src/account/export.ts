@@ -1,7 +1,8 @@
 // Data export: the portable account fields, a billing summary, notification devices,
 // scheduled activities, imported events, linked calendars (their host and label, never
-// the link), the Google and Outlook calendars events are read from and the Pro alert
-// history, never billing ids, tokens or internal bookkeeping. The file itself is built by
+// the link), the Google and Outlook calendars events are read from, the Pro alert
+// history and the times and counts Solara keeps for its own limits, never billing ids
+// or tokens. The file itself is built by
 // @solara/core/account-export, which the account page also uses when Functions are off.
 //
 // The collections a person can fill from the browser (imported events, scheduled
@@ -17,6 +18,7 @@ import {
   type TruncatedSection,
 } from '#core/account-export'
 import { GOOGLE_CALENDAR_LINK_DOC, OUTLOOK_CALENDAR_LINK_DOC } from '#core/event-import'
+import { REAPPLY_REMINDER_WRITES_DOC } from '#core/reapply'
 import type { Auth } from 'firebase-admin/auth'
 import {
   type CollectionReference,
@@ -35,7 +37,12 @@ import {
   ALERT_STATE_DOC,
   EVENT_ALERT_STATE_DOC,
 } from '../notifications/alerts'
-import { REAPPLY_REMINDER_DOC, REMINDER_COLLECTION } from '../notifications/reminders'
+import {
+  REAPPLY_REMINDER_DOC,
+  REAPPLY_STATE_DOC,
+  REMINDER_COLLECTION,
+} from '../notifications/reminders'
+import { DEVICE_RECORDS_DOC } from '../notifications/schedule'
 import { HttpError } from '../shared/errors'
 
 // The file's shape and filtering live in @solara/core/account-export, which the account
@@ -144,6 +151,9 @@ export async function readAccountExport({
   const googleRef = userRef.collection('meta').doc(GOOGLE_CALENDAR_LINK_DOC)
   const outlookRef = userRef.collection('meta').doc(OUTLOOK_CALENDAR_LINK_DOC)
   const reminderRef = userRef.collection(REMINDER_COLLECTION).doc(REAPPLY_REMINDER_DOC)
+  const reminderWritesRef = userRef.collection(REMINDER_COLLECTION).doc(REAPPLY_REMINDER_WRITES_DOC)
+  const reminderCountsRef = userRef.collection(ALERT_STATE_COLLECTION).doc(REAPPLY_STATE_DOC)
+  const deviceRecordsRef = userRef.collection('private').doc(DEVICE_RECORDS_DOC)
   // A read-only transaction: every page comes from the same snapshot, and nothing is locked.
   const sections = await db.runTransaction(
     async transaction => {
@@ -159,6 +169,9 @@ export async function readAccountExport({
         google,
         outlook,
         reminder,
+        reminderWrites,
+        reminderCounts,
+        deviceRecords,
         devices,
         scheduled,
         events,
@@ -170,6 +183,9 @@ export async function readAccountExport({
         transaction.get(googleRef),
         transaction.get(outlookRef),
         transaction.get(reminderRef),
+        transaction.get(reminderWritesRef),
+        transaction.get(reminderCountsRef),
+        transaction.get(deviceRecordsRef),
         readPaged(transaction, userRef.collection('notificationDevices'), plain, limits),
         readPaged(transaction, userRef.collection('scheduled'), plain, limits),
         readPaged(transaction, userRef.collection('events'), plain, limits),
@@ -182,6 +198,9 @@ export async function readAccountExport({
         google: google.exists ? (google.data() ?? null) : null,
         outlook: outlook.exists ? (outlook.data() ?? null) : null,
         reminder: reminder.exists ? (reminder.data() ?? null) : null,
+        reminderWrites: reminderWrites.exists ? (reminderWrites.data() ?? null) : null,
+        reminderCounts: reminderCounts.exists ? (reminderCounts.data() ?? null) : null,
+        deviceRecords: deviceRecords.exists ? (deviceRecords.data() ?? null) : null,
         devices,
         scheduled,
         events,
@@ -202,6 +221,9 @@ export async function readAccountExport({
       google: sections.google,
       outlook: sections.outlook,
       reminder: sections.reminder,
+      reminderWrites: sections.reminderWrites,
+      reminderCounts: sections.reminderCounts,
+      deviceRecords: sections.deviceRecords,
       devices: sections.devices.records,
       scheduled: sections.scheduled.records,
       events: sections.events.records,

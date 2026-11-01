@@ -1,10 +1,12 @@
 // The browser's own account deletion (lib/account-self-service.ts) marks the account as
 // just deleted, `accountSelfDeletions/{uid}` with the server's time, in the batch that
-// deletes the account document; for an hour after, firestore.rules (notJustDeleted) let
-// nothing of the account be written again, so another open tab cannot bring it back
-// (REVIEW9 SEC9 L3). The marker holds only the uid and that time. It carries no TTL
-// field, because a device's clock cannot be trusted to set one, so the maintenance job
-// removes markers a day old here.
+// deletes the account document; for 75 minutes after, firestore.rules (notJustDeleted)
+// let nothing of the account be written again, so another open tab cannot bring it back
+// (REVIEW9 SEC9 L3, REVIEW10 SEC10 I4). The marker holds only the uid, that time and its
+// `expireAt`, a day after the token's `auth_time` as the rules require, which Firestore's
+// TTL policy removes it by (REVIEW10 SEC10 L1). The maintenance job also removes markers
+// a day old here, which covers markers written before they carried `expireAt` and a
+// project whose TTL policy is not on.
 
 import type { Firestore } from 'firebase-admin/firestore'
 

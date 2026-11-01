@@ -619,6 +619,25 @@ Languages, in order:
 
 When to add the next language: when its speakers reach roughly 5 to 10% of users, measured from Google Analytics browser languages and, once the Android app exists, Play Console installs by country.
 
+### 47. Security fixes from the tenth review (SECFIX10, built)
+
+The fixes for `handoff/review10-sec10.md` (REVIEW10 SEC10, main at `a77907a`); each was reproduced first with the review's probes (`handoff/review10-probes/sec10/`) or a new test.
+
+- **M1 reminder spacing without an account document:** the rules accept a reminder write only when `users/{uid}` exists, so a sign-in that never saves its settings can no longer delete the write stamp and write again at once (the probe's 50 writes in under a second; now 0 of 5 accepted).
+  `reminderWritten` also returns before any other work when the account document is missing, and [COSTS.md](COSTS.md) says the trigger runs on every reminder write from the first Functions deploy, not only once alerts are on.
+  The app writes reminders only for an account it has loaded or created (`lib/session.ts`), which the signed-in reminder suite checks end to end.
+- **L1 the "just deleted" marker:** it now carries `expireAt`, exactly a day after the token's `auth_time` (the rules check it, so no device clock is trusted, and its write needs the recent sign-in), with a TTL policy in `infra/firestore-ttl.sh` and an index exemption; the `maintenance` job still removes markers a day old.
+  TTL deletes may need billing, so until the policy or the job runs the marker stays; both privacy policies (English and Spanish, November 1, 2026) now say so in one line, which is in the native-review sheet ([es-review.md](i18n/es-review.md)).
+- **I3 bookkeeping in the download:** both data downloads carry a `bookkeeping` section: when the sunscreen reminder was last written, the day's reminder counts (the Function's file only) and when a notification device was last registered.
+- **I4 window margin:** an ID token lives an hour, so the window in which nothing of a just-deleted account may be written is now 75 minutes instead of exactly an hour, in case Firestore accepts a token with some clock leeway past its expiry; the only cost is that a sign-in whose Auth user could not be deleted waits 15 minutes longer.
+- **Tests:** `functions/test/emulator/firestore.rules.test.js` (M1, L1, I4), `functions/test/emulator/reminders.test.js`, `functions/test/emulator/lifecycle.test.js`, `packages/core/src/account-export.test.ts`, `lib/account-self-service.test.ts`.
+- **Owner:** run `infra/firestore-ttl.sh` again (print, read, then `--apply`) for the new `accountSelfDeletions` policy, with step A12 or C8; L2 (the browser key, `localhost`, the `production` environment and the unused secret) stays with the owner steps.
+
+### 48. Vitamin D log (planned next)
+
+The owner's next feature (2026-11-01), after the Review 10 fixes: a vitamin D log, the sun exposure log with a vitamin D tally planned before item 46, renamed.
+Its scope, files and acceptance criteria are set when the lane starts; the dashboard's vitamin D estimate card stays as the starting point.
+
 ## Decisions
 
 Agents never make owner decisions; they follow the recorded decision or the default.
@@ -638,6 +657,7 @@ The steps behind each one are in the [owner checklist](OWNER_CHECKLIST.md).
 | D10 | Error reporting | Decided 2026-10-23: Sentry; code shipped in #70, waits for the owner's DSN |
 | D11 | Bot protection | Decided 2026-10-23: App Check with reCAPTCHA v3; works without code changes, waits for the owner's site key |
 | D12 | Local branch and worktree cleanup on the owner's machine | Done by 2026-10-28: only the main clone and the current review worktrees remain |
+| Vitamin D log | The next feature after languages | Owner 2026-11-01: build a vitamin D log next (after the Review 10 fixes), [item 48](#48-vitamin-d-log-planned-next) |
 | Languages | Which languages to offer | Decided 2026-11-01: build the language setup with English and Spanish (item 46); add Portuguese (Brazil), French and German in that order when each reaches about 5 to 10% of users; no right-to-left languages for now |
 | Language pages | How the static pages (landing, privacy, terms, city pages) offer Spanish | Default, owner may change (2026-11-01): their own Spanish addresses (`/es/`, `/es/privacy/`, `/es/terms/`, `/es/uv/<city>/`), built as static pages with `hreflang` links between the two languages, so search engines index each language and the pages keep shipping no framework JavaScript; the app keeps one address and switches at runtime. Built in item 46's second part, with the English version stated to prevail on the legal pages |
 | Server language | Which language pushes and the calendar feed use for an account set to Automatic | Decided by the owner 2026-11-01 (item 46): the account's `language` when it is a language (`en`, `es`), else its `deviceLanguage` (the language the app resolved from the device, saved to the account only when it changes, so the last device to open the app wins), else English; Settings and the privacy policy say so. Before this, Automatic gave English pushes |

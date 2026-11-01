@@ -3,9 +3,9 @@
 // (exportAccountData, deleteAccount): they also see server-only records and end billing.
 //
 // Export reads every document of users/{uid} the rules let the owner read and builds the
-// same file as the Function (@solara/core/account-export). The Pro alert history in
-// users/{uid}/alertState is server-only and written only by the Functions, so it is
-// empty here.
+// same file as the Function (@solara/core/account-export). The Pro alert history and the
+// reminder counts in users/{uid}/alertState are server-only and written only by the
+// Functions, so they are empty here.
 //
 // Deletion, after the account page's confirmation and a fresh Google sign-in:
 // 1. Stops before deleting anything when the account holds what only the server may
@@ -17,8 +17,9 @@
 //    list in the same batch (lib/key-index.ts), as the rules require, then in one batch
 //    the emptied key lists, the Google and Outlook connections, the sunscreen reminder
 //    and its write stamp, and the account document, with the account marked as just
-//    deleted (accountSelfDeletions/{uid}), so for an hour no other open tab can bring any
-//    of it back (REVIEW9 SEC9 L3). The rules also want a sign-in from the last 10 minutes
+//    deleted (accountSelfDeletions/{uid}), so for 75 minutes no other open tab can bring
+//    any of it back (REVIEW9 SEC9 L3, REVIEW10 SEC10 I4); the marker expires a day later
+//    (REVIEW10 SEC10 L1). The rules also want a sign-in from the last 10 minutes
 //    for this batch (REVIEW9 SEC9 L2), which the account page's fresh Google sign-in is.
 // 3. Reads everything back, and runs again if anything reappeared (another open tab
 //    can still be saving); only when nothing is left does it delete the Auth user.
@@ -154,18 +155,29 @@ async function readCollection(
 /** The account data file, read from Firestore by its owner. */
 export async function exportAccountInBrowser(uid: string): Promise<AccountExport> {
   const { db, sdk } = await firestore()
-  const [account, links, google, outlook, reminder, devices, scheduled, events] = await Promise.all(
-    [
-      readDoc(sdk, db, 'users', uid),
-      readDoc(sdk, db, 'users', uid, 'private', 'eventSubscriptions'),
-      readDoc(sdk, db, 'users', uid, 'meta', GOOGLE_CALENDAR_LINK_DOC),
-      readDoc(sdk, db, 'users', uid, 'meta', OUTLOOK_CALENDAR_LINK_DOC),
-      readDoc(sdk, db, 'users', uid, 'reminders', 'reapply'),
-      readCollection(sdk, db, uid, 'notificationDevices'),
-      readCollection(sdk, db, uid, 'scheduled'),
-      readCollection(sdk, db, uid, 'events'),
-    ],
-  )
+  const [
+    account,
+    links,
+    google,
+    outlook,
+    reminder,
+    reminderWrites,
+    deviceRecords,
+    devices,
+    scheduled,
+    events,
+  ] = await Promise.all([
+    readDoc(sdk, db, 'users', uid),
+    readDoc(sdk, db, 'users', uid, 'private', 'eventSubscriptions'),
+    readDoc(sdk, db, 'users', uid, 'meta', GOOGLE_CALENDAR_LINK_DOC),
+    readDoc(sdk, db, 'users', uid, 'meta', OUTLOOK_CALENDAR_LINK_DOC),
+    readDoc(sdk, db, 'users', uid, 'reminders', 'reapply'),
+    readDoc(sdk, db, 'users', uid, 'reminders', REAPPLY_REMINDER_WRITES_DOC),
+    readDoc(sdk, db, 'users', uid, 'private', 'notificationDevices'),
+    readCollection(sdk, db, uid, 'notificationDevices'),
+    readCollection(sdk, db, uid, 'scheduled'),
+    readCollection(sdk, db, uid, 'events'),
+  ])
   const truncated: TruncatedSection[] = []
   if (devices.truncated) truncated.push('notificationDevices')
   if (scheduled.truncated) truncated.push('scheduledActivities')
@@ -180,6 +192,10 @@ export async function exportAccountInBrowser(uid: string): Promise<AccountExport
       google,
       outlook,
       reminder,
+      reminderWrites,
+      // Server-only, and written only by the Functions.
+      reminderCounts: null,
+      deviceRecords,
       devices: devices.docs,
       scheduled: scheduled.docs,
       events: events.docs,
@@ -226,8 +242,24 @@ export async function remainingAccountData(uid: string): Promise<string[]> {
   ]
 }
 
+/**
+ * How long the "just deleted" marker is kept: Firestore's TTL policy removes it a day
+ * after the sign-in that deleted the account (infra/firestore-ttl.sh), as the rules
+ * require (`expireAt` is the token's `auth_time` plus a day, so no device clock is
+ * trusted), and the maintenance Function a day after the deletion.
+ */
+const SELF_DELETION_MARKER_KEEP_MS = 24 * 60 * 60 * 1000
+
+/** When the user last signed in, from the ID token the rules read (`auth_time`), in ms. */
+async function signInTimeMs(user: User): Promise<number> {
+  const { claims } = await user.getIdTokenResult()
+  const seconds = Number(claims.auth_time)
+  if (!Number.isFinite(seconds)) throw new Error('The sign-in has no sign-in time')
+  return seconds * 1000
+}
+
 /** One pass over every client-deletable document of users/{uid}. */
-async function deletePass(uid: string): Promise<void> {
+async function deletePass(uid: string, signedInAtMs: number): Promise<void> {
   // Records first, with their keys, so each key list ends up empty.
   for (const name of CAPPED) {
     const keys = [...new Set([...(await listedKeys(uid, name)), ...(await storedKeys(uid, name))])]
@@ -243,8 +275,11 @@ async function deletePass(uid: string): Promise<void> {
   batch.delete(sdk.doc(db, 'users', uid, 'reminders', 'reapply'))
   batch.delete(sdk.doc(db, 'users', uid, 'reminders', REAPPLY_REMINDER_WRITES_DOC))
   batch.delete(sdk.doc(db, 'users', uid))
-  // Nothing of the account can come back for an hour (firestore.rules notJustDeleted).
-  batch.set(sdk.doc(db, 'accountSelfDeletions', uid), { deletedAt: sdk.serverTimestamp() })
+  // Nothing of the account can come back for a while (firestore.rules notJustDeleted).
+  batch.set(sdk.doc(db, 'accountSelfDeletions', uid), {
+    deletedAt: sdk.serverTimestamp(),
+    expireAt: sdk.Timestamp.fromMillis(signedInAtMs + SELF_DELETION_MARKER_KEEP_MS),
+  })
   await batch.commit()
 }
 
@@ -260,9 +295,10 @@ export async function deleteAccountInBrowser(user: User): Promise<void> {
 
   let left: string[] = []
   try {
+    const signedInAtMs = await signInTimeMs(user)
     for (let round = 0; round < DELETE_ROUNDS; round++) {
       // A pass can fail when another tab saved a record in between; read back and retry.
-      await deletePass(uid).catch(error => {
+      await deletePass(uid, signedInAtMs).catch(error => {
         if (round === DELETE_ROUNDS - 1) throw error
       })
       left = await remainingAccountData(uid)
