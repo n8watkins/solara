@@ -1,4 +1,4 @@
-// Every Spanish namespace the app loads on demand (LAZY_TRANSLATIONS in lib/i18n.ts), in
+// Every Spanish namespace the app loads on demand (./lazy.ts), in
 // one object, for server code only: the static pages build their words with them
 // (lib/page-language.ts). The app itself never imports this file, so each namespace stays
 // a chunk of its own there.

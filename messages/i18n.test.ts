@@ -8,8 +8,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { LOCALES, registeredNamespaces, type Messages } from '@solara/core/i18n'
 import { SERVER_TRANSLATIONS } from '@solara/core/server-language'
 import * as staticText from './static'
-import { LAZY_NAMESPACES, LAZY_TRANSLATIONS } from '@/lib/i18n'
 import initial from './es/initial'
+import lazyLoaders from './es/lazy'
 import pages from './es/pages'
 import { reviewSheet } from './review-sheet'
 
@@ -29,9 +29,8 @@ const server = Object.fromEntries(
 /** Every namespace the opening screen does not read, each a chunk of its own (lib/i18n.ts). */
 const lazy: Record<string, Messages> = Object.fromEntries(
   await Promise.all(
-    LAZY_NAMESPACES.map(
-      async namespace =>
-        [namespace, (await LAZY_TRANSLATIONS.es[namespace]()).default as Messages] as const,
+    Object.entries(lazyLoaders).map(
+      async ([namespace, load]) => [namespace, (await load()).default as Messages] as const,
     ),
   ),
 )
@@ -275,8 +274,11 @@ describe('the parts that load on demand', () => {
     }
   })
 
-  it('has a translation for every namespace a part can name', () => {
-    expect([...LAZY_NAMESPACES].sort()).toEqual(Object.keys(lazy).sort())
+  it('has a loader for every namespace the opening screen does not read', () => {
+    const all = Object.keys(spanish).filter(
+      ns => !(ns in initial) && !(ns in pages) && !SERVER_ONLY.includes(ns),
+    )
+    expect(Object.keys(lazy).sort()).toEqual(all.sort())
   })
 })
 

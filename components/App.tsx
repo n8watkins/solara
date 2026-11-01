@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useEffectEvent, useState, type ReactNode } from 'react'
-import { saveLocalPrefs, saveFirestorePrefs } from '@/lib/prefs'
+import { saveLocalPrefs } from '@/lib/prefs'
 import { syncErrorFor, type SyncError } from '@/lib/sync-error'
 import { SIGN_IN_PARAM } from '@/lib/app-routes'
 import { loadGuestPrefs, saveGuestPrefs } from '@/lib/guest'
@@ -177,6 +177,7 @@ function SignedInApp() {
     }
     saveLocalPrefs({ ...updated, uid: user.uid })
     try {
+      const { saveFirestorePrefs } = await import('@/lib/account-prefs')
       await saveFirestorePrefs(user.uid, updated)
     } catch (error) {
       setSyncError(syncErrorFor(error))

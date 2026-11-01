@@ -5,7 +5,6 @@ import type { User } from 'firebase/auth'
 import { isSignInCancelled } from '@/lib/auth-errors'
 import { firebaseEnabled, loadFirebase, preloadFirebase } from '@/lib/firebase'
 import { loadGuestPrefs } from '@/lib/guest'
-import { createAccountPrefs } from '@/lib/prefs'
 import { SignedInContext } from '@/lib/signed-in-context'
 import type { UserPreferences } from '@/lib/types'
 import { preloadSignedInParts } from './deferred'
@@ -118,7 +117,13 @@ export default function GoogleSignInButton({
       if (!u) return
       // Creates the account only if it does not exist yet, in one transaction, so a
       // returning account's saved document is never written here.
-      const account = seed ? await createAccountPrefs(u.uid, seed.prefs, seed.source) : null
+      // The account document's code loads after the popup, which needs the click's
+      // activation, so a guest's first load does not carry it.
+      const account = seed
+        ? await (
+            await import('@/lib/account-prefs')
+          ).createAccountPrefs(u.uid, seed.prefs, seed.source)
+        : null
       if (onSignedIn) onSignedIn(u, account)
       else signedIn?.(account)
     } catch (e) {

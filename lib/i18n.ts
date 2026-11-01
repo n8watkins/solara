@@ -81,53 +81,35 @@ const INITIAL: Record<Exclude<Locale, 'en'>, Chunk> = {
 }
 
 /** Every namespace the opening screen does not read; each part loads the ones it shows. */
-export const LAZY_NAMESPACES = [
-  'account',
-  'activities',
-  'calendar',
-  'connections',
-  'editor',
-  'events',
-  'iconSearch',
-  'linked',
-  'linking',
-  'pricing',
-  'profiles',
-  'settings',
-  'setup',
-  'share',
-  'skinQuiz',
-  'sunscreen',
-] as const
-export type LazyNamespace = (typeof LAZY_NAMESPACES)[number]
+export type LazyNamespace =
+  | 'account'
+  | 'activities'
+  | 'calendar'
+  | 'connections'
+  | 'editor'
+  | 'events'
+  | 'iconSearch'
+  | 'linked'
+  | 'linking'
+  | 'pricing'
+  | 'profiles'
+  | 'settings'
+  | 'setup'
+  | 'share'
+  | 'skinQuiz'
+  | 'sunscreen'
+
+/** How a language fetches each of those namespaces, a chunk of its own. */
+export type LazyTranslations = Record<LazyNamespace, () => Promise<{ default: Messages }>>
 
 /**
- * Each language's translation of each of those namespaces, a chunk of its own. A part
- * names the namespaces its code reads (withMessages); messages/i18n.test.ts checks that
- * every part names exactly those.
+ * Each language's loaders for those namespaces (messages/es/lazy.ts), fetched with the
+ * first one a part asks for, so an English page never downloads them. A part names the
+ * namespaces its code reads (withMessages); messages/i18n.test.ts checks that every part
+ * names exactly those.
  */
-export const LAZY_TRANSLATIONS: Record<
-  Exclude<Locale, 'en'>,
-  Record<LazyNamespace, () => Promise<{ default: Messages }>>
-> = {
-  es: {
-    account: () => import('@/messages/es/account'),
-    activities: () => import('@/messages/es/activities'),
-    calendar: () => import('@/messages/es/calendar'),
-    connections: () => import('@/messages/es/connections'),
-    editor: () => import('@/messages/es/editor'),
-    events: () => import('@/messages/es/events'),
-    iconSearch: () => import('@/messages/es/icon-search'),
-    linked: () => import('@/messages/es/linked'),
-    linking: () => import('@solara/core/messages/es/linking'),
-    pricing: () => import('@/messages/es/pricing'),
-    profiles: () => import('@/messages/es/profiles'),
-    settings: () => import('@/messages/es/settings'),
-    setup: () => import('@/messages/es/setup'),
-    share: () => import('@/messages/es/share'),
-    skinQuiz: () => import('@solara/core/messages/es/skin-quiz'),
-    sunscreen: () => import('@solara/core/messages/es/sunscreen'),
-  },
+const LAZY: Record<Exclude<Locale, 'en'>, () => Promise<{ default: LazyTranslations }>> = {
+  es: () => import('@/messages/es/lazy'),
 }
 const lazyLoads = new Map<string, Promise<void>>()
 
@@ -219,13 +201,15 @@ export function loadMessages(namespaces: readonly LazyNamespace[]): Promise<void
         const key = `${locale}:${namespace}`
         let pending = lazyLoads.get(key)
         if (!pending) {
-          pending = LAZY_TRANSLATIONS[locale][namespace]().then(
-            module => addTranslations({ [namespace]: module.default }),
-            error => {
-              lazyLoads.delete(key)
-              throw error
-            },
-          )
+          pending = LAZY[locale]()
+            .then(loaders => loaders.default[namespace]())
+            .then(
+              module => addTranslations({ [namespace]: module.default }),
+              error => {
+                lazyLoads.delete(key)
+                throw error
+              },
+            )
           lazyLoads.set(key, pending)
         }
         return pending
@@ -249,7 +233,11 @@ export function withMessages<T>(
 
 /** Resolves once every translation of the page's language has arrived. */
 export function loadAllMessages(): Promise<void> {
-  return loadMessages(LAZY_NAMESPACES)
+  const locale = currentLocale()
+  if (locale === 'en') return loadMessages([])
+  return LAZY[locale]().then(loaders =>
+    loadMessages(Object.keys(loaders.default) as LazyNamespace[]),
+  )
 }
 
 /** Whether the opening screen's text is ready (always, in English). */
