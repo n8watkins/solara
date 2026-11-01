@@ -107,7 +107,7 @@ export function buildICS(events: readonly IcsEvent[], now: Date = new Date()): s
     'PRODID:-//Solara//Sun Planner//EN',
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
-    'X-WR-CALNAME:Solara Sun Plan',
+    `X-WR-CALNAME:${escapeText(m.icsCalendarName)}`,
   ]
   for (const e of events) {
     lines.push(

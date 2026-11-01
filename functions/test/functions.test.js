@@ -1674,6 +1674,60 @@ function feedRequest(token, headers = {}, method = 'GET') {
   return { method, query: { token }, headers: { 'x-forwarded-for': '203.0.113.9', ...headers } }
 }
 
+describe("calendar feed in the account's language (ROADMAP item 46)", () => {
+  const TOKEN = 'B'.repeat(43)
+  const { buildICS } = require('#core')
+  const { buildSunEvents } = require('../lib/feed/sun')
+  // UV under 4 from 6 to 9am, then high.
+  const forecast = [
+    {
+      dateStr: '2026-06-15',
+      hourly: [6, 7, 8, 9, 10].map(hour => ({ hour, uv: hour < 9 ? 3.6 : 7 })),
+    },
+  ]
+  const walk = { id: 'walk', name: 'Caminata', icon: '🚶', durationMins: 60, maxUV: 4 }
+
+  afterEach(() => clearFeedRateLimits())
+
+  async function feedFor(language) {
+    const db = feedDb({
+      feeds: { [feedTokenHash(TOKEN)]: { uid: 'ana' } },
+      users: { ana: { location: { lat: 1, lon: 2 }, activities: [walk], language } },
+    })
+    const handler = createCalendarFeedHandler({
+      buildICS,
+      buildSunEvents,
+      db,
+      fetchForecast: async () => forecast,
+    })
+    const res = responseRecorder()
+    await handler(feedRequest(TOKEN), res)
+    assert.equal(res.statusCode, 200)
+    clearFeedRateLimits()
+    // Unfolded, as a calendar app reads it.
+    return res.body.replace(/\r\n /g, '')
+  }
+
+  test('a Spanish account gets its events and the calendar name in Spanish', async () => {
+    const ics = await feedFor('es')
+    assert.match(ics, /\r\nX-WR-CALNAME:Plan solar de Solara\r\n/)
+    assert.match(ics, /\r\nSUMMARY:🚶 Caminata: horario de UV más bajo\r\n/)
+    assert.match(
+      ics,
+      /\r\nDESCRIPTION:Horario estimado de UV más bajo 6:00–9:00 \(UV promedio 3\.6\)\\, sin protector solar\. Es solo una estimación basada en el pronóstico\. /,
+    )
+  })
+
+  test('English, and an account that follows its device, stay in English', async () => {
+    for (const language of [undefined, 'en', 'auto', 'fr']) {
+      const ics = await feedFor(language)
+      assert.match(ics, /\r\nX-WR-CALNAME:Solara Sun Plan\r\n/, String(language))
+      assert.match(ics, /\r\nSUMMARY:🚶 Caminata: lower-UV window\r\n/, String(language))
+      assert.match(ics, /\r\nDESCRIPTION:Estimated lower-UV window 6:00–9:00 /, String(language))
+    }
+  })
+})
+
 describe('calendar feed security', () => {
   const TOKEN = 'A'.repeat(43)
 

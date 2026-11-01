@@ -93,6 +93,8 @@ export default defineMessages('core', {
     `These settings were saved by a newer version of Solara (schema ${schema}). Reload to update before changing them.`,
   /** A calendar event's title for an activity window. */
   windowEventTitle: (activity: string) => `${activity}: lower-UV window`,
+  /** The calendar's name in a calendar app, for the feed and the .ics download. */
+  icsCalendarName: 'Solara Sun Plan',
 
   // Why a slot was picked (scheduler.ts), with a window's part of the day in lower case.
   reasonLatest: (part: string) => `Latest matching spot in your ${part} window`,

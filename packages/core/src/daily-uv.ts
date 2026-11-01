@@ -18,6 +18,7 @@ import {
   type AlertMessage,
   type QuietHours,
 } from './alerts'
+import m from './messages/server'
 import { NOTIFICATION_HOUR } from './prefs'
 import { protectionWindow, type ProtectionHour, type ProtectionWindow } from './protection'
 import { formatUV, uvLabel } from './uv-scale'
@@ -75,17 +76,22 @@ export function dailyUvMessage({
   clock,
 }: DailyUvMessageInput): AlertMessage {
   const time = (hours: number) => formatAlertTime(hours, clock)
-  const place = city.trim() || 'your area'
+  const place = city.trim() || m.yourArea
   const title =
     localHour < window.from
-      ? `☀️ Protect from ${time(window.from)} to ${time(window.to)} today`
-      : `☀️ Protect until ${time(window.to)} today`
-  const clears = window.cloud ? `, or ${formatUV(window.cloud.clearSky)} if the sky clears` : ''
-  const peak = `UV peaks at ${formatUV(window.peak.uv)} (${uvLabel(window.peak.uv)}) around ${time(window.peak.hour)} in ${place}${clears}.`
-  const tip = window.forecastReaches
-    ? 'Sunscreen, a hat and shade while the UV is moderate or higher.'
-    : 'Sunscreen, a hat and shade in case the sky clears.'
-  return { title, body: `${peak} ${tip} Recheck current conditions.` }
+      ? m.dailyFromTo(time(window.from), time(window.to))
+      : m.dailyUntil(time(window.to))
+  const peakArgs = [
+    formatUV(window.peak.uv),
+    uvLabel(window.peak.uv),
+    time(window.peak.hour),
+    place,
+  ] as const
+  const peak = window.cloud
+    ? m.dailyPeakIfClear(...peakArgs, formatUV(window.cloud.clearSky))
+    : m.dailyPeak(...peakArgs)
+  const tip = window.forecastReaches ? m.dailyTip : m.dailyTipIfClear
+  return { title, body: `${peak} ${tip} ${m.recheck}` }
 }
 
 /**

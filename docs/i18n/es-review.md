@@ -146,6 +146,26 @@ UV categories, rain and heat, forecast confidence (dashboard, alerts, calendar f
 | `confidenceLow` | Low confidence: a rough guide, check again closer to the day | Confianza baja: es una guía aproximada, vuelve a revisar más cerca del día |  |
 | `cloudNote` | Clouds may cut UV to {1} from a clear-sky {2} | Las nubes podrían bajar el UV a {1}, frente a {2} con cielo despejado |  |
 
+## server
+
+Pushes and the calendar feed: the Pro morning and UV alerts, the daily UV push, event heads-ups, feed events
+
+| Key | English | Spanish | Notes |
+| --- | --- | --- | --- |
+| `recheck` | Recheck current conditions. | Vuelve a revisar las condiciones actuales. |  |
+| `uvBody` | Forecast for {1}: UV {2}+ until about {3}, peaking at {4} around {5}. Plan shade and sun protection, and recheck current conditions. | Pronóstico para {1}: UV de {2} o más hasta cerca de las {3}, con un máximo de {4} hacia las {5}. Planifica sombra y protección solar, y vuelve a revisar las condiciones actuales. |  |
+| `dailyFromTo` | ☀️ Protect from {1} to {2} today | ☀️ Protégete hoy de {1} a {2} |  |
+| `dailyUntil` | ☀️ Protect until {1} today | ☀️ Protégete hoy hasta las {1} |  |
+| `dailyPeak` | UV peaks at {1} ({2}) around {3} in {4}. | El UV llega a su máximo de {1} ({2}) hacia las {3} en {4}. |  |
+| `dailyPeakIfClear` | UV peaks at {1} ({2}) around {3} in {4}, or {5} if the sky clears. | El UV llega a su máximo de {1} ({2}) hacia las {3} en {4}, o {5} si el cielo se despeja. |  |
+| `dailyTip` | Sunscreen, a hat and shade while the UV is moderate or higher. | Protector solar, sombrero y sombra mientras el UV sea moderado o más alto. |  |
+| `dailyTipIfClear` | Sunscreen, a hat and shade in case the sky clears. | Protector solar, sombrero y sombra por si el cielo se despeja. |  |
+| `eventPeak` | UV peaks at {1} around {2}. | El UV llega a su máximo de {1} hacia las {2}. |  |
+| `eventPeakAt` | Forecast for {1}: UV peaks at {2} around {3}. | Pronóstico para {1}: el UV llega a su máximo de {2} hacia las {3}. |  |
+| `eventAdvice` | Apply sunscreen 15 to 30 minutes before you go, reapply every 2 hours, and plan for shade. | Aplica protector solar de 15 a 30 minutos antes de salir, vuelve a aplicarlo cada 2 horas y planifica dónde tener sombra. |  |
+| `eventHot` | It may feel like {1}: bring water and take breaks. | La sensación térmica podría llegar a {1}: lleva agua y toma descansos. |  |
+| `feedDescription` | Estimated lower-UV window {1}–{2} (avg UV {3}), assumes SPF 30+. Forecast-based estimate only. Recheck current UV and use sun protection. Planned by Solara. | Horario estimado de UV más bajo {1}–{2} (UV promedio {3}), suponiendo FPS 30+. Es solo una estimación basada en el pronóstico. Vuelve a revisar el UV actual y protégete del sol. Planificado por Solara. |  |
+
 ## skinQuiz
 
 The Fitzpatrick skin type questionnaire (setup and Settings)
@@ -185,4 +205,4 @@ Sunscreen coaching: the timer, activity cards, Settings; the reapply reminder pu
 | `spfRule` | Use SPF 30+ broad spectrum whenever UV is {1} or more, and SPF 50+ when it reaches {2}. | Usa FPS 30+ de amplio espectro siempre que el UV sea {1} o más, y FPS 50+ cuando llegue a {2}. |  |
 | `reapplyRule` | Put it on {1} before you go out. Reapply every {2}, and straight after swimming, sweating or towelling off. | Aplícalo {1} antes de salir. Vuelve a aplicarlo cada {2}, y justo después de nadar, sudar o secarte con la toalla. |  |
 
-98 messages to review.
+111 messages to review.

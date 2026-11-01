@@ -199,6 +199,17 @@ describe('reapply reminder push', () => {
     assert.equal(messaging.batches.length, 1)
   })
 
+  test("it is in the account's language (ROADMAP item 46)", async () => {
+    await addUser('sofia', { language: 'es' })
+    await schedule('sofia', reminder())
+    const messaging = new FakeMessaging()
+    const due = NOW + 120 * MINUTE
+    assert.equal(await deliverReapplyReminder(deps(messaging, due), 'sofia', ID), 'sent')
+    const [message] = messaging.batches[0].messages
+    assert.equal(message.data.title, 'Es hora de volver a aplicar protector solar')
+    assert.equal(message.data.body, 'Han pasado 2 horas desde que te lo aplicaste.')
+  })
+
   test('the reminder does not wait for the tab: with no task, the alerts sweep sends it once', async () => {
     await addUser('alice')
     await schedule('alice', reminder())
@@ -404,6 +415,23 @@ describe('daily UV push for Free accounts', () => {
     assert.match(
       message.data.body,
       /UV peaks at 2\.0 \(Low\) around 1pm in Los Angeles, or 8\.0 if the sky clears\. Sunscreen, a hat and shade in case the sky clears\./,
+    )
+  })
+
+  test("is in the account's language (ROADMAP item 46)", async () => {
+    await enrol('es', { language: 'es' })
+    await enrol('es-overcast', { language: 'es', zone: 'Europe/London' })
+    const { messaging } = await simulateDay({ overcast: new Set(['es-overcast']) })
+    const [message] = messaging.sentTo('es')[0].messages
+    assert.equal(message.data.title, '☀️ Protégete hoy de 9:20\u00a0a.m. a 4:40\u00a0p.m.')
+    assert.equal(
+      message.data.body,
+      'El UV llega a su máximo de 8.0 (Muy alto) hacia la 1\u00a0p.m. en Los Angeles. Protector solar, sombrero y sombra mientras el UV sea moderado o más alto. Vuelve a revisar las condiciones actuales.',
+    )
+    const [cloudy] = messaging.sentTo('es-overcast')[0].messages
+    assert.match(
+      cloudy.data.body,
+      /^El UV llega a su máximo de 2\.0 \(Bajo\) hacia la 1\u00a0p\.m\. en London, o 8\.0 si el cielo se despeja\. Protector solar, sombrero y sombra por si el cielo se despeja\./,
     )
   })
 

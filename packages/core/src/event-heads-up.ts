@@ -31,6 +31,7 @@ import {
   localTime,
 } from './alerts'
 import { stripInvisibleFormatting } from './ics-parse'
+import m from './messages/server'
 import { formatUV } from './uv-scale'
 
 /** Defaults, owner may change (docs/ROADMAP.md decisions, 2026-10-28). */
@@ -284,23 +285,22 @@ export function eventHeadsUpMessage({
   const today = local(nowMs)?.date
   const at = time(startMs)
   const event = !at
-    ? 'your event soon'
+    ? m.eventSoon
     : startDay && today && startDay !== today
-      ? `your event tomorrow at ${at}`
-      : `your ${at} event`
+      ? m.eventTomorrowAt(at)
+      : m.eventAt(at)
   const name = pushSafeText(title, EVENT_HEADS_UP.titleLength)
   const place = pushSafeText(placeLabel, EVENT_HEADS_UP.placeLength)
-  const others =
-    more > 0
-      ? ` ${more === 1 ? '1 more of your events' : `${more} more of your events`} coming up ${more === 1 ? 'reaches' : 'reach'} high UV too.`
-      : ''
+  const uv = formatUV(peakUV)
+  const body = [
+    name && m.eventName(name),
+    place ? m.eventPeakAt(place, uv, time(peakAtMs)) : m.eventPeak(uv, time(peakAtMs)),
+    m.eventAdvice,
+    hotFeelsLike && m.eventHot(hotFeelsLike),
+    more > 0 && m.eventMore(more),
+  ]
   return {
-    title: `🗓️ UV up to ${formatUV(peakUV)} during ${event}`,
-    body:
-      `${name ? `Event: “${name}”. ` : ''}` +
-      `${place ? `Forecast for ${place}: ` : ''}UV peaks at ${formatUV(peakUV)} around ${time(peakAtMs)}. ` +
-      `Apply sunscreen 15 to 30 minutes before you go, reapply every 2 hours, and plan for shade.` +
-      (hotFeelsLike ? ` It may feel like ${hotFeelsLike}: bring water and take breaks.` : '') +
-      others,
+    title: m.eventTitle(uv, event),
+    body: body.filter(Boolean).join(' '),
   }
 }

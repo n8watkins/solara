@@ -8,6 +8,8 @@ const CONTEXT: Record<string, string> = {
   core: 'UV categories, rain and heat, forecast confidence (dashboard, alerts, calendar feed)',
   briefing: 'The daily briefing at the top of the dashboard, and shared briefings',
   sunscreen: 'Sunscreen coaching: the timer, activity cards, Settings; the reapply reminder push',
+  server:
+    'Pushes and the calendar feed: the Pro morning and UV alerts, the daily UV push, event heads-ups, feed events',
   skinQuiz: 'The Fitzpatrick skin type questionnaire (setup and Settings)',
   dashboard: 'The dashboard: burn time and vitamin D cards, calendar event text',
   settings: 'Settings',
