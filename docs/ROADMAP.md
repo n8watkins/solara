@@ -562,6 +562,20 @@ REVIEW9 QA9's findings H1, M1-M4 and L1-L8 (`handoff/review9-qa9.md`).
 - **L1-L8, copy and UI:** the Alerts tab promises nothing that is switched off; the plan row reads "Daily UV push on days you need protection"; durations read "45 min", "2 h 47 min" everywhere (`packages/core/src/duration.ts`); time ranges use one en dash style (`lib/time.ts` `timeRange`) and "from 9am to 11am" after "from"; apostrophes are straight; a store build names no plan to buy in Settings; the account page lists only what the build can hold; the landing page and the Pro dialog pitch only what Pro adds; after sunset the strip's callout reads "Today's peak".
 - **Tests:** `packages/core/src/protection.test.ts` (the surfaces agree on five fixture days; the cloudy-day cases), the briefing, alert and push tests, `functions/test/emulator/reminders.test.js` (an overcast day still gets the push), `lib/account-data.test.ts`, `packages/core/src/duration.test.ts`, and harness assertions in `settings-states`, `store-build`, `design-bugs`, `daily-briefing` and `dashboard-polish` at 320, 390 and 1280 px, light and dark.
 
+### 45. Sunscreen amount and SPF guidance (SPFGUIDE, built)
+
+REVIEW8 PLAN part 2's "Sunscreen amount and SPF guidance" (UVLens's most praised feature): the reapply timer and the activities coach how much sunscreen, which SPF and when to reapply.
+The rules and their sources are in [SUNSCREEN.md](SUNSCREEN.md).
+
+- **Core (`packages/core/src/sunscreen.ts`):** about a teaspoon (5 mL) per part of the body (face with neck and ears, each arm, each leg, front, back), 7 teaspoons (35 mL, a shot glass) for the whole body; the parts an activity usually bares follow its preset (swimwear for swimming, surfing and paddleboarding; face and arms for baseball, coffee, lunch and reading; face, arms and legs, as the vitamin D estimate assumes, for the rest and custom activities).
+  SPF advice by the day's clear-sky peak UV and skin type: none needed under UV 3, SPF 30+ broad spectrum from 3, SPF 50+ from 8 or for Fitzpatrick types I and II; put it on 20 min before going out, reapply every 2 h and after swimming, sweating or towelling off.
+- **UI:** the sunscreen timer's "How much sunscreen?" disclosure (today's SPF for the plan's skin type, the teaspoon rule, the whole-body amount and when to reapply); each activity card's "Sunscreen" row ("about 5 tsp for face, arms, legs") when it is planned for UV 3 or more; and the SPF rule for the chosen skin type in Settings, Sun profile.
+  The timer's durations now read "every 2 h" and "every 1 h 20 min while swimming or sweating", like the rest of the app.
+  The timer's placeholder grew with its idle card, so the dashboard still opens without a layout shift (`tests/e2e/guest.spec.ts`), and the due card's tint uses the darker accent for the disclosure so it keeps its contrast.
+- **Data and privacy:** nothing new is stored, for guests or accounts, so the rules and the privacy policy are unchanged.
+- **First load:** the guidance loads with the timer, the activity plan and Settings, which were already loaded on demand, so a guest's first load is unchanged.
+- **Tests:** `packages/core/src/sunscreen.test.ts`, the guide in `tests/e2e/reapply.spec.ts`, and `tests/harness/sunscreen-guidance.spec.ts` (the timer idle and running, an activity card and Settings at 320, 390 and 1280 px, light and dark, nothing cut off, 0 axe violations).
+
 ## Decisions
 
 Agents never make owner decisions; they follow the recorded decision or the default.

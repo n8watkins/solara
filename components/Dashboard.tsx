@@ -340,7 +340,12 @@ function DashboardView({
           )}
 
           {isToday && down?.phase !== 'after-sunset' && (
-            <SunscreenTimer uid={user?.uid ?? null} tier={access.accessTier} />
+            <SunscreenTimer
+              uid={user?.uid ?? null}
+              tier={access.accessTier}
+              today={weather.today}
+              skinType={planning.skinType}
+            />
           )}
 
           {/* Imported events: under the conditions from 1024 px; after the activities on

@@ -29,6 +29,9 @@ import {
 } from '@/lib/reapply-reminder'
 import type { TierLevel } from '@/lib/types'
 import { useUnits } from '@/lib/use-units'
+import type { SkyHour } from '@solara/core/forecast-quality'
+import type { SkinType } from '@solara/core/recommendation'
+import SunscreenGuide from './SunscreenGuide'
 
 const TITLE = reapplyReminderMessage('standard').title
 
@@ -82,27 +85,35 @@ async function remindHere(timer: Timer, hidden: boolean): Promise<void> {
 }
 
 function intervalText(timer: Timer): string {
-  return timer.mode === 'water'
-    ? `Every ${REAPPLY_MINUTES.water} minutes while swimming or sweating`
-    : `Every ${REAPPLY_MINUTES.standard / 60} hours`
+  const every = `Every ${formatDuration(REAPPLY_MINUTES[timer.mode])}`
+  return timer.mode === 'water' ? `${every} while swimming or sweating` : every
 }
 
 export interface ReapplyTimerProps {
   /** The signed-in account, whose devices can get the reminder as a push; null for a guest. */
   uid?: string | null
   tier?: TierLevel
+  /** Today's forecast hours and the plan's skin type, for the SPF advice. */
+  today?: readonly SkyHour[]
+  skinType?: SkinType
 }
 
 /**
  * The sunscreen reapply timer (lib/reapply.ts): start it when you head out and it
- * reminds you every 2 hours, or 80 minutes while swimming or sweating. The reminder
+ * reminds you every 2 h, or 80 min while swimming or sweating. The reminder
  * is this card, which turns into an alert, plus a system notification while Solara
  * is open in the background, where the browser allows one. Free for every plan,
  * guests included; it lives in this browser. For a signed-in account, once alerts are
  * switched on, the server also sends it as a push to the account's devices with
  * notifications on, so it arrives with Solara closed (lib/reapply-reminder.ts).
+ * "How much sunscreen?" below coaches the amount, the SPF and when to reapply.
  */
-export default function ReapplyTimer({ uid = null, tier }: ReapplyTimerProps = {}) {
+export default function ReapplyTimer({
+  uid = null,
+  tier,
+  today,
+  skinType,
+}: ReapplyTimerProps = {}) {
   const id = useId()
   const units = useUnits()
   const openSettings = useOpenSettings()
@@ -218,24 +229,31 @@ export default function ReapplyTimer({ uid = null, tier }: ReapplyTimerProps = {
   const titleId = `${id}-title`
   const due = timer ? isDue(timer, now) : false
 
+  const guide = <SunscreenGuide today={today} skinType={skinType} onTint={due} />
+
   if (!timer) {
+    // The same min-height as its placeholder (ReapplyTimerSpace in components/deferred.tsx).
     return (
       <section
         aria-labelledby={titleId}
-        className="metric-card flex min-h-16 items-center gap-3 px-3 py-2.5"
+        className="metric-card flex min-h-24 flex-col justify-center gap-2 px-3 py-2.5 md:min-h-20"
       >
-        <Droplets size={20} aria-hidden="true" className="shrink-0 text-accent" />
-        <div className="min-w-0 flex-1">
-          <h2 id={titleId} className="text-[13px] leading-[1.2] font-bold text-ink">
-            Sunscreen timer
-          </h2>
-          <p className="mt-0.5 text-[12px] leading-[1.35] text-ink-3">
-            Heading out? Get a reminder to reapply every 2 hours.
-          </p>
+        <div className="flex items-center gap-3">
+          <Droplets size={20} aria-hidden="true" className="shrink-0 text-accent" />
+          <div className="min-w-0 flex-1">
+            <h2 id={titleId} className="text-[13px] leading-[1.2] font-bold text-ink">
+              Sunscreen timer
+            </h2>
+            <p className="mt-0.5 text-[12px] leading-[1.35] text-ink-3">
+              Heading out? Get a reminder to reapply every{' '}
+              {formatDuration(REAPPLY_MINUTES.standard)}.
+            </p>
+          </div>
+          <button type="button" className="btn btn-primary shrink-0" onClick={() => void start()}>
+            Start
+          </button>
         </div>
-        <button type="button" className="btn btn-primary shrink-0" onClick={() => void start()}>
-          Start
-        </button>
+        <div className="pl-8">{guide}</div>
       </section>
     )
   }
@@ -318,6 +336,7 @@ export default function ReapplyTimer({ uid = null, tier }: ReapplyTimerProps = {
           for this device.
         </p>
       )}
+      {guide}
     </section>
   )
 }

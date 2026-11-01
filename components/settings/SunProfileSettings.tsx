@@ -3,6 +3,14 @@ import { useId, useState } from 'react'
 import type { SkinType } from '@/lib/types'
 import type { SettingsDraft } from '@/lib/settings'
 import { SKIN_OPTIONS } from '@/lib/onboarding'
+import {
+  BODY_AREAS,
+  REAPPLY_RULE,
+  TEASPOON_RULE,
+  spfRuleText,
+  sunscreenAmount,
+  sunscreenAmountText,
+} from '@solara/core/sunscreen'
 import SkinSwatch from '../SkinSwatch'
 import { SkinTypeQuiz } from '../deferred'
 import {
@@ -100,11 +108,21 @@ export default function SunProfileSettings({ draft, onChange }: Props) {
         )}
       </SettingsCard>
 
-      <SettingsCard className="flex flex-col gap-1.5">
-        <SettingsTitle>Sunscreen is activity-specific</SettingsTitle>
+      {/* The SPF for the skin type chosen above, the teaspoon rule and when to reapply
+          (packages/core/src/sunscreen.ts); nothing here is stored. */}
+      <SettingsCard className="flex flex-col gap-1.5" data-testid="sunscreen-settings">
+        <SettingsTitle>Sunscreen</SettingsTitle>
+        <ul className="m-0 list-disc space-y-1 pl-[18px] text-[13px] leading-[1.45] text-ink-2">
+          <li>{spfRuleText(draft.skinType)}</li>
+          <li>
+            {TEASPOON_RULE} {sunscreenAmountText(sunscreenAmount(BODY_AREAS))}.
+          </li>
+          <li>{REAPPLY_RULE}</li>
+        </ul>
         <SettingsHint className="leading-[1.45]">
-          SPF assumptions are set per activity from the dashboard&apos;s Activities section, so a
-          swim, walk, and quick coffee break can each use different protection settings.
+          Whether an activity is planned with sunscreen is set per activity from the
+          dashboard&apos;s Activities section, so a swim, walk, and quick coffee break can each use
+          different protection settings.
         </SettingsHint>
       </SettingsCard>
     </div>

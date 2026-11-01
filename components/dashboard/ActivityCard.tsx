@@ -5,6 +5,8 @@ import type { ActivityDayPlan } from '@solara/core/next-slot'
 import type { ScheduledActivity, ScheduledSpan } from '@/lib/scheduled'
 import { recommendSlot, type SlotRecommendation } from '@solara/core/scheduler'
 import { effectiveMaxUV } from '@solara/core/tiers'
+import { PROTECT_FROM_UV } from '@solara/core/protection'
+import { activityBodyAreas, sunscreenAmount, sunscreenAmountShort } from '@solara/core/sunscreen'
 import { fmtDays } from '@/lib/weather'
 import { useUnits } from '@/lib/use-units'
 import {
@@ -24,9 +26,9 @@ const MATCH_BAR = { success: 'bg-success', warning: 'bg-warning', danger: 'bg-da
 function Stat({ label, val, tone }: { label: string; val: string; tone?: 'success' | 'danger' }) {
   const color = tone === 'success' ? 'text-success' : tone === 'danger' ? 'text-danger' : 'text-ink'
   return (
-    <div className="flex justify-between text-[12px]">
-      <span className="text-ink-3">{label}</span>
-      <span className={`font-medium ${color}`}>{val}</span>
+    <div className="flex justify-between gap-3 text-[12px]">
+      <span className="shrink-0 text-ink-3">{label}</span>
+      <span className={`text-right font-medium ${color}`}>{val}</span>
     </div>
   )
 }
@@ -63,6 +65,12 @@ export default function ActivityCard({
   const safeUv = effectiveMaxUV(activity)
   const days = fmtDays(activity.daysOfWeek)
   const exposure = exposureSummary(activity)
+  // How much sunscreen the parts this activity usually bares take, where its windows
+  // reach the UV that calls for protection (packages/core/src/sunscreen.ts).
+  const sunscreen =
+    safeUv >= PROTECT_FROM_UV
+      ? sunscreenAmountShort(sunscreenAmount(activityBodyAreas(activity.id)))
+      : null
   // Once the recommended slot is on the calendar, the Scheduled row replaces it.
   const recScheduled = isRecommendationScheduled(rec, scheduled)
 
@@ -123,6 +131,7 @@ export default function ActivityCard({
         {burnMins !== null && burnMins !== undefined && (
           <Stat label={`Burn time at UV ${safeUv}`} val={`about ${burnMins} min`} />
         )}
+        {sunscreen && <Stat label="Sunscreen" val={sunscreen} />}
         {bestLabel !== null && (
           <Stat label="Best window" val={bestLabel} tone={bestWindow ? 'success' : 'danger'} />
         )}
