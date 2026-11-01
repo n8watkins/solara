@@ -599,7 +599,9 @@ describe('a hanging or crashing link cannot hold the refresh (REVIEW5 H1)', () =
       url.includes('evil') ? new Promise(() => {}) : fetchOthers(url, validators)
 
     const started = Date.now()
-    const result = await runSubscriptionRefresh(run, { concurrency: 1, linkMs: 300 })
+    // Long enough for a healthy link's fetch and writes on a busy machine (300 ms timed
+    // out healthy links under load), short enough to show the hanging one is given up.
+    const result = await runSubscriptionRefresh(run, { concurrency: 1, linkMs: 3000 })
     assert.ok(Date.now() - started < 20_000)
     assert.equal(result.due, 4)
     // The others answer with the same body as when they were added: nothing to write.
