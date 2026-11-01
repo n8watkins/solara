@@ -79,8 +79,6 @@ export default {
   sectionHeadsUps: 'los avisos de eventos de Pro enviados la última semana',
   sectionReminder: 'tu recordatorio de protector solar pendiente de enviar, si lo hay',
   sectionDevices: 'los metadatos de registro de los dispositivos',
-  sectionBookkeeping:
-    'cuándo se programó por última vez tu recordatorio de protector solar y cuántos se programaron y enviaron ese día, y cuándo se registró un dispositivo por última vez',
   deletedItems:
     'tus preferencias, perfiles y actividades de Solara|las actividades programadas|los eventos importados|los calendarios vinculados|tus opciones de Google Calendar|tus opciones de calendario de Outlook|tu feed de calendario|los dispositivos para notificaciones|el historial de alertas|los recordatorios de protector solar|tu inicio de sesión en Solara',
   exportSummary: 'Obtén una copia de tus datos de Solara en un archivo JSON.',
