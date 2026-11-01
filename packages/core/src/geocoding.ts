@@ -31,6 +31,10 @@ export const GeocodingResultSchema = record({
   country: optionalText,
   country_code: optionalText,
   timezone: optionalText,
+  /** GeoNames' population, when it has one; used to rank same-named places. */
+  population: v.fallback(v.optional(v.pipe(finiteNumber, v.minValue(0))), undefined),
+  /** GeoNames' feature code: `PPL...` for a populated place, `PCLI` for a country, ... */
+  feature_code: optionalText,
 })
 
 export type GeocodingResult = v.InferOutput<typeof GeocodingResultSchema>

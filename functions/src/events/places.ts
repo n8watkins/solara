@@ -64,7 +64,8 @@ export function eventPlaceSearch({
   return async (uid, query) =>
     (
       await places.search(
-        { name: query, count: 5 },
+        // A calendar's LOCATION text is matched in English, like the account's place names.
+        { name: query, count: 5, language: 'en' },
         { mayFetch: () => share.take([{ key: `uid:${uid}`, weight: 1 }]) },
       )
     ).results

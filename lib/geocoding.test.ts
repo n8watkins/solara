@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { setLocale } from '@solara/core/i18n'
 import {
   locationFromCoordinates,
   PLACE_SEARCH_MIN_INTERVAL_MS,
+  rankPlaces,
   resetPlaceSearchCache,
   resetReverseGeocodeCache,
   reverseGeocode,
@@ -15,6 +17,7 @@ import {
 vi.mock('./firebase', () => ({ appCheckToken: async () => 'app-check-token' }))
 
 afterEach(() => {
+  setLocale('en')
   vi.unstubAllGlobals()
   vi.unstubAllEnvs()
   vi.useRealTimers()
@@ -259,7 +262,9 @@ describe('searchPlaces', () => {
     ])
     const url = new URL(fetchMock.mock.calls[0]![0] as string)
     expect(url.searchParams.get('name')).toBe('Pasadena')
-    expect(url.searchParams.get('count')).toBe('5')
+    // More than it shows, so the ranking has the populous places to choose from.
+    expect(url.searchParams.get('count')).toBe('10')
+    expect(url.searchParams.get('language')).toBe('en')
   })
 
   it('answers an empty query without a request', async () => {
@@ -337,6 +342,117 @@ describe('searchPlaces', () => {
     const suggestions = await searchPlaces('Pasadena, TX')
     expect(suggestions.map(s => s.detail)).toEqual(['Texas, United States'])
   })
+
+  it('matches "city, region" without minding accents', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        placeResponse([
+          { latitude: 9.93, longitude: -84.08, name: 'San José', country: 'Costa Rica' },
+          { latitude: 37.34, longitude: -121.89, name: 'San José', admin1: 'California' },
+        ]),
+      ),
+    )
+    const suggestions = await searchPlaces('San Jose, california')
+    expect(suggestions.map(s => s.location.lat)).toEqual([37.34])
+  })
+})
+
+// Open-Meteo's answers for "Nueva York" (checked 2026-11-01): in English only villages
+// match; in Spanish New York City matches too.
+const NUEVA_YORK_VILLAGE = {
+  latitude: -5.6,
+  longitude: -78.33,
+  name: 'Nueva York',
+  admin1: 'Amazonas',
+  country: 'Peru',
+  population: 313,
+  feature_code: 'PPL',
+}
+const NEW_YORK_CITY_ES = {
+  latitude: 40.71,
+  longitude: -74.01,
+  name: 'Nueva York',
+  admin1: 'Nueva York',
+  country: 'Estados Unidos',
+  population: 8_804_190,
+  feature_code: 'PPL',
+}
+
+describe('place search in the page language (REVIEW10 QA H1)', () => {
+  it('searches in English on an English page', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(placeResponse(PASADENAS))
+    vi.stubGlobal('fetch', fetchMock)
+    await searchPlaces('Pasadena')
+    expect(new URL(fetchMock.mock.calls[0]![0] as string).searchParams.get('language')).toBe('en')
+  })
+
+  it('searches in Spanish on a Spanish page and finds New York City', async () => {
+    setLocale('es')
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(placeResponse([NUEVA_YORK_VILLAGE, NEW_YORK_CITY_ES]))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(searchLocation('Nueva York')).resolves.toMatchObject({
+      city: 'Nueva York',
+      region: 'Nueva York',
+      lat: 40.71,
+    })
+    const url = new URL(fetchMock.mock.calls[0]![0] as string)
+    expect(url.searchParams.get('language')).toBe('es')
+    expect(url.searchParams.get('name')).toBe('Nueva York')
+  })
+
+  it("keeps each language's answers apart in the cache", async () => {
+    vi.useFakeTimers()
+    const fetchMock = vi.fn().mockResolvedValue(placeResponse([NUEVA_YORK_VILLAGE]))
+    vi.stubGlobal('fetch', fetchMock)
+    await searchPlaces('Nueva York')
+    setLocale('es')
+    await settle(searchPlaces('Nueva York'))
+    expect(
+      fetchMock.mock.calls.map(([url]) => new URL(url as string).searchParams.get('language')),
+    ).toEqual(['en', 'es'])
+  })
+})
+
+describe('rankPlaces', () => {
+  const place = (name: string, population?: number, feature_code?: string) => ({
+    latitude: 0,
+    longitude: 0,
+    name,
+    population,
+    feature_code,
+  })
+
+  it('puts a city before a same-named village, whatever order the service gave', () => {
+    expect(
+      rankPlaces([place('village', 313, 'PPL'), place('city', 8_804_190, 'PPL')]).map(p => p.name),
+    ).toEqual(['city', 'village'])
+  })
+
+  it("keeps the service's order among places of the same order of magnitude", () => {
+    // Bathinda (285,788) before Bath (101,557), as Open-Meteo ranks them for "Bath".
+    expect(
+      rankPlaces([
+        place('Bathinda', 285_788, 'PPL'),
+        place('Bath', 101_557, 'PPLA2'),
+        place('Bath, Maine', 8_305, 'PPLA2'),
+      ]).map(p => p.name),
+    ).toEqual(['Bathinda', 'Bath', 'Bath, Maine'])
+  })
+
+  it('puts countries, airports and other non-places after every populated place', () => {
+    expect(
+      rankPlaces([
+        place('Mexico (country)', 131_946_900, 'PCLI'),
+        place('airport', undefined, 'AIRP'),
+        place('unknown size'),
+        place('Mexicali', 1_032_686, 'PPLA'),
+      ]).map(p => p.name),
+    ).toEqual(['Mexicali', 'unknown size', 'Mexico (country)', 'airport'])
+  })
 })
 
 describe('roundCoordinate', () => {
@@ -371,9 +487,24 @@ describe('reverseGeocode', () => {
     expect(url.searchParams.get('lat')).toBe('34.15')
     expect(url.searchParams.get('lon')).toBe('-118.14')
     expect(url.searchParams.get('zoom')).toBe('10')
+    expect(url.searchParams.get('accept-language')).toBe('en')
     expect(url.search).not.toContain('147812')
     // A browser cannot set User-Agent, so the Referer (origin only) identifies the app.
     expect(fetchMock.mock.calls[0]![1]).toMatchObject({ referrerPolicy: 'strict-origin' })
+  })
+
+  it('names the place in the page language', async () => {
+    setLocale('es')
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(nominatimResponse({ city: 'Ciudad de México', country: 'México' }))
+    vi.stubGlobal('fetch', fetchMock)
+    await expect(reverseGeocode(19.43, -99.13)).resolves.toEqual({
+      city: 'Ciudad de México',
+      region: 'México',
+    })
+    const url = new URL(fetchMock.mock.calls[0]![0] as string)
+    expect(url.searchParams.get('accept-language')).toBe('es')
   })
 
   it('caches by rounded position and shares concurrent requests', async () => {
@@ -484,9 +615,25 @@ describe('place search through the proxy', () => {
       'https://fn.example.com/project/us-central1/placeSearch',
     )
     expect(requested.searchParams.get('name')).toBe('Pasadena')
-    expect(requested.searchParams.get('count')).toBe('1')
+    expect(requested.searchParams.get('count')).toBe('10')
+    expect(requested.searchParams.get('language')).toBe('en')
     expect(init).toEqual({ headers: { 'X-Firebase-AppCheck': 'app-check-token' } })
     // Never the free API once the proxy is on.
     expect(String(url)).not.toContain('open-meteo.com')
+  })
+
+  it('asks the proxy in the page language (REVIEW10 QA H1)', async () => {
+    vi.stubEnv('NEXT_PUBLIC_FORECAST_PROXY', '1')
+    vi.stubEnv('NEXT_PUBLIC_FUNCTIONS_URL', 'https://fn.example.com/project/us-central1')
+    setLocale('es')
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(placeResponse([NUEVA_YORK_VILLAGE, NEW_YORK_CITY_ES]))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(searchLocation('Nueva York')).resolves.toMatchObject({ lat: 40.71 })
+    const requested = new URL(String(fetchMock.mock.calls[0]?.[0]))
+    expect(requested.pathname).toBe('/project/us-central1/placeSearch')
+    expect(requested.searchParams.get('language')).toBe('es')
   })
 })

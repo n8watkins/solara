@@ -5,6 +5,7 @@ import {
   roundCoordinate,
   type GeocodingResult,
 } from '@solara/core'
+import { currentLocale, type Locale } from '@solara/core/i18n'
 import type { Location } from './types'
 import m from '@/messages/setup'
 
@@ -89,8 +90,9 @@ function toLocation(result: GeocodingResult): Location {
   }
 }
 
+/** Compares place names without case or accents ("Paris" and "París" match). */
 function normalizeLocationPart(value: string): string {
-  return value.trim().toLocaleLowerCase()
+  return value.trim().normalize('NFD').replace(/\p{M}/gu, '').toLocaleLowerCase()
 }
 
 function matchesQualifier(result: GeocodingResult, qualifier: string): boolean {
@@ -187,17 +189,22 @@ function placeSearchProxyUrl(): string | null {
     : null
 }
 
-/** The request for one place search: the proxy with an App Check token, or the free API. */
+/**
+ * The request for one place search: the proxy with an App Check token, or the free API.
+ * Both search in the page's language: Open-Meteo matches names in the language it is
+ * asked for (and in English too), so "Nueva York" finds New York City only in Spanish,
+ * and the regions and countries come back in that language (REVIEW10 QA H1).
+ */
 async function placeSearchRequest(
   query: string,
-  count: number,
+  language: Locale,
 ): Promise<{ url: string; init?: RequestInit }> {
   const proxy = placeSearchProxyUrl()
   if (!proxy) {
     const params = new URLSearchParams({
       name: query,
-      count: String(count),
-      language: 'en',
+      count: String(PLACE_SEARCH_FETCH_COUNT),
+      language,
       format: 'json',
     })
     return { url: `${GEOCODING_URL}?${params}` }
@@ -206,7 +213,11 @@ async function placeSearchRequest(
   const { appCheckToken } = await import('./firebase')
   const token = await appCheckToken()
   if (!token) throw new Error('Location search unavailable: app verification is not set up')
-  const params = new URLSearchParams({ name: query, count: String(count) })
+  const params = new URLSearchParams({
+    name: query,
+    count: String(PLACE_SEARCH_FETCH_COUNT),
+    language,
+  })
   return { url: `${proxy}?${params}`, init: { headers: { 'X-Firebase-AppCheck': token } } }
 }
 /**
@@ -219,22 +230,51 @@ export const PLACE_SEARCH_MIN_INTERVAL_MS = 1000
 export const PLACE_SUGGESTION_LIMIT = 5
 /** Open-Meteo answers nothing for one character; two match exact names only. */
 export const PLACE_SEARCH_MIN_LENGTH = 2
+/**
+ * How many matches every search asks for (the place search proxy's maximum): more than
+ * are shown, so the ranking below and the region filter have the populous places to
+ * choose from, and one cached answer serves the suggestions and "Go" alike.
+ */
+export const PLACE_SEARCH_FETCH_COUNT = 10
 const PLACE_SEARCH_CACHE_LIMIT = 50
 
 const searchSpacer = createRequestSpacer(PLACE_SEARCH_MIN_INTERVAL_MS)
 const searchCache = createLookupCache<GeocodingResult[]>(PLACE_SEARCH_CACHE_LIMIT)
 
 /**
- * One Open-Meteo place search, cached per query and count for the session and
- * spaced by {@link PLACE_SEARCH_MIN_INTERVAL_MS}. Concurrent calls for the same
- * query share one request.
+ * How prominent a match is, for ranking: the order of magnitude of its population (0
+ * when unknown), and below every populated place, a match that is not one (a country,
+ * an airport, a mountain).
  */
-async function fetchResults(
-  query: string,
-  count: number,
-  signal?: AbortSignal,
-): Promise<GeocodingResult[]> {
-  const key = `${count}:${normalizeLocationPart(query)}`
+function prominence(result: GeocodingResult): number {
+  if (result.feature_code && !result.feature_code.startsWith('PPL')) return -1
+  const population = result.population ?? 0
+  return population >= 1 ? Math.floor(Math.log10(population)) : 0
+}
+
+/**
+ * Open-Meteo's matches with the most populous places first: a city of millions comes
+ * before a village of hundreds with the same name, whatever order the service gave
+ * them in ("Nueva York" was a village of 313 people in Peru, REVIEW10 QA H1). Places of
+ * the same order of magnitude keep the service's own order, which already weighs how
+ * well each name matches.
+ */
+export function rankPlaces(results: readonly GeocodingResult[]): GeocodingResult[] {
+  return results
+    .map((result, index) => ({ result, index, rank: prominence(result) }))
+    .sort((a, b) => b.rank - a.rank || a.index - b.index)
+    .map(({ result }) => result)
+}
+
+/**
+ * One Open-Meteo place search in the page's language, ranked by {@link rankPlaces},
+ * cached per query and language for the session and spaced by
+ * {@link PLACE_SEARCH_MIN_INTERVAL_MS}. Concurrent calls for the same query share one
+ * request.
+ */
+async function fetchResults(query: string, signal?: AbortSignal): Promise<GeocodingResult[]> {
+  const language = currentLocale()
+  const key = `${language}:${normalizeLocationPart(query)}`
   const cached = searchCache.get(key)
   if (cached) return cached
   await searchSpacer.waitTurn(signal)
@@ -244,11 +284,11 @@ async function fetchResults(
 
   return searchCache.set(
     key,
-    placeSearchRequest(query, count).then(async ({ url, init }) => {
+    placeSearchRequest(query, language).then(async ({ url, init }) => {
       const response = await fetch(url, init)
       if (!response.ok) throw new Error(`Location search failed with status ${response.status}`)
       // Results without a usable position or name are dropped; a malformed body throws.
-      return parseGeocodingResponse(await response.json())
+      return rankPlaces(parseGeocodingResponse(await response.json()))
     }),
   )
 }
@@ -269,8 +309,8 @@ function toSuggestion(result: GeocodingResult): PlaceSuggestion {
 }
 
 /**
- * Places that match `query`, best first, with coordinates rounded to
- * {@link COORDINATE_DECIMALS} decimals. "City, region" narrows the matches to that
+ * Places that match `query`, best first (the most populous, see {@link rankPlaces}), with
+ * coordinates rounded to {@link COORDINATE_DECIMALS} decimals. "City, region" narrows the matches to that
  * region or country (abbreviations such as "CA" work too). Rejects when the
  * search fails, or with an AbortError when `signal` cancels it before it is sent.
  */
@@ -299,11 +339,9 @@ export async function searchPlaces(
       .slice(0, limit)
 
   if (qualifierParts.length === 0) {
-    return finish(await fetchResults(normalized, limit, signal))
+    return finish(await fetchResults(normalized, signal))
   }
 
-  // Ask for more than we show, because the region filter drops some.
-  const qualifiedCount = Math.max(10, limit)
   const qualifiers = qualifierParts.map(part => part.toLocaleLowerCase())
   const qualified = (results: GeocodingResult[]) =>
     results.filter(
@@ -312,9 +350,9 @@ export async function searchPlaces(
         qualifiers.every(qualifier => matchesQualifier(result, qualifier)),
     )
 
-  const direct = qualified(await fetchResults(normalized, qualifiedCount, signal))
+  const direct = qualified(await fetchResults(normalized, signal))
   if (direct.length > 0) return finish(direct)
-  return finish(qualified(await fetchResults(city, qualifiedCount, signal)))
+  return finish(qualified(await fetchResults(city, signal)))
 }
 
 /** The best match for `query`, or null when nothing matches. */
@@ -342,7 +380,7 @@ const REVERSE_GEOCODE_CACHE_LIMIT = 50
 const placeCache = createLookupCache<PlaceName>(REVERSE_GEOCODE_CACHE_LIMIT)
 const reverseSpacer = createRequestSpacer(REVERSE_GEOCODE_MIN_INTERVAL_MS)
 
-async function requestPlaceName(lat: number, lon: number): Promise<PlaceName> {
+async function requestPlaceName(lat: number, lon: number, language: Locale): Promise<PlaceName> {
   // Space requests out instead of firing one per click, per the usage policy.
   await reverseSpacer.waitTurn()
 
@@ -352,7 +390,8 @@ async function requestPlaceName(lat: number, lon: number): Promise<PlaceName> {
     format: 'json',
     // City-level detail only; we never need a street address.
     zoom: '10',
-    'accept-language': 'en',
+    // Names in the page's language, like the place search ("Ciudad de México").
+    'accept-language': language,
   })
   // Nominatim asks every app to identify itself. A browser cannot set User-Agent,
   // so the request names the site through its Referer (the origin only), whatever
@@ -385,13 +424,16 @@ async function requestPlaceName(lat: number, lon: number): Promise<PlaceName> {
 export function reverseGeocode(lat: number, lon: number): Promise<PlaceName> {
   const roundedLat = roundCoordinate(lat)
   const roundedLon = roundCoordinate(lon)
-  const key = `${roundedLat},${roundedLon}`
+  const language = currentLocale()
+  const key = `${language}:${roundedLat},${roundedLon}`
   const cached = placeCache.get(key)
   if (cached) return cached
-  const pending: Promise<PlaceName> = requestPlaceName(roundedLat, roundedLon).catch(() => {
-    placeCache.forget(key, pending)
-    return FALLBACK_PLACE
-  })
+  const pending: Promise<PlaceName> = requestPlaceName(roundedLat, roundedLon, language).catch(
+    () => {
+      placeCache.forget(key, pending)
+      return FALLBACK_PLACE
+    },
+  )
   return placeCache.set(key, pending)
 }
 
