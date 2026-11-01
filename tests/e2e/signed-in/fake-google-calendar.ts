@@ -18,6 +18,10 @@ import type { Route } from '@playwright/test'
  *   (`{ type: 'popup_closed' }`), and `callback` is never called.
  * - 'blocked': the browser blocks the popup; `error_callback` gets
  *   `{ type: 'popup_failed_to_open' }`.
+ *
+ * Each request appends what happened to it to `window.__solaraCalendarPopups`
+ * ('granted' or the outcome above), so a test can wait for an attempt to have read the
+ * outcome before changing it (calendarPopups in scheduled.e2e.ts).
  */
 export const FAKE_GIS = `;(function () {
   'use strict'
@@ -29,6 +33,9 @@ export const FAKE_GIS = `;(function () {
         requestAccessToken: function () {
           setTimeout(function () {
             var popup = window.__solaraCalendarPopup
+            window.__solaraCalendarPopups = (window.__solaraCalendarPopups || []).concat([
+              popup || 'granted',
+            ])
             if (popup === 'denied') {
               config.callback({ error: 'access_denied' })
               return
