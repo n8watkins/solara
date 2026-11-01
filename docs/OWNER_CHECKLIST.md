@@ -241,7 +241,8 @@ C1. **Prerequisites.**
 C2. **Upgrade to Blaze (5 minutes; pay as you go).**
    - Where: https://console.firebase.google.com/project/uv-activity-planner/usage/details, attach the billing account.
    - Cost: a few cents a month below about 300 daily users ([COSTS.md](COSTS.md)).
-   - C2 and C3 can come earlier, without any Functions, if a promoted free launch is planned: on Spark a busy day stops the site instead of costing cents (REVIEW8 QA H1).
+   - C2 and C3 can come earlier, without the other Functions, if a promoted free launch is planned: on Spark a busy day stops the site instead of costing cents (REVIEW8 QA H1).
+     Do C3 in the same sitting as C2, through its last step: until the budget guard is deployed, Blaze sends budget emails but has no automatic spending limit.
    - Verify: the usage page shows the Blaze plan.
 
 C3. **Budget and kill switch (15 minutes, free).**
@@ -253,7 +254,13 @@ C3. **Budget and kill switch (15 minutes, free).**
       That hard stop is on by default (default, owner may change); to keep spending instead, run the script with `DETACH_BILLING=false` and set the `COST_GUARD_DETACH_BILLING` repository variable to `false`.
       Know what it costs: a sustained flood can spend about $550 a day ([worst case under a flood](COSTS.md#worst-case-under-a-flood)), so $75 can be reached within hours, and a detach stops every Function, checkout and the Stripe webhook included, until billing is re-attached.
       Stripe retries a failed webhook for only 3 days, so after a detach follow [within 3 days of a detach](RUNBOOK.md#budget-kill-switch) in the runbook: re-attach, redeploy, then resend the failed webhook events.
-   - Verify: the budget at https://console.cloud.google.com/billing shows $25 with the four thresholds.
+   4. Deploy the kill switch on its own, which is the `budgetAlert` Function ([Budget guard on its own](DEPLOYMENT.md#budget-guard-on-its-own)):
+      grant the deploy identity the budget guard's roles and APIs ([WIF_SETUP.md](WIF_SETUP.md#roles-for-the-budget-guard-alone)), then set the repository variable `ENABLE_BUDGET_GUARD` to `true` (`gh variable set ENABLE_BUDGET_GUARD --repo n8watkins/solara --body true`) and re-run the latest **Deploy** workflow on `main` (Actions, Deploy, **Re-run all jobs**, or `gh workflow run deploy.yml --repo n8watkins/solara --ref main`).
+      The **Budget guard** job must be green; it refuses to run until `BUDGET_ID` and `BUDGET_SERVICE_ACCOUNT` are set.
+      This deploys that one Function only, with none of the other Functions' secrets; it costs nothing at this scale (a few runs a day, within the free tier).
+   5. Test it: `BUDGET_ID=<the BUDGET_ID value> infra/budget-dry-run.sh`, read the printed command, then the same with `--apply`, then run the `gcloud logging read` command it prints ([Test the guard](RUNBOOK.md#test-the-guard)).
+      Expect `budget passed its warning level` and `budgetAlert processed` with `"actions":["warned"]`; send that output to Claude.
+   - Verify: the budget at https://console.cloud.google.com/billing shows $25 with the four thresholds, the **Budget guard** job is green, `budgetAlert` is listed at https://console.firebase.google.com/project/uv-activity-planner/functions, and the dry run's log lines appear.
    - If A11's quota page could not be edited on Spark, do A11 now.
 
 C4. **Extra deploy roles and log exclusions (10 minutes, free).**
@@ -278,6 +285,7 @@ C6. **The four Functions secrets (5 minutes, free).**
 C7. **First Functions deploy (20 minutes, free within quotas).**
    - Copy: set the repository variables `NEXT_PUBLIC_FUNCTIONS_URL` (`https://us-central1-uv-activity-planner.cloudfunctions.net`) and then `ENABLE_BLAZE_FUNCTIONS=true`; leave `BILLING_ENABLED` and `FORECAST_PROXY_ENABLED` unset.
      The next deploy publishes the Functions (it sets the Artifact Registry cleanup policy itself); checkout still shows the waitlist and forecasts still come straight from Open-Meteo.
+     `budgetAlert` is one of them from now on (updated in place), so the **Budget guard** job is skipped; `ENABLE_BUDGET_GUARD` can stay `true`.
    - Verify: the deploy is green; the account page's download and deletion now go through the Functions; `infra/check-client-address.sh` ends with `OK` ([Check the client address](DEPLOYMENT.md#check-the-client-address-at-the-first-deploy)); then run the calendar feed token migration ([Calendar feed tokens](DEPLOYMENT.md#calendar-feed-tokens)).
 
 C8. **Monitoring, backups and record expiry (20 minutes, cents for backups).**
@@ -393,7 +401,7 @@ Decision D10 is Sentry; the steps are [A8](#anytime-free-no-blaze) above, and ho
 
 Everything in this section waits for the Pro launch (roadmap item 9); see [Firebase Functions and Stripe](DEPLOYMENT.md#firebase-functions-and-stripe) for the commands.
 
-- [ ] Upgrade `uv-activity-planner` to Blaze, attach the billing account, and create the budget and the kill switch's identity first (`infra/budget.sh`, C2 and C3).
+- [ ] Upgrade `uv-activity-planner` to Blaze, attach the billing account, create the budget and the kill switch's identity (`infra/budget.sh`), and deploy and test the budget guard (`ENABLE_BUDGET_GUARD`, `infra/budget-dry-run.sh`) first (C2 and C3).
 - [ ] D9: the staging project exists, deploys from **Deploy staging**, and Stripe test mode runs there first (B1-B6; the staging deploy, B0, is built).
 - [ ] Grant the deploy identity the extra Functions roles ([WIF_SETUP.md](WIF_SETUP.md#extra-roles-when-functions-are-enabled)).
 - [ ] In Stripe (test mode first), create the product **Solara Pro** with two recurring prices, **$2.99 per month** and **$19.99 per year** (no trial on the prices; checkout adds the 7-day trial), and set their ids as the `STRIPE_PRICE_ID` (monthly) and `STRIPE_YEARLY_PRICE_ID` (yearly) repository variables.

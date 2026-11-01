@@ -124,7 +124,7 @@ Set `override` back to `auto` when the incident is over.
 ## Budget kill switch
 
 The Cloud Billing budget (created by `infra/budget.sh`; $25 a month by default) publishes its state to the `budget-alerts` Pub/Sub topic several times a day.
-The `budgetAlert` Function (`functions/src/ops/budget.ts`) runs as its own service account, `solara-budget`, which alone may detach billing, and acts only on notifications whose `budgetId` is the `BUDGET_ID` repository variable (an ERROR `budgetAlert ignored a notification from another budget` otherwise).
+The `budgetAlert` Function (`functions/src/ops/budget-guard.ts` and `budget.ts`) runs as its own service account, `solara-budget`, which alone may detach billing, and acts only on notifications whose `budgetId` is the `BUDGET_ID` repository variable (an ERROR `budgetAlert ignored a notification from another budget` otherwise).
 It has three tiers, each a percentage of the budget set in `functions/.env` (defaults, owner may change):
 
 1. At `COST_GUARD_WARN_PERCENT` (50), it logs the WARNING `budget passed its warning level`, once per budget period.
@@ -136,7 +136,38 @@ It has three tiers, each a percentage of the budget set in `functions/.env` (def
    This is the hard stop: nothing more can be billed.
    It needs the role `infra/budget.sh` grants `solara-budget` and the `BUDGET_SERVICE_ACCOUNT` repository variable; without them it logs the ERROR `billing could not be detached by the budget kill switch`.
 
+A notification from a budget period older than the one the cost guard document records changes nothing in it (Pub/Sub does not keep order), though it can still detach billing.
+
 Budget data reaches Cloud Billing hours after the usage, so the switch caps a runaway bill instead of preventing every cent ([COSTS.md](COSTS.md#worst-case-under-a-flood)); the instance caps and rate limits are the first line.
+
+On Blaze before the other Functions, `budgetAlert` is deployed on its own by the **Budget guard** job (`ENABLE_BUDGET_GUARD`, [Budget guard on its own](DEPLOYMENT.md#budget-guard-on-its-own)).
+Then only two tiers matter: the 50% warning and the 300% detach.
+At 100% the guard still records the cost guard as engaged and logs the ERROR, but no deployed function reads it yet, so treat that ERROR as the early warning: find the cause before the spend reaches the detach level.
+
+### Test the guard
+
+After the first guard deploy (and after any change to the budget or the identity), publish a test notification from a shell signed in as the owner, read the printed command, then send it:
+
+```bash
+BUDGET_ID=<the BUDGET_ID variable> infra/budget-dry-run.sh
+BUDGET_ID=<the BUDGET_ID variable> infra/budget-dry-run.sh --apply
+```
+
+It uses a budget period that started 40 days ago, so it never touches the current period.
+Within a minute, the `gcloud logging read` command the script prints should show the WARNING `budget passed its warning level` and the INFO `budgetAlert processed` with `"actions":["warned"]`.
+`PERCENT=100` should show the ERROR `cost guard engaged by the budget` (and the error-log alert email); the past period has already ended, so nothing is switched off.
+`actions: []` means the cost guard document already records a later, real period (the test then changes nothing by design) or this test period already warned; the message was still received.
+No `budgetAlert` lines at all mean the message did not reach it: check that the Budget guard job is green, that the `budgetAlert` function exists in the Firebase console, and that the topic is `budget-alerts`.
+An ERROR `budgetAlert ignored a notification from another budget` means `BUDGET_ID` in the command differs from the deployed one.
+Never send `PERCENT=300` or more to production: the script refuses unless `DETACH_TEST=true`, because it detaches billing for real.
+
+### When the guard deploy fails
+
+The **Budget guard** job fails the Deploy run; Hosting still deploys, and the last deployed guard keeps running (none, before the first success).
+
+1. Open the failed job: an `::error::` names a missing `BUDGET_ID` or `BUDGET_SERVICE_ACCOUNT`, a params or payload check, or the deploy itself.
+2. A permission or API error from the deploy: grant what it names ([WIF_SETUP.md](WIF_SETUP.md#roles-for-the-budget-guard-alone)) and re-run the job.
+3. Until it is green after the first switch-on, Blaze has no automatic spending limit: watch the budget emails, or detach billing by hand if spend climbs (**Billing**, **Account management**, **Disable billing**).
 
 When the cost guard engages:
 
@@ -156,7 +187,8 @@ Within 3 days of a detach:
 
 1. Note the time of the ERROR `billing detached by the budget kill switch`; that is when the webhook started failing.
 2. Fix or block whatever drove the spend (the cost guard steps above), so re-attaching does not trip the switch again at once.
-3. Re-attach at https://console.cloud.google.com/billing/linkedaccount?project=uv-activity-planner (**Link a billing account**), then redeploy the Functions (`firebase deploy --only functions --project uv-activity-planner`) and check that `maintenance` and `stripeWebhook` run again.
+3. Re-attach at https://console.cloud.google.com/billing/linkedaccount?project=uv-activity-planner (**Link a billing account**), then redeploy the Functions by re-running the latest **Deploy** workflow on `main` (it deploys every Function, or the budget guard alone before the Pro launch), and check that `maintenance` and `stripeWebhook` run again (with every Function) or that `budgetAlert` exists (guard alone).
+   Before the Pro launch there is no Stripe webhook, so steps 4 to 6 do not apply.
 4. Replay the webhook events that failed: in the Stripe dashboard, **Workbench**, **Webhooks**, the Solara endpoint, **Event deliveries**, look at the **Failed** deliveries from the detach time on, and **Resend** each one, oldest first.
    With many events, the Stripe CLI does the same: `stripe events resend <event id> --webhook-endpoint=<endpoint id>` for each failed event id.
    Resending is safe: the webhook records each event id it applied (`stripeWebhookEvents`) and skips one it has already seen, and it ignores a subscription update older than the one it holds.

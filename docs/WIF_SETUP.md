@@ -79,6 +79,34 @@ for role in \
 done
 ```
 
+### Roles for the budget guard alone
+
+Do this on Blaze, after `infra/budget.sh`, before setting `ENABLE_BUDGET_GUARD=true` ([Budget guard on its own](DEPLOYMENT.md#budget-guard-on-its-own)).
+The budget guard deploys one Pub/Sub-triggered Function and nothing else, so it needs a subset of the Functions roles below: no Secret Manager and no Cloud Scheduler.
+`infra/budget.sh` already let the deploy identity attach the guard's own identity, `solara-budget`.
+Functions have never been deployed from CI, so treat this as the starting point and send the log if the first guard deploy reports a missing permission or API.
+
+```bash
+# The APIs a 2nd gen Function deploy uses; the deploy identity may not enable them itself.
+gcloud services enable cloudfunctions.googleapis.com cloudbuild.googleapis.com \
+  artifactregistry.googleapis.com run.googleapis.com eventarc.googleapis.com \
+  pubsub.googleapis.com --project "$PROJECT_ID"
+
+for role in roles/cloudfunctions.admin roles/artifactregistry.admin; do
+  gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+    --member "serviceAccount:${DEPLOY_SA}" --role "$role" --condition None
+done
+
+# Cloud Build builds the Function as the default compute identity; let the deploy
+# identity act as it, and nothing broader.
+RUNTIME_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
+gcloud iam service-accounts add-iam-policy-binding "$RUNTIME_SA" \
+  --project "$PROJECT_ID" \
+  --member "serviceAccount:${DEPLOY_SA}" --role roles/iam.serviceAccountUser
+```
+
+The roles below for every Function include these, so this step is not repeated then.
+
 ### Extra roles when Functions are enabled
 
 Skip this until the project is on Blaze and `ENABLE_BLAZE_FUNCTIONS` is about to be set to `true`.

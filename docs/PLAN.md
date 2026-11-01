@@ -27,7 +27,7 @@ Detailed console steps are in [OWNER_CHECKLIST.md](OWNER_CHECKLIST.md).
 1. **The budget kill switch is a Cloud Function.**
    `infra/budget.sh` only creates the budget, its message topic and an account; the switch itself is the `budgetAlert` Function, which deploys only with every other Function (`ENABLE_BLAZE_FUNCTIONS`).
    So "Blaze with the kill switch, without Functions" gave budget emails only, which arrive hours late, and no spending limit.
-   Fix: step C4 builds a deploy of the budget guard on its own; until it ships, moving to Blaze has no automatic limit.
+   Fix: step C4 built a deploy of the budget guard on its own (`ENABLE_BUDGET_GUARD`); moving to Blaze now includes switching it on and testing it, in the same sitting (O14).
 2. **Free pushes are not a switch before Pro.**
    The alerts job needs the paid Open-Meteo key before it sends the daily UV push, and `ENABLE_BLAZE_FUNCTIONS` deploys every Function with all of their secrets and setup.
    They stay with the Pro launch (Phase 6), tested on staging first.
@@ -115,8 +115,8 @@ Three separate tracks:
 
 ## Phase 5 - Before any promotion
 
-- **C4. Budget guard on its own:** a deploy option that ships only the `budgetAlert` Function (and what it needs), so Blaze gets a real spending limit without the rest of the Functions; with tests and a dry run of the message it reacts to.
-- **O14. Blaze:** attach billing, run `infra/budget.sh` (read, then `--apply`), set `BUDGET_ID` and `BUDGET_SERVICE_ACCOUNT`, and switch on the budget guard deploy C4 adds.
+- **C4. Budget guard on its own (built, [ROADMAP item 49](ROADMAP.md#49-budget-guard-on-its-own-budgetguard-built)):** the `ENABLE_BUDGET_GUARD` repository variable makes the deploy ship only the `budgetAlert` Function, without the other Functions or their secrets, refusing to run without `BUDGET_ID` and `BUDGET_SERVICE_ACCOUNT`; with unit tests of each tier, an emulator run of the guard alone, and `infra/budget-dry-run.sh`, which publishes a test budget message.
+- **O14. Blaze:** attach billing, run `infra/budget.sh` (read, then `--apply`), set `BUDGET_ID` and `BUDGET_SERVICE_ACCOUNT`, grant the deploy account the guard's roles, set `ENABLE_BUDGET_GUARD=true` and re-run the Deploy workflow, then run `infra/budget-dry-run.sh` (read, then `--apply`) and send the log lines (checklist C3).
 - **C15. Weekly backup:** a script you run (or schedule) that exports Firestore to a storage bucket, with a restore drill in staging later.
 - **O15. Spanish review** by a native speaker of `docs/i18n/es-review.md`; required before promoting the Spanish version or shipping new Spanish safety text.
 - **O16. Legal review,** widened: governing law, the Spanish legal text, an EU and UK representative, reCAPTCHA consent in the EU, Mexico's privacy notice, children in family profiles, and the vitamin D data (O5).
