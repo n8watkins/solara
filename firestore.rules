@@ -211,7 +211,7 @@ service cloud.firestore {
         'sunscreen', 'activities', 'onboardingComplete', 'calendarHours', 'showSunPath',
         'hiddenActivitySuggestionIds', 'collapsedActivityCategories', 'upgradeInterest',
         'notificationHour', 'temperatureUnit', 'clockFormat', 'groupMode', 'groupProfileIds',
-        'uvAlertThreshold', 'quietHours', 'eventHeadsUp', 'dailyUv'
+        'uvAlertThreshold', 'quietHours', 'eventHeadsUp', 'dailyUv', 'language'
       ];
     }
 
@@ -242,10 +242,8 @@ service cloud.firestore {
         && (!('collapsedActivityCategories' in keys)
           || (data.collapsedActivityCategories is list
             && data.collapsedActivityCategories.hasOnly(activityCategoryNames())))
-        && (!('notificationHour' in keys)
-          || (data.notificationHour is int
-            && data.notificationHour >= 5
-            && data.notificationHour <= 10))
+        // A whole hour from 5 to 10, as one list lookup (fewer expressions than the bounds).
+        && (!('notificationHour' in keys) || data.notificationHour in [5, 6, 7, 8, 9, 10])
         && (!('groupMode' in keys) || data.groupMode is bool)
         && (!('groupProfileIds' in keys)
           || (data.groupProfileIds is list && data.groupProfileIds.size() <= 12
@@ -254,7 +252,7 @@ service cloud.firestore {
         // keeps a multi-list write within the expression budget.
         && (!keys.hasAny([
             'onboardingComplete', 'showSunPath', 'upgradeInterest', 'temperatureUnit',
-            'clockFormat', 'uvAlertThreshold', 'quietHours', 'eventHeadsUp', 'dailyUv'
+            'clockFormat', 'uvAlertThreshold', 'quietHours', 'eventHeadsUp', 'dailyUv', 'language'
           ])
           || ((!('onboardingComplete' in keys) || data.onboardingComplete is bool)
             && (!('showSunPath' in keys) || data.showSunPath is bool)
@@ -268,7 +266,8 @@ service cloud.firestore {
                 && data.uvAlertThreshold <= 11))
             && (!('quietHours' in keys) || validQuietHours(data.quietHours))
             && (!('eventHeadsUp' in keys) || data.eventHeadsUp is bool)
-            && (!('dailyUv' in keys) || data.dailyUv is bool)));
+            && (!('dailyUv' in keys) || data.dailyUv is bool)
+            && (!('language' in keys) || data.language in ['auto', 'en', 'es'])));
     }
 
     // A reapply reminder (packages/core/src/reapply.ts): a random id, the timer's mode,
