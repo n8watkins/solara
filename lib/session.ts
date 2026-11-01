@@ -12,6 +12,9 @@ import { clearLocalPrefs, createAccountPrefs, loadFirestorePrefs, loadLocalPrefs
 import { ACCOUNT_OWNER_KEY } from './app-routes'
 import type { UserPreferences } from './types'
 
+// Part of the signed-in account code: the device's language on an account on Automatic.
+export { syncDeviceLanguage } from './device-language'
+
 /** Sign-out stopped because this device could not be unsubscribed from notifications. */
 export class SignOutBlockedError extends Error {
   constructor(cause: unknown) {

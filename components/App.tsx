@@ -7,7 +7,7 @@ import { loadGuestPrefs, saveGuestPrefs } from '@/lib/guest'
 import { SignedInContext } from '@/lib/signed-in-context'
 import { canUseCalendar } from '@solara/core/tiers'
 import { screenAfterOnboarding } from '@/lib/account-screen'
-import { useAccount } from '@/lib/use-account'
+import { syncAccountDeviceLanguage, useAccount } from '@/lib/use-account'
 import { useCheckoutReturn } from '@/lib/use-checkout-return'
 import { createForecastStore, ForecastStoreProvider, useWeather } from '@/lib/use-forecast'
 import { resolveUnits, unitFormatters } from '@/lib/units'
@@ -37,7 +37,7 @@ import ForecastNotice from './ForecastNotice'
 import { AccountLoadError, AccountLoading } from './AccountStatus'
 import ScheduledProvider from './ScheduledProvider'
 import SettingsHost from './SettingsHost'
-import { deviceLanguages, followLanguagePreference } from '@/lib/i18n'
+import { followLanguagePreference } from '@/lib/i18n'
 import t from '@/messages/app'
 
 // A browser holding a session opens on the signed-in screen, which waits for these
@@ -146,33 +146,6 @@ function SignedInApp() {
     if (planReady) followLanguage()
   }, [planReady, signedInUid])
 
-  // A signed-in account on Automatic keeps the language this device resolves, so its
-  // pushes, alerts and calendar feed are written in it (lib/device-language.ts, loaded
-  // only for a signed-in account). Only once the account's own plan has loaded (not this
-  // browser's copy of it), and only when it changes: the last device to open the app
-  // wins. A failed write is tried again on the next start, not in a loop.
-  const accountLoaded = !!user && !pending && prefs?.uid === user.uid
-  const language = prefs?.language
-  const storedDeviceLanguage = prefs?.deviceLanguage
-  const schemaVersion = prefs?.schemaVersion
-  useEffect(() => {
-    if (!signedInUid || !accountLoaded || schemaVersion === undefined) return
-    const uid = signedInUid
-    let current = true
-    import('@/lib/device-language')
-      .then(async ({ deviceLanguageToSave, saveDeviceLanguage }) => {
-        const prefs = { language, deviceLanguage: storedDeviceLanguage, schemaVersion }
-        const deviceLanguage = deviceLanguageToSave(prefs, deviceLanguages())
-        if (!deviceLanguage || !current) return
-        await saveDeviceLanguage(uid, deviceLanguage)
-        if (current) setPrefs(p => (p?.uid === uid ? { ...p, deviceLanguage } : p))
-      })
-      .catch(error => console.error('Saving the device language failed:', error))
-    return () => {
-      current = false
-    }
-  }, [signedInUid, accountLoaded, language, storedDeviceLanguage, schemaVersion, setPrefs])
-
   // Once the first screen shows, fetch the dialogs and views it can open (deferred.tsx).
   const shown = screen !== 'loading'
   useEffect(() => (shown ? preloadDeferred() : undefined), [shown])
@@ -202,6 +175,8 @@ function SignedInApp() {
     saveLocalPrefs({ ...updated, uid: user.uid })
     try {
       await saveFirestorePrefs(user.uid, updated)
+      // Switched to Automatic: the language this device resolves (lib/device-language.ts).
+      await syncAccountDeviceLanguage(user.uid, updated, () => true, setPrefs)
     } catch (error) {
       setSyncError(syncErrorFor(error))
     }

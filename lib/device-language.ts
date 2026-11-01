@@ -1,10 +1,11 @@
 // The device's language on a signed-in account (ROADMAP item 46): while the account's
 // choice is Automatic, the server writes its pushes, alerts and calendar feed in
-// `deviceLanguage` (packages/core/src/server-language.ts). Loaded only for a signed-in
-// account (components/App.tsx), so a guest's first load never carries it.
+// `deviceLanguage` (packages/core/src/server-language.ts). Part of the signed-in account
+// code (lib/session.ts), so a guest's first load never carries it.
 import { localeFromLanguages, type Locale } from '@solara/core/i18n'
 import { isWritablePreferences, type UserPreferences } from '@solara/core/prefs'
 import { loadFirebase } from './firebase'
+import { deviceLanguages } from './i18n'
 
 /**
  * The device's language to save to a signed-in account, or null when there is nothing to
@@ -36,4 +37,19 @@ export async function saveDeviceLanguage(uid: string, deviceLanguage: Locale): P
   if (!db) return
   const { doc, updateDoc } = await import('firebase/firestore')
   await updateDoc(doc(db, 'users', uid), { deviceLanguage })
+}
+
+/**
+ * Saves this device's language to the account when its plan (as just loaded or saved)
+ * needs it (deviceLanguageToSave). Resolves to the language saved, or null when nothing
+ * was written.
+ */
+export async function syncDeviceLanguage(
+  uid: string,
+  prefs: Pick<UserPreferences, 'language' | 'deviceLanguage' | 'schemaVersion'>,
+): Promise<Locale | null> {
+  const deviceLanguage = deviceLanguageToSave(prefs, deviceLanguages())
+  if (!deviceLanguage) return null
+  await saveDeviceLanguage(uid, deviceLanguage)
+  return deviceLanguage
 }

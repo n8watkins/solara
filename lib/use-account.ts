@@ -48,6 +48,28 @@ async function loadSignedInAccount(
   }
 }
 
+/**
+ * Saves this device's language to a signed-in account when its plan needs it
+ * (lib/device-language.ts, in the signed-in account code) and keeps the plan on screen in
+ * step while `current()`. A failure is logged and tried again on the next start.
+ */
+export async function syncAccountDeviceLanguage(
+  uid: string,
+  prefs: UserPreferences,
+  current: () => boolean,
+  setPrefs: (update: (prefs: UserPreferences | null) => UserPreferences | null) => void,
+): Promise<void> {
+  try {
+    const { syncDeviceLanguage } = await import('./session')
+    const deviceLanguage = await syncDeviceLanguage(uid, prefs)
+    if (deviceLanguage && current()) {
+      setPrefs(p => (p?.uid === uid ? { ...p, deviceLanguage } : p))
+    }
+  } catch (error) {
+    console.error('Saving the device language failed:', error)
+  }
+}
+
 /** Resolves once the browser reports a network connection (at once if it does). */
 function whenOnline(): Promise<void> {
   if (navigator.onLine !== false) return Promise.resolve()
@@ -186,6 +208,9 @@ export function useAccount({
       setScreen('dashboard')
       // This browser's copy, for the next start (lib/cached-account.ts).
       saveLocalPrefs({ ...loaded, uid: u.uid })
+      // On Automatic, the account keeps the language this device resolves, so its pushes
+      // are written in it; only when it changes, so the last device to open the app wins.
+      void syncAccountDeviceLanguage(u.uid, loaded, () => !isStale(), setPrefs)
       if (loaded.tier === 'paid') {
         import('./notifications')
           .then(async notifications => {
