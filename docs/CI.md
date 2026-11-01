@@ -20,19 +20,19 @@ A job with nothing relevant to test never skips at the job level (a required che
 | --- | --- | --- |
 | Detect changed areas | Maps the changed files to suites (`.github/scripts/changed-areas.mjs`) and records the tree it tests | 5 s |
 | Lint, types and unit tests | Dependency audit, ESLint and Prettier, shellcheck, the docs check (always); typecheck and Vitest (when relevant) | 1.5-2 min (1.3 min lint only) |
-| Browser tests on the static export | Builds `out/` and runs the Playwright suite on the Hosting emulator (Chromium, a phone, and Firefox and WebKit for the Outlook popup), then the first-load budgets on a production-like build | about 5 min before the audit |
+| Browser tests on the static export | Builds `out/` and runs the Playwright suite on the Hosting emulator (Chromium, a phone, and Firefox and WebKit for the Outlook popup), then the first-load budgets on a production-like build | 4.4 min (5 min before the audit) |
 | Browser tests with Sentry and App Check switched on | A production build with fake Sentry and reCAPTCHA keys | 1.5 min |
 | Signed-in browser tests on emulators | An emulator build and the signed-in suite against Auth, Firestore and Functions emulators | 3.5 min |
 | Signed-in UI harness | Waits for the four harness shards and merges their screenshots and axe reports | 20 s after the slowest shard |
-| UI harness shard N of 4 (not required itself) | Builds the harness export and captures its share of about 1,460 screens and checks | 6-8.5 min each before the audit |
+| UI harness shard N of 4 (not required itself) | Builds the harness export and captures its share of about 1,460 screens and checks | 4.4-5.9 min each (5.5-8.4 min before the audit) |
 | Functions and Firestore rules | Functions audit, typecheck and tests, the deploy params and payload checks, the rules tests on the emulator | 2 min |
 | Workflow and secret scanning | actionlint, zizmor, gitleaks and the workflow script tests (`node --test .github/scripts/*.test.mjs`) | 20 s |
 | Dependency review | GitHub's dependency review (pull requests only) | 10 s |
 
 Inside the long jobs, the time goes to the tests themselves, not to setup:
 
-- Each harness shard spends about 35 s installing dependencies and Chromium, 40 s building the harness export and the rest running its screens.
-- The static export job spends about 55 s on setup, 45 s on its two builds and 3.7 min running 182 tests.
+- Each harness shard spends about 25 s installing dependencies and Chromium, 40 s building the harness export and 4-5 min running its screens on four workers.
+- The static export job spends about 70 s on setup, 45 s on its two builds and 2.8 min running 182 tests on two workers.
 - Installing dependencies takes 15-25 s per job with npm's cache restored; downloading Chromium's headless shell takes about 4 s.
 
 ## What runs for which change
@@ -107,12 +107,30 @@ A manual run of the Deploy workflow always runs every suite.
 Wall clock for the whole CI run, from the first job starting to the last one finishing.
 "Before" is measured on the runs of 2026-11-01; "after" is measured on #169 where it ran, and estimated from the measured job times otherwise.
 
-AFTER_TABLE
+| Change | What runs | Before | After |
+| --- | --- | --- | --- |
+| Docs only | Always-on checks | 1.5 min | 1.5 min |
+| Deploy workflow or deploy-only script (like #167's `deploy.yml` part) | Always-on checks | 8.5 min (everything) | 1.5 min |
+| Functions tests only | Functions job | 3.7 min | 2 min |
+| Functions code or rules | Unit, Functions, signed-in | 3.7 min | 3 min |
+| App UI (`components/`, `app/`, `lib/`) | Unit, static export, signed-in, harness (and integrations on their path) | 8.5 min | 6.2 min |
+| Core, `messages/`, lockfiles, quality workflows | Everything | 8.5 min | 6.2 min |
+| Deploy of a merge whose tree its pull request passed | Always-on checks, build, smoke test, deploy | 9 min | about 3 min |
+| Deploy otherwise (direct push, `main` moved on, parent failed, manual run) | Everything, build, deploy | 9 min | about 7 min |
+
+The full run is bounded by the slowest harness shard.
+On #169 the harness shards took 4.4-5.9 min (4.0-5.1 min of tests) instead of 5.5-8.4 min, and the static export job 4.4 min (2.8 min of tests) instead of 5 min, with no flaky test.
+Each shard is one Playwright project, in order: desktop light, desktop dark, mobile light, mobile dark; the mobile shards take about a minute longer because their screenshots render at twice the pixel density.
+
+Times are from the first job starting to the last finishing.
+When several pull requests run at once they share the account's concurrent runner limit, and jobs can wait several minutes for a runner before they start; on #169 the harness shards waited up to 12 minutes behind another lane's jobs, so the run took 18 minutes from push to green.
 
 ## Choices the audit made, and what it left alone
 
-- **Harness workers:** each shard now runs one Playwright worker per CPU (4) instead of Playwright's default of half (2).
-- **Static export workers:** two on CI instead of one, as the signed-in and integration suites already use; the one came from Playwright's project template.
+- **Harness workers:** each shard now runs one Playwright worker per CPU (4) instead of Playwright's default of half (2), which cut each shard's test time by about 30%.
+- **Four harness shards, not five:** a fifth shard would cut the slowest shard by about a minute, but each pull request would hold one more runner, and runner waits already cost more than that when lanes run in parallel.
+  Playwright shards by test count, not time, so the only finer balance would be a hand-kept test list, which would silently skip new screens when it goes stale.
+- **Static export workers:** two on CI instead of one, as the signed-in and integration suites already use (the one came from Playwright's project template); the tests take 2.8 min instead of 3.7.
 - **Chromium's headless shell only:** every suite runs headless, so the jobs install `--only-shell` and skip the full Chrome for Testing download.
 - **No shared harness build:** the four shards build the same harness export (about 40 s each).
   Building it once in its own job would save runner minutes but add that job's setup and upload before any shard starts, so the run would take longer; the owner asked for time.
