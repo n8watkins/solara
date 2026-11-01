@@ -7,7 +7,13 @@ import {
   newEntryId,
   saveVitaminDLog,
 } from './vitamin-d-log'
-import { VITAMIN_D_LOG_KEY, vitaminDLogEnabled } from './vitamin-d-switch'
+import {
+  adoptGuestVitaminDLog,
+  VITAMIN_D_LOG_KEY,
+  vitaminDLogEnabled,
+  vitaminDLogKey,
+  vitaminDLogOwner,
+} from './vitamin-d-switch'
 
 const TODAY = '2026-06-15'
 
@@ -49,9 +55,9 @@ afterEach(() => {
 
 describe('the vitamin D log in this browser', () => {
   it('saves and reads back, newest first, under its own key', () => {
-    saveVitaminDLog([entry({ id: 'early', start: '08:00' }), entry({ id: 'late' })], TODAY)
+    saveVitaminDLog(null, [entry({ id: 'early', start: '08:00' }), entry({ id: 'late' })], TODAY)
     expect(JSON.parse(store.get(VITAMIN_D_LOG_KEY)!)).toMatchObject({ version: 1 })
-    expect(loadVitaminDLog(TODAY).map(e => e.id)).toEqual(['late', 'early'])
+    expect(loadVitaminDLog(null, TODAY).map(e => e.id)).toEqual(['late', 'early'])
   })
 
   it('prunes entries more than a year old on read and on save', () => {
@@ -59,31 +65,31 @@ describe('the vitamin D log in this browser', () => {
       VITAMIN_D_LOG_KEY,
       JSON.stringify({ version: 1, entries: [entry({ id: 'old', date: '2025-06-01' }), entry()] }),
     )
-    expect(loadVitaminDLog(TODAY).map(e => e.id)).toEqual(['a1'])
+    expect(loadVitaminDLog(null, TODAY).map(e => e.id)).toEqual(['a1'])
     // A year later the same log is empty, and saving it removes the key.
-    expect(loadVitaminDLog('2027-06-16')).toEqual([])
-    expect(saveVitaminDLog(loadVitaminDLog('2027-06-16'), '2027-06-16')).toEqual([])
+    expect(loadVitaminDLog(null, '2027-06-16')).toEqual([])
+    expect(saveVitaminDLog(null, loadVitaminDLog(null, '2027-06-16'), '2027-06-16')).toEqual([])
     expect(store.has(VITAMIN_D_LOG_KEY)).toBe(false)
   })
 
   it('drops a broken entry, never the whole log', () => {
     store.set(VITAMIN_D_LOG_KEY, JSON.stringify({ version: 1, entries: [{ id: 'x' }, entry()] }))
-    expect(loadVitaminDLog(TODAY)).toEqual([entry()])
+    expect(loadVitaminDLog(null, TODAY)).toEqual([entry()])
   })
 
   it('reads a log it cannot parse as empty', () => {
     store.set(VITAMIN_D_LOG_KEY, '{not json')
-    expect(loadVitaminDLog(TODAY)).toEqual([])
+    expect(loadVitaminDLog(null, TODAY)).toEqual([])
   })
 
   it('says when the browser refuses to save', () => {
     failWrites = true
-    expect(() => saveVitaminDLog([entry()], TODAY)).toThrow(LogStorageError)
+    expect(() => saveVitaminDLog(null, [entry()], TODAY)).toThrow(LogStorageError)
   })
 
   it('clears the log', () => {
-    saveVitaminDLog([entry()], TODAY)
-    clearVitaminDLog()
+    saveVitaminDLog(null, [entry()], TODAY)
+    clearVitaminDLog(null)
     expect(store.has(VITAMIN_D_LOG_KEY)).toBe(false)
   })
 
@@ -91,6 +97,39 @@ describe('the vitamin D log in this browser', () => {
     const ids = new Set(Array.from({ length: 50 }, newEntryId))
     expect(ids.size).toBe(50)
     for (const id of ids) expect(id).toMatch(/^[\w-]{1,40}$/)
+  })
+})
+
+describe('one log per owner on this device', () => {
+  it("keeps a guest's and each account's apart", () => {
+    saveVitaminDLog(null, [entry({ id: 'guest' })], TODAY)
+    saveVitaminDLog('u1', [entry({ id: 'one' })], TODAY)
+    saveVitaminDLog('u2', [entry({ id: 'two' })], TODAY)
+    expect(loadVitaminDLog(null, TODAY).map(e => e.id)).toEqual(['guest'])
+    expect(loadVitaminDLog('u1', TODAY).map(e => e.id)).toEqual(['one'])
+    expect(loadVitaminDLog('u2', TODAY).map(e => e.id)).toEqual(['two'])
+    clearVitaminDLog('u1')
+    expect(loadVitaminDLog('u1', TODAY)).toEqual([])
+    expect(loadVitaminDLog('u2', TODAY)).toHaveLength(1)
+  })
+
+  it('names each key and its owner', () => {
+    expect(vitaminDLogKey(null)).toBe(VITAMIN_D_LOG_KEY)
+    expect(vitaminDLogOwner(vitaminDLogKey('u1'))).toBe('u1')
+    expect(vitaminDLogOwner(VITAMIN_D_LOG_KEY)).toBeNull()
+    expect(vitaminDLogOwner(`${VITAMIN_D_LOG_KEY}:`)).toBeUndefined()
+    expect(vitaminDLogOwner('solara_guest')).toBeUndefined()
+  })
+
+  it("hands a guest's log to the account that signs in", () => {
+    saveVitaminDLog(null, [entry({ id: 'guest', start: '09:00' })], TODAY)
+    saveVitaminDLog('u1', [entry({ id: 'mine' })], TODAY)
+    adoptGuestVitaminDLog('u1')
+    expect(loadVitaminDLog('u1', TODAY).map(e => e.id)).toEqual(['mine', 'guest'])
+    expect(store.has(VITAMIN_D_LOG_KEY)).toBe(false)
+    // Nothing to hand over changes nothing.
+    adoptGuestVitaminDLog('u1')
+    expect(loadVitaminDLog('u1', TODAY)).toHaveLength(2)
   })
 })
 

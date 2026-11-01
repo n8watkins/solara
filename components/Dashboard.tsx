@@ -425,6 +425,7 @@ function DashboardView({
 
       {vitaminDLog && (
         <VitaminDLog
+          owner={user?.uid ?? null}
           today={weather.now.date}
           nowHour={nowHour}
           hourly={weather.today}

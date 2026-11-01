@@ -486,9 +486,12 @@ export default function PrivacyPage() {
         </p>
         <p>
           Si usas el registro de vitamina D, sus sesiones (cuándo, cuánto tiempo, la piel al sol, el
-          protector solar y el UV) se guardan solo en este navegador y nunca se envían a Solara. Se
-          eliminan después de un año, cuando las borras en el registro, cuando cierras sesión y
-          cuando eliminas tu cuenta, y la descarga de datos de la cuenta las incluye.
+          protector solar y el UV) se guardan solo en este navegador y nunca se envían a Solara, por
+          separado para cada cuenta y para el uso sin iniciar sesión. Al cerrar sesión, el registro
+          de una cuenta se oculta hasta que esa cuenta vuelva a iniciar sesión en este navegador, y
+          un registro guardado sin iniciar sesión pasa a la cuenta con la que inicias sesión. Las
+          sesiones se eliminan después de un año, cuando las borras en el registro y cuando eliminas
+          tu cuenta, y la descarga de datos de la cuenta las incluye.
         </p>
         <p>
           Cuando compartes un archivo o un enlace de calendario con la app instalada, se guarda en

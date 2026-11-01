@@ -5,7 +5,8 @@ import { defineMessages, plural } from '@solara/core/i18n'
 export default defineMessages('vitaminD', {
   title: 'Vitamin D log',
   lead: 'Rough estimates of the vitamin D your time in the sun may have made, and how close each session came to a burn.',
-  deviceOnly: 'Kept only in this browser and never sent to Solara. Signing out clears it.',
+  deviceOnly:
+    'Kept only in this browser and never sent to Solara. Signing out hides it until you sign back in here.',
 
   today: 'Today',
   last7Days: 'Last 7 days',

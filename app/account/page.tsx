@@ -33,9 +33,10 @@ const FUNCTIONS_READY = functionsApiConfigured()
 
 /**
  * What this browser keeps for the person outside the account, for the data download: the
- * vitamin D log (ROADMAP item 48), kept only on this device; nothing when it is empty.
+ * account's vitamin D log (ROADMAP item 48), kept only on this device; nothing when it is
+ * empty.
  */
-async function thisDeviceData(): Promise<{ thisDevice?: { vitaminDLog: unknown } }> {
+async function thisDeviceData(uid: string): Promise<{ thisDevice?: { vitaminDLog: unknown } }> {
   const [{ loadVitaminDLog }, { logExport }] = await Promise.all([
     import('@/lib/vitamin-d-log'),
     import('@solara/core/vitamin-d-log'),
@@ -45,7 +46,7 @@ async function thisDeviceData(): Promise<{ thisDevice?: { vitaminDLog: unknown }
   const today = [now.getFullYear(), now.getMonth() + 1, now.getDate()]
     .map(n => String(n).padStart(2, '0'))
     .join('-')
-  const entries = loadVitaminDLog(today)
+  const entries = loadVitaminDLog(uid, today)
   return entries.length > 0 ? { thisDevice: { vitaminDLog: logExport(entries) } } : {}
 }
 
@@ -167,7 +168,7 @@ function AccountPage() {
                 () => import('@/lib/account-self-service'),
               )
             ).exportAccountInBrowser(user.uid)
-      const file = { ...data, ...(await thisDeviceData()) }
+      const file = { ...data, ...(await thisDeviceData(user.uid)) }
       const url = URL.createObjectURL(
         new Blob([JSON.stringify(file, null, 2)], { type: 'application/json' }),
       )

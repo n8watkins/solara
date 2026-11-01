@@ -129,9 +129,12 @@ async function atEachWidth(page: Page, t: TestInfo, name: string) {
       const dialog = document.querySelector('dialog[open]')
       const page = document.documentElement.scrollWidth - document.documentElement.clientWidth
       const inDialog = dialog
-        ? [...dialog.querySelectorAll('*')].some(
-            el => el.getBoundingClientRect().right > dialog.getBoundingClientRect().right + 0.5,
-          )
+        ? // Drawn content only: a screen reader's table (.sr-only) sits outside on purpose.
+          [...dialog.querySelectorAll('*')]
+            .filter(el => !el.closest('.sr-only'))
+            .some(
+              el => el.getBoundingClientRect().right > dialog.getBoundingClientRect().right + 0.5,
+            )
         : false
       return { page, inDialog }
     })

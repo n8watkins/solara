@@ -38,6 +38,8 @@ import WeekChart, { iuText } from './WeekChart'
 import m from '@/messages/vitamin-d'
 
 export interface VitaminDLogProps extends LogContext {
+  /** Whose log: the signed-in account's uid, or null for a guest. */
+  owner: string | null
   /** A finished activity to log first, from its card's "Log it". */
   logActivity?: ActivityToLog | null
   onClose: () => void
@@ -53,10 +55,10 @@ interface Status {
 
 const FORM_ID = 'vitd-session-form'
 
-export default function VitaminDLog({ logActivity, onClose, ...context }: VitaminDLogProps) {
+export default function VitaminDLog({ owner, logActivity, onClose, ...context }: VitaminDLogProps) {
   const { today } = context
   const fmt = useUnits()
-  const [entries, setEntries] = useState(() => loadVitaminDLog(today))
+  const [entries, setEntries] = useState(() => loadVitaminDLog(owner, today))
   const [view, setView] = useState<View>({ kind: 'list' })
   const [form, setForm] = useState<Form>(() => newForm(context))
   const [errors, setErrors] = useState<FormField[]>([])
@@ -68,7 +70,7 @@ export default function VitaminDLog({ logActivity, onClose, ...context }: Vitami
   /** Keeps `next`; false (and a message) when the browser refuses. */
   function keep(next: readonly VitaminDEntry[]): boolean {
     try {
-      setEntries(saveVitaminDLog(next, today))
+      setEntries(saveVitaminDLog(owner, next, today))
       return true
     } catch {
       setStatus({ text: m.saveFailed })
@@ -81,14 +83,14 @@ export default function VitaminDLog({ logActivity, onClose, ...context }: Vitami
   useEffect(() => {
     if (!logActivity || logged.current) return
     logged.current = true
-    const current = loadVitaminDLog(today)
+    const current = loadVitaminDLog(owner, today)
     let next: Status
     if (current.some(entry => entry.date === today && entry.activityId === logActivity.id)) {
       next = { text: m.alreadyLogged(logActivity.name) }
     } else {
       try {
         const entry = activityEntry(logActivity, context, newEntryId())
-        const kept = saveVitaminDLog([entry, ...current], today)
+        const kept = saveVitaminDLog(owner, [entry, ...current], today)
         /* eslint-disable-next-line react-hooks/set-state-in-effect -- reflects the write to browser storage just made */
         setEntries(kept)
         next = { text: m.logged(logActivity.name) }
@@ -145,7 +147,7 @@ export default function VitaminDLog({ logActivity, onClose, ...context }: Vitami
   }
 
   function deleteAll() {
-    clearVitaminDLog()
+    clearVitaminDLog(owner)
     setEntries([])
     setConfirmingDeleteAll(false)
     setStatus({ text: m.deletedAll })

@@ -418,9 +418,11 @@ export default function PrivacyPage() {
         </p>
         <p>
           If you use the vitamin D log, its sessions (when, how long, the skin in the sun, sunscreen
-          and the UV) are kept only in this browser and are never sent to Solara. They are removed
-          after a year, when you delete them in the log, when you sign out and when you delete your
-          account, and the account data download includes them.
+          and the UV) are kept only in this browser and are never sent to Solara, separately for
+          each account and for use without signing in. Signing out hides an account&apos;s log until
+          it signs in again in this browser, and a log kept without signing in moves to the account
+          you sign in with. The sessions are removed after a year, when you delete them in the log
+          and when you delete your account, and the account data download includes them.
         </p>
         <p>
           When you share a calendar file or link to the installed app, it is kept in this
