@@ -556,3 +556,27 @@ describe('free-API forecasts stay out of the paid cache (REVIEW4 L7)', () => {
     }
   })
 })
+
+describe('the daily UV push share of the server side (REVIEW9 SEC9 L5)', () => {
+  const {
+    DAILY_UV_MAX_FORECASTS_PER_RUN,
+    dailyUvForecastsPerRun,
+  } = require('../lib/notifications/daily-uv')
+
+  test('a third of the server side of the hour and of the day, spread over four runs an hour', () => {
+    for (const limits of [
+      { perHour: 1500, perDay: 20000 },
+      { perHour: 3000, perDay: 100000 },
+      { perHour: 600, perDay: 5000 },
+      { perHour: 100000, perDay: 1000000 },
+    ]) {
+      const perRun = dailyUvForecastsPerRun(limits)
+      const side = sideLimits(limits)
+      assert.ok(perRun * 4 <= side.perHour / 3, JSON.stringify(limits))
+      assert.ok(perRun * 96 <= side.perDay / 3, JSON.stringify(limits))
+      assert.ok(perRun <= DAILY_UV_MAX_FORECASTS_PER_RUN)
+    }
+    assert.equal(dailyUvForecastsPerRun({ perHour: 1500, perDay: 20000 }), 46)
+    assert.equal(dailyUvForecastsPerRun({ perHour: 0, perDay: 0 }), 0)
+  })
+})

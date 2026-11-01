@@ -36,7 +36,7 @@ import {
   registerNotificationDevice as registerDevice,
   removeNotificationDevice as removeDevice,
 } from './devices'
-import { DAILY_UV_BUDGET_MS, runDailyUv } from './daily-uv'
+import { DAILY_UV_BUDGET_MS, dailyUvForecastsPerRun, runDailyUv } from './daily-uv'
 import {
   REAPPLY_REMINDER_DOC,
   REMINDER_COLLECTION,
@@ -177,7 +177,11 @@ export const alerts = onSchedule(
           mayFetch: () => dailyUvShare.take([{ key: `uid:${uid}`, weight: 1 }]),
         }),
       appUrl: appOrigin(),
-      limits: { budgetMs: Math.max(10_000, ALERTS_RUN_BUDGET_MS - (Date.now() - startedAt)) },
+      limits: {
+        // At most a third of the server's side of the hour and the day (REVIEW9 SEC9 L5).
+        maxForecasts: dailyUvForecastsPerRun(upstreamLimits()),
+        budgetMs: Math.max(10_000, ALERTS_RUN_BUDGET_MS - (Date.now() - startedAt)),
+      },
     }).catch(error => logger.error('daily UV run failed', { error: loggableError(error) }))
   },
 )
