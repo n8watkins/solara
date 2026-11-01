@@ -119,8 +119,9 @@ test('sign-in after a deploy reloads once to the new version, then signs in', as
 test('a deploy that keeps failing is reloaded once, never in a loop', async ({ page }) => {
   const state = await openThenDeploy(page, 'gone', { untilReload: false })
   await page.getByRole('banner').getByRole('button', { name: 'Sign in' }).click()
-  await expect(page.getByRole('status').filter({ hasText: 'Solara was updated' })).toBeVisible()
-  expect(state.reloads).toBe(1)
+  // The page reloads once. (The notice's own code is gone here too, so it cannot show.)
+  await expect.poll(() => state.reloads).toBe(1)
+  await expect(page.getByRole('toolbar', { name: 'UV forecast by hour' })).toBeVisible()
 
   // The new version's sign-in code fails too: no second reload, an accurate message.
   await page.getByRole('banner').getByRole('button', { name: 'Sign in' }).click()

@@ -315,9 +315,9 @@ describe('morning alerts', () => {
     const messaging = new FakeMessaging()
     await run(messaging, Date.parse('2026-06-15T14:30:00Z')) // 7:30 in Los Angeles
     const body = uid => messaging.sentTo(uid)[0][0].data.body
-    // UV peaks at 8: about 13 minutes for very fair skin, 63 for dark.
+    // UV peaks at 8: about 13 minutes for very fair skin, 50 for dark.
     assert.match(body('group'), /burn in about 13 min/)
-    assert.match(body('single'), /burn in about 63 min/)
+    assert.match(body('single'), /burn in about 50 min/)
   })
 
   test('reads activities and profiles through the app schema and skips invalid ones', async () => {
