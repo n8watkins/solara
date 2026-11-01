@@ -5,6 +5,7 @@ _Last reviewed: 2026-10-28_
 This checklist holds what only the owner can do: decisions, credentials, provider consoles, legal facts and real-device evidence, plus the manual checks for each release.
 Which items are already done is tracked in [status.md](status.md#owner-actions); the decisions and the roadmap items that need them are in [ROADMAP.md](ROADMAP.md#decisions).
 How deploys and configuration work is in [DEPLOYMENT.md](DEPLOYMENT.md).
+A short, tickable version of everything still to do is in [OWNER_TODO.md](OWNER_TODO.md).
 
 Never paste a secret into an issue, pull request, repository file or chat message.
 When an item is done, tell the repository agent which section changed, without the secret values; the agent can then redeploy, inspect logs and run the automated checks.
