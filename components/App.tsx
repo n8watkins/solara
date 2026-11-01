@@ -175,11 +175,6 @@ function SignedInApp() {
     saveLocalPrefs({ ...updated, uid: user.uid })
     try {
       await saveFirestorePrefs(user.uid, updated)
-      // Switched to Automatic: the language this device resolves (lib/device-language.ts).
-      const { syncDeviceLanguage } = await import('@/lib/session')
-      await syncDeviceLanguage(user.uid, updated, deviceLanguage =>
-        setPrefs(p => (p?.uid === user.uid ? { ...p, deviceLanguage } : p)),
-      )
     } catch (error) {
       setSyncError(syncErrorFor(error))
     }

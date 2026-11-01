@@ -5,6 +5,8 @@ import { QUIET_HOURS, UV_ALERT_THRESHOLD } from '@solara/core'
 import { calendarFeatureLabel } from './plans'
 import { TIER_LIMITS } from '@solara/core/tiers'
 import type { Location, SkinType, TierLevel, UserPreferences } from './types'
+import { deviceLanguageToSave } from './device-language'
+import { deviceLanguages } from './i18n'
 import m from '@/messages/pricing'
 
 /** The preferences the Settings dialog edits, with every default filled in. */
@@ -78,9 +80,19 @@ export function isSettingsDraftDirty(prefs: UserPreferences, draft: SettingsDraf
   return DRAFT_FIELDS.some(field => JSON.stringify(saved[field]) !== JSON.stringify(draft[field]))
 }
 
-/** The preferences to save: everything the dialog does not edit stays as it was. */
-export function applySettingsDraft(prefs: UserPreferences, draft: SettingsDraft): UserPreferences {
-  return { ...prefs, ...draft }
+/**
+ * The preferences to save: everything the dialog does not edit stays as it was. Set to
+ * Automatic, the plan also keeps the language this device resolves (lib/device-language.ts),
+ * saved with the rest, so an account switched back to Automatic gets its pushes in it.
+ */
+export function applySettingsDraft(
+  prefs: UserPreferences,
+  draft: SettingsDraft,
+  languages: readonly string[] = deviceLanguages(),
+): UserPreferences {
+  const updated = { ...prefs, ...draft }
+  const deviceLanguage = deviceLanguageToSave(updated, languages)
+  return deviceLanguage ? { ...updated, deviceLanguage } : updated
 }
 
 /** One row of the plan summary: a count or note, or whether the feature is included. */
