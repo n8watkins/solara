@@ -56,7 +56,7 @@ export default function EmojiPicker({ id, value, onChange, onClose }: Props) {
   }
 
   const filtered = search.trim() ? searchEmojis(search) : null
-  const visible = filtered ?? EMOJI_GROUPS.flatMap(g => g.emojis.map(([e]) => e))
+  const visible = filtered ?? EMOJI_GROUPS.flatMap(g => g.emojis)
   // Roving tab stop: the selected emoji if it is shown, else the first one.
   const tabStop = visible.includes(value) ? visible.indexOf(value) : 0
   let index = 0
@@ -151,7 +151,7 @@ export default function EmojiPicker({ id, value, onChange, onClose }: Props) {
                 {g.icon} {g.label}
               </p>
               <div role="group" aria-label={g.label} className={GRID}>
-                {g.emojis.map(([e], i) => renderButton(e, `${g.name}-${i}`))}
+                {g.emojis.map((e, i) => renderButton(e, `${g.name}-${i}`))}
               </div>
             </div>
           ))

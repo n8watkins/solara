@@ -9,6 +9,7 @@ import calendar from './calendar'
 import connections from './connections'
 import editor from './editor'
 import events from './events'
+import iconSearch from './icon-search'
 import linked from './linked'
 import pricing from './pricing'
 import profiles from './profiles'
@@ -22,6 +23,7 @@ export default {
   connections,
   editor,
   events,
+  iconSearch,
   linked,
   linking,
   pricing,
