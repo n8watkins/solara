@@ -108,7 +108,11 @@ test('account-controls-details', async ({ page }, t) => {
   await expect(download.getByText(/Left out for security/)).toBeVisible()
   await remove.getByText("What's deleted, and what stays").click()
   await expect(remove.getByText('Your Solara sign-in', { exact: true })).toBeVisible()
-  await expect(remove.getByText(/myaccount\.google\.com\/connections/)).toBeVisible()
+  // The harness build has no Google client, billing, alerts or linked calendars, so the
+  // lists leave them out (REVIEW9 QA L6).
+  await expect(remove.getByText(/myaccount\.google\.com\/connections/)).toHaveCount(0)
+  await expect(remove.getByText(/Stripe/)).toHaveCount(0)
+  await expect(download.getByText(/heads-ups|linked calendars/)).toHaveCount(0)
   await captureClean(page, t, capture, 'account-controls-details')
 })
 

@@ -308,6 +308,7 @@ export default function SunArc({ hourly, nowHour, focused, onSelectHour, sunDown
               label={showPeakLabel ? label : null}
               pointer={pointer}
               labelRef={labelRef}
+              word={peakWord}
             />
           )}
           {nowPoint && <NowSun point={nowPoint} glowId={glowId} />}

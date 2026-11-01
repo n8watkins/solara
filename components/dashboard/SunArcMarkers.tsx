@@ -23,6 +23,7 @@ export function PeakMarker({
   label,
   pointer = null,
   labelRef,
+  word = 'Peak',
 }: {
   point: Point
   uv: number
@@ -30,6 +31,8 @@ export function PeakMarker({
   label: LabelPlacement | null
   pointer?: 'left' | 'right' | null
   labelRef?: Ref<SVGTextElement>
+  /** "Peak", or "Today's peak" after sunset, when the card speaks of tomorrow. */
+  word?: string
 }) {
   const fmt = useUnits()
   return (
@@ -58,7 +61,7 @@ export function PeakMarker({
               {'← '}
             </tspan>
           )}
-          Peak {formatUV(uv)}
+          {word} {formatUV(uv)}
           <tspan fontWeight="500" fill="var(--text-3)">
             {' '}
             · {fmt.hour(hour)}

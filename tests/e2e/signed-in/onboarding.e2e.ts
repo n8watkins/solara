@@ -62,7 +62,7 @@ test('a returning account that edits right after signing in from setup keeps its
   // dashboard showed the empty setup plan here, which has a second add button.)
   await page.getByRole('button', { name: '+ Add Activity' }).first().click()
   const dialog = page.getByRole('dialog', { name: 'Add activity' })
-  await dialog.getByRole('button', { name: /^Hiking 2h/ }).click()
+  await dialog.getByRole('button', { name: /^Hiking 2 h/ }).click()
   await dialog.getByRole('button', { name: 'Done' }).click()
   await expect(dialog).toBeHidden()
   await expect(page.getByRole('button', { name: 'Edit Hiking' })).toBeVisible()

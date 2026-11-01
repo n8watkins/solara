@@ -14,8 +14,8 @@ test('adds a preset activity and keeps it across reloads', async ({ page, emulat
 
   await page.getByRole('button', { name: '+ Add Activity' }).click()
   const dialog = page.getByRole('dialog', { name: 'Add activity' })
-  await dialog.getByRole('button', { name: /^Hiking 2h/ }).click()
-  await expect(dialog.getByRole('button', { name: /^Hiking 2h/ })).toHaveAttribute(
+  await dialog.getByRole('button', { name: /^Hiking 2 h/ }).click()
+  await expect(dialog.getByRole('button', { name: /^Hiking 2 h/ })).toHaveAttribute(
     'aria-pressed',
     'true',
   )

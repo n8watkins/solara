@@ -91,7 +91,7 @@ test('Free settings have no way to Pro', async ({ page }, testInfo) => {
     // (REVIEW9 QA L5).
     await expect(dialog).not.toContainText(/with Pro|Not included/)
     if (tab === 'alerts') {
-      await expect(dialog.getByText('Coming soon.', { exact: false })).toBeVisible()
+      await expect(dialog.getByText(/gets high\. Coming soon\.$/)).toBeVisible()
       await captureScreen(page, testInfo, capture, {
         name: 'store-settings-alerts',
         fullPage: false,

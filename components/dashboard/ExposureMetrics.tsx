@@ -59,11 +59,14 @@ function Metric({
                 .split(' ')
                 .map((part, i) =>
                   /^\d+$/.test(part) ? (
-                    <span key={i}>{part}</span>
+                    <span key={i}>
+                      {i > 0 && ' '}
+                      {part}
+                    </span>
                   ) : (
                     <span key={i} className="text-[15px] font-semibold text-ink-2">
                       {' '}
-                      {part}{' '}
+                      {part}
                     </span>
                   ),
                 )}
