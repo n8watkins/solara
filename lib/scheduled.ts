@@ -20,6 +20,7 @@ import { lazySubscription, loadFirebase } from './firebase'
 import type { GoogleEvent } from './gcal'
 import { isIsoDate, isValidTimeZone, zonedInstant } from './time'
 import type { Activity } from './types'
+import { withMessages } from './i18n'
 
 export type { ScheduledActivity }
 export {
@@ -210,7 +211,10 @@ export function scheduledDocument(item: ScheduledActivity) {
  * RecordCapError when a new record does not fit.
  */
 export async function saveScheduled(uid: string, item: ScheduledActivity): Promise<void> {
-  const { saveWithinCap, RecordCapError, KEY_INDEX_CAPS } = await import('./key-index')
+  const { saveWithinCap, RecordCapError, KEY_INDEX_CAPS } = await withMessages(
+    ['editor'],
+    () => import('./key-index'),
+  )
   const refused = await saveWithinCap(uid, 'scheduled', [
     { key: item.eventId, data: scheduledDocument(item) },
   ])
@@ -219,14 +223,17 @@ export async function saveScheduled(uid: string, item: ScheduledActivity): Promi
 
 /** Throws a RecordCapError when the account cannot hold another record. */
 export async function assertScheduledRoom(uid: string): Promise<void> {
-  const { listedKeys, reconcile, RecordCapError, KEY_INDEX_CAPS } = await import('./key-index')
+  const { listedKeys, reconcile, RecordCapError, KEY_INDEX_CAPS } = await withMessages(
+    ['editor'],
+    () => import('./key-index'),
+  )
   const cap = KEY_INDEX_CAPS.scheduled
   if ((await listedKeys(uid, 'scheduled')).size < cap) return
   if ((await reconcile(uid, 'scheduled')).size >= cap) throw new RecordCapError('scheduled', cap)
 }
 
 export async function deleteScheduled(uid: string, eventId: string): Promise<void> {
-  const { removeRecords } = await import('./key-index')
+  const { removeRecords } = await withMessages(['editor'], () => import('./key-index'))
   await removeRecords(uid, 'scheduled', [eventId])
 }
 
@@ -252,7 +259,7 @@ export async function pruneExpiredScheduled(uid: string, nowMs: number): Promise
   let deleted = 0
   const { firestore, scheduled } = await scheduledCollection(uid)
   const { getDocs, limit, orderBy, query, where } = firestore
-  const { removeRecords } = await import('./key-index')
+  const { removeRecords } = await withMessages(['editor'], () => import('./key-index'))
   for (let page = 0; page < MAX_PRUNE_PAGES; page += 1) {
     const snapshot = await getDocs(
       query(

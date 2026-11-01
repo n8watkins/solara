@@ -34,6 +34,7 @@ import type { SkinType } from '@solara/core/recommendation'
 import ReapplyTimerIdle from './ReapplyTimerIdle'
 import SunscreenGuide from './SunscreenGuide'
 import m from '@/messages/activities'
+import dashboardText from '@/messages/dashboard'
 
 /** Whether the server's push will also bring the reminder, as far as this tab knows. */
 type PushState = 'off' | 'pending' | 'devices' | 'no-devices' | 'failed'
@@ -240,7 +241,7 @@ export default function ReapplyTimer({
         titleId={titleId}
         start={
           <button type="button" className="btn btn-primary shrink-0" onClick={() => void start()}>
-            {m.start}
+            {dashboardText.startTimer}
           </button>
         }
         guide={guide}

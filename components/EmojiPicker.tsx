@@ -3,7 +3,7 @@ import { useState, useRef, useEffect } from 'react'
 import type { KeyboardEvent } from 'react'
 import clsx from 'clsx'
 import { EMOJI_GROUPS, searchEmojis } from '@/lib/emoji-catalog'
-import { loadOnDemandMessages } from '@/lib/i18n'
+import { loadMessages } from '@/lib/i18n'
 import { nearestInAdjacentRow, nextIndex } from '@/lib/roving-focus'
 import m from '@/messages/editor'
 
@@ -29,7 +29,7 @@ export default function EmojiPicker({ id, value, onChange, onClose }: Props) {
   const [, setKeywordsLoaded] = useState(false)
   useEffect(() => {
     let active = true
-    loadOnDemandMessages('iconSearch').then(
+    loadMessages(['iconSearch']).then(
       () => active && setKeywordsLoaded(true),
       () => {},
     )

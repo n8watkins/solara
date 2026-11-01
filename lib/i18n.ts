@@ -3,10 +3,12 @@
 // LANGUAGE_INIT_SCRIPT picks it before first paint and sets <html lang>: the language
 // chosen in Settings (kept in this browser, and synced to a signed-in account), else the
 // first supported language of the device (navigator.languages), else English. English is
-// built into the code; another language downloads only its own translations, in two
-// chunks: the opening screen's (the app shows once they have arrived, so nothing changes
-// language on screen) and the rest's (each part that loads on demand waits for them,
-// components/deferred.tsx). Changing the language reloads the page.
+// built into the code; another language downloads only its own translations: the opening
+// screen's in one chunk (the app shows once they have arrived, so nothing changes
+// language on screen), and every other namespace in a chunk of its own, fetched with the
+// part that shows it (withMessages, components/deferred.tsx), so a guest never downloads
+// the text of setup, the account, events or pricing until one of them opens (REVIEW10 QA
+// M1). Changing the language reloads the page.
 import {
   addTranslations,
   currentLocale,
@@ -71,31 +73,65 @@ export function resolveLanguage(
 export const LANGUAGE_INIT_SCRIPT = `(function(){try{if(/^\\/(?:$|privacy\\/|terms\\/|uv\\/|es\\/)/.test(location.pathname))return;var l=null;try{l=localStorage.getItem("solara_language")}catch(e){}if(l!=="en"&&l!=="es"){l="en";var a=navigator.languages&&navigator.languages.length?navigator.languages:[navigator.language];for(var i=0;i<a.length;i++){var p=String(a[i]||"").toLowerCase().split(/[-_]/)[0];if(p==="en"||p==="es"){l=p;break}}}document.documentElement.lang=l}catch(e){}})()`
 
 type Chunk = () => Promise<{ default: Overlay }>
+type Messages = Overlay[string]
 
-/** Each language's translations: the opening screen's, then the rest. */
-const TRANSLATIONS: Record<Exclude<Locale, 'en'>, { initial: Chunk; rest: Chunk }> = {
-  es: {
-    initial: () => import('@/messages/es/initial'),
-    rest: () => import('@/messages/es/rest'),
-  },
+/** Each language's opening screen translations (messages/es/initial.ts). */
+const INITIAL: Record<Exclude<Locale, 'en'>, Chunk> = {
+  es: () => import('@/messages/es/initial'),
 }
+
+/** Every namespace the opening screen does not read; each part loads the ones it shows. */
+export const LAZY_NAMESPACES = [
+  'account',
+  'activities',
+  'calendar',
+  'connections',
+  'editor',
+  'events',
+  'iconSearch',
+  'linked',
+  'linking',
+  'pricing',
+  'profiles',
+  'settings',
+  'setup',
+  'share',
+  'skinQuiz',
+  'sunscreen',
+] as const
+export type LazyNamespace = (typeof LAZY_NAMESPACES)[number]
 
 /**
- * Translations that only a rarely opened part reads, fetched when it opens, so neither the
- * first load nor the rest carries them: the icon picker's search words.
+ * Each language's translation of each of those namespaces, a chunk of its own. A part
+ * names the namespaces its code reads (withMessages); messages/i18n.test.ts checks that
+ * every part names exactly those.
  */
-const ON_DEMAND: Record<Exclude<Locale, 'en'>, Record<'iconSearch', Chunk>> = {
+export const LAZY_TRANSLATIONS: Record<
+  Exclude<Locale, 'en'>,
+  Record<LazyNamespace, () => Promise<{ default: Messages }>>
+> = {
   es: {
-    iconSearch: () =>
-      import('@/messages/es/icon-search').then(module => ({
-        default: { iconSearch: module.default },
-      })),
+    account: () => import('@/messages/es/account'),
+    activities: () => import('@/messages/es/activities'),
+    calendar: () => import('@/messages/es/calendar'),
+    connections: () => import('@/messages/es/connections'),
+    editor: () => import('@/messages/es/editor'),
+    events: () => import('@/messages/es/events'),
+    iconSearch: () => import('@/messages/es/icon-search'),
+    linked: () => import('@/messages/es/linked'),
+    linking: () => import('@solara/core/messages/es/linking'),
+    pricing: () => import('@/messages/es/pricing'),
+    profiles: () => import('@/messages/es/profiles'),
+    settings: () => import('@/messages/es/settings'),
+    setup: () => import('@/messages/es/setup'),
+    share: () => import('@/messages/es/share'),
+    skinQuiz: () => import('@solara/core/messages/es/skin-quiz'),
+    sunscreen: () => import('@solara/core/messages/es/sunscreen'),
   },
 }
-const onDemand = new Map<string, Promise<void>>()
+const lazyLoads = new Map<string, Promise<void>>()
 
 let initial: Promise<void> | null = null
-let rest: Promise<void> | null = null
 let initialDone = false
 /** The language this page was opened in (before any fallback to English). */
 let requested: Locale | null = null
@@ -105,17 +141,6 @@ const listeners = new Set<() => void>()
 function pageLanguage(): Locale {
   const fromScript = document.documentElement.lang
   return isLocale(fromScript) ? fromScript : resolveLanguage(storedLanguage(), deviceLanguages())
-}
-
-function retryable(load: Chunk, reset: () => void): Promise<void> {
-  return load().then(
-    module => addTranslations(module.default),
-    error => {
-      // Offline or a deploy in between: tried again by the next caller.
-      reset()
-      throw error
-    },
-  )
 }
 
 /**
@@ -137,8 +162,7 @@ export function loadInitialMessages(): Promise<void> {
       localizeTitle()
       for (const listener of listeners) listener()
     }
-    initial = TRANSLATIONS[locale]
-      .initial()
+    initial = INITIAL[locale]()
       .then(module => addTranslations(module.default))
       .catch(error => {
         // Never stuck on the loading screen: without its translations (offline before
@@ -148,10 +172,6 @@ export function loadInitialMessages(): Promise<void> {
         document.documentElement.lang = 'en'
       })
       .then(done)
-      // The rest follow once the opening screen's have arrived, so they never compete
-      // with what the first paint needs; each part that loads on demand waits for them.
-      .then(() => loadAllMessages())
-      .catch(() => {})
   }
   return initial
 }
@@ -183,29 +203,53 @@ export function localizeTitle() {
   titleWatch.observe(document.head, { childList: true, subtree: true, characterData: true })
 }
 
-/** Resolves once every translation of the page's language has arrived. */
-export function loadAllMessages(): Promise<void> {
-  if (rest) return rest
-  const locale = currentLocale()
-  rest =
-    locale === 'en' ? Promise.resolve() : retryable(TRANSLATIONS[locale].rest, () => (rest = null))
-  return rest
+/**
+ * Resolves once the page's language has the translations of `namespaces` (at once in
+ * English), after the opening screen's: should those fail to load, the page shows in
+ * English and so does every part. Rejects when a chunk cannot be fetched (offline, or a
+ * deploy in between); the next call tries again.
+ */
+export function loadMessages(namespaces: readonly LazyNamespace[]): Promise<void> {
+  const opened = initial ?? Promise.resolve()
+  return opened.then(() => {
+    const locale = currentLocale()
+    if (locale === 'en') return
+    return Promise.all(
+      namespaces.map(namespace => {
+        const key = `${locale}:${namespace}`
+        let pending = lazyLoads.get(key)
+        if (!pending) {
+          pending = LAZY_TRANSLATIONS[locale][namespace]().then(
+            module => addTranslations({ [namespace]: module.default }),
+            error => {
+              lazyLoads.delete(key)
+              throw error
+            },
+          )
+          lazyLoads.set(key, pending)
+        }
+        return pending
+      }),
+    ).then(() => {})
+  })
 }
 
 /**
- * Fetches the translations of one part that loads them when it opens (ON_DEMAND), in the
- * page's language; resolves at once in English. Until they arrive the part reads English.
+ * Loads a module that shows text, with the translations of the namespaces its code reads
+ * (`namespaces`, which messages/i18n.test.ts checks against the module's imports), so it
+ * never shows in English on a page in another language. Write it as
+ * `withMessages([...], () => import('...'))`, the form the test reads.
  */
-export function loadOnDemandMessages(part: keyof (typeof ON_DEMAND)['es']): Promise<void> {
-  const locale = currentLocale()
-  if (locale === 'en') return Promise.resolve()
-  const key = `${locale}:${part}`
-  let pending = onDemand.get(key)
-  if (!pending) {
-    pending = retryable(ON_DEMAND[locale][part], () => onDemand.delete(key))
-    onDemand.set(key, pending)
-  }
-  return pending
+export function withMessages<T>(
+  namespaces: readonly LazyNamespace[],
+  load: () => Promise<T>,
+): Promise<T> {
+  return Promise.all([load(), loadMessages(namespaces)]).then(([module]) => module)
+}
+
+/** Resolves once every translation of the page's language has arrived. */
+export function loadAllMessages(): Promise<void> {
+  return loadMessages(LAZY_NAMESPACES)
 }
 
 /** Whether the opening screen's text is ready (always, in English). */

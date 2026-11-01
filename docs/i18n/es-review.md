@@ -19,7 +19,6 @@ Activity cards, the hero slot and the activity editor
 | `burnTimeAt` | Burn time at UV {1} | Tiempo hasta quemarte con UV {1} |  |
 | `plannedForSpf` | UV {1} or lower with SPF | UV {1} o menos con FPS |  |
 | `notifyDevices` | It also comes to your devices with alerts on, even with Solara closed. | También llega a tus dispositivos con las alertas activadas, aunque Solara esté cerrada. |  |
-| `headingOut` | Heading out? Get a reminder to reapply every {1}. | ¿Vas a salir? Recibe un recordatorio para volver a aplicarlo cada {1}. |  |
 | `reapplyAt` | Reapply sunscreen at {1} | Vuelve a aplicar protector solar a las {1} |  |
 | `exposureSummary` | {1} · {2} of forecast UV | {1} · {2} del UV pronosticado |  |
 | `shareText` | Let's do {1} {2} from {3} to {4} in {5}. Solara estimates this as a lower-UV {6} planning window. Peak UV {7}. Recheck current conditions and use sun protection. | Plan para {2}: {1} de {3} a {4} en {5}. Solara lo estima como un horario de {6} con UV más bajo. UV máximo {7}. Vuelve a revisar las condiciones y protégete del sol. |  |
@@ -74,6 +73,7 @@ The dashboard: burn time and vitamin D cards, calendar event text
 | `uvTooLow` | UV too low | UV demasiado bajo |  |
 | `needsUv1` | Needs UV 1 or more | Necesita UV de 1 o más |  |
 | `eventLinkDetails` | Forecast-based lower-UV planning estimate from Solara. Recheck current UV and use sun protection. | Estimación de horario de UV más bajo de Solara, basada en el pronóstico. Vuelve a revisar el UV actual y protégete del sol. |  |
+| `headingOut` | Heading out? Get a reminder to reapply every {1}. | ¿Vas a salir? Recibe un recordatorio para volver a aplicarlo cada {1}. |  |
 
 ## editor
 

@@ -3,6 +3,7 @@ import { useState } from 'react'
 import type * as GoogleCalendar from '@/lib/gcal'
 import type { BusyPeriod } from '@/lib/gcal-view'
 import { freeBusyRange } from '@/lib/dashboard-view'
+import { withMessages } from '@/lib/i18n'
 
 export type CalendarBusyStatus = 'idle' | 'connecting' | 'connected' | 'error'
 
@@ -21,7 +22,7 @@ export function useCalendarBusy(accessibleDays: number) {
     setStatus('connecting')
     let gcal: typeof GoogleCalendar | null = null
     try {
-      gcal = await import('@/lib/gcal')
+      gcal = await withMessages(['calendar'], () => import('@/lib/gcal'))
       const token = await gcal.requestAccessToken()
       const { timeMin, timeMax } = freeBusyRange(Date.now(), accessibleDays)
       setBusy(await gcal.fetchFreeBusy(token, timeMin, timeMax))

@@ -16,6 +16,7 @@ import GoogleSignInButton from './GoogleSignInButton'
 import SolaraMark from './SolaraMark'
 import styles from './Header.module.css'
 import m from '@/messages/app'
+import { withMessages } from '@/lib/i18n'
 
 interface Props {
   user: User | null
@@ -52,7 +53,10 @@ export default function Header({
     let failure: { error: unknown; blocked: boolean } | null = null
     try {
       // The sign-out code loads only when someone signs out.
-      const { SignOutBlockedError, signOutAndClear } = await import('@/lib/session')
+      const { SignOutBlockedError, signOutAndClear } = await withMessages(
+        ['settings', 'setup'],
+        () => import('@/lib/session'),
+      )
       try {
         await signOutAndClear(uid)
       } catch (error) {

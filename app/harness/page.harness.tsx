@@ -14,7 +14,7 @@ const HarnessApp = dynamic(() => import('@/tests/harness/HarnessApp'), { ssr: fa
 export default function HarnessPage() {
   // In the page's language, as the app shows (lib/i18n.ts): Spanish screens set it.
   return (
-    <MessagesGate>
+    <MessagesGate messages="all">
       <HarnessApp />
     </MessagesGate>
   )

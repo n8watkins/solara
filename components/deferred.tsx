@@ -10,7 +10,9 @@
 // opening one is instant; preloadSignedInParts() fetches the signed-in parts at once.
 //
 // Import these instead of the modules themselves; each renders nothing (or its
-// fallback) until its chunk has arrived.
+// fallback) until its chunk has arrived, with the translations it shows: each loader
+// names the message namespaces its part reads (lib/i18n.ts withMessages, checked by
+// messages/i18n.test.ts), so a part shows in the page's language from its first frame.
 import {
   useEffect,
   useState,
@@ -19,7 +21,7 @@ import {
   type ComponentType,
   type ReactNode,
 } from 'react'
-import { loadAllMessages } from '@/lib/i18n'
+import { withMessages } from '@/lib/i18n'
 import { installEnvironment, installPromptKind } from '@/lib/install-prompt'
 import { AccountLoading } from './AccountStatus'
 import ReapplyTimerIdle from './dashboard/ReapplyTimerIdle'
@@ -48,9 +50,8 @@ function deferred<P extends object>(
   let loaded: ComponentType<P> | null = null
   let pending: Promise<ComponentType<P>> | null = null
   const preload = () => {
-    // A part shows in the page's language: it waits for the rest of the translations too.
-    pending ??= Promise.all([load(), loadAllMessages()]).then(
-      ([module]) => (loaded = module.default),
+    pending ??= load().then(
+      module => (loaded = module.default),
       error => {
         // A failed load (offline, or a deploy in between) is tried again next time.
         pending = null
@@ -88,32 +89,59 @@ function deferred<P extends object>(
 }
 
 // Code that runs only after a click, fetched with the rest so the click needs no download.
-loaders.add(() => import('@/lib/gcal'))
-loaders.add(() => import('@/lib/share'))
-loaders.add(() => import('@/lib/ics'))
+loaders.add(() => withMessages(['calendar'], () => import('@/lib/gcal')))
+loaders.add(() => withMessages(['activities'], () => import('@/lib/share')))
+loaders.add(() => withMessages(['calendar'], () => import('@/lib/ics')))
 
-export const PreferencesModal = deferred(() => import('./PreferencesModal'))
-export const PricingModal = deferred(() => import('./PricingModal'))
+export const PreferencesModal = deferred(() =>
+  withMessages(
+    ['events', 'linking', 'pricing', 'settings', 'setup', 'sunscreen'],
+    () => import('./PreferencesModal'),
+  ),
+)
+export const PricingModal = deferred(() =>
+  withMessages(['editor', 'pricing'], () => import('./PricingModal')),
+)
 /** The optional Fitzpatrick skin type quiz, from setup and Settings. */
-export const SkinTypeQuiz = deferred(() => import('./SkinTypeQuiz'))
-export const AddActivityModal = deferred(() => import('./AddActivityModal'))
-export const EditActivityModal = deferred(() => import('./EditActivityModal'))
-export const ManageActivitiesModal = deferred(() => import('./ManageActivitiesModal'))
-export const ScheduledSheet = deferred(() => import('./ScheduledSheet'))
-export const CalendarView = deferred(() => import('./CalendarView'))
-export const CalendarFeed = deferred(() => import('./CalendarFeed'))
+export const SkinTypeQuiz = deferred(() =>
+  withMessages(['editor', 'setup', 'skinQuiz'], () => import('./SkinTypeQuiz')),
+)
+export const AddActivityModal = deferred(() =>
+  withMessages(['editor', 'iconSearch'], () => import('./AddActivityModal')),
+)
+export const EditActivityModal = deferred(() =>
+  withMessages(['activities', 'editor', 'iconSearch'], () => import('./EditActivityModal')),
+)
+export const ManageActivitiesModal = deferred(() =>
+  withMessages(['editor'], () => import('./ManageActivitiesModal')),
+)
+export const ScheduledSheet = deferred(() =>
+  withMessages(['calendar', 'setup'], () => import('./ScheduledSheet')),
+)
+export const CalendarView = deferred(() =>
+  withMessages(['activities', 'calendar', 'setup'], () => import('./CalendarView')),
+)
+export const CalendarFeed = deferred(() =>
+  withMessages(['calendar'], () => import('./CalendarFeed')),
+)
 /** The UV card's cloud and confidence notes, shown on cloudy or far-off days. */
 export const ForecastNotes = deferred(() => import('./dashboard/ForecastNotes'))
-const InstallPromptPart = deferred(() => import('./InstallPrompt'))
+const InstallPromptPart = deferred(() => withMessages(['setup'], () => import('./InstallPrompt')))
 export const ActivityModals = deferred(() => import('./dashboard/ActivityModals'))
 /** A scheduled activity's details (change the time, remove it), opened from its card. */
 export const ScheduledDetails = deferred(() => import('./dashboard/ScheduledDetails'))
-export const DayDialog = deferred(() => import('./dashboard/DayDialog'))
+export const DayDialog = deferred(() =>
+  withMessages(['activities', 'editor'], () => import('./dashboard/DayDialog')),
+)
 /** The "UV scale" disclosure's bands, once it is opened. */
 export const UVScaleBands = deferred(() => import('./dashboard/UVScaleBands'))
-export const LocationPanel = deferred(() => import('./LocationPanel'))
+export const LocationPanel = deferred(() =>
+  withMessages(['setup'], () => import('./LocationPanel')),
+)
 /** The dashboard's empty state when no forecast has loaded and the last request failed. */
-export const ForecastUnavailable = deferred(() => import('./ForecastUnavailable'))
+export const ForecastUnavailable = deferred(() =>
+  withMessages(['setup'], () => import('./ForecastUnavailable')),
+)
 
 /**
  * The "Add to home screen" prompt (components/InstallPrompt.tsx), which floats over the
@@ -137,7 +165,10 @@ type ActivityPlan = typeof ActivityPlanModule
 let activityPlanLoaded: ActivityPlan | null = null
 const activityPlanListeners = new Set<() => void>()
 const activityPlan = () =>
-  Promise.all([import('./dashboard/activity-plan'), loadAllMessages()]).then(([module]) => {
+  withMessages(
+    ['activities', 'calendar', 'sunscreen'],
+    () => import('./dashboard/activity-plan'),
+  ).then(module => {
     if (!activityPlanLoaded) {
       activityPlanLoaded = module
       for (const listener of activityPlanListeners) listener()
@@ -243,7 +274,8 @@ function ReapplyTimerSpace() {
   return <ReapplyTimerIdle />
 }
 const ReapplyTimer = deferred<ReapplyTimerProps>(
-  () => import('./dashboard/ReapplyTimer'),
+  () =>
+    withMessages(['activities', 'pricing', 'sunscreen'], () => import('./dashboard/ReapplyTimer')),
   ReapplyTimerSpace,
 )
 
@@ -258,24 +290,46 @@ export function SunscreenTimer(props: ReapplyTimerProps) {
   return ready ? <ReapplyTimer {...props} /> : <ReapplyTimerSpace />
 }
 /** The sign-in screen (the landing page's "Sign in"); the loading screen shows until it has arrived. */
-export const SignInScreen = deferred(() => import('./SignInScreen'), AccountLoading)
+export const SignInScreen = deferred(
+  () => withMessages(['setup'], () => import('./SignInScreen')),
+  AccountLoading,
+)
 /** Setup, for a first visit; the loading screen shows until it has arrived. */
-export const Onboarding = deferred(() => import('./Onboarding'), AccountLoading)
-export const AccountMenu = deferred(() => import('./AccountMenu'))
-export const ProfileSwitcher = deferred(() => import('./ProfileSwitcher'))
+export const Onboarding = deferred(
+  () => withMessages(['setup'], () => import('./Onboarding')),
+  AccountLoading,
+)
+export const AccountMenu = deferred(() => withMessages(['setup'], () => import('./AccountMenu')))
+export const ProfileSwitcher = deferred(() =>
+  withMessages(['pricing', 'profiles', 'setup'], () => import('./ProfileSwitcher')),
+)
 /** After a guest signs in to an existing account: what the guest plan held that was not kept. */
-export const GuestPlanNotice = deferred(() => import('./GuestPlanNotice'))
+export const GuestPlanNotice = deferred(() =>
+  withMessages(['setup'], () => import('./GuestPlanNotice')),
+)
 /** A signed-in account's scheduled activities; until it arrives, the screens show none. */
-export const AccountScheduled = deferred(() => import('./scheduled/AccountScheduled'))
+export const AccountScheduled = deferred(() =>
+  withMessages(['calendar'], () => import('./scheduled/AccountScheduled')),
+)
 /** Imported .ics events with the UV during each (signed-in accounts only). */
-export const EventsSection = deferred(() => import('./events/EventsSection'))
+export const EventsSection = deferred(() =>
+  withMessages(
+    ['account', 'activities', 'editor', 'events', 'linking', 'pricing', 'setup'],
+    () => import('./events/EventsSection'),
+  ),
+)
 /**
  * What someone shared to the installed app (lib/share-target.ts): only when the app opens
  * with `?shared=<id>`, so it is never preloaded and no first load carries it.
  */
-export const SharedItem = deferred(() => import('./events/SharedItem'), null, {
-  preloaded: false,
-})
+export const SharedItem = deferred(
+  () =>
+    withMessages(['editor', 'events', 'linking', 'pricing'], () => import('./events/SharedItem')),
+  null,
+  {
+    preloaded: false,
+  },
+)
 
 /**
  * Loads the signed-in parts now, for a session about to show (a stored session at

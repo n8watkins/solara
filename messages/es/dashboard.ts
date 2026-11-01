@@ -120,6 +120,12 @@ export default {
 
   eventLinkDetails:
     'Estimación de horario de UV más bajo de Solara, basada en el pronóstico. Vuelve a revisar el UV actual y protégete del sol.',
+
+  sunscreenTimer: 'Temporizador de protector solar',
+  headingOut: duration =>
+    `¿Vas a salir? Recibe un recordatorio para volver a aplicarlo cada ${duration}.`,
+  startTimer: 'Iniciar',
+  howMuchSunscreen: '¿Cuánto protector solar?',
 } satisfies Translation<typeof dashboard>
 
 export const needsReview: (keyof typeof dashboard)[] = [
@@ -137,4 +143,5 @@ export const needsReview: (keyof typeof dashboard)[] = [
   'uvTooLow',
   'needsUv1',
   'eventLinkDetails',
+  'headingOut',
 ]

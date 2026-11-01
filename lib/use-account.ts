@@ -23,6 +23,7 @@ import {
 import type { AccountLoadResult } from './session'
 import type { UserPreferences } from './types'
 import m from '@/messages/dashboard'
+import { withMessages } from './i18n'
 
 /** How long a stored session's start-up waits for the signed-in parts before Auth. */
 const SIGNED_IN_PARTS_WAIT_MS = 3000
@@ -37,7 +38,10 @@ async function loadSignedInAccount(
   known: UserPreferences | null,
 ): Promise<AccountLoadResult> {
   try {
-    const { loadAccountPrefs } = await import('./session')
+    const { loadAccountPrefs } = await withMessages(
+      ['settings', 'setup'],
+      () => import('./session'),
+    )
     return await loadAccountPrefs(uid, known)
   } catch (error) {
     return {
@@ -189,13 +193,14 @@ export function useAccount({
       // On Automatic, the account keeps the language this device resolves, so its pushes
       // are written in it; only when it changes, so the last device to open the app wins.
       // (lib/device-language.ts, in the signed-in account code).
-      void import('./session').then(({ syncDeviceLanguage }) =>
-        syncDeviceLanguage(u.uid, loaded, deviceLanguage => {
-          if (!isStale()) setPrefs(p => p && { ...p, deviceLanguage })
-        }),
+      void withMessages(['settings', 'setup'], () => import('./session')).then(
+        ({ syncDeviceLanguage }) =>
+          syncDeviceLanguage(u.uid, loaded, deviceLanguage => {
+            if (!isStale()) setPrefs(p => p && { ...p, deviceLanguage })
+          }),
       )
       if (loaded.tier === 'paid') {
-        import('./notifications')
+        withMessages(['settings'], () => import('./notifications'))
           .then(async notifications => {
             await notifications.migrateLegacyNotificationToken(u.uid)
             if (notifications.notificationsEnabledLocally(u.uid)) {

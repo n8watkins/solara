@@ -31,13 +31,29 @@ import type { Location, TierLevel, UserPreferences, WeatherResponse } from '@/li
 import EventCard from './EventCard'
 import core from '@solara/core/messages/core'
 import m from '@/messages/events'
+import { withMessages } from '@/lib/i18n'
 
 // Linked calendars load only where they are switched on (docs/integrations/EVENTS.md).
-const EventSubscriptions = lazy(() => import('./EventSubscriptions'))
+const EventSubscriptions = lazy(() =>
+  withMessages(
+    ['connections', 'linked', 'linking', 'pricing'],
+    () => import('./EventSubscriptions'),
+  ),
+)
 // So do events already in Google Calendar (phase 2b).
-const GoogleCalendarEvents = lazy(() => import('./GoogleCalendarEvents'))
+const GoogleCalendarEvents = lazy(() =>
+  withMessages(
+    ['connections', 'editor', 'events', 'linking'],
+    () => import('./GoogleCalendarEvents'),
+  ),
+)
 // And events already in Outlook, with their Microsoft sign-in (ROADMAP item 23).
-const OutlookCalendarEvents = lazy(() => import('./OutlookCalendarEvents'))
+const OutlookCalendarEvents = lazy(() =>
+  withMessages(
+    ['connections', 'editor', 'events', 'linking', 'pricing'],
+    () => import('./OutlookCalendarEvents'),
+  ),
+)
 
 /** How the note under "Remove imported events" names the calendars whose events stay. */
 const KEPT_SOURCE_NAMES = {

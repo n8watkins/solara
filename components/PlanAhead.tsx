@@ -10,6 +10,7 @@ import { useUnits } from '@/lib/use-units'
 import { UV_BG } from './dashboard/uv-classes'
 import { windowLabelText } from '@solara/core/recommendation'
 import m from '@/messages/activities'
+import { withMessages } from '@/lib/i18n'
 
 interface Props {
   forecast: DayWeather[]
@@ -57,7 +58,7 @@ export default function PlanAhead({
     // after the page loads, components/deferred.tsx).
     let ics: typeof IcsCode
     try {
-      ics = await import('@/lib/ics')
+      ics = await withMessages(['calendar'], () => import('@/lib/ics'))
     } catch (error) {
       console.error('Could not load the calendar export:', error)
       return

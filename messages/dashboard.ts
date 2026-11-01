@@ -117,4 +117,11 @@ export default defineMessages('dashboard', {
 
   eventLinkDetails:
     'Forecast-based lower-UV planning estimate from Solara. Recheck current UV and use sun protection.',
+
+  // The sunscreen timer's idle card, which the first load shows as a placeholder
+  // (components/dashboard/ReapplyTimerIdle.tsx).
+  sunscreenTimer: 'Sunscreen timer',
+  headingOut: (duration: string) => `Heading out? Get a reminder to reapply every ${duration}.`,
+  startTimer: 'Start',
+  howMuchSunscreen: 'How much sunscreen?',
 })

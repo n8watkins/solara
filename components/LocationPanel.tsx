@@ -6,6 +6,7 @@ import { clampShift } from '@/lib/viewport-clamp'
 import DataAttribution from './DataAttribution'
 import PlaceSearch, { type PlaceSearchMiss } from './PlaceSearch'
 import m from '@/messages/setup'
+import { withMessages } from '@/lib/i18n'
 
 function sameLoc(a: Location, b: Location): boolean {
   return Math.abs(a.lat - b.lat) < 0.01 && Math.abs(a.lon - b.lon) < 0.01
@@ -100,7 +101,10 @@ export default function LocationPanel({
     async function resolvePosition(pos: GeolocationPosition) {
       try {
         // The geocoding code loads only when someone looks a place up.
-        const { locationFromCoordinates } = await import('@/lib/geocoding')
+        const { locationFromCoordinates } = await withMessages(
+          ['setup'],
+          () => import('@/lib/geocoding'),
+        )
         const loc = await locationFromCoordinates(pos.coords.latitude, pos.coords.longitude)
         activate(loc, false) // current location switches but isn't auto-saved
         setTimeout(onClose, 800)

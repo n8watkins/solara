@@ -12,6 +12,7 @@ import type * as ShareCode from '@/lib/share'
 import { useStatusFlash } from '@/hooks/useStatusFlash'
 import type { DailyBriefingView } from '@/lib/briefing-view'
 import m from '@/messages/dashboard'
+import { withMessages } from '@/lib/i18n'
 
 /** A time range in a briefing line, kept by split() as its own part. */
 const RANGE = /(\S+–\S+)/
@@ -37,7 +38,7 @@ export default function DailyBriefing({
     // (components/deferred.tsx), so the share sheet still opens within the tap.
     let code: typeof ShareCode
     try {
-      code = await import('@/lib/share')
+      code = await withMessages(['activities'], () => import('@/lib/share'))
     } catch {
       status.flash(m.shareFailed)
       return
