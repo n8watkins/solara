@@ -119,8 +119,25 @@ export async function exportAccountData({
   const identity = await authenticate(auth, req.headers.authorization, {
     limiter: exportLimiter,
   })
-  const userRef = db.collection('users').doc(identity.uid)
-  const tombstoneRef = db.collection('accountDeletionTombstones').doc(identity.uid)
+  return readAccountExport({ db, uid: identity.uid, limits })
+}
+
+/**
+ * The account data file of `uid`, as the account page downloads it. Also used by
+ * infra/account-request.mjs to answer an emailed request with the same file (REVIEW9
+ * SEC9 L4), so neither ever holds push tokens, billing ids or server bookkeeping.
+ */
+export async function readAccountExport({
+  db,
+  uid,
+  limits = DEFAULT_LIMITS,
+}: {
+  db: Firestore
+  uid: string
+  limits?: ExportLimits
+}) {
+  const userRef = db.collection('users').doc(uid)
+  const tombstoneRef = db.collection('accountDeletionTombstones').doc(uid)
   const alertStateRef = userRef.collection(ALERT_STATE_COLLECTION).doc(ALERT_STATE_DOC)
   const eventAlertsRef = userRef.collection(ALERT_STATE_COLLECTION).doc(EVENT_ALERT_STATE_DOC)
   const linksRef = userRef.collection('private').doc(EVENT_SUBSCRIPTIONS_DOC)
