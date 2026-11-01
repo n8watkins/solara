@@ -631,10 +631,59 @@ The fixes for `handoff/review10-sec10.md` (REVIEW10 SEC10, main at `a77907a`); e
 - **Tests:** `functions/test/emulator/firestore.rules.test.js` (M1, L1, I4), `functions/test/emulator/reminders.test.js`, `functions/test/emulator/lifecycle.test.js`, `packages/core/src/account-export.test.ts`, `lib/account-self-service.test.ts`.
 - **Owner:** run `infra/firestore-ttl.sh` again (print, read, then `--apply`) for the new `accountSelfDeletions` policy, with step A12 or C8; L2 (the browser key, `localhost`, the `production` environment and the unused secret) stays with the owner steps.
 
-### 48. Vitamin D log (planned next)
+### 48. Vitamin D log (VITD)
 
 The owner's next feature (2026-11-01), after the Review 10 fixes: a vitamin D log, the sun exposure log with a vitamin D tally planned before item 46, renamed.
-Its scope, files and acceptance criteria are set when the lane starts; the dashboard's vitamin D estimate card stays as the starting point.
+[PLAN.md](PLAN.md) Phase 2: this spec is step C8, the device-only build C9; account sync (C10) waits for the owner's lawyer note (O5).
+
+**Status:** spec written (C8); being built on the device only (C9).
+
+**Goal:** someone who spent time in the sun writes down the session and sees roughly how much vitamin D it may have made and how close it came to a burn, with every number labelled as an estimate with its source.
+It is a diary, not a coach.
+
+**Never:** no goals, targets, streaks, badges, rewards or reminders to go out; no "you can stay N more minutes"; nothing that makes more sun look better.
+A session past the burn time is never shown as more vitamin D: skin stops making more after about one burn dose, so the log says the extra time added none.
+
+**One calculation for the card and the log** (`packages/core/src/vitamin-d.ts`, shared with the future Android app):
+
+- The dashboard's vitamin D card and the log read the same constants and functions, so they never disagree: the card's minutes are the time a log session of those minutes on arms and legs, without sunscreen, counts as `VITD_DOSE_IU` (about 1,000 IU).
+- A session's dose is its share of a burn dose (minimal erythema dose): the sum over its minutes of UV / (`SKIN_BURN_BASE[skin]` x 10), the same burn model as `burnMins`.
+- Vitamin D: about 1,000 IU for 0.3 of a burn dose with arms and legs bare (Holick, Am J Clin Nutr 2004, the card's rule of thumb), in proportion to the dose and to the uncovered skin.
+- Uncovered skin, four presets relative to the card's arms and legs: face and hands 0.25, face and arms 0.5, arms and legs (T-shirt and shorts) 1, swimwear 2; from the share of the body each leaves bare (about 10%, 25%, 45% and 85%, Lund and Browder chart), rounded and labelled rough.
+- Sunscreen yes or no: the session's UV is divided by 2.5 for both the burn and the vitamin D, the factor the plans already use for SPF 30+ (`effectiveMaxUV`); as people apply it (a quarter to half the tested thickness) sunscreen blocks far less than its label says (Neale and others, Br J Dermatol 2019;181:907).
+  The log never suggests leaving it off.
+- No UV cut-off beyond the card's: any UV of 1 or more counts, in proportion, so a low sun counts slowly ("takes longer when the sun is low"); minutes under UV 1 count toward the burn but not the vitamin D, the card's "UV too low" (the UV 3 floor was found wrong, `handoff/review10-verify10.md` I3).
+- Vitamin D stops adding up at one burn dose: about 3,300 IU for arms and legs, 6,700 in swimwear (previtamin D reaches its equilibrium within about one burn dose; Holick, MacLaughlin and Doppelt, Science 1981).
+- Age is not modelled; the help text says older skin makes much less (MacLaughlin and Holick, J Clin Invest 1985) and needs vary widely.
+- Numbers are rounded to the nearest 50 IU ("under 50 IU" below that) and always read "about" and "estimate".
+
+**Inputs per session:** date (today or up to a year back, never later), start time, length (1 minute to 10 hours), uncovered skin (the four presets), sunscreen yes or no.
+The UV comes from the forecast for the forecast's today, averaged minute by minute over the session's hours; for an earlier day, which the forecast does not cover, the person enters the UV (0 to 15, one decimal).
+The skin type is the plan's own (Settings, Sun profile; the active profile's, not a group's most sensitive), kept with each entry so a later change does not rewrite old sessions.
+
+**What it shows:**
+
+- Each session: its time and length, its estimated vitamin D, and its burn risk: minutes against the burn time at its UV ("40 of 38 min burn time"), as "Well under your burn time" (under half), "Close to your burn time" (half to all) or "Past your burn time: skin likely to redden" (at or over it).
+- Today's and the last 7 days' estimated totals, compared in words with a commonly cited daily amount: 600 IU (15 mcg) a day for adults up to 70, 800 IU over 70 (US National Academies 2011, the NIH Office of Dietary Supplements' fact sheet), said to be an intake figure for food and supplements, not a target for the sun.
+- A simple 7-day bar chart of the daily estimates, with day labels and values on screen and a table for screen readers; no goal line.
+- Add, edit and delete; "Log it" on a finished activity (an activity card's "Done for today") logs the slot the plan recommended for it today with one tap (its length, the clothing its preset implies, its sunscreen setting), then shows it in the log to check or edit; logging the same activity again on the same day opens the entry already there.
+
+**Storage, device only:** `localStorage` key `solara_vitamin_d_log`, like the guest plan, validated with Valibot on every read (bad entries dropped), at most 1,000 entries, and entries dated more than 365 days before today pruned on every read and write; the first save asks the browser to keep the site's storage (`lib/persistent-storage.ts`, #170).
+It is in the account page's data download (a `thisDevice.vitaminDLog` section, since the log is on this device, not the account), downloadable from the log itself (for guests), and cleared by "Delete all" in the log, by account deletion (every `solara_` entry) and by signing out or another account signing in on the device (`clearAccountData`), so the next person on a shared device never sees it.
+Nothing is sent to a server.
+
+**Switch:** `NEXT_PUBLIC_VITAMIN_D_LOG`, compiled in by `next.config.ts`: on unless it is `0`, so on in development, CI and production; the repository variable `VITAMIN_D_LOG=false` turns it off in a deploy.
+Off hides the entry and "Log it"; stored entries stay untouched.
+
+**Placement and loading:** a "Vitamin D log" button under the dashboard's estimate cards (and after dark, where those cards hide), opening a dialog like the other dashboard dialogs (`ActivityModalShell`); the log, its text and the Valibot schema load only when it opens (`components/deferred.tsx`), so the first-load budgets hold with their headroom and are not raised.
+
+**Languages:** English and Spanish (`messages/vitamin-d.ts`, `messages/es/vitamin-d.ts`); the Spanish safety and estimate wording joins the native-review sheet ([es-review.md](i18n/es-review.md)).
+
+**Acceptance:** core calculation tests shared with the card (the card's minutes give 1,000 IU in the log), storage and pruning tests, an end-to-end "log a session, see totals, edit, delete, reload persists" in both languages, keyboard and screen reader checks, harness screenshots at 320, 390 and 1280 px, light and dark, in both languages, and the first-load budget tests passing unchanged.
+
+**Defaults the owner may change:** the switch on in production (device-only storage holds no account data); the four skin presets and their factors; sunscreen as UV / 2.5; the 600 IU comparison; clearing the log on sign-out; pruning after a year.
+
+**Not in this step:** account sync (C10, after O5), shade and surface (the session's UV is the forecast's), sessions from Scheduled calendar events (switched off until Google's review).
 
 ### 49. Budget guard on its own (BUDGETGUARD, built)
 
@@ -703,7 +752,7 @@ The steps behind each one are in the [owner checklist](OWNER_CHECKLIST.md).
 | D10 | Error reporting | Decided 2026-10-23: Sentry; code shipped in #70, waits for the owner's DSN |
 | D11 | Bot protection | Decided 2026-10-23: App Check with reCAPTCHA v3; works without code changes, waits for the owner's site key |
 | D12 | Local branch and worktree cleanup on the owner's machine | Done by 2026-10-28: only the main clone and the current review worktrees remain |
-| Vitamin D log | The next feature after languages | Owner 2026-11-01: build a vitamin D log next (after the Review 10 fixes), [item 48](#48-vitamin-d-log-planned-next) |
+| Vitamin D log | The next feature after languages | Owner 2026-11-01: build a vitamin D log next (after the Review 10 fixes), [item 48](#48-vitamin-d-log-vitd) |
 | Languages | Which languages to offer | Decided 2026-11-01: build the language setup with English and Spanish (item 46); add Portuguese (Brazil), French and German in that order when each reaches about 5 to 10% of users; no right-to-left languages for now |
 | Language pages | How the static pages (landing, privacy, terms, city pages) offer Spanish | Default, owner may change (2026-11-01): their own Spanish addresses (`/es/`, `/es/privacy/`, `/es/terms/`, `/es/uv/<city>/`), built as static pages with `hreflang` links between the two languages, so search engines index each language and the pages keep shipping no framework JavaScript; the app keeps one address and switches at runtime. Built in item 46's second part, with the English version stated to prevail on the legal pages |
 | Server language | Which language pushes and the calendar feed use for an account set to Automatic | Decided by the owner 2026-11-01 (item 46): the account's `language` when it is a language (`en`, `es`), else its `deviceLanguage` (the language the app resolved from the device, saved to the account only when it changes, so the last device to open the app wins), else English; Settings and the privacy policy say so. Before this, Automatic gave English pushes |

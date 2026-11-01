@@ -102,4 +102,4 @@ Tick the boxes as you go and tell me when a group is done, so I can do my follow
 - Find a native Spanish speaker to review the safety wording (burn times, SPF advice, "seek shade", the push and feed text) and the Spanish privacy policy and terms; the language plan is [ROADMAP item 46](ROADMAP.md#46-languages-setup-and-the-app-in-spanish-built); the sheet to review is [i18n/es-review.md](i18n/es-review.md). Counsel reviews the Spanish legal pages with the English ones.
 
 - A lawyer reviews the governing-law terms, and also: an EU and UK representative, reCAPTCHA consent in the EU, Mexico's privacy notice, children in family profiles, storing vitamin D entries on accounts, and (before Pro) California's auto-renewal rules ([PLAN.md](PLAN.md) O16 and O20).
-- Next feature after languages: a vitamin D log, which you chose on 2026-11-01 to build after the Review 10 fixes ([ROADMAP item 48](ROADMAP.md#48-vitamin-d-log-planned-next)).
+- Next feature after languages: a vitamin D log, which you chose on 2026-11-01 to build after the Review 10 fixes ([ROADMAP item 48](ROADMAP.md#48-vitamin-d-log-vitd)).

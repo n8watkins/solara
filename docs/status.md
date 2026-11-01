@@ -193,7 +193,7 @@ How deploys work and how to configure them is in [DEPLOYMENT.md](DEPLOYMENT.md).
 
 ### Open
 
-Next feature: a vitamin D log, the owner's choice on 2026-11-01, after the Review 10 fixes ([ROADMAP item 48](ROADMAP.md#48-vitamin-d-log-planned-next)).
+Next feature: a vitamin D log, the owner's choice on 2026-11-01, after the Review 10 fixes ([ROADMAP item 48](ROADMAP.md#48-vitamin-d-log-vitd)).
 The ordered list is [Next steps, in order](OWNER_CHECKLIST.md#next-steps-in-order), checked against the live GitHub settings on 2026-10-28.
 Anytime (group A): confirming that a non-test Google account can sign in (REVIEW8 QA M5), the Google Calendar client ID, OAuth branding resubmission and publishing, calendar scope verification, App Check, Sentry, the browser key's website restriction and Auth clean-up, Firestore quota caps and a traffic alert, trying the TTL policies, the `production` environment, Workload Identity Federation (D4), moving the public build values to variables and deleting `NEXT_PUBLIC_PRO_PRICE`, ruleset hardening, private vulnerability reporting, closing three alerts, small clean-ups and counsel review of the governing-law language.
 The staging steps (group B, D9) can start: the staging deploy is built ([ROADMAP item 34](ROADMAP.md#34-staging-deploy-before-the-pro-launch-built)) and waits for the staging project and the `staging` environment; Blaze, the Stripe live setup, the Open-Meteo commercial plan (D5, now before billing) and the switches come at the Pro launch (groups C and D).
