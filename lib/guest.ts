@@ -86,8 +86,8 @@ export async function requestPersistentStorage(
     ? undefined
     : navigator,
 ): Promise<boolean> {
-  const storage = nav?.storage
-  if (!storage?.persist || /\bFirefox\//.test(nav.userAgent)) return false
+  if (!nav?.storage?.persist || /\bFirefox\//.test(nav.userAgent)) return false
+  const { storage } = nav
   try {
     if (await storage.persisted?.()) return true
     return await storage.persist()

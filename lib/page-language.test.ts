@@ -38,6 +38,8 @@ describe('the static pages in every language (ROADMAP item 46)', () => {
       url: '/es/',
       locale: 'es_419',
       alternateLocale: ['en_US'],
+      images: [{ url: '/og-image-es.png', width: 1200, height: 630 }],
     })
+    expect(meta.twitter).toMatchObject({ images: ['/og-image-es.png'] })
   })
 })

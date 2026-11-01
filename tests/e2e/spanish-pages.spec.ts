@@ -127,6 +127,27 @@ test('the Spanish landing page leads into the app and to the Spanish city pages'
   await expect(page).toHaveURL(/\/app\/$/)
 })
 
+test('each language has its own social card (REVIEW10 VERIFY10 N3)', async ({ page, request }) => {
+  for (const [path, image] of [
+    ['/', '/og-image.png'],
+    ['/es/', '/og-image-es.png'],
+    ['/es/uv/sydney/', '/og-image-es.png'],
+  ] as const) {
+    await page.goto(path)
+    const head = page.locator('head')
+    await expect(head.locator('meta[property="og:image"]')).toHaveAttribute(
+      'content',
+      new RegExp(`${image.replace('.', '\\.')}$`),
+    )
+    await expect(head.locator('meta[name="twitter:image"]')).toHaveAttribute(
+      'content',
+      new RegExp(`${image.replace('.', '\\.')}$`),
+    )
+    const card = await request.get(image)
+    expect(card.headers()['content-type']).toBe('image/png')
+  }
+})
+
 test('the sitemap lists every page in both languages, with its alternates', async ({ request }) => {
   const sitemap = await (await request.get('/sitemap.xml')).text()
   for (const path of ['/', '/privacy/', '/terms/', '/uv/', '/uv/tokyo/']) {
