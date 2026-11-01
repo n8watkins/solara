@@ -1,6 +1,6 @@
 # Solara: what I need from you
 
-Last updated 2026-11-01, with main at `e520699` (#159).
+Last updated 2026-11-01, with main at `a77907a` (#164).
 Everything that can be built without you is merged and live.
 The full step-by-step detail (exact console links, how to verify each step) is in [OWNER_CHECKLIST.md](OWNER_CHECKLIST.md); this file is the short version, in order.
 Tick the boxes as you go and tell me when a group is done, so I can do my follow-up part.
@@ -41,6 +41,7 @@ Tick the boxes as you go and tell me when a group is done, so I can do my follow
 - [ ] **Tighten the ruleset and close old alerts.** In the `main` ruleset: require branches to be up to date and add the CodeQL checks as required.
   Turn on private vulnerability reporting.
   Dismiss CodeQL alerts #22 and #23 and secret-scanning alert #1, and mark GitGuardian incident #106 as a false positive.
+  Dismiss Dependabot alerts #5 (minimatch in `functions/package-lock.json`) and #7 (minimatch in the root `package-lock.json`, through `eslint-config-next`) as "vulnerable code not used": both are development-only (checklist item A19); Dependabot's own update runs for #7 fail until then.
 
 ## 3. Calendar features (free; Google's review takes days to weeks)
 
@@ -68,7 +69,7 @@ Tick the boxes as you go and tell me when a group is done, so I can do my follow
   2. Set the four Functions secrets: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `OPEN_METEO_API_KEY`, `TRIAL_HISTORY_KEY`.
   3. First Functions deploy (`NEXT_PUBLIC_FUNCTIONS_URL`, then `ENABLE_BLAZE_FUNCTIONS=true`).
   4. Buy the Open-Meteo Standard plan (about $29 a month) the same day billing goes on, then `FORECAST_PROXY_ENABLED=true`, then `BILLING_ENABLED=true`.
-  5. Alerts: enable the Cloud Tasks API, give the deploy identity `roles/cloudtasks.queueAdmin`, rerun `infra/firestore-ttl.sh`, confirm the Firestore region is `nam5` or `us-central1`, then `ALERTS_ENABLED=true`.
+  5. Alerts: enable the Cloud Tasks API, give the deploy identity `roles/cloudtasks.queueAdmin` and, on a newer project whose default compute identity is not an Editor, that identity `roles/cloudtasks.enqueuer`, `roles/run.invoker` and `roles/iam.serviceAccountUser` (checklist C11), rerun `infra/firestore-ttl.sh`, confirm the Firestore region is `nam5` or `us-central1`, then `ALERTS_ENABLED=true`.
   6. I run a final review on the release commit; you do the release checks on a real phone.
 
 ## Ongoing rules for you
@@ -92,4 +93,4 @@ Tick the boxes as you go and tell me when a group is done, so I can do my follow
 - Find a native Spanish speaker to review the safety wording (burn times, SPF advice, "seek shade", the push and feed text) and the Spanish privacy policy and terms; the language plan is [ROADMAP item 46](ROADMAP.md#46-languages-setup-and-the-app-in-spanish-built); the sheet to review is [i18n/es-review.md](i18n/es-review.md). Counsel reviews the Spanish legal pages with the English ones.
 
 - A lawyer reviews the governing-law terms.
-- Pick the next feature after languages (not the sun exposure log with a vitamin D tally, which you decided on 2026-11-01 not to build).
+- Next feature after languages: a vitamin D log, which you chose on 2026-11-01 to build after the Review 10 fixes ([ROADMAP item 48](ROADMAP.md#48-vitamin-d-log-planned-next)).
