@@ -100,7 +100,8 @@ test('header and UV card report the same "now" UV and burn time', async ({ page 
   const readout = page.getByTestId('uv-readout')
   await expect(readout).toContainText(`${nowUV}`)
   await expect(readout).toContainText('now')
-  const burn = /burn ~(\d+)m/.exec((await readout.textContent()) ?? '')?.[1]
+  // One duration style on both (formatDuration): "45 min", "2 h 47 min".
+  const burn = /burn ~(\d+(?: h)?(?: \d+ min| min)?)/.exec((await readout.textContent()) ?? '')?.[1]
   expect(burn, 'readout burn time').toBeTruthy()
-  await expect(page.getByTestId('burn-metric')).toContainText(`${burn}m`)
+  await expect(page.getByTestId('burn-metric')).toContainText(burn!)
 })

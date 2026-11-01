@@ -123,7 +123,7 @@ test('the Google panel keeps its actions together on a phone (REVIEW6 L7)', asyn
 
   // The confirmation still reads in one place.
   await disconnect.click()
-  await expect(google.getByText('Remove its events and Solara’s access?')).toBeVisible()
+  await expect(google.getByText("Remove its events and Solara's access?")).toBeVisible()
   await expect(google.getByRole('button', { name: 'Disconnect' })).toHaveCount(1)
   await panelShot(page, testInfo, 'events-section-google-confirm')
 })

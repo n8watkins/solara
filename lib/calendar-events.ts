@@ -165,7 +165,7 @@ const PERSON = /^(dr|doctor|mr|mrs|ms|mx|miss|prof|professor|rev|fr|sir|dame)\.?
 
 /** Words that make a search about a room, a meeting or someone's home rather than a town. */
 const NOT_A_TOWN =
-  /\b(room|rm|suite|ste|floor|fl|level|office|desk|building|bldg|conference|meeting|call|zoom|teams|webex|meet|phone|dial|pin|code|ext|hq|headquarters|apt|apartment|unit|home|house|my|our|his|her|their|clinic|hospital)\b|\p{L}'s\b|\p{L}’s\b/iu
+  /\b(room|rm|suite|ste|floor|fl|level|office|desk|building|bldg|conference|meeting|call|zoom|teams|webex|meet|phone|dial|pin|code|ext|hq|headquarters|apt|apartment|unit|home|house|my|our|his|her|their|clinic|hospital)\b|\p{L}'s\b|\p{L}'s\b/iu
 
 /**
  * PURE. The town-level searches a calendar event's location may make, best first, or

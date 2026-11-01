@@ -1,4 +1,5 @@
 'use client'
+import { timeRange } from '@/lib/time'
 import { CalendarPlus, Cloud, Gauge, Lock, Share2 } from 'lucide-react'
 import { cloudNote, confidenceNote, formatUV } from '@solara/core'
 import { useState, type Ref } from 'react'
@@ -119,7 +120,7 @@ export default function CalendarWindowSheet({
             {act.name}
           </p>
           <p className="mt-0.5 text-[13px] text-ink-2">
-            {day.label} · {fmt.time(win.from)} – {fmt.time(win.to)}
+            {day.label} · {timeRange(fmt.time(win.from), fmt.time(win.to))}
           </p>
         </div>
         <SheetClose onClose={onClose} />

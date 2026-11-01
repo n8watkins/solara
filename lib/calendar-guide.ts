@@ -49,7 +49,7 @@ export const CALENDAR_GUIDES: Readonly<Record<CalendarProvider, CalendarGuide>> 
     ],
     summary: null,
     notes: [
-      'Only the calendar’s owner can make it public.',
+      "Only the calendar's owner can make it public.",
       'To stop sharing, turn Public Calendar off.',
     ],
   },
@@ -99,9 +99,9 @@ export const CALENDAR_GUIDES: Readonly<Record<CalendarProvider, CalendarGuide>> 
     label: 'Yahoo',
     ways: [],
     summary:
-      'On a computer, open the calendar’s Share settings in Yahoo Calendar, copy its ICS link and paste it below.',
+      "On a computer, open the calendar's Share settings in Yahoo Calendar, copy its ICS link and paste it below.",
     notes: [
-      'Yahoo’s help does not describe these links, so its menus may differ.',
+      "Yahoo's help does not describe these links, so its menus may differ.",
       'To stop sharing, turn the shareable link off.',
     ],
   },
@@ -114,6 +114,6 @@ export const GOOGLE_EVENTS_NOTE = 'Or show events from Google Calendar above, wi
 export const SHARED_NOTES = Object.freeze({
   key: 'This link works like a password: anyone who has it can read every event on that calendar, so keep it private.',
   separate:
-    'A separate calendar for outdoor plans shares less and stays under Solara’s 1 MB limit.',
+    "A separate calendar for outdoor plans shares less and stays under Solara's 1 MB limit.",
   refresh: `Solara checks the link about every ${EVENT_SUBSCRIPTION_LIMITS.refreshHours} hours, so changes can take a few hours to show.`,
 })

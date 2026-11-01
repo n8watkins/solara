@@ -12,11 +12,11 @@ test('the calendar shows each activity window and opens its details', async ({
   const main = page.getByRole('main')
   await expect(main.getByRole('group', { name: 'Hours shown' })).toBeVisible()
   await expect(
-    main.getByRole('button', { name: 'Running, Today, 6pm – 8pm, peak UV 3.1' }),
+    main.getByRole('button', { name: 'Running, Today, 6pm–8pm, peak UV 3.1' }),
   ).toBeVisible()
   await expect(
     // Planned for a clear sky: 4pm would be over the limit if tomorrow's thin clouds break.
-    main.getByRole('button', { name: 'Hiking, Tomorrow, 5pm – 8pm, peak UV 5.1' }),
+    main.getByRole('button', { name: 'Hiking, Tomorrow, 5pm–8pm, peak UV 5.1' }),
   ).toBeVisible()
 
   // Filtering to one activity hides the others.
@@ -27,9 +27,9 @@ test('the calendar shows each activity window and opens its details', async ({
   await expect(main.getByRole('button', { name: /^Running, Today,/ })).toHaveCount(1)
   await expect(main.getByRole('button', { name: /^Running, Tomorrow,/ })).toHaveCount(2)
 
-  await main.getByRole('button', { name: 'Running, Today, 6pm – 8pm, peak UV 3.1' }).click()
+  await main.getByRole('button', { name: 'Running, Today, 6pm–8pm, peak UV 3.1' }).click()
   const details = page.getByRole('dialog', { name: 'Running' })
-  await expect(details.getByText('Today · 6pm – 8pm')).toBeVisible()
+  await expect(details.getByText('Today · 6pm–8pm')).toBeVisible()
   // With Google Calendar set up, adding goes through the API and shows as Scheduled
   // (scheduled.e2e.ts); the plain template link is the fallback without it.
   await expect(details.getByRole('button', { name: /Add to Google Calendar/ })).toBeVisible()

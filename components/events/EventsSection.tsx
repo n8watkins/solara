@@ -406,8 +406,8 @@ export default function EventsSection({
 
       <p className="mt-3 text-[11px] leading-normal text-ink-3">
         {googleCalendarEventsLaunched() || outlookCalendarEventsLaunched()
-          ? 'Only each event’s title, time and place, and the link a calendar file or linked calendar gives, are kept, and only until 30 days after it ends.'
-          : 'Only each event’s title, time, place and link are kept, and only until 30 days after it ends.'}
+          ? "Only each event's title, time and place, and the link a calendar file or linked calendar gives, are kept, and only until 30 days after it ends."
+          : "Only each event's title, time, place and link are kept, and only until 30 days after it ends."}
       </p>
     </section>
   )

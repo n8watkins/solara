@@ -38,8 +38,8 @@ test('a signed-in account previews a shared .ics file, imports it and the share 
   const card = sharedCard(page)
   await expect(card).toContainText('invite.ics has 2 upcoming events.')
   await expect(card.getByRole('listitem')).toHaveText([
-    'Tuesday 10K Tomorrow · 9am – 10:30am',
-    'Picnic Wed, Jun 17 · 12pm – 1:30pm',
+    'Tuesday 10K Tomorrow · 9am–10:30am',
+    'Picnic Wed, Jun 17 · 12pm–1:30pm',
   ])
   // Nothing is stored before the person confirms.
   expect(Object.keys(await emulators.readEvents(account))).toHaveLength(0)
@@ -127,7 +127,7 @@ test('on Free, a shared calendar link offers Pro instead', async ({ page, emulat
   await page.waitForURL(/\?shared=/)
   const card = sharedCard(page)
   await expect(card).toContainText(
-    'A calendar link from club.example. Linked calendars, which keep a calendar’s events current, are part of Pro.',
+    "A calendar link from club.example. Linked calendars, which keep a calendar's events current, are part of Pro.",
   )
   await card.getByRole('button', { name: 'See Pro' }).click()
   await expect(page.getByRole('dialog')).toBeVisible()

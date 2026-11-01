@@ -2,6 +2,7 @@
 import { Bell, Footprints, MapPin, Palette, Sun, UserRound, type LucideIcon } from 'lucide-react'
 import { useRef } from 'react'
 import type { KeyboardEvent } from 'react'
+import { alertsLaunched } from '@/lib/plans'
 import { nextIndex } from '@/lib/roving-focus'
 
 export type SettingsTab =
@@ -64,8 +65,14 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   },
 ]
 
+/** The Alerts tab's line until alerts are switched on: no reminders to promise yet (REVIEW9 QA L1). */
+const ALERTS_COMING_DESC = 'Morning and UV alerts on your devices, coming soon.'
+
 export function settingsSection(tab: SettingsTab): SettingsSection {
-  return SETTINGS_SECTIONS.find(s => s.id === tab) ?? SETTINGS_SECTIONS[0]!
+  const section = SETTINGS_SECTIONS.find(s => s.id === tab) ?? SETTINGS_SECTIONS[0]!
+  return section.id === 'alerts' && !alertsLaunched()
+    ? { ...section, desc: ALERTS_COMING_DESC }
+    : section
 }
 
 interface Props {

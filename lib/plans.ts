@@ -40,8 +40,11 @@ export function calendarFeatureLabel(
 /** The comparison row for linked calendars, which Solara keeps current on its server. */
 export const LINKED_CALENDARS_LABEL = 'Linked calendars, kept current'
 
-/** The comparison row for the free daily UV push. */
-export const DAILY_UV_PUSH_LABEL = 'Daily UV push on high-UV days'
+/**
+ * The comparison row for the free daily UV push, which goes out on days the UV reaches
+ * moderate, the WHO's level for sun protection (REVIEW9 QA L2: not "high-UV days").
+ */
+export const DAILY_UV_PUSH_LABEL = 'Daily UV push on days you need protection'
 
 /** The comparison row for the reapply timer's push, which comes with Solara closed. */
 export const REAPPLY_PUSH_LABEL = 'Sunscreen reminders with Solara closed'

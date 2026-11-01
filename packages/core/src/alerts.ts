@@ -5,10 +5,12 @@
 // - The morning alert goes out once per local day, in the two hours from the hour the
 //   person picked (notificationHour, 5-10). Quiet hours do not apply to it: its hour
 //   is the person's own choice.
-// - The UV alert goes out at most once per local day, when today's forecast UV index
-//   reaches the person's threshold: from an hour before the first such hour until the
-//   last one ends, outside quiet hours.
+// - The UV alert goes out at most once per local day, when today's UV index reaches the
+//   person's threshold: from an hour before it does until it drops below again, outside
+//   quiet hours. The times are worked out as for all protection advice (protection.ts),
+//   under a clear sky, so they match the briefing and the daily UV push.
 import { dailyBriefing } from './briefing'
+import { uvSpanAtOrAbove } from './protection'
 import { formatUV } from './uv-scale'
 import type { ExposureSetting } from './exposure'
 import { isSkinType, type PreferredHours, type SkinType } from './recommendation'
@@ -99,29 +101,27 @@ export interface AlertHour extends Partial<WeatherHour> {
 /** When today's UV is at or above a threshold. */
 export interface UvAlertPlan {
   threshold: number
-  /** The first hour whose UV index reaches the threshold. */
+  /** Fractional local hour the UV index first reaches the threshold (uvSpanAtOrAbove). */
   from: number
-  /** The end of the last such hour. */
+  /** Fractional local hour it last drops below it. */
   to: number
   peak: { uv: number; hour: number }
 }
 
 /**
- * The UV index as the scale reads it: whole numbers, so 5.6 already counts as 6. The
- * dashboard's bands and the daily briefing read it the same way.
+ * When the UV index reaches `threshold` today (5.6 already reads as 6, as on the
+ * dashboard's scale), or null when it stays below all day, even under a clear sky. The
+ * peak is the highest forecast UV inside that time.
  */
-function uvIndex(uv: number): number {
-  return Math.round(uv)
-}
-
-/** When the UV index reaches `threshold` today, or null when it stays below all day. */
 export function planUvAlert(hourly: readonly AlertHour[], threshold: number): UvAlertPlan | null {
-  const above = hourly.filter(h => Number.isFinite(h.uv) && uvIndex(h.uv) >= threshold)
-  const first = above[0]
-  const last = above.at(-1)
-  if (!first || !last) return null
-  const peak = above.reduce((max, h) => (h.uv > max.uv ? h : max), first)
-  return { threshold, from: first.hour, to: last.hour + 1, peak: { uv: peak.uv, hour: peak.hour } }
+  const span = uvSpanAtOrAbove(hourly, threshold)
+  if (!span) return null
+  const inside = hourly.filter(
+    h => Number.isFinite(h.uv) && h.hour + 1 > span.from && h.hour < span.to,
+  )
+  const peak = inside.reduce<AlertHour | null>((max, h) => (!max || h.uv > max.uv ? h : max), null)
+  if (!peak) return null
+  return { threshold, from: span.from, to: span.to, peak: { uv: peak.uv, hour: peak.hour } }
 }
 
 /** Whether the UV alert is due at this local hour. */

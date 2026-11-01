@@ -220,7 +220,9 @@ async function processSchedule(run: DailyRun, doc: QueryDocumentSnapshot): Promi
     await next(now + DAILY_UV_RETRY_MS)
     return 'no-forecast'
   }
-  const hours = alertDayHours(forecast, local.date).map(({ hour, uv }) => ({ hour, uv }))
+  // With the clear-sky UV: the push is judged like the briefing (protection.ts), so a
+  // cloudy day whose clouds may break still gets it.
+  const hours = alertDayHours(forecast, local.date)
   const window = protectionWindow(hours, daylightHours({ lat, lon }, local.date, timeZone))
   if (!window || local.hour >= window.to) {
     await doneToday()

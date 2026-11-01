@@ -54,11 +54,11 @@ test('sample events on Pro: UV, burn, sunscreen and the place fix', async ({ pag
   await expect(cards(page)).toHaveCount(4)
 
   const run = section.getByRole('listitem', { name: 'Griffith Park trail run' })
-  await expect(run.getByText('Today · 4pm – 5:30pm')).toBeVisible()
+  await expect(run.getByText('Today · 4pm–5:30pm')).toBeVisible()
   await expect(run.getByText(/^Peak UV \d+\.\d at 4pm/)).toBeVisible()
   // Group planning on the Pro fixture is off: the account's own fair skin.
   await expect(run.getByText(/fair skin could burn in about \d+ min at the peak/)).toBeVisible()
-  await expect(run.getByText(/Sunscreen: apply 3:30pm – 3:45pm/)).toBeVisible()
+  await expect(run.getByText(/Sunscreen: apply 3:30pm–3:45pm/)).toBeVisible()
   await expect(run.getByRole('combobox', { name: 'Counts as' })).toHaveValue('run')
   await expect(run.getByRole('link', { name: /Event page/ })).toHaveAttribute('target', '_blank')
 
@@ -150,7 +150,7 @@ test('import an .ics file', async ({ page }, testInfo) => {
   expect((await workerScript).ok()).toBe(true)
   const paddle = section.getByRole('listitem', { name: 'Mission Bay paddle' })
   await expect(paddle.getByText('San Diego, California')).toBeVisible()
-  await expect(paddle.getByText('Tomorrow · 9am – 10:30am')).toBeVisible()
+  await expect(paddle.getByText('Tomorrow · 9am–10:30am')).toBeVisible()
   await captureScreen(page, testInfo, capture, { name: 'events-import', fullPage: true })
 
   // A file that is not a calendar is explained.

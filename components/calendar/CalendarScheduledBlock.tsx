@@ -1,4 +1,5 @@
 import clsx from 'clsx'
+import { timeRange } from '@/lib/time'
 import type { Block } from '@/lib/calendar-grid'
 import type { ChipVariant } from '@/lib/calendar-layout'
 import type { ScheduledActivity, ScheduledSpan } from '@/lib/scheduled'
@@ -62,11 +63,11 @@ export default function CalendarScheduledBlock({
       </span>
       {block.lines >= 2 && (
         <span aria-hidden="true" className={chipTime}>
-          {full ? `${fmt.time(span.from)} – ${fmt.time(span.to)}` : fmt.compactHour(span.from)}
+          {full ? timeRange(fmt.time(span.from), fmt.time(span.to)) : fmt.compactHour(span.from)}
         </span>
       )}
       <span data-sr-only className="sr-only">
-        {`Scheduled: ${act.name}, ${dayLabel}, ${fmt.time(span.from)} – ${fmt.time(span.to)}`}
+        {`Scheduled: ${act.name}, ${dayLabel}, ${timeRange(fmt.time(span.from), fmt.time(span.to))}`}
       </span>
     </button>
   )

@@ -226,7 +226,7 @@ export default function GoogleCalendarEvents({
       const revoked = await disconnectGoogleCalendar({ uid, linkStore, store: events, api })
       return revoked
         ? 'Disconnected Google Calendar and removed its events.'
-        : 'Removed the events from Google Calendar. To also end Solara’s access, remove Solara at myaccount.google.com/connections.'
+        : "Removed the events from Google Calendar. To also end Solara's access, remove Solara at myaccount.google.com/connections."
     })
   }
 
@@ -254,8 +254,8 @@ export default function GoogleCalendarEvents({
           <p id={hintId} className="mt-1 text-[12px] leading-normal text-ink-3">
             See the UV at events already in your Google Calendar. Solara reads the next{' '}
             {GOOGLE_EVENT_LIMITS.windowDays} days in this browser, with read-only access, and keeps
-            only events with an address or that match one of your activities. Only an
-            address&rsquo;s town is searched to find the place.
+            only events with an address or that match one of your activities. Only an address&apos;s
+            town is searched to find the place.
           </p>
           <button
             type="button"
@@ -307,7 +307,7 @@ export default function GoogleCalendarEvents({
               {confirming ? (
                 <>
                   <span className="mr-auto text-[12px] text-ink-2">
-                    Remove its events and Solara’s access?
+                    Remove its events and Solara&apos;s access?
                   </span>
                   <button
                     type="button"
@@ -363,8 +363,8 @@ export default function GoogleCalendarEvents({
           </div>
           {confirming && (
             <p className="mt-2 text-[12px] leading-normal text-ink-2">
-              Google ends all of Solara’s calendar access at once, so Scheduled activities will ask
-              to connect again.
+              Google ends all of Solara&apos;s calendar access at once, so Scheduled activities will
+              ask to connect again.
             </p>
           )}
 

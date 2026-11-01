@@ -14,7 +14,7 @@ test('shares an activity window as a link that opens the plan', async ({
   await expect(page.getByText('Copied share text and link.')).toBeVisible()
 
   const copied = await page.evaluate(() => navigator.clipboard.readText())
-  expect(copied).toContain("Let's do running today from 6pm–8pm in Los Angeles, California.")
+  expect(copied).toContain("Let's do running today from 6pm to 8pm in Los Angeles, California.")
   const link = copied.match(/https?:\/\/\S+/)?.[0]
   expect(link).toBeDefined()
   const url = new URL(link!)

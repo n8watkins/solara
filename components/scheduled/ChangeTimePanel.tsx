@@ -1,4 +1,5 @@
 import { useUnits } from '@/lib/use-units'
+import { timeRange } from '@/lib/time'
 import { SheetActions, sheetAction } from '../BottomSheet'
 
 /** An inset panel inside a sheet, for a step such as changing the time or confirming. */
@@ -51,7 +52,7 @@ export default function ChangeTimePanel({
           >
             {options.map(h => (
               <option key={h} value={h}>
-                {fmt.time(h)} – {fmt.time(h + hours)}
+                {timeRange(fmt.time(h), fmt.time(h + hours))}
               </option>
             ))}
           </select>

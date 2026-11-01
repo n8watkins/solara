@@ -7,12 +7,65 @@ import {
   DELETED_DATA,
   DELETION_NOTES,
   DELETION_SUMMARY,
+  deletedDataShown,
+  deletionNotesShown,
   EXPORT_EXCLUDED,
+  exportSectionsShown,
   EXPORT_SECTIONS,
   EXPORT_SUMMARY,
   exportedMessage,
   listInWords,
 } from './account-data'
+
+describe('the lists follow the switches (REVIEW9 QA L6)', () => {
+  const none = {
+    billing: false,
+    linkedCalendars: false,
+    googleCalendar: false,
+    outlookCalendar: false,
+    calendarFeed: false,
+    alerts: false,
+    eventHeadsUps: false,
+  }
+  const all = Object.fromEntries(Object.keys(none).map(k => [k, true])) as typeof none
+
+  it('lists everything with every feature on', () => {
+    expect(exportSectionsShown(all)).toEqual(Object.values(EXPORT_SECTIONS))
+    expect(deletedDataShown(all)).toEqual([...DELETED_DATA])
+    expect(deletionNotesShown(all)).toEqual([...DELETION_NOTES])
+  })
+
+  it('leaves out what a build without Functions, alerts or calendars cannot hold', () => {
+    const shown = exportSectionsShown(none).join(' | ')
+    expect(shown).toContain('your imported events')
+    expect(shown).toContain('your scheduled activities')
+    for (const off of [
+      'heads-ups',
+      'linked calendars',
+      'Google',
+      'Outlook',
+      'alerts',
+      'billing',
+      'device',
+    ]) {
+      expect(shown).not.toContain(off)
+    }
+    expect(deletedDataShown(none)).toEqual([
+      'your Solara preferences, profiles and activities',
+      'scheduled activities',
+      'imported events',
+      'your Solara sign-in',
+    ])
+    expect(deletionNotesShown(none)).toEqual([])
+  })
+
+  it('names the Google line with the OAuth client alone', () => {
+    const google = { ...none, googleCalendar: true }
+    expect(deletedDataShown(google)).toContain('your Google Calendar choices')
+    expect(deletionNotesShown(google).join(' ')).toContain('myaccount.google.com/connections')
+    expect(deletionNotesShown(google).join(' ')).not.toContain('Stripe')
+  })
+})
 
 describe('account data copy', () => {
   it('names every export section, imported events included, and what is left out', () => {
@@ -33,7 +86,7 @@ describe('account data copy', () => {
     expect(notes).toContain('without a refund for the current period')
     expect(notes).toContain('Google Calendar stay there')
     expect(notes).toContain('myaccount.google.com/connections')
-    expect(notes).toContain('Microsoft account’s app permissions')
+    expect(notes).toContain("Microsoft account's app permissions")
     expect(notes).toContain('kept for 2 years')
   })
 

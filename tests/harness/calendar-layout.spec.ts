@@ -122,7 +122,7 @@ test('the axis opens at the earliest window, uncut', async ({ page }) => {
 test('a chip opens a detail sheet with a safe calendar link', async ({ page }, testInfo) => {
   const chip = page.getByTestId('calendar-chip').first()
   await chip.click()
-  await expect(chip).toHaveAccessibleName(/^Running, Today, 6pm – 8pm, peak UV \d/)
+  await expect(chip).toHaveAccessibleName(/^Running, Today, 6pm–8pm, peak UV \d/)
   const sheet = page.getByRole('dialog', { name: /Running/ })
   await expect(sheet).toBeVisible()
   await expect(sheet).toBeFocused()

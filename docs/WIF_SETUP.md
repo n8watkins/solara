@@ -102,6 +102,26 @@ gcloud iam service-accounts add-iam-policy-binding "$RUNTIME_SA" \
   --member "serviceAccount:${DEPLOY_SA}" --role roles/iam.serviceAccountUser
 ```
 
+When the alerts are switched on (`ALERTS_ENABLED`), the deploy also creates the `reapplyReminderTask` Cloud Tasks queue and a Firestore trigger ([Free pushes](DEPLOYMENT.md#free-pushes-the-daily-uv-push-and-reapply-reminders)).
+Enable the APIs, let the deploy identity manage the queue, and, on a project whose default compute identity is not an Editor (any project created recently, such as a new staging project), let that identity enqueue and run the task:
+
+```bash
+gcloud services enable cloudtasks.googleapis.com eventarc.googleapis.com --project "$PROJECT_ID"
+gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+  --member "serviceAccount:${DEPLOY_SA}" --role roles/cloudtasks.queueAdmin --condition None
+
+for role in roles/cloudtasks.enqueuer roles/run.invoker; do
+  gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+    --member "serviceAccount:${RUNTIME_SA}" --role "$role" --condition None
+done
+gcloud iam service-accounts add-iam-policy-binding "$RUNTIME_SA" \
+  --project "$PROJECT_ID" \
+  --member "serviceAccount:${RUNTIME_SA}" --role roles/iam.serviceAccountUser
+```
+
+The Firestore trigger also needs the (default) database in `nam5` or `us-central1` (Firebase console, Firestore, **Database**, Location); another location needs a code change, not a role.
+If the first deploy with alerts on still reports a missing permission for Eventarc, grant what the error names and add it here.
+
 ## 4. Let only the deploy workflow impersonate the deploy identity
 
 ```bash

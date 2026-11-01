@@ -26,8 +26,10 @@ test.describe('logic checks', () => {
     await expect(briefing).toContainText('UV peaks at 10.3 (Very high) around 1pm')
     await expect(briefing).toContainText('Lowest-UV window: Running 6pm–8pm')
     await expect(briefing).toContainText('can burn in about 15 min')
+    // At 10:30am the UV has just reached very high (7.5 between 10am and 11am, the shared
+    // protection times in packages/core/src/protection.ts).
     await expect(briefing).toContainText(
-      'Seek shade while UV is very high or extreme, from 11am to 5pm',
+      'Seek shade while UV is very high or extreme, until 4:15pm',
     )
   })
 
@@ -95,6 +97,41 @@ const cloudyToday = (raw: Raw): Raw => {
   }
 }
 
+/**
+ * Today under heavy overcast: the forecast UV is a fifth of a clear sky's, so it stays Low,
+ * while the clear sky (unchanged) would be very high (REVIEW9 QA M2).
+ */
+const overcastToday = (raw: Raw): Raw => {
+  const uv = raw.hourly.uv_index.map((v, i) => (i < 24 && v !== null ? Math.round(v * 2) / 10 : v))
+  const today = <T>(values: readonly (T | null)[] | undefined, value: T) =>
+    (values ?? []).map((v, i) => (i < 24 ? value : v))
+  return {
+    ...raw,
+    current: { ...raw.current, uv_index: uv[10]!, weathercode: 3 },
+    hourly: {
+      ...raw.hourly,
+      uv_index: uv,
+      weathercode: today(raw.hourly.weathercode, 3),
+      cloudcover: today(raw.hourly.cloudcover, 100),
+    },
+  }
+}
+
+test('an overcast day keeps its protection advice, with the clear sky as the reason', async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop-light', 'logic check, run once')
+  await openDashboard(page, { at: NOW_MS, tier: 'free', edit: overcastToday })
+  const briefing = page.getByTestId('daily-briefing')
+  await expect(briefing).toContainText(
+    /UV peaks at 2\.\d \(Low\) around 1pm, or 10\.\d if the sky clears/,
+  )
+  await expect(briefing).toContainText(
+    /as UV can be (very high or extreme|moderate or higher) if the sky clears/,
+  )
+  await expect(briefing).not.toContainText('little sun protection')
+})
+
 test.describe('consistency checks (REVIEW4)', () => {
   test.beforeEach(({}, testInfo) => {
     test.skip(!testInfo.project.name.endsWith('-light'), 'logic check, once per width')
@@ -158,6 +195,7 @@ const SCREENS = [
   { name: 'briefing-night-free', at: NIGHT_MS, tier: 'free', edit: atNight },
   { name: 'briefing-night-guest', at: NIGHT_MS, tier: 'guest', edit: atNight },
   { name: 'briefing-cloudy-free', at: NOW_MS, tier: 'free', edit: cloudyToday },
+  { name: 'briefing-overcast-free', at: NOW_MS, tier: 'free', edit: overcastToday },
 ]
 
 for (const screen of SCREENS) {

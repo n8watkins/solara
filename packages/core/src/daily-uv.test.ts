@@ -119,7 +119,7 @@ describe('dailyUvMessage', () => {
   it('names the protection times, the peak and the place', () => {
     expect(dailyUvMessage({ window, city: 'Los Angeles', localHour: 7 })).toEqual({
       title: '☀️ Protect from 9:10am to 4:25pm today',
-      body: 'UV peaks at 8.4 (very high) around 1pm in Los Angeles. Sunscreen, a hat and shade while the UV is moderate or higher. Recheck current conditions.',
+      body: 'UV peaks at 8.4 (Very high) around 1pm in Los Angeles. Sunscreen, a hat and shade while the UV is moderate or higher. Recheck current conditions.',
     })
   })
 

@@ -61,12 +61,12 @@ describe('dailyBriefing', () => {
       window: 'Lowest-UV window: Running 6am–10am',
       weather: null,
       burn: 'At the peak, unprotected skin like yours can burn in about 16 min',
-      tip: 'Seek shade while UV is very high or extreme, from 12pm\u00a0to\u00a04pm',
+      tip: 'Seek shade while UV is very high or extreme, from 11:10am\u00a0to\u00a03:40pm',
     })
     expect(briefing.text).toBe(
       'Tomorrow: UV peaks at 9.3 (Very high) around 1pm. Lowest-UV window: Running 6am–10am. ' +
         'At the peak, unprotected skin like yours can burn in about 16 min. ' +
-        'Seek shade while UV is very high or extreme, from 12pm to 4pm.',
+        'Seek shade while UV is very high or extreme, from 11:10am to 3:40pm.',
     )
   })
 
@@ -81,9 +81,10 @@ describe('dailyBriefing', () => {
     expect(briefing.peak?.passed).toBe(false)
     // The morning window has passed; the evening one is next.
     expect(briefing.window?.spans).toEqual([{ from: 18, to: 20 }])
-    // 4pm's 7.7 already reads as 8 (Very high) on the whole-number scale.
+    // From 10am's 8.0 (between 9am's 6.0 and 11am's 9.5, 7.5 falls at 10:45) to after
+    // 4pm's 7.7 (7.5 falls at 4:06pm, so 4:10pm), as the shared protection times read it.
     expect(briefing.lines.tip).toBe(
-      'Seek shade while UV is very high or extreme, from 11am\u00a0to\u00a05pm',
+      'Seek shade while UV is very high or extreme, from 10:45am\u00a0to\u00a04:10pm',
     )
   })
 
@@ -99,7 +100,7 @@ describe('dailyBriefing', () => {
     expect(briefing.burnMins).toBeNull()
     expect(briefing.lines.burn).toBeNull()
     expect(briefing.lines.tip).toBe(
-      'Use sun protection while UV is moderate or higher, until\u00a07pm',
+      'Use sun protection while UV is moderate or higher, until\u00a06:20pm',
     )
   })
 
@@ -138,20 +139,21 @@ describe('dailyBriefing', () => {
       activities: [weekendOnly],
       skinType: 'medium',
     })
-    // 8am's 2.0 is Low; 9am's 3.9 and 6pm's 3.1 read as 4 and 3.
+    // Around the protection window (2.5, which reads as 3, falls at 8:16am and 6:18pm,
+    // so 8:15am and 6:20pm on 5-minute steps toward protection).
     expect(briefing.window).toEqual({
       activity: null,
       spans: [
-        { from: 6, to: 9 },
-        { from: 19, to: 20 },
+        { from: 6, to: 8.25 },
+        { from: 18 + 20 / 60, to: 20 },
       ],
     })
     // A time range never breaks inside on a narrow screen (REVIEW5: "8pm" alone on a line);
     // the shared text has plain spaces.
     expect(briefing.lines.window).toBe(
-      'UV is low from 6am\u00a0to\u00a09am and 7pm\u00a0to\u00a08pm',
+      'UV is low from 6am\u00a0to\u00a08:15am and 6:20pm\u00a0to\u00a08pm',
     )
-    expect(briefing.text).toContain('UV is low from 6am to 9am and 7pm to 8pm.')
+    expect(briefing.text).toContain('UV is low from 6am to 8:15am and 6:20pm to 8pm.')
   })
 
   it('briefs a mild day without advice to hide', () => {
@@ -231,7 +233,7 @@ describe('dailyBriefing in daylight', () => {
       skinType: 'fair',
       daylight,
     })
-    expect(b.window?.spans).toEqual([{ from: 7 + 10 / 60, to: 9 }])
+    expect(b.window?.spans).toEqual([{ from: 7 + 10 / 60, to: 8.25 }])
   })
 
   it('has no window left once the rest of the daylight is too short', () => {

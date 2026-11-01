@@ -15,7 +15,7 @@ test('a free account is held to the free plan and offered Pro', async ({ page, e
   await expect(
     add.getByText('Free plan: up to 3 activities. Upgrade to Pro for up to 20.'),
   ).toBeVisible()
-  await expect(add.getByRole('button', { name: /^Jogging 30m Locked/ })).toBeDisabled()
+  await expect(add.getByRole('button', { name: /^Jogging 30 min Locked/ })).toBeDisabled()
   await expect(add.getByRole('button', { name: '+ Create custom activity' })).toBeDisabled()
   await add.getByRole('button', { name: 'Done' }).click()
 
@@ -77,7 +77,7 @@ test('a paid account gets the full forecast and more activities', async ({ page,
   // A fourth activity is allowed.
   await page.getByRole('button', { name: '+ Add Activity' }).click()
   const add = page.getByRole('dialog', { name: 'Add activity' })
-  await add.getByRole('button', { name: /^Jogging 30m/ }).click()
+  await add.getByRole('button', { name: /^Jogging 30 min/ }).click()
   await add.getByRole('button', { name: 'Done' }).click()
   await expect(page.getByRole('button', { name: 'Edit Jogging' })).toBeVisible()
   await expect
@@ -86,7 +86,7 @@ test('a paid account gets the full forecast and more activities', async ({ page,
 
   await page.getByRole('button', { name: 'Calendar', exact: true }).click()
   await expect(
-    page.getByRole('button', { name: 'Running, Wed, Jun 24, 6pm – 8pm, peak UV 3.0' }),
+    page.getByRole('button', { name: 'Running, Wed, Jun 24, 6pm–8pm, peak UV 3.0' }),
   ).toBeVisible()
 })
 

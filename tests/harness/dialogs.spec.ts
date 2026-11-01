@@ -244,7 +244,7 @@ test('add activity: presets are toggle buttons and the dialog is clean', async (
   const add = page.getByRole('dialog', { name: 'Add activity' })
   await expect(add).toBeFocused()
   await expect(add.getByRole('searchbox', { name: 'Search activities' })).toBeVisible()
-  await expect(add.getByRole('button', { name: 'Running 45m' })).toHaveAttribute(
+  await expect(add.getByRole('button', { name: 'Running 45 min' })).toHaveAttribute(
     'aria-pressed',
     'true',
   )

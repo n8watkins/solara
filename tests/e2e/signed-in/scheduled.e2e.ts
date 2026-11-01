@@ -28,13 +28,13 @@ async function openCalendar(page: Page) {
 /** Adds today's 6pm-8pm running window to Google Calendar from the calendar view. */
 async function scheduleRunningToday(page: Page) {
   const main = await openCalendar(page)
-  await main.getByRole('button', { name: 'Running, Today, 6pm – 8pm, peak UV 3.1' }).click()
+  await main.getByRole('button', { name: 'Running, Today, 6pm–8pm, peak UV 3.1' }).click()
   await page
     .getByRole('dialog', { name: 'Running' })
     .getByRole('button', { name: /Add to Google Calendar/ })
     .click()
   await expect(
-    main.getByRole('button', { name: 'Scheduled: Running, Today, 6pm – 6:45pm' }),
+    main.getByRole('button', { name: 'Scheduled: Running, Today, 6pm–6:45pm' }),
   ).toBeVisible()
   return main
 }
@@ -116,11 +116,11 @@ test('add a window to Google Calendar, then open, move and remove it', async ({
   await expect(
     main
       .getByRole('region', { name: 'Scheduled' })
-      .getByRole('button', { name: 'Scheduled: Running Today · 6pm – 6:45pm' }),
+      .getByRole('button', { name: 'Scheduled: Running Today · 6pm–6:45pm' }),
   ).toBeVisible()
 
   // Details: open the event in Google Calendar.
-  await main.getByRole('button', { name: 'Scheduled: Running, Today, 6pm – 6:45pm' }).click()
+  await main.getByRole('button', { name: 'Scheduled: Running, Today, 6pm–6:45pm' }).click()
   const sheet = page.getByRole('dialog', { name: 'Running' })
   await expect(sheet.getByText('✓ Scheduled')).toBeVisible()
   const link = sheet.getByRole('link', { name: /Open in Google Calendar/ })
@@ -132,9 +132,9 @@ test('add a window to Google Calendar, then open, move and remove it', async ({
   await sheet.getByRole('button', { name: 'Change time' }).click()
   await sheet
     .getByRole('combobox', { name: /New start time/ })
-    .selectOption({ label: '7pm – 7:45pm' })
+    .selectOption({ label: '7pm–7:45pm' })
   await sheet.getByRole('button', { name: 'Save time' }).click()
-  await expect(sheet.getByText('Today · 7pm – 7:45pm')).toBeVisible()
+  await expect(sheet.getByText('Today · 7pm–7:45pm')).toBeVisible()
   expect(googleCalendar.events.get(event!.id)).toMatchObject({
     start: { dateTime: '2026-06-15T19:00:00-07:00' },
     end: { dateTime: '2026-06-15T19:45:00-07:00' },
@@ -143,7 +143,7 @@ test('add a window to Google Calendar, then open, move and remove it', async ({
     .poll(async () => (await emulators.readScheduled(account))[event!.id]?.start)
     .toBe('2026-06-16T02:00:00.000Z')
   await expect(
-    main.getByRole('button', { name: 'Scheduled: Running, Today, 7pm – 7:45pm' }),
+    main.getByRole('button', { name: 'Scheduled: Running, Today, 7pm–7:45pm' }),
   ).toBeVisible()
 
   // Remove asks first, then deletes the Google event and the record.
@@ -206,7 +206,7 @@ test('moves and deletions made in Google Calendar are reconciled', async ({
   await list.getByRole('button', { name: 'Reconnect to sync' }).click()
   await expect(list.getByText('Updated from Google Calendar: 1 moved, 1 removed.')).toBeVisible()
   await expect(
-    main.getByRole('button', { name: 'Scheduled: Running, Today, 7pm – 7:45pm' }),
+    main.getByRole('button', { name: 'Scheduled: Running, Today, 7pm–7:45pm' }),
   ).toBeVisible()
   await expect(main.getByRole('button', { name: /^Scheduled: Hiking/ })).toHaveCount(0)
   await expect
@@ -306,7 +306,7 @@ test('another device sees scheduled items; another account sees none', async ({
     await expect(card.getByTestId('scheduled-card-row').getByText('6pm–6:45pm')).toBeVisible()
     const main = await openCalendar(other)
     await expect(
-      main.getByRole('button', { name: 'Scheduled: Running, Today, 6pm – 6:45pm' }),
+      main.getByRole('button', { name: 'Scheduled: Running, Today, 6pm–6:45pm' }),
     ).toBeVisible()
     await expect(
       main.getByRole('region', { name: 'Scheduled' }).getByRole('button', {
@@ -322,7 +322,7 @@ test('another device sees scheduled items; another account sees none', async ({
     await openDashboard(other, bob)
     await expect(other.getByTestId('scheduled-card-row')).toHaveCount(0)
     const bobMain = await openCalendar(other)
-    await expect(bobMain.getByRole('button', { name: /^Running, Today, 6pm – 8pm/ })).toBeVisible()
+    await expect(bobMain.getByRole('button', { name: /^Running, Today, 6pm–8pm/ })).toBeVisible()
     await expect(bobMain.getByRole('region', { name: 'Scheduled' })).toHaveCount(0)
     await expect(bobMain.getByRole('button', { name: /^Scheduled:/ })).toHaveCount(0)
     expect(blocked).toEqual([])
@@ -415,6 +415,6 @@ test('with more stored records than one read returns, the upcoming ones still sh
   await expect(
     main
       .getByRole('region', { name: 'Scheduled' })
-      .getByRole('button', { name: 'Scheduled: Running Today · 6pm – 6:45pm' }),
+      .getByRole('button', { name: 'Scheduled: Running Today · 6pm–6:45pm' }),
   ).toBeVisible()
 })

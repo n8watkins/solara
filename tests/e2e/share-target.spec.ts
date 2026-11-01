@@ -53,8 +53,8 @@ test('a shared .ics file opens the app with its events, and a guest is asked to 
   await expect(card).toBeVisible()
   await expect(card).toContainText('invite.ics has 2 upcoming events')
   await expect(card.getByRole('listitem')).toHaveText([
-    'Tuesday 10K Tomorrow · 9am – 10:30am',
-    'Picnic Wed, Jun 17 · 12pm – 1:30pm',
+    'Tuesday 10K Tomorrow · 9am–10:30am',
+    'Picnic Wed, Jun 17 · 12pm–1:30pm',
   ])
   await expect(card).toContainText('Sign in to keep them')
 })

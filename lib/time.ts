@@ -150,3 +150,13 @@ function offsetMs(epochMs: number, timeZone: string): number {
 export function msUntilNextMinute(epochMs: number = Date.now()): number {
   return 60_000 - (((epochMs % 60_000) + 60_000) % 60_000)
 }
+
+/**
+ * A range of two formatted times or dates, punctuated one way everywhere (REVIEW9 QA L4):
+ * an en dash, closed up between single words ("9am–10:30am", as the briefing and the
+ * hero write them) and spaced when either side has a space ("Sat 9pm – Sun 1am",
+ * "Jun 28 – Jul 4"). After "from", write "from 9am to 11am" instead.
+ */
+export function timeRange(from: string, to: string): string {
+  return /\s/.test(from) || /\s/.test(to) ? `${from} – ${to}` : `${from}–${to}`
+}

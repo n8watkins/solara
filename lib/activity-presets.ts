@@ -1,3 +1,4 @@
+import { formatDuration } from '@solara/core/duration'
 import type { Activity } from './types'
 import { ACTIVITY_CATEGORIES, type PresetCategory } from '@solara/core/tiers'
 
@@ -7,9 +8,9 @@ export type Preset = PresetCategory['activities'][number]
 /** The shortest duration an activity can have, in minutes. */
 export const MIN_DURATION_MINS = 5
 
-/** A compact duration label: "45m" under an hour, "1.5h" from an hour up. */
+/** An activity's duration: "45 min", "1 h 30 min" (formatDuration, REVIEW9 QA L3). */
 export function formatActivityDuration(mins: number): string {
-  return mins < 60 ? `${mins}m` : `${mins / 60}h`
+  return formatDuration(mins)
 }
 
 /** A duration in whole minutes, never below MIN_DURATION_MINS. */

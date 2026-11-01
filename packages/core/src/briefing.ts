@@ -16,6 +16,13 @@ import {
 import type { ExposureSetting } from './exposure'
 import { cloudEffect, planningHours, type CloudEffect } from './forecast-quality'
 import { formatUV, uvLabel } from './uv-scale'
+import {
+  PROTECT_FROM_UV,
+  SHADE_FROM_UV,
+  protectionWindow,
+  shadeWindow,
+  type ProtectionWindow,
+} from './protection'
 import type { Daylight } from './sun-times'
 import {
   formatTemperature,
@@ -54,11 +61,6 @@ export interface BriefingActivity extends WeatherSetting {
   shade?: ExposureSetting['shade']
   surface?: ExposureSetting['surface']
 }
-
-/** UV at which public-health guidance recommends sun protection (WHO). */
-export const PROTECT_FROM_UV = 3
-/** UV at which the WHO advises seeking shade at midday ("Very high"). */
-export const SHADE_FROM_UV = 8
 
 // The thresholds in words (REVIEW5 L5): the bands read the whole-number index (WHO), so
 // a forecast of 2.8 shows in a Moderate chip; copy that said "when UV is 3 or more"
@@ -221,37 +223,22 @@ function weatherChange(
 }
 
 /**
- * The UV index as the scale reads it: whole numbers, so 2.6 already counts as 3
- * (Moderate), matching the band names (uv-scale.ts).
- */
-const index = (uv: number) => Math.round(uv)
-
-/**
- * Spans of at least an hour whose UV index stays below PROTECT_FROM_UV, from `from` on,
- * in daylight.
+ * The low-UV spans around the day's protection window (protection.ts) of at least an
+ * hour, from `from` on, in daylight (or the forecast's hours): before it and after it.
  */
 function lowSpans(
   hourly: readonly BriefingHour[],
+  protect: ProtectionWindow,
   from: number,
   daylight: Daylight | null,
 ): { from: number; to: number }[] {
-  const indexed = hourly.map(h => ({ ...h, planningUV: index(h.uv) }))
-  return findWindows(indexed, PROTECT_FROM_UV - 1, 60, null, daylight)
-    .map(w => ({ from: Math.max(w.from, from), to: w.to }))
-    .filter(w => w.to - w.from >= 1)
-    .slice(0, 2)
-}
-
-/** The first and last hour (exclusive end) at or above a UV index, from `from` on; null when none. */
-function spanAtOrAbove(
-  hourly: readonly BriefingHour[],
-  uv: number,
-  from: number,
-): { from: number; to: number } | null {
-  const hours = hourly.filter(h => index(h.uv) >= uv && h.hour + 1 > from)
-  const first = hours[0]
-  const last = hours.at(-1)
-  return first && last ? { from: Math.max(first.hour, from), to: last.hour + 1 } : null
+  // Without the daylight, the forecast's hours bound the day, as for activity windows.
+  const dayFrom = daylight?.from ?? Math.min(...hourly.map(h => h.hour))
+  const dayTo = daylight?.to ?? Math.max(...hourly.map(h => h.hour))
+  return [
+    { from: Math.max(dayFrom, from), to: protect.from },
+    { from: Math.max(protect.to, from), to: dayTo },
+  ].filter(w => w.to - w.from >= 1)
 }
 
 function sentence(text: string): string {
@@ -295,6 +282,12 @@ export function dailyBriefing({
     ? `${peak.passed ? 'UV peaked' : 'UV peaks'} at ${formatUV(peak.uv)} (${uvLabel(peak.uv)}) around ${formatTime(peak.hour)}${cloud ? `, or ${formatUV(cloud.clearSky)} if the sky clears` : ''}`
     : 'UV stays near zero'
 
+  // When protection is needed, shared with the pushes and alerts (protection.ts): judged
+  // under a clear sky, so clouds that may break never relax the advice (REVIEW9 QA M2).
+  const protect = protectionWindow(hourly, daylight)
+  const ahead = <S extends { to: number }>(span: S | null) => (span && span.to > from ? span : null)
+  const shade = ahead(shadeWindow(hourly, daylight))
+  const protectAhead = ahead(protect)
   const running = activities.filter(a => runsOn(a, day.date))
   let window: BriefingWindow | null = null
   let windowLine: string
@@ -316,12 +309,13 @@ export function dailyBriefing({
         ? `no lower-UV window ${left}for ${who} without ${weather.kind === 'rain' ? 'rain' : 'the heat'}`
         : `no lower-UV window ${left}for ${who}`
   } else {
-    const spans = lowSpans(hourly, from, daylight)
+    const spans = protectAhead ? lowSpans(hourly, protectAhead, from, daylight) : []
     window = spans.length ? { activity: null, spans } : null
     const rest = from >= 0 ? 'the rest of the day' : 'all day'
-    windowLine =
-      !peak || index(peak.uv) < PROTECT_FROM_UV
-        ? `UV stays ${BELOW_PROTECT} ${rest}`
+    windowLine = !protectAhead
+      ? `UV stays ${BELOW_PROTECT} ${rest}`
+      : !protectAhead.forecastReaches
+        ? `UV stays ${BELOW_PROTECT} ${rest} unless the sky clears`
         : spans.length
           ? `UV is ${BELOW_PROTECT} ${spans.map((span, i) => (i ? `${formatTime(span.from)}${NBSP}to${NBSP}${formatTime(span.to)}` : fromTo(span))).join(' and ')}`
           : `UV stays ${PROTECT_TEXT} ${rest}`
@@ -335,15 +329,18 @@ export function dailyBriefing({
   // From "now" on when today is under way: "until 5pm" once the span has begun.
   const during = (span: { from: number; to: number }) =>
     span.from <= from ? `until${NBSP}${formatTime(span.to)}` : fromTo(span)
-  const shade = spanAtOrAbove(hourly, SHADE_FROM_UV, from)
-  const protect = spanAtOrAbove(hourly, PROTECT_FROM_UV, from)
   // The band first, then the hours: "seek shade from 11am to 5pm, when UV is very high"
-  // read as if 5pm itself were very high (REVIEW8 QA L4).
+  // read as if 5pm itself were very high (REVIEW8 QA L4). When only a clear sky would
+  // reach the band, the advice still stands and says why.
   const tip = shade
-    ? `seek shade while UV is ${SHADE_TEXT}, ${during(shade)}`
-    : protect
-      ? `use sun protection while UV is ${PROTECT_TEXT}, ${during(protect)}`
-      : peak && index(peak.uv) >= PROTECT_FROM_UV
+    ? shade.forecastReaches
+      ? `seek shade while UV is ${SHADE_TEXT}, ${during(shade)}`
+      : `seek shade ${during(shade)}, as UV can be ${SHADE_TEXT} if the sky clears`
+    : protectAhead
+      ? protectAhead.forecastReaches
+        ? `use sun protection while UV is ${PROTECT_TEXT}, ${during(protectAhead)}`
+        : `use sun protection ${during(protectAhead)}, as UV can be ${PROTECT_TEXT} if the sky clears`
+      : protect
         ? 'UV stays low for the rest of the day'
         : 'most people need little sun protection today'
 

@@ -1,4 +1,5 @@
 // Setup flow data and the live UV preview (components/Onboarding.tsx).
+import { formatDuration } from '@solara/core/duration'
 import {
   FITZPATRICK_TYPES,
   type ForecastProvider,
@@ -87,7 +88,7 @@ export const SKIN_OPTIONS: readonly SkinOption[] = SKIN_TYPES.map(value => ({
   label: SKIN_TYPE_LABELS[value],
   desc: SKIN_DESCRIPTIONS[value],
   fitzpatrick: `Type ${FITZPATRICK_TYPES[value]}`,
-  burnTime: `~${SKIN_BURN_BASE[value]}m`,
+  burnTime: `~${formatDuration(SKIN_BURN_BASE[value])}`,
 }))
 
 /** The UV setup's burn times use when the live reading is too low to say much (Very high). */

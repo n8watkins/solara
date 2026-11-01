@@ -72,11 +72,11 @@ describe('fetchCurrentUV', () => {
 describe('setup data', () => {
   it('offers every skin type, lightest first, with the engine burn times', () => {
     expect(SKIN_OPTIONS.map(o => [o.label, o.burnTime])).toEqual([
-      ['Very fair', '~10m'],
-      ['Fair', '~15m'],
-      ['Medium', '~25m'],
-      ['Olive', '~35m'],
-      ['Dark', '~50m'],
+      ['Very fair', '~10 min'],
+      ['Fair', '~15 min'],
+      ['Medium', '~25 min'],
+      ['Olive', '~35 min'],
+      ['Dark', '~50 min'],
     ])
   })
 

@@ -21,7 +21,7 @@ interface Props {
   onUpgrade?: () => void
   /** When provided (calendar connected), books the slot on its specific day. */
   onBook?: (activity: Activity, rec: SlotRecommendation, dateStr: string) => void
-  /** Offers the .ics download (calendar export is part of Pro). */
+  /** Offers the .ics download (calendar export, on Free and Pro). */
   canExport?: boolean
 }
 

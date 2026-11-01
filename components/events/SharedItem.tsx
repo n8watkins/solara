@@ -297,8 +297,8 @@ export default function SharedItem({ id, uid, prefs, pro, onUpgrade, onLink, onC
       return (
         <>
           <Text>
-            That is a link to a web page ({host}), not a calendar. On the event’s page, use “Add to
-            calendar” or “Export” to download an .ics file, then share the file to Solara.
+            That is a link to a web page ({host}), not a calendar. On the event&apos;s page, use
+            “Add to calendar” or “Export” to download an .ics file, then share the file to Solara.
           </Text>
           <Actions>{notNow('Close')}</Actions>
         </>
@@ -344,8 +344,8 @@ export default function SharedItem({ id, uid, prefs, pro, onUpgrade, onLink, onC
       return (
         <>
           <Text>
-            A calendar link from {host}. Linked calendars keep a calendar’s events current and are
-            part of Pro, so sign in first. The link waits here for 30 minutes.
+            A calendar link from {host}. Linked calendars keep a calendar&apos;s events current and
+            are part of Pro, so sign in first. The link waits here for 30 minutes.
           </Text>
           <Actions>
             <GoogleSignInButton label="Sign in with Google" />
@@ -357,8 +357,8 @@ export default function SharedItem({ id, uid, prefs, pro, onUpgrade, onLink, onC
     return (
       <>
         <Text>
-          A calendar link from {host}. Linked calendars, which keep a calendar’s events current, are
-          part of Pro.
+          A calendar link from {host}. Linked calendars, which keep a calendar&apos;s events
+          current, are part of Pro.
         </Text>
         <Actions>
           {onUpgrade && (

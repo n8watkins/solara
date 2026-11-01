@@ -26,7 +26,8 @@ const STEPS: { Icon: LucideIcon; title: string; body: string }[] = [
   {
     Icon: Clock,
     title: 'Go at the lower-UV time',
-    body: "Solara reads the hourly forecast and shows each activity's lower-UV window, with the best day of the week on Pro.",
+    // Free already picks the best of its two days (REVIEW9 QA L7); Pro looks 10 days out.
+    body: "Solara reads the hourly forecast and shows each activity's lower-UV window and the best day ahead, 10 days out on Pro.",
   },
 ]
 

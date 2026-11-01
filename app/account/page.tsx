@@ -221,7 +221,7 @@ export default function AccountPage() {
       if (stage === 'blocked') setCanDelete(false)
       setMessage(
         stage === 'blocked'
-          ? 'Nothing was deleted: part of this account can only be removed by Solara’s servers.'
+          ? "Nothing was deleted: part of this account can only be removed by Solara's servers."
           : stage === 'sign-in'
             ? `Your data was deleted, but your sign-in could not be removed. Try again. ${EMAIL_FALLBACK}`
             : `Not all of your data could be deleted, so your account is still here. Check your connection and try again; deletion picks up where it stopped. ${EMAIL_FALLBACK}`,

@@ -159,7 +159,7 @@ test('a connected account: refresh, then disconnect', async ({ page }, testInfo)
   await expect(section.getByRole('button', { name: 'Remove imported events' })).toHaveCount(0)
 
   await google.getByRole('button', { name: 'Disconnect' }).click()
-  await expect(google.getByText('Remove its events and Solara’s access?')).toBeVisible()
+  await expect(google.getByText("Remove its events and Solara's access?")).toBeVisible()
   await expect(google.getByText(/Scheduled activities will ask to connect again/)).toBeVisible()
   await google.scrollIntoViewIfNeeded()
   await captureScreen(page, testInfo, capture, {

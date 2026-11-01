@@ -79,7 +79,7 @@ async function accountWithData(page: Page, emulators: Emulators): Promise<Accoun
   // A scheduled activity, added to (the fake) Google Calendar.
   await page.getByRole('button', { name: 'Calendar', exact: true }).click()
   const main = page.getByRole('main')
-  await main.getByRole('button', { name: 'Running, Today, 6pm – 8pm, peak UV 3.1' }).click()
+  await main.getByRole('button', { name: 'Running, Today, 6pm–8pm, peak UV 3.1' }).click()
   await page
     .getByRole('dialog', { name: 'Running' })
     .getByRole('button', { name: /Add to Google Calendar/ })
@@ -197,7 +197,7 @@ test('an account with billing is sent to email, and can still download', async (
 
   const section = page.getByRole('region', { name: 'Delete account' })
   await expect(section).toContainText(
-    'Part of this account can only be removed by Solara’s servers, which are not running yet. To delete it, email contact@n8builds.dev and we will delete your account and all its data within 30 days.',
+    "Part of this account can only be removed by Solara's servers, which are not running yet. To delete it, email contact@n8builds.dev and we will delete your account and all its data within 30 days.",
   )
   await expect(section.getByRole('button', { name: 'Delete permanently' })).toHaveCount(0)
 
