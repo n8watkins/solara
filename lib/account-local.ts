@@ -17,10 +17,10 @@ export const DELIVERY_CACHE = 'solara-notification-deliveries-v1'
  * so nothing of the account is left. That is the account data clearAccountData removes
  * (preferences, the forecast cache with its places, the account marker), any guest plan,
  * this device's notification registration and the record of the notifications it showed,
- * and every other `solara_` entry (upsell dismissals, the reapply timer). Only the device
- * settings in DEVICE_STORAGE_KEYS stay. Firestore keeps no copy on disk (memory cache) and
- * the app-shell service worker stores nothing account-specific; Auth clears its own
- * session when the user is deleted or signed out.
+ * and every other `solara_` entry (upsell dismissals, the reapply timer, the vitamin D
+ * log). Only the device settings in DEVICE_STORAGE_KEYS stay. Firestore keeps no copy on
+ * disk (memory cache) and the app-shell service worker stores nothing account-specific;
+ * Auth clears its own session when the user is deleted or signed out.
  *
  * Never throws: the account is already gone, so a failure here must not hide that.
  */

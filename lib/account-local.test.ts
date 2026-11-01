@@ -48,6 +48,8 @@ describe('clearDeletedAccount', () => {
       'solara_guest_replaced',
       'solara_upsells_dismissed',
       'solara_reapply',
+      // The vitamin D log (ROADMAP item 48) goes with the account too.
+      'solara_vitamin_d_log',
       'solara_notification_device_u1',
       'solara_fcm_token',
       'solara_theme',
