@@ -33,7 +33,7 @@ test.beforeEach(async ({ page }) => {
   }, JSON.stringify(GUEST_PLAN))
 })
 
-const forecast = (page: Page) => page.getByRole('group', { name: 'UV forecast by hour' })
+const forecast = (page: Page) => page.getByRole('toolbar', { name: 'UV forecast by hour' })
 const offlineNotice = (page: Page) => page.getByRole('status').filter({ hasText: "You're offline" })
 
 /** Loads the app online and waits until the shell worker controls it (precache done). */

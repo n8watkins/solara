@@ -52,7 +52,7 @@ test('the days after a daylight saving change show their hours on the new clock'
   )
   await page.goto('/harness/?screen=dashboard&data=live&tier=paid')
   await expect(page.getByTestId(HARNESS_MARKER)).toBeVisible()
-  const strip = page.getByRole('group', { name: 'UV forecast by hour' })
+  const strip = page.getByRole('toolbar', { name: 'UV forecast by hour' })
 
   // Friday, before the change: the peak is at noon.
   await expect(strip.getByRole('button', { name: 'UV 6.0, High, at 12pm' })).toBeVisible()

@@ -63,7 +63,7 @@ test.describe('phone strip', () => {
   // only appears on a side with more hours to scroll to.
   test('the hour strip fades only the side that has more hours', async ({ page }) => {
     await openDashboard(page, { at: NIGHT_MS, edit: atNight })
-    const strip = page.getByRole('group', { name: 'UV forecast by hour' })
+    const strip = page.getByRole('toolbar', { name: 'UV forecast by hour' })
     // Where the strip's mask turns fully opaque at each end, and the first and last
     // bars' edges, all in px from the strip's visible left edge.
     const edges = () =>

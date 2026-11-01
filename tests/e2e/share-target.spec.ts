@@ -39,7 +39,7 @@ test.beforeEach(async ({ page }) => {
 /** Opens the app and waits until the shell worker controls it, as in an installed app. */
 async function openInstalledApp(page: Page) {
   await page.goto('/app/')
-  await expect(page.getByRole('group', { name: 'UV forecast by hour' })).toBeVisible()
+  await expect(page.getByRole('toolbar', { name: 'UV forecast by hour' })).toBeVisible()
   await page.waitForFunction(() => navigator.serviceWorker.controller !== null)
 }
 
@@ -125,7 +125,7 @@ test('sharing works offline: the worker keeps the file, and the app shows it onc
   await share(page, { file: { name: 'invite.ics', type: 'text/calendar', text: INVITE } })
   await page.waitForURL(/\?shared=/)
   // The cached app opens; the card's code was never fetched, so it waits for the network.
-  await expect(page.getByRole('group', { name: 'UV forecast by hour' })).toBeVisible()
+  await expect(page.getByRole('toolbar', { name: 'UV forecast by hour' })).toBeVisible()
   await context.setOffline(false)
   await expect(sharedCard(page)).toContainText('invite.ics has 2 upcoming events')
 })
@@ -165,7 +165,7 @@ test('a share posted from another website keeps nothing and just opens the app',
   await openInstalledApp(page)
   await postFromOtherSite(page, baseURL!, '')
   await page.waitForURL(/\/app\/$/)
-  await expect(page.getByRole('group', { name: 'UV forecast by hour' })).toBeVisible()
+  await expect(page.getByRole('toolbar', { name: 'UV forecast by hour' })).toBeVisible()
   await expect(sharedCard(page)).toHaveCount(0)
   expect(await page.evaluate(() => caches.has('solara-share-v1'))).toBe(false)
 })
@@ -190,11 +190,11 @@ test.describe('before the worker runs', () => {
 
   test('Hosting answers the share with a page asking to share again', async ({ page }) => {
     await page.goto('/app/')
-    await expect(page.getByRole('group', { name: 'UV forecast by hour' })).toBeVisible()
+    await expect(page.getByRole('toolbar', { name: 'UV forecast by hour' })).toBeVisible()
     await share(page, { file: { name: 'invite.ics', type: 'text/calendar', text: INVITE } })
     await page.waitForURL(/\/app\/share-target\/$/)
     await expect(page.getByRole('heading', { name: 'Share it again' })).toBeVisible()
     await page.getByRole('link', { name: 'Open Solara' }).click()
-    await expect(page.getByRole('group', { name: 'UV forecast by hour' })).toBeVisible()
+    await expect(page.getByRole('toolbar', { name: 'UV forecast by hour' })).toBeVisible()
   })
 })

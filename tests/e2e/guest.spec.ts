@@ -36,7 +36,7 @@ async function startAsGuest(page: Page) {
   await page.getByRole('button', { name: /Continue/ }).click()
   await page.getByRole('button', { name: /Continue/ }).click()
   await page.getByRole('button', { name: /See today's plan/ }).click()
-  await expect(page.getByRole('group', { name: 'UV forecast by hour' })).toBeVisible()
+  await expect(page.getByRole('toolbar', { name: 'UV forecast by hour' })).toBeVisible()
 }
 
 test('a guest plans today with one activity, kept on this device', async ({ page }) => {
@@ -91,6 +91,53 @@ test('the locked tab and the morning alert open the Pro plans', async ({ page })
   await add.getByRole('button', { name: 'Done' }).click()
   await page.getByRole('button', { name: /Get this as a morning alert/ }).click()
   await expect(page.getByRole('dialog', { name: 'Solara Pro' })).toBeVisible()
+})
+
+test('the hourly strip is one Tab stop, with the arrow keys between hours', async ({ page }) => {
+  // REVIEW10 VERIFY10 N6: the strip was 15 Tab stops; it is a toolbar with a roving
+  // tabindex. The frozen clock is 10:30, so the strip's stop is the current hour's bar,
+  // which reads the live UV as "Now".
+  await startAsGuest(page)
+  const strip = page.getByRole('toolbar', { name: 'UV forecast by hour' })
+  const stops = strip.locator('button:not([tabindex="-1"])')
+  await expect(stops).toHaveCount(1)
+  const now = strip.getByRole('button', { name: /, Now$/ })
+  await expect(now).toHaveAttribute('tabindex', '0')
+
+  // Tab from the control before the strip lands on its one stop, and the next Tab
+  // leaves the strip.
+  await now.focus()
+  await page.keyboard.press('Shift+Tab')
+  await expect(strip.locator(':focus')).toHaveCount(0)
+  await page.keyboard.press('Tab')
+  await expect(now).toBeFocused()
+  await page.keyboard.press('Tab')
+  await expect(strip.locator(':focus')).toHaveCount(0)
+  await page.keyboard.press('Shift+Tab')
+  await expect(now).toBeFocused()
+
+  // The arrows, Home and End move the focus and select the hour they land on.
+  await page.keyboard.press('ArrowRight')
+  const eleven = strip.getByRole('button', { name: /at 11am$/ })
+  await expect(eleven).toBeFocused()
+  await expect(eleven).toHaveAttribute('aria-pressed', 'true')
+  await expect(eleven).toHaveAttribute('tabindex', '0')
+  await expect(stops).toHaveCount(1)
+  await page.keyboard.press('ArrowLeft')
+  await page.keyboard.press('ArrowLeft')
+  await expect(strip.getByRole('button', { name: /at 9am$/ })).toBeFocused()
+  await page.keyboard.press('End')
+  await expect(strip.getByRole('button', { name: /at 8pm$/ })).toBeFocused()
+  await page.keyboard.press('ArrowRight')
+  await expect(strip.getByRole('button', { name: /at 8pm$/ })).toBeFocused()
+  await page.keyboard.press('Home')
+  const first = strip.getByRole('button', { name: /at 6am$/ })
+  await expect(first).toBeFocused()
+  await expect(first).toHaveAttribute('aria-pressed', 'true')
+  // Leaving and coming back returns to the hour last chosen.
+  await page.keyboard.press('Tab')
+  await page.keyboard.press('Shift+Tab')
+  await expect(first).toBeFocused()
 })
 
 test('a guest who comes back on a later day is offered to save the plan', async ({ page }) => {
@@ -228,7 +275,7 @@ test("a guest's dashboard opens without layout shifts, at every width", async ({
   for (const width of [320, 390, 1280]) {
     await page.setViewportSize({ width, height: 900 })
     await page.goto('/app/')
-    await expect(page.getByRole('group', { name: 'UV forecast by hour' })).toBeVisible()
+    await expect(page.getByRole('toolbar', { name: 'UV forecast by hour' })).toBeVisible()
     await page.waitForTimeout(500)
     const shifts = await page.evaluate(
       () => (window as unknown as { layoutShifts: string[] }).layoutShifts,

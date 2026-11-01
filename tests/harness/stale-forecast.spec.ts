@@ -61,6 +61,6 @@ test("reopened offline, the browser's copy keeps the earlier forecast's time", a
   // Offline from the first script on: the forecast comes only from lib/cache.ts.
   await page.addInitScript(OFFLINE)
   await page.reload()
-  await expect(page.getByRole('group', { name: 'UV forecast by hour' })).toBeVisible()
+  await expect(page.getByRole('toolbar', { name: 'UV forecast by hour' })).toBeVisible()
   await expect(notices(page)).toHaveText("You're offline. Showing the forecast updated at 9:40am.")
 })

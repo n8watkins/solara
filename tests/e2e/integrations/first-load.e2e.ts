@@ -73,7 +73,7 @@ test('a guest never downloads Firebase, on setup or on the dashboard', async ({
     GUEST_PLAN,
   )
   await page.reload()
-  await expect(page.getByRole('group', { name: 'UV forecast by hour' })).toBeVisible()
+  await expect(page.getByRole('toolbar', { name: 'UV forecast by hour' })).toBeVisible()
   await page.waitForLoadState('networkidle')
 
   expect(await scripts.includes(FIREBASE_AUTH_MARKER)).toBe(false)
@@ -93,7 +93,7 @@ test('reaching for "Sign in" loads Firebase, still without App Check', async ({
   )
   const scripts = trackScripts(page, baseURL!)
   await page.goto('/app/')
-  await expect(page.getByRole('group', { name: 'UV forecast by hour' })).toBeVisible()
+  await expect(page.getByRole('toolbar', { name: 'UV forecast by hour' })).toBeVisible()
   expect(await scripts.includes(FIREBASE_AUTH_MARKER)).toBe(false)
 
   await page.getByRole('button', { name: 'Sign in' }).hover()

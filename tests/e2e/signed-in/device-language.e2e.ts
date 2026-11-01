@@ -103,7 +103,7 @@ test('an Automatic account on a Spanish device stores Spanish and gets its push 
   })
   await page.reload()
   await expect(page.locator('html')).toHaveAttribute('lang', 'es')
-  await expect(page.getByRole('group', { name: 'Pronóstico UV por hora' })).toBeVisible()
+  await expect(page.getByRole('toolbar', { name: 'Pronóstico UV por hora' })).toBeVisible()
   await expect.poll(async () => (await emulators.readPrefs(account))?.deviceLanguage).toBe('es')
   const stored = await emulators.readPrefs(account)
   // The choice in Settings still means Automatic, and only the resolved language is kept.
@@ -120,7 +120,7 @@ test('an Automatic account on a Spanish device stores Spanish and gets its push 
   const accountDoc = db.collection('users').doc(account.uid)
   const before = (await accountDoc.get()).updateTime.toMillis()
   await page.reload()
-  await expect(page.getByRole('group', { name: 'Pronóstico UV por hora' })).toBeVisible()
+  await expect(page.getByRole('toolbar', { name: 'Pronóstico UV por hora' })).toBeVisible()
   // Long enough for the write the app would have made after loading the account.
   await page.waitForTimeout(1_500)
   expect((await accountDoc.get()).updateTime.toMillis()).toBe(before)

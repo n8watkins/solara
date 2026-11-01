@@ -37,7 +37,7 @@ async function labelProblems(page: Page): Promise<string[]> {
       a.left >= b.left && a.right <= b.right && a.top >= b.top && a.bottom <= b.bottom
     const fmt = (b: Box) => `[${b.left.toFixed(1)}, ${b.right.toFixed(1)}]`
 
-    const strip = document.querySelector('[role="group"][aria-label="UV forecast by hour"]')
+    const strip = document.querySelector('[role="toolbar"][aria-label="UV forecast by hour"]')
     const svg = document.querySelector('[data-testid="sun-arc-peak"]')?.closest('svg')
     const peak = box(document.querySelector('[data-testid="sun-arc-peak"]'))
     if (!strip || !svg || !peak) return ['the sun path or its peak marker is missing']
@@ -99,7 +99,7 @@ async function scrollStrip(page: Page, to: (typeof SCROLLS)[number]) {
   if (to === 'initial') return
   await page.evaluate(to => {
     const strip = document.querySelector<HTMLElement>(
-      '[role="group"][aria-label="UV forecast by hour"]',
+      '[role="toolbar"][aria-label="UV forecast by hour"]',
     )!
     const peak = document.querySelector('[data-testid="sun-arc-peak"]')!.getBoundingClientRect()
     const s = strip.getBoundingClientRect()
