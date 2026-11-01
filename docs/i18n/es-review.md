@@ -239,3 +239,11 @@ These are reviewed whole against the English, by a native speaker and by counsel
 | --- | --- | --- | --- |
 | `/es/privacy/` | `app/es/privacy/page.tsx` | `/privacy/` | The privacy policy, in full. It states that the English version prevails. |
 | `/es/terms/` | `app/es/terms/page.tsx` | `/terms/` | The terms of use, in full, including the health and forecast disclaimer. It states that the English version prevails. |
+
+### Lines added since the first translation
+
+A reviewer who has read a page already checks just these.
+
+| Page | English version | Section | English | Spanish | Notes |
+| --- | --- | --- | --- | --- | --- |
+| `/es/privacy/` | November 1, 2026 | Qué recopila Solara | Language. The language you choose in Settings or, with Automatic, the one Solara works out from your device (English or Spanish, never your device's full list of languages), kept with your account so notifications, reminders and the calendar feed are written in it. With Automatic, the last device you open Solara on sets it. | Idioma. El idioma que eliges en Configuración o, con Automático, el que Solara deduce de tu dispositivo (inglés o español, nunca la lista completa de idiomas de tu dispositivo), guardado con tu cuenta para escribir en él las notificaciones, los recordatorios y el calendario suscrito. Con Automático, lo fija el último dispositivo en que abres Solara. |  |

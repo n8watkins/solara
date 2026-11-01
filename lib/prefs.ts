@@ -5,6 +5,7 @@ import {
   parsePreferences,
   PREFS_SCHEMA_VERSION,
 } from '@solara/core'
+import type { Locale } from '@solara/core/i18n'
 import { loadFirebase } from './firebase'
 import type { UserPreferences, Location } from './types'
 import { PRESET_ACTIVITIES, ACTIVITY_CATEGORIES, TIER_LIMITS } from '@solara/core/tiers'
@@ -230,6 +231,18 @@ export async function saveFirestorePrefs(uid: string, prefs: UserPreferences): P
     if ((await getDoc(ref)).exists()) throw error
     await createAccountPrefs(uid, prefs)
   }
+}
+
+/**
+ * Saves the language the app resolved from this device to the account (`deviceLanguage`,
+ * lib/i18n.ts deviceLanguageToSave), the one field alone, so nothing else on the account
+ * is written over.
+ */
+export async function saveDeviceLanguage(uid: string, deviceLanguage: Locale): Promise<void> {
+  const db = (await loadFirebase())?.db
+  if (!db) return
+  const { doc, updateDoc } = await import('firebase/firestore')
+  await updateDoc(doc(db, 'users', uid), { deviceLanguage })
 }
 
 export function defaultPrefs(location: Location): UserPreferences {

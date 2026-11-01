@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useEffectEvent, useState, type ReactNode } from 'react'
-import { saveLocalPrefs, saveFirestorePrefs } from '@/lib/prefs'
+import { saveDeviceLanguage, saveLocalPrefs, saveFirestorePrefs } from '@/lib/prefs'
 import { syncErrorFor, type SyncError } from '@/lib/sync-error'
 import { SIGN_IN_PARAM } from '@/lib/app-routes'
 import { loadGuestPrefs, saveGuestPrefs } from '@/lib/guest'
@@ -37,7 +37,7 @@ import ForecastNotice from './ForecastNotice'
 import { AccountLoadError, AccountLoading } from './AccountStatus'
 import ScheduledProvider from './ScheduledProvider'
 import SettingsHost from './SettingsHost'
-import { followLanguagePreference } from '@/lib/i18n'
+import { deviceLanguages, deviceLanguageToSave, followLanguagePreference } from '@/lib/i18n'
 import t from '@/messages/app'
 
 // A browser holding a session opens on the signed-in screen, which waits for these
@@ -145,6 +145,27 @@ function SignedInApp() {
   useEffect(() => {
     if (planReady) followLanguage()
   }, [planReady, signedInUid])
+
+  // A signed-in account on Automatic keeps the language this device resolves, so its
+  // pushes, alerts and calendar feed are written in it (lib/i18n.ts deviceLanguageToSave).
+  // Only once the account's own plan has loaded (not this browser's copy of it), and only
+  // when it changes: the last device to open the app wins. A failed write is tried again
+  // on the next start, not in a loop.
+  const accountLoaded = !!user && !pending && prefs?.uid === user.uid
+  const deviceLanguage = accountLoaded ? deviceLanguageToSave(prefs, deviceLanguages()) : null
+  useEffect(() => {
+    if (!signedInUid || !deviceLanguage) return
+    const uid = signedInUid
+    let current = true
+    saveDeviceLanguage(uid, deviceLanguage)
+      .then(() => {
+        if (current) setPrefs(p => (p?.uid === uid ? { ...p, deviceLanguage } : p))
+      })
+      .catch(error => console.error('Saving the device language failed:', error))
+    return () => {
+      current = false
+    }
+  }, [signedInUid, deviceLanguage, setPrefs])
 
   // Once the first screen shows, fetch the dialogs and views it can open (deferred.tsx).
   const shown = screen !== 'loading'

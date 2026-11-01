@@ -104,7 +104,7 @@ export default {
   clock24: example => `24 horas (${example})`,
   language: 'Idioma',
   languageHint:
-    'Automático sigue a este dispositivo. Las alertas, los recordatorios y el calendario suscrito usan el idioma que elijas aquí, o el inglés con Automático.',
+    'Automático sigue a este dispositivo. Las alertas, los recordatorios y el calendario suscrito también usan este idioma; con Automático, el del último dispositivo en que abriste Solara.',
   onChecked: '✓ Activada',
   on: 'Activado',
   off: 'Desactivado',

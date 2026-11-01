@@ -51,6 +51,12 @@ export default function PrivacyPage() {
             hours, appearance, notification time and other settings.
           </li>
           <li>
+            <strong>Language.</strong> The language you choose in Settings or, with Automatic, the
+            one Solara works out from your device (English or Spanish, never your device&apos;s full
+            list of languages), kept with your account so notifications, reminders and the calendar
+            feed are written in it. With Automatic, the last device you open Solara on sets it.
+          </li>
+          <li>
             <strong>The Pro waitlist</strong>, only if you join it: the email address you give and
             when you joined, kept with your account so Solara can tell you when Pro opens. To be
             taken off the waitlist, email <LegalDetail name="contactEmail" />.

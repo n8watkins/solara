@@ -220,6 +220,24 @@ export function subscribeMessages(listener: () => void): () => void {
 }
 
 /**
+ * The device's language to save to a signed-in account, or null when there is nothing to
+ * write (ROADMAP item 46). While the account's choice is Automatic, the server writes its
+ * pushes, alerts and calendar feed in `deviceLanguage` (packages/core/src/server-language.ts),
+ * so the app keeps it to the language it resolves from this device: a language Solara
+ * speaks, never the device's own list. It is written only when it changes, so with
+ * devices in two languages the last one to open the app wins. A language chosen in
+ * Settings leaves it alone, since the server then writes in that one.
+ */
+export function deviceLanguageToSave(
+  prefs: { language?: LanguagePreference; deviceLanguage?: Locale },
+  languages: readonly string[] | null | undefined,
+): Locale | null {
+  if (prefs.language && prefs.language !== 'auto') return null
+  const device = localeFromLanguages(languages)
+  return prefs.deviceLanguage === device ? null : device
+}
+
+/**
  * Follows the language preference of the plan on screen (Settings, synced with a
  * signed-in account; 'auto' or unset follows the device): keeps it in this browser for
  * the next page load and, when it changes this page's language, reloads the page in it.

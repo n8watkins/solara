@@ -39,6 +39,22 @@ const DOCUMENTS = [
   },
 ]
 
+/**
+ * Lines a legal page gained after its first whole translation, so a reviewer who has
+ * already read the page checks just these. Each is the line as both pages write it.
+ */
+export const DOCUMENT_CHANGES = [
+  {
+    page: '/es/privacy/',
+    version: 'November 1, 2026',
+    section: 'Qué recopila Solara',
+    english:
+      "Language. The language you choose in Settings or, with Automatic, the one Solara works out from your device (English or Spanish, never your device's full list of languages), kept with your account so notifications, reminders and the calendar feed are written in it. With Automatic, the last device you open Solara on sets it.",
+    spanish:
+      'Idioma. El idioma que eliges en Configuración o, con Automático, el que Solara deduce de tu dispositivo (inglés o español, nunca la lista completa de idiomas de tu dispositivo), guardado con tu cuenta para escribir en él las notificaciones, los recordatorios y el calendario suscrito. Con Automático, lo fija el último dispositivo en que abres Solara.',
+  },
+]
+
 /** A message with its parameters shown as {1}, {2}, ... (a list as one value). */
 function show(message: Messages[string]): string {
   if (typeof message === 'string') return message
@@ -102,6 +118,20 @@ export function reviewSheet(
   )
   for (const doc of DOCUMENTS) {
     lines.push(`| \`${doc.page}\` | \`${doc.source}\` | \`${doc.english}\` | ${doc.note} |`)
+  }
+  lines.push(
+    '',
+    '### Lines added since the first translation',
+    '',
+    'A reviewer who has read a page already checks just these.',
+    '',
+    '| Page | English version | Section | English | Spanish | Notes |',
+    '| --- | --- | --- | --- | --- | --- |',
+  )
+  for (const change of DOCUMENT_CHANGES) {
+    lines.push(
+      `| \`${change.page}\` | ${change.version} | ${change.section} | ${change.english} | ${change.spanish} |  |`,
+    )
   }
   lines.push('')
   return lines.join('\n')

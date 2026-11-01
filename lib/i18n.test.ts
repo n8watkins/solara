@@ -175,3 +175,28 @@ describe('followLanguagePreference', () => {
     expect(page.reload).not.toHaveBeenCalled()
   })
 })
+
+describe('deviceLanguageToSave', () => {
+  it("keeps an Automatic account's device language to the one this device resolves", async () => {
+    fakePage()
+    const { deviceLanguageToSave } = await freshModule()
+    // A Spanish device on an account that has none yet, or another device's English.
+    expect(deviceLanguageToSave({ language: 'auto' }, ['es-MX', 'en'])).toBe('es')
+    expect(deviceLanguageToSave({}, ['es-MX'])).toBe('es')
+    expect(deviceLanguageToSave({ language: 'auto', deviceLanguage: 'en' }, ['es-AR'])).toBe('es')
+    // A supported language only, never the device's list: French and German read as English.
+    expect(deviceLanguageToSave({ language: 'auto', deviceLanguage: 'es' }, ['fr-FR', 'de'])).toBe(
+      'en',
+    )
+    expect(deviceLanguageToSave({ language: 'auto' }, [])).toBe('en')
+  })
+
+  it('writes nothing when it is unchanged or a language is chosen in Settings', async () => {
+    fakePage()
+    const { deviceLanguageToSave } = await freshModule()
+    expect(deviceLanguageToSave({ language: 'auto', deviceLanguage: 'es' }, ['es-MX'])).toBeNull()
+    expect(deviceLanguageToSave({ deviceLanguage: 'en' }, ['en-GB'])).toBeNull()
+    expect(deviceLanguageToSave({ language: 'en' }, ['es-MX'])).toBeNull()
+    expect(deviceLanguageToSave({ language: 'es', deviceLanguage: 'en' }, ['es-MX'])).toBeNull()
+  })
+})
