@@ -9,11 +9,20 @@
 // (functions/.env and functions/.env.<project>). Secret params are skipped: they
 // live in Secret Manager and are checked by the deploy itself.
 //
-// It also checks APP_URL, the origin the Functions' CORS allows and checkout returns
+// The deploy analyzes the source with the dotenv values as its environment, so
+// SOLARA_FUNCTION_SET in them picks the set it loads (functions/src/function-set.ts); this
+// check loads the same set. The budget guard set (`budget-guard`) must declare no secret
+// at all: it deploys before any of the other Functions' secrets exist.
+//
+// For every other set it also checks APP_URL, the origin the Functions' CORS allows and checkout returns
 // to: production's own origin for production, and never one of production's hosts for
 // any other project, so neither project's origin can leak into the other.
 //
-// Usage: node .github/scripts/check-functions-params.js [projectId]
+// With --expect-set=<set> it also fails unless the deploy would load that set, so the
+// full Functions deploy (which prunes with --force) can never run on the budget guard
+// alone, and the guard deploy never on every Function.
+//
+// Usage: node .github/scripts/check-functions-params.js [projectId] [--expect-set=all|budget-guard]
 const path = require('node:path')
 const PRODUCTION = require('./production.json')
 
@@ -53,14 +62,41 @@ function checkAppUrl(projectId, appUrl) {
     : null
 }
 
-module.exports = { checkAppUrl }
+/**
+ * The problem with the params a Functions set declares, or null. Pure, for tests.
+ * @param {string} set the SOLARA_FUNCTION_SET value ('' is every Function)
+ * @param {{ name: string, type: string }[]} params
+ * @returns {string | null}
+ */
+function checkSetParams(set, params) {
+  if (set !== 'budget-guard') return null
+  const secrets = params.filter(param => param.type === 'secret').map(param => param.name)
+  return secrets.length
+    ? `the budget guard alone declares secrets (${secrets.join(', ')}); it must deploy without them.`
+    : null
+}
 
-const projectId = process.argv[2] || process.env.FIREBASE_PROJECT_ID || PRODUCTION.projectId
+module.exports = { checkAppUrl, checkSetParams }
+
+const args = process.argv.slice(2)
+const projectId =
+  args.find(arg => !arg.startsWith('--')) || process.env.FIREBASE_PROJECT_ID || PRODUCTION.projectId
+const expectedSet = args.find(arg => arg.startsWith('--expect-set='))?.slice('--expect-set='.length)
 const root = path.resolve(__dirname, '..', '..')
 const functionsDir = path.join(root, 'functions')
 const fromFunctions = request => require(require.resolve(request, { paths: [functionsDir] }))
 
 async function main() {
+  const { loadUserEnvs } = fromFunctions('firebase-tools/lib/functions/env.js')
+  const userEnvs = loadUserEnvs({ functionsSource: functionsDir, projectDir: root, projectId })
+  // The deploy's analysis sees the dotenv values as its environment.
+  const set = String(userEnvs.SOLARA_FUNCTION_SET ?? '').trim()
+  process.env.SOLARA_FUNCTION_SET = set
+  if (expectedSet !== undefined && (set || 'all') !== expectedSet) {
+    throw new Error(
+      `the deploy would load the ${set || 'all'} Functions set, not ${expectedSet} (SOLARA_FUNCTION_SET in functions/.env.${projectId}).`,
+    )
+  }
   try {
     require(functionsDir)
   } catch (error) {
@@ -69,11 +105,9 @@ async function main() {
     )
   }
   const { declaredParams } = fromFunctions('firebase-functions/params')
-  const { loadUserEnvs } = fromFunctions('firebase-tools/lib/functions/env.js')
   const { resolveParams } = fromFunctions('firebase-tools/lib/deploy/functions/params.js')
 
   const params = declaredParams.map(param => param.toSpec())
-  const userEnvs = loadUserEnvs({ functionsSource: functionsDir, projectDir: root, projectId })
   const { paramValues } = await resolveParams({
     params,
     firebaseConfig: { projectId },
@@ -86,9 +120,16 @@ async function main() {
   for (const param of params.filter(p => p.type !== 'secret')) {
     console.log(`${param.name} = ${JSON.stringify(String(paramValues[param.name] ?? ''))}`)
   }
-  const appUrlProblem = checkAppUrl(projectId, String(paramValues.APP_URL ?? ''))
-  if (appUrlProblem) throw new Error(appUrlProblem)
-  console.log(`All ${params.length} Functions params resolve non-interactively for ${projectId}.`)
+  const setProblem = checkSetParams(set, params)
+  if (setProblem) throw new Error(setProblem)
+  // The budget guard alone serves no browser, so it has no APP_URL.
+  if (set !== 'budget-guard') {
+    const appUrlProblem = checkAppUrl(projectId, String(paramValues.APP_URL ?? ''))
+    if (appUrlProblem) throw new Error(appUrlProblem)
+  }
+  console.log(
+    `All ${params.length} Functions params of the ${set || 'all'} set resolve non-interactively for ${projectId}.`,
+  )
 }
 
 if (require.main === module) {

@@ -106,6 +106,89 @@ export interface KillSwitchResult {
 /** Removes the project's billing account; injected so tests never reach Cloud Billing. */
 export type DisableBilling = (projectId: string) => Promise<void>
 
+/** The cost guard document's fields the decision reads. */
+export interface StoredGuardState {
+  engaged?: unknown
+  reason?: unknown
+  costIntervalStart?: unknown
+  warnedIntervalStart?: unknown
+}
+
+export interface KillSwitchDecision {
+  /** What changes in the cost guard document, in the order they apply. */
+  changes: Exclude<KillSwitchAction, 'detached'>[]
+  /** The fields to merge into the cost guard document (empty when nothing changes). */
+  update: Record<string, unknown>
+  /** Whether billing must be detached (the hard stop). */
+  detach: boolean
+}
+
+/**
+ * What one budget notification does, as a pure decision (no Firestore, no Cloud Billing),
+ * so each tier can be tested on its own. With the shipped defaults:
+ * - below 50%: nothing (or a release of a guard left from an earlier period);
+ * - from 50%: one warning per budget period;
+ * - from 100%: the cost guard engages until the next period starts;
+ * - from 300%, when detaching is on: billing is detached, on every such notification
+ *   (detaching again is harmless, and a failed attempt gets another chance).
+ *
+ * A notification from a period older than the one the document records changes nothing
+ * in it (Pub/Sub does not keep order, so a late message from last month must not end
+ * this month's guard; and infra/budget-dry-run.sh's test messages, which use a past
+ * period, can never touch a guard a real budget engaged). It can still detach billing.
+ */
+export function decideBudgetActions({
+  config,
+  current,
+  interval,
+  now,
+  ratio,
+}: {
+  config: KillSwitchConfig
+  current: StoredGuardState
+  interval: string
+  now: Date
+  ratio: number
+}): KillSwitchDecision {
+  const changes: KillSwitchDecision['changes'] = []
+  const update: Record<string, unknown> = {}
+  const detach = config.detachBilling && ratio >= config.detachThreshold
+  const recorded =
+    typeof current.costIntervalStart === 'string' ? Date.parse(current.costIntervalStart) : NaN
+  if (Date.parse(interval) < recorded) return { changes, update, detach }
+  if (ratio >= config.threshold) {
+    if (!(current.engaged === true && current.costIntervalStart === interval)) {
+      Object.assign(update, {
+        engaged: true,
+        engagedAt: now,
+        engagedUntil: nextBudgetPeriodStart(interval),
+        reason: 'budget',
+        warnedIntervalStart: interval,
+      })
+      changes.push('engaged')
+    }
+  } else {
+    // Below the threshold: a guard the budget engaged in an earlier period is released
+    // once the new period starts (if engagedUntil has not already ended it). A guard
+    // engaged in this period stays on, because cost never goes down within a period:
+    // a lower figure means a different budget filter or a correction, and the owner
+    // decides those (docs/RUNBOOK.md).
+    if (
+      current.engaged === true &&
+      current.reason === 'budget' &&
+      current.costIntervalStart !== interval
+    ) {
+      Object.assign(update, { engaged: false, releasedAt: now, reason: null, engagedUntil: null })
+      changes.push('released')
+    }
+    if (ratio >= config.warnThreshold && current.warnedIntervalStart !== interval) {
+      update.warnedIntervalStart = interval
+      changes.push('warned')
+    }
+  }
+  return { changes, update, detach }
+}
+
 export async function handleBudgetNotification({
   config,
   db,
@@ -131,46 +214,15 @@ export async function handleBudgetNotification({
   }
 
   const interval = notification.costIntervalStart
-  const engagedUntil = nextBudgetPeriodStart(interval)
-  const changes = await db.runTransaction(async (transaction): Promise<KillSwitchAction[]> => {
+  const decision = await db.runTransaction(async (transaction): Promise<KillSwitchDecision> => {
     const current = (await transaction.get(ref)).data() ?? {}
-    const done: KillSwitchAction[] = []
-    const update: Record<string, unknown> = {}
-    if (ratio >= config.threshold) {
-      if (!(current.engaged === true && current.costIntervalStart === interval)) {
-        Object.assign(update, {
-          engaged: true,
-          engagedAt: now,
-          engagedUntil,
-          reason: 'budget',
-          warnedIntervalStart: interval,
-        })
-        done.push('engaged')
-      }
-    } else {
-      // Below the threshold: a guard the budget engaged in an earlier period is released
-      // once the new period starts (if engagedUntil has not already ended it). A guard
-      // engaged in this period stays on, because cost never goes down within a period:
-      // a lower figure means a different budget filter or a correction, and the owner
-      // decides those (docs/RUNBOOK.md).
-      if (
-        current.engaged === true &&
-        current.reason === 'budget' &&
-        current.costIntervalStart !== interval
-      ) {
-        Object.assign(update, { engaged: false, releasedAt: now, reason: null, engagedUntil: null })
-        done.push('released')
-      }
-      if (ratio >= config.warnThreshold && current.warnedIntervalStart !== interval) {
-        update.warnedIntervalStart = interval
-        done.push('warned')
-      }
+    const result = decideBudgetActions({ config, current, interval, now, ratio })
+    if (result.changes.length > 0) {
+      transaction.set(ref, { ...fields, ...result.update, updatedAt: now }, { merge: true })
     }
-    if (done.length > 0) {
-      transaction.set(ref, { ...fields, ...update, updatedAt: now }, { merge: true })
-    }
-    return done
+    return result
   })
+  const changes = decision.changes
 
   const actions: KillSwitchAction[] = [...changes]
   if (changes.includes('released')) {
@@ -184,13 +236,14 @@ export async function handleBudgetNotification({
   }
   if (changes.includes('engaged')) {
     // An ERROR log is the alert hook: the error-log alert (docs/RUNBOOK.md) reaches the owner.
+    const engagedUntil = decision.update.engagedUntil as Date | null
     logger.error('cost guard engaged by the budget', {
       ...fields,
       engagedUntil: engagedUntil?.toISOString() ?? null,
     })
   }
 
-  if (config.detachBilling && ratio >= config.detachThreshold) {
+  if (decision.detach) {
     try {
       await disableBilling(config.projectId)
       actions.push('detached')

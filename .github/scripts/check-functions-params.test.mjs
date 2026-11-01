@@ -7,7 +7,7 @@ import { createRequire } from 'node:module'
 import { test } from 'node:test'
 
 const require = createRequire(import.meta.url)
-const { checkAppUrl } = require('./check-functions-params.js')
+const { checkAppUrl, checkSetParams } = require('./check-functions-params.js')
 const PRODUCTION = require('./production.json')
 
 /** The APP_URL a committed functions/.env* file sets, or undefined. */
@@ -56,4 +56,17 @@ test('the Functions declare APP_URL with no default', () => {
     'utf8',
   )
   assert.match(source, /defineString\('APP_URL'\)/)
+})
+
+test('the budget guard set may declare no secret; every Function may', () => {
+  const guard = [
+    { name: 'BUDGET_ID', type: 'string' },
+    { name: 'COST_GUARD_DETACH_BILLING', type: 'boolean' },
+  ]
+  assert.equal(checkSetParams('budget-guard', guard), null)
+  assert.match(
+    checkSetParams('budget-guard', [...guard, { name: 'STRIPE_SECRET_KEY', type: 'secret' }]),
+    /declares secrets \(STRIPE_SECRET_KEY\)/,
+  )
+  assert.equal(checkSetParams('', [{ name: 'STRIPE_SECRET_KEY', type: 'secret' }]), null)
 })

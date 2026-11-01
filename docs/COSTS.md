@@ -17,7 +17,8 @@ On Blaze, every product keeps its free quota; you pay only for usage above it.
 | Forecasts (Open-Meteo, fetched by each user's browser) | Yes, non-commercial terms | No, but commercial use needs a paid Open-Meteo plan (see below) |
 | App Check with reCAPTCHA (bot protection) | Yes | No |
 | Error reporting (Sentry) | Yes, Sentry free plan | No |
-| Cloud Functions: billing, account export and deletion, calendar feed, notification registration, forecast proxy and place search, maintenance job, budget kill switch | No | Yes |
+| Cloud Functions: billing, account export and deletion, calendar feed, notification registration, forecast proxy and place search, maintenance job | No | Yes |
+| Budget kill switch (the `budgetAlert` Function, which can deploy on its own before the others) | No | Yes |
 | Firestore TTL deletes, point-in-time recovery and backups | No | Yes |
 | Pro-only morning and UV alerts (scheduled Function plus Cloud Messaging) | No | Yes |
 | Free daily UV push and sunscreen reapply reminders by push (the same job, a Firestore trigger and Cloud Tasks) | No | Yes |
@@ -32,7 +33,9 @@ Spark has the same free quotas but nothing after them: when one runs out, that s
 Firestore's daily quota resets at midnight Pacific time, so past about 2,200 signed-in users in a day, settings, events and sign-in stop saving and loading for the rest of the day; past about 1,000 daily users the Hosting transfer runs out and the site stops loading, for the day or, against the 10 GB a month, possibly the rest of the month (check the Firebase usage page for how it is enforced).
 A flood reaches these limits much sooner ([Worst case under a flood](#worst-case-under-a-flood)).
 That is why the default is a quiet launch on Spark and Blaze with the budget kill switch before any promotion ([ROADMAP decisions](ROADMAP.md#decisions)): on Blaze the same overflow costs cents instead of an outage.
-The kill switch itself is the `budgetAlert` Cloud Function: on Blaze without it, the budget only sends emails, hours late, and sets no limit; [PLAN.md](PLAN.md) step C4 adds a deploy of the budget guard on its own.
+The kill switch itself is the `budgetAlert` Cloud Function: on Blaze without it, the budget only sends emails, hours late, and sets no limit.
+So moving to Blaze includes deploying it on its own, without the other Functions (`ENABLE_BUDGET_GUARD`, [Budget guard on its own](DEPLOYMENT.md#budget-guard-on-its-own)), and testing it with `infra/budget-dry-run.sh`, in the same sitting.
+The guard alone costs nothing at this scale: a few Pub/Sub messages and runs a day, and one container image, all within the free tiers below.
 
 | Product | Free quota | Solara's use | Free up to about | Then |
 | --- | --- | --- | --- | --- |
@@ -126,6 +129,8 @@ The budget kill switch is the last line ([runbook](RUNBOOK.md#budget-kill-switch
 - at 300% ($75) it detaches the project from its billing account: the hard stop.
   The Functions stop (checkout, the webhook, the feed, the alerts), while Hosting, sign-in and Firestore keep serving within the no-cost quotas until the owner re-attaches billing.
 
+On Blaze before the Pro launch, only the guard is deployed, so only the 50% warning and the 300% detach act: at 100% there is no deployed path for the cost guard to turn off yet, so a Hosting or Firestore flood runs on until the detach (the same worst-month arithmetic as [below](#worst-case-under-a-flood), at the Hosting and Firestore rates).
+
 $25 is far above the expected Google bill up to about 1,000 daily users (a few cents to about $10 a month in the table above; the Open-Meteo plan is billed separately), so ordinary growth does not trip it; raise it as traffic grows.
 Budget data arrives hours after the usage, so the switch caps a runaway bill rather than preventing every cent.
 
@@ -141,7 +146,7 @@ A `curl` loop from one computer does that in a minute or two, with no sign-in; F
 
 - On Spark: the site stops loading for everyone until the quota resets (the next day, or later against the 10 GB a month).
 - On Blaze: it costs $0.15 per GB instead, about $1.50 for every 10 GB, until the budget kill switch detaches billing at $75, after which Hosting is back on Spark's quota and stops as above.
-- Mitigations, in order: accept the risk knowingly for a quiet launch (there is no Hosting setting against it); move to Blaze with the kill switch before any promotion, so a flood costs a few dollars instead of an outage; for a real defence, serve the site from a custom domain behind a CDN with free rate limiting (for example Cloudflare in front of Firebase Hosting, with a rate-limiting rule on `/` and `/app/` and long caching of the hashed assets).
+- Mitigations, in order: accept the risk knowingly for a quiet launch (there is no Hosting setting against it); move to Blaze with the kill switch (the budget guard deployed on its own) before any promotion, so a flood costs a few dollars instead of an outage; for a real defence, serve the site from a custom domain behind a CDN with free rate limiting (for example Cloudflare in front of Firebase Hosting, with a rate-limiting rule on `/` and `/app/` and long caching of the hashed assets).
 
 ### Writing to Firestore in a loop (any signed-in account)
 

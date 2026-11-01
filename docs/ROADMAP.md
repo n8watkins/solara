@@ -638,6 +638,21 @@ The fixes for `handoff/review10-sec10.md` (REVIEW10 SEC10, main at `a77907a`); e
 The owner's next feature (2026-11-01), after the Review 10 fixes: a vitamin D log, the sun exposure log with a vitamin D tally planned before item 46, renamed.
 Its scope, files and acceptance criteria are set when the lane starts; the dashboard's vitamin D estimate card stays as the starting point.
 
+### 49. Budget guard on its own (BUDGETGUARD, built)
+
+The critical finding of the plan review (`handoff/plan-review.md`, finding 1): the budget kill switch is the `budgetAlert` Function, which deployed only with every Function, so Blaze before the Pro launch had budget emails but no spending limit ([PLAN.md](PLAN.md) step C4).
+
+- **Goal:** Blaze gets a real spending limit from the day billing is attached, without the other Functions, their secrets (Stripe, Open-Meteo, the trial history key) or their setup.
+- **Entry point sets:** `functions/src/index.ts` loads every Function, or with `SOLARA_FUNCTION_SET=budget-guard` only `functions/src/ops/budget-guard.ts` (`functions/src/function-set.ts`).
+  A set is needed because `firebase deploy` asks Secret Manager for every secret the loaded source declares, whatever `--only` selects; the guard set declares no secret and loads no other feature's code (tested).
+- **Deploy:** the `ENABLE_BUDGET_GUARD` repository variable runs the **Budget guard** job in `deploy.yml` while `ENABLE_BLAZE_FUNCTIONS` is off: it refuses to run without `BUDGET_ID` and `BUDGET_SERVICE_ACCOUNT` (`.github/scripts/budget-guard-env.mjs`, which the full Functions job now also runs), checks that the deploy loads the guard alone with no secret, and deploys `--only functions:budgetAlert`, so no other function is ever touched.
+  The full Functions job checks that it loads every Function, and ships `budgetAlert` in place when Functions are switched on.
+  Hosting does not wait for the guard (default, owner may change): a failed guard deploy fails the run without holding back the site.
+- **Kill switch logic:** each tier's decision is a pure function (`decideBudgetActions`), unit-tested at 50%, 100% and 300%; a notification from an older budget period than the recorded one no longer changes the cost guard (Pub/Sub does not keep order), though it can still detach billing.
+- **Dry run:** `infra/budget-dry-run.sh` publishes a test budget message for a period that has already ended (read, then `--apply`), refuses the detach level without `DETACH_TEST=true`, and prints the log query ([runbook](RUNBOOK.md#test-the-guard)).
+- **Tests:** `functions/test/budget-guard.test.js`, `.github/scripts/budget-guard-env.test.mjs`, the workflow checks in `.github/scripts/production-guards.test.mjs`, `.github/scripts/check-functions-params.test.mjs`; locally, the guard set on the Functions, Pub/Sub and Firestore emulators ignored another budget's message, warned at 50% and engaged at 100%.
+- **Owner:** checklist step C3 (roles, `ENABLE_BUDGET_GUARD=true`, the dry run), with Blaze (O14).
+
 ## Decisions
 
 Agents never make owner decisions; they follow the recorded decision or the default.
@@ -663,7 +678,7 @@ The steps behind each one are in the [owner checklist](OWNER_CHECKLIST.md).
 | Server language | Which language pushes and the calendar feed use for an account set to Automatic | Decided by the owner 2026-11-01 (item 46): the account's `language` when it is a language (`en`, `es`), else its `deviceLanguage` (the language the app resolved from the device, saved to the account only when it changes, so the last device to open the app wins), else English; Settings and the privacy policy say so. Before this, Automatic gave English pushes |
 | Spanish legal text | Which version of the privacy policy and terms counts | Default, owner may change (2026-11-01): the Spanish translations say that the English version prevails if the two differ; a lawyer may want to confirm this for the owner's jurisdiction (owner to-do) |
 | Blaze | Billing plan | Decided 2026-10-23: stay on Spark until Pro launches, then Blaze with a budget and its kill switch ([COSTS.md](COSTS.md)) |
-| Launch stage | How far to promote the free launch on Spark | Default, owner may change (2026-10-28): a quiet free launch on Spark now; move to Blaze with the budget kill switch before any promotion; the switch is the `budgetAlert` Function, so it needs the budget-guard-only deploy planned in [PLAN.md](PLAN.md) step C4 (until then Blaze gives budget emails only, corrected 2026-11-01), because on Spark a used-up quota stops the site instead of costing money (REVIEW8 QA H1, SEC M1 and M2; [COSTS.md](COSTS.md#how-many-users-before-blaze-costs-money)) |
+| Launch stage | How far to promote the free launch on Spark | Default, owner may change (2026-10-28): a quiet free launch on Spark now; move to Blaze with the budget kill switch before any promotion; the switch is the `budgetAlert` Function, so Blaze comes with its deploy on its own (`ENABLE_BUDGET_GUARD`, [item 49](#49-budget-guard-on-its-own-budgetguard-built), built 2026-11-01) switched on and tested in the same sitting (without it Blaze gives budget emails only, corrected 2026-11-01), because on Spark a used-up quota stops the site instead of costing money (REVIEW8 QA H1, SEC M1 and M2; [COSTS.md](COSTS.md#how-many-users-before-blaze-costs-money)) |
 | Forecast calls | Paid forecast API budget and cache grid | Default, owner may change (2026-10-27, item 14): 1,500 upstream calls an hour and 20,000 a day for the proxy, the feed and event heads-ups (`FORECAST_UPSTREAM_PER_HOUR`, `FORECAST_UPSTREAM_PER_DAY`), 4 an hour per calendar feed, a 0.02 degree cache grid |
 | Budget | Budget and kill switch tiers | Default, owner may change (2026-10-27, item 14): $25 a month; warn at 50%, cost guard at 100% until the next period, detach billing at 300% (on by default, `COST_GUARD_DETACH_BILLING=false` turns it off); the scheduled Pro alerts are never paused by the budget |
 | Price | Pro price | Decided 2026-10-24: $2.99 a month or $19.99 a year, 7-day free trial, waitlist until billing launches |

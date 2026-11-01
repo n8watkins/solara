@@ -130,3 +130,58 @@ test('every Firebase command in deploy-staging.yml targets the staging project',
 test('deploy.yml never reads a staging setting', () => {
   assert.doesNotMatch(production, /STAGING_|deploy-staging|environment: staging/)
 })
+
+// The budget guard (docs/DEPLOYMENT.md, "Budget guard on its own"): its own job ships
+// budgetAlert alone until every Function deploys, never alongside that job, never
+// without its budget id and identity, and never prunes or touches another function.
+const productionJobs = jobs(production)
+
+/** The `firebase deploy` commands in a job, with continuation lines joined. */
+function deployCommands(block) {
+  return block.replace(/\\\n\s*/g, ' ').match(/firebase deploy [^\n;]*/g) ?? []
+}
+
+test('deploy.yml ships the budget guard alone until every Function deploys, never both', () => {
+  const guard = jobCondition(productionJobs['budget-guard'])
+  const all = jobCondition(productionJobs.functions)
+  assert.match(guard, /vars\.ENABLE_BUDGET_GUARD == 'true'/)
+  assert.match(guard, /vars\.ENABLE_BLAZE_FUNCTIONS != 'true'/)
+  assert.match(all, /vars\.ENABLE_BLAZE_FUNCTIONS == 'true'/)
+})
+
+test('the budget guard job deploys budgetAlert and nothing else', () => {
+  const block = productionJobs['budget-guard']
+  const commands = deployCommands(block)
+  assert.equal(commands.length, 1)
+  assert.match(commands[0], /--only functions:budgetAlert --project "\$FIREBASE_PROJECT_ID"/)
+  assert.doesNotMatch(commands[0], /--only functions(?!:budgetAlert)/)
+  // The deploy loads the guard set, checked before anything deploys.
+  const order = [
+    'budget-guard-env.mjs "$FIREBASE_PROJECT_ID" --write',
+    'check-functions-params.js "$FIREBASE_PROJECT_ID" --expect-set=budget-guard',
+    'check-functions-payload.js --set=budget-guard',
+    'firebase deploy --only functions:budgetAlert',
+  ].map(step => block.indexOf(step))
+  assert.ok(
+    order.every(index => index > 0),
+    String(order),
+  )
+  assert.deepEqual(
+    [...order].sort((a, b) => a - b),
+    order,
+  )
+  // The refusal reads the repository variables the owner sets.
+  assert.match(block, /BUDGET_ID: \$\{\{ vars\.BUDGET_ID \}\}/)
+  assert.match(block, /BUDGET_SERVICE_ACCOUNT: \$\{\{ vars\.BUDGET_SERVICE_ACCOUNT \}\}/)
+})
+
+test('the full Functions deploy also needs the budget settings and loads every Function', () => {
+  const block = productionJobs.functions
+  assert.match(block, /node \.github\/scripts\/budget-guard-env\.mjs "\$FIREBASE_PROJECT_ID"\n/)
+  assert.match(block, /check-functions-params\.js "\$FIREBASE_PROJECT_ID" --expect-set=all/)
+  assert.doesNotMatch(block, /SOLARA_FUNCTION_SET/)
+})
+
+test('Hosting never waits for the budget guard', () => {
+  assert.doesNotMatch(/^ {4}needs:.*$/m.exec(productionJobs.hosting)[0], /budget-guard/)
+})

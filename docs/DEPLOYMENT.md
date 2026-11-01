@@ -13,6 +13,7 @@ What is actually deployed and configured today is in [status.md](status.md), and
 Firebase Hosting, Authentication, Firestore, and Cloud Messaging can operate on the Spark plan within their quotas.
 Deploying Firebase Functions requires the Blaze plan and an attached billing account.
 Set up the budget and its kill switch (`infra/budget.sh`) the day Blaze is enabled; the `infra/` scripts print their gcloud commands and change nothing without `--apply` ([owner checklist steps C2-C8](OWNER_CHECKLIST.md#at-pro-launch-blaze)).
+The kill switch is the `budgetAlert` Function, so in the same sitting switch on its deploy on its own (`ENABLE_BUDGET_GUARD`, [Budget guard on its own](#budget-guard-on-its-own)); without it Blaze sends budget emails but sets no spending limit.
 
 ## Local environment
 
@@ -87,6 +88,8 @@ Repository variables:
 - `OUTLOOK_CALENDAR_EVENTS_ENABLED`: `true` makes the build compile `NEXT_PUBLIC_OUTLOOK_CALENDAR_EVENTS_ENABLED=1`, so the Events section offers events already in Outlook; it also needs `MICROSOFT_CLIENT_ID` (the env check fails the build without it); the Functions deploy writes `OUTLOOK_CALENDAR_EVENTS_ENABLED=true`, so the `alerts` job (with `ALERTS_ENABLED`) sends Pro event heads-ups for them too ([Events from Outlook](#events-from-outlook)).
 - `COST_GUARD_DETACH_BILLING` (optional): the budget kill switch detaches billing at 300% of the budget unless this is `false` ([Cost guard and budget kill switch](#cost-guard-and-budget-kill-switch)).
 - `BUDGET_ID` and `BUDGET_SERVICE_ACCOUNT` (set after `infra/budget.sh`, which prints both): the budget the kill switch acts on, and the identity `budgetAlert` runs as, the only one allowed to detach billing.
+  Every deploy that ships `budgetAlert` (the budget guard job and the Functions job) fails without them (`.github/scripts/budget-guard-env.mjs`).
+- `ENABLE_BUDGET_GUARD`: `true` deploys the budget kill switch, `budgetAlert`, on its own on every push to `main` while `ENABLE_BLAZE_FUNCTIONS` is not `true` ([Budget guard on its own](#budget-guard-on-its-own)); once Functions deploy, it is one of them and this variable has no effect.
 - `GCP_WORKLOAD_IDENTITY_PROVIDER` and `GCP_DEPLOY_SERVICE_ACCOUNT`: Workload Identity Federation ([WIF_SETUP.md](WIF_SETUP.md)).
 - `FIREBASE_PROJECT_ID` (optional): the deploy target, `uv-activity-planner` by default; another project would also need its Hosting targets in `.firebaserc` and its own `functions/.env.<project id>` (staging has [its own workflow](#staging)).
 - `NEXT_PUBLIC_SENTRY_DSN` (optional): the Sentry public DSN; read from variables only.
@@ -102,6 +105,7 @@ Repository secrets:
 Server configuration for Functions:
 
 - `functions/.env` holds the shared non-secret params (an empty `STRIPE_PRICE_ID` default and the kill switch thresholds), because non-interactive deploys resolve params only from `functions/.env*` files.
+  The deploy also passes these files to the source it analyzes as its environment, which is how `SOLARA_FUNCTION_SET=budget-guard` (written only by the budget guard job) makes the entry point load the guard alone.
 - `functions/.env.<project id>` holds each project's own params, read after `functions/.env` for that project: `APP_URL` (the web app's origin, the only one the Functions' CORS allows, and where checkout returns) is `https://solara-uv.web.app` in `functions/.env.uv-activity-planner` and `https://solara-staging.web.app` in `functions/.env.solara-staging`.
   `APP_URL` has no default, so a deploy to a project without its own file fails instead of borrowing production's origin; the deploy jobs append the prices and switches to that file.
   `.github/scripts/check-functions-params.js` resolves them exactly as a deploy does, and runs in CI.
@@ -131,8 +135,9 @@ Every push to `main` runs `.github/workflows/deploy.yml`:
 1. The reusable quality workflow (`.github/workflows/quality.yml`) runs the README's [quality checks](../README.md#quality-checks) plus workflow and secret scanning.
 2. One job builds the static export with the checked public configuration, uploads its source maps to Sentry and deletes them when that is configured, smoke-tests that `out/` on the Hosting emulator, and packages it with its SHA-256 digest, CycloneDX SBOMs and a provenance record.
 3. Firestore rules and Firestore indexes deploy as separate jobs, so an index failure is visible on its own and does not hide whether Hosting published.
-4. When `ENABLE_BLAZE_FUNCTIONS` is `true`, the Functions job (which deploys with `--force`, so functions removed from the source are deleted and the Artifact Registry cleanup policy is set when missing) writes the project's prices and switches (`STRIPE_PRICE_ID`, `STRIPE_YEARLY_PRICE_ID`, `BILLING_ENABLED`, `FORECAST_PROXY_ENABLED`, `ALERTS_ENABLED`, `ALERTS_SERVICE_ACCOUNT`, `COST_GUARD_DETACH_BILLING`, `BUDGET_ID`, `BUDGET_SERVICE_ACCOUNT`), builds `@solara/core` and the Functions, re-runs the params and payload checks, and deploys after rules and indexes.
-5. Hosting verifies the digest and deploys exactly the tested artifact, after rules and, when they deploy, Functions.
+4. When `ENABLE_BLAZE_FUNCTIONS` is `true`, the Functions job (which deploys with `--force`, so functions removed from the source are deleted and the Artifact Registry cleanup policy is set when missing) writes the project's prices and switches (`STRIPE_PRICE_ID`, `STRIPE_YEARLY_PRICE_ID`, `BILLING_ENABLED`, `FORECAST_PROXY_ENABLED`, `ALERTS_ENABLED`, `ALERTS_SERVICE_ACCOUNT`, `COST_GUARD_DETACH_BILLING`, `BUDGET_ID`, `BUDGET_SERVICE_ACCOUNT`), refuses to run without the two budget values, builds `@solara/core` and the Functions, re-runs the params and payload checks (the params check also confirms the deploy loads every Function), and deploys after rules and indexes.
+5. When `ENABLE_BUDGET_GUARD` is `true` and `ENABLE_BLAZE_FUNCTIONS` is not, the Budget guard job deploys `budgetAlert` alone ([Budget guard on its own](#budget-guard-on-its-own)).
+6. Hosting verifies the digest and deploys exactly the tested artifact, after rules and, when they deploy, Functions; it never waits for the budget guard.
 
 Pull requests run the same quality workflow without deploying.
 The "Protect main" ruleset requires a pull request and the required checks for every change to `main`.
@@ -420,6 +425,23 @@ The scheduled Pro alerts are not among them: their cost is bounded by the number
 The `budgetAlert` Function, which runs as its own `solara-budget` service account and acts only on the budget named by `BUDGET_ID`, has three tiers (defaults, owner may change, in `functions/.env`): a warning at 50% of the budget, the cost guard at 100% until the next budget period starts, and detaching billing at 300%, which stops the Functions while Hosting keeps serving the site.
 Detaching is on by default; set the `COST_GUARD_DETACH_BILLING` repository variable to `false` to switch it off.
 The budget ($25 a month by default), the topic, the identity and its role are created by `infra/budget.sh`; what to do when the switch fires is in the [runbook](RUNBOOK.md#budget-kill-switch).
+
+### Budget guard on its own
+
+On Blaze the budget alone only sends emails, hours late; the spending limit is the `budgetAlert` Function.
+So it can deploy before, and without, every other Function, their secrets (Stripe, Open-Meteo, the trial history key) and their setup:
+
+- The entry point (`functions/src/index.ts`) loads one set of Functions, chosen by `SOLARA_FUNCTION_SET` (`functions/src/function-set.ts`): every Function (unset or `all`), or `budget-guard`, which loads only `functions/src/ops/budget-guard.ts`.
+  A set is needed, not only `firebase deploy --only functions:budgetAlert`: the deploy asks Secret Manager for every secret the loaded source declares, whatever `--only` selects, so a deploy from the full entry point fails while the other secrets do not exist.
+- With `ENABLE_BUDGET_GUARD=true` (and `ENABLE_BLAZE_FUNCTIONS` not `true`), the **Budget guard** job in `deploy.yml` checks `BUDGET_ID` and `BUDGET_SERVICE_ACCOUNT`, writes them with `SOLARA_FUNCTION_SET=budget-guard` to `functions/.env.<project id>`, checks that the deploy would load the guard alone with no secret declared and that its payload exports `budgetAlert` only, and runs `firebase deploy --only functions:budgetAlert --force`.
+  The `--only` filter limits the deploy, including what `--force` may delete, to that one function, so no other function is ever created, changed or deleted; `--force` only sets the missing Artifact Registry cleanup policy instead of failing.
+- What the guard needs at run time: the `budget-alerts` topic and the budget publishing to it, the `solara-budget` identity with its roles (Firestore for the cost guard document, logs, Eventarc events, run invoker, and Project Billing Manager to detach billing), all from `infra/budget.sh`; and from the deploy identity, the Functions roles in [WIF_SETUP.md](WIF_SETUP.md#roles-for-the-budget-guard-alone).
+- Before the other Functions deploy, only the 50% warning and the 300% detach matter: at 100% the guard records the cost guard as engaged, but no deployed function reads it yet.
+- When `ENABLE_BLAZE_FUNCTIONS` is switched on, the Functions job deploys `budgetAlert` with every other Function (the same function, so it is updated in place, not replaced) and the Budget guard job steps aside.
+  If Functions are switched off again, the Budget guard job takes over again and leaves the other deployed functions as they are.
+- Trade-off (default, owner may change): Hosting does not wait for the Budget guard job.
+  A failed guard deploy fails the run, which GitHub reports by email, and leaves the last deployed guard running, but it never holds back a site fix, since the static site does not depend on it.
+- To check it on Blaze, `infra/budget-dry-run.sh` publishes a test budget notification ([runbook](RUNBOOK.md#test-the-guard)).
 
 ### Pro billing
 

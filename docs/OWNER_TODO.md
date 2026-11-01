@@ -62,7 +62,9 @@ Tick the boxes as you go and tell me when a group is done, so I can do my follow
 - [ ] **Blaze plan with the $25 kill switch.** Firebase console, Usage and billing: attach a billing account.
   Run `infra/budget.sh` (read it, then `--apply`) and put the printed `BUDGET_ID` and `BUDGET_SERVICE_ACCOUNT` into repository variables.
   On the free plan, a busy day (about 1,000 visitors) switches the site off; on Blaze it costs cents instead, and backups become possible.
-  Wait for Claude's budget-guard deploy ([PLAN.md](PLAN.md) step C4) and switch it on in the same sitting: without it, Blaze sends budget emails but has no automatic spending limit.
+  In the same sitting, deploy the spending limit itself (the `budgetAlert` Function, on its own): grant the deploy account its roles ([WIF_SETUP.md](WIF_SETUP.md#roles-for-the-budget-guard-alone)), set the repository variable `ENABLE_BUDGET_GUARD=true`, re-run the latest **Deploy** workflow and check that its **Budget guard** job is green.
+  Then test it: `BUDGET_ID=<the value> infra/budget-dry-run.sh` (read it, then `--apply`), run the log command it prints, and send me the output (checklist step C3).
+  Without the guard, Blaze sends budget emails but has no automatic spending limit.
   Do the security housekeeping (group 2) first, because `infra/budget.sh` uses the deploy account that keyless deploys set up.
 
 ## 5. Staging, then the Pro launch (when you are ready to charge)
