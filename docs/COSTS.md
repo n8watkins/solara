@@ -32,6 +32,7 @@ Spark has the same free quotas but nothing after them: when one runs out, that s
 Firestore's daily quota resets at midnight Pacific time, so past about 2,200 signed-in users in a day, settings, events and sign-in stop saving and loading for the rest of the day; past about 1,000 daily users the Hosting transfer runs out and the site stops loading, for the day or, against the 10 GB a month, possibly the rest of the month (check the Firebase usage page for how it is enforced).
 A flood reaches these limits much sooner ([Worst case under a flood](#worst-case-under-a-flood)).
 That is why the default is a quiet launch on Spark and Blaze with the budget kill switch before any promotion ([ROADMAP decisions](ROADMAP.md#decisions)): on Blaze the same overflow costs cents instead of an outage.
+The kill switch itself is the `budgetAlert` Cloud Function: on Blaze without it, the budget only sends emails, hours late, and sets no limit; [PLAN.md](PLAN.md) step C4 adds a deploy of the budget guard on its own.
 
 | Product | Free quota | Solara's use | Free up to about | Then |
 | --- | --- | --- | --- | --- |
