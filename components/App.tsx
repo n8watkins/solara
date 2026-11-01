@@ -23,7 +23,6 @@ import {
   CalendarView,
   ForecastUnavailable,
   GuestPlanNotice,
-  UpdateNotice,
   InstallPrompt,
   Onboarding,
   SignInScreen,
@@ -36,6 +35,7 @@ import ErrorBoundary from './ErrorBoundary'
 import AppShell, { type AppView } from './AppShell'
 import AppNotice from './AppNotice'
 import ForecastNotice from './ForecastNotice'
+import UpdateNotice from './UpdateNotice'
 import { AccountLoadError, AccountLoading } from './AccountStatus'
 import ScheduledProvider from './ScheduledProvider'
 import SettingsHost from './SettingsHost'
