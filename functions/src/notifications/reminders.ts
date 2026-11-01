@@ -107,12 +107,13 @@ export function parseReminder(
 }
 
 export type ScheduleOutcome =
-  'scheduled' | 'not-waiting' | 'unchanged' | 'invalid' | 'capped' | 'off'
+  'scheduled' | 'not-waiting' | 'unchanged' | 'invalid' | 'capped' | 'no-account' | 'off'
 
 /**
  * A reminder record was written: when it is a new waiting schedule, counts it against
  * the account's daily cap and enqueues its delivery. The server's own claim and delete
- * also land here and do nothing. Over the cap, or invalid, the record is deleted.
+ * also land here and do nothing. Over the cap, or invalid, the record is deleted; with no
+ * account document, it is left alone and not sent.
  */
 export async function reminderWritten({
   db,
@@ -146,6 +147,13 @@ export async function reminderWritten({
   // record the server already claimed armed again under its id (REVIEW9 SEC9 I3; the
   // rules refuse both, this is the second line).
   if (typeof before?.id === 'string' && before.id === reminder.id) return 'unchanged'
+  // The rules accept a reminder only from an account whose account document exists
+  // (REVIEW10 SEC10 M1); one written without it is neither counted nor sent, and is
+  // left to its TTL rather than deleted, which would run this trigger again.
+  if (!(await userRef.get()).exists) {
+    logger.warn('reapply reminder without an account document; not sent')
+    return 'no-account'
+  }
 
   const stateRef = userRef.collection(ALERT_STATE_COLLECTION).doc(REAPPLY_STATE_DOC)
   const day = utcDay(nowMs)

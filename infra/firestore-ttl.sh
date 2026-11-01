@@ -5,7 +5,8 @@
 # The Functions write `expireAt` on every server-owned bookkeeping record
 # (functions/src/shared/ttl.ts), and the app writes it on every scheduled activity
 # (packages/core/src/scheduled.ts), imported event (packages/core/src/events.ts) and
-# sunscreen reminder (packages/core/src/reapply.ts), so
+# sunscreen reminder (packages/core/src/reapply.ts) and "just deleted" marker
+# (lib/account-self-service.ts), so
 # accounts that never come back are cleaned up too.
 # firestore.indexes.json exempts `expireAt` from indexing in the same collection groups,
 # as Google recommends for TTL fields; it leaves the TTL setting itself alone, so index
@@ -26,6 +27,7 @@
 # | alertState                     | 7 days after the last alert was claimed       |
 # | trialHistory                   | 2 years after the trial it records            |
 # | reminders                      | 1 day after a reapply reminder was due        |
+# | accountSelfDeletions           | 1 day after the sign-in that deleted it       |
 #
 # Usage: infra/firestore-ttl.sh (prints the commands), then infra/firestore-ttl.sh --apply
 # Check with: gcloud firestore fields ttls list --project uv-activity-planner
@@ -34,7 +36,7 @@ source "$(dirname "$0")/lib.sh"
 
 for group in stripeWebhookEvents stripeCheckoutCleanupTasks accountDeletionTombstones \
   billingCleanupResources stripeSubscriptionOwners notificationRegistrationLimits scheduled \
-  events forecastCache forecastUpstream alertState trialHistory reminders; do
+  events forecastCache forecastUpstream alertState trialHistory reminders accountSelfDeletions; do
   run gcloud firestore fields ttls update expireAt \
     --collection-group "$group" --enable-ttl --async --project "$PROJECT_ID"
 done

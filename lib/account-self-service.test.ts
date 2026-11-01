@@ -55,6 +55,7 @@ vi.mock('firebase/firestore', () => {
   return {
     deleteField: () => DELETE,
     serverTimestamp: () => 'server-time',
+    Timestamp: { fromMillis: (ms: number) => ({ ms }) },
     doc: (parent: unknown, ...segments: string[]) => ref(parent, segments),
     collection: (parent: unknown, ...segments: string[]) => ref(parent, segments),
     documentId: () => '__name__',
@@ -113,7 +114,12 @@ const {
 } = await import('./account-self-service')
 
 const UID = 'u1'
-const user = { uid: UID } as User
+/** Signed in again just before deleting, as the account page asks. */
+const SIGNED_IN_AT = Date.parse('2026-11-01T17:00:00.000Z')
+const user = {
+  uid: UID,
+  getIdTokenResult: async () => ({ claims: { auth_time: String(SIGNED_IN_AT / 1000) } }),
+} as unknown as User
 const hex = (n: number) => n.toString(16).padStart(32, '0')
 
 function event(key: string) {
@@ -207,6 +213,12 @@ describe('exportAccountInBrowser', () => {
   it('builds the Function’s file from what the owner can read', async () => {
     seed()
     mocks.store.set(`users/${UID}`, { uid: UID, tier: 'free', skinType: 'fair', fcmToken: 'x' })
+    mocks.store.set(`users/${UID}/reminders/writes`, {
+      writtenAt: new Date('2026-11-01T15:00:00.000Z'),
+    })
+    mocks.store.set(`users/${UID}/private/notificationDevices`, {
+      registeredAt: new Date('2026-10-30T08:00:00.000Z'),
+    })
     const file = await exportAccountInBrowser(UID)
     expect(file.account).toEqual({ uid: UID, tier: 'free', skinType: 'fair' })
     expect(file.importedEvents).toHaveLength(21)
@@ -216,6 +228,13 @@ describe('exportAccountInBrowser', () => {
     expect(file.outlookCalendar?.calendars).toEqual([{ id: 'primary', name: '' }])
     expect(file.alerts).toEqual([])
     expect(file.truncated).toEqual([])
+    // Solara's own bookkeeping the owner can read (REVIEW10 SEC10 I3); the reminder
+    // counts are server-only.
+    expect(file.bookkeeping).toEqual({
+      reapplyReminderLastWrittenAt: '2026-11-01T15:00:00.000Z',
+      reapplyReminderCounts: null,
+      notificationDeviceRegisteredAt: '2026-10-30T08:00:00.000Z',
+    })
     expect(JSON.stringify(file)).not.toContain('u2')
     expect(parseFunctionResponse('exportAccountData', JSON.parse(JSON.stringify(file)))).not.toBe(
       null,
@@ -237,8 +256,12 @@ describe('deleteAccountInBrowser', () => {
     await deleteAccountInBrowser(user)
     expect(accountPaths()).toEqual([])
     // Marked as just deleted, in the batch that deleted the account document, so no other
-    // tab can bring it back (firestore.rules notJustDeleted), at the server's time.
-    expect(mocks.store.get(`accountSelfDeletions/${UID}`)).toEqual({ deletedAt: 'server-time' })
+    // tab can bring it back (firestore.rules notJustDeleted), at the server's time, and
+    // expiring a day after the sign-in that deleted it (REVIEW10 SEC10 L1).
+    expect(mocks.store.get(`accountSelfDeletions/${UID}`)).toEqual({
+      deletedAt: 'server-time',
+      expireAt: { ms: SIGNED_IN_AT + 24 * 60 * 60 * 1000 },
+    })
     expect(mocks.store.has('accountSelfDeletions/u2')).toBe(false)
     expect(mocks.store.has('users/u2')).toBe(true)
     expect(mocks.store.has(`users/u2/events/${hex(1)}`)).toBe(true)

@@ -127,6 +127,11 @@
       "indexes": []
     },
     {
+      "collectionGroup": "accountSelfDeletions",
+      "fieldPath": "expireAt",
+      "indexes": []
+    },
+    {
       "collectionGroup": "reminders",
       "fieldPath": "dueAt",
       "indexes": [
