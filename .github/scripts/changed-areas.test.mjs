@@ -4,7 +4,7 @@ import { mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } from 'node:
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { test } from 'node:test'
-import { AREAS, changedPaths, classify } from './changed-areas.mjs'
+import { AREAS, alreadyTested, changedPaths, classify } from './changed-areas.mjs'
 
 /** The areas that run, as a sorted list. */
 function running(paths) {
@@ -17,7 +17,7 @@ const EVERYTHING = [...AREAS].sort()
 test('a docs-only change runs no suite', () => {
   const result = classify(['docs/status.md', 'README.md', 'SECURITY.md', 'functions/README.md'])
   assert.deepEqual(running(['docs/status.md', 'README.md']), [])
-  assert.equal(result.docsOnly, true)
+  assert.equal(result.noSuites, true)
   assert.match(
     result.reasons.web,
     /^none of the 4 changed files \(README\.md, SECURITY\.md, docs\/status\.md and 1 more\) affect the browser tests on the static export$/,
@@ -51,7 +51,69 @@ test('a Functions-only change runs Functions, unit and signed-in suites', () => 
     'signed-in',
     'unit',
   ])
-  assert.deepEqual(running(['functions/test/billing.test.js']), ['functions', 'signed-in', 'unit'])
+})
+
+test('Functions tests run only the Functions job', () => {
+  // Neither the unit tests nor the signed-in suite load functions/test.
+  assert.deepEqual(running(['functions/test/billing.test.js']), ['functions'])
+  assert.deepEqual(running(['functions/test/emulator/firestore.rules.test.js']), ['functions'])
+  assert.deepEqual(running(['functions/test/support/fake-stripe.js']), ['functions'])
+})
+
+test('deploy workflows and deploy-only scripts run no suite', () => {
+  // actionlint, zizmor and the workflow script tests check them on every pull request.
+  for (const path of [
+    '.github/workflows/deploy.yml',
+    '.github/workflows/deploy-staging.yml',
+    '.github/scripts/budget-guard-env.mjs',
+    '.github/scripts/budget-guard-env.test.mjs',
+    '.github/scripts/staging-target.mjs',
+    '.github/scripts/remove-source-maps.mjs',
+    '.github/scripts/sbom.sh',
+    '.github/scripts/check-docs.mjs',
+    '.github/scripts/tested-tree.test.mjs',
+    '.github/dependabot.yml',
+    '.github/zizmor.yml',
+  ]) {
+    assert.deepEqual(running([path]), [], path)
+  }
+  assert.equal(classify(['.github/workflows/deploy.yml']).noSuites, true)
+})
+
+test('CI scripts that suites load run those suites', () => {
+  assert.deepEqual(running(['.github/scripts/check-functions-params.js']), ['functions'])
+  assert.deepEqual(running(['.github/scripts/check-functions-payload.js']), ['functions'])
+  assert.deepEqual(running(['.github/scripts/check-public-env.mjs']), ['unit'])
+  assert.deepEqual(running(['.github/scripts/check-hosting-target.js']), ['unit'])
+  assert.deepEqual(running(['.github/scripts/production.json']), ['functions', 'unit'])
+})
+
+test('the quality workflows, the suite map and local actions still run everything', () => {
+  for (const path of [
+    '.github/workflows/ci.yml',
+    '.github/workflows/quality.yml',
+    '.github/workflows/new-workflow.yml',
+    '.github/scripts/changed-areas.mjs',
+    // The suite map's tests change with the map.
+    '.github/scripts/changed-areas.test.mjs',
+    '.github/scripts/tested-tree.mjs',
+    '.github/scripts/new-script.mjs',
+    '.github/actions/firebase-cli/action.yml',
+  ]) {
+    assert.deepEqual(running([path]), EVERYTHING, path)
+  }
+})
+
+test('operations scripts run only what loads them', () => {
+  assert.deepEqual(running(['infra/account-request.mjs']), ['functions'])
+  // shellcheck runs in lint on every pull request.
+  assert.deepEqual(running(['infra/budget.sh', 'infra/alerts/errors.json']), [])
+  assert.deepEqual(running(['infra/new-tool.mjs']), EVERYTHING)
+})
+
+test('UI copy runs everything', () => {
+  assert.deepEqual(running(['messages/dashboard.ts']), EVERYTHING)
+  assert.deepEqual(running(['messages/es/setup.ts']), EVERYTHING)
 })
 
 test('a rules-only change runs the rules tests and the signed-in suite', () => {
@@ -93,7 +155,7 @@ test('workflow, lockfile and shared configuration changes run everything', () =>
 test('one force-all file among docs still runs everything', () => {
   const result = classify(['docs/status.md', 'package-lock.json'])
   assert.deepEqual(running(['docs/status.md', 'package-lock.json']), EVERYTHING)
-  assert.equal(result.docsOnly, false)
+  assert.equal(result.noSuites, false)
   assert.equal(result.reasons.functions, 'package-lock.json changed')
 })
 
@@ -131,6 +193,14 @@ test('test files run only the suites that load them', () => {
 test('assets, build scripts and the redirect site run the suites that use them', () => {
   assert.deepEqual(running(['public/landing/dashboard-light.png']), ['harness', 'unit', 'web'])
   assert.deepEqual(running(['scripts/csp.mjs']), ['integrations', 'signed-in', 'unit', 'web'])
+  // The harness's server runs static-pages over its export too.
+  assert.deepEqual(running(['scripts/static-pages.mjs']), [
+    'harness',
+    'integrations',
+    'signed-in',
+    'unit',
+    'web',
+  ])
   assert.deepEqual(running(['hosting-redirect/index.html']), ['web'])
 })
 
@@ -154,6 +224,19 @@ test('an unknown path, an empty diff or a missing base runs everything', () => {
     AREAS,
   )
   assert.match(unknown.reasons.unit, /no pull request base/)
+})
+
+test('a tree already tested skips every suite with the proof as the reason', () => {
+  const result = alreadyTested('pull request #1 CI run 2 passed tree abc')
+  assert.deepEqual(
+    AREAS.filter(area => result.areas[area]),
+    [],
+  )
+  assert.equal(
+    result.reasons.harness,
+    'this exact tree already passed every suite (pull request #1 CI run 2 passed tree abc)',
+  )
+  assert.doesNotMatch(alreadyTested('a\nweb=true').reasons.web, /[\r\n]/)
 })
 
 test('a path with a newline cannot forge an output line', () => {

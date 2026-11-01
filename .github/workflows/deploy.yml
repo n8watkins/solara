@@ -28,8 +28,47 @@ env:
   FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID || 'uv-activity-planner' }}
 
 jobs:
+  # A merged pull request's CI already ran the suites on the exact files a squash merge
+  # puts on main, so the deploy skips them when tested-tree.mjs proves that: a passing
+  # CI run of the pull request recorded this commit's tree, and main before the merge
+  # passed its own quality checks. Anything else (a direct push, main moved on before
+  # the merge, a manual run, an API error) runs every suite, as before.
+  tested:
+    name: Find a passing run of this tree
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+    outputs:
+      reason: ${{ steps.find.outputs.reason }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # The parent commit, main before the merge.
+          fetch-depth: 2
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+
+      - name: Look for the pull request run that tested this tree
+        id: find
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node .github/scripts/tested-tree.mjs
+
   quality:
+    needs: tested
+    # Runs every suite if the `tested` job itself failed (its output is then empty).
+    if: ${{ !cancelled() }}
     uses: ./.github/workflows/quality.yml
+    with:
+      tested: ${{ needs.tested.outputs.reason }}
     permissions:
       contents: read
 
@@ -146,7 +185,7 @@ jobs:
         run: node .github/scripts/check-public-env.mjs --built out
 
       - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps --only-shell chromium
 
       # The exact files that will be deployed, served with the real firebase.json.
       - name: Smoke-test the artifact on the Hosting emulator
