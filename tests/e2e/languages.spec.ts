@@ -139,6 +139,15 @@ test.describe('a device set to Spanish', () => {
     ).toBeVisible()
   })
 
+  test('titles the 404 page and the share target fallback in Spanish (REVIEW10 QA L3)', async ({
+    page,
+  }) => {
+    await page.goto('/no-such-page/')
+    await expect(page).toHaveTitle('Página no encontrada | Solara')
+    await page.goto('/app/share-target/')
+    await expect(page).toHaveTitle('Vuelve a compartir | Solara')
+  })
+
   test('keeps the landing page in English', async ({ page }) => {
     await page.goto('/')
     await expect(page.locator('html')).toHaveAttribute('lang', 'en')
