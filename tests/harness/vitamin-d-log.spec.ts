@@ -2,13 +2,14 @@ import { mkdirSync } from 'node:fs'
 import { expect, test, type Page, type TestInfo } from '@playwright/test'
 import { captureScreen, preparePage, type Capture } from './capture'
 import { HARNESS_DATE } from './clock'
-import { buildRawForecast, HARNESS_MARKER } from './fixtures'
+import { buildRawForecast, buildUser, HARNESS_MARKER } from './fixtures'
+import { vitaminDLogKey } from '@/lib/vitamin-d-switch'
 
-// The vitamin D log (ROADMAP item 48) in English and Spanish, light and dark: the log with
-// a week of sessions (a past session, one close to the burn time and one past it), the
-// new-session form for today (UV from the forecast) and an earlier day's edit (UV typed
-// in), each with an axe report, at the project's width and at 320 and 390 px or 1280 px,
-// without sideways scrolling. VITD_SHOTS=<folder> saves a copy of each width.
+// The vitamin D log (ROADMAP item 48) in English and Spanish, light and dark, for the
+// harness's signed-in account (its own log key): the log with a week of sessions (one past
+// the burn time), the new-session form for today (UV from the forecast) and an earlier
+// day's edit (UV typed in), each with an axe report, at the project's width and at 320 and
+// 390 px or 1280 px, without sideways scrolling. VITD_SHOTS=<folder> saves each width.
 
 const SHOTS = process.env.VITD_SHOTS
 if (SHOTS) mkdirSync(SHOTS, { recursive: true })
@@ -101,13 +102,13 @@ async function openLog(page: Page, t: TestInfo, code: 'en' | 'es'): Promise<Capt
     url.hostname === 'api.open-meteo.com' ? route.fulfill({ json: buildRawForecast() }) : false,
   )
   await page.addInitScript(
-    ({ language, log }) => {
+    ({ language, log, key }) => {
       try {
         window.localStorage.setItem('solara_language', language)
-        window.localStorage.setItem('solara_vitamin_d_log', log)
+        window.localStorage.setItem(key, log)
       } catch {}
     },
-    { language: code, log: JSON.stringify(LOG) },
+    { language: code, log: JSON.stringify(LOG), key: vitaminDLogKey(buildUser().uid) },
   )
   await page.goto('/harness/?screen=dashboard')
   await expect(page.getByTestId(HARNESS_MARKER)).toBeVisible()
