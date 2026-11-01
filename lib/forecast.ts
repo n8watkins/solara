@@ -55,11 +55,20 @@ interface Row {
   feelsC: number | null
 }
 
-function rowsOf({ hourly }: OpenMeteoResponse): Row[] {
+/**
+ * Every hourly row in the place's wall clock (core.forecastClock, so the days after a
+ * daylight saving change are not an hour off); a repeated hour keeps its first row.
+ */
+function rowsOf(raw: OpenMeteoResponse, clock: core.ForecastClock): Row[] {
+  const { hourly } = raw
+  const seen = new Set<string>()
   const rows: Row[] = []
   hourly.time.forEach((time, index) => {
-    const at = core.splitTime(time)
+    const at = clock(time)
     if (!at) return
+    const key = `${at.date}T${at.hour}`
+    if (seen.has(key)) return
+    seen.add(key)
     const cloud = hourly.cloudcover?.[index]
     const rain = hourly.precipitation_probability?.[index]
     rows.push({
@@ -78,14 +87,19 @@ function rowsOf({ hourly }: OpenMeteoResponse): Row[] {
 }
 
 /**
- * One day's daytime (06-20) hours with a known UV and temperature. Hours the
- * provider left blank are omitted rather than guessed, and the recommendation
- * engine never bridges an omitted hour, so unknown hours are never recommended.
+ * One day's plannable hours (6:00-20:59, widened to every hour the sun is up,
+ * core.plannableHours) with a known UV and temperature. Hours the provider left blank
+ * are omitted rather than guessed, and the recommendation engine never bridges an
+ * omitted hour, so unknown hours are never recommended.
  */
-function daytimeHours(rows: Row[], dateStr: string): HourlyForecast[] {
+function daytimeHours(
+  rows: Row[],
+  dateStr: string,
+  plannable: core.PlannableHours,
+): HourlyForecast[] {
   const hours: HourlyForecast[] = []
   for (const row of rows) {
-    if (row.date !== dateStr || !core.isPlannableHour(row)) continue
+    if (row.date !== dateStr || !core.isPlannableHour(row, plannable)) continue
     if (row.uv === null || row.tempC === null) continue
     hours.push({
       date: row.date,
@@ -109,8 +123,14 @@ function daytimeHours(rows: Row[], dateStr: string): HourlyForecast[] {
  * provider's `current` block is missing a value. Throws when UV or temperature
  * is unknown either way, so a gap is never shown as UV 0.
  */
-function currentConditions(raw: OpenMeteoResponse, rows: Row[], timeZone: string, at: number) {
-  const now = core.splitTime(raw.current?.time) ?? zonedNow(timeZone, at)
+function currentConditions(
+  raw: OpenMeteoResponse,
+  rows: Row[],
+  clock: core.ForecastClock,
+  timeZone: string,
+  at: number,
+) {
+  const now = clock(raw.current?.time) ?? zonedNow(timeZone, at)
   const row = rows.find(r => r.date === now.date && r.hour === now.hour)
   const uv = core.roundUV(raw.current?.uv_index) ?? row?.uv ?? null
   const tempC = roundCelsius(raw.current?.temperature_2m) ?? row?.tempC ?? null
@@ -151,16 +171,20 @@ export function parseForecast(input: RawForecast, opts: ParseOptions = {}): Fore
   const raw = core.parseServedForecast(input)
   const fetchedAt = servedAt(raw, opts.fetchedAt ?? Date.now())
   const timezone = resolveTimeZone(raw.timezone, opts.timeZone)
-  const rows = rowsOf(raw)
+  const clock = core.forecastClock(raw)
+  const rows = rowsOf(raw, clock)
   const forecastDays: ForecastDay[] = core
     .forecastDates(rows)
     .slice(0, days)
-    .map(dateStr => ({ dateStr, hourly: daytimeHours(rows, dateStr) }))
+    .map(dateStr => ({
+      dateStr,
+      hourly: daytimeHours(rows, dateStr, core.forecastPlannableHours(raw, dateStr)),
+    }))
   return {
     timezone,
     fetchedAt,
     ...(raw.stale && { stale: true }),
-    current: currentConditions(raw, rows, timezone, fetchedAt),
+    current: currentConditions(raw, rows, clock, timezone, fetchedAt),
     days: forecastDays,
   }
 }

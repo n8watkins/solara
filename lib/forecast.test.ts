@@ -272,3 +272,46 @@ describe('fetchForecast', () => {
     expect(forecastProxyBaseUrl({ proxy: '', functionsUrl: 'https://fn.example.com' })).toBeNull()
   })
 })
+
+describe('a forecast across a daylight saving change (REVIEW10 VERIFY10 N1)', () => {
+  // Fetched on Thursday 5 March 2026 in New York (EST, -5): Open-Meteo labels every hour
+  // with -5, also after the clocks go forward on Sunday 8 March. UV peaks at 17:00 UTC.
+  function springForward() {
+    const time: string[] = []
+    const uv_index: number[] = []
+    const temperature_2m: number[] = []
+    const weathercode: number[] = []
+    for (let i = 0; i < 7 * 24; i++) {
+      const instant = Date.parse('2026-03-05T05:00:00Z') + i * 3_600_000
+      time.push(new Date(instant - 5 * 3_600_000).toISOString().slice(0, 16))
+      const fromNoon = Math.abs(new Date(instant).getUTCHours() - 17)
+      uv_index.push(Math.max(0, 6 - fromNoon))
+      temperature_2m.push(10)
+      weathercode.push(0)
+    }
+    return {
+      timezone: 'America/New_York',
+      utc_offset_seconds: -18_000,
+      latitude: 40.71,
+      longitude: -74.01,
+      current: { time: '2026-03-05T09:00', uv_index: 2, temperature_2m: 5, weathercode: 0 },
+      hourly: { time, uv_index, temperature_2m, weathercode },
+    }
+  }
+
+  it('puts the peak at 1pm on the clock after the change, and the hours that follow on it', () => {
+    const data = parseForecast(springForward(), {
+      days: 6,
+      fetchedAt: Date.parse('2026-03-05T14:00:00Z'),
+    })
+    const peakOf = (date: string) => {
+      const hours = data.days.find(day => day.dateStr === date)!.hourly
+      return hours.reduce((best, h) => (h.uv > best.uv ? h : best)).hour
+    }
+    expect(peakOf('2026-03-06')).toBe(12)
+    expect(peakOf('2026-03-09')).toBe(13)
+    // The days are whole and ordered, with no hour twice.
+    const monday = data.days.find(day => day.dateStr === '2026-03-09')!.hourly.map(h => h.hour)
+    expect(monday).toEqual([...Array(15).keys()].map(h => h + 6))
+  })
+})

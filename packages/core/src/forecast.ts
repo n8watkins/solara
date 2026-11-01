@@ -12,10 +12,16 @@
 import * as v from 'valibot'
 import { finiteNumber, record } from './schema'
 import m from './messages/core'
+import { daylightHours, type Daylight } from './sun-times'
+import { isIanaTimeZone, isoDateOf, wallClockAt } from './zoned-time'
 
 export const OPEN_METEO_FORECAST_URL = 'https://api.open-meteo.com/v1/forecast'
 /** Open-Meteo's commercial endpoint: the same API on its own host, with an API key. */
 export const OPEN_METEO_CUSTOMER_FORECAST_URL = 'https://customer-api.open-meteo.com/v1/forecast'
+/**
+ * The hours a day is planned in when the sun's times are unknown, and the least a day
+ * is planned in otherwise (plannableHours widens them to every hour the sun is up).
+ */
 export const DAY_START_HOUR = 6
 export const DAY_END_HOUR = 20
 export const FETCH_TIMEOUT_MS = 5000
@@ -65,6 +71,15 @@ export function weatherLabel(code: number | null | undefined): string {
 export interface OpenMeteoPayload {
   /** IANA zone of the forecast location (Open-Meteo `timezone=auto`). */
   timezone?: string
+  /**
+   * The one UTC offset (seconds) Open-Meteo wrote every hourly label in: the zone's
+   * offset when the forecast was fetched, even for days after a daylight saving change
+   * (forecastClock reads the labels with it).
+   */
+  utc_offset_seconds?: number
+  /** The forecast grid cell's position, for the day's sun times (plannableHours). */
+  latitude?: number
+  longitude?: number
   current?: {
     time?: string
     uv_index?: number | null
@@ -92,8 +107,14 @@ const value = v.fallback(v.nullable(finiteNumber), null)
 const series = v.fallback(v.optional(v.array(value)), undefined)
 
 /** The Open-Meteo fields Solara reads (OpenMeteoResponseSchema). */
+/** A finite number, or undefined for anything else. */
+const optionalNumber = v.fallback(v.optional(finiteNumber), undefined)
+
 const openMeteoEntries = {
   timezone: v.fallback(v.optional(v.string()), undefined),
+  utc_offset_seconds: optionalNumber,
+  latitude: optionalNumber,
+  longitude: optionalNumber,
   current: v.fallback(
     v.optional(
       record({
@@ -190,14 +211,49 @@ function roundPercent(input: number | null | undefined): number | null {
   return input == null ? null : Math.round(input)
 }
 
-const TIME_PATTERN = /^(\d{4}-\d{2}-\d{2})T(\d{2}):\d{2}/
+const TIME_PATTERN = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})/
 
-/** Split an Open-Meteo local time ("2026-06-15T10:00") into date and hour. */
+/** Split an Open-Meteo local time ("2026-06-15T10:00") into date and hour, as written. */
 export function splitTime(time: unknown): { date: string; hour: number } | null {
   const match = typeof time === 'string' ? TIME_PATTERN.exec(time) : null
   if (!match?.[1]) return null
   const hour = Number(match[2])
   return hour <= 23 ? { date: match[1], hour } : null
+}
+
+/** The place's wall-clock date and hour of an Open-Meteo time label, or null. */
+export type ForecastClock = (time: unknown) => { date: string; hour: number } | null
+
+/**
+ * How to read a response's time labels as the place's wall clock.
+ *
+ * With `timezone=auto`, Open-Meteo writes every label with the one UTC offset in force
+ * when the forecast is fetched (`utc_offset_seconds`), so after a daylight saving change
+ * inside the forecast every label is an hour off: in spring "12:00" is 1pm on the clock,
+ * in autumn 11am (REVIEW10 VERIFY10 N1). Each label is turned back into its instant with
+ * that offset, then into the wall clock of the place's IANA zone, so every hour, window,
+ * peak, alert and calendar time after the change is right in both hemispheres.
+ * On a change day the clock's skipped hour has no row and its repeated hour keeps the
+ * first (hourlyRows). A response without the offset or zone (an older cached copy, a
+ * test fixture) is read as written.
+ */
+export function forecastClock(
+  response: Pick<OpenMeteoPayload, 'timezone' | 'utc_offset_seconds'>,
+): ForecastClock {
+  const { timezone, utc_offset_seconds: offset } = response
+  if (typeof offset !== 'number' || !Number.isFinite(offset) || !isIanaTimeZone(timezone)) {
+    return splitTime
+  }
+  return time => {
+    const match = typeof time === 'string' ? TIME_PATTERN.exec(time) : null
+    if (!match?.[1]) return null
+    const labelAsUtc = Date.parse(`${match[1]}T${match[2]}:${match[3]}:00Z`)
+    if (!Number.isFinite(labelAsUtc)) return null
+    const local = wallClockAt(labelAsUtc - offset * 1000, timezone)
+    // A zone whose change is not a whole hour (Lord Howe Island's 30 minutes) puts the
+    // labels on the half hour; each counts for the hour it falls in.
+    return { date: isoDateOf(local), hour: local.hour }
+  }
 }
 
 /** One hourly row of an Open-Meteo response, with unknown values as `null`. */
@@ -225,12 +281,22 @@ export function parseHourlyRows(raw: unknown): OpenMeteoHourlyRow[] {
   return hourlyRows(parseOpenMeteoResponse(raw))
 }
 
-/** Every hourly row of an already validated response (see parseHourlyRows). */
-export function hourlyRows({ hourly }: OpenMeteoResponse): OpenMeteoHourlyRow[] {
+/**
+ * Every hourly row of an already validated response (see parseHourlyRows), in the
+ * place's wall clock (forecastClock). An hour the clock repeats on a daylight saving
+ * change keeps its first row, so no date has the same hour twice.
+ */
+export function hourlyRows(response: OpenMeteoResponse): OpenMeteoHourlyRow[] {
+  const { hourly } = response
+  const clock = forecastClock(response)
+  const seen = new Set<string>()
   const rows: OpenMeteoHourlyRow[] = []
   hourly.time.forEach((time, index) => {
-    const at = splitTime(time)
+    const at = clock(time)
     if (!at) return
+    const key = `${at.date}T${at.hour}`
+    if (seen.has(key)) return
+    seen.add(key)
     rows.push({
       date: at.date,
       hour: at.hour,
@@ -246,9 +312,53 @@ export function hourlyRows({ hourly }: OpenMeteoResponse): OpenMeteoHourlyRow[] 
   return rows
 }
 
-/** True for daytime rows (06-20 local) that carry a known UV value. */
-export function isPlannableHour(row: Pick<OpenMeteoHourlyRow, 'uv' | 'hour'>): boolean {
-  return row.uv !== null && row.hour >= DAY_START_HOUR && row.hour <= DAY_END_HOUR
+/** The first and last local hour of a day that are planned in (both included). */
+export interface PlannableHours {
+  first: number
+  last: number
+}
+
+/** DAY_START_HOUR to DAY_END_HOUR: the hours planned in when the sun's times are unknown. */
+export const DEFAULT_PLANNABLE_HOURS: PlannableHours = Object.freeze({
+  first: DAY_START_HOUR,
+  last: DAY_END_HOUR,
+})
+
+/**
+ * The hours of a day worth planning in: 6:00 to 20:59, widened to every hour in which
+ * the sun is up, so a polar day (the midnight sun) or a place far west in its zone (a
+ * 10pm sunset in Kashgar on Beijing time in June) keeps its evening hours instead of being cut
+ * at 21:00 (REVIEW10 VERIFY10 N7). Hours outside it are never planned in.
+ */
+export function plannableHours(daylight: Daylight | null): PlannableHours {
+  if (!daylight || daylight.to <= daylight.from) return DEFAULT_PLANNABLE_HOURS
+  return {
+    first: Math.min(DAY_START_HOUR, Math.floor(daylight.from)),
+    last: Math.max(DAY_END_HOUR, Math.ceil(daylight.to) - 1),
+  }
+}
+
+/**
+ * The plannable hours of `date` in a forecast, from the sun's times at the forecast's
+ * own position and zone (DEFAULT_PLANNABLE_HOURS when the response names neither).
+ */
+export function forecastPlannableHours(
+  response: Pick<OpenMeteoPayload, 'latitude' | 'longitude' | 'timezone'>,
+  date: string,
+): PlannableHours {
+  const { latitude: lat, longitude: lon, timezone } = response
+  if (typeof lat !== 'number' || typeof lon !== 'number' || !isIanaTimeZone(timezone)) {
+    return DEFAULT_PLANNABLE_HOURS
+  }
+  return plannableHours(daylightHours({ lat, lon }, date, timezone))
+}
+
+/** True for rows within the day's plannable hours that carry a known UV value. */
+export function isPlannableHour(
+  row: Pick<OpenMeteoHourlyRow, 'uv' | 'hour'>,
+  hours: PlannableHours = DEFAULT_PLANNABLE_HOURS,
+): boolean {
+  return row.uv !== null && row.hour >= hours.first && row.hour <= hours.last
 }
 
 /** Distinct dates in the response, in order. */

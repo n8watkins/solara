@@ -168,3 +168,32 @@ describe('calendar feed windows', () => {
     ])
   })
 })
+
+describe('the feed across a daylight saving change (REVIEW10 VERIFY10 N1)', () => {
+  // A forecast fetched on Thursday 5 March 2026 in New York (EST, -5), as Open-Meteo
+  // writes it: every label with -5, also after the clocks go forward on Sunday 8 March.
+  // UV 2 from 15:00 to 19:00 UTC every day (10am-2pm EST, 11am-3pm EDT), 6 otherwise.
+  // (Not a real sky: only the window's hours matter here.)
+  const time = []
+  const uv = []
+  for (let i = 0; i < 6 * 24; i++) {
+    const instant = Date.parse('2026-03-05T05:00:00Z') + i * 3_600_000
+    time.push(new Date(instant - 5 * 3_600_000).toISOString().slice(0, 16))
+    const utcHour = new Date(instant).getUTCHours()
+    uv.push(utcHour >= 15 && utcHour < 19 ? 2 : 6)
+  }
+  const raw = {
+    timezone: 'America/New_York',
+    utc_offset_seconds: -18_000,
+    hourly: { time, uv_index: uv },
+  }
+  const walk = { id: 'walk', name: 'Walk', durationMins: 60, maxUV: 3, sunscreen: false }
+
+  test('puts the window at the right wall-clock hours before and after the change', () => {
+    const days = parseSunForecast(raw, 6)
+    const events = buildSunEvents({ activities: [walk] }, days)
+    const byDate = Object.fromEntries(events.map(event => [event.dateStr, event.start]))
+    assert.equal(byDate['2026-03-06'], 10)
+    assert.equal(byDate['2026-03-09'], 11)
+  })
+})
