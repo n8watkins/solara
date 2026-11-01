@@ -170,6 +170,15 @@ Repeat steps 1-4 in the staging project, with these changes:
 
 - For preview channels from other branches, create the staging provider without `&& assertion.ref == 'refs/heads/main'` in its condition; only the staging workflow can still impersonate the identity, and only in the staging project. Keep the condition to deploy the live staging site from `main` only.
 Grant the extra roles for Functions only when `STAGING_ENABLE_BLAZE_FUNCTIONS` is about to be set to `true`.
+
+Any branch can run the staging workflow for a preview channel, and a branch runs its own copy of the workflow and of `.github/scripts/staging-target.mjs`, so whoever pushes a branch can remove every check in them; the `attribute.workflow` condition names a file a branch can edit too (REVIEW9 SEC9 L7).
+The real wall is what this identity may do:
+
+- Grant it roles only in the staging project, never in `uv-activity-planner`, and never add the staging pool's principals to production's IAM.
+  Check it: `gcloud projects get-iam-policy uv-activity-planner --format=json | grep -c solara-staging` prints `0`.
+- Keep the provider's condition limited to this repository (`assertion.repository_id`), as in step 1.
+- Create the `staging` environment (OWNER_CHECKLIST B1a) before setting anything in it: a workflow run that names a missing environment creates it with no protection.
+
 Then set the two variables in the `staging` environment, not the repository:
 
 ```bash

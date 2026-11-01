@@ -102,6 +102,43 @@ test("refuses a staging value pointed at production or equal to production's", (
   )
 })
 
+test("refuses production's Google, Microsoft and Sentry clients (REVIEW9 SEC9 L7)", () => {
+  const theirs = {
+    NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID: 'prod.apps.googleusercontent.com',
+    MICROSOFT_CLIENT_ID: '00000000-0000-0000-0000-000000000001',
+    NEXT_PUBLIC_SENTRY_DSN: 'https://abc@o1.ingest.sentry.io/1',
+  }
+  for (const [name, expected] of [
+    [
+      'NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID',
+      /STAGING_NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID is production's value/,
+    ],
+    ['MICROSOFT_CLIENT_ID', /STAGING_MICROSOFT_CLIENT_ID is production's value/],
+    ['NEXT_PUBLIC_SENTRY_DSN', /STAGING_NEXT_PUBLIC_SENTRY_DSN is production's value/],
+  ]) {
+    assert.match(errorsOf({ ...minimal, ...theirs, [`STAGING_${name}`]: theirs[name] }), expected)
+  }
+  // Production's Google client still kept in a secret.
+  assert.match(
+    errorsOf(
+      { ...minimal, STAGING_NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID: 'prod.apps.googleusercontent.com' },
+      { production: { NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID: 'prod.apps.googleusercontent.com' } },
+    ),
+    /STAGING_NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID is production's value/,
+  )
+  // The staging project's own clients pass.
+  assert.equal(
+    errorsOf({
+      ...minimal,
+      ...theirs,
+      STAGING_NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID: 'staging.apps.googleusercontent.com',
+      STAGING_MICROSOFT_CLIENT_ID: '00000000-0000-0000-0000-000000000002',
+      STAGING_NEXT_PUBLIC_SENTRY_DSN: 'https://def@o1.ingest.sentry.io/2',
+    }),
+    '',
+  )
+})
+
 test('never reads production names: a missing staging value stays missing', () => {
   const result = resolve({
     ...production,

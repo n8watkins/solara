@@ -27,7 +27,8 @@ Out of scope: denial of service by traffic volume, findings that need a compromi
 ## How the repository protects its supply chain
 
 - **Workflows** run with `permissions: {}` by default and grant each job only what it needs.
-  Only deploy jobs on `main` can request Google Cloud credentials.
+  Production deploy jobs run only on `main`.
+  The staging workflow may run from any branch, for preview channels, and a branch can change its own copy of that workflow, so what limits it is its credentials: the staging project's own deploy identity, which has no role in the production project ([docs/WIF_SETUP.md](docs/WIF_SETUP.md#staging-deploy-identity)).
 - **Actions** are pinned to full commit SHAs, and Dependabot proposes updates weekly after a 7-day cooldown.
 - **Dependencies** never run install scripts.
   Both `package.json` files record an `allowScripts` policy that denies every dependency install script found so far (`@firebase/util`, `protobufjs` and `unrs-resolver` in the web app; `@firebase/util`, `protobufjs` and `re2` in `functions/`), so npm 12 installs them without a warning and blocks any new one until it is reviewed with `npm install-scripts`.
@@ -36,7 +37,8 @@ Out of scope: denial of service by traffic volume, findings that need a compromi
 - **Every pull request** runs actionlint, zizmor, gitleaks over the commits it adds, and `npm audit` on production dependencies of both packages.
   Every push to `main` runs gitleaks over the full history.
 - **Production deploys** build the static export once, smoke-test it on the Firebase Hosting emulator, record its SHA-256 digest, SBOMs and a provenance record, and deploy exactly that artifact.
-- **Cloud credentials** come from Workload Identity Federation with one deploy identity, limited to `main`, once the owner completes [docs/WIF_SETUP.md](docs/WIF_SETUP.md); until then a service-account key secret is the fallback.
+- **Cloud credentials** come from Workload Identity Federation with one production deploy identity, limited to `main`, once the owner completes [docs/WIF_SETUP.md](docs/WIF_SETUP.md); until then a service-account key secret is the fallback.
+  Staging has its own identity in the staging project, kept in the `staging` environment.
 - **Public build values** are checked before every production build (`.github/scripts/check-public-env.mjs`): a secret-shaped value, an App Check debug token, or Functions without App Check fail the deploy.
 
 ## Repository settings
