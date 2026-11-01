@@ -78,7 +78,7 @@ for (const pair of PAIRS) {
     if (!pair.en.match(/privacy|terms/)) expect(scripts).toEqual([])
 
     await english.click()
-    await expect(page).toHaveURL(new RegExp(`${pair.en.replace(/\//g, '\\/')}$`))
+    await expect(page).toHaveURL(url => url.pathname === pair.en)
     await expect(page.locator('html')).toHaveAttribute('lang', 'en')
     expect(await alternates(page)).toEqual({ canonical: pair.en, languages })
     const spanish = page.getByRole('link', { name: 'Leer esta página en español' })

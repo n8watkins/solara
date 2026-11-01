@@ -90,6 +90,24 @@ for (const screen of PAGES) {
           .map(el => el.textContent!.trim().slice(0, 60)),
       )
       expect(clipped, `${screen.name} at ${width} px cuts text off`).toEqual([])
+      // The chart's peak values never run into each other.
+      const touching = await page.evaluate(() => {
+        const labels = [
+          ...document.querySelectorAll<HTMLElement>(
+            '[data-testid="city-chart"] > div > span:first-child',
+          ),
+        ].map(el => {
+          const range = document.createRange()
+          range.selectNodeContents(el)
+          const box = range.getBoundingClientRect()
+          return { text: el.textContent, left: box.left, right: box.right }
+        })
+        return labels
+          .slice(1)
+          .filter((label, i) => label.left < labels[i]!.right + 1)
+          .map((label, i) => `${labels[i]!.text}|${label.text}`)
+      })
+      expect(touching, `${screen.name} at ${width} px: chart values touch`).toEqual([])
     }
 
     if (screen.lang === 'es') await noEnglish(page)

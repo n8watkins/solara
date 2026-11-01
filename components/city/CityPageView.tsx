@@ -123,11 +123,11 @@ export default function CityPageView({ slug, locale }: { slug: string; locale: L
         <div
           aria-hidden="true"
           data-testid="city-chart"
-          className="card mt-5 grid grid-cols-12 items-end gap-1 px-3 pt-4 pb-3 sm:gap-2 sm:px-5"
+          className="card mt-5 grid grid-cols-12 items-end gap-1 px-3 pt-4 pb-3 max-[399px]:gap-0.5 max-[399px]:px-2 sm:gap-2 sm:px-5"
         >
           {months.map(m => (
             <div key={m.month} className="flex min-w-0 flex-col items-center">
-              <span className="text-[11px] font-semibold text-ink-2 tabular-nums sm:text-[12px]">
+              <span className="text-[11px] font-semibold tracking-[-0.03em] text-ink-2 tabular-nums max-[399px]:text-[10px] sm:text-[12px] sm:tracking-normal">
                 {m.peakText}
               </span>
               <div className="mt-1 flex h-[132px] w-full items-end justify-center">
