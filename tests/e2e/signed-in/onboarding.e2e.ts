@@ -60,7 +60,7 @@ test('a returning account that edits right after signing in from setup keeps its
 
   // Add an activity straight away, with no page load in between. (Before the fix the
   // dashboard showed the empty setup plan here, which has a second add button.)
-  await page.getByRole('button', { name: '+ Add Activity' }).first().click()
+  await page.getByRole('button', { name: '+ Add activity' }).first().click()
   const dialog = page.getByRole('dialog', { name: 'Add activity' })
   await dialog.getByRole('button', { name: /^Hiking 2 h/ }).click()
   await dialog.getByRole('button', { name: 'Done' }).click()

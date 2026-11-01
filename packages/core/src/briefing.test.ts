@@ -59,12 +59,16 @@ describe('dailyBriefing', () => {
     expect(briefing.lines).toEqual({
       peak: 'UV peaks at 9.3 (Very high) around 1pm',
       window: 'Lowest-UV window: Running 6am–10am',
+      // 45 minutes at UV 4 outlast fair skin's 38 (REVIEW10 QA M3).
+      outlasts:
+        'Running lasts longer than your burn time at its UV limit: wear sunscreen, or plan it for a lower UV',
       weather: null,
-      burn: 'At the peak, unprotected skin like yours can burn in about 16 min',
+      burn: 'At the peak, unprotected skin like yours can burn in about 16\u00a0min',
       tip: 'Seek shade while UV is very high or extreme, from 11:10am\u00a0to\u00a03:40pm',
     })
     expect(briefing.text).toBe(
       'Tomorrow: UV peaks at 9.3 (Very high) around 1pm. Lowest-UV window: Running 6am–10am. ' +
+        'Running lasts longer than your burn time at its UV limit: wear sunscreen, or plan it for a lower UV. ' +
         'At the peak, unprotected skin like yours can burn in about 16 min. ' +
         'Seek shade while UV is very high or extreme, from 11:10am to 3:40pm.',
     )
@@ -343,7 +347,9 @@ describe('dailyBriefing with rain and heat', () => {
     expect(briefing.lines.window).toBe('Lowest-UV window: Walking 4pm–8pm')
     expect(briefing.lines.weather).toBe('Rain likely 6am–9am')
     expect(briefing.weather).toEqual({ kind: 'rain', from: 6, to: 9 })
-    expect(briefing.text).toContain('Lowest-UV window: Walking 4pm–8pm. Rain likely 6am–9am. ')
+    expect(briefing.text).toContain(
+      'Lowest-UV window: Walking 4pm–8pm. Walking lasts longer than your burn time at its UV limit: wear sunscreen, or plan it for a lower UV. Rain likely 6am–9am. ',
+    )
 
     // Rain at midday, when the UV rules the walk out anyway, changes nothing.
     const midday = dailyBriefing({
@@ -378,5 +384,42 @@ describe('dailyBriefing with rain and heat', () => {
       skinType: 'fair',
     })
     expect(briefing.lines.weather).toBe('Too hot 6am–9am, feels like 102°F')
+  })
+})
+
+// REVIEW10 QA M3: a window that keeps to the activity's UV limit can still outlast the
+// burn time of unprotected skin; the briefing says so, as the activity card does.
+describe('dailyBriefing and the burn time', () => {
+  const brief = (
+    activity: typeof run & { sunscreen?: boolean },
+    skinType: 'very-fair' | 'fair' | 'medium',
+  ) => dailyBriefing({ day: TOMORROW, dayLabel: 'Tomorrow', activities: [activity], skinType })
+
+  it('warns when the activity outlasts the burn time at its UV limit, for fair skin', () => {
+    // UV 4: fair skin burns in about 38\u00a0min, very fair in 25; Running lasts 45.
+    for (const skin of ['fair', 'very-fair'] as const) {
+      const briefing = brief(run, skin)
+      expect(briefing.outlastsBurn, skin).toBe(true)
+      expect(briefing.lines.outlasts).toBe(
+        'Running lasts longer than your burn time at its UV limit: wear sunscreen, or plan it for a lower UV',
+      )
+      expect(briefing.text).toContain(`${briefing.lines.outlasts}.`)
+    }
+  })
+
+  it('stays quiet when the burn time is longer, or the activity counts on sunscreen', () => {
+    // Medium skin burns in about 63\u00a0min at UV 4.
+    expect(brief(run, 'medium').outlastsBurn).toBe(false)
+    expect(brief({ ...run, durationMins: 30 }, 'fair').lines.outlasts).toBeNull()
+    expect(brief({ ...run, sunscreen: true }, 'very-fair').lines.outlasts).toBeNull()
+  })
+
+  it('warns in Spanish', async () => {
+    const { withLocale } = await import('@solara/core/i18n')
+    const { default: briefingEs } = await import('./messages/es/briefing')
+    const line = withLocale('es', { briefing: briefingEs }, () => brief(run, 'fair').lines.outlasts)
+    expect(line).toBe(
+      'Running dura más que tu tiempo hasta quemarte con su límite de UV: usa protector solar o planifícalo para un UV más bajo',
+    )
   })
 })

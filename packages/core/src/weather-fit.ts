@@ -11,6 +11,7 @@
 // (about 100°F, near its "danger" band). An hour without a value (an older cached
 // forecast) is never skipped for it.
 import m from './messages/core'
+import { timeRange } from './time-range'
 
 /** A chance of rain (percent) from which an hour counts as "rain likely". */
 export const RAIN_LIKELY_PERCENT = 50
@@ -144,7 +145,7 @@ export function weatherText(
   formatTime: (hours: number) => string,
   formatTemp: (celsius: number) => string,
 ): string {
-  const range = `${formatTime(span.from)}–${formatTime(span.to)}`
+  const range = timeRange(formatTime(span.from), formatTime(span.to))
   return span.kind === 'rain' ? m.rainLikely(range) : m.tooHot(range, formatTemp(span.feelsC ?? 0))
 }
 

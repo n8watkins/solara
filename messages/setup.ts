@@ -72,7 +72,6 @@ export default defineMessages('setup', {
   locationOff: 'Location access is off. Search for a city instead.',
   stepOf: (step: number, total: number) => `Step ${step} of ${total}`,
   uvRightNow: (uv: string) => `UV ${uv} right now`,
-  minutesShort: (minutes: number) => `${minutes} min`,
   aboutMinutes: (minutes: number) => `, about ${minutes} minutes`,
   savesSetup:
     'Solara saves your setup to your account, so your sun windows are ready on every device.',

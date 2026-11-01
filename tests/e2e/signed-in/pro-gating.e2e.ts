@@ -10,7 +10,7 @@ test('a free account is held to the free plan and offered Pro', async ({ page, e
   await expect(proBadge(page)).toHaveCount(0)
 
   // Three activities is the free limit: presets lock and custom activities are off.
-  await page.getByRole('button', { name: '+ Add Activity' }).click()
+  await page.getByRole('button', { name: '+ Add activity' }).click()
   const add = page.getByRole('dialog', { name: 'Add activity' })
   await expect(
     add.getByText('Free plan: up to 3 activities. Upgrade to Pro for up to 20.'),
@@ -75,7 +75,7 @@ test('a paid account gets the full forecast and more activities', async ({ page,
   await expect(page.getByRole('button', { name: 'Wed, Jun 24', exact: true })).toBeVisible()
 
   // A fourth activity is allowed.
-  await page.getByRole('button', { name: '+ Add Activity' }).click()
+  await page.getByRole('button', { name: '+ Add activity' }).click()
   const add = page.getByRole('dialog', { name: 'Add activity' })
   await add.getByRole('button', { name: /^Jogging 30 min/ }).click()
   await add.getByRole('button', { name: 'Done' }).click()

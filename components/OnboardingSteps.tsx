@@ -8,6 +8,7 @@ import clsx from 'clsx'
 import type { User } from 'firebase/auth'
 import { SKIN_OPTIONS, setupBurnMinutes, setupBurnNote, setupBurnUV } from '@/lib/onboarding'
 import SkinSwatch from './SkinSwatch'
+import { formatDuration } from '@solara/core/duration'
 import { TIER_LIMITS } from '@solara/core/tiers'
 import { firebaseEnabled } from '@/lib/firebase'
 import type { Location, SkinType, UserPreferences } from '@/lib/types'
@@ -212,7 +213,7 @@ export function SkinStep({
                 <p className="text-[12px] text-ink-3">{o.desc}</p>
               </div>
               <span className="ml-3 text-[12px] whitespace-nowrap text-ink-3" aria-hidden="true">
-                ~{m.minutesShort(setupBurnMinutes(o.value, burnUV.uv))}
+                ~{formatDuration(setupBurnMinutes(o.value, burnUV.uv))}
               </span>
               <span className="sr-only">
                 {m.aboutMinutes(setupBurnMinutes(o.value, burnUV.uv))}

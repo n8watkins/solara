@@ -17,6 +17,7 @@ Activity cards, the hero slot and the activity editor
 | Key | English | Spanish | Notes |
 | --- | --- | --- | --- |
 | `burnTimeAt` | Burn time at UV {1} | Tiempo hasta quemarte con UV {1} |  |
+| `outlastsBurn` | Longer than your burn time: wear sunscreen, or plan for a lower UV. | Dura más que tu tiempo hasta quemarte: usa protector solar o planifica para un UV más bajo. |  |
 | `plannedForSpf` | UV {1} or lower with SPF | UV {1} o menos con FPS |  |
 | `notifyDevices` | It also comes to your devices with alerts on, even with Solara closed. | También llega a tus dispositivos con las alertas activadas, aunque Solara esté cerrada. |  |
 | `reapplyAt` | Reapply sunscreen at {1} | Vuelve a aplicar protector solar a las {1} |  |
@@ -69,7 +70,8 @@ The dashboard: burn time and vitamin D cards, calendar event text
 | `burnAtPeak` | At peak · {1}, no SPF | En el máximo · {1}, sin FPS |  |
 | `burnAbout` | burn ~{1} | quemadura en ~{1} |  |
 | `vitdTitle` | Vitamin D estimate | Estimación de vitamina D |  |
-| `vitdHelp` | A rough model, not a recommended exposure target. Vitamin D needs and production vary widely; ask a clinician if you are concerned. | Un modelo aproximado, no una meta de exposición recomendada. Las necesidades y la producción de vitamina D varían mucho; consulta a un profesional de la salud si te preocupa. |  |
+| `vitdHelp` | About {1} IU of vitamin D for an adult with arms and legs bare: roughly a third of the time it takes the skin to redden (the common rule of thumb, Holick, 2004). A rough model, not a recommended exposure target. Needs and production vary widely and fall with age; ask a clinician if you are concerned. | Unas {1} UI de vitamina D para una persona adulta con brazos y piernas descubiertos: más o menos un tercio del tiempo que tarda la piel en enrojecer (la regla práctica habitual, Holick, 2004). Un modelo aproximado, no una meta de exposición recomendada. Las necesidades y la producción varían mucho y bajan con la edad; consulta a un profesional de la salud si te preocupa. |  |
+| `vitdDose` | ≈{1} IU · arms + legs | ≈{1} UI · brazos + piernas |  |
 | `uvTooLow` | UV too low | UV demasiado bajo |  |
 | `needsUv1` | Needs UV 1 or more | Necesita UV de 1 o más |  |
 | `eventLinkDetails` | Forecast-based lower-UV planning estimate from Solara. Recheck current UV and use sun protection. | Estimación de horario de UV más bajo de Solara, basada en el pronóstico. Vuelve a revisar el UV actual y protégete del sol. |  |
@@ -148,6 +150,7 @@ The daily briefing at the top of the dashboard, and shared briefings
 | `staysBandUnlessClear` | UV stays {1} {2} unless the sky clears | El UV se mantiene {1} {2}, salvo que el cielo se despeje |  |
 | `isBandDuring` | UV is {1} {2} | El UV es {1} {2} |  |
 | `burn` | at the peak, unprotected skin like yours can burn in about {1} min | en el máximo, una piel como la tuya sin protección puede quemarse en unos {1} min |  |
+| `outlastsBurn` | {1} lasts longer than your burn time at its UV limit: wear sunscreen, or plan it for a lower UV | {1} dura más que tu tiempo hasta quemarte con su límite de UV: usa protector solar o planifícalo para un UV más bajo |  |
 | `seekShade` | seek shade while UV is {1}, {2} | busca la sombra mientras el UV sea {1}, {2} |  |
 | `seekShadeIfClear` | seek shade {1}, as UV can be {2} if the sky clears | busca la sombra {1}, porque el UV puede ser {2} si el cielo se despeja |  |
 | `protect` | use sun protection while UV is {1}, {2} | protégete del sol mientras el UV sea {1}, {2} |  |
@@ -217,9 +220,9 @@ Sunscreen coaching: the timer, activity cards, Settings; the reapply reminder pu
 | `reminderWater` | It has been {1} minutes of swimming or sweating since you put it on. | Han pasado {1} minutos nadando o sudando desde que te lo aplicaste. |  |
 | `reminderStandard` | It has been {1} hours since you put it on. | Han pasado {1} horas desde que te lo aplicaste. |  |
 | `amountText` | About {1} teaspoons ({2} mL) for your {3} | Unas {1} cucharaditas ({2} mL) para {3} |  |
-| `amountTextWholeBody` | About {1} teaspoons ({2} mL), a shot glass, for your whole body | Unas {1} cucharaditas ({2} mL), un vasito de licor, para todo el cuerpo |  |
-| `amountShort` | about {1} tsp for {2} | unas {1} cdtas. para {2} |  |
-| `amountShortWholeBody` | about {1} tsp, whole body | unas {1} cdtas., todo el cuerpo |  |
+| `amountTextWholeBody` | About {1} teaspoons ({2} mL), a shot glass, for your whole body | Unas {1} cucharaditas ({2} mL), un caballito (vaso tequilero), para todo el cuerpo |  |
+| `amountShort` | about {1} tsp for {2} | unas {1} cucharaditas para {2} |  |
+| `amountShortWholeBody` | about {1} tsp, whole body | unas {1} cucharaditas, todo el cuerpo |  |
 | `teaspoonRule` | About 1 teaspoon (5 mL) for each part: face, neck and ears; each arm; each leg; the front of your body; the back of your body. | Más o menos 1 cucharadita (5 mL) por cada parte: cara, cuello y orejas; cada brazo; cada pierna; el frente del cuerpo; la espalda. |  |
 | `spfLowUv` | UV peaks at {1} today: most people need no sunscreen below UV {2}. | Hoy el UV llega a {1}: la mayoría de las personas no necesita protector solar con UV menor de {2}. |  |
 | `spfVeryHigh` | SPF 50+ broad spectrum: UV reaches {1} today. | FPS 50+ de amplio espectro: hoy el UV llega a {1}. |  |
@@ -229,7 +232,7 @@ Sunscreen coaching: the timer, activity cards, Settings; the reapply reminder pu
 | `spfRule` | Use SPF 30+ broad spectrum whenever UV is {1} or more, and SPF 50+ when it reaches {2}. | Usa FPS 30+ de amplio espectro siempre que el UV sea {1} o más, y FPS 50+ cuando llegue a {2}. |  |
 | `reapplyRule` | Put it on {1} before you go out. Reapply every {2}, and straight after swimming, sweating or towelling off. | Aplícalo {1} antes de salir. Vuelve a aplicarlo cada {2}, y justo después de nadar, sudar o secarte con la toalla. |  |
 
-121 messages to review.
+124 messages to review.
 
 ## Legal pages
 

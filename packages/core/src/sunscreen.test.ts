@@ -114,7 +114,7 @@ describe('spfAdvice', () => {
 describe('reapplyRule', () => {
   it('uses the one duration style', () => {
     expect(reapplyRule()).toBe(
-      'Put it on 20 min before you go out. Reapply every 2 h, and straight after swimming, sweating or towelling off.',
+      'Put it on 20\u00a0min before you go out. Reapply every 2\u00a0h, and straight after swimming, sweating or towelling off.',
     )
   })
 })

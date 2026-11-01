@@ -34,8 +34,10 @@ export default defineMessages('briefing', {
   staysBandUnlessClear: (band: string, rest: string) =>
     `UV stays ${band} ${rest} unless the sky clears`,
   isBandDuring: (band: string, spans: string) => `UV is ${band} ${spans}`,
+  outlastsBurn: (activity: string) =>
+    `${activity} lasts longer than your burn time at its UV limit: wear sunscreen, or plan it for a lower UV`,
   burn: (minutes: number) =>
-    `at the peak, unprotected skin like yours can burn in about ${minutes} min`,
+    `at the peak, unprotected skin like yours can burn in about ${minutes}\u00a0min`,
   seekShade: (bands: string, during: string) => `seek shade while UV is ${bands}, ${during}`,
   seekShadeIfClear: (during: string, bands: string) =>
     `seek shade ${during}, as UV can be ${bands} if the sky clears`,

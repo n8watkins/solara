@@ -11,9 +11,9 @@ export default {
   uvVeryHigh: 'Muy alto',
   uvExtreme: 'Extremo',
 
-  minutes: m => `${m} min`,
-  hours: h => `${h} h`,
-  hoursMinutes: (h, m) => `${h} h ${m} min`,
+  minutes: m => `${m}\u00a0min`,
+  hours: h => `${h}\u00a0h`,
+  hoursMinutes: (h, m) => `${h}\u00a0h ${m}\u00a0min`,
 
   clock12: (time, pm) => `${time}${NBSP}${pm ? 'p.m.' : 'a.m.'}`,
   clock12Compact: (hour, pm) => `${hour}${pm ? 'p' : 'a'}`,

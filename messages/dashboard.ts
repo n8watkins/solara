@@ -40,10 +40,10 @@ export default defineMessages('dashboard', {
   edit: 'Edit',
   until: (when: string) => `Until ${when}`,
   vitdTitle: 'Vitamin D estimate',
-  vitdHelp:
-    'A rough model, not a recommended exposure target. Vitamin D needs and production vary widely; ask a clinician if you are concerned.',
+  vitdHelp: (dose: string) =>
+    `About ${dose} IU of vitamin D for an adult with arms and legs bare: roughly a third of the time it takes the skin to redden (the common rule of thumb, Holick, 2004). A rough model, not a recommended exposure target. Needs and production vary widely and fall with age; ask a clinician if you are concerned.`,
+  vitdDose: (dose: string) => `≈${dose} IU · arms + legs`,
   uvTooLow: 'UV too low',
-  armsLegs: 'Arms + legs',
   needsUv1: 'Needs UV 1 or more',
 
   shareFailed: 'Could not share. Check your connection and try again.',
@@ -80,7 +80,7 @@ export default defineMessages('dashboard', {
 
   activities: 'Activities',
   activitiesIntro: 'Add what you do outside, then Solara estimates lower-UV windows.',
-  addActivity: '+ Add Activity',
+  addActivity: '+ Add activity',
   manage: 'Manage',
   savePlanTitle: 'Save your plan, sign in free',
   signInFree: 'Sign in free',

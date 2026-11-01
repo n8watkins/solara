@@ -67,7 +67,7 @@ describe('the live catalogue', () => {
 
   it('switches for one synchronous piece of work and restores the language after', () => {
     const text = withLocale('es', { core: es }, () => `${uvLabel(3)} · ${formatDuration(167)}`)
-    expect(text).toBe('Moderado · 2 h 47 min')
+    expect(text).toBe('Moderado · 2\u00a0h 47\u00a0min')
     expect(currentLocale()).toBe('en')
     expect(uvLabel(3)).toBe('Moderate')
   })

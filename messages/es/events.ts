@@ -108,9 +108,9 @@ export default {
   peakAt: (uv, time, average) => `UV máximo ${uv} a ${las(time)} · promedio ${average}`,
   whoGroup: (person, skin) => `${person} (${skin}, la más sensible)`,
   burn: (who, minutes) =>
-    `Sin protección, ${who} podría quemarse en unos ${minutes} min en el momento de UV máximo.`,
+    `Sin protección, ${who} podría quemarse en unos ${minutes}\u00a0min en el momento de UV máximo.`,
   burnOutlasts: (who, minutes, duration) =>
-    `Sin protección, ${who} podría quemarse en unos ${minutes} min en el momento de UV máximo; el evento dura ${duration}.`,
+    `Sin protección, ${who} podría quemarse en unos ${minutes}\u00a0min en el momento de UV máximo; el evento dura ${duration}.`,
   sunscreenReapplyAt: (apply, reapply) =>
     `Protector solar: aplícalo ${apply}, vuelve a aplicarlo a las ${reapply}, y después de nadar o sudar mucho.`,
   sunscreenApply: apply =>

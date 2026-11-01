@@ -74,7 +74,7 @@ test.describe('logic checks', () => {
     const manage = page.getByRole('dialog', { name: 'Manage activities' })
     await manage.getByRole('button', { name: 'Remove Running' }).click()
     await manage.getByRole('button', { name: 'Done' }).click()
-    await expect(page.getByRole('button', { name: '+ Add Activity' })).toHaveCount(1)
+    await expect(page.getByRole('button', { name: '+ Add activity' })).toHaveCount(1)
     await expect(page.getByRole('button', { name: 'Manage' })).toHaveCount(0)
   })
 
@@ -90,7 +90,7 @@ test.describe('logic checks', () => {
   // Item 12: tiles add with a + and hide with a labeled Hide, never an ambiguous x.
   test('preset tiles add with a plus and hide with a labeled button', async ({ page }) => {
     await openDashboard(page, { tier: 'free' })
-    await page.getByRole('button', { name: '+ Add Activity' }).click()
+    await page.getByRole('button', { name: '+ Add activity' }).click()
     const add = page.getByRole('dialog', { name: 'Add activity' })
     await expect(add.getByRole('button', { name: 'Hide Mountain biking suggestion' })).toHaveText(
       'Hide',

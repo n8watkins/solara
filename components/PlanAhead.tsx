@@ -7,6 +7,7 @@ import type { BusyInterval, SlotRecommendation } from '@solara/core/scheduler'
 import { formatUV, uvBand, uvLabel } from '@/lib/weather'
 import type * as IcsCode from '@/lib/ics'
 import { useUnits } from '@/lib/use-units'
+import { timeRange } from '@/lib/time'
 import { UV_BG } from './dashboard/uv-classes'
 import { windowLabelText } from '@solara/core/recommendation'
 import m from '@/messages/activities'
@@ -104,7 +105,7 @@ export default function PlanAhead({
               <p className="mt-0.5 text-[12px] text-ink-3" data-testid="plan-ahead-when">
                 <span className="whitespace-nowrap">{label} ·</span>{' '}
                 <span className="whitespace-nowrap">
-                  {fmt.time(slot.start)}–{fmt.time(slot.end)}
+                  {timeRange(fmt.time(slot.start), fmt.time(slot.end))}
                 </span>
               </p>
             </div>

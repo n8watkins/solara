@@ -62,11 +62,11 @@ describe('isRecommendationScheduled', () => {
 })
 
 describe('closingPeriod', () => {
-  it('closes a sentence once, also after a Spanish time ("entre 6 p.m.–7:15 p.m.")', () => {
+  it('closes a sentence once, also after a Spanish time ("entre las 6 p.m. y las 7:15 p.m.")', () => {
     expect(closingPeriod('7:15pm')).toBe('.')
     expect(closingPeriod('7:15\u00a0p.m.')).toBe('')
     expect(
-      `Podrías empezar cuando quieras entre 6 p.m.–7:15\u00a0p.m.${closingPeriod('7:15\u00a0p.m.')}`,
+      `Podrías empezar cuando quieras entre las 6 p.m. y las 7:15\u00a0p.m.${closingPeriod('7:15\u00a0p.m.')}`,
     ).not.toMatch(/\.\.$/)
   })
 })

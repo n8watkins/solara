@@ -12,6 +12,8 @@ export default {
   columnFree: 'Gratis',
   columnPro: 'Pro',
   monthly: 'Mensual',
+  // In Mexico and much of Latin America "$" means the local peso: say it is US dollars.
+  priceUsd: amount => `US$${amount}`,
   yearly: 'Anual',
   perMonth: 'mes',
   perYear: 'año',

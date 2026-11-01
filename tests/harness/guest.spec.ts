@@ -41,7 +41,7 @@ const SCREENS: Screen[] = [
     fullPage: false,
     reach: async page => {
       // A second activity is the guest plan's limit: the save-plan offer appears.
-      await page.getByRole('button', { name: '+ Add Activity' }).click()
+      await page.getByRole('button', { name: '+ Add activity' }).click()
       await expect(page.getByRole('dialog')).toHaveCount(0)
       const upsell = page.getByRole('status', { name: 'Save your plan, sign in free' })
       await expect(upsell).toBeFocused()
@@ -150,7 +150,7 @@ test('a dismissed upsell stays dismissed on this device', async ({ page }, testI
   await expect(alert).toHaveCount(0)
 
   // Once dismissed, asking for a second activity opens the dialog with the limit note.
-  await page.getByRole('button', { name: '+ Add Activity' }).click()
+  await page.getByRole('button', { name: '+ Add activity' }).click()
   await expect(
     page
       .getByRole('dialog', { name: 'Add activity' })

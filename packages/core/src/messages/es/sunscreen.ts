@@ -16,9 +16,11 @@ export default {
   amountText: (teaspoons, ml, areas) =>
     `Unas ${teaspoons} ${plural(teaspoons, { one: 'cucharadita', other: 'cucharaditas' })} (${ml}${NBSP}mL) para ${areas}`,
   amountTextWholeBody: (teaspoons, ml) =>
-    `Unas ${teaspoons} ${plural(teaspoons, { one: 'cucharadita', other: 'cucharaditas' })} (${ml}${NBSP}mL), un vasito de licor, para todo el cuerpo`,
-  amountShort: (teaspoons, areas) => `unas ${teaspoons} cdtas. para ${areas}`,
-  amountShortWholeBody: teaspoons => `unas ${teaspoons} cdtas., todo el cuerpo`,
+    `Unas ${teaspoons} ${plural(teaspoons, { one: 'cucharadita', other: 'cucharaditas' })} (${ml}${NBSP}mL), un caballito (vaso tequilero), para todo el cuerpo`,
+  amountShort: (teaspoons, areas) =>
+    `unas ${teaspoons} ${plural(teaspoons, { one: 'cucharadita', other: 'cucharaditas' })} para ${areas}`,
+  amountShortWholeBody: teaspoons =>
+    `unas ${teaspoons} ${plural(teaspoons, { one: 'cucharadita', other: 'cucharaditas' })}, todo el cuerpo`,
   amountShortList: areas => areas.join(', '),
   teaspoonRule: `Más o menos 1 cucharadita (5${NBSP}mL) por cada parte: cara, cuello y orejas; cada brazo; cada pierna; el frente del cuerpo; la espalda.`,
   spfLowUv: (reading, from) =>

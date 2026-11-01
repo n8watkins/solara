@@ -2,8 +2,10 @@ import { CalendarPlus } from 'lucide-react'
 import type { SlotRecommendation } from '@solara/core/scheduler'
 import { closingPeriod } from '@/lib/activity-card-view'
 import { useUnits } from '@/lib/use-units'
+import { timeRange } from '@/lib/time'
 import { windowLabelText } from '@solara/core/recommendation'
 import m from '@/messages/activities'
+import BurnTimeWarning from './BurnTimeWarning'
 
 const ACTION = 'btn mt-2 w-full justify-center text-[12px]'
 
@@ -14,10 +16,13 @@ const ACTION = 'btn mt-2 w-full justify-center text-[12px]'
  */
 export default function RecommendedSlot({
   rec,
+  outlastsBurn = false,
   onBook,
   calendarHref,
 }: {
   rec: SlotRecommendation
+  /** The activity outlasts the burn time without sunscreen (outlastsBurnTime). */
+  outlastsBurn?: boolean
   onBook?: () => void
   calendarHref?: string
 }) {
@@ -36,23 +41,18 @@ export default function RecommendedSlot({
         <span className="text-[10px] text-ink-3">{windowLabelText(rec.windowLabel)}</span>
       </div>
       <p className="mt-[3px] text-[15px] font-[750] text-ink">
-        {fmt.time(rec.start)}–{fmt.time(rec.end)}
+        {timeRange(fmt.time(rec.start), fmt.time(rec.end))}
       </p>
       <p className="mt-0.5 text-[11px] leading-[1.4] text-ink-3">
         {rec.reason}
-        {rec.latestStart > rec.earliestStart && (
-          <>
-            {m.couldStartAnytime}{' '}
-            <span className="whitespace-nowrap">
-              {fmt.time(rec.earliestStart)}–{fmt.time(rec.latestStart)}
-            </span>
-          </>
-        )}
+        {rec.latestStart > rec.earliestStart &&
+          m.couldStartAnytime(fmt.time(rec.earliestStart), fmt.time(rec.latestStart))}
         {/* The sentence's period, unless a time such as "7:15 p.m." already closes it. */}
         {closingPeriod(
           rec.latestStart > rec.earliestStart ? fmt.time(rec.latestStart) : rec.reason,
         )}
       </p>
+      {outlastsBurn && <BurnTimeWarning className="mt-1.5" />}
       {onBook ? (
         <button className={ACTION} onClick={onBook}>
           <CalendarPlus size={15} /> {m.addToGoogleCalendar}

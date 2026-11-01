@@ -28,8 +28,10 @@ export default {
   staysBandUnlessClear: (band, rest) =>
     `El UV se mantiene ${band} ${rest}, salvo que el cielo se despeje`,
   isBandDuring: (band, spans) => `El UV es ${band} ${spans}`,
+  outlastsBurn: activity =>
+    `${activity} dura más que tu tiempo hasta quemarte con su límite de UV: usa protector solar o planifícalo para un UV más bajo`,
   burn: minutes =>
-    `en el máximo, una piel como la tuya sin protección puede quemarse en unos ${minutes} min`,
+    `en el máximo, una piel como la tuya sin protección puede quemarse en unos ${minutes}\u00a0min`,
   seekShade: (bands, during) => `busca la sombra mientras el UV sea ${bands}, ${during}`,
   seekShadeIfClear: (during, bands) =>
     `busca la sombra ${during}, porque el UV puede ser ${bands} si el cielo se despeja`,
@@ -50,6 +52,7 @@ export const needsReview: (keyof typeof briefing)[] = [
   'staysBandUnlessClear',
   'isBandDuring',
   'burn',
+  'outlastsBurn',
   'seekShade',
   'seekShadeIfClear',
   'protect',

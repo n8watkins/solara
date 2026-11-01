@@ -48,7 +48,7 @@ test('a guest plans today with one activity, kept on this device', async ({ page
   // No upsell on a first visit.
   await expect(page.getByTestId('upsell')).toHaveCount(0)
 
-  await page.getByRole('button', { name: '+ Add Activity' }).first().click()
+  await page.getByRole('button', { name: '+ Add activity' }).first().click()
   const add = page.getByRole('dialog', { name: 'Add activity' })
   await add.getByRole('button', { name: /^Running 45 min/ }).click()
   await expect(
@@ -58,7 +58,7 @@ test('a guest plans today with one activity, kept on this device', async ({ page
   await expect(page.getByRole('button', { name: 'Edit Running' })).toBeVisible()
 
   // Asking for a second activity offers free sign-in instead of the dialog.
-  await page.getByRole('button', { name: '+ Add Activity' }).click()
+  await page.getByRole('button', { name: '+ Add activity' }).click()
   const upsell = page.getByRole('status', { name: 'Save your plan, sign in free' })
   await expect(upsell).toBeFocused()
   await expect(page.getByRole('dialog')).toHaveCount(0)
@@ -85,7 +85,7 @@ test('the locked tab and the morning alert open the Pro plans', async ({ page })
   await plans.getByRole('button', { name: 'Close' }).click()
   await expect(page.getByRole('button', { name: 'See the next 10 days with Pro' })).toBeFocused()
 
-  await page.getByRole('button', { name: '+ Add Activity' }).first().click()
+  await page.getByRole('button', { name: '+ Add activity' }).first().click()
   const add = page.getByRole('dialog', { name: 'Add activity' })
   await add.getByRole('button', { name: /^Running 45 min/ }).click()
   await add.getByRole('button', { name: 'Done' }).click()

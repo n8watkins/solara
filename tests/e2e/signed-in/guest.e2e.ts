@@ -17,7 +17,7 @@ import type { Page } from './fixtures'
 
 /** The guest adds Running, the one activity the guest plan holds. */
 async function addRunning(page: Page) {
-  await page.getByRole('button', { name: '+ Add Activity' }).first().click()
+  await page.getByRole('button', { name: '+ Add activity' }).first().click()
   const add = page.getByRole('dialog', { name: 'Add activity' })
   await add.getByRole('button', { name: /^Running 45 min/ }).click()
   await add.getByRole('button', { name: 'Done' }).click()
@@ -72,7 +72,7 @@ test('a returning account keeps its own plan, and no later account inherits the 
   await addRunning(page)
 
   // Sign in from the save-plan upsell (asking for a second activity).
-  await page.getByRole('button', { name: '+ Add Activity' }).click()
+  await page.getByRole('button', { name: '+ Add activity' }).click()
   const upsell = page.getByRole('status', { name: 'Save your plan, sign in free' })
   await completeGoogleSignIn(page, returning, () =>
     upsell.getByRole('button', { name: 'Sign in free' }).click(),

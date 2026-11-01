@@ -238,7 +238,7 @@ test('manage and edit activity: nested dialogs, emoji picker, focus return', asy
 
 test('add activity: presets are toggle buttons and the dialog is clean', async ({ page }) => {
   await open(page, 'dashboard')
-  const trigger = page.getByRole('button', { name: '+ Add Activity' })
+  const trigger = page.getByRole('button', { name: '+ Add activity' })
   await trigger.focus()
   await press(page, 'Enter')
   const add = page.getByRole('dialog', { name: 'Add activity' })

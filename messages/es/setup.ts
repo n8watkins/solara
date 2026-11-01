@@ -74,7 +74,6 @@ export default {
   locationOff: 'El acceso a la ubicación está desactivado. Busca una ciudad.',
   stepOf: (step, total) => `Paso ${step} de ${total}`,
   uvRightNow: uv => `UV ${uv} en este momento`,
-  minutesShort: minutes => `${minutes} min`,
   aboutMinutes: minutes => `, unos ${minutes} minutos`,
   savesSetup:
     'Solara guarda tu configuración en tu cuenta, así tus horarios de sol están listos en todos tus dispositivos.',

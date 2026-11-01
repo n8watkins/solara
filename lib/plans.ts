@@ -11,8 +11,13 @@ import m from '@/messages/pricing'
  * `trialDays` matches the trial checkout gives (PRO_TRIAL_DAYS in @solara/core).
  */
 export const PRO_PLAN = Object.freeze({
-  monthly: '$2.99',
-  yearly: '$19.99',
+  /** In US dollars, written for the page's language ("$2.99", "US$2.99", REVIEW10 QA L4). */
+  get monthly() {
+    return m.priceUsd('2.99')
+  },
+  get yearly() {
+    return m.priceUsd('19.99')
+  },
   trialDays: 7,
   /** The yearly price against twelve monthly payments, rounded down. */
   yearlySavingPercent: Math.floor((1 - 19.99 / (2.99 * 12)) * 100),

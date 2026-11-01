@@ -63,7 +63,7 @@ describe('eventCardView', () => {
       when: 'Tomorrow · 9am–2pm',
       badge: { value: '9.4', label: 'Very high', band: 'very-high' },
       peak: 'Peak UV 9.4 at 12pm · average 7.5',
-      burn: 'Unprotected, fair skin could burn in about 16 min at the peak; the event lasts 5 h.',
+      burn: 'Unprotected, fair skin could burn in about 16\u00a0min at the peak; the event lasts 5\u00a0h.',
       sunscreen:
         'Sunscreen: apply 8:30am–8:45am, reapply at 11am and 1pm, and after swimming or heavy sweating.',
       later: null,
@@ -89,7 +89,7 @@ describe('eventCardView', () => {
     expect(view.exposure).toBe('Mostly shade · 50% of forecast UV')
     expect(view.badge?.value).toBe('4.7')
     expect(view.burn).toBe(
-      'Unprotected, Mia (very fair skin, the most sensitive) could burn in about 21 min at the peak; the event lasts 30 min.',
+      'Unprotected, Mia (very fair skin, the most sensitive) could burn in about 21\u00a0min at the peak; the event lasts 30\u00a0min.',
     )
     expect(view.sunscreen).toBe(
       'Sunscreen: apply 11:30am–11:45am; reapply after swimming or heavy sweating.',
@@ -111,7 +111,7 @@ describe('eventCardView', () => {
       ...base,
       item: item('2026-06-16T06:00:00.000Z', '2026-06-16T08:00:00.000Z'),
     })
-    expect(view.when).toBe('Today · 11pm – Tomorrow 1am')
+    expect(view.when).toBe('Today · 11pm\u00a0–\u00a0Tomorrow 1am')
   })
 
   it('says when an event past the plan becomes live', () => {
@@ -154,8 +154,8 @@ describe('eventCardView', () => {
   })
 
   it('formats durations', () => {
-    expect(durationText(45 * 60_000)).toBe('45 min')
-    expect(durationText(120 * 60_000)).toBe('2 h')
-    expect(durationText(90 * 60_000)).toBe('1 h 30 min')
+    expect(durationText(45 * 60_000)).toBe('45\u00a0min')
+    expect(durationText(120 * 60_000)).toBe('2\u00a0h')
+    expect(durationText(90 * 60_000)).toBe('1\u00a0h 30\u00a0min')
   })
 })

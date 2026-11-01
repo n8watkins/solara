@@ -11,10 +11,11 @@ export default defineMessages('core', {
   uvVeryHigh: 'Very high',
   uvExtreme: 'Extreme',
 
-  // Durations: "45 min", "2 h", "2 h 47 min" (never "167m", which reads as metres).
-  minutes: (m: number) => `${m} min`,
-  hours: (h: number) => `${h} h`,
-  hoursMinutes: (h: number, m: number) => `${h} h ${m} min`,
+  // Durations: "45 min", "2 h", "2 h 47 min" (never "167m", which reads as metres), each
+  // number held to its unit by a no-break space, so "min" never wraps alone (REVIEW10 QA L6).
+  minutes: (m: number) => `${m}\u00a0min`,
+  hours: (h: number) => `${h}\u00a0h`,
+  hoursMinutes: (h: number, m: number) => `${h}\u00a0h ${m}\u00a0min`,
 
   // The 12-hour clock: "9am", "6:45am"; the narrowest label for the hourly strip: "6a".
   clock12: (time: string, pm: boolean) => `${time}${pm ? 'pm' : 'am'}`,

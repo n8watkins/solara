@@ -8,6 +8,9 @@ import { dayPhrase as phraseForDay } from '@/lib/dashboard-view'
 import { useUnits } from '@/lib/use-units'
 import { useUpsellDismissal } from '@/lib/upsell'
 import WeatherNote from './WeatherNote'
+import { timeRange } from '@/lib/time'
+import BurnTimeWarning from './BurnTimeWarning'
+import { outlastsBurnTime } from '@solara/core/recommendation'
 import { windowLabelText } from '@solara/core/recommendation'
 import m from '@/messages/activities'
 
@@ -84,7 +87,7 @@ export default function HeroSlot({
               data-testid="hero-time"
               className="text-[24px] leading-[1.1] font-[750] whitespace-nowrap text-ink"
             >
-              {fmt.time(slot.start)}–{fmt.time(slot.end)}
+              {timeRange(fmt.time(slot.start), fmt.time(slot.end))}
             </p>
             <p data-testid="hero-detail" className="mt-[3px] text-[13px] leading-[1.35] text-ink-2">
               {/* Each part stays whole; a line can break only after a dot. The label
@@ -100,6 +103,7 @@ export default function HeroSlot({
             </p>
           </div>
         </div>
+        {outlastsBurnTime(activity, plan.burnMins) && <BurnTimeWarning className="mt-2.5" />}
         {/* Only when the weather moved the slot: the reason it is not the lowest-UV hour. */}
         {plan.weatherMoved && <WeatherNote spans={plan.weather} className="mt-2.5" />}
         {onMorningAlert && !alertDismissed && (

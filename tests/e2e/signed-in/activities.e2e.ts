@@ -12,7 +12,7 @@ test('adds a preset activity and keeps it across reloads', async ({ page, emulat
   await emulators.seedPrefs(account, { activities: [RUNNING] })
   await openDashboard(page, account)
 
-  await page.getByRole('button', { name: '+ Add Activity' }).click()
+  await page.getByRole('button', { name: '+ Add activity' }).click()
   const dialog = page.getByRole('dialog', { name: 'Add activity' })
   await dialog.getByRole('button', { name: /^Hiking 2 h/ }).click()
   await expect(dialog.getByRole('button', { name: /^Hiking 2 h/ })).toHaveAttribute(

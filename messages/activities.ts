@@ -55,6 +55,7 @@ export default defineMessages('activities', {
   plannedFor: (uv: number) => `UV ${uv} or lower`,
   plannedForSpf: (uv: number) => `UV ${uv} or lower with SPF`,
   burnTimeAt: (uv: number) => `Burn time at UV ${uv}`,
+  outlastsBurn: 'Longer than your burn time: wear sunscreen, or plan for a lower UV.',
   aboutMinutes: (minutes: number) => `about ${minutes}\u00a0min`,
   daylightFit: (percent: number) => `${percent}% of daylight hours fit`,
   windowsLeftToday: 'Lower-UV windows left today',
@@ -80,7 +81,7 @@ export default defineMessages('activities', {
   calAdd: (range: string) => `: add ${range} to Google Calendar`,
   ifCloudsHold: ' · if the clouds hold',
   shareNamed: (range: string) => `Share ${range}`,
-  couldStartAnytime: '. Could start anytime',
+  couldStartAnytime: (from: string, to: string) => `. Could start anytime ${from}–${to}`,
   openScheduled: (activity: string, range: string) =>
     `Open scheduled ${activity}, ${range}, in Google Calendar`,
   manageScheduled: (activity: string, range: string) => `Manage scheduled ${activity}, ${range}`,

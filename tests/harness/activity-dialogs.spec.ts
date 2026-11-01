@@ -97,7 +97,7 @@ for (const mode of ['shots', 'axe'] as const) {
     const project = testInfo.project.name
     const at = checkpoint(page, mode, project)
     await open(page, 'dashboard', scheme(project), mode)
-    await page.getByRole('button', { name: '+ Add Activity' }).click()
+    await page.getByRole('button', { name: '+ Add activity' }).click()
     const add = page.getByRole('dialog', { name: 'Add activity' })
     await expect(add.getByRole('searchbox', { name: 'Search activities' })).toBeVisible()
     await at('activity-add-browse', add)

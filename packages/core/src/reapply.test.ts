@@ -51,9 +51,9 @@ describe('the reapply timer', () => {
   })
 
   it('formats the time left', () => {
-    expect(formatDuration(45)).toBe('45 min')
-    expect(formatDuration(60)).toBe('1 h')
-    expect(formatDuration(80)).toBe('1 h 20 min')
+    expect(formatDuration(45)).toBe('45\u00a0min')
+    expect(formatDuration(60)).toBe('1\u00a0h')
+    expect(formatDuration(80)).toBe('1\u00a0h 20\u00a0min')
   })
 })
 
