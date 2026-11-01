@@ -1,6 +1,7 @@
 // The activity icon picker's search words (lib/emoji-catalog.ts), by icon: what a person
 // might type to find it, space separated, in lower case. Each language has its own
-// words; in another language the picker still finds the English ones.
+// words, fetched when the picker opens (lib/i18n.ts loadOnDemandMessages); in another
+// language the picker still finds the English ones.
 import { defineMessages } from '@solara/core/i18n'
 
 const keywords = {

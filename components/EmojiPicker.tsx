@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from 'react'
 import type { KeyboardEvent } from 'react'
 import clsx from 'clsx'
 import { EMOJI_GROUPS, searchEmojis } from '@/lib/emoji-catalog'
+import { loadOnDemandMessages } from '@/lib/i18n'
 import { nearestInAdjacentRow, nextIndex } from '@/lib/roving-focus'
 import m from '@/messages/editor'
 
@@ -24,6 +25,18 @@ interface Props {
  */
 export default function EmojiPicker({ id, value, onChange, onClose }: Props) {
   const [search, setSearch] = useState('')
+  // The search words in the page's language arrive when the picker opens (English is built in).
+  const [, setKeywordsLoaded] = useState(false)
+  useEffect(() => {
+    let active = true
+    loadOnDemandMessages('iconSearch').then(
+      () => active && setKeywordsLoaded(true),
+      () => {},
+    )
+    return () => {
+      active = false
+    }
+  }, [])
   const ref = useRef<HTMLDivElement>(null)
   const gridRef = useRef<HTMLDivElement>(null)
   // The element focused when the picker opened, captured before the search

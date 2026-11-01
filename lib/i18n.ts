@@ -80,6 +80,20 @@ const TRANSLATIONS: Record<Exclude<Locale, 'en'>, { initial: Chunk; rest: Chunk 
   },
 }
 
+/**
+ * Translations that only a rarely opened part reads, fetched when it opens, so neither the
+ * first load nor the rest carries them: the icon picker's search words.
+ */
+const ON_DEMAND: Record<Exclude<Locale, 'en'>, Record<'iconSearch', Chunk>> = {
+  es: {
+    iconSearch: () =>
+      import('@/messages/es/icon-search').then(module => ({
+        default: { iconSearch: module.default },
+      })),
+  },
+}
+const onDemand = new Map<string, Promise<void>>()
+
 let initial: Promise<void> | null = null
 let rest: Promise<void> | null = null
 let initialDone = false
@@ -176,6 +190,22 @@ export function loadAllMessages(): Promise<void> {
   rest =
     locale === 'en' ? Promise.resolve() : retryable(TRANSLATIONS[locale].rest, () => (rest = null))
   return rest
+}
+
+/**
+ * Fetches the translations of one part that loads them when it opens (ON_DEMAND), in the
+ * page's language; resolves at once in English. Until they arrive the part reads English.
+ */
+export function loadOnDemandMessages(part: keyof (typeof ON_DEMAND)['es']): Promise<void> {
+  const locale = currentLocale()
+  if (locale === 'en') return Promise.resolve()
+  const key = `${locale}:${part}`
+  let pending = onDemand.get(key)
+  if (!pending) {
+    pending = retryable(ON_DEMAND[locale][part], () => onDemand.delete(key))
+    onDemand.set(key, pending)
+  }
+  return pending
 }
 
 /** Whether the opening screen's text is ready (always, in English). */

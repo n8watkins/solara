@@ -10,6 +10,7 @@ import * as staticText from './static'
 import initial from './es/initial'
 import rest from './es/rest'
 import pages from './es/pages'
+import iconSearch from './es/icon-search'
 import { reviewSheet } from './review-sheet'
 
 // Every English namespace registers when its module loads.
@@ -25,7 +26,15 @@ const SERVER_ONLY = ['server']
 const server = Object.fromEntries(
   Object.entries(SERVER_TRANSLATIONS.es).filter(([namespace]) => SERVER_ONLY.includes(namespace)),
 )
-const spanish: Record<string, Messages> = { ...initial, ...rest, ...server, ...pages }
+/** Translations a rarely opened part fetches when it opens (lib/i18n.ts ON_DEMAND). */
+const onDemand = { iconSearch }
+const spanish: Record<string, Messages> = {
+  ...initial,
+  ...rest,
+  ...server,
+  ...pages,
+  ...onDemand,
+}
 const sources = registeredNamespaces()
 
 /** Calls a message with numbered values in every parameter (numbers, then string lists). */
@@ -60,6 +69,7 @@ describe('message catalogues', () => {
     expect(SERVER_ONLY.filter(ns => ns in initial || ns in rest)).toEqual([])
     // The static pages' own words are built into their HTML, never the app's chunks.
     expect(Object.keys(pages).filter(ns => ns in initial || ns in rest)).toEqual([])
+    expect(Object.keys(onDemand).filter(ns => ns in initial || ns in rest)).toEqual([])
     expect(Object.keys(spanish).sort()).toEqual([...sources.keys()].sort())
   })
 

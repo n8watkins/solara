@@ -115,6 +115,27 @@ describe('loading the translations', () => {
     const settings = (await import('@/messages/settings')).default
     expect(settings.language).toBe('Idioma')
   })
+
+  it("fetches a rarely opened part's words only when it opens", async () => {
+    const page = fakePage({ languages: ['es-MX'] })
+    page.root.lang = 'es'
+    const i18n = await freshModule()
+    await i18n.loadInitialMessages()
+    await i18n.loadAllMessages()
+    const keywords = (await import('@/messages/icon-search')).default
+    expect(keywords['🏊']).toBe('swim swimming pool')
+    await i18n.loadOnDemandMessages('iconSearch')
+    expect(keywords['🏊']).toBe('nadar natación alberca piscina')
+  })
+
+  it('needs nothing on demand in English', async () => {
+    fakePage({ languages: ['en-US'] })
+    const i18n = await freshModule()
+    await i18n.loadInitialMessages()
+    await i18n.loadOnDemandMessages('iconSearch')
+    const keywords = (await import('@/messages/icon-search')).default
+    expect(keywords['🏊']).toBe('swim swimming pool')
+  })
 })
 
 describe('followLanguagePreference', () => {
