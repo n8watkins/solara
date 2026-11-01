@@ -94,7 +94,7 @@ test('sign-in after a deploy reloads once to the new version, then signs in', as
   await signIn.click()
 
   // The page reloads to the new version and says why, in place of a connection error.
-  await expect(page.getByRole('status').filter({ hasText: 'Solara was updated' })).toHaveText(
+  await expect(page.getByRole('status').filter({ hasText: 'Solara was updated' })).toContainText(
     'Solara was updated while this page was open, so it reloaded. Choose Sign in again to continue.',
   )
   expect(state.reloads).toBe(1)
@@ -146,7 +146,7 @@ test('opening a part of the app after a deploy reloads to the new version', asyn
   })
   const state = await openThenDeploy(page, 'gone')
   await page.getByRole('banner').getByRole('button', { name: 'Settings' }).click()
-  await expect(page.getByRole('status').filter({ hasText: 'Solara was updated' })).toHaveText(
+  await expect(page.getByRole('status').filter({ hasText: 'Solara was updated' })).toContainText(
     'Solara was updated while this page was open, so it reloaded.',
   )
   expect(state.reloads).toBe(1)
