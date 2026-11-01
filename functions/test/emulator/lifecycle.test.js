@@ -541,6 +541,25 @@ describe('the account export pages large collections (REVIEW4 M4)', () => {
   })
 })
 
+describe('the account export includes Solara’s own bookkeeping (REVIEW10 SEC10 I3)', () => {
+  test('the reminder’s last write, the day’s reminder counts and the last device registration', async () => {
+    await seedAccount('ida')
+    await db.doc('users/ida/reminders/writes').set({ writtenAt: new Date('2026-11-01T15:00:00Z') })
+    await db
+      .doc('users/ida/alertState/reapply')
+      .set({ day: '2026-11-01', scheduled: 2, sent: 1, expireAt: new Date('2026-11-08T00:00:00Z') })
+    await db
+      .doc('users/ida/private/notificationDevices')
+      .set({ registeredAt: new Date('2026-10-30T08:00:00Z') })
+    const exported = await exportAccountData({ auth: auth('ida'), db, req: request() })
+    assert.deepEqual(exported.bookkeeping, {
+      reapplyReminderLastWrittenAt: '2026-11-01T15:00:00.000Z',
+      reapplyReminderCounts: { day: '2026-11-01', scheduled: 2, sent: 1 },
+      notificationDeviceRegisteredAt: '2026-10-30T08:00:00.000Z',
+    })
+  })
+})
+
 describe('account deletion removes what the person added (REVIEW4 L4)', () => {
   test('imported, Google and Outlook events, their connections, scheduled activities and devices go with the account', async () => {
     const stripe = new FakeStripe()

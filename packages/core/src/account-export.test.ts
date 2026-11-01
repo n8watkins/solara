@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   ACCOUNT_EXPORT_FORMAT_VERSION,
   alertHistory,
+  bookkeepingSummary,
   buildAccountExport,
   eventHeadsUpHistory,
   exportBillingSummary,
@@ -176,6 +177,31 @@ describe('account export', () => {
     ])
   })
 
+  it('includes the times and counts kept for Solara’s own limits (REVIEW10 SEC10 I3)', () => {
+    expect(bookkeepingSummary(empty)).toEqual({
+      reapplyReminderLastWrittenAt: null,
+      reapplyReminderCounts: null,
+      notificationDeviceRegisteredAt: null,
+    })
+    const built = buildAccountExport(
+      {
+        ...empty,
+        reminderWrites: { writtenAt: { toMillis: () => Date.parse('2026-11-01T15:00:00.000Z') } },
+        reminderCounts: { day: '2026-11-01', scheduled: 3, sent: 'x', expireAt: new Date(0) },
+        deviceRecords: { registeredAt: new Date('2026-10-30T08:00:00.000Z') },
+      },
+      new Date(0),
+    )
+    expect(built.bookkeeping).toEqual({
+      reapplyReminderLastWrittenAt: '2026-11-01T15:00:00.000Z',
+      reapplyReminderCounts: { day: '2026-11-01', scheduled: 3, sent: 0 },
+      notificationDeviceRegisteredAt: '2026-10-30T08:00:00.000Z',
+    })
+    expect(bookkeepingSummary({ ...empty, reminderCounts: { scheduled: 2 } })).toMatchObject({
+      reapplyReminderCounts: null,
+    })
+  })
+
   it('has every section in a fixed order and meets the Function response contract', () => {
     const built = buildAccountExport(
       {
@@ -199,6 +225,7 @@ describe('account export', () => {
       'linkedCalendars',
       'googleCalendar',
       'outlookCalendar',
+      'bookkeeping',
       'truncated',
     ])
     expect(built.formatVersion).toBe(ACCOUNT_EXPORT_FORMAT_VERSION)

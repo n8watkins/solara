@@ -9,7 +9,8 @@
 //
 // Both hand plain document data to buildAccountExport, so the file has the same
 // sections, field names and filtering either way: the portable preferences only, never
-// billing ids, tokens or internal bookkeeping. FUNCTION_RESPONSES.exportAccountData in
+// billing ids or tokens, and of Solara's own bookkeeping only the times and counts it
+// keeps about the account (bookkeepingSummary). FUNCTION_RESPONSES.exportAccountData in
 // functions-api.ts is the contract the browser reads the Function's answer with, and a
 // test checks the browser's file against it too.
 //
@@ -59,6 +60,12 @@ export interface AccountExportSources {
   outlook: Data | null
   /** users/{uid}/reminders/reapply: the sunscreen reminder waiting to be sent, if any. */
   reminder?: Data | null
+  /** users/{uid}/reminders/writes: when the sunscreen reminder was last written. */
+  reminderWrites?: Data | null
+  /** users/{uid}/alertState/reapply: the day's reminder counts (server-only; null when it cannot be read). */
+  reminderCounts?: Data | null
+  /** users/{uid}/private/notificationDevices: when a device was last registered. */
+  deviceRecords?: Data | null
   devices: readonly ExportDocument[]
   scheduled: readonly ExportDocument[]
   events: readonly ExportDocument[]
@@ -206,6 +213,26 @@ export function reapplyReminderSummary(data: Data | null | undefined) {
   }
 }
 
+/**
+ * The small records Solara keeps for its own limits (REVIEW10 SEC10 I3): when the
+ * sunscreen reminder was last written (the rules space its writes), the day's reminder
+ * counts (the daily caps; read only by the Function), and when a notification device was
+ * last registered (the marker that only the server may delete the account). Times only.
+ */
+export function bookkeepingSummary(sources: AccountExportSources) {
+  const counts = sources.reminderCounts
+  const count = (value: unknown) =>
+    typeof value === 'number' && Number.isFinite(value) ? value : 0
+  return {
+    reapplyReminderLastWrittenAt: isoDate(sources.reminderWrites?.writtenAt),
+    reapplyReminderCounts:
+      counts && typeof counts.day === 'string'
+        ? { day: counts.day, scheduled: count(counts.scheduled), sent: count(counts.sent) }
+        : null,
+    notificationDeviceRegisteredAt: isoDate(sources.deviceRecords?.registeredAt),
+  }
+}
+
 /** The downloadable file: the same sections in the same order wherever it is built. */
 export function buildAccountExport(sources: AccountExportSources, exportedAt: Date) {
   return {
@@ -225,6 +252,7 @@ export function buildAccountExport(sources: AccountExportSources, exportedAt: Da
     googleCalendar: parseGoogleCalendarLink(sources.google),
     // The Outlook calendars events are read from (no token or account is stored), or null.
     outlookCalendar: parseOutlookCalendarLink(sources.outlook),
+    bookkeeping: bookkeepingSummary(sources),
     truncated: [...sources.truncated],
   }
 }

@@ -786,11 +786,20 @@ describe('account data security', () => {
         if (name === 'alertState') {
           return {
             doc: id =>
-              id === 'events' ? eventAlertsRef : (assert.equal(id, 'daily'), alertStateRef),
+              id === 'events'
+                ? eventAlertsRef
+                : id === 'reapply'
+                  ? reminderCountsRef
+                  : (assert.equal(id, 'daily'), alertStateRef),
           }
         }
         if (name === 'private') {
-          return { doc: id => (assert.equal(id, 'eventSubscriptions'), linksRef) }
+          return {
+            doc: id =>
+              id === 'notificationDevices'
+                ? deviceRecordsRef
+                : (assert.equal(id, 'eventSubscriptions'), linksRef),
+          }
         }
         if (name === 'meta') {
           return {
@@ -801,7 +810,12 @@ describe('account data security', () => {
           }
         }
         if (name === 'events') return eventsQuery
-        if (name === 'reminders') return { doc: id => (assert.equal(id, 'reapply'), reminderRef) }
+        if (name === 'reminders') {
+          return {
+            doc: id =>
+              id === 'writes' ? reminderWritesRef : (assert.equal(id, 'reapply'), reminderRef),
+          }
+        }
         assert.equal(name, 'scheduled')
         return scheduledQuery
       },
@@ -810,6 +824,9 @@ describe('account data security', () => {
     const googleRef = { kind: 'googleCalendar' }
     const outlookRef = { kind: 'outlookCalendar' }
     const reminderRef = { kind: 'reminder' }
+    const reminderWritesRef = { kind: 'reminderWrites' }
+    const reminderCountsRef = { kind: 'reminderCounts' }
+    const deviceRecordsRef = { kind: 'deviceRecords' }
     const outlookLink = {
       calendars: [
         { id: 'default', name: '' },
@@ -870,6 +887,16 @@ describe('account data security', () => {
                 }),
               }
             }
+            if (ref === reminderWritesRef) {
+              return { exists: true, data: () => ({ writtenAt: new Date('2026-06-15T17:00:01Z') }) }
+            }
+            if (ref === reminderCountsRef) {
+              return {
+                exists: true,
+                data: () => ({ day: '2026-06-15', scheduled: 1, sent: 0, expireAt: new Date() }),
+              }
+            }
+            if (ref === deviceRecordsRef) return { exists: false }
             if (ref === outlookRef) {
               return {
                 exists: true,
@@ -957,10 +984,19 @@ describe('account data security', () => {
       'googleCalendar',
       'outlookCalendar',
       'reminder',
+      'reminderWrites',
+      'reminderCounts',
+      'deviceRecords',
       'devices',
       'scheduled',
       'events',
     ])
+    // Solara's own bookkeeping, times and counts only (REVIEW10 SEC10 I3).
+    assert.deepEqual(result.bookkeeping, {
+      reapplyReminderLastWrittenAt: '2026-06-15T17:00:01.000Z',
+      reapplyReminderCounts: { day: '2026-06-15', scheduled: 1, sent: 0 },
+      notificationDeviceRegisteredAt: null,
+    })
     // The sunscreen reminder waiting to be sent, without its internal id.
     assert.deepEqual(result.reapplyReminder, {
       mode: 'water',
