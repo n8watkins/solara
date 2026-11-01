@@ -41,15 +41,18 @@ export async function saveDeviceLanguage(uid: string, deviceLanguage: Locale): P
 
 /**
  * Saves this device's language to the account when its plan (as just loaded or saved)
- * needs it (deviceLanguageToSave). Resolves to the language saved, or null when nothing
- * was written.
+ * needs it (deviceLanguageToSave), then calls `saved` with it. A failure is logged and
+ * tried again on the next start.
  */
-export async function syncDeviceLanguage(
+export function syncDeviceLanguage(
   uid: string,
   prefs: Pick<UserPreferences, 'language' | 'deviceLanguage' | 'schemaVersion'>,
-): Promise<Locale | null> {
+  saved: (deviceLanguage: Locale) => void,
+): Promise<void> {
   const deviceLanguage = deviceLanguageToSave(prefs, deviceLanguages())
-  if (!deviceLanguage) return null
-  await saveDeviceLanguage(uid, deviceLanguage)
-  return deviceLanguage
+  if (!deviceLanguage) return Promise.resolve()
+  return saveDeviceLanguage(uid, deviceLanguage).then(
+    () => saved(deviceLanguage),
+    error => console.error('Saving the device language failed:', error),
+  )
 }

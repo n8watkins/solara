@@ -7,7 +7,7 @@ import { loadGuestPrefs, saveGuestPrefs } from '@/lib/guest'
 import { SignedInContext } from '@/lib/signed-in-context'
 import { canUseCalendar } from '@solara/core/tiers'
 import { screenAfterOnboarding } from '@/lib/account-screen'
-import { syncAccountDeviceLanguage, useAccount } from '@/lib/use-account'
+import { useAccount } from '@/lib/use-account'
 import { useCheckoutReturn } from '@/lib/use-checkout-return'
 import { createForecastStore, ForecastStoreProvider, useWeather } from '@/lib/use-forecast'
 import { resolveUnits, unitFormatters } from '@/lib/units'
@@ -176,7 +176,10 @@ function SignedInApp() {
     try {
       await saveFirestorePrefs(user.uid, updated)
       // Switched to Automatic: the language this device resolves (lib/device-language.ts).
-      await syncAccountDeviceLanguage(user.uid, updated, () => true, setPrefs)
+      const { syncDeviceLanguage } = await import('@/lib/session')
+      await syncDeviceLanguage(user.uid, updated, deviceLanguage =>
+        setPrefs(p => (p?.uid === user.uid ? { ...p, deviceLanguage } : p)),
+      )
     } catch (error) {
       setSyncError(syncErrorFor(error))
     }

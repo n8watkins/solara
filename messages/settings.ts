@@ -100,7 +100,7 @@ export default defineMessages('settings', {
   clock24: (example: string) => `24-hour (${example})`,
   language: 'Language',
   languageHint:
-    'Automatic follows this device. Alerts, reminders and the calendar feed use this language too; with Automatic, that of the last device you opened Solara on.',
+    "Automatic follows this device. Alerts, reminders and the calendar feed use this language too (with Automatic, your last device's).",
   onChecked: '✓ On',
   on: 'On',
   off: 'Off',
