@@ -18,6 +18,7 @@ import {
   type Overlay,
 } from '@solara/core/i18n'
 import appText from '@/messages/app'
+import { isWritablePreferences, type UserPreferences } from '@solara/core/prefs'
 import type { LanguagePreference } from '@solara/core/prefs'
 
 export { currentLocale, type Locale }
@@ -226,12 +227,14 @@ export function subscribeMessages(listener: () => void): () => void {
  * so the app keeps it to the language it resolves from this device: a language Solara
  * speaks, never the device's own list. It is written only when it changes, so with
  * devices in two languages the last one to open the app wins. A language chosen in
- * Settings leaves it alone, since the server then writes in that one.
+ * Settings leaves it alone, since the server then writes in that one, and a document a
+ * newer Solara wrote is never written by this one (isWritablePreferences).
  */
 export function deviceLanguageToSave(
-  prefs: { language?: LanguagePreference; deviceLanguage?: Locale },
+  prefs: Pick<UserPreferences, 'language' | 'deviceLanguage' | 'schemaVersion'>,
   languages: readonly string[] | null | undefined,
 ): Locale | null {
+  if (!isWritablePreferences(prefs)) return null
   if (prefs.language && prefs.language !== 'auto') return null
   const device = localeFromLanguages(languages)
   return prefs.deviceLanguage === device ? null : device
