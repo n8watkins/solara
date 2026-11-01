@@ -631,12 +631,12 @@ The fixes for `handoff/review10-sec10.md` (REVIEW10 SEC10, main at `a77907a`); e
 - **Tests:** `functions/test/emulator/firestore.rules.test.js` (M1, L1, I4), `functions/test/emulator/reminders.test.js`, `functions/test/emulator/lifecycle.test.js`, `packages/core/src/account-export.test.ts`, `lib/account-self-service.test.ts`.
 - **Owner:** run `infra/firestore-ttl.sh` again (print, read, then `--apply`) for the new `accountSelfDeletions` policy, with step A12 or C8; L2 (the browser key, `localhost`, the `production` environment and the unused secret) stays with the owner steps.
 
-### 48. Vitamin D log (VITD)
+### 48. Vitamin D log (VITD, built on the device)
 
 The owner's next feature (2026-11-01), after the Review 10 fixes: a vitamin D log, the sun exposure log with a vitamin D tally planned before item 46, renamed.
 [PLAN.md](PLAN.md) Phase 2: this spec is step C8, the device-only build C9; account sync (C10) waits for the owner's lawyer note (O5).
 
-**Status:** spec written (C8); being built on the device only (C9).
+**Status:** built on the device only (C8 spec and C9, 2026-11-01), on by default; account sync (C10) waits for O5.
 
 **Goal:** someone who spent time in the sun writes down the session and sees roughly how much vitamin D it may have made and how close it came to a burn, with every number labelled as an estimate with its source.
 It is a diary, not a coach.
@@ -684,6 +684,13 @@ Off hides the entry and "Log it"; stored entries stay untouched.
 **Defaults the owner may change:** the switch on in production (device-only storage holds no account data); the four skin presets and their factors; sunscreen as UV / 2.5; the 600 IU comparison; clearing the log on sign-out; pruning after a year.
 
 **Not in this step:** account sync (C10, after O5), shade and surface (the session's UV is the forecast's), sessions from Scheduled calendar events (switched off until Google's review).
+
+**As built:**
+
+- Calculation: `packages/core/src/vitamin-d.ts` (the card's `vitDMins` moved here from `weather.ts`; `SUNSCREEN_UV_FACTOR` in `recommendation.ts` is the plans' 2.5, now named); entries, checks, pruning and totals: `packages/core/src/vitamin-d-log.ts`.
+- Browser: `lib/vitamin-d-log.ts` (storage), `lib/vitamin-d-switch.ts` (the switch and key, cleared by `clearAccountData`), `lib/vitamin-d-view.ts` (the form and "Log it" entries); the dialog `components/vitamin-d/`, loaded by `components/deferred.tsx`; the dashboard button `components/dashboard/VitaminDLogButton.tsx`; "Log it" on `components/dashboard/ActivityCard.tsx`, which logs the slot `planActivityDay` recommends for the whole day.
+- The account page's download adds `thisDevice.vitaminDLog`; the privacy policy (English and Spanish) says where the log is kept and when it is removed.
+- Tests: `packages/core/src/vitamin-d.test.ts` (the card's minutes log as 1,000 IU for every skin type and UV), `packages/core/src/vitamin-d-log.test.ts`, `lib/vitamin-d-log.test.ts`, `lib/session.test.ts` and `lib/account-local.test.ts` (who sees the log after a sign-out, another account, a guest's sign-in and a deletion), `.github/scripts/check-public-env.test.mjs` and `staging-target.test.mjs` (the switch), `tests/e2e/vitamin-d-log.spec.ts` (log, totals, edit, reload, delete and Undo, "Log it" once, by keyboard, in both languages) and `tests/harness/vitamin-d-log.spec.ts` (both languages at 320, 390 and 1280 px, light and dark, with axe).
 
 ### 49. Budget guard on its own (BUDGETGUARD, built)
 
@@ -752,7 +759,7 @@ The steps behind each one are in the [owner checklist](OWNER_CHECKLIST.md).
 | D10 | Error reporting | Decided 2026-10-23: Sentry; code shipped in #70, waits for the owner's DSN |
 | D11 | Bot protection | Decided 2026-10-23: App Check with reCAPTCHA v3; works without code changes, waits for the owner's site key |
 | D12 | Local branch and worktree cleanup on the owner's machine | Done by 2026-10-28: only the main clone and the current review worktrees remain |
-| Vitamin D log | The next feature after languages | Owner 2026-11-01: build a vitamin D log next (after the Review 10 fixes), [item 48](#48-vitamin-d-log-vitd) |
+| Vitamin D log | The next feature after languages | Owner 2026-11-01: build a vitamin D log next (after the Review 10 fixes), [item 48](#48-vitamin-d-log-vitd-built-on-the-device); built on the device only. Defaults, owner may change (2026-11-01): on in production (`VITAMIN_D_LOG=false` turns it off; device-only storage holds no account data), the four skin presets and their factors, sunscreen as UV / 2.5, the 600 IU comparison, the log cleared on sign-out, entries pruned after a year |
 | Languages | Which languages to offer | Decided 2026-11-01: build the language setup with English and Spanish (item 46); add Portuguese (Brazil), French and German in that order when each reaches about 5 to 10% of users; no right-to-left languages for now |
 | Language pages | How the static pages (landing, privacy, terms, city pages) offer Spanish | Default, owner may change (2026-11-01): their own Spanish addresses (`/es/`, `/es/privacy/`, `/es/terms/`, `/es/uv/<city>/`), built as static pages with `hreflang` links between the two languages, so search engines index each language and the pages keep shipping no framework JavaScript; the app keeps one address and switches at runtime. Built in item 46's second part, with the English version stated to prevail on the legal pages |
 | Server language | Which language pushes and the calendar feed use for an account set to Automatic | Decided by the owner 2026-11-01 (item 46): the account's `language` when it is a language (`en`, `es`), else its `deviceLanguage` (the language the app resolved from the device, saved to the account only when it changes, so the last device to open the app wins), else English; Settings and the privacy policy say so. Before this, Automatic gave English pushes |
