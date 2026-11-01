@@ -142,17 +142,31 @@ export function loadInitialMessages(): Promise<void> {
   return initial
 }
 
+let titleWatch: MutationObserver | null = null
+
 /**
- * The page's title in its language (the static HTML carries the English one). Called once
- * the translations have arrived and again after the page renders, since Next.js sets the
- * title from the page's metadata as it hydrates.
+ * The page's title in its language (the static HTML carries the English one). Next.js
+ * renders the title from the page's metadata and may write it again after hydration, so
+ * the translated title is kept: a change to <head> that brings another title back is
+ * answered with this one.
  */
 export function localizeTitle() {
   if (currentLocale() === 'en') return
   const path = window.location.pathname
-  if (path.startsWith('/app/')) document.title = appText.documentTitle
-  else if (path.startsWith('/account/')) document.title = appText.titleAccount
-  else if (path.startsWith('/share/')) document.title = appText.titleShare
+  const title = path.startsWith('/app/')
+    ? appText.documentTitle
+    : path.startsWith('/account/')
+      ? appText.titleAccount
+      : path.startsWith('/share/')
+        ? appText.titleShare
+        : null
+  if (!title) return
+  if (document.title !== title) document.title = title
+  if (titleWatch || typeof MutationObserver === 'undefined') return
+  titleWatch = new MutationObserver(() => {
+    if (document.title !== title) document.title = title
+  })
+  titleWatch.observe(document.head, { childList: true, subtree: true, characterData: true })
 }
 
 /** Resolves once every translation of the page's language has arrived. */
