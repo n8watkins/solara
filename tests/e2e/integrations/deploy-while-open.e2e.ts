@@ -4,7 +4,7 @@
 // file it has not fetched yet answers 404, as after a deploy. Sign-in's code (Firebase)
 // is among them. Solara must see that a newer version is live, reload once to it, say
 // why, and then sign in normally; it must not blame the connection or reload in a loop.
-import type { Page, Route } from '@playwright/test'
+import type { Page, Response, Route } from '@playwright/test'
 import { startClock } from '../../harness/clock'
 import { buildRawForecast } from '../../harness/fixtures'
 import { expect, test } from './fixtures'
@@ -43,14 +43,17 @@ type Deploy = 'gone' | 'unreachable'
  * loads the new version (`untilReload`), or for good.
  */
 async function openThenDeploy(page: Page, deploy: Deploy, { untilReload = true } = {}) {
+  // The files of the version the page opened with, as loaded before the deploy only.
   const loaded = new Set<string>()
-  page.on('response', response => {
+  const record = (response: Response) => {
     if (new URL(response.url()).pathname.startsWith('/_next/static/')) loaded.add(response.url())
-  })
+  }
+  page.on('response', record)
   await page.goto('/app/')
   await expect(page.getByRole('toolbar', { name: 'UV forecast by hour' })).toBeVisible()
   await page.waitForLoadState('networkidle')
 
+  page.off('response', record)
   const state = { deployed: true, refused: [] as string[], reloads: 0 }
   await page.route('**/*', async (route: Route) => {
     const request = route.request()
