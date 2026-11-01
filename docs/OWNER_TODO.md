@@ -1,14 +1,19 @@
 # Solara: what I need from you
 
-Last updated 2026-11-01, with main at `a77907a` (#164).
+Last updated 2026-11-01, with main at `cf7e4c7` (#165).
 Everything that can be built without you is merged and live.
 The full step-by-step detail (exact console links, how to verify each step) is in [OWNER_CHECKLIST.md](OWNER_CHECKLIST.md); this file is the short version, in order.
+The order and reasons, and what Claude builds meanwhile, are in [PLAN.md](PLAN.md).
 Tick the boxes as you go and tell me when a group is done, so I can do my follow-up part.
 
 ## 1. Before you tell anyone about Solara (about 1 hour, all free)
 
+- [ ] **Install the tools.** Install `gcloud` and the Firebase CLI and sign in to both; the scripts below need them.
+- [ ] **Name check.** Search "Solara" in the USPTO and EUIPO trademark registers (an iOS UV app and a sunscreen brand already use it) and decide to keep it or rename; Claude does the rename if you choose one.
+- [ ] **Domain.** Decide whether to stay on `solara-uv.web.app` or buy a domain, before the key and Google steps below, which are tied to the address.
+- [ ] **Support email.** Send a test email to the address the app lists and decide who answers it.
 - [ ] **Test sign-in.** Open https://solara-uv.web.app in a private window and sign in with a Google account that is not a test user.
-  If Google says "access blocked", do step 2 first, then try again.
+  If Google says "access blocked", do the next step first, then try again.
 - [ ] **Publish the sign-in app.** Google Cloud console, Google Auth Platform: Branding, "View issues", "I have fixed the issues", Proceed.
   Then Audience, "Publish app".
   Done when the status reads "In production".
@@ -57,6 +62,8 @@ Tick the boxes as you go and tell me when a group is done, so I can do my follow
 - [ ] **Blaze plan with the $25 kill switch.** Firebase console, Usage and billing: attach a billing account.
   Run `infra/budget.sh` (read it, then `--apply`) and put the printed `BUDGET_ID` and `BUDGET_SERVICE_ACCOUNT` into repository variables.
   On the free plan, a busy day (about 1,000 visitors) switches the site off; on Blaze it costs cents instead, and backups become possible.
+  Wait for Claude's budget-guard deploy ([PLAN.md](PLAN.md) step C4) and switch it on in the same sitting: without it, Blaze sends budget emails but has no automatic spending limit.
+  Do the security housekeeping (group 2) first, because `infra/budget.sh` uses the deploy account that keyless deploys set up.
 
 ## 5. Staging, then the Pro launch (when you are ready to charge)
 
@@ -92,5 +99,5 @@ Tick the boxes as you go and tell me when a group is done, so I can do my follow
 
 - Find a native Spanish speaker to review the safety wording (burn times, SPF advice, "seek shade", the push and feed text) and the Spanish privacy policy and terms; the language plan is [ROADMAP item 46](ROADMAP.md#46-languages-setup-and-the-app-in-spanish-built); the sheet to review is [i18n/es-review.md](i18n/es-review.md). Counsel reviews the Spanish legal pages with the English ones.
 
-- A lawyer reviews the governing-law terms.
+- A lawyer reviews the governing-law terms, and also: an EU and UK representative, reCAPTCHA consent in the EU, Mexico's privacy notice, children in family profiles, storing vitamin D entries on accounts, and (before Pro) California's auto-renewal rules ([PLAN.md](PLAN.md) O16 and O20).
 - Next feature after languages: a vitamin D log, which you chose on 2026-11-01 to build after the Review 10 fixes ([ROADMAP item 48](ROADMAP.md#48-vitamin-d-log-planned-next)).
