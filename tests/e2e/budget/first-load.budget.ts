@@ -57,7 +57,7 @@ async function firstLoad(page: Page, origin: string, hourlyStrip: string) {
     )
   })
   await page.goto('/app/')
-  await expect(page.getByRole('group', { name: hourlyStrip })).toBeVisible()
+  await expect(page.getByRole('toolbar', { name: hourlyStrip })).toBeVisible()
   const loaded = await Promise.all(scripts)
   const kb = loaded.reduce((sum, script) => sum + script.gzip, 0) / 1024
   const list = loaded

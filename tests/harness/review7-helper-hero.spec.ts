@@ -123,7 +123,10 @@ test('evening: the readout and the current hour’s chip show the same reading (
   await expect(nowChip).toHaveText(new RegExp(`^UV ${big}\\b.*Now$`))
   await expect(readout).toContainText(`${big}Low now`)
   // The next hour still shows its own forecast.
-  await page.getByRole('toolbar', { name: 'UV forecast by hour' }).locator('[data-hour="16"]').click()
+  await page
+    .getByRole('toolbar', { name: 'UV forecast by hour' })
+    .locator('[data-hour="16"]')
+    .click()
   await expect(readout).toContainText('at 4pm')
   await captureScreen(page, t, capture, { name: 'uv-readout-evening', fullPage: false })
 })
