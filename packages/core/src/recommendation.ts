@@ -6,13 +6,24 @@ import m from './messages/core'
 
 export type SkinType = 'very-fair' | 'fair' | 'medium' | 'olive' | 'dark'
 
-/** Minutes to a burn at UV 10 for each skin type (scaled by 10 / UV). */
+/**
+ * Minutes to a burn at UV 10 for each skin type (scaled by 10 / UV).
+ *
+ * One UV index unit is 25 mW/m2 of erythemally weighted UV, so at UV 10 a minute is
+ * 15 J/m2 and each value here stands for a burn dose (minimal erythema dose) of 15 times
+ * it: 150, 225, 375, 525 and 600 J/m2. Typical doses by Fitzpatrick phototype are
+ * 150-300 (I), 250-350 (II), 300-500 (III), 450-600 (IV), 600-1,000 (V) and 1,000-1,200
+ * (VI) J/m2 effective (Snatchfold, J Cosmet Dermatol 2019;18:1062, doi:10.1111/jocd.12547,
+ * table 1, after Fitzpatrick 1988). Each type sits at or near the low end of its range,
+ * the cautious side; "dark" (V-VI) uses type V's low end, 600 J/m2 (40 min), not the
+ * 750 it once used, which was longer than typical for type V (REVIEW10 VERIFY10 N5).
+ */
 export const SKIN_BURN_BASE: Readonly<Record<SkinType, number>> = Object.freeze({
   'very-fair': 10,
   fair: 15,
   medium: 25,
   olive: 35,
-  dark: 50,
+  dark: 40,
 })
 
 /** Every skin type, lightest first. */
