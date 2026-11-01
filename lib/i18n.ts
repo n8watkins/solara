@@ -20,6 +20,7 @@ import {
   type Overlay,
 } from '@solara/core/i18n'
 import appText from '@/messages/app'
+import { keepDocumentTitle } from './document-title'
 import type { LanguagePreference } from '@solara/core/prefs'
 
 export { currentLocale, type Locale }
@@ -158,8 +159,6 @@ export function loadInitialMessages(): Promise<void> {
   return initial
 }
 
-let titleWatch: MutationObserver | null = null
-
 /**
  * The page's title in its language (the static HTML carries the English one). Next.js
  * renders the title from the page's metadata and may write it again after hydration, so
@@ -176,13 +175,7 @@ export function localizeTitle() {
       : path.startsWith('/share/')
         ? appText.titleShare
         : null
-  if (!title) return
-  if (document.title !== title) document.title = title
-  if (titleWatch || typeof MutationObserver === 'undefined') return
-  titleWatch = new MutationObserver(() => {
-    if (document.title !== title) document.title = title
-  })
-  titleWatch.observe(document.head, { childList: true, subtree: true, characterData: true })
+  if (title) keepDocumentTitle(title)
 }
 
 /**

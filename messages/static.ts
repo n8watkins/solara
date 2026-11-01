@@ -4,7 +4,7 @@
 // type makes every text name every language.
 import type { Locale } from '@solara/core/i18n'
 
-type StaticMessage = Readonly<Record<Locale, string>>
+export type StaticMessage = Readonly<Record<Locale, string>>
 
 // The analytics consent banner (components/AnalyticsConsent.tsx), drawn before any script.
 export const consentTitle: StaticMessage = {
@@ -41,6 +41,11 @@ export const footerPrivacy: StaticMessage = { en: 'Privacy', es: 'Privacidad' }
 export const footerTerms: StaticMessage = { en: 'Terms', es: 'Términos' }
 export const footerAccountData: StaticMessage = { en: 'Account data', es: 'Datos de la cuenta' }
 export const notFoundTitle: StaticMessage = { en: 'Page not found', es: 'Página no encontrada' }
+/** The 404 page's tab title (components/LocalizedTitle.tsx). */
+export const notFoundPageTitle: StaticMessage = {
+  en: 'Page not found | Solara',
+  es: 'Página no encontrada | Solara',
+}
 export const notFoundBody: StaticMessage = {
   en: "This address doesn't match anything in Solara. Check the link, or head back to your forecast.",
   es: 'Esta dirección no coincide con nada en Solara. Revisa el enlace o vuelve a tu pronóstico.',
@@ -54,6 +59,11 @@ export const outlookBody: StaticMessage = {
 export const shareAgainTitle: StaticMessage = {
   en: 'Share it again',
   es: 'Vuelve a compartirlo',
+}
+/** The share target fallback's tab title (components/LocalizedTitle.tsx). */
+export const shareAgainPageTitle: StaticMessage = {
+  en: 'Share again | Solara',
+  es: 'Vuelve a compartir | Solara',
 }
 export const shareAgainBody: StaticMessage = {
   en: 'Solara was still getting ready and did not receive what you shared. Open Solara once, then share the calendar file or link again.',

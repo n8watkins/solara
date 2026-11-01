@@ -46,7 +46,19 @@ export default function RecommendedSlot({
       <p className="mt-0.5 text-[11px] leading-[1.4] text-ink-3">
         {rec.reason}
         {rec.latestStart > rec.earliestStart &&
-          m.couldStartAnytime(fmt.time(rec.earliestStart), fmt.time(rec.latestStart))}
+          // A closed-up range ("6pm–7:15pm") never breaks at its dash.
+          m
+            .couldStartAnytime(fmt.time(rec.earliestStart), fmt.time(rec.latestStart))
+            .split(/(\S+–\S+)/)
+            .map((part, i) =>
+              i % 2 ? (
+                <span key={i} className="whitespace-nowrap">
+                  {part}
+                </span>
+              ) : (
+                part
+              ),
+            )}
         {/* The sentence's period, unless a time such as "7:15 p.m." already closes it. */}
         {closingPeriod(
           rec.latestStart > rec.earliestStart ? fmt.time(rec.latestStart) : rec.reason,

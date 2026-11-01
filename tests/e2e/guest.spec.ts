@@ -148,6 +148,50 @@ test('a guest plan with activities shows its activity cards with the dashboard',
   await expect(page.getByTestId('activity-card')).toContainText('Running')
 })
 
+/** Records every layout shift of the pages this test opens, on `window.layoutShifts`. */
+async function recordLayoutShifts(page: Page) {
+  await page.addInitScript(() => {
+    const shifts: string[] = []
+    Object.assign(window, { layoutShifts: shifts })
+    new PerformanceObserver(list => {
+      for (const entry of list.getEntries() as (PerformanceEntry & {
+        value: number
+        hadRecentInput: boolean
+        sources: { node?: Node }[]
+      })[]) {
+        if (entry.hadRecentInput) continue
+        const nodes = entry.sources.map(source => (source.node as Element | undefined)?.tagName)
+        shifts.push(`${entry.value.toFixed(4)} ${nodes.join(' ')}`)
+      }
+    }).observe({ type: 'layout-shift', buffered: true })
+  })
+}
+
+for (const locale of ['en-US', 'es-MX']) {
+  test.describe(`pages outside the app in ${locale}`, () => {
+    test.use({ locale })
+
+    // REVIEW10 QA L1 and L2: the account page painted its footer at the top before its
+    // content arrived, and the 404 page moved when the consent banner laid itself out.
+    // The banner shows (no choice stored), as on a first visit.
+    test('open without layout shifts, at every width', async ({ page }) => {
+      await recordLayoutShifts(page)
+      for (const path of ['/account/', '/no-such-page/']) {
+        for (const width of [320, 390, 1280]) {
+          await page.setViewportSize({ width, height: 844 })
+          await page.goto(path)
+          await expect(page.locator('main h1, main h2').first()).toBeVisible()
+          await page.waitForTimeout(500)
+          const shifts = await page.evaluate(
+            () => (window as unknown as { layoutShifts: string[] }).layoutShifts,
+          )
+          expect(shifts, `layout shifts on ${path} at ${width} px`).toEqual([])
+        }
+      }
+    })
+  })
+}
+
 test("a guest's dashboard opens without layout shifts, at every width", async ({ page }) => {
   // Nothing that arrives during start-up may move what is already on screen: the
   // forecast takes a moment, as on a real connection, so the header and the loading
