@@ -10,10 +10,20 @@
 # docs check, workflow and secret scanning and dependency review always run.
 # Pushes to main and manual runs have no pull request base, so every suite runs,
 # and so does every job if `changes` itself fails (its outputs are then empty).
+# The one exception is the `tested` input: deploy.yml passes it only with proof
+# that a pull request's CI passed this exact tree on top of a main that passed
+# (.github/scripts/tested-tree.mjs), and then every suite skips. docs/CI.md has
+# what runs for which change, and how long it takes.
 name: Quality
 
 on:
   workflow_call:
+    inputs:
+      tested:
+        description: Proof that this exact tree already passed every suite (tested-tree.mjs); empty runs them as usual.
+        type: string
+        required: false
+        default: ''
 
 permissions: {}
 
@@ -56,13 +66,38 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          TESTED: ${{ inputs.tested }}
         run: |
           set -euo pipefail
           if [ -n "$BASE_SHA" ] && [ -n "$HEAD_SHA" ]; then
             node .github/scripts/changed-areas.mjs --base "$BASE_SHA" --head "$HEAD_SHA"
+          elif [ -n "$TESTED" ]; then
+            node .github/scripts/changed-areas.mjs --tested "$TESTED"
           else
             node .github/scripts/changed-areas.mjs
           fi
+
+      # The tree every job of this run tests (GitHub's merge of the pull request into
+      # its base). When the run passes and main later gets this exact tree, the deploy
+      # skips the suites instead of running them again (tested-tree.mjs).
+      - name: Record the tested tree
+        id: tree
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          tree=$(git rev-parse 'HEAD^{tree}')
+          echo "$tree" > "$RUNNER_TEMP/tested-tree.txt"
+          echo "tree=$tree" >> "$GITHUB_OUTPUT"
+
+      - name: Upload the tested tree
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: tested-tree-${{ steps.tree.outputs.tree }}
+          path: ${{ runner.temp }}/tested-tree.txt
+          if-no-files-found: error
+          retention-days: 30
+          overwrite: true
 
   web:
     name: Lint, types and unit tests
@@ -172,7 +207,7 @@ jobs:
       # each engine applies Solara's opener policy to the Outlook sign-in popup its own way.
       - name: Install Chromium, Firefox and WebKit
         if: env.RELEVANT == 'true'
-        run: npx playwright install --with-deps chromium firefox webkit
+        run: npx playwright install --with-deps --only-shell chromium firefox webkit
 
       # Builds out/ with a hermetic public env, then serves it on the Hosting emulator.
       - name: Browser tests
@@ -239,7 +274,7 @@ jobs:
 
       - name: Install Chromium
         if: env.RELEVANT == 'true'
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps --only-shell chromium
 
       # A production build with a fake Sentry DSN and reCAPTCHA site key; fakes in
       # tests/e2e/integrations answer every third-party request.
@@ -309,7 +344,7 @@ jobs:
 
       - name: Install Chromium
         if: env.RELEVANT == 'true'
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps --only-shell chromium
 
       # Builds an emulator-only export, then runs Playwright inside
       # `firebase emulators:exec` with Auth, Firestore and Functions on free ports.
@@ -364,7 +399,7 @@ jobs:
         run: npm ci --ignore-scripts
 
       - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps --only-shell chromium
 
       # Writes screenshots and axe reports to test-results/ui-harness/. Axe
       # violations are reported, not failed; a broken screen still fails the shard.

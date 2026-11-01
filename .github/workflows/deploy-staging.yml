@@ -118,7 +118,7 @@ jobs:
         run: node .github/scripts/check-public-env.mjs --built out
 
       - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps --only-shell chromium
 
       - name: Smoke-test the artifact on the Hosting emulator
         run: npx playwright test --grep @smoke

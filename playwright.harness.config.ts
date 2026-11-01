@@ -36,6 +36,9 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: 0,
+  // One worker per CPU on CI: the harness is the longest suite, and Playwright's default
+  // (half the CPUs) left half of each shard's runner idle (docs/CI.md).
+  workers: process.env.CI ? '100%' : undefined,
   reporter: process.env.CI ? [['github'], ['list']] : 'list',
   globalTeardown: './tests/harness/axe-summary.ts',
   use: {

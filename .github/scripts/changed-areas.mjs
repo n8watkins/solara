@@ -9,15 +9,18 @@
 // Each changed path is matched against RULES in order and the first match wins.
 // A path no rule knows runs every suite, and so does any event without a pull
 // request base (pushes to main, manual runs): when in doubt, run.
-// docs/CONTRIBUTING-AGENTS.md and the README's quality checks describe this map;
-// keep them in step with RULES.
+// The one exception is a push to main whose exact tree a pull request's CI already
+// passed, on top of a main commit whose checks passed (tested-tree.mjs, run by
+// deploy.yml): `--tested` then skips every suite with that proof as the reason.
+// docs/CI.md describes this map; keep it in step with RULES.
 //
 // Usage (in CI, with the full history checked out):
 //   node .github/scripts/changed-areas.mjs --base <sha> --head <sha>
+//   node .github/scripts/changed-areas.mjs --tested <reason>  # tree already tested
 //   node .github/scripts/changed-areas.mjs            # no base: every area runs
 //
 // Writes `<key>=true|false` and `<key>_reason=...` for each area (the key is the
-// area name with `-` as `_`, e.g. signed_in), and `docs_only`, to $GITHUB_OUTPUT,
+// area name with `-` as `_`, e.g. signed_in), and `no_suites`, to $GITHUB_OUTPUT,
 // and a table to $GITHUB_STEP_SUMMARY, when those are set.
 import { execFileSync } from 'node:child_process'
 import { appendFileSync } from 'node:fs'
@@ -53,6 +56,51 @@ const any =
  * `why` is shown in the step summary.
  */
 export const RULES = [
+  // Files under .github/ that no suite exercises. The workflow and secret scanning job
+  // checks them on every pull request (actionlint, zizmor and the workflow script tests,
+  // `node --test .github/scripts/*.test.mjs`), and lint runs shellcheck and the docs check.
+  // The quality workflows, the suite map, the local actions and anything else under
+  // .github/ still run everything (the next rule).
+  {
+    why: 'deploy workflow or script, or a check that always runs',
+    areas: NONE,
+    match: any(
+      // Run only on main or by hand; they never run a suite on a pull request.
+      '.github/workflows/deploy.yml',
+      '.github/workflows/deploy-staging.yml',
+      '.github/scripts/budget-guard-env.mjs',
+      '.github/scripts/staging-target.mjs',
+      '.github/scripts/remove-source-maps.mjs',
+      '.github/scripts/sbom.sh',
+      // `npm run check:docs`, in the lint job.
+      '.github/scripts/check-docs.mjs',
+      // Except the suite map's own tests, which change with the map.
+      /^\.github\/scripts\/(?!changed-areas\.)[^/]+\.test\.mjs$/,
+      '.github/dependabot.yml',
+      '.github/zizmor.yml',
+    ),
+  },
+  {
+    // The Functions job runs both for production and staging.
+    why: 'Functions deploy checks',
+    areas: ['functions'],
+    match: any(
+      '.github/scripts/check-functions-params.js',
+      '.github/scripts/check-functions-payload.js',
+    ),
+  },
+  {
+    // tests/check-public-env-cli.test.ts and tests/hosting-targets.test.ts load them.
+    why: 'deploy configuration checks with unit tests',
+    areas: ['unit'],
+    match: any('.github/scripts/check-public-env.mjs', '.github/scripts/check-hosting-target.js'),
+  },
+  {
+    // Read by check-public-env.mjs (unit tests) and check-functions-params.js (Functions job).
+    why: "production's identifiers",
+    areas: ['unit', 'functions'],
+    match: any('.github/scripts/production.json'),
+  },
   {
     why: 'build, dependency or CI configuration (runs everything)',
     areas: ALL,
@@ -69,6 +117,8 @@ export const RULES = [
       /^packages\//,
       // Compiles packages/core into functions/core.
       'scripts/build-core.mjs',
+      // UI copy, shared by the web app and the Functions' messages.
+      /^messages\//,
     ),
   },
   {
@@ -127,9 +177,28 @@ export const RULES = [
     match: any('tests/static-server.mts'),
   },
   {
+    // Only the Functions job runs these (`node --test`, and the rules tests on the
+    // emulator); the signed-in suite and the unit tests load functions/src, not these.
+    why: 'Functions tests',
+    areas: ['functions'],
+    match: any(/^functions\/test\//),
+  },
+  {
     why: 'Cloud Functions',
     areas: ['unit', 'functions', 'signed-in'],
     match: any(/^functions\//),
+  },
+  {
+    // functions/test/account-request.test.js runs it; shellcheck (lint) covers the
+    // shell scripts and nothing runs the alert policies.
+    why: 'operations script with Functions tests',
+    areas: ['functions'],
+    match: any('infra/account-request.mjs'),
+  },
+  {
+    why: 'operations shell scripts and alert policies',
+    areas: NONE,
+    match: any(/^infra\/[^/]+\.sh$/, /^infra\/alerts\/[^/]+\.json$/),
   },
   {
     why: 'Firestore rules',
@@ -164,8 +233,15 @@ export const RULES = [
     match: any(/^public\//),
   },
   {
-    // build-sw, static-pages, csp and the build checks run around production
-    // builds; the harness builds with `next build` directly.
+    // Production builds run it after `next build`, and so does the harness's server
+    // (tests/harness/serve.mjs), so the harness's public pages are the shipped ones.
+    why: 'static page post-processing',
+    areas: ['unit', 'web', 'signed-in', 'integrations', 'harness'],
+    match: any('scripts/static-pages.mjs'),
+  },
+  {
+    // build-sw, csp and the build checks run around production builds; the
+    // harness builds with `next build` directly and runs only static-pages.
     why: 'build scripts',
     areas: ['unit', 'web', 'signed-in', 'integrations'],
     match: any(/^scripts\//),
@@ -192,7 +268,7 @@ export function ruleFor(path) {
  * Maps changed paths to areas.
  * @param {string[] | null} paths the changed paths, or null when the diff is unknown
  * @returns {{ areas: Record<string, boolean>, reasons: Record<string, string>,
- *   docsOnly: boolean, files: { path: string, why: string, areas: string[] }[] }}
+ *   noSuites: boolean, files: { path: string, why: string, areas: string[] }[] }}
  */
 export function classify(paths) {
   const unique = paths ? [...new Set(paths.map(p => p.trim()).filter(Boolean))].sort() : null
@@ -203,7 +279,7 @@ export function classify(paths) {
     return {
       areas: Object.fromEntries(AREAS.map(area => [area, true])),
       reasons: Object.fromEntries(AREAS.map(area => [area, reason])),
-      docsOnly: false,
+      noSuites: false,
       files: [],
     }
   }
@@ -223,17 +299,31 @@ export function classify(paths) {
         ? `the one changed file (${describe(unique)}) does not affect the ${AREA_LABELS[area]}`
         : `none of the ${files.length} changed files (${describe(unique)}) affect the ${AREA_LABELS[area]}`
   }
-  const docsOnly = files.every(file => file.areas.length === 0)
-  return { areas, reasons, docsOnly, files }
+  const noSuites = files.every(file => file.areas.length === 0)
+  return { areas, reasons, noSuites, files }
 }
+
+/**
+ * Every area skipped, because this exact tree already passed them (tested-tree.mjs).
+ * @param {string} proof where it was tested, e.g. a pull request run
+ */
+export function alreadyTested(proof) {
+  const reason = `this exact tree already passed every suite (${clean(proof)})`
+  return {
+    areas: Object.fromEntries(AREAS.map(area => [area, false])),
+    reasons: Object.fromEntries(AREAS.map(area => [area, reason])),
+    noSuites: true,
+    files: [],
+  }
+}
+
+/** Without control characters, so a value can never forge another output line. */
+const clean = text => JSON.stringify(String(text)).slice(1, -1)
 
 function describe(paths, limit = 3) {
   // Paths come from the pull request: keep control characters (a newline could
   // forge another output line) out of the reasons.
-  const shown = paths
-    .slice(0, limit)
-    .map(path => JSON.stringify(path).slice(1, -1))
-    .join(', ')
+  const shown = paths.slice(0, limit).map(clean).join(', ')
   return paths.length > limit ? `${shown} and ${paths.length - limit} more` : shown
 }
 
@@ -259,22 +349,24 @@ function parseArgs(argv) {
   const args = {}
   for (let i = 0; i < argv.length; i += 2) {
     const key = argv[i]
-    if (key !== '--base' && key !== '--head') throw new Error(`Unknown argument: ${key}`)
+    if (!['--base', '--head', '--tested'].includes(key)) {
+      throw new Error(`Unknown argument: ${key}`)
+    }
     args[key.slice(2)] = argv[i + 1]
   }
   return args
 }
 
 function main(argv) {
-  const { base, head } = parseArgs(argv)
-  const result = classify(changedPaths(base, head))
+  const { base, head, tested } = parseArgs(argv)
+  const result = tested && !base ? alreadyTested(tested) : classify(changedPaths(base, head))
 
   const lines = []
   for (const area of AREAS) {
     const key = outputKey(area)
     lines.push(`${key}=${result.areas[area]}`, `${key}_reason=${result.reasons[area]}`)
   }
-  lines.push(`docs_only=${result.docsOnly}`)
+  lines.push(`no_suites=${result.noSuites}`)
   for (const line of lines) console.log(line)
   if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, lines.join('\n') + '\n')
 
