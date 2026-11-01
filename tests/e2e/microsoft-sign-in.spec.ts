@@ -119,12 +119,15 @@ test('the code is handed back even when the redirect page’s styles are slow', 
   })
 
   const popupPromise = page.waitForEvent('popup')
+  // Listened for on the context before the click: the popup can reach the redirect page,
+  // hand the code back and close before its own page object could listen (REVIEW10 QA M2).
+  const redirectPromise = context.waitForEvent('response', response =>
+    response.url().includes('/auth/microsoft/'),
+  )
   await page.getByRole('button', { name: 'Sign in to Microsoft' }).click()
   const popup = await popupPromise
   // The redirect page's headers are what production sends, opener policy included.
-  const redirect = await popup.waitForResponse(response =>
-    response.url().includes('/auth/microsoft/'),
-  )
+  const redirect = await redirectPromise
   expect(redirect.headers()['cross-origin-opener-policy']).toBe('same-origin-allow-popups')
 
   await expect.poll(() => outcome(page), { timeout: 15_000 }).toBe('fake-graph-token')
@@ -161,8 +164,14 @@ test('the redirect page runs under its own policy without a single violation', a
     document.addEventListener('securitypolicyviolation', event => {
       console.error(`Content-Security-Policy: ${event.violatedDirective} ${event.blockedURI}`)
     })
+    // The page closes itself once it has handed the code back. A browser never lets it
+    // close a tab a person opened, but a test's page counts as opened by script, and
+    // Firefox closed it before the checks below (REVIEW10 QA M2): record the call instead.
+    window.close = () => {
+      ;(window as unknown as { __closeCalled: boolean }).__closeCalled = true
+    }
   })
-  // Opened directly (no state), so it posts nothing; it cannot close a tab it did not open.
+  // Opened directly (no state), so it posts nothing, and then tries to close itself.
   const response = await page.goto('/auth/microsoft/')
   expect(response?.headers()['cross-origin-opener-policy']).toBe('same-origin-allow-popups')
   await expect(page.getByRole('heading', { name: 'Connecting Outlook' })).toBeVisible()
@@ -178,4 +187,7 @@ test('the redirect page runs under its own policy without a single violation', a
   expect(policy).toMatch(/^default-src 'none'; script-src( 'sha256-[^']+'){3,4};/)
   expect(policy).not.toMatch(/https?:|google|recaptcha/)
   expect(violations).toEqual([])
+  expect(
+    await page.evaluate(() => (window as unknown as { __closeCalled?: boolean }).__closeCalled),
+  ).toBe(true)
 })
