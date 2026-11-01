@@ -14,7 +14,9 @@ English is the source of truth; every other language is a translation of it.
   A rarely opened part may fetch its own words only when it opens (`loadOnDemandMessages` in `lib/i18n.ts`): the icon picker's search words (`messages/icon-search.ts`), which the picker reads in English until they arrive.
 - Text in a page's static HTML (the loading screen, the footer, the consent banner, the pages without JavaScript) is written in every language at once with `components/StaticText.tsx` and `messages/static.ts`; CSS shows the page's language.
 - Dates and numbers follow the language through `intlTag()` (the device's own tag for that language, else `en-US` or `es-419`); the 12-hour clock is a message (`9am`, `9 a.m.`).
-- The Functions write an account's pushes and calendar feed in its language (`users/{uid}.language`: Spanish for `es`, English otherwise, since `auto` follows a device the server never sees).
+- The Functions write an account's pushes and calendar feed in its language: `users/{uid}.language` when it is a language (`en`, `es`), else, for an account on Automatic, `users/{uid}.deviceLanguage`, else English (decision "Server language").
+  `deviceLanguage` is the language the app resolved from the device (`deviceLanguageToSave` in `lib/i18n.ts`, a supported code only, never `navigator.languages` itself), saved by `components/App.tsx` once a signed-in account's own plan has loaded and only when it changes; with devices in two languages, the last one to open the app wins.
+  It is kept apart from `language`, so the choice in Settings still reads Automatic, and the rules accept it only on an update, never on the create (`UPDATE_ONLY_FIELDS` in `packages/core/src/prefs.ts`), which keeps a full new account within the rules' expression budget.
   They build each text inside `inAccountLanguage` (`packages/core/src/server-language.ts`), which switches every shared core namespace with `withLocale` for that synchronous piece of work only; the words are in `packages/core/src/messages/server.ts` and the shared core catalogues.
 
 ## The static pages
@@ -31,7 +33,7 @@ English is the source of truth; every other language is a translation of it.
 
 ## Adding a language
 
-1. Add its code to `LOCALES` and its default tag to `DEFAULT_TAGS` in `packages/core/src/i18n.ts`, to `LANGUAGE_PREFERENCES` in `packages/core/src/prefs.ts`, to `LANGUAGE_NAMES` in `lib/i18n.ts`, to the language list in `LANGUAGE_INIT_SCRIPT` and to the `language` check in `firestore.rules` (with a rules test).
+1. Add its code to `LOCALES` and its default tag to `DEFAULT_TAGS` in `packages/core/src/i18n.ts`, to `LANGUAGE_PREFERENCES` in `packages/core/src/prefs.ts`, to `LANGUAGE_NAMES` in `lib/i18n.ts`, to the language list in `LANGUAGE_INIT_SCRIPT` and to the `language` and `deviceLanguage` checks in `firestore.rules` (with a rules test).
 2. Copy `messages/es/` and `packages/core/src/messages/es/` to the new code and translate every message; the typecheck lists anything missing.
 3. Add the language's chunks to `TRANSLATIONS` in `lib/i18n.ts`, its static texts to `messages/static.ts`, and its CSS rule next to the Spanish one in `app/globals.css`.
 4. For the server: add its translations of every core namespace to `SERVER_TRANSLATIONS` in `packages/core/src/server-language.ts`.

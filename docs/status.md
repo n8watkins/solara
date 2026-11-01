@@ -44,7 +44,8 @@ What users get:
 - Languages (ROADMAP item 46, [how it works](i18n/README.md)): the app, the account page and shared plans in English and Latin American Spanish, from the device's language or the choice in Settings, Display (synced for an account).
   English is built into the code; Spanish downloads its own translations before the app shows, so nothing changes language on screen.
   The landing page, the privacy policy, the terms and the city pages have Spanish addresses under `/es/` (`/es/`, `/es/privacy/`, `/es/terms/`, `/es/uv/`, `/es/uv/<city>/`), static like their English pages, with `<html lang="es">`, `hreflang` links both ways (English as x-default), sitemap entries and a link to the other language on each page; the Spanish legal pages are full translations that say the English version prevails.
-  Pushes and the calendar feed follow the account's `language` (Spanish when it is `es`, else English, since `auto` follows a device the server never sees), and the icon picker's search understands Spanish words.
+  Pushes and the calendar feed follow the account's `language` when one is chosen in Settings, else (on Automatic) its `deviceLanguage`, the language the app last resolved from a device (only `en` or `es`, saved only when it changes, so the last device to open the app wins), else English; the privacy policy says so.
+  The icon picker's search understands Spanish words.
   The Spanish safety wording and the Spanish legal pages wait for a native speaker's review ([es-review.md](i18n/es-review.md)), and the legal pages for counsel's too.
 - UV and weather forecasts from Open-Meteo, in the location's time zone, with Celsius or Fahrenheit and 12- or 24-hour time chosen from the locale or in Settings.
   When Open-Meteo does not answer, the app says the forecast service is not answering and tries again every minute; without any forecast the dashboard shows "No forecast yet" with "Try again now" (ROADMAP item 37).
