@@ -389,6 +389,12 @@ export default function PrivacyPage() {
             to prevent repeated free trials.
           </li>
           <li>
+            A note that an account was deleted on the Account data controls page (its former account
+            id and the time, linked to no sign-in), so another open tab cannot bring the account
+            back: a day, once Solara&apos;s automatic clean-up is switched on, and until then it
+            stays.
+          </li>
+          <li>
             Payment records: as long as tax and accounting law requires, even after account
             deletion. Stripe keeps its own records under its privacy policy.
           </li>

@@ -619,6 +619,20 @@ Languages, in order:
 
 When to add the next language: when its speakers reach roughly 5 to 10% of users, measured from Google Analytics browser languages and, once the Android app exists, Play Console installs by country.
 
+### 47. Security fixes from the tenth review (SECFIX10, built)
+
+The fixes for `handoff/review10-sec10.md` (REVIEW10 SEC10, main at `a77907a`); each was reproduced first with the review's probes (`handoff/review10-probes/sec10/`) or a new test.
+
+- **M1 reminder spacing without an account document:** the rules accept a reminder write only when `users/{uid}` exists, so a sign-in that never saves its settings can no longer delete the write stamp and write again at once (the probe's 50 writes in under a second; now 0 of 5 accepted).
+  `reminderWritten` also returns before any other work when the account document is missing, and [COSTS.md](COSTS.md) says the trigger runs on every reminder write from the first Functions deploy, not only once alerts are on.
+  The app writes reminders only for an account it has loaded or created (`lib/session.ts`), which the signed-in reminder suite checks end to end.
+- **L1 the "just deleted" marker:** it now carries `expireAt`, exactly a day after the token's `auth_time` (the rules check it, so no device clock is trusted, and its write needs the recent sign-in), with a TTL policy in `infra/firestore-ttl.sh` and an index exemption; the `maintenance` job still removes markers a day old.
+  TTL deletes may need billing, so until the policy or the job runs the marker stays; both privacy policies (English and Spanish, November 1, 2026) now say so in one line, which is in the native-review sheet ([es-review.md](i18n/es-review.md)).
+- **I3 bookkeeping in the download:** both data downloads carry a `bookkeeping` section: when the sunscreen reminder was last written, the day's reminder counts (the Function's file only) and when a notification device was last registered.
+- **I4 window margin:** an ID token lives an hour, so the window in which nothing of a just-deleted account may be written is now 75 minutes instead of exactly an hour, in case Firestore accepts a token with some clock leeway past its expiry; the only cost is that a sign-in whose Auth user could not be deleted waits 15 minutes longer.
+- **Tests:** `functions/test/emulator/firestore.rules.test.js` (M1, L1, I4), `functions/test/emulator/reminders.test.js`, `functions/test/emulator/lifecycle.test.js`, `packages/core/src/account-export.test.ts`, `lib/account-self-service.test.ts`.
+- **Owner:** run `infra/firestore-ttl.sh` again (print, read, then `--apply`) for the new `accountSelfDeletions` policy, with step A12 or C8; L2 (the browser key, `localhost`, the `production` environment and the unused secret) stays with the owner steps.
+
 ## Decisions
 
 Agents never make owner decisions; they follow the recorded decision or the default.
