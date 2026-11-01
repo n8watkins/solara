@@ -22,7 +22,6 @@ import {
   type SkinType,
 } from './recommendation'
 import { finiteNumber, isPlainRecord, record } from './schema'
-import { LOCALES } from './i18n'
 import m from './messages/core'
 
 /** The document shape this code reads and writes. Bump it with a new MIGRATIONS entry. */
@@ -75,6 +74,12 @@ export type ClockFormatPreference = (typeof CLOCK_FORMAT_PREFERENCES)[number]
  */
 export const LANGUAGE_PREFERENCES = Object.freeze(['auto', 'en', 'es'] as const)
 export type LanguagePreference = (typeof LANGUAGE_PREFERENCES)[number]
+/**
+ * The languages a device's language is kept as (`deviceLanguage`): the choices other
+ * than Automatic, which are i18n.ts LOCALES (prefs.test.ts checks). Listed here rather
+ * than imported, so the preferences code does not pull the catalogue code into a chunk.
+ */
+export const DEVICE_LANGUAGES = Object.freeze(['en', 'es'] as const)
 
 /** Morning notification hour: allowed range and default. */
 export const NOTIFICATION_HOUR = Object.freeze({ min: 5, max: 10, default: 7 })
@@ -485,7 +490,7 @@ export const PREFERENCES_SHAPE = {
    * supported language, never the device's own list), so the server writes pushes in it
    * (server-language.ts). The last device to open the app sets it (lib/device-language.ts).
    */
-  deviceLanguage: v.fallback(v.optional(v.picklist(LOCALES)), undefined),
+  deviceLanguage: v.fallback(v.optional(v.picklist(DEVICE_LANGUAGES)), undefined),
 }
 
 const DocumentSchema = record(PREFERENCES_SHAPE)
