@@ -534,6 +534,23 @@ The details are in [integrations/EVENTS.md](integrations/EVENTS.md#sharing-to-so
 - **Tests:** `lib/share-target.test.ts`, `lib/shared-item.test.ts`, `tests/e2e/share-target.spec.ts` (with the service worker, on the Hosting emulator), `tests/e2e/signed-in/share-target.e2e.ts` (the import on the emulators, a guest signing in from the card, links on Pro and Free) and `tests/harness/shared-item.spec.ts` (each state at 320, 390, 1280 and 1440 px, light and dark, 0 axe violations).
 - **Not done:** sharing several files at once keeps the first calendar file; iOS has no Web Share Target.
 
+### 43. Security fixes from the ninth review (SECFIX9, built)
+
+The fixes for `handoff/review9-sec9.md` (REVIEW9 SEC9, everything merged in #145-#155); each was reproduced first with the review's probes (`handoff/review9-probes/SEC9/`) or a new test.
+
+- **H1, I4 compressed bodies:** every HTTP Function answers `415 unsupported-encoding` to a `Content-Encoding` other than `identity` before the Functions Framework reads the body (the probe's 334-byte brotli body had taken the Stripe webhook's process to 1.9 GB; now 136 MB, unchanged); Stripe sends plain JSON, which it signs. Event-driven Functions are no longer wrapped: they are private, and a Firestore event can exceed 8 KiB.
+- **M1, I3 reminder writes:** each write of the reminder record stamps `reminders/writes` with the server's time and must come 10 seconds after the last (150 rapid rewrites: 1 accepted); the app spaces quick changes itself; a record is never rewritten under the same id; the trigger settles a capped day with one read.
+- **L1-L3 browser deletion:** the rules refuse the account document's delete while a feed, linked calendars or notification devices exist (registration now writes `private/notificationDevices`), without a sign-in from the last 10 minutes, and without the `accountSelfDeletions/{uid}` marker in the same batch, which keeps another tab from writing the account back for an hour; the `maintenance` job removes markers a day old.
+- **L4 emailed requests:** `infra/account-request.mjs` exports the Account data page's own file and deletes only with `--confirmed-reply <date>`; the runbook asks for a reply from the account's address.
+- **L5 daily UV forecasts:** at most a third of the server's side of the forecast budget, spread over the runs (46 new places a run with the defaults).
+- **L6 share target:** a POST whose `Origin` names another site is refused; Chromium gives the worker `Origin` but not `Sec-Fetch-Site`, and a site that hides its address arrives like the share sheet, so the confirmation stays.
+- **L7 staging:** production's Google OAuth, Microsoft and Sentry clients are refused; SECURITY.md, OWNER_CHECKLIST B1a and WIF_SETUP.md say the staging identity is the real wall and the environment comes first.
+- **L8 store mode:** `?source=twa` counts only in an app window (display mode standalone, fullscreen or minimal-ui), so a link in a browser tab cannot hide a web subscriber's "Manage subscription"; the `android-app://` referrer still counts anywhere.
+- **I1:** the client build line is logged once a minute per Function.
+- **I5, I6 not changed:** typing `avoidRain` and `maxFeelsLikeC` breaks the rules' expression budget even for one call per activity (re-measured, documented in `firestore.rules`); `dailyUv` is typed, and a refused write may be reported as the expression limit.
+- **Tests:** `functions/test/body-limit.test.js`, `functions/test/emulator/firestore.rules.test.js`, `functions/test/emulator/reminders.test.js`, `functions/test/emulator/self-deletion.test.js`, `functions/test/account-request.test.js`, `functions/test/forecast-fairness.test.js`, `functions/test/http.test.js`, `lib/reapply-reminder.test.ts`, `lib/account-self-service.test.ts`, `lib/share-target.test.ts`, `lib/store-build.test.ts`, `.github/scripts/staging-target.test.mjs`, `tests/e2e/share-target.spec.ts`, `tests/e2e/android-groundwork.spec.ts`, `tests/harness/store-build.spec.ts`, `tests/e2e/signed-in/reapply-reminder.e2e.ts`.
+- **Owner:** confirm on staging that a compressed POST is refused and a reminder arrives on time; answer emailed deletions only after a reply; check store mode on a device for every way the app opens (launcher, shortcut, notification, share) before the Play listing; give the staging identity no production role.
+
 ### 44. One protection window, clear-sky advice and copy from the ninth review (QAFIX9, built)
 
 REVIEW9 QA9's findings H1, M1-M4 and L1-L8 (`handoff/review9-qa9.md`).

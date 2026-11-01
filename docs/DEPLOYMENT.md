@@ -607,8 +607,13 @@ Deletion additionally requires a recent Google reauthentication and the exact `D
 Without the Functions (the free Spark plan), the account page does both in the browser (`lib/account-self-service.ts`, ROADMAP item 33).
 The export reads every document of `users/{uid}` the rules let the owner read and builds the same file as `exportAccountData`, with the shared builder in `@solara/core/account-export`; only the Pro alert history, which only the Functions write, is empty.
 Deletion takes the same `DELETE` confirmation and Google reauthentication, then deletes the imported events and scheduled activities with their keys taken off the key lists, the emptied key lists, the Google and Outlook connections and the account document, reads everything back, and only then deletes the Auth user and clears the browser.
-The rules allow the owner to delete the account document only while it holds no billing (no paid plan, no `stripeCustomerId`) and a key list only once it names no key, so the caps still hold.
-An account with billing or server-only records (notification devices, `private/calendarFeed`, `private/eventSubscriptions`) is told before anything is deleted to email the contact address, and a deletion that stops half way says so and finishes when retried.
+The rules allow the owner to delete a key list only once it names no key, so the caps still hold, and the account document only when all of these hold (REVIEW9 SEC9 L1-L3):
+
+- it holds no billing (no paid plan, no `stripeCustomerId`) and no server-written record the browser cannot remove: `private/calendarFeed`, `private/eventSubscriptions`, or `private/notificationDevices`, which device registration writes because rules cannot tell whether the `notificationDevices` collection is empty;
+- the sign-in is from the last 10 minutes (`auth_time`), which the page's fresh Google confirmation always is;
+- the same batch writes `accountSelfDeletions/{uid}` with the server's time; for an hour after, nothing of the account (the account document, a key list, a calendar link, the reminder's write stamp) can be written again, so another open tab cannot bring it back with a token that is still valid. The `maintenance` job removes markers a day old; on Spark they stay, holding only the uid and the time.
+
+An account with billing or server-only records is told before anything is deleted to email the contact address, and a deletion that stops half way says so and finishes when retried.
 
 Deletion may return HTTP 202 and sign the user out while cleanup continues.
 The backend creates `accountDeletionTombstones/{uid}`, blocks further account access, revokes Firebase sessions, expires open checkouts and cancels subscriptions, deletes the Stripe customer once its sessions and subscriptions are done (unless a live subscription of another account shares it), removes notification ownership records and calendar feed index entries, recursively deletes the user document, and deletes the Firebase Authentication user.
