@@ -35,8 +35,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
         priority: path ? 0.5 : 1,
       }),
     ),
-    // The account page is the app's, one address in every language.
-    { url: `${SITE_URL}/account/`, changeFrequency: 'monthly', priority: 0.5 },
+    // The account page (data controls for a signed-in person) is left out and marked
+    // noindex (app/account/layout.tsx): nothing on it is for searchers (REVIEW10 N8).
   ]
   // The city pages change only when their checked-in data does (lib/cities/).
   const cities = ['/uv/', ...CITIES.map(city => cityPath(city.slug))].flatMap(path =>

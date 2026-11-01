@@ -135,4 +135,8 @@ test('the sitemap lists every page in both languages, with its alternates', asyn
     expect(sitemap).toMatch(new RegExp(`hreflang="es" href="[^"]+/es${path}"`))
   }
   expect(sitemap).toContain('hreflang="x-default"')
+  // The account page is for signed-in people only, and marked noindex (REVIEW10 N8).
+  expect(sitemap).not.toContain('/account/')
+  const account = await (await request.get('/account/')).text()
+  expect(account).toContain('<meta name="robots" content="noindex, nofollow"/>')
 })
