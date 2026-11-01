@@ -231,9 +231,13 @@ export function ActivityPlanGate({
   return ready ? children : fallback
 }
 
-/** Keeps the sunscreen timer's place until it shows, so nothing below it moves. */
+/**
+ * Keeps the sunscreen timer's place until it shows, so nothing below it moves: the
+ * height of its idle card with "How much sunscreen?" closed (the same min-height classes
+ * as ReapplyTimer.tsx; its text takes two lines on phones).
+ */
 function ReapplyTimerSpace() {
-  return <div aria-hidden="true" className="min-h-16" />
+  return <div aria-hidden="true" className="min-h-24 md:min-h-20" />
 }
 const ReapplyTimer = deferred<ReapplyTimerProps>(
   () => import('./dashboard/ReapplyTimer'),

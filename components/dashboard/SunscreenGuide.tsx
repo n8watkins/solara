@@ -26,10 +26,13 @@ function peakProtectionUV(hours: readonly SkyHour[]): number | null {
 export default function SunscreenGuide({
   today,
   skinType,
+  onTint = false,
 }: {
   /** Today's forecast hours; the SPF line is left out without them. */
   today?: readonly SkyHour[]
   skinType?: SkinType
+  /** On the due card's accent tint, where the plain accent is too faint for small text. */
+  onTint?: boolean
 }) {
   const peak = today && skinType ? peakProtectionUV(today) : null
   const lines = [
@@ -41,7 +44,9 @@ export default function SunscreenGuide({
 
   return (
     <details className="group text-[12px] leading-[1.45] text-ink-2">
-      <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded-md font-semibold text-accent [&::-webkit-details-marker]:hidden">
+      <summary
+        className={`inline-flex cursor-pointer list-none items-center gap-1 rounded-md font-semibold [&::-webkit-details-marker]:hidden ${onTint ? 'text-accent-hover' : 'text-accent'}`}
+      >
         How much sunscreen?
         <ChevronDown
           size={14}

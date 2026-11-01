@@ -229,13 +229,14 @@ export default function ReapplyTimer({
   const titleId = `${id}-title`
   const due = timer ? isDue(timer, now) : false
 
-  const guide = <SunscreenGuide today={today} skinType={skinType} />
+  const guide = <SunscreenGuide today={today} skinType={skinType} onTint={due} />
 
   if (!timer) {
+    // The same min-height as its placeholder (ReapplyTimerSpace in components/deferred.tsx).
     return (
       <section
         aria-labelledby={titleId}
-        className="metric-card flex min-h-16 flex-col gap-2 px-3 py-2.5"
+        className="metric-card flex min-h-24 flex-col justify-center gap-2 px-3 py-2.5 md:min-h-20"
       >
         <div className="flex items-center gap-3">
           <Droplets size={20} aria-hidden="true" className="shrink-0 text-accent" />
