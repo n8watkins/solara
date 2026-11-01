@@ -1,5 +1,6 @@
 // Playwright global teardown for the UI harness: merges the per-screen axe JSON
-// files into test-results/ui-harness/axe-summary.{json,md}. Report-only.
+// files into test-results/ui-harness/axe-summary.{json,md}. Each screen's own test fails
+// on a violation (capture.ts); this report lists them all in one table.
 // CI runs the harness in shards and merges every shard's reports with merge-axe.mts.
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -65,7 +66,7 @@ export default function axeSummary() {
   const lines = [
     '# UI harness axe report',
     '',
-    'Report-only: violations do not fail `npm run test:harness`.',
+    'Any violation fails its screen in `npm run test:harness`; this table lists them all.',
     'Cells are the number of failing nodes per rule and screen.',
     '',
     `| Rule | Impact | ${columns.join(' | ')} |`,

@@ -102,7 +102,7 @@ describe('the hand-off from the worker to the import', () => {
     expect(previewEvents(result, NOW, 'America/Los_Angeles', time)).toEqual([
       { title: 'Tuesday 10K', when: 'Tomorrow · 9am–10:30am' },
       { title: 'Picnic', when: 'Wed, Jun 17 · 12pm–1:30pm' },
-      { title: 'Untitled event', when: 'Sat, Jun 20 · 6pm – Sun, Jun 21 10am' },
+      { title: 'Untitled event', when: 'Sat, Jun 20 · 6pm\u00a0–\u00a0Sun, Jun 21 10am' },
     ])
   })
 

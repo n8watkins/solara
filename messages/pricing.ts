@@ -11,6 +11,7 @@ export default defineMessages('pricing', {
   columnFree: 'Free',
   columnPro: 'Pro',
   monthly: 'Monthly',
+  priceUsd: (amount: string) => `$${amount}`,
   yearly: 'Yearly',
   perMonth: 'month',
   perYear: 'year',

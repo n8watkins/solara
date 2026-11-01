@@ -46,6 +46,7 @@ import type { EventsStore } from './events'
 import { resolveTimeZone } from './time'
 import type { Activity } from './types'
 import m from '@/messages/connections'
+import { withMessages } from './i18n'
 
 export { calendarsText, isMeetingLocation, syncedText } from './calendar-events'
 export type { SyncOutcome } from './calendar-events'
@@ -98,7 +99,7 @@ export const googleCalendarApi: GoogleCalendarApi = {
 
 let gcalLoaded: typeof Gcal | null = null
 async function gcal() {
-  gcalLoaded ??= await import('./gcal')
+  gcalLoaded ??= await withMessages(['calendar'], () => import('./gcal'))
   return gcalLoaded
 }
 

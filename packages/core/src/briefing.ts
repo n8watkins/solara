@@ -6,6 +6,7 @@ import { formatClock12 } from './clock'
 import {
   burnMins,
   effectiveMaxUV,
+  outlastsBurnTime,
   findWindows,
   lowestUVWindow,
   runsOn,
@@ -17,6 +18,7 @@ import {
 import type { ExposureSetting } from './exposure'
 import { cloudEffect, planningHours, type CloudEffect } from './forecast-quality'
 import m from './messages/briefing'
+import { timeRange } from './time-range'
 import { formatUV, uvLabel } from './uv-scale'
 import {
   PROTECT_FROM_UV,
@@ -143,11 +145,24 @@ export interface DailyBriefing {
   /** The rain or heat that moved the activity window or took it away (lines.weather), or null. */
   weather: WeatherSpan | null
   /**
+   * The window's activity lasts longer than the skin's burn time at its UV limit without
+   * sunscreen (outlastsBurnTime, REVIEW10 QA M3): lines.outlasts says so.
+   */
+  outlastsBurn: boolean
+  /**
    * The sentences, each without a final period. `weather` names the rain or heat that
    * moved or took away the activity window ("Rain likely 2pm–5pm"), and is null when the
    * weather changes nothing.
    */
-  lines: { peak: string; window: string; weather: string | null; burn: string | null; tip: string }
+  lines: {
+    peak: string
+    window: string
+    /** The warning when the window's activity outlasts the burn time (outlastsBurn). */
+    outlasts: string | null
+    weather: string | null
+    burn: string | null
+    tip: string
+  }
   /** One paragraph for a share or a notification. */
   text: string
 }
@@ -271,7 +286,7 @@ export function dailyBriefing({
   const fromTo = (span: { from: number; to: number }) =>
     m.fromTo(formatTime(span.from), formatTime(span.to))
   const range = (span: { from: number; to: number }) =>
-    `${formatTime(span.from)}–${formatTime(span.to)}`
+    timeRange(formatTime(span.from), formatTime(span.to))
 
   // Clouds are among the least predictable parts of a forecast, so a coming peak they
   // lower also says what a clear sky would bring; a passed peak is history.
@@ -295,11 +310,16 @@ export function dailyBriefing({
   let window: BriefingWindow | null = null
   let windowLine: string
   let weather: WeatherSpan | null = null
+  let outlastsLine: string | null = null
   if (running.length) {
     const best = activityWindow(hourly, running, day.date, from, daylight)
     window = best
       ? { activity: best.activity.name, spans: [{ from: best.window.from, to: best.window.to }] }
       : null
+    // The window keeps to the activity's UV limit, yet unprotected skin can still burn
+    // before the activity ends (REVIEW10 QA M3).
+    if (best && outlastsBurnTime(best.activity, burnMins(effectiveMaxUV(best.activity), skinType)))
+      outlastsLine = m.outlastsBurn(best.activity.name)
     const who = running.length === 1 ? running[0]!.name : m.yourActivities
     // Rain and heat are told only when they moved the window or took it away.
     weather = weatherChange(hourly, running, day.date, from, daylight, best)
@@ -357,11 +377,19 @@ export function dailyBriefing({
   const lines = {
     peak: sentence(peakLine),
     window: sentence(windowLine),
+    outlasts: outlastsLine && sentence(outlastsLine),
     weather: weatherLine && sentence(weatherLine),
     burn: burnLine && sentence(burnLine),
     tip: sentence(tip),
   }
-  const text = [m.paragraphStart(dayLabel, peakLine), windowLine, weatherLine, burnLine, tip]
+  const text = [
+    m.paragraphStart(dayLabel, peakLine),
+    windowLine,
+    outlastsLine,
+    weatherLine,
+    burnLine,
+    tip,
+  ]
     .filter(Boolean)
     .map(part => sentence(part!))
     .join('. ')
@@ -373,6 +401,7 @@ export function dailyBriefing({
     burnMins: burn,
     cloud,
     weather,
+    outlastsBurn: outlastsLine !== null,
     lines,
     text: `${text}.`,
   }

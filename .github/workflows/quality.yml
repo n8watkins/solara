@@ -179,6 +179,13 @@ jobs:
         if: env.RELEVANT == 'true'
         run: npm run test:e2e
 
+      # Builds out/ again with a public env shaped like production's (a Firebase project
+      # and analytics set), which the hermetic build leaves out, and measures a guest's
+      # first load in English and Spanish against the budgets (REVIEW10 QA M1).
+      - name: First-load budgets on a production-like build
+        if: env.RELEVANT == 'true'
+        run: npm run test:e2e:budget
+
       - name: Upload browser report
         if: failure() && env.RELEVANT == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

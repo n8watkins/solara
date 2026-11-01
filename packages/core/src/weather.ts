@@ -16,6 +16,14 @@ import {
 import type { Daylight } from './sun-times'
 import m from './messages/core'
 
+/**
+ * The vitamin D dose the estimate below stands for: about 1,000 IU for an adult with arms
+ * and legs bare (about a quarter of the skin) in roughly a third of the time it takes the
+ * skin to redden (Holick, Am J Clin Nutr 2004; the rule of thumb most guidance repeats).
+ */
+export const VITD_DOSE_IU = 1000
+
+/** Minutes to about VITD_DOSE_IU of vitamin D at `uv` (0.3 x the burn time), or null below UV 1. */
 export function vitDMins(uv: number, skinType: SkinType): number | null {
   if (uv < 1) return null
   const base = SKIN_BURN_BASE[skinType]

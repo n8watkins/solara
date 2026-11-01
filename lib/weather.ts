@@ -1,4 +1,5 @@
-import { uvBand, windowEventTitle, type UVBand } from '@solara/core'
+import { uvBand, type UVBand } from '@solara/core'
+import coreText from '@solara/core/messages/core'
 import { zonedInstant } from './time'
 import m from '@/messages/dashboard'
 
@@ -57,7 +58,9 @@ export function gcalLink(
 ): string {
   const start = zonedInstant(dateStr, window.from, timeZone)
   const end = start + Math.round(durationMins) * 60_000
-  const title = encodeURIComponent(windowEventTitle(activityName))
+  // The calendar title's words (as windowEventTitle in @solara/core/ics), read from the
+  // catalogue so the first load does not carry the .ics writer for one sentence.
+  const title = encodeURIComponent(coreText.windowEventTitle(activityName))
   const details = encodeURIComponent(m.eventLinkDetails)
   return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${gcalTimestamp(start)}/${gcalTimestamp(end)}&details=${details}`
 }

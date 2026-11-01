@@ -5,6 +5,7 @@ import type { ActivityDayPlan } from '@solara/core/next-slot'
 import type { ScheduledActivity, ScheduledSpan } from '@/lib/scheduled'
 import { recommendSlot, type SlotRecommendation } from '@solara/core/scheduler'
 import { effectiveMaxUV } from '@solara/core/tiers'
+import { outlastsBurnTime } from '@solara/core/recommendation'
 import { PROTECT_FROM_UV } from '@solara/core/protection'
 import { activityBodyAreas, sunscreenAmount, sunscreenAmountShort } from '@solara/core/sunscreen'
 import { fmtDays } from '@/lib/weather'
@@ -16,6 +17,7 @@ import {
   matchTone,
 } from '@/lib/activity-card-view'
 import { formatActivityDuration } from '@/lib/activity-presets'
+import BurnTimeWarning from './BurnTimeWarning'
 import RecommendedSlot from './RecommendedSlot'
 import ScheduledCardRow from './ScheduledCardRow'
 import WeatherNote from './WeatherNote'
@@ -67,10 +69,13 @@ export default function ActivityCard({
   const safeUv = effectiveMaxUV(activity)
   const days = fmtDays(activity.daysOfWeek)
   const exposure = exposureSummary(activity)
+  // Longer than the burn time at its UV limit without sunscreen: the recommended slot (or
+  // the card) says so, and the sunscreen row below says how much (REVIEW10 QA M3).
+  const outlasts = outlastsBurnTime(activity, burnMins ?? null)
   // How much sunscreen the parts this activity usually bares take, where its windows
   // reach the UV that calls for protection (packages/core/src/sunscreen.ts).
   const sunscreen =
-    safeUv >= PROTECT_FROM_UV
+    safeUv >= PROTECT_FROM_UV || outlasts
       ? sunscreenAmountShort(sunscreenAmount(activityBodyAreas(activity.id)))
       : null
   // Once the recommended slot is on the calendar, the Scheduled row replaces it.
@@ -111,10 +116,13 @@ export default function ActivityCard({
       {rec && !recScheduled && (
         <RecommendedSlot
           rec={rec}
+          outlastsBurn={outlasts}
           onBook={onBook && (() => onBook(rec))}
           calendarHref={calendarHref?.({ from: rec.start, to: rec.end })}
         />
       )}
+
+      {outlasts && !(rec && !recScheduled) && <BurnTimeWarning />}
 
       <div className="flex flex-col gap-[5px]">
         <Stat

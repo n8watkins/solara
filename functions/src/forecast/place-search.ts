@@ -13,6 +13,7 @@
 // searches (REVIEW4 H1). While the cost guard is engaged, only cached answers are served.
 
 import { type GeocodingResult, parseGeocodingResponse } from '#core'
+import { DEFAULT_LOCALE, isLocale, type Locale } from '#core/i18n'
 import type { Request } from 'firebase-functions/v2/https'
 
 import { HttpError, loggableError } from '../shared/errors'
@@ -32,13 +33,17 @@ const UPSTREAM_TIMEOUT_MS = 5000
 export interface PlaceSearch {
   name: string
   count: number
+  /** The app's language: Open-Meteo matches and names places in it (REVIEW10 QA H1). */
+  language: Locale
 }
 
 /** The search a request asks for, or a 400. */
 export function requestedSearch(query: Request['query']): PlaceSearch {
   const rawName = query.name
   const rawCount = query.count ?? '5'
-  if (typeof rawName !== 'string' || typeof rawCount !== 'string') {
+  // Older app versions send no language; they searched in English.
+  const language = query.language ?? DEFAULT_LOCALE
+  if (typeof rawName !== 'string' || typeof rawCount !== 'string' || !isLocale(language)) {
     throw new HttpError('invalid-argument', 'Invalid search')
   }
   const name = rawName.trim().replace(/\s+/g, ' ')
@@ -53,7 +58,7 @@ export function requestedSearch(query: Request['query']): PlaceSearch {
   ) {
     throw new HttpError('invalid-argument', 'Invalid search')
   }
-  return { name, count }
+  return { name, count, language }
 }
 
 export interface PlaceSearchCacheOptions {
@@ -80,16 +85,18 @@ export class PlaceSearchCache {
    * is the caller's share, asked only when a miss would call upstream.
    */
   async search(
-    { name, count }: PlaceSearch,
+    { name, count, language }: PlaceSearch,
     { mayFetch }: { mayFetch?: () => boolean | Promise<boolean> } = {},
   ): Promise<{ results: GeocodingResult[] }> {
-    const key = `${count}:${name.toLowerCase()}`
+    const key = `${language}:${count}:${name.toLowerCase()}`
     const now = (this.options.now ?? Date.now)()
     const cached = this.memory.get(key)
     if (cached && cached.expiresAt > now) return { results: cached.results }
     let pending = this.inFlight.get(key)
     if (!pending) {
-      pending = this.fetch(name, count, key, now, mayFetch).finally(() => this.inFlight.delete(key))
+      pending = this.fetch({ name, count, language }, key, now, mayFetch).finally(() =>
+        this.inFlight.delete(key),
+      )
       this.inFlight.set(key, pending)
     }
     return { results: await pending }
@@ -102,8 +109,7 @@ export class PlaceSearchCache {
   }
 
   private async fetch(
-    name: string,
-    count: number,
+    { name, count, language }: PlaceSearch,
     key: string,
     now: number,
     mayFetch?: () => boolean | Promise<boolean>,
@@ -128,7 +134,7 @@ export class PlaceSearchCache {
     const params = new URLSearchParams({
       name,
       count: String(count),
-      language: 'en',
+      language,
       format: 'json',
       apikey: apiKey,
     })

@@ -46,7 +46,8 @@ import {
 } from '@solara/core/event-import'
 import { describe, expect, it } from 'vitest'
 import { KEY_INDEX_CAPS, KEY_INDEX_MAX_REMOVED } from './key-index'
-import { defaultPrefs, newAccountPrefs, normalizePrefs } from './prefs'
+import { newAccountPrefs } from './account-prefs'
+import { defaultPrefs, normalizePrefs } from './prefs'
 import { ACTIVITY_CATEGORIES, PRESET_ACTIVITIES, TIER_LIMITS } from '@solara/core/tiers'
 
 // firestore.rules cannot import the preferences schema (packages/core/src/prefs.ts), so it

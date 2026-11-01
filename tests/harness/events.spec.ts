@@ -57,7 +57,7 @@ test('sample events on Pro: UV, burn, sunscreen and the place fix', async ({ pag
   await expect(run.getByText('Today · 4pm–5:30pm')).toBeVisible()
   await expect(run.getByText(/^Peak UV \d+\.\d at 4pm/)).toBeVisible()
   // Group planning on the Pro fixture is off: the account's own fair skin.
-  await expect(run.getByText(/fair skin could burn in about \d+ min at the peak/)).toBeVisible()
+  await expect(run.getByText(/fair skin could burn in about \d+\smin at the peak/)).toBeVisible()
   await expect(run.getByText(/Sunscreen: apply 3:30pm–3:45pm/)).toBeVisible()
   await expect(run.getByRole('combobox', { name: 'Counts as' })).toHaveValue('run')
   await expect(run.getByRole('link', { name: /Event page/ })).toHaveAttribute('target', '_blank')

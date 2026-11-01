@@ -4,6 +4,8 @@ import { formatDuration } from '@solara/core/duration'
 import Tooltip from '../Tooltip'
 import t from '@/messages/dashboard'
 import { skinTypeSkin } from '@solara/core/recommendation'
+import { formatNumber } from '@solara/core/i18n'
+import { VITD_DOSE_IU } from '@solara/core/weather'
 
 /** "2 hours 47 minutes", "21 minutes", for a screen reader. */
 function spokenDuration(minutes: number): string {
@@ -57,17 +59,15 @@ function Metric({
             {/* "2 h 47 min" as everywhere else (formatDuration), with the units smaller
                 than the numbers; "167m" read as metres (REVIEW9 QA L3). */}
             <span aria-hidden="true" data-testid="metric-value">
+              {/* Numbers and units alternate; each unit keeps its no-break space. */}
               {formatDuration(minutes)
-                .split(' ')
+                .split(/(\d+)/)
+                .filter(Boolean)
                 .map((part, i) =>
                   /^\d+$/.test(part) ? (
-                    <span key={i}>
-                      {i > 0 && ' '}
-                      {part}
-                    </span>
+                    <span key={i}>{part}</span>
                   ) : (
                     <span key={i} className="text-[15px] font-semibold text-ink-2">
-                      {' '}
                       {part}
                     </span>
                   ),
@@ -154,10 +154,12 @@ export default function ExposureMetrics({
       <Metric
         testId="vitd-metric"
         label={t.vitdTitle}
-        help={t.vitdHelp}
+        help={t.vitdHelp(formatNumber(VITD_DOSE_IU))}
         minutes={vitD}
         empty={t.uvTooLow}
-        detail={vitD ? t.armsLegs : vitDFrom ? t.until(vitDFrom) : t.needsUv1}
+        detail={
+          vitD ? t.vitdDose(formatNumber(VITD_DOSE_IU)) : vitDFrom ? t.until(vitDFrom) : t.needsUv1
+        }
       />
     </div>
   )

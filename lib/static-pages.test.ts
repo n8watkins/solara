@@ -5,6 +5,7 @@ import {
   pageLanguage,
   stripFrameworkScripts,
   withDocumentLanguage,
+  withFontPreload,
 } from './static-pages.mts'
 import { LANDING_REDIRECT_SCRIPT } from './landing-redirect'
 
@@ -104,5 +105,23 @@ describe('the pages in Spanish (ROADMAP item 46)', () => {
     expect(withDocumentLanguage(html, 'es')).toBe(html.replace('lang="en"', 'lang="es"'))
     expect(withDocumentLanguage(html, 'en')).toBe(html)
     expect(() => withDocumentLanguage('<html><body></body></html>', 'es')).toThrow(/lang/)
+  })
+})
+
+describe('withFontPreload (REVIEW10 QA L2)', () => {
+  const preload =
+    '<link rel="preload" href="/_next/static/media/inter-s.p.abc.woff2" as="font" crossorigin="" type="font/woff2"/>'
+  const app = `<html lang="en"><head><meta charSet="utf-8"/>${preload}</head><body></body></html>`
+  const notFound = '<html lang="en"><head><meta charSet="utf-8"/></head><body></body></html>'
+
+  it('adds the font preload a page lacks, first in <head>', () => {
+    expect(withFontPreload(notFound, app)).toBe(
+      `<html lang="en"><head>${preload}<meta charSet="utf-8"/></head><body></body></html>`,
+    )
+  })
+
+  it('leaves a page that has one alone, and fails without one to copy', () => {
+    expect(withFontPreload(app, app)).toBe(app)
+    expect(() => withFontPreload(notFound, notFound)).toThrow('no font preload')
   })
 })

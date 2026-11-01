@@ -42,8 +42,11 @@ import { SubscriptionsStoreContext } from '@/lib/events-context'
 import { googleCalendarEventsLaunched } from '@/lib/plans'
 import m from '@/messages/linked'
 import { serverErrorText } from '@/lib/event-subscriptions'
+import { withMessages } from '@/lib/i18n'
 
-const AddCalendarGuide = lazy(() => import('./AddCalendarGuide'))
+const AddCalendarGuide = lazy(() =>
+  withMessages(['events', 'linked', 'linking'], () => import('./AddCalendarGuide')),
+)
 
 interface Props {
   uid: string

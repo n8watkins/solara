@@ -109,6 +109,20 @@ export function burnMins(uv: number, skinType: SkinType): number | null {
   return Math.round((base * 10) / uv)
 }
 
+/**
+ * Whether an activity planned without sunscreen lasts longer than the skin's burn time at
+ * the UV it is planned for (`burnMinutes`, burnMins at effectiveMaxUV): a window that
+ * keeps to its UV limit still burns unprotected skin before the activity ends, so every
+ * place that offers the window says so (REVIEW10 QA M3). An activity planned with
+ * sunscreen already counts on it.
+ */
+export function outlastsBurnTime(
+  activity: { durationMins?: number | null; sunscreen?: boolean | null },
+  burnMinutes: number | null,
+): boolean {
+  return !activity.sunscreen && burnMinutes !== null && (activity.durationMins ?? 0) > burnMinutes
+}
+
 /** Day of the week (0 = Sunday) for a 'YYYY-MM-DD' date, or null when it is not a real date. */
 export function weekdayForDate(dateStr: string): number | null {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr)

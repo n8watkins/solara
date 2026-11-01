@@ -27,6 +27,7 @@ import AccountControls, {
   type AccountBusy,
 } from '@/components/account/AccountControls'
 import m from '@/messages/account'
+import { withMessages } from '@/lib/i18n'
 
 const FUNCTIONS_READY = functionsApiConfigured()
 
@@ -36,7 +37,7 @@ const emailFallback = () => m.emailFallback(DATA_REQUEST_EMAIL, DATA_REQUEST_DAY
 /** The page, in the visitor's language once its translations have arrived. */
 export default function AccountPageInLanguage() {
   return (
-    <MessagesGate>
+    <MessagesGate messages={['account', 'pricing']}>
       <AccountPage />
     </MessagesGate>
   )
@@ -71,7 +72,10 @@ function AccountPage() {
     }
     let current = true
     // Without Functions, this browser deletes the account unless part of it is server-only.
-    import('@/lib/account-self-service')
+    withMessages(
+      ['account', 'editor', 'linking', 'sunscreen'],
+      () => import('@/lib/account-self-service'),
+    )
       .then(async ({ readAccountRecords, selfDeletionBlocker }) =>
         selfDeletionBlocker(await readAccountRecords(user.uid)),
       )
@@ -139,7 +143,12 @@ function AccountPage() {
               freshIdToken: true,
               fallbackMessage: m.exportFailed,
             })
-          : await (await import('@/lib/account-self-service')).exportAccountInBrowser(user.uid)
+          : await (
+              await withMessages(
+                ['account', 'editor', 'linking', 'sunscreen'],
+                () => import('@/lib/account-self-service'),
+              )
+            ).exportAccountInBrowser(user.uid)
       const url = URL.createObjectURL(
         new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }),
       )
@@ -224,7 +233,10 @@ function AccountPage() {
   async function deleteInBrowser(account: User) {
     setMessage(m.deletingData)
     try {
-      const { deleteAccountInBrowser } = await import('@/lib/account-self-service')
+      const { deleteAccountInBrowser } = await withMessages(
+        ['account', 'editor', 'linking', 'sunscreen'],
+        () => import('@/lib/account-self-service'),
+      )
       await deleteAccountInBrowser(account)
       await finishDeletion(account, 'done')
     } catch (error) {
@@ -243,7 +255,10 @@ function AccountPage() {
 
   /** Nothing of the deleted account may stay in this browser, then the page says so. */
   async function finishDeletion(account: User, state: 'pending' | 'done') {
-    const { clearDeletedAccount } = await import('@/lib/account-local')
+    const { clearDeletedAccount } = await withMessages(
+      ['settings', 'setup'],
+      () => import('@/lib/account-local'),
+    )
     await clearDeletedAccount(account.uid)
     const auth = loadedFirebase()?.auth
     if (auth) {
@@ -256,9 +271,20 @@ function AccountPage() {
   }
 
   return (
-    <AccountPageFrame emailFallback={authReady && !deletion}>
+    <AccountPageFrame emailFallback={!deletion}>
       {!authReady ? (
-        <div className="card">{m.loadingAccount}</div>
+        // Until the session is known: the signed-out card's place, invisible, so the page
+        // does not move when it turns out to be that card (REVIEW10 QA L1).
+        <div className="card">
+          <p role="status" className="sr-only">
+            {m.loadingAccount}
+          </p>
+          <div aria-hidden="true" className="invisible">
+            <h2 className="mb-2 text-[18px] font-[650]">{m.signInRequired}</h2>
+            <p className="mb-[18px] leading-[1.55]">{m.signInRequiredBody}</p>
+            <span className="btn btn-primary">{m.goToSignIn}</span>
+          </div>
+        </div>
       ) : !user ? (
         <div className="card">
           <h2 className="mb-2 text-[18px] font-[650]">

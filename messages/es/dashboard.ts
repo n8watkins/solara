@@ -40,10 +40,10 @@ export default {
   edit: 'Editar',
   until: when => `Hasta ${las(when)}`,
   vitdTitle: 'Estimación de vitamina D',
-  vitdHelp:
-    'Un modelo aproximado, no una meta de exposición recomendada. Las necesidades y la producción de vitamina D varían mucho; consulta a un profesional de la salud si te preocupa.',
+  vitdHelp: dose =>
+    `Unas ${dose} UI de vitamina D para una persona adulta con brazos y piernas descubiertos: más o menos un tercio del tiempo que tarda la piel en enrojecer (la regla práctica habitual, Holick, 2004). Un modelo aproximado, no una meta de exposición recomendada. Las necesidades y la producción varían mucho y bajan con la edad; consulta a un profesional de la salud si te preocupa.`,
+  vitdDose: dose => `≈${dose} UI · brazos\u00a0+\u00a0piernas`,
   uvTooLow: 'UV demasiado bajo',
-  armsLegs: 'Brazos + piernas',
   needsUv1: 'Necesita UV de 1 o más',
 
   shareFailed: 'No se pudo compartir. Revisa tu conexión y vuelve a intentarlo.',
@@ -120,6 +120,12 @@ export default {
 
   eventLinkDetails:
     'Estimación de horario de UV más bajo de Solara, basada en el pronóstico. Vuelve a revisar el UV actual y protégete del sol.',
+
+  sunscreenTimer: 'Temporizador de protector solar',
+  headingOut: duration =>
+    `¿Vas a salir? Recibe un recordatorio para volver a aplicarlo cada ${duration}.`,
+  startTimer: 'Iniciar',
+  howMuchSunscreen: '¿Cuánto protector solar?',
 } satisfies Translation<typeof dashboard>
 
 export const needsReview: (keyof typeof dashboard)[] = [
@@ -134,7 +140,9 @@ export const needsReview: (keyof typeof dashboard)[] = [
   'burnAbout',
   'vitdTitle',
   'vitdHelp',
+  'vitdDose',
   'uvTooLow',
   'needsUv1',
   'eventLinkDetails',
+  'headingOut',
 ]

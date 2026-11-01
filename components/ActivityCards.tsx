@@ -12,6 +12,7 @@ import { windowsPassedNote } from '@/lib/dashboard-view'
 import type { ScheduledActivity, ScheduledSpan } from '@/lib/scheduled'
 import ActivityCard from './dashboard/ActivityCard'
 import m from '@/messages/activities'
+import { withMessages } from '@/lib/i18n'
 
 interface Props {
   /** One plan per activity for the selected day (see planActivityDay). */
@@ -62,7 +63,7 @@ export default function ActivityCards({
     // still opens within the tap's user activation.
     let share: typeof ShareCode
     try {
-      share = await import('@/lib/share')
+      share = await withMessages(['activities'], () => import('@/lib/share'))
     } catch {
       confirm.flash(m.shareFailed)
       return

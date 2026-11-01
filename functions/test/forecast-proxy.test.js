@@ -459,6 +459,8 @@ describe('place search proxy (L3)', () => {
     country: 'United States',
     timezone: 'America/Los_Angeles',
     population: 141029,
+    feature_code: 'PPL',
+    elevation: 263,
   }
 
   function places({ key = 'key-123', allowed = true, left = 100, respond } = {}) {
@@ -480,8 +482,14 @@ describe('place search proxy (L3)', () => {
     assert.deepEqual(requestedSearch({ name: '  Pasadena,   CA ', count: '10' }), {
       name: 'Pasadena, CA',
       count: 10,
+      language: 'en',
     })
-    assert.deepEqual(requestedSearch({ name: 'Pa' }), { name: 'Pa', count: 5 })
+    assert.deepEqual(requestedSearch({ name: 'Pa' }), { name: 'Pa', count: 5, language: 'en' })
+    assert.deepEqual(requestedSearch({ name: 'Nueva York', count: '10', language: 'es' }), {
+      name: 'Nueva York',
+      count: 10,
+      language: 'es',
+    })
     for (const query of [
       {},
       { name: 'P' },
@@ -492,6 +500,8 @@ describe('place search proxy (L3)', () => {
       { name: 'Pasadena', count: '11' },
       { name: 'Pasadena', count: '5.5' },
       { name: 'Pasadena', count: '100' },
+      { name: 'Pasadena', language: 'fr' },
+      { name: 'Pasadena', language: ['es', 'en'] },
     ]) {
       assert.throws(
         () => requestedSearch(query),
@@ -503,8 +513,9 @@ describe('place search proxy (L3)', () => {
 
   test('asks the commercial host with the key, returns only validated fields, and caches', async () => {
     const { calls, search } = places()
-    const first = await search.search({ name: 'Pasadena', count: 5 })
-    // `population` and anything else Open-Meteo sends is dropped.
+    const first = await search.search({ name: 'Pasadena', count: 5, language: 'en' })
+    // Only the validated fields go back (the app ranks by population); `elevation` and
+    // anything else Open-Meteo sends is dropped.
     assert.deepEqual(first, {
       results: [
         {
@@ -514,6 +525,8 @@ describe('place search proxy (L3)', () => {
           admin1: 'California',
           country: 'United States',
           timezone: 'America/Los_Angeles',
+          population: 141029,
+          feature_code: 'PPL',
         },
       ],
     })
@@ -522,22 +535,40 @@ describe('place search proxy (L3)', () => {
     assert.equal(calls[0].url.searchParams.get('apikey'), 'key-123')
     assert.equal(calls[0].url.searchParams.get('name'), 'Pasadena')
     assert.equal(calls[0].url.searchParams.get('count'), '5')
+    assert.equal(calls[0].url.searchParams.get('language'), 'en')
     // The same search, in any case, is served from memory.
-    await search.search({ name: 'pasadena', count: 5 })
+    await search.search({ name: 'pasadena', count: 5, language: 'en' })
     assert.equal(calls.length, 1)
+  })
+
+  test('searches in the language asked for, cached apart (REVIEW10 QA H1)', async () => {
+    const { calls, search } = places()
+    await search.search({ name: 'Nueva York', count: 10, language: 'es' })
+    assert.equal(calls.length, 1)
+    assert.equal(calls[0].url.searchParams.get('language'), 'es')
+    // The same name in English is another search, with other matches.
+    await search.search({ name: 'Nueva York', count: 10, language: 'en' })
+    assert.equal(calls.length, 2)
+    assert.equal(calls[1].url.searchParams.get('language'), 'en')
+    await search.search({ name: 'nueva york', count: 10, language: 'es' })
+    assert.equal(calls.length, 2)
   })
 
   test('never calls upstream without a key, under the cost guard, or past the budget', async () => {
     for (const setup of [{ key: null }, { allowed: false }, { left: 0 }]) {
       const { calls, search } = places(setup)
-      await assert.rejects(search.search({ name: 'Pasadena', count: 5 }), { code: 'unavailable' })
+      await assert.rejects(search.search({ name: 'Pasadena', count: 5, language: 'en' }), {
+        code: 'unavailable',
+      })
       assert.equal(calls.length, 0, JSON.stringify(setup))
     }
   })
 
   test('turns an upstream failure into 503 without leaking the key', async () => {
     const { search } = places({ respond: () => ({ ok: false, status: 500 }) })
-    await assert.rejects(search.search({ name: 'Pasadena', count: 5 }), { code: 'unavailable' })
+    await assert.rejects(search.search({ name: 'Pasadena', count: 5, language: 'en' }), {
+      code: 'unavailable',
+    })
     assert.doesNotMatch(JSON.stringify(logs.entries), /key-123/)
   })
 })

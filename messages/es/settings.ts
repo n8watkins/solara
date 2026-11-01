@@ -104,7 +104,7 @@ export default {
   clock24: example => `24 horas (${example})`,
   language: 'Idioma',
   languageHint:
-    'Automático sigue a este dispositivo. Las alertas, los recordatorios y el calendario suscrito también usan este idioma (con Automático, el de tu último dispositivo).',
+    'Automático usa el idioma de este dispositivo. Las alertas, los recordatorios y el calendario suscrito también usan este idioma (con Automático, el de tu último dispositivo).',
   onChecked: '✓ Activada',
   on: 'Activado',
   off: 'Desactivado',

@@ -6,14 +6,16 @@ import {
   Sun,
   Thermometer,
   Timer,
+  TriangleAlert,
   type LucideIcon,
 } from 'lucide-react'
 import type * as ShareCode from '@/lib/share'
 import { useStatusFlash } from '@/hooks/useStatusFlash'
 import type { DailyBriefingView } from '@/lib/briefing-view'
 import m from '@/messages/dashboard'
+import { withMessages } from '@/lib/i18n'
 
-/** A time range in a briefing line, kept by split() as its own part. */
+/** A closed-up time range in a briefing line ("7pm–8pm"), kept by split() as its own part. */
 const RANGE = /(\S+–\S+)/
 
 /**
@@ -37,7 +39,7 @@ export default function DailyBriefing({
     // (components/deferred.tsx), so the share sheet still opens within the tap.
     let code: typeof ShareCode
     try {
-      code = await import('@/lib/share')
+      code = await withMessages(['activities'], () => import('@/lib/share'))
     } catch {
       status.flash(m.shareFailed)
       return
@@ -58,11 +60,13 @@ export default function DailyBriefing({
     )
   }
 
-  const rows: { icon: LucideIcon; text: string | null; id: string }[] = locked
+  const rows: { icon: LucideIcon; text: string | null; id: string; warning?: boolean }[] = locked
     ? []
     : [
         { id: 'peak', icon: Sun, text: briefing.lines.peak },
         { id: 'window', icon: Clock, text: briefing.lines.window },
+        // The window's activity outlasts the burn time without sunscreen (REVIEW10 QA M3).
+        { id: 'outlasts', icon: TriangleAlert, text: briefing.lines.outlasts, warning: true },
         {
           id: 'weather',
           icon: briefing.weather?.kind === 'heat' ? Thermometer : CloudRain,
@@ -107,14 +111,18 @@ export default function DailyBriefing({
         </div>
       ) : (
         <ul className="mt-1.5 grid gap-x-6 gap-y-2 md:grid-cols-2">
-          {rows.map(({ id, icon: Icon, text }) =>
+          {rows.map(({ id, icon: Icon, text, warning }) =>
             text ? (
               <li
                 key={id}
                 data-line={id}
                 className="flex items-start gap-2.5 text-[14px] leading-[1.4] text-ink-2"
               >
-                <Icon size={17} aria-hidden className="mt-px shrink-0 text-accent" />
+                <Icon
+                  size={17}
+                  aria-hidden
+                  className={`mt-px shrink-0 ${warning ? 'text-warning' : 'text-accent'}`}
+                />
                 <span className="min-w-0">
                   {/* A time range ("7pm–8pm") never breaks at its dash. */}
                   {text.split(RANGE).map((part, i) =>

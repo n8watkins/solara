@@ -33,6 +33,7 @@ import { capMessage } from './record-cap'
 import { resolveTimeZone } from './time'
 import type { Activity, Location } from './types'
 import m from '@/messages/events'
+import { withMessages } from './i18n'
 
 export type { ImportedEvent }
 
@@ -92,7 +93,10 @@ export interface PlaceLookups {
 
 /** Loads the real lookups (lib/geocoding.ts, with its rate limit and cache). */
 export async function geocodingLookups(): Promise<PlaceLookups> {
-  const { reverseGeocode, searchPlaces } = await import('./geocoding')
+  const { reverseGeocode, searchPlaces } = await withMessages(
+    ['setup'],
+    () => import('./geocoding'),
+  )
   return { search: query => searchPlaces(query, { limit: 5 }), reverse: reverseGeocode }
 }
 
@@ -652,7 +656,7 @@ export const firestoreEventsStore: EventsStore = {
           const known = listed
           if (!reconciling && items.some(item => !known.has(item.key))) {
             reconciling = true
-            void import('./key-index')
+            void withMessages(['editor'], () => import('./key-index'))
               .then(({ reconcile }) => reconcile(uid, 'events'))
               .catch(() => {})
           }
@@ -691,7 +695,7 @@ export const firestoreEventsStore: EventsStore = {
     )
   },
   async save(uid, items) {
-    const { saveWithinCap } = await import('./key-index')
+    const { saveWithinCap } = await withMessages(['editor'], () => import('./key-index'))
     const refused = await saveWithinCap(
       uid,
       'events',
@@ -700,11 +704,11 @@ export const firestoreEventsStore: EventsStore = {
     return refused.map(record => record.item)
   },
   async remove(uid, keys) {
-    const { removeRecords } = await import('./key-index')
+    const { removeRecords } = await withMessages(['editor'], () => import('./key-index'))
     await removeRecords(uid, 'events', keys)
   },
   async removeImported(uid) {
-    const { reconcile, removeRecords } = await import('./key-index')
+    const { reconcile, removeRecords } = await withMessages(['editor'], () => import('./key-index'))
     const keys = (await this.sourceEvents(uid, 'file')).map(item => item.key)
     await removeRecords(uid, 'events', keys)
     // Keys of events Firestore's TTL policy already deleted come off the list too.
@@ -799,14 +803,14 @@ export const firestoreEventsStore: EventsStore = {
   },
   async storedKeys(uid) {
     // One read of the key list (users/{uid}/meta/events), not of every record.
-    const { listedKeys } = await import('./key-index')
+    const { listedKeys } = await withMessages(['editor'], () => import('./key-index'))
     return listedKeys(uid, 'events')
   },
   async prune(uid, nowMs) {
     const cutoff = new Date(nowMs - EVENTS_RETENTION_MS).toISOString()
     const { firestore, events } = await eventsCollection(uid)
     const { getDocs, limit, orderBy, query, where } = firestore
-    const { removeRecords } = await import('./key-index')
+    const { removeRecords } = await withMessages(['editor'], () => import('./key-index'))
     let deleted = 0
     // At most a few pages per pass; a larger backlog finishes on a later visit.
     for (let page = 0; page < 5; page += 1) {

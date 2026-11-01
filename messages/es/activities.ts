@@ -46,9 +46,6 @@ export default {
   shareUnsupported: 'Aquí no se puede compartir. Copia el enlace a mano.',
   chooseDay: 'Elige un día',
   chooseDayLead: 'Elige cualquier día de tu pronóstico.',
-  howMuchSunscreen: '¿Cuánto protector solar?',
-  sunscreenTimer: 'Temporizador de protector solar',
-  start: 'Iniciar',
   notifyOpenTab: 'Recibirás una notificación mientras Solara siga abierta en una pestaña.',
   notifyBlocked: 'Las notificaciones están bloqueadas, así que el recordatorio aparece aquí.',
   notifyHere: 'El recordatorio aparece aquí mientras Solara esté abierta.',
@@ -62,7 +59,9 @@ export default {
   plannedFor: uv => `UV ${uv} o menos`,
   plannedForSpf: uv => `UV ${uv} o menos con FPS`,
   burnTimeAt: uv => `Tiempo hasta quemarte con UV ${uv}`,
-  aboutMinutes: minutes => `unos ${minutes}\u00a0min`,
+  outlastsBurn:
+    'Dura más que tu tiempo hasta quemarte: usa protector solar o planifica para un UV más\u00a0bajo.',
+  aboutMinutes: minutes => `unos\u00a0${minutes}\u00a0min`,
   daylightFit: percent => `${percent}% de las horas de luz encajan`,
   windowsLeftToday: 'Horarios de UV más bajo que quedan hoy',
   windowsEstimated: 'Horarios estimados de UV más bajo',
@@ -86,7 +85,8 @@ export default {
   calAdd: range => `: agregar ${range} a Google Calendar`,
   ifCloudsHold: ' · si las nubes se mantienen',
   shareNamed: range => `Compartir ${range}`,
-  couldStartAnytime: '. Podrías empezar cuando quieras entre',
+  couldStartAnytime: (from, to) =>
+    `. Podrías empezar cuando quieras entre ${las(from)} y ${las(to)}`,
   openScheduled: (activity, range) => `Abrir ${activity} programada, ${range}, en Google Calendar`,
   manageScheduled: (activity, range) => `Administrar ${activity} programada, ${range}`,
   connecting: 'Conectando…',
@@ -99,8 +99,6 @@ export default {
   sunWindowTitle: activity => `Horario de sol para ${activity}`,
   every: duration => `Cada ${duration}`,
   everyWater: every => `${every} mientras nadas o sudas`,
-  headingOut: duration =>
-    `¿Vas a salir? Recibe un recordatorio para volver a aplicarlo cada ${duration}.`,
   reapplyAt: time => `Vuelve a aplicar protector solar a ${las(time)}`,
   lastPutOn: time => punto(`Te lo aplicaste por última vez a ${las(time)}`),
   inDuration: (duration, interval) => `En ${duration}. ${interval}.`,
@@ -134,9 +132,9 @@ export default {
 
 export const needsReview: (keyof typeof activities)[] = [
   'burnTimeAt',
+  'outlastsBurn',
   'plannedForSpf',
   'notifyDevices',
-  'headingOut',
   'reapplyAt',
   'exposureSummary',
   'shareText',

@@ -113,9 +113,9 @@ export default defineMessages('events', {
     `Peak UV ${uv} at ${time} · average ${average}`,
   whoGroup: (person: string, skin: string) => `${person} (${skin}, the most sensitive)`,
   burn: (who: string, minutes: number) =>
-    `Unprotected, ${who} could burn in about ${minutes} min at the peak.`,
+    `Unprotected, ${who} could burn in about ${minutes}\u00a0min at the peak.`,
   burnOutlasts: (who: string, minutes: number, duration: string) =>
-    `Unprotected, ${who} could burn in about ${minutes} min at the peak; the event lasts ${duration}.`,
+    `Unprotected, ${who} could burn in about ${minutes}\u00a0min at the peak; the event lasts ${duration}.`,
   sunscreenReapplyAt: (apply: string, reapply: string) =>
     `Sunscreen: apply ${apply}, reapply at ${reapply}, and after swimming or heavy sweating.`,
   sunscreenApply: (apply: string) =>

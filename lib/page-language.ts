@@ -14,13 +14,13 @@ import cityPages from '@/messages/city-pages'
 import landing from '@/messages/landing'
 import site from '@/messages/site'
 import initial from '@/messages/es/initial'
+import appLazy from '@/messages/es/app-lazy'
 import pages from '@/messages/es/pages'
-import rest from '@/messages/es/rest'
 
 /** Every translation a static page may read: the app's, the shared ones and its own. */
 const PAGE_TRANSLATIONS: Readonly<Record<Locale, Overlay>> = {
   en: {},
-  es: { ...SERVER_TRANSLATIONS.es, ...initial, ...rest, ...pages },
+  es: { ...SERVER_TRANSLATIONS.es, ...initial, ...appLazy, ...pages },
 }
 
 /** The language each address prefix serves; English has none. */

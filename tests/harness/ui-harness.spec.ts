@@ -101,6 +101,8 @@ for (const screen of SCREENS) {
 
     // axe-core schedules work with timers; let the (still frozen-date) clock run.
     await page.clock.resume()
+    // Audited from the top of the page, as in capture.ts (REVIEW10 QA L8).
+    await page.evaluate(() => window.scrollTo(0, 0))
     const axe = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice'])
       .analyze()
@@ -125,8 +127,12 @@ for (const screen of SCREENS) {
     writeFileSync(axePath, JSON.stringify(report, null, 2) + '\n')
     await testInfo.attach('axe', { path: axePath, contentType: 'application/json' })
 
-    // Report-only for accessibility; hard failures are reserved for a broken harness.
     expect(pageErrors, 'uncaught page errors').toEqual([])
+    // Every screen is free of axe violations (REVIEW10 QA L8): a new one fails the harness.
+    expect(
+      report.violations.map(v => `${v.id}: ${v.nodes.map(n => n.target.join(' ')).join(', ')}`),
+      'axe violations',
+    ).toEqual([])
   })
 }
 

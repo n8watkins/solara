@@ -1,6 +1,6 @@
 # Solara status
 
-_Last reviewed: 2026-10-29_
+_Last reviewed: 2026-11-01_
 
 This is the single page for the current state of Solara: what is live, what is built but switched off, how CI/CD runs, and which owner actions are done or open.
 Facts were checked against the code, the workflows, GitHub (`gh`) and the live site on the date above.
@@ -11,7 +11,8 @@ The plan for the remaining work is in [ROADMAP.md](ROADMAP.md); the owner's step
 
 Solara is served from the Firebase Hosting site `solara-uv` in project `uv-activity-planner`, on the free Spark plan.
 The original address, `https://uv-activity-planner.web.app`, permanently redirects every path to the same path on `solara-uv.web.app`, except Firebase's reserved `/__/` paths (#42, #45).
-Every merge to `main` deploys; every deploy from #126 to #155 was green, the deploy for #154 was cancelled twice when the UI harness hit its 20-minute limit (REVIEW9 QA H1), and since #157 runs the harness in four parallel shards, the deploy for #157 (run 40910709133, 2026-10-29, about 8 minutes) shipped #154 and #157 (the latest checked).
+Every merge to `main` deploys; every deploy from #126 to #155 was green, the deploy for #154 was cancelled twice when the UI harness hit its 20-minute limit (REVIEW9 QA H1), and since #157 runs the harness in four parallel shards, the deploy for #157 (run 40910709133, 2026-10-29, about 8 minutes) shipped #154 and #157.
+The deploy for #159 (run 41280087014) stopped before Hosting on a flaky signed-in test, so #159 went live with #160; that test and the flaky Microsoft redirect test are fixed (ROADMAP item 50).
 #79 and #81 fixed the findings of the first post-launch code review (Google sign-in popup and quota handling, the Scheduled list query, plan limits in the Firestore rules, the feed limiter's client address).
 
 What users get:
@@ -22,9 +23,9 @@ What users get:
   Google sign-in is free and syncs to Firestore; a guest plan carries into a brand-new account on its first sign-in and never into an existing one.
   A guest who signs in to an existing account is told once that the account kept its own plan, and which activities, place and skin type from the guest plan were not added.
 - A guest never downloads Firebase: the dashboard shows from the guest plan and cached forecast at once, and Firebase loads only when someone reaches for "Sign in" or the browser already holds a session (#83).
-  Lighthouse mobile LCP for `/app/` is 2.2-2.4 s on the live site (measured 2026-10-29; was 4.4-6.3 s), and a guest's first load is about 192 KB gzip of JavaScript (191.9 KB measured 2026-11-01, under the 192 KB budget; about 185 KB before the language setup) (was over 500 KB; 192.1 KB after ROADMAP item 38), with Valibot instead of Zod, a small forecast store instead of TanStack Query and more parts loaded on demand (#83, #93), including the install prompt and the dashboard's activity plan, which a new guest's plan never shows (#127).
+  Lighthouse mobile LCP for `/app/` is 2.2-2.4 s on the live site (measured 2026-10-29; was 4.4-6.3 s), and a guest's first load is about 191 KB gzip of JavaScript in English and 196 KB in Spanish on a build configured like production (192.4 KB and 218.5 KB before ROADMAP item 50; about 185 KB before the language setup) (was over 500 KB; 192.1 KB after ROADMAP item 38), with Valibot instead of Zod, a small forecast store instead of TanStack Query and more parts loaded on demand (#83, #93), including the install prompt and the dashboard's activity plan, which a new guest's plan never shows (#127).
   ROADMAP item 39 took off about 10 KB: the React Compiler is off (8 KB), the slot planning loads with the activity plan and the analytics code loads only when it has something to do.
-  `tests/e2e/guest.spec.ts` holds it under 192 KB.
+  `tests/e2e/budget/first-load.budget.ts` (`npm run test:e2e:budget`, in CI's static export job) holds them under 192 KB and 218 KB.
 - A returning account's dashboard shows at once from this browser's copy of it while Firebase loads and Auth confirms the session, and accepts no input until then; signed-in start-up LCP went from about 5.5 s to the same as a guest's (#93).
   Auth's sign-in popup helper (an iframe and Google's scripts) starts only when a sign-in or reauthentication is about to happen.
 - The installed app opens offline (#94): the app-shell service worker (`/sw.js`) precaches `/` and `/app/` with every file they load, and the app shows the last forecast for the place from this browser's cache with an offline notice that says when it was updated.
@@ -40,9 +41,11 @@ What users get:
   Built and switched off with the alerts (ROADMAP item 40): for a signed-in account the timer also keeps one "remind me at" record (`users/{uid}/reminders/reapply`, validated by the rules), and the server sends the reminder as a push at its time through Cloud Tasks, with the `alerts` job as a backstop, so it arrives with every tab closed; the push and the tab share one tag, so a device shows it once, and Stop deletes the record ([Free pushes](DEPLOYMENT.md#free-pushes-the-daily-uv-push-and-reapply-reminders)).
   Until `ALERTS_ENABLED` is on, nothing arrives once every Solara tab is closed.
 - Sunscreen coaching (ROADMAP item 45, `packages/core/src/sunscreen.ts`, sources in [SUNSCREEN.md](SUNSCREEN.md)): the timer's "How much sunscreen?" gives today's SPF for the skin type (SPF 30+ broad spectrum from UV 3, SPF 50+ from UV 8 or for types I and II), about a teaspoon per body part and 7 (35 mL) for the whole body, and when to reapply; each activity card planned for UV 3 or more says how much its usual clothing leaves to cover ("about 5 tsp for face, arms, legs"), and Settings, Sun profile, gives the SPF rule for the chosen skin type.
+  An activity planned without sunscreen that lasts longer than the skin's burn time at its UV limit (Running, 45 min at UV 4, for fair skin that burns in about 38) says so wherever its window is offered: the recommended slot or the card, the hero and the daily briefing (decision "Burn-time warning", ROADMAP item 50).
   Nothing new is stored.
 - Languages (ROADMAP item 46, [how it works](i18n/README.md)): the app, the account page and shared plans in English and Latin American Spanish, from the device's language or the choice in Settings, Display (synced for an account).
-  English is built into the code; Spanish downloads its own translations before the app shows, so nothing changes language on screen.
+  English is built into the code; Spanish downloads the opening screen's translations before the app shows, so nothing changes language on screen, and each other part's translations with that part ([how it works](i18n/README.md)).
+  The place search and the reverse lookup ask in the page's language, so a Spanish speaker finds "Ciudad de México" and "Nueva York", and same-named places are ranked with the most populous first.
   The landing page, the privacy policy, the terms and the city pages have Spanish addresses under `/es/` (`/es/`, `/es/privacy/`, `/es/terms/`, `/es/uv/`, `/es/uv/<city>/`), static like their English pages, with `<html lang="es">`, `hreflang` links both ways (English as x-default), sitemap entries and a link to the other language on each page; the Spanish legal pages are full translations that say the English version prevails.
   Pushes and the calendar feed follow the account's `language` when one is chosen in Settings, else (on Automatic) its `deviceLanguage`, the language the app last resolved from a device (only `en` or `es`, saved only when it changes, so the last device to open the app wins), else English; the privacy policy says so.
   The icon picker's search understands Spanish words.
@@ -62,6 +65,7 @@ What users get:
   The hero's time stays on one line and its detail line reads in full from 320 px, with "Start now" on the label's row.
   The UV card's line under its reading wraps after a dot instead of cutting the weather off at 320 px, and the current hour's chip shows the live reading as "Now", the same value as the reading above it (ROADMAP item 30).
 - From 320 px (ROADMAP item 31): the header's place name wraps to a second line instead of being cut off ("San Luis Obispo, California" reads in full; under 360 px the header shows the Solara mark without its wordmark), the day chips share one row with the refresh button, and "Best day this week" never splits a time range.
+  The vitamin D card says what its minutes stand for, about 1,000 IU on arms and legs, with the rule of thumb and its source in its help text (owner, 2026-11-01).
   While the sun is up but UV is under 0.5, the burn and vitamin D cards say "No burn risk" and "UV too low" in words on the number's line, with when that changes ("Until 9am tomorrow"), instead of a large "None"; a screen reader hears their minutes as "21 minutes".
 - No slot is ever offered in the dark (ROADMAP item 28): every window is cut to the day's daylight at the place, from the first 5-minute step after sunrise to the last before sunset (`daylightHours` in `packages/core/src/sun-times.ts`), in the hero, the activity cards, the week calendar, the briefing, the morning alert and the calendar feed, though the UV there is 0.
   An activity whose preferred hours fall in the dark is told so, and "% of daylight hours fit" counts only hours with the sun up.
@@ -72,7 +76,7 @@ What users get:
 - Cloud-aware forecasts (#110): the dashboard and the week view say when the forecast clouds lower UV, against the clear-sky UV, and how much to trust each day (fair confidence from day 4, low from day 7).
 - City pages for search (#111): `/uv/` and `/uv/<city>/` for 50 cities, static with no framework JavaScript, with the typical UV by month from checked-in CAMS data and a link that opens setup on the city; listed in the sitemap and linked from the landing page.
   Each city page carries structured data (JSON-LD), hashed into its CSP at build time; the landing and city pages follow an OS theme change while open, like the app.
-- Place suggestions while typing a town in setup, the header's location panel and Settings (Open-Meteo place search based on GeoNames, at most one request per second, keyboard and screen-reader friendly) (#80, #95).
+- Place suggestions while typing a town in setup, the header's location panel and Settings (Open-Meteo place search based on GeoNames, at most one request per second, keyboard and screen-reader friendly) (#80, #95), in the page's language and with the most populous places first (ROADMAP item 50).
 - Saved locations, share links (`/share/`), a one-off calendar file download from Plan ahead, and family profiles on Pro.
 - Imported events for signed-in accounts (Wave 5 item 9, phase 1): the dashboard's Events section imports an .ics file (Meetup, Eventbrite, race sites, any calendar), read in the browser, and shows each upcoming event with the UV during it at its place, the burn time for the planning skin type (the most sensitive person in a group), the activity's shade and surface, and sunscreen timing.
   Places come from the event's coordinates or its location text at city level, else the person's place with a "Set the place" fix; events are kept in `users/{uid}/events` (rules-checked, in the account export, deleted with the account, and expiring 30 days after they end).

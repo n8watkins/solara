@@ -11,7 +11,7 @@ import {
   sunscreenAmountText,
 } from '@solara/core/sunscreen'
 import type { SkyHour } from '@solara/core/forecast-quality'
-import m from '@/messages/activities'
+import m from '@/messages/dashboard'
 
 /** The day's peak UV as protection advice judges it (the clear sky), or null without hours. */
 function peakProtectionUV(hours: readonly SkyHour[]): number | null {

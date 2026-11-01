@@ -11,7 +11,7 @@ const AccountHarness = dynamic(() => import('@/tests/harness/AccountHarness'), {
 export default function AccountHarnessPage() {
   // In the page's language, as the app shows (lib/i18n.ts): Spanish screens set it.
   return (
-    <MessagesGate>
+    <MessagesGate messages="all">
       <AccountHarness />
     </MessagesGate>
   )

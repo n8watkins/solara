@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useEffectEvent, useState, type ReactNode } from 'react'
-import { saveLocalPrefs, saveFirestorePrefs } from '@/lib/prefs'
+import { saveLocalPrefs } from '@/lib/prefs'
 import { syncErrorFor, type SyncError } from '@/lib/sync-error'
 import { SIGN_IN_PARAM } from '@/lib/app-routes'
 import { loadGuestPrefs, saveGuestPrefs } from '@/lib/guest'
@@ -37,7 +37,7 @@ import ForecastNotice from './ForecastNotice'
 import { AccountLoadError, AccountLoading } from './AccountStatus'
 import ScheduledProvider from './ScheduledProvider'
 import SettingsHost from './SettingsHost'
-import { followLanguagePreference } from '@/lib/i18n'
+import { followLanguagePreference, withMessages } from '@/lib/i18n'
 import t from '@/messages/app'
 
 // A browser holding a session opens on the signed-in screen, which waits for these
@@ -111,7 +111,10 @@ function SignedInApp() {
     // The notifications code loads only for someone signed in.
     return lazySubscription(
       async () => {
-        const { onForegroundMessage } = await import('@/lib/notifications')
+        const { onForegroundMessage } = await withMessages(
+          ['settings'],
+          () => import('@/lib/notifications'),
+        )
         return onForegroundMessage(() => setForegroundNotice(true))
       },
       error => console.error('Foreground notification error:', error),
@@ -124,7 +127,7 @@ function SignedInApp() {
   useEffect(() => {
     if (!signedInUid) return
     const uid = signedInUid
-    import('@/lib/retention')
+    withMessages(['editor', 'events', 'linking'], () => import('@/lib/retention'))
       .then(({ pruneEndedRecords }) => pruneEndedRecords(uid, Date.now()))
       .then(outcome => {
         for (const [records, result] of Object.entries(outcome)) {
@@ -174,6 +177,7 @@ function SignedInApp() {
     }
     saveLocalPrefs({ ...updated, uid: user.uid })
     try {
+      const { saveFirestorePrefs } = await import('@/lib/account-prefs')
       await saveFirestorePrefs(user.uid, updated)
     } catch (error) {
       setSyncError(syncErrorFor(error))

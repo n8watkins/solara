@@ -1,9 +1,10 @@
 import type { Metadata } from 'next'
+import LocalizedTitle from '@/components/LocalizedTitle'
 import StaticText from '@/components/StaticText'
 import * as staticText from '@/messages/static'
 
 export const metadata: Metadata = {
-  title: 'Share again | Solara',
+  title: staticText.shareAgainPageTitle.en,
   robots: { index: false, follow: false },
 }
 
@@ -16,6 +17,7 @@ export const metadata: Metadata = {
 export default function ShareTargetFallback() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-surface px-4 py-6">
+      <LocalizedTitle title={staticText.shareAgainPageTitle} />
       <div className="card w-full max-w-[480px] px-[26px] py-8 text-center">
         <p className="mb-3 text-[42px]" aria-hidden="true">
           🌤️

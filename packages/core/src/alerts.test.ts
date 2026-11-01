@@ -154,6 +154,7 @@ describe('morning alert message', () => {
       title: '🏃 Run: 6am to 9am',
       body:
         'Today in Austin: UV peaks at 8.0 (Very high) around 11am. Lowest-UV window: Run 6am–9am. ' +
+        'Run lasts longer than your burn time at its UV limit: wear sunscreen, or plan it for a lower UV. ' +
         'At the peak, unprotected skin like yours can burn in about 19 min. ' +
         'Seek shade while UV is very high or extreme, from 10:30am to 12:30pm. Recheck current conditions.',
     })

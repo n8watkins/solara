@@ -1,6 +1,6 @@
 # Solara roadmap
 
-_Last reviewed: 2026-10-29_
+_Last reviewed: 2026-11-01_
 
 This is the plan for the remaining work, in priority order.
 What is live today is in [status.md](status.md); the owner's steps are in the [owner checklist](OWNER_CHECKLIST.md); how lanes are run by parallel agents is in [CONTRIBUTING-AGENTS.md](CONTRIBUTING-AGENTS.md).
@@ -16,7 +16,7 @@ The full, ordered list with exact console links, values, times, costs and checks
 - **C, Pro launch:** Blaze, the budget kill switch, the Stripe webhook endpoint before the first Functions deploy, the first Functions deploy, monitoring and backups, the Open-Meteo key before billing, then billing, alerts and the release checks.
 - **D, per feature switch:** Events from Google Calendar, events from Outlook, linked calendars and Pro alerts.
 
-## Where we are (2026-10-29, through #157)
+## Where we are (2026-11-01, through #166)
 
 | Wave | State | PRs |
 | --- | --- | --- |
@@ -579,12 +579,12 @@ The rules and their sources are in [SUNSCREEN.md](SUNSCREEN.md).
 ### 46. Languages (setup and the app in Spanish, built)
 
 The owner chose to build a language setup now (2026-11-01).
-Built in two parts: the language setup and the whole app in Spanish (I18N, #162), then server-written text and the static pages in Spanish (I18N2, branch `feat/languages-spanish-2`).
+Built in two parts: the language setup and the whole app in Spanish (I18N, #162), then server-written text and the static pages in Spanish (I18N2, #163), with the device language for notifications (#164).
 
 - **Built:** every word of the app (`/app/`, the account page, shared plans, the static fallback pages) is in typed message catalogues, English as the source and Latin American Spanish with "tú" (`messages/`, `packages/core/src/messages/`, [how it works and how to add a language](i18n/README.md)).
   A missing message, an extra one or one with other parameters fails the typecheck; `messages/i18n.test.ts` checks that each translation prints every value its English message prints, and the lint rule `solara/no-literal-ui-text` fails on new text written into components.
 - **Built:** the language comes from Settings, Display (kept in the browser for a guest, synced as the account's `language`, checked by `firestore.rules`), else the device (`navigator.languages`), else English; `<html lang>` and the page titles follow it, and dates, numbers and the clock follow it too ("mié, 17 jun", "1 p.m.", "2 h 47 min").
-- **Built:** English stays in the code and needs no download; Spanish downloads only its own translations, the opening screen's (about 7 KB gzip) before the app shows, so nothing changes language on screen, and the rest (about 19 KB) right after.
+- **Built:** English stays in the code and needs no download; Spanish downloads only its own translations, the opening screen's (about 5 KB gzip) before the app shows, so nothing changes language on screen, and every other namespace with the part that shows it ([item 50](#50-quality-fixes-from-the-tenth-review-qafix10-built); it was one 19 KB chunk right after the opening screen's).
   The language setup costs English about 4 KB of the guest's first load (catalogue keys and the small runtime), so the budget moved from 186 to 192 KB (decision "First-load budget").
 - **Built:** the safety wording (burn times, SPF, shade, UV categories, sunscreen amounts) is marked in each Spanish catalogue and listed for a native speaker in [es-review.md](i18n/es-review.md); UV categories use the WHO and PAHO terms (Bajo, Moderado, Alto, Muy alto, Extremo).
 - **Tests:** `messages/i18n.test.ts`, `packages/core/src/i18n.test.ts`, `lib/i18n.test.ts`, `tests/no-literal-ui-text.test.ts`, `tests/e2e/languages.spec.ts` (a Spanish device, switching in Settings, the Spanish first load) and `tests/harness/spanish.spec.ts` (the main screens in Spanish at 320, 390 and 1280 px, light and dark: no sideways scroll, nothing cut off, no English left, 0 axe violations).
@@ -601,9 +601,6 @@ Built in two parts: the language setup and the whole app in Spanish (I18N, #162)
   The privacy policy (English and Spanish, November 1, 2026) says the account keeps a language for its notifications, and the Settings hint says Automatic uses the last device's language.
   Tests: `packages/core/src/server-language.test.ts`, `lib/device-language.test.ts`, `lib/firestore-rules.test.ts`, the feed in `functions/test/functions.test.js`, `alerts.test.js`, `reminders.test.js` and `firestore.rules.test.js` on the emulator, and `tests/e2e/signed-in/device-language.e2e.ts` (an Automatic account opened on an English then a Spanish device stores `en` then `es`, and the real reminder delivery writes its push in English then Spanish).
 - **Owner:** the Spanish legal pages join the native-review sheet ([es-review.md](i18n/es-review.md)) and need counsel's review too.
-
-- **Setup:** all text moves into one message file per language; the language comes from the device, with a choice in Settings; the privacy policy, terms, notifications and alerts follow the account's language.
-- **Safety wording:** burn times, SPF advice and "seek shade" are health guidance, so every translation of them is reviewed by a native speaker before release; machine translation is only a first draft.
 - **Not in the app:** the Google Play listing text and screenshots are translated separately in the Play Console.
 
 Languages, in order:
@@ -652,6 +649,19 @@ The critical finding of the plan review (`handoff/plan-review.md`, finding 1): t
 - **Dry run:** `infra/budget-dry-run.sh` publishes a test budget message for a period that has already ended (read, then `--apply`), refuses the detach level without `DETACH_TEST=true`, and prints the log query ([runbook](RUNBOOK.md#test-the-guard)).
 - **Tests:** `functions/test/budget-guard.test.js`, `.github/scripts/budget-guard-env.test.mjs`, the workflow checks in `.github/scripts/production-guards.test.mjs`, `.github/scripts/check-functions-params.test.mjs`; locally, the guard set on the Functions, Pub/Sub and Firestore emulators ignored another budget's message, warned at 50% and engaged at 100%.
 - **Owner:** checklist step C3 (roles, `ENABLE_BUDGET_GUARD=true`, the dry run), with Blaze (O14).
+
+### 50. Quality fixes from the tenth review (QAFIX10, built)
+
+The fixes for `handoff/review10-qa10.md` (REVIEW10 QA, main at `a77907a`); each bug was reproduced first in the closest end-to-end setting.
+
+- **H1 place search in Spanish:** the place search (the free API and the `placeSearch` proxy, which accepts only `en` or `es`) and the reverse lookup ask in the page's language, so "Ciudad de México" and "Nueva York" find their cities, and every search asks for 10 matches and ranks them by order of magnitude of population, populated places before countries and airports, so no village of 313 people comes before a city of millions (`rankPlaces` in `lib/geocoding.ts`).
+- **M1 first-load budgets:** measured on a production-like build (`npm run test:e2e:budget`, CI's static export job): on `a77907a` it read 192.38 KB in English and 218.53 KB in Spanish, the live site's 192.40 and 218.54, against 192 and 218.
+  Each Spanish namespace beyond the opening screen's is now a chunk of its own, fetched with the part that reads it (`withMessages`, checked by `messages/i18n.test.ts`); the activity plan's text loads with it; the account document's Firestore code (`lib/account-prefs.ts`) and the calendar file writer left the first load.
+  After: 190.7 KB in English and 196.1 KB in Spanish (the English goal of 3 KB of room is not met yet: Valibot, about 3.5 KB of the first load, is the next lever).
+- **M2 flaky tests:** the closed-popup test waits for each Google popup to have read its outcome (the fake logs them), and the Microsoft redirect page's own test keeps the page open (Firefox closed it, 3 of 15 runs) and listens before the popup.
+- **M3 burn time (default, owner may change):** decision "Burn-time warning" below; vitamin D card (owner, 2026-11-01): it states the dose, about 1,000 IU on arms and legs, with its source; the 0.3 times the burn time model stays.
+- **L1-L9:** the account page and the 404 page open without layout shifts (the gate keeps the page's height and waits for the font; the 404 page preloads it; the account page keeps the signed-out card's place), Spanish tab titles on the 404 and share target pages, Spanish wording (start ranges, "cucharaditas", "un caballito", the language hint, US$ prices), one time-range style, durations that never wrap their unit, setup's burn times in the duration style, "+ Add activity", and the UI harness fails on any axe violation (audited from the top of the page).
+- **Tests:** `lib/geocoding.test.ts`, `functions/test/forecast-proxy.test.js`, `tests/e2e/languages.spec.ts`, `tests/e2e/budget/first-load.budget.ts`, `messages/i18n.test.ts`, `packages/core/src/recommendation.test.ts`, `packages/core/src/briefing.test.ts`, `tests/e2e/guest.spec.ts` (layout shifts), `lib/static-pages.test.ts` and `tests/harness/review10-quality.spec.ts` (both languages at 320, 390 and 1280 px, light and dark).
 
 ## Decisions
 
@@ -715,7 +725,8 @@ The steps behind each one are in the [owner checklist](OWNER_CHECKLIST.md).
 | Calendar link helper | Which providers the "Add a calendar from..." helper covers | Default, owner may change (2026-10-28, item 24): Apple iCloud, Google, Outlook.com and Yahoo, computer steps first and phone steps where the provider offers them; it recommends a separate calendar for outdoor plans; Yahoo ships without numbered steps if they cannot be confirmed in a real account |
 | Calendar link refusals | Which pasted links the helper holds back | Default, owner may change (2026-10-28): only links that certainly are not calendars (a provider's web page, an HTML or embed link); any other link, such as Outlook's `/OWA/` in capitals or another `yahoo.com` host, goes through with a warning; hosts are matched exactly and case-insensitively, and no secret link is ever echoed or logged (REVIEW7 L5) |
 | React Compiler | Whether the web app is built with the React Compiler | Default, owner may change (2026-10-28, item 39): off; it made a guest's first load about 8 KB gzip larger and saved about 1 ms of script per tap at 4x CPU throttling; the react-hooks lint rules still enforce the Rules of React, so `reactCompiler: true` in `next.config.ts` (with `babel-plugin-react-compiler`) turns it back on, with the first-load budget raised to match. This reverses the assessment's CQ-13 fix (#50) |
-| First-load budget | The most JavaScript a guest's first load of `/app/` may download | Default, owner may change (2026-11-01, item 46; was 186 KB from item 39): 192 KB gzip in `tests/e2e/guest.spec.ts`, about 3 KB above today's 189 KB; the language setup's catalogue keys and runtime added about 4 KB to English. A Spanish first load is held under 218 KB (`tests/e2e/languages.spec.ts`). New dashboard code that a new guest does not see loads on demand (`components/deferred.tsx`), and the budget is raised only with a reason |
+| First-load budget | The most JavaScript a guest's first load of `/app/` may download | Default, owner may change (2026-11-01, item 46; was 186 KB from item 39): 192 KB gzip in English and 218 KB in Spanish, measured on a build with a public configuration shaped like production's (`tests/e2e/budget/first-load.budget.ts`, item 50), where they read about 191 KB and 196 KB. New dashboard code that a new guest does not see loads on demand (`components/deferred.tsx`), each translation loads with the part that shows it, and a budget is raised only with a reason |
+| Burn-time warning | What Solara says when a planned activity lasts longer than the burn time at its UV limit without sunscreen | Default, owner may change (2026-11-01, item 50): a short warning wherever its window is offered (the recommended slot or the activity card, the hero and the daily briefing, so also the morning alert): "Longer than your burn time: wear sunscreen, or plan for a lower UV", with the card's sunscreen amount. The plans are not changed; the alternative is a lower effective UV limit for the skin type |
 
 ### Tiers
 

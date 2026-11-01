@@ -49,6 +49,7 @@ import { isStoreBuild } from '@/lib/store-build'
 import { SHARED_PARAM, sharedId } from '@/lib/app-routes'
 import m from '@/messages/dashboard'
 import core from '@solara/core/messages/core'
+import { withMessages } from '@/lib/i18n'
 
 /** The share id the app was opened with, if any. */
 function sharedIdInUrl(): string | null {
@@ -214,11 +215,9 @@ function DashboardView({
         activity,
         dateStr,
         slot: rec,
-        description: (await import('@/lib/event-description')).buildEventDescription(
-          rec,
-          activity,
-          peak,
-        ),
+        description: (
+          await withMessages(['calendar'], () => import('@/lib/event-description'))
+        ).buildEventDescription(rec, activity, peak),
         timeZone: weather.timezone,
       })
       status.flash(m.scheduledOnCalendar(activity.name, fmt.time(rec.start)))

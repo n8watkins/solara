@@ -5,6 +5,7 @@ It combines Open-Meteo forecasts with a user's location, skin profile, sunscreen
 Anyone can try it without an account: a guest plan (today's forecast, one activity) stays in the browser.
 Signing in with Google is free and syncs the plan through Firestore; Pro adds 10 days, 20 activities, family profiles, and morning and UV alerts, and is a waitlist until billing launches.
 The plans are defined once, in `packages/core/src/tiers.ts`.
+The app speaks English and Latin American Spanish, from the device's language or the choice in Settings, Display; the landing, legal and city pages have Spanish addresses under `/es/` ([how it works](docs/i18n/README.md)).
 Billing (Stripe), the live calendar feed and Pro's push alerts are built as Firebase Functions but not deployed yet.
 Until they are, the account page downloads and deletes a signed-in account in the browser; the Functions take over when deployed.
 
@@ -24,6 +25,7 @@ Conditions and individual sensitivity can change quickly.
 | [docs/WIF_SETUP.md](docs/WIF_SETUP.md) | Replacing the deploy key with Workload Identity Federation (production and staging), and moving public values to variables |
 | [docs/integrations/EVENTS.md](docs/integrations/EVENTS.md) | Scoping for linking events from calendars, Strava and Meetup (Wave 5 item 9) |
 | [docs/SUNSCREEN.md](docs/SUNSCREEN.md) | The sunscreen amount, SPF and reapply advice Solara gives, and its sources |
+| [docs/i18n/README.md](docs/i18n/README.md) | How the app is translated, how each part loads its words, and how to add a language |
 | [docs/DEPENDENCY_RISK.md](docs/DEPENDENCY_RISK.md) | Accepted development-dependency advisories and the audit policy |
 | [docs/CONTRIBUTING-AGENTS.md](docs/CONTRIBUTING-AGENTS.md) | How roadmap lanes run in parallel: ownership, agent contract, merge protocol |
 | [SECURITY.md](SECURITY.md) | Reporting a vulnerability and how the supply chain is protected |
@@ -66,7 +68,7 @@ The repository is an npm workspace.
 - Two service workers are built into the export after `next build` by `scripts/build-sw.mjs`.
   `/sw.js` (`scripts/sw/shell.ts`, rules in `lib/sw-shell.mts`) is the app shell: `app/app/layout.tsx` registers it after the page loads, it precaches `/` and `/app/` with every file they load, and the app opens offline with the last forecast from `lib/cache.ts` and an offline notice (`components/ForecastNotice.tsx`, which also says when the forecast proxy served an earlier copy).
   `/firebase-messaging-sw.js` (`scripts/sw/firebase-messaging-sw.ts`) handles push and is registered by Firebase Messaging, under its own scope, only when someone turns on notifications.
-- The app's first load carries only the dashboard (about 192 KB gzip of JavaScript for a guest, 191.9 KB measured on 2026-11-01; `tests/e2e/guest.spec.ts` holds it under 192 KB, so there is almost no room left).
+- The app's first load carries only the dashboard (about 191 KB gzip of JavaScript for a guest in English and 196 KB in Spanish, measured on a build configured like production; `tests/e2e/budget/first-load.budget.ts` holds them under 192 KB and 218 KB).
   Firebase loads on demand: `lib/firebase.ts` is the only way to it, and `loadFirebase()` loads the SDK (`lib/firebase-services.ts`) when someone reaches for "Sign in" or the browser already holds a session, so a guest never downloads it.
   An ESLint rule keeps static Firebase imports out of the app; modules that need the SDK use `await import('firebase/...')`.
   Auth starts without its sign-in popup helper; sign-in buttons start it (`prepareSignInPopup`), and every `*WithPopup` call passes it.
@@ -100,6 +102,7 @@ npm test --prefix functions
 npm run test:rules --prefix functions
 npx playwright install chromium
 npm run test:e2e
+npm run test:e2e:budget
 npm run test:e2e:integrations
 npm run test:e2e:signed-in
 npm run test:harness
@@ -107,6 +110,8 @@ npm run test:harness
 
 - `npm run test:e2e` builds the static export with a hermetic public configuration and tests it on the Firebase Hosting emulator without credentials: the landing page, onboarding, guest mode and its upsells, analytics consent, legal pages, share links, Hosting headers and the app offline (`tests/e2e/offline.spec.ts`, the only spec that lets the service worker run).
   It also serves the old address's redirect-only site (`hosting-redirect/`) and checks that every path and query string moves to the same place on `solara-uv.web.app`, except Firebase's reserved `/__/` paths.
+- `npm run test:e2e:budget` builds the export with a public configuration shaped like production's (`tests/e2e/budget/production-env.ts`: a Firebase project and analytics set, as live) and measures the JavaScript a returning guest downloads before the dashboard shows, in English and in Spanish, against the first-load budgets; CI runs it after `npm run test:e2e` in the same job.
+  It writes `out/` like `npm run test:e2e`, so run the two one after the other.
 - `npm run test:e2e:integrations` builds the production export with a fake Sentry DSN and reCAPTCHA site key, answers every third-party request with a fake, and checks that error reports arrive scrubbed and that App Check starts only after sign-in, within the CSP.
   It writes `out/` like `npm run test:e2e`, so run the two one after the other.
 - `npm run test:e2e:signed-in` signs in through the Auth emulator and covers the dashboard, activities, settings, calendar, sharing, Pro gating, guest-to-account carry-over, account isolation and export against the real rules and Functions.

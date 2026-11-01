@@ -7,9 +7,11 @@ import type { BusyInterval, SlotRecommendation } from '@solara/core/scheduler'
 import { formatUV, uvBand, uvLabel } from '@/lib/weather'
 import type * as IcsCode from '@/lib/ics'
 import { useUnits } from '@/lib/use-units'
+import { timeRange } from '@/lib/time'
 import { UV_BG } from './dashboard/uv-classes'
 import { windowLabelText } from '@solara/core/recommendation'
 import m from '@/messages/activities'
+import { withMessages } from '@/lib/i18n'
 
 interface Props {
   forecast: DayWeather[]
@@ -57,7 +59,7 @@ export default function PlanAhead({
     // after the page loads, components/deferred.tsx).
     let ics: typeof IcsCode
     try {
-      ics = await import('@/lib/ics')
+      ics = await withMessages(['calendar'], () => import('@/lib/ics'))
     } catch (error) {
       console.error('Could not load the calendar export:', error)
       return
@@ -103,7 +105,7 @@ export default function PlanAhead({
               <p className="mt-0.5 text-[12px] text-ink-3" data-testid="plan-ahead-when">
                 <span className="whitespace-nowrap">{label} ·</span>{' '}
                 <span className="whitespace-nowrap">
-                  {fmt.time(slot.start)}–{fmt.time(slot.end)}
+                  {timeRange(fmt.time(slot.start), fmt.time(slot.end))}
                 </span>
               </p>
             </div>

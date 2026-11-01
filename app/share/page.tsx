@@ -103,7 +103,7 @@ export default function SharePage() {
   return (
     <Suspense fallback={<main className="min-h-screen bg-surface" />}>
       {/* In the visitor's language, once its translations have arrived. */}
-      <MessagesGate fallback={<main className="min-h-screen bg-surface" />}>
+      <MessagesGate messages={['activities', 'setup', 'share']}>
         <ShareContent />
       </MessagesGate>
     </Suspense>

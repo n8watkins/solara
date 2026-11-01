@@ -1,4 +1,3 @@
-import { gzipSync } from 'node:zlib'
 import { expect, test, type Page } from '@playwright/test'
 import { startClock } from '../harness/clock'
 import { buildRawForecast } from '../harness/fixtures'
@@ -49,7 +48,7 @@ test('a guest plans today with one activity, kept on this device', async ({ page
   // No upsell on a first visit.
   await expect(page.getByTestId('upsell')).toHaveCount(0)
 
-  await page.getByRole('button', { name: '+ Add Activity' }).first().click()
+  await page.getByRole('button', { name: '+ Add activity' }).first().click()
   const add = page.getByRole('dialog', { name: 'Add activity' })
   await add.getByRole('button', { name: /^Running 45 min/ }).click()
   await expect(
@@ -59,7 +58,7 @@ test('a guest plans today with one activity, kept on this device', async ({ page
   await expect(page.getByRole('button', { name: 'Edit Running' })).toBeVisible()
 
   // Asking for a second activity offers free sign-in instead of the dialog.
-  await page.getByRole('button', { name: '+ Add Activity' }).click()
+  await page.getByRole('button', { name: '+ Add activity' }).click()
   const upsell = page.getByRole('status', { name: 'Save your plan, sign in free' })
   await expect(upsell).toBeFocused()
   await expect(page.getByRole('dialog')).toHaveCount(0)
@@ -86,7 +85,7 @@ test('the locked tab and the morning alert open the Pro plans', async ({ page })
   await plans.getByRole('button', { name: 'Close' }).click()
   await expect(page.getByRole('button', { name: 'See the next 10 days with Pro' })).toBeFocused()
 
-  await page.getByRole('button', { name: '+ Add Activity' }).first().click()
+  await page.getByRole('button', { name: '+ Add activity' }).first().click()
   const add = page.getByRole('dialog', { name: 'Add activity' })
   await add.getByRole('button', { name: /^Running 45 min/ }).click()
   await add.getByRole('button', { name: 'Done' }).click()
@@ -108,51 +107,8 @@ test('a guest who comes back on a later day is offered to save the plan', async 
   await expect(page.getByRole('status', { name: 'Save your plan, sign in free' })).toBeVisible()
 })
 
-/**
- * Gzip size budget for the JavaScript a guest downloads before the dashboard shows,
- * compressed like Firebase Hosting serves it (gzip level 9; browsers that accept
- * Brotli get about 15% less). Next.js and React are about 130 KB of it. Firebase, the
- * dialogs, setup, the location panel, the install prompt, the signed-in parts, the
- * analytics code and the activity plan with its slot planning (which a plan without
- * activities, like a new guest's, never needs) load on demand (lib/firebase.ts,
- * components/deferred.tsx), the boundaries are validated with Valibot, and the React
- * Compiler is off (next.config.ts); about 189 KB today (185 KB before the language setup
- * of ROADMAP item 46 added its catalogue keys and runtime), 192.1 KB before ROADMAP item
- * 39, 199 KB before #127 and over 500 KB before #83. The budget leaves about 3 KB for
- * growth (ROADMAP decisions, "First-load budget"): raise it only with a reason.
- */
-const GUEST_FIRST_LOAD_BUDGET_KB = 192
-
-test("a guest's first load stays within the JavaScript budget", async ({ page, baseURL }) => {
-  await page.addInitScript(() => {
-    const prefs = {
-      location: { lat: 34.05, lon: -118.24, city: 'Los Angeles', region: 'California' },
-      skinType: 'fair',
-      activities: [],
-      onboardingComplete: true,
-    }
-    localStorage.setItem('solara_guest', JSON.stringify({ prefs, since: '2026-06-15' }))
-  })
-  const scripts: Promise<{ url: string; gzip: number }>[] = []
-  page.on('response', response => {
-    if (response.request().resourceType() !== 'script') return
-    if (!response.url().startsWith(baseURL!)) return
-    scripts.push(
-      response
-        .body()
-        .then(body => ({ url: response.url(), gzip: gzipSync(body, { level: 9 }).length })),
-    )
-  })
-  await page.goto('/app/')
-  await expect(page.getByRole('group', { name: 'UV forecast by hour' })).toBeVisible()
-
-  const loaded = await Promise.all(scripts)
-  const kb = loaded.reduce((sum, script) => sum + script.gzip, 0) / 1024
-  const list = loaded.map(script => `${(script.gzip / 1024).toFixed(1)} KB ${script.url}`)
-  expect(kb, `guest first load: ${kb.toFixed(1)} KB gzip\n${list.join('\n')}`).toBeLessThan(
-    GUEST_FIRST_LOAD_BUDGET_KB,
-  )
-})
+// The first-load JavaScript budget is measured on a production-like build:
+// tests/e2e/budget/first-load.budget.ts (npm run test:e2e:budget).
 
 test('a guest plan with activities shows its activity cards with the dashboard', async ({
   page,
@@ -191,6 +147,53 @@ test('a guest plan with activities shows its activity cards with the dashboard',
   expect(await cardWithForecast.jsonValue()).toEqual({ card: true, heroSlot: true })
   await expect(page.getByTestId('activity-card')).toContainText('Running')
 })
+
+/** Records every layout shift of the pages this test opens, on `window.layoutShifts`. */
+async function recordLayoutShifts(page: Page) {
+  await page.addInitScript(() => {
+    const shifts: string[] = []
+    Object.assign(window, { layoutShifts: shifts })
+    new PerformanceObserver(list => {
+      for (const entry of list.getEntries() as (PerformanceEntry & {
+        value: number
+        hadRecentInput: boolean
+        sources: { node?: Node }[]
+      })[]) {
+        if (entry.hadRecentInput) continue
+        const nodes = entry.sources.map(source => {
+          const node = source.node as Element | undefined
+          return `${node?.tagName}(${node?.textContent?.slice(0, 40)})`
+        })
+        shifts.push(`${entry.value.toFixed(4)} ${nodes.join(' ')}`)
+      }
+    }).observe({ type: 'layout-shift', buffered: true })
+  })
+}
+
+for (const locale of ['en-US', 'es-MX']) {
+  test.describe(`pages outside the app in ${locale}`, () => {
+    test.use({ locale })
+
+    // REVIEW10 QA L1 and L2: the account page painted its footer at the top before its
+    // content arrived, and the 404 page moved when the consent banner laid itself out.
+    // The banner shows (no choice stored), as on a first visit.
+    test('open without layout shifts, at every width', async ({ page }) => {
+      await recordLayoutShifts(page)
+      for (const path of ['/account/', '/no-such-page/']) {
+        for (const width of [320, 390, 1280]) {
+          await page.setViewportSize({ width, height: 844 })
+          await page.goto(path)
+          await expect(page.locator('main h1, main h2').first()).toBeVisible()
+          await page.waitForTimeout(500)
+          const shifts = await page.evaluate(
+            () => (window as unknown as { layoutShifts: string[] }).layoutShifts,
+          )
+          expect(shifts, `layout shifts on ${path} at ${width} px`).toEqual([])
+        }
+      }
+    })
+  })
+}
 
 test("a guest's dashboard opens without layout shifts, at every width", async ({ page }) => {
   // Nothing that arrives during start-up may move what is already on screen: the

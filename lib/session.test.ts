@@ -75,7 +75,8 @@ vi.mock('@/lib/firebase', async importOriginal => {
 })
 
 import { setCachedForecast } from '@/lib/cache'
-import { createAccountPrefs, defaultPrefs, saveLocalPrefs } from '@/lib/prefs'
+import { createAccountPrefs } from '@/lib/account-prefs'
+import { defaultPrefs, saveLocalPrefs } from '@/lib/prefs'
 import { GUEST_KEY, loadGuestPrefs, saveGuestPrefs } from '@/lib/guest'
 import { GUEST_REPLACED_KEY, readReplacedGuestPlan } from '@/lib/guest-replaced'
 import { SignOutBlockedError, loadAccountPrefs, signOutAndClear } from '@/lib/session'

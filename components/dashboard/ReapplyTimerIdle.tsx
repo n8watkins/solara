@@ -2,7 +2,7 @@ import { ChevronDown, Droplets } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { formatDuration } from '@solara/core/duration'
 import { REAPPLY_MINUTES } from '@solara/core/reapply-interval'
-import m from '@/messages/activities'
+import m from '@/messages/dashboard'
 
 /**
  * The idle sunscreen timer card (ReapplyTimer.tsx), and its placeholder while the timer
@@ -45,7 +45,7 @@ export default function ReapplyTimerIdle({
             {m.headingOut(formatDuration(REAPPLY_MINUTES.standard))}
           </p>
         </div>
-        {start ?? <span className="btn btn-primary shrink-0">{m.start}</span>}
+        {start ?? <span className="btn btn-primary shrink-0">{m.startTimer}</span>}
       </div>
       <div className="pl-8">
         {guide ?? (

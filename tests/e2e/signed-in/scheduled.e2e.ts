@@ -331,6 +331,22 @@ test('another device sees scheduled items; another account sees none', async ({
   }
 })
 
+/** What became of each Google consent popup so far (FAKE_GIS in fake-google-calendar.ts). */
+function calendarPopups(page: Page): Promise<string[]> {
+  return page.evaluate(
+    () => (window as Window & { __solaraCalendarPopups?: string[] }).__solaraCalendarPopups ?? [],
+  )
+}
+
+/** Sets what the next Google consent popups do (undefined: they grant access). */
+function setCalendarPopup(page: Page, outcome: 'closed' | 'blocked' | undefined) {
+  return page.evaluate(value => {
+    const w = window as Window & { __solaraCalendarPopup?: string }
+    if (value) w.__solaraCalendarPopup = value
+    else delete w.__solaraCalendarPopup
+  }, outcome)
+}
+
 test('closing the Google popup leaves Connect calendar, Scheduled and booking usable', async ({
   page,
   emulators,
@@ -341,19 +357,27 @@ test('closing the Google popup leaves Connect calendar, Scheduled and booking us
   await emulators.seedScheduled(account, recordFor(run, 'run', '🏃'))
   await openDashboard(page, account)
   // Real GIS reports a closed popup only through `error_callback` (fake-google-calendar.ts).
-  await page.evaluate(() => {
-    ;(window as Window & { __solaraCalendarPopup?: string }).__solaraCalendarPopup = 'closed'
-  })
+  await setCalendarPopup(page, 'closed')
+  // Each step waits until its own popup has read the outcome set for it: the screen can
+  // look the same before and after a failed attempt, and an outcome changed too early
+  // went to the wrong attempt (REVIEW10 QA M2).
+  const withPopup = async (outcome: string, action: () => Promise<void>) => {
+    const before = (await calendarPopups(page)).length
+    await action()
+    await expect.poll(async () => (await calendarPopups(page)).slice(before)).toEqual([outcome])
+  }
 
   // Connect calendar: closing the popup is a choice, not an error, and the button is back.
   const connect = page.getByRole('button', { name: 'Connect calendar' })
-  await connect.click()
+  await withPopup('closed', () => connect.click())
   await expect(connect).toBeEnabled()
   await expect(page.getByText("Couldn't connect. Try again.")).toHaveCount(0)
 
   // Booking from the dashboard card reports the failure instead of waiting forever.
   const card = page.locator('[data-testid="activity-card"][data-activity="hike"]')
-  await card.getByRole('button', { name: /Add to Google Calendar/ }).click()
+  await withPopup('closed', () =>
+    card.getByRole('button', { name: /Add to Google Calendar/ }).click(),
+  )
   await expect(
     page.getByRole('status').filter({ hasText: 'Could not add to Google Calendar.' }),
   ).toBeVisible()
@@ -362,19 +386,17 @@ test('closing the Google popup leaves Connect calendar, Scheduled and booking us
   const main = await openCalendar(page)
   const list = main.getByRole('region', { name: 'Scheduled' })
   const reconnect = list.getByRole('button', { name: 'Reconnect to sync' })
-  await reconnect.click()
-  await expect(reconnect).toBeVisible()
-  await expect(list.getByText('Checking Google Calendar…')).toHaveCount(0)
+  const attempt = async (outcome: string) => {
+    await withPopup(outcome, () => reconnect.click())
+    await expect(list.getByText('Checking Google Calendar…')).toHaveCount(0)
+    await expect(reconnect).toBeVisible()
+  }
+  await attempt('closed')
 
-  // A blocked popup shows the connection error; once the popup opens, everything works.
-  await page.evaluate(() => {
-    ;(window as Window & { __solaraCalendarPopup?: string }).__solaraCalendarPopup = 'blocked'
-  })
-  await reconnect.click()
-  await expect(reconnect).toBeVisible()
-  await page.evaluate(() => {
-    delete (window as Window & { __solaraCalendarPopup?: string }).__solaraCalendarPopup
-  })
+  // A blocked popup leaves the reconnect hint; once the popup opens, everything works.
+  await setCalendarPopup(page, 'blocked')
+  await attempt('blocked')
+  await setCalendarPopup(page, undefined)
   await reconnect.click()
   await expect(list.getByText('In sync with Google Calendar')).toBeVisible()
   expect(googleCalendar.solaraEvents()).toHaveLength(1)

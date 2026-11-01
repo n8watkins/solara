@@ -83,6 +83,10 @@ export async function captureScreen(
 
   // axe-core schedules work with timers; let the (still frozen-date) clock run.
   await page.clock.resume()
+  // Audited from the top of the page: a screenshot scrolled down leaves content partly
+  // under the sticky header, which axe's target-size rule reads as an obscured target,
+  // though it is only where the scroll stopped (REVIEW10 QA L8).
+  await page.evaluate(() => window.scrollTo(0, 0))
   const axe = await new AxeBuilder({ page })
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice'])
     .analyze()
@@ -108,4 +112,9 @@ export async function captureScreen(
   await testInfo.attach('axe', { path: axePath, contentType: 'application/json' })
 
   expect(capture.pageErrors, 'uncaught page errors').toEqual([])
+  // Every screen is free of axe violations (REVIEW10 QA L8): a new one fails the harness.
+  expect(
+    report.violations.map(v => `${v.id}: ${v.nodes.map(n => n.target.join(' ')).join(', ')}`),
+    'axe violations',
+  ).toEqual([])
 }

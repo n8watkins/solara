@@ -102,7 +102,7 @@ describe('loading the translations', () => {
     expect(i18n.currentLocale()).toBe('en')
   })
 
-  it('applies Spanish, sets the title and loads the rest on demand', async () => {
+  it('applies Spanish, sets the title and loads each namespace on demand', async () => {
     const page = fakePage({ languages: ['es-MX'] })
     page.root.lang = 'es'
     const i18n = await freshModule()
@@ -111,9 +111,28 @@ describe('loading the translations', () => {
     const app = (await import('@/messages/app')).default
     expect(app.settings).toBe('Configuración')
     expect(document.title).toBe('Solara: planifica según el UV')
-    await i18n.loadAllMessages()
     const settings = (await import('@/messages/settings')).default
+    const setup = (await import('@/messages/setup')).default
+    await i18n.loadMessages(['settings'])
     expect(settings.language).toBe('Idioma')
+    // Only the namespaces asked for.
+    expect(setup.go).toBe('Go')
+    expect((await i18n.withMessages(['setup'], async () => setup)).go).toBe('Ir')
+  })
+
+  it('keeps every namespace in English when the opening screen cannot load', async () => {
+    const page = fakePage({ languages: ['es-MX'] })
+    page.root.lang = 'es'
+    vi.doMock('@/messages/es/initial', () => {
+      throw new Error('offline')
+    })
+    const i18n = await freshModule()
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    await i18n.loadInitialMessages()
+    await i18n.loadMessages(['settings'])
+    expect(i18n.currentLocale()).toBe('en')
+    expect((await import('@/messages/settings')).default.language).toBe('Language')
+    vi.doUnmock('@/messages/es/initial')
   })
 
   it("fetches a rarely opened part's words only when it opens", async () => {
@@ -121,10 +140,10 @@ describe('loading the translations', () => {
     page.root.lang = 'es'
     const i18n = await freshModule()
     await i18n.loadInitialMessages()
-    await i18n.loadAllMessages()
+    await i18n.loadMessages(['settings', 'editor'])
     const keywords = (await import('@/messages/icon-search')).default
     expect(keywords['🏊']).toBe('swim swimming pool')
-    await i18n.loadOnDemandMessages('iconSearch')
+    await i18n.loadMessages(['iconSearch'])
     expect(keywords['🏊']).toBe('nadar natación alberca piscina')
   })
 
@@ -132,7 +151,7 @@ describe('loading the translations', () => {
     fakePage({ languages: ['en-US'] })
     const i18n = await freshModule()
     await i18n.loadInitialMessages()
-    await i18n.loadOnDemandMessages('iconSearch')
+    await i18n.loadMessages(['iconSearch'])
     const keywords = (await import('@/messages/icon-search')).default
     expect(keywords['🏊']).toBe('swim swimming pool')
   })

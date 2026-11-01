@@ -10,6 +10,7 @@ import {
   withoutCheckoutParams,
 } from './checkout-notice'
 import type { UserPreferences } from './types'
+import { withMessages } from './i18n'
 
 /**
  * After Stripe Checkout returns to the app (`?checkout=...`), reports progress
@@ -45,7 +46,7 @@ export function useCheckoutReturn(
     // The billing code loads only on a return from Checkout.
     return lazySubscription(
       async () => {
-        const { observeCheckoutResult } = await import('./billing')
+        const { observeCheckoutResult } = await withMessages(['pricing'], () => import('./billing'))
         return observeCheckoutResult(
           user.uid,
           sessionId,
