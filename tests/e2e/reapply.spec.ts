@@ -37,13 +37,13 @@ function timer(page: Page) {
   return page.getByRole('region', { name: /Sunscreen timer|Reapply sunscreen|Time to reapply/ })
 }
 
-test('reminds a guest to reapply, every 2 hours or 80 minutes in the water', async ({ page }) => {
+test('reminds a guest to reapply, every 2 h or 1 h 20 min in the water', async ({ page }) => {
   await page.goto('/app/')
-  await expect(timer(page)).toContainText('Heading out? Get a reminder to reapply every 2 hours.')
+  await expect(timer(page)).toContainText('Heading out? Get a reminder to reapply every 2 h.')
   await timer(page).getByRole('button', { name: 'Start' }).click()
 
   await expect(timer(page)).toContainText('Reapply sunscreen at 12:30pm')
-  await expect(timer(page)).toContainText('In 2 h. Every 2 hours.')
+  await expect(timer(page)).toContainText('In 2 h. Every 2 h.')
 
   // Kept on this device across a reload.
   await page.reload()
@@ -61,12 +61,22 @@ test('reminds a guest to reapply, every 2 hours or 80 minutes in the water', asy
   await water.click()
   await expect(water).toHaveAttribute('aria-pressed', 'true')
   await expect(timer(page)).toContainText('Reapply sunscreen at 1:50pm')
-  await expect(timer(page)).toContainText('Every 80 minutes while swimming or sweating.')
+  await expect(timer(page)).toContainText('Every 1 h 20 min while swimming or sweating.')
 
   await timer(page).getByRole('button', { name: 'Stop' }).click()
   await expect(timer(page)).toContainText('Heading out?')
   await page.reload()
   await expect(timer(page)).toContainText('Heading out?')
+
+  // How much sunscreen, which SPF and when to reapply (ROADMAP item 45), closed until asked.
+  const guide = timer(page).getByText(
+    'About 7 teaspoons (35 mL), a shot glass, for your whole body.',
+  )
+  await expect(guide).toBeHidden()
+  await timer(page).getByText('How much sunscreen?').click()
+  await expect(guide).toBeVisible()
+  await expect(timer(page)).toContainText('About 1 teaspoon (5 mL) for each part')
+  await expect(timer(page)).toContainText('Reapply every 2 h, and straight after swimming')
 })
 
 test('shows a system notification when the reminder falls due in the background', async ({
