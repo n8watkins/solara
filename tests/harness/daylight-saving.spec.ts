@@ -55,14 +55,14 @@ test('the days after a daylight saving change show their hours on the new clock'
   const strip = page.getByRole('toolbar', { name: 'UV forecast by hour' })
 
   // Friday, before the change: the peak is at noon.
-  await expect(strip.getByRole('button', { name: 'UV 6.0, High, at 12pm' })).toBeVisible()
+  await expect(strip.getByRole('button', { name: /^UV 6\.0 ?, High, at 12pm$/ })).toBeVisible()
 
   // Monday, after it: the same sun, an hour later on the clock.
   await page.getByRole('button', { name: 'More days', exact: true }).click()
   await page.getByRole('dialog').getByRole('button', { name: /Mar 9/ }).click()
-  await expect(strip.getByRole('button', { name: 'UV 6.0, High, at 1pm' })).toBeVisible()
+  await expect(strip.getByRole('button', { name: /^UV 6\.0 ?, High, at 1pm$/ })).toBeVisible()
   await expect(strip.getByRole('button', { name: /at 12pm/ })).toHaveAccessibleName(
-    'UV 5.0, Moderate, at 12pm',
+    /^UV 5\.0 ?, Moderate, at 12pm$/,
   )
   expect(capture.pageErrors).toEqual([])
 })

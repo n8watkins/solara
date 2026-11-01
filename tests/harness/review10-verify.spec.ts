@@ -39,15 +39,17 @@ const LANGUAGES = [
   },
 ] as const
 
-const GUEST_PLAN = {
+/** A returning guest's plan, in `language` (else the app follows the device's, English). */
+const guestPlan = (language: 'en' | 'es') => ({
   prefs: {
     location: { lat: 34.05, lon: -118.24, city: 'Los Angeles', region: 'California' },
     skinType: 'fair',
     activities: [],
     onboardingComplete: true,
+    language,
   },
   since: '2026-06-15',
-}
+})
 
 async function inLanguage(page: Page, t: TestInfo, code: 'en' | 'es') {
   await preparePage(page, t, (route, url) => {
@@ -114,7 +116,7 @@ for (const lang of LANGUAGES) {
             JSON.stringify({ at, reason: 'open' }),
           )
         },
-        [GUEST_PLAN, HARNESS_NOW_MS] as const,
+        [guestPlan(lang.code), HARNESS_NOW_MS] as const,
       )
       await page.goto('/app/')
       await expect(page.getByRole('toolbar', { name: lang.strip })).toBeVisible()
@@ -129,7 +131,7 @@ for (const lang of LANGUAGES) {
       await inLanguage(page, testInfo, lang.code)
       await page.addInitScript(
         plan => window.localStorage.setItem('solara_guest', JSON.stringify(plan)),
-        GUEST_PLAN,
+        guestPlan(lang.code),
       )
       await page.goto('/app/')
       const strip = page.getByRole('toolbar', { name: lang.strip })
