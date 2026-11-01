@@ -51,6 +51,7 @@ import {
   type TokenRequest,
 } from './microsoft-auth'
 import { resolveTimeZone } from './time'
+import m from '@/messages/connections'
 
 export type { OutlookCalendarChoice, OutlookCalendarLink, SyncOutcome }
 export { OUTLOOK_EVENTS_SCOPE }
@@ -477,7 +478,7 @@ export function outlookCalendarChoices(
   const cap = (name: string) => capText(name, OUTLOOK_EVENT_LIMITS.calendarNameLength)
   const others = list
     .filter(c => !c.isDefault && c.id.length <= OUTLOOK_EVENT_LIMITS.calendarIdLength)
-    .map(c => ({ id: c.id, name: cap(stripInvisibleFormatting(c.name)) || 'Calendar' }))
+    .map(c => ({ id: c.id, name: cap(stripInvisibleFormatting(c.name)) || m.calendarFallback }))
     .sort((a, b) => a.name.localeCompare(b.name))
   return [{ id: OUTLOOK_DEFAULT_CALENDAR_ID, name: '' }, ...others]
 }
@@ -504,7 +505,7 @@ export async function syncOutlookEvents(context: OutlookSyncContext): Promise<Sy
   const fallbackTimeZone = resolveTimeZone(home.timezone)
   const read = emptyRead()
 
-  context.onProgress?.('Reading your Outlook calendar…')
+  context.onProgress?.(m.readingOutlook)
   for (const calendar of link.calendars) {
     let nextLink: string | undefined
     for (let page = 0; page < OUTLOOK_EVENT_LIMITS.maxPagesPerCalendar; page++) {
@@ -575,7 +576,7 @@ export function removeOutlookEvents(
 /** PURE. What a refresh did, in a sentence or two. */
 export function outlookSyncSummary(outcome: SyncOutcome): string {
   return calendarSyncSummary(outcome, {
-    service: 'Outlook',
+    service: m.outlook,
     windowDays: OUTLOOK_EVENT_LIMITS.windowDays,
   })
 }

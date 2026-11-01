@@ -9,6 +9,7 @@
 //   person's threshold: from an hour before it does until it drops below again, outside
 //   quiet hours. The times are worked out as for all protection advice (protection.ts),
 //   under a clear sky, so they match the briefing and the daily UV push.
+import { formatClock12 } from './clock'
 import { dailyBriefing } from './briefing'
 import { uvSpanAtOrAbove } from './protection'
 import { formatUV } from './uv-scale'
@@ -144,9 +145,7 @@ export function formatAlertTime(hours: number, clock: '12h' | '24h' = '12h'): st
   const hour = Math.floor(total / 60) % 24
   const minute = total % 60
   if (clock === '24h') return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
-  const suffix = hour < 12 ? 'am' : 'pm'
-  const h12 = hour % 12 === 0 ? 12 : hour % 12
-  return `${h12}${minute ? `:${String(minute).padStart(2, '0')}` : ''}${suffix}`
+  return formatClock12(hours)
 }
 
 /** The parts of an activity the morning alert plans with (with its rain and heat limits). */

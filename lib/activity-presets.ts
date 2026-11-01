@@ -1,6 +1,7 @@
 import { formatDuration } from '@solara/core/duration'
 import type { Activity } from './types'
 import { ACTIVITY_CATEGORIES, type PresetCategory } from '@solara/core/tiers'
+import m from '@solara/core/messages/plans'
 
 /** A preset suggestion: an activity without the fields a person sets. */
 export type Preset = PresetCategory['activities'][number]
@@ -30,6 +31,7 @@ export function presetCategoriesFor(
     return [
       {
         name: 'Results',
+        label: m.categoryResults,
         emoji: '🔍',
         activities: categories
           .flatMap(c => c.activities)
@@ -49,7 +51,7 @@ export function hiddenPresetsFor(
 ): (Preset & { category: string })[] {
   const hidden = new Set(hiddenIds)
   return categories.flatMap(cat =>
-    cat.activities.filter(a => hidden.has(a.id)).map(a => ({ ...a, category: cat.name })),
+    cat.activities.filter(a => hidden.has(a.id)).map(a => ({ ...a, category: cat.label })),
   )
 }
 

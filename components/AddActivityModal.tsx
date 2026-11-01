@@ -2,6 +2,7 @@
 import type { Activity, TierLevel } from '@/lib/types'
 import ActivityManager from './ActivityManager'
 import ActivityModalShell from './ActivityModalShell'
+import m from '@/messages/editor'
 
 interface Props {
   activities: Activity[]
@@ -26,8 +27,8 @@ export default function AddActivityModal({
 }: Props) {
   return (
     <ActivityModalShell
-      title="Add activity"
-      description="Choose a preset or create a custom outdoor activity. You can fine-tune duration and SPF after adding."
+      title={m.addActivity}
+      description={m.addLead}
       onClose={onClose}
       footer={
         <div className="flex justify-end gap-2.5">
@@ -36,7 +37,7 @@ export default function AddActivityModal({
             className="btn btn-primary min-w-[120px] justify-center"
             onClick={onClose}
           >
-            Done
+            {m.done}
           </button>
         </div>
       }

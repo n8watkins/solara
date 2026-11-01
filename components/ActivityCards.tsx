@@ -11,6 +11,7 @@ import type { UpcomingSlot } from '@solara/core/planner'
 import { windowsPassedNote } from '@/lib/dashboard-view'
 import type { ScheduledActivity, ScheduledSpan } from '@/lib/scheduled'
 import ActivityCard from './dashboard/ActivityCard'
+import m from '@/messages/activities'
 
 interface Props {
   /** One plan per activity for the selected day (see planActivityDay). */
@@ -63,7 +64,7 @@ export default function ActivityCards({
     try {
       share = await import('@/lib/share')
     } catch {
-      confirm.flash('Could not share. Check your connection and try again.')
+      confirm.flash(m.shareFailed)
       return
     }
     const { buildActivityShareText, buildActivityShareUrl, shareOrCopy } = share
@@ -81,17 +82,17 @@ export default function ActivityCards({
     )
     let result: Awaited<ReturnType<typeof shareOrCopy>>
     try {
-      result = await shareOrCopy(`${activity.name} sun window`, text, url)
+      result = await shareOrCopy(m.sunWindowTitle(activity.name), text, url)
     } catch {
       // AbortError: the share sheet was dismissed, so no feedback is needed.
       return
     }
     confirm.flash(
       result === 'shared'
-        ? 'Shared activity window.'
+        ? m.sharedWindow
         : result === 'copied'
-          ? 'Copied share text and link.'
-          : 'Sharing is not supported here. Copy the link manually.',
+          ? m.copiedShare
+          : m.shareUnsupported,
     )
   }
 

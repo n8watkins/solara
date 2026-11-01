@@ -22,6 +22,7 @@ import {
 } from '../deferred'
 import ActivitiesIntro from './ActivitiesIntro'
 import ActivityEmptyState from './ActivityEmptyState'
+import m from '@/messages/dashboard'
 
 /**
  * The dashboard's Activities section: the week's best days, calendar options,
@@ -101,13 +102,12 @@ export default function ActivitiesSection({
         <div className="mb-3.5">
           <Upsell
             icon="💾"
-            title="Save your plan, sign in free"
-            action={<GoogleSignInButton label="Sign in free" />}
+            title={m.savePlanTitle}
+            action={<GoogleSignInButton label={m.signInFree} />}
             onDismiss={dismissSavePlan}
             focusOnShow={wantsMore}
           >
-            Your plan is kept only on this device. Sign in with Google to keep it on every device,
-            plan up to {TIER_LIMITS.free.activities} activities and see tomorrow too.
+            {m.savePlanBody(TIER_LIMITS.free.activities)}
           </Upsell>
         </div>
       )}

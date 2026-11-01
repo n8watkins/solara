@@ -554,6 +554,16 @@ describe('typed and size-capped preference fields', () => {
     await assertFails(ref.update({ clockFormat: 24 }))
   })
 
+  test('the language is automatic or a language Solara speaks', async () => {
+    const ref = await ownerRef()
+    await assertSucceeds(ref.update({ language: 'es' }))
+    await assertSucceeds(ref.update({ language: 'en' }))
+    await assertSucceeds(ref.update({ language: 'auto' }))
+    await assertFails(ref.update({ language: 'fr' }))
+    await assertFails(ref.update({ language: 'es-MX' }))
+    await assertFails(ref.update({ language: true }))
+  })
+
   test('the UV alert threshold is a whole UV index from 1 to 11, or 0 for off', async () => {
     const ref = await ownerRef()
     await assertSucceeds(ref.update({ uvAlertThreshold: 6 }))

@@ -1,3 +1,4 @@
+import m from '@/messages/setup'
 const LINK = 'text-inherit underline'
 
 /**
@@ -17,11 +18,11 @@ export default function DataAttribution({
 }) {
   return (
     <p className={`m-0 text-[11px] leading-normal text-ink-3 ${className}`}>
-      {compact ? 'Data: ' : 'Weather and place data by '}
+      {compact ? m.attributionCompact : m.attribution}
       <a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer" className={LINK}>
         Open-Meteo
       </a>{' '}
-      and{' '}
+      {m.attributionAnd}{' '}
       <a
         href="https://www.geonames.org/"
         target="_blank"
@@ -46,7 +47,7 @@ export default function DataAttribution({
         rel="noopener noreferrer"
         className={LINK}
       >
-        ©&nbsp;OpenStreetMap contributors
+        {m.osmContributors}
       </a>
       .
     </p>

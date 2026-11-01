@@ -13,6 +13,7 @@
 // name and a warning; a link it does not know is still checked by the server as before.
 
 import { normalizeSubscriptionUrl } from './event-subscriptions'
+import m from './messages/linking'
 
 /** The providers the helper has steps for, in the order it offers them. */
 export const CALENDAR_PROVIDERS = Object.freeze(['icloud', 'google', 'outlook', 'yahoo'] as const)
@@ -20,40 +21,62 @@ export type CalendarProvider = (typeof CALENDAR_PROVIDERS)[number]
 
 /** A provider's name on a linked calendar's card ("Google Calendar", "iCloud"). */
 export const CALENDAR_PROVIDER_NAMES: Readonly<Record<CalendarProvider, string>> = Object.freeze({
-  icloud: 'iCloud',
-  google: 'Google Calendar',
-  outlook: 'Outlook',
-  yahoo: 'Yahoo Calendar',
+  get icloud() {
+    return m.providerIcloud
+  },
+  get google() {
+    return m.providerGoogle
+  },
+  get outlook() {
+    return m.providerOutlook
+  },
+  get yahoo() {
+    return m.providerYahoo
+  },
 })
 
 /** What a recognised calendar link is, for "Looks like ...". */
-const FEED_NAMES: Readonly<Record<CalendarProvider, string>> = Object.freeze({
-  icloud: 'a public iCloud calendar link',
-  google: 'a Google Calendar secret address',
-  outlook: 'a published Outlook calendar (ICS link)',
-  yahoo: 'a Yahoo Calendar ICS link',
+const FEED_NAMES: Readonly<Record<CalendarProvider, () => string>> = Object.freeze({
+  icloud: () => m.feedIcloud,
+  google: () => m.feedGoogle,
+  outlook: () => m.feedOutlook,
+  yahoo: () => m.feedYahoo,
 })
 
 /** Links a provider gives for something other than a calendar feed, with what to do. */
+// Each reads in the active language when used (i18n.ts).
 export const CALENDAR_LINK_PROBLEMS = Object.freeze({
-  'icloud-website': 'That is the iCloud website. Turn on Public Calendar and copy its link.',
-  // A club's public Google calendar does work, so this one is a warning, not a refusal.
-  'google-public':
-    "That is Google's public address, which works only for a public calendar. For your own, copy the Secret address in iCal format.",
-  'google-page': 'That is a Google Calendar page. Copy the Secret address in iCal format.',
-  'outlook-html': 'That is the HTML link. Copy the ICS link instead.',
-  'outlook-website': 'That is the Outlook website. Publish the calendar and copy its ICS link.',
-  'yahoo-page': 'That is a Yahoo page. Copy the link under To import into a Calendar app (ICS).',
-  // A provider's host with a shape the helper does not know: it may still work.
-  'icloud-unusual':
-    'This is not the usual iCloud calendar link. If linking fails, turn on Public Calendar and copy its link.',
-  'google-unusual':
-    'This is not the usual Google Calendar secret address. If linking fails, copy the Secret address in iCal format.',
-  'outlook-unusual':
-    'This is not the usual published Outlook calendar link. If linking fails, publish the calendar and copy its ICS link.',
-  'yahoo-unusual':
-    'This is not the usual Yahoo Calendar link. If linking fails, copy the link under To import into a Calendar app (ICS).',
-} as const)
+  get 'icloud-website'() {
+    return m.probIcloudWebsite
+  },
+  get 'google-public'() {
+    return m.probGooglePublic
+  },
+  get 'google-page'() {
+    return m.probGooglePage
+  },
+  get 'outlook-html'() {
+    return m.probOutlookHtml
+  },
+  get 'outlook-website'() {
+    return m.probOutlookWebsite
+  },
+  get 'yahoo-page'() {
+    return m.probYahooPage
+  },
+  get 'icloud-unusual'() {
+    return m.probIcloudUnusual
+  },
+  get 'google-unusual'() {
+    return m.probGoogleUnusual
+  },
+  get 'outlook-unusual'() {
+    return m.probOutlookUnusual
+  },
+  get 'yahoo-unusual'() {
+    return m.probYahooUnusual
+  },
+})
 export type CalendarLinkProblem = keyof typeof CALENDAR_LINK_PROBLEMS
 
 /**
@@ -188,7 +211,7 @@ export function calendarLinkHint(
 ): { text: string; tone: 'ok' | 'warning' } | null {
   if (link.problem) return { text: CALENDAR_LINK_PROBLEMS[link.problem], tone: 'warning' }
   if (link.kind === 'calendar' && link.provider) {
-    return { text: `Looks like ${FEED_NAMES[link.provider]}.`, tone: 'ok' }
+    return { text: m.looksLike(FEED_NAMES[link.provider]()), tone: 'ok' }
   }
   return null
 }

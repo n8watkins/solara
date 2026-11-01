@@ -2,6 +2,7 @@ import type { ShadeLevel, Surface } from '@solara/core'
 import { weatherDefaults, weatherLimits } from '@solara/core/weather-fit'
 import type { Activity, TimePreference } from './types'
 import { clampDuration } from './activity-presets'
+import m from '@/messages/editor'
 
 /** The edit form's fields, as typed, before they are normalized into an activity. */
 export interface ActivityForm {
@@ -92,23 +93,25 @@ export function activityFromForm(activity: Activity, form: ActivityForm): Activi
 
 /** "Every day", or how many days are picked ("1 day", "5 days"). */
 export function daysSummary(days: readonly number[]): string {
-  if (!normalizedDays(days)) return 'Every day'
-  return `${days.length} day${days.length === 1 ? '' : 's'}`
+  if (!normalizedDays(days)) return m.everyDay
+  return m.dayCount(days.length)
 }
 
-export const DAY_NAMES = [
-  'Sunday',
-  'Monday',
-  'Tuesday',
-  'Wednesday',
-  'Thursday',
-  'Friday',
-  'Saturday',
-] as const
+/** The weekdays' names, Sunday first, in the page's language. */
+export function dayNames(): string[] {
+  return m.dayNames.split(',')
+}
+
+/** Each weekday's one-letter button label, Sunday first ("S", "M", ...). */
+export function dayInitials(): string[] {
+  return m.dayInitials.split(',')
+}
 
 /** One-tap day selections; an empty set means every day. */
-export const DAY_PRESETS: readonly { label: string; days: readonly number[] }[] = [
-  { label: 'Every day', days: [] },
-  { label: 'Weekdays', days: [1, 2, 3, 4, 5] },
-  { label: 'Weekends', days: [0, 6] },
-]
+export function dayPresets(): { label: string; days: readonly number[] }[] {
+  return [
+    { label: m.everyDay, days: [] },
+    { label: m.weekdays, days: [1, 2, 3, 4, 5] },
+    { label: m.weekends, days: [0, 6] },
+  ]
+}

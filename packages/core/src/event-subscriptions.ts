@@ -15,6 +15,7 @@
 import * as v from 'valibot'
 import { IMPORTED_EVENT_KEY_PATTERN } from './events'
 import { finiteNumber, record } from './schema'
+import m from './messages/linking'
 
 /** Defaults, owner may change (docs/ROADMAP.md decisions, 2026-10-28). */
 export const EVENT_SUBSCRIPTION_LIMITS = Object.freeze({
@@ -45,25 +46,54 @@ export const SUBSCRIPTION_STATUSES = Object.freeze(['active', 'failing', 'paused
 export type SubscriptionStatus = (typeof SUBSCRIPTION_STATUSES)[number]
 
 /** Why a link could not be read, as stored and shown. */
+// Each reads in the active language when used (i18n.ts): the Functions send English.
 export const SUBSCRIPTION_ERRORS = Object.freeze({
-  'invalid-url': 'That is not a calendar link. Copy the full https:// or webcal:// address.',
-  'not-https': 'Only https:// and webcal:// calendar links can be linked.',
-  credentials: 'Links with a user name or password cannot be linked.',
-  port: 'Only calendar links on the standard https port can be linked.',
-  'blocked-address': 'That link points to a private or local network address.',
-  unreachable: 'The calendar site could not be reached.',
-  timeout: 'The calendar site took too long to answer.',
-  'too-large': 'That calendar is larger than 1 MB. Link a shorter calendar.',
-  'too-many-redirects': 'That link redirects too many times.',
-  'http-status': 'The calendar site refused the request. Check the link still works.',
-  'not-calendar': 'That link does not lead to a calendar (.ics) file.',
-  'no-place': 'Set your place in Solara first, so events without one can use it.',
-  duplicate: 'That calendar is already linked.',
-  'too-many': `An account can link up to ${EVENT_SUBSCRIPTION_LIMITS.maxPerAccount} calendars. Remove one to add another.`,
-  // Linked calendars are Pro-only (REVIEW8 SEC L3): a Free account cannot add one, and a
-  // link of an account that is no longer Pro is paused until it is Pro again.
-  'pro-required': 'Linked calendars are part of Pro.',
-} as const)
+  get 'invalid-url'() {
+    return m.errInvalidUrl
+  },
+  get 'not-https'() {
+    return m.errNotHttps
+  },
+  get credentials() {
+    return m.errCredentials
+  },
+  get port() {
+    return m.errPort
+  },
+  get 'blocked-address'() {
+    return m.errBlocked
+  },
+  get unreachable() {
+    return m.errUnreachable
+  },
+  get timeout() {
+    return m.errTimeout
+  },
+  get 'too-large'() {
+    return m.errTooLarge
+  },
+  get 'too-many-redirects'() {
+    return m.errRedirects
+  },
+  get 'http-status'() {
+    return m.errHttpStatus
+  },
+  get 'not-calendar'() {
+    return m.errNotCalendar
+  },
+  get 'no-place'() {
+    return m.errNoPlace
+  },
+  get duplicate() {
+    return m.errDuplicate
+  },
+  get 'pro-required'() {
+    return m.errProRequired
+  },
+  get 'too-many'() {
+    return m.errTooMany(EVENT_SUBSCRIPTION_LIMITS.maxPerAccount)
+  },
+})
 export type SubscriptionError = keyof typeof SUBSCRIPTION_ERRORS
 
 /** The words for a stored error code ('' for none or an unknown code). */
@@ -71,7 +101,7 @@ export function subscriptionErrorMessage(code: string): string {
   return Object.hasOwn(SUBSCRIPTION_ERRORS, code)
     ? SUBSCRIPTION_ERRORS[code as SubscriptionError]
     : code
-      ? 'The calendar could not be read.'
+      ? m.errUnknown
       : ''
 }
 

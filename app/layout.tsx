@@ -4,7 +4,10 @@ import { inter } from './fonts'
 import AnalyticsConsent from '@/components/AnalyticsConsent'
 import ThemeInit from '@/components/ThemeInit'
 import { ANALYTICS_CONSENT_INIT_SCRIPT, isAnalyticsMeasurementId } from '@/lib/analytics-consent'
+import StaticText from '@/components/StaticText'
+import { LANGUAGE_INIT_SCRIPT } from '@/lib/i18n'
 import { IS_STAGING, SITE_URL } from '@/lib/site'
+import * as staticText from '@/messages/static'
 import { THEME_INIT_SCRIPT } from '@/lib/theme'
 
 // Refuse anything that is not a plain GA4 measurement id: it ends up in the
@@ -57,6 +60,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         {/* Blocking on purpose: applies the theme before first paint (no flash). */}
         <script data-static="" dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        {/* Blocking too: sets <html lang> to the page's language before first paint. */}
+        <script data-static="" dangerouslySetInnerHTML={{ __html: LANGUAGE_INIT_SCRIPT }} />
         {/* Blocking too: lays out the in-flow consent banner from the first frame. */}
         {GA_ID && (
           <script
@@ -66,20 +71,31 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         )}
       </head>
       <body>
-        <AnalyticsConsent measurementId={GA_ID} />
+        <AnalyticsConsent
+          measurementId={GA_ID}
+          // Drawn here on the server, so the words travel in the page, not the script.
+          copy={{
+            title: <StaticText text={staticText.consentTitle} />,
+            long: <StaticText text={staticText.consentLong} />,
+            short: <StaticText text={staticText.consentShort} />,
+            privacy: <StaticText text={staticText.consentPrivacy} />,
+            allow: <StaticText text={staticText.consentAllow} />,
+            notNow: <StaticText text={staticText.consentNotNow} />,
+          }}
+        />
         <ThemeInit />
         {children}
         <footer className="bg-surface px-4 py-5 text-center text-[12px] text-ink-3">
           <a href="/privacy/" className="text-inherit">
-            Privacy
+            <StaticText text={staticText.footerPrivacy} />
           </a>
           <span aria-hidden="true"> · </span>
           <a href="/terms/" className="text-inherit">
-            Terms
+            <StaticText text={staticText.footerTerms} />
           </a>
           <span aria-hidden="true"> · </span>
           <a href="/account/" className="text-inherit">
-            Account data
+            <StaticText text={staticText.footerAccountData} />
           </a>
         </footer>
       </body>

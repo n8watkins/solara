@@ -21,6 +21,7 @@ import { recommendSlot, type SlotRecommendation } from '@solara/core/scheduler'
 import { scheduledOn, type ScheduledActivity, type ScheduledSpan } from './scheduled'
 import { formatDate, zonedNow } from './time'
 import { uvBand } from './calendar-layout'
+import core from '@solara/core/messages/core'
 
 /** Height of one hour row in px. */
 export const ROW_H = 44
@@ -71,7 +72,7 @@ export function calendarDays(weather: WeatherResponse, limit: number): CalendarD
       cloud: cloudEffect(day.hourly),
       // The forecast starts today, so a day's index is how far ahead it is.
       confidence: forecastConfidence(daysAhead),
-      shortLabel: isToday ? 'Today' : formatDate(day.dateStr, { weekday: 'short' }),
+      shortLabel: isToday ? core.today : formatDate(day.dateStr, { weekday: 'short' }),
     }
   })
 }

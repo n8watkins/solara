@@ -2,12 +2,24 @@
 import { CalendarDays, Sun, type LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import clsx from 'clsx'
+import m from '@/messages/app'
 
 export type AppView = 'dashboard' | 'calendar'
 
-const VIEWS: { id: AppView; label: string; heading: string; Icon: LucideIcon }[] = [
-  { id: 'dashboard', label: 'Dashboard', heading: 'UV dashboard', Icon: Sun },
-  { id: 'calendar', label: 'Calendar', heading: 'Activity calendar', Icon: CalendarDays },
+// Labels are read when drawn, in the page's language.
+const VIEWS: { id: AppView; label: () => string; heading: () => string; Icon: LucideIcon }[] = [
+  {
+    id: 'dashboard',
+    label: () => m.viewDashboard,
+    heading: () => m.viewDashboardHeading,
+    Icon: Sun,
+  },
+  {
+    id: 'calendar',
+    label: () => m.viewCalendar,
+    heading: () => m.viewCalendarHeading,
+    Icon: CalendarDays,
+  },
 ]
 
 interface Props {
@@ -45,7 +57,7 @@ export default function AppShell({ header, view, onViewChange, children, after }
                   )}
                 >
                   <Icon size={15} />
-                  {label}
+                  {label()}
                 </button>
               ))}
             </div>
@@ -55,7 +67,7 @@ export default function AppShell({ header, view, onViewChange, children, after }
       <main className="mx-auto max-w-[900px] px-4 py-6 lg:max-w-[1240px]">
         {/* The page's one h1 names the view for assistive tech; the header and the
             active tab already say where you are visually, so it is not drawn. */}
-        <h1 className="sr-only">{VIEWS.find(v => v.id === view)?.heading}</h1>
+        <h1 className="sr-only">{VIEWS.find(v => v.id === view)?.heading()}</h1>
         {children}
       </main>
       {after}

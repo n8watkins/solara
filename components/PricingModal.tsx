@@ -5,7 +5,7 @@ import type { User } from 'firebase/auth'
 import ActivityModalShell from './ActivityModalShell'
 import GoogleSignInButton from './GoogleSignInButton'
 import {
-  PRO_FEATURES,
+  proFeatures,
   PRO_PLAN,
   isCheckoutConfigured,
   createCheckoutUrl,
@@ -14,6 +14,7 @@ import {
 import { alertsLaunched } from '@/lib/plans'
 import { isStoreBuild } from '@/lib/store-build'
 import { TIER_LIMITS } from '@solara/core/tiers'
+import m from '@/messages/pricing'
 
 interface Props {
   /** The signed-in account; null or absent for a guest, who is offered sign-in first. */
@@ -34,7 +35,7 @@ function Cell({ value }: { value: string | boolean }) {
       <span aria-hidden="true" className={value ? 'font-bold text-success' : 'text-ink-3'}>
         {value ? '✓' : '–'}
       </span>
-      <span className="sr-only">{value ? 'Included' : 'Not included'}</span>
+      <span className="sr-only">{value ? m.included : m.notIncluded}</span>
     </>
   )
 }
@@ -46,7 +47,11 @@ const NOTICE =
   'rounded-[10px] border-[0.5px] border-notice-border bg-notice px-3 py-2.5 text-[13px]'
 
 type Column = 'guest' | 'free' | 'pro'
-const COLUMN_NAMES: Record<Column, string> = { guest: 'Guest', free: 'Free', pro: 'Pro' }
+const COLUMN_NAMES: Record<Column, () => string> = {
+  guest: () => m.columnGuest,
+  free: () => m.columnFree,
+  pro: () => m.columnPro,
+}
 
 interface PlanOption {
   plan: BillingPlan
@@ -56,16 +61,19 @@ interface PlanOption {
   badge?: string
 }
 
-const PLAN_OPTIONS: PlanOption[] = [
-  { plan: 'monthly', period: 'Monthly', price: PRO_PLAN.monthly, per: 'month' },
-  {
-    plan: 'yearly',
-    period: 'Yearly',
-    price: PRO_PLAN.yearly,
-    per: 'year',
-    badge: `Save ${PRO_PLAN.yearlySavingPercent}%`,
-  },
-]
+// Read when drawn, in the page's language.
+function planOptions(): PlanOption[] {
+  return [
+    { plan: 'monthly', period: m.monthly, price: PRO_PLAN.monthly, per: m.perMonth },
+    {
+      plan: 'yearly',
+      period: m.yearly,
+      price: PRO_PLAN.yearly,
+      per: m.perYear,
+      badge: m.savePercent(PRO_PLAN.yearlySavingPercent),
+    },
+  ]
+}
 
 function PriceCardBody({ period, price, per, badge }: PlanOption) {
   return (
@@ -159,7 +167,8 @@ export default function PricingModal({
       ? ['guest', 'free', 'pro']
       : ['free', 'pro']
   // The store build compares only what free sign-in adds.
-  const rows = store ? PRO_FEATURES.filter(f => f.free !== false) : PRO_FEATURES
+  const features = proFeatures()
+  const rows = store ? features.filter(f => f.free !== false) : features
   const wide = columns.length === 3
 
   async function upgrade() {
@@ -170,9 +179,7 @@ export default function PricingModal({
       const url = await createCheckoutUrl(user, plan)
       window.location.assign(url)
     } catch (error) {
-      setCheckoutError(
-        error instanceof Error ? error.message : 'Checkout is temporarily unavailable',
-      )
+      setCheckoutError(error instanceof Error ? error.message : m.checkoutUnavailable)
       setCheckoutLoading(false)
     }
   }
@@ -189,33 +196,30 @@ export default function PricingModal({
     footer = (
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2.5">
         <p className="min-w-45 flex-1 text-[13px] leading-[1.45] text-ink-2">
-          Sign in with Google. It&apos;s free, and your plan comes with you.
+          {m.signInGoogleFree}
         </p>
-        <GoogleSignInButton label="Sign in free" preload />
+        <GoogleSignInButton label={m.signInFree} preload />
       </div>
     )
   } else if (guest) {
     footer = (
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2.5">
         <p className="min-w-45 flex-1 text-[13px] leading-[1.45] text-ink-2">
-          {checkoutReady
-            ? 'Sign in free to save your plan, see tomorrow and start a Pro trial.'
-            : 'Sign in free to save your plan, see tomorrow and join the Pro waitlist.'}
+          {checkoutReady ? m.guestTrial : m.guestWaitlist}
         </p>
-        <GoogleSignInButton label="Sign in free" preload />
+        <GoogleSignInButton label={m.signInFree} preload />
       </div>
     )
   } else if (checkoutReady) {
-    const chosen = PLAN_OPTIONS.find(option => option.plan === plan) ?? PLAN_OPTIONS[0]!
+    const options = planOptions()
+    const chosen = options.find(option => option.plan === plan) ?? options[0]!
     footer = (
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-[20px] font-extrabold text-ink">
             {chosen.price} / {chosen.per}
           </p>
-          <p className="text-[12px] text-ink-3">
-            After the {PRO_PLAN.trialDays}-day free trial. Cancel anytime.
-          </p>
+          <p className="text-[12px] text-ink-3">{m.afterTrial(PRO_PLAN.trialDays)}</p>
         </div>
         <button
           type="button"
@@ -223,7 +227,7 @@ export default function PricingModal({
           onClick={() => void upgrade()}
           disabled={checkoutLoading}
         >
-          {checkoutLoading ? 'Opening checkout...' : 'Start free trial'}
+          {checkoutLoading ? m.openingCheckout : m.startTrial}
         </button>
       </div>
     )
@@ -233,8 +237,8 @@ export default function PricingModal({
         <input
           type="email"
           autoComplete="email"
-          aria-label="Email for early access"
-          placeholder="Email for early access"
+          aria-label={m.emailEarlyAccess}
+          placeholder={m.emailEarlyAccess}
           value={waitEmail}
           onChange={e => setWaitEmail(e.target.value)}
           className="min-w-45 flex-1 text-[13px]"
@@ -245,7 +249,7 @@ export default function PricingModal({
           onClick={join}
           disabled={!waitEmail.trim()}
         >
-          {joined || alreadyWaitlisted ? '✓ On the waitlist' : 'Join Pro waitlist'}
+          {joined || alreadyWaitlisted ? m.onWaitlist : m.joinWaitlist}
         </button>
       </div>
     )
@@ -253,22 +257,21 @@ export default function PricingModal({
 
   return (
     <ActivityModalShell
-      title={store ? 'Sign in free' : 'Solara Pro'}
+      title={store ? m.signInFree : m.solaraPro}
       description={
         store
-          ? `A free account keeps your plan on every device, plans up to ${TIER_LIMITS.free.activities} activities and shows tomorrow too.`
+          ? m.storeLead(TIER_LIMITS.free.activities)
           : // Only what Pro adds: calendar export is Free too (REVIEW9 QA L7).
-            `10 days of planning, up to 20 activities, family profiles that plan for the most sensitive person, and morning and UV alerts${alertsLaunched() ? '' : ' (coming soon)'}.`
+            alertsLaunched()
+            ? m.proLead
+            : m.proLeadSoon
       }
       onClose={onClose}
       footer={footer}
     >
       <div className="flex flex-col gap-3.5">
         {!checkoutReady && !store && (
-          <div className={`${NOTICE} text-ink-2`}>
-            Pro is launching soon. Join the waitlist to be first in line for the{' '}
-            {PRO_PLAN.trialDays}-day free trial.
-          </div>
+          <div className={`${NOTICE} text-ink-2`}>{m.launchingSoon(PRO_PLAN.trialDays)}</div>
         )}
         {checkoutError && (
           <p role="alert" className="text-[13px] text-danger">
@@ -280,9 +283,9 @@ export default function PricingModal({
           <div>
             {checkoutReady && !guest ? (
               <fieldset>
-                <legend className="sr-only">Choose how to pay</legend>
+                <legend className="sr-only">{m.choosePay}</legend>
                 <div className="grid grid-cols-2 gap-2.5">
-                  {PLAN_OPTIONS.map(option => (
+                  {planOptions().map(option => (
                     <PriceCard
                       key={option.plan}
                       option={option}
@@ -294,15 +297,15 @@ export default function PricingModal({
               </fieldset>
             ) : (
               <div className="grid grid-cols-2 gap-2.5">
-                {PLAN_OPTIONS.map(option => (
+                {planOptions().map(option => (
                   <PriceCard key={option.plan} option={option} />
                 ))}
               </div>
             )}
             <p className="mt-2 text-[12px] text-ink-3">
               {checkoutReady
-                ? `New subscribers start with a ${PRO_PLAN.trialDays}-day free trial. Stripe asks for a card and charges nothing until it ends.`
-                : `Both start with a ${PRO_PLAN.trialDays}-day free trial. Cancel anytime.`}
+                ? m.newSubscribers(PRO_PLAN.trialDays)
+                : m.bothStartTrial(PRO_PLAN.trialDays)}
             </p>
           </div>
         )}
@@ -310,11 +313,7 @@ export default function PricingModal({
         <div className="metric-card overflow-hidden p-0">
           <table className="w-full table-fixed border-collapse">
             <caption className="sr-only">
-              {store
-                ? 'Guest and Free plan features'
-                : guest
-                  ? 'Guest, Free and Pro plan features'
-                  : 'Free and Pro plan features'}
+              {store ? m.captionStore : guest ? m.captionGuest : m.captionFree}
             </caption>
             <colgroup>
               <col className={wide ? 'w-[31%]' : 'w-[40%]'} />
@@ -334,7 +333,7 @@ export default function PricingModal({
                       column === 'pro' ? 'font-extrabold text-accent' : 'font-bold text-ink-2',
                     )}
                   >
-                    {COLUMN_NAMES[column]}
+                    {COLUMN_NAMES[column]()}
                   </th>
                 ))}
               </tr>

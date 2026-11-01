@@ -5,6 +5,7 @@ import { QUIET_HOURS, UV_ALERT_THRESHOLD } from '@solara/core'
 import { calendarFeatureLabel } from './plans'
 import { TIER_LIMITS } from '@solara/core/tiers'
 import type { Location, SkinType, TierLevel, UserPreferences } from './types'
+import m from '@/messages/pricing'
 
 /** The preferences the Settings dialog edits, with every default filled in. */
 export interface SettingsDraft {
@@ -26,6 +27,8 @@ export interface SettingsDraft {
   temperatureUnit: NonNullable<UserPreferences['temperatureUnit']>
   /** 'auto' follows the browser locale. */
   clockFormat: NonNullable<UserPreferences['clockFormat']>
+  /** 'auto' follows the device's language. */
+  language: NonNullable<UserPreferences['language']>
 }
 
 const DRAFT_FIELDS = [
@@ -41,6 +44,7 @@ const DRAFT_FIELDS = [
   'dailyUv',
   'temperatureUnit',
   'clockFormat',
+  'language',
 ] as const satisfies readonly (keyof SettingsDraft)[]
 
 /** Morning notifications go out at 7:00 local time unless the person picks another hour. */
@@ -61,6 +65,7 @@ export function settingsDraftFrom(prefs: UserPreferences): SettingsDraft {
     dailyUv: prefs.dailyUv !== false,
     temperatureUnit: prefs.temperatureUnit ?? 'auto',
     clockFormat: prefs.clockFormat ?? 'auto',
+    language: prefs.language ?? 'auto',
   }
 }
 
@@ -87,10 +92,10 @@ export interface PlanLimitRow {
 export function planLimitRows(tier: TierLevel, activityCount: number): PlanLimitRow[] {
   return [
     {
-      label: 'Activities',
+      label: m.activities,
       value: `${activityCount} / ${TIER_LIMITS[tier].activities}`,
     },
     { label: calendarFeatureLabel(), value: TIER_LIMITS[tier].calendar },
-    { label: '10-day forecast', value: tier === 'paid' },
+    { label: m.tenDayForecast, value: tier === 'paid' },
   ]
 }

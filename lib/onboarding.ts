@@ -16,6 +16,7 @@ import {
 } from '@solara/core'
 import { SKIN_TYPE_LABELS } from './profiles'
 import type { Location, SkinType } from './types'
+import m from '@/messages/setup'
 
 export type OnboardingStep = 'location' | 'uvpreview' | 'skin' | 'finish'
 
@@ -42,22 +43,22 @@ export const ONBOARDING_BACK: Readonly<Record<OnboardingStep, OnboardingStep | n
 export function geolocationErrorMessage(code: number | null): string {
   switch (code) {
     case null:
-      return "This browser can't share your location. Type a city instead."
+      return m.geoUnsupported
     case 1:
-      return 'Location access is turned off for this site. Allow it in your browser, or type a city.'
+      return m.geoDenied
     case 3:
-      return 'Finding your location took too long. Try again, or type a city.'
+      return m.geoTimeout
     default:
-      return "Your location couldn't be found. Try again, or type a city."
+      return m.geoUnavailable
   }
 }
 
-const SKIN_DESCRIPTIONS: Readonly<Record<SkinType, string>> = {
-  'very-fair': 'Burns easily, rarely tans',
-  fair: 'Burns often, tans lightly',
-  medium: 'Burns sometimes, tans well',
-  olive: 'Rarely burns, tans easily',
-  dark: 'Very rarely burns',
+const SKIN_DESCRIPTIONS: Readonly<Record<SkinType, () => string>> = {
+  'very-fair': () => m.skinDescVeryFair,
+  fair: () => m.skinDescFair,
+  medium: () => m.skinDescMedium,
+  olive: () => m.skinDescOlive,
+  dark: () => m.skinDescDark,
 }
 
 /**
@@ -83,12 +84,21 @@ export interface SkinOption {
 }
 
 /** The skin type choices, lightest first (setup and Settings). */
+// Read when shown, in the page's language.
 export const SKIN_OPTIONS: readonly SkinOption[] = SKIN_TYPES.map(value => ({
   value,
-  label: SKIN_TYPE_LABELS[value],
-  desc: SKIN_DESCRIPTIONS[value],
-  fitzpatrick: `Type ${FITZPATRICK_TYPES[value]}`,
-  burnTime: `~${formatDuration(SKIN_BURN_BASE[value])}`,
+  get label() {
+    return SKIN_TYPE_LABELS[value]
+  },
+  get desc() {
+    return SKIN_DESCRIPTIONS[value]()
+  },
+  get fitzpatrick() {
+    return m.typeLabel(FITZPATRICK_TYPES[value])
+  },
+  get burnTime() {
+    return `~${formatDuration(SKIN_BURN_BASE[value])}`
+  },
 }))
 
 /** The UV setup's burn times use when the live reading is too low to say much (Very high). */
@@ -108,8 +118,8 @@ export function setupBurnUV(uvNow: number | null): { uv: number; live: boolean }
 /** The skin step's line saying which UV its burn times are for. */
 export function setupBurnNote({ uv, live }: { uv: number; live: boolean }): string {
   return live
-    ? `Times are rough minutes to a burn without sunscreen at UV ${formatUV(uv)}, the UV right now.`
-    : `Times are rough minutes to a burn without sunscreen at UV ${formatUV(uv)} (${uvLabel(uv).toLowerCase()}).`
+    ? m.burnNoteLive(formatUV(uv))
+    : m.burnNoteReference(formatUV(uv), uvLabel(uv).toLowerCase())
 }
 
 /** Rough minutes to a burn for `skin` at `uv`, without sunscreen. */

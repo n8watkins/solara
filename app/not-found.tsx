@@ -1,4 +1,6 @@
 import type { Metadata } from 'next'
+import StaticText from '@/components/StaticText'
+import * as staticText from '@/messages/static'
 
 export const metadata: Metadata = {
   title: 'Page not found | Solara',
@@ -14,14 +16,15 @@ export default function NotFound() {
         <p className="mb-3 text-[42px]" aria-hidden="true">
           🌤️
         </p>
-        <h1 className="mb-2.5 text-[26px] font-[750] text-ink">Page not found</h1>
+        <h1 className="mb-2.5 text-[26px] font-[750] text-ink">
+          <StaticText text={staticText.notFoundTitle} />
+        </h1>
         <p className="mb-[22px] text-[15px] leading-[1.55] text-ink-2">
-          This address doesn&apos;t match anything in Solara. Check the link, or head back to your
-          forecast.
+          <StaticText text={staticText.notFoundBody} />
         </p>
         {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- A full page load, so the landing page sends a signed-in visitor to the app. */}
         <a href="/" className="btn btn-primary justify-center px-[18px] py-[11px] no-underline">
-          Open Solara
+          <StaticText text={staticText.openSolara} />
         </a>
       </div>
     </main>

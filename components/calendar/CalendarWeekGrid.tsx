@@ -16,6 +16,7 @@ import { chipVariant, LANE_GAP, type ColumnLayout } from '@/lib/calendar-layout'
 import type { UnitFormatters } from '@/lib/units'
 import CalendarDayColumn from './CalendarDayColumn'
 import type { WindowSelection } from './useWindowSheet'
+import m from '@/messages/calendar'
 
 /**
  * The week grid: sticky day headers and hour gutter around one column per day. It
@@ -109,9 +110,9 @@ export default function CalendarWeekGrid({
                 className="mt-[3px] flex items-center gap-1 text-[11px] leading-none text-ink-2 tabular-nums"
               >
                 {day.cloud && <Cloud size={12} aria-hidden className="shrink-0 text-ink-3" />}
-                UV {formatUV(day.peakUV)}
+                {m.dayUv(formatUV(day.peakUV))}
                 {day.cloud && (
-                  <span className="text-ink-3">· clear {formatUV(day.cloud.clearSky)}</span>
+                  <span className="text-ink-3">{m.dayClear(formatUV(day.cloud.clearSky))}</span>
                 )}
               </span>
             )}
@@ -123,7 +124,7 @@ export default function CalendarWeekGrid({
                   day.confidence === 'low' ? 'border-dashed border-line-strong' : 'border-line',
                 )}
               >
-                {day.confidence === 'low' ? 'Low confidence' : 'Fair confidence'}
+                {day.confidence === 'low' ? m.lowConfidence : m.fairConfidence}
               </span>
             )}
           </div>

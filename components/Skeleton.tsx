@@ -1,4 +1,5 @@
 import VisuallyHidden from './VisuallyHidden'
+import m from '@/messages/app'
 
 // Placeholder blocks, sized like the text they stand in for.
 const STRONG = 'bg-line-strong'
@@ -12,7 +13,7 @@ const SOFT = 'bg-line'
 export default function Skeleton() {
   return (
     <div className="dash-stack animate-pulse" role="status">
-      <VisuallyHidden>Loading the forecast…</VisuallyHidden>
+      <VisuallyHidden>{m.loadingForecast}</VisuallyHidden>
 
       <div className="flex items-center justify-between gap-2" aria-hidden="true">
         <div className="flex gap-1.5">

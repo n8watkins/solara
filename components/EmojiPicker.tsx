@@ -4,6 +4,7 @@ import type { KeyboardEvent } from 'react'
 import clsx from 'clsx'
 import { EMOJI_GROUPS, searchEmojis } from '@/lib/emoji-catalog'
 import { nearestInAdjacentRow, nextIndex } from '@/lib/roving-focus'
+import m from '@/messages/editor'
 
 /** Eight equal columns that fill the picker's width. */
 const GRID = 'grid grid-cols-8 gap-0.5'
@@ -102,7 +103,7 @@ export default function EmojiPicker({ id, value, onChange, onClose }: Props) {
       ref={ref}
       id={id}
       role="dialog"
-      aria-label="Choose an icon"
+      aria-label={m.chooseAnIcon}
       onKeyDown={event => {
         if (event.key === 'Escape') {
           // Close only the picker, not the dialog it sits in.
@@ -121,8 +122,8 @@ export default function EmojiPicker({ id, value, onChange, onClose }: Props) {
         <input
           autoFocus
           type="search"
-          aria-label="Search emojis"
-          placeholder="Search emojis..."
+          aria-label={m.searchEmojis}
+          placeholder={m.searchEmojisPlaceholder}
           value={search}
           onChange={e => setSearch(e.target.value)}
           className="w-full px-2.5 py-1.5 text-[13px]"
@@ -136,20 +137,20 @@ export default function EmojiPicker({ id, value, onChange, onClose }: Props) {
         {/* Always mounted, so screen readers announce when a search finds nothing. */}
         <div role="status" className="contents">
           {filtered?.length === 0 && (
-            <p className="py-1 text-[13px] text-ink-3">{`No icons match "${search.trim()}".`}</p>
+            <p className="py-1 text-[13px] text-ink-3">{m.noIconsMatch(search.trim())}</p>
           )}
         </div>
         {filtered ? (
-          <div role="group" aria-label="Search results" className={GRID}>
+          <div role="group" aria-label={m.searchResults} className={GRID}>
             {filtered.map((e, i) => renderButton(e, `search-${i}`))}
           </div>
         ) : (
           EMOJI_GROUPS.map(g => (
             <div key={g.name} className="mb-2.5">
               <p aria-hidden="true" className="mb-1 text-[11px] font-medium text-ink-3">
-                {g.icon} {g.name}
+                {g.icon} {g.label}
               </p>
-              <div role="group" aria-label={g.name} className={GRID}>
+              <div role="group" aria-label={g.label} className={GRID}>
                 {g.emojis.map(([e], i) => renderButton(e, `${g.name}-${i}`))}
               </div>
             </div>

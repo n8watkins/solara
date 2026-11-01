@@ -30,6 +30,7 @@ import {
   type GoogleCalendarLink,
 } from '@/lib/google-events'
 import type { Activity, Location } from '@/lib/types'
+import m from '@/messages/connections'
 
 interface Props {
   uid: string
@@ -125,10 +126,10 @@ export default function GoogleCalendarEvents({
       if (auth?.dismissed) setStatus(null)
       else if (auth) {
         setStatus({
-          text: 'Google Calendar needs your permission again. Press Refresh to continue.',
+          text: m.googlePermissionAgain,
           error: true,
         })
-      } else setStatus({ text: 'Could not reach Google Calendar. Try again.', error: true })
+      } else setStatus({ text: m.googleUnreachable, error: true })
     } finally {
       busyRef.current = null
       setBusy(null)
@@ -224,9 +225,7 @@ export default function GoogleCalendarEvents({
     setConfirming(false)
     void run('disconnect', async () => {
       const revoked = await disconnectGoogleCalendar({ uid, linkStore, store: events, api })
-      return revoked
-        ? 'Disconnected Google Calendar and removed its events.'
-        : "Removed the events from Google Calendar. To also end Solara's access, remove Solara at myaccount.google.com/connections."
+      return revoked ? m.googleDisconnected : m.googleRemovedEvents
     })
   }
 
@@ -246,16 +245,13 @@ export default function GoogleCalendarEvents({
       role="group"
     >
       <h3 id={headingId} className="text-[14px] font-semibold text-ink">
-        Google Calendar
+        {m.googleCalendar}
       </h3>
 
       {link === null && (
         <>
           <p id={hintId} className="mt-1 text-[12px] leading-normal text-ink-3">
-            See the UV at events already in your Google Calendar. Solara reads the next{' '}
-            {GOOGLE_EVENT_LIMITS.windowDays} days in this browser, with read-only access, and keeps
-            only events with an address or that match one of your activities. Only an address&apos;s
-            town is searched to find the place.
+            {m.googleHint(GOOGLE_EVENT_LIMITS.windowDays)}
           </p>
           <button
             type="button"
@@ -265,7 +261,7 @@ export default function GoogleCalendarEvents({
             onClick={connect}
           >
             <CalendarDays size={15} aria-hidden="true" />
-            {busy === 'connect' ? 'Connecting…' : 'Show my Google Calendar events'}
+            {busy === 'connect' ? m.connecting : m.showGoogle}
           </button>
         </>
       )}
@@ -292,37 +288,34 @@ export default function GoogleCalendarEvents({
                       disabled={working}
                       onClick={askToDisconnect}
                     >
-                      Disconnect
+                      {m.disconnect}
                     </button>
                   )}
                 </div>
                 <p className="mt-0.5 text-[12px] leading-normal break-words text-ink-3">
                   {syncedText(link.syncedAt, nowMs)}
-                  {link.syncedAt &&
-                    ` · ${shownCount.toLocaleString('en-US')} upcoming ${shownCount === 1 ? 'event' : 'events'}`}
+                  {link.syncedAt && m.upcomingCount(shownCount)}
                 </p>
               </div>
             </div>
             <div className="flex shrink-0 flex-wrap items-center gap-2 @lg:justify-end">
               {confirming ? (
                 <>
-                  <span className="mr-auto text-[12px] text-ink-2">
-                    Remove its events and Solara&apos;s access?
-                  </span>
+                  <span className="mr-auto text-[12px] text-ink-2">{m.removeAccessConfirm}</span>
                   <button
                     type="button"
                     className={`${SMALL_BUTTON} text-danger`}
                     disabled={working}
                     onClick={disconnect}
                   >
-                    Disconnect
+                    {m.disconnect}
                   </button>
                   <button
                     type="button"
                     className={SMALL_BUTTON}
                     onClick={() => setConfirming(false)}
                   >
-                    Keep
+                    {m.keep}
                   </button>
                 </>
               ) : (
@@ -338,7 +331,7 @@ export default function GoogleCalendarEvents({
                       aria-hidden="true"
                       className={busy === 'refresh' ? 'motion-safe:animate-spin' : undefined}
                     />
-                    Refresh
+                    {m.refresh}
                   </button>
                   <button
                     type="button"
@@ -347,7 +340,7 @@ export default function GoogleCalendarEvents({
                     aria-expanded={choosing !== null}
                     onClick={() => (choosing ? setChoosing(null) : chooseCalendars(link))}
                   >
-                    Choose calendars
+                    {m.chooseCalendars}
                   </button>
                   <button
                     type="button"
@@ -355,25 +348,20 @@ export default function GoogleCalendarEvents({
                     disabled={working}
                     onClick={askToDisconnect}
                   >
-                    Disconnect
+                    {m.disconnect}
                   </button>
                 </>
               )}
             </div>
           </div>
           {confirming && (
-            <p className="mt-2 text-[12px] leading-normal text-ink-2">
-              Google ends all of Solara&apos;s calendar access at once, so Scheduled activities will
-              ask to connect again.
-            </p>
+            <p className="mt-2 text-[12px] leading-normal text-ink-2">{m.googleEndsAll}</p>
           )}
 
           {choosing && (
             <fieldset className="mt-2.5 border-t-[0.5px] border-line pt-2.5">
-              <legend className="sr-only">Calendars to show events from</legend>
-              <p className="text-[12px] leading-normal text-ink-2">
-                Show events from up to {MAX} calendars.
-              </p>
+              <legend className="sr-only">{m.calendarsToShow}</legend>
+              <p className="text-[12px] leading-normal text-ink-2">{m.upToCalendars(MAX)}</p>
               <ul className="mt-1.5 flex flex-col">
                 {choosing.options.map(option => {
                   const checked = choosing.picked.includes(option.id)
@@ -396,7 +384,7 @@ export default function GoogleCalendarEvents({
                           }
                         />
                         <span className="min-w-0 break-words">
-                          {option.name || 'Your main calendar'}
+                          {option.name || m.yourMainCalendar}
                         </span>
                       </label>
                     </li>
@@ -412,14 +400,14 @@ export default function GoogleCalendarEvents({
                   disabled={working || choosing.picked.length === 0}
                   onClick={() => saveChoice(link)}
                 >
-                  Save
+                  {m.save}
                 </button>
                 <button
                   type="button"
                   className="btn px-3 py-1.5 text-[12px]"
                   onClick={() => setChoosing(null)}
                 >
-                  Cancel
+                  {m.cancel}
                 </button>
               </div>
             </fieldset>
@@ -437,9 +425,7 @@ export default function GoogleCalendarEvents({
               : 'bg-brand/8 text-ink-2'
           }`}
         >
-          {progress ??
-            status?.text ??
-            'Could not load your Google Calendar settings. Check your connection.'}
+          {progress ?? status?.text ?? m.googleLoadFailed}
         </p>
       )}
 

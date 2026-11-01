@@ -10,6 +10,7 @@ import { useUnits } from '@/lib/use-units'
 import type { Activity, Location, Profile, SkinType, WeatherResponse } from '@/lib/types'
 import PlaceSearch, { type PlaceSearchMiss } from '../PlaceSearch'
 import { UV_BG } from '../dashboard/uv-classes'
+import m from '@/messages/events'
 
 interface Props {
   item: ImportedEvent
@@ -80,7 +81,7 @@ export default function EventCard({
   const [query, setQuery] = useState('')
   const [placeError, setPlaceError] = useState<string | null>(null)
   // Events stored before the importer removed bidi controls are cleaned here too (L2).
-  const title = stripInvisibleFormatting(item.title) || 'Untitled event'
+  const title = stripInvisibleFormatting(item.title) || m.untitled
   const placeName = stripInvisibleFormatting(item.placeLabel)
   const where = stripInvisibleFormatting(item.where)
 
@@ -91,14 +92,12 @@ export default function EventCard({
       setEditingPlace(false)
       setQuery('')
     } catch {
-      setPlaceError('Could not save the place. Try again.')
+      setPlaceError(m.couldNotSavePlace)
     }
   }
 
   function missed(reason: PlaceSearchMiss) {
-    setPlaceError(
-      reason === 'none' ? 'No place found by that name.' : 'Place search is not available.',
-    )
+    setPlaceError(reason === 'none' ? m.noPlaceFound : m.placeSearchUnavailable)
   }
 
   const titleId = `${id}-title`
@@ -124,7 +123,7 @@ export default function EventCard({
             {view.badge?.value ?? '–'}
           </span>
           <span className="mt-1 text-[10px] leading-tight font-semibold">
-            {view.badge?.label ?? (view.later ? 'Later' : weather ? 'Unknown' : '…')}
+            {view.badge?.label ?? (view.later ? m.later : weather ? m.unknown : '…')}
           </span>
         </div>
         <div className="min-w-0 flex-1">
@@ -135,19 +134,19 @@ export default function EventCard({
           <p className="mt-0.5 flex min-w-0 items-center gap-1 text-[12px] text-ink-3">
             <MapPin size={12} className="shrink-0" aria-hidden="true" />
             <span className="min-w-0 truncate">
-              {item.placeGuessed ? `Using ${placeName}` : placeName}
+              {item.placeGuessed ? m.usingPlace(placeName) : placeName}
             </span>
           </p>
           {item.source === 'feed' && (
             <p className="mt-0.5 flex min-w-0 items-center gap-1 text-[12px] text-ink-3">
               <CalendarSync size={12} className="shrink-0" aria-hidden="true" />
-              From a linked calendar
+              {m.fromLinked}
             </p>
           )}
           {(item.source === 'google' || item.source === 'outlook') && (
             <p className="mt-0.5 flex min-w-0 items-center gap-1 text-[12px] text-ink-3">
               <CalendarDays size={12} className="shrink-0" aria-hidden="true" />
-              {item.source === 'google' ? 'From Google Calendar' : 'From Outlook'}
+              {item.source === 'google' ? m.fromGoogle : m.fromOutlook}
             </p>
           )}
         </div>
@@ -157,7 +156,7 @@ export default function EventCard({
           <button
             type="button"
             className="btn btn-ghost -mt-1 -mr-1.5 shrink-0 p-1.5 text-ink-3"
-            aria-label={`Remove ${title}`}
+            aria-label={m.removeNamed(title)}
             onClick={() => onRemove(item)}
           >
             <X size={16} aria-hidden="true" />
@@ -167,7 +166,7 @@ export default function EventCard({
 
       {(view.later || view.peak || view.burn || view.sunscreen || !weather) && (
         <div className="mt-2.5 flex flex-col gap-1 text-[12px] leading-[1.45] text-ink-2">
-          {!weather && <p className="text-ink-3">Loading the forecast…</p>}
+          {!weather && <p className="text-ink-3">{m.loadingForecast}</p>}
           {view.later && (
             <p>
               {view.later}.
@@ -179,7 +178,7 @@ export default function EventCard({
                     className="font-semibold text-accent underline underline-offset-2"
                     onClick={onUpgrade}
                   >
-                    See it now with Pro
+                    {m.seeItNowPro}
                   </button>
                 </>
               )}
@@ -194,15 +193,13 @@ export default function EventCard({
 
       {item.placeGuessed && !editingPlace && (
         <p className="mt-2.5 rounded-[9px] bg-surface-metric px-2.5 py-2 text-[12px] leading-[1.45] text-ink-2">
-          {where
-            ? `Solara could not find “${where}”, so this uses your place.`
-            : 'The event has no place, so this uses your place.'}{' '}
+          {where ? m.couldNotFindPlace(where) : m.noPlaceUsesYours}{' '}
           <button
             type="button"
             className="font-semibold text-accent underline underline-offset-2"
             onClick={() => setEditingPlace(true)}
           >
-            Set the place
+            {m.setPlace}
           </button>
         </p>
       )}
@@ -210,8 +207,8 @@ export default function EventCard({
       {editingPlace && (
         <div className="mt-2.5">
           <PlaceSearch
-            ariaLabel={`Place for ${title}`}
-            placeholder="Search a city…"
+            ariaLabel={m.placeFor(title)}
+            placeholder={m.searchCity}
             value={query}
             onValueChange={setQuery}
             onSelect={place => void choosePlace(place)}
@@ -232,7 +229,7 @@ export default function EventCard({
               setPlaceError(null)
             }}
           >
-            Cancel
+            {m.cancel}
           </button>
         </div>
       )}
@@ -241,13 +238,13 @@ export default function EventCard({
         {/* On a narrow card "Counts as" takes its own row, so the buttons always line up
             on the next one instead of wrapping one by one. */}
         <label className="flex w-full min-w-0 items-center gap-1.5 text-[12px] text-ink-3 @md:w-auto">
-          Counts as
+          {m.countsAs}
           <select
             className="max-w-[170px] min-w-0 px-2 py-1 text-[12px]"
             value={activity ? activity.id : ''}
             onChange={e => void onSetActivity(item, e.target.value)}
           >
-            <option value="">No activity (open sun)</option>
+            <option value="">{m.noActivity}</option>
             {activities.map(a => (
               <option key={a.id} value={a.id}>
                 {a.icon} {a.name}
@@ -257,7 +254,7 @@ export default function EventCard({
         </label>
         {!item.placeGuessed && !editingPlace && (
           <button type="button" className={SMALL_BUTTON} onClick={() => setEditingPlace(true)}>
-            Change place
+            {m.changePlace}
           </button>
         )}
         {item.url && (
@@ -266,9 +263,9 @@ export default function EventCard({
             href={item.url}
             target="_blank"
             rel="noopener noreferrer"
-            aria-label={`Event page for ${title}`}
+            aria-label={m.eventPageFor(title)}
           >
-            Event page <ExternalLink size={12} aria-hidden="true" />
+            {m.eventPage} <ExternalLink size={12} aria-hidden="true" />
           </a>
         )}
         {view.exposure && <p className="w-full text-[11px] text-ink-3">{view.exposure}</p>}

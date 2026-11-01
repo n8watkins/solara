@@ -1,8 +1,10 @@
 import { Lock, RotateCw } from 'lucide-react'
 import { useState } from 'react'
 import type { DayWeather } from '@/lib/types'
-import { LOCKED_DAYS_UPSELL, dayChips, type DashboardAccess } from '@/lib/dashboard-view'
+import { lockedDaysUpsell, dayChips, type DashboardAccess } from '@/lib/dashboard-view'
 import { DayDialog } from '../deferred'
+import m from '@/messages/dashboard'
+import core from '@solara/core/messages/core'
 
 type Access = Pick<
   DashboardAccess,
@@ -50,10 +52,10 @@ export default function DayPicker({
       <div className="flex min-w-0 flex-1 flex-wrap gap-1.5">
         {access.showDayTabs && (
           <>
-            <Chip label="Today" active={chips.todayActive} onClick={() => onSelectDay(null)} />
+            <Chip label={core.today} active={chips.todayActive} onClick={() => onSelectDay(null)} />
             {tomorrow && (
               <Chip
-                label="Tomorrow"
+                label={core.tomorrow}
                 active={chips.tomorrowActive}
                 onClick={() => onSelectDay(tomorrow)}
               />
@@ -62,11 +64,11 @@ export default function DayPicker({
             {chips.lockedDays > 0 && (
               <button
                 onClick={onUpgrade}
-                aria-label={LOCKED_DAYS_UPSELL}
-                title={LOCKED_DAYS_UPSELL}
+                aria-label={lockedDaysUpsell()}
+                title={lockedDaysUpsell()}
                 className="flex shrink-0 cursor-pointer items-center gap-[5px] rounded-[10px] border-[0.5px] border-dashed border-accent-border bg-transparent px-3.5 py-2 text-[13px] max-[359px]:px-2 font-semibold text-accent transition-colors duration-[120ms]"
               >
-                <Lock size={14} strokeWidth={2.25} /> Next 10 days
+                <Lock size={14} strokeWidth={2.25} /> {m.next10Days}
               </button>
             )}
           </>
@@ -75,8 +77,8 @@ export default function DayPicker({
       <button
         className="btn btn-ghost shrink-0 px-[9px] py-[7px] text-[17px]"
         onClick={onRefresh}
-        title="Refresh"
-        aria-label="Refresh forecast"
+        title={m.refresh}
+        aria-label={m.refreshForecast}
       >
         <RotateCw size={17} />
       </button>

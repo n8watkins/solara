@@ -12,15 +12,17 @@ import { ChevronDown } from 'lucide-react'
 import {
   DATA_REQUEST_DAYS,
   DATA_REQUEST_EMAIL,
-  DELETION_SUMMARY,
-  EXPORT_EXCLUDED,
-  EXPORT_SUMMARY,
+  deletionSummary,
+  exportExcluded,
+  exportSummary,
   buildAccountFeatures,
   capitalized,
   deletedDataShown,
   deletionNotesShown,
   exportSectionsShown,
 } from '@/lib/account-data'
+import m from '@/messages/account'
+import { intlTag } from '@solara/core/i18n'
 
 export type AccountBusy = 'billing' | 'export' | 'delete' | null
 
@@ -65,17 +67,13 @@ export default function AccountControls({
     <>
       <div className="grid gap-[18px]">
         <AccountSection
-          title="Plan and billing"
-          note={
-            portal
-              ? 'Change plans, update your payment method, see invoices or cancel securely through Stripe.'
-              : undefined
-          }
+          title={m.planBilling}
+          note={portal ? m.billingNote : undefined}
           body={
             billing === undefined
-              ? 'Loading your plan...'
+              ? m.loadingPlan
               : billing === null
-                ? 'Your plan could not be loaded. Check your connection and reload.'
+                ? m.planLoadFailed
                 : billingStatusText(billing, formatDay, { store: isStoreBuild() })
           }
         >
@@ -85,49 +83,47 @@ export default function AccountControls({
               disabled={busy !== null || !billingPortalReady}
               onClick={onManageBilling}
             >
-              {busy === 'billing' ? 'Opening...' : 'Manage subscription'}
+              {busy === 'billing' ? m.opening : m.manageSubscription}
             </button>
           ) : null}
         </AccountSection>
 
         <AccountSection
-          title="Download your data"
-          body={EXPORT_SUMMARY}
+          title={m.downloadData}
+          body={exportSummary()}
           details={
-            <Disclosure summary="What's included">
+            <Disclosure summary={m.whatsIncluded}>
               <DetailList items={exportSectionsShown(features)} />
-              <p className="mt-2">{EXPORT_EXCLUDED}</p>
+              <p className="mt-2">{exportExcluded()}</p>
             </Disclosure>
           }
         >
           <button className="btn btn-primary" disabled={busy !== null} onClick={onDownload}>
-            {busy === 'export' ? 'Preparing...' : 'Download account data'}
+            {busy === 'export' ? m.preparing : m.downloadAccountData}
           </button>
         </AccountSection>
 
         <AccountSection
           danger
-          title="Delete account"
-          body={DELETION_SUMMARY}
+          title={m.deleteAccount}
+          body={deletionSummary()}
           details={
-            <Disclosure summary="What's deleted, and what stays">
-              <p className="mb-1 font-semibold text-ink-2">Deleted from Solara</p>
+            <Disclosure summary={m.whatsDeleted}>
+              <p className="mb-1 font-semibold text-ink-2">{m.deletedFromSolara}</p>
               <DetailList items={deletedDataShown(features)} />
-              <p className="mt-2.5 mb-1 font-semibold text-ink-2">Outside Solara</p>
+              <p className="mt-2.5 mb-1 font-semibold text-ink-2">{m.outsideSolara}</p>
               <DetailList items={deletionNotesShown(features)} />
             </Disclosure>
           }
         >
           {canDelete === false ? (
             <p className="rounded-[10px] border-[0.5px] border-notice-border bg-notice p-3 text-[14px] leading-[1.55] text-notice-ink">
-              Part of this account can only be removed by Solara&apos;s servers, which are not
-              running yet. To delete it, email <EmailLink /> and we will delete your account and all
-              its data within {DATA_REQUEST_DAYS} days.
+              {m.serversOnlyStart} <EmailLink /> {m.serversOnlyEnd(DATA_REQUEST_DAYS)}
             </p>
           ) : (
             <>
               <label className="mb-2 block text-[13px] font-semibold" htmlFor="delete-confirmation">
-                Type DELETE to confirm
+                {m.typeDelete}
               </label>
               <div className="flex flex-wrap gap-2.5">
                 <input
@@ -143,11 +139,11 @@ export default function AccountControls({
                   disabled={confirmation !== 'DELETE' || busy !== null || canDelete !== true}
                   onClick={onDelete}
                 >
-                  {busy === 'delete' ? 'Deleting...' : 'Delete permanently'}
+                  {busy === 'delete' ? m.deleting : m.deletePermanently}
                 </button>
               </div>
               <p id={hintId} className="mt-2.5 text-[13px] leading-[1.55] text-ink-3">
-                Google then asks you to sign in again, to confirm it is you.
+                {m.googleAsksAgain}
               </p>
             </>
           )}
@@ -178,29 +174,26 @@ export function AccountPageFrame({
     <main className="min-h-screen bg-surface px-4 pt-8 pb-16">
       <div className="mx-auto max-w-[680px]">
         <Link href={APP_PATH} className="text-[14px] text-accent no-underline">
-          ← Back to Solara
+          {m.backArrow}
         </Link>
         <h1 className="mt-6 mb-2 text-[clamp(28px,6vw,42px)] leading-[1.1] font-[750]">
-          Account controls
+          {m.accountControls}
         </h1>
-        <p className="mb-7 leading-[1.6] text-ink-2">
-          Manage your plan, download your data or delete your account.
-        </p>
+        <p className="mb-7 leading-[1.6] text-ink-2">{m.accountLead}</p>
         {children}
         {emailFallback && (
           <p className="mt-[18px] text-[13px] leading-[1.55] text-ink-3">
-            Something not working? Email <EmailLink /> and we will send you your data or delete your
-            account within {DATA_REQUEST_DAYS} days.
+            {m.notWorkingStart} <EmailLink /> {m.notWorkingEnd(DATA_REQUEST_DAYS)}
           </p>
         )}
         <p className="mt-[30px] text-[13px] text-ink-3">
-          Review the{' '}
+          {m.reviewThe}{' '}
           <Link href="/privacy/" className="underline">
-            Privacy Policy
+            {m.privacyPolicy}
           </Link>{' '}
-          and{' '}
+          {m.and}{' '}
           <Link href="/terms/" className="underline">
-            Terms of Use
+            {m.termsOfUse}
           </Link>
           .
         </p>
@@ -219,7 +212,7 @@ function EmailLink() {
 
 /** A date as "Nov 3, 2026" in the reader's locale. */
 function formatDay(date: Date): string {
-  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+  return date.toLocaleDateString(intlTag(), { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
 /**

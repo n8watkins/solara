@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import MessagesGate from '@/components/MessagesGate'
 import { SIGN_IN_PATH } from '@/lib/app-routes'
 import type { User } from 'firebase/auth'
 import { useEffect, useState } from 'react'
@@ -25,13 +26,23 @@ import AccountControls, {
   AccountPageFrame,
   type AccountBusy,
 } from '@/components/account/AccountControls'
+import m from '@/messages/account'
 
 const FUNCTIONS_READY = functionsApiConfigured()
 
 /** Where a failed deletion leaves the person, in plain words. */
-const EMAIL_FALLBACK = `If it keeps failing, email ${DATA_REQUEST_EMAIL} and we will delete your account and all its data within ${DATA_REQUEST_DAYS} days.`
+const emailFallback = () => m.emailFallback(DATA_REQUEST_EMAIL, DATA_REQUEST_DAYS)
 
-export default function AccountPage() {
+/** The page, in the visitor's language once its translations have arrived. */
+export default function AccountPageInLanguage() {
+  return (
+    <MessagesGate>
+      <AccountPage />
+    </MessagesGate>
+  )
+}
+
+function AccountPage() {
   const [user, setUser] = useState<User | null>(null)
   const [authReady, setAuthReady] = useState(false)
   const [confirmation, setConfirmation] = useState('')
@@ -120,13 +131,13 @@ export default function AccountPage() {
     setBusy('export')
     setMessage('')
     try {
-      if (!user) throw new Error('Sign in again to download your data.')
+      if (!user) throw new Error(m.signInToDownload)
       const data =
         path === 'functions'
           ? await callFunction(user, 'exportAccountData', {
               method: 'GET',
               freshIdToken: true,
-              fallbackMessage: 'The export could not be completed.',
+              fallbackMessage: m.exportFailed,
             })
           : await (await import('@/lib/account-self-service')).exportAccountInBrowser(user.uid)
       const url = URL.createObjectURL(
@@ -142,7 +153,7 @@ export default function AccountPage() {
       setMessage(
         path === 'functions' && error instanceof Error
           ? error.message
-          : `Your data could not be downloaded. Check your connection and try again, or email ${DATA_REQUEST_EMAIL} for a copy.`,
+          : m.downloadFailed(DATA_REQUEST_EMAIL),
       )
     } finally {
       setBusy(null)
@@ -156,7 +167,7 @@ export default function AccountPage() {
     try {
       window.location.assign(await createBillingPortalUrl(user))
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Billing management failed.')
+      setMessage(error instanceof Error ? error.message : m.billingFailed)
       setBusy(null)
     }
   }
@@ -172,10 +183,10 @@ export default function AccountPage() {
     } catch (error) {
       setMessage(
         isSignInCancelled(error)
-          ? 'Deletion was canceled because Google did not confirm your account. Nothing was deleted.'
+          ? m.deletionCanceled
           : (error as { code?: unknown } | null)?.code === 'auth/user-mismatch'
-            ? 'That was a different Google account. Confirm with the account you are signed in with. Nothing was deleted.'
-            : 'Google could not confirm your account, so nothing was deleted. Try again.',
+            ? m.differentAccount
+            : m.notConfirmed,
       )
       setBusy(null)
       return
@@ -187,7 +198,7 @@ export default function AccountPage() {
   async function reauthenticate(account: User): Promise<void> {
     const services = loadedFirebase()
     const googleProvider = services?.googleProvider
-    if (!services || !googleProvider) throw new Error('Google reauthentication is not configured.')
+    if (!services || !googleProvider) throw new Error(m.reauthNotConfigured)
     const { reauthenticateWithPopup } = await import('firebase/auth')
     await reauthenticateWithPopup(account, googleProvider, services.popupRedirectResolver)
   }
@@ -201,17 +212,17 @@ export default function AccountPage() {
         body: { confirmation },
         limitedUse: true,
         freshIdToken: true,
-        fallbackMessage: 'Deletion could not be completed.',
+        fallbackMessage: m.deletionIncomplete,
       })
       await finishDeletion(account, result.deletionPending ? 'pending' : 'done')
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Deletion failed.')
+      setMessage(error instanceof Error ? error.message : m.deletionFailed)
       setBusy(null)
     }
   }
 
   async function deleteInBrowser(account: User) {
-    setMessage('Deleting your data. Keep this page open.')
+    setMessage(m.deletingData)
     try {
       const { deleteAccountInBrowser } = await import('@/lib/account-self-service')
       await deleteAccountInBrowser(account)
@@ -221,10 +232,10 @@ export default function AccountPage() {
       if (stage === 'blocked') setCanDelete(false)
       setMessage(
         stage === 'blocked'
-          ? "Nothing was deleted: part of this account can only be removed by Solara's servers."
+          ? m.blocked
           : stage === 'sign-in'
-            ? `Your data was deleted, but your sign-in could not be removed. Try again. ${EMAIL_FALLBACK}`
-            : `Not all of your data could be deleted, so your account is still here. Check your connection and try again; deletion picks up where it stopped. ${EMAIL_FALLBACK}`,
+            ? m.signInLeft(emailFallback())
+            : m.dataLeft(emailFallback()),
       )
       setBusy(null)
     }
@@ -247,30 +258,30 @@ export default function AccountPage() {
   return (
     <AccountPageFrame emailFallback={authReady && !deletion}>
       {!authReady ? (
-        <div className="card">Loading your account...</div>
+        <div className="card">{m.loadingAccount}</div>
       ) : !user ? (
         <div className="card">
           <h2 className="mb-2 text-[18px] font-[650]">
             {deletion === 'done'
-              ? 'Your account was deleted'
+              ? m.deletedTitle
               : deletion === 'pending'
-                ? 'Your account deletion is in progress'
-                : 'Sign in required'}
+                ? m.pendingTitle
+                : m.signInRequired}
           </h2>
           <p role="status" className="mb-[18px] leading-[1.55] text-ink-2">
             {deletion === 'done'
-              ? 'Your Solara account and its data have been removed, and nothing of it is left in this browser.'
+              ? m.deletedBody
               : deletion === 'pending'
-                ? 'You have been signed out while Solara finishes canceling billing and removing your account data.'
-                : 'Return to Solara and sign in before using these controls.'}
+                ? m.pendingBody
+                : m.signInRequiredBody}
           </p>
           {deletion ? (
             <Link href="/" className="btn btn-primary no-underline">
-              Back to Solara
+              {m.backToSolara}
             </Link>
           ) : (
             <Link href={SIGN_IN_PATH} className="btn btn-primary no-underline">
-              Go to sign in
+              {m.goToSignIn}
             </Link>
           )}
         </div>

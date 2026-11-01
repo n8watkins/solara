@@ -6,6 +6,7 @@ import { ForecastStore, type ForecastState } from './forecast-store'
 import { resolveTimeZone, zonedNow } from './time'
 import type { Location, WeatherResponse } from './types'
 import { useZonedNow } from './use-zoned-now'
+import m from '@/messages/dashboard'
 
 // The forecast data layer. lib/forecast-store.ts owns fetching: one request per
 // location at a time (the dashboard and calendar share it), the request is aborted
@@ -84,11 +85,14 @@ export function useForecast(location: Location | null | undefined) {
  */
 export const FORECAST_ERROR = {
   /** No forecast to show. */
-  load: "The forecast service isn't answering right now. Solara will try again in a minute.",
+  get load() {
+    return m.forecastErrorLoad
+  },
   /** The last forecast stays on screen. */
-  refresh:
-    "The forecast service isn't answering, so this is the last forecast Solara got. It will try again in a minute.",
-} as const
+  get refresh() {
+    return m.forecastErrorRefresh
+  },
+}
 
 export interface WeatherState {
   /** The forecast as seen now in the location's zone, or null until one is loaded. */

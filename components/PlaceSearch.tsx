@@ -9,6 +9,7 @@ import clsx from 'clsx'
 import { searchPlaces, type PlaceSuggestion } from '@/lib/geocoding'
 import type { Location } from '@/lib/types'
 import { usePlaceSuggestions } from '@/lib/use-place-suggestions'
+import m from '@/messages/setup'
 
 export type PlaceSearchMiss = 'none' | 'error'
 
@@ -61,19 +62,17 @@ export default function PlaceSearch({
   const message = !open
     ? null
     : status === 'done' && suggestions.length === 0
-      ? `No places match “${value.trim()}”.`
+      ? m.noPlacesMatch(value.trim())
       : status === 'error'
-        ? 'Suggestions are unavailable right now. Press Go to search.'
+        ? m.suggestionsUnavailable
         : status === 'loading' && suggestions.length === 0
-          ? 'Searching…'
+          ? m.searching
           : null
   const activeIndex = showList && active < suggestions.length ? active : -1
   // Screen readers hear how many places the list offers; the messages above are
   // visible text inside a live region of their own.
   const countAnnouncement =
-    showList && status === 'done'
-      ? `${suggestions.length} ${suggestions.length === 1 ? 'suggestion' : 'suggestions'}. Use the up and down arrow keys to choose.`
-      : ''
+    showList && status === 'done' ? m.suggestionCount(suggestions.length) : ''
 
   function choose(suggestion: PlaceSuggestion) {
     setOpen(false)
@@ -175,7 +174,7 @@ export default function PlaceSearch({
           onClick={() => void submit()}
           disabled={busy || submitting}
         >
-          {small && submitting ? '…' : 'Go'}
+          {small && submitting ? '…' : m.go}
         </button>
       </div>
 
@@ -183,7 +182,7 @@ export default function PlaceSearch({
         <ul
           id={listId}
           role="listbox"
-          aria-label="Suggested places"
+          aria-label={m.suggestedPlaces}
           aria-busy={status === 'loading'}
           className="m-0 list-none p-1"
         >

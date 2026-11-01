@@ -33,6 +33,7 @@ import {
 } from '@/lib/outlook-events'
 import { eventSubscriptionsLaunched } from '@/lib/plans'
 import type { Activity, Location } from '@/lib/types'
+import m from '@/messages/connections'
 
 interface Props {
   uid: string
@@ -63,24 +64,20 @@ const MAX = OUTLOOK_EVENT_LIMITS.maxCalendars
 
 /** What to tell the person when Microsoft or Graph refused, or null to say nothing. */
 function problemText(error: unknown, connected: boolean): string | null {
-  if (error instanceof OutlookBusyError) return 'Outlook is busy. Try again in a few minutes.'
+  if (error instanceof OutlookBusyError) return m.outlookBusy
   const auth = outlookAuthProblem(error)
-  if (!auth) return 'Could not reach Outlook. Try again.'
+  if (!auth) return m.outlookUnreachable
   switch (auth.reason) {
     case 'popup_closed':
       return null
     case 'popup_failed_to_open':
-      return 'Your browser blocked the Microsoft sign-in window. Allow pop-ups for Solara, then try again.'
+      return m.microsoftPopupBlocked
     case 'insecure_context':
-      return 'Microsoft sign-in needs a secure connection. Open Solara at its https:// address, then try again.'
+      return m.microsoftInsecure
     case 'admin_approval':
-      return `Your organization needs to approve Solara before it can read your work calendar. Ask your IT team${
-        eventSubscriptionsLaunched() ? ', or link the calendar under Linked calendars instead' : ''
-      }.`
+      return eventSubscriptionsLaunched() ? m.adminApprovalLinked : m.adminApproval
     default:
-      return connected
-        ? 'Outlook needs your permission again. Press Refresh to continue.'
-        : 'Outlook was not connected. Try again.'
+      return connected ? m.outlookPermissionAgain : m.outlookNotConnected
   }
 }
 
@@ -262,7 +259,7 @@ export default function OutlookCalendarEvents({
     setConfirming(false)
     void run('disconnect', async () => {
       await disconnectOutlook({ uid, linkStore, store: events, api })
-      return { text: 'Disconnected Outlook and removed its events.', consentLinks: true }
+      return { text: m.outlookDisconnected, consentLinks: true }
     })
   }
 
@@ -284,17 +281,13 @@ export default function OutlookCalendarEvents({
       role="group"
     >
       <h3 id={headingId} className="text-[14px] font-semibold text-ink">
-        Outlook
+        {m.outlook}
       </h3>
 
       {link === null && (
         <>
           <p id={hintId} className="mt-1 text-[12px] leading-normal text-ink-3">
-            See the UV at events already in your Outlook.com or Microsoft 365 calendar. Solara reads
-            the next {OUTLOOK_EVENT_LIMITS.windowDays} days in this browser, with permission to read
-            basic event details only, and keeps only events with an address or a place picked in
-            Outlook, or that match one of your activities. Only an address&apos;s town is searched
-            to find the place.
+            {m.outlookHint(OUTLOOK_EVENT_LIMITS.windowDays)}
           </p>
           <button
             type="button"
@@ -304,7 +297,7 @@ export default function OutlookCalendarEvents({
             onClick={connect}
           >
             <CalendarDays size={15} aria-hidden="true" />
-            {busy === 'connect' ? 'Connecting…' : 'Show my Outlook events'}
+            {busy === 'connect' ? m.connecting : m.showOutlook}
           </button>
         </>
       )}
@@ -331,37 +324,34 @@ export default function OutlookCalendarEvents({
                       disabled={working}
                       onClick={askToDisconnect}
                     >
-                      Disconnect
+                      {m.disconnect}
                     </button>
                   )}
                 </div>
                 <p className="mt-0.5 text-[12px] leading-normal break-words text-ink-3">
                   {syncedText(link.syncedAt, nowMs)}
-                  {link.syncedAt &&
-                    ` · ${shownCount.toLocaleString('en-US')} upcoming ${shownCount === 1 ? 'event' : 'events'}`}
+                  {link.syncedAt && m.upcomingCount(shownCount)}
                 </p>
               </div>
             </div>
             <div className="flex shrink-0 flex-wrap items-center gap-2 @lg:justify-end">
               {confirming ? (
                 <>
-                  <span className="mr-auto text-[12px] text-ink-2">
-                    Remove its events from Solara?
-                  </span>
+                  <span className="mr-auto text-[12px] text-ink-2">{m.removeEventsConfirm}</span>
                   <button
                     type="button"
                     className={`${SMALL_BUTTON} text-danger`}
                     disabled={working}
                     onClick={disconnect}
                   >
-                    Disconnect
+                    {m.disconnect}
                   </button>
                   <button
                     type="button"
                     className={SMALL_BUTTON}
                     onClick={() => setConfirming(false)}
                   >
-                    Keep
+                    {m.keep}
                   </button>
                 </>
               ) : (
@@ -377,7 +367,7 @@ export default function OutlookCalendarEvents({
                       aria-hidden="true"
                       className={busy === 'refresh' ? 'motion-safe:animate-spin' : undefined}
                     />
-                    Refresh
+                    {m.refresh}
                   </button>
                   <button
                     type="button"
@@ -386,7 +376,7 @@ export default function OutlookCalendarEvents({
                     aria-expanded={choosing !== null}
                     onClick={() => (choosing ? setChoosing(null) : chooseCalendars(link))}
                   >
-                    Choose calendars
+                    {m.chooseCalendars}
                   </button>
                   <button
                     type="button"
@@ -394,7 +384,7 @@ export default function OutlookCalendarEvents({
                     disabled={working}
                     onClick={askToDisconnect}
                   >
-                    Disconnect
+                    {m.disconnect}
                   </button>
                 </>
               )}
@@ -403,10 +393,8 @@ export default function OutlookCalendarEvents({
 
           {choosing && (
             <fieldset className="mt-2.5 border-t-[0.5px] border-line pt-2.5">
-              <legend className="sr-only">Calendars to show events from</legend>
-              <p className="text-[12px] leading-normal text-ink-2">
-                Show events from up to {MAX} of your calendars.
-              </p>
+              <legend className="sr-only">{m.calendarsToShow}</legend>
+              <p className="text-[12px] leading-normal text-ink-2">{m.upToYourCalendars(MAX)}</p>
               <ul className="mt-1.5 flex flex-col">
                 {choosing.options.map(option => {
                   const checked = choosing.picked.includes(option.id)
@@ -429,7 +417,7 @@ export default function OutlookCalendarEvents({
                           }
                         />
                         <span className="min-w-0 break-words">
-                          {option.name || 'Your main calendar'}
+                          {option.name || m.yourMainCalendar}
                         </span>
                       </label>
                     </li>
@@ -445,14 +433,14 @@ export default function OutlookCalendarEvents({
                   disabled={working || choosing.picked.length === 0}
                   onClick={() => saveChoice(link)}
                 >
-                  Save
+                  {m.save}
                 </button>
                 <button
                   type="button"
                   className="btn px-3 py-1.5 text-[12px]"
                   onClick={() => setChoosing(null)}
                 >
-                  Cancel
+                  {m.cancel}
                 </button>
               </div>
             </fieldset>
@@ -468,26 +456,24 @@ export default function OutlookCalendarEvents({
             alert ? 'bg-danger/8 text-danger' : 'bg-brand/8 text-ink-2'
           }`}
         >
-          {progress ??
-            status?.text ??
-            'Could not load your Outlook settings. Check your connection.'}
+          {progress ?? status?.text ?? m.outlookLoadFailed}
           {!progress && status?.consentLinks && (
             <>
               {' '}
-              Solara stored no Microsoft token. To also remove the permission you gave it, use{' '}
+              {m.noTokenStored}{' '}
               <a
                 className={LINK}
                 href={MICROSOFT_PERSONAL_CONSENT_URL}
                 target="_blank"
                 rel="noreferrer"
               >
-                your Microsoft account
+                {m.yourMicrosoftAccount}
               </a>{' '}
-              (Outlook.com) or{' '}
+              {m.outlookComOr}{' '}
               <a className={LINK} href={MICROSOFT_WORK_APPS_URL} target="_blank" rel="noreferrer">
-                My Apps
+                {m.myApps}
               </a>{' '}
-              (work or school).
+              {m.workOrSchool}
             </>
           )}
         </p>

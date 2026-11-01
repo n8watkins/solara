@@ -7,6 +7,7 @@ import type { Block } from '@/lib/calendar-grid'
 import type { ChipVariant } from '@/lib/calendar-layout'
 import type { UnitFormatters } from '@/lib/units'
 import type { Activity } from '@/lib/types'
+import m from '@/messages/calendar'
 
 /** One line of chip text, cut with an ellipsis when it does not fit. */
 const chipLine = 'block max-w-full truncate leading-[13px]'
@@ -71,7 +72,7 @@ export default function CalendarWindowChip({
       data-to={win.to}
       aria-haspopup="dialog"
       aria-expanded={selected}
-      title={`${act.name} · ${fmt.time(win.from)}–${fmt.time(win.to)}`}
+      title={`${act.name} · ${timeRange(fmt.time(win.from), fmt.time(win.to))}`}
       onClick={onToggle}
       style={{
         top: block.top,
@@ -99,7 +100,12 @@ export default function CalendarWindowChip({
       {/* The visible label is abbreviated, so the accessible name is this full
           description instead. */}
       <span data-sr-only className="sr-only">
-        {`${act.name}, ${dayLabel}, ${timeRange(fmt.time(win.from), fmt.time(win.to))}, peak UV ${formatUV(win.peakUV)}`}
+        {m.windowSr(
+          act.name,
+          dayLabel,
+          timeRange(fmt.time(win.from), fmt.time(win.to)),
+          formatUV(win.peakUV),
+        )}
       </span>
     </button>
   )

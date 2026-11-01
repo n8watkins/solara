@@ -5,6 +5,7 @@ import type { Location } from '@/lib/types'
 import { clampShift } from '@/lib/viewport-clamp'
 import DataAttribution from './DataAttribution'
 import PlaceSearch, { type PlaceSearchMiss } from './PlaceSearch'
+import m from '@/messages/setup'
 
 function sameLoc(a: Location, b: Location): boolean {
   return Math.abs(a.lat - b.lat) < 0.01 && Math.abs(a.lon - b.lon) < 0.01
@@ -66,7 +67,7 @@ export default function LocationPanel({
     let saved = savedLocations
     if (save && !already) {
       if (savedLocations.length >= limit) {
-        setNote(`Saved-location limit reached (${limit}). Remove one or upgrade to save more.`)
+        setNote(m.savedLimitReached(limit))
       } else {
         saved = [...savedLocations, loc]
       }
@@ -89,7 +90,7 @@ export default function LocationPanel({
 
   function placeMissed(reason: PlaceSearchMiss) {
     setNote(null)
-    setError(reason === 'none' ? 'City not found.' : 'Search is unavailable. Try again.')
+    setError(reason === 'none' ? m.cityNotFound : m.searchUnavailable)
   }
 
   async function geolocate() {
@@ -104,7 +105,7 @@ export default function LocationPanel({
         activate(loc, false) // current location switches but isn't auto-saved
         setTimeout(onClose, 800)
       } catch {
-        setError('Could not resolve.')
+        setError(m.couldNotResolve)
       } finally {
         setLoading(false)
       }
@@ -112,7 +113,7 @@ export default function LocationPanel({
     navigator.geolocation.getCurrentPosition(
       pos => void resolvePosition(pos),
       () => {
-        setError('Location denied.')
+        setError(m.locationDenied)
         setLoading(false)
       },
     )
@@ -126,7 +127,7 @@ export default function LocationPanel({
       style={{ left: shift }}
     >
       <p className="mb-2.5 text-[12px] font-semibold tracking-[0.06em] text-ink uppercase">
-        Location
+        {m.location}
       </p>
 
       {/* Active location, pinned. */}
@@ -141,9 +142,9 @@ export default function LocationPanel({
             className="btn px-2 py-1 text-[11px]"
             onClick={() => activate(location, true)}
             disabled={atLimit}
-            title={atLimit ? `Limit reached (${limit})` : 'Save as a shortcut'}
+            title={atLimit ? m.limitReached(limit) : m.saveAsShortcut}
           >
-            <Star size={12} /> Save
+            <Star size={12} /> {m.save}
           </button>
         )}
       </div>
@@ -162,7 +163,7 @@ export default function LocationPanel({
               </button>
               <button
                 onClick={() => removeShortcut(loc)}
-                aria-label={`Remove ${loc.city}`}
+                aria-label={m.removeNamed(loc.city)}
                 className="flex size-7 items-center justify-center rounded-lg text-ink-3 hover:bg-surface-metric"
               >
                 <X size={15} />
@@ -177,11 +178,11 @@ export default function LocationPanel({
         onClick={() => void geolocate()}
         disabled={loading}
       >
-        <MapPin size={15} /> {loading ? 'Detecting…' : 'Use my location'}
+        <MapPin size={15} /> {loading ? m.detecting : m.useMyLocation}
       </button>
       <PlaceSearch
-        ariaLabel="Add a city"
-        placeholder="Add a city…"
+        ariaLabel={m.addCity}
+        placeholder={m.addCityPlaceholder}
         value={query}
         onValueChange={value => {
           setQuery(value)
@@ -193,9 +194,7 @@ export default function LocationPanel({
         size="sm"
         autoFocus
       />
-      <p className="mt-2 text-[11px] text-ink-3">
-        {savedLocations.length}/{limit} saved
-      </p>
+      <p className="mt-2 text-[11px] text-ink-3">{m.savedCount(savedLocations.length, limit)}</p>
       {error && <p className="mt-1.5 text-[12px] text-danger">{error}</p>}
       {note && <p className="mt-1.5 text-[12px] text-ink-2">{note}</p>}
       <DataAttribution compact className="mt-2.5 border-t-[0.5px] border-line-strong pt-2" />

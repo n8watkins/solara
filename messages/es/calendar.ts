@@ -1,0 +1,121 @@
+import { plural, type Translation } from '@solara/core/i18n'
+import { las, punto } from '@solara/core/messages/es/grammar'
+import type calendar from '../calendar'
+
+export default {
+  reconnectGoogle:
+    'Hay que volver a conectar Google Calendar. Vuelve a intentarlo y permite el acceso cuando Google lo pida.',
+  couldNotReachChange:
+    'No se pudo conectar con Google Calendar. No se cambió nada; vuelve a intentarlo.',
+  onGoogleCalendar:
+    'Esta actividad está en tu Google Calendar. Lo que cambies aquí actualiza el evento allá, y lo que cambies en Google Calendar se ve aquí.',
+  openInGoogle: 'Abrir en Google Calendar',
+  changeTime: 'Cambiar la hora',
+  removeFromCalendar: 'Quitar del calendario',
+  removeConfirm: '¿Quitar este evento de tu Google Calendar? También se elimina allá.',
+  keepIt: 'Conservarlo',
+  scheduled: 'Programadas',
+  checkingGoogle: 'Revisando Google Calendar…',
+  inSync: 'Sincronizado con Google Calendar',
+  noOtherStart: 'No queda otra hora de inicio con UV más bajo este día para esta actividad.',
+  cancel: 'Cancelar',
+  saveTime: 'Guardar la hora',
+  scheduledPill: '✓ Programada',
+  selectWindow:
+    'Elige un horario para compartirlo o agregarlo a tu calendario. Solo es una estimación basada en el pronóstico; vuelve a revisar el UV actual y usa la protección solar adecuada.',
+  noActivitiesYet: 'Todavía no hay actividades',
+  addFromDashboard:
+    'Agrega actividades desde el Panel para ver los horarios estimados de UV más bajo.',
+  noUvData: 'Sin datos de UV',
+  show: 'Mostrar',
+  allActivities: 'Todas las actividades',
+  hoursShown: 'Horas visibles',
+  earlierDays: 'Días anteriores',
+  laterDays: 'Días siguientes',
+  addToGoogle: 'Agregar a Google Calendar',
+  signInToAdd: 'Inicia sesión para agregar al calendario',
+  share: 'Compartir',
+  editActivity: 'Editar actividad',
+  feedLoadFailed: 'No se pudo cargar el enlace de tu feed. Recarga para volver a intentarlo.',
+  feedRegenerateConfirm:
+    '¿Generar un nuevo enlace del feed? Tu suscripción actual dejará de actualizarse hasta que te vuelvas a suscribir con el enlace nuevo.',
+  feedLoading: 'Cargando tu feed de calendario…',
+  feedPitch:
+    'Suscribe tu calendario a un feed en vivo de tu plan de sol que se actualiza cuando cambia el pronóstico.',
+  feedAddUrl:
+    'Agrega esta URL en tu app de calendario como calendario suscrito (Google, Apple u Outlook):',
+  feedPrivate:
+    'Cualquiera con este enlace puede ver tu plan, así que mantenlo en privado. Genera uno nuevo para revocarlo.',
+  sharedWindow: 'Se compartió el horario de la actividad.',
+  copiedShare: 'Se copiaron el texto y el enlace.',
+  movedTo: (name, time) => `Se movió ${name} a ${las(time)}. Google Calendar está actualizado.`,
+  removedFrom: name => `Se quitó ${name} de tu Google Calendar.`,
+  removing: 'Quitando…',
+  remove: 'Quitar',
+  movedCount: n => `${n} ${plural(n, { one: 'movida', other: 'movidas' })}`,
+  removedCount: n => `${n} ${plural(n, { one: 'quitada', other: 'quitadas' })}`,
+  updatedFromGoogle: changes => `Actualizado desde Google Calendar: ${changes}.`,
+  showingSaved: 'Se muestran las horas guardadas.',
+  couldNotReach: 'No se pudo conectar con Google Calendar.',
+  reconnectToSync: 'Reconectar para sincronizar',
+  tryAgain: 'Reintentar',
+  scheduledPrefix: 'Programada: ',
+  newStartToday: 'Nueva hora de inicio, dentro de los horarios de UV más bajo de hoy',
+  newStartDay: 'Nueva hora de inicio, dentro de los horarios de UV más bajo del día',
+  signInTomorrow: 'Inicia sesión para ver mañana en el Calendario.',
+  goProCalendar: 'Pásate a Pro para ver el Calendario completo de 10 días.',
+  legendBand: band => `UV ${band.toLowerCase()}`,
+  scheduledTitle: (activity, range) => `Programada: ${activity} · ${range}`,
+  scheduledSr: (activity, day, range) => `Programada: ${activity}, ${day}, ${range}`,
+  windowSr: (activity, day, range, uv) => `${activity}, ${day}, ${range}, UV máximo ${uv}`,
+  dayUv: uv => `UV ${uv}`,
+  dayClear: uv => `· despejado ${uv}`,
+  lowConfidence: 'Confianza baja',
+  fairConfidence: 'Confianza media',
+  sheetPeakStart: 'Horario estimado de UV más bajo con un máximo pronosticado de UV',
+  sheetScheduleStart: '. Programa tu sesión de',
+  sheetScheduleEnd: 'en cualquier momento de este rango.',
+  plansWithClouds:
+    'Esta actividad planifica con esas nubes, así que un cielo más despejado significa más UV.',
+  plansClearSky:
+    'Planificado para cielo despejado, así que el horario se mantiene si las nubes se abren.',
+  addingToGoogle: 'Agregando a Google Calendar…',
+  openedGoogle: 'Se abrió Google Calendar en una pestaña nueva.',
+  feedSignInAgain: 'Vuelve a iniciar sesión para administrar tu feed.',
+  somethingWrong: 'Algo salió mal.',
+  feedTurnOffConfirm:
+    '¿Desactivar el feed? Los calendarios suscritos a este enlace dejarán de actualizarse.',
+  creating: 'Creando…',
+  createFeed: 'Crear enlace del feed',
+  copied: '✓ Copiado',
+  copyLink: 'Copiar enlace',
+  regenerating: 'Generando…',
+  regenerate: 'Generar nuevo',
+  turningOff: 'Desactivando…',
+  turnOff: 'Desactivar',
+  axisGutter: '58',
+  viewFullDay: 'Día completo',
+  viewMorning: 'Mañana',
+  viewAfternoon: 'Tarde',
+  viewEvening: 'Noche',
+  feedCreateFailed: 'No se pudo crear un enlace del feed. Vuelve a intentarlo en un rato.',
+  feedTurnOffFailed: 'No se pudo desactivar el feed. Vuelve a intentarlo en un rato.',
+  eventRecommended: (time, reason) => `Recomendado para ${las(time)}: ${reason}.`,
+  eventFlexible: (from, to) =>
+    `Flexible: empieza cuando quieras entre ${from} y ${to}, dentro del horario estimado de UV más bajo.`,
+  eventPeak: (uv, time) => punto(`UV máximo de ${uv} hacia ${las(time)}`),
+  eventSpf: 'Supone FPS 30+.',
+  eventNoSunscreen: 'Planificado sin protector solar.',
+  eventCaveat:
+    'Solo es una estimación basada en el pronóstico. Vuelve a revisar el UV actual y protégete del sol.',
+  eventPlannedBy: 'Planificado con Solara ☀️',
+} satisfies Translation<typeof calendar>
+
+export const needsReview: (keyof typeof calendar)[] = [
+  'eventSpf',
+  'eventNoSunscreen',
+  'eventCaveat',
+  'selectWindow',
+  'plansWithClouds',
+  'plansClearSky',
+]

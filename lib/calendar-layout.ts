@@ -5,9 +5,16 @@
 // below MIN_LANE_W; the remaining days scroll horizontally.
 import { fmtH, type SafeWindow } from './calendar'
 import { uvBand as weatherUVBand, type UVBand as WeatherUVBand } from './weather'
+import { currentLocale, intlTag } from '@solara/core/i18n'
+import m from '@/messages/calendar'
 
 /** Minimum width of the hour gutter; it also absorbs the sub-column remainder. */
 export const GUTTER_W = 46
+
+/** The gutter in the page's language: its hour labels are wider in some ("10 a.m."). */
+export function gutterWidth(): number {
+  return Math.max(GUTTER_W, Number(m.axisGutter) || GUTTER_W)
+}
 /** Narrowest lane that still fits an icon and a short time such as "10a". */
 export const MIN_LANE_W = 25
 /** Space between lanes and at both column edges. */
@@ -38,24 +45,26 @@ export function computeColumns(
 ): ColumnLayout {
   const lanes = Math.max(1, activityCount)
   const minColW = lanes * MIN_LANE_W + LANE_GAP * (lanes + 1)
-  const available = gridWidth ? gridWidth - GUTTER_W : minColW * 3
+  const gutterMin = gutterWidth()
+  const available = gridWidth ? gridWidth - gutterMin : minColW * 3
   const daysAcross = Math.max(
     1,
     Math.min(Math.max(1, dayCount), MAX_DAYS_ACROSS, Math.floor(available / minColW)),
   )
   const colW = Math.max(minColW, Math.floor(available / daysAcross))
-  const gutterW = gridWidth ? Math.max(GUTTER_W, gridWidth - colW * daysAcross) : GUTTER_W
+  const gutterW = gridWidth ? Math.max(gutterMin, gridWidth - colW * daysAcross) : gutterMin
   const laneW = (colW - LANE_GAP * (lanes + 1)) / lanes
   return { colW, gutterW, daysAcross, laneW }
 }
 
 export type ViewKey = 'full' | 'morning' | 'afternoon' | 'evening'
 
-export const VIEWS: { key: ViewKey; label: string; from?: number; to?: number }[] = [
-  { key: 'full', label: 'Full day' },
-  { key: 'morning', label: 'Morning', from: 6, to: 12 },
-  { key: 'afternoon', label: 'Afternoon', from: 12, to: 18 },
-  { key: 'evening', label: 'Evening', from: 16, to: 21 },
+// Labels are read when drawn, in the page's language.
+export const VIEWS: { key: ViewKey; label: () => string; from?: number; to?: number }[] = [
+  { key: 'full', label: () => m.viewFullDay },
+  { key: 'morning', label: () => m.viewMorning, from: 6, to: 12 },
+  { key: 'afternoon', label: () => m.viewAfternoon, from: 12, to: 18 },
+  { key: 'evening', label: () => m.viewEvening, from: 16, to: 21 },
 ]
 
 /**
@@ -116,7 +125,7 @@ export function pageTarget(
 }
 
 function monthDay(dateStr: string): string {
-  return new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', {
+  return new Date(dateStr + 'T12:00:00').toLocaleDateString(intlTag(), {
     month: 'short',
     day: 'numeric',
   })
@@ -126,6 +135,13 @@ function monthDay(dateStr: string): string {
 export function rangeLabel(firstDate?: string, lastDate?: string): string {
   if (!firstDate || !lastDate) return ''
   if (firstDate === lastDate) return monthDay(firstDate)
+  // Other languages order the day and month their own way ("15–21 jun").
+  if (currentLocale() !== 'en') {
+    return new Intl.DateTimeFormat(intlTag(), { month: 'short', day: 'numeric' }).formatRange(
+      new Date(firstDate + 'T12:00:00'),
+      new Date(lastDate + 'T12:00:00'),
+    )
+  }
   return firstDate.slice(0, 7) === lastDate.slice(0, 7)
     ? `${monthDay(firstDate)} – ${Number(lastDate.slice(8))}`
     : `${monthDay(firstDate)} – ${monthDay(lastDate)}`

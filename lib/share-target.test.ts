@@ -95,7 +95,10 @@ describe('the manifest', () => {
   })
 
   it('has a static page at the share address for a share that reaches Hosting', () => {
-    expect(readFileSync('app/app/share-target/page.tsx', 'utf8')).toContain('Share it again')
+    expect(readFileSync('app/app/share-target/page.tsx', 'utf8')).toContain(
+      'staticText.shareAgainTitle',
+    )
+    expect(readFileSync('messages/static.ts', 'utf8')).toContain("en: 'Share it again'")
   })
 })
 

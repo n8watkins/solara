@@ -3,6 +3,7 @@ import { Check, ChevronDown, Lock, Plus } from 'lucide-react'
 import clsx from 'clsx'
 import { useState } from 'react'
 import { formatActivityDuration, presetCategoriesFor, type Preset } from '@/lib/activity-presets'
+import m from '@/messages/editor'
 
 interface Props {
   isSelected: (id: string) => boolean
@@ -33,8 +34,8 @@ export default function ActivityPresetBrowser({
     <>
       <input
         type="search"
-        aria-label="Search activities"
-        placeholder="Search activities..."
+        aria-label={m.searchActivities}
+        placeholder={m.searchActivitiesPlaceholder}
         value={search}
         onChange={e => setSearch(e.target.value)}
         className="w-full px-3 py-2 text-[13px]"
@@ -43,7 +44,7 @@ export default function ActivityPresetBrowser({
       <div className="flex flex-col gap-3">
         {categories.length === 0 && (
           <div className="rounded-[10px] bg-surface-metric px-3.5 py-3 text-[13px] text-ink-3">
-            No suggestions match. Restore hidden suggestions in Settings, under Activities.
+            {m.noSuggestions}
           </div>
         )}
         {categories.map(cat => {
@@ -69,11 +70,11 @@ export default function ActivityPresetBrowser({
                     )}
                     {cat.emoji}
                   </span>{' '}
-                  {cat.name}
+                  {cat.label}
                 </button>
                 {!searching && (
                   <span
-                    aria-label={`${cat.activities.length} activities`}
+                    aria-label={m.activitiesCount(cat.activities.length)}
                     className="text-[11px] text-ink-3"
                   >
                     {cat.activities.length}
@@ -153,7 +154,7 @@ function PresetTile({
         {locked ? (
           <span className="shrink-0 text-[11px]">
             <Lock size={14} className="text-ink-3" />
-            <span className="sr-only">Locked</span>
+            <span className="sr-only">{m.locked}</span>
           </span>
         ) : (
           <span
@@ -175,11 +176,11 @@ function PresetTile({
         <button
           type="button"
           onClick={onHide}
-          aria-label={`Hide ${preset.name} suggestion`}
-          title="Hide this suggestion"
+          aria-label={m.hideSuggestion(preset.name)}
+          title={m.hideThisSuggestion}
           className="shrink-0 rounded-r-[8px] border-l-[0.5px] border-line-strong px-2.5 text-[11px] font-medium text-ink-3"
         >
-          Hide
+          {m.hide}
         </button>
       )}
     </div>

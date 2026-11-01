@@ -14,11 +14,13 @@ import {
 import { confidenceNote, forecastConfidence } from '@solara/core'
 import { exposureSummary } from './activity-exposure'
 import { dayLabel } from './forecast'
-import { SKIN_TYPE_LABELS } from './profiles'
 import { daysBetween, formatDate, timeRange } from './time'
 import type { Activity, Profile, SkinType, WeatherResponse } from './types'
 import type { UnitFormatters } from './units'
 import { formatUV, uvBand, uvLabel, type UVBand } from './weather'
+import core from '@solara/core/messages/core'
+import { skinTypeSkin } from '@solara/core/recommendation'
+import m from '@/messages/events'
 
 export interface EventCardInput {
   item: ImportedEvent
@@ -64,8 +66,7 @@ export function durationText(ms: number): string {
 }
 
 function list(items: string[]): string {
-  if (items.length <= 1) return items.join('')
-  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`
+  return core.listAnd(items)
 }
 
 /** PURE. Everything an event card says. */
@@ -118,32 +119,32 @@ export function eventCardView({
   })
   if (uv.kind === 'later') {
     const from = formatDate(uv.fromDate, { weekday: 'short', month: 'short', day: 'numeric' })
-    return { ...empty, uv, later: `Forecast from ${from}` }
+    return { ...empty, uv, later: m.forecastFrom(from) }
   }
   if (uv.kind === 'unknown') {
-    return { ...empty, uv, later: null, peak: 'No UV forecast for these hours.' }
+    return { ...empty, uv, later: null, peak: m.noForecastHours }
   }
 
   const peakAt = Math.max(uv.peakAt, start)
   const peak =
-    uv.peakUV < 0.5
-      ? 'UV stays near 0 during the event.'
-      : `Peak UV ${formatUV(uv.peakUV)} at ${time(peakAt)} · average ${formatUV(uv.avgUV)}`
+    uv.peakUV < 0.5 ? m.nearZero : m.peakAt(formatUV(uv.peakUV), time(peakAt), formatUV(uv.avgUV))
   const burnInfo = eventBurn(uv, start, end, skinType)
-  const who = mostSensitive
-    ? `${mostSensitive.name} (${SKIN_TYPE_LABELS[skinType].toLowerCase()} skin, the most sensitive)`
-    : `${SKIN_TYPE_LABELS[skinType].toLowerCase()} skin`
+  const skin = skinTypeSkin(skinType)
+  const who = mostSensitive ? m.whoGroup(mostSensitive.name, skin) : skin
   const burn =
     burnInfo.minutes === null
       ? null
-      : `Unprotected, ${who} could burn in about ${burnInfo.minutes} min at the peak` +
-        (burnInfo.outlasts ? `; the event lasts ${durationText(end - start)}.` : '.')
+      : burnInfo.outlasts
+        ? m.burnOutlasts(who, burnInfo.minutes, durationText(end - start))
+        : m.burn(who, burnInfo.minutes)
   const timing = sunscreenTiming(start, end, uv.peakUV)
   const sunscreen = timing
-    ? `Sunscreen: apply ${timeRange(time(timing.applyFrom), time(timing.applyBy))}` +
-      (timing.reapplyAt.length
-        ? `, reapply at ${list(timing.reapplyAt.map(time))}, and after swimming or heavy sweating.`
-        : `; reapply after swimming or heavy sweating.`)
+    ? timing.reapplyAt.length
+      ? m.sunscreenReapplyAt(
+          timeRange(time(timing.applyFrom), time(timing.applyBy)),
+          list(timing.reapplyAt.map(time)),
+        )
+      : m.sunscreenApply(timeRange(time(timing.applyFrom), time(timing.applyBy)))
     : null
   return {
     when,

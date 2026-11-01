@@ -17,6 +17,7 @@ import {
 const CATEGORIES: PresetCategory[] = [
   {
     name: 'Running',
+    label: 'Running',
     emoji: '🏃',
     activities: [
       { id: 'run', name: 'Running', icon: '🏃', durationMins: 45, maxUV: 4 },
@@ -25,6 +26,7 @@ const CATEGORIES: PresetCategory[] = [
   },
   {
     name: 'Water',
+    label: 'Water',
     emoji: '🌊',
     activities: [{ id: 'swim', name: 'Swimming', icon: '🏊', durationMins: 60, maxUV: 3 }],
   },

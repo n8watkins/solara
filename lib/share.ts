@@ -4,6 +4,9 @@ import { SITE_URL } from './site'
 import type { Activity, Location, SafeActivityWindow } from './types'
 import { formatClockTime } from './units'
 import type { ClockFormat } from './units'
+import core from '@solara/core/messages/core'
+import { intlTag } from '@solara/core/i18n'
+import m from '@/messages/activities'
 
 export interface ActivitySharePayload {
   activity: Activity
@@ -148,9 +151,9 @@ export function shareDateStatus(date: string, now = new Date()): 'past' | 'today
 
 /** "Today", "Tomorrow" or a short weekday date such as "Wed, Jun 17". */
 export function formatShareDate(date: string, now = new Date()): string {
-  if (date === localIsoDate(0, now)) return 'Today'
-  if (date === localIsoDate(1, now)) return 'Tomorrow'
-  return new Date(`${date}T12:00:00`).toLocaleDateString('en-US', {
+  if (date === localIsoDate(0, now)) return core.today
+  if (date === localIsoDate(1, now)) return core.tomorrow
+  return new Date(`${date}T12:00:00`).toLocaleDateString(intlTag(), {
     weekday: 'short',
     month: 'short',
     day: 'numeric',
@@ -165,9 +168,16 @@ export function buildActivityShareText(
 ): string {
   const time = (hours: number) => formatClockTime(hours, clock)
   const place = `${location.city}${location.region ? `, ${location.region}` : ''}`
-  const uvCopy = typeof win.peakUV === 'number' ? ` Peak UV ${formatUV(win.peakUV)}.` : ''
   const duration = formatDuration(activity.durationMins)
-  return `Let's do ${activity.name.toLowerCase()} ${dateLabel.toLowerCase()} from ${time(win.from)} to ${time(win.to)} in ${place}. Solara estimates this as a lower-UV ${duration} planning window.${uvCopy} Recheck current conditions and use sun protection.`
+  return m.shareText(
+    activity.name.toLowerCase(),
+    dateLabel.toLowerCase(),
+    time(win.from),
+    time(win.to),
+    place,
+    duration,
+    typeof win.peakUV === 'number' ? formatUV(win.peakUV) : '',
+  )
 }
 
 /** Sender text for a link: sanitized, and replaced by `fallback` if it still looks unsafe. */
@@ -183,11 +193,11 @@ export function buildActivityShareUrl(
   // The build's own site (staging's on staging), never a hard-coded production address.
   const base = origin || SITE_URL
   const params = new URLSearchParams({
-    a: shareText(activity.name, SHARE_LIMITS.activity, 'Outdoor activity'),
+    a: shareText(activity.name, SHARE_LIMITS.activity, core.defaultActivityName),
     icon: readIcon(activity.icon),
     from: String(Math.round(win.from * 100) / 100),
     to: String(Math.round(win.to * 100) / 100),
-    city: shareText(location.city, SHARE_LIMITS.place, 'Shared location'),
+    city: shareText(location.city, SHARE_LIMITS.place, m.sharedLocation),
     date: isoDate && isIsoDate(isoDate) ? isoDate : localIsoDate(dayOffset),
   })
   const region = sanitizeShareText(location.region || '', SHARE_LIMITS.place)

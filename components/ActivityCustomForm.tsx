@@ -4,6 +4,7 @@ import type { Activity } from '@/lib/types'
 import { clampDuration, customActivity, MIN_DURATION_MINS } from '@/lib/activity-presets'
 import { SunscreenChoice } from './ActivityChoice'
 import ActivityIconButton from './ActivityIconButton'
+import m from '@/messages/editor'
 
 interface Props {
   /** At the plan's activity limit: the form cannot be opened. */
@@ -43,16 +44,16 @@ export default function ActivityCustomForm({ disabled, onAdd }: Props) {
         className="btn btn-primary w-full justify-center rounded-xl p-2.5 text-[14px]"
         disabled={disabled}
       >
-        {open ? 'Cancel' : '+ Create custom activity'}
+        {open ? m.cancel : m.createCustom}
       </button>
 
       {open && (
         <div className="mt-2.5 flex flex-col gap-3 rounded-xl border-[0.5px] border-line-strong bg-surface-metric p-3.5">
           <div className="flex items-center gap-2.5">
-            <ActivityIconButton value={icon} onChange={setIcon} label="Choose icon" />
+            <ActivityIconButton value={icon} onChange={setIcon} label={m.chooseIcon} />
             <input
-              aria-label="Activity name"
-              placeholder="Activity name"
+              aria-label={m.activityName}
+              placeholder={m.activityName}
               value={name}
               onChange={e => setName(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && add()}
@@ -61,7 +62,7 @@ export default function ActivityCustomForm({ disabled, onAdd }: Props) {
           </div>
           <div className="flex flex-wrap items-center gap-2.5">
             <label htmlFor={durationId} className="shrink-0 text-[13px] text-ink-2">
-              Duration
+              {m.duration}
             </label>
             <input
               id={durationId}
@@ -72,10 +73,10 @@ export default function ActivityCustomForm({ disabled, onAdd }: Props) {
               onChange={e => setMins(clampDuration(parseInt(e.target.value)))}
               className="w-20 text-[13px]"
             />
-            <span className="text-[13px] text-ink-3">min</span>
+            <span className="text-[13px] text-ink-3">{m.min}</span>
           </div>
           <span id={spfLabelId} className="sr-only">
-            Sun protection
+            {m.sunProtection}
           </span>
           <SunscreenChoice aria-labelledby={spfLabelId} value={sunscreen} onChange={setSunscreen} />
           <button
@@ -84,7 +85,7 @@ export default function ActivityCustomForm({ disabled, onAdd }: Props) {
             onClick={add}
             disabled={!name.trim()}
           >
-            Add activity
+            {m.addActivity}
           </button>
         </div>
       )}

@@ -1,6 +1,7 @@
 'use client'
 import clsx from 'clsx'
 import type { ReactNode } from 'react'
+import m from '@/messages/editor'
 
 interface ChoiceButtonProps {
   pressed: boolean
@@ -43,9 +44,10 @@ type SunscreenChoiceProps = GroupName & {
   compact?: boolean
 }
 
+// Read when drawn, in the page's language.
 const SUNSCREEN_OPTIONS = [
-  { value: false, label: 'No SPF' },
-  { value: true, label: 'SPF 30+' },
+  { value: false, label: () => m.noSpf },
+  { value: true, label: () => m.spf30 },
 ] as const
 
 /** The No SPF / SPF 30+ choice for an activity. */
@@ -59,7 +61,7 @@ export function SunscreenChoice({ value, onChange, compact, ...aria }: Sunscreen
           onClick={() => onChange(option.value)}
           compact={compact}
         >
-          {option.label}
+          {option.label()}
         </ChoiceButton>
       ))}
     </div>

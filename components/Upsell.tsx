@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useId, useRef, type ReactNode } from 'react'
+import m from '@/messages/app'
 
 interface Props {
   icon: string
@@ -50,7 +51,7 @@ export default function Upsell({ icon, title, children, action, onDismiss, focus
               className="btn btn-ghost px-3 py-[9px] text-[13px] text-ink-2"
               onClick={onDismiss}
             >
-              Not now
+              {m.notNow}
             </button>
           </div>
         </div>

@@ -3,6 +3,8 @@
 import type { ActivityDayPlan } from '@solara/core/next-slot'
 import type { ScheduledSpan } from './scheduled'
 import type { SlotRecommendation } from '@solara/core/scheduler'
+import { timeRange } from './time'
+import m from '@/messages/activities'
 
 export type ActivityStatus = 'safe' | 'caution' | 'avoid' | 'done'
 
@@ -15,10 +17,10 @@ export function activityBadge(
   plan: Pick<ActivityDayPlan, 'startsNow' | 'slot' | 'elapsed'>,
   isToday: boolean,
 ): { status: ActivityStatus; label: string } {
-  if (plan.startsNow) return { status: 'safe', label: 'Now' }
-  if (plan.slot) return { status: 'caution', label: isToday ? 'Later' : 'Available' }
-  if (plan.elapsed) return { status: 'done', label: 'Done for today' }
-  return { status: 'avoid', label: 'No match' }
+  if (plan.startsNow) return { status: 'safe', label: m.badgeNow }
+  if (plan.slot) return { status: 'caution', label: isToday ? m.badgeLater : m.badgeAvailable }
+  if (plan.elapsed) return { status: 'done', label: m.doneForToday }
+  return { status: 'avoid', label: m.badgeNoMatch }
 }
 
 /**
@@ -32,9 +34,9 @@ export function bestWindowLabel(
   formatTime: (hour: number) => string,
 ): string | null {
   const { bestWindow } = plan
-  if (bestWindow) return `${formatTime(bestWindow.from)}–${formatTime(bestWindow.to)}`
+  if (bestWindow) return timeRange(formatTime(bestWindow.from), formatTime(bestWindow.to))
   if (plan.elapsed) return null
-  return isToday ? 'None today' : 'None'
+  return isToday ? m.noneToday : m.none
 }
 
 /** Tone of the "% of daylight hours fit" bar. */
@@ -50,4 +52,13 @@ export function isRecommendationScheduled(
   scheduled: { span: Pick<ScheduledSpan, 'from' | 'to'> }[],
 ): boolean {
   return !!rec && scheduled.some(({ span }) => span.from < rec.end && span.to > rec.start)
+}
+
+/**
+ * The period that closes a sentence ending in `last`, or nothing when `last` already ends
+ * in one: a Spanish time ends in an abbreviation ("7:15 p.m."), whose period closes the
+ * sentence too.
+ */
+export function closingPeriod(last: string): '.' | '' {
+  return last.endsWith('.') ? '' : '.'
 }

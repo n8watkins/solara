@@ -6,10 +6,11 @@ import { callFunction, functionsApiConfigured } from './functions-api'
 import { normalizePrefs } from './prefs'
 import { isStoreBuild } from './store-build'
 import type { UserPreferences } from './types'
+import m from '@/messages/pricing'
 
 // Prices and the plan comparison live in lib/plans.ts (no Firebase), shared with the
 // landing page; they are re-exported here for the billing UI.
-export { PRO_FEATURES, PRO_PLAN, type ProFeature } from './plans'
+export { proFeatures, PRO_PLAN, type ProFeature } from './plans'
 
 export type { BillingPlan }
 
@@ -42,7 +43,7 @@ export async function createCheckoutUrl(
     body: { attemptId: crypto.randomUUID(), plan },
     limitedUse: true,
     freshIdToken: true,
-    fallbackMessage: 'Checkout is temporarily unavailable',
+    fallbackMessage: m.checkoutUnavailable,
   })
   return url
 }
@@ -53,7 +54,7 @@ export async function createBillingPortalUrl(user: User): Promise<string> {
     method: 'POST',
     body: {},
     freshIdToken: true,
-    fallbackMessage: 'Billing management is temporarily unavailable',
+    fallbackMessage: m.billingUnavailable,
   })
   return new URL(url).toString()
 }
@@ -159,34 +160,32 @@ export function billingStatusText(
 ): string {
   if (!summary.pro) {
     return summary.status === 'canceled' || summary.status === 'unpaid'
-      ? 'Your Pro subscription has ended. You are on the Free plan.'
-      : 'You are on the Free plan.'
+      ? m.billingEnded
+      : m.billingFree
   }
-  const plan = summary.plan === 'yearly' ? 'Pro, yearly' : summary.plan ? 'Pro, monthly' : 'Pro'
+  const plan = summary.plan === 'yearly' ? m.proYearly : summary.plan ? m.proMonthly : m.columnPro
   // A store this build does not know: its dates and statuses are not Stripe's to read.
-  if (summary.provider === null) return 'Pro. Manage it in the store you subscribed through.'
+  if (summary.provider === null) return m.billingStore
   if (summary.status === 'past_due') {
-    return store
-      ? `${plan}. Your last payment failed.`
-      : `${plan}. Your last payment failed: update your payment method to keep Pro.`
+    return store ? m.paymentFailed(plan) : m.paymentFailedUpdate(plan)
   }
   if (summary.status === 'trialing' && summary.trialEndsAt) {
     return summary.cancelAtPeriodEnd
-      ? `${plan}. Your free trial ends on ${formatDay(summary.trialEndsAt)} and will not renew.`
-      : `${plan}. Your free trial ends on ${formatDay(summary.trialEndsAt)}; the first payment is taken then.`
+      ? m.trialEndsNoRenew(plan, formatDay(summary.trialEndsAt))
+      : m.trialEnds(plan, formatDay(summary.trialEndsAt))
   }
   if (summary.periodEndsAt) {
     return summary.cancelAtPeriodEnd
-      ? `${plan}. Canceled: Pro stays until ${formatDay(summary.periodEndsAt)}.`
-      : `${plan}. Renews on ${formatDay(summary.periodEndsAt)}.`
+      ? m.canceledUntil(plan, formatDay(summary.periodEndsAt))
+      : m.renewsOn(plan, formatDay(summary.periodEndsAt))
   }
-  return `${plan}.`
+  return m.planOnly(plan)
 }
 
 /** Reads the account's billing summary once (the account page). */
 export async function loadBillingSummary(uid: string): Promise<BillingSummary> {
   const db = (await loadFirebase())?.db
-  if (!db) throw new Error('Account services are not available.')
+  if (!db) throw new Error(m.accountServicesUnavailable)
   const { doc, getDoc } = await import('firebase/firestore')
   const snapshot = await getDoc(doc(db, 'users', uid))
   return billingSummary(snapshot.exists() ? snapshot.data() : undefined)

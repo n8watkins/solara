@@ -19,6 +19,10 @@ import type { EventsStore, PlaceLookups } from './events'
 import { knownPlaces, locationQueries, recordsFromImport, resolvePlaces } from './events'
 import { capMessage } from './record-cap'
 import type { Activity, Location } from './types'
+import core from '@solara/core/messages/core'
+import { formatNumber, intlTag } from '@solara/core/i18n'
+import ev from '@/messages/events'
+import m from '@/messages/connections'
 
 /** A calendar service whose events the app reads itself. */
 export type CalendarSource = Exclude<ClientEventSource, 'file'>
@@ -275,8 +279,8 @@ export function firestoreCalendarLinkStore<Link extends CalendarLink>(
 
 /** PURE. "Your main calendar", "Your main calendar and Running club", "3 calendars". */
 export function calendarsText(calendars: readonly CalendarChoice[]): string {
-  const names = calendars.map(c => (c.name ? c.name : 'your main calendar'))
-  const text = names.length <= 2 ? names.join(' and ') : `${names.length} calendars`
+  const names = calendars.map(c => (c.name ? c.name : m.yourMainCalendarLower))
+  const text = names.length <= 2 ? core.listAnd(names) : m.calendarsCount(names.length)
   return text.charAt(0).toUpperCase() + text.slice(1)
 }
 
@@ -418,12 +422,12 @@ export async function storeCalendarEvents(
     const before = previous.get(kept[i]![0])
     return !before || before.where !== (event.location ?? '')
   })
-  if (toPlace.length) context.onProgress?.('Finding the places…')
+  if (toPlace.length) context.onProgress?.(ev.findingPlaces)
   const places = toPlace.length
     ? await resolvePlaces(toPlace, home, await context.lookups(), {
         known: knownPlaces(upcoming),
         onProgress: (done, total) =>
-          total > 1 && context.onProgress?.(`Finding the places… ${done} of ${total}`),
+          total > 1 && context.onProgress?.(ev.findingPlacesOf(done, total)),
         queriesFor: context.queriesFor ?? calendarLocationQueries,
       })
     : new Map()
@@ -517,35 +521,33 @@ export async function disconnectCalendar({
   await removeSourceEvents(uid, source, store)
 }
 
-const plural = (n: number, one: string, many = `${one}s`) =>
-  `${n.toLocaleString('en-US')} ${n === 1 ? one : many}`
-
 /** PURE. What a refresh did, in a sentence or two ("… from Google Calendar."). */
 export function calendarSyncSummary(
   outcome: SyncOutcome,
   { service, windowDays }: { service: string; windowDays: number },
 ): string {
-  const one = outcome.duplicates === 1
   // Every event worth showing is already in Solara from another source: say so, rather
   // than that none has an address (REVIEW7 L2).
   const allDuplicates = !outcome.shown && outcome.duplicates > 0
   const head = outcome.shown
-    ? `Showing ${plural(outcome.shown, 'upcoming event')} from ${service}.`
+    ? m.syncShowing(formatNumber(outcome.shown), outcome.shown, service)
     : allDuplicates
-      ? `Your ${plural(outcome.duplicates, 'event')} from ${service} ${one ? 'is' : 'are'} already in Solara, so ${one ? 'it is' : 'they are'} shown once.`
-      : `No events in the next ${windowDays} days have an address or match one of your activities.`
+      ? m.syncAllDuplicates(formatNumber(outcome.duplicates), outcome.duplicates, service)
+      : m.syncNone(windowDays)
   const notes = [
     outcome.duplicates && !allDuplicates
-      ? `${plural(outcome.duplicates, 'event')} already in Solara ${one ? 'is' : 'are'} shown once.`
+      ? m.syncDuplicates(formatNumber(outcome.duplicates), outcome.duplicates)
       : '',
-    outcome.overLimit
-      ? `${plural(outcome.overLimit, 'later event')} will show once sooner ones have passed.`
-      : '',
+    outcome.overLimit ? m.syncOverLimit(formatNumber(outcome.overLimit), outcome.overLimit) : '',
     outcome.refused
-      ? `${plural(outcome.refused, 'event')} did not fit. ${capMessage('events', IMPORTED_EVENT_LIMITS.maxStored)}`
+      ? m.syncRefused(
+          formatNumber(outcome.refused),
+          outcome.refused,
+          capMessage('events', IMPORTED_EVENT_LIMITS.maxStored),
+        )
       : '',
     outcome.missing.length
-      ? `${calendarsText(outcome.missing)} ${outcome.missing.length === 1 ? 'is' : 'are'} no longer shared with you.`
+      ? m.syncMissing(calendarsText(outcome.missing), outcome.missing.length)
       : '',
   ]
   return [head, ...notes].filter(Boolean).join(' ')
@@ -554,13 +556,13 @@ export function calendarSyncSummary(
 /** PURE. "Updated just now", "Updated 3 hours ago", "Updated Jun 14", "Not updated yet". */
 export function syncedText(iso: string, nowMs: number): string {
   const at = Date.parse(iso)
-  if (!iso || Number.isNaN(at)) return 'Not updated yet'
+  if (!iso || Number.isNaN(at)) return m.notUpdated
   const minutes = Math.max(0, Math.round((nowMs - at) / 60_000))
-  if (minutes < 1) return 'Updated just now'
-  if (minutes < 60) return `Updated ${plural(minutes, 'minute')} ago`
+  if (minutes < 1) return m.updatedJustNow
+  if (minutes < 60) return m.updatedMinutesAgo(minutes)
   const hours = Math.round(minutes / 60)
-  if (hours < 24) return `Updated ${plural(hours, 'hour')} ago`
-  return `Updated ${new Date(at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+  if (hours < 24) return m.updatedHoursAgo(hours)
+  return m.updatedOn(new Date(at).toLocaleDateString(intlTag(), { month: 'short', day: 'numeric' }))
 }
 
 /** True when a refresh is due by itself (the app is open and a token is in memory). */

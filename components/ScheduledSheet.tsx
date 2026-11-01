@@ -12,6 +12,8 @@ import BottomSheet, { SheetActions, SheetClose, sheetAction } from './BottomShee
 import ChangeTimePanel, { sheetPanel } from './scheduled/ChangeTimePanel'
 import ScheduledPill from './scheduled/ScheduledPill'
 import ScheduledTile from './scheduled/ScheduledTile'
+import core from '@solara/core/messages/core'
+import m from '@/messages/calendar'
 
 interface Props {
   item: ScheduledActivity
@@ -36,9 +38,7 @@ type Mode = 'view' | 'change' | 'remove'
 const bodyText = 'text-[13px] leading-[1.5] text-ink-2'
 
 function problem(error: unknown): string {
-  return error instanceof CalendarAuthError
-    ? 'Google Calendar needs to be reconnected. Try again and allow access when Google asks.'
-    : 'Could not reach Google Calendar. Nothing was changed; try again.'
+  return error instanceof CalendarAuthError ? m.reconnectGoogle : m.couldNotReachChange
 }
 
 /**
@@ -112,13 +112,13 @@ export default function ScheduledSheet({
           end: picked + hours,
           timeZone,
         }),
-      `Moved ${name} to ${fmt.time(picked)}. Google Calendar is updated.`,
+      m.movedTo(name, fmt.time(picked)),
       false,
     )
   }
 
   function removeEvent() {
-    void run(() => scheduled.remove(item), `Removed ${name} from your Google Calendar.`, true)
+    void run(() => scheduled.remove(item), m.removedFrom(name), true)
   }
 
   return (
@@ -139,10 +139,7 @@ export default function ScheduledSheet({
 
       {mode === 'view' && (
         <>
-          <p className={`${bodyText} mt-3`}>
-            This activity is on your Google Calendar. Changes you make here update the event there,
-            and changes made in Google Calendar show here.
-          </p>
+          <p className={`${bodyText} mt-3`}>{m.onGoogleCalendar}</p>
           <SheetActions>
             <a
               className={`${sheetAction} btn-primary col-span-full`}
@@ -150,7 +147,7 @@ export default function ScheduledSheet({
               target="_blank"
               rel="noopener noreferrer"
             >
-              Open in Google Calendar <ExternalLink size={14} />
+              {m.openInGoogle} <ExternalLink size={14} />
             </a>
             <button
               type="button"
@@ -160,18 +157,18 @@ export default function ScheduledSheet({
                 setMode('change')
               }}
             >
-              Change time
+              {m.changeTime}
             </button>
             <button
               type="button"
               className={`${sheetAction} text-danger`}
-              aria-label="Remove from calendar"
+              aria-label={m.removeFromCalendar}
               onClick={() => {
                 setError(null)
                 setMode('remove')
               }}
             >
-              Remove
+              {m.remove}
             </button>
           </SheetActions>
         </>
@@ -180,7 +177,7 @@ export default function ScheduledSheet({
       {mode === 'change' && (
         <ChangeTimePanel
           id={`${titleId}-start`}
-          today={dayLabel === 'Today'}
+          today={dayLabel === core.today}
           options={options}
           hours={hours}
           picked={picked}
@@ -194,9 +191,7 @@ export default function ScheduledSheet({
 
       {mode === 'remove' && (
         <div className={sheetPanel}>
-          <p className={bodyText}>
-            Remove this event from your Google Calendar? It is deleted there too.
-          </p>
+          <p className={bodyText}>{m.removeConfirm}</p>
           <SheetActions>
             <button
               type="button"
@@ -204,7 +199,7 @@ export default function ScheduledSheet({
               disabled={busy}
               onClick={() => setMode('view')}
             >
-              Keep it
+              {m.keepIt}
             </button>
             <button
               type="button"
@@ -212,7 +207,7 @@ export default function ScheduledSheet({
               disabled={busy}
               onClick={removeEvent}
             >
-              {busy ? 'Removing…' : 'Remove'}
+              {busy ? m.removing : m.remove}
             </button>
           </SheetActions>
         </div>

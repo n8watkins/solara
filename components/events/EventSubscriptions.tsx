@@ -40,6 +40,8 @@ import {
 } from '@/lib/event-subscriptions'
 import { SubscriptionsStoreContext } from '@/lib/events-context'
 import { googleCalendarEventsLaunched } from '@/lib/plans'
+import m from '@/messages/linked'
+import { serverErrorText } from '@/lib/event-subscriptions'
 
 const AddCalendarGuide = lazy(() => import('./AddCalendarGuide'))
 
@@ -123,7 +125,10 @@ export default function EventSubscriptions({
       setStatus({ text: await action() })
     } catch (error) {
       setStatus({
-        text: error instanceof Error && error.message ? error.message : 'Something went wrong.',
+        text:
+          error instanceof Error && error.message
+            ? serverErrorText(error.message)
+            : m.somethingWrong,
         error: true,
       })
     } finally {
@@ -147,9 +152,7 @@ export default function EventSubscriptions({
       const added = await store.add(uid, url)
       setUrl('')
       const title = subscriptionTitle(added)
-      return added.error
-        ? `Linked ${title}, but its events could not be read yet.`
-        : `Linked ${title}: ${added.eventCount} upcoming ${added.eventCount === 1 ? 'event' : 'events'}.`
+      return added.error ? m.linkedUnread(title) : m.linked(title, added.eventCount)
     })
   }
 
@@ -161,15 +164,15 @@ export default function EventSubscriptions({
   return (
     <div className="mt-4 border-t-[0.5px] border-line pt-3.5" data-testid="event-subscriptions">
       <div className="flex items-baseline justify-between gap-3">
-        <h3 className="text-[14px] font-semibold text-ink">Linked calendars</h3>
+        <h3 className="text-[14px] font-semibold text-ink">{m.linkedCalendars}</h3>
         {!pro ? (
           <span className="text-[11px] font-bold tracking-[0.05em] whitespace-nowrap text-accent uppercase">
-            Pro
+            {m.pro}
           </span>
         ) : (
           items !== null && (
             <span className="text-[12px] text-ink-3 tabular-nums">
-              {count} of {SUBSCRIPTION_CAP}
+              {m.countOf(count, SUBSCRIPTION_CAP)}
             </span>
           )
         )}
@@ -178,20 +181,21 @@ export default function EventSubscriptions({
         <div data-testid="event-subscriptions-offer">
           <p className="mt-1 text-[12px] leading-normal text-ink-2">
             {count > 0
-              ? 'Linked calendars are part of Pro, so yours have stopped refreshing. Their events stay until they end, or remove them below.'
-              : `${onUpgrade ? 'With Pro, paste' : 'Paste'} a calendar link, such as a club or race calendar, and Solara keeps its events current, checking every ${REFRESH_HOURS} hours.`}
+              ? m.stoppedRefreshing
+              : onUpgrade
+                ? m.withProPaste(REFRESH_HOURS)
+                : m.paste(REFRESH_HOURS)}
           </p>
           {onUpgrade && (
             <button type="button" className="btn mt-2 text-[12px]" onClick={onUpgrade}>
-              See Pro
+              {m.seePro}
             </button>
           )}
         </div>
       ) : (
         <>
           <p id={hintId} className="mt-1 text-[12px] leading-normal text-ink-3">
-            Paste a calendar link (https:// or webcal://), such as a club or race calendar, and
-            Solara keeps its events current, checking every {REFRESH_HOURS} hours.
+            {m.pasteHint(REFRESH_HOURS)}
           </p>
           <button
             type="button"
@@ -200,7 +204,7 @@ export default function EventSubscriptions({
             aria-controls={guideId}
             onClick={() => setGuideOpen(!guideOpen)}
           >
-            Add a calendar from…
+            {m.addFrom}
             <ChevronDown
               size={14}
               aria-hidden="true"
@@ -221,7 +225,7 @@ export default function EventSubscriptions({
 
           <form className="mt-2.5 flex gap-2 max-sm:flex-col" onSubmit={add} noValidate>
             <label htmlFor={inputId} className="sr-only">
-              Calendar link
+              {m.calendarLink}
             </label>
             <input
               id={inputId}
@@ -253,7 +257,7 @@ export default function EventSubscriptions({
               disabled={full || busy !== null || !url.trim()}
             >
               <Link2 size={15} aria-hidden="true" />
-              {busy?.kind === 'add' ? 'Checking the link…' : 'Link calendar'}
+              {busy?.kind === 'add' ? m.checkingLink : m.linkCalendar}
             </button>
           </form>
           {/* Names the provider a pasted link comes from, or the mistake, as it is pasted. */}
@@ -277,8 +281,7 @@ export default function EventSubscriptions({
       )}
       {pro && full && (
         <p className="mt-2 text-[12px] leading-normal text-ink-2">
-          You have linked {SUBSCRIPTION_CAP} calendars, the most an account can keep. Remove one to
-          link another.
+          {m.capReached(SUBSCRIPTION_CAP)}
         </p>
       )}
 
@@ -293,12 +296,12 @@ export default function EventSubscriptions({
               : 'bg-brand/8 text-ink-2'
           }`}
         >
-          {status?.text ?? 'Could not load your linked calendars. Check your connection.'}
+          {status?.text ?? m.loadFailed}
         </p>
       )}
 
       {items !== null && items.length > 0 && (
-        <ul className="mt-3 flex flex-col gap-2" aria-label="Linked calendars">
+        <ul className="mt-3 flex flex-col gap-2" aria-label={m.linkedCalendars}>
           {items.map(item => {
             const view = subscriptionView(item, nowMs)
             const titleId = `${id}-${item.id}`
@@ -343,9 +346,7 @@ export default function EventSubscriptions({
                   <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
                     {confirming === item.id ? (
                       <>
-                        <span className="mr-auto text-[12px] text-ink-2">
-                          Remove it and its events?
-                        </span>
+                        <span className="mr-auto text-[12px] text-ink-2">{m.removeConfirm}</span>
                         <button
                           type="button"
                           className={`${SMALL_BUTTON} text-danger`}
@@ -354,18 +355,18 @@ export default function EventSubscriptions({
                             setConfirming(null)
                             void run({ kind: 'remove', id: item.id }, async () => {
                               await store.remove(uid, item.id)
-                              return `Removed ${view.title} and its events.`
+                              return m.removedNamed(view.title)
                             })
                           }}
                         >
-                          Remove
+                          {m.remove}
                         </button>
                         <button
                           type="button"
                           className={SMALL_BUTTON}
                           onClick={() => setConfirming(null)}
                         >
-                          Keep
+                          {m.keep}
                         </button>
                       </>
                     ) : (
@@ -375,13 +376,13 @@ export default function EventSubscriptions({
                             type="button"
                             className={SMALL_BUTTON}
                             disabled={rowBusy}
-                            aria-label={`Refresh ${view.title}`}
+                            aria-label={m.refreshNamed(view.title)}
                             onClick={() =>
                               void run({ kind: 'refresh', id: item.id }, async () => {
                                 const next = await store.refresh(uid, item.id)
                                 return next.error
-                                  ? `${view.title} could not be read.`
-                                  : `Refreshed ${view.title}.`
+                                  ? m.couldNotRead(view.title)
+                                  : m.refreshed(view.title)
                               })
                             }
                           >
@@ -394,17 +395,17 @@ export default function EventSubscriptions({
                                   : undefined
                               }
                             />
-                            Refresh
+                            {m.refresh}
                           </button>
                         )}
                         <button
                           type="button"
                           className={SMALL_BUTTON}
                           disabled={rowBusy}
-                          aria-label={`Remove ${view.title}`}
+                          aria-label={m.removeNamed(view.title)}
                           onClick={() => setConfirming(item.id)}
                         >
-                          Remove
+                          {m.remove}
                         </button>
                       </>
                     )}
@@ -417,10 +418,7 @@ export default function EventSubscriptions({
       )}
 
       {(pro || count > 0) && (
-        <p className="mt-2.5 text-[11px] leading-normal text-ink-3">
-          The link stays private on Solara&apos;s server; only its site is shown here. Removing a
-          calendar removes its events.
-        </p>
+        <p className="mt-2.5 text-[11px] leading-normal text-ink-3">{m.linkPrivate}</p>
       )}
     </div>
   )

@@ -268,9 +268,9 @@ test('the redirect page carries no script but its own', async ({ page }) => {
   const response = await page.request.get('/auth/microsoft/?code=x&state=y')
   const html = await response.text()
   const scripts = [...html.matchAll(/<script\b([^>]*)>/gi)].map(m => m[1] ?? '')
-  // The theme script and the hand-over script, both inline; nothing loaded from anywhere.
+  // The theme, language and hand-over scripts, all inline; nothing loaded from anywhere.
   expect(scripts.every(attributes => !/\bsrc=/.test(attributes))).toBe(true)
-  expect(scripts).toHaveLength(2)
+  expect(scripts).toHaveLength(3)
   expect(html).toContain('solara-microsoft-auth:')
   // No framework JavaScript either (scripts/static-pages.mjs), so no analytics or Firebase;
   // only the stylesheets.

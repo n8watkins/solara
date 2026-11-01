@@ -2,6 +2,9 @@ import { formatUV } from '@solara/core'
 import type { SafeActivityWindow } from '@/lib/types'
 import { useUnits } from '@/lib/use-units'
 import VisuallyHidden from '../VisuallyHidden'
+import { windowLabelText, type WindowLabel } from '@solara/core/recommendation'
+import { timeRange } from '@/lib/time'
+import m from '@/messages/activities'
 
 const ACTION = 'btn px-[9px] py-[5px] text-[11px]'
 
@@ -23,10 +26,11 @@ export default function WindowRow({
   onSchedule?: () => void
 }) {
   const fmt = useUnits()
-  const range = `${fmt.time(win.from)}–${fmt.time(win.to)}`
+  const range = timeRange(fmt.time(win.from), fmt.time(win.to))
   const calendarLabel = (
     <>
-      Cal<VisuallyHidden>: add {range} to Google Calendar</VisuallyHidden>
+      {m.cal}
+      <VisuallyHidden>{m.calAdd(range)}</VisuallyHidden>
     </>
   )
   return (
@@ -47,18 +51,18 @@ export default function WindowRow({
           <span className="text-[13px] font-bold whitespace-nowrap text-ink">{range}</span>
           {isBest && (
             <span className="text-[10px] font-[750] tracking-[0.05em] whitespace-nowrap text-accent uppercase">
-              Best
+              {m.best}
             </span>
           )}
         </div>
         <span className="block truncate text-[11px] text-ink-3">
-          {win.label} · Peak UV {formatUV(win.peakUV)}
-          {cloudNote ? ' · if the clouds hold' : ''}
+          {windowLabelText(win.label as WindowLabel)} · {m.peakUv(formatUV(win.peakUV))}
+          {cloudNote ? m.ifCloudsHold : ''}
         </span>
       </div>
       <div className="flex shrink-0 gap-[5px]">
-        <button className={ACTION} onClick={onShare} aria-label={`Share ${range}`}>
-          Share
+        <button className={ACTION} onClick={onShare} aria-label={m.shareNamed(range)}>
+          {m.share}
         </button>
         {onSchedule ? (
           <button className={ACTION} onClick={onSchedule}>

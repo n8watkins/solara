@@ -2,6 +2,7 @@
 // setup events can land in any order, so each transition looks at the screen
 // already showing rather than replacing it blindly.
 
+import m from '@/messages/dashboard'
 /**
  * - `loading`: the account (or the auth state) is loading.
  * - `signin`: the sign-in screen (the landing page's "Sign in").
@@ -10,10 +11,12 @@
  */
 export type AppScreen = 'loading' | 'signin' | 'onboarding' | 'dashboard'
 
-export const ACCOUNT_LOAD_ERROR =
-  'Could not load your saved account. Nothing was changed. Check your connection and try again.'
-export const ACCOUNT_CREATE_ERROR =
-  'Could not finish setting up your account. Nothing was saved. Check your connection and try again.'
+export function accountLoadError(): string {
+  return m.accountLoadError
+}
+export function accountCreateError(): string {
+  return m.accountCreateError
+}
 
 /**
  * Signed out. A guest plan in this browser opens the guest dashboard; otherwise the
@@ -43,5 +46,5 @@ export function screenAfterOnboarding(prev: AppScreen): AppScreen {
 }
 
 export function accountErrorMessage(stage: 'load' | 'create'): string {
-  return stage === 'create' ? ACCOUNT_CREATE_ERROR : ACCOUNT_LOAD_ERROR
+  return stage === 'create' ? accountCreateError() : accountLoadError()
 }

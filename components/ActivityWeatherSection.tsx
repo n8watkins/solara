@@ -2,6 +2,7 @@
 import { FEELS_LIKE_CHOICES, RAIN_LIKELY_PERCENT } from '@solara/core/weather-fit'
 import { useUnits } from '@/lib/use-units'
 import { ActivityEditSection } from './ActivityEditSection'
+import m from '@/messages/editor'
 
 const fromFahrenheit = (f: number) => Math.round(((f - 32) * 5 * 10) / 9) / 10
 const NO_LIMIT = 'none'
@@ -38,26 +39,26 @@ export function ActivityWeatherSection({
   return (
     <ActivityEditSection
       id={id}
-      title="Rain and heat"
-      description={`Skips hours with a ${RAIN_LIKELY_PERCENT}% or higher chance of rain, or that feel hotter than the limit (humidity and wind counted).`}
+      title={m.rainAndHeat}
+      description={m.rainHeatHint(RAIN_LIKELY_PERCENT)}
     >
       {/* Side by side from 360 px; stacked on the narrowest phones, so no choice is cut off
           under its select's arrow. */}
       <div className="grid gap-2.5 min-[360px]:grid-cols-2">
         <label className={field}>
-          Rain
+          {m.rain}
           <select
             value={avoidRain ? 'avoid' : 'ok'}
             onChange={e => onChange({ avoidRain: e.target.value === 'avoid' })}
             aria-describedby={`${id}-desc`}
             className="text-[13px]"
           >
-            <option value="avoid">Avoid</option>
-            <option value="ok">Go ahead</option>
+            <option value="avoid">{m.avoid}</option>
+            <option value="ok">{m.goAhead}</option>
           </select>
         </label>
         <label className={field}>
-          Max feels-like
+          {m.maxFeelsLike}
           <select
             value={current === null ? NO_LIMIT : String(current)}
             onChange={e =>
@@ -76,7 +77,7 @@ export function ActivityWeatherSection({
                   {fmt.temp(c)}
                 </option>
               ))}
-            <option value={NO_LIMIT}>No limit</option>
+            <option value={NO_LIMIT}>{m.noLimit}</option>
           </select>
         </label>
       </div>

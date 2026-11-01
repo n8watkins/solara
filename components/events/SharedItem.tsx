@@ -35,6 +35,7 @@ import { resolveTimeZone } from '@/lib/time'
 import { useUnits } from '@/lib/use-units'
 import type { Location, UserPreferences } from '@/lib/types'
 import GoogleSignInButton from '../GoogleSignInButton'
+import m from '@/messages/events'
 
 interface Props {
   /** The share id from `?shared=`. */
@@ -119,7 +120,7 @@ export default function SharedItem({ id, uid, prefs, pro, onUpgrade, onLink, onC
 
   async function importShared() {
     if (!uid || !file) return
-    setRun({ state: 'busy', progress: 'Reading the file…' })
+    setRun({ state: 'busy', progress: m.readingFile })
     const outcome = await importIcsFile(file, {
       home,
       activities: prefs.activities,
@@ -154,7 +155,7 @@ export default function SharedItem({ id, uid, prefs, pro, onUpgrade, onLink, onC
     })
   }
 
-  const notNow = (label = 'Not now') => (
+  const notNow = (label = m.notNow) => (
     <button type="button" className={BUTTON} onClick={() => void close()}>
       {label}
     </button>
@@ -170,7 +171,7 @@ export default function SharedItem({ id, uid, prefs, pro, onUpgrade, onLink, onC
       <div className="flex items-center gap-2">
         <Share2 size={16} aria-hidden="true" className="shrink-0 text-accent" />
         <h2 id={headingId} className="text-[16px] font-bold text-ink">
-          Shared with Solara
+          {m.sharedWithSolara}
         </h2>
       </div>
       {body()}
@@ -178,15 +179,12 @@ export default function SharedItem({ id, uid, prefs, pro, onUpgrade, onLink, onC
   )
 
   function body() {
-    if (item === null) return <Status>Reading what you shared…</Status>
+    if (item === null) return <Status>{m.readingShared}</Status>
     if (item.kind === 'none') {
       return (
         <>
-          <Text>
-            Nothing to import: what was shared has been imported already, or it waited more than 30
-            minutes. Share it again to import it.
-          </Text>
-          <Actions>{notNow('Close')}</Actions>
+          <Text>{m.nothingToImport}</Text>
+          <Actions>{notNow(m.close)}</Actions>
         </>
       )
     }
@@ -194,7 +192,7 @@ export default function SharedItem({ id, uid, prefs, pro, onUpgrade, onLink, onC
       return (
         <>
           <Status alert>{refusalMessage(item.reason)}</Status>
-          <Actions>{notNow('Close')}</Actions>
+          <Actions>{notNow(m.close)}</Actions>
         </>
       )
     }
@@ -203,12 +201,12 @@ export default function SharedItem({ id, uid, prefs, pro, onUpgrade, onLink, onC
   }
 
   function fileBody(name: string) {
-    if (preview.state === 'reading') return <Status>Reading {name}…</Status>
+    if (preview.state === 'reading') return <Status>{m.readingName(name)}</Status>
     if (preview.state === 'error') {
       return (
         <>
           <Status alert>{preview.message}</Status>
-          <Actions>{notNow('Close')}</Actions>
+          <Actions>{notNow(m.close)}</Actions>
         </>
       )
     }
@@ -218,7 +216,7 @@ export default function SharedItem({ id, uid, prefs, pro, onUpgrade, onLink, onC
           <Status>{run.text}</Status>
           <Actions>
             <button type="button" className={`${BUTTON} btn-primary`} onClick={onClose}>
-              Done
+              {m.done}
             </button>
           </Actions>
         </>
@@ -238,7 +236,7 @@ export default function SharedItem({ id, uid, prefs, pro, onUpgrade, onLink, onC
         {shown.length > 0 && (
           <ul
             className="mt-2 flex flex-col gap-1.5 rounded-[12px] bg-surface-metric px-3 py-2.5"
-            aria-label={`Events in ${name}`}
+            aria-label={m.eventsIn(name)}
           >
             {shown.map((event, index) => (
               <li key={index} className="min-w-0 text-[13px] leading-snug">
@@ -248,21 +246,14 @@ export default function SharedItem({ id, uid, prefs, pro, onUpgrade, onLink, onC
             ))}
           </ul>
         )}
-        {more > 0 && (
-          <p className="mt-1.5 text-[12px] text-ink-3">
-            And {more} more {more === 1 ? 'event' : 'events'}.
-          </p>
-        )}
+        {more > 0 && <p className="mt-1.5 text-[12px] text-ink-3">{m.andMore(more)}</p>}
         {events.length === 0 ? (
-          <Actions>{notNow('Close')}</Actions>
+          <Actions>{notNow(m.close)}</Actions>
         ) : !uid ? (
           <>
-            <Text>
-              Sign in to keep them: Solara keeps events with your account. The file waits here for
-              30 minutes{firebaseEnabled ? '' : ' (signing in is not available on this site)'}.
-            </Text>
+            <Text>{firebaseEnabled ? m.signInToKeep : m.signInToKeepUnavailable}</Text>
             <Actions>
-              <GoogleSignInButton label="Sign in with Google" />
+              <GoogleSignInButton label={m.signInWithGoogle} />
               {notNow()}
             </Actions>
           </>
@@ -277,9 +268,7 @@ export default function SharedItem({ id, uid, prefs, pro, onUpgrade, onLink, onC
                 disabled={run.state === 'busy'}
                 onClick={() => void importShared()}
               >
-                {run.state === 'failed'
-                  ? 'Try again'
-                  : `Import ${events.length} ${events.length === 1 ? 'event' : 'events'}`}
+                {run.state === 'failed' ? m.tryAgain : m.importCount(events.length)}
               </button>
               {run.state !== 'busy' && notNow()}
             </Actions>
@@ -296,44 +285,35 @@ export default function SharedItem({ id, uid, prefs, pro, onUpgrade, onLink, onC
     if (kind === 'page' || (kind === 'unknown' && !canLink)) {
       return (
         <>
-          <Text>
-            That is a link to a web page ({host}), not a calendar. On the event&apos;s page, use
-            “Add to calendar” or “Export” to download an .ics file, then share the file to Solara.
-          </Text>
-          <Actions>{notNow('Close')}</Actions>
+          <Text>{m.linkIsPage(host)}</Text>
+          <Actions>{notNow(m.close)}</Actions>
         </>
       )
     }
     if (!eventSubscriptionsLaunched()) {
       return (
         <>
-          <Text>
-            Solara cannot link calendars yet. Download the calendar from {host} as an .ics file and
-            share the file instead.
-          </Text>
-          <Actions>{notNow('Close')}</Actions>
+          <Text>{m.cannotLinkYet(host)}</Text>
+          <Actions>{notNow(m.close)}</Actions>
         </>
       )
     }
     if (canLink) {
       return linked ? (
         <>
-          <Text>
-            The calendar link from {host} is in Linked calendars below, with the steps for its
-            provider. Check it, then press Link calendar.
-          </Text>
-          <Actions>{notNow('Close')}</Actions>
+          <Text>{m.linkIsBelow(host)}</Text>
+          <Actions>{notNow(m.close)}</Actions>
         </>
       ) : (
         <>
-          <Text>A calendar link from {host}. Link it, and Solara keeps its events current.</Text>
+          <Text>{m.linkIt(host)}</Text>
           <Actions>
             <button
               type="button"
               className={`${BUTTON} btn-primary`}
               onClick={() => openLinkedCalendars(link)}
             >
-              Add this calendar
+              {m.addThisCalendar}
             </button>
             {notNow()}
           </Actions>
@@ -343,12 +323,9 @@ export default function SharedItem({ id, uid, prefs, pro, onUpgrade, onLink, onC
     if (!uid) {
       return (
         <>
-          <Text>
-            A calendar link from {host}. Linked calendars keep a calendar&apos;s events current and
-            are part of Pro, so sign in first. The link waits here for 30 minutes.
-          </Text>
+          <Text>{m.linkSignIn(host)}</Text>
           <Actions>
-            <GoogleSignInButton label="Sign in with Google" />
+            <GoogleSignInButton label={m.signInWithGoogle} />
             {notNow()}
           </Actions>
         </>
@@ -356,14 +333,11 @@ export default function SharedItem({ id, uid, prefs, pro, onUpgrade, onLink, onC
     }
     return (
       <>
-        <Text>
-          A calendar link from {host}. Linked calendars, which keep a calendar&apos;s events
-          current, are part of Pro.
-        </Text>
+        <Text>{m.linkPro(host)}</Text>
         <Actions>
           {onUpgrade && (
             <button type="button" className={`${BUTTON} btn-primary`} onClick={onUpgrade}>
-              See Pro
+              {m.seePro}
             </button>
           )}
           {notNow()}

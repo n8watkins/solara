@@ -15,6 +15,7 @@ import {
   onInstallPromptChange,
   pendingInstallPrompt,
 } from '@/lib/install-prompt'
+import m from '@/messages/setup'
 
 /** The iOS share glyph (box with an up-arrow) so the instruction reads at a glance. */
 function ShareIcon() {
@@ -87,7 +88,8 @@ export default function InstallPrompt() {
   if (mode === 'ios') {
     return (
       <Banner onDismiss={dismiss}>
-        Tap <ShareIcon /> Share, then <strong>Add to Home Screen</strong> to open Solara in one tap.
+        {m.iosTap} <ShareIcon /> {m.iosShareThen} <strong>{m.iosAddToHomeScreen}</strong>{' '}
+        {m.iosToOpen}
       </Banner>
     )
   }
@@ -100,11 +102,11 @@ export default function InstallPrompt() {
           className="btn btn-primary shrink-0 px-3.5 py-2 text-[13px]"
           onClick={() => void install()}
         >
-          Install
+          {m.install}
         </button>
       }
     >
-      One tap each morning to check your sun window.
+      {m.installLead}
     </Banner>
   )
 }
@@ -135,18 +137,18 @@ function Banner({
 }) {
   return (
     <section
-      aria-label="Install Solara"
+      aria-label={m.installSolara}
       className="fixed inset-x-3 bottom-[max(12px,env(safe-area-inset-bottom))] z-30 mx-auto flex max-w-[520px] items-center gap-3 rounded-2xl border-[0.5px] border-line-strong bg-surface-card px-3.5 py-3 shadow-[0_12px_40px_rgba(0,0,0,0.22)]"
     >
       <SolaraMark size={24} className="shrink-0" />
       <div className="min-w-0 flex-1">
-        <p className="text-[14px] font-[650] text-ink">Add Solara to your home screen</p>
+        <p className="text-[14px] font-[650] text-ink">{m.addToHomeScreen}</p>
         <p className="mt-0.5 text-[12px] text-ink-3">{children}</p>
       </div>
       {action}
       <button
         onClick={onDismiss}
-        aria-label="Dismiss"
+        aria-label={m.dismiss}
         className="flex size-8 shrink-0 items-center justify-center rounded-full bg-transparent text-ink-3"
       >
         <X size={17} />

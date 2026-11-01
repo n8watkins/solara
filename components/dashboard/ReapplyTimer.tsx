@@ -32,8 +32,7 @@ import { useUnits } from '@/lib/use-units'
 import type { SkyHour } from '@solara/core/forecast-quality'
 import type { SkinType } from '@solara/core/recommendation'
 import SunscreenGuide from './SunscreenGuide'
-
-const TITLE = reapplyReminderMessage('standard').title
+import m from '@/messages/activities'
 
 /** Whether the server's push will also bring the reminder, as far as this tab knows. */
 type PushState = 'off' | 'pending' | 'devices' | 'no-devices' | 'failed'
@@ -57,12 +56,15 @@ async function showReminder(body: string, tag = 'solara-reapply'): Promise<void>
   try {
     const registration = await navigator.serviceWorker?.getRegistration()
     if (registration) {
-      await registration.showNotification(TITLE, { ...options, data: { link: '/app/' } })
+      await registration.showNotification(reapplyReminderMessage('standard').title, {
+        ...options,
+        data: { link: '/app/' },
+      })
       return
     }
   } catch {}
   try {
-    new Notification(TITLE, options)
+    new Notification(reapplyReminderMessage('standard').title, options)
   } catch {
     // Some browsers allow notifications only from a service worker; the banner remains.
   }
@@ -85,8 +87,8 @@ async function remindHere(timer: Timer, hidden: boolean): Promise<void> {
 }
 
 function intervalText(timer: Timer): string {
-  const every = `Every ${formatDuration(REAPPLY_MINUTES[timer.mode])}`
-  return timer.mode === 'water' ? `${every} while swimming or sweating` : every
+  const every = m.every(formatDuration(REAPPLY_MINUTES[timer.mode]))
+  return timer.mode === 'water' ? m.everyWater(every) : every
 }
 
 export interface ReapplyTimerProps {
@@ -242,15 +244,14 @@ export default function ReapplyTimer({
           <Droplets size={20} aria-hidden="true" className="shrink-0 text-accent" />
           <div className="min-w-0 flex-1">
             <h2 id={titleId} className="text-[13px] leading-[1.2] font-bold text-ink">
-              Sunscreen timer
+              {m.sunscreenTimer}
             </h2>
             <p className="mt-0.5 text-[12px] leading-[1.35] text-ink-3">
-              Heading out? Get a reminder to reapply every{' '}
-              {formatDuration(REAPPLY_MINUTES.standard)}.
+              {m.headingOut(formatDuration(REAPPLY_MINUTES.standard))}
             </p>
           </div>
           <button type="button" className="btn btn-primary shrink-0" onClick={() => void start()}>
-            Start
+            {m.start}
           </button>
         </div>
         <div className="pl-8">{guide}</div>
@@ -260,16 +261,12 @@ export default function ReapplyTimer({
 
   const tabNote =
     permission === 'granted'
-      ? 'You get a notification while Solara stays open in a tab.'
+      ? m.notifyOpenTab
       : permission === 'denied'
-        ? 'Notifications are blocked, so the reminder shows here.'
-        : 'The reminder shows here while Solara is open.'
+        ? m.notifyBlocked
+        : m.notifyHere
   const note =
-    pushState === 'devices'
-      ? 'It also comes to your devices with alerts on, even with Solara closed.'
-      : pushState === 'no-devices'
-        ? null
-        : tabNote
+    pushState === 'devices' ? m.notifyDevices : pushState === 'no-devices' ? null : tabNote
 
   return (
     <section
@@ -289,12 +286,14 @@ export default function ReapplyTimer({
           role={due ? 'alert' : undefined}
         >
           <h2 id={titleId} className="text-[13px] leading-[1.2] font-bold text-ink">
-            {due ? TITLE : `Reapply sunscreen at ${units.time(clockHours(dueAt(timer)))}`}
+            {due
+              ? reapplyReminderMessage('standard').title
+              : m.reapplyAt(units.time(clockHours(dueAt(timer))))}
           </h2>
           <p className="mt-0.5 text-[12px] leading-[1.35] text-ink-2">
             {due
-              ? `Last put on at ${units.time(clockHours(timer.appliedAt))}.`
-              : `In ${formatDuration(minutesLeft(timer, now))}. ${intervalText(timer)}.`}
+              ? m.lastPutOn(units.time(clockHours(timer.appliedAt)))
+              : m.inDuration(formatDuration(minutesLeft(timer, now)), intervalText(timer))}
           </p>
         </div>
       </div>
@@ -304,7 +303,7 @@ export default function ReapplyTimer({
           className={due ? 'btn btn-primary' : 'btn'}
           onClick={() => change(reapplied(timer, Date.now()))}
         >
-          I reapplied
+          {m.iReapplied}
         </button>
         <button
           type="button"
@@ -312,28 +311,28 @@ export default function ReapplyTimer({
           aria-pressed={timer.mode === 'water'}
           onClick={() => change(withMode(timer, timer.mode === 'water' ? 'standard' : 'water'))}
         >
-          Swimming or sweating
+          {m.swimmingSweating}
         </button>
         <button type="button" className="btn btn-ghost" onClick={() => change(null)}>
-          Stop
+          {m.stop}
         </button>
       </div>
       {!due && note && <p className="text-[11px] leading-[1.35] text-ink-3">{note}</p>}
       {!due && pushState === 'no-devices' && (
         <p className="text-[11px] leading-[1.35] text-ink-3">
-          To get it with Solara closed,{' '}
+          {m.toGetItClosed}{' '}
           {openSettings ? (
             <button
               type="button"
               className="font-semibold text-accent underline underline-offset-2"
               onClick={() => openSettings('alerts')}
             >
-              turn on alerts
+              {m.turnOnAlerts}
             </button>
           ) : (
-            'turn on alerts in Settings'
+            m.turnOnAlertsInSettings
           )}{' '}
-          for this device.
+          {m.forThisDevice}
         </p>
       )}
       {guide}

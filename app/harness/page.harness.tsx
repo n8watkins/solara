@@ -5,11 +5,17 @@
 // never compile the harness. scripts/check-no-ui-harness.mjs asserts that after
 // every `npm run build`.
 import dynamic from 'next/dynamic'
+import MessagesGate from '@/components/MessagesGate'
 
 // Client-only, like app/page.tsx: the harness reads the (frozen) clock at render
 // time, so a build-time prerender would not match the browser.
 const HarnessApp = dynamic(() => import('@/tests/harness/HarnessApp'), { ssr: false })
 
 export default function HarnessPage() {
-  return <HarnessApp />
+  // In the page's language, as the app shows (lib/i18n.ts): Spanish screens set it.
+  return (
+    <MessagesGate>
+      <HarnessApp />
+    </MessagesGate>
+  )
 }

@@ -18,6 +18,7 @@ import {
   type FitzpatrickType,
   type SkinType,
 } from './recommendation'
+import m from './messages/skin-quiz'
 
 export interface SkinQuizQuestion {
   id: string
@@ -26,45 +27,18 @@ export interface SkinQuizQuestion {
   answers: readonly [string, string, string, string, string]
 }
 
-export const SKIN_QUIZ: readonly SkinQuizQuestion[] = [
-  {
-    id: 'unexposed',
-    question: 'What color is your skin where the sun rarely reaches it?',
-    answers: ['Reddish', 'Very pale', 'Pale with a beige tint', 'Light brown', 'Dark brown'],
+const QUESTION_IDS = ['unexposed', 'freckles', 'burn', 'tan', 'face'] as const
+
+/** The questions, read in the page's language when used. */
+export const SKIN_QUIZ: readonly SkinQuizQuestion[] = QUESTION_IDS.map(id => ({
+  id,
+  get question() {
+    return m[id]
   },
-  {
-    id: 'freckles',
-    question: 'Do you have freckles on skin the sun reaches?',
-    answers: ['Many', 'Several', 'A few', 'Hardly any', 'None'],
+  get answers() {
+    return m[`${id}Answers`].split('|') as unknown as SkinQuizQuestion['answers']
   },
-  {
-    id: 'burn',
-    question: 'What happens when you stay in the sun too long?',
-    answers: [
-      'Painful redness, blistering and peeling',
-      'Blistering, then peeling',
-      'Sometimes a burn, then peeling',
-      'Rarely a burn',
-      'Never a burn',
-    ],
-  },
-  {
-    id: 'tan',
-    question: 'How much do you tan?',
-    answers: [
-      'Hardly or not at all',
-      'A light tan',
-      'A reasonable tan',
-      'I tan very easily',
-      'I turn dark brown quickly',
-    ],
-  },
-  {
-    id: 'face',
-    question: 'How does your face react to the sun?',
-    answers: ['Very sensitive', 'Sensitive', 'Normal', 'Very resistant', 'Never had a problem'],
-  },
-]
+}))
 
 /** Questions in the full questionnaire, whose total the bands below read. */
 const FULL_QUESTIONNAIRE = 10

@@ -2,6 +2,8 @@
 // its time-of-day preference. Pure; the web app re-exports it from lib/scheduler.ts.
 import type { SafeActivityWindow } from './forecast-days'
 import type { TimePreference } from './prefs'
+import m from './messages/core'
+import { windowLabelText } from './recommendation'
 
 /** A busy block from the calendar, in fractional hours within a single day: [start, end). */
 export interface BusyInterval {
@@ -60,7 +62,7 @@ function subtractBusy(
 }
 
 function labelPhrase(label: SafeActivityWindow['label']): string {
-  return label === 'All day' ? 'lower-UV' : label.toLowerCase()
+  return label === 'All day' ? m.reasonAllDayPart : windowLabelText(label).toLowerCase()
 }
 
 /** Peak/avg UV over the hours the activity actually occupies [from, to). */
@@ -180,10 +182,10 @@ export function recommendSlot(
 
   const reason =
     timePreference === 'latest'
-      ? `Latest matching spot in your ${labelPhrase(chosen.label)} window`
+      ? m.reasonLatest(labelPhrase(chosen.label))
       : timePreference === 'sunniest'
-        ? `Your sunniest available window within the planning limit`
-        : `Earliest free spot in your ${labelPhrase(chosen.label)} window`
+        ? m.reasonSunniest
+        : m.reasonEarliest(labelPhrase(chosen.label))
 
   const end = start + durHours
   // Prefer UV measured over the slot the user actually occupies; fall back to the

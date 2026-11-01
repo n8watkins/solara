@@ -1,10 +1,9 @@
 // The Google Calendar parts the dashboard draws with: whether the integration is
-// configured, busy periods as hours of a day, and the description of a scheduled
-// event. The Google Identity Services and Calendar API code in lib/gcal.ts loads only
-// when someone connects or schedules; it re-exports these.
-import type { BusyInterval, SlotRecommendation } from '@solara/core/scheduler'
-import type { Activity } from './types'
-import { fmtClock, formatUV } from './weather'
+// configured and busy periods as hours of a day (a scheduled event's description is in
+// lib/event-description.ts, loaded when one is made). The Google Identity Services and
+// Calendar API code in lib/gcal.ts loads only when someone connects or schedules; it
+// re-exports these.
+import type { BusyInterval } from '@solara/core/scheduler'
 import { addDays, isIsoDate, zonedInstant } from './time'
 
 const CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID
@@ -51,27 +50,4 @@ export function busyIntervalsForDay(
     })
   }
   return out
-}
-
-/** PURE. The human-readable event body explaining the pick and its flexibility. */
-export function buildEventDescription(
-  rec: SlotRecommendation,
-  activity: Activity,
-  opts: { peakUV?: number; peakHour?: number } = {},
-): string {
-  const lines: string[] = [
-    `Recommended for ${fmtClock(rec.start)}: ${rec.reason.charAt(0).toLowerCase()}${rec.reason.slice(1)}.`,
-  ]
-  if (rec.latestStart > rec.earliestStart) {
-    lines.push(
-      `Flexible: start anytime ${fmtClock(rec.earliestStart)}–${fmtClock(rec.latestStart)} within the estimated lower-UV window.`,
-    )
-  }
-  if (typeof opts.peakUV === 'number' && typeof opts.peakHour === 'number') {
-    lines.push(`Peak UV ${formatUV(opts.peakUV)} around ${fmtClock(opts.peakHour)}.`)
-  }
-  lines.push(activity.sunscreen ? 'Assumes SPF 30+.' : 'Planned for no sunscreen.')
-  lines.push('Forecast-based estimate only. Recheck current UV and use sun protection.')
-  lines.push('Planned by Solara ☀️')
-  return lines.join('\n')
 }

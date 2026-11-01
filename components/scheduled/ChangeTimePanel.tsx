@@ -1,6 +1,7 @@
 import { useUnits } from '@/lib/use-units'
 import { timeRange } from '@/lib/time'
 import { SheetActions, sheetAction } from '../BottomSheet'
+import m from '@/messages/calendar'
 
 /** An inset panel inside a sheet, for a step such as changing the time or confirming. */
 export const sheetPanel =
@@ -41,7 +42,7 @@ export default function ChangeTimePanel({
       {options.length > 0 ? (
         <>
           <label className="mb-1.5 block text-[12px] font-semibold text-ink-2" htmlFor={id}>
-            New start time, within {today ? "today's" : "the day's"} lower-UV windows
+            {today ? m.newStartToday : m.newStartDay}
           </label>
           <select
             id={id}
@@ -58,13 +59,11 @@ export default function ChangeTimePanel({
           </select>
         </>
       ) : (
-        <p className="text-[12px] leading-[1.45] text-ink-3">
-          No other lower-UV start time is left on this day for this activity.
-        </p>
+        <p className="text-[12px] leading-[1.45] text-ink-3">{m.noOtherStart}</p>
       )}
       <SheetActions>
         <button type="button" className={sheetAction} disabled={busy} onClick={onCancel}>
-          Cancel
+          {m.cancel}
         </button>
         <button
           type="button"
@@ -72,7 +71,7 @@ export default function ChangeTimePanel({
           disabled={busy || picked === null || picked === current}
           onClick={onSave}
         >
-          {busy ? 'Saving…' : 'Save time'}
+          {busy ? 'Saving…' : m.saveTime}
         </button>
       </SheetActions>
     </div>

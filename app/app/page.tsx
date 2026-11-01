@@ -1,8 +1,14 @@
 'use client'
 
-import { useSyncExternalStore } from 'react'
+import { useEffect, useSyncExternalStore } from 'react'
 import App from '@/components/App'
 import { AccountLoading } from '@/components/AccountStatus'
+import {
+  initialMessagesReady,
+  loadInitialMessages,
+  localizeTitle,
+  subscribeMessages,
+} from '@/lib/i18n'
 
 // The app (guest or signed in). Client-only: it reads the browser's auth session,
 // the guest plan and the clock, none of which exist at build time, so the exported
@@ -12,11 +18,19 @@ import { AccountLoading } from '@/components/AccountStatus'
 // them (a lazy import would add a round trip before anything shows).
 const noSubscription = () => () => {}
 
+// The page's language starts with the page's own scripts: English at once, another
+// language once its opening screen's text has arrived (lib/i18n.ts).
+if (typeof window !== 'undefined') void loadInitialMessages().catch(() => {})
+
 export default function AppPage() {
   const inBrowser = useSyncExternalStore(
     noSubscription,
     () => true,
     () => false,
   )
-  return inBrowser ? <App /> : <AccountLoading />
+  const messagesReady = useSyncExternalStore(subscribeMessages, initialMessagesReady, () => false)
+  useEffect(() => {
+    if (messagesReady) localizeTitle()
+  }, [messagesReady])
+  return inBrowser && messagesReady ? <App /> : <AccountLoading />
 }

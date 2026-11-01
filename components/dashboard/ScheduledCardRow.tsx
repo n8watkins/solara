@@ -2,6 +2,8 @@ import { ExternalLink } from 'lucide-react'
 import type { ScheduledActivity, ScheduledSpan } from '@/lib/scheduled'
 import { useUnits } from '@/lib/use-units'
 import ScheduledPill from '../scheduled/ScheduledPill'
+import { timeRange } from '@/lib/time'
+import m from '@/messages/activities'
 
 const ACTION = 'btn px-[9px] py-[5px] text-[11px] no-underline'
 
@@ -18,7 +20,7 @@ export default function ScheduledCardRow({
   onManage?: (item: ScheduledActivity) => void
 }) {
   const fmt = useUnits()
-  const range = `${fmt.time(span.from)}–${fmt.time(span.to)}`
+  const range = timeRange(fmt.time(span.from), fmt.time(span.to))
   return (
     // A solid green edge reads as a commitment, next to the suggested windows.
     <div
@@ -38,9 +40,9 @@ export default function ScheduledCardRow({
           href={item.htmlLink}
           target="_blank"
           rel="noopener noreferrer"
-          aria-label={`Open scheduled ${activityName}, ${range}, in Google Calendar`}
+          aria-label={m.openScheduled(activityName, range)}
         >
-          Open <ExternalLink size={13} />
+          {m.open} <ExternalLink size={13} />
         </a>
         {onManage && (
           <button
@@ -48,9 +50,9 @@ export default function ScheduledCardRow({
             className={ACTION}
             aria-haspopup="dialog"
             onClick={() => onManage(item)}
-            aria-label={`Manage scheduled ${activityName}, ${range}`}
+            aria-label={m.manageScheduled(activityName, range)}
           >
-            Manage
+            {m.manage}
           </button>
         )}
       </div>

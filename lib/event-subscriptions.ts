@@ -18,6 +18,10 @@ import {
 import * as v from 'valibot'
 import { lazySubscription, loadFirebase, loadedFirebase } from './firebase'
 import { FunctionsApiError, callFunction } from './functions-api'
+import m from '@/messages/linked'
+import conn from '@/messages/connections'
+import { formatNumber, intlTag, registeredNamespaces } from '@solara/core/i18n'
+import linking from '@solara/core/messages/linking'
 
 export type { SubscriptionSummary }
 
@@ -37,11 +41,9 @@ export interface SubscriptionsStore {
 function signedInUser(uid: string) {
   // Only a signed-in account sees the Events section, so Firebase has loaded.
   const user = loadedFirebase()?.auth?.currentUser
-  if (!user || user.uid !== uid) throw new Error('Sign in again to manage linked calendars.')
+  if (!user || user.uid !== uid) throw new Error(m.signInAgain)
   return user
 }
-
-const FALLBACK = 'Could not reach Solara. Check your connection and try again.'
 
 async function call(
   uid: string,
@@ -50,11 +52,11 @@ async function call(
   const result = await callFunction(signedInUser(uid), 'eventSubscriptions', {
     method: 'POST',
     body,
-    fallbackMessage: FALLBACK,
+    fallbackMessage: m.fallback,
   })
   if (result.subscription === null) return null
   const parsed = v.safeParse(SubscriptionSummarySchema, result.subscription)
-  if (!parsed.success) throw new FunctionsApiError(FALLBACK, 200, 'invalid-response')
+  if (!parsed.success) throw new FunctionsApiError(m.fallback, 200, 'invalid-response')
   return parsed.output
 }
 
@@ -76,12 +78,12 @@ export const serverSubscriptionsStore: SubscriptionsStore = {
   },
   async add(uid, url) {
     const summary = await call(uid, { action: 'add', url })
-    if (!summary) throw new Error(FALLBACK)
+    if (!summary) throw new Error(m.fallback)
     return summary
   },
   async refresh(uid, id) {
     const summary = await call(uid, { action: 'refresh', id })
-    if (!summary) throw new Error(FALLBACK)
+    if (!summary) throw new Error(m.fallback)
     return summary
   },
   async remove(uid, id) {
@@ -95,19 +97,30 @@ export function linkProblem(raw: string): string | null {
   return normalized.ok ? null : subscriptionErrorMessage(normalized.error)
 }
 
-const plural = (n: number, one: string, many = `${one}s`) =>
-  `${n.toLocaleString('en-US')} ${n === 1 ? one : many}`
+/**
+ * A message the eventSubscriptions Function sent, in the page's language: the Functions
+ * write in English (the linking messages of @solara/core), so a known one is shown in its
+ * translation; anything else as sent.
+ */
+export function serverErrorText(message: string): string {
+  const english = registeredNamespaces().get('linking')
+  const key = english && Object.keys(english).find(k => english[k] === message)
+  const text = key ? (linking as Record<string, unknown>)[key] : undefined
+  return typeof text === 'string' ? text : message
+}
 
 /** PURE. "Updated 2 hours ago", "Updated Jun 14", "Not updated yet". */
 export function updatedText(iso: string, nowMs: number): string {
   const at = Date.parse(iso)
-  if (!iso || Number.isNaN(at)) return 'Not updated yet'
+  if (!iso || Number.isNaN(at)) return conn.notUpdated
   const minutes = Math.max(0, Math.round((nowMs - at) / 60_000))
-  if (minutes < 1) return 'Updated just now'
-  if (minutes < 60) return `Updated ${plural(minutes, 'minute')} ago`
+  if (minutes < 1) return conn.updatedJustNow
+  if (minutes < 60) return conn.updatedMinutesAgo(minutes)
   const hours = Math.round(minutes / 60)
-  if (hours < 24) return `Updated ${plural(hours, 'hour')} ago`
-  return `Updated ${new Date(at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+  if (hours < 24) return conn.updatedHoursAgo(hours)
+  return conn.updatedOn(
+    new Date(at).toLocaleDateString(intlTag(), { month: 'short', day: 'numeric' }),
+  )
 }
 
 export interface SubscriptionView {
@@ -142,19 +155,19 @@ export function subscriptionView(item: SubscriptionSummary, nowMs: number): Subs
     ...(title !== item.host ? [item.host] : []),
     updatedText(item.lastSuccessAt, nowMs),
   ]
-  if (item.lastSuccessAt) parts.push(plural(item.eventCount, 'upcoming event'))
+  if (item.lastSuccessAt) parts.push(m.upcomingEvents(item.eventCount))
   const reason = subscriptionErrorMessage(item.error)
   let problem: string | null = null
   if (item.status === 'paused' && item.error === 'pro-required') {
     // Paused by the server while the account was not Pro (REVIEW8 SEC L3).
-    problem = 'Paused: linked calendars are part of Pro. With Pro, refresh to start it again.'
+    problem = m.pausedPro
   } else if (item.status === 'paused') {
-    problem = `Paused after a week of failed checks. ${reason} Refresh to try again.`
+    problem = m.pausedFailures(reason)
   } else if (item.status === 'failing') {
-    problem = `The last check failed. ${reason} Solara will try again automatically.`
+    problem = m.lastCheckFailed(reason)
   }
   const refused = item.refused
-    ? `${plural(item.refused, 'event')} did not fit: an account keeps at most ${IMPORTED_EVENT_LIMITS.maxStored.toLocaleString('en-US')} events. Remove some to make room.`
+    ? m.refused(item.refused, formatNumber(IMPORTED_EVENT_LIMITS.maxStored))
     : null
   return { title, meta: parts.join(' · '), problem, refused }
 }

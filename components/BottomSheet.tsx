@@ -1,6 +1,7 @@
 import { X } from 'lucide-react'
 import type { ReactNode, Ref } from 'react'
 import clsx from 'clsx'
+import m from '@/messages/setup'
 
 /** Full-width action button inside a bottom sheet's action grid. */
 export const sheetAction = 'btn justify-center min-h-10 no-underline'
@@ -42,7 +43,7 @@ export function SheetClose({ onClose, disabled }: { onClose: () => void; disable
     <button
       type="button"
       className="btn btn-ghost min-h-8 min-w-8 px-2 py-1 text-[14px]"
-      aria-label="Close"
+      aria-label={m.close}
       onClick={onClose}
       disabled={disabled}
     >

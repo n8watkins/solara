@@ -11,6 +11,7 @@
 
 import * as v from 'valibot'
 import { finiteNumber, record } from './schema'
+import m from './messages/core'
 
 export const OPEN_METEO_FORECAST_URL = 'https://api.open-meteo.com/v1/forecast'
 /** Open-Meteo's commercial endpoint: the same API on its own host, with an API key. */
@@ -33,6 +34,26 @@ export const WEATHER_LABELS: readonly { max: number; label: string }[] = Object.
   { max: 86, label: 'Snowy' },
   { max: 99, label: 'Stormy' },
 ])
+
+/** Each stored label's words in the page's language (weatherConditionText). */
+const CONDITION_TEXT: Readonly<Record<string, () => string>> = Object.freeze({
+  Clear: () => m.conditionClear,
+  'Partly cloudy': () => m.conditionPartlyCloudy,
+  Foggy: () => m.conditionFoggy,
+  Rainy: () => m.conditionRainy,
+  Snowy: () => m.conditionSnowy,
+  Showers: () => m.conditionShowers,
+  Stormy: () => m.conditionStormy,
+  Unknown: () => m.conditionUnknown,
+})
+
+/**
+ * A stored condition label (weatherLabel, kept in English in forecasts and caches so
+ * they never depend on the language) in the page's language; an unknown one as is.
+ */
+export function weatherConditionText(label: string): string {
+  return CONDITION_TEXT[label]?.() ?? label
+}
 
 /** A WMO weather code as a short label ("Unknown" when missing or out of range). */
 export function weatherLabel(code: number | null | undefined): string {

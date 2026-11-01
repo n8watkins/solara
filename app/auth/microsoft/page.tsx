@@ -1,4 +1,6 @@
 import type { Metadata } from 'next'
+import StaticText from '@/components/StaticText'
+import * as staticText from '@/messages/static'
 import { MICROSOFT_REDIRECT_SCRIPT } from '@/lib/microsoft-redirect'
 
 // Where Microsoft sends the Outlook sign-in popup back (docs/integrations/OUTLOOK.md). The
@@ -25,9 +27,11 @@ export default function MicrosoftRedirectPage() {
         dangerouslySetInnerHTML={{ __html: MICROSOFT_REDIRECT_SCRIPT }}
       />
       <div className="max-w-sm text-center">
-        <h1 className="text-[17px] font-semibold text-ink">Connecting Outlook</h1>
+        <h1 className="text-[17px] font-semibold text-ink">
+          <StaticText text={staticText.outlookTitle} />
+        </h1>
         <p className="mt-1.5 text-[14px] leading-normal text-ink-2">
-          You can close this window and go back to Solara.
+          <StaticText text={staticText.outlookBody} />
         </p>
       </div>
     </main>

@@ -8,6 +8,8 @@ import { formatUV, uvBand, uvLabel } from '@/lib/weather'
 import type * as IcsCode from '@/lib/ics'
 import { useUnits } from '@/lib/use-units'
 import { UV_BG } from './dashboard/uv-classes'
+import { windowLabelText } from '@solara/core/recommendation'
+import m from '@/messages/activities'
 
 interface Props {
   forecast: DayWeather[]
@@ -69,18 +71,16 @@ export default function PlanAhead({
     <div className="card" data-testid="plan-ahead">
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>
-          <p className="text-[15px] font-bold text-ink">Best day this week</p>
-          <p className="mt-[3px] text-[13px] text-ink-3">
-            The best upcoming day and time for each activity.
-          </p>
+          <p className="text-[15px] font-bold text-ink">{m.bestDayThisWeek}</p>
+          <p className="mt-[3px] text-[13px] text-ink-3">{m.bestDayLead}</p>
         </div>
         {canExport && (
           <button
             className="btn shrink-0 text-[12px] whitespace-nowrap"
             onClick={() => void exportIcs()}
-            title="Download all recommended slots as a calendar file (.ics) for any calendar app"
+            title={m.exportTitle}
           >
-            <Download size={14} /> Export .ics
+            <Download size={14} /> {m.exportIcs}
           </button>
         )}
       </div>
@@ -110,12 +110,14 @@ export default function PlanAhead({
             {/* Color means one thing here: the slot's average UV, on the same scale
                 as the hourly strip. The time-of-day label stays neutral. */}
             <div className="shrink-0 text-right">
-              <p className="text-[12px] font-semibold text-ink-2">{slot.windowLabel}</p>
+              <p className="text-[12px] font-semibold text-ink-2">
+                {windowLabelText(slot.windowLabel)}
+              </p>
               <span
-                title={`Average UV ${formatUV(slot.avgUV)}, ${uvLabel(slot.avgUV)}`}
+                title={m.averageUv(formatUV(slot.avgUV), uvLabel(slot.avgUV))}
                 className={`mt-[3px] inline-block rounded-full px-[7px] py-0.5 text-[11px] font-[650] whitespace-nowrap text-uv-ink ${UV_BG[uvBand(slot.avgUV)]}`}
               >
-                avg UV {formatUV(slot.avgUV)}
+                {m.avgUv(formatUV(slot.avgUV))}
               </span>
             </div>
             {onBook && (
@@ -123,7 +125,7 @@ export default function PlanAhead({
                 className="btn shrink-0 px-2.5 py-1.5 text-[11px]"
                 onClick={() => onBook(activity, slot, dateStr)}
               >
-                <CalendarPlus size={14} /> Book
+                <CalendarPlus size={14} /> {m.book}
               </button>
             )}
           </div>
@@ -135,8 +137,7 @@ export default function PlanAhead({
           onClick={onUpgrade}
           className="btn mt-3 w-full justify-center border-brand/40 text-[12px] text-accent"
         >
-          <Lock size={14} /> {upgradeCopy}: see {lockedDays} more day{lockedDays === 1 ? '' : 's'}{' '}
-          of plans
+          <Lock size={14} /> {m.seeMoreDays(upgradeCopy, lockedDays)}
         </button>
       )}
     </div>

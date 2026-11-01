@@ -5,8 +5,8 @@ import type { SettingsDraft } from '@/lib/settings'
 import { SKIN_OPTIONS } from '@/lib/onboarding'
 import {
   BODY_AREAS,
-  REAPPLY_RULE,
-  TEASPOON_RULE,
+  reapplyRule,
+  teaspoonRule,
   spfRuleText,
   sunscreenAmount,
   sunscreenAmountText,
@@ -20,6 +20,7 @@ import {
   SettingsHint,
   SettingsTitle,
 } from './SettingsCard'
+import m from '@/messages/settings'
 
 interface Props {
   draft: SettingsDraft
@@ -39,10 +40,10 @@ export default function SunProfileSettings({ draft, onChange }: Props) {
         <SettingsField>
           <div>
             <SettingsTitle className="mb-1">
-              <label htmlFor={`${id}-skin`}>Skin type</label>
+              <label htmlFor={`${id}-skin`}>{m.skinType}</label>
             </SettingsTitle>
             <SettingsHint id={`${id}-skin-desc`} className="leading-[1.45]">
-              Used for burn-time and vitamin D estimates.
+              {m.skinTypeHint}
             </SettingsHint>
           </div>
           <select
@@ -64,12 +65,13 @@ export default function SunProfileSettings({ draft, onChange }: Props) {
           <div className="min-w-0 flex-1">
             <p className="text-[14px] font-[650] text-ink">
               {selected.label}{' '}
-              <span className="font-normal text-ink-3">· Fitzpatrick {selected.fitzpatrick}</span>
+              <span className="font-normal text-ink-3">{m.fitzpatrick(selected.fitzpatrick)}</span>
             </p>
             <p className="mt-0.5 text-[12px] text-ink-3">{selected.desc}</p>
           </div>
-          <span className="text-[12px] font-semibold whitespace-nowrap text-ink-2">
-            {selected.burnTime} at UV 10
+          {/* Narrow, so the skin type beside it keeps its room; it wraps after the time. */}
+          <span className="max-w-[5.5rem] shrink-0 text-right text-[12px] leading-[1.35] font-semibold text-balance text-ink-2">
+            {m.atUv10(selected.burnTime)}
           </span>
         </div>
         <button
@@ -77,7 +79,7 @@ export default function SunProfileSettings({ draft, onChange }: Props) {
           className="btn justify-center text-[13px]"
           onClick={() => setQuizOpen(true)}
         >
-          Not sure? Take the 1-minute quiz
+          {m.takeQuiz}
         </button>
         {quizOpen && (
           <SkinTypeQuiz
@@ -95,15 +97,11 @@ export default function SunProfileSettings({ draft, onChange }: Props) {
           aria-controls={`${id}-skin-help`}
           onClick={() => setShowHelp(s => !s)}
         >
-          {showHelp ? 'Hide explanation' : 'How skin type affects Solara'}
+          {showHelp ? m.hideExplanation : m.howSkinType}
         </button>
         {showHelp && (
           <p id={`${id}-skin-help`} className="text-[13px] leading-[1.55] text-ink-2">
-            Lighter skin typically burns faster at the same UV level. The types follow the
-            Fitzpatrick scale, from type I (always burns, never tans) to types V and VI (rarely or
-            never burns), which Solara plans together using the more cautious type V estimate.
-            Solara uses your type for burn-time and vitamin D estimates. These are planning
-            estimates, not medical advice.
+            {m.skinTypeExplanation}
           </p>
         )}
       </SettingsCard>
@@ -111,19 +109,15 @@ export default function SunProfileSettings({ draft, onChange }: Props) {
       {/* The SPF for the skin type chosen above, the teaspoon rule and when to reapply
           (packages/core/src/sunscreen.ts); nothing here is stored. */}
       <SettingsCard className="flex flex-col gap-1.5" data-testid="sunscreen-settings">
-        <SettingsTitle>Sunscreen</SettingsTitle>
+        <SettingsTitle>{m.sunscreen}</SettingsTitle>
         <ul className="m-0 list-disc space-y-1 pl-[18px] text-[13px] leading-[1.45] text-ink-2">
           <li>{spfRuleText(draft.skinType)}</li>
           <li>
-            {TEASPOON_RULE} {sunscreenAmountText(sunscreenAmount(BODY_AREAS))}.
+            {teaspoonRule()} {sunscreenAmountText(sunscreenAmount(BODY_AREAS))}.
           </li>
-          <li>{REAPPLY_RULE}</li>
+          <li>{reapplyRule()}</li>
         </ul>
-        <SettingsHint className="leading-[1.45]">
-          Whether an activity is planned with sunscreen is set per activity from the
-          dashboard&apos;s Activities section, so a swim, walk, and quick coffee break can each use
-          different protection settings.
-        </SettingsHint>
+        <SettingsHint className="leading-[1.45]">{m.sunscreenPerActivity}</SettingsHint>
       </SettingsCard>
     </div>
   )

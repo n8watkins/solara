@@ -12,6 +12,7 @@ import { ActivityWeatherSection } from './ActivityWeatherSection'
 import ActivityIconButton from './ActivityIconButton'
 import ActivityModalShell from './ActivityModalShell'
 import { DaysSection, PreferredHoursSection, PreferredTimeSection } from './ActivityScheduleFields'
+import m from '@/messages/editor'
 
 interface Props {
   activity: Activity
@@ -41,28 +42,28 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
   const dirty = activityEdited(activity, draft)
 
   function requestClose() {
-    if (dirty && !window.confirm('Discard unsaved activity changes?')) return
+    if (dirty && !window.confirm(m.discardConfirm)) return
     onClose()
   }
 
   function handleDelete() {
-    if (!window.confirm(`Remove ${activity.name}?`)) return
+    if (!window.confirm(m.removeConfirm(activity.name))) return
     onDelete(activity.id)
   }
 
   return (
     <ActivityModalShell
-      title="Edit activity"
-      description="Customize the activity used for lower-UV planning, sharing, and calendar actions."
+      title={m.editActivity}
+      description={m.editLead}
       onClose={requestClose}
       footer={
         <div className="flex flex-wrap justify-between gap-2.5">
           <button type="button" className="btn border-danger/30 text-danger" onClick={handleDelete}>
-            Delete
+            {m.delete}
           </button>
           <div className="ml-auto flex gap-2.5">
             <button type="button" className="btn" onClick={requestClose}>
-              Cancel
+              {m.cancel}
             </button>
             <button
               type="button"
@@ -70,7 +71,7 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
               onClick={() => onSave(draft)}
               disabled={!form.name.trim()}
             >
-              Save activity
+              {m.saveActivity}
             </button>
           </div>
         </div>
@@ -81,18 +82,18 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
           <ActivityIconButton
             value={form.icon}
             onChange={icon => update({ icon })}
-            label="Change activity icon"
+            label={m.changeIcon}
             size="lg"
           />
           <div className="flex-1">
             <label htmlFor={ids.name} className="mb-[5px] block text-[12px] text-ink-3">
-              Activity name
+              {m.activityName}
             </label>
             <input
               id={ids.name}
               value={form.name}
               onChange={e => update({ name: e.target.value })}
-              placeholder="Activity name"
+              placeholder={m.activityName}
               className="w-full text-[15px]"
             />
           </div>
@@ -100,8 +101,8 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
 
         <ActivityEditSection
           id={ids.duration}
-          title={<label htmlFor={`${ids.duration}-input`}>Duration</label>}
-          description="How long you usually need for this activity."
+          title={<label htmlFor={`${ids.duration}-input`}>{m.duration}</label>}
+          description={m.durationHint}
         >
           <div className="flex flex-wrap items-center gap-2">
             <button
@@ -109,7 +110,7 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
               className="btn"
               onClick={() => update({ durationMins: clampDuration(form.durationMins - 15) })}
             >
-              −15 min
+              {m.minus15}
             </button>
             <input
               type="number"
@@ -121,13 +122,13 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
               onChange={e => update({ durationMins: clampDuration(parseInt(e.target.value)) })}
               className="w-24 text-[14px]"
             />
-            <span className="text-[13px] text-ink-3">minutes</span>
+            <span className="text-[13px] text-ink-3">{m.minutes}</span>
             <button
               type="button"
               className="btn"
               onClick={() => update({ durationMins: form.durationMins + 15 })}
             >
-              +15 min
+              {m.plus15}
             </button>
           </div>
         </ActivityEditSection>
@@ -148,11 +149,7 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
 
         <DaysSection id={ids.days} days={form.days} onChange={days => update({ days })} />
 
-        <ActivityEditSection
-          id={ids.spf}
-          title="Sun protection"
-          description="SPF changes the planning UV limit for this activity."
-        >
+        <ActivityEditSection id={ids.spf} title={m.sunProtection} description={m.sunProtectionHint}>
           <SunscreenChoice
             aria-labelledby={ids.spf}
             aria-describedby={`${ids.spf}-desc`}
@@ -163,8 +160,8 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
 
         <ActivityEditSection
           id={ids.cloud}
-          title="Account for cloud cover"
-          description="On: plans with the forecast's clouds, so a cloudy hour can fit. Off: plans as if the sky stays clear, the safer choice when clouds may break."
+          title={m.cloudCover}
+          description={m.cloudCoverHint}
           aside={
             <SectionToggle
               on={form.cloudSensitive}
@@ -173,7 +170,7 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
               aria-labelledby={`${ids.cloud} ${ids.cloud}-toggle`}
               aria-describedby={`${ids.cloud}-desc`}
             >
-              {form.cloudSensitive ? 'On' : 'Off'}
+              {form.cloudSensitive ? m.on : m.off}
             </SectionToggle>
           }
         />
@@ -194,11 +191,11 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
 
         <ActivityEditSection
           id={ids.uv}
-          title={<label htmlFor={`${ids.uv}-range`}>Base planning UV limit</label>}
-          description="Lower is more conservative. SPF may raise the effective threshold."
+          title={<label htmlFor={`${ids.uv}-range`}>{m.baseLimit}</label>}
+          description={m.baseLimitHint}
           aside={
             <div className="shrink-0 text-right">
-              <p className="text-[12px] text-ink-3">Effective planning limit</p>
+              <p className="text-[12px] text-ink-3">{m.effectiveLimit}</p>
               <p className="mt-0.5 text-[22px] font-extrabold text-accent">
                 {effectiveMaxUV(draft)}
               </p>
@@ -218,7 +215,7 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
             className="w-full"
           />
           <div className="flex items-center justify-between gap-3">
-            <span className="text-[12px] text-ink-3">Strict</span>
+            <span className="text-[12px] text-ink-3">{m.strict}</span>
             <input
               type="number"
               min="0"
@@ -229,7 +226,7 @@ export default function EditActivityModal({ activity, onSave, onDelete, onClose 
               onChange={e => update({ maxUV: clampUV(parseFloat(e.target.value)) })}
               className="w-[90px] text-center text-[13px]"
             />
-            <span className="text-[12px] text-ink-3">Flexible</span>
+            <span className="text-[12px] text-ink-3">{m.flexible}</span>
           </div>
         </ActivityEditSection>
       </div>

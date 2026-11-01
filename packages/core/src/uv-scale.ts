@@ -1,4 +1,6 @@
 // The WHO UV index scale, shared by every surface that names a UV level.
+import { formatNumber } from './i18n'
+import m from './messages/core'
 
 /**
  * The bands of the UV index scale, lowest first. 'none' (an index of 0: night, or the
@@ -9,13 +11,13 @@
 export const UV_BANDS = ['none', 'low', 'moderate', 'high', 'very-high', 'extreme'] as const
 export type UVBand = (typeof UV_BANDS)[number]
 
-const UV_BAND_LABELS: Record<UVBand, string> = {
-  none: 'Low',
-  low: 'Low',
-  moderate: 'Moderate',
-  high: 'High',
-  'very-high': 'Very high',
-  extreme: 'Extreme',
+const UV_BAND_LABELS: Record<UVBand, () => string> = {
+  none: () => m.uvLow,
+  low: () => m.uvLow,
+  moderate: () => m.uvModerate,
+  high: () => m.uvHigh,
+  'very-high': () => m.uvVeryHigh,
+  extreme: () => m.uvExtreme,
 }
 
 /**
@@ -36,7 +38,12 @@ export function uvBand(uv: number): UVBand {
 
 /** The WHO category's name: "Low" (an index of 0-2), "Moderate", "High", "Very high", "Extreme". */
 export function uvLabel(uv: number): string {
-  return UV_BAND_LABELS[uvBand(uv)]
+  return UV_BAND_LABELS[uvBand(uv)]()
+}
+
+/** A band's name, as uvLabel names a value in it. */
+export function uvBandLabel(band: UVBand): string {
+  return UV_BAND_LABELS[band]()
 }
 
 /**
@@ -47,5 +54,8 @@ export function uvLabel(uv: number): string {
  */
 export function formatUV(uv: number): string {
   const rounded = Math.round(uv * 10) / 10
-  return (rounded === 0 ? 0 : rounded).toFixed(1)
+  return formatNumber(rounded === 0 ? 0 : rounded, {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  })
 }

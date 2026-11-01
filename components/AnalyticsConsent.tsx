@@ -1,7 +1,7 @@
 'use client'
 
 import { usePathname } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import type { AnalyticsConsent as AnalyticsConsentValue } from '@/lib/analytics-consent'
 import styles from './AnalyticsConsent.module.css'
 import {
@@ -63,7 +63,23 @@ const loadRuntime = () => import('@/lib/analytics-runtime')
  */
 const LEFTOVER_ANALYTICS_COOKIE = /(?:^|;\s*)_g(?:a|id|at)/
 
-export default function AnalyticsConsent({ measurementId }: { measurementId?: string }) {
+/** The banner's words, drawn by the layout on the server in every language (StaticText). */
+export interface ConsentCopy {
+  title: ReactNode
+  long: ReactNode
+  short: ReactNode
+  privacy: ReactNode
+  allow: ReactNode
+  notNow: ReactNode
+}
+
+export default function AnalyticsConsent({
+  measurementId,
+  copy,
+}: {
+  measurementId?: string
+  copy: ConsentCopy
+}) {
   const consent = useAnalyticsConsent()
   const pathname = usePathname()
 
@@ -116,24 +132,21 @@ export default function AnalyticsConsent({ measurementId }: { measurementId?: st
       <div className={styles.inner}>
         <div className={styles.copy}>
           <h2 id="analytics-consent-title" className={styles.title}>
-            Help improve Solara
+            {copy.title}
           </h2>
           {/* Phones get the short sentence, so the bar stays about two rows tall. */}
           <p className={styles.text}>
-            <span className={styles.long}>
-              Allow optional analytics to help us understand which features are useful. Nothing
-              loads unless you choose Allow.
-            </span>
-            <span className={styles.short}>Optional analytics, off unless you allow it.</span>{' '}
-            <a href="/privacy/">Privacy details</a>
+            <span className={styles.long}>{copy.long}</span>
+            <span className={styles.short}>{copy.short}</span>{' '}
+            <a href="/privacy/">{copy.privacy}</a>
           </p>
         </div>
         <div className={styles.actions}>
           <button className="btn" type="button" onClick={() => announceConsent('accepted')}>
-            Allow analytics
+            {copy.allow}
           </button>
           <button className="btn" type="button" onClick={() => announceConsent('declined')}>
-            Not now
+            {copy.notNow}
           </button>
         </div>
       </div>

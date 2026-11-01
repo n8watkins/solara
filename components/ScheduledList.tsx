@@ -8,6 +8,7 @@ import { useUnits } from '@/lib/use-units'
 import type { Activity } from '@/lib/types'
 import VisuallyHidden from './VisuallyHidden'
 import ScheduledTile from './scheduled/ScheduledTile'
+import m from '@/messages/calendar'
 
 interface Props {
   activities: readonly Activity[]
@@ -22,9 +23,9 @@ interface Props {
 
 function changesText({ moved, removed }: SyncChanges): string {
   const parts: string[] = []
-  if (moved) parts.push(`${moved} moved`)
-  if (removed) parts.push(`${removed} removed`)
-  return `Updated from Google Calendar: ${parts.join(', ')}.`
+  if (moved) parts.push(m.movedCount(moved))
+  if (removed) parts.push(m.removedCount(removed))
+  return m.updatedFromGoogle(parts.join(', '))
 }
 
 /** Upcoming scheduled activities, with their sync state. Hidden when there are none. */
@@ -41,7 +42,7 @@ export default function ScheduledList({ activities, timeZone, nowMs, dayLabel, o
     >
       <div className="mb-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
         <h2 id="scheduled-list-title" className="m-0 text-[14px] font-bold text-ink">
-          Scheduled
+          {m.scheduled}
         </h2>
         {upcoming.length > 0 && (
           <span className="text-[12px] font-semibold text-ink-3 tabular-nums">
@@ -49,24 +50,18 @@ export default function ScheduledList({ activities, timeZone, nowMs, dayLabel, o
           </span>
         )}
         <div className="ml-auto flex items-center gap-2 text-[12px] text-ink-3" role="status">
-          {scheduled.sync === 'syncing' && 'Checking Google Calendar…'}
+          {scheduled.sync === 'syncing' && m.checkingGoogle}
           {scheduled.sync === 'synced' &&
-            (scheduled.lastChanges
-              ? changesText(scheduled.lastChanges)
-              : 'In sync with Google Calendar')}
+            (scheduled.lastChanges ? changesText(scheduled.lastChanges) : m.inSync)}
           {(scheduled.sync === 'reconnect' || scheduled.sync === 'error') && (
             <>
-              <span>
-                {scheduled.sync === 'reconnect'
-                  ? 'Showing saved times.'
-                  : 'Could not reach Google Calendar.'}
-              </span>
+              <span>{scheduled.sync === 'reconnect' ? m.showingSaved : m.couldNotReach}</span>
               <button
                 type="button"
                 className="btn min-h-7 px-2.5 py-[5px] text-[12px]"
                 onClick={() => void scheduled.refresh({ interactive: true })}
               >
-                {scheduled.sync === 'reconnect' ? 'Reconnect to sync' : 'Try again'}
+                {scheduled.sync === 'reconnect' ? m.reconnectToSync : m.tryAgain}
               </button>
             </>
           )}
@@ -93,7 +88,7 @@ export default function ScheduledList({ activities, timeZone, nowMs, dayLabel, o
                   </ScheduledTile>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[13px] font-[650]">
-                      <VisuallyHidden>Scheduled: </VisuallyHidden>
+                      <VisuallyHidden>{m.scheduledPrefix}</VisuallyHidden>
                       {name}
                     </span>
                     <span className="mt-px block truncate text-[12px] text-ink-2 tabular-nums">

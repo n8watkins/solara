@@ -4,7 +4,7 @@ import {
   calendarFeatureLabel,
   FAMILY_PROFILES_LABEL,
   LINKED_CALENDARS_LABEL,
-  PRO_FEATURES,
+  proFeatures,
   PRO_PLAN,
 } from './plans'
 
@@ -26,7 +26,7 @@ describe('PRO_PLAN', () => {
 })
 
 describe('PRO_FEATURES', () => {
-  const row = (label: string) => PRO_FEATURES.find(feature => feature.label === label)
+  const row = (label: string) => proFeatures().find(feature => feature.label === label)
 
   it('follows the tier rules for each plan', () => {
     expect(row('Forecast')).toMatchObject({
@@ -62,12 +62,12 @@ describe('PRO_FEATURES', () => {
   it('keeps the calendar feature on Free for now, and family profiles and alerts for Pro', () => {
     expect(row('Calendar export')).toMatchObject({ guest: false, free: true, pro: true })
     expect(row('UV at your events (.ics)')).toMatchObject({ guest: false, free: true, pro: true })
-    for (const label of [FAMILY_PROFILES_LABEL, 'Morning and UV alerts']) {
+    for (const label of [FAMILY_PROFILES_LABEL(), 'Morning and UV alerts']) {
       expect(row(label)).toMatchObject({ guest: false, free: false })
       expect(row(label)?.pro).toBeTruthy()
     }
     // Family profiles come with planning by the most sensitive person, and say so.
-    expect(FAMILY_PROFILES_LABEL).toMatch(/most sensitive/)
+    expect(FAMILY_PROFILES_LABEL()).toMatch(/most sensitive/)
     // Alerts relaunch with Pro (D6), so they are listed as coming soon until switched on.
     expect(row('Morning and UV alerts')?.pro).toBe('Coming soon')
   })
@@ -92,7 +92,7 @@ describe('PRO_FEATURES', () => {
       vi.resetModules()
       const fresh = await import('./plans')
       expect(fresh.alertsLaunched()).toBe(true)
-      expect(fresh.PRO_FEATURES.find(f => f.label === 'Morning and UV alerts')?.pro).toBe(true)
+      expect(fresh.proFeatures().find(f => f.label === 'Morning and UV alerts')?.pro).toBe(true)
     } finally {
       vi.unstubAllEnvs()
     }
@@ -101,14 +101,14 @@ describe('PRO_FEATURES', () => {
   it('lists the free daily UV push and reapply reminders only once alerts are on', async () => {
     vi.resetModules()
     const off = await import('./plans')
-    expect(off.PRO_FEATURES.find(f => f.label === off.DAILY_UV_PUSH_LABEL)).toBeUndefined()
-    expect(off.PRO_FEATURES.find(f => f.label === off.REAPPLY_PUSH_LABEL)).toBeUndefined()
+    expect(off.proFeatures().find(f => f.label === off.DAILY_UV_PUSH_LABEL())).toBeUndefined()
+    expect(off.proFeatures().find(f => f.label === off.REAPPLY_PUSH_LABEL())).toBeUndefined()
     vi.stubEnv('NEXT_PUBLIC_ALERTS_ENABLED', '1')
     try {
       vi.resetModules()
       const on = await import('./plans')
-      for (const label of [on.DAILY_UV_PUSH_LABEL, on.REAPPLY_PUSH_LABEL]) {
-        expect(on.PRO_FEATURES.find(f => f.label === label)).toMatchObject({
+      for (const label of [on.DAILY_UV_PUSH_LABEL(), on.REAPPLY_PUSH_LABEL()]) {
+        expect(on.proFeatures().find(f => f.label === label)).toMatchObject({
           guest: false,
           free: true,
           pro: true,
@@ -122,7 +122,7 @@ describe('PRO_FEATURES', () => {
 
 describe('linked calendars in the plans (REVIEW8 SEC L3)', () => {
   it('are not listed while switched off', () => {
-    expect(PRO_FEATURES.find(f => f.label === LINKED_CALENDARS_LABEL)).toBeUndefined()
+    expect(proFeatures().find(f => f.label === LINKED_CALENDARS_LABEL())).toBeUndefined()
   })
 
   it('are listed as Pro only once switched on', async () => {
@@ -130,7 +130,7 @@ describe('linked calendars in the plans (REVIEW8 SEC L3)', () => {
     try {
       vi.resetModules()
       const fresh = await import('./plans')
-      expect(fresh.PRO_FEATURES.find(f => f.label === LINKED_CALENDARS_LABEL)).toMatchObject({
+      expect(fresh.proFeatures().find(f => f.label === LINKED_CALENDARS_LABEL())).toMatchObject({
         guest: false,
         free: false,
         pro: true,

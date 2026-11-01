@@ -1,0 +1,48 @@
+// The plans (tiers.ts) and the preset activities, by name.
+import { defineMessages } from '../i18n'
+
+export default defineMessages('plans', {
+  tierGuest: 'Guest',
+  tierFree: 'Free',
+  tierPro: 'Pro',
+  forecastToday: 'Today',
+  forecastTodayTomorrow: 'Today and tomorrow',
+  forecastDays: (days: number) => `${days} days`,
+  limitGuest: (guest: number, free: number) =>
+    `Guests can plan ${guest} activity. Sign in free to plan up to ${free}.`,
+  limitFree: (free: number) => `Free plan: up to ${free} activities.`,
+  limitFreeUpgrade: (note: string, pro: number) => `${note} Upgrade to Pro for up to ${pro}.`,
+
+  categoryRunning: 'Running & cycling',
+  categoryWater: 'Water sports',
+  categoryLeisure: 'Outdoor leisure',
+  categorySports: 'Sports & courts',
+  categoryBreaks: 'Quick breaks',
+  /** The preset browser's search results. */
+  categoryResults: 'Results',
+  run: 'Running',
+  jog: 'Jogging',
+  cycle: 'Cycling',
+  mtb: 'Mountain biking',
+  sprint: 'Sprint workout',
+  swim: 'Swimming',
+  surf: 'Surfing',
+  kayak: 'Kayaking',
+  paddle: 'Paddleboarding',
+  walk: 'Walking',
+  hike: 'Hiking',
+  picnic: 'Picnic',
+  garden: 'Gardening',
+  photo: 'Photography',
+  read: 'Reading outside',
+  golf: 'Golf',
+  tennis: 'Tennis',
+  soccer: 'Soccer',
+  baseball: 'Baseball',
+  yoga: 'Outdoor yoga',
+  bball: 'Basketball',
+  break: 'Sun break',
+  lunch: 'Lunch outside',
+  coffee: 'Morning coffee',
+  dog: 'Dog walk',
+})

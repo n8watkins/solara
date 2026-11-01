@@ -16,6 +16,7 @@ export {
 } from '@solara/core'
 import type { ClockFormatPreference, TemperatureUnitPreference } from '@solara/core'
 import { formatTemperature } from '@solara/core/weather-fit'
+import { formatClock12, formatClock12Compact } from '@solara/core/clock'
 
 export interface DisplayUnits {
   temperature: TemperatureUnit
@@ -129,27 +130,21 @@ const pad2 = (n: number) => String(n).padStart(2, '0')
 /** An hour on the clock: "9am", "12pm" (12-hour) or "09:00" (24-hour). 24 is midnight. */
 export function formatHour(hour: number, clock: ClockFormat = '12h'): string {
   if (clock === '24h') return `${pad2(hour === 24 ? 24 : hour % 24)}:00`
-  const h = hour % 24
-  if (h === 0) return '12am'
-  if (h === 12) return '12pm'
-  return h < 12 ? `${h}am` : `${h - 12}pm`
+  return formatClock12(hour % 24)
 }
 
 /** A fractional time: "6:45am", "5pm" (12-hour) or "06:45", "17:00" (24-hour). */
 export function formatClockTime(hours: number, clock: ClockFormat = '12h'): string {
   const { hour, minute } = hourMinute(hours)
   if (clock === '24h') return `${pad2(hour)}:${pad2(minute)}`
-  const base = formatHour(hour, '12h')
-  if (minute === 0) return base
-  const match = /^(\d+)(am|pm)$/.exec(base)
-  return match ? `${match[1]}:${pad2(minute)}${match[2]}` : base
+  return formatClock12(hour + minute / 60)
 }
 
 /** The narrowest hour label: "6a", "12p" (12-hour) or "06" (24-hour). */
 export function compactHour(hours: number, clock: ClockFormat = '12h'): string {
   const { hour, minute } = hourMinute(hours)
   if (clock === '24h') return minute ? `${pad2(hour)}:${pad2(minute)}` : pad2(hour)
-  return formatClockTime(hours, '12h').replace(/([ap])m$/, '$1')
+  return formatClock12Compact(hours)
 }
 
 /** Formatters bound to one set of display units. */

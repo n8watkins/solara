@@ -1,6 +1,7 @@
 'use client'
 import { useSyncExternalStore } from 'react'
 import { addDays, formatDate, zonedNow, type ZonedNow } from './time'
+import core from '@solara/core/messages/core'
 
 // Offline state for components/ForecastNotice.tsx: whether the browser says it is
 // online, and when the forecast on screen was fetched, said in the location's own
@@ -37,6 +38,6 @@ export function forecastStamp(
   const at = zonedNow(now.timeZone, fetchedAt)
   const clock = time(at.hour + at.minute / 60)
   if (at.date === now.date) return clock
-  if (at.date === addDays(now.date, -1)) return `yesterday, ${clock}`
-  return `${formatDate(at.date, { month: 'short', day: 'numeric' })}, ${clock}`
+  if (at.date === addDays(now.date, -1)) return core.yesterdayAt(clock)
+  return core.dateAt(formatDate(at.date, { month: 'short', day: 'numeric' }), clock)
 }

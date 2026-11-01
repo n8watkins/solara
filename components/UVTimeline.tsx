@@ -16,6 +16,7 @@ import { UV_STRIP_EDGE_FADE, hourSlots, uvDaySummary } from '@solara/core/uv-str
 import VisuallyHidden from './VisuallyHidden'
 import { UVBar, UVGap } from './dashboard/UVBar'
 import UVScaleLegend from './dashboard/UVScaleLegend'
+import m from '@/messages/dashboard'
 
 interface Props {
   hourly: HourlyForecast[]
@@ -223,7 +224,7 @@ export default function UVTimeline({
         ref={stripRef}
         onScroll={onScroll}
         role="group"
-        aria-label="UV forecast by hour"
+        aria-label={m.uvForecastByHour}
         aria-describedby={summaryId}
       >
         {/* One column at least as wide as the strip: bars stretch to fill it on wide

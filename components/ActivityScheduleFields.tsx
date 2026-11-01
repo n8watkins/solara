@@ -1,11 +1,18 @@
 'use client'
 import clsx from 'clsx'
 import type { TimePreference } from '@/lib/types'
-import { DAY_NAMES, DAY_PRESETS, daysSummary, normalizedHours } from '@/lib/activity-form'
+import {
+  dayInitials,
+  dayNames,
+  dayPresets,
+  daysSummary,
+  normalizedHours,
+} from '@/lib/activity-form'
 import { toggleInList } from '@/lib/activity-presets'
 import { useUnits } from '@/lib/use-units'
 import { ChoiceButton } from './ActivityChoice'
 import { ActivityEditSection, SectionToggle } from './ActivityEditSection'
+import m from '@/messages/editor'
 
 interface HoursProps {
   id: string
@@ -27,22 +34,22 @@ export function PreferredHoursSection({ id, enabled, from, to, onChange }: Hours
   return (
     <ActivityEditSection
       id={id}
-      title="Preferred hours"
-      description="Limit recommendations to the part of the day you actually care about."
+      title={m.preferredHours}
+      description={m.preferredHoursHint}
       aside={
         <SectionToggle
           on={enabled}
           onToggle={() => onChange({ preferredEnabled: !enabled })}
           aria-describedby={`${id}-desc`}
         >
-          {enabled ? 'Enabled' : 'Any time'}
+          {enabled ? m.enabled : m.anyTime}
         </SectionToggle>
       }
     >
       {enabled && (
         <div className="grid grid-cols-2 gap-2.5">
           <label className={field}>
-            Earliest
+            {m.earliest}
             <select
               value={hours.from}
               onChange={e => onChange({ preferredFrom: Number(e.target.value) })}
@@ -56,7 +63,7 @@ export function PreferredHoursSection({ id, enabled, from, to, onChange }: Hours
             </select>
           </label>
           <label className={field}>
-            Latest
+            {m.latest}
             <select
               value={hours.to}
               onChange={e => onChange({ preferredTo: Number(e.target.value) })}
@@ -75,10 +82,11 @@ export function PreferredHoursSection({ id, enabled, from, to, onChange }: Hours
   )
 }
 
+// Read when drawn, in the page's language.
 const TIME_OPTIONS = [
-  { value: 'earliest', label: 'Earliest', hint: 'Soonest free slot' },
-  { value: 'latest', label: 'Latest', hint: 'Latest matching slot' },
-  { value: 'sunniest', label: 'Sunniest', hint: 'Most sun within limit' },
+  { value: 'earliest', label: () => m.earliest, hint: () => m.earliestHint },
+  { value: 'latest', label: () => m.latest, hint: () => m.latestHint },
+  { value: 'sunniest', label: () => m.sunniest, hint: () => m.sunniestHint },
 ] as const
 
 /** "Preferred time": which matching window to recommend first. */
@@ -92,20 +100,16 @@ export function PreferredTimeSection({
   onChange: (value: TimePreference) => void
 }) {
   return (
-    <ActivityEditSection
-      id={id}
-      title="Preferred time"
-      description="When several lower-UV times match, which should Solara recommend?"
-    >
+    <ActivityEditSection id={id} title={m.preferredTime} description={m.preferredTimeHint}>
       <div role="group" aria-labelledby={id} aria-describedby={`${id}-desc`} className="flex gap-2">
         {TIME_OPTIONS.map(o => (
           <ChoiceButton
             key={o.value}
             pressed={value === o.value}
             onClick={() => onChange(o.value)}
-            title={o.hint}
+            title={o.hint()}
           >
-            {o.label}
+            {o.label()}
           </ChoiceButton>
         ))}
       </div>
@@ -124,18 +128,14 @@ export function DaysSection({
   onChange: (days: number[]) => void
 }) {
   return (
-    <ActivityEditSection
-      id={id}
-      title="Days"
-      description="Which days this activity should be planned for, such as a weekday run or a weekend hike."
-    >
+    <ActivityEditSection id={id} title={m.days} description={m.daysHint}>
       <div
         role="group"
         aria-labelledby={id}
         aria-describedby={`${id}-desc`}
         className="flex gap-1.5"
       >
-        {DAY_NAMES.map((name, d) => {
+        {dayNames().map((name, d) => {
           const on = days.includes(d)
           return (
             <button
@@ -152,13 +152,13 @@ export function DaysSection({
                   : 'border-[0.5px] border-line-strong bg-surface-card text-ink-3',
               )}
             >
-              {name[0]}
+              {dayInitials()[d]}
             </button>
           )
         })}
       </div>
       <div className="flex flex-wrap gap-2">
-        {DAY_PRESETS.map(p => (
+        {dayPresets().map(p => (
           <button
             key={p.label}
             type="button"

@@ -15,6 +15,7 @@ import LocationPopover from './LocationPopover'
 import GoogleSignInButton from './GoogleSignInButton'
 import SolaraMark from './SolaraMark'
 import styles from './Header.module.css'
+import m from '@/messages/app'
 
 interface Props {
   user: User | null
@@ -65,11 +66,7 @@ export default function Header({
       return
     }
     console.error('Sign-out failed:', failure.error)
-    setSignOutError(
-      failure.blocked
-        ? 'Sign-out paused because notifications could not be disabled. Check your connection and try again.'
-        : 'Could not sign out. Check your connection and try again.',
-    )
+    setSignOutError(failure.blocked ? m.signOutPaused : m.signOutFailed)
   }
 
   const tier = displayTier || prefs.tier || 'anonymous'
@@ -110,7 +107,7 @@ export default function Header({
               />
             )}
             {uv && (
-              <span className={styles.uv} title={`Current UV index ${uv.value}, ${uv.level}`}>
+              <span className={styles.uv} title={m.currentUv(uv.value, uv.level)}>
                 <span aria-hidden="true">
                   <span
                     className="mr-1.5 inline-block size-2 rounded-full align-[1px] shadow-[inset_0_0_0_0.5px_rgba(0,0,0,0.25)]"
@@ -119,16 +116,14 @@ export default function Header({
                   UV {uv.value}
                   <span> · {uv.level}</span>
                 </span>
-                <span className="sr-only">
-                  Current UV index {uv.value}, {uv.level}
-                </span>
+                <span className="sr-only">{m.currentUv(uv.value, uv.level)}</span>
               </span>
             )}
             {tier === 'paid' && (
               <span
                 className={`${styles.pro} shrink-0 rounded-full bg-accent-soft px-2 py-1 text-[10px] font-extrabold tracking-[0.055em] text-accent uppercase`}
               >
-                Pro
+                {m.pro}
               </span>
             )}
             {account ? (
@@ -145,8 +140,8 @@ export default function Header({
                   <button
                     type="button"
                     onClick={() => openSettings()}
-                    aria-label="Settings"
-                    title="Settings"
+                    aria-label={m.settings}
+                    title={m.settings}
                     className="flex size-8 shrink-0 items-center justify-center rounded-full text-ink-2 transition-colors duration-100 hover:bg-surface-metric max-sm:size-7"
                   >
                     <Settings size={18} />
@@ -155,7 +150,7 @@ export default function Header({
                 {/* On phones both controls tighten a little, so a two-line place
                     name ("San Luis Obispo, California") still reads in full. */}
                 <GoogleSignInButton
-                  label="Sign in"
+                  label={m.signIn}
                   size="sm"
                   className="max-sm:gap-1.5 max-sm:px-2.5"
                 />
