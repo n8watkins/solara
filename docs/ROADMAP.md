@@ -43,6 +43,7 @@ Items 1-8 need no Blaze and can start now; items 9-11 wait for the Pro launch; i
 ### 1. Change-aware CI (done, #76)
 
 Done 2026-10-25 in #76: each required check reports on every pull request and runs its suite only when the changed files can affect it; the README's [change-aware checks](../README.md#change-aware-checks) table lists which paths run which suite.
+The CI audit of 2026-11-01 (#169) narrowed the map (deploy-only workflows and scripts, Functions tests and operations scripts), fixed one gap (`scripts/static-pages.mjs` now runs the harness), let `main` skip suites its pull request already passed on the same tree, and sped up the two longest suites; [docs/CI.md](CI.md) has the map, the times and the reasoning.
 
 ### 2. Sun arc peak label clipped on phones (done, #78)
 

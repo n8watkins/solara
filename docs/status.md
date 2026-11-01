@@ -153,7 +153,8 @@ The project stays on Spark until Pro launches ([COSTS.md](COSTS.md)).
   The ruleset does not yet require up-to-date branches or the CodeQL checks, and private vulnerability reporting is off ([A17, A18](OWNER_CHECKLIST.md#anytime-free-no-blaze)).
   There is no `production` environment yet; the deploy jobs that receive credentials run only from `main`, even when started by hand on another branch ([owner checklist](OWNER_CHECKLIST.md#repository)).
 - **Testing policy (#74):** agents run the fast checks locally (lint, typecheck, docs check, unit tests, build and the suites their files touch); the full browser and emulator suites run on GitHub Actions.
-  CI runs only the suites a pull request's files can affect (#76); every required check still reports, and the others pass in seconds ([change-aware checks](../README.md#change-aware-checks)).
+  CI runs only the suites a pull request's files can affect (#76); every required check still reports, and the others pass in seconds ([docs/CI.md](CI.md)).
+  A push to `main` whose exact tree a pull request's CI already passed, on top of a `main` that passed, skips the suites and deploys in about 3 minutes instead of 9 (CI audit, #169).
 - **Pull requests** run `.github/workflows/ci.yml`, which calls the reusable `quality.yml` once per commit (older runs are cancelled).
 - **Pushes to `main`** run `deploy.yml`: the same quality workflow, then one production build that is checked, smoke-tested on the Hosting emulator and packaged with its SHA-256, SBOMs and a provenance record and attestation.
   Separate jobs then deploy Firestore rules, Firestore indexes, Functions (only when `ENABLE_BLAZE_FUNCTIONS` is `true`), the budget guard alone (only when `ENABLE_BUDGET_GUARD` is `true` and Functions are off) and Hosting, which receives exactly the tested artifact.
