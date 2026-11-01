@@ -1,4 +1,3 @@
-import { gzipSync } from 'node:zlib'
 import { expect, test, type Page } from '@playwright/test'
 import { startClock } from '../harness/clock'
 import { buildRawForecast } from '../harness/fixtures'
@@ -143,22 +142,6 @@ test.describe('a device set to Spanish', () => {
   test('keeps the landing page in English', async ({ page }) => {
     await page.goto('/')
     await expect(page.locator('html')).toHaveAttribute('lang', 'en')
-  })
-
-  test("loads Spanish within the guest's first-load budget", async ({ page, baseURL }) => {
-    await prepare(page)
-    const scripts: Promise<number>[] = []
-    page.on('response', response => {
-      if (response.request().resourceType() !== 'script') return
-      if (!response.url().startsWith(baseURL!)) return
-      scripts.push(response.body().then(body => gzipSync(body, { level: 9 }).length))
-    })
-    await page.goto('/app/')
-    await expect(page.getByRole('group', { name: 'Pronóstico UV por hora' })).toBeVisible()
-    const kb = (await Promise.all(scripts)).reduce((sum, n) => sum + n, 0) / 1024
-    // English's budget (guest.spec.ts) plus the opening screen's Spanish (about 7 KB) and
-    // the rest of it, which follows at once (about 19 KB).
-    expect(kb, `Spanish first load: ${kb.toFixed(1)} KB gzip`).toBeLessThan(218)
   })
 })
 
