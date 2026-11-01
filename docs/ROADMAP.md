@@ -576,6 +576,28 @@ The rules and their sources are in [SUNSCREEN.md](SUNSCREEN.md).
 - **First load:** the guidance loads with the timer, the activity plan and Settings, which were already loaded on demand, so a guest's first load is unchanged.
 - **Tests:** `packages/core/src/sunscreen.test.ts`, the guide in `tests/e2e/reapply.spec.ts`, and `tests/harness/sunscreen-guidance.spec.ts` (the timer idle and running, an activity card and Settings at 320, 390 and 1280 px, light and dark, nothing cut off, 0 axe violations).
 
+### 46. Languages (planned, next)
+
+The owner chose to build a language setup now (2026-11-01).
+Today every word is written into the screens in English; dates, times and units already follow the device.
+
+- **Setup:** all text moves into one message file per language; the language comes from the device, with a choice in Settings; the privacy policy, terms, notifications and alerts follow the account's language.
+- **Safety wording:** burn times, SPF advice and "seek shade" are health guidance, so every translation of them is reviewed by a native speaker before release; machine translation is only a first draft.
+- **Not in the app:** the Google Play listing text and screenshots are translated separately in the Play Console.
+
+Languages, in order:
+
+| # | Language | When | Why |
+| --- | --- | --- | --- |
+| 1 | English (US) | Now | Default; also serves Australia, the UK and Canada, since units and date formats follow the device |
+| 2 | Spanish (Latin American) | Now, with the setup | About 13% of US households, plus Mexico and Latin America, where UV is high all year |
+| 3 | Portuguese (Brazil) | When usage shows demand | High UV, a large Android market and an outdoor culture |
+| 4 | French | When usage shows demand | Large market with summer sun and travel; same layout direction as English |
+| 5 | German | When usage shows demand | Large market with summer sun and travel; same layout direction as English |
+| Later | Arabic, Hebrew | Only if clearly needed | Right-to-left languages need the whole layout mirrored, a separate project |
+
+When to add the next language: when its speakers reach roughly 5 to 10% of users, measured from Google Analytics browser languages and, once the Android app exists, Play Console installs by country.
+
 ## Decisions
 
 Agents never make owner decisions; they follow the recorded decision or the default.
@@ -595,6 +617,7 @@ The steps behind each one are in the [owner checklist](OWNER_CHECKLIST.md).
 | D10 | Error reporting | Decided 2026-10-23: Sentry; code shipped in #70, waits for the owner's DSN |
 | D11 | Bot protection | Decided 2026-10-23: App Check with reCAPTCHA v3; works without code changes, waits for the owner's site key |
 | D12 | Local branch and worktree cleanup on the owner's machine | Done by 2026-10-28: only the main clone and the current review worktrees remain |
+| Languages | Which languages to offer | Decided 2026-11-01: build the language setup with English and Spanish (item 46); add Portuguese (Brazil), French and German in that order when each reaches about 5 to 10% of users; no right-to-left languages for now |
 | Blaze | Billing plan | Decided 2026-10-23: stay on Spark until Pro launches, then Blaze with a budget and its kill switch ([COSTS.md](COSTS.md)) |
 | Launch stage | How far to promote the free launch on Spark | Default, owner may change (2026-10-28): a quiet free launch on Spark now; move to Blaze with the budget kill switch (`infra/budget.sh`, owner checklist steps C2 and C3, without Functions) before any promotion, because on Spark a used-up quota stops the site instead of costing money (REVIEW8 QA H1, SEC M1 and M2; [COSTS.md](COSTS.md#how-many-users-before-blaze-costs-money)) |
 | Forecast calls | Paid forecast API budget and cache grid | Default, owner may change (2026-10-27, item 14): 1,500 upstream calls an hour and 20,000 a day for the proxy, the feed and event heads-ups (`FORECAST_UPSTREAM_PER_HOUR`, `FORECAST_UPSTREAM_PER_DAY`), 4 an hour per calendar feed, a 0.02 degree cache grid |
