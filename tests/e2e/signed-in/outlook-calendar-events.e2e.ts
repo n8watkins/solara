@@ -131,13 +131,16 @@ test('show events from Outlook, choose calendars, refresh and disconnect', async
     await route.fallback().catch(() => {})
   })
   const popupPromise = page.waitForEvent('popup')
+  // Listened for on the context before the click: the popup can reach the redirect page
+  // before its own page object exists to listen on, and then closes.
+  const redirectPromise = page
+    .context()
+    .waitForEvent('response', response => response.url().includes('/auth/microsoft/'))
   await outlook.getByRole('button', { name: 'Show my Outlook events' }).click()
   const popup = await popupPromise
-  const redirect = await popup.waitForResponse(response =>
-    response.url().includes('/auth/microsoft/'),
-  )
+  const redirect = await redirectPromise
   expect(redirect.headers()['cross-origin-opener-policy']).toBe('same-origin-allow-popups')
-  await popup.waitForEvent('close')
+  if (!popup.isClosed()) await popup.waitForEvent('close')
   await expect(page.getByTestId('outlook-calendar-status')).toHaveText(
     'Showing 2 upcoming events from Outlook.',
   )
