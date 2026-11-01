@@ -34,8 +34,13 @@ export default {
   signingIn: 'Iniciando sesión...',
   popupBlocked:
     'Tu navegador bloqueó la ventana de inicio de sesión. Vuelve a intentarlo para continuar.',
-  signInFailed:
-    'No se pudo completar el inicio de sesión. Revisa tu conexión y vuelve a intentarlo.',
+  signInFailed: 'No se pudo completar el inicio de sesión. Vuelve a intentarlo.',
+  signInNoConnection:
+    'No se pudo conectar con Google para iniciar sesión. Revisa tu conexión y vuelve a intentarlo.',
+  signInUpdated: 'Solara se acaba de actualizar. Recarga la página para iniciar sesión.',
+  updatedReloaded: 'Solara se actualizó mientras esta página estaba abierta, así que se recargó.',
+  updatedReloadedSignIn:
+    'Solara se actualizó mientras esta página estaba abierta, así que se recargó. Elige Iniciar sesión otra vez para continuar.',
   notNow: 'Ahora no',
   loadingForecast: 'Cargando el pronóstico…',
   dismiss: 'Descartar',

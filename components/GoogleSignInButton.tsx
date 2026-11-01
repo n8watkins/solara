@@ -6,6 +6,7 @@ import { isSignInCancelled } from '@/lib/auth-errors'
 import { firebaseEnabled, loadFirebase, preloadFirebase } from '@/lib/firebase'
 import { loadGuestPrefs } from '@/lib/guest'
 import { SignedInContext } from '@/lib/signed-in-context'
+import { failedCodeUrl, recoverFromStaleBuild, type Recovery } from '@/lib/stale-build'
 import type { UserPreferences } from '@/lib/types'
 import { preloadSignedInParts } from './deferred'
 import m from '@/messages/app'
@@ -75,6 +76,22 @@ export function GoogleIcon({ size = 16 }: { size?: number }) {
   )
 }
 
+/** What a failed sign-in says, by what went wrong. */
+function signInError(error: unknown, recovery: Recovery): string {
+  const code = (error as { code?: unknown } | null)?.code
+  // The first sign-in on a slow connection can take longer than the browser allows a
+  // click to open a window; by now everything has loaded.
+  if (code === 'auth/popup-blocked') return m.popupBlocked
+  if (recovery === 'updated') return m.signInUpdated
+  if (
+    !navigator.onLine ||
+    code === 'auth/network-request-failed' ||
+    failedCodeUrl(error, location.origin)
+  )
+    return m.signInNoConnection
+  return m.signInFailed
+}
+
 export default function GoogleSignInButton({
   label = m.continueWithGoogle,
   seedPrefs,
@@ -130,13 +147,11 @@ export default function GoogleSignInButton({
       // Closing the popup is the person's choice; the button simply comes back.
       if (isSignInCancelled(e)) return
       console.error('Google sign-in failed:', e)
-      setError(
-        // The first sign-in on a slow connection can take longer than the browser
-        // allows a click to open a window; by now everything has loaded.
-        (e as { code?: unknown } | null)?.code === 'auth/popup-blocked'
-          ? m.popupBlocked
-          : m.signInFailed,
-      )
+      // Sign-in's code is gone from the server when Solara was deployed since this page
+      // loaded: the page reloads to the new version (REVIEW10 VERIFY10 N2).
+      const recovery = await recoverFromStaleBuild(e, 'sign-in')
+      if (recovery === 'reloading') return
+      setError(signInError(e, recovery))
     } finally {
       setLoading(false)
     }

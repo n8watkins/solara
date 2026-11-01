@@ -5,6 +5,7 @@ import { syncErrorFor, type SyncError } from '@/lib/sync-error'
 import { SIGN_IN_PARAM } from '@/lib/app-routes'
 import { loadGuestPrefs, requestPersistentStorage, saveGuestPrefs } from '@/lib/guest'
 import { SignedInContext } from '@/lib/signed-in-context'
+import { takeUpdateNotice } from '@/lib/stale-build'
 import { canUseCalendar } from '@solara/core/tiers'
 import { screenAfterOnboarding } from '@/lib/account-screen'
 import { useAccount } from '@/lib/use-account'
@@ -73,6 +74,8 @@ function SignedInApp() {
   const [syncError, setSyncError] = useState<SyncError | null>(null)
   const [foregroundNotice, setForegroundNotice] = useState(false)
   const [billingNotice, setBillingNotice] = useState<string | null>(null)
+  // Set when this tab has just reloaded to a newer version (lib/stale-build.ts).
+  const [updateNotice, setUpdateNotice] = useState(takeUpdateNotice)
   const isDev = process.env.NODE_ENV === 'development'
 
   const {
@@ -287,6 +290,15 @@ function SignedInApp() {
             )}
             {/* Keyed by account so a later account never sees the previous one's notice. */}
             {user && !pending && <GuestPlanNotice key={user.uid} uid={user.uid} />}
+            {updateNotice && (
+              <AppNotice
+                tone="info"
+                role="status"
+                action={{ label: t.dismiss, onClick: () => setUpdateNotice(null) }}
+              >
+                {updateNotice === 'sign-in' ? t.updatedReloadedSignIn : t.updatedReloaded}
+              </AppNotice>
+            )}
             {billingNotice && (
               <AppNotice tone="info" role="status">
                 {billingNotice}

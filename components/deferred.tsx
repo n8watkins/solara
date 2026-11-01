@@ -23,6 +23,7 @@ import {
 } from 'react'
 import { withMessages } from '@/lib/i18n'
 import { installEnvironment, installPromptKind } from '@/lib/install-prompt'
+import { recoverFromStaleBuild } from '@/lib/stale-build'
 import { AccountLoading } from './AccountStatus'
 import ReapplyTimerIdle from './dashboard/ReapplyTimerIdle'
 import type * as ActivityPlanModule from './dashboard/activity-plan'
@@ -71,7 +72,12 @@ function deferred<P extends object>(
           loadedComponent => {
             if (active) setComponent(() => loadedComponent)
           },
-          error => console.error('Could not load part of the app:', error),
+          error => {
+            console.error('Could not load part of the app:', error)
+            // Gone from the server: Solara was deployed since this page loaded, and the
+            // page reloads to the new version (lib/stale-build.ts).
+            void recoverFromStaleBuild(error, 'open')
+          },
         )
       }
       attempt()
