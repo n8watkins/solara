@@ -137,6 +137,16 @@ export interface ReapplyReminderRecord {
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
+/**
+ * The least time between two writes of an account's reminder record: each write starts a
+ * Cloud Function, so firestore.rules (spacedReminderWrite) refuse a write sooner than this
+ * after the last, stamped in `users/{uid}/reminders/{REAPPLY_REMINDER_WRITES_DOC}`.
+ */
+export const REAPPLY_REMINDER_WRITE_GAP_MS = 10_000
+
+/** The document whose `writtenAt` stamps the reminder record's last write. */
+export const REAPPLY_REMINDER_WRITES_DOC = 'writes'
+
 /** The record that schedules a running timer's next reminder as a push. */
 export function reapplyReminderRecord(timer: ReapplyTimer, id: string): ReapplyReminderRecord {
   const remindAt = dueAt(timer)

@@ -202,6 +202,7 @@ jobs:
           PRODUCTION_NEXT_PUBLIC_SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL }}
           PRODUCTION_NEXT_PUBLIC_FUNCTIONS_URL: ${{ secrets.NEXT_PUBLIC_FUNCTIONS_URL }}
           PRODUCTION_NEXT_PUBLIC_GA_MEASUREMENT_ID: ${{ secrets.NEXT_PUBLIC_GA_MEASUREMENT_ID }}
+          PRODUCTION_NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID }}
         run: node .github/scripts/staging-target.mjs --functions-env "functions/.env.$STAGING_PROJECT"
 
       - name: Check the staging key is not production's

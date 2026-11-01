@@ -18,7 +18,7 @@ import { authenticate, uidLimiter } from '../shared/auth'
 import { HttpError, loggableError } from '../shared/errors'
 import { type ServerTimestamp, toMillis } from '../shared/time'
 import { RETENTION_DAYS, expiresAfter } from '../shared/ttl'
-import { dailyUvScheduleRef } from './schedule'
+import { dailyUvScheduleRef, deviceRecordsRef } from './schedule'
 
 export const MAX_NOTIFICATION_DEVICES = 5
 export const MAX_REGISTRATIONS_PER_MINUTE = 10
@@ -332,6 +332,8 @@ export async function registerNotificationDevice({
     })
     // Enrols the account in the daily UV push (daily-uv.ts), checked by the next run.
     transaction.set(dailyUvScheduleRef(userRef), { dueAt: new Date(nowMs) })
+    // Keeps the browser's own account deletion away while devices may exist (rules).
+    transaction.set(deviceRecordsRef(userRef), { registeredAt: serverTimestamp() })
     transaction.set(limitRef, {
       count: registrationCount + 1,
       windowStartedAt: withinWindow ? windowStartedAt : nowMs,

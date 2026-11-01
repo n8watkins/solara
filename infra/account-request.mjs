@@ -11,11 +11,19 @@
 // it that functions/src/account/deletion.ts removes (calendarFeeds, eventSubscriptions,
 // notificationTokenOwners, notificationRegistrationLimits), and the Firebase Auth user.
 //
-// Usage, from the repository root after `npm ci --prefix functions`, signed in as the
-// project owner with `gcloud auth application-default login`:
+// The copy is the file the Account data page downloads (readAccountExport in
+// functions/src/account/export.ts, built by @solara/core/account-export), plus the
+// sign-in's email and name: never push tokens, billing ids or server bookkeeping
+// (REVIEW9 SEC9 L4). Deletion needs `--confirmed-reply <date>`, the date the account's own
+// address answered the owner's reply: an email's sender is easy to fake, so the request
+// alone never deletes anything (docs/RUNBOOK.md, "An emailed export or deletion request").
+//
+// Usage, from the repository root after `npm ci --prefix functions` and
+// `npm run build --prefix functions`, signed in as the project owner with
+// `gcloud auth application-default login`:
 //   node infra/account-request.mjs export <uid> > solara-<uid>.json   # read only
 //   node infra/account-request.mjs delete <uid>                       # lists what it would delete
-//   node infra/account-request.mjs delete <uid> --apply               # deletes it
+//   node infra/account-request.mjs delete <uid> --apply --confirmed-reply 2026-10-29
 // PROJECT_ID defaults to uv-activity-planner. With FIRESTORE_EMULATOR_HOST and
 // FIREBASE_AUTH_EMULATOR_HOST set, it works on the emulators instead.
 import { createRequire } from 'node:module'
@@ -23,40 +31,48 @@ import { createRequire } from 'node:module'
 const require = createRequire(new URL('../functions/package.json', import.meta.url))
 const { initializeApp } = require('firebase-admin/app')
 const { getAuth } = require('firebase-admin/auth')
-const { getFirestore, Timestamp } = require('firebase-admin/firestore')
+const { getFirestore } = require('firebase-admin/firestore')
 
 const PROJECT_ID = process.env.PROJECT_ID || 'uv-activity-planner'
 // Top-level records that belong to one account, found by their `uid` field.
 const BY_UID = ['calendarFeeds', 'eventSubscriptions', 'notificationTokenOwners']
 // Top-level records keyed by the uid.
 const BY_ID = ['notificationRegistrationLimits']
-// Fields never copied out: a linked calendar's address can hold a private token
-// (docs/RUNBOOK.md, "Linked calendars"), and the person has it already.
-const SECRET_FIELDS = new Set(['url'])
+/** How long ago the confirming reply may be: a request is answered within 30 days. */
+const CONFIRMATION_MAX_DAYS = 30
 
 function usage(message) {
   if (message) console.error(message)
-  console.error('Usage: node infra/account-request.mjs export|delete <uid> [--apply]')
+  console.error(
+    'Usage: node infra/account-request.mjs export <uid>\n' +
+      '       node infra/account-request.mjs delete <uid> [--apply --confirmed-reply YYYY-MM-DD]',
+  )
   process.exit(2)
 }
 
-/** Firestore values as plain JSON: timestamps as ISO text, references as paths. */
-function plain(value) {
-  if (value instanceof Timestamp) return value.toDate().toISOString()
-  if (value && typeof value === 'object' && typeof value.path === 'string' && value.firestore) {
-    return value.path
+/**
+ * The date of the reply that confirmed a deletion, from `--confirmed-reply <date>`: a
+ * real day within the last CONFIRMATION_MAX_DAYS days, or null when it is missing.
+ */
+export function confirmedReply(args, now = new Date()) {
+  const index = args.indexOf('--confirmed-reply')
+  if (index === -1) return null
+  const value = args[index + 1] ?? ''
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T00:00:00Z`) : null
+  if (!day || Number.isNaN(day.getTime()) || day.toISOString().slice(0, 10) !== value) {
+    usage('--confirmed-reply takes the date of the confirming reply, as YYYY-MM-DD.')
   }
-  if (Array.isArray(value)) return value.map(plain)
-  if (value && typeof value === 'object') {
-    return Object.fromEntries(Object.entries(value).map(([key, inner]) => [key, plain(inner)]))
+  const age = now.getTime() - day.getTime()
+  if (age < -24 * 60 * 60 * 1000 || age > CONFIRMATION_MAX_DAYS * 24 * 60 * 60 * 1000) {
+    usage(`--confirmed-reply must be a date within the last ${CONFIRMATION_MAX_DAYS} days.`)
   }
   return value
 }
 
-/** A document and, under `collections`, every subcollection below it. */
+/** A document and, under `collections`, every subcollection below it (paths only). */
 async function readTree(ref) {
   const snapshot = await ref.get()
-  const node = { path: ref.path, data: snapshot.exists ? plain(snapshot.data()) : null }
+  const node = { path: ref.path, data: snapshot.exists ? true : null }
   const collections = {}
   for (const collection of await ref.listCollections()) {
     const docs = []
@@ -104,6 +120,12 @@ async function main() {
   if (!uid || !/^[A-Za-z0-9_-]{1,128}$/.test(uid))
     usage('Give the account uid (Firebase Authentication, Users).')
   const apply = rest.includes('--apply')
+  const confirmed = command === 'delete' ? confirmedReply(rest) : null
+  if (apply && !confirmed) {
+    usage(
+      'Deleting needs --confirmed-reply YYYY-MM-DD: reply to the account address and delete only once it confirms (docs/RUNBOOK.md).',
+    )
+  }
 
   const app = initializeApp({ projectId: PROJECT_ID })
   const db = getFirestore(app)
@@ -114,16 +136,12 @@ async function main() {
   const outside = await outsideRecords(db, uid)
 
   if (command === 'export') {
-    const outsideData = []
-    for (const ref of outside) {
-      const data = plain((await ref.get()).data())
-      for (const field of SECRET_FIELDS) delete data[field]
-      outsideData.push({ path: ref.path, data })
-    }
+    // The Account data page's own file, so the copy leaves out what the app leaves out.
+    const { readAccountExport } = require('./lib/account/export.js')
     const copy = {
       exportedAt: new Date().toISOString(),
       project: PROJECT_ID,
-      authUser: user && {
+      signIn: user && {
         uid: user.uid,
         email: user.email ?? null,
         displayName: user.displayName ?? null,
@@ -132,14 +150,14 @@ async function main() {
         createdAt: user.metadata.creationTime,
         lastSignInAt: user.metadata.lastSignInTime,
       },
-      account: tree,
-      otherRecords: outsideData,
+      account: await readAccountExport({ db, uid }),
     }
     process.stdout.write(`${JSON.stringify(copy, null, 2)}\n`)
     return
   }
 
-  if (tree.data?.stripeCustomerId || tree.collections?.billingResources?.length) {
+  const account = (await db.collection('users').doc(uid).get()).data()
+  if (account?.stripeCustomerId || tree.collections?.billingResources?.length) {
     console.error(
       'This account has billing records. Delete it with the Account data controls page or the deleteAccount Function, which also cancels Stripe (docs/RUNBOOK.md).',
     )
@@ -153,6 +171,7 @@ async function main() {
     console.error('Nothing deleted. Run again with --apply to delete these.')
     return
   }
+  console.error(`Deleting, as confirmed by the reply of ${confirmed}.`)
   await db.recursiveDelete(db.collection('users').doc(uid))
   await Promise.all(outside.map(ref => ref.delete()))
   if (user) await auth.deleteUser(uid)
@@ -164,7 +183,9 @@ async function main() {
   console.error('Deleted. Nothing is left for this uid.')
 }
 
-main().catch(error => {
-  console.error(error)
-  process.exit(1)
-})
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().catch(error => {
+    console.error(error)
+    process.exit(1)
+  })
+}

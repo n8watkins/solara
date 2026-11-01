@@ -82,6 +82,28 @@ export function crossSiteReferrer(referrer: string, origin: string): boolean {
   return url.origin !== origin
 }
 
+/**
+ * PURE. Whether another website sent the POST, by every signal the worker sees (REVIEW9
+ * SEC9 L6): the referrer (crossSiteReferrer), and the `Origin` and `Sec-Fetch-Site`
+ * headers where the browser hands them to the worker. Chromium 156 gives the worker
+ * `Origin` but not `Sec-Fetch-Site` (tests/e2e/share-target.spec.ts). Another site's
+ * form normally shows its address in both; one that hides it (a `no-referrer` or
+ * `same-origin` policy) arrives with no referrer and `Origin: null`, which is kept,
+ * because a share from the share sheet may look the same. So nothing shared is imported
+ * until the person confirms it. Another `*.web.app` site is another site (web.app is a
+ * public suffix).
+ */
+export function crossSiteShare(
+  request: { referrer: string; headers: { get(name: string): string | null } },
+  origin: string,
+): boolean {
+  if (crossSiteReferrer(request.referrer, origin)) return true
+  const site = request.headers.get('sec-fetch-site')?.trim().toLowerCase()
+  if (site && site !== 'same-origin' && site !== 'none') return true
+  const from = request.headers.get('origin')?.trim()
+  return !!from && from !== 'null' && from !== origin
+}
+
 /** PURE. Whether a shared file is a calendar file, by its type or its name. */
 export function isCalendarFile(file: { name: string; type: string }): boolean {
   const type = file.type.split(';')[0]!.trim().toLowerCase()
@@ -294,7 +316,7 @@ export async function receiveShare(
   id: string = newShareId(),
 ): Promise<Response> {
   const app = new URL('/app/', origin).href
-  if (crossSiteReferrer(request.referrer, origin)) return Response.redirect(app, 303)
+  if (crossSiteShare(request, origin)) return Response.redirect(app, 303)
   const type = (request.headers.get('content-type') ?? '').toLowerCase()
   let stash: ShareStash
   if (!type.startsWith('multipart/form-data')) {

@@ -1,13 +1,16 @@
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
+import { asAppWindow } from '../app-window'
 
 // Android groundwork on the real export, served by the Firebase Hosting emulator with
 // firebase.json (ROADMAP item 38, docs/integrations/ANDROID.md).
 
 test.describe('a session opened by a Trusted Web Activity', () => {
   test('goes from the landing page to the app, which shows no price', async ({ page }) => {
-    // A TWA's start URL carries ?source=twa; the landing page's prices never show.
+    // A TWA's start URL carries ?source=twa, in an app window; the landing page's prices
+    // never show.
+    await asAppWindow(page)
     await page.goto('/?source=twa')
     await expect(page).toHaveURL(/\/app\/\?source=twa$/)
     await expect(page.getByRole('heading', { name: 'Where are you?' })).toBeVisible()
@@ -25,6 +28,15 @@ test.describe('a session opened by a Trusted Web Activity', () => {
     await page.goto('/')
     await expect(page).toHaveURL(/\/$/)
     await expect(page.getByRole('heading', { name: /Start free/ })).toBeVisible()
+  })
+
+  test('a ?source=twa link opened in a browser tab changes nothing (REVIEW9 SEC9 L8)', async ({
+    page,
+  }) => {
+    await page.goto('/?source=twa')
+    await expect(page).toHaveURL(/\/\?source=twa$/)
+    await expect(page.getByRole('heading', { name: /Start free/ })).toBeVisible()
+    expect(await page.evaluate(() => sessionStorage.getItem('solara_store_session'))).toBeNull()
   })
 })
 

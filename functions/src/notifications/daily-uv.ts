@@ -14,8 +14,10 @@
 // before it is sent, like the morning alert, and only a send that failed for certain on
 // every device is tried again (ALERT_MAX_ATTEMPTS). Its forecasts come through the
 // shared forecast cache within the server's side of the upstream budget and each
-// account's own share of it (functions.ts), at most DAILY_UV_MAX_FORECASTS_PER_RUN new
-// places a run, so Free accounts cannot spend the hour's paid calls.
+// account's own share of it (functions.ts), and all of them together at most a third of
+// that side, spread over the job's runs (dailyUvForecastsPerRun, REVIEW9 SEC9 L5): a few
+// hundred Free accounts in different places cannot spend the server's part of the hour
+// or the day, which the calendar feed and Pro's event heads-ups need too.
 
 import { type OpenMeteoResponse, daylightHours, localTime, quietHours } from '#core'
 import {
@@ -30,6 +32,8 @@ import type { Firestore, QueryDocumentSnapshot } from 'firebase-admin/firestore'
 import { logger } from 'firebase-functions/logger'
 
 import { hasProEntitlement } from '../billing/entitlement'
+import type { UpstreamLimits } from '../forecast/upstream-budget'
+import { sideLimits } from '../forecast/upstream-budget'
 import { loggableError } from '../shared/errors'
 import {
   ALERT_STATE_COLLECTION,
@@ -54,6 +58,32 @@ export { ALERT_SCHEDULE_COLLECTION, DAILY_UV_SCHEDULE_DOC, dailyUvScheduleRef } 
 export const DAILY_UV_MAX_ACCOUNTS_PER_RUN = 1000
 /** Most new forecast places one run looks up (each may cost an upstream call). */
 export const DAILY_UV_MAX_FORECASTS_PER_RUN = 300
+/**
+ * The part of the server's side of the upstream budget (forecast/upstream-budget.ts
+ * sideLimits) the daily UV pushes may use in all, per hour and per day (default, owner
+ * may change): Free accounts' places, which anyone chooses, never take more than a third
+ * of what the calendar feed and Pro's event heads-ups share (REVIEW9 SEC9 L5).
+ */
+export const DAILY_UV_SHARE_OF_SERVER_SIDE = 1 / 3
+/** The alerts job runs every 15 minutes (functions.ts). */
+export const DAILY_UV_RUNS_PER_HOUR = 4
+
+/**
+ * New forecast places one run may look up: DAILY_UV_SHARE_OF_SERVER_SIDE of the server's
+ * side of the hour and of the day, spread evenly over the runs, and never more than
+ * DAILY_UV_MAX_FORECASTS_PER_RUN. The job runs on one instance, one run at a time, so the
+ * runs' sum is the whole. With the default 1,500 an hour and 20,000 a day: 46 a run,
+ * 184 an hour, 4,416 a day (a third of the side's 13,333).
+ */
+export function dailyUvForecastsPerRun(limits: UpstreamLimits): number {
+  const side = sideLimits(limits)
+  const perHour = (side.perHour * DAILY_UV_SHARE_OF_SERVER_SIDE) / DAILY_UV_RUNS_PER_HOUR
+  const perDay = (side.perDay * DAILY_UV_SHARE_OF_SERVER_SIDE) / (24 * DAILY_UV_RUNS_PER_HOUR)
+  return Math.max(
+    0,
+    Math.min(DAILY_UV_MAX_FORECASTS_PER_RUN, Math.floor(Math.min(perHour, perDay))),
+  )
+}
 /** A push that could not go out for now (no forecast yet, a failed send) is retried after this. */
 export const DAILY_UV_RETRY_MS = 15 * 60_000
 /** After this local hour the day's push is not sent any more. */

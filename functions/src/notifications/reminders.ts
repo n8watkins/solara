@@ -141,11 +141,19 @@ export async function reminderWritten({
     await reminderRef.delete()
     return 'invalid'
   }
-  const prior = parseReminder(before)
-  if (prior?.id === reminder.id && prior.remindAt === reminder.remindAt) return 'unchanged'
+  // The same id as before is never a new schedule: a rewrite of the same record, or a
+  // record the server already claimed armed again under its id (REVIEW9 SEC9 I3; the
+  // rules refuse both, this is the second line).
+  if (typeof before?.id === 'string' && before.id === reminder.id) return 'unchanged'
 
   const stateRef = userRef.collection(ALERT_STATE_COLLECTION).doc(REAPPLY_STATE_DOC)
   const day = utcDay(nowMs)
+  // Past the day's cap, one read settles it without a transaction (REVIEW9 SEC9 M1).
+  if (count((await stateRef.get()).data(), 'scheduled', day) >= REAPPLY_SCHEDULES_PER_DAY) {
+    await reminderRef.delete()
+    logger.warn('reapply reminder over the daily cap; not sent', { cap: REAPPLY_SCHEDULES_PER_DAY })
+    return 'capped'
+  }
   const allowed = await db.runTransaction(async transaction => {
     const [state, current] = await Promise.all([
       transaction.get(stateRef),

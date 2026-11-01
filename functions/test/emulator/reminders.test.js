@@ -21,7 +21,8 @@ const {
   reminderWritten,
   sweepReapplyReminders,
 } = require('../../lib/notifications/reminders')
-const { runDailyUv } = require('../../lib/notifications/daily-uv')
+const { dailyUvForecastsPerRun, runDailyUv } = require('../../lib/notifications/daily-uv')
+const { sideLimits } = require('../../lib/forecast/upstream-budget')
 const { dailyUvScheduleRef } = require('../../lib/notifications/schedule')
 
 const projectId = 'demo-solara-reminders'
@@ -157,6 +158,27 @@ describe('reapply reminder push', () => {
       enqueue: () => assert.fail('enqueued twice'),
     })
     assert.equal(again, 'unchanged')
+  })
+
+  test('a claimed reminder armed again under its id is not a new schedule (REVIEW9 SEC9 I3)', async () => {
+    await addUser('alice')
+    await schedule('alice', reminder())
+    const messaging = new FakeMessaging()
+    const due = NOW + 120 * MINUTE
+    // The task claims it (dueAt removed) and is sending; the owner writes it back.
+    const { dueAt: _dueAt, ...claimed } = reminder()
+    const outcome = await reminderWritten({
+      db,
+      uid: 'alice',
+      before: { ...claimed, status: 'claimed', claimedAt: Timestamp.fromMillis(due) },
+      after: reminder(),
+      enabled: true,
+      nowMs: due,
+      enqueue: () => assert.fail('enqueued again'),
+    })
+    assert.equal(outcome, 'unchanged')
+    assert.equal(await deliverReapplyReminder(deps(messaging, due), 'alice', ID), 'sent')
+    assert.equal(messaging.sentTo('alice').length, 1)
   })
 
   test('its task sends one push with the tag the browser uses, then the record is gone', async () => {
@@ -408,6 +430,49 @@ describe('daily UV push for Free accounts', () => {
     const { messaging } = await simulateDay()
     assert.equal(messaging.sentTo('gone').length, 0)
     assert.equal((await dailyUvScheduleRef(userRef).get()).exists, false)
+  })
+
+  test('300 Free accounts in 300 places use at most a third of the server side (REVIEW9 SEC9 L5)', async () => {
+    const limits = { perHour: 1500, perDay: 20000 }
+    const perRun = dailyUvForecastsPerRun(limits)
+    assert.equal(perRun, 46)
+    for (let i = 0; i < 300; i++) {
+      await enrol(`free${i}`, {
+        location: {
+          lat: 30 + i * 0.05,
+          lon: -118.24,
+          city: `Place ${i}`,
+          region: '',
+          timezone: 'America/Los_Angeles',
+        },
+      })
+    }
+    const messaging = new FakeMessaging()
+    const lookups = []
+    const hourStart = Date.parse('2026-06-15T14:00:00Z') // 7am in Los Angeles
+    let sent = 0
+    for (let now = hourStart; now < hourStart + 60 * MINUTE; now += QUARTER_HOUR) {
+      messaging.now = now
+      const result = await runDailyUv({
+        db,
+        messaging,
+        appUrl: 'https://solara.example',
+        now: () => now,
+        forecast: async (place, uid) => {
+          lookups.push(uid)
+          const zoned = { ...place, lat: PLACES['America/Los_Angeles'].lat }
+          return forecastFor(zoned, now)
+        },
+        limits: { maxForecasts: perRun },
+      })
+      sent += result.sent
+    }
+    // The hour's lookups stay within a third of the server's side; the rest wait.
+    assert.equal(lookups.length, 4 * perRun)
+    assert.ok(lookups.length <= sideLimits(limits).perHour / 3)
+    assert.equal(sent, 4 * perRun)
+    // Over a day of runs the cap stays within a third of the side's day too.
+    assert.ok(perRun * 96 <= sideLimits(limits).perDay / 3)
   })
 
   test('its forecasts are capped per run and come back later', async () => {

@@ -25,6 +25,10 @@ export const ACCOUNT_OWNER_KEY = 'solara_account_owner'
 /** sessionStorage key for a session opened by an app store app (lib/store-build.ts). */
 export const STORE_SESSION_KEY = 'solara_store_session'
 
+/** The display modes of an installed app's own window, a TWA's among them (lib/store-build.ts). */
+export const APP_WINDOW_QUERY =
+  '(display-mode: standalone), (display-mode: fullscreen), (display-mode: minimal-ui)'
+
 /**
  * The app's query parameter naming something shared to the installed app (the manifest's
  * share_target, lib/share-target.ts): `/app/?shared=<id>`.

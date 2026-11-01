@@ -37,22 +37,26 @@ The default decision is a quiet launch on Spark, and Blaze with the budget kill 
 A signed-in person can download and delete their account themselves on the Account page, also on Spark: without the Functions the page does both in the browser and deletes exactly what the app writes (the list below up to `scheduled`), then the Auth user ([DEPLOYMENT.md](DEPLOYMENT.md#account-export-and-deletion)).
 The page sends people here by email when it cannot help: an account with billing or server-only records (written only once the Functions have run), a deletion that keeps failing, or someone who cannot sign in.
 The [privacy policy](https://solara-uv.web.app/privacy/) offers email for these requests too; answer each by hand within 30 days.
-What Solara holds for an account on Spark is the Firebase Auth user and `users/{uid}` with its subcollections, all written by the app: `events`, `meta` (`events` and `scheduled` key lists, `googleCalendar`, `outlookCalendar`), `scheduled`; and, once the Functions have ever run, `alertState`, `private`, `notificationDevices`, `billingResources` and the top-level `calendarFeeds`, `eventSubscriptions`, `notificationTokenOwners` and `notificationRegistrationLimits` records ([firestore.rules](../firestore.rules), [deletion.ts](../functions/src/account/deletion.ts)).
+What Solara holds for an account on Spark is the Firebase Auth user and `users/{uid}` with its subcollections, all written by the app: `events`, `meta` (`events` and `scheduled` key lists, `googleCalendar`, `outlookCalendar`), `scheduled`, `reminders` (the sunscreen reminder and its write stamp); after a deletion on the Account page, a top-level `accountSelfDeletions/{uid}` marker holding only the uid and the deletion time, which keeps another open tab from bringing the account back for an hour (the maintenance job removes it a day later once the Functions run; on Spark it stays, linked to no sign-in); and, once the Functions have ever run, `alertState`, `private`, `notificationDevices`, `billingResources` and the top-level `calendarFeeds`, `eventSubscriptions`, `notificationTokenOwners` and `notificationRegistrationLimits` records ([firestore.rules](../firestore.rules), [deletion.ts](../functions/src/account/deletion.ts)).
 `infra/account-request.mjs` walks `users/{uid}` and every subcollection it finds, plus those top-level records, so nothing is missed.
 
-1. Check who is asking: the request must come from the account's own email address.
-   Find the account in Firebase console, **Authentication**, **Users**, by that email, and copy its **User UID**.
+1. Check who is asking.
+   Find the account in Firebase console, **Authentication**, **Users**, by the email address, and copy its **User UID**.
    If the address has no account, reply that Solara holds nothing for it (a guest's plan lives only in their browser).
-2. Once, on your computer: `npm ci --prefix functions` in the repository, and `gcloud auth application-default login` as the project owner.
+   An email's sender is easy to fake, so the request alone is never enough (REVIEW9 SEC9 L4): reply to the account's address as Authentication shows it (a new message to it, not "Reply" to a different address), say what you are about to do, and act only on an answer from that address.
+   Gmail's "mailed-by" and "signed-by" lines on the answer should name the address's own domain; if they do not, ask again.
+   Send everything, the copy included, only to that address.
+2. Once, on your computer: `npm ci --prefix functions`, then `npm run build --prefix functions`, in the repository, and `gcloud auth application-default login` as the project owner.
 3. For a copy of the data: `node infra/account-request.mjs export <uid> > solara-<uid>.json`.
-   It only reads, and leaves out a linked calendar's address (it can hold a private token, and the person has it).
-   Reply with the file attached, and delete your local copy once it is sent.
+   It only reads, and writes the same file the Account data page downloads (with the sign-in's email and name added): no push tokens, billing ids, linked calendar addresses or server bookkeeping.
+   Reply to the account's address with the file attached, and delete your local copy once it is sent.
 4. For deletion: `node infra/account-request.mjs delete <uid>` lists every document and the Auth user it would delete, and changes nothing.
-   Check the list, then run it again with `--apply`; it deletes `users/{uid}` recursively, the top-level records and the Auth user, then checks that nothing is left.
+   Check the list, then run it again with `--apply --confirmed-reply <date>`, the date of the answer from the account's address; it refuses to delete without it.
+   It deletes `users/{uid}` recursively, the top-level records and the Auth user, then checks that nothing is left.
    It refuses an account with billing records: once Pro is on sale, delete those with the Account page's **Delete account** (the `deleteAccount` Function), which also cancels Stripe.
 5. Without the script: Firebase console, **Firestore**, **Data**, `users`, the uid, the three-dot menu, **Delete document** with **Delete all nested documents** checked (or `npx firebase firestore:delete users/<uid> --recursive --project uv-activity-planner`), then **Authentication**, **Users**, the account's menu, **Delete account**.
 6. Reply that the account is deleted, and that the person's browser still keeps its own copy of their plan until they clear the site's data.
-7. Note the date, the uid (not the email) and what was done in your own request log, as a record that the request was handled.
+7. Note the date, the uid (not the email), the date of the confirming answer and what was done in your own request log, as a record that the request was handled.
 
 ## Alerts
 

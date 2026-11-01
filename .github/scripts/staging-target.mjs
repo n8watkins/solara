@@ -27,6 +27,18 @@ import { randomBytes } from 'node:crypto'
 import { pathToFileURL } from 'node:url'
 import { PRODUCTION, PROJECT_VALUE_KEYS, pointsAtProduction } from './check-public-env.mjs'
 
+/**
+ * The sign-in and error-reporting clients a staging build names, and where production's
+ * are: each must be the staging project's own (REVIEW9 SEC9 L7). Reusing production's
+ * Google or Microsoft client would mean adding the staging origin to production's sign-in
+ * apps, and production's Sentry DSN would put staging's errors among production's.
+ */
+export const CLIENT_ID_KEYS = Object.freeze({
+  NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID: 'NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID',
+  NEXT_PUBLIC_MICROSOFT_CLIENT_ID: 'MICROSOFT_CLIENT_ID',
+  NEXT_PUBLIC_SENTRY_DSN: 'NEXT_PUBLIC_SENTRY_DSN',
+})
+
 /** A Google Cloud project id (also the default Hosting site name). */
 const PROJECT_ID = /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/
 
@@ -148,6 +160,13 @@ export function resolve(vars, options = {}) {
       errors.push(`STAGING_${key} is production's value; use the staging project's own.`)
     }
   }
+  for (const [key, productionName] of Object.entries(CLIENT_ID_KEYS)) {
+    const theirs = value(productionName) || String(options.production?.[key] ?? '').trim()
+    if (buildEnv[key] && buildEnv[key] === theirs) {
+      const name = key === 'NEXT_PUBLIC_MICROSOFT_CLIENT_ID' ? 'MICROSOFT_CLIENT_ID' : key
+      errors.push(`STAGING_${name} is production's value; use the staging project's own.`)
+    }
+  }
 
   const functionsParams = {
     APP_URL: appUrl,
@@ -244,7 +263,12 @@ export const dotenv = values =>
 
 /** Production's public values that may still be repository secrets, by NEXT_PUBLIC_* name. */
 function productionFromEnv(env) {
-  return Object.fromEntries(PROJECT_VALUE_KEYS.map(key => [key, env[`PRODUCTION_${key}`] ?? '']))
+  return Object.fromEntries(
+    [...PROJECT_VALUE_KEYS, ...Object.keys(CLIENT_ID_KEYS)].map(key => [
+      key,
+      env[`PRODUCTION_${key}`] ?? '',
+    ]),
+  )
 }
 
 function output(name, raw) {
