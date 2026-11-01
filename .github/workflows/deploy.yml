@@ -124,6 +124,9 @@ jobs:
       # controlled account has been checked; no Functions needed.
       NEXT_PUBLIC_MICROSOFT_CLIENT_ID: ${{ vars.MICROSOFT_CLIENT_ID }}
       NEXT_PUBLIC_OUTLOOK_CALENDAR_EVENTS_ENABLED: ${{ vars.OUTLOOK_CALENDAR_EVENTS_ENABLED == 'true' && '1' || '' }}
+      # The vitamin D log, kept only in the browser, is on unless the owner sets the
+      # VITAMIN_D_LOG variable to false (ROADMAP item 48).
+      NEXT_PUBLIC_VITAMIN_D_LOG: ${{ vars.VITAMIN_D_LOG == 'false' && '0' || '1' }}
       NEXT_TELEMETRY_DISABLED: '1'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

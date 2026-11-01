@@ -51,6 +51,13 @@ test('maps the staging project to its own site, origin and Functions', () => {
   )
   assert.equal(result.buildEnv.NEXT_PUBLIC_SITE_URL, 'https://solara-staging.web.app')
   assert.equal(result.buildEnv.NEXT_PUBLIC_FUNCTIONS_URL, '')
+  // The vitamin D log is on unless STAGING_VITAMIN_D_LOG is false (ROADMAP item 48).
+  assert.equal(result.buildEnv.NEXT_PUBLIC_VITAMIN_D_LOG, '1')
+  assert.equal(
+    resolve({ ...production, ...minimal, STAGING_VITAMIN_D_LOG: 'false' }).buildEnv
+      .NEXT_PUBLIC_VITAMIN_D_LOG,
+    '0',
+  )
   assert.equal(result.functionsParams.APP_URL, 'https://solara-staging.web.app')
 })
 

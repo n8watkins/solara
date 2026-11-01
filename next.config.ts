@@ -30,6 +30,9 @@ const nextConfig: NextConfig = {
     // Always compiled in, so the web build drops the store build's branches
     // (lib/store-build.ts); '1' for an app store build.
     NEXT_PUBLIC_STORE_BUILD: process.env.NEXT_PUBLIC_STORE_BUILD === '1' ? '1' : '',
+    // The vitamin D log's switch (lib/vitamin-d-switch.ts, ROADMAP item 48): on unless
+    // '0', so on in development, CI and production; '0' compiles the log out.
+    NEXT_PUBLIC_VITAMIN_D_LOG: process.env.NEXT_PUBLIC_VITAMIN_D_LOG === '0' ? '0' : '1',
     // The build's version on Function calls (X-Solara-Client, lib/functions-api.ts): the
     // commit GitHub Actions builds, or 'dev' locally.
     NEXT_PUBLIC_CLIENT_VERSION: (process.env.GITHUB_SHA ?? '').slice(0, 12) || 'dev',

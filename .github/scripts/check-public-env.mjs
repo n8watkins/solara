@@ -22,6 +22,7 @@
 //   NEXT_PUBLIC_GOOGLE_CALENDAR_EVENTS_ENABLED  '1' when it shows events from Google Calendar
 //   NEXT_PUBLIC_MICROSOFT_CLIENT_ID  the Azure app's (public) Application ID, a GUID
 //   NEXT_PUBLIC_OUTLOOK_CALENDAR_EVENTS_ENABLED  '1' when it shows events from Outlook
+//   NEXT_PUBLIC_VITAMIN_D_LOG  '0' hides the vitamin D log; '1' or empty shows it
 //   NEXT_PUBLIC_FIREBASE_APP_CHECK_SITE_KEY  required with Functions, which refuse requests without App Check
 //   NEXT_PUBLIC_FIREBASE_VAPID_KEY  required with alerts, which need web push
 //   NEXT_PUBLIC_FIREBASE_APP_CHECK_DEBUG_TOKEN  refused: it would let anyone pass App Check
@@ -241,6 +242,11 @@ export function checkEnv(env) {
     errors.push(
       'NEXT_PUBLIC_OUTLOOK_CALENDAR_EVENTS_ENABLED is set but NEXT_PUBLIC_MICROSOFT_CLIENT_ID is empty, so the events would stay hidden.',
     )
+  }
+
+  const vitaminDLog = value('NEXT_PUBLIC_VITAMIN_D_LOG')
+  if (vitaminDLog && vitaminDLog !== '0' && vitaminDLog !== '1') {
+    errors.push(`NEXT_PUBLIC_VITAMIN_D_LOG must be '0', '1' or empty.`)
   }
 
   // A Cloud Functions URL names its project; a build must call its own project's.
