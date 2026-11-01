@@ -131,6 +131,34 @@ for (const lang of LANGUAGES) {
           }),
         )
         expect(spills, `text spills out of a card of the plans at ${width} px`).toEqual([])
+        // No cell of the plan table lets its text run past its own edges ("Sincronizado"
+        // ran into the Pro column at 320 px).
+        const table = page.getByRole('dialog').getByRole('table')
+        const overflowing = await table.evaluate(element =>
+          [...element.querySelectorAll('th, td')].flatMap(cell => {
+            const box = cell.getBoundingClientRect()
+            // Visible text only: a screen reader's words (.sr-only) sit outside on purpose.
+            const walker = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT)
+            const text: DOMRect[] = []
+            for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+              if (node.parentElement?.closest('.sr-only')) continue
+              const range = document.createRange()
+              range.selectNodeContents(node)
+              text.push(...range.getClientRects())
+            }
+            const spills =
+              cell.scrollWidth > cell.clientWidth + 0.5 ||
+              text.some(r => r.left < box.left - 0.5 || r.right > box.right + 0.5)
+            return spills ? [cell.textContent?.trim()] : []
+          }),
+        )
+        expect(overflowing, `plan table text overflows its cell at ${width} px`).toEqual([])
+        if (SHOTS) {
+          await table.screenshot({
+            path: `${SHOTS}/pricing-table-${lang.code}-${width}-${scheme(testInfo)}.png`,
+            animations: 'disabled',
+          })
+        }
       }
     })
 
