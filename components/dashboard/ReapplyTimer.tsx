@@ -31,6 +31,7 @@ import type { TierLevel } from '@/lib/types'
 import { useUnits } from '@/lib/use-units'
 import type { SkyHour } from '@solara/core/forecast-quality'
 import type { SkinType } from '@solara/core/recommendation'
+import ReapplyTimerIdle from './ReapplyTimerIdle'
 import SunscreenGuide from './SunscreenGuide'
 import m from '@/messages/activities'
 
@@ -234,28 +235,16 @@ export default function ReapplyTimer({
   const guide = <SunscreenGuide today={today} skinType={skinType} onTint={due} />
 
   if (!timer) {
-    // The same min-height as its placeholder (ReapplyTimerSpace in components/deferred.tsx).
     return (
-      <section
-        aria-labelledby={titleId}
-        className="metric-card flex min-h-24 flex-col justify-center gap-2 px-3 py-2.5 md:min-h-20"
-      >
-        <div className="flex items-center gap-3">
-          <Droplets size={20} aria-hidden="true" className="shrink-0 text-accent" />
-          <div className="min-w-0 flex-1">
-            <h2 id={titleId} className="text-[13px] leading-[1.2] font-bold text-ink">
-              {m.sunscreenTimer}
-            </h2>
-            <p className="mt-0.5 text-[12px] leading-[1.35] text-ink-3">
-              {m.headingOut(formatDuration(REAPPLY_MINUTES.standard))}
-            </p>
-          </div>
+      <ReapplyTimerIdle
+        titleId={titleId}
+        start={
           <button type="button" className="btn btn-primary shrink-0" onClick={() => void start()}>
             {m.start}
           </button>
-        </div>
-        <div className="pl-8">{guide}</div>
-      </section>
+        }
+        guide={guide}
+      />
     )
   }
 

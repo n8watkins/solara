@@ -14,6 +14,8 @@
 //   scheduled = none (default) | synced | reconnect: in-memory scheduled activities
 //            (see scheduled-fixtures.tsx), shown as synced or awaiting reconnect
 //   activities = comma-separated activity ids to keep from the plan (default: all)
+//   names  = comma-separated id:name pairs that rename activities (run:Correr), as a
+//            person writing in another language names them
 //   events = none (default) | sample | full: in-memory imported events (see
 //            event-fixtures.ts; full is the sample in an account at the per-account cap);
 //            signed-in screens always get the in-memory store, empty by default
@@ -119,6 +121,12 @@ function readParams() {
     live: params.get('data') === 'live',
     scheduled: (['synced', 'reconnect'] as const).find(v => v === params.get('scheduled')) ?? null,
     activities: params.get('activities')?.split(',') ?? null,
+    names: new Map(
+      (params.get('names') ?? '')
+        .split(',')
+        .map(pair => pair.split(':') as [string, string])
+        .filter(([id, name]) => id && name),
+    ),
     events: (['sample', 'full'] as const).find(v => v === params.get('events')) ?? null,
     links: params.get('links') === 'sample',
     google: (['connected', 'many'] as const).find(v => v === params.get('google')) ?? null,
@@ -198,9 +206,13 @@ function Harness() {
     const built = buildPrefs(initial.tier)
     const placed = initial.place ? { ...built, location: initial.place } : built
     const keep = initial.activities
-    return keep
+    const kept = keep
       ? { ...placed, activities: placed.activities.filter(a => keep.includes(a.id)) }
       : placed
+    return {
+      ...kept,
+      activities: kept.activities.map(a => ({ ...a, name: initial.names.get(a.id) ?? a.name })),
+    }
   })
   const live = useWeather(initial.live ? prefs.location : null)
   const weather = initial.live ? live.weather : fixtureWeather

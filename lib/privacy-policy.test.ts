@@ -2,7 +2,13 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { SCHEDULED_RETENTION_DAYS } from '@solara/core'
 import { IMPORTED_EVENT_RETENTION_DAYS } from '@solara/core/event-import'
-import { LEGAL_DETAILS } from './legal'
+import {
+  LEGAL_DETAILS,
+  PRIVACY_LAST_UPDATED,
+  TERMS_LAST_UPDATED,
+  TRANSLATED_FROM,
+  legalDate,
+} from './legal'
 import * as shareTarget from './share-target'
 import {
   PRODUCTION_DATA_STEPS,
@@ -269,5 +275,88 @@ describe('legal details', () => {
       'jurisdiction',
       'operatorName',
     ])
+  })
+})
+
+// The Spanish translations (ROADMAP item 46): written whole, so they are held to the
+// English section for section and item for item, name the same services and details,
+// translate the English version that is current, and say the English prevails.
+describe('the Spanish privacy policy and terms', () => {
+  const privacyEs = readFileSync(new URL('../app/es/privacy/page.tsx', import.meta.url), 'utf8')
+  const termsEs = readFileSync(new URL('../app/es/terms/page.tsx', import.meta.url), 'utf8')
+  const count = (text: string, pattern: RegExp) => (text.match(pattern) ?? []).length
+
+  it('translate the English version that is current', () => {
+    expect(TRANSLATED_FROM.es).toEqual({
+      privacy: PRIVACY_LAST_UPDATED,
+      terms: TERMS_LAST_UPDATED,
+    })
+    expect(legalDate(PRIVACY_LAST_UPDATED, 'es')).toBe('29 de octubre de 2026')
+    expect(legalDate(PRIVACY_LAST_UPDATED, 'en')).toBe(PRIVACY_LAST_UPDATED)
+  })
+
+  it('have every section, item and paragraph of the English, and one on the language', () => {
+    for (const [es, en] of [
+      [privacyEs, privacy],
+      [termsEs, terms],
+    ] as const) {
+      expect(count(es, /<h2>/g)).toBe(count(en, /<h2>/g) + 1)
+      expect(count(es, /<li>/g)).toBe(count(en, /<li>/g))
+      expect(count(es, /<p>/g)).toBe(count(en, /<p>/g) + 1)
+      expect(count(es, /<a href=/g)).toBeGreaterThanOrEqual(count(en, /<a href=/g))
+      for (const name of en.match(/<LegalDetail name="\w+"/g) ?? []) {
+        expect(count(es, new RegExp(`${name} locale="es"`, 'g')), name).toBe(
+          count(en, new RegExp(name, 'g')),
+        )
+      }
+      expect(es).toContain('<h2>Idioma</h2>')
+      expect(es.replace(/\s+/g, ' ')).toContain('prevalece la')
+      expect(es).toContain('locale="es"')
+    }
+  })
+
+  it('name every service, scope and retention line the English names', () => {
+    for (const name of [
+      'Google Firebase',
+      'reCAPTCHA',
+      'Google Calendar API',
+      'Microsoft identity platform y Microsoft Graph',
+      'Google Analytics',
+      'Open-Meteo',
+      'OpenStreetMap Nominatim',
+      'Stripe',
+      'Sentry',
+      'calendar.freebusy',
+      'calendar.events.owned',
+      'calendar.events.readonly',
+      'calendar.calendarlist.readonly',
+      'Calendars.ReadBasic',
+      '<AnalyticsPreferenceControl enabled={analyticsEnabled} locale="es" />',
+      "recaptchaScope(switches, 'es')",
+      "retentionLines(switches, 'es')",
+    ]) {
+      expect(privacyEs).toContain(name)
+    }
+    for (const line of ['scheduled', 'imported', 'google', 'outlook', 'waitlist', 'backups']) {
+      expect(privacyEs).toContain(`{kept.${line}}`)
+    }
+  })
+
+  it('make the same retention promises in both states', () => {
+    for (const state of [TODAY, PRO_LAUNCH]) {
+      const en = retentionLines(state)
+      const es = retentionLines(state, 'es')
+      expect(Object.keys(es)).toEqual(Object.keys(en))
+      for (const key of Object.keys(en) as (keyof typeof en)[]) {
+        // The same numbers (days, hours) in the same order.
+        expect(es[key].match(/\d+/g), key).toEqual(en[key].match(/\d+/g))
+      }
+    }
+    expect(retentionLines(PRO_LAUNCH, 'es').scheduled).toContain('Firestore lo elimina')
+    expect(retentionLines(TODAY, 'es').scheduled).not.toContain('Firestore')
+    expect(recaptchaScope(TODAY, 'es')).toBe(
+      'reCAPTCHA se ejecuta solo después de que inicias sesión',
+    )
+    expect(recaptchaScope(PRO_LAUNCH, 'es')).toContain('también sin una cuenta')
   })
 })

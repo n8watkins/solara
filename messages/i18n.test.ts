@@ -5,9 +5,12 @@ import { readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { LOCALES, registeredNamespaces, type Messages } from '@solara/core/i18n'
+import { SERVER_TRANSLATIONS } from '@solara/core/server-language'
 import * as staticText from './static'
 import initial from './es/initial'
 import rest from './es/rest'
+import pages from './es/pages'
+import iconSearch from './es/icon-search'
 import { reviewSheet } from './review-sheet'
 
 // Every English namespace registers when its module loads.
@@ -18,7 +21,20 @@ const spanishModules = import.meta.glob<{ needsReview?: string[] }>(
   ['./es/*.ts', '../packages/core/src/messages/es/*.ts'],
   { eager: true },
 )
-const spanish: Record<string, Messages> = { ...initial, ...rest }
+/** Text only the Functions write (pushes, the calendar feed); the app never shows it. */
+const SERVER_ONLY = ['server']
+const server = Object.fromEntries(
+  Object.entries(SERVER_TRANSLATIONS.es).filter(([namespace]) => SERVER_ONLY.includes(namespace)),
+)
+/** Translations a rarely opened part fetches when it opens (lib/i18n.ts ON_DEMAND). */
+const onDemand = { iconSearch }
+const spanish: Record<string, Messages> = {
+  ...initial,
+  ...rest,
+  ...server,
+  ...pages,
+  ...onDemand,
+}
 const sources = registeredNamespaces()
 
 /** Calls a message with numbered values in every parameter (numbers, then string lists). */
@@ -50,7 +66,24 @@ describe('message catalogues', () => {
 
   it('translates every namespace into Spanish, once', () => {
     expect(Object.keys(initial).filter(ns => ns in rest)).toEqual([])
+    expect(SERVER_ONLY.filter(ns => ns in initial || ns in rest)).toEqual([])
+    // The static pages' own words are built into their HTML, never the app's chunks.
+    expect(Object.keys(pages).filter(ns => ns in initial || ns in rest)).toEqual([])
+    expect(Object.keys(onDemand).filter(ns => ns in initial || ns in rest)).toEqual([])
     expect(Object.keys(spanish).sort()).toEqual([...sources.keys()].sort())
+  })
+
+  it('gives the Functions every shared namespace in Spanish, the same as the app', () => {
+    const shared = Object.keys(english)
+      .filter(file => file.includes('packages/core/'))
+      .map(
+        file =>
+          /defineMessages\('([^']+)'/.exec(readFileSync(resolve(__dirname, file), 'utf8'))![1]!,
+      )
+    expect(Object.keys(SERVER_TRANSLATIONS.es).sort()).toEqual(shared.sort())
+    expect(Object.keys(SERVER_TRANSLATIONS.en)).toEqual([])
+    for (const [namespace, translation] of Object.entries(SERVER_TRANSLATIONS.es))
+      expect(translation, namespace).toBe(spanish[namespace])
   })
 
   for (const [namespace, source] of sources) {
@@ -157,7 +190,10 @@ describe('the opening screen chunk', () => {
       if (match && !file.includes('/es/')) namespaces.add(match[1]!)
     }
     expect(namespaces.size).toBeGreaterThan(3)
-    expect([...namespaces].filter(ns => !(ns in initial)).sort()).toEqual([])
+    // The barrel (@solara/core) brings the push builders' messages, which the app never shows.
+    expect(
+      [...namespaces].filter(ns => !(ns in initial) && !SERVER_ONLY.includes(ns)).sort(),
+    ).toEqual([])
   })
 })
 

@@ -76,17 +76,15 @@ export default defineConfig([
   },
   {
     // User-visible text comes from the message catalogues (messages/, docs/i18n/README.md).
-    // The landing, legal and city pages are static English pages for now (ROADMAP item 46),
-    // and the UI harness and the dev panel are tools, not the app.
+    // The privacy policy and terms are legal documents written whole in each language
+    // (ROADMAP item 46), and the UI harness and the dev panel are tools, not the app.
     files: ['app/**/*.tsx', 'components/**/*.tsx'],
     ignores: [
-      'app/page.tsx',
       'app/privacy/**',
       'app/terms/**',
-      'app/uv/**',
+      'app/es/privacy/**',
+      'app/es/terms/**',
       'app/harness/**',
-      'components/city/**',
-      'components/LegalPage.tsx',
       'components/LegalDetail.tsx',
       'components/AnalyticsPreferenceControl.tsx',
       'components/DevPanel.tsx',

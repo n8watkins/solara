@@ -22,6 +22,7 @@ import {
 import { loadAllMessages } from '@/lib/i18n'
 import { installEnvironment, installPromptKind } from '@/lib/install-prompt'
 import { AccountLoading } from './AccountStatus'
+import ReapplyTimerIdle from './dashboard/ReapplyTimerIdle'
 import type * as ActivityPlanModule from './dashboard/activity-plan'
 import type { ReapplyTimerProps } from './dashboard/ReapplyTimer'
 
@@ -234,12 +235,12 @@ export function ActivityPlanGate({
 }
 
 /**
- * Keeps the sunscreen timer's place until it shows, so nothing below it moves: the
- * height of its idle card with "How much sunscreen?" closed (the same min-height classes
- * as ReapplyTimer.tsx; its text takes two lines on phones).
+ * Keeps the sunscreen timer's place until it shows, so nothing below it moves: its idle
+ * card, invisible, with the same words (ReapplyTimerIdle.tsx), so it is as tall as the
+ * card in every language and at every width (tests/harness/sunscreen-timer-space.spec.ts).
  */
 function ReapplyTimerSpace() {
-  return <div aria-hidden="true" className="min-h-24 md:min-h-20" />
+  return <ReapplyTimerIdle />
 }
 const ReapplyTimer = deferred<ReapplyTimerProps>(
   () => import('./dashboard/ReapplyTimer'),

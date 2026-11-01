@@ -8,13 +8,36 @@ const CONTEXT: Record<string, string> = {
   core: 'UV categories, rain and heat, forecast confidence (dashboard, alerts, calendar feed)',
   briefing: 'The daily briefing at the top of the dashboard, and shared briefings',
   sunscreen: 'Sunscreen coaching: the timer, activity cards, Settings; the reapply reminder push',
+  server:
+    'Pushes and the calendar feed: the Pro morning and UV alerts, the daily UV push, event heads-ups, feed events',
   skinQuiz: 'The Fitzpatrick skin type questionnaire (setup and Settings)',
   dashboard: 'The dashboard: burn time and vitamin D cards, calendar event text',
   settings: 'Settings',
   setup: 'Setup and the skin type step',
   activities: 'Activity cards, the hero slot and the activity editor',
   events: 'Imported events and their UV',
+  site: 'The static pages (landing, legal and city pages, at /es/): the shared disclaimer',
+  cityPages: 'The city pages (/es/uv/ and /es/uv/<city>/): the facts about each city and the notes',
 }
+
+/**
+ * Whole documents a native speaker (and counsel) reviews against the English, rather than
+ * message by message: the legal pages are written whole in each language.
+ */
+const DOCUMENTS = [
+  {
+    page: '/es/privacy/',
+    source: 'app/es/privacy/page.tsx',
+    english: '/privacy/',
+    note: 'The privacy policy, in full. It states that the English version prevails.',
+  },
+  {
+    page: '/es/terms/',
+    source: 'app/es/terms/page.tsx',
+    english: '/terms/',
+    note: 'The terms of use, in full, including the health and forecast disclaimer. It states that the English version prevails.',
+  },
+]
 
 /** A message with its parameters shown as {1}, {2}, ... (a list as one value). */
 function show(message: Messages[string]): string {
@@ -69,5 +92,17 @@ export function reviewSheet(
     lines.push('')
   }
   lines.push(`${total} messages to review.`, '')
+  lines.push(
+    '## Legal pages',
+    '',
+    'These are reviewed whole against the English, by a native speaker and by counsel, since they are legal text and give health and safety limits.',
+    '',
+    '| Page | Source | English | Notes |',
+    '| --- | --- | --- | --- |',
+  )
+  for (const doc of DOCUMENTS) {
+    lines.push(`| \`${doc.page}\` | \`${doc.source}\` | \`${doc.english}\` | ${doc.note} |`)
+  }
+  lines.push('')
   return lines.join('\n')
 }

@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from 'react'
 import type { KeyboardEvent } from 'react'
 import clsx from 'clsx'
 import { EMOJI_GROUPS, searchEmojis } from '@/lib/emoji-catalog'
+import { loadOnDemandMessages } from '@/lib/i18n'
 import { nearestInAdjacentRow, nextIndex } from '@/lib/roving-focus'
 import m from '@/messages/editor'
 
@@ -24,6 +25,18 @@ interface Props {
  */
 export default function EmojiPicker({ id, value, onChange, onClose }: Props) {
   const [search, setSearch] = useState('')
+  // The search words in the page's language arrive when the picker opens (English is built in).
+  const [, setKeywordsLoaded] = useState(false)
+  useEffect(() => {
+    let active = true
+    loadOnDemandMessages('iconSearch').then(
+      () => active && setKeywordsLoaded(true),
+      () => {},
+    )
+    return () => {
+      active = false
+    }
+  }, [])
   const ref = useRef<HTMLDivElement>(null)
   const gridRef = useRef<HTMLDivElement>(null)
   // The element focused when the picker opened, captured before the search
@@ -56,7 +69,7 @@ export default function EmojiPicker({ id, value, onChange, onClose }: Props) {
   }
 
   const filtered = search.trim() ? searchEmojis(search) : null
-  const visible = filtered ?? EMOJI_GROUPS.flatMap(g => g.emojis.map(([e]) => e))
+  const visible = filtered ?? EMOJI_GROUPS.flatMap(g => g.emojis)
   // Roving tab stop: the selected emoji if it is shown, else the first one.
   const tabStop = visible.includes(value) ? visible.indexOf(value) : 0
   let index = 0
@@ -151,7 +164,7 @@ export default function EmojiPicker({ id, value, onChange, onClose }: Props) {
                 {g.icon} {g.label}
               </p>
               <div role="group" aria-label={g.label} className={GRID}>
-                {g.emojis.map(([e], i) => renderButton(e, `${g.name}-${i}`))}
+                {g.emojis.map((e, i) => renderButton(e, `${g.name}-${i}`))}
               </div>
             </div>
           ))

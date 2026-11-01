@@ -14,6 +14,8 @@ import {
 import { formatUV } from './weather'
 import climatology from './cities/uv-climatology.json'
 import { STATIC_PAGES } from './static-pages.mts'
+import { inPageLanguage } from './page-language'
+import { cityStructuredData } from './structured-data'
 
 const flags = (months: number[]) => Array.from({ length: 12 }, (_, i) => months.includes(i + 1))
 
@@ -126,5 +128,70 @@ describe('links', () => {
 describe('hourText', () => {
   it('reads 12-hour times', () => {
     expect([0, 9, 12, 18].map(hourText)).toEqual(['12am', '9am', '12pm', '6pm'])
+  })
+})
+
+describe('the city pages in Spanish (ROADMAP item 46)', () => {
+  const es = <T>(work: () => T) => inPageLanguage('es', work)
+
+  it('names cities, regions, countries and months in Spanish', () => {
+    const london = es(() => cityPage('london')!)
+    expect(london.place).toBe('Londres, Inglaterra')
+    expect(london.city.country).toBe('Reino Unido')
+    expect(london.top.month).toBe('junio')
+    expect(london.months[0]!.short).toBe('ene')
+    expect(london.facts).toContain('El UV suele mantenerse bajo de octubre a marzo.')
+    expect(london.title).toBe('Índice UV en Londres por mes | Solara')
+    expect(es(() => monthSpan(flags([6, 7])))).toBe('en junio y julio')
+    expect(es(() => monthSpan(flags([1, 3, 5])))).toBe('en enero, marzo y mayo')
+    expect(es(() => hourText(13))).toBe('1\u00a0p.m.')
+    // The related cities follow the same country, compared in English.
+    expect(es(() => cityPage('los-angeles')!.related[0]!.name)).toBe('San Diego')
+  })
+
+  it('writes the same numbers as the English page', () => {
+    for (const city of CITIES) {
+      const en = cityPage(city.slug)!
+      const spanish = es(() => cityPage(city.slug)!)
+      expect(spanish.facts.length, city.slug).toBe(en.facts.length)
+      expect(spanish.months.map(m => m.peakText)).toEqual(en.months.map(m => m.peakText))
+      const numbers = (texts: string[]) =>
+        texts
+          .join(' ')
+          .replace(/(\d),(\d{3})/g, '$1$2')
+          .match(/\d+(?:\.\d+)?/g)
+      expect(numbers(spanish.facts), city.slug).toEqual(numbers(en.facts))
+    }
+  })
+
+  it('gives every city its own description, under 160 characters, in Spanish', () => {
+    const descriptions = es(() => CITIES.map(city => cityDescription(cityPage(city.slug)!)))
+    expect(new Set(descriptions).size).toBe(CITIES.length)
+    for (const d of descriptions) expect(d.length, d).toBeLessThanOrEqual(160)
+  })
+
+  it('groups the index by country in Spanish, in Spanish order', () => {
+    const countries = es(() => citiesByCountry().map(group => group.country))
+    expect(countries[0]).toBe('Alemania')
+    expect(countries).toContain('Estados Unidos')
+    expect(countries).toEqual([...countries].sort((a, b) => a.localeCompare(b, 'es')))
+  })
+
+  it('describes the Spanish page in its structured data', () => {
+    const data = es(() => cityStructuredData(cityPage('mexico-city')!))
+    const [webPage, breadcrumb] = data['@graph']
+    expect(webPage.url).toBe('https://solara-uv.web.app/es/uv/mexico-city/')
+    expect(webPage.inLanguage).toBe('es')
+    expect(webPage.about.name).toBe('Ciudad de México, México')
+    expect(breadcrumb.itemListElement.map(item => item.name)).toEqual([
+      'Solara',
+      'UV por ciudad',
+      'Ciudad de México',
+    ])
+  })
+
+  it('leaves the language English afterwards', () => {
+    es(() => cityPage('paris'))
+    expect(cityPage('paris')!.city.name).toBe('Paris')
   })
 })

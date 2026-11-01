@@ -2,8 +2,17 @@
 // and the words each page says about it. Everything comes from the checked-in
 // lib/cities/ data (scripts/city-climatology.mjs), so the pages build with no
 // network and no API key.
+//
+// The words are in the active language: a Spanish page builds its data inside
+// inPageLanguage('es', ...) (lib/page-language.ts), and the city, region and country
+// names follow it (lib/cities/names.ts).
+import { formatClock12 } from '@solara/core/clock'
+import { currentLocale, formatNumber } from '@solara/core/i18n'
+import core from '@solara/core/messages/core'
+import m from '@/messages/city-pages'
 import { formatUV, uvBand, uvLabel, type UVBand } from './weather'
 import cityList from './cities/cities.json'
+import { CITY_NAMES, COUNTRY_NAMES } from './cities/names'
 import climatology from './cities/uv-climatology.json'
 
 export interface City {
@@ -44,22 +53,22 @@ export const CLIMATOLOGY_SOURCE = {
   last: climatology.years.at(-1)!,
 }
 
-export const MONTHS = [
-  'January',
-  'February',
-  'March',
-  'April',
-  'May',
-  'June',
-  'July',
-  'August',
-  'September',
-  'October',
-  'November',
-  'December',
-] as const
+/** The month names in the active language, January first. */
+export function monthNames(): string[] {
+  return m.months.split(',')
+}
 
-/** The city page's path, with the trailing slash the export uses. */
+/** The short month names in the active language ("Jan", "ene"). */
+export function shortMonthNames(): string[] {
+  return m.monthsShort.split(',')
+}
+
+/** A word with its first letter in upper case, for a month that starts a line. */
+export function capitalized(word: string): string {
+  return word.charAt(0).toLocaleUpperCase() + word.slice(1)
+}
+
+/** The city page's path, with the trailing slash the export uses (lib/page-language.ts adds /es). */
 export function cityPath(slug: string): string {
   return `/uv/${slug}/`
 }
@@ -70,7 +79,20 @@ export function cityAppHref(slug: string): string {
 }
 
 export function cityBySlug(slug: string): City | null {
-  return CITIES.find(city => city.slug === slug) ?? null
+  const city = CITIES.find(c => c.slug === slug)
+  return city ? localCity(city) : null
+}
+
+/** The city with its name, region and country in the active language. */
+export function localCity(city: City): City {
+  const locale = currentLocale()
+  const names = CITY_NAMES[locale]?.[city.slug]
+  return {
+    ...city,
+    name: names?.name ?? city.name,
+    region: names?.region ?? city.region,
+    country: COUNTRY_NAMES[locale]?.[city.country] ?? city.country,
+  }
 }
 
 /** "Los Angeles, California" or, where the region repeats the name, "Tokyo, Japan". */
@@ -79,22 +101,13 @@ export function cityPlace(city: City): string {
   return area === city.name ? city.name : `${city.name}, ${area}`
 }
 
-/** "9am", "12pm", "6pm". */
+/** "9am", "12pm", "6pm" ("9 a.m." in Spanish). */
 export function hourText(hour: number): string {
-  const h = ((hour % 24) + 24) % 24
-  if (h === 0) return '12am'
-  if (h === 12) return '12pm'
-  return h < 12 ? `${h}am` : `${h - 12}pm`
+  return formatClock12(((hour % 24) + 24) % 24)
 }
 
 /** Whole-number UV, as the UV index scale is read (for thresholds, never for display). */
 const index = (uv: number) => Math.round(uv)
-
-/** "June", "June and July", "May, June and July". */
-function list(names: readonly string[]): string {
-  if (names.length < 2) return names.join('')
-  return `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`
-}
 
 /**
  * The months flagged true, as words: "from October to March" when they run on
@@ -104,24 +117,34 @@ function list(names: readonly string[]): string {
 export function monthSpan(flags: readonly boolean[]): string | null {
   const count = flags.filter(Boolean).length
   if (count === 0) return null
-  if (count === 12) return 'all year'
+  if (count === 12) return m.allYear
+  const months = monthNames()
   // A run starts at a flagged month that follows an unflagged one.
   const start = flags.findIndex((flag, i) => flag && !flags[(i + 11) % 12])
-  if (count === 1) return `in ${MONTHS[start]}`
+  if (count === 1) return m.inMonth(months[start]!)
   let end = start
   while (flags[(end + 1) % 12]) end = (end + 1) % 12
   if ((end - start + 12) % 12 === count - 1) {
     return count === 2
-      ? `in ${MONTHS[start]} and ${MONTHS[end]}`
-      : `from ${MONTHS[start]} to ${MONTHS[end]}`
+      ? m.inMonths(core.listAnd([months[start]!, months[end]!]))
+      : m.fromMonthTo(months[start]!, months[end]!)
   }
-  return `in ${list(MONTHS.filter((_, i) => flags[i]))}`
+  return m.inMonths(core.listAnd(months.filter((_, i) => flags[i])))
 }
 
 export interface CityMonth extends MonthUV {
-  month: (typeof MONTHS)[number]
+  /** The month's name in the active language, as a sentence uses it ("June", "junio"). */
+  month: string
+  /** Its short name ("Jun", "jun"). */
+  short: string
   band: UVBand
+  /** The WHO category of its typical peak. */
   label: string
+  /** The typical peak and clear-sky peak, written as the app writes UV. */
+  peakText: string
+  clearSkyText: string
+  /** When UV is usually moderate or higher ("10am" to "3pm"), or null when it rarely is. */
+  hours: { from: string; to: string } | null
 }
 
 export interface CityPage {
@@ -135,6 +158,9 @@ export interface CityPage {
   facts: string[]
   /** Other cities to link to: the same country first, then the nearest. */
   related: City[]
+  /** The page's title and meta description. */
+  title: string
+  description: string
 }
 
 /** Great-circle distance in km, for "nearby" links. */
@@ -150,86 +176,93 @@ function distanceKm(a: City, b: City): number {
 
 /** Up to `count` other cities: the same country first, nearest first, then the nearest elsewhere. */
 export function relatedCities(city: City, count = 6): City[] {
+  // Countries compare by their English names, whichever language `city` is in.
+  const country = CITIES.find(c => c.slug === city.slug)?.country ?? city.country
   const others = CITIES.filter(c => c.slug !== city.slug).sort(
     (a, b) =>
-      Number(b.country === city.country) - Number(a.country === city.country) ||
+      Number(b.country === country) - Number(a.country === country) ||
       distanceKm(city, a) - distanceKm(city, b),
   )
   return others.slice(0, count)
 }
 
+/** A city's page in the active language, or null for an unknown city. */
 export function cityPage(slug: string): CityPage | null {
   const city = cityBySlug(slug)
   const data = DATA[slug]
   if (!city || !data) return null
-  const months: CityMonth[] = data.months.map((m, i) => ({
-    ...m,
-    month: MONTHS[i]!,
-    band: uvBand(m.peak),
-    label: uvLabel(m.peak),
+  const names = monthNames()
+  const shorts = shortMonthNames()
+  const months: CityMonth[] = data.months.map((month, i) => ({
+    ...month,
+    month: names[i]!,
+    short: shorts[i]!,
+    band: uvBand(month.peak),
+    label: uvLabel(month.peak),
+    peakText: formatUV(month.peak),
+    clearSkyText: formatUV(month.clearSky),
+    hours:
+      month.from !== null && month.to !== null
+        ? { from: hourText(month.from), to: hourText(month.to) }
+        : null,
   }))
-  const top = months.reduce((best, m) => (m.peak > best.peak ? m : best), months[0]!)
-  const reaches3 = months.map(m => index(m.peak) >= 3)
+  const top = months.reduce((best, month) => (month.peak > best.peak ? month : best), months[0]!)
+  const reaches3 = months.map(month => index(month.peak) >= 3)
   const season = monthSpan(reaches3)
   const lowSpan = monthSpan(reaches3.map(reached => !reached))
-  const facts: string[] = [
-    `UV in ${city.name} is highest in ${top.month}, when a typical day peaks around ${formatUV(top.peak)} (${top.label}).`,
-  ]
+  const facts: string[] = [m.factPeak(city.name, top.month, top.peakText, top.label)]
   if (top.from !== null && top.to !== null) {
-    facts.push(
-      `On a typical ${top.month} day, UV is moderate or higher from about ${hourText(top.from)} to ${hourText(top.to)}, about ${Math.round(top.hours3)} hours.`,
-    )
+    facts.push(m.factHours(top.month, hourText(top.from), hourText(top.to), Math.round(top.hours3)))
   }
-  if (season) {
-    facts.push(
-      season === 'all year'
-        ? 'The typical midday UV is moderate or higher in every month, so sun protection is a year-round habit here.'
-        : `The typical midday UV is moderate or higher ${season}, when public-health guidance recommends sun protection.`,
-    )
-  }
-  if (lowSpan) facts.push(`UV usually stays low ${lowSpan}.`)
-  const cloudiest = months.reduce((best, m) =>
-    m.clearSky - m.peak > best.clearSky - best.peak ? m : best,
+  if (season) facts.push(season === m.allYear ? m.factAllYear : m.factSeason(season))
+  if (lowSpan) facts.push(m.factLow(lowSpan))
+  const cloudiest = months.reduce((best, month) =>
+    month.clearSky - month.peak > best.clearSky - best.peak ? month : best,
   )
   if (index(cloudiest.clearSky) - index(cloudiest.peak) >= 1) {
-    facts.push(
-      `Clouds take the most off in ${cloudiest.month}: a typical peak of ${formatUV(cloudiest.peak)}, against ${formatUV(cloudiest.clearSky)} under a clear sky. On a clear day, expect the higher number.`,
-    )
+    facts.push(m.factClouds(cloudiest.month, cloudiest.peakText, cloudiest.clearSkyText))
   }
   if (data.elevation >= 1000) {
-    facts.push(
-      `At about ${(Math.round(data.elevation / 10) * 10).toLocaleString('en-US')} m above sea level, UV here runs higher than on the coast: roughly 10% more for every 1,000 m.`,
-    )
+    facts.push(m.factAltitude(formatNumber(Math.round(data.elevation / 10) * 10)))
   }
+  const place = cityPlace(city)
   return {
     city,
-    place: cityPlace(city),
+    place,
     elevation: data.elevation,
     months,
     top,
     facts,
-    related: relatedCities(city),
+    related: relatedCities(city).map(localCity),
+    title: m.title(city.name),
+    description: m.description(place, top.peakText, top.month),
   }
 }
 
 /** The page's title. */
 export function cityTitle(page: CityPage): string {
-  return `UV index in ${page.city.name} by month | Solara`
+  return page.title
 }
 
 /** The page's meta description: unique per city, under about 160 characters. */
 export function cityDescription(page: CityPage): string {
-  return `Typical UV index in ${page.place} by month: UV peaks around ${formatUV(page.top.peak)} in ${page.top.month}. See when UV is moderate or higher and today's forecast.`
+  return page.description
 }
 
-/** Cities grouped by country, countries and cities in alphabetical order, for the index page. */
+/**
+ * Cities grouped by country, countries and cities in alphabetical order, for the index
+ * page, with the names in the active language.
+ */
 export function citiesByCountry(): { country: string; cities: City[] }[] {
+  const locale = currentLocale()
   const groups = new Map<string, City[]>()
-  for (const city of CITIES) groups.set(city.country, [...(groups.get(city.country) ?? []), city])
+  for (const city of CITIES.map(localCity)) {
+    groups.set(city.country, [...(groups.get(city.country) ?? []), city])
+  }
   return [...groups.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
+    .sort(([a], [b]) => a.localeCompare(b, locale))
     .map(([country, cities]) => ({
       country,
-      cities: cities.sort((a, b) => a.name.localeCompare(b.name)),
+      cities: cities.sort((a, b) => a.name.localeCompare(b.name, locale)),
     }))
 }

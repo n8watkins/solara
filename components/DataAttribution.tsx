@@ -10,19 +10,22 @@ const LINK = 'text-inherit underline'
 export default function DataAttribution({
   className = '',
   compact = false,
+  text = m,
 }: {
   /** Layout utilities (margins, a top rule) from the caller. */
   className?: string
   /** Shorter wording for tight spaces such as the location popover. */
   compact?: boolean
+  /** The words, for a static page built in another language (lib/page-language.ts). */
+  text?: Pick<typeof m, 'attribution' | 'attributionCompact' | 'attributionAnd' | 'osmContributors'>
 }) {
   return (
     <p className={`m-0 text-[11px] leading-normal text-ink-3 ${className}`}>
-      {compact ? m.attributionCompact : m.attribution}
+      {compact ? text.attributionCompact : text.attribution}
       <a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer" className={LINK}>
         Open-Meteo
       </a>{' '}
-      {m.attributionAnd}{' '}
+      {text.attributionAnd}{' '}
       <a
         href="https://www.geonames.org/"
         target="_blank"
@@ -47,7 +50,7 @@ export default function DataAttribution({
         rel="noopener noreferrer"
         className={LINK}
       >
-        {m.osmContributors}
+        {text.osmContributors}
       </a>
       .
     </p>

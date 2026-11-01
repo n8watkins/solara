@@ -84,6 +84,7 @@ import {
   withoutDuplicates,
 } from '#core/event-import'
 import { ANDROID_ALERT_CHANNEL_ID, deliveryScope } from '#core/push'
+import { inAccountLanguage } from '#core/server-language'
 import { createHash, randomUUID } from 'node:crypto'
 
 import {
@@ -797,23 +798,27 @@ async function dailyAlert(
     // Read as the app reads them, and planned for whom the dashboard plans for: one
     // person, or a group's most sensitive member (packages/core/src/planning.ts).
     const planning = parsePlanningPreferences(user)
-    const alert = morningAlertMessage({
-      date: local.date,
-      city,
-      // The rest of the day: a window that has already started is offered from now.
-      hourly: hourly.filter(h => h.hour >= Math.floor(local.hour)),
-      activities: planning.activities,
-      skinType: planningFor(planning).skinType,
-      clock,
-      temperature: temperatureOf(user),
-      // As in the app, no window before sunrise or after sunset, however low its UV.
-      daylight: daylightHours({ lat, lon }, local.date, timeZone),
-    })
+    const alert = inAccountLanguage(user.language, () =>
+      morningAlertMessage({
+        date: local.date,
+        city,
+        // The rest of the day: a window that has already started is offered from now.
+        hourly: hourly.filter(h => h.hour >= Math.floor(local.hour)),
+        activities: planning.activities,
+        skinType: planningFor(planning).skinType,
+        clock,
+        temperature: temperatureOf(user),
+        // As in the app, no window before sunrise or after sunset, however low its UV.
+        daylight: daylightHours({ lat, lon }, local.date, timeZone),
+      }),
+    )
     return deliver(run, stateRef, doc.id, devices, daily('morning'), alert)
   }
   const plan = threshold === null ? null : planUvAlert(hourly, threshold)
   if (!plan || !uvAlertDue(plan, local.hour, quiet)) return 'not-due'
-  const alert = uvAlertMessage({ plan, city, localHour: local.hour, clock })
+  const alert = inAccountLanguage(user.language, () =>
+    uvAlertMessage({ plan, city, localHour: local.hour, clock }),
+  )
   return deliver(run, stateRef, doc.id, devices, daily('uv'), alert)
 }
 
@@ -1149,20 +1154,22 @@ async function sendHeadsUp(run: Run, job: HeadsUpJob): Promise<AlertOutcome | nu
   }
   const others = worthy.filter(entry => entry !== first)
 
-  const alert = eventHeadsUpMessage({
-    title: first.item.title,
-    placeLabel: first.item.placeLabel,
-    startMs: first.item.startMs,
-    timeZone: first.zone,
-    peakUV: first.peakUV,
-    peakAtMs: first.peakAt,
-    nowMs: now,
-    clock: clockOf(user),
-    ...(first.hotC !== undefined && {
-      hotFeelsLike: formatTemperature(first.hotC, temperatureOf(user)),
+  const alert = inAccountLanguage(user.language, () =>
+    eventHeadsUpMessage({
+      title: first.item.title,
+      placeLabel: first.item.placeLabel,
+      startMs: first.item.startMs,
+      timeZone: first.zone,
+      peakUV: first.peakUV,
+      peakAtMs: first.peakAt,
+      nowMs: now,
+      clock: clockOf(user),
+      ...(first.hotC !== undefined && {
+        hotFeelsLike: formatTemperature(first.hotC, temperatureOf(user)),
+      }),
+      more: others.length,
     }),
-    more: others.length,
-  })
+  )
   const covered = others.map(other => other.item)
   return deliver(
     run,

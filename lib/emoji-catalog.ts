@@ -1,8 +1,11 @@
 /**
- * The icons the activity emoji picker offers, in groups, each with search
- * keywords. An emoji can appear in more than one group.
+ * The icons the activity emoji picker offers, in groups. An emoji can appear in more
+ * than one group. Its search words are in the message catalogue, in the page's language
+ * (messages/icon-search.ts).
  */
+import { currentLocale } from '@solara/core/i18n'
 import m from '@/messages/editor'
+import keywords, { englishIconKeywords } from '@/messages/icon-search'
 
 export interface EmojiGroup {
   /** Group name, a stable key (English). */
@@ -10,8 +13,7 @@ export interface EmojiGroup {
   /** The name shown with `icon` as the heading, in the page's language. */
   readonly label: string
   icon: string
-  /** [emoji, space-separated keywords]. */
-  emojis: readonly (readonly [string, string])[]
+  emojis: readonly string[]
 }
 
 export const EMOJI_GROUPS: readonly EmojiGroup[] = [
@@ -22,26 +24,26 @@ export const EMOJI_GROUPS: readonly EmojiGroup[] = [
     },
     icon: '🏃',
     emojis: [
-      ['🏃', 'run running jog'],
-      ['🚴', 'bike bicycle cycling'],
-      ['🏊', 'swim swimming pool'],
-      ['🏄', 'surf surfing wave'],
-      ['🧘', 'yoga meditation stretch'],
-      ['🤸', 'gymnastics cartwheel stretch'],
-      ['🏋️', 'weights lifting gym workout'],
-      ['⛹️', 'basketball ball'],
-      ['🤾', 'handball ball'],
-      ['🏇', 'horse riding racing'],
-      ['🚵', 'mountain bike biking trail'],
-      ['🤺', 'fencing'],
-      ['🏌️', 'golf'],
-      ['🎿', 'ski skiing snow'],
-      ['🏂', 'snowboard snow'],
-      ['🛹', 'skateboard skate'],
-      ['🧗', 'climb climbing bouldering'],
-      ['🤼', 'wrestling'],
-      ['🏆', 'trophy win'],
-      ['🥇', 'medal gold first'],
+      '🏃',
+      '🚴',
+      '🏊',
+      '🏄',
+      '🧘',
+      '🤸',
+      '🏋️',
+      '⛹️',
+      '🤾',
+      '🏇',
+      '🚵',
+      '🤺',
+      '🏌️',
+      '🎿',
+      '🏂',
+      '🛹',
+      '🧗',
+      '🤼',
+      '🏆',
+      '🥇',
     ],
   },
   {
@@ -51,25 +53,25 @@ export const EMOJI_GROUPS: readonly EmojiGroup[] = [
     },
     icon: '⚽',
     emojis: [
-      ['⚽', 'soccer football ball'],
-      ['🏀', 'basketball ball'],
-      ['🏈', 'american football ball'],
-      ['⚾', 'baseball ball'],
-      ['🥎', 'softball ball'],
-      ['🎾', 'tennis ball'],
-      ['🏐', 'volleyball beach ball'],
-      ['🏉', 'rugby ball'],
-      ['🥏', 'frisbee disc'],
-      ['🏸', 'badminton'],
-      ['🏒', 'hockey ice'],
-      ['🏑', 'field hockey'],
-      ['🥍', 'lacrosse'],
-      ['🏓', 'ping pong table tennis'],
-      ['🥊', 'boxing'],
-      ['🎯', 'darts target'],
-      ['🏹', 'archery bow'],
-      ['🎣', 'fishing'],
-      ['🤿', 'snorkel diving'],
+      '⚽',
+      '🏀',
+      '🏈',
+      '⚾',
+      '🥎',
+      '🎾',
+      '🏐',
+      '🏉',
+      '🥏',
+      '🏸',
+      '🏒',
+      '🏑',
+      '🥍',
+      '🏓',
+      '🥊',
+      '🎯',
+      '🏹',
+      '🎣',
+      '🤿',
     ],
   },
   {
@@ -79,26 +81,26 @@ export const EMOJI_GROUPS: readonly EmojiGroup[] = [
     },
     icon: '🌿',
     emojis: [
-      ['🌿', 'herb leaf plant'],
-      ['🌱', 'seedling garden plant'],
-      ['🌲', 'evergreen tree forest'],
-      ['🌳', 'tree park'],
-      ['🌴', 'palm tree beach'],
-      ['🌵', 'cactus desert'],
-      ['🍀', 'clover luck'],
-      ['🌾', 'wheat field'],
-      ['🌻', 'sunflower flower garden'],
-      ['🌸', 'blossom flower'],
-      ['🌺', 'hibiscus flower'],
-      ['🍁', 'maple leaf autumn'],
-      ['🍂', 'leaves autumn fall'],
-      ['🍃', 'leaves wind'],
-      ['🌊', 'wave ocean sea water'],
-      ['🏔️', 'mountain snow peak'],
-      ['🗻', 'mountain fuji'],
-      ['🏕️', 'camping tent'],
-      ['🌅', 'sunrise sea'],
-      ['🌄', 'sunrise mountains'],
+      '🌿',
+      '🌱',
+      '🌲',
+      '🌳',
+      '🌴',
+      '🌵',
+      '🍀',
+      '🌾',
+      '🌻',
+      '🌸',
+      '🌺',
+      '🍁',
+      '🍂',
+      '🍃',
+      '🌊',
+      '🏔️',
+      '🗻',
+      '🏕️',
+      '🌅',
+      '🌄',
     ],
   },
   {
@@ -108,26 +110,26 @@ export const EMOJI_GROUPS: readonly EmojiGroup[] = [
     },
     icon: '☀️',
     emojis: [
-      ['☀️', 'sun sunny'],
-      ['🌤️', 'sun cloud'],
-      ['⛅', 'cloud sun'],
-      ['🌈', 'rainbow'],
-      ['🌊', 'wave ocean sea water'],
-      ['🏖️', 'beach umbrella'],
-      ['🏝️', 'island beach'],
-      ['⛰️', 'mountain hike'],
-      ['🌋', 'volcano'],
-      ['🗺️', 'map travel'],
-      ['🧭', 'compass navigation'],
-      ['⛺', 'tent camping'],
-      ['🔥', 'fire campfire hot'],
-      ['💧', 'water drop'],
-      ['❄️', 'snow cold'],
-      ['🌬️', 'wind'],
-      ['🌪️', 'tornado storm'],
-      ['🌫️', 'fog'],
-      ['🌡️', 'thermometer temperature heat'],
-      ['⚡', 'lightning energy'],
+      '☀️',
+      '🌤️',
+      '⛅',
+      '🌈',
+      '🌊',
+      '🏖️',
+      '🏝️',
+      '⛰️',
+      '🌋',
+      '🗺️',
+      '🧭',
+      '⛺',
+      '🔥',
+      '💧',
+      '❄️',
+      '🌬️',
+      '🌪️',
+      '🌫️',
+      '🌡️',
+      '⚡',
     ],
   },
   {
@@ -137,26 +139,26 @@ export const EMOJI_GROUPS: readonly EmojiGroup[] = [
     },
     icon: '🐾',
     emojis: [
-      ['🐕', 'dog walk'],
-      ['🐈', 'cat'],
-      ['🐦', 'bird'],
-      ['🦅', 'eagle bird'],
-      ['🦁', 'lion'],
-      ['🐺', 'wolf'],
-      ['🦊', 'fox'],
-      ['🐻', 'bear'],
-      ['🐼', 'panda'],
-      ['🐨', 'koala'],
-      ['🦋', 'butterfly'],
-      ['🐝', 'bee'],
-      ['🐛', 'bug caterpillar'],
-      ['🦎', 'lizard'],
-      ['🐸', 'frog'],
-      ['🐬', 'dolphin'],
-      ['🦈', 'shark'],
-      ['🐙', 'octopus'],
-      ['🦀', 'crab beach'],
-      ['🦜', 'parrot bird'],
+      '🐕',
+      '🐈',
+      '🐦',
+      '🦅',
+      '🦁',
+      '🐺',
+      '🦊',
+      '🐻',
+      '🐼',
+      '🐨',
+      '🦋',
+      '🐝',
+      '🐛',
+      '🦎',
+      '🐸',
+      '🐬',
+      '🦈',
+      '🐙',
+      '🦀',
+      '🦜',
     ],
   },
   {
@@ -166,26 +168,26 @@ export const EMOJI_GROUPS: readonly EmojiGroup[] = [
     },
     icon: '🥗',
     emojis: [
-      ['🥗', 'salad'],
-      ['🍉', 'watermelon picnic'],
-      ['🍓', 'strawberry'],
-      ['🫐', 'blueberries'],
-      ['🍎', 'apple'],
-      ['🍊', 'orange'],
-      ['🍋', 'lemon'],
-      ['🌽', 'corn'],
-      ['🥕', 'carrot'],
-      ['🥦', 'broccoli'],
-      ['☕', 'coffee'],
-      ['🧃', 'juice'],
-      ['💧', 'water drop'],
-      ['🧊', 'ice'],
-      ['🫖', 'teapot tea'],
-      ['🍵', 'tea'],
-      ['🥤', 'drink cup'],
-      ['🍹', 'cocktail drink'],
-      ['🍦', 'ice cream'],
-      ['🧁', 'cupcake'],
+      '🥗',
+      '🍉',
+      '🍓',
+      '🫐',
+      '🍎',
+      '🍊',
+      '🍋',
+      '🌽',
+      '🥕',
+      '🥦',
+      '☕',
+      '🧃',
+      '💧',
+      '🧊',
+      '🫖',
+      '🍵',
+      '🥤',
+      '🍹',
+      '🍦',
+      '🧁',
     ],
   },
   {
@@ -195,26 +197,26 @@ export const EMOJI_GROUPS: readonly EmojiGroup[] = [
     },
     icon: '🎒',
     emojis: [
-      ['🎒', 'backpack bag'],
-      ['👟', 'sneaker shoe running'],
-      ['🧢', 'cap hat'],
-      ['🕶️', 'sunglasses'],
-      ['🧣', 'scarf'],
-      ['🧤', 'gloves'],
-      ['🧦', 'socks'],
-      ['👗', 'dress'],
-      ['🩱', 'swimsuit'],
-      ['🩲', 'swim briefs'],
-      ['🩳', 'shorts'],
-      ['👒', 'sun hat'],
-      ['⛑️', 'helmet'],
-      ['🌂', 'umbrella'],
-      ['☂️', 'umbrella rain'],
-      ['🔦', 'flashlight torch'],
-      ['🧴', 'sunscreen lotion'],
-      ['💊', 'pill medicine'],
-      ['🩺', 'stethoscope health'],
-      ['🏷️', 'tag label'],
+      '🎒',
+      '👟',
+      '🧢',
+      '🕶️',
+      '🧣',
+      '🧤',
+      '🧦',
+      '👗',
+      '🩱',
+      '🩲',
+      '🩳',
+      '👒',
+      '⛑️',
+      '🌂',
+      '☂️',
+      '🔦',
+      '🧴',
+      '💊',
+      '🩺',
+      '🏷️',
     ],
   },
   {
@@ -224,47 +226,65 @@ export const EMOJI_GROUPS: readonly EmojiGroup[] = [
     },
     icon: '✨',
     emojis: [
-      ['✨', 'sparkles'],
-      ['⭐', 'star'],
-      ['🌟', 'glowing star'],
-      ['💫', 'dizzy star'],
-      ['🔥', 'fire hot'],
-      ['💥', 'boom'],
-      ['🎉', 'party'],
-      ['🎊', 'confetti party'],
-      ['🎈', 'balloon party'],
-      ['🎁', 'gift'],
-      ['💪', 'strong muscle'],
-      ['🙌', 'hands celebrate'],
-      ['👋', 'wave hello'],
-      ['✌️', 'peace'],
-      ['🤙', 'call shaka'],
-      ['👏', 'clap'],
-      ['🙏', 'thanks pray'],
-      ['💚', 'green heart'],
-      ['🧡', 'orange heart'],
-      ['❤️', 'red heart love'],
+      '✨',
+      '⭐',
+      '🌟',
+      '💫',
+      '🔥',
+      '💥',
+      '🎉',
+      '🎊',
+      '🎈',
+      '🎁',
+      '💪',
+      '🙌',
+      '👋',
+      '✌️',
+      '🤙',
+      '👏',
+      '🙏',
+      '💚',
+      '🧡',
+      '❤️',
     ],
   },
 ]
 
+/** Lower case without accents, so "natacion" finds "natación". */
+function fold(text: string): string {
+  return text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
+}
+
+/** An icon's search words in the page's language, and in English too in another language. */
+export function iconKeywords(emoji: string): string[] {
+  const own = (keywords as Record<string, string | undefined>)[emoji] ?? ''
+  const english = currentLocale() === 'en' ? '' : (englishIconKeywords[emoji] ?? '')
+  return `${own} ${english}`.split(' ').filter(Boolean).map(fold)
+}
+
 /**
- * Emojis matching `query`, without duplicates: the emoji itself, one of its
- * keywords, or its group's name. A blank query matches nothing.
+ * Emojis matching `query`, without duplicates: the emoji itself, the start of one of its
+ * words ("bici" or "bicicleta de montaña"), or its group's name. Case and accents do not
+ * matter. A blank query matches nothing.
  */
 export function searchEmojis(
   query: string,
   groups: readonly EmojiGroup[] = EMOJI_GROUPS,
 ): string[] {
-  const q = query.trim().toLowerCase()
+  const q = fold(query.trim())
   if (!q) return []
   const found = new Set<string>()
   for (const group of groups) {
-    const groupMatches = group.name.toLowerCase().includes(q)
-    for (const [emoji, keywords] of group.emojis) {
-      if (groupMatches || emoji.includes(q) || keywords.split(' ').some(k => k.startsWith(q)))
+    const groupMatches = fold(group.name).includes(q) || fold(group.label).includes(q)
+    for (const emoji of group.emojis) {
+      if (groupMatches || emoji.includes(query.trim()) || matchesWords(iconKeywords(emoji), q))
         found.add(emoji)
     }
   }
   return [...found]
+}
+
+/** Whether `q` starts one of the words, or a run of them ("tenis de m"). */
+function matchesWords(words: readonly string[], q: string): boolean {
+  return words.some((_, i) => words.slice(i).join(' ').startsWith(q))
 }

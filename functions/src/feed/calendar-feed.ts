@@ -3,6 +3,7 @@
 import { createHash } from 'node:crypto'
 
 import { type IcsEvent, accountForecastDays } from '#core'
+import { inAccountLanguage } from '#core/server-language'
 import type { DocumentData, Firestore } from 'firebase-admin/firestore'
 import type { Request, Response } from 'firebase-functions/v2/https'
 
@@ -163,8 +164,12 @@ export function createCalendarFeedHandler<Forecast>({
       // The feed covers the days the account's plan shows in the app: Free's two, Pro's ten.
       const days = accountForecastDays(user.tier)
       const mayFetch = () => feedUpstreamLimiter.take(feedKey, now()).allowed
-      const events = validCoordinates(user.location)
-        ? buildSunEvents(user, await fetchForecast(user.location, days, { mayFetch }))
+      const forecast = validCoordinates(user.location)
+        ? await fetchForecast(user.location, days, { mayFetch })
+        : null
+      // The events' words and the calendar's name are in the account's language.
+      const events = forecast
+        ? inAccountLanguage(user.language, () => buildSunEvents(user, forecast))
         : []
       const etag = feedEtag(events)
       res.set('Cache-Control', `private, max-age=${FEED_MAX_AGE_SECONDS}`)
@@ -174,7 +179,7 @@ export function createCalendarFeedHandler<Forecast>({
         return
       }
       if (req.method === 'HEAD') res.status(200).send('')
-      else res.status(200).send(buildICS(events))
+      else res.status(200).send(inAccountLanguage(user.language, () => buildICS(events)))
     } catch (error) {
       // Never log the token or the account's location.
       if (error instanceof HttpError && error.code === 'unavailable') {

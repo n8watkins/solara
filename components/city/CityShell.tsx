@@ -1,35 +1,37 @@
-import Link from 'next/link'
 import type { ReactNode } from 'react'
+import type { Locale } from '@solara/core/i18n'
+import StaticHeader from '@/components/StaticHeader'
 import { APP_PATH } from '@/lib/app-routes'
-import SolaraMark from '@/components/SolaraMark'
+import { pageText } from '@/lib/page-language'
 
 /**
- * The frame of the city pages (app/uv/): the Solara header and a centered column.
- * Like the landing page these are static HTML and CSS only (scripts/static-pages.mjs
- * strips the framework scripts), so links are plain anchors.
+ * The frame of the city pages (app/uv/, app/es/uv/): the Solara header with the link to
+ * the page in the other language, and a centered column. Like the landing page these are
+ * static HTML and CSS only (scripts/static-pages.mjs strips the framework scripts), so
+ * links are plain anchors.
  */
 export default function CityShell({
   appHref = APP_PATH,
+  path,
+  locale,
   children,
 }: {
   /** Where "Open Solara" goes (a city page opens the app on that city). */
   appHref?: string
+  /** The page's English address, for its language link. */
+  path: string
+  locale: Locale
   children: ReactNode
 }) {
+  const { site } = pageText(locale)
   return (
     <div className="bg-surface">
-      <header className="mx-auto flex max-w-[960px] items-center justify-between gap-4 px-4 py-4 sm:px-6">
-        <Link
-          href="/"
-          className="flex items-center gap-1.5 rounded-lg text-[18px] font-bold text-ink no-underline"
-        >
-          <SolaraMark size={24} />
-          Solara
-        </Link>
-        <a href={appHref} className="btn px-4 py-2 text-[14px] font-semibold no-underline">
-          Open Solara
-        </a>
-      </header>
+      <StaticHeader
+        path={path}
+        locale={locale}
+        action={{ href: appHref, label: site.openSolara }}
+        width="max-w-[960px]"
+      />
       <main className="mx-auto max-w-[960px] px-4 pt-4 pb-16 sm:px-6 md:pt-8">{children}</main>
     </div>
   )

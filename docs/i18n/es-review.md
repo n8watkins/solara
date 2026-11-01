@@ -38,6 +38,22 @@ calendar
 | `plansWithClouds` | This activity plans with those clouds, so a clearer sky means higher UV. | Esta actividad planifica con esas nubes, así que un cielo más despejado significa más UV. |  |
 | `plansClearSky` | Planned for a clear sky, so the window holds if the clouds break. | Planificado para cielo despejado, así que el horario se mantiene si las nubes se abren. |  |
 
+## cityPages
+
+The city pages (/es/uv/ and /es/uv/<city>/): the facts about each city and the notes
+
+| Key | English | Spanish | Notes |
+| --- | --- | --- | --- |
+| `factHours` | On a typical {1} day, UV is moderate or higher from about {2} to {3}, about {4} hours. | En un día típico de {1}, el UV es moderado o más alto desde alrededor de las {2} hasta las {3}, unas {4} horas. |  |
+| `factAllYear` | The typical midday UV is moderate or higher in every month, so sun protection is a year-round habit here. | El UV típico del mediodía es moderado o más alto todos los meses, así que protegerse del sol es un hábito de todo el año aquí. |  |
+| `factSeason` | The typical midday UV is moderate or higher {1}, when public-health guidance recommends sun protection. | El UV típico del mediodía es moderado o más alto {1}, cuando las autoridades de salud pública recomiendan protegerse del sol. |  |
+| `factLow` | UV usually stays low {1}. | El UV suele mantenerse bajo {1}. |  |
+| `factClouds` | Clouds take the most off in {1}: a typical peak of {2}, against {3} under a clear sky. On a clear day, expect the higher number. | Las nubes bajan más el UV en {1}: un máximo típico de {2}, frente a {3} con cielo despejado. En un día despejado, espera el número más alto. |  |
+| `factAltitude` | At about {1} m above sea level, UV here runs higher than on the coast: roughly 10% more for every 1,000 m. | A unos {1} m sobre el nivel del mar, el UV aquí es más alto que en la costa: alrededor de un 10% más por cada 1000 m. |  |
+| `monthsIntro` | The highest UV index of a typical day, with clouds and under a clear sky, and the hours UV is usually moderate or higher, from {1} to {2}. The categories follow the WHO scale, which rounds to whole numbers, so a typical peak of 2.5 already counts as Moderate. | El índice UV más alto de un día típico, con nubes y con cielo despejado, y las horas en que el UV suele ser moderado o más alto, de {1} a {2}. Las categorías siguen la escala de la OMS, que redondea a números enteros, así que un máximo típico de 2.5 ya cuenta como Moderado. |  |
+| `todayBody` | The hourly forecast and the lower-UV times for what you do outside. Free, no account needed. | El pronóstico por hora y los horarios con menos UV para lo que haces al aire libre. Gratis, sin necesidad de cuenta. |  |
+| `aboutCaveat` | , for the city center, in local time. They describe a typical day, not any one day: the UV on a given day can be higher or lower, so check the forecast before you go. Solara is a planning aid, not medical advice. | , para el centro de la ciudad, en hora local. Describen un día típico, no un día en particular: el UV de un día dado puede ser más alto o más bajo, así que revisa el pronóstico antes de salir. Solara es una ayuda para planificar, no un consejo médico. |  |
+
 ## dashboard
 
 The dashboard: burn time and vitamin D cards, calendar event text
@@ -110,6 +126,14 @@ Setup and the skin type step
 | `burnNoteLive` | Times are rough minutes to a burn without sunscreen at UV {1}, the UV right now. | Los tiempos son minutos aproximados hasta quemarte sin protector solar con UV {1}, el UV de este momento. |  |
 | `burnNoteReference` | Times are rough minutes to a burn without sunscreen at UV {1} ({2}). | Los tiempos son minutos aproximados hasta quemarte sin protector solar con UV {1} ({2}). |  |
 
+## site
+
+The static pages (landing, legal and city pages, at /es/): the shared disclaimer
+
+| Key | English | Spanish | Notes |
+| --- | --- | --- | --- |
+| `disclaimer` | Solara is a planning aid, not medical advice or a guarantee that sun exposure is safe. Conditions and individual sensitivity can change quickly. | Solara es una ayuda para planificar, no un consejo médico ni una garantía de que exponerse al sol sea seguro. Las condiciones y la sensibilidad de cada persona pueden cambiar rápidamente. |  |
+
 ## briefing
 
 The daily briefing at the top of the dashboard, and shared briefings
@@ -145,6 +169,26 @@ UV categories, rain and heat, forecast confidence (dashboard, alerts, calendar f
 | `confidenceFair` | Fair confidence: UV and the best times can still change | Confianza media: el UV y las mejores horas aún pueden cambiar |  |
 | `confidenceLow` | Low confidence: a rough guide, check again closer to the day | Confianza baja: es una guía aproximada, vuelve a revisar más cerca del día |  |
 | `cloudNote` | Clouds may cut UV to {1} from a clear-sky {2} | Las nubes podrían bajar el UV a {1}, frente a {2} con cielo despejado |  |
+
+## server
+
+Pushes and the calendar feed: the Pro morning and UV alerts, the daily UV push, event heads-ups, feed events
+
+| Key | English | Spanish | Notes |
+| --- | --- | --- | --- |
+| `recheck` | Recheck current conditions. | Vuelve a revisar las condiciones actuales. |  |
+| `uvBody` | Forecast for {1}: UV {2}+ until about {3}, peaking at {4} around {5}. Plan shade and sun protection, and recheck current conditions. | Pronóstico para {1}: UV de {2} o más hasta cerca de las {3}, con un máximo de {4} hacia las {5}. Planifica sombra y protección solar, y vuelve a revisar las condiciones actuales. |  |
+| `dailyFromTo` | ☀️ Protect from {1} to {2} today | ☀️ Protégete hoy de {1} a {2} |  |
+| `dailyUntil` | ☀️ Protect until {1} today | ☀️ Protégete hoy hasta las {1} |  |
+| `dailyPeak` | UV peaks at {1} ({2}) around {3} in {4}. | El UV llega a su máximo de {1} ({2}) hacia las {3} en {4}. |  |
+| `dailyPeakIfClear` | UV peaks at {1} ({2}) around {3} in {4}, or {5} if the sky clears. | El UV llega a su máximo de {1} ({2}) hacia las {3} en {4}, o {5} si el cielo se despeja. |  |
+| `dailyTip` | Sunscreen, a hat and shade while the UV is moderate or higher. | Protector solar, sombrero y sombra mientras el UV sea moderado o más alto. |  |
+| `dailyTipIfClear` | Sunscreen, a hat and shade in case the sky clears. | Protector solar, sombrero y sombra por si el cielo se despeja. |  |
+| `eventPeak` | UV peaks at {1} around {2}. | El UV llega a su máximo de {1} hacia las {2}. |  |
+| `eventPeakAt` | Forecast for {1}: UV peaks at {2} around {3}. | Pronóstico para {1}: el UV llega a su máximo de {2} hacia las {3}. |  |
+| `eventAdvice` | Apply sunscreen 15 to 30 minutes before you go, reapply every 2 hours, and plan for shade. | Aplica protector solar de 15 a 30 minutos antes de salir, vuelve a aplicarlo cada 2 horas y planifica dónde tener sombra. |  |
+| `eventHot` | It may feel like {1}: bring water and take breaks. | La sensación térmica podría llegar a {1}: lleva agua y toma descansos. |  |
+| `feedDescription` | Estimated lower-UV window {1}–{2} (avg UV {3}), assumes SPF 30+. Forecast-based estimate only. Recheck current UV and use sun protection. Planned by Solara. | Horario estimado de UV más bajo {1}–{2} (UV promedio {3}), suponiendo FPS 30+. Es solo una estimación basada en el pronóstico. Vuelve a revisar el UV actual y protégete del sol. Planificado por Solara. |  |
 
 ## skinQuiz
 
@@ -185,4 +229,13 @@ Sunscreen coaching: the timer, activity cards, Settings; the reapply reminder pu
 | `spfRule` | Use SPF 30+ broad spectrum whenever UV is {1} or more, and SPF 50+ when it reaches {2}. | Usa FPS 30+ de amplio espectro siempre que el UV sea {1} o más, y FPS 50+ cuando llegue a {2}. |  |
 | `reapplyRule` | Put it on {1} before you go out. Reapply every {2}, and straight after swimming, sweating or towelling off. | Aplícalo {1} antes de salir. Vuelve a aplicarlo cada {2}, y justo después de nadar, sudar o secarte con la toalla. |  |
 
-98 messages to review.
+121 messages to review.
+
+## Legal pages
+
+These are reviewed whole against the English, by a native speaker and by counsel, since they are legal text and give health and safety limits.
+
+| Page | Source | English | Notes |
+| --- | --- | --- | --- |
+| `/es/privacy/` | `app/es/privacy/page.tsx` | `/privacy/` | The privacy policy, in full. It states that the English version prevails. |
+| `/es/terms/` | `app/es/terms/page.tsx` | `/terms/` | The terms of use, in full, including the health and forecast disclaimer. It states that the English version prevails. |

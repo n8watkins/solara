@@ -29,6 +29,7 @@
 // and UTC day (`alertState/reapply`).
 
 import { reapplyDeliveryKey } from '#core/push'
+import { inAccountLanguage } from '#core/server-language'
 import { REAPPLY_MINUTES, type ReapplyMode, reapplyReminderMessage } from '#core/reapply'
 
 import { FieldValue, type DocumentData, type Firestore, Timestamp } from 'firebase-admin/firestore'
@@ -255,7 +256,7 @@ export async function deliverReapplyReminder(
       },
       { merge: true },
     )
-    return { id: waiting.id, mode: waiting.mode }
+    return { id: waiting.id, mode: waiting.mode, language: user.data()?.language }
   })
   if (typeof claimed === 'string') return claimed
 
@@ -276,7 +277,8 @@ export async function deliverReapplyReminder(
         uid,
         devices,
         delivery,
-        reapplyReminderMessage(claimed.mode),
+        // In the account's language, as the timer showed it.
+        inAccountLanguage(claimed.language, () => reapplyReminderMessage(claimed.mode)),
       )
     }
   } catch (error) {

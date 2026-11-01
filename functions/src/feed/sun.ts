@@ -24,6 +24,7 @@ import {
   windowEventSummary,
   windowEventUid,
 } from '#core'
+import m from '#core/messages/server'
 
 export interface SunForecastDay {
   dateStr: string
@@ -91,7 +92,8 @@ function clock(hours: number): string {
 /**
  * Build ICS events for each activity's best window on each eligible day. The account's
  * activities are read as the app reads them (packages/core/src/planning.ts): invalid
- * ones are skipped and bad fields fall back to the app's defaults.
+ * ones are skipped and bad fields fall back to the app's defaults. The words are in the
+ * active language: the feed builds them in the account's (inAccountLanguage).
  */
 export function buildSunEvents(user: unknown, forecast: SunForecastDay[]): IcsEvent[] {
   const activities = parsePlanningPreferences(user).activities.filter(act =>
@@ -118,7 +120,12 @@ export function buildSunEvents(user: unknown, forecast: SunForecastDay[]): IcsEv
       events.push({
         uid: windowEventUid(day.dateStr, act.id, start),
         summary: windowEventSummary(act),
-        description: `Estimated lower-UV window ${clock(win.from)}–${clock(win.to)} (avg UV ${formatUV(win.avgUV)})${act.sunscreen ? ', assumes SPF 30+' : ', no sunscreen'}. Forecast-based estimate only. Recheck current UV and use sun protection. Planned by Solara.`,
+        description: m.feedDescription(
+          clock(win.from),
+          clock(win.to),
+          formatUV(win.avgUV),
+          !!act.sunscreen,
+        ),
         dateStr: day.dateStr,
         start,
         end,

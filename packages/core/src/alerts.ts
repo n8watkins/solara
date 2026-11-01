@@ -10,6 +10,7 @@
 //   quiet hours. The times are worked out as for all protection advice (protection.ts),
 //   under a clear sky, so they match the briefing and the daily UV push.
 import { formatClock12 } from './clock'
+import m from './messages/server'
 import { dailyBriefing } from './briefing'
 import { uvSpanAtOrAbove } from './protection'
 import { formatUV } from './uv-scale'
@@ -185,22 +186,22 @@ export interface MorningAlertInput {
 export function morningAlertMessage(input: MorningAlertInput): AlertMessage {
   const time = (hours: number) => formatAlertTime(hours, input.clock)
   const skinType: SkinType = isSkinType(input.skinType) ? input.skinType : 'fair'
-  const city = input.city.trim() || 'your area'
+  const city = input.city.trim() || m.yourArea
   const briefing = dailyBriefing({
     day: { date: input.date, hourly: input.hourly },
-    dayLabel: `Today in ${city}`,
+    dayLabel: m.morningDay(city),
     activities: input.activities,
     skinType,
     formatTime: time,
     formatTemp: celsius => formatTemperature(celsius, input.temperature ?? 'fahrenheit'),
     daylight: input.daylight,
   })
-  const body = `${briefing.text} Recheck current conditions.`
+  const body = `${briefing.text} ${m.recheck}`
   const span = briefing.window?.spans[0]
   const name = briefing.window?.activity
-  if (!span || !name) return { title: `☀️ UV today in ${city}`, body }
+  if (!span || !name) return { title: m.morningTitle(city), body }
   const icon = input.activities.find(activity => activity.name === name)?.icon || '☀️'
-  return { title: `${icon} ${name}: ${time(span.from)} to ${time(span.to)}`, body }
+  return { title: m.morningWindowTitle(icon, name, time(span.from), time(span.to)), body }
 }
 
 export interface UvAlertInput {
@@ -214,14 +215,18 @@ export interface UvAlertInput {
 /** The UV alert: when the UV reaches the threshold, until when, and the peak. */
 export function uvAlertMessage({ plan, city, localHour, clock }: UvAlertInput): AlertMessage {
   const time = (hours: number) => formatAlertTime(hours, clock)
-  const place = city.trim() || 'your area'
-  const until = `until about ${time(plan.to)}, peaking at ${formatUV(plan.peak.uv)} around ${time(plan.peak.hour)}`
-  const title =
-    localHour < plan.from
-      ? `☀️ UV reaches ${plan.threshold} around ${time(plan.from)}`
-      : `☀️ UV is ${plan.threshold} or higher now`
+  const place = city.trim() || m.yourArea
   return {
-    title,
-    body: `Forecast for ${place}: UV ${plan.threshold}+ ${until}. Plan shade and sun protection, and recheck current conditions.`,
+    title:
+      localHour < plan.from
+        ? m.uvSoonTitle(plan.threshold, time(plan.from))
+        : m.uvNowTitle(plan.threshold),
+    body: m.uvBody(
+      place,
+      plan.threshold,
+      time(plan.to),
+      formatUV(plan.peak.uv),
+      time(plan.peak.hour),
+    ),
   }
 }

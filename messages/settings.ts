@@ -99,7 +99,8 @@ export default defineMessages('settings', {
   clock12: (example: string) => `12-hour (${example})`,
   clock24: (example: string) => `24-hour (${example})`,
   language: 'Language',
-  languageHint: 'Automatic follows your device. Alerts and reminders use it too.',
+  languageHint:
+    'Automatic follows this device. Alerts, reminders and the calendar feed use the language chosen here, or English with Automatic.',
   onChecked: '✓ On',
   on: 'On',
   off: 'Off',

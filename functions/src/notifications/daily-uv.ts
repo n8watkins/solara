@@ -27,6 +27,7 @@ import {
   nextDailyUvCheck,
   protectionWindow,
 } from '#core/daily-uv'
+import { inAccountLanguage } from '#core/server-language'
 
 import type { Firestore, QueryDocumentSnapshot } from 'firebase-admin/firestore'
 import { logger } from 'firebase-functions/logger'
@@ -264,12 +265,14 @@ async function processSchedule(run: DailyRun, doc: QueryDocumentSnapshot): Promi
     return 'not-due'
   }
 
-  const alert = dailyUvMessage({
-    window,
-    city: typeof user.location.city === 'string' ? user.location.city : '',
-    localHour: local.hour,
-    clock: clockOf(user),
-  })
+  const alert = inAccountLanguage(user.language, () =>
+    dailyUvMessage({
+      window,
+      city: typeof user.location.city === 'string' ? user.location.city : '',
+      localHour: local.hour,
+      clock: clockOf(user),
+    }),
+  )
   const outcome = await deliver(
     run,
     stateRef,

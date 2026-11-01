@@ -81,6 +81,7 @@ export default {
   newerSettings: schema =>
     `Esta configuración se guardó con una versión más reciente de Solara (esquema ${schema}). Recarga para actualizar antes de cambiarla.`,
   windowEventTitle: activity => `${activity}: horario de UV más bajo`,
+  icsCalendarName: 'Plan solar de Solara',
 
   reasonLatest: part => `El último espacio que encaja en tu horario de ${part}`,
   reasonSunniest: 'Tu horario disponible más soleado dentro del límite que planificaste',

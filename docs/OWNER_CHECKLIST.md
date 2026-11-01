@@ -163,6 +163,7 @@ A19. **Close the three open security alerts (5 minutes, free; after A9).**
      - https://github.com/n8watkins/solara/security/code-scanning/22 (`lib/microsoft-redirect.ts`): **Dismiss alert**, **False positive**, comment "The prefix is the constant solara-microsoft-auth:, not user input."
      - https://github.com/n8watkins/solara/security/code-scanning/23 (`tests/e2e/microsoft-sign-in.spec.ts`): **Dismiss alert**, **Used in tests**, comment "Test code; same constant prefix."
      - https://github.com/n8watkins/solara/security/secret-scanning/1 (the Firebase web key in an old service worker commit): **Close as**, **Won't fix**, comment "Public Firebase web API key, shipped to every browser by design; API and website restrictions are on."
+     - If https://github.com/n8watkins/solara/security/dependabot/5 (minimatch in `functions/package-lock.json`) is still open after ROADMAP item 46's second part: **Dismiss alert**, **Vulnerable code is not actually used**, comment "minimatch 6.2.3 comes with firebase-tools' Hosting emulator (superstatic, dev only), has no globparts preprocessing, and no fixed version keeps the API superstatic calls; the copies with the vulnerable code are on 11." The same applies to any alert on minimatch 3.x from eslint-config-next or firebase-tools.
    - Verify: https://github.com/n8watkins/solara/security shows no open alerts.
 
 A20. **Small clean-ups (5 minutes, free).**

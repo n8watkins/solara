@@ -5,12 +5,15 @@ import LegalDetail from '@/components/LegalDetail'
 import AnalyticsPreferenceControl from '@/components/AnalyticsPreferenceControl'
 import { isAnalyticsMeasurementId } from '@/lib/analytics-consent'
 import { PRIVACY_LAST_UPDATED } from '@/lib/legal'
+import { languageAlternates } from '@/lib/page-language'
 import { privacySwitches, recaptchaScope, retentionLines } from '@/lib/privacy-retention'
 
 export const metadata: Metadata = {
   title: 'Privacy Policy | Solara',
   description:
     'Who runs Solara, what it collects and why, who processes it, how long it is kept, and your rights.',
+  // In Spanish at /es/privacy/ (app/es/privacy/page.tsx).
+  alternates: languageAlternates('/privacy/', 'en'),
 }
 
 export default function PrivacyPage() {
@@ -20,7 +23,7 @@ export default function PrivacyPage() {
   const kept = retentionLines(switches)
 
   return (
-    <LegalPage title="Privacy Policy" updated={PRIVACY_LAST_UPDATED}>
+    <LegalPage title="Privacy Policy" updated={PRIVACY_LAST_UPDATED} path="/privacy/">
       <div className={styles.policy}>
         <h2>Who runs Solara</h2>
         <p>

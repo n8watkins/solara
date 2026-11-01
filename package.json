@@ -16,7 +16,9 @@
     },
     "eslint-plugin-react": {
       "eslint": "$eslint"
-    }
+    },
+    "glob": "^14.0.3",
+    "minimatch@>=9.0.0 <11.0.1": "^11.0.3"
   },
   "scripts": {
     "predev": "node scripts/build-sw.mjs --dev",

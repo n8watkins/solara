@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { HEAD_FIRST_PAGES, stripFrameworkScripts } from './static-pages.mts'
+import {
+  HEAD_FIRST_PAGES,
+  STATIC_PAGES,
+  pageLanguage,
+  stripFrameworkScripts,
+  withDocumentLanguage,
+} from './static-pages.mts'
 import { LANDING_REDIRECT_SCRIPT } from './landing-redirect'
 
 const page = (body: string) => `<!DOCTYPE html><html><head>
@@ -78,5 +84,25 @@ describe('stripFrameworkScripts', () => {
     expect(() =>
       stripFrameworkScripts(page('<a href="/_next/static/chunks/c.js">chunk</a>')),
     ).toThrow(/still references framework JavaScript/)
+  })
+})
+
+describe('the pages in Spanish (ROADMAP item 46)', () => {
+  it('serves the Spanish landing and city pages without the framework too', () => {
+    for (const page of ['index.html', 'uv/index.html', 'uv/tokyo/index.html']) {
+      expect(STATIC_PAGES).toContain(page)
+      expect(STATIC_PAGES).toContain(`es/${page}`)
+    }
+  })
+
+  it('gives every page under es/ <html lang="es"> and leaves the rest English', () => {
+    const html = '<!DOCTYPE html><html lang="en" class="x"><head></head><body></body></html>'
+    expect(pageLanguage('es/privacy/index.html')).toBe('es')
+    expect(pageLanguage('es\\uv\\tokyo\\index.html')).toBe('es')
+    expect(pageLanguage('privacy/index.html')).toBe('en')
+    expect(pageLanguage('estimate/index.html')).toBe('en')
+    expect(withDocumentLanguage(html, 'es')).toBe(html.replace('lang="en"', 'lang="es"'))
+    expect(withDocumentLanguage(html, 'en')).toBe(html)
+    expect(() => withDocumentLanguage('<html><body></body></html>', 'es')).toThrow(/lang/)
   })
 })

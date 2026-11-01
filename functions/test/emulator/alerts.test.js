@@ -389,6 +389,33 @@ describe('UV alerts', () => {
   })
 })
 
+describe("alerts in the account's language (ROADMAP item 46)", () => {
+  test('a Spanish account gets its morning and UV alerts in Spanish, an English one in English', async () => {
+    await addUser('es', { language: 'es', uvAlertThreshold: 6, notificationHour: 10 })
+    await addUser('auto', { language: 'auto', uvAlertThreshold: 6, notificationHour: 10 })
+    const messaging = new FakeMessaging()
+    const sends = recording(messaging)
+    await runRecordedDay(messaging)
+
+    const of = (uid, kind) =>
+      sends.find(
+        send =>
+          send.messages[0].token.startsWith(`${uid}-token-`) &&
+          send.messages[0].data.deliveryKey.startsWith(`${kind}-`),
+      ).messages[0].data
+    const morning = of('es', 'morning')
+    assert.equal(morning.title, '🏃 Run: de 5\u00a0p.m. a 8\u00a0p.m.')
+    assert.match(morning.body, /^Hoy en Los Angeles: El UV llega a su máximo de 8\.0 \(Muy alto\)/)
+    assert.match(morning.body, / Vuelve a revisar las condiciones actuales\.$/)
+    const uv = of('es', 'uv')
+    assert.equal(uv.title, '☀️ El UV llega a 6 hacia las 11:20\u00a0a.m.')
+    assert.match(uv.body, /^Pronóstico para Los Angeles: UV de 6 o más hasta cerca de las 2:40/)
+    // 'auto' follows a device the server never sees: English.
+    assert.match(of('auto', 'morning').body, /^Today in Los Angeles: UV peaks at 8\.0/)
+    assert.equal(of('auto', 'uv').title, '☀️ UV reaches 6 around 11:20am')
+  })
+})
+
 describe('push payloads by platform', () => {
   test('an Android device gets a high-priority notification, the web stays data-only', async () => {
     await addUser('mixed', { devices: 2, platforms: ['web', 'android'], uvAlertThreshold: 6 })
@@ -528,6 +555,24 @@ describe('event heads-ups', () => {
     ).data()
     assert.equal(state[run].status, 'delivered')
     assert.equal(state[evening], undefined)
+  })
+
+  test('a Spanish account gets its heads-up in Spanish', async () => {
+    await addUser('es', { language: 'es' })
+    await addEvent('es', 'e'.repeat(32), { title: 'Saturday 10K', start: at('2026-06-15', 13) })
+    const messaging = new FakeMessaging()
+    const sends = recording(messaging)
+    await runDay(messaging)
+
+    const [heads] = eventSends(sends, 'es')
+    assert.equal(
+      heads.messages[0].data.title,
+      '🗓️ UV de hasta 8.0 durante tu evento de la 1\u00a0p.m.',
+    )
+    assert.equal(
+      heads.messages[0].data.body,
+      'Evento: “Saturday 10K”. Pronóstico para Griffith Park: el UV llega a su máximo de 8.0 hacia la 1\u00a0p.m. Aplica protector solar de 15 a 30 minutos antes de salir, vuelve a aplicarlo cada 2 horas y planifica dónde tener sombra.',
+    )
   })
 
   test('an event that starts early gets its heads-up the evening before, outside quiet hours', async () => {

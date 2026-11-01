@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 // Makes the pages that need no JavaScript truly static: the landing page (`/`).
+// Also writes each page's language into `<html lang>`: every page under es/ is Spanish
+// (ROADMAP item 46), while the one root layout writes English.
 //
 // Next.js ships its framework runtime (about 120 KB gzip) with every page, even one
 // with no client components, so it can hydrate. The landing page has nothing to
@@ -15,9 +17,15 @@
 // expects, rather than shipping a page that silently lost a script.
 //
 // Usage: node scripts/static-pages.mjs [exportDir]   (default: out)
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
-import { HEAD_FIRST_PAGES, STATIC_PAGES, stripFrameworkScripts } from '../lib/static-pages.mts'
+import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
+import { join, relative } from 'node:path'
+import {
+  HEAD_FIRST_PAGES,
+  STATIC_PAGES,
+  pageLanguage,
+  stripFrameworkScripts,
+  withDocumentLanguage,
+} from '../lib/static-pages.mts'
 
 const dir = process.argv[2] || 'out'
 
@@ -48,6 +56,24 @@ for (const page of STATIC_PAGES) {
     problems.push(`${page}: ${error.message}`)
   }
 }
+
+// Every exported page in another language than English: its <html lang>.
+const translated = existsSync(join(dir, 'es'))
+  ? readdirSync(join(dir, 'es'), { recursive: true, encoding: 'utf8' })
+      .filter(file => file.endsWith('.html'))
+      .map(file => relative(dir, join(dir, 'es', file)))
+  : []
+if (translated.length === 0) problems.push('no pages under es/ (the Spanish pages are missing)')
+for (const page of translated) {
+  const file = join(dir, page)
+  try {
+    writeFileSync(file, withDocumentLanguage(readFileSync(file, 'utf8'), pageLanguage(page)))
+  } catch (error) {
+    problems.push(`${page}: ${error.message}`)
+  }
+}
+if (translated.length)
+  console.log(`static-pages: ${translated.length} pages under es/ are in Spanish.`)
 
 if (problems.length) {
   console.error('static-pages: could not make every page static:')
