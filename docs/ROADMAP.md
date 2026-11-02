@@ -853,6 +853,60 @@ The owner's decision (2026-11-01): a lawyer review will not happen for a long wh
 - Decisions recorded: "Lawyer review", "Not medical advice", "Vitamin D log sync" (device only for now) and "Light sensitivity" (one factor, no medical detail stored).
 - Tests: `messages/health-qualifier.test.ts` (the static pages' copy matches word for word and names every case), `lib/privacy-policy.test.ts` (the terms' section and its review-sheet lines), the onboarding e2e test, and `tests/harness/health-qualifier.spec.ts` (every placement in both languages at 320, 390 and 1280 px, light and dark, with axe; `QUALIFIER_SHOTS=<folder>` saves a copy of each).
 
+### 56. Burn-time fit and fuller sun-safety advice (FIT, in progress)
+
+[PLAN.md](PLAN.md) Phase 8, items 2 and 4, and Review 10's ranked features 5 and 7 (`handoff/review10-qa10.md`): item 50's warning says an activity outlasts the burn time, but not what makes it fit, and the advice names sunscreen and shade but not a hat or sunglasses.
+
+**Status:** spec written 2026-11-01.
+
+**Goal:** every planned activity says plainly whether it fits unprotected at the UV of its slot, and if not, what makes it fit; the advice names the right protection for the UV level, and only that.
+
+**The fit (one decision in a new core module, sun-safety, shared by the activity cards, the hero, the daily briefing, the Pro morning alert and the future Android app):**
+
+- The UV it is judged at is the highest UV the skin gets during the slot: each hour's planning UV (clear sky unless the activity counts on clouds, with its shade and surface, as the plans judge windows), over the hours the slot touches.
+  For the briefing's lowest-UV window, the activity is placed where that UV is lowest inside the window, so the briefing never warns about a window the card shows fitting.
+- The skin type is the plan's: the person's, or in group mode the most sensitive person's (`planningFor`).
+- Three verdicts, by the activity's duration:
+  - *Fits unprotected*: it is no longer than the burn time without sunscreen (`burnMins`), or the UV is under 0.5.
+  - *Fits with sunscreen*: it is no longer than the burn time with sunscreen, which is the burn time at the UV divided by `SUNSCREEN_UV_FACTOR` (2.5, the SPF 30+ the plans already count on).
+    It names the SPF of the sunscreen guidance (item 45: SPF 30+, or 50+ at UV 8 or more or for skin types I and II; never less than 30) and the reapply interval when the activity lasts longer than it (every 2 h, or every 1 h 20 min for swimming, surfing and paddleboarding).
+  - *Too long even with sunscreen*: longer than that; the card offers to split it, or names the first slot in the day's windows where it fits (with sunscreen at most), "move it to 5pm-5:45pm".
+- Whether the activity was planned with SPF does not change the verdict: an activity planned with sunscreen at a raised UV limit can still be too long even with sunscreen, and now says so.
+
+**Where it shows:**
+
+- *Activity card:* one line under the recommended slot (in the slot's box), or under the card's title when the slot is already on the calendar or there is only a best window, for every verdict:
+  - "Fits without sunscreen: you'd burn in about 1 h 10 min." (UV under 3), or "Fits without sunscreen (you'd burn in about 1 h 10 min), but use SPF 30+ at this UV." (UV 3 or more, as the guidance advises sunscreen from 3 whatever the duration);
+  - "Longer than your burn time (about 38 min): fits with SPF 50+, reapplied every 2 h.";
+  - "Too long even with SPF 50+ (you'd burn in about 1 h 35 min): split it, or move it to 5pm-5:45pm." or "... split it into shorter sessions."
+  - The card's sunscreen amount row shows whenever the slot's verdict needs sunscreen or the UV limit is 3 or more, as now.
+- *Hero:* the same line, only when the slot needs sunscreen or is too long (the hero stays short).
+- *Daily briefing and Pro morning alert:* one line after the window, only when the lowest-UV window needs sunscreen or is too long: "Running is longer than your burn time: it fits with SPF 50+" or "Running is too long for your skin even with SPF 50+: split it into shorter sessions, or plan it for a lower UV".
+  It replaces item 50's warning line; the morning alert's text is the briefing's, so it changes with it.
+- Item 50's separate warning (`BurnTimeWarning`, `outlastsBurnTime`) is removed: the fit line carries its safety meaning in every place it showed.
+
+**Fuller advice ("slip, slop, slap, seek, slide"):**
+
+- By the whole-number UV index (the WHO categories): under 3 (Low), nothing beyond "little sun protection" (no gear); 3 to 7 (Moderate, High), sunscreen, a hat and sunglasses (and a shirt in the guidance); 8 or more (Very high, Extreme), shade around midday as well.
+- *Briefing's advice line:* "Wear a hat, sunglasses and sunscreen while UV is moderate or higher, from 10am to 4pm"; on a day that reaches very high, "Seek shade while UV is very high or extreme, from 11am to 3pm, and wear a hat, sunglasses and sunscreen" (the clear-sky variants keep their "if the sky clears").
+- *Sunscreen guidance (the timer's "How much sunscreen?"):* after the SPF line, "Add a shirt, a hat and sunglasses, and shade at midday." (3 to 7) or "Add a shirt, a hat and sunglasses, and stay in the shade around midday." (8 or more); nothing on a low day.
+- *Settings, Sun profile:* the rule for any day, "From UV 3, also wear a shirt, a hat and sunglasses; from UV 8, stay in the shade around midday."
+- *Free daily UV push:* "Sunscreen, a hat, sunglasses and shade while the UV is moderate or higher."
+- Sources (WHO's Global Solar UV Index guide and Cancer Council's "Slip, Slop, Slap, Seek, Slide") go into [SUNSCREEN.md](SUNSCREEN.md).
+
+**Languages:** English and Spanish; every new safety message is marked for review and listed in `docs/i18n/es-review.md`.
+
+**First load:** the budgets stay at 190 KB (English) and 196 KB (Spanish).
+The briefing's fit decision and its two sentences ship in the first load (the briefing is on the opening screen); the card's sentences, the hero's line, the later-slot search and the guidance's gear lines load with the activity plan, the timer and Settings, which already load on demand.
+
+**Data and privacy:** nothing new is stored; the rules and the privacy policy are unchanged.
+
+**Defaults the owner may change:** the fit is judged at the slot's highest UV (not the dose over the slot); sunscreen counts as 2.5 times the burn time; the briefing and hero speak only when sunscreen is needed; the card offers the first slot where it fits with sunscreen at most; a shirt is named in the guidance and Settings but not in the briefing's line, to keep it short.
+
+**Not in this step:** changing the plans themselves (a lower UV limit for the skin type), a light-sensitivity factor (Phase 8 item 3), the event heads-ups' own burn note.
+
+**Acceptance:** core unit tests for the fit across skin types, UV levels, durations, water activities, group mode and the later-slot search; briefing and Functions morning alert and daily push text tests in both languages; the activity card, the recommended slot, the hero and the advice in harness screenshots at 320, 390 and 1280 px, light and dark, in both languages, with 0 axe violations; the first-load budgets passing unchanged.
+
 ## Decisions
 
 Agents never make owner decisions; they follow the recorded decision or the default.
