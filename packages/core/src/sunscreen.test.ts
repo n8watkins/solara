@@ -130,18 +130,18 @@ describe('burnFitText', () => {
     expect(burnFitText(burnFit(run, 2, 'fair'))).toBe(
       "Fits without sunscreen: you'd burn in about 1\u00a0h 15\u00a0min.",
     )
-    // From UV 3 the guidance advises sunscreen whatever the duration.
-    expect(burnFitText(burnFit(run, 4, 'medium'))).toBe(
-      "Fits without sunscreen (you'd burn in about 1\u00a0h 3\u00a0min), but use SPF\u00a030+ at this UV.",
+    // From UV 3 the guidance advises sunscreen whatever the duration: one instruction.
+    expect(burnFitText(burnFit({ ...run, durationMins: 40 }, 4, 'medium'))).toBe(
+      "Use SPF\u00a030+ at this UV: without it you'd burn in about 1\u00a0h 3\u00a0min.",
     )
     expect(burnFitText(burnFit(run, 0.2, 'fair'))).toBe(
       'Fits without sunscreen: the UV is too low to burn.',
     )
     expect(burnFitText(burnFit(run, 4, 'fair'))).toBe(
-      'Longer than your burn time (about 38\u00a0min): fits with SPF\u00a050+.',
+      "Fits with SPF\u00a050+: without it you'd burn in about 38\u00a0min.",
     )
     expect(burnFitText(burnFit({ id: 'swim', durationMins: 120 }, 3, 'medium'))).toBe(
-      'Longer than your burn time (about 1\u00a0h 23\u00a0min): fits with SPF\u00a030+, reapplied every 1\u00a0h 20\u00a0min.',
+      "Fits with SPF\u00a030+, reapplied every 1\u00a0h 20\u00a0min: without it you'd burn in about 1\u00a0h 23\u00a0min.",
     )
     const tooLong = burnFit(run, 10, 'fair')
     expect(burnFitText(tooLong, '5pm–5:45pm')).toBe(
@@ -162,7 +162,7 @@ describe('burnFitText', () => {
       sunGearText(9),
     ])
     expect(lines).toEqual([
-      'Dura más que tu tiempo hasta quemarte (unos 38\u00a0min): hazlo con FPS\u00a050+.',
+      'Hazlo con FPS\u00a050+: sin él te quemarías en unos 38\u00a0min.',
       'Dura demasiado aun con FPS\u00a050+ (te quemarías en unos 38\u00a0min): divídelo o muévelo a 5–5:45\u00a0p.m.',
       'Suma una camiseta, un sombrero y lentes de sol, y quédate a la sombra cerca del mediodía.',
     ])

@@ -43,10 +43,11 @@ export default defineMessages('sunscreen', {
   // An activity's fit with its burn time (sun-safety.ts burnFit), on its card and the hero.
   fitsNoBurn: 'Fits without sunscreen: the UV is too low to burn.',
   fitsUnprotected: (burn: string) => `Fits without sunscreen: you'd burn in about ${burn}.`,
+  /** From UV 3 the guidance advises sunscreen whatever the duration: one instruction. */
   fitsUnprotectedProtect: (burn: string, spf: number) =>
-    `Fits without sunscreen (you'd burn in about ${burn}), but use SPF${NBSP}${spf}+ at this UV.`,
+    `Use SPF${NBSP}${spf}+ at this UV: without it you'd burn in about ${burn}.`,
   fitsWithSunscreen: (burn: string, spf: number, every: string | null) =>
-    `Longer than your burn time (about ${burn}): fits with SPF${NBSP}${spf}+${every ? `, reapplied every ${every}` : ''}.`,
+    `Fits with SPF${NBSP}${spf}+${every ? `, reapplied every ${every}` : ''}: without it you'd burn in about ${burn}.`,
   tooLongMove: (spf: number, burn: string, range: string) =>
     // A time such as "5:45 p.m." already ends the sentence.
     `Too long even with SPF${NBSP}${spf}+ (you'd burn in about ${burn}): split it, or move it to ${range}${range.endsWith('.') ? '' : '.'}`,

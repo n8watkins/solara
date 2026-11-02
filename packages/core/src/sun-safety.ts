@@ -88,22 +88,33 @@ export interface BurnFit {
 }
 
 /**
+ * How much of a burn time an activity may use and still count as fitting it: two thirds.
+ * Burn times are rough estimates (skin within a type varies, the forecast UV can be off
+ * by a unit, and people stay out longer than planned), so an activity that ends right at
+ * the estimated burn has no margin left. Two thirds keeps a third in hand; the vitamin D
+ * estimate stays further below, at 0.3 (vitamin-d.ts). Default, owner may change
+ * (decision "Burn-time fit", docs/SUNSCREEN.md).
+ */
+export const FIT_MARGIN = 2 / 3
+
+/**
  * Whether an activity of its duration fits the burn time at `uv` (the highest UV the
  * skin gets during it) for a skin type (the plan's: in a group, the most sensitive
- * person's): unprotected, with sunscreen (the burn time times SUNSCREEN_UV_FACTOR, the
- * SPF 30+ the plans count on), or not even with sunscreen. A duration equal to the burn
- * time fits.
+ * person's), with FIT_MARGIN in hand: unprotected while it lasts at most two thirds of
+ * the burn time, with sunscreen while it lasts at most two thirds of the burn time with
+ * sunscreen (times SUNSCREEN_UV_FACTOR, the SPF 30+ the plans count on), else not even
+ * with sunscreen.
  */
 export function burnFit(activity: FitActivity, uv: number, skin: SkinType): BurnFit {
   const duration = Math.max(0, activity.durationMins ?? 0)
   const unprotected = burnMins(uv, skin)
   const withSunscreen = burnMins(uv / SUNSCREEN_UV_FACTOR, skin)
-  const verdict: FitVerdict =
-    unprotected === null || duration <= unprotected
-      ? 'fits'
-      : withSunscreen === null || duration <= withSunscreen
-        ? 'sunscreen'
-        : 'too-long'
+  const within = (burn: number | null) => burn === null || duration <= burn * FIT_MARGIN
+  const verdict: FitVerdict = within(unprotected)
+    ? 'fits'
+    : within(withSunscreen)
+      ? 'sunscreen'
+      : 'too-long'
   const every = REAPPLY_MINUTES[isWaterActivity(activity.id) ? 'water' : 'standard']
   return {
     verdict,

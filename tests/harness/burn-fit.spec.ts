@@ -18,30 +18,28 @@ const widths = (t: TestInfo) => (mobile(t) ? [320, 390] : [1280])
 const scheme = (t: TestInfo) => t.project.name.split('-')[1]
 
 // The harness plan for fair skin at 10:30am on a day that peaks at Extreme: Running (45 min
-// under UV 4) waits for 6pm, where it just fits the burn time but the UV still calls for
-// sunscreen; Hiking (2 h with SPF, so under UV 8) is too long even with sunscreen at 4pm
-// and fits from 6pm; Tennis (1 h after 4pm, the latest slot) fits unprotected at 7pm. With
-// "Plan for a group" (Me and Maya, very fair), Running needs sunscreen to fit.
+// under UV 4) waits for 6pm, where fair skin burns in about 45 min, so it needs sunscreen
+// to keep a third in hand; Hiking (2 h with SPF, so under UV 8) is too long even with
+// sunscreen at 4pm; Tennis (1 h after 4pm, the latest slot) fits unprotected at 7pm. With
+// "Plan for a group" (Me and Maya, very fair), Running needs sunscreen too, at Maya's 30 min.
 const LANGUAGES = {
   en: {
-    fitsProtect:
-      /^Fits without sunscreen \(you'd burn in about 45 min\), but use SPF 50\+ at this UV\.$/,
-    tooLong:
-      /^Too long even with SPF 50\+ \(you'd burn in about 49 min\): split it, or move it to 6pm–8pm\.$/,
+    runFair: /^Fits with SPF 50\+: without it you'd burn in about 45 min\.$/,
+    burnRow: 'about 45 min',
+    tooLong: /^Too long even with SPF 50\+ \(you'd burn in about .+\): split it.+\.$/,
     fits: /^Fits without sunscreen: you'd burn in about 2 h 16 min\.$/,
-    sunscreen: /^Longer than your burn time \(about 30 min\): fits with SPF 50\+\.$/,
+    runGroup: /^Fits with SPF 50\+: without it you'd burn in about 30 min\.$/,
     advice: /wear a hat, sunglasses and sunscreen/,
     gear: 'Add a shirt, a hat and sunglasses, and stay in the shade around midday.',
     howMuch: 'How much sunscreen?',
     timer: 'Sunscreen timer',
   },
   es: {
-    fitsProtect:
-      /^Puedes hacerlo sin protector solar \(te quemarías en unos 45 min\), pero usa FPS 50\+ con este UV\.$/,
-    tooLong:
-      /^Dura demasiado aun con FPS 50\+ \(te quemarías en unos 49 min\): divídelo o muévelo a .+–.+\.$/,
+    runFair: /^Hazlo con FPS 50\+: sin él te quemarías en unos 45 min\.$/,
+    burnRow: 'unos 45 min',
+    tooLong: /^Dura demasiado aun con FPS 50\+ \(te quemarías en unos .+\): divídelo.+\.$/,
     fits: /^Puedes hacerlo sin protector solar: te quemarías en unos 2 h 16 min\.$/,
-    sunscreen: /^Dura más que tu tiempo hasta quemarte \(unos 30 min\): hazlo con FPS 50\+\.$/,
+    runGroup: /^Hazlo con FPS 50\+: sin él te quemarías en unos 30 min\.$/,
     advice: /usa sombrero, lentes de sol y protector solar/,
     gear: 'Suma una camiseta, un sombrero y lentes de sol, y quédate a la sombra cerca del mediodía.',
     howMuch: '¿Cuánto protector solar?',
@@ -114,8 +112,11 @@ for (const lang of ['en', 'es'] as const) {
         page.locator(`[data-testid="activity-card"][data-activity="${id}"]`)
       const fit = (id: string) => card(id).getByTestId('recommended-slot').getByTestId('burn-fit')
 
-      await expect(fit('run')).toHaveAttribute('data-verdict', 'fits')
-      await expect(fit('run')).toHaveText(words.fitsProtect)
+      await expect(fit('run')).toHaveAttribute('data-verdict', 'sunscreen')
+      await expect(fit('run')).toHaveText(words.runFair)
+      // One burn time on the card: its row reads the slot's UV, as the fit line does.
+      await expect(card('run')).toContainText(words.burnRow)
+      await expect(card('run')).not.toContainText(lang === 'en' ? 'about\u00a038' : 'unos\u00a038')
       await expect(fit('hike')).toHaveAttribute('data-verdict', 'too-long')
       await expect(fit('hike')).toHaveText(words.tooLong)
       await expect(fit('tennis')).toHaveAttribute('data-verdict', 'fits')
@@ -156,7 +157,7 @@ for (const lang of ['en', 'es'] as const) {
       // Maya's very fair skin burns in about 30 min at the slot's UV: sunscreen makes it fit,
       // and the card's sunscreen row says how much.
       await expect(fit).toHaveAttribute('data-verdict', 'sunscreen')
-      await expect(fit).toHaveText(words.sunscreen)
+      await expect(fit).toHaveText(words.runGroup)
       await atEachWidth(page, t, `fit-card-run-group-${lang}`, run)
       await captureScreen(page, t, capture, { name: `burn-fit-group-${lang}`, fullPage: true })
     })

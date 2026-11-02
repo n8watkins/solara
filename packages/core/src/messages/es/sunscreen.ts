@@ -45,9 +45,9 @@ export default {
   fitsNoBurn: 'Puedes hacerlo sin protector solar: el UV es demasiado bajo para quemarte.',
   fitsUnprotected: burn => `Puedes hacerlo sin protector solar: te quemarías en unos ${burn}.`,
   fitsUnprotectedProtect: (burn, spf) =>
-    `Puedes hacerlo sin protector solar (te quemarías en unos ${burn}), pero usa FPS${NBSP}${spf}+ con este UV.`,
+    `Usa FPS${NBSP}${spf}+ con este UV: sin él te quemarías en unos ${burn}.`,
   fitsWithSunscreen: (burn, spf, every) =>
-    `Dura más que tu tiempo hasta quemarte (unos ${burn}): hazlo con FPS${NBSP}${spf}+${every ? `, reaplicado cada ${every}` : ''}.`,
+    `Hazlo con FPS${NBSP}${spf}+${every ? `, reaplicado cada ${every}` : ''}: sin él te quemarías en unos ${burn}.`,
   tooLongMove: (spf, burn, range) =>
     punto(
       `Dura demasiado aun con FPS${NBSP}${spf}+ (te quemarías en unos ${burn}): divídelo o muévelo a ${range}`,

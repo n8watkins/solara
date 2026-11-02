@@ -19,7 +19,7 @@ const scheme = (t: TestInfo) => t.project.name.split('-')[1]
 const LANGUAGES = [
   {
     code: 'en',
-    fit: 'Fits without sunscreen',
+    fit: 'Fits with SPF',
     tooLong: 'Too long even with SPF',
     dose: /≈1,000 IU · arms\u00a0\+\u00a0legs/,
     price: '$2.99',
@@ -29,7 +29,7 @@ const LANGUAGES = [
   },
   {
     code: 'es',
-    fit: 'Puedes hacerlo sin protector solar',
+    fit: 'Hazlo con FPS',
     tooLong: 'Dura demasiado aun con FPS',
     dose: /≈1[,.]?000 UI · brazos\u00a0\+\u00a0piernas/,
     price: 'US$2.99',
@@ -98,7 +98,8 @@ for (const lang of LANGUAGES) {
       await page.goto('/harness/?screen=dashboard')
       await expect(page.getByTestId(HARNESS_MARKER)).toBeVisible()
       await expect(page.locator('html')).toHaveAttribute('lang', lang.code)
-      // The harness plan's Running (45 min) at 6pm for fair skin, who burns in about 45 there.
+      // The harness plan's Running (45 min) at 6pm for fair skin, who burns in about 45 there:
+      // sunscreen keeps a third in hand.
       const running = page.locator('[data-testid="activity-card"][data-activity="run"]')
       await expect(running.getByTestId('burn-fit')).toContainText(lang.fit)
       // The hero's Hiking is too long even with sunscreen at 4pm, so the hero says so.

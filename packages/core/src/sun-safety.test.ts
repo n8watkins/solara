@@ -14,17 +14,19 @@ import {
   peakUVIn,
   spfAdvice,
   sunSafetyLevel,
+  FIT_MARGIN,
   type FitVerdict,
 } from './sun-safety'
 
 // Burn times (recommendation.ts SKIN_BURN_BASE, scaled by 10 / UV) at UV 4: very fair 25,
 // fair 38, medium 63, olive 88, dark 100 min. With sunscreen (2.5 times): 63, 94, 156, 219
-// and 250 min.
+// and 250 min. An activity fits while it lasts at most two thirds of one (FIT_MARGIN).
 describe('burnFit', () => {
   const run = { id: 'run', durationMins: 45 }
 
-  it('fits unprotected while the activity is no longer than the burn time', () => {
-    expect(burnFit(run, 4, 'medium')).toEqual({
+  it('fits unprotected only with a third of the burn time in hand', () => {
+    // Medium skin at UV 4 burns in 63 min: 40 min is within two thirds (42).
+    expect(burnFit({ id: 'run', durationMins: 40 }, 4, 'medium')).toEqual({
       verdict: 'fits',
       uv: 4,
       burnMins: 63,
@@ -32,13 +34,26 @@ describe('burnFit', () => {
       spf: 30,
       reapplyMins: null,
     })
-    // Equal to the burn time still fits: fair skin burns in 38 min at UV 4.
-    expect(burnFit({ durationMins: 38 }, 4, 'fair').verdict).toBe('fits')
-    expect(burnFit({ durationMins: 39 }, 4, 'fair').verdict).toBe('sunscreen')
+    expect(FIT_MARGIN).toBeCloseTo(2 / 3)
   })
 
-  it('fits with sunscreen when the burn time with SPF 30+ covers it, and names the SPF', () => {
-    // REVIEW10 QA M3: 45 min at UV 4 outlasts fair skin's 38, and fits its 94 with sunscreen.
+  it('needs sunscreen just over the margin and at the burn time itself', () => {
+    // Fair skin at UV 5 burns in 30 min (two thirds: 20), 75 with sunscreen (two thirds: 50).
+    const at = (durationMins: number) => burnFit({ durationMins }, 5, 'fair').verdict
+    expect(at(19)).toBe('fits')
+    expect(at(20)).toBe('fits')
+    expect(at(21)).toBe('sunscreen')
+    // Exactly at the burn time is no longer a fit without sunscreen.
+    expect(at(30)).toBe('sunscreen')
+    expect(at(50)).toBe('sunscreen')
+    expect(at(51)).toBe('too-long')
+    // Exactly at the burn time with sunscreen is too long, too.
+    expect(at(75)).toBe('too-long')
+  })
+
+  it('fits with sunscreen within two thirds of the protected burn time, and names the SPF', () => {
+    // REVIEW10 QA M3: 45 min at UV 4 is past fair skin's margin (25 of 38), and within two
+    // thirds of 94 with sunscreen.
     expect(burnFit(run, 4, 'fair')).toEqual({
       verdict: 'sunscreen',
       uv: 4,
@@ -48,21 +63,21 @@ describe('burnFit', () => {
       reapplyMins: null,
     })
     // Medium skin at UV 6: burns in 42, 104 with sunscreen; SPF 30+.
-    expect(burnFit({ durationMins: 90 }, 6, 'medium')).toMatchObject({
+    expect(burnFit({ durationMins: 60 }, 6, 'medium')).toMatchObject({
       verdict: 'sunscreen',
       spf: 30,
     })
-    // At UV 8 or more every skin type gets SPF 50+.
-    expect(burnFit({ durationMins: 90 }, 8, 'dark')).toMatchObject({
+    // At UV 8 or more every skin type gets SPF 50+ (dark skin: 50 min, 125 with sunscreen).
+    expect(burnFit({ durationMins: 80 }, 8, 'dark')).toMatchObject({
       verdict: 'sunscreen',
       spf: 50,
     })
   })
 
   it('names SPF 30+ at least, even when the UV is under 3', () => {
-    // Very fair skin at UV 2 burns in 50 min; a 2-hour walk needs sunscreen.
+    // Very fair skin at UV 2 burns in 50 min; an 80 min walk needs sunscreen.
     expect(spfAdvice(2, 'very-fair').spf).toBeNull()
-    expect(burnFit({ durationMins: 120 }, 2, 'very-fair')).toMatchObject({
+    expect(burnFit({ durationMins: 80 }, 2, 'very-fair')).toMatchObject({
       verdict: 'sunscreen',
       burnMins: 50,
       protectedMins: 125,
@@ -71,11 +86,12 @@ describe('burnFit', () => {
   })
 
   it('reapplies every 2 h, or every 80 min in the water, only when it lasts longer', () => {
-    expect(burnFit({ durationMins: 150 }, 2, 'fair')).toMatchObject({
+    // Fair skin at UV 1.5: 100 min, 250 with sunscreen.
+    expect(burnFit({ durationMins: 150 }, 1.5, 'fair')).toMatchObject({
       verdict: 'sunscreen',
       reapplyMins: 120,
     })
-    expect(burnFit({ durationMins: 120 }, 2, 'fair').reapplyMins).toBeNull()
+    expect(burnFit({ durationMins: 120 }, 1.5, 'fair').reapplyMins).toBeNull()
     expect(burnFit({ id: 'swim', durationMins: 90 }, 3, 'medium')).toMatchObject({
       verdict: 'sunscreen',
       reapplyMins: 80,
@@ -138,11 +154,11 @@ describe('burnFit', () => {
       ]),
     )
     expect(table).toEqual({
-      'very-fair': ['sunscreen', 'sunscreen', 'too-long', 'too-long', 'too-long', 'too-long'],
-      fair: ['fits', 'sunscreen', 'sunscreen', 'too-long', 'too-long', 'too-long'],
-      medium: ['fits', 'fits', 'sunscreen', 'sunscreen', 'sunscreen', 'too-long'],
-      olive: ['fits', 'fits', 'fits', 'sunscreen', 'sunscreen', 'sunscreen'],
-      dark: ['fits', 'fits', 'fits', 'sunscreen', 'sunscreen', 'sunscreen'],
+      'very-fair': ['sunscreen', 'too-long', 'too-long', 'too-long', 'too-long', 'too-long'],
+      fair: ['sunscreen', 'sunscreen', 'too-long', 'too-long', 'too-long', 'too-long'],
+      medium: ['fits', 'sunscreen', 'sunscreen', 'too-long', 'too-long', 'too-long'],
+      olive: ['fits', 'fits', 'sunscreen', 'sunscreen', 'sunscreen', 'too-long'],
+      dark: ['fits', 'fits', 'sunscreen', 'sunscreen', 'sunscreen', 'sunscreen'],
     })
   })
 
@@ -150,9 +166,10 @@ describe('burnFit', () => {
     const group: SkinType[] = ['dark', 'medium', 'fair']
     const skin = mostSensitiveSkinType(group)!
     expect(skin).toBe('fair')
-    // Medium alone fits 45 min at UV 4; with a fair-skinned person along, it needs sunscreen.
-    expect(burnFit(run, 4, 'medium').verdict).toBe('fits')
-    expect(burnFit(run, 4, skin).verdict).toBe('sunscreen')
+    // Medium alone fits 40 min at UV 4; with a fair-skinned person along, it needs sunscreen.
+    const short = { durationMins: 40 }
+    expect(burnFit(short, 4, 'medium').verdict).toBe('fits')
+    expect(burnFit(short, 4, skin).verdict).toBe('sunscreen')
   })
 })
 
@@ -167,7 +184,8 @@ describe('burnFit on the ready-made activities (REVIEW10 QA M3)', () => {
       preset => preset.durationMins > burnMins(effectiveMaxUV(preset), 'fair')!,
     )
     expect(unprotected.length).toBeGreaterThan(PRESET_ACTIVITIES.length / 2)
-    expect(verdicts.filter(v => v !== 'fits')).toHaveLength(unprotected.length)
+    // Each of them, and some more within the margin, needs sunscreen or is too long.
+    expect(verdicts.filter(v => v !== 'fits').length).toBeGreaterThanOrEqual(unprotected.length)
   })
 })
 
@@ -208,10 +226,11 @@ describe('peakUVIn and bestFitIn', () => {
     const placed = bestFitIn(hours, { from: 6, to: 10 }, { durationMins: 45 }, 'fair')
     expect(placed).toMatchObject({ from: 6, to: 6.75 })
     expect(placed!.fit).toMatchObject({ verdict: 'fits', uv: 0.8 })
-    // Starting at 8:30, the span's lowest stretch is 8:30-9:15 (UV 2.8 then 3.8).
-    const later = bestFitIn(hours, { from: 8.5, to: 12 }, { durationMins: 45 }, 'very-fair')
-    expect(later).toMatchObject({ from: 8.5, to: 9.25 })
-    expect(later!.fit).toMatchObject({ uv: 3.8, verdict: 'sunscreen' })
+    // Starting at 8:30, the span's lowest stretch is 8:30-9am (UV 2.8): very fair skin burns
+    // in 36 min, so 30 min needs sunscreen.
+    const later = bestFitIn(hours, { from: 8.5, to: 12 }, { durationMins: 30 }, 'very-fair')
+    expect(later).toMatchObject({ from: 8.5, to: 9 })
+    expect(later!.fit).toMatchObject({ uv: 2.8, verdict: 'sunscreen' })
   })
 
   it('starts later in the span when the UV falls through it, never before the span', () => {

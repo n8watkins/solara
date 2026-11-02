@@ -194,7 +194,7 @@ The daily briefing at the top of the dashboard, and shared briefings
 | `staysBandUnlessClear` | UV stays {1} {2} unless the sky clears | El UV se mantiene {1} {2}, salvo que el cielo se despeje |  |
 | `isBandDuring` | UV is {1} {2} | El UV es {1} {2} |  |
 | `burn` | at the peak, unprotected skin like yours can burn in about {1} min | en el máximo, una piel como la tuya sin protección puede quemarse en unos {1} min |  |
-| `fitSunscreen` | {1} is longer than your burn time: it fits with SPF {2}+, reapplied every {3} | {1} dura más que tu tiempo hasta quemarte: hazlo con FPS {2}+, reaplicado cada {3} |  |
+| `fitSunscreen` | {1} needs sunscreen to stay well within your burn time: SPF {2}+, reapplied every {3} | {1} necesita protector solar para quedar bien dentro de tu tiempo hasta quemarte: FPS {2}+, reaplicado cada {3} |  |
 | `fitTooLong` | {1} is too long for your skin even with SPF {2}+: split it into shorter sessions, or plan it for a lower UV | {1} dura demasiado para tu piel aun con FPS {2}+: divídelo en sesiones más cortas o planifícalo para un UV más bajo |  |
 | `seekShade` | seek shade while UV is {1}, {2}; wear a hat, sunglasses and sunscreen {3} | busca la sombra mientras el UV sea {1}, {2}; usa sombrero, lentes de sol y protector solar {3} |  |
 | `seekShadeIfClear` | seek shade {1}, as UV can be {2} if the sky clears; wear a hat, sunglasses and sunscreen {3} | busca la sombra {1}, porque el UV puede ser {2} si el cielo se despeja; usa sombrero, lentes de sol y protector solar {3} |  |
@@ -281,8 +281,8 @@ Sunscreen coaching: the timer, activity cards, Settings; the reapply reminder pu
 | `gearRule` | From UV {1}, also wear a shirt, a hat and sunglasses; from UV {2}, stay in the shade around midday. | Desde UV {1}, usa también camiseta, sombrero y lentes de sol; desde UV {2}, quédate a la sombra cerca del mediodía. |  |
 | `fitsNoBurn` | Fits without sunscreen: the UV is too low to burn. | Puedes hacerlo sin protector solar: el UV es demasiado bajo para quemarte. |  |
 | `fitsUnprotected` | Fits without sunscreen: you'd burn in about {1}. | Puedes hacerlo sin protector solar: te quemarías en unos {1}. |  |
-| `fitsUnprotectedProtect` | Fits without sunscreen (you'd burn in about {1}), but use SPF {2}+ at this UV. | Puedes hacerlo sin protector solar (te quemarías en unos {1}), pero usa FPS {2}+ con este UV. |  |
-| `fitsWithSunscreen` | Longer than your burn time (about {1}): fits with SPF {2}+, reapplied every {3}. | Dura más que tu tiempo hasta quemarte (unos {1}): hazlo con FPS {2}+, reaplicado cada {3}. |  |
+| `fitsUnprotectedProtect` | Use SPF {2}+ at this UV: without it you'd burn in about {1}. | Usa FPS {2}+ con este UV: sin él te quemarías en unos {1}. |  |
+| `fitsWithSunscreen` | Fits with SPF {2}+, reapplied every {3}: without it you'd burn in about {1}. | Hazlo con FPS {2}+, reaplicado cada {3}: sin él te quemarías en unos {1}. |  |
 | `tooLongMove` | Too long even with SPF {1}+ (you'd burn in about {2}): split it, or move it to {3}. | Dura demasiado aun con FPS {1}+ (te quemarías en unos {2}): divídelo o muévelo a {3}. |  |
 | `tooLongSplit` | Too long even with SPF {1}+ (you'd burn in about {2}): split it into shorter sessions. | Dura demasiado aun con FPS {1}+ (te quemarías en unos {2}): divídelo en sesiones más cortas. |  |
 

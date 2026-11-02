@@ -28,11 +28,15 @@ Each planned activity says whether it fits the burn time, and what makes it fit 
 - **The UV:** the highest UV the skin gets during the activity's recommended slot: each hour's planning UV (clear sky unless the activity counts on clouds, with its shade and surface), over every hour the slot touches.
   Without a slot, and for the briefing's lowest-UV window, the activity is placed where that UV is lowest inside the window.
 - **The skin type:** the plan's; in a group, the most sensitive person's.
-- **Fits unprotected:** the activity lasts no longer than the burn time (`burnMins` in `packages/core/src/recommendation.ts`), or the UV is under 0.5.
-  From UV 3 the card still says to use sunscreen, since the guidance above advises it whatever the duration.
-- **Fits with sunscreen:** it lasts no longer than the burn time at the UV divided by 2.5 (`SUNSCREEN_UV_FACTOR`: SPF 30+ as people really apply it, a quarter to half the tested amount, Neale and others, Br J Dermatol 2019;181:907).
+- **A margin:** an activity fits a burn time only while it lasts at most two thirds of it (`FIT_MARGIN`, default, owner may change).
+  Burn times are rough: skin within one type varies, a forecast can be off by a UV unit, and people stay out longer than planned, so an activity that ends right at the estimated burn has no margin left.
+  Two thirds keeps a third in hand; the vitamin D estimate stays further below, at 0.3 of the burn time.
+- **Fits unprotected:** the activity lasts at most two thirds of the burn time (`burnMins` in `packages/core/src/recommendation.ts`), or the UV is under 0.5.
+  Under UV 3 the card says "Fits without sunscreen"; from UV 3 it gives one instruction instead ("Use SPF 50+ at this UV: without it you'd burn in about 1 h 10 min."), since the guidance above advises sunscreen whatever the duration.
+- **Fits with sunscreen:** it lasts at most two thirds of the burn time with sunscreen, the burn time at the UV divided by 2.5 (`SUNSCREEN_UV_FACTOR`: SPF 30+ as people really apply it, a quarter to half the tested amount, Neale and others, Br J Dermatol 2019;181:907).
   It names the SPF from the rule above (never less than 30), and the reapply interval when the activity lasts longer than it (every 2 h, or every 1 h 20 min for swimming, surfing and paddleboarding).
 - **Too long even with sunscreen:** the card offers to split it, or names the first stretch of the day's windows where it fits with sunscreen at most.
+- The card's burn time row reads the same UV as the fit (the slot's), so a card never shows two burn times; without a slot or window it reads the activity's UV limit.
 - The verdict does not depend on whether the activity was planned with SPF: an activity planned with sunscreen at a raised UV limit can still be too long.
 - The judgement uses the slot's highest UV, not the dose summed over it, which errs on the side of protection.
 
@@ -41,7 +45,7 @@ Each planned activity says whether it fits the burn time, and what makes it fit 
 - The sunscreen timer's "How much sunscreen?" disclosure: today's SPF advice, the whole-body amount, the teaspoon rule and when to reapply.
 - The sunscreen timer's disclosure also names what else to wear at today's UV.
 - Each activity card's "Sunscreen" row ("about 5 tsp for face, arms, legs"), when the activity is planned for UV 3 or more or its slot needs sunscreen to fit.
-- Each activity card's fit line, in its recommended slot (or on the card when the slot is on the calendar or there is only a best window): "Fits without sunscreen: you'd burn in about 1 h 10 min.", "Longer than your burn time (about 38 min): fits with SPF 50+, reapplied every 2 h.", "Too long even with SPF 50+ (you'd burn in about 1 h 35 min): split it, or move it to 5pm-5:45pm."
+- Each activity card's fit line, in its recommended slot (or on the card when the slot is on the calendar or there is only a best window): "Fits without sunscreen: you'd burn in about 1 h 10 min." (under UV 3), "Use SPF 30+ at this UV: without it you'd burn in about 1 h 10 min.", "Fits with SPF 50+, reapplied every 2 h: without it you'd burn in about 38 min.", "Too long even with SPF 50+ (you'd burn in about 1 h 35 min): split it, or move it to 5pm-5:45pm."
 - The hero's slot, with the same line, only when it needs sunscreen or is too long.
 - The daily briefing and the Pro morning alert, after the lowest-UV window, only when its activity needs sunscreen or is too long; and the briefing's advice line.
 - The free daily UV push: "Sunscreen, a hat, sunglasses and shade while the UV is moderate or higher."

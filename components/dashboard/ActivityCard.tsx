@@ -1,3 +1,5 @@
+import { formatUV } from '@solara/core'
+import { formatDuration } from '@solara/core/duration'
 import { exposureSummary } from '@/lib/activity-exposure'
 import { NotebookPen, Pencil } from 'lucide-react'
 import type { SafeActivityWindow } from '@/lib/types'
@@ -35,11 +37,11 @@ function Stat({ label, val, tone }: { label: string; val: string; tone?: 'succes
   const color = tone === 'success' ? 'text-success' : tone === 'danger' ? 'text-danger' : 'text-ink'
   return (
     <div className="flex justify-between gap-3 text-[12px]">
-      {/* A long label ("Tiempo hasta quemarte con UV 4") wraps rather than pushing its value
-          past the card's edge at 320 px; a long value wraps within two thirds of the row, so
-          a short label ("Protector solar") keeps one line. */}
-      <span className="min-w-0 text-ink-3">{label}</span>
-      <span className={`max-w-[65%] shrink-0 text-right font-medium ${color}`}>{val}</span>
+      {/* The label keeps up to half the row, so a short one ("Protector solar") stays on one
+          line and a long one ("Tiempo hasta quemarte con UV 4") wraps rather than pushing its
+          value past the card's edge at 320 px; the value wraps in the rest. */}
+      <span className="max-w-[50%] shrink-0 text-ink-3">{label}</span>
+      <span className={`min-w-0 text-right font-medium ${color}`}>{val}</span>
     </div>
   )
 }
@@ -155,9 +157,22 @@ export default function ActivityCard({
         )}
         {days && <Stat label={m.days} val={days} />}
         {exposure && <Stat label={m.setting} val={exposure} />}
-        {burnMins !== null && burnMins !== undefined && (
-          <Stat label={m.burnTimeAt(safeUv)} val={m.aboutMinutes(burnMins)} />
-        )}
+        {/* With a fit, the burn time it is judged by (the slot's UV), so the card never
+            shows two burn times; else the burn time at the UV limit. */}
+        {fit
+          ? fit.burnMins !== null && (
+              <Stat
+                label={m.burnTimeAt(formatUV(fit.uv))}
+                val={m.aboutDuration(formatDuration(fit.burnMins))}
+              />
+            )
+          : burnMins !== null &&
+            burnMins !== undefined && (
+              <Stat
+                label={m.burnTimeAt(String(safeUv))}
+                val={m.aboutDuration(formatDuration(burnMins))}
+              />
+            )}
         {sunscreen && <Stat label={m.sunscreen} val={sunscreen} />}
         {bestLabel !== null && (
           <Stat label={m.bestWindow} val={bestLabel} tone={bestWindow ? 'success' : 'danger'} />

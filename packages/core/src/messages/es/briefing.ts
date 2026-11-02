@@ -29,7 +29,7 @@ export default {
     `El UV se mantiene ${band} ${rest}, salvo que el cielo se despeje`,
   isBandDuring: (band, spans) => `El UV es ${band} ${spans}`,
   fitSunscreen: (activity, spf, every) =>
-    `${activity} dura más que tu tiempo hasta quemarte: hazlo con FPS${NBSP}${spf}+${every ? `, reaplicado cada ${every}` : ''}`,
+    `${activity} necesita protector solar para quedar bien dentro de tu tiempo hasta quemarte: FPS${NBSP}${spf}+${every ? `, reaplicado cada ${every}` : ''}`,
   fitTooLong: (activity, spf) =>
     `${activity} dura demasiado para tu piel aun con FPS${NBSP}${spf}+: divídelo en sesiones más cortas o planifícalo para un UV más bajo`,
   burn: minutes =>

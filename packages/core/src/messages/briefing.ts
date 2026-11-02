@@ -36,7 +36,7 @@ export default defineMessages('briefing', {
   isBandDuring: (band: string, spans: string) => `UV is ${band} ${spans}`,
   /** The window's activity needs sunscreen to fit the burn time (sun-safety.ts burnFit). */
   fitSunscreen: (activity: string, spf: number, every: string | null) =>
-    `${activity} is longer than your burn time: it fits with SPF${NBSP}${spf}+${every ? `, reapplied every ${every}` : ''}`,
+    `${activity} needs sunscreen to stay well within your burn time: SPF${NBSP}${spf}+${every ? `, reapplied every ${every}` : ''}`,
   fitTooLong: (activity: string, spf: number) =>
     `${activity} is too long for your skin even with SPF${NBSP}${spf}+: split it into shorter sessions, or plan it for a lower UV`,
   burn: (minutes: number) =>

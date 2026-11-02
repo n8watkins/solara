@@ -162,8 +162,9 @@ describe('morning alert message', () => {
   })
 
   it("says what makes the window's activity fit the burn time, in the account's language", () => {
-    // 2 h 30 min from 6am under a UV 3 limit reaches UV 3: medium skin burns in 83 min, 208
-    // with sunscreen; fair skin in 50, 125 with sunscreen (ROADMAP item 56).
+    // 2 h 30 min from 6am under a UV 3 limit reaches UV 3: dark skin burns in 133 min, 333
+    // with sunscreen, so it needs sunscreen; fair skin in 50, 125 with sunscreen, too long
+    // (two thirds of each, ROADMAP item 56).
     const long = { ...run, name: 'Long run', durationMins: 150 }
     const alert = (skinType: string) =>
       morningAlertMessage({
@@ -173,15 +174,15 @@ describe('morning alert message', () => {
         activities: [long],
         skinType,
       })
-    expect(alert('medium').body).toContain(
+    expect(alert('dark').body).toContain(
       'Lowest-UV window: Long run 6am–9am. ' +
-        'Long run is longer than your burn time: it fits with SPF 30+, reapplied every 2 h. ',
+        'Long run needs sunscreen to stay well within your burn time: SPF 30+, reapplied every 2 h. ',
     )
     expect(alert('fair').body).toContain(
       'Long run is too long for your skin even with SPF 50+: split it into shorter sessions, or plan it for a lower UV. ',
     )
-    expect(inAccountLanguage({ language: 'es' }, () => alert('medium').body)).toContain(
-      'Long run dura más que tu tiempo hasta quemarte: hazlo con FPS 30+, reaplicado cada 2 h. ',
+    expect(inAccountLanguage({ language: 'es' }, () => alert('dark').body)).toContain(
+      'Long run necesita protector solar para quedar bien dentro de tu tiempo hasta quemarte: FPS 30+, reaplicado cada 2 h. ',
     )
     expect(inAccountLanguage({ language: 'es' }, () => alert('fair').body)).toContain(
       'Long run dura demasiado para tu piel aun con FPS 50+: divídelo en sesiones más cortas o planifícalo para un UV más bajo. ',

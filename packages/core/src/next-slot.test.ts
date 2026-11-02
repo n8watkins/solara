@@ -152,8 +152,9 @@ describe('planActivityDay', () => {
 // when it is too long even with sunscreen.
 describe('planActivityDay and the burn-time fit', () => {
   it('judges the slot at the highest UV the skin gets in it, for the plan skin type', () => {
-    // 6am-7am at UV 2: fair skin burns in 75 min, very fair in 50 (125 with sunscreen).
-    expect(planActivityDay(day(), run, 'fair').fit).toMatchObject({ verdict: 'fits', uv: 2 })
+    // 6am-7am at UV 2: medium skin burns in 125 min (an hour is within two thirds), very fair
+    // in 50 (125 with sunscreen).
+    expect(planActivityDay(day(), run, 'medium').fit).toMatchObject({ verdict: 'fits', uv: 2 })
     expect(planActivityDay(day(), run, 'very-fair').fit).toMatchObject({
       verdict: 'sunscreen',
       uv: 2,
@@ -165,7 +166,7 @@ describe('planActivityDay and the burn-time fit', () => {
 
   it('names the first stretch where an activity too long for its slot fits', () => {
     // UV 4 in the morning, 1 in the evening: 90 min at UV 4 is too long for very fair skin
-    // even with sunscreen (63 min); from 5pm, at UV 1, it fits unprotected (100 min).
+    // even with sunscreen (63 min); from 5pm, at UV 1, it fits with sunscreen.
     const morningHigh = day(h => (h <= 10 ? 4 : h >= 17 ? 1 : 9))
     const plan = planActivityDay(morningHigh, { ...run, durationMins: 90 }, 'very-fair')
     expect(plan.slot).toMatchObject({ start: 6, end: 7.5 })
@@ -185,7 +186,7 @@ describe('planActivityDay and the burn-time fit', () => {
 
   it('judges the best window without a slot, and nothing without a window', () => {
     // The calendar is full all day: no slot, but the morning window still fits unprotected.
-    const busy = planActivityDay(day(), run, 'fair', { busy: [{ start: 0, end: 24 }] })
+    const busy = planActivityDay(day(), run, 'medium', { busy: [{ start: 0, end: 24 }] })
     expect(busy.slot).toBeNull()
     expect(busy.fit).toMatchObject({ verdict: 'fits', uv: 2 })
     const passed = planActivityDay(
