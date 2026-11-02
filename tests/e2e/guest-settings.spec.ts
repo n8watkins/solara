@@ -94,7 +94,7 @@ test('a guest changes skin type, theme and units after setup', async ({ page }) 
 test('Escape closes the location panel and returns focus to the place button', async ({ page }) => {
   await mockOpenMeteo(page)
   await openAsGuest(page)
-  const trigger = page.getByRole('banner').getByRole('button', { name: 'Los Angeles' })
+  const trigger = page.getByRole('banner').getByRole('button', { name: 'Los Angeles', exact: true })
   await trigger.click()
   await expect(trigger).toHaveAttribute('aria-expanded', 'true')
   // Focus starts on the first place in the menu (ROADMAP item 54); the search is a Tab away.
