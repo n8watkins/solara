@@ -26,7 +26,7 @@ export function activityRunsOn(activity: Activity, dateStr: string): boolean {
 
 /**
  * Across the accessible forecast horizon, find the single best safe window for
- * an activity — the lowest-average-UV window, breaking ties toward the earliest
+ * an activity: the lowest-average-UV window, breaking ties toward the earliest
  * day. Returns null if no day in range has a window long enough for the activity.
  *
  * This is the core "best day this week for X" recommendation. A longer forecast

@@ -155,7 +155,7 @@ describe('bestUpcomingSlot', () => {
       day('2026-05-29', 'Today', h => (h <= 9 ? 1 : 9)), // morning window 6-10
       day('2026-05-30', 'Tomorrow', h => (h <= 9 ? 1 : 9)),
     ]
-    // it's already 11am — today's only window has passed → fall through to tomorrow
+    // it's already 11am, so today's only window has passed → fall through to tomorrow
     const s = bestUpcomingSlot(forecast, run, 'fair', 10, {}, 11)!
     expect(s.dateStr).toBe('2026-05-30')
     expect(s.slot.start).toBe(6) // tomorrow is unaffected by today's clock

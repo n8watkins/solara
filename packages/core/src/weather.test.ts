@@ -3,7 +3,7 @@ import type { HourlyForecast } from './forecast-days'
 import type { Activity } from './prefs'
 import { getActivityWindow } from './weather'
 
-describe('getActivityWindow — shade and surface', () => {
+describe('getActivityWindow: shade and surface', () => {
   // UV 3.6 at 8am, 4.0 at 9am, then 5 and above until 4pm.
   const uvs: Record<number, number> = { 7: 2, 8: 3.6, 9: 4, 10: 5, 16: 3.5, 17: 2 }
   const hourly: HourlyForecast[] = []
@@ -94,7 +94,7 @@ describe('getActivityWindow - clouds counted once', () => {
 })
 
 // ---------------------------------------------------------------------------
-// getActivityWindow — the core recommendation. Build a controlled day:
+// getActivityWindow: the core recommendation. Build a controlled day:
 // safe morning (6–9), unsafe midday (10–16), safe evening (17–20).
 // ---------------------------------------------------------------------------
 function buildDay(): HourlyForecast[] {
@@ -154,7 +154,7 @@ describe('getActivityWindow', () => {
     expect(w.bestWindow).toBeNull()
   })
 
-  it('respects preferredHours — excludes safe windows outside the preferred range', () => {
+  it('respects preferredHours: excludes safe windows outside the preferred range', () => {
     const morningOnly: Activity = { ...runActivity, preferredHours: { from: 6, to: 10 } }
     const w = getActivityWindow(buildDay(), morningOnly, 7, 'fair')
     expect(w.allWindows).toHaveLength(1)

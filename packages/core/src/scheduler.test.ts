@@ -5,7 +5,7 @@ import { recommendSlot, type BusyInterval } from './scheduler'
 const morning: SafeActivityWindow = { from: 6, to: 10, label: 'Morning', peakUV: 1, avgUV: 1 }
 const evening: SafeActivityWindow = { from: 17, to: 21, label: 'Evening', peakUV: 2, avgUV: 2 }
 
-describe('recommendSlot — time preference', () => {
+describe('recommendSlot: time preference', () => {
   it('earliest: picks the soonest feasible window (default)', () => {
     const r = recommendSlot([morning, evening], [], 60)!
     expect(r.start).toBe(6)
@@ -29,7 +29,7 @@ describe('recommendSlot — time preference', () => {
   })
 })
 
-describe('recommendSlot — calendar busy', () => {
+describe('recommendSlot: calendar busy', () => {
   it('subtracts a busy block and books in the remaining free time', () => {
     const busy: BusyInterval[] = [{ start: 7, end: 8 }]
     const r = recommendSlot([morning], busy, 60, 'earliest')!
@@ -73,14 +73,14 @@ describe('recommendSlot — calendar busy', () => {
     }
     const busy: BusyInterval[] = [{ start: 13, end: 17 }] // busy until 5pm
     const r = recommendSlot([afternoon], busy, 60, 'earliest')!
-    expect(r.start).toBe(17) // 5pm — earliest free time
+    expect(r.start).toBe(17) // 5pm, the earliest free time
     expect(r.earliestStart).toBe(17) // could start anytime 5pm…
     expect(r.latestStart).toBe(20) // …up to 8pm (1h run ends by the 9pm window edge)
     expect(r.reason).toContain('afternoon')
   })
 })
 
-describe('recommendSlot — today vs future', () => {
+describe('recommendSlot: today vs future', () => {
   it('forbids past slots on today via nowHour', () => {
     const r = recommendSlot([morning, evening], [], 60, 'earliest', 8)!
     expect(r.start).toBe(8) // 6 and 7 are in the past; clamp to 8
@@ -103,7 +103,7 @@ describe('recommendSlot — today vs future', () => {
   })
 })
 
-describe('recommendSlot — occupancy UV (hourly provided)', () => {
+describe('recommendSlot: occupancy UV (hourly provided)', () => {
   // One safe window 6–12, but UV is cool early (1) and hot late (7).
   const wide: SafeActivityWindow = { from: 6, to: 12, label: 'Morning', peakUV: 7, avgUV: 4 }
   const hourly = [

@@ -120,6 +120,7 @@ npm run test:harness
   `UPDATE_LANDING_SHOTS=1 npm run test:harness -- landing-shots` regenerates the landing page's screenshots in `public/landing/`.
   CI runs it as four parallel shards (`npm run test:harness -- --shard=N/4`, each with a 15-minute limit), and the required "Signed-in UI harness" check waits for all four and merges their screenshots and axe reports into one `ui-harness` artifact; `node tests/harness/merge-axe.mts` rebuilds the axe summary from `test-results/ui-harness/axe/`.
 - `npm run check:docs` checks that every relative link and backticked repository path in the Markdown docs resolves.
+- `npm run lint` also runs `npm run check:dashes`, which fails on the em dash (U+2014) in any file outside the generated ones (CHANGELOG files, lockfiles and `AGENTS.md`).
 
 The rules tests and the signed-in suite need Java for the Firestore emulator.
 Real Google OAuth, App Check, FCM delivery, Stripe signatures and calendar clients are outside what CI can prove; they are covered by the [owner checklist](docs/OWNER_CHECKLIST.md#release-verification).

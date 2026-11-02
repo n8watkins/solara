@@ -19,7 +19,7 @@ A job with nothing relevant to test never skips at the job level (a required che
 | Job (required check) | What it runs | Typical time when it runs |
 | --- | --- | --- |
 | Detect changed areas | Maps the changed files to suites (`.github/scripts/changed-areas.mjs`) and records the tree it tests | 5 s |
-| Lint, types and unit tests | Dependency audit, ESLint and Prettier, shellcheck, the docs check (always); typecheck and Vitest (when relevant) | 1.5-2 min (1.3 min lint only) |
+| Lint, types and unit tests | Dependency audit, ESLint and Prettier, the em dash check, shellcheck, the docs check (always); typecheck and Vitest (when relevant) | 1.5-2 min (1.3 min lint only) |
 | Browser tests on the static export | Builds `out/` and runs the Playwright suite on the Hosting emulator (Chromium, a phone, and Firefox and WebKit for the Outlook popup), then the first-load budgets on a production-like build (which also fail if Valibot, Firebase or Google Analytics is in a guest's first load) | 4.4 min (5 min before the audit) |
 | Browser tests with Sentry and App Check switched on | A production build with fake Sentry and reCAPTCHA keys | 1.5 min |
 | Signed-in browser tests on emulators | An emulator build and the signed-in suite against Auth, Firestore and Functions emulators | 3.5 min |
@@ -43,7 +43,7 @@ Change the rules and their tests in `.github/scripts/changed-areas.test.mjs` tog
 
 | Changed files | Typecheck and unit | Functions and rules | Static export e2e | Signed-in e2e | UI harness | Sentry and App Check e2e |
 | --- | --- | --- | --- | --- | --- | --- |
-| `.github/workflows/deploy.yml`, `.github/workflows/deploy-staging.yml`, the deploy-only scripts (`budget-guard-env.mjs`, `staging-target.mjs`, `remove-source-maps.mjs`, `sbom.sh`), `check-docs.mjs`, the workflow script tests except the suite map's, `.github/dependabot.yml`, `.github/zizmor.yml` | - | - | - | - | - | - |
+| `.github/workflows/deploy.yml`, `.github/workflows/deploy-staging.yml`, the deploy-only scripts (`budget-guard-env.mjs`, `staging-target.mjs`, `remove-source-maps.mjs`, `sbom.sh`), `check-docs.mjs`, `check-dashes.mjs`, the workflow script tests except the suite map's, `.github/dependabot.yml`, `.github/zizmor.yml` | - | - | - | - | - | - |
 | `.github/scripts/check-functions-params.js`, `.github/scripts/check-functions-payload.js` | - | yes | - | - | - | - |
 | `.github/scripts/check-public-env.mjs`, `.github/scripts/check-hosting-target.js` | yes | - | - | - | - | - |
 | `.github/scripts/production.json` | yes | yes | - | - | - | - |

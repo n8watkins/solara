@@ -4,7 +4,7 @@ import { effectiveMaxUV } from '@solara/core/tiers'
 import type { Activity } from '@/lib/types'
 
 // ---------------------------------------------------------------------------
-// burnMins — time-to-burn estimate. A wrong value here is genuinely unsafe
+// burnMins: time-to-burn estimate. A wrong value here is genuinely unsafe
 // advice, so the boundaries matter.
 // ---------------------------------------------------------------------------
 describe('burnMins', () => {
@@ -19,7 +19,7 @@ describe('burnMins', () => {
     expect(burnMins(10, 'fair')).toBe(15)
   })
 
-  it('reflects skin type — darker skin burns slower at the same UV', () => {
+  it('reflects skin type: darker skin burns slower at the same UV', () => {
     expect(burnMins(5, 'very-fair')).toBe(20) // (10*10)/5
     expect(burnMins(5, 'dark')).toBe(80) // (40*10)/5
     expect(burnMins(5, 'dark')!).toBeGreaterThan(burnMins(5, 'very-fair')!)
@@ -31,7 +31,7 @@ describe('burnMins', () => {
 })
 
 // ---------------------------------------------------------------------------
-// uvLabel — category boundaries must match the WHO-style bands exactly.
+// uvLabel: category boundaries must match the WHO-style bands exactly.
 // ---------------------------------------------------------------------------
 describe('uvLabel', () => {
   it('maps each band at its boundary', () => {
@@ -51,7 +51,7 @@ describe('uvLabel', () => {
 })
 
 // ---------------------------------------------------------------------------
-// fmtHour — 24h → 12h labels, including the midnight/noon edges.
+// fmtHour: 24h → 12h labels, including the midnight/noon edges.
 // ---------------------------------------------------------------------------
 describe('fmtHour', () => {
   it('handles midnight and noon', () => {
@@ -67,7 +67,7 @@ describe('fmtHour', () => {
 })
 
 // ---------------------------------------------------------------------------
-// effectiveMaxUV — SPF raises the threshold but is capped at 11.
+// effectiveMaxUV: SPF raises the threshold but is capped at 11.
 // ---------------------------------------------------------------------------
 describe('effectiveMaxUV', () => {
   const base = (over: Partial<Activity>): Activity => ({

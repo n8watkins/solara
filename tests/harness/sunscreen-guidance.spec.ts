@@ -74,7 +74,7 @@ for (const state of ['idle', 'running'] as const) {
       'About 7 teaspoons (35 mL), a shot glass, for your whole body',
     )
     await expect(timer(page)).toContainText('Reapply every 2 h')
-    await expect(timer(page)).not.toContainText('—')
+    await expect(timer(page)).not.toContainText('\u2014')
     await atEachWidth(page, t, `spf-timer-${state}`, timer(page))
     await axeClean(page, 'section[aria-labelledby]')
     expect(capture.pageErrors).toEqual([])
