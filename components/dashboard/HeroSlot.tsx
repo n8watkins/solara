@@ -9,8 +9,7 @@ import { useUnits } from '@/lib/use-units'
 import { useUpsellDismissal } from '@/lib/upsell'
 import WeatherNote from './WeatherNote'
 import { timeRange } from '@/lib/time'
-import BurnTimeWarning from './BurnTimeWarning'
-import { outlastsBurnTime } from '@solara/core/recommendation'
+import BurnFitLine from './BurnFitLine'
 import { windowLabelText } from '@solara/core/recommendation'
 import m from '@/messages/activities'
 
@@ -103,7 +102,10 @@ export default function HeroSlot({
             </p>
           </div>
         </div>
-        {outlastsBurnTime(activity, plan.burnMins) && <BurnTimeWarning className="mt-2.5" />}
+        {/* Only when the slot needs sunscreen or is too long: the card says the rest. */}
+        {plan.fit && plan.fit.verdict !== 'fits' && (
+          <BurnFitLine fit={plan.fit} move={plan.fitMove} className="mt-2.5" />
+        )}
         {/* Only when the weather moved the slot: the reason it is not the lowest-UV hour. */}
         {plan.weatherMoved && <WeatherNote spans={plan.weather} className="mt-2.5" />}
         {onMorningAlert && !alertDismissed && (

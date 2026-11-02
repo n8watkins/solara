@@ -8,6 +8,7 @@ import {
   reapplyRule,
   teaspoonRule,
   spfRuleText,
+  sunGearRule,
   sunscreenAmount,
   sunscreenAmountText,
 } from '@solara/core/sunscreen'
@@ -107,12 +108,13 @@ export default function SunProfileSettings({ draft, onChange }: Props) {
         )}
       </SettingsCard>
 
-      {/* The SPF for the skin type chosen above, the teaspoon rule and when to reapply
+      {/* The SPF for the skin type chosen above, what else to wear, the teaspoon rule and when to reapply
           (packages/core/src/sunscreen.ts); nothing here is stored. */}
       <SettingsCard className="flex flex-col gap-1.5" data-testid="sunscreen-settings">
         <SettingsTitle>{m.sunscreen}</SettingsTitle>
         <ul className="m-0 list-disc space-y-1 pl-[18px] text-[13px] leading-[1.45] text-ink-2">
           <li>{spfRuleText(draft.skinType)}</li>
+          <li>{sunGearRule()}</li>
           <li>
             {teaspoonRule()} {sunscreenAmountText(sunscreenAmount(BODY_AREAS))}.
           </li>

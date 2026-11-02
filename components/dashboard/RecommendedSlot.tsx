@@ -5,7 +5,8 @@ import { useUnits } from '@/lib/use-units'
 import { timeRange } from '@/lib/time'
 import { windowLabelText } from '@solara/core/recommendation'
 import m from '@/messages/activities'
-import BurnTimeWarning from './BurnTimeWarning'
+import type { BurnFit } from '@solara/core/sun-safety'
+import BurnFitLine from './BurnFitLine'
 
 const ACTION = 'btn mt-2 w-full justify-center text-[12px]'
 
@@ -16,13 +17,16 @@ const ACTION = 'btn mt-2 w-full justify-center text-[12px]'
  */
 export default function RecommendedSlot({
   rec,
-  outlastsBurn = false,
+  fit = null,
+  fitMove = null,
   onBook,
   calendarHref,
 }: {
   rec: SlotRecommendation
-  /** The activity outlasts the burn time without sunscreen (outlastsBurnTime). */
-  outlastsBurn?: boolean
+  /** Whether the activity fits the burn time in this slot (ActivityDayPlan.fit). */
+  fit?: BurnFit | null
+  /** Where an activity too long even with sunscreen fits (ActivityDayPlan.fitMove). */
+  fitMove?: { from: number; to: number } | null
   onBook?: () => void
   calendarHref?: string
 }) {
@@ -64,7 +68,7 @@ export default function RecommendedSlot({
           rec.latestStart > rec.earliestStart ? fmt.time(rec.latestStart) : rec.reason,
         )}
       </p>
-      {outlastsBurn && <BurnTimeWarning className="mt-1.5" />}
+      {fit && <BurnFitLine fit={fit} move={fitMove} className="mt-1.5" />}
       {onBook ? (
         <button className={ACTION} onClick={onBook}>
           <CalendarPlus size={15} /> {m.addToGoogleCalendar}

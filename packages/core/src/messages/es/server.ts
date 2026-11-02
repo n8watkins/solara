@@ -21,8 +21,9 @@ export default {
     `El UV llega a su máximo de ${uv} (${label}) hacia ${las(time)} en ${place}.`,
   dailyPeakIfClear: (uv, label, time, place, clearSky) =>
     `El UV llega a su máximo de ${uv} (${label}) hacia ${las(time)} en ${place}, o ${clearSky} si el cielo se despeja.`,
-  dailyTip: 'Protector solar, sombrero y sombra mientras el UV sea moderado o más alto.',
-  dailyTipIfClear: 'Protector solar, sombrero y sombra por si el cielo se despeja.',
+  dailyTip:
+    'Protector solar, sombrero, lentes de sol y sombra mientras el UV sea moderado o más alto.',
+  dailyTipIfClear: 'Protector solar, sombrero, lentes de sol y sombra por si el cielo se despeja.',
 
   eventSoon: 'tu próximo evento',
   eventTomorrowAt: time => `tu evento de mañana a ${las(time)}`,

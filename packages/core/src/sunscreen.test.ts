@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ACTIVITY_CATEGORIES } from './tiers'
+import { burnFit } from './sun-safety'
 import {
   BODY_AREAS,
   reapplyRule,
@@ -8,6 +9,9 @@ import {
   spfAdvice,
   spfAdviceText,
   spfRuleText,
+  burnFitText,
+  sunGearRule,
+  sunGearText,
   sunscreenAmount,
   sunscreenAmountShort,
   sunscreenAmountText,
@@ -115,6 +119,66 @@ describe('reapplyRule', () => {
   it('uses the one duration style', () => {
     expect(reapplyRule()).toBe(
       'Put it on 20\u00a0min before you go out. Reapply every 2\u00a0h, and straight after swimming, sweating or towelling off.',
+    )
+  })
+})
+
+// ROADMAP item 55: the activity card's fit line and what else to wear by UV level.
+describe('burnFitText', () => {
+  const run = { id: 'run', durationMins: 45 }
+  it('says plainly whether it fits unprotected, and what makes it fit', () => {
+    expect(burnFitText(burnFit(run, 2, 'fair'))).toBe(
+      "Fits without sunscreen: you'd burn in about 1\u00a0h 15\u00a0min.",
+    )
+    // From UV 3 the guidance advises sunscreen whatever the duration.
+    expect(burnFitText(burnFit(run, 4, 'medium'))).toBe(
+      "Fits without sunscreen (you'd burn in about 1\u00a0h 3\u00a0min), but use SPF\u00a030+ at this UV.",
+    )
+    expect(burnFitText(burnFit(run, 0.2, 'fair'))).toBe(
+      'Fits without sunscreen: the UV is too low to burn.',
+    )
+    expect(burnFitText(burnFit(run, 4, 'fair'))).toBe(
+      'Longer than your burn time (about 38\u00a0min): fits with SPF\u00a050+.',
+    )
+    expect(burnFitText(burnFit({ id: 'swim', durationMins: 120 }, 3, 'medium'))).toBe(
+      'Longer than your burn time (about 1\u00a0h 23\u00a0min): fits with SPF\u00a030+, reapplied every 1\u00a0h 20\u00a0min.',
+    )
+    const tooLong = burnFit(run, 10, 'fair')
+    expect(burnFitText(tooLong, '5pm–5:45pm')).toBe(
+      "Too long even with SPF\u00a050+ (you'd burn in about 38\u00a0min): split it, or move it to 5pm–5:45pm.",
+    )
+    expect(burnFitText(tooLong)).toBe(
+      "Too long even with SPF\u00a050+ (you'd burn in about 38\u00a0min): split it into shorter sessions.",
+    )
+  })
+
+  it('says it in Spanish', async () => {
+    const { withLocale } = await import('./i18n')
+    const { default: sunscreenEs } = await import('./messages/es/sunscreen')
+    const { default: coreEs } = await import('./messages/es/core')
+    const lines = withLocale('es', { sunscreen: sunscreenEs, core: coreEs }, () => [
+      burnFitText(burnFit(run, 4, 'fair')),
+      burnFitText(burnFit(run, 10, 'fair'), '5–5:45\u00a0p.m.'),
+      sunGearText(9),
+    ])
+    expect(lines).toEqual([
+      'Dura más que tu tiempo hasta quemarte (alrededor de 38\u00a0min): hazlo con FPS\u00a050+.',
+      'Dura demasiado aun con FPS\u00a050+ (te quemarías en alrededor de 38\u00a0min): divídelo o muévelo a 5–5:45\u00a0p.m.',
+      'Suma una camiseta, un sombrero y lentes de sol, y quédate a la sombra cerca del mediodía.',
+    ])
+  })
+})
+
+describe('sunGearText', () => {
+  it('names only what matters at the UV level', () => {
+    expect(sunGearText(2.4)).toBeNull()
+    expect(sunGearText(2.5)).toBe('Add a shirt, a hat and sunglasses, and shade at midday.')
+    expect(sunGearText(7.4)).toBe('Add a shirt, a hat and sunglasses, and shade at midday.')
+    expect(sunGearText(7.5)).toBe(
+      'Add a shirt, a hat and sunglasses, and stay in the shade around midday.',
+    )
+    expect(sunGearRule()).toBe(
+      'From UV 3, also wear a shirt, a hat and sunglasses; from UV 8, stay in the shade around midday.',
     )
   })
 })

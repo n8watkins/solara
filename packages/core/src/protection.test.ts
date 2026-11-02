@@ -59,14 +59,14 @@ describe('one protection window for every surface (REVIEW9 QA M1)', () => {
       const briefing = briefingOf(hourly, 7)
       const tipSpan = `from ${time(window.from)}\u00a0to\u00a0${time(window.to)}`
       const shade = shadeWindow(hourly, daylight)
+      // Shade for its own hours, and a hat, sunglasses and sunscreen for the protection's.
       if (shade) {
         expect(briefing.lines.tip).toContain(
           `from ${time(shade.from)}\u00a0to\u00a0${time(shade.to)}`,
         )
-      } else {
-        expect(briefing.lines.tip).toContain(tipSpan)
-        expect(briefing.text).toContain(span)
       }
+      expect(briefing.lines.tip).toContain(tipSpan)
+      expect(briefing.text).toContain(span)
       // Its low-UV hours (an hour or longer) end where protection starts or start
       // where it ends.
       expect(briefing.window?.spans.length).toBeGreaterThan(0)
@@ -106,12 +106,12 @@ describe('one protection window for every surface (REVIEW9 QA M1)', () => {
       'UV is low from 6:30am\u00a0to\u00a09:05am and 4:40pm\u00a0to\u00a06:12pm',
     )
     expect(briefing.lines.tip).toBe(
-      'Use sun protection while UV is moderate or higher, from 9:05am\u00a0to\u00a04:40pm',
+      'Wear a hat, sunglasses and sunscreen while UV is moderate or higher, from 9:05am\u00a0to\u00a04:40pm',
     )
     const window = protectionWindow(hourly, daylight)!
     expect(dailyUvMessage({ window, city: 'Los Angeles', localHour: 7 })).toEqual({
       title: '☀️ Protect from 9:05am to 4:40pm today',
-      body: 'UV peaks at 6.8 (High) around 1pm in Los Angeles. Sunscreen, a hat and shade while the UV is moderate or higher. Recheck current conditions.',
+      body: 'UV peaks at 6.8 (High) around 1pm in Los Angeles. Sunscreen, a hat, sunglasses and shade while the UV is moderate or higher. Recheck current conditions.',
     })
   })
 })
@@ -139,7 +139,7 @@ describe('protection leans on the clear sky (REVIEW9 QA M2)', () => {
     expect(fully.lines.peak).toBe('UV peaks at 2.0 (Low) around 1pm, or 6.8 if the sky clears')
     expect(fully.lines.window).toBe('UV stays low the rest of the day unless the sky clears')
     expect(fully.lines.tip).toBe(
-      'Use sun protection from 9:05am\u00a0to\u00a04:40pm, as UV can be moderate or higher if the sky clears',
+      'Wear a hat, sunglasses and sunscreen from 9:05am\u00a0to\u00a04:40pm, as UV can be moderate or higher if the sky clears',
     )
     expect(fully.lines.tip).not.toContain('little sun protection')
   })
@@ -150,7 +150,7 @@ describe('protection leans on the clear sky (REVIEW9 QA M2)', () => {
     expect(window.forecastReaches).toBe(false)
     expect(dailyUvMessage({ window, city: 'Los Angeles', localHour: 7 })).toEqual({
       title: '☀️ Protect from 9:05am to 4:40pm today',
-      body: 'UV peaks at 2.0 (Low) around 1pm in Los Angeles, or 6.8 if the sky clears. Sunscreen, a hat and shade in case the sky clears. Recheck current conditions.',
+      body: 'UV peaks at 2.0 (Low) around 1pm in Los Angeles, or 6.8 if the sky clears. Sunscreen, a hat, sunglasses and shade in case the sky clears. Recheck current conditions.',
     })
   })
 
@@ -171,9 +171,12 @@ describe('protection leans on the clear sky (REVIEW9 QA M2)', () => {
       clearSkyUV: Math.round(clear * 1.6 * 10) / 10,
     }))
     const shade = shadeWindow(veryHigh, daylight)!
+    const protect = protectionWindow(veryHigh, daylight)!
     expect(shade.forecastReaches).toBe(false)
+    // Shade while it may be very high; a hat, sunglasses and sunscreen while moderate or higher.
     expect(briefingOf(veryHigh, 7).lines.tip).toBe(
-      `Seek shade from ${time(shade.from)}\u00a0to\u00a0${time(shade.to)}, as UV can be very high or extreme if the sky clears`,
+      `Seek shade from ${time(shade.from)}\u00a0to\u00a0${time(shade.to)}, as UV can be very high or extreme if the sky clears; ` +
+        `wear a hat, sunglasses and sunscreen from ${time(protect.from)}\u00a0to\u00a0${time(protect.to)}`,
     )
   })
 })

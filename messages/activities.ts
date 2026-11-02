@@ -58,7 +58,6 @@ export default defineMessages('activities', {
   plannedFor: (uv: number) => `UV ${uv} or lower`,
   plannedForSpf: (uv: number) => `UV ${uv} or lower with SPF`,
   burnTimeAt: (uv: number) => `Burn time at UV ${uv}`,
-  outlastsBurn: 'Longer than your burn time: wear sunscreen, or plan for a lower\u00a0UV.',
   aboutMinutes: (minutes: number) => `about\u00a0${minutes}\u00a0min`,
   daylightFit: (percent: number) => `${percent}% of daylight hours fit`,
   windowsLeftToday: 'Lower-UV windows left today',

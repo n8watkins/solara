@@ -35,4 +35,21 @@ export default defineMessages('sunscreen', {
     `Use SPF 30+ broad spectrum whenever UV is ${from} or more, and SPF 50+ when it reaches ${shadeFrom}.`,
   reapplyRule: (before: string, every: string) =>
     `Put it on ${before} before you go out. Reapply every ${every}, and straight after swimming, sweating or towelling off.`,
+  // What else to wear by UV level, "slip, slop, slap, seek, slide" (sun-safety.ts).
+  gearProtect: 'Add a shirt, a hat and sunglasses, and shade at midday.',
+  gearShade: 'Add a shirt, a hat and sunglasses, and stay in the shade around midday.',
+  gearRule: (from: number, shadeFrom: number) =>
+    `From UV ${from}, also wear a shirt, a hat and sunglasses; from UV ${shadeFrom}, stay in the shade around midday.`,
+  // An activity's fit with its burn time (sun-safety.ts burnFit), on its card and the hero.
+  fitsNoBurn: 'Fits without sunscreen: the UV is too low to burn.',
+  fitsUnprotected: (burn: string) => `Fits without sunscreen: you'd burn in about ${burn}.`,
+  fitsUnprotectedProtect: (burn: string, spf: number) =>
+    `Fits without sunscreen (you'd burn in about ${burn}), but use SPF${NBSP}${spf}+ at this UV.`,
+  fitsWithSunscreen: (burn: string, spf: number, every: string | null) =>
+    `Longer than your burn time (about ${burn}): fits with SPF${NBSP}${spf}+${every ? `, reapplied every ${every}` : ''}.`,
+  tooLongMove: (spf: number, burn: string, range: string) =>
+    // A time such as "5:45 p.m." already ends the sentence.
+    `Too long even with SPF${NBSP}${spf}+ (you'd burn in about ${burn}): split it, or move it to ${range}${range.endsWith('.') ? '' : '.'}`,
+  tooLongSplit: (spf: number, burn: string) =>
+    `Too long even with SPF${NBSP}${spf}+ (you'd burn in about ${burn}): split it into shorter sessions.`,
 })
