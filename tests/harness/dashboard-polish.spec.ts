@@ -7,8 +7,10 @@ import { SUN_PHASE_PLACES, localInstant, sunPhaseRaw } from './sun-phase-fixture
 
 // Two small dashboard fixes (ROADMAP item 31):
 // - at 320 px the header cut the place name to "San Luis O..." (even "Los Angeles" lost
-//   its end on a signed-in account); the full name now reads, on two lines if it must,
-//   without crowding the other controls or scrolling sideways;
+//   its end on a signed-in account); a two-line name then wrapped "Los Angeles" beside
+//   Spanish's longer "Iniciar sesión", so the name now keeps one line, reads in full
+//   where it fits (always "Los Angeles"), and otherwise ends in an ellipsis with the full
+//   name as the button's accessible name and title;
 // - while the sun is up but UV is under 0.5 (5:20pm in Los Angeles in late October), the
 //   burn and vitamin D cards said "None" in the 23 px type of a number; they now say
 //   "No burn risk" and "UV too low" in a smaller type, at the same height as a number.
@@ -66,45 +68,92 @@ type Box = { x: number; y: number; width: number; height: number }
 const overlaps = (a: Box, b: Box) =>
   a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height
 
-for (const tier of ['guest', 'paid'] as const) {
-  for (const place of ['san-luis-obispo', 'los-angeles', 'ojai'] as const) {
-    const city = HARNESS_PLACES[place]!.city
-    test(`header: "${city}" reads in full beside the controls (${tier})`, async ({ page }, t) => {
+// Short and long names, in English and Spanish, beside a guest's Settings and Sign in or an
+// account's profile switcher and menu.
+const HEADER_PLACES = [
+  'los-angeles',
+  'ojai',
+  'san-francisco',
+  'ciudad-de-mexico',
+  'rio-de-janeiro',
+  'san-luis-obispo',
+] as const
+// Names that read in full beside every set of controls, in both languages, from 320 px,
+// and from 390 px. Longer ones may end in an ellipsis on a phone.
+const IN_FULL_FROM_320 = new Set(['Los Angeles', 'Ojai'])
+const IN_FULL_FROM_390 = new Set([...IN_FULL_FROM_320, 'San Francisco', 'Rio de Janeiro'])
+
+for (const language of ['en', 'es'] as const) {
+  for (const tier of ['guest', 'paid'] as const) {
+    test(`header: the place name stays on one line (${language}, ${tier})`, async ({ page }, t) => {
       const capture = await preparePage(page, t)
-      await page.goto(`/harness/?screen=dashboard&tier=${tier}&place=${place}`)
-      await expect(page.getByTestId(HARNESS_MARKER)).toBeVisible()
-      const header = page.locator('header').first()
-      const name = header.getByTestId('header-place-name')
-      await expect(name).toHaveText(city)
-      await atEachWidth(page, t, `header-${place}-${tier}`, header, async width => {
-        // Nothing of the name is cut off: no ellipsis, no clipped line.
-        const clipped = await name.evaluate(
-          el => el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1,
-        )
-        expect(clipped, `"${city}" is cut off at ${width} px`).toBe(false)
-        // Each control keeps its own room: no two overlap, and all sit inside the screen.
-        const controls = [
-          header.getByRole('button', { name: 'Solara' }),
-          header.getByRole('button', { name: city }),
-          ...(await header.locator('[data-header-controls] > *:visible').all()),
-        ]
-        const boxes: Box[] = []
-        for (const control of controls) {
-          const box = (await control.boundingBox())!
-          expect(box.x).toBeGreaterThanOrEqual(0)
-          expect(box.x + box.width).toBeLessThanOrEqual(width)
-          for (const other of boxes) expect(overlaps(box, other)).toBe(false)
-          boxes.push(box)
-        }
-        // The header grows by one line at most: a two-line name, never three.
-        const height = (await header.boundingBox())!.height
-        expect(height, `header height at ${width} px`).toBeLessThanOrEqual(60)
-      })
-      if (mobile(t)) await page.setViewportSize({ width: 320, height: 844 })
-      await captureScreen(page, t, capture, {
-        name: `header-${place}-${tier}-320`,
-        fullPage: false,
-      })
+      if (language === 'es') {
+        await page.addInitScript(() => {
+          try {
+            window.localStorage.setItem('solara_language', 'es')
+          } catch {}
+        })
+      }
+      for (const place of HEADER_PLACES) {
+        const city = HARNESS_PLACES[place]!.city
+        await page.goto(`/harness/?screen=dashboard&tier=${tier}&place=${place}`)
+        await expect(page.getByTestId(HARNESS_MARKER)).toBeVisible()
+        await expect(page.locator('html')).toHaveAttribute('lang', language)
+        const header = page.locator('header').first()
+        const name = header.getByTestId('header-place-name')
+        // The full name stays the button's accessible name and its title, however much shows.
+        const button = header.getByRole('button', { name: city, exact: true })
+        await expect(name).toHaveText(city)
+        await expect(button).toHaveAttribute('title', city)
+        await atEachWidth(page, t, `header-${place}-${tier}-${language}`, header, async width => {
+          const at = `"${city}" at ${width} px (${language}, ${tier})`
+          const shape = await name.evaluate(el => {
+            const style = getComputedStyle(el)
+            return {
+              height: el.getBoundingClientRect().height,
+              lineHeight: parseFloat(style.lineHeight),
+              cut: el.scrollWidth > el.clientWidth + 1,
+              ellipsis: style.textOverflow === 'ellipsis' && style.whiteSpace === 'nowrap',
+            }
+          })
+          // One line, never two (Spanish's "Iniciar sesión" once pushed "Los Angeles" onto two).
+          expect(shape.height, `${at} takes more than one line`).toBeLessThanOrEqual(
+            shape.lineHeight + 1,
+          )
+          // When it does not fit, it ends in an ellipsis rather than being clipped.
+          expect(shape.ellipsis, `${at} would not end in an ellipsis`).toBe(true)
+          const inFull =
+            width >= 1024 ||
+            IN_FULL_FROM_320.has(city) ||
+            (width >= 390 && IN_FULL_FROM_390.has(city))
+          if (inFull) {
+            expect(shape.cut, `${at} is cut off`).toBe(false)
+          }
+          // Each control keeps its own room: no two overlap, and all sit inside the screen.
+          const controls = [
+            header.getByRole('button', { name: 'Solara' }),
+            button,
+            ...(await header.locator('[data-header-controls] > *:visible').all()),
+          ]
+          const boxes: Box[] = []
+          for (const control of controls) {
+            const box = (await control.boundingBox())!
+            expect(box.x).toBeGreaterThanOrEqual(0)
+            expect(box.x + box.width).toBeLessThanOrEqual(width)
+            for (const other of boxes) expect(overlaps(box, other)).toBe(false)
+            boxes.push(box)
+          }
+          // The header keeps its single row.
+          const height = (await header.boundingBox())!.height
+          expect(height, `header height for ${at}`).toBeLessThanOrEqual(53)
+        })
+        if (mobile(t)) await page.setViewportSize({ width: 320, height: 844 })
+        await captureScreen(page, t, capture, {
+          name: `header-${place}-${tier}-${language}${mobile(t) ? '-320' : ''}`,
+          fullPage: false,
+        })
+      }
+      expect(capture.pageErrors).toEqual([])
     })
   }
 }

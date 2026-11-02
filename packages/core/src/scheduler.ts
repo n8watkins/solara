@@ -86,9 +86,9 @@ function summarizeUV(
  * For 'sunniest', slide a duration-long window across a free fragment and return
  * the start time whose occupied slot has the highest average UV. Candidate starts
  * are the fragment's own start plus each whole hour up to the latest feasible start
- * — enough granularity given UV is sampled hourly. Falls back to the fragment start
+ * (enough granularity given UV is sampled hourly). Falls back to the fragment start
  * when no hourly data overlaps. This makes 'sunniest' pick the sunniest *placement*,
- * not just the sunniest window — correct even when a busy block splits a window.
+ * not just the sunniest window, correct even when a busy block splits a window.
  */
 function sunniestPlacement(
   f: FreeSlot,
@@ -124,7 +124,7 @@ function sunniestPlacement(
  * @param nowHour      Current hour to forbid past slots on today; pass -1 for future days.
  * @param hourly       Optional day's hourly UV. When given, the reported peak/avg
  *                     UV are recomputed over the occupied slot rather than the whole
- *                     window — accurate when a busy block splits a window.
+ *                     window, accurate when a busy block splits a window.
  * @returns The chosen slot plus its flexible range, or null if nothing fits.
  */
 export function recommendSlot(
@@ -158,7 +158,7 @@ export function recommendSlot(
   } else if (timePreference === 'sunniest') {
     if (hourly) {
       // Evaluate the sunniest placement *within* each fragment, then pick the best
-      // across fragments — so a busy block splitting a window can't mislead us with
+      // across fragments, so a busy block splitting a window can't mislead us with
       // a stale window-level average. Ties break toward the earlier start.
       let best: { f: FreeSlot; start: number; avg: number } | null = null
       for (const f of feasible) {

@@ -71,6 +71,8 @@ test('deploy workflows and deploy-only scripts run no suite', () => {
     '.github/scripts/remove-source-maps.mjs',
     '.github/scripts/sbom.sh',
     '.github/scripts/check-docs.mjs',
+    '.github/scripts/check-dashes.mjs',
+    '.github/scripts/check-dashes.test.mjs',
     '.github/scripts/tested-tree.test.mjs',
     '.github/dependabot.yml',
     '.github/zizmor.yml',

@@ -5,7 +5,7 @@
 
 @layer components {
   /* Header layout. One row at every width: on phones the place takes what room the
-     controls leave and wraps to a second line inside the row when it needs one. */
+     controls leave, on one line, and a name too long for it ends in an ellipsis. */
   .header {
     background: var(--bg-card);
     border-bottom: 0.5px solid var(--border-md);
@@ -33,7 +33,7 @@
     min-width: 0;
   }
 
-  /* Let LocationPopover's trigger shrink so a long place name wraps. */
+  /* Let LocationPopover's trigger shrink so a long place name truncates. */
   .location > * {
     max-width: 100%;
   }
@@ -61,10 +61,12 @@
     white-space: nowrap;
   }
 
+  /* On phones the row's gaps tighten so "Los Angeles" reads in full beside Spanish's
+     "Iniciar sesión" at 320 px. */
   @media (max-width: 560px) {
     .row {
       position: relative;
-      gap: 4px;
+      gap: 2px;
       min-height: 50px;
     }
     /* The plan badge and the current-UV chip give way so the city fits: the
@@ -77,7 +79,7 @@
   }
 
   /* The guest header holds Settings and Sign in; a little less space between them keeps
-     the place its room on phones ("San Luis Obispo, California" on two lines). */
+     the place its room on phones. */
   @media (max-width: 639px) {
     .guest {
       gap: 2px;

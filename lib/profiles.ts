@@ -28,7 +28,7 @@ export function defaultProfile(skinType: SkinType): Profile {
 
 /**
  * The currently-selected profile. Falls back to the first saved profile, then to an
- * implicit "Me" seeded from the live skinType — so callers always get something.
+ * implicit "Me" seeded from the live skinType, so callers always get something.
  */
 export function activeProfile(
   prefs: Pick<UserPreferences, 'profiles' | 'activeProfileId' | 'skinType'>,

@@ -72,8 +72,9 @@ export const RULES = [
       '.github/scripts/staging-target.mjs',
       '.github/scripts/remove-source-maps.mjs',
       '.github/scripts/sbom.sh',
-      // `npm run check:docs`, in the lint job.
+      // `npm run check:docs` and `npm run check:dashes`, in the lint job.
       '.github/scripts/check-docs.mjs',
+      '.github/scripts/check-dashes.mjs',
       // Except the suite map's own tests, which change with the map.
       /^\.github\/scripts\/(?!changed-areas\.)[^/]+\.test\.mjs$/,
       '.github/dependabot.yml',

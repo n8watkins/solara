@@ -27,6 +27,7 @@ It worked for Waves 0-2 (PRs #17-#52) and applies to every later wave.
 4. Commit after each logical change with a clear message.
    Never add an agent name as co-author.
    Never use the em dash character; use a plain dash.
+   `npm run lint` fails on one anywhere outside generated files (`.github/scripts/check-dashes.mjs`).
 5. Before pushing, run the fast checks locally: `npm run lint`, `npm run typecheck`, `npm run check:docs`, `npm test`, `npm run build`, plus any browser, harness or emulator suite whose files you changed (visual work runs `npm run test:harness` for before and after screenshots).
    GitHub Actions then runs every check in the README's [quality checks](../README.md#quality-checks) on the pull request, and the `main` ruleset requires all of them; read the CI results with `gh pr checks` and fix any failure or flake you see, even if unrelated, and mention it.
    This keeps the full browser and emulator suites on CI's runners instead of loading the local machine when several lanes run at once.

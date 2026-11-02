@@ -51,12 +51,40 @@ const OJAI: Location = {
   timezone: 'America/Los_Angeles',
 }
 
+// Common long city names for the header's one-line place name (dashboard-polish.spec.ts).
+const SAN_FRANCISCO: Location = {
+  lat: 37.77,
+  lon: -122.42,
+  city: 'San Francisco',
+  region: 'California',
+  timezone: 'America/Los_Angeles',
+}
+
+const MEXICO_CITY: Location = {
+  lat: 19.43,
+  lon: -99.13,
+  city: 'Ciudad de México',
+  region: 'Ciudad de México',
+  timezone: 'America/Mexico_City',
+}
+
+const RIO_DE_JANEIRO: Location = {
+  lat: -22.91,
+  lon: -43.17,
+  city: 'Rio de Janeiro',
+  region: 'Rio de Janeiro',
+  timezone: 'America/Sao_Paulo',
+}
+
 /** The places a harness screen can open in (HarnessApp's `place` parameter). */
 export const HARNESS_PLACES: Record<string, Location> = {
   'los-angeles': HARNESS_LOCATION,
   sydney: SYDNEY,
   'san-luis-obispo': SAN_LUIS_OBISPO,
   ojai: OJAI,
+  'san-francisco': SAN_FRANCISCO,
+  'ciudad-de-mexico': MEXICO_CITY,
+  'rio-de-janeiro': RIO_DE_JANEIRO,
 }
 
 const SAN_DIEGO: Location = {

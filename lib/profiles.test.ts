@@ -34,7 +34,7 @@ describe('profile helpers', () => {
   })
 })
 
-describe('normalizePrefs — profiles', () => {
+describe('normalizePrefs: profiles', () => {
   const base = (extra: Record<string, unknown>) => normalizePrefs({ location: LA, ...extra })!
 
   it('drops invalid profiles and dedupes by id', () => {
