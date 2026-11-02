@@ -36,10 +36,10 @@
 //   data   = fixture (default) | live: load the forecast through the app's real data
 //            layer (lib/use-forecast.ts useWeather); specs answer the Open-Meteo
 //            requests with page.route (see data-layer.spec.ts)
-//   place  = los-angeles (default) | sydney | san-luis-obispo | ojai: the account's place
-//            (HARNESS_PLACES in fixtures.ts); with data=live, for screens in another zone
-//            (sun-phase.spec.ts); the last two are a long and a short name in Los Angeles'
-//            zone (dashboard-polish.spec.ts)
+//   place  = los-angeles (default) | sydney | san-luis-obispo | ojai | san-francisco |
+//            ciudad-de-mexico | rio-de-janeiro: the account's place (HARNESS_PLACES in
+//            fixtures.ts); with data=live, for screens in another zone (sun-phase.spec.ts);
+//            the rest are short and long names for the header (dashboard-polish.spec.ts)
 //
 // Only reachable in builds made with NEXT_PUBLIC_UI_HARNESS=1; see
 // app/harness/page.harness.tsx and scripts/check-no-ui-harness.mjs.

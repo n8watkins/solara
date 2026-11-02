@@ -41,16 +41,15 @@ export default function LocationPopover({ location, savedLocations, limit, onApp
         ref={triggerRef}
         type="button"
         aria-expanded={open}
-        className="flex max-w-full items-center gap-1 rounded-md px-[7px] py-[3px] text-[13px] text-ink-3 transition-colors duration-100 hover:bg-surface-metric"
+        title={location.city}
+        className="flex max-w-full min-w-0 items-center gap-1 rounded-md px-[7px] py-[3px] max-sm:px-1 text-[13px] text-ink-3 transition-colors duration-100 hover:bg-surface-metric"
         onClick={() => setOpen(o => !o)}
       >
         <MapPin size={14} className="shrink-0" />
-        {/* A long name takes a second line on a narrow phone instead of being cut off
-            ("San Luis O..."); past two lines it ends in an ellipsis. */}
-        <span
-          className="line-clamp-2 text-left leading-[1.25] break-words"
-          data-testid="header-place-name"
-        >
+        {/* One line at every width, so the header keeps its single row: a name too long
+            for the room the controls leave ends in an ellipsis, and the full name stays
+            the button's accessible name and its title. */}
+        <span className="min-w-0 truncate leading-[1.25]" data-testid="header-place-name">
           {location.city}
         </span>
       </button>

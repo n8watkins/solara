@@ -351,6 +351,7 @@ The seventh review's findings L5 and L7 (`handoff/review7.md`):
 Two UI findings left by the reviews, and what a pass over the whole dashboard at 320 px in both themes found:
 
 - **The place name in the header (320 px):** the header cut the place to "San Luis ..." and even "Los Ange...".
+  (Since [item 53](#53-em-dash-guard-and-a-one-line-header-place-name-polish2-built) the name keeps one line and ends in an ellipsis when it must.)
   The name now wraps to a second line inside the header row when it needs one (two lines at most, then an ellipsis), and under 360 px the header shows the Solara mark without its wordmark (still the home button's name), so "San Luis Obispo, California" reads in full beside the Sign in button or the profile switcher and account menu, with no sideways scroll.
 - **Burn time and vitamin D with too little UV:** while the sun was up but UV was under 0.5 (5:20pm in Los Angeles in late October), both cards read "None" in the 23 px type of a number.
   They now say "No burn risk" and "UV too low" in 15 px words on the number's line, so a card with words stays the height of one with minutes, with "Until 9am tomorrow" below; a screen reader hears "21 minutes" instead of "21m".
@@ -761,6 +762,18 @@ It is now 187.82 KB in English and 193.21 KB in Spanish, and the budgets are 190
   On the production-like build with slow 4G and 4x CPU throttling (median of 9 runs, interleaved), first contentful paint stayed at about 660 ms and the hourly strip shows sooner: 2,139 to 2,085 ms in English, 2,294 to 2,234 ms in Spanish; a plan that needs repair shows it about 150 ms later, once.
 - **Guards:** the budget test fails if Valibot, the Firebase SDK, Auth, Firestore or Google Analytics is among a guest's first scripts, after checking each is still recognised in the build (`tests/e2e/on-demand-modules.ts`); `tests/e2e/guest.spec.ts` sets up through the app, reloads with and without an activity and checks no Valibot loads.
 - **Tests:** `lib/stored-plan.test.ts`, `lib/guest.test.ts` (a saved plan read without the schema, a changed plan repaired and kept repaired, a newer one never rewritten, malformed plans rejected), `lib/cached-account.test.ts` (the same for an account's copy), `lib/cache.test.ts` (every hour field out of shape), `packages/core/src/core.test.ts` (field by field), `packages/core/src/presets.test.ts`, `tests/e2e/budget/first-load.budget.ts`, `tests/e2e/guest.spec.ts`.
+
+### 53. Em dash guard and a one-line header place name (POLISH2, built)
+
+Two small cleanups.
+
+- **No em dash anywhere:** the owner's rule is never to use the em dash (U+2014); 21 were left in comments and test names in `lib/` and `packages/core/`, and are now a colon, a comma or parentheses; a harness check that the sunscreen timer shows none now writes it as an escape.
+  No user-facing copy changed (the catalogues in `messages/` already had none, which `messages/i18n.test.ts` checks).
+  `npm run check:dashes` (`.github/scripts/check-dashes.mjs`, run by `npm run lint` on every pull request) fails on the character or its HTML entities in any tracked or new file outside generated ones (CHANGELOG files, lockfiles and `AGENTS.md`).
+- **The header's place name keeps one line:** at 320 px in Spanish, "Los Angeles" wrapped to two lines beside "Iniciar sesión" (REVIEW10), because item 31 let the name take a second line.
+  The name now stays on one line at every width and ends in an ellipsis when the controls leave too little room; the full name stays the place button's accessible name and is its title.
+  On phones the row's gaps and the place button's side padding tighten by a few pixels, so "Los Angeles" reads in full at 320 px beside "Iniciar sesión", and "San Francisco" and "Rio de Janeiro" from 390 px; "Ciudad de México" and "San Luis Obispo, California" end in an ellipsis beside a guest's Spanish controls.
+- **Tests:** `.github/scripts/check-dashes.test.mjs`; `tests/harness/dashboard-polish.spec.ts` checks six short and long names in English and Spanish, as a guest and on Pro, at 320, 390 and 1280 px in both themes: one line, an ellipsis when cut, the full name as the accessible name and title, which names must read in full, no overlapping controls and a single-row header.
 
 ## Decisions
 

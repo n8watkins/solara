@@ -151,8 +151,8 @@ export default function Header({
                     <Settings size={18} />
                   </button>
                 )}
-                {/* On phones both controls tighten a little, so a two-line place
-                    name ("San Luis Obispo, California") still reads in full. */}
+                {/* On phones both controls tighten a little, so the place name keeps
+                    its room ("Los Angeles" in full beside "Iniciar sesión" at 320 px). */}
                 <GoogleSignInButton
                   label={m.signIn}
                   size="sm"
