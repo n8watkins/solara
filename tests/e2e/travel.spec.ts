@@ -186,7 +186,8 @@ for (const lang of LANGUAGES) {
 
     test('the place menu by keyboard, with what a screen reader hears', async ({ page }) => {
       await openAsGuest(page, { saved: [SAN_DIEGO] })
-      const trigger = page.getByRole('button', { name: 'Los Angeles' })
+      // Exact: once the menu is open, its "Los Angeles Home" item would match too.
+      const trigger = page.getByRole('button', { name: 'Los Angeles', exact: true })
       await trigger.focus()
       await page.keyboard.press('Enter')
       await expect(trigger).toHaveAttribute('aria-expanded', 'true')
