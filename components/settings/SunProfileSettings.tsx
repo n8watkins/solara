@@ -66,8 +66,15 @@ export default function SunProfileSettings({ draft, onChange }: Props) {
           <SkinSwatch skin={selected.value} />
           <div className="min-w-0 flex-1">
             <p className="text-[14px] font-[650] text-ink">
-              {selected.label}{' '}
-              <span className="font-normal text-ink-3">{m.fitzpatrick(selected.fitzpatrick)}</span>
+              {/* The dot stays with the name and the type stays whole: at 320 px in Spanish
+                  "Fitzpatrick Tipo II" once broke inside itself. */}
+              {selected.label}
+              <span className="font-normal text-ink-3">
+                {'\u00a0· '}
+                <span className="whitespace-nowrap" data-testid="skin-fitzpatrick">
+                  {m.fitzpatrick(selected.fitzpatrick)}
+                </span>
+              </span>
             </p>
             <p className="mt-0.5 text-[12px] text-ink-3">{selected.desc}</p>
           </div>

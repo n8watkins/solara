@@ -133,7 +133,7 @@ export default {
   turningOn: 'Activando...',
   turnOn: 'Activar en este dispositivo',
   alertsUnavailable: 'Alertas no disponibles aquí',
-  fitzpatrick: type => `· Fitzpatrick ${type}`,
+  fitzpatrick: type => `Fitzpatrick ${type}`,
   atUv10: time => `${time} con UV 10`,
   hideExplanation: 'Ocultar la explicación',
   howSkinType: 'Cómo influye el tipo de piel en Solara',
