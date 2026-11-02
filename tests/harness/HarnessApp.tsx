@@ -14,6 +14,8 @@
 //   scheduled = none (default) | synced | reconnect: in-memory scheduled activities
 //            (see scheduled-fixtures.tsx), shown as synced or awaiting reconnect
 //   activities = comma-separated activity ids to keep from the plan (default: all)
+//   group  = off (default) | on: "Plan for a group" with both profiles (Me, fair, and
+//            Maya, very fair), so plans use Maya's skin (burn-fit.spec.ts)
 //   names  = comma-separated id:name pairs that rename activities (run:Correr), as a
 //            person writing in another language names them
 //   events = none (default) | sample | full: in-memory imported events (see
@@ -46,7 +48,7 @@
 //
 // Only reachable in builds made with NEXT_PUBLIC_UI_HARNESS=1; see
 // app/harness/page.harness.tsx and scripts/check-no-ui-harness.mjs.
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { DayWeather, Location, TierLevel, UserPreferences } from '@/lib/types'
 import { samePlace } from '@solara/core/coordinates'
 import { getSavedLocationLimit } from '@solara/core/tiers'
@@ -145,6 +147,7 @@ function readParams() {
     links: params.get('links') === 'sample',
     google: (['connected', 'many'] as const).find(v => v === params.get('google')) ?? null,
     outlook: params.get('outlookcal') === 'connected',
+    group: params.get('group') === 'on',
     place: HARNESS_PLACES[params.get('place') ?? ''] ?? null,
     visit: HARNESS_PLACES[params.get('visit') ?? ''] ?? null,
     travel: HARNESS_PLACES[params.get('travel') ?? ''] ?? null,
@@ -220,7 +223,8 @@ function Harness() {
   )
   const [prefs, setPrefs] = useState<UserPreferences>(() => {
     const built = buildPrefs(initial.tier)
-    const placed = initial.place ? { ...built, location: initial.place } : built
+    const grouped = initial.group ? { ...built, groupMode: true } : built
+    const placed = initial.place ? { ...grouped, location: initial.place } : grouped
     const keep = initial.activities
     const kept = keep
       ? { ...placed, activities: placed.activities.filter(a => keep.includes(a.id)) }
@@ -230,6 +234,19 @@ function Harness() {
       activities: kept.activities.map(a => ({ ...a, name: initial.names.get(a.id) ?? a.name })),
     }
   })
+  // Shows the plan in another place from HARNESS_PLACES without a reload, as `place=` does
+  // on load: dashboard-polish.spec.ts walks the header through every name on one page.
+  useEffect(() => {
+    const harness = window as Window & { solaraHarnessPlace?: (key: string) => boolean }
+    harness.solaraHarnessPlace = key => {
+      const location = HARNESS_PLACES[key]
+      if (location) setPrefs(current => ({ ...current, location }))
+      return !!location
+    }
+    return () => {
+      delete harness.solaraHarnessPlace
+    }
+  }, [])
   const [visit, setVisit] = useState<Location | null>(initial.visit)
   const [travelOffer, setTravelOffer] = useState<Location | null>(initial.travel)
   const live = useWeather(initial.live ? (visit ?? prefs.location) : null)

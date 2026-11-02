@@ -25,6 +25,26 @@ const mobile = (t: TestInfo) => t.project.name.startsWith('mobile')
 const widths = (t: TestInfo) => (mobile(t) ? [320, 390] : [1280])
 const scheme = (t: TestInfo) => t.project.name.split('-')[1]
 
+/** Sets the viewport to `width` and lets anything the new width set off settle. */
+async function resizeTo(page: Page, t: TestInfo, width: number) {
+  await page.setViewportSize({ width, height: mobile(t) ? 844 : 900 })
+  await page.evaluate(() =>
+    Promise.all(
+      document
+        .getAnimations()
+        .filter(a => a.effect?.getTiming().iterations !== Infinity)
+        .map(a => a.finished.catch(() => undefined)),
+    ),
+  )
+}
+
+async function expectNoSidewaysScroll(page: Page, what: string) {
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  )
+  expect(overflow, `${what} scrolls sideways`).toBeLessThanOrEqual(0)
+}
+
 /** Runs `check` at each width, then proves nothing scrolls sideways and saves a copy. */
 async function atEachWidth(
   page: Page,
@@ -38,16 +58,7 @@ async function atEachWidth(
     await document.fonts.ready
   })
   for (const width of widths(t)) {
-    await page.setViewportSize({ width, height: mobile(t) ? 844 : 900 })
-    // Let anything the new width set off settle before measuring.
-    await page.evaluate(() =>
-      Promise.all(
-        document
-          .getAnimations()
-          .filter(a => a.effect?.getTiming().iterations !== Infinity)
-          .map(a => a.finished.catch(() => undefined)),
-      ),
-    )
+    await resizeTo(page, t, width)
     if (SHOTS) {
       await shot.scrollIntoViewIfNeeded()
       await shot.screenshot({
@@ -57,10 +68,7 @@ async function atEachWidth(
       })
     }
     await check(width)
-    const overflow = await page.evaluate(
-      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
-    )
-    expect(overflow, `${name} at ${width} px scrolls sideways`).toBeLessThanOrEqual(0)
+    await expectNoSidewaysScroll(page, `${name} at ${width} px`)
   }
 }
 
@@ -83,12 +91,25 @@ const HEADER_PLACES = [
 const IN_FULL_FROM_320 = new Set(['Los Angeles', 'Ojai'])
 const IN_FULL_FROM_390 = new Set([...IN_FULL_FROM_320, 'San Francisco', 'Rio de Janeiro'])
 
+/** Shows the plan in `place` without a reload (HarnessApp's solaraHarnessPlace). */
+async function showPlace(page: Page, place: string) {
+  const shown = await page.evaluate(
+    key =>
+      (window as Window & { solaraHarnessPlace?: (key: string) => boolean }).solaraHarnessPlace?.(
+        key,
+      ) ?? false,
+    place,
+  )
+  expect(shown, `the harness shows ${place}`).toBe(true)
+}
+
 for (const language of ['en', 'es'] as const) {
   for (const tier of ['guest', 'paid'] as const) {
     test(`header: the place name stays on one line (${language}, ${tier})`, async ({ page }, t) => {
-      // Every place at every width in one test: about 15 s locally, and past the default
-      // 30 s on a busy CI runner (PR #174's shard 3), so it gets three times that.
-      t.setTimeout(90_000)
+      // Every place at every width on one page: the place changes in place instead of a
+      // reload per place, each width is set once, and the page is audited whole once and
+      // its header for each other place (only the header changes). It took about 15 s
+      // locally with a reload and a whole-page audit per place, and once timed out on CI.
       const capture = await preparePage(page, t)
       if (language === 'es') {
         await page.addInitScript(() => {
@@ -97,18 +118,35 @@ for (const language of ['en', 'es'] as const) {
           } catch {}
         })
       }
-      for (const place of HEADER_PLACES) {
+      await page.goto(`/harness/?screen=dashboard&tier=${tier}&place=${HEADER_PLACES[0]}`)
+      await expect(page.getByTestId(HARNESS_MARKER)).toBeVisible()
+      await expect(page.locator('html')).toHaveAttribute('lang', language)
+      const header = page.locator('header').first()
+      const name = header.getByTestId('header-place-name')
+      /** Shows `place` and checks its name reads in full to assistive technology. */
+      const show = async (place: (typeof HEADER_PLACES)[number]) => {
         const city = HARNESS_PLACES[place]!.city
-        await page.goto(`/harness/?screen=dashboard&tier=${tier}&place=${place}`)
-        await expect(page.getByTestId(HARNESS_MARKER)).toBeVisible()
-        await expect(page.locator('html')).toHaveAttribute('lang', language)
-        const header = page.locator('header').first()
-        const name = header.getByTestId('header-place-name')
+        await showPlace(page, place)
         // The full name stays the button's accessible name and its title, however much shows.
         const button = header.getByRole('button', { name: city, exact: true })
         await expect(name).toHaveText(city)
         await expect(button).toHaveAttribute('title', city)
-        await atEachWidth(page, t, `header-${place}-${tier}-${language}`, header, async width => {
+        return { city, button }
+      }
+      await page.evaluate(async () => {
+        await document.fonts.ready
+      })
+      for (const width of widths(t)) {
+        await resizeTo(page, t, width)
+        for (const place of HEADER_PLACES) {
+          const { city, button } = await show(place)
+          if (SHOTS) {
+            await header.screenshot({
+              path: `${SHOTS}/header-${place}-${tier}-${language}-${width}-${scheme(t)}.png`,
+              animations: 'disabled',
+              caret: 'hide',
+            })
+          }
           const at = `"${city}" at ${width} px (${language}, ${tier})`
           const shape = await name.evaluate(el => {
             const style = getComputedStyle(el)
@@ -138,22 +176,25 @@ for (const language of ['en', 'es'] as const) {
             button,
             ...(await header.locator('[data-header-controls] > *:visible').all()),
           ]
-          const boxes: Box[] = []
-          for (const control of controls) {
-            const box = (await control.boundingBox())!
+          const boxes = (await Promise.all(controls.map(c => c.boundingBox()))) as Box[]
+          boxes.forEach((box, i) => {
             expect(box.x).toBeGreaterThanOrEqual(0)
             expect(box.x + box.width).toBeLessThanOrEqual(width)
-            for (const other of boxes) expect(overlaps(box, other)).toBe(false)
-            boxes.push(box)
-          }
+            for (const other of boxes.slice(0, i)) expect(overlaps(box, other)).toBe(false)
+          })
           // The header keeps its single row.
           const height = (await header.boundingBox())!.height
           expect(height, `header height for ${at}`).toBeLessThanOrEqual(53)
-        })
-        if (mobile(t)) await page.setViewportSize({ width: 320, height: 844 })
+          await expectNoSidewaysScroll(page, at)
+        }
+      }
+      if (mobile(t)) await page.setViewportSize({ width: 320, height: 844 })
+      for (const [i, place] of HEADER_PLACES.entries()) {
+        await show(place)
         await captureScreen(page, t, capture, {
           name: `header-${place}-${tier}-${language}${mobile(t) ? '-320' : ''}`,
           fullPage: false,
+          audit: i === 0 ? undefined : 'header',
         })
       }
       expect(capture.pageErrors).toEqual([])

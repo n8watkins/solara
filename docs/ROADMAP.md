@@ -719,9 +719,10 @@ The fixes for `handoff/review10-qa10.md` (REVIEW10 QA, main at `a77907a`); each 
   Each Spanish namespace beyond the opening screen's is now a chunk of its own, fetched with the part that reads it (`withMessages`, checked by `messages/i18n.test.ts`); the activity plan's text loads with it; the account document's Firestore code (`lib/account-prefs.ts`) and the calendar file writer left the first load.
   After: 190.7 KB in English and 196.1 KB in Spanish (the English goal of 3 KB of room is not met yet: Valibot, about 3.5 KB of the first load, is the next lever).
 - **M2 flaky tests:** the closed-popup test waits for each Google popup to have read its outcome (the fake logs them), and the Microsoft redirect page's own test keeps the page open (Firefox closed it, 3 of 15 runs) and listens before the popup.
-- **M3 burn time (default, owner may change):** decision "Burn-time warning" below; vitamin D card (owner, 2026-11-01): it states the dose, about 1,000 IU on arms and legs, with its source; the 0.3 times the burn time model stays.
+- **M3 burn time (default, owner may change):** decision "Burn-time fit" below; vitamin D card (owner, 2026-11-01): it states the dose, about 1,000 IU on arms and legs, with its source; the 0.3 times the burn time model stays.
+  Item 56 replaced the warning with the burn-time fit.
 - **L1-L9:** the account page and the 404 page open without layout shifts (the gate keeps the page's height and waits for the font; the 404 page preloads it; the account page keeps the signed-out card's place), Spanish tab titles on the 404 and share target pages, Spanish wording (start ranges, "cucharaditas", "un caballito", the language hint, US$ prices), one time-range style, durations that never wrap their unit, setup's burn times in the duration style, "+ Add activity", and the UI harness fails on any axe violation (audited from the top of the page).
-- **Tests:** `lib/geocoding.test.ts`, `functions/test/forecast-proxy.test.js`, `tests/e2e/languages.spec.ts`, `tests/e2e/budget/first-load.budget.ts`, `messages/i18n.test.ts`, `packages/core/src/recommendation.test.ts`, `packages/core/src/briefing.test.ts`, `tests/e2e/guest.spec.ts` (layout shifts), `lib/static-pages.test.ts` and `tests/harness/review10-quality.spec.ts` (both languages at 320, 390 and 1280 px, light and dark).
+- **Tests:** `lib/geocoding.test.ts`, `functions/test/forecast-proxy.test.js`, `tests/e2e/languages.spec.ts`, `tests/e2e/budget/first-load.budget.ts`, `messages/i18n.test.ts`, `packages/core/src/sun-safety.test.ts` (the burn-time check, since item 56), `packages/core/src/briefing.test.ts`, `tests/e2e/guest.spec.ts` (layout shifts), `lib/static-pages.test.ts` and `tests/harness/review10-quality.spec.ts` (both languages at 320, 390 and 1280 px, light and dark).
 
 ### 51. New findings from the tenth review's verification (NEWFIX10, built)
 
@@ -853,15 +854,15 @@ The owner's decision (2026-11-01): a lawyer review will not happen for a long wh
 - Decisions recorded: "Lawyer review", "Not medical advice", "Vitamin D log sync" (device only for now) and "Light sensitivity" (one factor, no medical detail stored).
 - Tests: `messages/health-qualifier.test.ts` (the static pages' copy matches word for word and names every case), `lib/privacy-policy.test.ts` (the terms' section and its review-sheet lines), the onboarding e2e test, and `tests/harness/health-qualifier.spec.ts` (every placement in both languages at 320, 390 and 1280 px, light and dark, with axe; `QUALIFIER_SHOTS=<folder>` saves a copy of each).
 
-### 56. Burn-time fit and fuller sun-safety advice (FIT, in progress)
+### 56. Burn-time fit and fuller sun-safety advice (FIT, built)
 
 [PLAN.md](PLAN.md) Phase 8, items 2 and 4, and Review 10's ranked features 5 and 7 (`handoff/review10-qa10.md`): item 50's warning says an activity outlasts the burn time, but not what makes it fit, and the advice names sunscreen and shade but not a hat or sunglasses.
 
-**Status:** spec written 2026-11-01.
+**Status:** spec written and built 2026-11-01.
 
 **Goal:** every planned activity says plainly whether it fits unprotected at the UV of its slot, and if not, what makes it fit; the advice names the right protection for the UV level, and only that.
 
-**The fit (one decision in a new core module, sun-safety, shared by the activity cards, the hero, the daily briefing, the Pro morning alert and the future Android app):**
+**The fit (one decision in `packages/core/src/sun-safety.ts`, shared by the activity cards, the hero, the daily briefing, the Pro morning alert and the future Android app):**
 
 - The UV it is judged at is the highest UV the skin gets during the slot: each hour's planning UV (clear sky unless the activity counts on clouds, with its shade and surface, as the plans judge windows), over the hours the slot touches.
   For the briefing's lowest-UV window, the activity is placed where that UV is lowest inside the window, so the briefing never warns about a window the card shows fitting.
@@ -875,7 +876,7 @@ The owner's decision (2026-11-01): a lawyer review will not happen for a long wh
 
 **Where it shows:**
 
-- *Activity card:* one line under the recommended slot (in the slot's box), or under the card's title when the slot is already on the calendar or there is only a best window, for every verdict:
+- *Activity card:* one line in the recommended slot's box, or on the card where the slot would be when the slot is already on the calendar or there is only a best window, for every verdict:
   - "Fits without sunscreen: you'd burn in about 1 h 10 min." (UV under 3), or "Fits without sunscreen (you'd burn in about 1 h 10 min), but use SPF 30+ at this UV." (UV 3 or more, as the guidance advises sunscreen from 3 whatever the duration);
   - "Longer than your burn time (about 38 min): fits with SPF 50+, reapplied every 2 h.";
   - "Too long even with SPF 50+ (you'd burn in about 1 h 35 min): split it, or move it to 5pm-5:45pm." or "... split it into shorter sessions."
@@ -906,6 +907,17 @@ The briefing's fit decision and its two sentences ship in the first load (the br
 **Not in this step:** changing the plans themselves (a lower UV limit for the skin type), a light-sensitivity factor (Phase 8 item 3), the event heads-ups' own burn note.
 
 **Acceptance:** core unit tests for the fit across skin types, UV levels, durations, water activities, group mode and the later-slot search; briefing and Functions morning alert and daily push text tests in both languages; the activity card, the recommended slot, the hero and the advice in harness screenshots at 320, 390 and 1280 px, light and dark, in both languages, with 0 axe violations; the first-load budgets passing unchanged.
+
+**As built:**
+
+- Core: `packages/core/src/sun-safety.ts` (`burnFit`, `peakUVIn`, `bestFitIn`, `sunSafetyLevel`, `isWaterActivity`, and `spfAdvice`, moved from `sunscreen.ts`, which re-exports it); `ActivityDayPlan.fit` and `fitMove` in `packages/core/src/next-slot.ts`; `DailyBriefing.fit` and `lines.fit` in `packages/core/src/briefing.ts` (replacing `outlastsBurn` and `lines.outlasts`); `burnFitText`, `sunGearText` and `sunGearRule` in `packages/core/src/sunscreen.ts`; `outlastsBurnTime` is gone.
+- UI: `components/dashboard/BurnFitLine.tsx` (replacing `BurnTimeWarning`) in the recommended slot, the card and the hero; the briefing's fit row; the gear line in the sunscreen timer's guide and Settings, Sun profile.
+- Words: the card's sentences in the `sunscreen` namespace (on demand), the briefing's in `briefing` (first load), the push's in `server`; English and Spanish, each new safety message in `needsReview` and `docs/i18n/es-review.md`.
+- First load (`npm run test:e2e:budget`): 188.56 to 189.13 KB in English and 193.98 to 194.62 KB in Spanish, against the unchanged 190 and 196 KB.
+- The harness gained `group=on` ("Plan for a group" with Me and Maya) and `solaraHarnessPlace`, which shows another place without a reload; `captureScreen` can audit one part of a page.
+- Also fixed at 320 px in Spanish, found in this item's screenshots: an activity window's "Atardecer · UV máximo 3.1" was cut to "Atardecer · UV má..." (it now wraps after the dot), and the card's "Tiempo hasta quemarte con UV 4" pushed "unos 25 min" to the card's edge (the label now wraps).
+- Also fixed: the header check in `tests/harness/dashboard-polish.spec.ts` (raised to a 90 s timeout in #174) reloaded the dashboard and audited the whole page for each of its six places; it now loads once, switches the place in place, sets each width once, audits the whole page once and the header for each other place, and runs on the default timeout.
+- Tests: `packages/core/src/sun-safety.test.ts` (verdicts across skin types, UV levels, durations, water activities, a group, the presets, placement), `next-slot.test.ts` (the slot's fit and the move), `briefing.test.ts`, `alerts.test.ts` (the morning alert in English and Spanish), `daily-uv.test.ts`, `protection.test.ts`, `sunscreen.test.ts`, and `tests/harness/burn-fit.spec.ts` (each verdict on the cards, the hero, a group, the advice line and the guide, both languages, 320, 390 and 1280 px, light and dark, with axe).
 
 ## Decisions
 
@@ -975,7 +987,7 @@ The steps behind each one are in the [owner checklist](OWNER_CHECKLIST.md).
 | React Compiler | Whether the web app is built with the React Compiler | Default, owner may change (2026-10-28, item 39): off; it made a guest's first load about 8 KB gzip larger and saved about 1 ms of script per tap at 4x CPU throttling; the react-hooks lint rules still enforce the Rules of React, so `reactCompiler: true` in `next.config.ts` (with `babel-plugin-react-compiler`) turns it back on, with the first-load budget raised to match. This reverses the assessment's CQ-13 fix (#50) |
 | First-load budget | The most JavaScript a guest's first load of `/app/` may download | Default, owner may change (2026-11-01, item 52; 193 and 218 KB from item 51, 192 KB from item 46, 186 KB from item 39): 190 KB gzip in English and 196 KB in Spanish, measured on a build with a public configuration shaped like production's (`tests/e2e/budget/first-load.budget.ts`, item 50), where they read 187.82 KB and 193.21 KB after item 52 took Valibot and other code a guest's first screen does not run out of it; they keep 2.2 and 2.8 KB for growth and for how Turbopack splits chunks (about 1.3 KB either way), Spanish a little more since it carries both languages' text of the opening screen, and the test fails if Valibot, Firebase or Google Analytics is part of the first load. New dashboard code that a new guest does not see loads on demand (`components/deferred.tsx`), each translation loads with the part that shows it, and a budget is raised only with a reason |
 | Travel | Saved places and the travel prompt | Default, owner may change (2026-11-01, [item 54](#54-place-that-follows-the-phone-travel-built)): 5 saved places (home included) for guests and Free, 12 for Pro; the prompt offers the forecast where the device is when it is more than 50 km from the place shown, only with location permission already granted, on opening and after an hour in the background; "Not now" keeps it quiet for 24 hours within 50 km; any place but home is a visit on this device only, with no expiry; the server's calendar link and notifications use home |
-| Burn-time warning | What Solara says when a planned activity lasts longer than the burn time at its UV limit without sunscreen | Default, owner may change (2026-11-01, item 50): a short warning wherever its window is offered (the recommended slot or the activity card, the hero and the daily briefing, so also the morning alert): "Longer than your burn time: wear sunscreen, or plan for a lower UV", with the card's sunscreen amount. The plans are not changed; the alternative is a lower effective UV limit for the skin type |
+| Burn-time fit (was "Burn-time warning") | What Solara says when a planned activity lasts longer than the burn time without sunscreen | Default, owner may change (2026-11-01, item 56, replacing item 50's warning): every activity card's slot says whether the activity fits unprotected at the highest UV of its slot for the plan's skin type, and if not, what makes it fit (SPF 30+ or 50+ and when to reapply, or "too long even with sunscreen: split it, or move it to <the first stretch where it fits>"); the hero, the daily briefing and the morning alert say so only when sunscreen is needed or it is too long. Sunscreen counts as 2.5 times the burn time. The plans are not changed; the alternative is a lower effective UV limit for the skin type |
 
 ### Tiers
 

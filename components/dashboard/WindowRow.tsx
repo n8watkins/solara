@@ -55,8 +55,12 @@ export default function WindowRow({
             </span>
           )}
         </div>
-        <span className="block truncate text-[11px] text-ink-3">
-          {windowLabelText(win.label as WindowLabel)} · {m.peakUv(formatUV(win.peakUV))}
+        {/* Wraps after the dot rather than cutting the peak off ("Atardecer · UV má..." at
+            320 px in Spanish); each part stays whole. */}
+        <span className="block text-[11px] text-ink-3">
+          <span className="whitespace-nowrap">{windowLabelText(win.label as WindowLabel)}</span>
+          {'\u00a0· '}
+          <span className="whitespace-nowrap">{m.peakUv(formatUV(win.peakUV))}</span>
           {cloudNote ? m.ifCloudsHold : ''}
         </span>
       </div>

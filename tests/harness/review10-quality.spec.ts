@@ -4,8 +4,8 @@ import { preparePage } from './capture'
 import { buildRawForecast, HARNESS_MARKER } from './fixtures'
 
 // The screens REVIEW10 QA changed, in English and Spanish, at 320 and 390 px (mobile
-// projects) and 1280 px (desktop), light and dark: the burn-time warning on the hero, the
-// recommended slot and the briefing (M3), the vitamin D card's dose (owner, 2026-11-01),
+// projects) and 1280 px (desktop), light and dark: the burn time on the hero and the
+// recommended slot (M3, the burn-time fit since ROADMAP item 56, burn-fit.spec.ts), the vitamin D card's dose (owner, 2026-11-01),
 // setup's burn times (L7), the Spanish wording and prices (L4), and the 404 page's title
 // (L3). Each is checked for sideways scrolling; REVIEW10_SHOTS=<folder> saves a copy.
 
@@ -19,7 +19,8 @@ const scheme = (t: TestInfo) => t.project.name.split('-')[1]
 const LANGUAGES = [
   {
     code: 'en',
-    warning: 'Longer than your burn time',
+    fit: 'Fits without sunscreen',
+    tooLong: 'Too long even with SPF',
     dose: /≈1,000 IU · arms\u00a0\+\u00a0legs/,
     price: '$2.99',
     notFoundTitle: 'Page not found | Solara',
@@ -28,7 +29,8 @@ const LANGUAGES = [
   },
   {
     code: 'es',
-    warning: 'Dura más que tu tiempo hasta quemarte',
+    fit: 'Puedes hacerlo sin protector solar',
+    tooLong: 'Dura demasiado aun con FPS',
     dose: /≈1[,.]?000 UI · brazos\u00a0\+\u00a0piernas/,
     price: 'US$2.99',
     notFoundTitle: 'Página no encontrada | Solara',
@@ -89,19 +91,20 @@ async function atEachWidth(page: Page, t: TestInfo, name: string, fullPage: bool
 
 for (const lang of LANGUAGES) {
   test.describe(`in ${lang.code}`, () => {
-    test('the dashboard warns where an activity outlasts the burn time, and states the vitamin D dose', async ({
+    test('the dashboard says whether each plan fits the burn time, and states the vitamin D dose', async ({
       page,
     }, testInfo) => {
       await inLanguage(page, testInfo, lang.code)
       await page.goto('/harness/?screen=dashboard')
       await expect(page.getByTestId(HARNESS_MARKER)).toBeVisible()
       await expect(page.locator('html')).toHaveAttribute('lang', lang.code)
-      // The harness plan's Running (45 min at UV 4) for fair skin, who burns in about 38.
+      // The harness plan's Running (45 min) at 6pm for fair skin, who burns in about 45 there.
       const running = page.locator('[data-testid="activity-card"][data-activity="run"]')
-      await expect(running.getByTestId('burn-time-warning')).toContainText(lang.warning)
-      await expect(
-        page.getByTestId('daily-briefing').locator('[data-line="outlasts"]'),
-      ).toBeVisible()
+      await expect(running.getByTestId('burn-fit')).toContainText(lang.fit)
+      // The hero's Hiking is too long even with sunscreen at 4pm, so the hero says so.
+      await expect(page.getByTestId('hero-slot').getByTestId('burn-fit')).toContainText(
+        lang.tooLong,
+      )
       await expect(page.getByTestId('vitd-metric').getByTestId('metric-detail')).toHaveText(
         lang.dose,
       )

@@ -35,8 +35,11 @@ function Stat({ label, val, tone }: { label: string; val: string; tone?: 'succes
   const color = tone === 'success' ? 'text-success' : tone === 'danger' ? 'text-danger' : 'text-ink'
   return (
     <div className="flex justify-between gap-3 text-[12px]">
-      <span className="shrink-0 text-ink-3">{label}</span>
-      <span className={`text-right font-medium ${color}`}>{val}</span>
+      {/* A long label ("Tiempo hasta quemarte con UV 4") wraps rather than pushing its value
+          past the card's edge at 320 px; a long value wraps within two thirds of the row, so
+          a short label ("Protector solar") keeps one line. */}
+      <span className="min-w-0 text-ink-3">{label}</span>
+      <span className={`max-w-[65%] shrink-0 text-right font-medium ${color}`}>{val}</span>
     </div>
   )
 }
@@ -131,7 +134,7 @@ export default function ActivityCard({
         />
       )}
 
-      {/* Whether it fits the burn time, and what makes it fit (ROADMAP item 55): in the
+      {/* Whether it fits the burn time, and what makes it fit (ROADMAP item 56): in the
           recommended slot, or here when the slot is on the calendar or there is none. */}
       {fit && !(rec && !recScheduled) && <BurnFitLine fit={fit} move={fitMove} />}
 

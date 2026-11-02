@@ -153,9 +153,9 @@ Rollback: `BILLING_ENABLED=false` hides checkout; Functions keep running after a
 Ranked by value to users; each starts with a short spec and the usual review.
 
 1. Place that follows the phone (offer to switch when far from the saved place; quick switch between saved places): spec in [ROADMAP item 54](ROADMAP.md#54-place-that-follows-the-phone-travel-built), built.
-2. Burn-time fit as a feature (how much sunscreen makes a plan fit).
+2. Burn-time fit as a feature (how much sunscreen makes a plan fit): spec in [ROADMAP item 56](ROADMAP.md#56-burn-time-fit-and-fuller-sun-safety-advice-fit-built), built with item 4.
 3. Light-sensitivity setting: allowed now (owner, 2026-11-01), designed to store no medical detail: one factor, "I burn more easily than my skin type suggests" (normal, more sensitive, much more sensitive), with help text that names examples (some medicines, pregnancy, recent peels) only as information and never asks which applies ([LEGAL_REVIEW.md](LEGAL_REVIEW.md) L7); built in a later lane.
-4. Hat, sunglasses and shade in the advice line.
+4. Hat, sunglasses and shade in the advice line: built with item 2 ([ROADMAP item 56](ROADMAP.md#56-burn-time-fit-and-fuller-sun-safety-advice-fit-built)).
 5. "Better window" for events you control.
 6. Air quality and pollen (needs a cost line first).
 7. Portuguese (Brazil), when Analytics shows the demand.

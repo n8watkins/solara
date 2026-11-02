@@ -71,7 +71,7 @@ export interface ActivityDayPlan {
   /** Burn estimate at the activity's planning UV limit. */
   burnMins: number | null
   /**
-   * Whether the activity fits the burn time (sun-safety.ts burnFit, ROADMAP item 55): in
+   * Whether the activity fits the burn time (sun-safety.ts burnFit, ROADMAP item 56): in
    * its recommended slot, or where the UV is lowest in its best window when it has no
    * slot. Null without either.
    */

@@ -1,4 +1,4 @@
-// What protection a UV level and a planned activity call for (ROADMAP items 45 and 55):
+// What protection a UV level and a planned activity call for (ROADMAP items 45 and 56):
 // the SPF, whether the activity fits the burn time unprotected or with sunscreen, and
 // which of "slip, slop, slap, seek, slide" matter at the level. One decision for the
 // activity cards, the hero, the daily briefing, the Pro morning alert and a native client,

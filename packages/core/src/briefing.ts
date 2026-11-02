@@ -147,7 +147,7 @@ export interface DailyBriefing {
   weather: WeatherSpan | null
   /**
    * Whether the window's activity fits the skin's burn time where the window's UV is
-   * lowest (sun-safety.ts bestFitIn, ROADMAP item 55): lines.fit says what it needs when it
+   * lowest (sun-safety.ts bestFitIn, ROADMAP item 56): lines.fit says what it needs when it
    * does not fit unprotected. Null without an activity window.
    */
   fit: BurnFit | null

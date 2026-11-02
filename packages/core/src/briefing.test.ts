@@ -397,7 +397,7 @@ describe('dailyBriefing with rain and heat', () => {
   })
 })
 
-// REVIEW10 QA M3 and ROADMAP item 55: a window that keeps to the activity's UV limit can
+// REVIEW10 QA M3 and ROADMAP item 56: a window that keeps to the activity's UV limit can
 // still outlast the burn time of unprotected skin; the briefing says what makes it fit,
 // judged where the window's UV is lowest, as the activity card judges its slot.
 describe('dailyBriefing and the burn-time fit', () => {

@@ -43,18 +43,17 @@ export default {
   gearRule: (from, shadeFrom) =>
     `Desde UV ${from}, usa también camiseta, sombrero y lentes de sol; desde UV ${shadeFrom}, quédate a la sombra cerca del mediodía.`,
   fitsNoBurn: 'Puedes hacerlo sin protector solar: el UV es demasiado bajo para quemarte.',
-  fitsUnprotected: burn =>
-    `Puedes hacerlo sin protector solar: te quemarías en alrededor de ${burn}.`,
+  fitsUnprotected: burn => `Puedes hacerlo sin protector solar: te quemarías en unos ${burn}.`,
   fitsUnprotectedProtect: (burn, spf) =>
-    `Puedes hacerlo sin protector solar (te quemarías en alrededor de ${burn}), pero usa FPS${NBSP}${spf}+ con este UV.`,
+    `Puedes hacerlo sin protector solar (te quemarías en unos ${burn}), pero usa FPS${NBSP}${spf}+ con este UV.`,
   fitsWithSunscreen: (burn, spf, every) =>
-    `Dura más que tu tiempo hasta quemarte (alrededor de ${burn}): hazlo con FPS${NBSP}${spf}+${every ? `, reaplicado cada ${every}` : ''}.`,
+    `Dura más que tu tiempo hasta quemarte (unos ${burn}): hazlo con FPS${NBSP}${spf}+${every ? `, reaplicado cada ${every}` : ''}.`,
   tooLongMove: (spf, burn, range) =>
     punto(
-      `Dura demasiado aun con FPS${NBSP}${spf}+ (te quemarías en alrededor de ${burn}): divídelo o muévelo a ${range}`,
+      `Dura demasiado aun con FPS${NBSP}${spf}+ (te quemarías en unos ${burn}): divídelo o muévelo a ${range}`,
     ),
   tooLongSplit: (spf, burn) =>
-    `Dura demasiado aun con FPS${NBSP}${spf}+ (te quemarías en alrededor de ${burn}): divídelo en sesiones más cortas.`,
+    `Dura demasiado aun con FPS${NBSP}${spf}+ (te quemarías en unos ${burn}): divídelo en sesiones más cortas.`,
 } satisfies Translation<typeof sunscreen>
 
 export const needsReview: (keyof typeof sunscreen)[] = [

@@ -123,7 +123,7 @@ describe('reapplyRule', () => {
   })
 })
 
-// ROADMAP item 55: the activity card's fit line and what else to wear by UV level.
+// ROADMAP item 56: the activity card's fit line and what else to wear by UV level.
 describe('burnFitText', () => {
   const run = { id: 'run', durationMins: 45 }
   it('says plainly whether it fits unprotected, and what makes it fit', () => {
@@ -162,8 +162,8 @@ describe('burnFitText', () => {
       sunGearText(9),
     ])
     expect(lines).toEqual([
-      'Dura más que tu tiempo hasta quemarte (alrededor de 38\u00a0min): hazlo con FPS\u00a050+.',
-      'Dura demasiado aun con FPS\u00a050+ (te quemarías en alrededor de 38\u00a0min): divídelo o muévelo a 5–5:45\u00a0p.m.',
+      'Dura más que tu tiempo hasta quemarte (unos 38\u00a0min): hazlo con FPS\u00a050+.',
+      'Dura demasiado aun con FPS\u00a050+ (te quemarías en unos 38\u00a0min): divídelo o muévelo a 5–5:45\u00a0p.m.',
       'Suma una camiseta, un sombrero y lentes de sol, y quédate a la sombra cerca del mediodía.',
     ])
   })

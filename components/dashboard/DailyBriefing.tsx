@@ -65,7 +65,7 @@ export default function DailyBriefing({
     : [
         { id: 'peak', icon: Sun, text: briefing.lines.peak },
         { id: 'window', icon: Clock, text: briefing.lines.window },
-        // What the window's activity needs to fit the burn time (ROADMAP item 55).
+        // What the window's activity needs to fit the burn time (ROADMAP item 56).
         { id: 'fit', icon: TriangleAlert, text: briefing.lines.fit, warning: true },
         {
           id: 'weather',

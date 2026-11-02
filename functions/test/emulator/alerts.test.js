@@ -421,6 +421,8 @@ describe("alerts in the account's language (ROADMAP item 46)", () => {
     assert.equal(morning.title, '🏃 Run: de 5\u00a0p.m. a 8\u00a0p.m.')
     assert.match(morning.body, /^Hoy en Los Angeles: El UV llega a su máximo de 8\.0 \(Muy alto\)/)
     assert.match(morning.body, / Vuelve a revisar las condiciones actuales\.$/)
+    // The advice names a hat, sunglasses and sunscreen (ROADMAP item 56).
+    assert.match(morning.body, /usa sombrero, lentes de sol y protector solar/)
     const uv = of('es', 'uv')
     assert.equal(uv.title, '☀️ El UV llega a 6 hacia las 11:20\u00a0a.m.')
     assert.match(uv.body, /^Pronóstico para Los Angeles: UV de 6 o más hasta cerca de las 2:40/)
@@ -431,6 +433,7 @@ describe("alerts in the account's language (ROADMAP item 46)", () => {
       assert.deepEqual([device.title, device.body], [spanish.title, spanish.body], kind)
     }
     assert.match(of('auto', 'morning').body, /^Today in Los Angeles: UV peaks at 8\.0/)
+    assert.match(of('auto', 'morning').body, /wear a hat, sunglasses and sunscreen/)
     assert.equal(of('auto', 'uv').title, '☀️ UV reaches 6 around 11:20am')
     assert.match(of('en-es', 'morning').body, /^Today in Los Angeles: UV peaks at 8\.0/)
     assert.equal(of('en-es', 'uv').title, '☀️ UV reaches 6 around 11:20am')

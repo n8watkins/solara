@@ -163,7 +163,7 @@ describe('morning alert message', () => {
 
   it("says what makes the window's activity fit the burn time, in the account's language", () => {
     // 2 h 30 min from 6am under a UV 3 limit reaches UV 3: medium skin burns in 83 min, 208
-    // with sunscreen; fair skin in 50, 125 with sunscreen (ROADMAP item 55).
+    // with sunscreen; fair skin in 50, 125 with sunscreen (ROADMAP item 56).
     const long = { ...run, name: 'Long run', durationMins: 150 }
     const alert = (skinType: string) =>
       morningAlertMessage({

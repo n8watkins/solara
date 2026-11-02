@@ -11,7 +11,7 @@ const LOOK = {
 } as const
 
 /**
- * Whether a planned activity fits the burn time, and what makes it fit (ROADMAP item 55,
+ * Whether a planned activity fits the burn time, and what makes it fit (ROADMAP item 56,
  * burnFit in @solara/core/sun-safety): the activity card's recommended slot (or the card
  * itself) and the hero. `move` is where an activity too long even with sunscreen fits.
  */

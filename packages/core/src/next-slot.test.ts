@@ -148,7 +148,7 @@ describe('planActivityDay', () => {
   })
 })
 
-// ROADMAP item 55: whether the activity fits the burn time in its slot, and where it fits
+// ROADMAP item 56: whether the activity fits the burn time in its slot, and where it fits
 // when it is too long even with sunscreen.
 describe('planActivityDay and the burn-time fit', () => {
   it('judges the slot at the highest UV the skin gets in it, for the plan skin type', () => {
