@@ -34,16 +34,22 @@ export default defineMessages('briefing', {
   staysBandUnlessClear: (band: string, rest: string) =>
     `UV stays ${band} ${rest} unless the sky clears`,
   isBandDuring: (band: string, spans: string) => `UV is ${band} ${spans}`,
-  outlastsBurn: (activity: string) =>
-    `${activity} lasts longer than your burn time at its UV limit: wear sunscreen, or plan it for a lower UV`,
+  /** The window's activity needs sunscreen to fit the burn time (sun-safety.ts burnFit). */
+  fitSunscreen: (activity: string, spf: number, every: string | null) =>
+    `${activity} needs sunscreen to stay well within your burn time: SPF${NBSP}${spf}+${every ? `, reapplied every ${every}` : ''}`,
+  fitTooLong: (activity: string, spf: number) =>
+    `${activity} is too long for your skin even with SPF${NBSP}${spf}+: split it into shorter sessions, or plan it for a lower UV`,
   burn: (minutes: number) =>
     `at the peak, unprotected skin like yours can burn in about ${minutes}\u00a0min`,
-  seekShade: (bands: string, during: string) => `seek shade while UV is ${bands}, ${during}`,
-  seekShadeIfClear: (during: string, bands: string) =>
-    `seek shade ${during}, as UV can be ${bands} if the sky clears`,
-  protect: (bands: string, during: string) => `use sun protection while UV is ${bands}, ${during}`,
+  /** Shade while UV is very high or extreme; a hat, sunglasses and sunscreen from moderate. */
+  seekShade: (bands: string, during: string, protect: string) =>
+    `seek shade while UV is ${bands}, ${during}; wear a hat, sunglasses and sunscreen ${protect}`,
+  seekShadeIfClear: (during: string, bands: string, protect: string) =>
+    `seek shade ${during}, as UV can be ${bands} if the sky clears; wear a hat, sunglasses and sunscreen ${protect}`,
+  protect: (bands: string, during: string) =>
+    `wear a hat, sunglasses and sunscreen while UV is ${bands}, ${during}`,
   protectIfClear: (during: string, bands: string) =>
-    `use sun protection ${during}, as UV can be ${bands} if the sky clears`,
+    `wear a hat, sunglasses and sunscreen ${during}, as UV can be ${bands} if the sky clears`,
   lowRestOfDay: 'UV stays low for the rest of the day',
   littleProtection: 'most people need little sun protection today',
   /** The share and notification paragraph: "Today: UV peaks at ...". */

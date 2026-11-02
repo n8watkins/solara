@@ -19,6 +19,13 @@ import { formatDuration } from './duration'
 import { PROTECT_FROM_UV, SHADE_FROM_UV } from './protection'
 import { REAPPLY_MINUTES } from './reapply'
 import { FITZPATRICK_TYPES, type SkinType } from './recommendation'
+import {
+  burnsEasily,
+  isWaterActivity,
+  sunSafetyLevel,
+  type BurnFit,
+  type SpfAdvice,
+} from './sun-safety'
 import core from './messages/core'
 import m from './messages/sunscreen'
 import { formatUV, uvLabel } from './uv-scale'
@@ -48,16 +55,16 @@ const AREA_WORDS: Readonly<Record<BodyArea, () => string>> = Object.freeze({
   torso: () => m.areaTorso,
 })
 
-// Preset activity ids (tiers.ts ACTIVITY_CATEGORIES). Swimwear for the water; long
-// trousers, or sitting at a table, for a few; a T-shirt and shorts for the rest and for
-// custom activities, the exposure the vitamin D estimate assumes (arms and legs).
-const SWIMWEAR = new Set(['swim', 'surf', 'paddle'])
+// Preset activity ids (tiers.ts ACTIVITY_CATEGORIES). Swimwear for the water
+// (isWaterActivity); long trousers, or sitting at a table, for a few; a T-shirt and shorts
+// for the rest and for custom activities, the exposure the vitamin D estimate assumes
+// (arms and legs).
 const FACE_AND_ARMS = new Set(['baseball', 'coffee', 'lunch', 'read'])
 
 /** The parts an activity usually leaves in the sun, from its preset id. */
 export function activityBodyAreas(id: string | undefined): readonly BodyArea[] {
   const preset = id ?? ''
-  if (SWIMWEAR.has(preset)) return BODY_AREAS
+  if (isWaterActivity(preset)) return BODY_AREAS
   if (FACE_AND_ARMS.has(preset)) return ['face', 'arms']
   return ['face', 'arms', 'legs']
 }
@@ -106,32 +113,9 @@ export function teaspoonRule(): string {
   return m.teaspoonRule
 }
 
-/** Why an SPF is advised. */
-export type SpfReason = 'low-uv' | 'standard' | 'very-high-uv' | 'fair-skin'
-
-export interface SpfAdvice {
-  /** The least SPF to use, or null when the UV stays under 3. */
-  spf: 30 | 50 | null
-  reason: SpfReason
-}
-
-/** Fitzpatrick types I and II: always or usually burn. */
-function burnsEasily(skin: SkinType): boolean {
-  const type = FITZPATRICK_TYPES[skin]
-  return type === 'I' || type === 'II'
-}
-
-/**
- * The SPF to use at a UV index (the day's peak, judged on the clear sky as protection
- * advice is: protection.ts) for a skin type. The index reads whole numbers, so 2.5 is 3.
- */
-export function spfAdvice(uv: number, skin: SkinType): SpfAdvice {
-  const index = Math.round(uv)
-  if (!(index >= PROTECT_FROM_UV)) return { spf: null, reason: 'low-uv' }
-  if (index >= SHADE_FROM_UV) return { spf: 50, reason: 'very-high-uv' }
-  if (burnsEasily(skin)) return { spf: 50, reason: 'fair-skin' }
-  return { spf: 30, reason: 'standard' }
-}
+// The SPF rule and the fit live with the rest of the protection decisions (sun-safety.ts),
+// which the briefing reads on the first load without these words.
+export { spfAdvice, type SpfAdvice, type SpfReason } from './sun-safety'
 
 /**
  * The advice in a sentence, for a day whose UV peaks at `uv`: "SPF 50+ broad spectrum:
@@ -161,4 +145,47 @@ export function spfRuleText(skin: SkinType): string {
 /** When to put it on and again: "Put it on 20 min before you go out. Reapply every 2 h, ..." */
 export function reapplyRule(): string {
   return m.reapplyRule(formatDuration(20), formatDuration(REAPPLY_MINUTES.standard))
+}
+
+/**
+ * What else to wear at a UV level, after the SPF line ("slip, slop, slap, seek, slide"):
+ * a shirt, a hat and sunglasses from UV 3, and shade around midday from 8; null under 3.
+ */
+export function sunGearText(uv: number): string | null {
+  const level = sunSafetyLevel(uv)
+  return level === 'low' ? null : level === 'shade' ? m.gearShade : m.gearProtect
+}
+
+/** The gear for any day, for Settings: no UV reading needed. */
+export function sunGearRule(): string {
+  return m.gearRule(PROTECT_FROM_UV, SHADE_FROM_UV)
+}
+
+/**
+ * An activity's fit in a sentence, for its card and the hero (sun-safety.ts burnFit):
+ * "Fits without sunscreen: you'd burn in about 1 h 10 min.", "Longer than your burn time
+ * (about 38 min): fits with SPF 50+, reapplied every 2 h.", "Too long even with SPF 50+
+ * (you'd burn in about 1 h 35 min): split it, or move it to 5pm-5:45pm." `moveTo` is the
+ * slot where a too-long activity fits, already written as a time range.
+ */
+export function burnFitText(fit: BurnFit, moveTo: string | null = null): string {
+  const burn = (minutes: number | null) => formatDuration(minutes ?? 0)
+  switch (fit.verdict) {
+    case 'fits':
+      return fit.burnMins === null
+        ? m.fitsNoBurn
+        : sunSafetyLevel(fit.uv) === 'low'
+          ? m.fitsUnprotected(burn(fit.burnMins))
+          : m.fitsUnprotectedProtect(burn(fit.burnMins), fit.spf)
+    case 'sunscreen':
+      return m.fitsWithSunscreen(
+        burn(fit.burnMins),
+        fit.spf,
+        fit.reapplyMins === null ? null : formatDuration(fit.reapplyMins),
+      )
+    case 'too-long':
+      return moveTo
+        ? m.tooLongMove(fit.spf, burn(fit.protectedMins), moveTo)
+        : m.tooLongSplit(fit.spf, burn(fit.protectedMins))
+  }
 }

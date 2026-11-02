@@ -57,9 +57,9 @@ export default defineMessages('activities', {
   editNamed: (name: string) => `Edit ${name}`,
   plannedFor: (uv: number) => `UV ${uv} or lower`,
   plannedForSpf: (uv: number) => `UV ${uv} or lower with SPF`,
-  burnTimeAt: (uv: number) => `Burn time at UV ${uv}`,
-  outlastsBurn: 'Longer than your burn time: wear sunscreen, or plan for a lower\u00a0UV.',
-  aboutMinutes: (minutes: number) => `about\u00a0${minutes}\u00a0min`,
+  burnTimeAt: (uv: string) => `Burn time at UV ${uv}`,
+  /** A burn time in the duration style, kept on one line: "about 2 h 16 min". */
+  aboutDuration: (duration: string) => `about\u00a0${duration.replaceAll(' ', '\u00a0')}`,
   daylightFit: (percent: number) => `${percent}% of daylight hours fit`,
   windowsLeftToday: 'Lower-UV windows left today',
   windowsEstimated: 'Estimated lower-UV windows',

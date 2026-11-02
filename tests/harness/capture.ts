@@ -59,7 +59,15 @@ export async function captureScreen(
   page: Page,
   testInfo: TestInfo,
   capture: Capture,
-  screen: { name: string; fullPage: boolean },
+  screen: {
+    name: string
+    fullPage: boolean
+    /**
+     * Audit only this part (a CSS selector) instead of the whole page: for a spec that
+     * changes one part of a page it has already audited whole (dashboard-polish.spec.ts).
+     */
+    audit?: string
+  },
 ) {
   await expect(page.locator('html')).toHaveClass(
     capture.colorScheme === 'dark' ? /\bdark\b/ : /^(?!.*\bdark\b).*$/,
@@ -87,7 +95,8 @@ export async function captureScreen(
   // under the sticky header, which axe's target-size rule reads as an obscured target,
   // though it is only where the scroll stopped (REVIEW10 QA L8).
   await page.evaluate(() => window.scrollTo(0, 0))
-  const axe = await new AxeBuilder({ page })
+  const builder = new AxeBuilder({ page })
+  const axe = await (screen.audit ? builder.include(screen.audit) : builder)
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice'])
     .analyze()
   const axeDir = join(OUTPUT_DIR, 'axe')

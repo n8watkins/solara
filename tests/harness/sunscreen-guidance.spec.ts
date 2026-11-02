@@ -102,6 +102,10 @@ test('Sun profile, SPF for the skin type', async ({ page }, t) => {
   await expect(card).toContainText(
     'With type II skin, use SPF 50+ broad spectrum whenever UV is 3 or more.',
   )
+  // What else to wear, for any day (ROADMAP item 56).
+  await expect(card).toContainText(
+    'From UV 3, also wear a shirt, a hat and sunglasses; from UV 8, stay in the shade around midday.',
+  )
   await atEachWidth(page, t, 'spf-settings', card)
   // The rule follows the skin type chosen, before it is saved.
   await dialog.getByLabel('Skin type').selectOption('olive')
@@ -109,3 +113,63 @@ test('Sun profile, SPF for the skin type', async ({ page }, t) => {
   await axeClean(page)
   expect(capture.pageErrors).toEqual([])
 })
+
+// The skin type card beside the picker: "Clara · Fitzpatrick Tipo II" once wrapped as
+// "Clara ·" / "Fitzpatrick Tipo" / "II" at 320 px in Spanish. The type label stays whole and
+// the dot stays with the name, for every skin type, in both languages.
+for (const lang of ['en', 'es'] as const) {
+  test(`Sun profile, the skin type card keeps its Fitzpatrick label whole (${lang})`, async ({
+    page,
+  }, t) => {
+    const capture = await preparePage(page, t)
+    await page.addInitScript(language => {
+      try {
+        window.localStorage.setItem('solara_language', language)
+      } catch {}
+    }, lang)
+    await page.goto('/harness/?screen=settings&tier=free')
+    await expect(page.getByTestId(HARNESS_MARKER)).toBeVisible()
+    const dialog = page.getByRole('dialog', { name: lang === 'en' ? 'Settings' : 'Configuración' })
+    const label = dialog.getByTestId('skin-fitzpatrick')
+    const picker = dialog.getByLabel(lang === 'en' ? 'Skin type' : 'Tipo de piel')
+    await page.evaluate(async () => {
+      await document.fonts.ready
+    })
+    for (const width of widths(t)) {
+      await page.setViewportSize({ width, height: mobile(t) ? 844 : 900 })
+      for (const skin of ['very-fair', 'fair', 'medium', 'olive', 'dark']) {
+        await picker.selectOption(skin)
+        const at = `${skin} at ${width} px (${lang})`
+        const shape = await label.evaluate(el => {
+          const lineOf = (node: Node) => {
+            const range = document.createRange()
+            range.selectNodeContents(node)
+            const rect = range.getClientRects()[0]!
+            return rect.top + rect.height / 2
+          }
+          // The name is the line's first text, and the dot the text just before the label.
+          const name = el.parentElement!.parentElement!.firstChild!
+          const dot = el.previousSibling!
+          return {
+            lines: new Set([...el.getClientRects()].map(r => Math.round(r.top))).size,
+            apart: Math.abs(lineOf(dot) - lineOf(name)),
+          }
+        })
+        expect(shape.lines, `the Fitzpatrick label breaks for ${at}`).toBe(1)
+        expect(shape.apart, `the dot leaves the name for ${at}`).toBeLessThan(4)
+      }
+      if (SHOTS) {
+        await dialog
+          .getByTestId('skin-fitzpatrick')
+          .locator('xpath=ancestor::div[2]')
+          .screenshot({
+            path: `${SHOTS}/skin-card-${lang}-${width}-${scheme(t)}.png`,
+            animations: 'disabled',
+            caret: 'hide',
+          })
+      }
+    }
+    await axeClean(page)
+    expect(capture.pageErrors).toEqual([])
+  })
+}

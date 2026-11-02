@@ -3,10 +3,10 @@
 // always gives the same words) and free of Firebase, browser and Node-only APIs,
 // so the dashboard card, a share and a future morning push all say the same.
 import { formatClock12 } from './clock'
+import { formatDuration } from './duration'
 import {
   burnMins,
   effectiveMaxUV,
-  outlastsBurnTime,
   findWindows,
   lowestUVWindow,
   runsOn,
@@ -28,6 +28,7 @@ import {
   type ProtectionWindow,
 } from './protection'
 import type { Daylight } from './sun-times'
+import { bestFitIn, type BurnFit } from './sun-safety'
 import {
   formatTemperature,
   weatherLimits,
@@ -145,10 +146,11 @@ export interface DailyBriefing {
   /** The rain or heat that moved the activity window or took it away (lines.weather), or null. */
   weather: WeatherSpan | null
   /**
-   * The window's activity lasts longer than the skin's burn time at its UV limit without
-   * sunscreen (outlastsBurnTime, REVIEW10 QA M3): lines.outlasts says so.
+   * Whether the window's activity fits the skin's burn time where the window's UV is
+   * lowest (sun-safety.ts bestFitIn, ROADMAP item 56): lines.fit says what it needs when it
+   * does not fit unprotected. Null without an activity window.
    */
-  outlastsBurn: boolean
+  fit: BurnFit | null
   /**
    * The sentences, each without a final period. `weather` names the rain or heat that
    * moved or took away the activity window ("Rain likely 2pm–5pm"), and is null when the
@@ -157,8 +159,8 @@ export interface DailyBriefing {
   lines: {
     peak: string
     window: string
-    /** The warning when the window's activity outlasts the burn time (outlastsBurn). */
-    outlasts: string | null
+    /** What the window's activity needs when it does not fit unprotected (fit), else null. */
+    fit: string | null
     weather: string | null
     burn: string | null
     tip: string
@@ -310,16 +312,28 @@ export function dailyBriefing({
   let window: BriefingWindow | null = null
   let windowLine: string
   let weather: WeatherSpan | null = null
-  let outlastsLine: string | null = null
+  let fit: BurnFit | null = null
+  let fitLine: string | null = null
   if (running.length) {
     const best = activityWindow(hourly, running, day.date, from, daylight)
     window = best
       ? { activity: best.activity.name, spans: [{ from: best.window.from, to: best.window.to }] }
       : null
     // The window keeps to the activity's UV limit, yet unprotected skin can still burn
-    // before the activity ends (REVIEW10 QA M3).
-    if (best && outlastsBurnTime(best.activity, burnMins(effectiveMaxUV(best.activity), skinType)))
-      outlastsLine = m.outlastsBurn(best.activity.name)
+    // before the activity ends (REVIEW10 QA M3): judged where the window's UV is lowest, as
+    // the skin gets it, so the line never speaks of a window the card shows fitting.
+    fit = best
+      ? (bestFitIn(planningHours(hourly, best.activity), best.window, best.activity, skinType)
+          ?.fit ?? null)
+      : null
+    if (best && fit?.verdict === 'sunscreen')
+      fitLine = m.fitSunscreen(
+        best.activity.name,
+        fit.spf,
+        fit.reapplyMins === null ? null : formatDuration(fit.reapplyMins),
+      )
+    else if (best && fit?.verdict === 'too-long')
+      fitLine = m.fitTooLong(best.activity.name, fit.spf)
     const who = running.length === 1 ? running[0]!.name : m.yourActivities
     // Rain and heat are told only when they moved the window or took it away.
     weather = weatherChange(hourly, running, day.date, from, daylight, best)
@@ -361,10 +375,12 @@ export function dailyBriefing({
   // The band first, then the hours: "seek shade from 11am to 5pm, when UV is very high"
   // read as if 5pm itself were very high (REVIEW8 QA L4). When only a clear sky would
   // reach the band, the advice still stands and says why.
+  // What to wear follows the level (sun-safety.ts sunSafetyLevel): a hat, sunglasses and
+  // sunscreen from moderate, and shade too from very high, each for its own hours.
   const tip = shade
     ? shade.forecastReaches
-      ? m.seekShade(shadeText(), during(shade))
-      : m.seekShadeIfClear(during(shade), shadeText())
+      ? m.seekShade(shadeText(), during(shade), during(protectAhead ?? shade))
+      : m.seekShadeIfClear(during(shade), shadeText(), during(protectAhead ?? shade))
     : protectAhead
       ? protectAhead.forecastReaches
         ? m.protect(protectText(), during(protectAhead))
@@ -377,7 +393,7 @@ export function dailyBriefing({
   const lines = {
     peak: sentence(peakLine),
     window: sentence(windowLine),
-    outlasts: outlastsLine && sentence(outlastsLine),
+    fit: fitLine && sentence(fitLine),
     weather: weatherLine && sentence(weatherLine),
     burn: burnLine && sentence(burnLine),
     tip: sentence(tip),
@@ -385,7 +401,7 @@ export function dailyBriefing({
   const text = [
     m.paragraphStart(dayLabel, peakLine),
     windowLine,
-    outlastsLine,
+    fitLine,
     weatherLine,
     burnLine,
     tip,
@@ -401,7 +417,7 @@ export function dailyBriefing({
     burnMins: burn,
     cloud,
     weather,
-    outlastsBurn: outlastsLine !== null,
+    fit,
     lines,
     text: `${text}.`,
   }

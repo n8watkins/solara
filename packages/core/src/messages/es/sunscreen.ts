@@ -37,6 +37,23 @@ export default {
     `Usa FPS 30+ de amplio espectro siempre que el UV sea ${from} o más, y FPS 50+ cuando llegue a ${shadeFrom}.`,
   reapplyRule: (before, every) =>
     `Aplícalo ${before} antes de salir. Vuelve a aplicarlo cada ${every}, y justo después de nadar, sudar o secarte con la toalla.`,
+  gearProtect: 'Suma una camiseta, un sombrero y lentes de sol, y sombra al mediodía.',
+  gearShade:
+    'Suma una camiseta, un sombrero y lentes de sol, y quédate a la sombra cerca del mediodía.',
+  gearRule: (from, shadeFrom) =>
+    `Desde UV ${from}, usa también camiseta, sombrero y lentes de sol; desde UV ${shadeFrom}, quédate a la sombra cerca del mediodía.`,
+  fitsNoBurn: 'Puedes hacerlo sin protector solar: el UV es demasiado bajo para quemarte.',
+  fitsUnprotected: burn => `Puedes hacerlo sin protector solar: te quemarías en unos ${burn}.`,
+  fitsUnprotectedProtect: (burn, spf) =>
+    `Usa FPS${NBSP}${spf}+ con este UV: sin él te quemarías en unos ${burn}.`,
+  fitsWithSunscreen: (burn, spf, every) =>
+    `Hazlo con FPS${NBSP}${spf}+${every ? `, reaplicado cada ${every}` : ''}: sin él te quemarías en unos ${burn}.`,
+  tooLongMove: (spf, burn, range) =>
+    punto(
+      `Dura demasiado aun con FPS${NBSP}${spf}+ (te quemarías en unos ${burn}): divídelo o muévelo a ${range}`,
+    ),
+  tooLongSplit: (spf, burn) =>
+    `Dura demasiado aun con FPS${NBSP}${spf}+ (te quemarías en unos ${burn}): divídelo en sesiones más cortas.`,
 } satisfies Translation<typeof sunscreen>
 
 export const needsReview: (keyof typeof sunscreen)[] = [
@@ -55,4 +72,13 @@ export const needsReview: (keyof typeof sunscreen)[] = [
   'spfRuleFair',
   'spfRule',
   'reapplyRule',
+  'gearProtect',
+  'gearShade',
+  'gearRule',
+  'fitsNoBurn',
+  'fitsUnprotected',
+  'fitsUnprotectedProtect',
+  'fitsWithSunscreen',
+  'tooLongMove',
+  'tooLongSplit',
 ]

@@ -7,6 +7,7 @@ import {
   teaspoonRule,
   spfAdvice,
   spfAdviceText,
+  sunGearText,
   sunscreenAmount,
   sunscreenAmountText,
 } from '@solara/core/sunscreen'
@@ -21,8 +22,8 @@ function peakProtectionUV(hours: readonly SkyHour[]): number | null {
 }
 
 /**
- * "How much sunscreen?": today's SPF for the skin type, the teaspoon rule and when to
- * reapply (packages/core/src/sunscreen.ts, docs/SUNSCREEN.md). Closed until asked for,
+ * "How much sunscreen?": today's SPF for the skin type, what else to wear at today's UV,
+ * the teaspoon rule and when to reapply (packages/core/src/sunscreen.ts, docs/SUNSCREEN.md). Closed until asked for,
  * so the timer card stays compact.
  */
 export default function SunscreenGuide({
@@ -39,6 +40,8 @@ export default function SunscreenGuide({
   const peak = today && skinType ? peakProtectionUV(today) : null
   const lines = [
     peak !== null && skinType ? spfAdviceText(spfAdvice(peak, skinType), peak, skinType) : null,
+    // A shirt, a hat and sunglasses from UV 3, shade too from 8; nothing on a low day.
+    peak !== null ? sunGearText(peak) : null,
     teaspoonRule(),
     `${sunscreenAmountText(sunscreenAmount(BODY_AREAS))}.`,
     reapplyRule(),

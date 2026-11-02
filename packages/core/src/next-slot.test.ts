@@ -148,6 +148,58 @@ describe('planActivityDay', () => {
   })
 })
 
+// ROADMAP item 56: whether the activity fits the burn time in its slot, and where it fits
+// when it is too long even with sunscreen.
+describe('planActivityDay and the burn-time fit', () => {
+  it('judges the slot at the highest UV the skin gets in it, for the plan skin type', () => {
+    // 6am-7am at UV 2: medium skin burns in 125 min (an hour is within two thirds), very fair
+    // in 50 (125 with sunscreen).
+    expect(planActivityDay(day(), run, 'medium').fit).toMatchObject({ verdict: 'fits', uv: 2 })
+    expect(planActivityDay(day(), run, 'very-fair').fit).toMatchObject({
+      verdict: 'sunscreen',
+      uv: 2,
+      spf: 30,
+      reapplyMins: null,
+    })
+    expect(planActivityDay(day(), run, 'very-fair').fitMove).toBeNull()
+  })
+
+  it('names the first stretch where an activity too long for its slot fits', () => {
+    // UV 4 in the morning, 1 in the evening: 90 min at UV 4 is too long for very fair skin
+    // even with sunscreen (63 min); from 5pm, at UV 1, it fits with sunscreen.
+    const morningHigh = day(h => (h <= 10 ? 4 : h >= 17 ? 1 : 9))
+    const plan = planActivityDay(morningHigh, { ...run, durationMins: 90 }, 'very-fair')
+    expect(plan.slot).toMatchObject({ start: 6, end: 7.5 })
+    expect(plan.fit).toMatchObject({ verdict: 'too-long', uv: 4, protectedMins: 63 })
+    expect(plan.fitMove).toEqual({ from: 17, to: 18.5 })
+  })
+
+  it('offers no move when no stretch of the day fits', () => {
+    const plan = planActivityDay(
+      day(() => 4),
+      { ...run, durationMins: 90 },
+      'very-fair',
+    )
+    expect(plan.fit?.verdict).toBe('too-long')
+    expect(plan.fitMove).toBeNull()
+  })
+
+  it('judges the best window without a slot, and nothing without a window', () => {
+    // The calendar is full all day: no slot, but the morning window still fits unprotected.
+    const busy = planActivityDay(day(), run, 'medium', { busy: [{ start: 0, end: 24 }] })
+    expect(busy.slot).toBeNull()
+    expect(busy.fit).toMatchObject({ verdict: 'fits', uv: 2 })
+    const passed = planActivityDay(
+      day(h => (h <= 9 ? 2 : 9)),
+      run,
+      'fair',
+      { nowHour: 12 },
+    )
+    expect(passed.fit).toBeNull()
+    expect(passed.fitMove).toBeNull()
+  })
+})
+
 describe('planActivityDay in daylight', () => {
   // Sunrise 7:09am and sunset 6:04pm (Los Angeles in late October): daylightHours.
   const daylight = { from: 7 + 10 / 60, to: 18 }

@@ -29,8 +29,8 @@ export default defineMessages('server', {
     `UV peaks at ${uv} (${label}) around ${time} in ${place}.`,
   dailyPeakIfClear: (uv: string, label: string, time: string, place: string, clearSky: string) =>
     `UV peaks at ${uv} (${label}) around ${time} in ${place}, or ${clearSky} if the sky clears.`,
-  dailyTip: 'Sunscreen, a hat and shade while the UV is moderate or higher.',
-  dailyTipIfClear: 'Sunscreen, a hat and shade in case the sky clears.',
+  dailyTip: 'Sunscreen, a hat, sunglasses and shade while the UV is moderate or higher.',
+  dailyTipIfClear: 'Sunscreen, a hat, sunglasses and shade in case the sky clears.',
 
   // The Pro heads-up before an event with high UV. The event's name is the publisher's.
   eventSoon: 'your event soon',

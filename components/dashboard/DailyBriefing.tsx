@@ -65,8 +65,8 @@ export default function DailyBriefing({
     : [
         { id: 'peak', icon: Sun, text: briefing.lines.peak },
         { id: 'window', icon: Clock, text: briefing.lines.window },
-        // The window's activity outlasts the burn time without sunscreen (REVIEW10 QA M3).
-        { id: 'outlasts', icon: TriangleAlert, text: briefing.lines.outlasts, warning: true },
+        // What the window's activity needs to fit the burn time (ROADMAP item 56).
+        { id: 'fit', icon: TriangleAlert, text: briefing.lines.fit, warning: true },
         {
           id: 'weather',
           icon: briefing.weather?.kind === 'heat' ? Thermometer : CloudRain,

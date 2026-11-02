@@ -61,9 +61,7 @@ export default {
   plannedFor: uv => `UV ${uv} o menos`,
   plannedForSpf: uv => `UV ${uv} o menos con FPS`,
   burnTimeAt: uv => `Tiempo hasta quemarte con UV ${uv}`,
-  outlastsBurn:
-    'Dura más que tu tiempo hasta quemarte: usa protector solar o planifica para un UV más\u00a0bajo.',
-  aboutMinutes: minutes => `unos\u00a0${minutes}\u00a0min`,
+  aboutDuration: duration => `unos\u00a0${duration.replaceAll(' ', '\u00a0')}`,
   daylightFit: percent => `${percent}% de las horas de luz encajan`,
   windowsLeftToday: 'Horarios de UV más bajo que quedan hoy',
   windowsEstimated: 'Horarios estimados de UV más bajo',
@@ -134,7 +132,6 @@ export default {
 
 export const needsReview: (keyof typeof activities)[] = [
   'burnTimeAt',
-  'outlastsBurn',
   'plannedForSpf',
   'notifyDevices',
   'reapplyAt',

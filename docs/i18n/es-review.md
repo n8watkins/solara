@@ -17,7 +17,6 @@ Activity cards, the hero slot and the activity editor
 | Key | English | Spanish | Notes |
 | --- | --- | --- | --- |
 | `burnTimeAt` | Burn time at UV {1} | Tiempo hasta quemarte con UV {1} |  |
-| `outlastsBurn` | Longer than your burn time: wear sunscreen, or plan for a lower UV. | Dura más que tu tiempo hasta quemarte: usa protector solar o planifica para un UV más bajo. |  |
 | `plannedForSpf` | UV {1} or lower with SPF | UV {1} o menos con FPS |  |
 | `notifyDevices` | It also comes to your devices with alerts on, even with Solara closed. | También llega a tus dispositivos con las alertas activadas, aunque Solara esté cerrada. |  |
 | `reapplyAt` | Reapply sunscreen at {1} | Vuelve a aplicar protector solar a las {1} |  |
@@ -195,11 +194,12 @@ The daily briefing at the top of the dashboard, and shared briefings
 | `staysBandUnlessClear` | UV stays {1} {2} unless the sky clears | El UV se mantiene {1} {2}, salvo que el cielo se despeje |  |
 | `isBandDuring` | UV is {1} {2} | El UV es {1} {2} |  |
 | `burn` | at the peak, unprotected skin like yours can burn in about {1} min | en el máximo, una piel como la tuya sin protección puede quemarse en unos {1} min |  |
-| `outlastsBurn` | {1} lasts longer than your burn time at its UV limit: wear sunscreen, or plan it for a lower UV | {1} dura más que tu tiempo hasta quemarte con su límite de UV: usa protector solar o planifícalo para un UV más bajo |  |
-| `seekShade` | seek shade while UV is {1}, {2} | busca la sombra mientras el UV sea {1}, {2} |  |
-| `seekShadeIfClear` | seek shade {1}, as UV can be {2} if the sky clears | busca la sombra {1}, porque el UV puede ser {2} si el cielo se despeja |  |
-| `protect` | use sun protection while UV is {1}, {2} | protégete del sol mientras el UV sea {1}, {2} |  |
-| `protectIfClear` | use sun protection {1}, as UV can be {2} if the sky clears | protégete del sol {1}, porque el UV puede ser {2} si el cielo se despeja |  |
+| `fitSunscreen` | {1} needs sunscreen to stay well within your burn time: SPF {2}+, reapplied every {3} | {1} necesita protector solar para quedar bien dentro de tu tiempo hasta quemarte: FPS {2}+, reaplicado cada {3} |  |
+| `fitTooLong` | {1} is too long for your skin even with SPF {2}+: split it into shorter sessions, or plan it for a lower UV | {1} dura demasiado para tu piel aun con FPS {2}+: divídelo en sesiones más cortas o planifícalo para un UV más bajo |  |
+| `seekShade` | seek shade while UV is {1}, {2}; wear a hat, sunglasses and sunscreen {3} | busca la sombra mientras el UV sea {1}, {2}; usa sombrero, lentes de sol y protector solar {3} |  |
+| `seekShadeIfClear` | seek shade {1}, as UV can be {2} if the sky clears; wear a hat, sunglasses and sunscreen {3} | busca la sombra {1}, porque el UV puede ser {2} si el cielo se despeja; usa sombrero, lentes de sol y protector solar {3} |  |
+| `protect` | wear a hat, sunglasses and sunscreen while UV is {1}, {2} | usa sombrero, lentes de sol y protector solar mientras el UV sea {1}, {2} |  |
+| `protectIfClear` | wear a hat, sunglasses and sunscreen {1}, as UV can be {2} if the sky clears | usa sombrero, lentes de sol y protector solar {1}, porque el UV puede ser {2} si el cielo se despeja |  |
 | `lowRestOfDay` | UV stays low for the rest of the day | El UV se mantiene bajo el resto del día |  |
 | `littleProtection` | most people need little sun protection today | hoy la mayoría de las personas necesita poca protección solar |  |
 
@@ -230,8 +230,8 @@ Pushes and the calendar feed: the Pro morning and UV alerts, the daily UV push, 
 | `dailyUntil` | ☀️ Protect until {1} today | ☀️ Protégete hoy hasta las {1} |  |
 | `dailyPeak` | UV peaks at {1} ({2}) around {3} in {4}. | El UV llega a su máximo de {1} ({2}) hacia las {3} en {4}. |  |
 | `dailyPeakIfClear` | UV peaks at {1} ({2}) around {3} in {4}, or {5} if the sky clears. | El UV llega a su máximo de {1} ({2}) hacia las {3} en {4}, o {5} si el cielo se despeja. |  |
-| `dailyTip` | Sunscreen, a hat and shade while the UV is moderate or higher. | Protector solar, sombrero y sombra mientras el UV sea moderado o más alto. |  |
-| `dailyTipIfClear` | Sunscreen, a hat and shade in case the sky clears. | Protector solar, sombrero y sombra por si el cielo se despeja. |  |
+| `dailyTip` | Sunscreen, a hat, sunglasses and shade while the UV is moderate or higher. | Protector solar, sombrero, lentes de sol y sombra mientras el UV sea moderado o más alto. |  |
+| `dailyTipIfClear` | Sunscreen, a hat, sunglasses and shade in case the sky clears. | Protector solar, sombrero, lentes de sol y sombra por si el cielo se despeja. |  |
 | `eventPeak` | UV peaks at {1} around {2}. | El UV llega a su máximo de {1} hacia las {2}. |  |
 | `eventPeakAt` | Forecast for {1}: UV peaks at {2} around {3}. | Pronóstico para {1}: el UV llega a su máximo de {2} hacia las {3}. |  |
 | `eventAdvice` | Apply sunscreen 15 to 30 minutes before you go, reapply every 2 hours, and plan for shade. | Aplica protector solar de 15 a 30 minutos antes de salir, vuelve a aplicarlo cada 2 horas y planifica dónde tener sombra. |  |
@@ -276,8 +276,17 @@ Sunscreen coaching: the timer, activity cards, Settings; the reapply reminder pu
 | `spfRuleFair` | With type {1} skin, use SPF 50+ broad spectrum whenever UV is {2} or more. | Con piel tipo {1}, usa FPS 50+ de amplio espectro siempre que el UV sea {2} o más. |  |
 | `spfRule` | Use SPF 30+ broad spectrum whenever UV is {1} or more, and SPF 50+ when it reaches {2}. | Usa FPS 30+ de amplio espectro siempre que el UV sea {1} o más, y FPS 50+ cuando llegue a {2}. |  |
 | `reapplyRule` | Put it on {1} before you go out. Reapply every {2}, and straight after swimming, sweating or towelling off. | Aplícalo {1} antes de salir. Vuelve a aplicarlo cada {2}, y justo después de nadar, sudar o secarte con la toalla. |  |
+| `gearProtect` | Add a shirt, a hat and sunglasses, and shade at midday. | Suma una camiseta, un sombrero y lentes de sol, y sombra al mediodía. |  |
+| `gearShade` | Add a shirt, a hat and sunglasses, and stay in the shade around midday. | Suma una camiseta, un sombrero y lentes de sol, y quédate a la sombra cerca del mediodía. |  |
+| `gearRule` | From UV {1}, also wear a shirt, a hat and sunglasses; from UV {2}, stay in the shade around midday. | Desde UV {1}, usa también camiseta, sombrero y lentes de sol; desde UV {2}, quédate a la sombra cerca del mediodía. |  |
+| `fitsNoBurn` | Fits without sunscreen: the UV is too low to burn. | Puedes hacerlo sin protector solar: el UV es demasiado bajo para quemarte. |  |
+| `fitsUnprotected` | Fits without sunscreen: you'd burn in about {1}. | Puedes hacerlo sin protector solar: te quemarías en unos {1}. |  |
+| `fitsUnprotectedProtect` | Use SPF {2}+ at this UV: without it you'd burn in about {1}. | Usa FPS {2}+ con este UV: sin él te quemarías en unos {1}. |  |
+| `fitsWithSunscreen` | Fits with SPF {2}+, reapplied every {3}: without it you'd burn in about {1}. | Hazlo con FPS {2}+, reaplicado cada {3}: sin él te quemarías en unos {1}. |  |
+| `tooLongMove` | Too long even with SPF {1}+ (you'd burn in about {2}): split it, or move it to {3}. | Dura demasiado aun con FPS {1}+ (te quemarías en unos {2}): divídelo o muévelo a {3}. |  |
+| `tooLongSplit` | Too long even with SPF {1}+ (you'd burn in about {2}): split it into shorter sessions. | Dura demasiado aun con FPS {1}+ (te quemarías en unos {2}): divídelo en sesiones más cortas. |  |
 
-148 messages to review.
+157 messages to review.
 
 ## Legal pages
 

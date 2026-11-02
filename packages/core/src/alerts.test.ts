@@ -13,6 +13,7 @@ import {
   uvAlertThreshold,
 } from './alerts'
 import { parsePreferences } from './prefs'
+import { inAccountLanguage } from './server-language'
 
 const day = (uvs: Record<number, number>) =>
   Object.entries(uvs).map(([hour, uv]) => ({ hour: Number(hour), uv }))
@@ -154,10 +155,38 @@ describe('morning alert message', () => {
       title: '🏃 Run: 6am to 9am',
       body:
         'Today in Austin: UV peaks at 8.0 (Very high) around 11am. Lowest-UV window: Run 6am–9am. ' +
-        'Run lasts longer than your burn time at its UV limit: wear sunscreen, or plan it for a lower UV. ' +
         'At the peak, unprotected skin like yours can burn in about 19 min. ' +
-        'Seek shade while UV is very high or extreme, from 10:30am to 12:30pm. Recheck current conditions.',
+        'Seek shade while UV is very high or extreme, from 10:30am to 12:30pm; ' +
+        'wear a hat, sunglasses and sunscreen from 7:30am to 4pm. Recheck current conditions.',
     })
+  })
+
+  it("says what makes the window's activity fit the burn time, in the account's language", () => {
+    // 2 h 30 min from 6am under a UV 3 limit reaches UV 3: dark skin burns in 133 min, 333
+    // with sunscreen, so it needs sunscreen; fair skin in 50, 125 with sunscreen, too long
+    // (two thirds of each, ROADMAP item 56).
+    const long = { ...run, name: 'Long run', durationMins: 150 }
+    const alert = (skinType: string) =>
+      morningAlertMessage({
+        date: '2026-06-15',
+        city: 'Austin',
+        hourly,
+        activities: [long],
+        skinType,
+      })
+    expect(alert('dark').body).toContain(
+      'Lowest-UV window: Long run 6am–9am. ' +
+        'Long run needs sunscreen to stay well within your burn time: SPF 30+, reapplied every 2 h. ',
+    )
+    expect(alert('fair').body).toContain(
+      'Long run is too long for your skin even with SPF 50+: split it into shorter sessions, or plan it for a lower UV. ',
+    )
+    expect(inAccountLanguage({ language: 'es' }, () => alert('dark').body)).toContain(
+      'Long run necesita protector solar para quedar bien dentro de tu tiempo hasta quemarte: FPS 30+, reaplicado cada 2 h. ',
+    )
+    expect(inAccountLanguage({ language: 'es' }, () => alert('fair').body)).toContain(
+      'Long run dura demasiado para tu piel aun con FPS 50+: divídelo en sesiones más cortas o planifícalo para un UV más bajo. ',
+    )
   })
 
   it('offers no window before sunrise, as the app does', () => {

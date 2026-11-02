@@ -8,6 +8,7 @@ import {
   reapplyRule,
   teaspoonRule,
   spfRuleText,
+  sunGearRule,
   sunscreenAmount,
   sunscreenAmountText,
 } from '@solara/core/sunscreen'
@@ -65,8 +66,15 @@ export default function SunProfileSettings({ draft, onChange }: Props) {
           <SkinSwatch skin={selected.value} />
           <div className="min-w-0 flex-1">
             <p className="text-[14px] font-[650] text-ink">
-              {selected.label}{' '}
-              <span className="font-normal text-ink-3">{m.fitzpatrick(selected.fitzpatrick)}</span>
+              {/* The dot stays with the name and the type stays whole: at 320 px in Spanish
+                  "Fitzpatrick Tipo II" once broke inside itself. */}
+              {selected.label}
+              <span className="font-normal text-ink-3">
+                {'\u00a0· '}
+                <span className="whitespace-nowrap" data-testid="skin-fitzpatrick">
+                  {m.fitzpatrick(selected.fitzpatrick)}
+                </span>
+              </span>
             </p>
             <p className="mt-0.5 text-[12px] text-ink-3">{selected.desc}</p>
           </div>
@@ -107,12 +115,13 @@ export default function SunProfileSettings({ draft, onChange }: Props) {
         )}
       </SettingsCard>
 
-      {/* The SPF for the skin type chosen above, the teaspoon rule and when to reapply
+      {/* The SPF for the skin type chosen above, what else to wear, the teaspoon rule and when to reapply
           (packages/core/src/sunscreen.ts); nothing here is stored. */}
       <SettingsCard className="flex flex-col gap-1.5" data-testid="sunscreen-settings">
         <SettingsTitle>{m.sunscreen}</SettingsTitle>
         <ul className="m-0 list-disc space-y-1 pl-[18px] text-[13px] leading-[1.45] text-ink-2">
           <li>{spfRuleText(draft.skinType)}</li>
+          <li>{sunGearRule()}</li>
           <li>
             {teaspoonRule()} {sunscreenAmountText(sunscreenAmount(BODY_AREAS))}.
           </li>

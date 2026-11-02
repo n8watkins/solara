@@ -129,7 +129,7 @@ export default defineMessages('settings', {
   turningOn: 'Turning on...',
   turnOn: 'Turn on for this device',
   alertsUnavailable: 'Alerts unavailable here',
-  fitzpatrick: (type: string) => `· Fitzpatrick ${type}`,
+  fitzpatrick: (type: string) => `Fitzpatrick ${type}`,
   atUv10: (time: string) => `${time} at UV 10`,
   hideExplanation: 'Hide explanation',
   howSkinType: 'How skin type affects Solara',

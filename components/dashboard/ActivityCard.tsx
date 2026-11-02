@@ -1,3 +1,5 @@
+import { formatUV } from '@solara/core'
+import { formatDuration } from '@solara/core/duration'
 import { exposureSummary } from '@/lib/activity-exposure'
 import { NotebookPen, Pencil } from 'lucide-react'
 import type { SafeActivityWindow } from '@/lib/types'
@@ -5,7 +7,6 @@ import type { ActivityDayPlan } from '@solara/core/next-slot'
 import type { ScheduledActivity, ScheduledSpan } from '@/lib/scheduled'
 import { recommendSlot, type SlotRecommendation } from '@solara/core/scheduler'
 import { effectiveMaxUV } from '@solara/core/tiers'
-import { outlastsBurnTime } from '@solara/core/recommendation'
 import { PROTECT_FROM_UV } from '@solara/core/protection'
 import {
   activityBodyAreas,
@@ -22,7 +23,7 @@ import {
   matchTone,
 } from '@/lib/activity-card-view'
 import { formatActivityDuration } from '@/lib/activity-presets'
-import BurnTimeWarning from './BurnTimeWarning'
+import BurnFitLine from './BurnFitLine'
 import RecommendedSlot from './RecommendedSlot'
 import ScheduledCardRow from './ScheduledCardRow'
 import WeatherNote from './WeatherNote'
@@ -36,8 +37,11 @@ function Stat({ label, val, tone }: { label: string; val: string; tone?: 'succes
   const color = tone === 'success' ? 'text-success' : tone === 'danger' ? 'text-danger' : 'text-ink'
   return (
     <div className="flex justify-between gap-3 text-[12px]">
-      <span className="shrink-0 text-ink-3">{label}</span>
-      <span className={`text-right font-medium ${color}`}>{val}</span>
+      {/* The label keeps up to half the row, so a short one ("Protector solar") stays on one
+          line and a long one ("Tiempo hasta quemarte con UV 4") wraps rather than pushing its
+          value past the card's edge at 320 px; the value wraps in the rest. */}
+      <span className="max-w-[50%] shrink-0 text-ink-3">{label}</span>
+      <span className={`min-w-0 text-right font-medium ${color}`}>{val}</span>
     </div>
   )
 }
@@ -74,19 +78,17 @@ export default function ActivityCard({
   passedNote?: string
 }) {
   const fmt = useUnits()
-  const { activity, bestWindow, windows, slot: rec, pctDaySafe, burnMins } = plan
+  const { activity, bestWindow, windows, slot: rec, pctDaySafe, burnMins, fit, fitMove } = plan
   const badge = activityBadge(plan, isToday)
   const bestLabel = bestWindowLabel(plan, isToday, fmt.time)
   const safeUv = effectiveMaxUV(activity)
   const days = fmtDays(activity.daysOfWeek)
   const exposure = exposureSummary(activity)
-  // Longer than the burn time at its UV limit without sunscreen: the recommended slot (or
-  // the card) says so, and the sunscreen row below says how much (REVIEW10 QA M3).
-  const outlasts = outlastsBurnTime(activity, burnMins ?? null)
   // How much sunscreen the parts this activity usually bares take, where its windows
-  // reach the UV that calls for protection (packages/core/src/sunscreen.ts).
+  // reach the UV that calls for protection or its slot needs sunscreen to fit the burn
+  // time (packages/core/src/sunscreen.ts, sun-safety.ts).
   const sunscreen =
-    safeUv >= PROTECT_FROM_UV || outlasts
+    safeUv >= PROTECT_FROM_UV || (fit && fit.verdict !== 'fits')
       ? sunscreenAmountShort(sunscreenAmount(activityBodyAreas(activity.id)))
       : null
   // Once the recommended slot is on the calendar, the Scheduled row replaces it.
@@ -127,13 +129,16 @@ export default function ActivityCard({
       {rec && !recScheduled && (
         <RecommendedSlot
           rec={rec}
-          outlastsBurn={outlasts}
+          fit={fit}
+          fitMove={fitMove}
           onBook={onBook && (() => onBook(rec))}
           calendarHref={calendarHref?.({ from: rec.start, to: rec.end })}
         />
       )}
 
-      {outlasts && !(rec && !recScheduled) && <BurnTimeWarning />}
+      {/* Whether it fits the burn time, and what makes it fit (ROADMAP item 56): in the
+          recommended slot, or here when the slot is on the calendar or there is none. */}
+      {fit && !(rec && !recScheduled) && <BurnFitLine fit={fit} move={fitMove} />}
 
       <div className="flex flex-col gap-[5px]">
         <Stat
@@ -152,9 +157,22 @@ export default function ActivityCard({
         )}
         {days && <Stat label={m.days} val={days} />}
         {exposure && <Stat label={m.setting} val={exposure} />}
-        {burnMins !== null && burnMins !== undefined && (
-          <Stat label={m.burnTimeAt(safeUv)} val={m.aboutMinutes(burnMins)} />
-        )}
+        {/* With a fit, the burn time it is judged by (the slot's UV), so the card never
+            shows two burn times; else the burn time at the UV limit. */}
+        {fit
+          ? fit.burnMins !== null && (
+              <Stat
+                label={m.burnTimeAt(formatUV(fit.uv))}
+                val={m.aboutDuration(formatDuration(fit.burnMins))}
+              />
+            )
+          : burnMins !== null &&
+            burnMins !== undefined && (
+              <Stat
+                label={m.burnTimeAt(String(safeUv))}
+                val={m.aboutDuration(formatDuration(burnMins))}
+              />
+            )}
         {sunscreen && <Stat label={m.sunscreen} val={sunscreen} />}
         {bestLabel !== null && (
           <Stat label={m.bestWindow} val={bestLabel} tone={bestWindow ? 'success' : 'danger'} />

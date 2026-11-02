@@ -12,10 +12,11 @@
 //     outdoor time in daylight only; the UV of 0 in the dark is not a "lower-UV slot"),
 //   - skips hours with likely rain or too much heat for the activity (weather-fit.ts).
 import type { HourlyForecast, SafeActivityWindow } from './forecast-days'
-import { planningUV } from './forecast-quality'
+import { planningHours, planningUV } from './forecast-quality'
 import type { Activity } from './prefs'
 import { effectiveMaxUV, lowestUVWindow, summarizeWindow, type SkinType } from './recommendation'
 import type { Daylight } from './sun-times'
+import { bestFitIn, burnFit, peakUVIn, type BurnFit, type FitHour } from './sun-safety'
 import { getActivityWindow } from './weather'
 import type { BusyInterval, SlotRecommendation } from './scheduler'
 import { recommendSlot } from './scheduler'
@@ -69,6 +70,17 @@ export interface ActivityDayPlan {
   pctDaySafe: number
   /** Burn estimate at the activity's planning UV limit. */
   burnMins: number | null
+  /**
+   * Whether the activity fits the burn time (sun-safety.ts burnFit, ROADMAP item 56): in
+   * its recommended slot, or where the UV is lowest in its best window when it has no
+   * slot. Null without either.
+   */
+  fit: BurnFit | null
+  /**
+   * When `fit` is 'too-long': the first stretch of the day's windows where it fits, with
+   * sunscreen at most, other than the slot itself; else null.
+   */
+  fitMove: { from: number; to: number } | null
   /**
    * For each of `windows`: it holds only if the forecast clouds do (the activity
    * accounts for cloud cover and a clear sky would put an hour over its limit).
@@ -144,6 +156,13 @@ export function planActivityDay(
     hourly,
   )
   const weather = weatherEffect(hourly, activity, skinType, slot, { nowHour, busy, daylight })
+  const bestWindow = lowestUVWindow(windows)
+  const planned = planningHours(hourly, activity)
+  const fit = slot
+    ? burnFit(activity, peakUVIn(planned, slot.start, slot.end), skinType)
+    : bestWindow
+      ? (bestFitIn(planned, bestWindow, activity, skinType)?.fit ?? null)
+      : null
   const elapsed =
     nowHour >= 0 &&
     windows.length === 0 &&
@@ -151,16 +170,38 @@ export function planActivityDay(
   return {
     activity,
     windows,
-    bestWindow: lowestUVWindow(windows),
+    bestWindow,
     slot,
     startsNow: !!slot && nowHour >= 0 && slot.start <= nowHour,
     elapsed,
     hoursInDark: hoursInDark(activity, daylight),
     pctDaySafe,
     burnMins,
+    fit,
+    fitMove:
+      fit?.verdict === 'too-long' ? fitMove(planned, windows, activity, skinType, slot) : null,
     cloudDependent: windows.map(w => needsClouds(w, hourly, activity)),
     ...weather,
   }
+}
+
+/**
+ * The first stretch of `windows` (in time order) where an activity too long for its slot
+ * fits, with sunscreen at most: in each window, where its UV is lowest (bestFitIn).
+ */
+function fitMove(
+  planned: readonly FitHour[],
+  windows: readonly SafeActivityWindow[],
+  activity: Activity,
+  skinType: SkinType,
+  slot: SlotRecommendation | null,
+): { from: number; to: number } | null {
+  for (const win of windows) {
+    const placed = bestFitIn(planned, win, activity, skinType)
+    if (placed && placed.fit.verdict !== 'too-long' && placed.from !== slot?.start)
+      return { from: placed.from, to: placed.to }
+  }
+  return null
 }
 
 /** What the weather took from a day's plan: compared with the plan on UV alone. */
