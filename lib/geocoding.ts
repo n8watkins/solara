@@ -451,6 +451,17 @@ export async function locationFromCoordinates(lat: number, lon: number): Promise
   }
 }
 
+/**
+ * The place at a device position for the travel prompt (ROADMAP item 53), named in the
+ * page's language like {@link locationFromCoordinates}, or null when no name could be found
+ * (the lookup failed, or the place has no town): the prompt never says "You seem to be in
+ * Your location".
+ */
+export async function namedLocationAt(lat: number, lon: number): Promise<Location | null> {
+  const location = await locationFromCoordinates(lat, lon)
+  return location.city === FALLBACK_PLACE.city ? null : location
+}
+
 /** Test hook: forget cached place names and the request spacing. */
 export function resetReverseGeocodeCache(): void {
   placeCache.clear()

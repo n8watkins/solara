@@ -128,6 +128,6 @@ describe('"Not now" areas', () => {
     }))
     const kept = activeNotNowAreas(many, NOW)
     expect(kept).toHaveLength(NOT_NOW_MAX_AREAS)
-    expect(kept[0].lat).toBe(5)
+    expect(kept[0]?.lat).toBe(5)
   })
 })

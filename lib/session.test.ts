@@ -406,6 +406,26 @@ describe('a guest signing in', () => {
       'guest',
     )
     expect(created.activities).toHaveLength(3)
-    expect(created).toMatchObject({ uid: 'user-c', tier: 'free', savedLocations: [] })
+    expect(created).toMatchObject({ uid: 'user-c', tier: 'free', savedLocations: [LA] })
+  })
+
+  it("carries the guest's saved places, home plus 4 at most (ROADMAP item 53)", async () => {
+    const places = [BOSTON, ...[1, 2, 3, 4, 5].map(i => ({ ...LA, lat: i, city: `City ${i}` }))]
+    const created = await createAccountPrefs(
+      'user-c',
+      { ...guestPlan, savedLocations: places },
+      'guest',
+    )
+    // Home (Boston) is kept apart, as the account's location; 4 others fill the Free plan.
+    expect(created.location).toEqual(BOSTON)
+    expect(created.savedLocations.map(p => p.city)).toEqual([
+      'City 1',
+      'City 2',
+      'City 3',
+      'City 4',
+    ])
+    // Setup answers never carry saved places.
+    const fromSetup = await createAccountPrefs('user-d', { ...guestPlan, savedLocations: places })
+    expect(fromSetup.savedLocations).toEqual([])
   })
 })

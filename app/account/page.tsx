@@ -33,21 +33,32 @@ const FUNCTIONS_READY = functionsApiConfigured()
 
 /**
  * What this browser keeps for the person outside the account, for the data download: the
- * account's vitamin D log (ROADMAP item 48), kept only on this device; nothing when it is
- * empty.
+ * account's vitamin D log (ROADMAP item 48) and its visit and "Not now" areas (ROADMAP item
+ * 53), kept only on this device; nothing when there are none.
  */
-async function thisDeviceData(uid: string): Promise<{ thisDevice?: { vitaminDLog: unknown } }> {
-  const [{ loadVitaminDLog }, { logExport }] = await Promise.all([
-    import('@/lib/vitamin-d-log'),
-    import('@solara/core/vitamin-d-log'),
-  ])
+async function thisDeviceData(
+  uid: string,
+): Promise<{ thisDevice?: { vitaminDLog?: unknown; travel?: unknown } }> {
+  const [{ loadVitaminDLog }, { logExport }, { travelExport }, { travelOwner }] = await Promise.all(
+    [
+      import('@/lib/vitamin-d-log'),
+      import('@solara/core/vitamin-d-log'),
+      import('@/lib/travel-areas'),
+      import('@/lib/travel-place'),
+    ],
+  )
   // Today on the device's calendar (YYYY-MM-DD), for the year the log keeps.
   const now = new Date()
   const today = [now.getFullYear(), now.getMonth() + 1, now.getDate()]
     .map(n => String(n).padStart(2, '0'))
     .join('-')
   const entries = loadVitaminDLog(uid, today)
-  return entries.length > 0 ? { thisDevice: { vitaminDLog: logExport(entries) } } : {}
+  const travel = travelExport(travelOwner(uid), now.getTime())
+  const thisDevice = {
+    ...(entries.length > 0 && { vitaminDLog: logExport(entries) }),
+    ...(travel && { travel }),
+  }
+  return Object.keys(thisDevice).length > 0 ? { thisDevice } : {}
 }
 
 /** Where a failed deletion leaves the person, in plain words. */

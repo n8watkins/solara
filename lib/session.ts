@@ -3,6 +3,7 @@
 // the weather cache and per-account notification state. None of it may carry over
 // from one account to the next, whether the previous person signed out or their
 // session simply ended.
+import { clearTravel } from './travel-place'
 import { loadedFirebase } from './firebase'
 import { clearWeatherCache } from './cache'
 import { clearLocalNotificationState, disableNotifications } from './notifications'
@@ -44,9 +45,12 @@ function writeOwner(uid: string): void {
  * Removes every piece of account data Solara keeps in this browser outside Firebase Auth.
  * The vitamin D log stays: it is kept only on this device, under its account's own key, so
  * a sign-out or another account only hides it (lib/vitamin-d-switch.ts, ROADMAP item 48).
+ * A visit to another place (ROADMAP item 53) goes.
  */
 export function clearAccountData(): void {
   clearLocalPrefs()
+  // A visit and "Not now" areas belong to whoever was signed in (lib/travel-place.ts).
+  clearTravel()
   clearWeatherCache()
   clearReplacedGuestPlan()
   try {

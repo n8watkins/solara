@@ -69,14 +69,16 @@ describe('the guest plan', () => {
       ...defaultPrefs(LA),
       uid: 'user-a',
       tier: 'paid',
-      savedLocations: [LA],
+      savedLocations: Array.from({ length: 7 }, (_, i) => ({ ...LA, lat: i, city: `City ${i}` })),
       profiles: [{ id: 'kid', name: 'Kid', skinType: 'fair' }],
       activeProfileId: 'kid',
       activities: [activity('custom_a'), activity('custom_b')],
       upgradeInterest: { email: 'a@example.com', createdAt: '2026-06-01T00:00:00.000Z' },
     }
     const guest = asGuestPrefs(account)
-    expect(guest).toMatchObject({ uid: '', tier: 'anonymous', savedLocations: [] })
+    expect(guest).toMatchObject({ uid: '', tier: 'anonymous' })
+    // Home plus 4 more places at most (ROADMAP item 53).
+    expect(guest.savedLocations).toHaveLength(5)
     expect(guest.activities).toHaveLength(1)
     expect(guest.profiles).toBeUndefined()
     expect(guest.upgradeInterest).toBeUndefined()

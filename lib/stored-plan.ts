@@ -85,7 +85,8 @@ const coordinate =
   value =>
     numberIn(-limit, limit)(value) && roundCoordinate(value as number) === value
 
-const isLocation: Check = value =>
+/** A place exactly as the schema keeps it (also a visit's, lib/travel-place.ts). */
+export const isStoredLocation: Check = value =>
   shaped(
     value,
     {
@@ -166,7 +167,7 @@ const isPlaces: Check = value =>
   value.length <= PREFS_LIMITS.savedLocations &&
   value.every(
     (place, i) =>
-      isLocation(place) &&
+      isStoredLocation(place) &&
       value
         .slice(0, i)
         .every(
@@ -203,7 +204,7 @@ const isProfiles: Check = value =>
 const REQUIRED: Record<string, Check> = {
   uid: value => typeof value === 'string',
   schemaVersion: value => value === PREFS_SCHEMA_VERSION,
-  location: isLocation,
+  location: isStoredLocation,
   savedLocations: isPlaces,
   skinType: oneOf(SKIN_TYPES),
   sunscreen: isBoolean,
@@ -279,7 +280,7 @@ export function isStoredGuestPlan(raw: unknown): raw is UserPreferences {
     isStoredPlan(raw) &&
     raw.uid === '' &&
     raw.tier === 'anonymous' &&
-    raw.savedLocations.length === 0 &&
+    raw.savedLocations.length <= TIER_LIMITS.anonymous.savedLocations &&
     raw.activities.length <= TIER_LIMITS.anonymous.activities &&
     ACCOUNT_ONLY.every(field => !(field in raw))
   )

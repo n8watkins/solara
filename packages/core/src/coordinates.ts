@@ -14,3 +14,11 @@ export function roundCoordinate(value: number): number {
   // `+ 0` folds -0 into 0 so rounded values compare and serialize cleanly.
   return Math.round(value * factor) / factor + 0
 }
+
+/** Two places closer than the rounding grid are the same place. */
+export function samePlace(
+  a: { lat: number; lon: number },
+  b: { lat: number; lon: number },
+): boolean {
+  return Math.abs(a.lat - b.lat) < 0.01 && Math.abs(a.lon - b.lon) < 0.01
+}

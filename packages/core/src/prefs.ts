@@ -13,7 +13,7 @@
 // so an old client never downgrades data it does not understand.
 
 import * as v from 'valibot'
-import { roundCoordinate } from './coordinates'
+import { roundCoordinate, samePlace } from './coordinates'
 import {
   CALENDAR_HOUR_BOUNDS,
   CLOCK_FORMAT_PREFERENCES,
@@ -134,9 +134,9 @@ export const LOCATION_SHAPE = {
 export const LocationSchema = record(LOCATION_SHAPE)
 export type Location = v.InferOutput<typeof LocationSchema>
 
-/** Two places closer than the rounding grid are the same place. */
+/** Two places closer than the rounding grid are the same place (./coordinates.ts). */
 export function sameLocation(a: Location, b: Location): boolean {
-  return Math.abs(a.lat - b.lat) < 0.01 && Math.abs(a.lon - b.lon) < 0.01
+  return samePlace(a, b)
 }
 
 // ---- Profiles ---------------------------------------------------------------------
