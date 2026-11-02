@@ -99,7 +99,10 @@ Tick the boxes as you go and tell me when a group is done, so I can do my follow
 
 ## Later, no rush
 
-- Find a native Spanish speaker to review the safety wording (burn times, SPF advice, "seek shade", the push and feed text) and the Spanish privacy policy and terms; the language plan is [ROADMAP item 46](ROADMAP.md#46-languages-setup-and-the-app-in-spanish-built); the sheet to review is [i18n/es-review.md](i18n/es-review.md). Counsel reviews the Spanish legal pages with the English ones.
+- Find a native Spanish speaker to review the safety wording (burn times, SPF advice, "seek shade", the push and feed text) and the Spanish privacy policy and terms; the language plan is [ROADMAP item 46](ROADMAP.md#46-languages-setup-and-the-app-in-spanish-built); the sheet to review is [i18n/es-review.md](i18n/es-review.md).
+  The lawyer, when there is one, reviews the Spanish legal pages with the English ones ([LEGAL_REVIEW.md](LEGAL_REVIEW.md) L5).
 
-- A lawyer reviews the governing-law terms, and also: an EU and UK representative, reCAPTCHA consent in the EU, Mexico's privacy notice, children in family profiles, storing vitamin D entries on accounts, and (before Pro) California's auto-renewal rules ([PLAN.md](PLAN.md) O16 and O20).
-- The vitamin D log you chose on 2026-11-01 is built, kept only on the device and on by default ([ROADMAP item 48](ROADMAP.md#48-vitamin-d-log-vitd-built-on-the-device)); to hide it, set the repository variable `VITAMIN_D_LOG` to `false`. Its defaults (skin presets, sunscreen factor, the 600 IU comparison, each account's log kept on the device and hidden after a sign-out) are yours to change; syncing it to accounts waits for the lawyer's note.
+- **Eventually: lawyer.** Every legal question, its risk, the default in place and when it becomes urgent is in [LEGAL_REVIEW.md](LEGAL_REVIEW.md); nothing there blocks the free app today (owner, 2026-11-01).
+  The first ones to become urgent: auto-renewal and taxes before Pro, the EU items before promoting in the EU.
+- The vitamin D log you chose on 2026-11-01 is built, kept only on the device and on by default ([ROADMAP item 48](ROADMAP.md#48-vitamin-d-log-vitd-built-on-the-device)); to hide it, set the repository variable `VITAMIN_D_LOG` to `false`.
+  Its defaults (skin presets, sunscreen factor, the 600 IU comparison, each account's log kept on the device and hidden after a sign-out) are yours to change; syncing it to accounts is not built for now, so no health data is stored on a server ([LEGAL_REVIEW.md](LEGAL_REVIEW.md) L6).

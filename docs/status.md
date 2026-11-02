@@ -58,7 +58,7 @@ What users get:
   The landing page, the privacy policy, the terms and the city pages have Spanish addresses under `/es/` (`/es/`, `/es/privacy/`, `/es/terms/`, `/es/uv/`, `/es/uv/<city>/`), static like their English pages, with `<html lang="es">`, `hreflang` links both ways (English as x-default), sitemap entries and a link to the other language on each page; the Spanish legal pages are full translations that say the English version prevails.
   Pushes and the calendar feed follow the account's `language` when one is chosen in Settings, else (on Automatic) its `deviceLanguage`, the language the app last resolved from a device (only `en` or `es`, saved only when it changes, so the last device to open the app wins), else English; the privacy policy says so.
   The icon picker's search understands Spanish words.
-  The Spanish safety wording and the Spanish legal pages wait for a native speaker's review ([es-review.md](i18n/es-review.md)), and the legal pages for counsel's too.
+  The Spanish safety wording and the Spanish legal pages wait for a native speaker's review ([es-review.md](i18n/es-review.md)), and the legal pages eventually for a lawyer's too ([LEGAL_REVIEW.md](LEGAL_REVIEW.md)).
 - UV and weather forecasts from Open-Meteo, in the location's time zone, with Celsius or Fahrenheit and 12- or 24-hour time chosen from the locale or in Settings.
   When Open-Meteo does not answer, the app says the forecast service is not answering and tries again every minute; without any forecast the dashboard shows "No forecast yet" with "Try again now" (ROADMAP item 37).
 - Personalized activity windows on the dashboard and in the week calendar, within each plan's days.
@@ -98,6 +98,7 @@ What users get:
   An account the browser cannot fully delete (billing or server-only records, which the Spark plan never writes) is told before anything is deleted to email contact@n8builds.dev, and a deletion that stops half way says so and finishes when retried.
 - Opt-in Google Analytics 4, asked by a banner at the top of the app's pages, in the page flow, so it never covers anything.
 - The privacy policy and terms with the operator details (#46), the Google user data section (#48) and the Sentry and reCAPTCHA notices (#70); each has its own last-updated date (`lib/legal.ts`).
+  The terms have a "Not medical advice" section (November 1, 2026), and the app says the same wherever health estimates appear (the dashboard footer, setup's skin type step, the sunscreen guide, the vitamin D log, Settings' skin type help, the landing and city pages): estimates for planning and tracking, not medical advice, and who should ask a health professional ([ROADMAP decision "Not medical advice"](ROADMAP.md#decisions)).
 - Firestore rules and indexes, deployed by every push to `main`.
   Since #148 (ROADMAP item 36) the rules also bound key lists to record keys and group selection to 768 characters, and tests prove every server-only collection and collection group is refused to clients.
   The rules also hold each account's activities, saved places and profiles to its plan (Free 3, 3 and 1; Pro 20, 12 and 6), so the limits do not depend on the client; an account back on Free keeps and can shrink what it saved on Pro.
@@ -202,9 +203,10 @@ How deploys work and how to configure them is in [DEPLOYMENT.md](DEPLOYMENT.md).
 
 ### Open
 
-The vitamin D log is built on the device only ([ROADMAP item 48](ROADMAP.md#48-vitamin-d-log-vitd-built-on-the-device)); syncing it to accounts (PLAN C10) waits for the lawyer's note (O5).
+The vitamin D log is built on the device only ([ROADMAP item 48](ROADMAP.md#48-vitamin-d-log-vitd-built-on-the-device)); syncing it to accounts (PLAN C10) is not built for now (owner 2026-11-01: no lawyer for now, so the log stays on the device and Solara holds no health data on a server).
+Legal questions wait for an eventual lawyer review; [LEGAL_REVIEW.md](LEGAL_REVIEW.md) lists each with its risk, the best-judgement default in place and when it becomes urgent.
 The ordered list is [Next steps, in order](OWNER_CHECKLIST.md#next-steps-in-order), checked against the live GitHub settings on 2026-10-28.
-Anytime (group A): confirming that a non-test Google account can sign in (REVIEW8 QA M5), the Google Calendar client ID, OAuth branding resubmission and publishing, calendar scope verification, App Check, Sentry, the browser key's website restriction and Auth clean-up, Firestore quota caps and a traffic alert, trying the TTL policies, the `production` environment, Workload Identity Federation (D4), moving the public build values to variables and deleting `NEXT_PUBLIC_PRO_PRICE`, ruleset hardening, private vulnerability reporting, closing three alerts, small clean-ups and counsel review of the governing-law language.
+Anytime (group A): confirming that a non-test Google account can sign in (REVIEW8 QA M5), the Google Calendar client ID, OAuth branding resubmission and publishing, calendar scope verification, App Check, Sentry, the browser key's website restriction and Auth clean-up, Firestore quota caps and a traffic alert, trying the TTL policies, the `production` environment, Workload Identity Federation (D4), moving the public build values to variables and deleting `NEXT_PUBLIC_PRO_PRICE`, ruleset hardening, private vulnerability reporting, closing three alerts, small clean-ups, and eventually a lawyer's review of [LEGAL_REVIEW.md](LEGAL_REVIEW.md).
 The staging steps (group B, D9) can start: the staging deploy is built ([ROADMAP item 34](ROADMAP.md#34-staging-deploy-before-the-pro-launch-built)) and waits for the staging project and the `staging` environment; Blaze, the Stripe live setup, the Open-Meteo commercial plan (D5, now before billing) and the switches come at the Pro launch (groups C and D).
 
 ## Known test boundary

@@ -6,7 +6,8 @@ It was drafted, then attacked by an adversarial review (21 issues: 1 critical, 6
 
 Steps are split by who does them:
 
-- **Owner (O-steps):** anything that needs your accounts, money, a real phone, a legal judgment or a decision only you can make.
+- **Owner (O-steps):** anything that needs your accounts, money, a real phone or a decision only you can make.
+  Legal questions wait for an eventual lawyer review; until then Claude uses a recorded best-judgement default for each ([LEGAL_REVIEW.md](LEGAL_REVIEW.md), owner 2026-11-01).
   When a step says "send evidence", a screenshot or the command output is enough; Claude then checks it.
 - **Claude (C-steps):** code, tests, docs, pull requests, merges on green CI, and checks from the live site.
   Claude cannot change GitHub variables or secrets, any Google Cloud, Firebase, Stripe, Azure or Play setting, or pay for anything.
@@ -35,7 +36,7 @@ Detailed console steps are in [OWNER_CHECKLIST.md](OWNER_CHECKLIST.md).
    Decide before spending effort tied to the name and domain (O1).
 4. **The domain** is tied into API key restrictions, App Check, Google's review and Outlook's redirect, so it must be settled before those steps (O2).
 5. **Taxes and auto-renewal law** were missing from the Pro launch (O20).
-6. **The vitamin D log** touches health data: it starts on the device only, behind a switch, and syncs to accounts only after the privacy text and a lawyer's note (Phase 2).
+6. **The vitamin D log** touches health data: it starts on the device only, behind a switch; since a lawyer review is far off (owner, 2026-11-01), it stays on the device for now ([LEGAL_REVIEW.md](LEGAL_REVIEW.md) L6).
 7. Several steps had Claude doing things only you can do; they are now O-steps with Claude checking the evidence.
 
 ## Phase 0 - Finish Review 10 (Claude, now)
@@ -75,15 +76,17 @@ Rollback: App Check enforcement can be switched off in the console in one click.
 ## Phase 2 - Vitamin D log (Claude)
 
 Starts after Phase 0.
-Your decisions so far: build the log (2026-11-01); keep the dashboard card and state its dose.
+Your decisions so far: build the log (2026-11-01); keep the dashboard card and state its dose; no lawyer for now, so the log stays on the device (2026-11-01).
 
 - **C8. Short spec first (built, [ROADMAP item 48](ROADMAP.md#48-vitamin-d-log-vitd-built-on-the-device)),** written into ROADMAP item 48 before code: no goals, streaks or badges; the shared calculation the card uses; sunscreen and uncovered skin modelled; no UV cut-off; age not modelled (stated in the help text).
 - **C9. Build, device only, behind a switch (built, item 48; the switch `VITAMIN_D_LOG` is on by default):** sessions by hand and one tap from a finished activity, each with its estimate and how close it came to the burn time, today and 7-day totals, stored in the browser, in English and Spanish, loaded only when opened.
-- **C10. Account sync,** only after O5: synced, rules-checked, in the data download, deleted with the account, pruned after a year, and one privacy line in both languages.
+- **C10. Account sync (eventually, not built for now):** synced, rules-checked, in the data download, deleted with the account, pruned after a year, and one privacy line in both languages, once a lawyer has looked at O5.
+  Best-judgement default until then: device only, so Solara holds no health data on a server (ROADMAP decision "Vitamin D log sync").
 
 Owner:
 
-- **O5. Lawyer note** on storing sun-exposure and vitamin D entries on accounts (is it health data where your users live), before C10.
+- **O5. Lawyer note, eventually** ([LEGAL_REVIEW.md](LEGAL_REVIEW.md) L6): is storing sun-exposure and vitamin D entries on accounts health data where your users live.
+  Default until then: the log stays on the device and C10 is not built.
 
 Exit gate: calculation tests, an end-to-end log-and-total test, screenshots in both languages, the first-load limit held.
 Rollback: the switch hides the log; device data stays untouched.
@@ -119,7 +122,9 @@ Three separate tracks:
 - **O14. Blaze:** attach billing, run `infra/budget.sh` (read, then `--apply`), set `BUDGET_ID` and `BUDGET_SERVICE_ACCOUNT`, grant the deploy account the guard's roles, set `ENABLE_BUDGET_GUARD=true` and re-run the Deploy workflow, then run `infra/budget-dry-run.sh` (read, then `--apply`) and send the log lines (checklist C3).
 - **C15. Weekly backup:** a script you run (or schedule) that exports Firestore to a storage bucket, with a restore drill in staging later.
 - **O15. Spanish review** by a native speaker of `docs/i18n/es-review.md`; required before promoting the Spanish version or shipping new Spanish safety text.
-- **O16. Legal review,** widened: governing law, the Spanish legal text, an EU and UK representative, reCAPTCHA consent in the EU, Mexico's privacy notice, children in family profiles, and the vitamin D data (O5).
+- **O16. Legal review, eventually** ([LEGAL_REVIEW.md](LEGAL_REVIEW.md)): governing law, the Spanish legal text, an EU and UK representative, reCAPTCHA consent in the EU, Mexico's privacy notice, children in family profiles, the vitamin D data (O5) and the rest of that list.
+  Default until then (owner, 2026-11-01): no lawyer for now; each item keeps the best-judgement default recorded there, and the terms and app say Solara is not medical advice and who should ask a health professional.
+  It becomes urgent item by item, as LEGAL_REVIEW.md says (for example before promoting in the EU, before Pro, before a Play listing).
 
 Exit gate: on Blaze, a test budget message makes the guard act (checked by Claude from the logs you send); a backup exists and restores in a test.
 Rollback: detaching billing returns the project to Spark.
@@ -130,7 +135,7 @@ Rollback: detaching billing returns the project to Spark.
 - **O18. Stripe in test mode on staging.**
 - **C16 with you: every Pro check on staging:** payments, alerts and the free pushes on a real phone (you hold the phone), a restore drill, the kill switch at a tiny budget, a compressed request refused, a reminder on time.
 - **O19. Open-Meteo Standard plan,** bought a few days before the first subscriber (checklist C9), not after.
-- **O20. Taxes and renewals:** choose Stripe Tax with the registrations it needs, a reseller that handles tax (merchant of record), or no EU and UK sales at first; and have the lawyer check the trial reminder and cancel path against California's auto-renewal law.
+- **O20. Taxes and renewals:** choose Stripe Tax with the registrations it needs, a reseller that handles tax (merchant of record), or no EU and UK sales at first; and have the trial reminder and cancel path checked against California's auto-renewal law ([LEGAL_REVIEW.md](LEGAL_REVIEW.md) L14 and L15: the one lawyer item that must happen before `BILLING_ENABLED`).
 - **O21. Production order:** the live Stripe webhook, the four Functions secrets, the first Functions deploy, then `FORECAST_PROXY_ENABLED`, `BILLING_ENABLED`, and the alerts steps (Cloud Tasks, roles, the TTL rerun, region check, `ALERTS_ENABLED`).
 - **C17. Final security review** on the release commit, and a check of each switch from the live site as you flip it.
 
@@ -149,7 +154,7 @@ Ranked by value to users; each starts with a short spec and the usual review.
 
 1. Place that follows the phone (offer to switch when far from the saved place; quick switch between saved places): spec in [ROADMAP item 54](ROADMAP.md#54-place-that-follows-the-phone-travel-built), built.
 2. Burn-time fit as a feature (how much sunscreen makes a plan fit).
-3. Light-sensitivity setting (some medicines, pregnancy, recent peels), after the O16 legal review.
+3. Light-sensitivity setting: allowed now (owner, 2026-11-01), designed to store no medical detail: one factor, "I burn more easily than my skin type suggests" (normal, more sensitive, much more sensitive), with help text that names examples (some medicines, pregnancy, recent peels) only as information and never asks which applies ([LEGAL_REVIEW.md](LEGAL_REVIEW.md) L7); built in a later lane.
 4. Hat, sunglasses and shade in the advice line.
 5. "Better window" for events you control.
 6. Air quality and pollen (needs a cost line first).
@@ -164,5 +169,6 @@ The Android widget and Wear OS tiles belong to the Expo app.
 | Keep the name "Solara" (O1) | Keep; no new name-dependent spending |
 | Own domain (O2) | Stay on `solara-uv.web.app` |
 | Who answers support email (O3) | The address the app lists today |
-| Vitamin D data on accounts (O5) | Device only |
+| Vitamin D data on accounts (O5) | Device only; no lawyer for now ([LEGAL_REVIEW.md](LEGAL_REVIEW.md) L6) |
+| Legal questions (O16) | Best-judgement default per item in [LEGAL_REVIEW.md](LEGAL_REVIEW.md) |
 | Tax approach for Pro (O20) | Not decided; Pro does not launch without it |
