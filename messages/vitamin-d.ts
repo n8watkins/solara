@@ -1,10 +1,11 @@
 // The vitamin D log (ROADMAP item 48): its dialog, sessions, totals, chart and form. Every
 // number is an estimate and says so; nothing here sets a goal or rewards more sun.
-import { defineMessages, plural } from '@solara/core/i18n'
+import { defineMessages, formatNumber, plural } from '@solara/core/i18n'
 
 export default defineMessages('vitaminD', {
-  title: 'Vitamin D log',
-  lead: 'Rough estimates of the vitamin D your time in the sun may have made, and how close each session came to a burn.',
+  // Titles, buttons and headings keep "vitamin D" on one line (a no-break space).
+  title: 'Vitamin\u00a0D log',
+  lead: 'Rough estimates of the vitamin\u00a0D your time in the sun may have made, and how close each session came to a burn.',
   deviceOnly:
     'Kept only in this browser and never sent to Solara. Signing out hides it until you sign back in here.',
 
@@ -17,7 +18,10 @@ export default defineMessages('vitaminD', {
   comparison: (amount: string, olderAmount: string) =>
     `For comparison, a commonly cited daily amount is ${amount} IU (15 mcg) for adults, ${olderAmount} IU over 70 (US National Academies, 2011). That is an intake from food and supplements, not a target for time in the sun.`,
 
-  chartTitle: 'Estimated vitamin D by day, last 7 days',
+  chartTitle: 'Estimated vitamin\u00a0D by day, last 7 days',
+  /** A bar's value: "6.7K" (the short compact form, which fits the bar). */
+  chartValue: (iu: number) =>
+    formatNumber(iu, { notation: 'compact', compactDisplay: 'short', maximumFractionDigits: 1 }),
   chartDay: 'Day',
   chartEstimate: 'Estimate',
   chartSessions: 'Sessions',

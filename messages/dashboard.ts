@@ -39,13 +39,14 @@ export default defineMessages('dashboard', {
   editSkinType: 'Edit skin type',
   edit: 'Edit',
   until: (when: string) => `Until ${when}`,
-  vitdTitle: 'Vitamin D estimate',
+  // Titles, buttons and headings keep "vitamin D" on one line (a no-break space).
+  vitdTitle: 'Vitamin\u00a0D estimate',
   vitdHelp: (dose: string) =>
     `About ${dose} IU of vitamin D for an adult with arms and legs bare: roughly a third of the time it takes the skin to redden (the common rule of thumb, Holick, 2004). A rough model, not a recommended exposure target. Needs and production vary widely and fall with age; ask a clinician if you are concerned.`,
   vitdDose: (dose: string) => `≈${dose} IU · arms\u00a0+\u00a0legs`,
   uvTooLow: 'UV too low',
   needsUv1: 'Needs UV 1 or more',
-  vitdLog: 'Vitamin D log',
+  vitdLog: 'Vitamin\u00a0D log',
   vitdLogHint: 'Write down time in the sun',
 
   shareFailed: 'Could not share. Check your connection and try again.',

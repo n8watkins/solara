@@ -14,11 +14,6 @@ export function iuText(iu: number): string {
   return iu > 0 ? m.underFiftyIu : m.noneIu
 }
 
-/** The bar's short label: "1.2K", "350", "0". */
-function shortIu(iu: number): string {
-  return formatNumber(roundIu(iu), { notation: 'compact', maximumFractionDigits: 1 })
-}
-
 /**
  * The last 7 days' estimates as bars, oldest first, with each day and value on screen and
  * a table for screen readers (the bars are drawn only). No goal line: the log sets none.
@@ -28,11 +23,16 @@ export default function WeekChart({ totals, today }: { totals: DayTotal[]; today
   return (
     <figure className="m-0" data-testid="vitd-week-chart">
       <figcaption className="mb-2 text-[12px] font-semibold text-ink-2">{m.chartTitle}</figcaption>
-      <div aria-hidden="true" className="grid grid-cols-7 gap-1.5">
+      <div aria-hidden="true" className="grid grid-cols-7 gap-1">
         {totals.map(total => (
           <div key={total.date} className="flex min-w-0 flex-col items-center gap-1">
-            <span className="text-[10px] leading-none font-semibold text-ink-2 tabular-nums">
-              {shortIu(total.iu)}
+            {/* Two lines tall in every language, so the bars line up: "6.7 mil" wraps
+                under its number in a bar this narrow. */}
+            <span
+              data-testid="vitd-chart-value"
+              className="flex h-[22px] items-end text-center text-[10px] leading-[11px] font-semibold text-ink-2 tabular-nums"
+            >
+              {m.chartValue(roundIu(total.iu))}
             </span>
             <div className="flex h-16 w-full max-w-7 items-end rounded-md bg-surface-metric">
               <div

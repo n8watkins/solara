@@ -144,6 +144,31 @@ async function atEachWidth(page: Page, t: TestInfo, name: string) {
   }
 }
 
+/**
+ * The words on the last line of an element's text as laid out: each character's line is
+ * the top of its box, and the last line is everything on the lowest one.
+ */
+async function lastLine(page: Page, selector: string): Promise<string> {
+  return page.locator(selector).evaluate(element => {
+    const text = element.firstChild
+    if (!text || text.nodeType !== Node.TEXT_NODE) return element.textContent ?? ''
+    const range = document.createRange()
+    const chars: { top: number; char: string }[] = []
+    for (let i = 0; i < (text.textContent ?? '').length; i++) {
+      range.setStart(text, i)
+      range.setEnd(text, i + 1)
+      const box = range.getClientRects()[0]
+      if (box) chars.push({ top: Math.round(box.top), char: text.textContent![i]! })
+    }
+    const bottom = Math.max(...chars.map(c => c.top))
+    return chars
+      .filter(c => c.top === bottom)
+      .map(c => c.char)
+      .join('')
+      .trim()
+  })
+}
+
 for (const lang of LANGUAGES) {
   test.describe(`in ${lang.code}`, () => {
     test('the log lists sessions with their estimate and burn risk', async ({ page }, testInfo) => {
@@ -158,6 +183,26 @@ for (const lang of LANGUAGES) {
       await expect(dialog.getByRole('table')).toHaveCount(1)
       await expect(dialog.getByRole('table').getByRole('row')).toHaveCount(8)
       await atEachWidth(page, testInfo, `vitd-log-${lang.code}`)
+      // The bars' values never run into each other ("6.7 mil 2.4 mil"), at any width.
+      for (const width of widths(testInfo)) {
+        await page.setViewportSize({ width, height: mobile(testInfo) ? 844 : 900 })
+        const touching = await page.getByTestId('vitd-chart-value').evaluateAll(values =>
+          values.slice(1).some((value, i) => {
+            const left = values[i]!.getBoundingClientRect()
+            return value.getBoundingClientRect().left < left.right + 2
+          }),
+        )
+        expect(touching, `bar values touch at ${width} px`).toBe(false)
+      }
+      // At 320 px the title never leaves one character alone on its last line ("D").
+      if (mobile(testInfo)) {
+        await page.setViewportSize({ width: 320, height: 844 })
+        const title = 'dialog[open] h2'
+        expect(
+          (await lastLine(page, title)).replace(/\s/g, '').length,
+          `the title's last line at 320 px: "${await lastLine(page, title)}"`,
+        ).toBeGreaterThan(1)
+      }
       await captureScreen(page, testInfo, capture, {
         name: `vitamin-d-log-${lang.code}`,
         fullPage: false,

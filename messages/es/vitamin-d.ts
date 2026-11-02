@@ -1,9 +1,9 @@
-import { plural, type Translation } from '@solara/core/i18n'
+import { formatNumber, plural, type Translation } from '@solara/core/i18n'
 import type vitaminD from '../vitamin-d'
 
 export default {
   title: 'Registro de vitamina\u00a0D',
-  lead: 'Estimaciones aproximadas de la vitamina D que tu tiempo al sol pudo producir, y de qué tan cerca estuvo cada sesión de una quemadura.',
+  lead: 'Estimaciones aproximadas de la vitamina\u00a0D que tu tiempo al sol pudo producir, y de qué tan cerca estuvo cada sesión de una quemadura.',
   deviceOnly:
     'Se guarda solo en este navegador y nunca se envía a Solara. Al cerrar sesión se oculta hasta que vuelvas a iniciarla aquí.',
 
@@ -16,7 +16,10 @@ export default {
   comparison: (amount, olderAmount) =>
     `Como referencia, una cantidad diaria que se cita a menudo es ${amount} UI (15 mcg) para personas adultas y ${olderAmount} UI a partir de los 70 años (Academias Nacionales de EE. UU., 2011). Es una ingesta con alimentos y suplementos, no una meta de tiempo al sol.`,
 
-  chartTitle: 'Vitamina D estimada por día, últimos 7 días',
+  chartTitle: 'Vitamina\u00a0D estimada por día, últimos 7 días',
+  // "6.7 mil": the short Latin American form, "6.7 K", reads as English.
+  chartValue: iu =>
+    formatNumber(iu, { notation: 'compact', compactDisplay: 'long', maximumFractionDigits: 1 }),
   chartDay: 'Día',
   chartEstimate: 'Estimación',
   chartSessions: 'Sesiones',
