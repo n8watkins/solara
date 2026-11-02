@@ -775,6 +775,63 @@ Two small cleanups.
   On phones the row's gaps and the place button's side padding tighten by a few pixels, so "Los Angeles" reads in full at 320 px beside "Iniciar sesión", and "San Francisco" and "Rio de Janeiro" from 390 px; "Ciudad de México" and "San Luis Obispo, California" end in an ellipsis beside a guest's Spanish controls.
 - **Tests:** `.github/scripts/check-dashes.test.mjs`; `tests/harness/dashboard-polish.spec.ts` checks six short and long names in English and Spanish, as a guest and on Pro, at 320, 390 and 1280 px in both themes: one line, an ellipsis when cut, the full name as the accessible name and title, which names must read in full, no overlapping controls and a single-row header.
 
+### 54. Place that follows the phone (TRAVEL, in progress)
+
+[PLAN.md](PLAN.md) Phase 8, item 1, and the third of Review 10's ranked features (`handoff/review10-qa10.md`): travellers get the saved city's UV today without noticing, the same harm as H1.
+
+**Status:** spec written 2026-11-01; being built.
+
+**Goal:** the forecast on screen is for where the person is, or they can see at a glance that it is not, and switching between the places they care about takes one tap.
+
+**Words:**
+
+- *Home* is the plan's own place (`location` in the preferences): the one setup and Settings, Location, set, and the one the server uses.
+- *Saved places* are home plus the places kept for quick switching (`savedLocations`).
+- *The shown place* is what the app forecasts and plans for on this device: home, unless a visit is on.
+- *A visit* is another place shown on this device for a while (a trip, or a look at a saved place), kept in this browser only; it never changes home.
+
+**Saved places and the place menu:**
+
+- Limits, home included (`TIER_LIMITS.savedLocations` in `packages/core/src/tiers.ts`): 5 for guests and Free accounts (home plus 4 more), 12 for Pro (unchanged); a guest had 1 and a Free account 3.
+- The header's place name opens a small menu (the existing location panel, loaded on demand): "Back to <home>" first while a visit is on, then home (marked as home) and the other saved places, the shown one marked as current (`aria-current`, a check and "Showing" in words), each one tap to show, the others removable; "Save" for a shown place that is not saved yet and "Set as home" for a shown place that is not home; "Use my location" (asks for permission only on that tap); the place search.
+- Showing a saved place, a searched place or "Use my location" starts a visit; it never changes home.
+  "Set as home" (or Settings, Location) changes home, keeps the old home as a saved place when there is room, and ends the visit.
+- A place picked in the search is saved when there is room, as before.
+- Opening the menu no longer puts the cursor in the search field, so a phone's keyboard does not cover the places; Tab reaches it.
+- Escape closes the menu and returns focus to the place name.
+
+**While a visit is on:**
+
+- The header's place name shows a plane icon in the accent colour, and its accessible name says "Visiting <place>, home is <home>"; the menu opens with "Back to <home>".
+- Everything that depends on place follows the shown place: the forecast, activity windows and plans, the hero, the daily briefing, the burn and vitamin D estimates, the vitamin D log's forecast UV, the week calendar, the .ics export and Google Calendar adding (their time zone is the forecast's), event places' search bias and shares.
+- The server keeps using home: the live calendar link, the morning alert, the free daily UV push and event heads-ups, until the person sets the visited place as home.
+  The place menu says so for a signed-in account, and the calendar link card says so during a visit (English and Spanish).
+
+**The travel prompt:**
+
+- When the app opens (and when it comes back to the foreground after at least an hour), and only when location permission is already granted (`navigator.permissions.query`; without the Permissions API, or with "prompt" or "denied", nothing happens and nothing is asked), the app reads the device position once (low accuracy, a cached position up to 10 minutes old, 15 seconds at most).
+- If the position is more than 50 km from the shown place (great-circle distance, `TRAVEL_PROMPT_DISTANCE_KM`), it names the nearest place: the closest saved place within 50 km of the position, or else the place the existing reverse lookup gives in the page's language (`lib/geocoding.ts`, #168); if the lookup fails, nothing shows.
+- It then shows a calm banner above the dashboard: "You seem to be in <place>. Show UV here?" with "Switch" and "Not now".
+  "Switch" starts a visit there (or, when the place is home, ends the visit); "Not now" hides it and stays quiet for 24 hours anywhere within 50 km of that place.
+- The decision is one pure function in core (`decideTravelPrompt` in `packages/core/src/travel.ts`), shared with the future Android app.
+- The banner, the permission check, the distance and the lookup load on demand after the page has loaded; the first load keeps only reading the stored visit and the header's icon.
+
+**Storage and privacy:**
+
+- Saved places sync for an account in the preferences document, as before; `firestore.rules` now also range-checks each saved place's coordinates (-90 to 90, -180 to 180), with the list capped at 5 on Free and 12 on Pro and names at 120 characters, within the rules' expression budget.
+  They are in the account data download (the preferences section) and deleted with the account, as before.
+- A guest's saved places stay in the guest plan in this browser.
+- The visit and the "Not now" areas are kept only in this browser (`solara_travel`), for the owner who made them (a guest, or an account), never sent to Solara: the visit as the chosen place's name and coordinates rounded to 2 decimals like every saved place, and each "Not now" area as coordinates rounded to 1 decimal (about 10 km) with its end time, at most 20.
+  The device position itself is never stored; it is rounded to 2 decimals before the reverse lookup, as "Use my location" already does.
+  Signing out, another account signing in and deleting the account remove it; the account page's download includes it (`thisDevice.travel`).
+- The privacy policy, in English and Spanish, says that with location permission already allowed Solara checks the device's position when it opens, only to offer the forecast there, and what it keeps.
+
+**Defaults the owner may change:** 5 saved places (home included) for guests and Free, 12 for Pro; 50 km; "Not now" for 24 hours within 50 km; a check on opening and after an hour in the background; a visit lasts until the person ends it (no expiry); showing any place other than home from the menu is a visit; the server uses home.
+
+**Not in this step:** following the phone in the background or changing home automatically; the server's alerts following a visit; a visit synced across devices.
+
+**Acceptance:** unit tests for the distance and the prompt decision (far, near, a nearby saved place, a dismissed area, an expired dismissal, the shown place already where the device is); storage tests (owner, rounding, pruning, bad data); rules tests (range, length, the new caps, the expression budget); end-to-end tests on the export with a mocked position: permission granted far away (banner, Switch, everything follows, Back to home), near (no banner), denied or not yet asked (no banner, no permission prompt, "Use my location" asks on tap), and "Not now" (no banner after a reload that day, the banner again the next day); keyboard and screen reader checks for the menu; harness screenshots at 320, 390 and 1280 px, light and dark, in both languages; the first-load budgets passing unchanged.
+
 ## Decisions
 
 Agents never make owner decisions; they follow the recorded decision or the default.
