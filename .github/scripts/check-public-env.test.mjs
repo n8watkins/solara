@@ -161,6 +161,16 @@ test('shows events from Outlook only with a Microsoft client ID', () => {
   )
 })
 
+test('accepts the vitamin D log switch only as 0, 1 or empty', () => {
+  for (const value of ['', '0', '1']) {
+    assert.deepEqual(checkEnv({ ...complete, NEXT_PUBLIC_VITAMIN_D_LOG: value }).errors, [])
+  }
+  assert.match(
+    checkEnv({ ...complete, NEXT_PUBLIC_VITAMIN_D_LOG: 'false' }).errors.join('\n'),
+    /NEXT_PUBLIC_VITAMIN_D_LOG must be '0', '1' or empty/,
+  )
+})
+
 test('rejects secrets in public values', () => {
   const { errors } = checkEnv({ ...complete, NEXT_PUBLIC_GA_MEASUREMENT_ID: 'sk_live_abc123' })
   assert.match(errors.join('\n'), /NEXT_PUBLIC_GA_MEASUREMENT_ID looks like a Stripe secret/)

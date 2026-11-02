@@ -24,6 +24,7 @@ import {
 import { withMessages } from '@/lib/i18n'
 import { installEnvironment, installPromptKind } from '@/lib/install-prompt'
 import { recoverFromStaleBuild } from '@/lib/stale-build'
+import { vitaminDLogEnabled } from '@/lib/vitamin-d-switch'
 import { AccountLoading } from './AccountStatus'
 import ReapplyTimerIdle from './dashboard/ReapplyTimerIdle'
 import type * as ActivityPlanModule from './dashboard/activity-plan'
@@ -136,6 +137,15 @@ const InstallPromptPart = deferred(() => withMessages(['setup'], () => import('.
 export const ActivityModals = deferred(() => import('./dashboard/ActivityModals'))
 /** A scheduled activity's details (change the time, remove it), opened from its card. */
 export const ScheduledDetails = deferred(() => import('./dashboard/ScheduledDetails'))
+/**
+ * The vitamin D log (ROADMAP item 48), from the dashboard's button or an activity's "Log
+ * it"; fetched with the rest only while its switch is on (lib/vitamin-d-switch.ts).
+ */
+export const VitaminDLog = deferred(
+  () => withMessages(['editor', 'vitaminD'], () => import('./vitamin-d/VitaminDLog')),
+  null,
+  { preloaded: vitaminDLogEnabled() },
+)
 export const DayDialog = deferred(() =>
   withMessages(['activities', 'editor'], () => import('./dashboard/DayDialog')),
 )

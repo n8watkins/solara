@@ -99,6 +99,7 @@ export type LazyNamespace =
   | 'share'
   | 'skinQuiz'
   | 'sunscreen'
+  | 'vitaminD'
 
 /** How a language fetches each of those namespaces, a chunk of its own. */
 export type LazyTranslations = Record<LazyNamespace, () => Promise<{ default: Messages }>>

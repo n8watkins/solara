@@ -5,6 +5,7 @@ import { INSTALL_DISMISS_KEY } from './install-prompt'
 import { clearLocalNotificationState } from './notifications'
 import { clearAccountData } from './session'
 import { THEME_STORAGE_KEY } from './theme'
+import { vitaminDLogOwner } from './vitamin-d-owner'
 
 /** Settings that belong to this browser, not to an account, and stay after a deletion. */
 export const DEVICE_STORAGE_KEYS: readonly string[] = [THEME_STORAGE_KEY, INSTALL_DISMISS_KEY]
@@ -17,10 +18,11 @@ export const DELIVERY_CACHE = 'solara-notification-deliveries-v1'
  * so nothing of the account is left. That is the account data clearAccountData removes
  * (preferences, the forecast cache with its places, the account marker), any guest plan,
  * this device's notification registration and the record of the notifications it showed,
- * and every other `solara_` entry (upsell dismissals, the reapply timer). Only the device
- * settings in DEVICE_STORAGE_KEYS stay. Firestore keeps no copy on disk (memory cache) and
- * the app-shell service worker stores nothing account-specific; Auth clears its own
- * session when the user is deleted or signed out.
+ * and every other `solara_` entry (upsell dismissals, the reapply timer, this account's
+ * vitamin D log and a guest's). Only the device settings in DEVICE_STORAGE_KEYS and other
+ * accounts' vitamin D logs, kept on this device under their own keys, stay. Firestore keeps no copy on
+ * disk (memory cache) and the app-shell service worker stores nothing account-specific;
+ * Auth clears its own session when the user is deleted or signed out.
  *
  * Never throws: the account is already gone, so a failure here must not hide that.
  */
@@ -32,7 +34,9 @@ export async function clearDeletedAccount(uid: string): Promise<void> {
   await clearLocalNotificationState(uid).catch(() => undefined)
   try {
     for (const key of Object.keys(localStorage)) {
-      if (key.startsWith('solara_') && !DEVICE_STORAGE_KEYS.includes(key)) {
+      const logOwner = vitaminDLogOwner(key)
+      const othersLog = typeof logOwner === 'string' && logOwner !== uid
+      if (key.startsWith('solara_') && !DEVICE_STORAGE_KEYS.includes(key) && !othersLog) {
         localStorage.removeItem(key)
       }
     }

@@ -48,16 +48,23 @@ describe('clearDeletedAccount', () => {
       'solara_guest_replaced',
       'solara_upsells_dismissed',
       'solara_reapply',
+      // The account's vitamin D log (ROADMAP item 48) goes with it, and a guest's.
+      'solara_vitamin_d_log:u1',
+      'solara_vitamin_d_log',
       'solara_notification_device_u1',
       'solara_fcm_token',
       'solara_theme',
       'solara_install_dismissed',
       'other_site_key',
+      // Another account's vitamin D log on this device stays.
+      'solara_vitamin_d_log:u2',
     ]) {
       store.set(key, '1')
     }
     await clearDeletedAccount('u1')
-    expect([...store.keys()].sort()).toEqual([...DEVICE_STORAGE_KEYS, 'other_site_key'].sort())
+    expect([...store.keys()].sort()).toEqual(
+      [...DEVICE_STORAGE_KEYS, 'other_site_key', 'solara_vitamin_d_log:u2'].sort(),
+    )
     expect(mocks.clearLocalNotificationState).toHaveBeenCalledWith('u1')
     expect(deleted).toEqual([DELIVERY_CACHE])
   })

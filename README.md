@@ -5,6 +5,7 @@ It combines Open-Meteo forecasts with a user's location, skin profile, sunscreen
 Anyone can try it without an account: a guest plan (today's forecast, one activity) stays in the browser.
 Signing in with Google is free and syncs the plan through Firestore; Pro adds 10 days, 20 activities, family profiles, and morning and UV alerts, and is a waitlist until billing launches.
 The plans are defined once, in `packages/core/src/tiers.ts`.
+A vitamin D log, kept only in the browser, records time in the sun with each session's estimated vitamin D and burn risk, from the same calculation as the dashboard's vitamin D card.
 The app speaks English and Latin American Spanish, from the device's language or the choice in Settings, Display; the landing, legal and city pages have Spanish addresses under `/es/` ([how it works](docs/i18n/README.md)).
 Billing (Stripe), the live calendar feed and Pro's push alerts are built as Firebase Functions but not deployed yet.
 Until they are, the account page downloads and deletes a signed-in account in the browser; the Functions take over when deployed.

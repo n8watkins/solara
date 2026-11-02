@@ -31,6 +31,25 @@ import { withMessages } from '@/lib/i18n'
 
 const FUNCTIONS_READY = functionsApiConfigured()
 
+/**
+ * What this browser keeps for the person outside the account, for the data download: the
+ * account's vitamin D log (ROADMAP item 48), kept only on this device; nothing when it is
+ * empty.
+ */
+async function thisDeviceData(uid: string): Promise<{ thisDevice?: { vitaminDLog: unknown } }> {
+  const [{ loadVitaminDLog }, { logExport }] = await Promise.all([
+    import('@/lib/vitamin-d-log'),
+    import('@solara/core/vitamin-d-log'),
+  ])
+  // Today on the device's calendar (YYYY-MM-DD), for the year the log keeps.
+  const now = new Date()
+  const today = [now.getFullYear(), now.getMonth() + 1, now.getDate()]
+    .map(n => String(n).padStart(2, '0'))
+    .join('-')
+  const entries = loadVitaminDLog(uid, today)
+  return entries.length > 0 ? { thisDevice: { vitaminDLog: logExport(entries) } } : {}
+}
+
 /** Where a failed deletion leaves the person, in plain words. */
 const emailFallback = () => m.emailFallback(DATA_REQUEST_EMAIL, DATA_REQUEST_DAYS)
 
@@ -149,8 +168,9 @@ function AccountPage() {
                 () => import('@/lib/account-self-service'),
               )
             ).exportAccountInBrowser(user.uid)
+      const file = { ...data, ...(await thisDeviceData(user.uid)) }
       const url = URL.createObjectURL(
-        new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }),
+        new Blob([JSON.stringify(file, null, 2)], { type: 'application/json' }),
       )
       const anchor = document.createElement('a')
       anchor.href = url

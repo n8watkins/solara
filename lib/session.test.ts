@@ -81,6 +81,10 @@ import { GUEST_KEY, loadGuestPrefs, saveGuestPrefs } from '@/lib/guest'
 import { GUEST_REPLACED_KEY, readReplacedGuestPlan } from '@/lib/guest-replaced'
 import { SignOutBlockedError, loadAccountPrefs, signOutAndClear } from '@/lib/session'
 import type { ForecastData, Location, UserPreferences } from '@/lib/types'
+import { VITAMIN_D_LOG_KEY, vitaminDLogKey } from '@/lib/vitamin-d-owner'
+
+/** A stored vitamin D log with one entry (its content does not matter here, only its owner). */
+const logOf = (id: string) => JSON.stringify({ version: 1, entries: [{ id }] })
 
 const storage = new Map<string, string>()
 
@@ -184,11 +188,17 @@ describe('switching accounts on one browser', () => {
 
   it("discards A's data when A's session ended without signing out", async () => {
     await useSolaraAs(accountA)
+    storage.set(vitaminDLogKey('user-a'), logOf('a'))
 
     // No sign-out: the session expired or was revoked, and B signs in next.
     mocks.currentUser = { uid: 'user-b', getIdToken: mocks.getIdToken }
     await expect(loadAccountPrefs('user-b')).resolves.toEqual({ status: 'needs-onboarding' })
     expect(mocks.users.has('user-b')).toBe(false)
+    // A's vitamin D log stays on the device under A's own key, which B never reads, for
+    // when A signs back in; nothing else of A's is left.
+    expect(storage.get(vitaminDLogKey('user-a'))).toBe(logOf('a'))
+    expect(storage.has(vitaminDLogKey('user-b'))).toBe(false)
+    storage.delete(vitaminDLogKey('user-a'))
     expectNothingFromA()
     expect(mocks.deleteToken).toHaveBeenCalled()
   })
@@ -222,8 +232,11 @@ describe('signOutAndClear', () => {
   it('clears local data even without a signed-in user', async () => {
     saveLocalPrefs(accountA)
     setCachedForecast(LA.lat, LA.lon, weather)
+    // A signed-in person's vitamin D log is their only copy: signing out keeps it, under
+    // the account's key, for when they sign back in.
+    storage.set(vitaminDLogKey('user-a'), logOf('a'))
     await signOutAndClear(null)
-    expect(storage.size).toBe(0)
+    expect([...storage.keys()]).toEqual([vitaminDLogKey('user-a')])
     expect(mocks.signOut).toHaveBeenCalledOnce()
   })
 })
@@ -299,6 +312,8 @@ describe('a guest signing in', () => {
 
   it('carries the guest plan into a brand-new account, then drops it from this browser', async () => {
     saveGuestPrefs(guestPlan)
+    storage.set(VITAMIN_D_LOG_KEY, logOf('guest'))
+    storage.set(vitaminDLogKey('user-b'), logOf('b'))
     const result = await loadAccountPrefs('user-b')
     expect(result).toMatchObject({
       status: 'ready',
@@ -313,6 +328,12 @@ describe('a guest signing in', () => {
     })
     expect(mocks.users.get('user-b')).toMatchObject({ activities: [RUN], tier: 'free' })
     expect(storage.has(GUEST_KEY)).toBe(false)
+    // The guest's vitamin D log joins the account's, and no later guest sees it.
+    expect(storage.has(VITAMIN_D_LOG_KEY)).toBe(false)
+    expect(JSON.parse(storage.get(vitaminDLogKey('user-b'))!)).toEqual({
+      version: 1,
+      entries: [{ id: 'b' }, { id: 'guest' }],
+    })
     // Nothing was left behind, so there is nothing to tell.
     expect(storage.has(GUEST_REPLACED_KEY)).toBe(false)
   })

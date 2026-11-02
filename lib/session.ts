@@ -11,6 +11,7 @@ import { clearReplacedGuestPlan, replacedGuestPlan, saveReplacedGuestPlan } from
 import { createAccountPrefs, loadFirestorePrefs } from './account-prefs'
 import { clearLocalPrefs, loadLocalPrefs } from './prefs'
 import { ACCOUNT_OWNER_KEY } from './app-routes'
+import { adoptGuestVitaminDLog } from './vitamin-d-owner'
 import type { UserPreferences } from './types'
 
 // Part of the signed-in account code: the device's language on an account on Automatic.
@@ -38,7 +39,11 @@ function writeOwner(uid: string): void {
   } catch {}
 }
 
-/** Removes every piece of account data Solara keeps in this browser outside Firebase Auth. */
+/**
+ * Removes every piece of account data Solara keeps in this browser outside Firebase Auth.
+ * The vitamin D log stays: it is kept only on this device, under its account's own key, so
+ * a sign-out or another account only hides it (lib/vitamin-d-switch.ts, ROADMAP item 48).
+ */
 export function clearAccountData(): void {
   clearLocalPrefs()
   clearWeatherCache()
@@ -123,6 +128,8 @@ export async function loadAccountPrefs(
     const replaced = replacedGuestPlan(loadGuestPrefs(), result.prefs)
     if (replaced) saveReplacedGuestPlan(uid, replaced)
     clearGuestData()
+    // The guest's vitamin D log goes with the guest plan, to the account.
+    adoptGuestVitaminDLog(uid)
   }
   return result
 }

@@ -6,7 +6,9 @@ import m from '@/messages/dashboard'
 // Per-day activity planning lives in @solara/core (packages/core/src/weather.ts), shared
 // with a native client; this module adds the web's display helpers (CSS colors, the
 // Google Calendar link).
-export { fmtDays, getActivityWindow, vitDMins } from '@solara/core/weather'
+export { fmtDays, getActivityWindow } from '@solara/core/weather'
+/** The vitamin D card's minutes, from the estimate the vitamin D log shares. */
+export { vitDMins } from '@solara/core/vitamin-d'
 
 /** 12-hour hour and time labels; components use useUnits() for the person's clock. */
 export { formatHour as fmtHour, formatClockTime as fmtClock } from './units'

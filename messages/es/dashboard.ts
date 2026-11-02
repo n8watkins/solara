@@ -39,12 +39,14 @@ export default {
   editSkinType: 'Editar tipo de piel',
   edit: 'Editar',
   until: when => `Hasta ${las(when)}`,
-  vitdTitle: 'Estimación de vitamina D',
+  vitdTitle: 'Estimación de vitamina\u00a0D',
   vitdHelp: dose =>
     `Unas ${dose} UI de vitamina D para una persona adulta con brazos y piernas descubiertos: más o menos un tercio del tiempo que tarda la piel en enrojecer (la regla práctica habitual, Holick, 2004). Un modelo aproximado, no una meta de exposición recomendada. Las necesidades y la producción varían mucho y bajan con la edad; consulta a un profesional de la salud si te preocupa.`,
   vitdDose: dose => `≈${dose} UI · brazos\u00a0+\u00a0piernas`,
   uvTooLow: 'UV demasiado bajo',
   needsUv1: 'Necesita UV de 1 o más',
+  vitdLog: 'Registro de vitamina\u00a0D',
+  vitdLogHint: 'Anota tu tiempo al sol',
 
   shareFailed: 'No se pudo compartir. Revisa tu conexión y vuelve a intentarlo.',
   sharedBriefing: 'Se compartió el resumen.',

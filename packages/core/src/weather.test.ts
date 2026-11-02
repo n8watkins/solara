@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import type { HourlyForecast } from './forecast-days'
 import type { Activity } from './prefs'
-import { getActivityWindow, vitDMins } from './weather'
+import { getActivityWindow } from './weather'
 
 describe('getActivityWindow — shade and surface', () => {
   // UV 3.6 at 8am, 4.0 at 9am, then 5 and above until 4pm.
@@ -90,23 +90,6 @@ describe('getActivityWindow - clouds counted once', () => {
     const hourly = day(3.5, 6).map(({ clearSkyUV: _, ...hour }) => hour)
     const r = getActivityWindow(hourly, walk, -1)
     expect(r.allWindows.map(w => [w.from, w.to])).toEqual([[6, 10]])
-  })
-})
-
-// ---------------------------------------------------------------------------
-// vitDMins — time to a vitamin D dose. Needs UV >= 1, floored at 1 minute.
-// ---------------------------------------------------------------------------
-describe('vitDMins', () => {
-  it('returns null below UV 1 (no vitamin D synthesis)', () => {
-    expect(vitDMins(0.9, 'fair')).toBeNull()
-  })
-
-  it('computes a sensible dose time', () => {
-    expect(vitDMins(5, 'fair')).toBe(9) // (15*0.3*10)/5 = 9
-  })
-
-  it('never returns less than 1 minute even at extreme UV', () => {
-    expect(vitDMins(50, 'fair')).toBe(1)
   })
 })
 

@@ -1,4 +1,5 @@
 import { planningFor } from '@solara/core'
+import type { BodyArea } from '@solara/core/sunscreen'
 import { useState } from 'react'
 import type { Activity, UserPreferences, WeatherResponse } from '@/lib/types'
 import type { DashboardAccess } from '@/lib/dashboard-view'
@@ -46,6 +47,7 @@ export default function ActivitiesSection({
   onOpenScheduled,
   onUpgrade,
   onPrefsUpdate,
+  onLogActivity,
 }: {
   prefs: UserPreferences
   weather: WeatherResponse
@@ -66,6 +68,8 @@ export default function ActivitiesSection({
   onOpenScheduled: (item: ScheduledActivity) => void
   onUpgrade: () => void
   onPrefsUpdate: (prefs: UserPreferences) => void
+  /** Logs a finished activity in the vitamin D log; absent when the log is off or not today. */
+  onLogActivity?: (activity: Activity, areas: readonly BodyArea[]) => void
 }) {
   const planner = useActivityPlanning()
   const [modal, setModal] = useState<'add' | 'manage' | null>(null)
@@ -151,6 +155,7 @@ export default function ActivitiesSection({
             scheduledOn(scheduledItems, activityId, dateStr, weather.timezone)
           }
           onOpenScheduled={onOpenScheduled}
+          onLogActivity={onLogActivity}
           laterDaysVisible={access.accessibleDays > 1}
           nextSlotFor={activity =>
             planner?.nextSlotAfterToday(

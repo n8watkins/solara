@@ -7,6 +7,7 @@ import { canUseCalendar } from '@solara/core/tiers'
 import type * as ShareCode from '@/lib/share'
 import type { SlotRecommendation } from '@solara/core/scheduler'
 import type { ActivityDayPlan } from '@solara/core/next-slot'
+import type { BodyArea } from '@solara/core/sunscreen'
 import type { UpcomingSlot } from '@solara/core/planner'
 import { windowsPassedNote } from '@/lib/dashboard-view'
 import type { ScheduledActivity, ScheduledSpan } from '@/lib/scheduled'
@@ -32,6 +33,8 @@ interface Props {
   scheduledFor?: (activityId: string) => { item: ScheduledActivity; span: ScheduledSpan }[]
   /** Opens a scheduled event's details (change time, remove). */
   onOpenScheduled?: (item: ScheduledActivity) => void
+  /** Logs a finished activity in the vitamin D log ("Log it"). */
+  onLogActivity?: (activity: Activity, areas: readonly BodyArea[]) => void
   /** The plan shows days after today (false on the guest plan). */
   laterDaysVisible: boolean
   /** An activity's soonest slot after today, for a card whose windows have passed. */
@@ -50,6 +53,7 @@ export default function ActivityCards({
   onEditActivity,
   scheduledFor,
   onOpenScheduled,
+  onLogActivity,
   laterDaysVisible,
   nextSlotFor,
 }: Props) {
@@ -128,6 +132,7 @@ export default function ActivityCards({
               onShare={win => void shareWindow(activity, win)}
               onEdit={onEditActivity && (() => onEditActivity(activity))}
               onOpenScheduled={onOpenScheduled}
+              onLog={onLogActivity && (areas => onLogActivity(activity, areas))}
               passedNote={
                 plan.elapsed
                   ? windowsPassedNote(nextSlotFor(activity), laterDaysVisible, fmt.time)

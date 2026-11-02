@@ -77,8 +77,8 @@ Rollback: App Check enforcement can be switched off in the console in one click.
 Starts after Phase 0.
 Your decisions so far: build the log (2026-11-01); keep the dashboard card and state its dose.
 
-- **C8. Short spec first,** written into ROADMAP item 48 before code: no goals, streaks or badges; the shared calculation the card uses; sunscreen and uncovered skin modelled; no UV cut-off; age not modelled (stated in the help text).
-- **C9. Build, device only, behind a switch:** sessions by hand and one tap from a finished activity, each with its estimate and how close it came to the burn time, today and 7-day totals, stored in the browser, in English and Spanish, loaded only when opened.
+- **C8. Short spec first (built, [ROADMAP item 48](ROADMAP.md#48-vitamin-d-log-vitd-built-on-the-device)),** written into ROADMAP item 48 before code: no goals, streaks or badges; the shared calculation the card uses; sunscreen and uncovered skin modelled; no UV cut-off; age not modelled (stated in the help text).
+- **C9. Build, device only, behind a switch (built, item 48; the switch `VITAMIN_D_LOG` is on by default):** sessions by hand and one tap from a finished activity, each with its estimate and how close it came to the burn time, today and 7-day totals, stored in the browser, in English and Spanish, loaded only when opened.
 - **C10. Account sync,** only after O5: synced, rules-checked, in the data download, deleted with the account, pruned after a year, and one privacy line in both languages.
 
 Owner:

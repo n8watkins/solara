@@ -136,6 +136,29 @@ The static pages (landing, legal and city pages, at /es/): the shared disclaimer
 | --- | --- | --- | --- |
 | `disclaimer` | Solara is a planning aid, not medical advice or a guarantee that sun exposure is safe. Conditions and individual sensitivity can change quickly. | Solara es una ayuda para planificar, no un consejo médico ni una garantía de que exponerse al sol sea seguro. Las condiciones y la sensibilidad de cada persona pueden cambiar rápidamente. |  |
 
+## vitaminD
+
+The vitamin D log (dashboard, "Vitamin D log"): estimates, burn risk beside each session and how they work
+
+| Key | English | Spanish | Notes |
+| --- | --- | --- | --- |
+| `lead` | Rough estimates of the vitamin D your time in the sun may have made, and how close each session came to a burn. | Estimaciones aproximadas de la vitamina D que tu tiempo al sol pudo producir, y de qué tan cerca estuvo cada sesión de una quemadura. |  |
+| `comparison` | For comparison, a commonly cited daily amount is {1} IU (15 mcg) for adults, {2} IU over 70 (US National Academies, 2011). That is an intake from food and supplements, not a target for time in the sun. | Como referencia, una cantidad diaria que se cita a menudo es {1} UI (15 mcg) para personas adultas y {2} UI a partir de los 70 años (Academias Nacionales de EE. UU., 2011). Es una ingesta con alimentos y suplementos, no una meta de tiempo al sol. |  |
+| `burnOf` | {1} of a {2} burn time | {1} de un tiempo hasta quemarte de {2} |  |
+| `burnNone` | UV too low to burn | UV demasiado bajo para quemar |  |
+| `burnWellUnder` | Well under your burn time | Muy por debajo de tu tiempo hasta quemarte |  |
+| `burnClose` | Close to your burn time | Cerca de tu tiempo hasta quemarte |  |
+| `burnPast` | Past your burn time: skin is likely to redden | Pasaste tu tiempo hasta quemarte: es probable que la piel se enrojezca |  |
+| `cappedNote` | Time past the burn time adds no vitamin D. | El tiempo después del tiempo hasta quemarte no suma vitamina D. |  |
+| `lowUvNote` | Minutes under UV 1 count toward the burn, not the vitamin D. | Los minutos con UV menor que 1 cuentan para la quemadura, no para la vitamina D. |  |
+| `sunscreen` | I wore sunscreen | Usé protector solar |  |
+| `sunscreenHint` | Keep using it: the burn risk matters more than the vitamin D. | Sigue usándolo: el riesgo de quemadura importa más que la vitamina D. |  |
+| `uvHint` | The forecast covers only today. Enter the UV index from a weather report for that time, or your best guess. | El pronóstico solo cubre hoy. Escribe el índice UV de un reporte del clima para esa hora, o tu mejor estimación. |  |
+| `howModel` | About 1,000 IU of vitamin D for an adult with arms and legs bare in roughly a third of the time it takes the skin to redden (the common rule of thumb, Holick, 2004), the same estimate as the dashboard card. Less skin in the sun makes less: face and hands count a quarter, face and arms half, swimwear double. | Unas 1000 UI de vitamina D para una persona adulta con brazos y piernas descubiertos, en más o menos un tercio del tiempo que tarda la piel en enrojecer (la regla práctica habitual, Holick, 2004), la misma estimación que la tarjeta del panel. Con menos piel al sol se produce menos: cara y manos cuentan una cuarta parte, cara y brazos la mitad, y el traje de baño el doble. |  |
+| `howLowSun` | A low sun counts slowly, and UV under 1 counts none. Skin makes no more vitamin D after about one burn dose, so time past the burn time adds nothing. | Un sol bajo cuenta despacio, y un UV menor que 1 no cuenta. La piel no produce más vitamina D después de más o menos una dosis de quemadura, así que el tiempo después del tiempo hasta quemarte no suma nada. |  |
+| `howSunscreen` | Sunscreen counts as dividing the UV by 2.5, as the plans assume for SPF 30+, for the burn and the vitamin D alike. As people usually apply it, it blocks far less than its label says (Neale and others, 2019). | El protector solar cuenta como dividir el UV entre 2.5, como suponen los planes para FPS 30 o más, tanto para la quemadura como para la vitamina D. Como se suele aplicar, bloquea mucho menos de lo que dice su etiqueta (Neale y colaboradores, 2019). |  |
+| `howLimits` | Age is not taken into account: older skin makes much less vitamin D. Needs and production vary widely with the person, the season and where you live. These are rough estimates, not medical advice; ask a clinician if you are concerned. | No se toma en cuenta la edad: la piel de las personas mayores produce mucha menos vitamina D. Las necesidades y la producción varían mucho según la persona, la estación y el lugar donde vives. Son estimaciones aproximadas, no consejo médico; consulta a un profesional de la salud si te preocupa. |  |
+
 ## briefing
 
 The daily briefing at the top of the dashboard, and shared briefings
@@ -232,7 +255,7 @@ Sunscreen coaching: the timer, activity cards, Settings; the reapply reminder pu
 | `spfRule` | Use SPF 30+ broad spectrum whenever UV is {1} or more, and SPF 50+ when it reaches {2}. | Usa FPS 30+ de amplio espectro siempre que el UV sea {1} o más, y FPS 50+ cuando llegue a {2}. |  |
 | `reapplyRule` | Put it on {1} before you go out. Reapply every {2}, and straight after swimming, sweating or towelling off. | Aplícalo {1} antes de salir. Vuelve a aplicarlo cada {2}, y justo después de nadar, sudar o secarte con la toalla. |  |
 
-124 messages to review.
+140 messages to review.
 
 ## Legal pages
 

@@ -106,10 +106,18 @@ export interface UVLimitedActivity {
   sunscreen?: boolean | null
 }
 
+/**
+ * How much SPF 30+ is counted on, as a divisor of the UV the skin gets: far less than the
+ * label, because people apply a quarter to half the tested amount (Neale and others, Br J
+ * Dermatol 2019;181:907). The plans raise an activity's UV limit by it, and the vitamin D
+ * log divides a session's UV by it (vitamin-d.ts).
+ */
+export const SUNSCREEN_UV_FACTOR = 2.5
+
 /** The UV limit an activity is planned against; SPF 30+ raises it (capped at 11). */
 export function effectiveMaxUV(activity: UVLimitedActivity): number {
   const base = activity.maxUV ?? 4
-  return activity.sunscreen ? Math.min(Math.round(base * 2.5), 11) : base
+  return activity.sunscreen ? Math.min(Math.round(base * SUNSCREEN_UV_FACTOR), 11) : base
 }
 
 /** Estimated minutes to a burn at `uv`, or null when UV is negligible. */

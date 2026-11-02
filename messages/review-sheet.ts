@@ -17,6 +17,8 @@ const CONTEXT: Record<string, string> = {
   activities: 'Activity cards, the hero slot and the activity editor',
   events: 'Imported events and their UV',
   site: 'The static pages (landing, legal and city pages, at /es/): the shared disclaimer',
+  vitaminD:
+    'The vitamin D log (dashboard, "Vitamin D log"): estimates, burn risk beside each session and how they work',
   cityPages: 'The city pages (/es/uv/ and /es/uv/<city>/): the facts about each city and the notes',
 }
 

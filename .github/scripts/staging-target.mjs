@@ -146,6 +146,7 @@ export function resolve(vars, options = {}) {
     NEXT_PUBLIC_GOOGLE_CALENDAR_EVENTS_ENABLED: on('GOOGLE_CALENDAR_EVENTS_ENABLED') ? '1' : '',
     NEXT_PUBLIC_MICROSOFT_CLIENT_ID: microsoftClientId,
     NEXT_PUBLIC_OUTLOOK_CALENDAR_EVENTS_ENABLED: on('OUTLOOK_CALENDAR_EVENTS_ENABLED') ? '1' : '',
+    NEXT_PUBLIC_VITAMIN_D_LOG: staging('VITAMIN_D_LOG') === 'false' ? '0' : '1',
   }
 
   for (const [key, raw] of Object.entries(buildEnv)) {
