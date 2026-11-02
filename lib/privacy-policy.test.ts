@@ -10,6 +10,11 @@ import {
   legalDate,
 } from './legal'
 import { DOCUMENT_CHANGES } from '@/messages/review-sheet'
+import {
+  NOT_NOW_DECIMALS,
+  TRAVEL_NOT_NOW_MS,
+  TRAVEL_PROMPT_DISTANCE_KM,
+} from '@solara/core/travel'
 import * as shareTarget from './share-target'
 import {
   PRODUCTION_DATA_STEPS,
@@ -111,6 +116,17 @@ describe('privacy policy', () => {
     expect(privacy).toContain('share a calendar file or link to the installed app')
     expect(privacy).toContain('for up to 30 minutes')
     expect(privacy).toContain('sent nowhere unless you import it')
+  })
+
+  it('says when the position is read for the travel prompt, and what is kept (ROADMAP item 53)', () => {
+    const text = privacy.replace(/\s+/g, ' ')
+    expect(text).toContain('If you have already allowed Solara to use your location')
+    expect(text).toContain(`more than ${TRAVEL_PROMPT_DISTANCE_KM} km from the place shown`)
+    expect(text).toContain('sent only to OpenStreetMap to name the place, and never stored')
+    expect(TRAVEL_NOT_NOW_MS).toBe(24 * 60 * 60 * 1000)
+    expect(NOT_NOW_DECIMALS).toBe(1)
+    expect(text).toContain('for a day, the area you said')
+    expect(text).toContain('rounded to one decimal place, about 10 km')
   })
 
   it('says what Solara keeps about events from Google Calendar, and for how long', () => {
