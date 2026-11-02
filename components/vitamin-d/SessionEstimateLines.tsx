@@ -1,7 +1,7 @@
 import clsx from 'clsx'
 import { formatDuration } from '@solara/core/duration'
 import { formatNumber } from '@solara/core/i18n'
-import { burnRisk, roundIu, type BurnRisk, type SessionEstimate } from '@solara/core/vitamin-d'
+import { burnRisk, roundIu, type BurnRisk, type SessionEstimate } from '@solara/core/vitamin-d-session'
 import m from '@/messages/vitamin-d'
 
 const RISK: Record<BurnRisk, { text: () => string; tone: string; dot: string }> = {

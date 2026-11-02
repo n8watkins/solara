@@ -57,7 +57,8 @@ const LANGUAGES = [
     logIt: 'Log Walking in the vitamin D log',
     logged: /Logged Walking/,
     already: /Walking is already in today's log/,
-    burn: /of a [\d ]+min burn time/,
+    // Durations keep the number and "min" together with a no-break space (\s matches it).
+    burn: /\d+\smin of a \d+\smin burn time/,
     close: 'Close',
   },
   {
@@ -86,26 +87,25 @@ const LANGUAGES = [
   },
 ] as const
 
-async function openAsGuest(page: Page, language: 'en' | 'es') {
+async function openAsGuest(page: Page) {
   await page.route('https://api.open-meteo.com/**', route =>
     route.fulfill({ json: buildRawForecast() }),
   )
-  await page.addInitScript(
-    ({ guest, language }) => {
-      if (!localStorage.getItem('solara_guest')) localStorage.setItem('solara_guest', guest)
-      localStorage.setItem('solara.analytics-consent.v1', 'declined')
-      localStorage.setItem('solara_language', language)
-    },
-    { guest: GUEST, language },
-  )
+  await page.addInitScript(guest => {
+    if (!localStorage.getItem('solara_guest')) localStorage.setItem('solara_guest', guest)
+    localStorage.setItem('solara.analytics-consent.v1', 'declined')
+  }, GUEST)
   await startClock(page)
   await page.goto('/app/')
 }
 
 for (const lang of LANGUAGES) {
   test.describe(`in ${lang.code}`, () => {
+    // The device's language: the guest plan follows it (Automatic), as languages.spec.ts does.
+    test.use({ locale: lang.code === 'es' ? 'es-MX' : 'en-US' })
+
     test('log a session, see the totals, edit it, reload, delete it', async ({ page }) => {
-      await openAsGuest(page, lang.code)
+      await openAsGuest(page)
       const opener = page.getByRole('button', { name: new RegExp(lang.open) })
       await expect(opener).toBeVisible()
 
@@ -180,7 +180,7 @@ for (const lang of LANGUAGES) {
     })
 
     test('"Log it" logs a finished activity once, at its planned time', async ({ page }) => {
-      await openAsGuest(page, lang.code)
+      await openAsGuest(page)
       const logIt = page.getByRole('button', { name: lang.logIt })
       await expect(logIt).toBeVisible()
       await logIt.click()

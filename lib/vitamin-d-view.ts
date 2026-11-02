@@ -9,7 +9,7 @@ import {
   startHour,
   type VitaminDEntry,
 } from '@solara/core/vitamin-d-log'
-import { forecastSpans, type SkinExposure, type UvSpan } from '@solara/core/vitamin-d'
+import { forecastSpans, type SkinExposure, type UvSpan } from '@solara/core/vitamin-d-session'
 import type { SkinType } from '@solara/core/recommendation'
 import type { BodyArea } from '@solara/core/sunscreen'
 import { shiftIsoDate } from '@solara/core/zoned-time'

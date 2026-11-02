@@ -1,5 +1,5 @@
 import type { DayTotal } from '@solara/core/vitamin-d-log'
-import { roundIu } from '@solara/core/vitamin-d'
+import { roundIu } from '@solara/core/vitamin-d-session'
 import { formatNumber } from '@solara/core/i18n'
 import { formatDate } from '@/lib/time'
 import m from '@/messages/vitamin-d'

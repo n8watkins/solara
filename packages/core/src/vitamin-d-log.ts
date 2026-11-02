@@ -15,7 +15,7 @@ import {
   type SessionEstimate,
   type SkinExposure,
   type UvSpan,
-} from './vitamin-d'
+} from './vitamin-d-session'
 import { shiftIsoDate } from './zoned-time'
 
 /** Entries dated more than this many days before today are pruned. */

@@ -7,10 +7,9 @@ import {
   forecastSpans,
   roundIu,
   SKIN_EXPOSURES,
-  VITD_DOSE_IU,
-  vitDMins,
   type SkinExposure,
-} from './vitamin-d'
+} from './vitamin-d-session'
+import { VITD_DOSE_IU, vitDMins } from './vitamin-d'
 
 const session = (
   minutes: number,

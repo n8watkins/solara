@@ -1,7 +1,7 @@
 import { useId, type FormEvent } from 'react'
 import clsx from 'clsx'
 import { SESSION_MAX_MINUTES, ENTERED_UV_MAX } from '@solara/core/vitamin-d-log'
-import { estimateSession, SKIN_EXPOSURES, type SkinExposure } from '@solara/core/vitamin-d'
+import { estimateSession, SKIN_EXPOSURES, type SkinExposure } from '@solara/core/vitamin-d-session'
 import { skinTypeSkin } from '@solara/core/recommendation'
 import { formatUV } from '@solara/core/uv-scale'
 import type { VitaminDEntry } from '@solara/core/vitamin-d-log'

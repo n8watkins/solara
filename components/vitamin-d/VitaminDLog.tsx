@@ -12,7 +12,7 @@ import {
   startHour,
   type VitaminDEntry,
 } from '@solara/core/vitamin-d-log'
-import { DAILY_REFERENCE_IU, DAILY_REFERENCE_IU_OVER_70 } from '@solara/core/vitamin-d'
+import { DAILY_REFERENCE_IU, DAILY_REFERENCE_IU_OVER_70 } from '@solara/core/vitamin-d-session'
 import { formatNumber } from '@solara/core/i18n'
 import { formatDuration } from '@solara/core/duration'
 import { formatUV } from '@solara/core/uv-scale'

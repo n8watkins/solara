@@ -12,7 +12,8 @@ import {
   storedLog,
   type VitaminDEntry,
 } from './vitamin-d-log'
-import { estimateSession, VITD_DOSE_IU } from './vitamin-d'
+import { estimateSession } from './vitamin-d-session'
+import { VITD_DOSE_IU } from './vitamin-d'
 import { activityBodyAreas } from './sunscreen'
 
 const TODAY = '2026-06-15'
