@@ -32,7 +32,8 @@ import {
   UV_ALERT_THRESHOLD,
 } from '@solara/core/prefs-rules'
 import { SKIN_TYPES } from '@solara/core/recommendation'
-import { ACTIVITY_CATEGORIES, PRESET_ACTIVITIES, TIER_LIMITS } from '@solara/core/tiers'
+import { ACTIVITY_CATEGORY_NAMES, PRESET_ACTIVITY_IDS } from '@solara/core/preset-names'
+import { TIER_LIMITS } from '@solara/core/tiers'
 import type { UserPreferences } from './types'
 
 type Check = (value: unknown) => boolean
@@ -156,8 +157,8 @@ const knownSet =
     new Set(value).size === value.length &&
     value.every(item => text(Infinity, 1)(item) && known.has(item as string))
 
-const PRESET_IDS = new Set(PRESET_ACTIVITIES.map(preset => preset.id))
-const CATEGORY_NAMES = new Set(ACTIVITY_CATEGORIES.map(category => category.name))
+const PRESET_IDS = new Set(PRESET_ACTIVITY_IDS)
+const CATEGORY_NAMES = new Set(ACTIVITY_CATEGORY_NAMES)
 
 /** Places, none within the rounding grid of another (the schema keeps the first). */
 const isPlaces: Check = value =>

@@ -34,7 +34,7 @@ import {
 // cannot load on demand, since that code is what fails) and the hourly strip's keyboard
 // all run on the opening screen. ROADMAP item 52 took Valibot and the code for a return
 // from Stripe Checkout, Google sign-in's popup and the forecast proxy out of it (192.54 to
-// 186.85 KB in English, 198.08 to 192.24 KB in Spanish), and the budgets moved from 193 and
+// 187.82 KB in English, 198.08 to 193.21 KB in Spanish), and the budgets moved from 193 and
 // 218 KB to 190 and 196 KB.
 const BUDGET_KB = { en: 190, es: 196 } as const
 
