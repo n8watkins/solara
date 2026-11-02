@@ -253,6 +253,9 @@ export function forecastProxyBaseUrl(
  * The proxy needs an App Check token, which loads Firebase and reCAPTCHA on demand.
  */
 export async function forecastProvider(): Promise<core.ForecastProvider> {
+  // Read here as well, where the build fixes it, so a build without the proxy leaves the
+  // proxy's code out of the first load.
+  if (process.env.NEXT_PUBLIC_FORECAST_PROXY !== '1') return core.openMeteoFree
   const proxy = forecastProxyBaseUrl()
   if (!proxy) return core.openMeteoFree
   const { appCheckToken } = await import('./firebase')

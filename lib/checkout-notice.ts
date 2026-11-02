@@ -1,6 +1,7 @@
 // The notice shown after Stripe Checkout sends the visitor back to the app.
 import type { CheckoutResult } from './billing'
-import m from '@/messages/dashboard'
+import m from '@/messages/pricing'
+import dashboard from '@/messages/dashboard'
 
 export type CheckoutReturn =
   { kind: 'canceled' } | { kind: 'succeeded'; sessionId: string | null } | null
@@ -13,7 +14,8 @@ export function checkoutReturn(params: URLSearchParams): CheckoutReturn {
   return null
 }
 
-// Read when shown, in the page's language.
+// Read when shown, in the page's language; the pricing words load with this code
+// (lib/use-checkout-return.ts).
 export const CHECKOUT_NOTICES = {
   get canceled() {
     return m.checkoutCanceled
@@ -33,8 +35,10 @@ export const CHECKOUT_NOTICES = {
   get succeeded() {
     return m.checkoutSucceeded
   },
+  // Also shown when this code cannot load (lib/use-checkout-return.ts), so it stays
+  // with the dashboard's words.
   get unreachable() {
-    return m.checkoutUnreachable
+    return dashboard.checkoutUnreachable
   },
 }
 

@@ -72,4 +72,13 @@ export default defineMessages('pricing', {
   renewsOn: (plan: string, day: string) => `${plan}. Renews on ${day}.`,
   planOnly: (plan: string) => `${plan}.`,
   accountServicesUnavailable: 'Account services are not available.',
+
+  // After Stripe Checkout returns to the app (lib/checkout-notice.ts).
+  checkoutCanceled: 'Checkout was canceled. You were not charged.',
+  checkoutNoSession: 'Checkout returned successfully. Refresh to confirm your subscription.',
+  checkoutConfirming: 'Confirming your subscription...',
+  checkoutPending:
+    'Your payment is still processing. Pro will activate automatically when it completes.',
+  checkoutFailed: 'Your payment did not complete. You can try again from the Pro plans.',
+  checkoutSucceeded: 'Pro is active on your account.',
 })

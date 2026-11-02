@@ -23,19 +23,6 @@ export const consentPrivacy: StaticMessage = { en: 'Privacy details', es: 'Detal
 export const consentAllow: StaticMessage = { en: 'Allow analytics', es: 'Permitir analíticas' }
 export const consentNotNow: StaticMessage = { en: 'Not now', es: 'Ahora no' }
 
-// The page shown when the app crashes (app/global-error.tsx).
-export const crashTitle: StaticMessage = {
-  en: 'Something went wrong | Solara',
-  es: 'Algo salió mal | Solara',
-}
-export const crashHeading: StaticMessage = { en: 'Something went wrong', es: 'Algo salió mal' }
-export const crashBody: StaticMessage = {
-  en: 'Solara hit an unexpected problem. Trying again usually fixes it; your saved settings are safe.',
-  es: 'Solara tuvo un problema inesperado. Volver a intentarlo suele resolverlo; tu configuración guardada está a salvo.',
-}
-export const tryAgain: StaticMessage = { en: 'Try again', es: 'Reintentar' }
-export const reloadApp: StaticMessage = { en: 'Reload app', es: 'Recargar la app' }
-
 export const loading: StaticMessage = { en: 'Loading...', es: 'Cargando...' }
 export const footerPrivacy: StaticMessage = { en: 'Privacy', es: 'Privacidad' }
 export const footerTerms: StaticMessage = { en: 'Terms', es: 'Términos' }

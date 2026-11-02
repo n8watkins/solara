@@ -1,22 +1,15 @@
 'use client'
 import { useEffect, useEffectEvent } from 'react'
 import type { User } from 'firebase/auth'
-import { lazySubscription } from './firebase'
-import { saveLocalPrefs } from './local-prefs'
-import {
-  CHECKOUT_NOTICES,
-  checkoutResultNotice,
-  checkoutReturn,
-  withoutCheckoutParams,
-} from './checkout-notice'
 import type { UserPreferences } from './types'
 import { withMessages } from './i18n'
+import m from '@/messages/dashboard'
 
 /**
  * After Stripe Checkout returns to the app (`?checkout=...`), reports progress
  * through `onNotice` and, once the subscription is confirmed, hands the paid
- * account to `onPaid`. The checkout parameters are removed when the outcome is
- * final.
+ * account to `onPaid` (lib/checkout-return.ts, which loads only then). The checkout
+ * parameters are removed when the outcome is final.
  */
 export function useCheckoutReturn(
   user: User | null,
@@ -29,43 +22,18 @@ export function useCheckoutReturn(
   const paid = useEffectEvent(onPaid)
 
   useEffect(() => {
-    if (!user) return
-    const returned = checkoutReturn(new URLSearchParams(window.location.search))
-    if (!returned) return
-    if (returned.kind === 'canceled') {
-      notify(CHECKOUT_NOTICES.canceled)
-      return
-    }
-    if (!returned.sessionId) {
-      notify(CHECKOUT_NOTICES.noSession)
-      return
-    }
-
-    notify(CHECKOUT_NOTICES.confirming)
-    const { sessionId } = returned
-    // The billing code loads only on a return from Checkout.
-    return lazySubscription(
-      async () => {
-        const { observeCheckoutResult } = await withMessages(['pricing'], () => import('./billing'))
-        return observeCheckoutResult(
-          user.uid,
-          sessionId,
-          result => {
-            const notice = checkoutResultNotice(result)
-            if (!notice) return
-            if (result.status !== 'pending') {
-              window.history.replaceState({}, '', withoutCheckoutParams(window.location.href))
-            }
-            if (result.status === 'succeeded') {
-              saveLocalPrefs(result.prefs)
-              paid(result.prefs)
-            }
-            notify(notice)
-          },
-          () => notify(CHECKOUT_NOTICES.unreachable),
-        )
+    if (!user || !new URLSearchParams(window.location.search).has('checkout')) return
+    let stop: (() => void) | undefined
+    let stopped = false
+    withMessages(['pricing'], () => import('./checkout-return')).then(
+      ({ followCheckoutReturn }) => {
+        if (!stopped) stop = followCheckoutReturn(user, { notify, paid })
       },
-      () => notify(CHECKOUT_NOTICES.unreachable),
+      () => notify(m.checkoutUnreachable),
     )
+    return () => {
+      stopped = true
+      stop?.()
+    }
   }, [user])
 }

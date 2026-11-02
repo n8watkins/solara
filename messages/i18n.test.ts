@@ -7,6 +7,7 @@ import { dirname, join, relative, resolve } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { LOCALES, registeredNamespaces, type Messages } from '@solara/core/i18n'
 import { SERVER_TRANSLATIONS } from '@solara/core/server-language'
+import * as crashText from './crash'
 import * as staticText from './static'
 import initial from './es/initial'
 import lazyLoaders from './es/lazy'
@@ -140,7 +141,7 @@ describe('message catalogues', () => {
   })
 
   it('writes every static text in every language', () => {
-    for (const [name, text] of Object.entries(staticText)) {
+    for (const [name, text] of Object.entries({ ...staticText, ...crashText })) {
       for (const locale of LOCALES) expect(text[locale]?.trim(), `${name}.${locale}`).toBeTruthy()
     }
   })

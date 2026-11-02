@@ -1,12 +1,11 @@
 'use client'
-import clsx from 'clsx'
 import { useEffect } from 'react'
 import './globals.css'
 import { inter } from './fonts'
 import { reportError } from '@/lib/error-reporting'
 import { getStoredTheme } from '@/lib/theme'
 import StaticText from '@/components/StaticText'
-import * as staticText from '@/messages/static'
+import * as staticText from '@/messages/crash'
 
 /**
  * Last-resort error screen: replaces the root layout when it fails to render. It has
@@ -34,7 +33,8 @@ export default function GlobalError({ error, retry }: { error: unknown; retry: (
   return (
     <html
       lang={pageLanguage()}
-      className={clsx(inter.variable, theme === 'dark' && 'dark')}
+      // Without clsx, which the crash page would otherwise be alone in carrying.
+      className={theme === 'dark' ? `${inter.variable} dark` : inter.variable}
       style={{ colorScheme: theme }}
     >
       <body>

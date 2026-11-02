@@ -111,12 +111,6 @@ export default {
   syncFailed:
     'Se guardó en este dispositivo, pero falló la sincronización con la nube. Reintenta cuando vuelvas a tener conexión.',
 
-  checkoutCanceled: 'Se canceló el pago. No se te cobró nada.',
-  checkoutNoSession: 'El pago se completó. Actualiza la página para confirmar tu suscripción.',
-  checkoutConfirming: 'Confirmando tu suscripción...',
-  checkoutPending: 'Tu pago todavía se está procesando. Pro se activará solo cuando termine.',
-  checkoutFailed: 'Tu pago no se completó. Puedes volver a intentarlo desde los planes Pro.',
-  checkoutSucceeded: 'Pro está activo en tu cuenta.',
   checkoutUnreachable:
     'No se pudo confirmar tu suscripción. Revisa tu conexión y actualiza la página.',
 
