@@ -140,7 +140,7 @@ export default function LocationPanel({
       role="dialog"
       aria-labelledby={headingId}
       // Never wider than the viewport minus a 12 px gutter on each side.
-      className="absolute top-[calc(100%+6px)] z-[100] box-border w-[min(290px,calc(100vw-24px))] rounded-[14px] border-[0.5px] border-line-strong bg-surface-card p-3.5 shadow-[0_8px_24px_rgba(0,0,0,0.15)]"
+      className="absolute top-[calc(100%+6px)] z-[100] box-border w-[min(270px,calc(100vw-24px))] rounded-[14px] border-[0.5px] border-line-strong bg-surface-card p-3.5 shadow-[0_8px_24px_rgba(0,0,0,0.15)]"
       style={{ left: shift }}
       data-testid="place-menu"
     >
