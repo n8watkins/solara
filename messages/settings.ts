@@ -18,7 +18,9 @@ export default defineMessages('settings', {
   timeFormat: 'Time format',
   sunPath: 'Sun path animation',
   sunPathHint: "The arc above the hourly UV chart showing the sun's position.",
-  currentLocation: 'Current location',
+  currentLocation: 'Home',
+  homeNote:
+    "Your calendar link and notifications use home. Showing another place from the header's place menu doesn't change it.",
   searchCity: 'Search a city',
   searchCityPlaceholder: 'Search a city…',
   dailyUvHint: 'Only on days the UV reaches moderate or higher, or would under a clear sky.',

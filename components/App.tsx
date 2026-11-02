@@ -1,12 +1,30 @@
 'use client'
-import { useEffect, useEffectEvent, useState, type ReactNode } from 'react'
+import {
+  useEffect,
+  useEffectEvent,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from 'react'
+import { samePlace } from '@solara/core/coordinates'
 import { saveLocalPrefs } from '@/lib/local-prefs'
 import { syncErrorFor, type SyncError } from '@/lib/sync-error'
 import { SIGN_IN_PARAM } from '@/lib/app-routes'
 import { guestPlanHasActivities, loadGuestPrefs, saveGuestPrefs } from '@/lib/guest'
 import { SignedInContext } from '@/lib/signed-in-context'
 import { takeUpdateNotice } from '@/lib/stale-build'
-import { canUseCalendar } from '@solara/core/tiers'
+import { canUseCalendar, getSavedLocationLimit } from '@solara/core/tiers'
+import {
+  otherPlaces,
+  withHome,
+  withPlaceRemoved,
+  withPlaceSaved,
+  type PlaceControls,
+} from '@/lib/places'
+import { VisitContext } from '@/lib/place-context'
+import { saveVisit, subscribeTravel, travelOwner, visitSnapshot } from '@/lib/travel-place'
+import { useTravelPrompt } from '@/lib/use-travel-prompt'
 import { screenAfterOnboarding } from '@/lib/account-screen'
 import { useAccount } from '@/lib/use-account'
 import { useCheckoutReturn } from '@/lib/use-checkout-return'
@@ -26,6 +44,7 @@ import {
   InstallPrompt,
   Onboarding,
   SignInScreen,
+  TravelBanner,
   preloadActivityPlan,
   preloadDeferred,
   preloadSignedInParts,
@@ -101,6 +120,31 @@ function SignedInApp() {
     prepareSignedIn: preloadSignedInParts,
   })
 
+  // A visit (ROADMAP item 54): another place this device shows instead of home, kept in
+  // this browser for whoever's plan it is (lib/travel-place.ts). Everything on screen that
+  // depends on place follows the shown place; home stays the plan's own `location`, which
+  // the server's calendar link and notifications use.
+  const owner = travelOwner(prefs?.uid)
+  const visit = useSyncExternalStore(
+    subscribeTravel,
+    () => visitSnapshot(owner),
+    () => null,
+  )
+  const visiting = !!prefs && !!visit && !samePlace(visit, prefs.location)
+  const shownPrefs = useMemo(
+    () => (prefs && visiting && visit ? { ...prefs, location: visit } : prefs),
+    [prefs, visiting, visit],
+  )
+  const savedPlaces = useMemo(() => (prefs ? [prefs.location, ...otherPlaces(prefs)] : []), [prefs])
+  // Offers the forecast where the device is when it is far from the shown place, only with
+  // location permission already granted (lib/use-travel-prompt.ts).
+  const travel = useTravelPrompt({
+    active: screen === 'dashboard' && !!prefs && !pending,
+    owner,
+    shown: shownPrefs?.location ?? null,
+    places: savedPlaces,
+  })
+
   // The sign-in flag is read once; drop it so a reload or a later sign-out does not
   // bring the sign-in screen back.
   useEffect(() => {
@@ -167,7 +211,7 @@ function SignedInApp() {
     updatedAt: weatherUpdatedAt,
     stale: weatherStale,
     refresh: refreshWeather,
-  } = useWeather(screen === 'dashboard' ? prefs?.location : null)
+  } = useWeather(screen === 'dashboard' ? shownPrefs?.location : null)
   const units = unitFormatters(resolveUnits(prefs))
 
   async function handlePrefsUpdate(updated: UserPreferences) {
@@ -238,7 +282,34 @@ function SignedInApp() {
   // the auth listener because DevPanel's tierOverride flips displayTier without an
   // auth event. EVERY render decision below must key off effectiveView, never `view`.
   const effectiveView = displayTier === 'anonymous' ? 'dashboard' : view
-  const savePrefs = (p: UserPreferences) => void handlePrefsUpdate(p)
+  const home = prefs.location
+  /** Saves the plan; a new home ends a visit, as the new home shows. */
+  const savePrefs = (p: UserPreferences) => {
+    if (visiting && !samePlace(p.location, home)) saveVisit(owner, null, p.location)
+    void handlePrefsUpdate(p)
+  }
+  // The parts that show the visited place hand back the plan with it as `location`: home
+  // stays home.
+  const shownPlan = shownPrefs ?? prefs
+  const saveFromView = (p: UserPreferences) =>
+    savePrefs(p.location === shownPlan.location ? { ...p, location: home } : p)
+  const placeLimit = getSavedLocationLimit(displayTier)
+  const places: PlaceControls = {
+    home,
+    shown: shownPlan.location,
+    visiting,
+    others: otherPlaces(prefs),
+    limit: placeLimit,
+    signedIn: !!user,
+    show: place => saveVisit(owner, place, home),
+    save: place => {
+      const next = withPlaceSaved(prefs, place, placeLimit)
+      if (next && next !== prefs) savePrefs(next)
+      return next !== null
+    },
+    remove: place => savePrefs(withPlaceRemoved(prefs, place)),
+    setHome: place => savePrefs(withHome(prefs, place, placeLimit)),
+  }
 
   return (
     <AccountContexts
@@ -249,121 +320,142 @@ function SignedInApp() {
       uid={user && canUseCalendar(prefs.tier) ? user.uid : null}
       activities={prefs.activities}
     >
-      <SettingsHost prefs={prefs} user={user} onSave={savePrefs}>
-        {/* Until Auth confirms the account shown from this browser's copy and its saved
+      <VisitContext value={visiting ? { home, shown: shownPlan.location } : null}>
+        <SettingsHost prefs={prefs} user={user} onSave={savePrefs}>
+          {/* Until Auth confirms the account shown from this browser's copy and its saved
           plan has loaded, nothing on screen can be changed (lib/use-account.ts). */}
-        <div className="contents" inert={!!pending} aria-busy={pending ? true : undefined}>
-          <AppShell
-            header={
-              <Header
-                user={user}
-                account={user ?? pending}
-                prefs={prefs}
-                displayTier={displayTier}
-                onPrefsUpdate={savePrefs}
-                onGoHome={() => {
-                  setView('dashboard')
-                  setSelectedDay(null)
-                }}
-                currentUV={weather?.current.uv}
+          <div className="contents" inert={!!pending} aria-busy={pending ? true : undefined}>
+            <AppShell
+              header={
+                <Header
+                  user={user}
+                  account={user ?? pending}
+                  prefs={prefs}
+                  places={places}
+                  displayTier={displayTier}
+                  onPrefsUpdate={savePrefs}
+                  onGoHome={() => {
+                    setView('dashboard')
+                    setSelectedDay(null)
+                  }}
+                  currentUV={weather?.current.uv}
+                />
+              }
+              view={effectiveView}
+              onViewChange={displayTier !== 'anonymous' ? setView : undefined}
+              after={isDev && <DevPanel currentTier={displayTier} onOverride={setTierOverride} />}
+            >
+              <InstallPrompt />
+              {travel.offer && (
+                <TravelBanner
+                  place={travel.offer}
+                  onSwitch={() => {
+                    saveVisit(owner, travel.offer!, home)
+                    travel.hide()
+                  }}
+                  onNotNow={() => {
+                    const place = travel.offer!
+                    travel.hide()
+                    import('@/lib/travel-areas')
+                      .then(({ notNowFor }) => notNowFor(owner, place))
+                      .catch(error => console.error('Could not keep "Not now":', error))
+                  }}
+                />
+              )}
+              {/* A failed refresh has its own notice below, which also says the forecast is old. */}
+              <ForecastNotice
+                weather={weather}
+                updatedAt={weatherUpdatedAt}
+                stale={weatherStale && !error}
+                readOnly={!!pending}
               />
-            }
-            view={effectiveView}
-            onViewChange={displayTier !== 'anonymous' ? setView : undefined}
-            after={isDev && <DevPanel currentTier={displayTier} onOverride={setTierOverride} />}
-          >
-            <InstallPrompt />
-            {/* A failed refresh has its own notice below, which also says the forecast is old. */}
-            <ForecastNotice
-              weather={weather}
-              updatedAt={weatherUpdatedAt}
-              stale={weatherStale && !error}
-              readOnly={!!pending}
-            />
-            {foregroundNotice && (
-              <AppNotice
-                tone="notice"
-                role="status"
-                icon="🔔"
-                action={{ label: t.dismiss, onClick: () => setForegroundNotice(false) }}
-              >
-                {t.morningSummaryReady}
-              </AppNotice>
-            )}
-            {/* Keyed by account so a later account never sees the previous one's notice. */}
-            {user && !pending && <GuestPlanNotice key={user.uid} uid={user.uid} />}
-            {updateNotice && <UpdateNotice reason={updateNotice} />}
-            {billingNotice && (
-              <AppNotice tone="info" role="status">
-                {billingNotice}
-              </AppNotice>
-            )}
-            {/* Without any forecast the dashboard says so in its own place (below). */}
-            {error && weather && (
-              <AppNotice
-                tone="error"
-                icon="⚠️"
-                action={{ label: t.retry, onClick: refreshWeather }}
-              >
-                {error}
-              </AppNotice>
-            )}
-            {syncError && (
-              <AppNotice
-                tone="notice"
-                role="alert"
-                icon="☁️"
-                action={
-                  syncError.reload
-                    ? { label: t.reload, onClick: () => window.location.reload() }
-                    : { label: t.retrySync, onClick: () => savePrefs(prefs) }
-                }
-              >
-                {syncError.message}
-              </AppNotice>
-            )}
-            {/* No forecast at all: the same empty state for the dashboard and the calendar. */}
-            {error && !weather && <ForecastUnavailable message={error} onRetry={refreshWeather} />}
-            {effectiveView === 'dashboard' && (
-              <>
-                {weatherLoading && <Skeleton />}
-                {weather && (
-                  <ErrorBoundary label={t.errorDashboard} onReset={refreshWeather}>
-                    <Dashboard
-                      user={user}
-                      weather={weather}
-                      prefs={prefs}
-                      displayTier={displayTier}
-                      onPrefsUpdate={savePrefs}
-                      onRefresh={refreshWeather}
-                      selectedDay={selectedDay}
-                      onSelectDay={setSelectedDay}
-                    />
-                  </ErrorBoundary>
-                )}
-              </>
-            )}
-            {effectiveView === 'calendar' && (weather || weatherLoading) && (
-              <div className="card">
-                {weather ? (
-                  <ErrorBoundary label={t.errorCalendar} onReset={refreshWeather}>
-                    <CalendarView
-                      prefs={prefs}
-                      displayTier={displayTier}
-                      weather={weather}
-                      onPrefsUpdate={savePrefs}
-                    />
-                  </ErrorBoundary>
-                ) : (
-                  <p role="status" className="m-0 py-12 text-center text-[14px] text-ink-3">
-                    {t.loadingForecast}
-                  </p>
-                )}
-              </div>
-            )}
-          </AppShell>
-        </div>
-      </SettingsHost>
+              {foregroundNotice && (
+                <AppNotice
+                  tone="notice"
+                  role="status"
+                  icon="🔔"
+                  action={{ label: t.dismiss, onClick: () => setForegroundNotice(false) }}
+                >
+                  {t.morningSummaryReady}
+                </AppNotice>
+              )}
+              {/* Keyed by account so a later account never sees the previous one's notice. */}
+              {user && !pending && <GuestPlanNotice key={user.uid} uid={user.uid} />}
+              {updateNotice && <UpdateNotice reason={updateNotice} />}
+              {billingNotice && (
+                <AppNotice tone="info" role="status">
+                  {billingNotice}
+                </AppNotice>
+              )}
+              {/* Without any forecast the dashboard says so in its own place (below). */}
+              {error && weather && (
+                <AppNotice
+                  tone="error"
+                  icon="⚠️"
+                  action={{ label: t.retry, onClick: refreshWeather }}
+                >
+                  {error}
+                </AppNotice>
+              )}
+              {syncError && (
+                <AppNotice
+                  tone="notice"
+                  role="alert"
+                  icon="☁️"
+                  action={
+                    syncError.reload
+                      ? { label: t.reload, onClick: () => window.location.reload() }
+                      : { label: t.retrySync, onClick: () => savePrefs(prefs) }
+                  }
+                >
+                  {syncError.message}
+                </AppNotice>
+              )}
+              {/* No forecast at all: the same empty state for the dashboard and the calendar. */}
+              {error && !weather && (
+                <ForecastUnavailable message={error} onRetry={refreshWeather} />
+              )}
+              {effectiveView === 'dashboard' && (
+                <>
+                  {weatherLoading && <Skeleton />}
+                  {weather && (
+                    <ErrorBoundary label={t.errorDashboard} onReset={refreshWeather}>
+                      <Dashboard
+                        user={user}
+                        weather={weather}
+                        prefs={shownPlan}
+                        displayTier={displayTier}
+                        onPrefsUpdate={saveFromView}
+                        onRefresh={refreshWeather}
+                        selectedDay={selectedDay}
+                        onSelectDay={setSelectedDay}
+                      />
+                    </ErrorBoundary>
+                  )}
+                </>
+              )}
+              {effectiveView === 'calendar' && (weather || weatherLoading) && (
+                <div className="card">
+                  {weather ? (
+                    <ErrorBoundary label={t.errorCalendar} onReset={refreshWeather}>
+                      <CalendarView
+                        prefs={shownPlan}
+                        displayTier={displayTier}
+                        weather={weather}
+                        onPrefsUpdate={saveFromView}
+                      />
+                    </ErrorBoundary>
+                  ) : (
+                    <p role="status" className="m-0 py-12 text-center text-[14px] text-ink-3">
+                      {t.loadingForecast}
+                    </p>
+                  )}
+                </div>
+              )}
+            </AppShell>
+          </div>
+        </SettingsHost>
+      </VisitContext>
     </AccountContexts>
   )
 }

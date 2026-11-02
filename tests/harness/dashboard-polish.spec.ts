@@ -86,6 +86,9 @@ const IN_FULL_FROM_390 = new Set([...IN_FULL_FROM_320, 'San Francisco', 'Rio de 
 for (const language of ['en', 'es'] as const) {
   for (const tier of ['guest', 'paid'] as const) {
     test(`header: the place name stays on one line (${language}, ${tier})`, async ({ page }, t) => {
+      // Every place at every width in one test: about 15 s locally, and past the default
+      // 30 s on a busy CI runner (PR #174's shard 3), so it gets three times that.
+      t.setTimeout(90_000)
       const capture = await preparePage(page, t)
       if (language === 'es') {
         await page.addInitScript(() => {

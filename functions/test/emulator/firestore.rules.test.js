@@ -309,7 +309,9 @@ describe('typed and size-capped preference fields', () => {
       ref.set(
         prefs('alice', {
           location: { ...location, timezone: 'America/Los_Angeles' },
-          savedLocations: [location, { ...location, lat: 3 }],
+          // One saved place: with profiles and the waitlist, which a new account never has,
+          // this is above anything the app creates (see the guest plan's test below).
+          savedLocations: [{ ...location, lat: 3 }],
           profiles: [{ id: 'profile_0', name: 'Me', skinType: 'fair', icon: '🧑' }],
           activeProfileId: 'profile_0',
           activities: Array.from({ length: 3 }, (_, i) => fullActivity(i)),
@@ -322,6 +324,38 @@ describe('typed and size-capped preference fields', () => {
         }),
       ),
     )
+  })
+
+  test("a guest's plan at the Free caps becomes an account within the expression budget", async () => {
+    // What sign-in creates from a guest plan (lib/account-prefs.ts newAccountPrefs): home
+    // plus 4 saved places (ROADMAP item 54), with names at their longest, and the guest's
+    // activity; 3 activities fit too.
+    const ref = testEnv.authenticatedContext('alice').firestore().doc('users/alice')
+    const place = i => ({
+      lat: i,
+      lon: -i,
+      city: 'C'.repeat(120),
+      region: 'R'.repeat(120),
+      timezone: 'America/Los_Angeles',
+    })
+    for (const count of [1, 3]) {
+      await testEnv.clearFirestore()
+      await assertSucceeds(
+        ref.set(
+          prefs('alice', {
+            location: place(50),
+            savedLocations: Array.from({ length: 5 }, (_, i) => place(i)),
+            activities: Array.from({ length: count }, (_, i) => fullActivity(i)),
+            calendarHours: { from: 6, to: 20 },
+            showSunPath: true,
+            hiddenActivitySuggestionIds: ['run', 'dog'],
+            collapsedActivityCategories: ['Water sports'],
+            temperatureUnit: 'celsius',
+            clockFormat: '24h',
+          }),
+        ),
+      )
+    }
   })
 
   // The rules engine evaluates at most 1,000 expressions per request. Each list is checked
@@ -358,10 +392,13 @@ describe('typed and size-capped preference fields', () => {
   test('a realistic multi-list write fits the expression budget', async () => {
     const ref = await seededRef('alice', { tier: 'paid' })
     const location = { lat: 1, lon: 2, city: 'Seattle', region: 'WA', timezone: 'UTC' }
+    // Since saved places are range-checked (ROADMAP item 54), 8 activities fit with 3 saved
+    // places in one write (4 before); the app writes what changed, so lists change together
+    // only after edits made offline.
     await assertSucceeds(
       ref.update({
         activities: Array.from({ length: 8 }, (_, i) => fullActivity(i)),
-        savedLocations: Array.from({ length: 4 }, () => location),
+        savedLocations: Array.from({ length: 3 }, () => location),
         profiles: Array.from({ length: 3 }, (_, i) => ({
           id: `profile_${i}`,
           name: 'Kid',
@@ -460,6 +497,30 @@ describe('typed and size-capped preference fields', () => {
     await assertFails(ref.update({ savedLocations: [{ ...base, region: { state: 'WA' } }] }))
     await assertFails(ref.update({ savedLocations: [{ ...base, payload: 'x' }] }))
     await assertFails(ref.update({ savedLocations: Array.from({ length: 13 }, () => base) }))
+  })
+
+  test('saved places keep their coordinates in range (ROADMAP item 54)', async () => {
+    const ref = await ownerRef()
+    const base = { lat: 1, lon: 2, city: 'Seattle', region: 'WA' }
+    for (const edge of [
+      { lat: 90, lon: 180 },
+      { lat: -90, lon: -180 },
+    ]) {
+      await assertSucceeds(ref.update({ savedLocations: [{ ...base, ...edge }] }))
+    }
+    for (const bad of [
+      { lat: 90.01 },
+      { lat: -90.01 },
+      { lon: 180.01 },
+      { lon: -180.01 },
+      { lat: 1000, lon: -1000 },
+    ]) {
+      await assertFails(ref.update({ savedLocations: [base, { ...base, ...bad }] }))
+    }
+    // The check applies to every place in the list, the last one included.
+    const five = Array.from({ length: 5 }, (_, i) => ({ ...base, lat: i }))
+    await assertSucceeds(ref.update({ savedLocations: five }))
+    await assertFails(ref.update({ savedLocations: [...five.slice(0, 4), { ...base, lat: 91 }] }))
   })
 
   test('skinType is one of the known types', async () => {
@@ -705,8 +766,9 @@ describe('plan limits (packages/core/src/tiers.ts TIER_LIMITS)', () => {
     const ref = await seededRef('alice', { tier: 'free' })
     await assertSucceeds(ref.update({ activities: activities(3) }))
     await assertFails(ref.update({ activities: activities(4) }))
-    await assertSucceeds(ref.update({ savedLocations: places(3) }))
-    await assertFails(ref.update({ savedLocations: places(4) }))
+    // Home plus 4 more saved places (ROADMAP item 54).
+    await assertSucceeds(ref.update({ savedLocations: places(5) }))
+    await assertFails(ref.update({ savedLocations: places(6) }))
     await assertSucceeds(ref.update({ profiles: people(1) }))
     await assertFails(ref.update({ profiles: people(2) }))
   })
@@ -726,9 +788,25 @@ describe('plan limits (packages/core/src/tiers.ts TIER_LIMITS)', () => {
   test('a new account starts within Free capacity', async () => {
     const ref = testEnv.authenticatedContext('alice').firestore().doc('users/alice')
     await assertFails(ref.set(prefs('alice', { activities: activities(4) })))
-    await assertFails(ref.set(prefs('alice', { tier: 'anonymous', savedLocations: places(4) })))
+    await assertFails(ref.set(prefs('alice', { tier: 'anonymous', savedLocations: places(6) })))
     await assertSucceeds(
-      ref.set(prefs('alice', { activities: activities(3), savedLocations: places(3) })),
+      ref.set(prefs('alice', { activities: activities(3), savedLocations: places(5) })),
+    )
+  })
+
+  test('a Free account can write every list at its cap in one write', async () => {
+    const ref = await seededRef('alice', { tier: 'free' })
+    await assertSucceeds(
+      ref.update({
+        activities: activities(3),
+        savedLocations: places(5),
+        profiles: people(1),
+        hiddenActivitySuggestionIds: ['run', 'jog'],
+        collapsedActivityCategories: ['Water sports'],
+        calendarHours: { from: 6, to: 20 },
+        notificationHour: 7,
+        skinType: 'dark',
+      }),
     )
   })
 
@@ -744,15 +822,15 @@ describe('plan limits (packages/core/src/tiers.ts TIER_LIMITS)', () => {
     const ref = await seededRef('alice', {
       tier: 'free',
       activities: activities(10),
-      savedLocations: places(6),
+      savedLocations: places(8),
       profiles: people(4),
     })
     const edited = activities(10).map((a, i) => (i === 0 ? { ...a, name: 'Renamed' } : a))
     await assertSucceeds(ref.update({ activities: edited }))
     await assertSucceeds(ref.update({ activities: activities(9) }))
     await assertFails(ref.update({ activities: activities(10) }))
-    await assertSucceeds(ref.update({ savedLocations: places(5) }))
-    await assertFails(ref.update({ savedLocations: places(7) }))
+    await assertSucceeds(ref.update({ savedLocations: places(7) }))
+    await assertFails(ref.update({ savedLocations: places(9) }))
     await assertSucceeds(ref.update({ profiles: people(4) }))
     await assertFails(ref.update({ profiles: people(5) }))
     // Unrelated fields still save while the lists are above the Free caps.

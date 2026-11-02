@@ -60,16 +60,18 @@ service cloud.firestore {
           || (location.timezone is string && location.timezone.size() <= 64));
     }
 
-    // Coordinates are range-checked when a shortcut becomes the active `location`.
+    // A saved place (ROADMAP item 54): its coordinates in range and its names capped. One
+    // `math.abs` per coordinate keeps a full list within the expression budget; it fails
+    // (and so refuses the write) for anything but a number.
     function validSavedLocation(location, allowedKeys) {
       return location.keys().hasOnly(allowedKeys)
-        && location.lat is number
-        && location.lon is number
+        && math.abs(location.lat) <= 90
+        && math.abs(location.lon) <= 180
         && location.city.matches('(?s).{0,120}')
         && location.region.matches('(?s).{0,120}');
     }
 
-    // At most 12 shortcuts, matching normalizeSavedLocations.
+    // At most 12 saved places (PREFS_LIMITS.savedLocations, Pro's cap); withinPlan holds Free to 5.
     function validSavedLocations(list) {
       let n = list.size();
       let k = ['lat', 'lon', 'city', 'region', 'timezone'];
@@ -223,7 +225,7 @@ service cloud.firestore {
         && (!('location' in keys) || validLocation(data.location))
         && (!('savedLocations' in keys)
           || (data.savedLocations is list && validSavedLocations(data.savedLocations)
-            && withinPlan(data, prior, 'savedLocations', 3, 12)))
+            && withinPlan(data, prior, 'savedLocations', 5, 12)))
         && (!('skinType' in keys)
           || data.skinType in ['very-fair', 'fair', 'medium', 'olive', 'dark'])
         && (!('profiles' in keys)

@@ -147,7 +147,7 @@ Rollback: `BILLING_ENABLED=false` hides checkout; Functions keep running after a
 
 Ranked by value to users; each starts with a short spec and the usual review.
 
-1. Place that follows the phone (offer to switch when far from the saved place; quick switch between saved places).
+1. Place that follows the phone (offer to switch when far from the saved place; quick switch between saved places): spec in [ROADMAP item 54](ROADMAP.md#54-place-that-follows-the-phone-travel-built), built.
 2. Burn-time fit as a feature (how much sunscreen makes a plan fit).
 3. Light-sensitivity setting (some medicines, pregnancy, recent peels), after the O16 legal review.
 4. Hat, sunglasses and shade in the advice line.

@@ -7,6 +7,7 @@ import {
   isWritablePreferences,
   NewerPreferencesVersionError,
 } from '@solara/core'
+import { samePlace } from '@solara/core/coordinates'
 import { TIER_LIMITS } from '@solara/core/tiers'
 import { loadFirebase } from './firebase'
 import { defaultPrefs } from './local-prefs'
@@ -49,8 +50,8 @@ export type AccountSeedSource = 'setup' | 'guest'
  *
  * A `guest` seed is the guest plan this person built in this browser before signing
  * in (lib/guest.ts, which only ever holds guest data), so their plan carries over:
- * also the activities (within the free plan), sunscreen, units and display choices.
- * Saved places, profiles, tier and waitlist state never carry over.
+ * also the activities and saved places (within the free plan), sunscreen, units and
+ * display choices. Profiles, tier and waitlist state never carry over.
  */
 export function newAccountPrefs(
   uid: string,
@@ -70,6 +71,10 @@ export function newAccountPrefs(
   return {
     ...fresh,
     activities: answers.activities.slice(0, TIER_LIMITS.free.activities),
+    // Home counts toward the limit (ROADMAP item 54).
+    savedLocations: answers.savedLocations
+      .filter(place => !samePlace(place, answers.location))
+      .slice(0, TIER_LIMITS.free.savedLocations - 1),
     sunscreen: answers.sunscreen,
     hiddenActivitySuggestionIds: answers.hiddenActivitySuggestionIds,
     collapsedActivityCategories: answers.collapsedActivityCategories,

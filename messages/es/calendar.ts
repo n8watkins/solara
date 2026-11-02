@@ -40,6 +40,8 @@ export default {
   feedRegenerateConfirm:
     '¿Generar un nuevo enlace del feed? Tu suscripción actual dejará de actualizarse hasta que te vuelvas a suscribir con el enlace nuevo.',
   feedLoading: 'Cargando tu feed de calendario…',
+  feedUsesHome: home =>
+    `Este enlace planifica para tu casa, ${home}, no para el lugar que se muestra ahora. Usa ese lugar como casa para cambiarlo.`,
   feedPitch:
     'Suscribe tu calendario a un feed en vivo de tu plan de sol que se actualiza cuando cambia el pronóstico.',
   feedAddUrl:
@@ -118,4 +120,5 @@ export const needsReview: (keyof typeof calendar)[] = [
   'selectWindow',
   'plansWithClouds',
   'plansClearSky',
+  'feedUsesHome',
 ]

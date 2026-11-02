@@ -10,6 +10,8 @@ export default defineMessages('app', {
   signOutFailed: 'Could not sign out. Check your connection and try again.',
   currentUv: (value: string, level: string) => `Current UV index ${value}, ${level}`,
   pro: 'Pro',
+  /** The header's place name during a visit (ROADMAP item 54), for a screen reader. */
+  visitingPlace: (place: string, home: string) => `Visiting ${place}, home is ${home}`,
   settings: 'Settings',
   signIn: 'Sign in',
   viewDashboard: 'Dashboard',

@@ -33,7 +33,12 @@ describe('guest plan', () => {
 
   it('keeps everything on this device', () => {
     expect(isDeviceOnly('anonymous')).toBe(true)
-    expect(getSavedLocationLimit('anonymous')).toBe(1)
+  })
+
+  it('keeps home plus 4 more places, as Free does (ROADMAP item 54)', () => {
+    expect(getSavedLocationLimit('anonymous')).toBe(5)
+    expect(getSavedLocationLimit('free')).toBe(5)
+    expect(getSavedLocationLimit('paid')).toBe(12)
   })
 
   it('has no calendar, alerts or family profiles', () => {

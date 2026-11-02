@@ -20,5 +20,6 @@ export default {
   share: () => import('./share'),
   skinQuiz: () => import('@solara/core/messages/es/skin-quiz'),
   sunscreen: () => import('@solara/core/messages/es/sunscreen'),
+  travel: () => import('./travel'),
   vitaminD: () => import('./vitamin-d'),
 } satisfies LazyTranslations

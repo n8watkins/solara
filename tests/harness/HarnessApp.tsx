@@ -36,6 +36,9 @@
 //   data   = fixture (default) | live: load the forecast through the app's real data
 //            layer (lib/use-forecast.ts useWeather); specs answer the Open-Meteo
 //            requests with page.route (see data-layer.spec.ts)
+//   visit  = a place from HARNESS_PLACES shown instead of home, as a visit (ROADMAP item
+//            54): the header's plane and the place menu's "Back to <home>"
+//   travel = a place from HARNESS_PLACES the travel prompt offers above the dashboard
 //   place  = los-angeles (default) | sydney | san-luis-obispo | ojai | san-francisco |
 //            ciudad-de-mexico | rio-de-janeiro: the account's place (HARNESS_PLACES in
 //            fixtures.ts); with data=live, for screens in another zone (sun-phase.spec.ts);
@@ -44,7 +47,18 @@
 // Only reachable in builds made with NEXT_PUBLIC_UI_HARNESS=1; see
 // app/harness/page.harness.tsx and scripts/check-no-ui-harness.mjs.
 import { useMemo, useState } from 'react'
-import type { DayWeather, TierLevel, UserPreferences } from '@/lib/types'
+import type { DayWeather, Location, TierLevel, UserPreferences } from '@/lib/types'
+import { samePlace } from '@solara/core/coordinates'
+import { getSavedLocationLimit } from '@solara/core/tiers'
+import {
+  otherPlaces,
+  withHome,
+  withPlaceRemoved,
+  withPlaceSaved,
+  type PlaceControls,
+} from '@/lib/places'
+import { VisitContext } from '@/lib/place-context'
+import TravelBanner from '@/components/TravelBanner'
 import AppShell, { type AppView } from '@/components/AppShell'
 import Header from '@/components/Header'
 import SettingsHost from '@/components/SettingsHost'
@@ -132,6 +146,8 @@ function readParams() {
     google: (['connected', 'many'] as const).find(v => v === params.get('google')) ?? null,
     outlook: params.get('outlookcal') === 'connected',
     place: HARNESS_PLACES[params.get('place') ?? ''] ?? null,
+    visit: HARNESS_PLACES[params.get('visit') ?? ''] ?? null,
+    travel: HARNESS_PLACES[params.get('travel') ?? ''] ?? null,
   }
 }
 
@@ -214,7 +230,9 @@ function Harness() {
       activities: kept.activities.map(a => ({ ...a, name: initial.names.get(a.id) ?? a.name })),
     }
   })
-  const live = useWeather(initial.live ? prefs.location : null)
+  const [visit, setVisit] = useState<Location | null>(initial.visit)
+  const [travelOffer, setTravelOffer] = useState<Location | null>(initial.travel)
+  const live = useWeather(initial.live ? (visit ?? prefs.location) : null)
   const weather = initial.live ? live.weather : fixtureWeather
   const [view, setView] = useState<AppView>(
     initial.screen === 'calendar' ? 'calendar' : 'dashboard',
@@ -227,84 +245,122 @@ function Harness() {
   const displayTier = prefs.tier
   // Display units from the account, else the browser locale, as in components/App.tsx.
   const units = unitFormatters(resolveUnits(prefs))
+  // A visit and the travel prompt, held in memory as components/App.tsx holds them in the
+  // browser (lib/travel-place.ts).
+  const visiting = !!visit && !samePlace(visit, prefs.location)
+  const shownPlan = visiting && visit ? { ...prefs, location: visit } : prefs
+  const placeLimit = getSavedLocationLimit(displayTier)
+  const savePlan = (next: UserPreferences) => {
+    if (!samePlace(next.location, prefs.location)) setVisit(null)
+    setPrefs(next)
+  }
+  const places: PlaceControls = {
+    home: prefs.location,
+    shown: shownPlan.location,
+    visiting,
+    others: otherPlaces(prefs),
+    limit: placeLimit,
+    signedIn: !!user,
+    show: place => setVisit(samePlace(place, prefs.location) ? null : place),
+    save: place => {
+      const next = withPlaceSaved(prefs, place, placeLimit)
+      if (next) setPrefs(next)
+      return next !== null
+    },
+    remove: place => setPrefs(withPlaceRemoved(prefs, place)),
+    setHome: place => savePlan(withHome(prefs, place, placeLimit)),
+  }
 
   return (
     <UnitsContext value={units}>
       <div data-testid={HARNESS_MARKER} data-screen={initial.screen}>
-        <SettingsHost
-          prefs={prefs}
-          user={user}
-          onSave={setPrefs}
-          initialTab={initial.screen === 'settings' ? initial.tab : null}
-        >
-          <AppShell
-            header={
-              <Header
-                user={user}
-                prefs={prefs}
-                displayTier={displayTier}
-                onPrefsUpdate={setPrefs}
-                onGoHome={() => {
-                  setView('dashboard')
-                  setSelectedDay(null)
-                }}
-                currentUV={weather?.current.uv}
-              />
-            }
-            view={view}
-            onViewChange={displayTier === 'anonymous' ? undefined : setView}
-            after={
-              pricingOpen && (
-                <PricingModal
-                  user={user}
-                  email={user?.email ?? undefined}
-                  onJoinWaitlist={() => {}}
-                  onClose={() => setPricingOpen(false)}
-                  // The harness build has no Functions; this screen shows Pro once billing is on.
-                  checkoutAvailable={initial.screen === 'pricing-checkout' || undefined}
-                />
-              )
-            }
+        <VisitContext value={visiting ? { home: prefs.location, shown: shownPlan.location } : null}>
+          <SettingsHost
+            prefs={prefs}
+            user={user}
+            onSave={savePlan}
+            initialTab={initial.screen === 'settings' ? initial.tab : null}
           >
-            {/* Shown offline (tests/harness/offline.spec.ts) or for the proxy's earlier
+            <AppShell
+              header={
+                <Header
+                  user={user}
+                  prefs={prefs}
+                  places={places}
+                  displayTier={displayTier}
+                  onPrefsUpdate={setPrefs}
+                  onGoHome={() => {
+                    setView('dashboard')
+                    setSelectedDay(null)
+                  }}
+                  currentUV={weather?.current.uv}
+                />
+              }
+              view={view}
+              onViewChange={displayTier === 'anonymous' ? undefined : setView}
+              after={
+                pricingOpen && (
+                  <PricingModal
+                    user={user}
+                    email={user?.email ?? undefined}
+                    onJoinWaitlist={() => {}}
+                    onClose={() => setPricingOpen(false)}
+                    // The harness build has no Functions; this screen shows Pro once billing is on.
+                    checkoutAvailable={initial.screen === 'pricing-checkout' || undefined}
+                  />
+                )
+              }
+            >
+              {/* Shown offline (tests/harness/offline.spec.ts) or for the proxy's earlier
               copy (stale-forecast.spec.ts). The fixtures were "fetched" 75 minutes
               before the frozen now. */}
-            <ForecastNotice
-              weather={weather}
-              updatedAt={initial.live ? live.updatedAt : HARNESS_NOW_MS - 75 * 60_000}
-              stale={initial.live && live.stale && !live.error}
-            />
-            {user && <GuestPlanNotice uid={user.uid} />}
-            {initial.live && live.error && (
-              <p role="alert" data-testid="weather-error">
-                {live.error}
-              </p>
-            )}
-            {live.loading && <Skeleton />}
-            {view === 'dashboard' && weather && (
-              <Dashboard
-                user={user}
+              <ForecastNotice
                 weather={weather}
-                prefs={prefs}
-                displayTier={displayTier}
-                onPrefsUpdate={setPrefs}
-                onRefresh={live.refresh}
-                selectedDay={selectedDay}
-                onSelectDay={setSelectedDay}
+                updatedAt={initial.live ? live.updatedAt : HARNESS_NOW_MS - 75 * 60_000}
+                stale={initial.live && live.stale && !live.error}
               />
-            )}
-            {view === 'calendar' && weather && (
-              <div className="card">
-                <CalendarView
-                  prefs={prefs}
-                  displayTier={displayTier}
-                  weather={weather}
-                  onPrefsUpdate={setPrefs}
+              {travelOffer && (
+                <TravelBanner
+                  place={travelOffer}
+                  onSwitch={() => {
+                    places.show(travelOffer)
+                    setTravelOffer(null)
+                  }}
+                  onNotNow={() => setTravelOffer(null)}
                 />
-              </div>
-            )}
-          </AppShell>
-        </SettingsHost>
+              )}
+              {user && <GuestPlanNotice uid={user.uid} />}
+              {initial.live && live.error && (
+                <p role="alert" data-testid="weather-error">
+                  {live.error}
+                </p>
+              )}
+              {live.loading && <Skeleton />}
+              {view === 'dashboard' && weather && (
+                <Dashboard
+                  user={user}
+                  weather={weather}
+                  prefs={shownPlan}
+                  displayTier={displayTier}
+                  onPrefsUpdate={setPrefs}
+                  onRefresh={live.refresh}
+                  selectedDay={selectedDay}
+                  onSelectDay={setSelectedDay}
+                />
+              )}
+              {view === 'calendar' && weather && (
+                <div className="card">
+                  <CalendarView
+                    prefs={shownPlan}
+                    displayTier={displayTier}
+                    weather={weather}
+                    onPrefsUpdate={setPrefs}
+                  />
+                </div>
+              )}
+            </AppShell>
+          </SettingsHost>
+        </VisitContext>
       </div>
     </UnitsContext>
   )

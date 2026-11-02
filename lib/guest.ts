@@ -52,7 +52,8 @@ export function asGuestPrefs(prefs: UserPreferences): UserPreferences {
     uid: '',
     tier: 'anonymous',
     activities: prefs.activities.slice(0, TIER_LIMITS.anonymous.activities),
-    savedLocations: [],
+    // Home plus 4 more places (ROADMAP item 54); home is kept apart, as `location`.
+    savedLocations: prefs.savedLocations.slice(0, TIER_LIMITS.anonymous.savedLocations),
     profiles: undefined,
     activeProfileId: undefined,
     groupMode: undefined,

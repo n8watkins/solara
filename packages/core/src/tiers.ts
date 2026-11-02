@@ -28,7 +28,10 @@ export interface TierLimits {
   reapplyPush: boolean
   /** Forecast days the plan can see, today included. */
   futureDays: number
-  /** Places kept for quick switching, the active one included. */
+  /**
+   * Saved places, home included (ROADMAP item 54): home plus the places kept for quick
+   * switching from the header's place menu.
+   */
   savedLocations: number
   /** People the plan covers; more than one means family profiles. */
   profiles: number
@@ -43,6 +46,7 @@ export interface TierLimits {
  * | ------------------- | ------------------ | ------------------ | ------- |
  * | Forecast            | Today              | Today and tomorrow | 10 days |
  * | Activities          | 1                  | 3                  | 20      |
+ * | Saved places (home) | 5                  | 5                  | 12      |
  * | Storage             | This device only   | Synced             | Synced  |
  * | Calendar sync       | -                  | Yes                | Yes     |
  * | Daily UV push, reapply push | -          | Yes                | Yes     |
@@ -57,7 +61,9 @@ export const TIER_LIMITS: Readonly<Record<TierLevel, TierLimits>> = {
     dailyUvPush: false,
     reapplyPush: false,
     futureDays: PLAN_FORECAST_DAYS.anonymous,
-    savedLocations: 1,
+    // Home plus 4 more (default, owner may change, 2026-11-01): a traveller's few places
+    // are a safety feature, so guests get as many as Free.
+    savedLocations: 5,
     profiles: 1,
     storage: 'device',
   },
@@ -69,7 +75,7 @@ export const TIER_LIMITS: Readonly<Record<TierLevel, TierLimits>> = {
     dailyUvPush: true,
     reapplyPush: true,
     futureDays: PLAN_FORECAST_DAYS.free,
-    savedLocations: 3,
+    savedLocations: 5,
     profiles: 1,
     storage: 'synced',
   },
