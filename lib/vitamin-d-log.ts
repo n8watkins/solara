@@ -5,7 +5,7 @@
 // are pruned without a job. Loaded only with the log and the account page's download.
 import { keptEntries, parseLog, storedLog, type VitaminDEntry } from '@solara/core/vitamin-d-log'
 import { requestPersistentStorage } from './persistent-storage'
-import { clearVitaminDLog, vitaminDLogKey, type LogOwner } from './vitamin-d-switch'
+import { clearVitaminDLog, vitaminDLogKey, type LogOwner } from './vitamin-d-owner'
 
 export { clearVitaminDLog }
 

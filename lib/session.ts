@@ -11,7 +11,7 @@ import { clearReplacedGuestPlan, replacedGuestPlan, saveReplacedGuestPlan } from
 import { createAccountPrefs, loadFirestorePrefs } from './account-prefs'
 import { clearLocalPrefs, loadLocalPrefs } from './prefs'
 import { ACCOUNT_OWNER_KEY } from './app-routes'
-import { adoptGuestVitaminDLog } from './vitamin-d-switch'
+import { adoptGuestVitaminDLog } from './vitamin-d-owner'
 import type { UserPreferences } from './types'
 
 // Part of the signed-in account code: the device's language on an account on Automatic.

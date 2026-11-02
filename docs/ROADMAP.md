@@ -644,7 +644,7 @@ It is a diary, not a coach.
 **Never:** no goals, targets, streaks, badges, rewards or reminders to go out; no "you can stay N more minutes"; nothing that makes more sun look better.
 A session past the burn time is never shown as more vitamin D: skin stops making more after about one burn dose, so the log says the extra time added none.
 
-**One calculation for the card and the log** (`packages/core/src/vitamin-d.ts`, shared with the future Android app):
+**One calculation for the card and the log** (`packages/core/src/vitamin-d.ts` and `vitamin-d-session.ts`, shared with the future Android app):
 
 - The dashboard's vitamin D card and the log read the same constants and functions, so they never disagree: the card's minutes are the time a log session of those minutes on arms and legs, without sunscreen, counts as `VITD_DOSE_IU` (about 1,000 IU).
 - A session's dose is its share of a burn dose (minimal erythema dose): the sum over its minutes of UV / (`SKIN_BURN_BASE[skin]` x 10), the same burn model as `burnMins`.
@@ -689,8 +689,8 @@ Off hides the entry and "Log it"; stored entries stay untouched.
 
 **As built:**
 
-- Calculation: `packages/core/src/vitamin-d.ts` (the card's `vitDMins` moved here from `weather.ts`; `SUNSCREEN_UV_FACTOR` in `recommendation.ts` is the plans' 2.5, now named); entries, checks, pruning and totals: `packages/core/src/vitamin-d-log.ts`.
-- Browser: `lib/vitamin-d-log.ts` (storage), `lib/vitamin-d-switch.ts` (the switch, the key per owner and the guest log's hand-over), `lib/vitamin-d-view.ts` (the form and "Log it" entries); the dialog `components/vitamin-d/`, loaded by `components/deferred.tsx`; the dashboard button `components/dashboard/VitaminDLogButton.tsx`; "Log it" on `components/dashboard/ActivityCard.tsx`, which logs the slot `planActivityDay` recommends for the whole day.
+- Calculation: `packages/core/src/vitamin-d.ts` (the card's terms and `vitDMins`, moved here from `weather.ts`) and `packages/core/src/vitamin-d-session.ts` (each session's estimate, built on those terms; apart so it stays out of the first load; `SUNSCREEN_UV_FACTOR` in `recommendation.ts` is the plans' 2.5, now named); entries, checks, pruning and totals: `packages/core/src/vitamin-d-log.ts`.
+- Browser: `lib/vitamin-d-log.ts` (storage), `lib/vitamin-d-switch.ts` (the switch alone, in the first load), `lib/vitamin-d-owner.ts` (the key per owner and the guest log's hand-over), `lib/vitamin-d-view.ts` (the form and "Log it" entries); the dialog `components/vitamin-d/`, loaded by `components/deferred.tsx`; the dashboard button `components/dashboard/VitaminDLogButton.tsx`; "Log it" on `components/dashboard/ActivityCard.tsx`, which logs the slot `planActivityDay` recommends for the whole day.
 - The account page's download adds `thisDevice.vitaminDLog`; the privacy policy (English and Spanish) says where the log is kept and when it is removed.
 - Tests: `packages/core/src/vitamin-d.test.ts` (the card's minutes log as 1,000 IU for every skin type and UV), `packages/core/src/vitamin-d-log.test.ts`, `lib/vitamin-d-log.test.ts`, `lib/session.test.ts` and `lib/account-local.test.ts` (who sees the log after a sign-out, another account, a guest's sign-in and a deletion), `.github/scripts/check-public-env.test.mjs` and `staging-target.test.mjs` (the switch), `tests/e2e/vitamin-d-log.spec.ts` (log, totals, edit, reload, delete and Undo, "Log it" once, by keyboard, in both languages) and `tests/harness/vitamin-d-log.spec.ts` (both languages at 320, 390 and 1280 px, light and dark, with axe).
 

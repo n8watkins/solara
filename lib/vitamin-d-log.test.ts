@@ -13,10 +13,10 @@ import {
 import {
   adoptGuestVitaminDLog,
   VITAMIN_D_LOG_KEY,
-  vitaminDLogEnabled,
   vitaminDLogKey,
   vitaminDLogOwner,
-} from './vitamin-d-switch'
+} from './vitamin-d-owner'
+import { vitaminDLogEnabled } from './vitamin-d-switch'
 
 const TODAY = '2026-06-15'
 

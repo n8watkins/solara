@@ -3,7 +3,7 @@ import { expect, test, type Page, type TestInfo } from '@playwright/test'
 import { captureScreen, preparePage, type Capture } from './capture'
 import { HARNESS_DATE } from './clock'
 import { buildRawForecast, buildUser, HARNESS_MARKER } from './fixtures'
-import { vitaminDLogKey } from '@/lib/vitamin-d-switch'
+import { vitaminDLogKey } from '@/lib/vitamin-d-owner'
 
 // The vitamin D log (ROADMAP item 48) in English and Spanish, light and dark, for the
 // harness's signed-in account (its own log key): the log with a week of sessions (one past

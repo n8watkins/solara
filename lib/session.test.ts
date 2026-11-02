@@ -81,7 +81,7 @@ import { GUEST_KEY, loadGuestPrefs, saveGuestPrefs } from '@/lib/guest'
 import { GUEST_REPLACED_KEY, readReplacedGuestPlan } from '@/lib/guest-replaced'
 import { SignOutBlockedError, loadAccountPrefs, signOutAndClear } from '@/lib/session'
 import type { ForecastData, Location, UserPreferences } from '@/lib/types'
-import { VITAMIN_D_LOG_KEY, vitaminDLogKey } from '@/lib/vitamin-d-switch'
+import { VITAMIN_D_LOG_KEY, vitaminDLogKey } from '@/lib/vitamin-d-owner'
 
 /** A stored vitamin D log with one entry (its content does not matter here, only its owner). */
 const logOf = (id: string) => JSON.stringify({ version: 1, entries: [{ id }] })

@@ -5,7 +5,7 @@ import { INSTALL_DISMISS_KEY } from './install-prompt'
 import { clearLocalNotificationState } from './notifications'
 import { clearAccountData } from './session'
 import { THEME_STORAGE_KEY } from './theme'
-import { vitaminDLogOwner } from './vitamin-d-switch'
+import { vitaminDLogOwner } from './vitamin-d-owner'
 
 /** Settings that belong to this browser, not to an account, and stay after a deletion. */
 export const DEVICE_STORAGE_KEYS: readonly string[] = [THEME_STORAGE_KEY, INSTALL_DISMISS_KEY]
