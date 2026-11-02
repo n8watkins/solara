@@ -177,7 +177,11 @@ for (const lang of LANGUAGES) {
       await expect(menu).toHaveCount(0)
       await expect(page.getByTestId('header-place-name')).toHaveText('Los Angeles')
       await expect(page.getByRole('button', { name: lang.visiting })).toHaveCount(0)
-      await expect.poll(() => seen.forecasts.at(-1)).toBe('34.05,-118.24')
+      // Home's forecast comes back from this browser's cache (it was fetched on opening),
+      // and nothing of the visit is left.
+      expect(seen.forecasts[0]).toBe('34.05,-118.24')
+      expect(await page.evaluate(() => localStorage.getItem('solara_travel'))).toBeNull()
+      await expect(page.getByTestId('travel-banner')).toHaveCount(0)
     })
 
     test('the place menu by keyboard, with what a screen reader hears', async ({ page }) => {
