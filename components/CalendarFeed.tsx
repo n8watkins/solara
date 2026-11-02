@@ -11,6 +11,7 @@ import {
   watchFeedToken,
 } from '@/lib/feed'
 import type { UserPreferences } from '@/lib/types'
+import { useVisit } from '@/lib/place-context'
 import m from '@/messages/calendar'
 
 interface Props {
@@ -43,6 +44,8 @@ function CalendarFeedPanel({ uid }: { uid: string }) {
   const [busy, setBusy] = useState<Busy>(null)
   const [message, setMessage] = useState('')
   const [copied, setCopied] = useState(false)
+  // The link is built on the server, for home, whatever this device shows (ROADMAP item 53).
+  const visit = useVisit()
 
   useEffect(() => watchFeedToken(uid, setFeed, () => setMessage(m.feedLoadFailed)), [uid])
 
@@ -98,6 +101,11 @@ function CalendarFeedPanel({ uid }: { uid: string }) {
     <div className="mb-3 flex items-start gap-2.5 rounded-[10px] border-[0.5px] border-line-strong bg-surface-metric px-3 py-2.5">
       <RefreshCw size={16} className="mt-0.5 shrink-0 text-ink-3" />
       <div className="min-w-0 flex-1">
+        {visit && (
+          <p className={`${hint} mb-2`} data-testid="feed-uses-home">
+            {m.feedUsesHome(visit.home.city)}
+          </p>
+        )}
         {feed.status === 'loading' ? (
           <p className={hint}>{m.feedLoading}</p>
         ) : !url ? (

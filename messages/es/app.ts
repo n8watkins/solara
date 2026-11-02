@@ -9,6 +9,7 @@ export default {
   signOutFailed: 'No se pudo cerrar la sesión. Revisa tu conexión y vuelve a intentarlo.',
   currentUv: (value, level) => `Índice UV actual ${value}, ${level}`,
   pro: 'Pro',
+  visitingPlace: (place, home) => `De visita en ${place}, tu casa es ${home}`,
   settings: 'Configuración',
   signIn: 'Iniciar sesión',
   viewDashboard: 'Panel',

@@ -37,6 +37,9 @@ export default defineMessages('calendar', {
   feedRegenerateConfirm:
     'Regenerate the feed link? Your existing subscription will stop updating until you re-subscribe with the new link.',
   feedLoading: 'Loading your calendar feed…',
+  /** During a visit (ROADMAP item 53): the feed is built on the server, for home. */
+  feedUsesHome: (home: string) =>
+    `This link plans for home, ${home}, not the place shown now. Set the shown place as home to change it.`,
   feedPitch:
     'Subscribe your calendar to a live sun-plan feed that updates as the forecast changes.',
   feedAddUrl:

@@ -77,6 +77,14 @@ const RIO_DE_JANEIRO: Location = {
 }
 
 /** The places a harness screen can open in (HarnessApp's `place` parameter). */
+const SAN_DIEGO: Location = {
+  lat: 32.72,
+  lon: -117.16,
+  city: 'San Diego',
+  region: 'California',
+  timezone: 'America/Los_Angeles',
+}
+
 export const HARNESS_PLACES: Record<string, Location> = {
   'los-angeles': HARNESS_LOCATION,
   sydney: SYDNEY,
@@ -85,14 +93,8 @@ export const HARNESS_PLACES: Record<string, Location> = {
   'san-francisco': SAN_FRANCISCO,
   'ciudad-de-mexico': MEXICO_CITY,
   'rio-de-janeiro': RIO_DE_JANEIRO,
-}
-
-const SAN_DIEGO: Location = {
-  lat: 32.72,
-  lon: -117.16,
-  city: 'San Diego',
-  region: 'California',
-  timezone: 'America/Los_Angeles',
+  // A saved place near home, for a visit (ROADMAP item 54).
+  'san-diego': SAN_DIEGO,
 }
 
 /**

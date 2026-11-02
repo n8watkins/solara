@@ -12,7 +12,10 @@ interface Props {
   onChange: (location: Location) => void
 }
 
-/** The "Location" section: the forecast location, by GPS or place search. */
+/**
+ * The "Location" section: home, by GPS or place search. Home is what the server's calendar
+ * link and notifications use; a place shown from the header is a visit (ROADMAP item 53).
+ */
 export default function LocationSettings({ location, onChange }: Props) {
   const { query, changeQuery, loading, error, choose, missed, locate } =
     useSettingsLocation(onChange)
@@ -25,6 +28,7 @@ export default function LocationSettings({ location, onChange }: Props) {
           {location.city}
           {location.region ? `, ${location.region}` : ''}
         </p>
+        <p className="mt-1.5 text-[12px] leading-[1.45] text-ink-3">{m.homeNote}</p>
       </SettingsCard>
       <button type="button" className="btn justify-center" onClick={locate} disabled={loading}>
         <MapPin size={15} /> {loading ? m.detecting : m.useCurrentLocation}

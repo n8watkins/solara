@@ -99,6 +99,7 @@ export type LazyNamespace =
   | 'share'
   | 'skinQuiz'
   | 'sunscreen'
+  | 'travel'
   | 'vitaminD'
 
 /** How a language fetches each of those namespaces, a chunk of its own. */

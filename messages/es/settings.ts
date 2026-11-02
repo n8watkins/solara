@@ -20,7 +20,9 @@ export default {
   timeFormat: 'Formato de hora',
   sunPath: 'Animación del recorrido del sol',
   sunPathHint: 'El arco sobre el gráfico de UV por hora que muestra la posición del sol.',
-  currentLocation: 'Ubicación actual',
+  currentLocation: 'Casa',
+  homeNote:
+    'Tu enlace de calendario y tus notificaciones usan tu casa. Mostrar otro lugar desde el menú de lugares del encabezado no la cambia.',
   searchCity: 'Busca una ciudad',
   searchCityPlaceholder: 'Busca una ciudad…',
   dailyUvHint: 'Solo los días en que el UV llega a moderado o más, o llegaría con cielo despejado.',
@@ -161,4 +163,5 @@ export const needsReview: (keyof typeof settings)[] = [
   'sunscreenPerActivity',
   'dailyUvHint',
   'uvAlertHint',
+  'homeNote',
 ]

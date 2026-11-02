@@ -6,7 +6,7 @@ import type { User } from 'firebase/auth'
 import type { AccountIdentity } from './AccountMenu'
 import { goToLanding } from '@/lib/app-routes'
 import type { UserPreferences, TierLevel } from '@/lib/types'
-import { getSavedLocationLimit } from '@solara/core/tiers'
+import type { PlaceControls } from '@/lib/places'
 import { headerUV } from '@/lib/header-display'
 import { uvBandColor } from '@/lib/weather'
 import { useOpenSettings } from '@/lib/open-settings'
@@ -25,8 +25,11 @@ interface Props {
    * session belongs to while Auth confirms it. Defaults to `user`.
    */
   account?: AccountIdentity | null
+  /** The plan, with home as its place. */
   prefs: UserPreferences
   onPrefsUpdate: (p: UserPreferences) => void
+  /** Home, the saved places and the place shown (ROADMAP item 53). */
+  places: PlaceControls
   onGoHome: () => void
   /** Current UV index at the active location; hidden when unknown. */
   currentUV?: number | null
@@ -38,6 +41,7 @@ export default function Header({
   account = user,
   prefs,
   onPrefsUpdate,
+  places,
   onGoHome,
   currentUV,
   displayTier,
@@ -91,14 +95,7 @@ export default function Header({
           </button>
 
           <div className={styles.location}>
-            <LocationPopover
-              location={prefs.location}
-              savedLocations={prefs.savedLocations ?? []}
-              limit={getSavedLocationLimit(displayTier ?? prefs.tier)}
-              onApply={({ location, savedLocations }) =>
-                onPrefsUpdate({ ...prefs, location, savedLocations })
-              }
-            />
+            <LocationPopover places={places} />
           </div>
 
           <div className={clsx(styles.right, !account && styles.guest)} data-header-controls>

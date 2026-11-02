@@ -27,7 +27,7 @@ Activity cards, the hero slot and the activity editor
 
 ## calendar
 
-calendar
+The Calendar view and the calendar feed card
 
 | Key | English | Spanish | Notes |
 | --- | --- | --- | --- |
@@ -37,6 +37,7 @@ calendar
 | `selectWindow` | Select a window to share it or add it to your calendar. Forecast-based planning estimate only; recheck current UV and use appropriate sun protection. | Elige un horario para compartirlo o agregarlo a tu calendario. Solo es una estimación basada en el pronóstico; vuelve a revisar el UV actual y usa la protección solar adecuada. |  |
 | `plansWithClouds` | This activity plans with those clouds, so a clearer sky means higher UV. | Esta actividad planifica con esas nubes, así que un cielo más despejado significa más UV. |  |
 | `plansClearSky` | Planned for a clear sky, so the window holds if the clouds break. | Planificado para cielo despejado, así que el horario se mantiene si las nubes se abren. |  |
+| `feedUsesHome` | This link plans for home, {1}, not the place shown now. Set the shown place as home to change it. | Este enlace planifica para tu casa, {1}, no para el lugar que se muestra ahora. Usa ese lugar como casa para cambiarlo. |  |
 
 ## cityPages
 
@@ -112,6 +113,7 @@ Settings
 | `sunscreenPerActivity` | Whether an activity is planned with sunscreen is set per activity from the dashboard's Activities section, so a swim, walk, and quick coffee break can each use different protection settings. | Si una actividad se planifica con protector solar se decide en cada actividad, desde la sección Actividades del panel, así que nadar, caminar y tomar un café rápido pueden tener cada uno su propia protección. |  |
 | `dailyUvHint` | Only on days the UV reaches moderate or higher, or would under a clear sky. | Solo los días en que el UV llega a moderado o más, o llegaría con cielo despejado. |  |
 | `uvAlertHint` | Once a day, about an hour before the forecast UV reaches this level. | Una vez al día, más o menos una hora antes de que el UV pronosticado llegue a este nivel. |  |
+| `homeNote` | Your calendar link and notifications use home. Showing another place from the header's place menu doesn't change it. | Tu enlace de calendario y tus notificaciones usan tu casa. Mostrar otro lugar desde el menú de lugares del encabezado no la cambia. |  |
 
 ## setup
 
@@ -127,6 +129,7 @@ Setup and the skin type step
 | `skinDescDark` | Very rarely burns | Muy rara vez se quema |  |
 | `burnNoteLive` | Times are rough minutes to a burn without sunscreen at UV {1}, the UV right now. | Los tiempos son minutos aproximados hasta quemarte sin protector solar con UV {1}, el UV de este momento. |  |
 | `burnNoteReference` | Times are rough minutes to a burn without sunscreen at UV {1} ({2}). | Los tiempos son minutos aproximados hasta quemarte sin protector solar con UV {1} ({2}). |  |
+| `serverUsesHome` | Your calendar link and notifications use home, {1}. | Tu enlace de calendario y tus notificaciones usan tu casa, {1}. |  |
 
 ## site
 
@@ -135,6 +138,14 @@ The static pages (landing, legal and city pages, at /es/): the shared disclaimer
 | Key | English | Spanish | Notes |
 | --- | --- | --- | --- |
 | `disclaimer` | Solara is a planning aid, not medical advice or a guarantee that sun exposure is safe. Conditions and individual sensitivity can change quickly. | Solara es una ayuda para planificar, no un consejo médico ni una garantía de que exponerse al sol sea seguro. Las condiciones y la sensibilidad de cada persona pueden cambiar rápidamente. |  |
+
+## travel
+
+The travel prompt above the dashboard, when the device is far from the place shown (ROADMAP item 53)
+
+| Key | English | Spanish | Notes |
+| --- | --- | --- | --- |
+| `seemToBeIn` | You seem to be in {1}. Show UV here? | Parece que estás en {1}. ¿Mostrar el UV de aquí? |  |
 
 ## vitaminD
 
@@ -255,7 +266,7 @@ Sunscreen coaching: the timer, activity cards, Settings; the reapply reminder pu
 | `spfRule` | Use SPF 30+ broad spectrum whenever UV is {1} or more, and SPF 50+ when it reaches {2}. | Usa FPS 30+ de amplio espectro siempre que el UV sea {1} o más, y FPS 50+ cuando llegue a {2}. |  |
 | `reapplyRule` | Put it on {1} before you go out. Reapply every {2}, and straight after swimming, sweating or towelling off. | Aplícalo {1} antes de salir. Vuelve a aplicarlo cada {2}, y justo después de nadar, sudar o secarte con la toalla. |  |
 
-140 messages to review.
+144 messages to review.
 
 ## Legal pages
 

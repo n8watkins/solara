@@ -154,6 +154,15 @@ export const UVScaleBands = deferred(() => import('./dashboard/UVScaleBands'))
 export const LocationPanel = deferred(() =>
   withMessages(['setup'], () => import('./LocationPanel')),
 )
+/**
+ * The travel prompt (ROADMAP item 53), only when the device is far from the place shown;
+ * not fetched with the rest, as most visits never show it.
+ */
+export const TravelBanner = deferred(
+  () => withMessages(['travel'], () => import('./TravelBanner')),
+  null,
+  { preloaded: false },
+)
 /** The dashboard's empty state when no forecast has loaded and the last request failed. */
 export const ForecastUnavailable = deferred(() =>
   withMessages(['setup'], () => import('./ForecastUnavailable')),
