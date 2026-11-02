@@ -6,6 +6,16 @@ import type { UserPreferences, Location } from './types'
 
 export const PREFS_KEY = 'solara_prefs'
 
+/** The account's copy as stored in this browser, unread (lib/prefs.ts loadLocalPrefs reads it). */
+export function storedLocalPrefs(): unknown {
+  try {
+    const raw = localStorage.getItem(PREFS_KEY)
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    return null
+  }
+}
+
 /**
  * Stores preferences in this browser. Preferences read from a newer schema version
  * are not written back, so this client never downgrades them.

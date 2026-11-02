@@ -1,6 +1,6 @@
 // The limits, choices and version rules of the preferences document (./prefs.ts), apart
 // from its Valibot schema, so code that runs on a guest's first screen (the stored guest
-// plan check in the web app, lib/stored-guest-plan.ts) can use them without Valibot
+// plan check in the web app, lib/stored-plan.ts) can use them without Valibot
 // (ROADMAP item 52). ./prefs.ts re-exports all of it.
 
 import m from './messages/core'

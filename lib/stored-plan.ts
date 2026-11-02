@@ -1,20 +1,23 @@
-// Whether a guest plan read from this browser is already exactly what reading it would
-// give: the form saveGuestPrefs (lib/guest.ts) writes after the plan went through the
-// preferences schema (normalizePrefs in lib/prefs.ts, then asGuestPrefs).
+// Whether a plan read from this browser is already exactly what reading it through the
+// preferences schema (normalizePrefs in lib/prefs.ts) would give: the form the app
+// writes, for a guest's plan (lib/guest.ts saveGuestPrefs, after asGuestPrefs) and for a
+// signed-in account's copy (lib/local-prefs.ts saveLocalPrefs).
 //
-// It lets a returning guest's dashboard read the plan without the schema: Valibot and
-// the preferences schema load on demand, and only when this check says no (an older
-// plan, or one changed outside the app), so they stay out of a guest's first load
-// (ROADMAP item 52). It is a strict check, not a second parser: it never repairs
-// anything, and whatever it accepts the schema would return unchanged, while anything
-// else still goes through the schema exactly as before. stored-guest-plan.test.ts holds
-// it to that against the schema itself, so a field added to the schema but not here only
-// sends plans down the schema's path; it can never let an unchecked value through.
+// It lets the opening screen read the plan without the schema: Valibot and the
+// preferences schema load on demand, and only when this check says no (an older plan, or
+// one changed outside the app), so they stay out of a guest's first load, and an
+// account's copy still opens offline from the app shell's precached scripts (ROADMAP item
+// 52). It is a strict check, not a second parser: it never repairs anything, and whatever
+// it accepts the schema would return unchanged, while anything else still goes through
+// the schema exactly as before. stored-plan.test.ts holds it to that against the schema
+// itself, so a field added to the schema but not here only sends plans down the schema's
+// path; it can never let an unchecked value through.
 
 import { isPlainRecord } from '@solara/core/plain-record'
 import { roundCoordinate } from '@solara/core/coordinates'
 import { SHADE_LEVELS, SURFACES } from '@solara/core/exposure'
 import {
+  TIER_LEVELS,
   CALENDAR_HOUR_BOUNDS,
   CLOCK_FORMAT_PREFERENCES,
   DEVICE_LANGUAGES,
@@ -115,16 +118,16 @@ const isFeelsLike: Check = value =>
   (numberIn(FEELS_LIKE_LIMITS.min, FEELS_LIKE_LIMITS.max)(value) &&
     Math.round((value as number) * 10) / 10 === value)
 
+const isIcon: Check = icon =>
+  typeof icon === 'string' && icon.trim().length > 0 && icon.length <= PREFS_LIMITS.iconLength
+
 const isActivity: Check = value =>
   shaped(
     value,
     {
       id: id => typeof id === 'string' && id.trim().length > 0,
       name: text(PREFS_LIMITS.activityNameLength, 1),
-      icon: icon =>
-        typeof icon === 'string' &&
-        icon.trim().length > 0 &&
-        icon.length <= PREFS_LIMITS.iconLength,
+      icon: isIcon,
       durationMins: mins => Number.isInteger(mins) && (mins as number) >= 5,
       maxUV: numberIn(0, 11),
       sunscreen: isBoolean,
@@ -156,26 +159,79 @@ const knownSet =
 const PRESET_IDS = new Set(PRESET_ACTIVITIES.map(preset => preset.id))
 const CATEGORY_NAMES = new Set(ACTIVITY_CATEGORIES.map(category => category.name))
 
+/** Places, none within the rounding grid of another (the schema keeps the first). */
+const isPlaces: Check = value =>
+  Array.isArray(value) &&
+  value.length <= PREFS_LIMITS.savedLocations &&
+  value.every(
+    (place, i) =>
+      isLocation(place) &&
+      value
+        .slice(0, i)
+        .every(
+          other =>
+            Math.abs(other.lat - place.lat) >= 0.01 || Math.abs(other.lon - place.lon) >= 0.01,
+        ),
+  )
+
+/** Distinct, non-blank ids of at most `max` characters. */
+const ids =
+  (max: number): Check =>
+  value =>
+    Array.isArray(value) &&
+    value.length <= PREFS_LIMITS.profiles &&
+    new Set(value).size === value.length &&
+    value.every(id => typeof id === 'string' && id.trim().length > 0 && id.length <= max)
+
+const isProfiles: Check = value =>
+  Array.isArray(value) &&
+  value.length > 0 &&
+  ids(Infinity)(value.map(profile => (profile as { id?: unknown } | null)?.id)) &&
+  value.every(profile =>
+    shaped(
+      profile,
+      {
+        id: () => true,
+        name: text(PREFS_LIMITS.profileNameLength, 1),
+        skinType: oneOf(SKIN_TYPES),
+      },
+      { icon: isIcon },
+    ),
+  )
+
 const REQUIRED: Record<string, Check> = {
-  uid: value => value === '',
+  uid: value => typeof value === 'string',
   schemaVersion: value => value === PREFS_SCHEMA_VERSION,
   location: isLocation,
-  savedLocations: value => Array.isArray(value) && value.length === 0,
+  savedLocations: isPlaces,
   skinType: oneOf(SKIN_TYPES),
   sunscreen: isBoolean,
   activities: value =>
-    Array.isArray(value) &&
-    value.length <= TIER_LIMITS.anonymous.activities &&
-    value.every(isActivity),
-  tier: value => value === 'anonymous',
+    Array.isArray(value) && value.length <= PREFS_LIMITS.activities && value.every(isActivity),
+  tier: oneOf(TIER_LEVELS),
   onboardingComplete: isBoolean,
   hiddenActivitySuggestionIds: knownSet(PRESET_IDS),
   collapsedActivityCategories: knownSet(CATEGORY_NAMES),
   notificationHour: integerIn(NOTIFICATION_HOUR.min, NOTIFICATION_HOUR.max),
 }
 
-// A guest plan never has profiles, saved places or an upgrade request (asGuestPrefs).
 const OPTIONAL: Record<string, Check> = {
+  profiles: isProfiles,
+  // Kept only while it names one of the profiles (checked in isStoredPlan).
+  activeProfileId: value => typeof value === 'string',
+  groupMode: isBoolean,
+  groupProfileIds: ids(PREFS_LIMITS.activeProfileIdLength),
+  upgradeInterest: value =>
+    shaped(
+      value,
+      {
+        createdAt: at =>
+          typeof at === 'string' &&
+          at.length <= PREFS_LIMITS.timestampLength &&
+          Number.isFinite(Date.parse(at)),
+      },
+      { email: text(PREFS_LIMITS.emailLength, 1) },
+    ),
   calendarHours: value =>
     shaped(value, {
       from: numberIn(CALENDAR_HOUR_BOUNDS.from.min, CALENDAR_HOUR_BOUNDS.from.max),
@@ -197,10 +253,33 @@ const OPTIONAL: Record<string, Check> = {
 }
 
 /**
- * Whether `raw` (a guest plan as stored, parsed from JSON) is already in the exact form
- * the preferences schema gives it, so it can be used as it is. False sends it through
- * the schema (lib/guest.ts loadGuestPrefs).
+ * Whether `raw` (a plan as stored, parsed from JSON) is already in the exact form the
+ * preferences schema gives it, so it can be used as it is. False sends it through the
+ * schema (lib/prefs.ts).
  */
+export function isStoredPlan(raw: unknown): raw is UserPreferences {
+  if (!shaped(raw, REQUIRED, OPTIONAL)) return false
+  const { activeProfileId, profiles } = raw as Partial<UserPreferences>
+  return activeProfileId === undefined || !!profiles?.some(p => p.id === activeProfileId)
+}
+
+/** The fields a guest plan never has (asGuestPrefs in lib/guest.ts). */
+const ACCOUNT_ONLY = [
+  'profiles',
+  'activeProfileId',
+  'groupMode',
+  'groupProfileIds',
+  'upgradeInterest',
+]
+
+/** isStoredPlan for a guest's plan, which is also on the guest tier and within its limits. */
 export function isStoredGuestPlan(raw: unknown): raw is UserPreferences {
-  return shaped(raw, REQUIRED, OPTIONAL)
+  return (
+    isStoredPlan(raw) &&
+    raw.uid === '' &&
+    raw.tier === 'anonymous' &&
+    raw.savedLocations.length === 0 &&
+    raw.activities.length <= TIER_LIMITS.anonymous.activities &&
+    ACCOUNT_ONLY.every(field => !(field in raw))
+  )
 }

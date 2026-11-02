@@ -79,7 +79,7 @@ test('a returning guest reads the plan setup saved without loading Valibot', asy
   baseURL,
 }) => {
   // ROADMAP item 52: the plan as the app saves it passes the hand-written check
-  // (lib/stored-guest-plan.ts), so the preferences schema stays on the server until a
+  // (lib/stored-plan.ts), so the preferences schema stays on the server until a
   // dialog needs it; checked with and without an activity.
   await startAsGuest(page)
   const reopen = async (ready: string) => {

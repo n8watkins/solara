@@ -40,7 +40,7 @@ const BUDGET_KB = { en: 190, es: 196 } as const
 
 // A returning guest's plan as setup saved it (lib/guest.ts saveGuestPrefs). A plan in any
 // other form (an older one, or one changed outside Solara) loads the preferences schema
-// once to repair it (lib/stored-guest-plan.ts); it is saved repaired, so it is not what a
+// once to repair it (lib/stored-plan.ts); it is saved repaired, so it is not what a
 // returning guest downloads.
 const GUEST = JSON.stringify({
   prefs: {

@@ -2,6 +2,8 @@
 // dashboard at once while Firebase loads and confirms the session (lib/use-account.ts).
 import { ACCOUNT_OWNER_KEY } from './app-routes'
 import { storedSessionUser, type StoredSessionUser } from './firebase'
+import { storedLocalPrefs } from './local-prefs'
+import { isStoredPlan } from './stored-plan'
 import type { UserPreferences } from './types'
 
 export interface CachedAccount {
@@ -25,10 +27,11 @@ export async function cachedAccount(): Promise<CachedAccount | null> {
     owner = localStorage.getItem(ACCOUNT_OWNER_KEY)
   } catch {}
   if (!owner) return null
-  // The preferences schema loads only here, for a browser holding a session, so a
-  // guest's first load never carries it (ROADMAP item 52); Auth's record is read meanwhile.
-  const [{ loadLocalPrefs }, identity] = await Promise.all([import('./prefs'), storedSessionUser()])
-  const prefs = loadLocalPrefs()
+  // The copy as this app writes it needs no schema, so it shows offline from the app
+  // shell's precached scripts; any other loads the schema to repair it (ROADMAP item 52).
+  const stored = storedLocalPrefs()
+  const prefs = isStoredPlan(stored) ? stored : (await import('./prefs')).loadLocalPrefs()
   if (prefs?.uid !== owner) return null
+  const identity = await storedSessionUser()
   return identity?.uid === owner ? { identity, prefs } : null
 }

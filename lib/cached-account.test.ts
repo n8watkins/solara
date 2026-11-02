@@ -1,9 +1,22 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type * as PrefsModule from '@/lib/prefs'
 
 // lib/cached-account.ts: the account shown before Auth confirms the session. It must
 // only ever be the session's own account (FE-3 account isolation).
 
 const session = vi.hoisted(() => ({ user: null as null | { uid: string } }))
+// Counts reads through the preferences schema (ROADMAP item 52).
+const schema = vi.hoisted(() => ({ reads: 0 }))
+vi.mock('@/lib/prefs', async importOriginal => {
+  const actual = await importOriginal<typeof PrefsModule>()
+  return {
+    ...actual,
+    loadLocalPrefs: () => {
+      schema.reads++
+      return actual.loadLocalPrefs()
+    },
+  }
+})
 
 vi.mock('@/lib/firebase', () => ({
   storedSessionUser: async () =>
@@ -26,10 +39,13 @@ async function cachedWith({
   owner,
   prefsUid,
   sessionUid,
+  copy,
 }: {
   owner?: string
   prefsUid?: string
   sessionUid?: string
+  /** The stored copy itself, in place of a minimal one for `prefsUid`. */
+  copy?: unknown
 }) {
   vi.resetModules()
   vi.stubGlobal('window', {})
@@ -38,6 +54,7 @@ async function cachedWith({
   if (prefsUid !== undefined) {
     values.solara_prefs = JSON.stringify({ uid: prefsUid, location: LOCATION, tier: 'paid' })
   }
+  if (copy !== undefined) values.solara_prefs = JSON.stringify(copy)
   vi.stubGlobal('localStorage', memoryStorage(values))
   session.user = sessionUid ? { uid: sessionUid } : null
   const { cachedAccount } = await import('@/lib/cached-account')
@@ -68,5 +85,32 @@ describe('cachedAccount', () => {
 
   it('is null without the account marker', async () => {
     expect(await cachedWith({ prefsUid: 'alice', sessionUid: 'alice' })).toBeNull()
+  })
+
+  it('reads a copy in the form the app writes without the preferences schema', async () => {
+    const { defaultPrefs } = await import('@/lib/local-prefs')
+    const copy = { ...defaultPrefs(LOCATION), uid: 'alice', tier: 'paid' }
+    schema.reads = 0
+    const cached = await cachedWith({ owner: 'alice', sessionUid: 'alice', copy })
+    expect(cached?.prefs).toEqual(copy)
+    expect(schema.reads).toBe(0)
+  })
+
+  it('repairs any other copy through the schema, as before', async () => {
+    schema.reads = 0
+    const cached = await cachedWith({
+      owner: 'alice',
+      sessionUid: 'alice',
+      copy: { uid: 'alice', location: { ...LOCATION, lat: 34.0512 }, tier: 'paid', skinType: 9 },
+    })
+    expect(schema.reads).toBe(1)
+    expect(cached?.prefs).toMatchObject({ location: { lat: 34.05 }, skinType: 'fair' })
+    expect(
+      await cachedWith({
+        owner: 'alice',
+        sessionUid: 'alice',
+        copy: { uid: 'alice', location: 1 },
+      }),
+    ).toBeNull()
   })
 })

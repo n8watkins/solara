@@ -6,12 +6,12 @@
 // either way (lib/session.ts loadAccountPrefs).
 //
 // Reading the plan back goes through the preferences schema (lib/prefs.ts), except when
-// the stored plan is already exactly what the schema would return (lib/stored-guest-plan.ts),
+// the stored plan is already exactly what the schema would return (lib/stored-plan.ts),
 // which is how this module writes it: then the schema, and Valibot with it, need not load
 // for a returning guest's dashboard (ROADMAP item 52).
 import { PREFS_SCHEMA_VERSION } from '@solara/core/prefs-rules'
 import { TIER_LIMITS } from '@solara/core/tiers'
-import { isStoredGuestPlan } from './stored-guest-plan'
+import { isStoredGuestPlan } from './stored-plan'
 import type { UserPreferences } from './types'
 
 export const GUEST_KEY = 'solara_guest'

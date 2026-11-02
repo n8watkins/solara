@@ -4,11 +4,11 @@ import { ACTIVITY_CATEGORIES, PRESET_ACTIVITIES } from '@solara/core/tiers'
 import { asGuestPrefs } from './guest'
 import { defaultPrefs } from './local-prefs'
 import { normalizePrefs } from './prefs'
-import { isStoredGuestPlan } from './stored-guest-plan'
+import { isStoredGuestPlan, isStoredPlan } from './stored-plan'
 import type { UserPreferences } from './types'
 
-// isStoredGuestPlan lets a returning guest's plan skip the preferences schema (ROADMAP
-// item 52). It is only safe if it accepts nothing the schema would change, and only
+// isStoredGuestPlan and isStoredPlan let a returning guest's plan, and a signed-in
+// account's copy in this browser, skip the preferences schema (ROADMAP item 52). It is only safe if it accepts nothing the schema would change, and only
 // useful if it accepts what the app writes. Both are checked here against the schema
 // itself, on plans the app writes and on many plans changed in every field.
 
@@ -113,6 +113,8 @@ function random(seed: number) {
 
 /** Values that break each kind of field in a different way. */
 const ODD: unknown[] = [
+  // A valid saved place, which a guest plan never has.
+  [LA],
   null,
   true,
   false,
@@ -202,7 +204,14 @@ function replacements(old: unknown): unknown[] {
   }
   if (typeof old === 'boolean') return [!old, 'true', 1]
   if (Array.isArray(old)) {
-    return [[...old].reverse(), [...old, ...old], old.length ? [old[0], old[0]] : [1], []]
+    return [
+      [...old].reverse(),
+      [...old, ...old],
+      old.length ? [old[0], old[0]] : [1],
+      // Past every list's cap (20 activities, 12 places or profiles).
+      old.length ? Array.from({ length: 21 }, (_, i) => old[i % old.length]) : [],
+      [],
+    ]
   }
   return []
 }
@@ -215,7 +224,17 @@ function mutate(value: unknown, next: () => number): unknown {
   if (roll < 0.1 || !all.length) {
     const target = pick([[], ...all.filter(path => typeof path.at(-1) === 'string')])
     const parent = target.length && next() < 0.5 ? target.slice(0, -1) : target
-    const key = pick(['profiles', 'groupMode', 'upgradeInterest', 'custom', 'timezone', 'x'])
+    const key = pick([
+      'profiles',
+      'groupMode',
+      'upgradeInterest',
+      'activeProfileId',
+      'email',
+      'icon',
+      'custom',
+      'timezone',
+      'x',
+    ])
     const add = (old: unknown) =>
       old && typeof old === 'object' && !Array.isArray(old)
         ? { ...old, [key]: pick([true, false, ...ODD]) }
@@ -272,4 +291,68 @@ describe('isStoredGuestPlan', () => {
       expect(isStoredGuestPlan(value)).toBe(false)
     }
   })
+})
+
+/** What saveLocalPrefs keeps for an account's `raw` plan, as read back from storage. */
+function storedAccount(raw: unknown): unknown {
+  const prefs = normalizePrefs(raw)
+  return prefs && JSON.parse(JSON.stringify(prefs))
+}
+
+const ACCOUNTS: UserPreferences[] = [
+  { ...defaultPrefs(LA), uid: 'user-a', tier: 'free', onboardingComplete: true },
+  {
+    ...(WRITTEN[2] as UserPreferences),
+    uid: 'user-b',
+    tier: 'paid',
+    savedLocations: [LA, { lat: 40.71, lon: -74.01, city: 'New York', region: 'New York' }],
+    profiles: [
+      { id: 'me', name: 'Me', skinType: 'fair', icon: '🙂' },
+      { id: 'kid', name: 'Kid', skinType: 'very-fair' },
+    ],
+    activeProfileId: 'kid',
+    groupMode: true,
+    groupProfileIds: ['me', 'kid'],
+    upgradeInterest: { email: 'a@example.com', createdAt: '2026-06-01T00:00:00.000Z' },
+    activities: [
+      ...(WRITTEN[2] as UserPreferences).activities,
+      { id: 'walk', name: 'Walk', icon: '🚶', durationMins: 30, maxUV: 5, sunscreen: false },
+    ],
+  },
+]
+
+describe('isStoredPlan (an account copy)', () => {
+  it('accepts every copy the app writes', () => {
+    for (const plan of ACCOUNTS) {
+      const kept = storedAccount(plan)
+      expect(isStoredPlan(kept), JSON.stringify(kept)).toBe(true)
+      // An account's copy is never a guest plan.
+      expect(isStoredGuestPlan(kept)).toBe(false)
+    }
+  })
+
+  it('accepts only copies the schema returns unchanged, and every such copy it writes', () => {
+    const next = random(53)
+    let accepted = 0
+    for (let run = 0; run < 30_000; run++) {
+      let plan: unknown = storedAccount(ACCOUNTS[run % 4 ? 1 : 0])
+      plan = mutate(plan, next)
+      if (next() < 0.2) plan = mutate(plan, next)
+      if (isStoredPlan(plan)) {
+        accepted++
+        expect(
+          deepEqual(storedAccount(plan), plan),
+          `accepted a copy the schema changes: ${JSON.stringify(plan)}`,
+        ).toBe(true)
+      }
+      const repaired = storedAccount(plan) as UserPreferences | null
+      if (
+        repaired?.schemaVersion === PREFS_SCHEMA_VERSION &&
+        deepEqual(storedAccount(repaired), repaired)
+      ) {
+        expect(isStoredPlan(repaired), JSON.stringify(repaired)).toBe(true)
+      }
+    }
+    expect(accepted).toBeGreaterThan(1_000)
+  }, 30_000)
 })
