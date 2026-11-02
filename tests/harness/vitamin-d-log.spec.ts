@@ -83,14 +83,14 @@ const LOG = {
 const LANGUAGES = [
   {
     code: 'en',
-    open: 'Vitamin D log',
+    open: /Vitamin D log/,
     add: 'Add a session',
     editYesterday: /^Edit Time in the sun/,
     past: 'Past your burn time',
   },
   {
     code: 'es',
-    open: 'Registro de vitamina D',
+    open: /Registro de vitamina\sD/,
     add: 'Agregar una sesión',
     editYesterday: /^Editar Tiempo al sol/,
     past: 'Pasaste tu tiempo hasta quemarte',

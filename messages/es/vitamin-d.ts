@@ -2,7 +2,7 @@ import { plural, type Translation } from '@solara/core/i18n'
 import type vitaminD from '../vitamin-d'
 
 export default {
-  title: 'Registro de vitamina D',
+  title: 'Registro de vitamina\u00a0D',
   lead: 'Estimaciones aproximadas de la vitamina D que tu tiempo al sol pudo producir, y de qué tan cerca estuvo cada sesión de una quemadura.',
   deviceOnly:
     'Se guarda solo en este navegador y nunca se envía a Solara. Al cerrar sesión se oculta hasta que vuelvas a iniciarla aquí.',

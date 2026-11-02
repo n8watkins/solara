@@ -45,7 +45,7 @@ export default {
   vitdDose: dose => `≈${dose} UI · brazos\u00a0+\u00a0piernas`,
   uvTooLow: 'UV demasiado bajo',
   needsUv1: 'Necesita UV de 1 o más',
-  vitdLog: 'Registro de vitamina D',
+  vitdLog: 'Registro de vitamina\u00a0D',
   vitdLogHint: 'Anota tu tiempo al sol',
 
   shareFailed: 'No se pudo compartir. Revisa tu conexión y vuelve a intentarlo.',

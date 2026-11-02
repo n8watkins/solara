@@ -38,7 +38,7 @@ const GUEST = JSON.stringify({
 const LANGUAGES = [
   {
     code: 'en',
-    open: 'Vitamin D log',
+    open: /Vitamin D log/,
     empty: /No sessions yet/,
     add: 'Add a session',
     length: 'Length (minutes)',
@@ -63,7 +63,7 @@ const LANGUAGES = [
   },
   {
     code: 'es',
-    open: 'Registro de vitamina D',
+    open: /Registro de vitamina\sD/,
     empty: /Todavía no hay sesiones/,
     add: 'Agregar una sesión',
     length: 'Duración (minutos)',
@@ -106,7 +106,7 @@ for (const lang of LANGUAGES) {
 
     test('log a session, see the totals, edit it, reload, delete it', async ({ page }) => {
       await openAsGuest(page)
-      const opener = page.getByRole('button', { name: new RegExp(lang.open) })
+      const opener = page.getByRole('button', { name: lang.open })
       await expect(opener).toBeVisible()
 
       // By keyboard: the dashboard's button opens the log, named for a screen reader.
@@ -159,7 +159,7 @@ for (const lang of LANGUAGES) {
 
       // A reload keeps the session, edited.
       await page.reload()
-      await page.getByRole('button', { name: new RegExp(lang.open) }).click()
+      await page.getByRole('button', { name: lang.open }).click()
       await expect(log.getByTestId('vitd-session')).toHaveCount(1)
       await expect(log.getByTestId('vitd-session-iu')).toHaveText(after)
 
@@ -175,7 +175,7 @@ for (const lang of LANGUAGES) {
 
       // Nothing is left after a reload either.
       await page.reload()
-      await page.getByRole('button', { name: new RegExp(lang.open) }).click()
+      await page.getByRole('button', { name: lang.open }).click()
       await expect(log).toContainText(lang.empty)
     })
 
