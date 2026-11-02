@@ -36,6 +36,7 @@ import SessionEstimateLines from './SessionEstimateLines'
 import SessionForm, { exposureName } from './SessionForm'
 import WeekChart, { iuText } from './WeekChart'
 import m from '@/messages/vitamin-d'
+import app from '@/messages/app'
 
 export interface VitaminDLogProps extends LogContext {
   /** Whose log: the signed-in account's uid, or null for a guest. */
@@ -367,6 +368,10 @@ export default function VitaminDLog({ owner, logActivity, onClose, ...context }:
             <p>{m.howLimits}</p>
           </div>
         </details>
+
+        <p className="text-[11px] leading-normal text-ink-3">
+          {m.notMedical} {app.healthQualifier}
+        </p>
 
         <p className="text-[11px] leading-normal text-ink-3">{m.deviceOnly}</p>
 

@@ -94,7 +94,9 @@ export default defineMessages('vitaminD', {
   howSunscreen:
     'Sunscreen counts as dividing the UV by 2.5, as the plans assume for SPF 30+, for the burn and the vitamin D alike. As people usually apply it, it blocks far less than its label says (Neale and others, 2019).',
   howLimits:
-    'Age is not taken into account: older skin makes much less vitamin D. Needs and production vary widely with the person, the season and where you live. These are rough estimates, not medical advice; ask a clinician if you are concerned.',
+    'Age is not taken into account: older skin makes much less vitamin D. Needs and production vary widely with the person, the season and where you live.',
+  /** Under the explanation, followed by app.healthQualifier. */
+  notMedical: 'Rough estimates for tracking, not medical advice.',
 
   download: 'Download the log',
   deleteAll: 'Delete all sessions',

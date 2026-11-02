@@ -21,6 +21,7 @@ import {
   SettingsTitle,
 } from './SettingsCard'
 import m from '@/messages/settings'
+import app from '@/messages/app'
 
 interface Props {
   draft: SettingsDraft
@@ -101,7 +102,7 @@ export default function SunProfileSettings({ draft, onChange }: Props) {
         </button>
         {showHelp && (
           <p id={`${id}-skin-help`} className="text-[13px] leading-[1.55] text-ink-2">
-            {m.skinTypeExplanation}
+            {m.skinTypeExplanation} {app.healthQualifier}
           </p>
         )}
       </SettingsCard>

@@ -5,6 +5,7 @@ import type { Messages } from '@solara/core/i18n'
 
 /** Where each namespace's text shows, for the reviewer. */
 const CONTEXT: Record<string, string> = {
+  app: 'Who should ask a health professional: after the dashboard footer, the skin type step, the sunscreen guide, the vitamin D log and Settings, Sun profile',
   core: 'UV categories, rain and heat, forecast confidence (dashboard, alerts, calendar feed)',
   briefing: 'The daily briefing at the top of the dashboard, and shared briefings',
   sunscreen: 'Sunscreen coaching: the timer, activity cards, Settings; the reapply reminder push',
@@ -40,7 +41,7 @@ const DOCUMENTS = [
     page: '/es/terms/',
     source: 'app/es/terms/page.tsx',
     english: '/terms/',
-    note: 'The terms of use, in full, including the health and forecast disclaimer. It states that the English version prevails.',
+    note: 'The terms of use, in full, including the "not medical advice" section. It states that the English version prevails.',
   },
 ]
 
@@ -66,6 +67,42 @@ export const DOCUMENT_CHANGES = [
       "A note that an account was deleted on the Account data controls page (its former account id and the time, linked to no sign-in), so another open tab cannot bring the account back: a day, once Solara's automatic clean-up is switched on, and until then it stays.",
     spanish:
       'Una nota de que una cuenta se eliminó en la página de controles de datos de la cuenta (su identificador anterior y la hora, sin vínculo con ningún inicio de sesión), para que otra pestaña abierta no pueda recuperar la cuenta: un día, cuando se active la limpieza automática de Solara, y hasta entonces se conserva.',
+  },
+  {
+    page: '/es/terms/',
+    version: 'November 1, 2026',
+    section: 'No es consejo médico',
+    english:
+      "Solara's planning windows, burn times, sunscreen guidance, vitamin D figures and other estimates are for planning and tracking. They are not medical advice, a diagnosis or a treatment, and they do not replace a health professional.",
+    spanish:
+      'Los horarios para planificar, los tiempos hasta quemarte, la orientación sobre el protector solar, las cifras de vitamina D y las demás estimaciones de Solara sirven para planificar y llevar un registro. No son consejo médico, ni un diagnóstico ni un tratamiento, y no reemplazan a un profesional de la salud.',
+  },
+  {
+    page: '/es/terms/',
+    version: 'November 1, 2026',
+    section: 'No es consejo médico',
+    english:
+      "If you have a medical condition, take a medicine that makes you more sensitive to the sun, are pregnant, or are worried about your skin or vitamin D, ask a health professional before relying on Solara's estimates.",
+    spanish:
+      'Si tienes un problema de salud, tomas un medicamento que te hace más sensible al sol, estás embarazada o te preocupa tu piel o tu vitamina D, consulta a un profesional de la salud antes de confiar en las estimaciones de Solara.',
+  },
+  {
+    page: '/es/terms/',
+    version: 'November 1, 2026',
+    section: 'No es consejo médico',
+    english:
+      'Solara does not guarantee that following its estimates prevents sunburn, skin damage, heat illness or other harm, or that any time outdoors is safe.',
+    spanish:
+      'Solara no garantiza que seguir sus estimaciones evite quemaduras solares, daños en la piel, enfermedades por calor u otros daños, ni que algún momento al aire libre sea seguro.',
+  },
+  {
+    page: '/es/terms/',
+    version: 'November 1, 2026',
+    section: 'Pronósticos y estimaciones',
+    english:
+      'Use current local conditions, follow public health guidance and use appropriate sun protection.',
+    spanish:
+      'Ten en cuenta las condiciones locales del momento, sigue las recomendaciones de salud pública y usa una protección solar adecuada.',
   },
 ]
 

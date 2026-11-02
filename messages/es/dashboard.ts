@@ -11,7 +11,7 @@ export default {
   noUvDataTitle: 'No hay datos de UV para este periodo',
   noUvDataBody: (from, to) => punto(`Hay datos de UV entre ${las(from)} y ${las(to)}`),
   disclaimer:
-    'Estimaciones basadas en el pronóstico, no son consejo médico. Las condiciones pueden cambiar; protégete del sol.',
+    'Estimaciones para planificar y llevar un registro, no consejo médico. Las condiciones pueden cambiar; protégete del sol.',
 
   uvByHour: 'UV por hora',
   uvByHourHelp:
@@ -122,6 +122,7 @@ export default {
     `¿Vas a salir? Recibe un recordatorio para volver a aplicarlo cada ${duration}.`,
   startTimer: 'Iniciar',
   howMuchSunscreen: '¿Cuánto protector solar?',
+  sunscreenNotMedical: 'Orientación general, no consejo médico.',
 } satisfies Translation<typeof dashboard>
 
 export const needsReview: (keyof typeof dashboard)[] = [
@@ -141,4 +142,5 @@ export const needsReview: (keyof typeof dashboard)[] = [
   'needsUv1',
   'eventLinkDetails',
   'headingOut',
+  'sunscreenNotMedical',
 ]

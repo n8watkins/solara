@@ -56,7 +56,7 @@ export default {
   aboutServedBy: ', servidos por la ',
   openMeteoApi: 'API de calidad del aire de Open-Meteo',
   aboutCaveat:
-    ', para el centro de la ciudad, en hora local. Describen un día típico, no un día en particular: el UV de un día dado puede ser más alto o más bajo, así que revisa el pronóstico antes de salir. Solara es una ayuda para planificar, no un consejo médico.',
+    ', para el centro de la ciudad, en hora local. Describen un día típico, no un día en particular: el UV de un día dado puede ser más alto o más bajo, así que revisa el pronóstico antes de salir.',
   otherCities: 'El UV en otras ciudades',
   allCities: 'Todas las ciudades',
 

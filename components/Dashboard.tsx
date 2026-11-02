@@ -53,6 +53,7 @@ import Skeleton from './Skeleton'
 import { isStoreBuild } from '@/lib/store-build'
 import { SHARED_PARAM, sharedId } from '@/lib/app-routes'
 import m from '@/messages/dashboard'
+import app from '@/messages/app'
 import core from '@solara/core/messages/core'
 import { withMessages } from '@/lib/i18n'
 
@@ -447,8 +448,11 @@ function DashboardView({
         />
       )}
 
-      {/* The one caveat on the dashboard (the metric tooltips carry their own). */}
-      <p className="mx-0.5 text-[11px] leading-normal text-ink-3 max-lg:order-2">{m.disclaimer}</p>
+      {/* The one caveat on the dashboard (the metric tooltips carry their own), with who
+          should ask a health professional (docs/LEGAL_REVIEW.md). */}
+      <p className="mx-0.5 text-[11px] leading-normal text-ink-3 max-lg:order-2">
+        {m.disclaimer} {app.healthQualifier}
+      </p>
 
       {showPricing && (
         <PricingModal

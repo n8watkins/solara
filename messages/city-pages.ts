@@ -63,7 +63,7 @@ export default defineMessages('cityPages', {
   openMeteoApi: 'Open-Meteo Air Quality API',
   /** After the license, which closes in a parenthesis. */
   aboutCaveat:
-    ', for the city center, in local time. They describe a typical day, not any one day: the UV on a given day can be higher or lower, so check the forecast before you go. Solara is a planning aid, not medical advice.',
+    ', for the city center, in local time. They describe a typical day, not any one day: the UV on a given day can be higher or lower, so check the forecast before you go.',
   otherCities: 'UV in other cities',
   allCities: 'All cities',
 

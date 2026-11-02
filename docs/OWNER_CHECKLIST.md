@@ -172,7 +172,7 @@ A20. **Small clean-ups (5 minutes, free).**
    - Optionally delete the `notificationDevices.enabled` field override at https://console.firebase.google.com/project/uv-activity-planner/firestore/indexes (**Single field** tab).
    - The `GCP_NOTIFIER_SERVICE_ACCOUNT` variable is already gone; at https://console.cloud.google.com/iam-admin/serviceaccounts?project=uv-activity-planner, delete the `solara-notifier` service account if it exists.
 
-A21. **Have counsel review the governing-law language** in the terms ([Legal](#legal)); a lawyer's fee, no other cost.
+A21. **Eventually, a lawyer** reviews the list in [LEGAL_REVIEW.md](LEGAL_REVIEW.md) (governing law and the rest); not needed now (owner, 2026-11-01), and each item says when it becomes urgent ([Legal](#legal)).
 
 Optional at any time: [Events from Outlook](#events-from-outlook-only-for-the-outlook-connection) (group D) needs nothing else first.
 
@@ -532,7 +532,7 @@ Linked calendars and Pro event heads-ups are built and switched off (`EVENTS_SUB
 
 The operator, contact, jurisdiction and license are published (D8).
 
-- [ ] Have qualified counsel review the governing-law language in the terms.
+- [ ] Eventually: have a lawyer review [LEGAL_REVIEW.md](LEGAL_REVIEW.md), which lists every legal question, its risk, the best-judgement default in place until then and when it becomes urgent (owner, 2026-11-01: no lawyer for now).
 
 ## Release verification
 

@@ -12,6 +12,7 @@ import {
 } from '@solara/core/sunscreen'
 import type { SkyHour } from '@solara/core/forecast-quality'
 import m from '@/messages/dashboard'
+import app from '@/messages/app'
 
 /** The day's peak UV as protection advice judges it (the clear sky), or null without hours. */
 function peakProtectionUV(hours: readonly SkyHour[]): number | null {
@@ -60,6 +61,9 @@ export default function SunscreenGuide({
           <li key={line}>{line}</li>
         ))}
       </ul>
+      <p className="mt-1.5 text-ink-3">
+        {m.sunscreenNotMedical} {app.healthQualifier}
+      </p>
     </details>
   )
 }

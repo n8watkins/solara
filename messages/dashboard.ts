@@ -9,8 +9,9 @@ export default defineMessages('dashboard', {
   addToCalendarFailed: 'Could not add to Google Calendar. Nothing was saved; try again.',
   noUvDataTitle: 'No UV data for this period',
   noUvDataBody: (from: string, to: string) => `UV data is available between ${from} and ${to}.`,
+  /** Followed by app.healthQualifier. */
   disclaimer:
-    'Forecast-based planning estimates, not medical advice. Conditions can change; use sun protection.',
+    'Estimates for planning and tracking, not medical advice. Conditions can change; use sun protection.',
 
   uvByHour: 'UV by hour',
   uvByHourHelp:
@@ -42,7 +43,7 @@ export default defineMessages('dashboard', {
   // Titles, buttons and headings keep "vitamin D" on one line (a no-break space).
   vitdTitle: 'Vitamin\u00a0D estimate',
   vitdHelp: (dose: string) =>
-    `About ${dose} IU of vitamin D for an adult with arms and legs bare: roughly a third of the time it takes the skin to redden (the common rule of thumb, Holick, 2004). A rough model, not a recommended exposure target. Needs and production vary widely and fall with age; ask a clinician if you are concerned.`,
+    `About ${dose} IU of vitamin D for an adult with arms and legs bare: roughly a third of the time it takes the skin to redden (the common rule of thumb, Holick, 2004). A rough model, not a recommended exposure target. Needs and production vary widely and fall with age; ask a health professional if you are concerned.`,
   vitdDose: (dose: string) => `≈${dose} IU · arms\u00a0+\u00a0legs`,
   uvTooLow: 'UV too low',
   needsUv1: 'Needs UV 1 or more',
@@ -120,4 +121,6 @@ export default defineMessages('dashboard', {
   headingOut: (duration: string) => `Heading out? Get a reminder to reapply every ${duration}.`,
   startTimer: 'Start',
   howMuchSunscreen: 'How much sunscreen?',
+  /** The guide's last line, followed by app.healthQualifier. */
+  sunscreenNotMedical: 'General guidance, not medical advice.',
 })

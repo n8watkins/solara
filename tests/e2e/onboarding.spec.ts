@@ -52,6 +52,10 @@ test('completes setup up to the start choice', async ({ page }) => {
   await page.getByRole('button', { name: /Continue/ }).click()
 
   await expect(page.getByRole('heading', { name: 'Your skin type' })).toBeVisible()
+  // The skin type step says its estimates are not medical advice, and who should ask.
+  await expect(page.getByTestId('skin-not-medical')).toHaveText(
+    'Estimates for planning, not medical advice. If you have a medical condition, take a medicine that makes you more sensitive to the sun, are pregnant, or are worried about your skin or vitamin D, ask a health professional.',
+  )
   await page.getByRole('button', { name: /Olive/ }).click()
   await expect(page.getByRole('button', { name: /Olive/ })).toHaveAttribute('aria-pressed', 'true')
   await page.getByRole('button', { name: /Continue/ }).click()

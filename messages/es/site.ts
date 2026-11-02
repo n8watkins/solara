@@ -10,7 +10,7 @@ export default {
   otherLanguageLabel: 'Read this page in English',
   ogImageAlt: 'Solara, planificador de actividades con menos UV',
   disclaimer:
-    'Solara es una ayuda para planificar, no un consejo médico ni una garantía de que exponerse al sol sea seguro. Las condiciones y la sensibilidad de cada persona pueden cambiar rápidamente.',
+    'Solara sirve para planificar y llevar un registro, no es consejo médico y no puede garantizar que el tiempo al sol sea seguro. Si tienes un problema de salud, tomas un medicamento que te hace más sensible al sol, estás embarazada o te preocupa tu piel o tu vitamina D, consulta a un profesional de la salud.',
 } satisfies Translation<typeof site>
 
 /** Safety wording a native speaker must check before release (docs/i18n/es-review.md). */
