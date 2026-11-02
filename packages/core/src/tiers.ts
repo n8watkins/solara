@@ -46,6 +46,7 @@ export interface TierLimits {
  * | ------------------- | ------------------ | ------------------ | ------- |
  * | Forecast            | Today              | Today and tomorrow | 10 days |
  * | Activities          | 1                  | 3                  | 20      |
+ * | Saved places (home) | 5                  | 5                  | 12      |
  * | Storage             | This device only   | Synced             | Synced  |
  * | Calendar sync       | -                  | Yes                | Yes     |
  * | Daily UV push, reapply push | -          | Yes                | Yes     |
