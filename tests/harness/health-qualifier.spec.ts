@@ -45,7 +45,7 @@ const LANGUAGES = [
     qualifier: esApp.healthQualifier,
     footer: 'Estimaciones para planificar y llevar un registro, no consejo médico.',
     notNow: 'Ahora no',
-    place: 'Ciudad o ubicación',
+    place: 'Ciudad o lugar',
     go: 'Ir',
     next: /Continuar/,
     skinHeading: 'Tu tipo de piel',
@@ -108,14 +108,16 @@ async function atEachWidth(
   t: TestInfo,
   name: string,
   target: Locator,
-  until?: Locator,
+  /** The bottom of the copy, else the target alone; 'viewport' copies the screen around it. */
+  until?: Locator | 'viewport',
 ) {
   await page.evaluate(async () => {
     await document.fonts.ready
   })
   for (const width of widths(t)) {
     await page.setViewportSize({ width, height: mobile(t) ? 844 : 900 })
-    await target.scrollIntoViewIfNeeded()
+    // In the middle of the screen (or of the dialog it scrolls in), as a person reads it.
+    await target.evaluate(el => el.scrollIntoView({ block: 'center' }))
     await expect(target).toBeVisible()
     if (SHOTS) {
       const options = {
@@ -123,7 +125,9 @@ async function atEachWidth(
         animations: 'disabled',
         caret: 'hide',
       } as const
-      if (until) {
+      if (until === 'viewport') {
+        await page.screenshot(options)
+      } else if (until) {
         const top = (await target.boundingBox())!
         const bottom = (await until.boundingBox())!
         const scrollY = await page.evaluate(() => window.scrollY)
@@ -171,7 +175,11 @@ for (const lang of LANGUAGES) {
       await page.getByRole('button', { name: lang.next }).click()
       await expect(page.getByRole('heading', { name: lang.skinHeading })).toBeVisible()
       await expect(qualifierIn(page.locator('body'), lang)).toBeVisible()
+      // The step runs past a 320 px phone's screen; Continue is reached by scrolling.
+      const next = page.getByRole('button', { name: lang.next })
       await atEachWidth(page, t, `setup-skin-${lang.code}`, page.locator('.card').first())
+      await next.scrollIntoViewIfNeeded()
+      await expect(next).toBeInViewport()
       await axeClean(page, '[data-testid="skin-not-medical"]')
     })
 
@@ -204,8 +212,8 @@ for (const lang of LANGUAGES) {
       const dialog = page.getByRole('dialog', { name: lang.vitaminD })
       const note = qualifierIn(dialog, lang)
       await expect(note).toBeVisible()
-      await atEachWidth(page, t, `vitamin-d-log-${lang.code}`, note.locator('..'))
-      await axeClean(page, '[role="dialog"]')
+      await atEachWidth(page, t, `vitamin-d-log-${lang.code}`, note, 'viewport')
+      await axeClean(page, 'dialog[open]')
     })
 
     test("Settings' skin type help", async ({ page }, t) => {
@@ -216,8 +224,8 @@ for (const lang of LANGUAGES) {
       await settings.getByRole('button', { name: lang.howSkin }).click()
       const help = settings.locator('p').filter({ hasText: lang.qualifier })
       await expect(help).toBeVisible()
-      await atEachWidth(page, t, `settings-skin-help-${lang.code}`, help.locator('..'))
-      await axeClean(page, '[role="dialog"]')
+      await atEachWidth(page, t, `settings-skin-help-${lang.code}`, help, 'viewport')
+      await axeClean(page, 'dialog[open]')
     })
 
     for (const screen of [
