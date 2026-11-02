@@ -54,7 +54,7 @@ const LANGUAGES = [
     deleted: 'Session deleted.',
     undo: 'Undo',
     chart: 'Estimated vitamin D by day, last 7 days',
-    logIt: 'Log Walking in the vitamin D log',
+    logIt: 'Log it: Walking, in the vitamin D log',
     logged: /Logged Walking/,
     already: /Walking is already in today's log/,
     // Durations keep the number and "min" together with a no-break space (\s matches it).
@@ -79,7 +79,7 @@ const LANGUAGES = [
     deleted: 'Se eliminó la sesión.',
     undo: 'Deshacer',
     chart: 'Vitamina D estimada por día, últimos 7 días',
-    logIt: 'Registrar Walking en el registro de vitamina D',
+    logIt: 'Registrar: Walking, en el registro de vitamina D',
     logged: /Se registró Walking/,
     already: /Walking ya está en el registro de hoy/,
     burn: /de un tiempo hasta quemarte de/,

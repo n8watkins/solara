@@ -20,7 +20,8 @@ export default defineMessages('activities', {
   noLaterDay: 'No later forecast day has one either',
   doneForToday: 'Done for today',
   logIt: 'Log it',
-  logItNamed: (name: string) => `Log ${name} in the vitamin D log`,
+  // Starts with the button's visible words, as a screen reader and voice control expect.
+  logItNamed: (name: string) => `Log it: ${name}, in the vitamin D log`,
   plansInDaylight: 'Solara plans between sunrise and sunset. Move the hours to get a slot.',
   checkEarlyLate: 'Check early morning or evening instead.',
   signInPlanTomorrow: 'Sign in free to plan tomorrow',
