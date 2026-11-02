@@ -77,7 +77,7 @@ describe('the guest plan', () => {
     }
     const guest = asGuestPrefs(account)
     expect(guest).toMatchObject({ uid: '', tier: 'anonymous' })
-    // Home plus 4 more places at most (ROADMAP item 53).
+    // Home plus 4 more places at most (ROADMAP item 54).
     expect(guest.savedLocations).toHaveLength(5)
     expect(guest.activities).toHaveLength(1)
     expect(guest.profiles).toBeUndefined()

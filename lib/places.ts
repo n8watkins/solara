@@ -1,4 +1,4 @@
-// Home and the saved places (ROADMAP item 53): pure helpers for the header's place menu.
+// Home and the saved places (ROADMAP item 54): pure helpers for the header's place menu.
 // Home is the plan's `location`; the other saved places are `savedLocations`, and home
 // counts toward the plan's limit (TIER_LIMITS.savedLocations), so a plan with a limit of 5
 // keeps home plus 4 more.

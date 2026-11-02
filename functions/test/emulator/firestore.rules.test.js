@@ -328,7 +328,7 @@ describe('typed and size-capped preference fields', () => {
 
   test("a guest's plan at the Free caps becomes an account within the expression budget", async () => {
     // What sign-in creates from a guest plan (lib/account-prefs.ts newAccountPrefs): home
-    // plus 4 saved places (ROADMAP item 53), with names at their longest, and the guest's
+    // plus 4 saved places (ROADMAP item 54), with names at their longest, and the guest's
     // activity; 3 activities fit too.
     const ref = testEnv.authenticatedContext('alice').firestore().doc('users/alice')
     const place = i => ({
@@ -392,7 +392,7 @@ describe('typed and size-capped preference fields', () => {
   test('a realistic multi-list write fits the expression budget', async () => {
     const ref = await seededRef('alice', { tier: 'paid' })
     const location = { lat: 1, lon: 2, city: 'Seattle', region: 'WA', timezone: 'UTC' }
-    // Since saved places are range-checked (ROADMAP item 53), 8 activities fit with 3 saved
+    // Since saved places are range-checked (ROADMAP item 54), 8 activities fit with 3 saved
     // places in one write (4 before); the app writes what changed, so lists change together
     // only after edits made offline.
     await assertSucceeds(
@@ -499,7 +499,7 @@ describe('typed and size-capped preference fields', () => {
     await assertFails(ref.update({ savedLocations: Array.from({ length: 13 }, () => base) }))
   })
 
-  test('saved places keep their coordinates in range (ROADMAP item 53)', async () => {
+  test('saved places keep their coordinates in range (ROADMAP item 54)', async () => {
     const ref = await ownerRef()
     const base = { lat: 1, lon: 2, city: 'Seattle', region: 'WA' }
     for (const edge of [
@@ -766,7 +766,7 @@ describe('plan limits (packages/core/src/tiers.ts TIER_LIMITS)', () => {
     const ref = await seededRef('alice', { tier: 'free' })
     await assertSucceeds(ref.update({ activities: activities(3) }))
     await assertFails(ref.update({ activities: activities(4) }))
-    // Home plus 4 more saved places (ROADMAP item 53).
+    // Home plus 4 more saved places (ROADMAP item 54).
     await assertSucceeds(ref.update({ savedLocations: places(5) }))
     await assertFails(ref.update({ savedLocations: places(6) }))
     await assertSucceeds(ref.update({ profiles: people(1) }))

@@ -91,7 +91,7 @@ export default defineMessages('setup', {
     `${n} ${plural(n, { one: 'suggestion', other: 'suggestions' })}. Use the up and down arrow keys to choose.`,
   go: 'Go',
   limitReached: (limit: number) => `Limit reached (${limit})`,
-  // The header's place menu (ROADMAP item 53).
+  // The header's place menu (ROADMAP item 54).
   places: 'Places',
   home: 'Home',
   showing: 'Showing',

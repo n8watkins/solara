@@ -452,7 +452,7 @@ export async function locationFromCoordinates(lat: number, lon: number): Promise
 }
 
 /**
- * The place at a device position for the travel prompt (ROADMAP item 53), named in the
+ * The place at a device position for the travel prompt (ROADMAP item 54), named in the
  * page's language like {@link locationFromCoordinates}, or null when no name could be found
  * (the lookup failed, or the place has no town): the prompt never says "You seem to be in
  * Your location".

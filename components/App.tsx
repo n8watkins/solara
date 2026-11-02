@@ -120,7 +120,7 @@ function SignedInApp() {
     prepareSignedIn: preloadSignedInParts,
   })
 
-  // A visit (ROADMAP item 53): another place this device shows instead of home, kept in
+  // A visit (ROADMAP item 54): another place this device shows instead of home, kept in
   // this browser for whoever's plan it is (lib/travel-place.ts). Everything on screen that
   // depends on place follows the shown place; home stays the plan's own `location`, which
   // the server's calendar link and notifications use.

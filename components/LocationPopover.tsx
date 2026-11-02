@@ -9,7 +9,7 @@ import t from '@/messages/app'
 
 /**
  * The header's place name, which opens the place menu (components/LocationPanel.tsx, on
- * demand). During a visit (ROADMAP item 53) it shows a plane in the accent colour and
+ * demand). During a visit (ROADMAP item 54) it shows a plane in the accent colour and
  * tells a screen reader where home is.
  */
 export default function LocationPopover({ places }: { places: PlaceControls }) {

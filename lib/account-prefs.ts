@@ -71,7 +71,7 @@ export function newAccountPrefs(
   return {
     ...fresh,
     activities: answers.activities.slice(0, TIER_LIMITS.free.activities),
-    // Home counts toward the limit (ROADMAP item 53).
+    // Home counts toward the limit (ROADMAP item 54).
     savedLocations: answers.savedLocations
       .filter(place => !samePlace(place, answers.location))
       .slice(0, TIER_LIMITS.free.savedLocations - 1),

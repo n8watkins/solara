@@ -2,7 +2,7 @@ import { expect, test, type BrowserContext, type Page } from '@playwright/test'
 import { HARNESS_NOW_MS, startClock } from '../harness/clock'
 import { buildRawForecast } from '../harness/fixtures'
 
-// The place that follows the phone (ROADMAP item 53) on the real export, as a returning
+// The place that follows the phone (ROADMAP item 54) on the real export, as a returning
 // guest whose home is Los Angeles, with the device's position mocked: far away with
 // location permission already granted (the banner, Switch, everything follows, Back to
 // home), near home (nothing), permission not granted or denied (nothing on load, and

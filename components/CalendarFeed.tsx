@@ -44,7 +44,7 @@ function CalendarFeedPanel({ uid }: { uid: string }) {
   const [busy, setBusy] = useState<Busy>(null)
   const [message, setMessage] = useState('')
   const [copied, setCopied] = useState(false)
-  // The link is built on the server, for home, whatever this device shows (ROADMAP item 53).
+  // The link is built on the server, for home, whatever this device shows (ROADMAP item 54).
   const visit = useVisit()
 
   useEffect(() => watchFeedToken(uid, setFeed, () => setMessage(m.feedLoadFailed)), [uid])

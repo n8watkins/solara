@@ -1,4 +1,4 @@
-// The travel prompt's "Not now" areas (ROADMAP item 53) and this browser's travel data for
+// The travel prompt's "Not now" areas (ROADMAP item 54) and this browser's travel data for
 // the account page's download. Loaded on demand, with the travel prompt or the account page.
 import { activeNotNowAreas, notNowArea, type Point } from '@solara/core/travel'
 import { readTravel, writeTravel, type TravelOwner } from './travel-place'

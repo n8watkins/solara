@@ -29,7 +29,7 @@ export interface TierLimits {
   /** Forecast days the plan can see, today included. */
   futureDays: number
   /**
-   * Saved places, home included (ROADMAP item 53): home plus the places kept for quick
+   * Saved places, home included (ROADMAP item 54): home plus the places kept for quick
    * switching from the header's place menu.
    */
   savedLocations: number

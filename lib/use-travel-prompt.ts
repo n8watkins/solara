@@ -1,4 +1,4 @@
-// When to run the travel check (ROADMAP item 53): a little after the dashboard shows, and
+// When to run the travel check (ROADMAP item 54): a little after the dashboard shows, and
 // again when Solara comes back to the foreground after an hour or more. The check itself
 // (lib/travel-check.ts, with the place lookup) loads on demand, and asks for nothing: it
 // runs only when location permission is already granted.

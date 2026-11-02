@@ -155,7 +155,7 @@ export const LocationPanel = deferred(() =>
   withMessages(['setup'], () => import('./LocationPanel')),
 )
 /**
- * The travel prompt (ROADMAP item 53), only when the device is far from the place shown;
+ * The travel prompt (ROADMAP item 54), only when the device is far from the place shown;
  * not fetched with the rest, as most visits never show it.
  */
 export const TravelBanner = deferred(

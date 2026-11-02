@@ -6,7 +6,7 @@ import { NOTICE_TONES } from './AppNotice'
 import m from '@/messages/travel'
 
 /**
- * The travel prompt (ROADMAP item 53): a calm banner above the dashboard when the device
+ * The travel prompt (ROADMAP item 54): a calm banner above the dashboard when the device
  * is far from the place shown. "Switch" shows the place on this device (home stays home);
  * "Not now" hides it for a day around that place. Loaded only when it shows
  * (components/deferred.tsx).

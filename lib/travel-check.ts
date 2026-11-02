@@ -1,4 +1,4 @@
-// The travel prompt's check (ROADMAP item 53), loaded on demand once the dashboard shows:
+// The travel prompt's check (ROADMAP item 54), loaded on demand once the dashboard shows:
 // only when location permission is already granted, it reads the device's position once
 // and, when it is far from the shown place, names the place to offer. It never asks for
 // permission.

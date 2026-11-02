@@ -35,7 +35,7 @@ describe('guest plan', () => {
     expect(isDeviceOnly('anonymous')).toBe(true)
   })
 
-  it('keeps home plus 4 more places, as Free does (ROADMAP item 53)', () => {
+  it('keeps home plus 4 more places, as Free does (ROADMAP item 54)', () => {
     expect(getSavedLocationLimit('anonymous')).toBe(5)
     expect(getSavedLocationLimit('free')).toBe(5)
     expect(getSavedLocationLimit('paid')).toBe(12)

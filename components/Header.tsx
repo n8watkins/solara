@@ -28,7 +28,7 @@ interface Props {
   /** The plan, with home as its place. */
   prefs: UserPreferences
   onPrefsUpdate: (p: UserPreferences) => void
-  /** Home, the saved places and the place shown (ROADMAP item 53). */
+  /** Home, the saved places and the place shown (ROADMAP item 54). */
   places: PlaceControls
   onGoHome: () => void
   /** Current UV index at the active location; hidden when unknown. */

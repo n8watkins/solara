@@ -60,7 +60,7 @@ service cloud.firestore {
           || (location.timezone is string && location.timezone.size() <= 64));
     }
 
-    // A saved place (ROADMAP item 53): its coordinates in range and its names capped. One
+    // A saved place (ROADMAP item 54): its coordinates in range and its names capped. One
     // `math.abs` per coordinate keeps a full list within the expression budget; it fails
     // (and so refuses the write) for anything but a number.
     function validSavedLocation(location, allowedKeys) {

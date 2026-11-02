@@ -20,7 +20,7 @@ const CONTEXT: Record<string, string> = {
   vitaminD:
     'The vitamin D log (dashboard, "Vitamin D log"): estimates, burn risk beside each session and how they work',
   travel:
-    'The travel prompt above the dashboard, when the device is far from the place shown (ROADMAP item 53)',
+    'The travel prompt above the dashboard, when the device is far from the place shown (ROADMAP item 54)',
   calendar: 'The Calendar view and the calendar feed card',
   cityPages: 'The city pages (/es/uv/ and /es/uv/<city>/): the facts about each city and the notes',
 }

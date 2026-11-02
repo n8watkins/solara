@@ -316,7 +316,7 @@ export const PREFERENCES_SHAPE = {
   /**
    * Home: the place setup and Settings choose, and the one the server's calendar feed and
    * alerts use. The app may show another place for a while on one device (a visit, ROADMAP
-   * item 53, lib/travel-place.ts), which never changes this.
+   * item 54, lib/travel-place.ts), which never changes this.
    */
   location: LocationSchema,
   /**

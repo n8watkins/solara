@@ -2,7 +2,7 @@ import { createContext, useContext } from 'react'
 import type { Location } from './types'
 
 /**
- * Home while this device shows another place (ROADMAP item 53), for the parts that say the
+ * Home while this device shows another place (ROADMAP item 54), for the parts that say the
  * server still uses home (the calendar link card); null at home. components/App.tsx
  * provides it.
  */

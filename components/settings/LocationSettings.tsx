@@ -14,7 +14,7 @@ interface Props {
 
 /**
  * The "Location" section: home, by GPS or place search. Home is what the server's calendar
- * link and notifications use; a place shown from the header is a visit (ROADMAP item 53).
+ * link and notifications use; a place shown from the header is a visit (ROADMAP item 54).
  */
 export default function LocationSettings({ location, onChange }: Props) {
   const { query, changeQuery, loading, error, choose, missed, locate } =

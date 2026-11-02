@@ -141,7 +141,7 @@ The static pages (landing, legal and city pages, at /es/): the shared disclaimer
 
 ## travel
 
-The travel prompt above the dashboard, when the device is far from the place shown (ROADMAP item 53)
+The travel prompt above the dashboard, when the device is far from the place shown (ROADMAP item 54)
 
 | Key | English | Spanish | Notes |
 | --- | --- | --- | --- |

@@ -45,7 +45,7 @@ function writeOwner(uid: string): void {
  * Removes every piece of account data Solara keeps in this browser outside Firebase Auth.
  * The vitamin D log stays: it is kept only on this device, under its account's own key, so
  * a sign-out or another account only hides it (lib/vitamin-d-switch.ts, ROADMAP item 48).
- * A visit to another place (ROADMAP item 53) goes.
+ * A visit to another place (ROADMAP item 54) goes.
  */
 export function clearAccountData(): void {
   clearLocalPrefs()

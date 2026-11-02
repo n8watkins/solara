@@ -1,4 +1,4 @@
-// A visit: another place this device shows instead of home for a while (ROADMAP item 53),
+// A visit: another place this device shows instead of home for a while (ROADMAP item 54),
 // and the areas where the person said "Not now" to the travel prompt. Kept only in this
 // browser, for the owner who made them (a guest, or one account), and never sent anywhere:
 // home and the saved places stay in the plan (prefs.location, prefs.savedLocations), which

@@ -409,7 +409,7 @@ describe('a guest signing in', () => {
     expect(created).toMatchObject({ uid: 'user-c', tier: 'free', savedLocations: [LA] })
   })
 
-  it("carries the guest's saved places, home plus 4 at most (ROADMAP item 53)", async () => {
+  it("carries the guest's saved places, home plus 4 at most (ROADMAP item 54)", async () => {
     const places = [BOSTON, ...[1, 2, 3, 4, 5].map(i => ({ ...LA, lat: i, city: `City ${i}` }))]
     const created = await createAccountPrefs(
       'user-c',

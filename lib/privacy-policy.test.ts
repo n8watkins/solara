@@ -118,7 +118,7 @@ describe('privacy policy', () => {
     expect(privacy).toContain('sent nowhere unless you import it')
   })
 
-  it('says when the position is read for the travel prompt, and what is kept (ROADMAP item 53)', () => {
+  it('says when the position is read for the travel prompt, and what is kept (ROADMAP item 54)', () => {
     const text = privacy.replace(/\s+/g, ' ')
     expect(text).toContain('If you have already allowed Solara to use your location')
     expect(text).toContain(`more than ${TRAVEL_PROMPT_DISTANCE_KM} km from the place shown`)

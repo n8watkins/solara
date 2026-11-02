@@ -1,4 +1,4 @@
-// @solara/core/travel: when to offer the forecast where the phone is (ROADMAP item 53).
+// @solara/core/travel: when to offer the forecast where the phone is (ROADMAP item 54).
 //
 // The web app asks this once it has the device's position (only when location permission
 // was already granted; nothing here asks for it), and a native client can ask the same.

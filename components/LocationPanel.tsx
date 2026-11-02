@@ -14,7 +14,7 @@ import { withMessages } from '@/lib/i18n'
 
 /**
  * The place menu under the header's place name (components/LocationPopover.tsx, ROADMAP
- * item 53): "Back to <home>" during a visit, home and the other saved places (the shown
+ * item 54): "Back to <home>" during a visit, home and the other saved places (the shown
  * one marked), saving the shown place or making it home, "Use my location" (which asks for
  * permission only when tapped) and the place search. Any place but home is shown as a
  * visit, on this device only; home changes only with "Set as home" or in Settings. It loads
