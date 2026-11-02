@@ -32,7 +32,6 @@ export default defineMessages('vitaminD', {
   sessionEstimateUnder50: 'Under 50 IU of vitamin D',
   sessionEstimateNone: 'No vitamin D counted',
   burnOf: (minutes: string, burn: string) => `${minutes} of a ${burn} burn time`,
-  burnLine: (risk: string, detail: string) => `${risk} · ${detail}`,
   burnNone: 'UV too low to burn',
   burnWellUnder: 'Well under your burn time',
   burnClose: 'Close to your burn time',

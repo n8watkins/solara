@@ -31,7 +31,6 @@ export default {
   sessionEstimateUnder50: 'Menos de 50 UI de vitamina D',
   sessionEstimateNone: 'No se cuenta vitamina D',
   burnOf: (minutes, burn) => `${minutes} de un tiempo hasta quemarte de ${burn}`,
-  burnLine: (risk, detail) => `${risk} · ${detail}`,
   burnNone: 'UV demasiado bajo para quemar',
   burnWellUnder: 'Muy por debajo de tu tiempo hasta quemarte',
   burnClose: 'Cerca de tu tiempo hasta quemarte',

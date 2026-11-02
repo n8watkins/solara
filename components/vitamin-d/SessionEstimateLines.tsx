@@ -33,9 +33,9 @@ export default function SessionEstimateLines({ estimate }: { estimate: SessionEs
       <p className="text-[14px] font-semibold text-ink" data-testid="vitd-session-iu">
         {sessionIuText(estimate.iu)}
       </p>
-      <p
+      <div
         className={clsx(
-          'flex items-start gap-1.5 text-[12px] leading-snug font-medium',
+          'flex items-start gap-1.5 text-[12px] leading-snug',
           risk?.tone ?? 'text-ink-3',
         )}
         data-testid="vitd-session-burn"
@@ -44,15 +44,17 @@ export default function SessionEstimateLines({ estimate }: { estimate: SessionEs
           aria-hidden="true"
           className={clsx('mt-[5px] size-1.5 shrink-0 rounded-full', risk?.dot ?? 'bg-ink-3')}
         />
-        <span>
-          {risk && estimate.burnMinutes !== null
-            ? m.burnLine(
-                risk.text(),
-                m.burnOf(formatDuration(estimate.minutes), formatDuration(estimate.burnMinutes)),
-              )
-            : m.burnNone}
-        </span>
-      </p>
+        {risk && estimate.burnMinutes !== null ? (
+          <p>
+            <span className="font-semibold">{risk.text()}</span>
+            <span className="block text-ink-3">
+              {m.burnOf(formatDuration(estimate.minutes), formatDuration(estimate.burnMinutes))}
+            </span>
+          </p>
+        ) : (
+          <p className="font-medium">{m.burnNone}</p>
+        )}
+      </div>
       {estimate.capped && <p className="text-[12px] leading-snug text-ink-3">{m.cappedNote}</p>}
       {estimate.lowUv && <p className="text-[12px] leading-snug text-ink-3">{m.lowUvNote}</p>}
     </div>

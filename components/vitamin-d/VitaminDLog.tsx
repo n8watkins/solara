@@ -241,40 +241,29 @@ export default function VitaminDLog({ owner, logActivity, onClose, ...context }:
               </button>
             </div>
           </div>
-        ) : entries.length > 0 ? (
-          <div className="flex flex-wrap justify-between gap-2">
-            <button type="button" className="btn" onClick={download}>
-              {m.download}
-            </button>
-            <button
-              type="button"
-              className="btn border-danger/30 text-danger"
-              onClick={() => setConfirmingDeleteAll(true)}
-            >
-              {m.deleteAll}
-            </button>
-          </div>
         ) : undefined
       }
     >
-      <div className="flex flex-col gap-5">
-        <div className="flex min-h-0 flex-col" role="status">
-          {status && (
-            <div className="flex items-center justify-between gap-3 rounded-xl border-[0.5px] border-brand/20 bg-brand/8 px-3.5 py-2.5 text-[13px] text-ink-2">
-              <span>{status.text}</span>
-              {status.undo && (
-                <button
-                  type="button"
-                  className="btn btn-ghost shrink-0 px-2 py-1 font-semibold text-accent"
-                  onClick={undo}
-                >
-                  {m.undo}
-                </button>
-              )}
-            </div>
-          )}
-        </div>
+      {/* Always in the page, so a screen reader announces what lands in it; it takes room
+          only while it says something. */}
+      <div role="status" className={status ? 'mb-5' : undefined}>
+        {status && (
+          <div className="flex items-center justify-between gap-3 rounded-xl border-[0.5px] border-brand/20 bg-brand/8 px-3.5 py-2.5 text-[13px] text-ink-2">
+            <span>{status.text}</span>
+            {status.undo && (
+              <button
+                type="button"
+                className="btn btn-ghost shrink-0 px-2 py-1 font-semibold text-accent"
+                onClick={undo}
+              >
+                {m.undo}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
 
+      <div className="flex flex-col gap-5">
         <div className="flex flex-col gap-2.5">
           <div className="grid grid-cols-2 gap-2.5">
             {[
@@ -380,6 +369,22 @@ export default function VitaminDLog({ owner, logActivity, onClose, ...context }:
         </details>
 
         <p className="text-[11px] leading-normal text-ink-3">{m.deviceOnly}</p>
+
+        {/* Rare actions, at the end, so the sessions keep the room on a small screen. */}
+        {entries.length > 0 && !confirmingDeleteAll && (
+          <div className="flex flex-wrap gap-2">
+            <button type="button" className="btn px-3 py-1.5 text-[12px]" onClick={download}>
+              {m.download}
+            </button>
+            <button
+              type="button"
+              className="btn border-danger/30 px-3 py-1.5 text-[12px] text-danger"
+              onClick={() => setConfirmingDeleteAll(true)}
+            >
+              {m.deleteAll}
+            </button>
+          </div>
+        )}
       </div>
     </ActivityModalShell>
   )
