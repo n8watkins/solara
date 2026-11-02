@@ -20,7 +20,7 @@ A job with nothing relevant to test never skips at the job level (a required che
 | --- | --- | --- |
 | Detect changed areas | Maps the changed files to suites (`.github/scripts/changed-areas.mjs`) and records the tree it tests | 5 s |
 | Lint, types and unit tests | Dependency audit, ESLint and Prettier, shellcheck, the docs check (always); typecheck and Vitest (when relevant) | 1.5-2 min (1.3 min lint only) |
-| Browser tests on the static export | Builds `out/` and runs the Playwright suite on the Hosting emulator (Chromium, a phone, and Firefox and WebKit for the Outlook popup), then the first-load budgets on a production-like build | 4.4 min (5 min before the audit) |
+| Browser tests on the static export | Builds `out/` and runs the Playwright suite on the Hosting emulator (Chromium, a phone, and Firefox and WebKit for the Outlook popup), then the first-load budgets on a production-like build (which also fail if Valibot, Firebase or Google Analytics is in a guest's first load) | 4.4 min (5 min before the audit) |
 | Browser tests with Sentry and App Check switched on | A production build with fake Sentry and reCAPTCHA keys | 1.5 min |
 | Signed-in browser tests on emulators | An emulator build and the signed-in suite against Auth, Firestore and Functions emulators | 3.5 min |
 | Signed-in UI harness | Waits for the four harness shards and merges their screenshots and axe reports | 20 s after the slowest shard |

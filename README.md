@@ -35,7 +35,7 @@ Conditions and individual sensitivity can change quickly.
 ## Stack
 
 - Next.js 16 App Router with static export, React 19 (without the React Compiler, which cost about 8 KB of a guest's first load; ROADMAP decisions), TypeScript 6.
-- A small forecast store for forecast data (`lib/forecast-store.ts`: one request per place, background refresh, persisted cache), Valibot for every external boundary (`packages/core/src/schema.ts`).
+- A small forecast store for forecast data (`lib/forecast-store.ts`: one request per place, background refresh, persisted cache), Valibot at the external boundaries (`packages/core/src/schema.ts`), except what a guest's first screen reads (the forecast, its cache and the stored guest plan), which hand-written checks validate so Valibot loads on demand (ROADMAP item 52).
 - Firebase Authentication, Firestore, Hosting, Cloud Messaging and Functions (TypeScript on Node.js 24).
 - Tailwind CSS 4, configured in `app/globals.css` (`@theme`) on CSS custom-property design tokens, which also define the one UV palette.
 - Vitest, Playwright (static export on the Hosting emulator, and a signed-in suite on the Firebase emulators), and an axe-scanned UI harness.
@@ -69,14 +69,14 @@ The repository is an npm workspace.
 - Two service workers are built into the export after `next build` by `scripts/build-sw.mjs`.
   `/sw.js` (`scripts/sw/shell.ts`, rules in `lib/sw-shell.mts`) is the app shell: `app/app/layout.tsx` registers it after the page loads, it precaches `/` and `/app/` with every file they load, and the app opens offline with the last forecast from `lib/cache.ts` and an offline notice (`components/ForecastNotice.tsx`, which also says when the forecast proxy served an earlier copy).
   `/firebase-messaging-sw.js` (`scripts/sw/firebase-messaging-sw.ts`) handles push and is registered by Firebase Messaging, under its own scope, only when someone turns on notifications.
-- The app's first load carries only the dashboard (about 192 KB gzip of JavaScript for a guest in English and 198 KB in Spanish, measured on a build configured like production; `tests/e2e/budget/first-load.budget.ts` holds them under 193 KB and 218 KB).
+- The app's first load carries only the dashboard (about 187 KB gzip of JavaScript for a guest in English and 192 KB in Spanish, measured on a build configured like production; `tests/e2e/budget/first-load.budget.ts` holds them under 190 KB and 196 KB, and fails if Valibot, Firebase or Google Analytics is part of it).
   Firebase loads on demand: `lib/firebase.ts` is the only way to it, and `loadFirebase()` loads the SDK (`lib/firebase-services.ts`) when someone reaches for "Sign in" or the browser already holds a session, so a guest never downloads it.
   An ESLint rule keeps static Firebase imports out of the app; modules that need the SDK use `await import('firebase/...')`.
   Auth starts without its sign-in popup helper; sign-in buttons start it (`prepareSignInPopup`), and every `*WithPopup` call passes it.
   A returning account's dashboard shows at once from this browser's copy of it (`lib/cached-account.ts`), accepting no input until Auth confirms the session; Firebase starts once that dashboard has painted.
   Setup, the dialogs, the location panel, the calendar view, the calendar feed card, the install prompt, the header's signed-in parts and the Events section load on first use from `components/deferred.tsx`, and are fetched shortly after the page has loaded.
   The dashboard's activity plan (the hero slot, Plan ahead and the activity cards, `components/dashboard/activity-plan.ts`) is one more such chunk, since setup creates no activities: start-up fetches it as soon as the stored plan or session has activities, and the dashboard waits for it before its first paint, so the cards never pop in.
-- `packages/core` (`@solara/core`) holds the logic every surface shares: the recommendation engine, the daily briefing text, the WHO UV scale, the preferences schema and migrations, the Valibot-validated Open-Meteo parser and weather labels, the iCalendar builder, the calendar feed token policy and the Functions response contracts.
+- `packages/core` (`@solara/core`) holds the logic every surface shares: the recommendation engine, the daily briefing text, the WHO UV scale, the preferences schema and migrations, the Open-Meteo parser and weather labels, the iCalendar builder, the calendar feed token policy and the Functions response contracts.
   The web app imports its TypeScript source.
   The .ics reader and imported events (`packages/core/src/ics-parse.ts`, `packages/core/src/events.ts`) are a separate entry point, `@solara/core/event-import`, so they never enter a guest's first load.
 - `functions/` holds the Cloud Functions in TypeScript (`functions/src/`, one folder per area), including the scheduled Pro alerts (`functions/src/notifications/`).
@@ -111,7 +111,7 @@ npm run test:harness
 
 - `npm run test:e2e` builds the static export with a hermetic public configuration and tests it on the Firebase Hosting emulator without credentials: the landing page, onboarding, guest mode and its upsells, analytics consent, legal pages, share links, Hosting headers and the app offline (`tests/e2e/offline.spec.ts`, the only spec that lets the service worker run).
   It also serves the old address's redirect-only site (`hosting-redirect/`) and checks that every path and query string moves to the same place on `solara-uv.web.app`, except Firebase's reserved `/__/` paths.
-- `npm run test:e2e:budget` builds the export with a public configuration shaped like production's (`tests/e2e/budget/production-env.ts`: a Firebase project and analytics set, as live) and measures the JavaScript a returning guest downloads before the dashboard shows, in English and in Spanish, against the first-load budgets; CI runs it after `npm run test:e2e` in the same job.
+- `npm run test:e2e:budget` builds the export with a public configuration shaped like production's (`tests/e2e/budget/production-env.ts`: a Firebase project and analytics set, as live) and measures the JavaScript a returning guest downloads before the dashboard shows, in English and in Spanish, against the first-load budgets, and checks that Valibot, the Firebase SDK, Auth, Firestore and Google Analytics are not among those scripts (`tests/e2e/on-demand-modules.ts`); CI runs it after `npm run test:e2e` in the same job.
   It writes `out/` like `npm run test:e2e`, so run the two one after the other.
 - `npm run test:e2e:integrations` builds the production export with a fake Sentry DSN and reCAPTCHA site key, answers every third-party request with a fake, and checks that error reports arrive scrubbed and that App Check starts only after sign-in, within the CSP.
   It writes `out/` like `npm run test:e2e`, so run the two one after the other.
