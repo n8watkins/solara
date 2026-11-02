@@ -9,11 +9,9 @@
 //   (`v.object()` accepts anything typed "object").
 
 import * as v from 'valibot'
+import { isPlainRecord } from './plain-record'
 
-/** Whether `value` is a non-null object that is not an array. */
-export function isPlainRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
+export { isPlainRecord }
 
 const plainRecord = v.custom<Record<string, unknown>>(isPlainRecord)
 

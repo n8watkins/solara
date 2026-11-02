@@ -18,13 +18,8 @@ vi.mock('@/lib/firebase', () => ({ loadFirebase: async () => ({ db: { kind: 'tes
 
 import { FirebaseError } from 'firebase/app'
 import { loadFirestorePrefs, saveFirestorePrefs } from '@/lib/account-prefs'
-import {
-  defaultPrefs,
-  loadLocalPrefs,
-  NewerPreferencesVersionError,
-  PREFS_SCHEMA_VERSION,
-  saveLocalPrefs,
-} from '@/lib/prefs'
+import { defaultPrefs, saveLocalPrefs } from '@/lib/local-prefs'
+import { loadLocalPrefs, NewerPreferencesVersionError, PREFS_SCHEMA_VERSION } from '@/lib/prefs'
 import type { UserPreferences } from '@/lib/types'
 
 const savedPrefs = {

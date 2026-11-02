@@ -97,6 +97,35 @@ describe('Open-Meteo parsing', () => {
   })
 })
 
+describe('Open-Meteo parsing, field by field', () => {
+  it('keeps only the fields Solara reads, each finite or null', () => {
+    const parsed = parseOpenMeteoResponse({
+      timezone: 'Europe/Paris',
+      utc_offset_seconds: 'soon',
+      latitude: 48.86,
+      longitude: Number.NaN,
+      generationtime_ms: 0.4,
+      current: { time: 5, uv_index: 4.2, extra: true },
+      hourly: { time: ['2026-06-15T10:00'], uv_index: [5, null], cloudcover: {}, other: [1] },
+      hourly_units: { uv_index: '' },
+    })
+    expect(parsed).toStrictEqual({
+      timezone: 'Europe/Paris',
+      utc_offset_seconds: undefined,
+      latitude: 48.86,
+      longitude: undefined,
+      current: { time: undefined, uv_index: 4.2, temperature_2m: null, weathercode: null },
+      hourly: { time: ['2026-06-15T10:00'], uv_index: [5, null], cloudcover: undefined },
+    })
+  })
+
+  it('needs an object `hourly` with an array `time`', () => {
+    for (const raw of [[], { hourly: [] }, { hourly: null }, { hourly: { uv_index: [1] } }]) {
+      expect(() => parseOpenMeteoResponse(raw)).toThrow(/incomplete/)
+    }
+  })
+})
+
 describe("the forecast proxy's earlier copy", () => {
   const forecast = { timezone: 'America/Los_Angeles', hourly: { time: ['2026-06-15T10:00'] } }
   const marker = { stale: true, fetchedAt: '2026-06-15T16:40:00.000Z' }

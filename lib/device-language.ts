@@ -3,7 +3,8 @@
 // `deviceLanguage` (packages/core/src/server-language.ts). Part of the signed-in account
 // code (lib/session.ts), so a guest's first load never carries it.
 import { localeFromLanguages, type Locale } from '@solara/core/i18n'
-import { isWritablePreferences, type UserPreferences } from '@solara/core/prefs'
+import { isWritablePreferences } from '@solara/core/prefs-rules'
+import type { UserPreferences } from '@solara/core/prefs'
 import { loadFirebase } from './firebase'
 import { deviceLanguages } from './i18n'
 

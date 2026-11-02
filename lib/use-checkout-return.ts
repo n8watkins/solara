@@ -2,7 +2,7 @@
 import { useEffect, useEffectEvent } from 'react'
 import type { User } from 'firebase/auth'
 import { lazySubscription } from './firebase'
-import { saveLocalPrefs } from './prefs'
+import { saveLocalPrefs } from './local-prefs'
 import {
   CHECKOUT_NOTICES,
   checkoutResultNotice,

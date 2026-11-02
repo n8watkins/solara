@@ -13,103 +13,33 @@
 // so an old client never downgrades data it does not understand.
 
 import * as v from 'valibot'
-import { roundCoordinate } from './geocoding'
-import { SHADE_LEVELS, SURFACES } from './exposure'
+import { roundCoordinate } from './coordinates'
 import {
-  mostSensitiveSkinType,
-  SKIN_TYPES,
-  type PreferredHours,
-  type SkinType,
-} from './recommendation'
+  CALENDAR_HOUR_BOUNDS,
+  CLOCK_FORMAT_PREFERENCES,
+  DEVICE_LANGUAGES,
+  FEELS_LIKE_LIMITS,
+  LANGUAGE_PREFERENCES,
+  NOTIFICATION_HOUR,
+  PLACE_TIMEZONE_PATTERN,
+  PREFS_LIMITS,
+  PREFS_SCHEMA_VERSION,
+  QUIET_HOURS,
+  TEMPERATURE_UNIT_PREFERENCES,
+  TIER_LEVELS,
+  TIME_PREFERENCES,
+  UV_ALERT_THRESHOLD,
+  type TimePreference,
+  isWritablePreferences,
+  NewerPreferencesVersionError,
+} from './prefs-rules'
+import { SHADE_LEVELS, SURFACES } from './exposure'
+import { SKIN_TYPES, type PreferredHours } from './recommendation'
 import { finiteNumber, isPlainRecord, record } from './schema'
 import m from './messages/core'
 
-/** The document shape this code reads and writes. Bump it with a new MIGRATIONS entry. */
-export const PREFS_SCHEMA_VERSION = 2
-
-/**
- * Storage caps, mirrored by firestore.rules. The list caps are Pro's (TIER_LIMITS.paid in
- * tiers.ts, checked by tiers.test.ts); they are written out here because importing
- * tiers.ts would tie the plan data into every bundle that parses preferences.
- */
-export const PREFS_LIMITS = Object.freeze({
-  activities: 20,
-  savedLocations: 12,
-  profiles: 12,
-  activityNameLength: 100,
-  profileNameLength: 40,
-  placeNameLength: 120,
-  timezoneLength: 64,
-  activeProfileIdLength: 64,
-  emailLength: 254,
-  timestampLength: 40,
-  /** An emoji, as scheduled records cap it; longer icons fall back to the default. */
-  iconLength: 16,
-})
-
-export const TIER_LEVELS = Object.freeze(['anonymous', 'free', 'paid'] as const)
-export type TierLevel = (typeof TIER_LEVELS)[number]
-
-/** How to choose a start time among the feasible safe and free slots. */
-export const TIME_PREFERENCES = Object.freeze(['earliest', 'latest', 'sunniest'] as const)
-export type TimePreference = (typeof TIME_PREFERENCES)[number]
-
-/**
- * Display units. 'auto' (or a missing field) follows the browser locale; the app
- * resolves it (lib/units.ts). Added without a version bump: the fields are optional,
- * older documents read as 'auto', and older clients write only the fields they know.
- */
-export const TEMPERATURE_UNIT_PREFERENCES = Object.freeze([
-  'auto',
-  'celsius',
-  'fahrenheit',
-] as const)
-export type TemperatureUnitPreference = (typeof TEMPERATURE_UNIT_PREFERENCES)[number]
-export const CLOCK_FORMAT_PREFERENCES = Object.freeze(['auto', '12h', '24h'] as const)
-export type ClockFormatPreference = (typeof CLOCK_FORMAT_PREFERENCES)[number]
-
-/**
- * The language (ROADMAP item 46): 'auto' (or a missing field) follows the device's
- * language; otherwise one of i18n.ts LOCALES. Added without a version bump, like the units.
- */
-export const LANGUAGE_PREFERENCES = Object.freeze(['auto', 'en', 'es'] as const)
-export type LanguagePreference = (typeof LANGUAGE_PREFERENCES)[number]
-/**
- * The languages a device's language is kept as (`deviceLanguage`): the choices other
- * than Automatic, which are i18n.ts LOCALES (prefs.test.ts checks). Listed here rather
- * than imported, so the preferences code does not pull the catalogue code into a chunk.
- */
-export const DEVICE_LANGUAGES = Object.freeze(['en', 'es'] as const)
-
-/** Morning notification hour: allowed range and default. */
-export const NOTIFICATION_HOUR = Object.freeze({ min: 5, max: 10, default: 7 })
-
-/**
- * The UV alert (Pro): a push on the day today's UV index first reaches this whole
- * number. `off` (or a missing field) turns it off; clients cannot remove a field, so
- * turning it off writes `off`.
- */
-export const UV_ALERT_THRESHOLD = Object.freeze({ off: 0, min: 1, max: 11 })
-
-/**
- * Quiet hours, as whole local hours: alerts other than the morning alert (whose hour
- * the person picks) wait until `to`. `from` after `to` spans midnight; equal hours
- * mean no quiet hours. A missing field means QUIET_HOURS.default.
- */
-export const QUIET_HOURS = Object.freeze({
-  min: 0,
-  max: 23,
-  default: Object.freeze({ from: 21, to: 7 }),
-})
-
-/** Calendar view bounds: `from` is a start hour, `to` an end hour. */
-export const CALENDAR_HOUR_BOUNDS = Object.freeze({
-  from: { min: 0, max: 23 },
-  to: { min: 1, max: 24 },
-})
-
-/** The feels-like limits an activity may set, in Celsius (about 59-122°F). */
-export const FEELS_LIKE_LIMITS = Object.freeze({ min: 15, max: 50 })
+export * from './prefs-rules'
+export * from './planning-for'
 
 const ACTIVITY_DEFAULTS = Object.freeze({
   /** The page's language (core messages): an activity saved without a name. */
@@ -120,8 +50,6 @@ const ACTIVITY_DEFAULTS = Object.freeze({
   durationMins: 30,
   maxUV: 4,
 })
-
-const TIMEZONE_PATTERN = /^(?:UTC|[A-Za-z_]+(?:\/[A-Za-z0-9_+.-]+)+)$/
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
@@ -196,7 +124,7 @@ export const LOCATION_SHAPE = {
   region: v.fallback(text(PREFS_LIMITS.placeNameLength), ''),
   timezone: v.fallback(
     v.optional(
-      v.pipe(v.string(), v.maxLength(PREFS_LIMITS.timezoneLength), v.regex(TIMEZONE_PATTERN)),
+      v.pipe(v.string(), v.maxLength(PREFS_LIMITS.timezoneLength), v.regex(PLACE_TIMEZONE_PATTERN)),
     ),
     undefined,
   ),
@@ -603,18 +531,6 @@ export function parsePreferences(
   return parsed.output
 }
 
-/** False for preferences read from a newer schema version: writing them would lose data. */
-export function isWritablePreferences(prefs: Pick<UserPreferences, 'schemaVersion'>): boolean {
-  return prefs.schemaVersion <= PREFS_SCHEMA_VERSION
-}
-
-export class NewerPreferencesVersionError extends Error {
-  constructor(readonly schemaVersion: number) {
-    super(m.newerSettings(schemaVersion))
-    this.name = 'NewerPreferencesVersionError'
-  }
-}
-
 /**
  * The client-writable fields of `prefs` as a Firestore update. Undefined fields are
  * left out, except `profiles`, the one optional list: removing the last profile writes
@@ -630,53 +546,4 @@ export function clientPreferencesUpdate(prefs: UserPreferences): Record<string, 
   }
   update.profiles ??= []
   return update
-}
-
-// ---- Whom plans are for -----------------------------------------------------------
-//
-// Shared by the dashboard, the Pro alerts and the calendar feed so they never disagree:
-// one person, or a group led by its most sensitive member ("Plan for a group", Pro).
-
-/** The preferences that decide whom a plan is for. */
-export type GroupPreferences = Pick<
-  UserPreferences,
-  'profiles' | 'skinType' | 'groupMode' | 'groupProfileIds'
->
-
-/** Who plans and burn estimates are for: one person, or a group led by its most sensitive. */
-export interface PlanningFor {
-  /** The skin type every estimate uses. */
-  skinType: SkinType
-  /** In group mode, the people in the group (two or more); otherwise null. */
-  group: Profile[] | null
-  /** In group mode, the person whose skin type is used. */
-  mostSensitive: Profile | null
-}
-
-/** The saved profiles in the group: those named in `groupProfileIds`, or all when unset. */
-export function groupMembers(
-  prefs: Pick<GroupPreferences, 'profiles' | 'groupProfileIds'>,
-): Profile[] {
-  const saved = prefs.profiles ?? []
-  if (!prefs.groupProfileIds) return saved
-  const ids = new Set(prefs.groupProfileIds)
-  return saved.filter(p => ids.has(p.id))
-}
-
-/**
- * Whom the plans are for. In group mode with two or more people in the group, the most
- * sensitive of them (lightest skin type, see mostSensitiveSkinType) sets the skin type,
- * so a plan that suits them suits everyone; ties go to the first in the list. Otherwise
- * the live skin type (the active profile's) is used.
- *
- * Group mode is turned on only on Pro (components/ProfileSwitcher.tsx), but it keeps
- * applying if the account goes back to Free with its profiles: it only ever makes the
- * estimates more cautious.
- */
-export function planningFor(prefs: GroupPreferences): PlanningFor {
-  const members = prefs.groupMode ? groupMembers(prefs) : []
-  if (members.length < 2) return { skinType: prefs.skinType, group: null, mostSensitive: null }
-  const skinType = mostSensitiveSkinType(members.map(p => p.skinType))!
-  const mostSensitive = members.find(p => p.skinType === skinType)!
-  return { skinType, group: members, mostSensitive }
 }

@@ -9,7 +9,8 @@ import {
 } from '@solara/core'
 import { TIER_LIMITS } from '@solara/core/tiers'
 import { loadFirebase } from './firebase'
-import { defaultPrefs, normalizePrefs } from './prefs'
+import { defaultPrefs } from './local-prefs'
+import { normalizePrefs } from './prefs'
 import type { UserPreferences } from './types'
 
 export type FirestorePrefsResult =

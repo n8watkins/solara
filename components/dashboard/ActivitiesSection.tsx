@@ -1,4 +1,4 @@
-import { planningFor } from '@solara/core'
+import { planningFor } from '@solara/core/planning-for'
 import type { BodyArea } from '@solara/core/sunscreen'
 import { useState } from 'react'
 import type { Activity, UserPreferences, WeatherResponse } from '@/lib/types'

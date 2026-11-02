@@ -2,15 +2,14 @@
 // notification worker. Keep it free of Firebase, browser and Node-only APIs so
 // every surface reads the provider the same way.
 //
-// The response is validated with Valibot at this boundary (./schema.ts; its modular
-// API tree-shakes, so the parser adds little to the client bundle). Missing values are never
+// The response is validated at this boundary by readOpenMeteoResponse, by hand so that
+// Valibot stays out of a guest's first load. Missing values are never
 // coerced: a UV or temperature that is not a finite number is `null`, and an hour
 // without a known UV is dropped from the daytime series. The recommendation
 // engine never bridges a dropped hour, so an unknown hour can never become part
 // of a recommended window.
 
-import * as v from 'valibot'
-import { finiteNumber, record } from './schema'
+import { isPlainRecord } from './plain-record'
 import m from './messages/core'
 import { daylightHours, type Daylight } from './sun-times'
 import { isIanaTimeZone, isoDateOf, wallClockAt } from './zoned-time'
@@ -101,59 +100,99 @@ export interface OpenMeteoPayload {
   }
 }
 
-/** A finite number, or null for anything else (missing, null, NaN, Infinity, wrong type). */
-const value = v.fallback(v.nullable(finiteNumber), null)
-/** A value series; anything that is not an array counts as missing. */
-const series = v.fallback(v.optional(v.array(value)), undefined)
+/** What Solara reads of an Open-Meteo response (readOpenMeteoResponse). */
+export interface OpenMeteoResponse {
+  timezone?: string
+  utc_offset_seconds?: number
+  latitude?: number
+  longitude?: number
+  current?: {
+    time?: string
+    uv_index: number | null
+    temperature_2m: number | null
+    weathercode: number | null
+  }
+  hourly: {
+    /** Unreadable timestamps are skipped row by row (see splitTime). */
+    time: unknown[]
+    uv_index?: (number | null)[]
+    uv_index_clear_sky?: (number | null)[]
+    temperature_2m?: (number | null)[]
+    weathercode?: (number | null)[]
+    cloudcover?: (number | null)[]
+    precipitation_probability?: (number | null)[]
+    apparent_temperature?: (number | null)[]
+  }
+}
 
-/** The Open-Meteo fields Solara reads (OpenMeteoResponseSchema). */
+const SERIES = [
+  'uv_index',
+  'uv_index_clear_sky',
+  'temperature_2m',
+  'weathercode',
+  'cloudcover',
+  'precipitation_probability',
+  'apparent_temperature',
+] as const
+
 /** A finite number, or undefined for anything else. */
-const optionalNumber = v.fallback(v.optional(finiteNumber), undefined)
-
-const openMeteoEntries = {
-  timezone: v.fallback(v.optional(v.string()), undefined),
-  utc_offset_seconds: optionalNumber,
-  latitude: optionalNumber,
-  longitude: optionalNumber,
-  current: v.fallback(
-    v.optional(
-      record({
-        time: v.fallback(v.optional(v.string()), undefined),
-        uv_index: value,
-        temperature_2m: value,
-        weathercode: value,
-      }),
-    ),
-    undefined,
-  ),
-  hourly: record({
-    // Unreadable timestamps are skipped row by row (see splitTime).
-    time: v.array(v.unknown()),
-    uv_index: series,
-    uv_index_clear_sky: series,
-    temperature_2m: series,
-    weathercode: series,
-    cloudcover: series,
-    precipitation_probability: series,
-    apparent_temperature: series,
-  }),
+function finiteOrUndefined(input: unknown): number | undefined {
+  return typeof input === 'number' && Number.isFinite(input) ? input : undefined
 }
 
 /**
- * The parts of an Open-Meteo response Solara reads. Only the hourly time axis is
- * required; every value is lenient, so a gap stays a gap instead of failing the
- * whole forecast.
+ * The parts of an Open-Meteo response Solara reads, or null when it has no hourly time
+ * axis (an object `hourly` with an array `time`). Every value is lenient, so a gap stays a
+ * gap instead of failing the whole forecast: a value that is not a finite number is null,
+ * a series that is not an array, or a timezone that is not a string, is undefined.
+ * Other fields are dropped.
+ *
+ * Written by hand rather than with a Valibot schema, because it runs on a guest's first
+ * screen and Valibot stays out of that download (ROADMAP item 52); every rule is
+ * covered by core.test.ts.
  */
-export const OpenMeteoResponseSchema = record(openMeteoEntries)
-
-export type OpenMeteoResponse = v.InferOutput<typeof OpenMeteoResponseSchema>
+export function readOpenMeteoResponse(raw: unknown): OpenMeteoResponse | null {
+  const source = isPlainRecord(raw) ? raw.hourly : undefined
+  if (!isPlainRecord(raw) || !isPlainRecord(source) || !Array.isArray(source.time)) return null
+  const hourly: OpenMeteoResponse['hourly'] = { time: Array.from(source.time as unknown[]) }
+  for (const key of SERIES) {
+    if (!(key in source)) continue
+    const series = source[key]
+    hourly[key] = Array.isArray(series) ? Array.from(series, finiteOrNull) : undefined
+  }
+  const response: OpenMeteoResponse = { hourly }
+  if ('timezone' in raw) {
+    response.timezone = typeof raw.timezone === 'string' ? raw.timezone : undefined
+  }
+  for (const key of ['utc_offset_seconds', 'latitude', 'longitude'] as const) {
+    if (key in raw) response[key] = finiteOrUndefined(raw[key])
+  }
+  if ('current' in raw) {
+    const current = raw.current
+    response.current = isPlainRecord(current)
+      ? {
+          ...('time' in current && {
+            time: typeof current.time === 'string' ? current.time : undefined,
+          }),
+          uv_index: finiteOrNull(current.uv_index),
+          temperature_2m: finiteOrNull(current.temperature_2m),
+          weathercode: finiteOrNull(current.weathercode),
+        }
+      : undefined
+  }
+  return response
+}
 
 /** Validate an Open-Meteo response. Throws when it has no hourly time series. */
 export function parseOpenMeteoResponse(raw: unknown): OpenMeteoResponse {
-  const result = v.safeParse(OpenMeteoResponseSchema, raw)
-  if (!result.success) throw new Error('Forecast response was incomplete')
-  return result.output
+  const response = readOpenMeteoResponse(raw)
+  if (!response) throw new Error('Forecast response was incomplete')
+  return response
 }
+
+/** An ISO 8601 timestamp, as Valibot's `isoTimestamp` reads one. */
+const ISO_TIMESTAMP =
+  /^\d{4}-(?:0[1-9]|1[0-2])-(?:[12]\d|0[1-9]|3[01])[T ](?:0\d|1\d|2[0-3])(?::[0-5]\d){2}(?:\.\d{1,9})?(?:Z| ?[+-](?:0\d|1\d|2[0-3])(?::?[0-5]\d)?)$/u
 
 /**
  * A forecast as a provider served it: Open-Meteo's shape, plus what Solara's forecast
@@ -163,26 +202,18 @@ export function parseOpenMeteoResponse(raw: unknown): OpenMeteoResponse {
  * Other providers never send either. The pair is kept only together and well formed,
  * so a fresh answer, or a malformed marker, reads exactly like before.
  */
-export const ServedForecastSchema = v.pipe(
-  record({
-    ...openMeteoEntries,
-    stale: v.fallback(v.optional(v.literal(true)), undefined),
-    fetchedAt: v.fallback(v.optional(v.pipe(v.string(), v.isoTimestamp())), undefined),
-  }),
-  v.transform(({ stale, fetchedAt, ...forecast }) =>
-    stale && fetchedAt && Number.isFinite(Date.parse(fetchedAt))
-      ? { ...forecast, stale, fetchedAt }
-      : forecast,
-  ),
-)
-
 export type ServedForecast = OpenMeteoResponse & { stale?: true; fetchedAt?: string }
 
-/** Validate a provider's answer (see ServedForecastSchema). Throws like parseOpenMeteoResponse. */
+/** Validate a provider's answer (see ServedForecast). Throws like parseOpenMeteoResponse. */
 export function parseServedForecast(raw: unknown): ServedForecast {
-  const result = v.safeParse(ServedForecastSchema, raw)
-  if (!result.success) throw new Error('Forecast response was incomplete')
-  return result.output
+  const forecast = parseOpenMeteoResponse(raw)
+  const { stale, fetchedAt } = raw as { stale?: unknown; fetchedAt?: unknown }
+  return stale === true &&
+    typeof fetchedAt === 'string' &&
+    ISO_TIMESTAMP.test(fetchedAt) &&
+    Number.isFinite(Date.parse(fetchedAt))
+    ? { ...forecast, stale, fetchedAt }
+    : forecast
 }
 
 function finiteOrNull(input: unknown): number | null {
@@ -487,7 +518,7 @@ export async function fetchProviderForecast(
 
 /**
  * Like fetchProviderForecast, but keeps the proxy's marker for an earlier copy
- * (ServedForecastSchema), for the app, which tells people how old such a forecast is.
+ * (parseServedForecast), for the app, which tells people how old such a forecast is.
  */
 export async function fetchServedForecast(
   provider: ForecastProvider,

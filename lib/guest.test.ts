@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { defaultPrefs } from './prefs'
+import { defaultPrefs } from './local-prefs'
+import * as prefsModule from './prefs'
 import {
   GUEST_KEY,
   asGuestPrefs,
@@ -10,6 +11,7 @@ import {
   saveGuestPrefs,
 } from './guest'
 import { requestPersistentStorage } from './persistent-storage'
+import { isStoredGuestPlan } from './stored-guest-plan'
 import type { Activity, Location, UserPreferences } from './types'
 
 const storage = new Map<string, string>()
@@ -23,7 +25,16 @@ const activity = (id: string): Activity => ({
   sunscreen: false,
 })
 
+// The preferences schema, watched: a plan in the form saveGuestPrefs writes is read
+// without it (ROADMAP item 52), any other plan through it.
+vi.mock('./prefs', async importOriginal => {
+  const actual = await importOriginal<typeof prefsModule>()
+  return { ...actual, normalizePrefs: vi.fn(actual.normalizePrefs) }
+})
+const normalizePrefs = vi.mocked(prefsModule.normalizePrefs)
+
 beforeEach(() => {
+  normalizePrefs.mockClear()
   storage.clear()
   Object.defineProperty(globalThis, 'window', { configurable: true, value: {} })
   Object.defineProperty(globalThis, 'localStorage', {
@@ -37,14 +48,14 @@ beforeEach(() => {
 })
 
 describe('the guest plan', () => {
-  it('round-trips through this browser on the guest tier', () => {
+  it('round-trips through this browser on the guest tier', async () => {
     const plan: UserPreferences = {
       ...defaultPrefs(LA),
       skinType: 'olive',
       activities: [activity('custom_run')],
     }
     saveGuestPrefs(plan, '2026-06-15')
-    expect(loadGuestPrefs()).toMatchObject({
+    expect(await loadGuestPrefs()).toMatchObject({
       uid: '',
       tier: 'anonymous',
       skinType: 'olive',
@@ -75,19 +86,84 @@ describe('the guest plan', () => {
     expect(storage.get(GUEST_KEY)).not.toContain('a@example.com')
   })
 
-  it('is absent when nothing (or something unreadable) is stored', () => {
-    expect(loadGuestPrefs()).toBeNull()
+  it('is absent when nothing (or something unreadable) is stored', async () => {
+    expect(await loadGuestPrefs()).toBeNull()
     storage.set(GUEST_KEY, '{not json')
-    expect(loadGuestPrefs()).toBeNull()
+    expect(await loadGuestPrefs()).toBeNull()
     storage.set(GUEST_KEY, JSON.stringify({ prefs: { location: 'nowhere' } }))
-    expect(loadGuestPrefs()).toBeNull()
+    expect(await loadGuestPrefs()).toBeNull()
+    storage.set(GUEST_KEY, JSON.stringify({ prefs: { ...defaultPrefs(LA), location: null } }))
+    expect(await loadGuestPrefs()).toBeNull()
+    storage.set(
+      GUEST_KEY,
+      JSON.stringify({ prefs: { ...defaultPrefs(LA), location: { ...LA, lat: 999 } } }),
+    )
+    expect(await loadGuestPrefs()).toBeNull()
   })
 
-  it('clears', () => {
+  it('clears', async () => {
     saveGuestPrefs(defaultPrefs(LA))
     clearGuestData()
     expect(storage.has(GUEST_KEY)).toBe(false)
-    expect(loadGuestPrefs()).toBeNull()
+    expect(await loadGuestPrefs()).toBeNull()
+  })
+
+  it('reads a plan as saveGuestPrefs wrote it without the preferences schema', async () => {
+    const run = { ...activity('custom_run'), custom: true } as const
+    saveGuestPrefs({ ...defaultPrefs(LA), activities: [run] }, '2026-06-15')
+    const stored = JSON.parse(storage.get(GUEST_KEY)!).prefs
+    expect(isStoredGuestPlan(stored)).toBe(true)
+    expect(await loadGuestPrefs()).toEqual(stored)
+    expect(normalizePrefs).not.toHaveBeenCalled()
+  })
+
+  it('repairs any other plan through the schema, as before, and keeps it repaired', async () => {
+    const written = {
+      ...defaultPrefs(LA),
+      // Changed outside the app: an account's fields, values out of range, unknown keys.
+      uid: 'user-a',
+      tier: 'paid',
+      skinType: 'purple',
+      notificationHour: 99,
+      injected: '<script>',
+      location: { ...LA, lat: 34.0512345, city: '  Los Angeles  ', extra: 1 },
+      activities: [{ ...activity('custom_run'), maxUV: 99, durationMins: 'long' }, activity('b')],
+      hiddenActivitySuggestionIds: ['walk', 'walk', 'not-a-preset'],
+    }
+    storage.set(GUEST_KEY, JSON.stringify({ prefs: written, since: '2026-06-15' }))
+    const expected = asGuestPrefs(prefsModule.normalizePrefs(written)!)
+    normalizePrefs.mockClear()
+
+    const guest = await loadGuestPrefs()
+    expect(normalizePrefs).toHaveBeenCalledOnce()
+    expect(guest).toEqual(expected)
+    expect(guest).toMatchObject({
+      uid: '',
+      tier: 'anonymous',
+      skinType: 'fair',
+      notificationHour: 10,
+      location: { lat: 34.05, city: 'Los Angeles' },
+      activities: [{ id: 'custom_run', maxUV: 11, durationMins: 30, custom: true }],
+      hiddenActivitySuggestionIds: ['walk'],
+    })
+    expect(guest).not.toHaveProperty('injected')
+    expect(guest!.location).not.toHaveProperty('extra')
+
+    // Kept in the repaired form, with its first day, so the next start reads it directly.
+    const kept = JSON.parse(storage.get(GUEST_KEY)!)
+    expect(kept.since).toBe('2026-06-15')
+    expect(isStoredGuestPlan(kept.prefs)).toBe(true)
+    normalizePrefs.mockClear()
+    expect(await loadGuestPrefs()).toEqual(JSON.parse(JSON.stringify(expected)))
+    expect(normalizePrefs).not.toHaveBeenCalled()
+  })
+
+  it('reads a plan from a newer version of Solara through the schema and never rewrites it', async () => {
+    const newer = JSON.stringify({ prefs: { ...defaultPrefs(LA), schemaVersion: 99, future: 1 } })
+    storage.set(GUEST_KEY, newer)
+    expect(await loadGuestPrefs()).toMatchObject({ schemaVersion: 99 })
+    expect(normalizePrefs).toHaveBeenCalledOnce()
+    expect(storage.get(GUEST_KEY)).toBe(newer)
   })
 })
 

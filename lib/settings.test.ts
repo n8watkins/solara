@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { defaultPrefs } from '@/lib/prefs'
+import { defaultPrefs } from '@/lib/local-prefs'
 import {
   applySettingsDraft,
   isSettingsDraftDirty,

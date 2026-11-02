@@ -26,8 +26,14 @@ import { buildRawForecast } from '../../harness/fixtures'
 // all run on the opening screen.
 const BUDGET_KB = { en: 193, es: 218 } as const
 
+// A returning guest's plan as setup saved it (lib/guest.ts saveGuestPrefs). A plan in any
+// other form (an older one, or one changed outside Solara) loads the preferences schema
+// once to repair it (lib/stored-guest-plan.ts); it is saved repaired, so it is not what a
+// returning guest downloads.
 const GUEST = JSON.stringify({
   prefs: {
+    uid: '',
+    schemaVersion: 2,
     location: {
       lat: 34.05,
       lon: -118.24,
@@ -35,9 +41,15 @@ const GUEST = JSON.stringify({
       region: 'California',
       timezone: 'America/Los_Angeles',
     },
+    savedLocations: [],
     skinType: 'fair',
+    sunscreen: false,
     activities: [],
+    tier: 'anonymous',
     onboardingComplete: true,
+    hiddenActivitySuggestionIds: [],
+    collapsedActivityCategories: [],
+    notificationHour: 7,
   },
   since: '2026-06-15',
 })

@@ -76,7 +76,7 @@ vi.mock('@/lib/firebase', async importOriginal => {
 
 import { setCachedForecast } from '@/lib/cache'
 import { createAccountPrefs } from '@/lib/account-prefs'
-import { defaultPrefs, saveLocalPrefs } from '@/lib/prefs'
+import { defaultPrefs, saveLocalPrefs } from '@/lib/local-prefs'
 import { GUEST_KEY, loadGuestPrefs, saveGuestPrefs } from '@/lib/guest'
 import { GUEST_REPLACED_KEY, readReplacedGuestPlan } from '@/lib/guest-replaced'
 import { SignOutBlockedError, loadAccountPrefs, signOutAndClear } from '@/lib/session'
@@ -343,7 +343,7 @@ describe('a guest signing in', () => {
     saveGuestPrefs(guestPlan)
 
     // Sign-in's own transaction finds the existing account and writes nothing.
-    const fromSignIn = await createAccountPrefs('user-a', loadGuestPrefs(), 'guest')
+    const fromSignIn = await createAccountPrefs('user-a', await loadGuestPrefs(), 'guest')
     expect(fromSignIn).toMatchObject({ tier: 'paid', skinType: 'very-fair' })
 
     const result = await loadAccountPrefs('user-a')
@@ -395,7 +395,7 @@ describe('a guest signing in', () => {
     saveGuestPrefs(guestPlan)
     mocks.failWrites = true
     await expect(loadAccountPrefs('user-b')).resolves.toMatchObject({ status: 'error' })
-    expect(loadGuestPrefs()).toMatchObject({ activities: [RUN] })
+    expect(await loadGuestPrefs()).toMatchObject({ activities: [RUN] })
   })
 
   it('carries at most the free plan, and nothing an account owns', async () => {

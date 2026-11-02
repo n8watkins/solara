@@ -1,5 +1,6 @@
 import { afterEach, describe, it, expect, vi } from 'vitest'
-import { defaultPrefs, normalizePrefs, saveLocalPrefs } from '@/lib/prefs'
+import { defaultPrefs, saveLocalPrefs } from '@/lib/local-prefs'
+import { normalizePrefs } from '@/lib/prefs'
 import type { Location } from '@/lib/types'
 
 const LA: Location = { lat: 34.05, lon: -118.24, city: 'Los Angeles', region: 'CA' }

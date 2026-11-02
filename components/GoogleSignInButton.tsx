@@ -115,16 +115,17 @@ export default function GoogleSignInButton({
     setError(null)
     // Read before the popup: once signed in, the app's own account load may clear the
     // guest plan from this browser while this is still running.
-    const seed = seedPrefs
+    // loadGuestPrefs reads storage at once, before its first await.
+    const reading = seedPrefs
       ? ({ prefs: seedPrefs, source: 'setup' } as const)
-      : (() => {
-          const guest = loadGuestPrefs()
-          return guest ? ({ prefs: guest, source: 'guest' } as const) : null
-        })()
+      : loadGuestPrefs().then(guest =>
+          guest ? ({ prefs: guest, source: 'guest' } as const) : null,
+        )
     try {
-      const [services, { signInWithPopup }] = await Promise.all([
+      const [services, { signInWithPopup }, seed] = await Promise.all([
         loadFirebase(),
         import('firebase/auth'),
+        reading,
       ])
       const auth = services?.auth
       const provider = services?.googleProvider
