@@ -143,7 +143,7 @@ for (const lang of LANGUAGES) {
       await allow(context, MADRID)
       const seen = await openAsGuest(page)
       const banner = page.getByTestId('travel-banner')
-      await expect(banner).toHaveText(new RegExp(lang.banner.replace(/[?¿.]/g, '\\$&')))
+      await expect(banner).toContainText(lang.banner)
       await expect(banner).toHaveAttribute('role', 'status')
       // The lookup asked for the place's name in the page's language, rounded.
       expect(seen.lookups).toHaveLength(1)
