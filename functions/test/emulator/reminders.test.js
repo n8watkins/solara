@@ -442,7 +442,7 @@ describe('daily UV push for Free accounts', () => {
     assert.match(message.data.title, /^☀️ Protect from 9:20am to 4:40pm today$/)
     assert.match(
       message.data.body,
-      /UV peaks at 2\.0 \(Low\) around 1pm in Los Angeles, or 8\.0 if the sky clears\. Sunscreen, a hat and shade in case the sky clears\./,
+      /UV peaks at 2\.0 \(Low\) around 1pm in Los Angeles, or 8\.0 if the sky clears\. Sunscreen, a hat, sunglasses and shade in case the sky clears\./,
     )
   })
 
@@ -461,12 +461,12 @@ describe('daily UV push for Free accounts', () => {
     assert.equal(message.data.title, '☀️ Protégete hoy de 9:20\u00a0a.m. a 4:40\u00a0p.m.')
     assert.equal(
       message.data.body,
-      'El UV llega a su máximo de 8.0 (Muy alto) hacia la 1\u00a0p.m. en Los Angeles. Protector solar, sombrero y sombra mientras el UV sea moderado o más alto. Vuelve a revisar las condiciones actuales.',
+      'El UV llega a su máximo de 8.0 (Muy alto) hacia la 1\u00a0p.m. en Los Angeles. Protector solar, sombrero, lentes de sol y sombra mientras el UV sea moderado o más alto. Vuelve a revisar las condiciones actuales.',
     )
     const [cloudy] = messaging.sentTo('es-overcast')[0].messages
     assert.match(
       cloudy.data.body,
-      /^El UV llega a su máximo de 2\.0 \(Bajo\) hacia la 1\u00a0p\.m\. en London, o 8\.0 si el cielo se despeja\. Protector solar, sombrero y sombra por si el cielo se despeja\./,
+      /^El UV llega a su máximo de 2\.0 \(Bajo\) hacia la 1\u00a0p\.m\. en London, o 8\.0 si el cielo se despeja\. Protector solar, sombrero, lentes de sol y sombra por si el cielo se despeja\./,
     )
   })
 
