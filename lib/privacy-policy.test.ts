@@ -10,11 +10,7 @@ import {
   legalDate,
 } from './legal'
 import { DOCUMENT_CHANGES } from '@/messages/review-sheet'
-import {
-  NOT_NOW_DECIMALS,
-  TRAVEL_NOT_NOW_MS,
-  TRAVEL_PROMPT_DISTANCE_KM,
-} from '@solara/core/travel'
+import { NOT_NOW_DECIMALS, TRAVEL_NOT_NOW_MS, TRAVEL_PROMPT_DISTANCE_KM } from '@solara/core/travel'
 import * as shareTarget from './share-target'
 import {
   PRODUCTION_DATA_STEPS,

@@ -15,7 +15,7 @@ for (const width of [320, 390, 1440]) {
     await expect(page.getByTestId(HARNESS_MARKER)).toHaveAttribute('data-screen', 'dashboard')
 
     await page.getByRole('button', { name: /Los Angeles/ }).click()
-    const panel = page.getByText('Location', { exact: true }).locator('..')
+    const panel = page.getByTestId('place-menu')
     await expect(panel).toBeVisible()
 
     const box = await panel.boundingBox()

@@ -97,8 +97,12 @@ test('Escape closes the location panel and returns focus to the place button', a
   const trigger = page.getByRole('banner').getByRole('button', { name: 'Los Angeles' })
   await trigger.click()
   await expect(trigger).toHaveAttribute('aria-expanded', 'true')
+  // Focus starts on the first place in the menu (ROADMAP item 54); the search is a Tab away.
+  await expect(
+    page.getByRole('dialog', { name: 'Places' }).getByRole('button').first(),
+  ).toBeFocused()
   const search = page.getByRole('combobox', { name: 'Add a city' })
-  await expect(search).toBeFocused()
+  await search.focus()
 
   // With suggestions open, the first Escape closes only them.
   await search.fill('Los')

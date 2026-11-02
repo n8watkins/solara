@@ -86,13 +86,17 @@ test('switching location aborts the request for the old one', async ({ page }) =
     .getByRole('button', { name: /Los Angeles/ })
     .first()
     .click()
-  await page.getByRole('button', { name: 'San Diego, California' }).click()
+  // San Diego, a saved place, shows as a visit (ROADMAP item 54) and the menu closes.
+  await page
+    .getByTestId('place-menu')
+    .getByRole('button', { name: /^San Diego/ })
+    .click()
   await expect.poll(() => requests).toEqual(['34.05', '32.72'])
   await expect(page.getByTestId('hero-slot')).toBeHidden()
 
   // Back to Los Angeles: its cached forecast shows at once and San Diego's request is dropped.
-  // The location panel stays open after a shortcut, so Los Angeles is listed there now.
-  await page.getByRole('button', { name: 'Los Angeles, California' }).click()
+  await page.getByRole('button', { name: /Visiting San Diego/ }).click()
+  await page.getByRole('button', { name: 'Back to Los Angeles' }).click()
   await expect(page.getByTestId('hero-slot')).toBeVisible()
   await expect.poll(() => aborted).toEqual(['32.72'])
   expect(held).not.toBeNull()

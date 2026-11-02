@@ -72,9 +72,9 @@ export default function PrivacyPage() {
             cualquier lugar o guardarse. Solara no rastrea tu ubicación en segundo plano. Si ya
             permitiste que Solara use tu ubicación en tu navegador, lee la posición de tu
             dispositivo cuando lo abres (y cuando vuelves a él después de una hora o más), solo para
-            ofrecerte el pronóstico donde estás cuando te encuentras a más de 50 km del lugar que
-            se muestra; la posición se redondea de la misma forma, se envía solo a OpenStreetMap
-            para nombrar el lugar y nunca se guarda. Tu lugar de casa es el que usan tu feed de
+            ofrecerte el pronóstico donde estás cuando te encuentras a más de 50 km del lugar que se
+            muestra; la posición se redondea de la misma forma, se envía solo a OpenStreetMap para
+            nombrar el lugar y nunca se guarda. Tu lugar de casa es el que usan tu feed de
             calendario y tus notificaciones.
           </li>
           <li>
@@ -503,8 +503,8 @@ export default function PrivacyPage() {
           Si muestras en un dispositivo un lugar distinto de tu casa, o respondes &ldquo;Ahora
           no&rdquo; a la oferta de mostrar el pronóstico donde estás, ese lugar (guardado como los
           lugares guardados) y, durante un día, la zona para la que dijiste &ldquo;Ahora no&rdquo;
-          (redondeada a un decimal, alrededor de 10 km) se guardan solo en este navegador y nunca
-          se envían a Solara. Al cerrar sesión y al eliminar tu cuenta se borran, y la descarga de
+          (redondeada a un decimal, alrededor de 10 km) se guardan solo en este navegador y nunca se
+          envían a Solara. Al cerrar sesión y al eliminar tu cuenta se borran, y la descarga de
           datos de la cuenta los incluye.
         </p>
         <p>

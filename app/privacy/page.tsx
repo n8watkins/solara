@@ -44,12 +44,12 @@ export default function PrivacyPage() {
             <strong>Location.</strong> The place you choose for forecasts, stored as a city name and
             coordinates rounded to two decimal places (about 1 km). If you use your device location,
             it is rounded the same way before it is sent anywhere or saved. Solara does not track
-            your location in the background. If you have already allowed Solara to use your
-            location in your browser, it reads your device&apos;s position when you open it (and
-            when you come back to it after an hour or more), only to offer the forecast where you
-            are when you are more than 50 km from the place shown; the position is rounded the
-            same way, sent only to OpenStreetMap to name the place, and never stored. Your home
-            place is the one your calendar feed and notifications use.
+            your location in the background. If you have already allowed Solara to use your location
+            in your browser, it reads your device&apos;s position when you open it (and when you
+            come back to it after an hour or more), only to offer the forecast where you are when
+            you are more than 50 km from the place shown; the position is rounded the same way, sent
+            only to OpenStreetMap to name the place, and never stored. Your home place is the one
+            your calendar feed and notifications use.
           </li>
           <li>
             <strong>Preferences.</strong> Skin profile, activities, saved places, calendar planning
@@ -430,11 +430,11 @@ export default function PrivacyPage() {
           and when you delete your account, and the account data download includes them.
         </p>
         <p>
-          If you show a place other than your home on a device, or answer &ldquo;Not now&rdquo;
-          to the offer to show the forecast where you are, that place (as saved places are kept)
-          and, for a day, the area you said &ldquo;Not now&rdquo; for (rounded to one decimal
-          place, about 10 km) are kept only in this browser and are never sent to Solara. Signing
-          out and deleting your account remove them, and the account data download includes them.
+          If you show a place other than your home on a device, or answer &ldquo;Not now&rdquo; to
+          the offer to show the forecast where you are, that place (as saved places are kept) and,
+          for a day, the area you said &ldquo;Not now&rdquo; for (rounded to one decimal place,
+          about 10 km) are kept only in this browser and are never sent to Solara. Signing out and
+          deleting your account remove them, and the account data download includes them.
         </p>
         <p>
           When you share a calendar file or link to the installed app, it is kept in this
