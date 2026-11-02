@@ -29,7 +29,23 @@ export default function TermsPage() {
           activity performed through your account.
         </p>
 
-        <h2>Health and forecast disclaimer</h2>
+        <h2>Not medical advice</h2>
+        <p>
+          Solara&apos;s planning windows, burn times, sunscreen guidance, vitamin D figures and
+          other estimates are for planning and tracking. They are not medical advice, a diagnosis or
+          a treatment, and they do not replace a health professional.
+        </p>
+        <p>
+          If you have a medical condition, take a medicine that makes you more sensitive to the sun,
+          are pregnant, or are worried about your skin or vitamin D, ask a health professional
+          before relying on Solara&apos;s estimates.
+        </p>
+        <p>
+          Solara does not guarantee that following its estimates prevents sunburn, skin damage, heat
+          illness or other harm, or that any time outdoors is safe.
+        </p>
+
+        <h2>Forecasts and estimates</h2>
         <p>
           Solara provides estimated planning windows based on forecast data and the preferences you
           enter.
@@ -39,12 +55,8 @@ export default function TermsPage() {
           medications, altitude, reflection, and local conditions can differ from these estimates.
         </p>
         <p>
-          Solara does not provide medical advice and does not guarantee that any time outdoors is
-          safe or free from sunburn, heat illness, or other harm.
-        </p>
-        <p>
-          Use current local conditions, follow public health guidance, use appropriate sun
-          protection, and consult a qualified professional about personal medical concerns.
+          Use current local conditions, follow public health guidance and use appropriate sun
+          protection.
         </p>
 
         <h2>Subscriptions</h2>

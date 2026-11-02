@@ -59,4 +59,11 @@ export default defineMessages('app', {
   retry: 'Retry',
   reload: 'Reload',
   retrySync: 'Retry sync',
+  /**
+   * Who should ask a health professional (owner 2026-11-01, docs/LEGAL_REVIEW.md): shown
+   * wherever health estimates appear, after a short "not medical advice" line; the static
+   * pages carry the same sentence at the end of site.disclaimer.
+   */
+  healthQualifier:
+    'If you have a medical condition, take a medicine that makes you more sensitive to the sun, are pregnant, or are worried about your skin or vitamin D, ask a health professional.',
 })

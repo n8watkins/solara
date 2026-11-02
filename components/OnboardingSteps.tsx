@@ -229,6 +229,9 @@ export function SkinStep({
       >
         {m.answer5}
       </button>
+      <p className="mt-1.5 text-[12px] leading-normal text-ink-3" data-testid="skin-not-medical">
+        {m.skinNotMedical} {app.healthQualifier}
+      </p>
       {quizOpen && (
         <SkinTypeQuiz
           onClose={() => setQuizOpen(false)}

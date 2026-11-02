@@ -52,4 +52,9 @@ export default {
   retry: 'Reintentar',
   reload: 'Recargar',
   retrySync: 'Reintentar la sincronización',
+  healthQualifier:
+    'Si tienes un problema de salud, tomas un medicamento que te hace más sensible al sol, estás embarazada o te preocupa tu piel o tu vitamina D, consulta a un profesional de la salud.',
 } satisfies Translation<typeof app>
+
+/** Safety wording a native speaker must check before release (docs/i18n/es-review.md). */
+export const needsReview: (keyof typeof app)[] = ['healthQualifier']

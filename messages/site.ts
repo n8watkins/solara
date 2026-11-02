@@ -15,6 +15,7 @@ export default defineMessages('site', {
   otherLanguageLabel: 'Leer esta página en español',
   /** Social cards' image description. */
   ogImageAlt: 'Solara lower-UV activity planner',
+  /** Ends with app.healthQualifier, word for word (messages/health-qualifier.test.ts). */
   disclaimer:
-    'Solara is a planning aid, not medical advice or a guarantee that sun exposure is safe. Conditions and individual sensitivity can change quickly.',
+    'Solara is for planning and tracking, not medical advice, and cannot guarantee that time in the sun is safe. If you have a medical condition, take a medicine that makes you more sensitive to the sun, are pregnant, or are worried about your skin or vitamin D, ask a health professional.',
 })

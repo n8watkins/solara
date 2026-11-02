@@ -6,7 +6,7 @@ import { pageText } from '@/lib/page-language'
 
 /**
  * The frame of the city pages (app/uv/, app/es/uv/): the Solara header with the link to
- * the page in the other language, and a centered column. Like the landing page these are
+ * the page in the other language, a centered column and the shared disclaimer. Like the landing page these are
  * static HTML and CSS only (scripts/static-pages.mjs strips the framework scripts), so
  * links are plain anchors.
  */
@@ -32,7 +32,13 @@ export default function CityShell({
         action={{ href: appHref, label: site.openSolara }}
         width="max-w-[960px]"
       />
-      <main className="mx-auto max-w-[960px] px-4 pt-4 pb-16 sm:px-6 md:pt-8">{children}</main>
+      <main className="mx-auto max-w-[960px] px-4 pt-4 pb-16 sm:px-6 md:pt-8">
+        {children}
+        {/* The same qualifier as the landing page's footer (docs/LEGAL_REVIEW.md). */}
+        <p className="mt-12 max-w-[720px] border-t-[0.5px] border-line-strong pt-6 text-[13px] leading-[1.6] text-ink-3">
+          {site.disclaimer}
+        </p>
+      </main>
     </div>
   )
 }

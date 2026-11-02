@@ -10,8 +10,9 @@ The app speaks English and Latin American Spanish, from the device's language or
 Billing (Stripe), the live calendar feed and Pro's push alerts are built as Firebase Functions but not deployed yet.
 Until they are, the account page downloads and deletes a signed-in account in the browser; the Functions take over when deployed.
 
-Solara is a planning aid, not medical advice or a guarantee that sun exposure is safe.
-Conditions and individual sensitivity can change quickly.
+Solara is for planning and tracking, not medical advice, and cannot guarantee that time in the sun is safe.
+If you have a medical condition, take a medicine that makes you more sensitive to the sun, are pregnant, or are worried about your skin or vitamin D, ask a health professional.
+What a lawyer should eventually review, and the defaults in place until then, is in [LEGAL_REVIEW.md](docs/LEGAL_REVIEW.md).
 
 ## Documentation
 
@@ -25,6 +26,7 @@ Conditions and individual sensitivity can change quickly.
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Environment variables, GitHub configuration, how a deploy runs, the staging deploy and preview channels, and Functions, App Check, feed, notification and Calendar setup |
 | [docs/WIF_SETUP.md](docs/WIF_SETUP.md) | Replacing the deploy key with Workload Identity Federation (production and staging), and moving public values to variables |
 | [docs/integrations/EVENTS.md](docs/integrations/EVENTS.md) | Scoping for linking events from calendars, Strava and Meetup (Wave 5 item 9) |
+| [docs/LEGAL_REVIEW.md](docs/LEGAL_REVIEW.md) | What a lawyer should eventually review, the risk of each item, the best-judgement default in place and when it becomes urgent |
 | [docs/SUNSCREEN.md](docs/SUNSCREEN.md) | The sunscreen amount, SPF and reapply advice Solara gives, and its sources |
 | [docs/i18n/README.md](docs/i18n/README.md) | How the app is translated, how each part loads its words, and how to add a language |
 | [docs/DEPENDENCY_RISK.md](docs/DEPENDENCY_RISK.md) | Accepted development-dependency advisories and the audit policy |

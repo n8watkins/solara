@@ -10,6 +10,7 @@ import {
   legalDate,
 } from './legal'
 import { DOCUMENT_CHANGES } from '@/messages/review-sheet'
+import appMessages from '@/messages/app'
 import { NOT_NOW_DECIMALS, TRAVEL_NOT_NOW_MS, TRAVEL_PROMPT_DISTANCE_KM } from '@solara/core/travel'
 import * as shareTarget from './share-target'
 import {
@@ -265,6 +266,17 @@ describe('retention promises match what production does (REVIEW8 SEC M3, QA M2)'
 })
 
 describe('terms of use', () => {
+  it('says the estimates are not medical advice, and who should ask a health professional', () => {
+    const text = terms.replaceAll('&apos;', "'").replace(/\s+/g, ' ')
+    expect(text).toContain('<h2>Not medical advice</h2>')
+    expect(text).toContain('They are not medical advice, a diagnosis or a treatment')
+    // The same cases as the app's qualifier (messages/app.ts healthQualifier).
+    expect(text).toContain(appMessages.healthQualifier.replace(/\.$/, ''))
+    expect(text).toContain(
+      'Solara does not guarantee that following its estimates prevents sunburn',
+    )
+  })
+
   it('states the governing law and data licenses', () => {
     expect(terms).toContain('<LegalDetail name="jurisdiction" />')
     expect(terms).toContain('CC&nbsp;BY&nbsp;4.0')
@@ -290,10 +302,16 @@ describe("the review sheet's added legal lines", () => {
       .replaceAll('</strong>', '')
       .replaceAll('&apos;', "'")
       .replace(/\s+/g, ' ')
-  const pages: Record<string, { en: string; es: string }> = {
+  const pages: Record<string, { en: string; es: string; translates: string }> = {
     '/es/privacy/': {
       en: privacy,
       es: readFileSync(new URL('../app/es/privacy/page.tsx', import.meta.url), 'utf8'),
+      translates: TRANSLATED_FROM.es!.privacy,
+    },
+    '/es/terms/': {
+      en: terms,
+      es: readFileSync(new URL('../app/es/terms/page.tsx', import.meta.url), 'utf8'),
+      translates: TRANSLATED_FROM.es!.terms,
     },
   }
 
@@ -303,9 +321,7 @@ describe("the review sheet's added legal lines", () => {
       const page = pages[change.page]!
       expect(read(page.en)).toContain(change.english)
       expect(read(page.es)).toContain(change.spanish)
-      expect(Date.parse(change.version)).toBeLessThanOrEqual(
-        Date.parse(TRANSLATED_FROM.es!.privacy),
-      )
+      expect(Date.parse(change.version)).toBeLessThanOrEqual(Date.parse(page.translates))
     }
   })
 })

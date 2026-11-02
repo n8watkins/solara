@@ -22,6 +22,7 @@ export default {
   yourSkinType: 'Tu tipo de piel',
   skinLead:
     'Personaliza el tiempo estimado hasta quemarte. Los tipos siguen la escala de Fitzpatrick.',
+  skinNotMedical: 'Estimaciones para planificar, no consejo médico.',
   answer5: '¿No lo sabes? Responde 5 preguntas rápidas',
   setupSaveFailed: 'No se pudo guardar tu configuración. Revisa tu conexión y vuelve a intentarlo.',
   finishSettingUp: 'Termina de configurar',
@@ -139,6 +140,7 @@ export default {
 
 export const needsReview: (keyof typeof setup)[] = [
   'quizDisclaimer',
+  'skinNotMedical',
   'skinDescVeryFair',
   'skinDescFair',
   'skinDescMedium',

@@ -50,7 +50,24 @@ export default function TermsPage() {
           de la actividad que se realice con tu cuenta.
         </p>
 
-        <h2>Aviso sobre la salud y el pronóstico</h2>
+        <h2>No es consejo médico</h2>
+        <p>
+          Los horarios para planificar, los tiempos hasta quemarte, la orientación sobre el
+          protector solar, las cifras de vitamina D y las demás estimaciones de Solara sirven para
+          planificar y llevar un registro. No son consejo médico, ni un diagnóstico ni un
+          tratamiento, y no reemplazan a un profesional de la salud.
+        </p>
+        <p>
+          Si tienes un problema de salud, tomas un medicamento que te hace más sensible al sol,
+          estás embarazada o te preocupa tu piel o tu vitamina D, consulta a un profesional de la
+          salud antes de confiar en las estimaciones de Solara.
+        </p>
+        <p>
+          Solara no garantiza que seguir sus estimaciones evite quemaduras solares, daños en la
+          piel, enfermedades por calor u otros daños, ni que algún momento al aire libre sea seguro.
+        </p>
+
+        <h2>Pronósticos y estimaciones</h2>
         <p>
           Solara ofrece horarios estimados para planificar, basados en datos del pronóstico y en las
           preferencias que ingresas.
@@ -61,13 +78,8 @@ export default function TermsPage() {
           las condiciones locales pueden ser distintos de estas estimaciones.
         </p>
         <p>
-          Solara no ofrece consejo médico y no garantiza que ningún momento al aire libre sea seguro
-          o esté libre de quemaduras solares, enfermedades por calor u otros daños.
-        </p>
-        <p>
           Ten en cuenta las condiciones locales del momento, sigue las recomendaciones de salud
-          pública, usa una protección solar adecuada y consulta a un profesional calificado sobre
-          cualquier inquietud médica personal.
+          pública y usa una protección solar adecuada.
         </p>
 
         <h2>Suscripciones</h2>

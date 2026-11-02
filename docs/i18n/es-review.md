@@ -25,6 +25,14 @@ Activity cards, the hero slot and the activity editor
 | `shareText` | Let's do {1} {2} from {3} to {4} in {5}. Solara estimates this as a lower-UV {6} planning window. Peak UV {7}. Recheck current conditions and use sun protection. | Plan para {2}: {1} de {3} a {4} en {5}. Solara lo estima como un horario de {6} con UV más bajo. UV máximo {7}. Vuelve a revisar las condiciones y protégete del sol. |  |
 | `calendarDetails` | Estimated lower-UV window for {1}. Forecast UV stays at or below the planning limit of {2} from {3} to {4} assuming SPF 30+. Schedule your {6} session in this range. Recheck conditions and use sun protection; this is not medical advice. | Horario estimado de UV más bajo para {1}. El UV pronosticado se mantiene en el límite de {2} que planificaste o por debajo, de {3} a {4}, suponiendo FPS 30+. Programa tu sesión de {6} dentro de este rango. Vuelve a revisar las condiciones y protégete del sol; esto no es consejo médico. |  |
 
+## app
+
+Who should ask a health professional: after the dashboard footer, the skin type step, the sunscreen guide, the vitamin D log and Settings, Sun profile
+
+| Key | English | Spanish | Notes |
+| --- | --- | --- | --- |
+| `healthQualifier` | If you have a medical condition, take a medicine that makes you more sensitive to the sun, are pregnant, or are worried about your skin or vitamin D, ask a health professional. | Si tienes un problema de salud, tomas un medicamento que te hace más sensible al sol, estás embarazada o te preocupa tu piel o tu vitamina D, consulta a un profesional de la salud. |  |
+
 ## calendar
 
 The Calendar view and the calendar feed card
@@ -53,7 +61,7 @@ The city pages (/es/uv/ and /es/uv/<city>/): the facts about each city and the n
 | `factAltitude` | At about {1} m above sea level, UV here runs higher than on the coast: roughly 10% more for every 1,000 m. | A unos {1} m sobre el nivel del mar, el UV aquí es más alto que en la costa: alrededor de un 10% más por cada 1000 m. |  |
 | `monthsIntro` | The highest UV index of a typical day, with clouds and under a clear sky, and the hours UV is usually moderate or higher, from {1} to {2}. The categories follow the WHO scale, which rounds to whole numbers, so a typical peak of 2.5 already counts as Moderate. | El índice UV más alto de un día típico, con nubes y con cielo despejado, y las horas en que el UV suele ser moderado o más alto, de {1} a {2}. Las categorías siguen la escala de la OMS, que redondea a números enteros, así que un máximo típico de 2.5 ya cuenta como Moderado. |  |
 | `todayBody` | The hourly forecast and the lower-UV times for what you do outside. Free, no account needed. | El pronóstico por hora y los horarios con menos UV para lo que haces al aire libre. Gratis, sin necesidad de cuenta. |  |
-| `aboutCaveat` | , for the city center, in local time. They describe a typical day, not any one day: the UV on a given day can be higher or lower, so check the forecast before you go. Solara is a planning aid, not medical advice. | , para el centro de la ciudad, en hora local. Describen un día típico, no un día en particular: el UV de un día dado puede ser más alto o más bajo, así que revisa el pronóstico antes de salir. Solara es una ayuda para planificar, no un consejo médico. |  |
+| `aboutCaveat` | , for the city center, in local time. They describe a typical day, not any one day: the UV on a given day can be higher or lower, so check the forecast before you go. | , para el centro de la ciudad, en hora local. Describen un día típico, no un día en particular: el UV de un día dado puede ser más alto o más bajo, así que revisa el pronóstico antes de salir. |  |
 
 ## dashboard
 
@@ -61,7 +69,7 @@ The dashboard: burn time and vitamin D cards, calendar event text
 
 | Key | English | Spanish | Notes |
 | --- | --- | --- | --- |
-| `disclaimer` | Forecast-based planning estimates, not medical advice. Conditions can change; use sun protection. | Estimaciones basadas en el pronóstico, no son consejo médico. Las condiciones pueden cambiar; protégete del sol. |  |
+| `disclaimer` | Estimates for planning and tracking, not medical advice. Conditions can change; use sun protection. | Estimaciones para planificar y llevar un registro, no consejo médico. Las condiciones pueden cambiar; protégete del sol. |  |
 | `burnWhoseGroup` | {1}'s {2}, the most sensitive in your group, | la {2} de {1}, la más sensible de tu grupo, |  |
 | `burnWhoGroup` | {1} (most sensitive) | {1} (la más sensible) |  |
 | `burnTitle` | Estimated burn time | Tiempo estimado hasta quemarte |  |
@@ -71,12 +79,13 @@ The dashboard: burn time and vitamin D cards, calendar event text
 | `burnAtPeak` | At peak · {1}, no SPF | En el máximo · {1}, sin FPS |  |
 | `burnAbout` | burn ~{1} | quemadura en ~{1} |  |
 | `vitdTitle` | Vitamin D estimate | Estimación de vitamina D |  |
-| `vitdHelp` | About {1} IU of vitamin D for an adult with arms and legs bare: roughly a third of the time it takes the skin to redden (the common rule of thumb, Holick, 2004). A rough model, not a recommended exposure target. Needs and production vary widely and fall with age; ask a clinician if you are concerned. | Unas {1} UI de vitamina D para una persona adulta con brazos y piernas descubiertos: más o menos un tercio del tiempo que tarda la piel en enrojecer (la regla práctica habitual, Holick, 2004). Un modelo aproximado, no una meta de exposición recomendada. Las necesidades y la producción varían mucho y bajan con la edad; consulta a un profesional de la salud si te preocupa. |  |
+| `vitdHelp` | About {1} IU of vitamin D for an adult with arms and legs bare: roughly a third of the time it takes the skin to redden (the common rule of thumb, Holick, 2004). A rough model, not a recommended exposure target. Needs and production vary widely and fall with age; ask a health professional if you are concerned. | Unas {1} UI de vitamina D para una persona adulta con brazos y piernas descubiertos: más o menos un tercio del tiempo que tarda la piel en enrojecer (la regla práctica habitual, Holick, 2004). Un modelo aproximado, no una meta de exposición recomendada. Las necesidades y la producción varían mucho y bajan con la edad; consulta a un profesional de la salud si te preocupa. |  |
 | `vitdDose` | ≈{1} IU · arms + legs | ≈{1} UI · brazos + piernas |  |
 | `uvTooLow` | UV too low | UV demasiado bajo |  |
 | `needsUv1` | Needs UV 1 or more | Necesita UV de 1 o más |  |
 | `eventLinkDetails` | Forecast-based lower-UV planning estimate from Solara. Recheck current UV and use sun protection. | Estimación de horario de UV más bajo de Solara, basada en el pronóstico. Vuelve a revisar el UV actual y protégete del sol. |  |
 | `headingOut` | Heading out? Get a reminder to reapply every {1}. | ¿Vas a salir? Recibe un recordatorio para volver a aplicarlo cada {1}. |  |
+| `sunscreenNotMedical` | General guidance, not medical advice. | Orientación general, no consejo médico. |  |
 
 ## editor
 
@@ -122,6 +131,7 @@ Setup and the skin type step
 | Key | English | Spanish | Notes |
 | --- | --- | --- | --- |
 | `quizDisclaimer` | This is an estimate for planning, not medical advice. If you burn more easily than it suggests, choose a lighter type. | Es una estimación para planificar, no consejo médico. Si te quemas con más facilidad de lo que sugiere, elige un tipo más claro. |  |
+| `skinNotMedical` | Estimates for planning, not medical advice. | Estimaciones para planificar, no consejo médico. |  |
 | `skinDescVeryFair` | Burns easily, rarely tans | Se quema con facilidad, casi nunca se broncea |  |
 | `skinDescFair` | Burns often, tans lightly | Se quema a menudo, se broncea un poco |  |
 | `skinDescMedium` | Burns sometimes, tans well | A veces se quema, se broncea bien |  |
@@ -137,7 +147,7 @@ The static pages (landing, legal and city pages, at /es/): the shared disclaimer
 
 | Key | English | Spanish | Notes |
 | --- | --- | --- | --- |
-| `disclaimer` | Solara is a planning aid, not medical advice or a guarantee that sun exposure is safe. Conditions and individual sensitivity can change quickly. | Solara es una ayuda para planificar, no un consejo médico ni una garantía de que exponerse al sol sea seguro. Las condiciones y la sensibilidad de cada persona pueden cambiar rápidamente. |  |
+| `disclaimer` | Solara is for planning and tracking, not medical advice, and cannot guarantee that time in the sun is safe. If you have a medical condition, take a medicine that makes you more sensitive to the sun, are pregnant, or are worried about your skin or vitamin D, ask a health professional. | Solara sirve para planificar y llevar un registro, no es consejo médico y no puede garantizar que el tiempo al sol sea seguro. Si tienes un problema de salud, tomas un medicamento que te hace más sensible al sol, estás embarazada o te preocupa tu piel o tu vitamina D, consulta a un profesional de la salud. |  |
 
 ## travel
 
@@ -168,7 +178,8 @@ The vitamin D log (dashboard, "Vitamin D log"): estimates, burn risk beside each
 | `howModel` | About 1,000 IU of vitamin D for an adult with arms and legs bare in roughly a third of the time it takes the skin to redden (the common rule of thumb, Holick, 2004), the same estimate as the dashboard card. Less skin in the sun makes less: face and hands count a quarter, face and arms half, swimwear double. | Unas 1000 UI de vitamina D para una persona adulta con brazos y piernas descubiertos, en más o menos un tercio del tiempo que tarda la piel en enrojecer (la regla práctica habitual, Holick, 2004), la misma estimación que la tarjeta del panel. Con menos piel al sol se produce menos: cara y manos cuentan una cuarta parte, cara y brazos la mitad, y el traje de baño el doble. |  |
 | `howLowSun` | A low sun counts slowly, and UV under 1 counts none. Skin makes no more vitamin D after about one burn dose, so time past the burn time adds nothing. | Un sol bajo cuenta despacio, y un UV menor que 1 no cuenta. La piel no produce más vitamina D después de más o menos una dosis de quemadura, así que el tiempo después del tiempo hasta quemarte no suma nada. |  |
 | `howSunscreen` | Sunscreen counts as dividing the UV by 2.5, as the plans assume for SPF 30+, for the burn and the vitamin D alike. As people usually apply it, it blocks far less than its label says (Neale and others, 2019). | El protector solar cuenta como dividir el UV entre 2.5, como suponen los planes para FPS 30 o más, tanto para la quemadura como para la vitamina D. Como se suele aplicar, bloquea mucho menos de lo que dice su etiqueta (Neale y colaboradores, 2019). |  |
-| `howLimits` | Age is not taken into account: older skin makes much less vitamin D. Needs and production vary widely with the person, the season and where you live. These are rough estimates, not medical advice; ask a clinician if you are concerned. | No se toma en cuenta la edad: la piel de las personas mayores produce mucha menos vitamina D. Las necesidades y la producción varían mucho según la persona, la estación y el lugar donde vives. Son estimaciones aproximadas, no consejo médico; consulta a un profesional de la salud si te preocupa. |  |
+| `howLimits` | Age is not taken into account: older skin makes much less vitamin D. Needs and production vary widely with the person, the season and where you live. | No se toma en cuenta la edad: la piel de las personas mayores produce mucha menos vitamina D. Las necesidades y la producción varían mucho según la persona, la estación y el lugar donde vives. |  |
+| `notMedical` | Rough estimates for tracking, not medical advice. | Estimaciones aproximadas para llevar un registro, no consejo médico. |  |
 
 ## briefing
 
@@ -266,7 +277,7 @@ Sunscreen coaching: the timer, activity cards, Settings; the reapply reminder pu
 | `spfRule` | Use SPF 30+ broad spectrum whenever UV is {1} or more, and SPF 50+ when it reaches {2}. | Usa FPS 30+ de amplio espectro siempre que el UV sea {1} o más, y FPS 50+ cuando llegue a {2}. |  |
 | `reapplyRule` | Put it on {1} before you go out. Reapply every {2}, and straight after swimming, sweating or towelling off. | Aplícalo {1} antes de salir. Vuelve a aplicarlo cada {2}, y justo después de nadar, sudar o secarte con la toalla. |  |
 
-144 messages to review.
+148 messages to review.
 
 ## Legal pages
 
@@ -275,7 +286,7 @@ These are reviewed whole against the English, by a native speaker and by counsel
 | Page | Source | English | Notes |
 | --- | --- | --- | --- |
 | `/es/privacy/` | `app/es/privacy/page.tsx` | `/privacy/` | The privacy policy, in full. It states that the English version prevails. |
-| `/es/terms/` | `app/es/terms/page.tsx` | `/terms/` | The terms of use, in full, including the health and forecast disclaimer. It states that the English version prevails. |
+| `/es/terms/` | `app/es/terms/page.tsx` | `/terms/` | The terms of use, in full, including the "not medical advice" section. It states that the English version prevails. |
 
 ### Lines added since the first translation
 
@@ -285,3 +296,7 @@ A reviewer who has read a page already checks just these.
 | --- | --- | --- | --- | --- | --- |
 | `/es/privacy/` | November 1, 2026 | Qué recopila Solara | Language. The language you choose in Settings or, with Automatic, the one Solara works out from your device (English or Spanish, never your device's full list of languages), kept with your account so notifications, reminders and the calendar feed are written in it. With Automatic, the last device you open Solara on sets it. | Idioma. El idioma que eliges en Configuración o, con Automático, el que Solara deduce de tu dispositivo (inglés o español, nunca la lista completa de idiomas de tu dispositivo), guardado con tu cuenta para escribir en él las notificaciones, los recordatorios y el calendario suscrito. Con Automático, lo fija el último dispositivo en que abres Solara. |  |
 | `/es/privacy/` | November 1, 2026 | Cuánto tiempo se guarda la información | A note that an account was deleted on the Account data controls page (its former account id and the time, linked to no sign-in), so another open tab cannot bring the account back: a day, once Solara's automatic clean-up is switched on, and until then it stays. | Una nota de que una cuenta se eliminó en la página de controles de datos de la cuenta (su identificador anterior y la hora, sin vínculo con ningún inicio de sesión), para que otra pestaña abierta no pueda recuperar la cuenta: un día, cuando se active la limpieza automática de Solara, y hasta entonces se conserva. |  |
+| `/es/terms/` | November 1, 2026 | No es consejo médico | Solara's planning windows, burn times, sunscreen guidance, vitamin D figures and other estimates are for planning and tracking. They are not medical advice, a diagnosis or a treatment, and they do not replace a health professional. | Los horarios para planificar, los tiempos hasta quemarte, la orientación sobre el protector solar, las cifras de vitamina D y las demás estimaciones de Solara sirven para planificar y llevar un registro. No son consejo médico, ni un diagnóstico ni un tratamiento, y no reemplazan a un profesional de la salud. |  |
+| `/es/terms/` | November 1, 2026 | No es consejo médico | If you have a medical condition, take a medicine that makes you more sensitive to the sun, are pregnant, or are worried about your skin or vitamin D, ask a health professional before relying on Solara's estimates. | Si tienes un problema de salud, tomas un medicamento que te hace más sensible al sol, estás embarazada o te preocupa tu piel o tu vitamina D, consulta a un profesional de la salud antes de confiar en las estimaciones de Solara. |  |
+| `/es/terms/` | November 1, 2026 | No es consejo médico | Solara does not guarantee that following its estimates prevents sunburn, skin damage, heat illness or other harm, or that any time outdoors is safe. | Solara no garantiza que seguir sus estimaciones evite quemaduras solares, daños en la piel, enfermedades por calor u otros daños, ni que algún momento al aire libre sea seguro. |  |
+| `/es/terms/` | November 1, 2026 | Pronósticos y estimaciones | Use current local conditions, follow public health guidance and use appropriate sun protection. | Ten en cuenta las condiciones locales del momento, sigue las recomendaciones de salud pública y usa una protección solar adecuada. |  |

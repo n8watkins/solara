@@ -26,7 +26,7 @@ export const LEGAL_DETAILS: Readonly<{
  * to one never re-dates the other; update the date in the same change as the text.
  */
 export const PRIVACY_LAST_UPDATED = 'November 1, 2026'
-export const TERMS_LAST_UPDATED = 'October 25, 2026'
+export const TERMS_LAST_UPDATED = 'November 1, 2026'
 
 /**
  * The English version each translation translates (ROADMAP item 46): a change to the
@@ -37,7 +37,7 @@ export const TERMS_LAST_UPDATED = 'October 25, 2026'
 export const TRANSLATED_FROM: Readonly<
   Partial<Record<Locale, { privacy: string; terms: string }>>
 > = {
-  es: { privacy: 'November 1, 2026', terms: 'October 25, 2026' },
+  es: { privacy: 'November 1, 2026', terms: 'November 1, 2026' },
 }
 
 /** A document date ("October 29, 2026") as the language writes it ("29 de octubre de 2026"). */

@@ -23,6 +23,8 @@ export default defineMessages('setup', {
   yourSkinType: 'Your skin type',
   skinLead: 'Personalizes your estimated burn time. The types follow the Fitzpatrick scale.',
   answer5: 'Not sure? Answer 5 quick questions',
+  /** Under the skin types, followed by app.healthQualifier. */
+  skinNotMedical: 'Estimates for planning, not medical advice.',
   setupSaveFailed: 'Could not save your setup. Check your connection and try again.',
   finishSettingUp: 'Finish setting up',
   finishSetup: 'Finish setup',

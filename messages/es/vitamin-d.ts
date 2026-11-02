@@ -93,7 +93,8 @@ export default {
   howSunscreen:
     'El protector solar cuenta como dividir el UV entre 2.5, como suponen los planes para FPS 30 o más, tanto para la quemadura como para la vitamina D. Como se suele aplicar, bloquea mucho menos de lo que dice su etiqueta (Neale y colaboradores, 2019).',
   howLimits:
-    'No se toma en cuenta la edad: la piel de las personas mayores produce mucha menos vitamina D. Las necesidades y la producción varían mucho según la persona, la estación y el lugar donde vives. Son estimaciones aproximadas, no consejo médico; consulta a un profesional de la salud si te preocupa.',
+    'No se toma en cuenta la edad: la piel de las personas mayores produce mucha menos vitamina D. Las necesidades y la producción varían mucho según la persona, la estación y el lugar donde vives.',
+  notMedical: 'Estimaciones aproximadas para llevar un registro, no consejo médico.',
 
   download: 'Descargar el registro',
   deleteAll: 'Eliminar todas las sesiones',
@@ -122,4 +123,5 @@ export const needsReview: (keyof typeof vitaminD)[] = [
   'howLowSun',
   'howSunscreen',
   'howLimits',
+  'notMedical',
 ]
