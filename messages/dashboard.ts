@@ -109,13 +109,6 @@ export default defineMessages('dashboard', {
     'Solara was updated in another tab or device. Reload to keep editing your settings.',
   syncFailed: 'Saved on this device, but cloud sync failed. Retry when your connection returns.',
 
-  checkoutCanceled: 'Checkout was canceled. You were not charged.',
-  checkoutNoSession: 'Checkout returned successfully. Refresh to confirm your subscription.',
-  checkoutConfirming: 'Confirming your subscription...',
-  checkoutPending:
-    'Your payment is still processing. Pro will activate automatically when it completes.',
-  checkoutFailed: 'Your payment did not complete. You can try again from the Pro plans.',
-  checkoutSucceeded: 'Pro is active on your account.',
   checkoutUnreachable: 'Could not confirm your subscription. Check your connection and refresh.',
 
   eventLinkDetails:

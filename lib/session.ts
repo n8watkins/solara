@@ -9,7 +9,8 @@ import { clearLocalNotificationState, disableNotifications } from './notificatio
 import { clearGuestData, loadGuestPrefs } from './guest'
 import { clearReplacedGuestPlan, replacedGuestPlan, saveReplacedGuestPlan } from './guest-replaced'
 import { createAccountPrefs, loadFirestorePrefs } from './account-prefs'
-import { clearLocalPrefs, loadLocalPrefs } from './prefs'
+import { clearLocalPrefs } from './local-prefs'
+import { loadLocalPrefs } from './prefs'
 import { ACCOUNT_OWNER_KEY } from './app-routes'
 import { adoptGuestVitaminDLog } from './vitamin-d-owner'
 import type { UserPreferences } from './types'
@@ -125,7 +126,7 @@ export async function loadAccountPrefs(
 ): Promise<AccountLoadResult> {
   const result = await loadOrCreateAccount(uid, signedIn)
   if (result.status === 'ready') {
-    const replaced = replacedGuestPlan(loadGuestPrefs(), result.prefs)
+    const replaced = replacedGuestPlan(await loadGuestPrefs(), result.prefs)
     if (replaced) saveReplacedGuestPlan(uid, replaced)
     clearGuestData()
     // The guest's vitamin D log goes with the guest plan, to the account.
@@ -144,7 +145,7 @@ async function loadOrCreateAccount(
   if (result.status === 'error') return { status: 'error', stage: 'load', error: result.error }
   if (result.status === 'found') return { status: 'ready', prefs: result.prefs }
 
-  const guest = loadGuestPrefs()
+  const guest = await loadGuestPrefs()
   const local = loadLocalPrefs()
   const seed = guest ?? (local && (!local.uid || local.uid === uid) ? local : null)
   if (!seed) return { status: 'needs-onboarding' }

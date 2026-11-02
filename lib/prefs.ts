@@ -1,16 +1,17 @@
 import { NewerPreferencesVersionError, parsePreferences, PREFS_SCHEMA_VERSION } from '@solara/core'
 import type { UserPreferences, Location } from './types'
 import { PRESET_ACTIVITIES, ACTIVITY_CATEGORIES } from '@solara/core/tiers'
+import { PREFS_KEY, saveLocalPrefs } from './local-prefs'
 
 // The document schema, its versions and migrations live in @solara/core
 // (packages/core/src/prefs.ts). This module adds what depends on the app's activity
 // catalog and keeps the browser copy; the Firestore account document is read and written
 // by lib/account-prefs.ts, which loads only for an account, so a guest's first load never
-// carries it.
+// carries it. This module runs the Valibot schema, so a guest's first load never carries it
+// either: writing the browser copy is lib/local-prefs.ts, and a guest's own plan is read
+// by lib/guest.ts (ROADMAP item 52).
 
 export { NewerPreferencesVersionError, PREFS_SCHEMA_VERSION }
-
-const PREFS_KEY = 'solara_prefs'
 
 const PRESETS = new Map(PRESET_ACTIVITIES.map(preset => [preset.id, preset]))
 const CATEGORY_NAMES = new Set(ACTIVITY_CATEGORIES.map(category => category.name))
@@ -69,47 +70,5 @@ export function loadLocalPrefs(): UserPreferences | null {
       localStorage.removeItem(PREFS_KEY)
     } catch {}
     return null
-  }
-}
-
-/**
- * Stores preferences in this browser. Preferences read from a newer schema version
- * are not written back, so this client never downgrades them.
- *
- * Never throws: the copy here is only a cache of the account, so full or blocked
- * storage must not stop the account write that follows.
- */
-export function saveLocalPrefs(prefs: Partial<UserPreferences>): void {
-  if (typeof window === 'undefined') return
-  if ((prefs.schemaVersion ?? 0) > PREFS_SCHEMA_VERSION) return
-  try {
-    localStorage.setItem(
-      PREFS_KEY,
-      JSON.stringify({ ...prefs, schemaVersion: PREFS_SCHEMA_VERSION }),
-    )
-  } catch {}
-}
-
-export function clearLocalPrefs(): void {
-  if (typeof window === 'undefined') return
-  try {
-    localStorage.removeItem(PREFS_KEY)
-  } catch {}
-}
-
-export function defaultPrefs(location: Location): UserPreferences {
-  return {
-    uid: '',
-    schemaVersion: PREFS_SCHEMA_VERSION,
-    location,
-    savedLocations: [],
-    skinType: 'fair',
-    sunscreen: false,
-    activities: [],
-    tier: 'anonymous',
-    onboardingComplete: false,
-    hiddenActivitySuggestionIds: [],
-    collapsedActivityCategories: [],
-    notificationHour: 7,
   }
 }

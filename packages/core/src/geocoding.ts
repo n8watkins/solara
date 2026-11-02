@@ -1,22 +1,11 @@
 // Geocoding responses (Open-Meteo place search and OpenStreetMap Nominatim reverse
 // lookup) validated at the boundary with Valibot, plus the coordinate rounding every
-// stored or transmitted position goes through.
+// stored or transmitted position goes through (./coordinates.ts, apart from Valibot).
 
 import * as v from 'valibot'
 import { finiteNumber, record } from './schema'
 
-/**
- * Coordinates are rounded to 2 decimals (about 1 km) before they leave the
- * device or are stored. That is plenty for a UV forecast and a city name, and it
- * avoids sending or keeping an exact home position.
- */
-export const COORDINATE_DECIMALS = 2
-
-export function roundCoordinate(value: number): number {
-  const factor = 10 ** COORDINATE_DECIMALS
-  // `+ 0` folds -0 into 0 so rounded values compare and serialize cleanly.
-  return Math.round(value * factor) / factor + 0
-}
+export { COORDINATE_DECIMALS, roundCoordinate } from './coordinates'
 
 /** An optional text field: anything that is not a string counts as missing. */
 const optionalText = v.fallback(v.optional(v.string()), undefined)

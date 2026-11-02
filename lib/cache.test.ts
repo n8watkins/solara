@@ -132,6 +132,47 @@ describe('forecast cache', () => {
     expect(getCachedForecast(34.05, -118.24)).toEqual(forecast())
   })
 
+  it('drops an entry with any hour out of shape, and keeps nothing it does not know', () => {
+    const hour = { date: '2026-06-15', hour: 10, uv: 6.2, tempC: 24.5, condition: 'Clear' }
+    const withHour = (bad: Record<string, unknown>) =>
+      forecast({ days: [{ dateStr: '2026-06-15', hourly: [hour, { ...hour, ...bad }] }] })
+    const bad = [
+      withHour({ hour: 24 }),
+      withHour({ hour: 9.5 }),
+      withHour({ uv: -0.1 }),
+      withHour({ tempC: null }),
+      withHour({ condition: 3 }),
+      withHour({ date: 20260615 }),
+      withHour({ cloudCover: '50%' }),
+      withHour({ clearSkyUV: -1 }),
+      withHour({ rainChance: 101 }),
+      withHour({ feelsC: Number.POSITIVE_INFINITY }),
+      forecast({
+        days: [{ dateStr: '2026-06-15', hourly: Array.from({ length: 25 }, () => hour) }],
+      }),
+      { ...forecast(), stale: 'yes' },
+      { ...forecast(), days: 'none' },
+    ]
+    localStorage.setItem(
+      CACHE_KEY,
+      JSON.stringify({
+        version: CACHE_VERSION,
+        entries: bad.map((data, n) => ({ key: locationKey(n, n), data })),
+      }),
+    )
+    bad.forEach((_, n) => expect(getCachedForecast(n, n), `entry ${n}`).toBeNull())
+
+    const extra = { ...forecast(), injected: true, current: { ...forecast().current, x: 1 } }
+    localStorage.setItem(
+      CACHE_KEY,
+      JSON.stringify({
+        version: CACHE_VERSION,
+        entries: [{ key: locationKey(1, 1), data: extra }],
+      }),
+    )
+    expect(getCachedForecast(1, 1)).toStrictEqual(forecast())
+  })
+
   it('survives unparseable storage and removes the legacy cache', () => {
     localStorage.setItem(CACHE_KEY, '{not json')
     localStorage.setItem('solara_weather', JSON.stringify({ data: {}, lat: 1, lon: 1, ts: NOW }))

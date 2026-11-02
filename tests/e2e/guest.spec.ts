@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 import { startClock } from '../harness/clock'
 import { buildRawForecast } from '../harness/fixtures'
+import { onDemandModulesIn, recordScripts } from './on-demand-modules'
 
 // Guest mode without any Firebase project (the hermetic build): setup, the guest
 // dashboard on the guest plan, its limits and upsells, and a plan kept on this device.
@@ -71,6 +72,32 @@ test('a guest plans today with one activity, kept on this device', async ({ page
   await expect(page.getByTestId('upsell')).toHaveCount(0)
   const stored = await page.evaluate(() => localStorage.getItem('solara_guest'))
   expect(JSON.parse(stored!)).toMatchObject({ prefs: { uid: '', tier: 'anonymous' } })
+})
+
+test('a returning guest reads the plan setup saved without loading Valibot', async ({
+  page,
+  baseURL,
+}) => {
+  // ROADMAP item 52: the plan as the app saves it passes the hand-written check
+  // (lib/stored-plan.ts), so the preferences schema stays on the server until a
+  // dialog needs it; checked with and without an activity.
+  await startAsGuest(page)
+  const reopen = async (ready: string) => {
+    const recording = recordScripts(page, baseURL!)
+    await page.reload()
+    await expect(page.getByRole('toolbar', { name: 'UV forecast by hour' })).toBeVisible()
+    await expect(page.getByRole('button', { name: ready }).first()).toBeVisible()
+    const scripts = await recording.scripts()
+    expect(scripts.length).toBeGreaterThan(5)
+    expect(scripts.flatMap(({ body }) => onDemandModulesIn(body.toString('utf8')))).toEqual([])
+  }
+  await reopen('+ Add activity')
+
+  await page.getByRole('button', { name: '+ Add activity' }).first().click()
+  const add = page.getByRole('dialog', { name: 'Add activity' })
+  await add.getByRole('button', { name: /^Running 45 min/ }).click()
+  await add.getByRole('button', { name: 'Done' }).click()
+  await reopen('Edit Running')
 })
 
 test('the locked tab and the morning alert open the Pro plans', async ({ page }) => {

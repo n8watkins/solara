@@ -5,7 +5,7 @@
 
 import * as v from 'valibot'
 import { isValidFeedToken } from './feed-token'
-import { OpenMeteoResponseSchema } from './forecast'
+import { readOpenMeteoResponse } from './forecast'
 import { GeocodingResponseSchema } from './geocoding'
 import { finiteNumber, isPlainRecord, looseRecord, record } from './schema'
 
@@ -60,7 +60,15 @@ export const FUNCTION_RESPONSES = {
   }),
   revokeCalendarFeed: record({ revoked: v.boolean() }),
   /** The forecast proxy answers in Open-Meteo's shape, read by the same parser. */
-  forecast: OpenMeteoResponseSchema,
+  forecast: v.pipe(
+    v.unknown(),
+    v.rawTransform(({ dataset, addIssue, NEVER }) => {
+      const forecast = readOpenMeteoResponse(dataset.value)
+      if (forecast) return forecast
+      addIssue({ message: 'Forecast response was incomplete' })
+      return NEVER
+    }),
+  ),
   /** The place search proxy answers in Open-Meteo's geocoding shape. */
   placeSearch: GeocodingResponseSchema,
   /**

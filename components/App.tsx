@@ -1,9 +1,9 @@
 'use client'
 import { useEffect, useEffectEvent, useState, type ReactNode } from 'react'
-import { saveLocalPrefs } from '@/lib/prefs'
+import { saveLocalPrefs } from '@/lib/local-prefs'
 import { syncErrorFor, type SyncError } from '@/lib/sync-error'
 import { SIGN_IN_PARAM } from '@/lib/app-routes'
-import { loadGuestPrefs, saveGuestPrefs } from '@/lib/guest'
+import { guestPlanHasActivities, loadGuestPrefs, saveGuestPrefs } from '@/lib/guest'
 import { SignedInContext } from '@/lib/signed-in-context'
 import { takeUpdateNotice } from '@/lib/stale-build'
 import { canUseCalendar } from '@solara/core/tiers'
@@ -48,7 +48,7 @@ import t from '@/messages/app'
 // module runs, not after the first render.
 if (typeof window !== 'undefined') {
   if (storedSessionHint()) void preloadSignedInParts()
-  else if (loadGuestPrefs()?.activities.length) void preloadActivityPlan()
+  else if (guestPlanHasActivities()) void preloadActivityPlan()
 }
 // The install prompt loads later; the browser's install event is kept from now on.
 watchInstallPrompt()
@@ -204,8 +204,10 @@ function SignedInApp() {
 
   function handleStartAsGuest(answers: UserPreferences) {
     saveGuestPrefs(answers)
-    setPrefs(loadGuestPrefs() ?? answers)
-    setScreen('dashboard')
+    void loadGuestPrefs().then(guest => {
+      setPrefs(guest ?? answers)
+      setScreen('dashboard')
+    })
   }
 
   if (screen === 'loading') {

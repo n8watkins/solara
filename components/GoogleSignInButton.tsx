@@ -2,8 +2,7 @@
 import { use, useEffect, useState } from 'react'
 import clsx from 'clsx'
 import type { User } from 'firebase/auth'
-import { isSignInCancelled } from '@/lib/auth-errors'
-import { firebaseEnabled, loadFirebase, preloadFirebase } from '@/lib/firebase'
+import { firebaseEnabled, preloadFirebase } from '@/lib/firebase'
 import { loadGuestPrefs } from '@/lib/guest'
 import { SignedInContext } from '@/lib/signed-in-context'
 import { failedCodeUrl, recoverFromStaleBuild, type Recovery } from '@/lib/stale-build'
@@ -41,10 +40,14 @@ interface Props {
   preload?: boolean
 }
 
+/** The sign-in flow itself, which loads with the first sign of intent (warmUp). */
+const loadSignIn = () => import('@/lib/google-sign-in')
+
 /** Loads what sign-in and the signed-in screen need, ahead of the click. */
 function warmUp() {
   preloadFirebase()
   void preloadSignedInParts()
+  loadSignIn().catch(() => {})
 }
 
 const SIZES = {
@@ -111,41 +114,26 @@ export default function GoogleSignInButton({
   if (!firebaseEnabled) return null
 
   async function handleClick() {
+    warmUp()
     setLoading(true)
     setError(null)
     // Read before the popup: once signed in, the app's own account load may clear the
-    // guest plan from this browser while this is still running.
+    // guest plan from this browser while this is still running. loadGuestPrefs reads
+    // storage at once, before its first await.
     const seed = seedPrefs
       ? ({ prefs: seedPrefs, source: 'setup' } as const)
-      : (() => {
-          const guest = loadGuestPrefs()
-          return guest ? ({ prefs: guest, source: 'guest' } as const) : null
-        })()
+      : loadGuestPrefs().then(guest =>
+          guest ? ({ prefs: guest, source: 'guest' } as const) : null,
+        )
+    // Its failure is reported through signInWithGoogle, not left unhandled before then.
+    void Promise.resolve(seed).catch(() => {})
     try {
-      const [services, { signInWithPopup }] = await Promise.all([
-        loadFirebase(),
-        import('firebase/auth'),
-      ])
-      const auth = services?.auth
-      const provider = services?.googleProvider
-      if (!auth || !provider) return
-      const result = await signInWithPopup(auth, provider, services.popupRedirectResolver)
-      const u = result.user
-      if (!u) return
-      // Creates the account only if it does not exist yet, in one transaction, so a
-      // returning account's saved document is never written here.
-      // The account document's code loads after the popup, which needs the click's
-      // activation, so a guest's first load does not carry it.
-      const account = seed
-        ? await (
-            await import('@/lib/account-prefs')
-          ).createAccountPrefs(u.uid, seed.prefs, seed.source)
-        : null
-      if (onSignedIn) onSignedIn(u, account)
-      else signedIn?.(account)
+      const { signInWithGoogle } = await loadSignIn()
+      const result = await signInWithGoogle(seed)
+      if (!result) return
+      if (onSignedIn) onSignedIn(result.user, result.account)
+      else signedIn?.(result.account)
     } catch (e) {
-      // Closing the popup is the person's choice; the button simply comes back.
-      if (isSignInCancelled(e)) return
       console.error('Google sign-in failed:', e)
       // Sign-in's code is gone from the server when Solara was deployed since this page
       // loaded: the page reloads to the new version (REVIEW10 VERIFY10 N2).

@@ -4,8 +4,14 @@
 // sign-in the guest plan seeds a brand-new account (lib/prefs.ts newAccountPrefs);
 // an account that already exists keeps its own plan, and the guest plan is dropped
 // either way (lib/session.ts loadAccountPrefs).
-import { normalizePrefs } from './prefs'
+//
+// Reading the plan back goes through the preferences schema (lib/prefs.ts), except when
+// the stored plan is already exactly what the schema would return (lib/stored-plan.ts),
+// which is how this module writes it: then the schema, and Valibot with it, need not load
+// for a returning guest's dashboard (ROADMAP item 52).
+import { PREFS_SCHEMA_VERSION } from '@solara/core/prefs-rules'
 import { TIER_LIMITS } from '@solara/core/tiers'
+import { isStoredGuestPlan } from './stored-plan'
 import type { UserPreferences } from './types'
 
 export const GUEST_KEY = 'solara_guest'
@@ -55,12 +61,31 @@ export function asGuestPrefs(prefs: UserPreferences): UserPreferences {
   }
 }
 
-/** The guest plan kept in this browser, or null when there is none. */
-export function loadGuestPrefs(): UserPreferences | null {
+/**
+ * The guest plan kept in this browser, or null when there is none. The plan is read
+ * from storage at once (before the first await); a plan in the form this module writes
+ * is used as it is, and any other goes through the preferences schema, which loads for
+ * it, and is then kept in that form (unless a newer version of Solara wrote it).
+ */
+export async function loadGuestPrefs(): Promise<UserPreferences | null> {
   const record = readRecord()
   if (!record) return null
+  if (isStoredGuestPlan(record.prefs)) return record.prefs
+  const { normalizePrefs } = await import('./prefs')
   const prefs = normalizePrefs(record.prefs)
-  return prefs ? asGuestPrefs(prefs) : null
+  if (!prefs) return null
+  const guest = asGuestPrefs(prefs)
+  if (guest.schemaVersion === PREFS_SCHEMA_VERSION) saveGuestPrefs(guest)
+  return guest
+}
+
+/**
+ * Whether the guest plan kept here has activities, without reading it through the
+ * schema: only a hint to fetch the activity plan's code early (components/App.tsx).
+ */
+export function guestPlanHasActivities(): boolean {
+  const prefs = readRecord()?.prefs as { activities?: unknown } | undefined
+  return Array.isArray(prefs?.activities) && prefs.activities.length > 0
 }
 
 /** Keeps the guest plan in this browser, remembering the day it was first saved. */

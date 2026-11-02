@@ -1,5 +1,5 @@
 // The banner shown when saving preferences to the account fails (components/App.tsx).
-import { NewerPreferencesVersionError } from '@solara/core'
+import { NewerPreferencesVersionError } from '@solara/core/prefs-rules'
 import m from '@/messages/dashboard'
 
 /** A failed cloud save: retry it, or reload when a newer Solara wrote the document. */

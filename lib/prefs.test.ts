@@ -1,5 +1,6 @@
 import { afterEach, describe, it, expect, vi } from 'vitest'
-import { defaultPrefs, normalizePrefs, saveLocalPrefs } from '@/lib/prefs'
+import { defaultPrefs, saveLocalPrefs } from '@/lib/local-prefs'
+import { normalizePrefs } from '@/lib/prefs'
 import type { Location } from '@/lib/types'
 
 const LA: Location = { lat: 34.05, lon: -118.24, city: 'Los Angeles', region: 'CA' }
@@ -9,7 +10,7 @@ function base(extra: Record<string, unknown>) {
   return normalizePrefs({ location: LA, ...extra })!
 }
 
-describe('normalizePrefs — savedLocations', () => {
+describe('normalizePrefs: savedLocations', () => {
   it('defaults to empty and accepts valid entries', () => {
     expect(base({}).savedLocations).toEqual([])
     expect(base({ savedLocations: [NYC] }).savedLocations).toEqual([NYC])
@@ -92,7 +93,7 @@ describe('normalizePrefs - display units', () => {
   })
 })
 
-describe('normalizePrefs — activity routine + cloud fields', () => {
+describe('normalizePrefs: activity routine and cloud fields', () => {
   it('normalizes daysOfWeek (none/all-seven → undefined, else sorted unique subset)', () => {
     const act = (daysOfWeek: unknown) =>
       base({ activities: [{ id: 'run', name: 'Run', daysOfWeek }] }).activities[0]!

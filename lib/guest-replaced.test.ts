@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { defaultPrefs } from '@/lib/prefs'
+import { defaultPrefs } from '@/lib/local-prefs'
 import {
   GUEST_REPLACED_KEY,
   clearReplacedGuestPlan,

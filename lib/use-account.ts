@@ -11,7 +11,7 @@ import {
   type StoredSessionUser,
 } from './firebase'
 import { loadGuestPrefs } from './guest'
-import { saveLocalPrefs } from './prefs'
+import { saveLocalPrefs } from './local-prefs'
 import { useForecastStore } from './use-forecast'
 import {
   accountLoadError,
@@ -140,7 +140,8 @@ export function useAccount({
         // Drop the previous account's state so a later sign-in can never show it.
         if (previousUid) resetAccountState()
         settle()
-        const guest = loadGuestPrefs()
+        const guest = await loadGuestPrefs()
+        if (isStale()) return
         setPrefs(guest)
         setScreen(prev =>
           // The session shown from this browser's copy has ended: as from a fresh start.
@@ -312,9 +313,10 @@ export function useAccount({
     },
     /** Leaves the sign-in screen for the guest plan, or for setup without one. */
     continueAsGuest: () => {
-      const guest = loadGuestPrefs()
-      setPrefs(guest)
-      setScreen(guest ? 'dashboard' : 'onboarding')
+      void loadGuestPrefs().then(guest => {
+        setPrefs(guest)
+        setScreen(guest ? 'dashboard' : 'onboarding')
+      })
     },
   }
 }

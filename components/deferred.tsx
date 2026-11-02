@@ -351,7 +351,8 @@ export const SharedItem = deferred(
  * Loads the signed-in parts now, for a session about to show (a stored session at
  * start-up, or a sign-in in progress), so they render with the rest of the screen
  * instead of popping in: the header's account menu and profile switcher, scheduled
- * activities and the dashboard's activity plan. Never rejects.
+ * activities and the dashboard's activity plan, and the preferences schema that reads
+ * this browser's copy of the account (lib/cached-account.ts). Never rejects.
  */
 export function preloadSignedInParts(): Promise<void> {
   return Promise.all([
@@ -359,6 +360,7 @@ export function preloadSignedInParts(): Promise<void> {
     ProfileSwitcher.preload(),
     AccountScheduled.preload(),
     preloadActivityPlan(),
+    import('@/lib/prefs'),
   ]).then(
     () => {},
     () => {},

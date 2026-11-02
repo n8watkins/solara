@@ -75,4 +75,11 @@ export default {
   renewsOn: (plan, day) => punto(`${plan}. Se renueva el ${day}`),
   planOnly: plan => `${plan}.`,
   accountServicesUnavailable: 'Los servicios de la cuenta no están disponibles.',
+
+  checkoutCanceled: 'Se canceló el pago. No se te cobró nada.',
+  checkoutNoSession: 'El pago se completó. Actualiza la página para confirmar tu suscripción.',
+  checkoutConfirming: 'Confirmando tu suscripción...',
+  checkoutPending: 'Tu pago todavía se está procesando. Pro se activará solo cuando termine.',
+  checkoutFailed: 'Tu pago no se completó. Puedes volver a intentarlo desde los planes Pro.',
+  checkoutSucceeded: 'Pro está activo en tu cuenta.',
 } satisfies Translation<typeof pricing>
