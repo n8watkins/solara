@@ -313,11 +313,16 @@ export const PREFERENCES_SHAPE = {
     v.pipe(v.number(), v.safeInteger(), v.minValue(1)),
     PREFS_SCHEMA_VERSION,
   ),
-  /** The active location. */
+  /**
+   * Home: the place setup and Settings choose, and the one the server's calendar feed and
+   * alerts use. The app may show another place for a while on one device (a visit, ROADMAP
+   * item 53, lib/travel-place.ts), which never changes this.
+   */
   location: LocationSchema,
   /**
-   * Quick-switch shortcuts, deduplicated by position and capped. The active location is
-   * pinned separately in the UI, so changing it is never gated; only saving extras is.
+   * Saved places for quick switching, deduplicated by position and capped. Home is shown
+   * with them and counts toward the plan's limit (TIER_LIMITS.savedLocations), so changing
+   * home is never gated; only saving more places is.
    */
   savedLocations: v.pipe(
     listOf(LocationSchema),
