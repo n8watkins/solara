@@ -12,7 +12,7 @@ rules:
   unpinned-uses:
     config:
       policies:
-        "n8watkins/release-kit": ref-pin
+        "n8watkins/release-kit/*": ref-pin
         "*": hash-pin
   # auto-merge.yml runs on workflow_run so it can act after CI with write access;
   # it only enables auto-merge for Dependabot and kit update PRs and checks out no
