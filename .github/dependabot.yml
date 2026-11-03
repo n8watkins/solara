@@ -1,6 +1,20 @@
 # Dependabot version updates. Security updates follow the repository's
 # Dependabot security settings (see SECURITY.md).
+#
+# Solara's own file (release-kit apply leaves a file it did not write alone), plus
+# release-kit's multi-ecosystem group: a new kit release arrives as one PR that
+# moves the dev dependency (npm) and the workflow pins (github-actions) together.
+# The kit is excluded from the cooldown, which would otherwise propose a downgrade
+# to an older tag. Entries in the group may not set open-pull-requests-limit.
 version: 2
+
+multi-ecosystem-groups:
+  release-kit:
+    schedule:
+      interval: daily
+    commit-message:
+      prefix: build
+      include: scope
 
 updates:
   - package-ecosystem: npm
@@ -8,13 +22,16 @@ updates:
     schedule:
       interval: weekly
       day: monday
+    patterns: ["release-kit"]
+    multi-ecosystem-group: release-kit
     # Let new releases age a week before proposing them (supply-chain cooldown).
     cooldown:
       default-days: 7
-    open-pull-requests-limit: 10
+      exclude: ["release-kit"]
     groups:
       web-minor-and-patch:
         update-types: [minor, patch]
+        exclude-patterns: ["release-kit"]
     ignore:
       # Node type definitions must match the Node 24 runtime (.nvmrc, the root and
       # Functions engines "24"). Move this when the runtime moves.
@@ -39,8 +56,22 @@ updates:
         versions: ['>=25']
 
   - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    patterns: ["n8watkins/release-kit*"]
+    multi-ecosystem-group: release-kit
+    cooldown:
+      default-days: 7
+      exclude: ["n8watkins/release-kit*"]
+    groups:
+      actions:
+        patterns: ['*']
+        exclude-patterns: ["n8watkins/release-kit*"]
+
+  - package-ecosystem: github-actions
     directories:
-      - /
       - /.github/actions/*
     schedule:
       interval: weekly
@@ -48,5 +79,5 @@ updates:
     cooldown:
       default-days: 7
     groups:
-      actions:
+      local-actions:
         patterns: ['*']

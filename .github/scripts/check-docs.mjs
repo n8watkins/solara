@@ -21,8 +21,8 @@ import { existsSync, readFileSync, statSync } from 'node:fs'
 import { dirname, join, normalize, relative, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-/** Generated files that are not ours to fix. */
-const SKIP_FILES = new Set(['AGENTS.md'])
+/** Generated files that are not ours to fix (RELEASING.md is release-kit's; apply rewrites it). */
+const SKIP_FILES = new Set(['AGENTS.md', 'RELEASING.md'])
 const ARCHIVE_PREFIX = 'docs/archive/'
 const FILE_EXTENSIONS = new Set([
   'md',

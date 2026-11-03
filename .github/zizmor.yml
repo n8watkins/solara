@@ -5,3 +5,18 @@ rules:
   # here only point at files from the same checkout.
   self-repository:
     disable: true
+  # release-kit's callers pin the kit's reusable workflows by release tag
+  # (n8watkins/release-kit/...@vX.Y.Z): the kit's update PRs and rollout move that
+  # tag, and the called workflow fetches the kit's scripts at the same ref. Every
+  # other action stays pinned to a commit hash.
+  unpinned-uses:
+    config:
+      policies:
+        "n8watkins/release-kit/*": ref-pin
+        "*": hash-pin
+  # auto-merge.yml runs on workflow_run so it can act after CI with write access;
+  # it only enables auto-merge for Dependabot and kit update PRs and checks out no
+  # pull request code (see the kit's docs/AUTO_MERGE.md).
+  dangerous-triggers:
+    ignore:
+      - auto-merge.yml
