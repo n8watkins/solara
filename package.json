@@ -41,7 +41,10 @@
     "test:e2e:budget": "playwright test -c tests/e2e/budget/playwright.config.ts",
     "format": "prettier --write \"**/*.{ts,tsx,mts,js,mjs,cjs,css}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,mts,js,mjs,cjs,css}\"",
-    "test:harness": "playwright test -c playwright.harness.config.ts"
+    "test:harness": "playwright test -c playwright.harness.config.ts",
+    "release": "release-kit release",
+    "release:check": "release-kit check && npm ci --prefix functions --ignore-scripts && npm run lint && npm run typecheck && npm test && npm run build",
+    "prepare": "git config core.hooksPath .githooks || true"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.3.0",
@@ -70,6 +73,7 @@
     "eslint-config-prettier": "^10.1.8",
     "postcss": "^8.5.32",
     "prettier": "^3.9.10",
+    "release-kit": "github:n8watkins/release-kit#v2.5.2",
     "rolldown": "^1.2.15",
     "tailwindcss": "^4.3.3",
     "typescript": "^6.0.3",
