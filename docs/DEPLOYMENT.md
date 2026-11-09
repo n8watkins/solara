@@ -253,6 +253,8 @@ The policy itself is defined in `lib/csp.mts`; add a host there, with a comment 
 The Functions origin, Firebase auth domain and Sentry ingest host come from `NEXT_PUBLIC_FUNCTIONS_URL`, `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` and `NEXT_PUBLIC_SENTRY_DSN` at build time, so deploy the `out/` directory produced by the same build.
 Without a DSN the policy names no Sentry host.
 `firebase.json` adds the directives a meta tag cannot carry (`frame-ancestors`) as a header.
+The planner (`/app/` and the pages under it) gets the same header policy with `frame-ancestors https://n8builds.dev https://*.n8builds.dev` (`APP_HEADER_POLICY` in `lib/csp.mts`), so Solara's build page on n8builds.dev can let visitors try it as a guest in a sandboxed frame; every other page keeps `frame-ancestors 'none'`.
+Browsers ignore the site-wide `X-Frame-Options: DENY` when a policy carries `frame-ancestors`, so it stays.
 Only an emulator build for the signed-in e2e suite (`NEXT_PUBLIC_FIREBASE_EMULATORS=1`) also frames `'self'`, where the Auth emulator serves its sign-in helper; production builds refuse that flag (`scripts/check-no-emulators.mjs`).
 Because the meta policy cannot send reports, violations show only in the browser console; check the console on the deployed site after a release.
 Unknown paths are served the exported `404.html` with a 404 status; there is no catch-all rewrite.

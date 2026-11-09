@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import {
   cspEnvFrom,
+  APP_HEADER_POLICY,
   HEADER_POLICY,
   httpsOrigin,
   injectCspMeta,
@@ -331,6 +332,30 @@ describe('firebase.json hosting', () => {
   it('sends the header policy from lib/csp.mts, with no unsafe-inline anywhere', () => {
     expect(header('Content-Security-Policy')).toBe(serializePolicy(HEADER_POLICY))
     expect(JSON.stringify(hosting)).not.toContain('unsafe-inline')
+  })
+
+  it('lets n8builds.dev frame the planner only, with the same policy otherwise', () => {
+    const app = hosting.headers.filter(rule => rule.source === '/app{,/**}')
+    expect(app).toEqual([
+      {
+        source: '/app{,/**}',
+        headers: [{ key: 'Content-Security-Policy', value: serializePolicy(APP_HEADER_POLICY) }],
+      },
+    ])
+    // A later rule wins: it must come after the site-wide one.
+    expect(hosting.headers.indexOf(app[0])).toBeGreaterThan(
+      hosting.headers.findIndex(rule => rule.source === '**'),
+    )
+    expect(APP_HEADER_POLICY['frame-ancestors']).toEqual([
+      'https://n8builds.dev',
+      'https://*.n8builds.dev',
+    ])
+    expect({ ...APP_HEADER_POLICY, 'frame-ancestors': ["'none'"] }).toEqual(HEADER_POLICY)
+    // No other rule sends a policy: every other page stays unframable.
+    const policies = hosting.headers.filter(rule =>
+      rule.headers.some(h => h.key === 'Content-Security-Policy'),
+    )
+    expect(policies.map(rule => rule.source)).toEqual(['**', '/app{,/**}'])
   })
 
   it('serves unknown paths as 404 instead of rewriting them to the app', () => {

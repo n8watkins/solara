@@ -53,6 +53,25 @@ export const HEADER_POLICY: CspDirectives = {
   'form-action': ["'self'"],
 }
 
+/**
+ * Who may frame the planner (`/app/`): n8builds.dev, whose Solara build page
+ * lets visitors try the app as a guest in a sandboxed frame instead of looking
+ * at screenshots. A `*.` source matches subdomains only, so the bare domain is
+ * listed too. Every other page (the landing page, account, sign-in) keeps
+ * `frame-ancestors 'none'`.
+ */
+export const APP_FRAME_ANCESTORS = ['https://n8builds.dev', 'https://*.n8builds.dev']
+
+/**
+ * The header policy for `/app/` and the pages under it: the same directives,
+ * framable by APP_FRAME_ANCESTORS. Browsers ignore X-Frame-Options when a
+ * policy has frame-ancestors, so the site-wide `X-Frame-Options: DENY` stays.
+ */
+export const APP_HEADER_POLICY: CspDirectives = {
+  ...HEADER_POLICY,
+  'frame-ancestors': APP_FRAME_ANCESTORS,
+}
+
 // Each third-party source and what needs it. Keep the privacy policy's
 // processor list in sync when adding one.
 const SCRIPT_SOURCES = [
