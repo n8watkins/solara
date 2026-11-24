@@ -25,7 +25,7 @@ Open pull requests and CI are the live truth for anything in flight: `gh pr list
 ## The handoff process
 
 Work is run by a coordinating session that launches parallel lanes, each in its own worktree from `origin/main`, and merges their pull requests.
-It keeps its notes outside the repository, in `/home/natkins/projects/solara/handoff/`: its HANDOFF.md (the live merge queue and the next steps), lane-common.md (the rules every lane follows), the review reports and their probes, and per-lane notes.
+It keeps its notes outside the repository, in `/home/natkins/ops/handoffs/solara/`: its HANDOFF.md (the live merge queue and the next steps), lane-common.md (the rules every lane follows), the review reports and their probes, and per-lane notes.
 Read that folder's HANDOFF.md before launching lanes or merging, and do not merge or rebase another lane's pull request without checking it first.
 When a session ends, it updates that folder's HANDOFF.md; anything that changes what is live, built or decided goes into status.md, ROADMAP.md or the owner checklist in the same pull request as the change, never only into a handoff note.
 
