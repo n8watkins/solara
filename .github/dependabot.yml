@@ -50,6 +50,11 @@ updates:
       functions-minor-and-patch:
         update-types: [minor, patch]
     ignore:
+      # A new stripe release moves the SDK's API version, which billing/config.ts
+      # pins on purpose and the webhook endpoint in the Stripe dashboard must match.
+      # Take stripe by hand, after reviewing the API changes; security updates
+      # still arrive. Remove this when that review is part of a routine.
+      - dependency-name: 'stripe'
       # Node type definitions must match the Node 24 runtime (.nvmrc, the root and
       # Functions engines "24"). Move this when the runtime moves.
       - dependency-name: '@types/node'
